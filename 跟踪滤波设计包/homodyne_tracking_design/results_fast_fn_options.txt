@@ -1,0 +1,24 @@
+审计项2: FAST fn 选项研究 -- (100 kHz, 30 m/s) 守卫回退点
+  选项A: 保持 fn=1.6M + cfg 上报 guard_ok/overrange; 选项B: fn 提高到 2.1-2.2M 使守卫通过
+  P1 = 案例c (100 kHz, 30 m/s, CNR=3dB, B_frontend=40MHz); P2 = 3 MHz 规格点 (20 mm/s), 6 seeds
+
+      fn  B_loop B_l/B_win phi_err(c) guard |  P1 clean     P1噪中值   滑周max  near_pi中值 |  P2 clean     P2增益中值
+   1.60M   7.08M      1.77     1.501r  FAIL |    -0.00%    -5.50%       2        354 |    +0.02%     +7.92dB
+   2.00M   8.85M      2.21     0.963r    OK |    -0.00%    -1.46%       0        238 |    +0.00%     +5.81dB
+   2.10M   9.29M      2.32     0.874r    OK |    -0.00%    -1.30%       1        236 |    +0.00%     +5.21dB
+   2.20M   9.73M      2.43     0.797r    OK |    -0.00%    -0.94%       0        230 |    +0.00%     +4.62dB
+
+  结论 (实测):
+  - 选项B (fn=2.1/2.2M) 确实通过守卫 (phi_err 0.87/0.80 rad ≤ 1) 且 P1 含噪误差略优 (-0.9% vs -5.5%), 滑周 0;
+  - 但 P2 (3 MHz 规格点, FAST 存在的理由) 弱光 SNR 增益损失 3.3 dB (+7.92 -> +4.62 dB @ fn=2.2M): B_loop 从 7.1M 增到 9.7M, 进一步超出 B_win=4M (click 清除更差 + 环内噪声更大);
+  - 选项A 在 P1 已满足产品判据 (clean -0.00%, 含噪中值 -5.5% < 10%, 滑周 max 2 每 0.5 ms 记录, 50-seed 分位数见 validate_app A8).
+  推荐: 选项A -- 保持 FAST fn=1.6M, 通过 cfg_for_frequency 的
+  guard_ok=False/overrange=True 把 66-100 kHz × 高速降级区上报给产品.
+  (若未来规格要求 f>100 kHz 同时 30 m/s, 再重开本研究: 滑周极限
+  phi_err=pi 在 fn=1.6M 时为 215 kHz @30 m/s.)
+  [PASS] FN1  选项B 守卫: fn=2.1/2.2M 在 (100kHz, 30m/s) phi_err ≤ 1 rad  (2.1M: 0.874r, 2.2M: 0.797r)
+  [PASS] FN2  选项B 代价: fn=2.2M 在 3 MHz 规格点损失 ≥ 2 dB 弱光 SNR 增益 (决策依据)  (+7.92 -> +4.62 dB (Δ=3.29 dB))
+  [PASS] FN3  选项A 可用性: fn=1.6M 在案例c clean |err|<5%, 含噪中值 |err|<10% (含噪滑周分位数由 validate_app A8/N2 断言)  (clean -0.00%, 含噪中值 -5.50%, 含噪滑周max 2)
+
+ALL CHECKS PASSED  (3/3)
+[elapsed 6.4 s]
