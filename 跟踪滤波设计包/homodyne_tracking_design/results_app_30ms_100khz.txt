@@ -102,37 +102,38 @@ A2  端到端弱光仿真 (CNR=3dB, B_frontend=40MHz, 6 seeds, gear_filter/R1-R3
 
   案例 a)  f0=100 kHz, v_peak=0.02 m/s (fD_peak=0.03 MHz) -- 典型工况 (VAMP 默认 20 mm/s)
       select_band=SLOW, hysteresis(SLOW起步)=SLOW
-    gear       phi_err | ampErr full  ampErr NCO  slips | ampErr noisy |          SNRgain full dB |  NCO dB | lock%
-    SLOW       0.0974r |      -0.00%      +9.70%      0 |       -3.19% |  +37.52 [ +36.47, +39.87] | +37.12 |  92.7  <== auto
-    MEDIUM    0.00862r |      -0.00%      +3.03%      0 |       -1.45% |  +37.37 [ +36.45, +39.72] | +36.71 |  98.0
-    FAST        0.001r |      -0.00%      +0.38%      0 |      +73.48% |  +11.52 [ +10.34, +12.63] | +12.90 |  99.0
+    gear       phi_err | ampErr full  ampErr NCO  slips | ampErr noisy   np噪中值 |          SNRgain full dB |  NCO dB | lock%
+    SLOW       0.0974r |      -0.00%      +9.70%      0 |       -3.19%     167 |  +37.52 [ +36.47, +39.87] | +37.12 |  92.7  <== auto
+    MEDIUM    0.00862r |      -0.00%      +3.03%      0 |       -1.45%     167 |  +37.37 [ +36.45, +39.72] | +36.71 |  98.0
+    FAST        0.001r |      -0.00%      +0.38%      0 |      +73.48%     160 |  +11.52 [ +10.34, +12.63] | +12.90 |  99.0
 
   案例 b)  f0=10 kHz, v_peak=30 m/s (fD_peak=38.71 MHz) -- 低频 x 最高速
       select_band=FAST, hysteresis(SLOW起步)=FAST
-    gear       phi_err | ampErr full  ampErr NCO  slips | ampErr noisy |          SNRgain full dB |  NCO dB | lock%
-    SLOW         31.5r |     -96.89%     -99.23%   5788 |      -97.93% |  +27.43 [ +25.09, +31.66] | +13.94 |  98.2
-    MEDIUM       1.38r |      -0.00%      +0.04%      0 |       -6.33% |  +57.64 [ +55.23, +61.49] | +56.06 |  99.5
-    FAST        0.151r |      -0.00%      +0.00%      0 |       -0.07% |  +13.13 [ +10.91, +13.71] | +12.77 |  99.7  <== auto
+    gear       phi_err | ampErr full  ampErr NCO  slips | ampErr noisy   np噪中值 |          SNRgain full dB |  NCO dB | lock%
+    SLOW         31.5r |     -96.89%     -99.23%   5788 |      -97.93%    5878 |  +27.43 [ +25.09, +31.66] | +13.94 |  98.2
+    MEDIUM       1.38r |      -0.00%      +0.04%      0 |       -6.33%    1127 |  +57.64 [ +55.23, +61.49] | +56.06 |  99.5
+    FAST        0.151r |      -0.00%      +0.00%      0 |       -0.07%     775 |  +13.13 [ +10.91, +13.71] | +12.77 |  99.7  <== auto
 
   案例 c)  f0=100 kHz, v_peak=30 m/s (fD_peak=38.71 MHz) -- 最高典型频率 x 最高速 (守卫最坏点)
       select_band=FAST [守卫fallback: 无档<=1rad], hysteresis(SLOW起步)=FAST
-    gear       phi_err | ampErr full  ampErr NCO  slips | ampErr noisy |          SNRgain full dB |  NCO dB | lock%
-    SLOW          146r |     -90.16%     -99.55%   2289 |      -97.27% |  +17.76 [ +14.24, +18.54] | -11.11 |  92.7
-    MEDIUM       12.9r |     -92.60%     -92.33%   2191 |      -93.68% |  +15.09 [ +11.74, +16.19] | +13.88 |  98.0
-    FAST          1.5r |      -0.00%      +0.38%      0 |       -5.50% |  +12.29 [  +7.83, +14.03] | +13.24 |  99.0  <== auto
+    gear       phi_err | ampErr full  ampErr NCO  slips | ampErr noisy   np噪中值 |          SNRgain full dB |  NCO dB | lock%
+    SLOW          146r |     -90.16%     -99.55%   2289 |      -97.27%    2214 |  +17.76 [ +14.24, +18.54] | -11.11 |  92.7
+    MEDIUM       12.9r |     -92.60%     -92.33%   2191 |      -93.68%    2040 |  +15.09 [ +11.74, +16.19] | +13.88 |  98.0
+    FAST          1.5r |      -0.00%      +0.38%      0 |       -5.50%     354 |  +12.29 [  +7.83, +14.03] | +13.24 |  99.0  <== auto
 
   案例 d)  f0=50 kHz, v_peak=5 m/s (fD_peak=6.45 MHz) -- 中间工况
       select_band=FAST, hysteresis(SLOW起步)=FAST
-    gear       phi_err | ampErr full  ampErr NCO  slips | ampErr noisy |          SNRgain full dB |  NCO dB | lock%
-    SLOW         19.8r |     -36.51%     -93.38%    385 |      -49.73% |  +40.16 [ +38.73, +42.87] | +19.91 |  92.8
-    MEDIUM       1.13r |      -0.00%      +0.85%      0 |       +0.00% |  +44.22 [ +42.31, +46.64] | +44.14 |  98.0
-    FAST        0.126r |      -0.00%      +0.10%      0 |       -0.76% |  +11.41 [  +8.45, +13.63] | +11.41 |  99.0  <== auto
+    gear       phi_err | ampErr full  ampErr NCO  slips | ampErr noisy   np噪中值 |          SNRgain full dB |  NCO dB | lock%
+    SLOW         19.8r |     -36.51%     -93.38%    385 |      -49.73%     898 |  +40.16 [ +38.73, +42.87] | +19.91 |  92.8
+    MEDIUM       1.13r |      -0.00%      +0.85%      0 |       +0.00%     188 |  +44.22 [ +42.31, +46.64] | +44.14 |  98.0
+    FAST        0.126r |      -0.00%      +0.10%      0 |       -0.76%     174 |  +11.41 [  +8.45, +13.63] | +11.41 |  99.0  <== auto
 
   [PASS] E1  案例a (100kHz, 20mm/s): 自动档=SLOW, clean|err|<5%, 噪声中值|err|<10%, SNRgain>+10dB  (sel=SLOW, err=-0.00%, noisy=-3.19%, gain=+37.52dB)
-  [PASS] E2  案例b (10kHz, 30m/s): 自动档 clean|err|<5%, 噪声中值|err|<10%, SNRgain>0dB  (sel=FAST, err=-0.00%, noisy=-0.07%, gain=+13.13dB, slips=0)
-  [PASS] E3  案例c (100kHz, 30m/s): 自动档 clean|err|<5%, 噪声中值|err|<10%, SNRgain>0dB, 档=FAST 且 clean 0 滑周  (sel=FAST, err=-0.00%, noisy=-5.50%, gain=+12.29dB, slips=0)
-  [PASS] E4  案例d (50kHz, 5m/s): 自动档 clean|err|<5%, 噪声中值|err|<10%, SNRgain>0dB  (sel=FAST, err=-0.00%, noisy=-0.76%, gain=+11.41dB, slips=0)
+  [PASS] E2  案例b (10kHz, 30m/s): 自动档 clean|err|<5%, 噪声中值|err|<10%, SNRgain>0dB  (sel=FAST, err=-0.00%, noisy=-0.07%, gain=+13.13dB, slips=0, noisy slips max=0)
+  [PASS] E3  案例c (100kHz, 30m/s): 自动档 clean|err|<5%, 噪声中值|err|<10%, SNRgain>0dB, 档=FAST 且 clean 0 滑周, cfg guard_ok=False/overrange=True (审计项2, 选项A: 保持 fn=1.6M 并上报降级区)  (sel=FAST, err=-0.00%, noisy=-5.50%, gain=+12.29dB, slips=0, noisy slips max=2, guard_ok=False, overrange=True, cfg phi_err=1.501r (噪声滑周界限见 A8/N2))
+  [PASS] E4  案例d (50kHz, 5m/s): 自动档 clean|err|<5%, 噪声中值|err|<10%, SNRgain>0dB  (sel=FAST, err=-0.00%, noisy=-0.76%, gain=+11.41dB, slips=0, noisy slips max=0)
   [PASS] E5  守卫必要性: 案例c 强制 MEDIUM (违守卫 12.9rad) clean|err|>20% (守卫升档不是保守而是必须)  (-92.6%)
+  [PASS] G1  守卫标志 API: 案例a/b/d cfg guard_ok=True/overrange=False, phi_err 与解析一致 (审计项2)  (a:SLOW 0.0974r; b:FAST 0.151r; d:FAST 0.126r)
 
 ======================================================================================
 A3  换档迟滞: 用户相关的频率/速度阶跃 -- 一次一档降档是否造成临时错档?
@@ -168,6 +169,71 @@ A3  换档迟滞: 用户相关的频率/速度阶跃 -- 一次一档降档是否
   [PASS] H1  T2 升档: 阶跃后第 1 次更新即到守卫档 (FAST)  (update2: FAST (target FAST))
   [PASS] H2  T3 降档: 中间档全部守卫安全 (无临时错档), 2 次更新内到最优档  (路径 FAST->MEDIUM->SLOW->SLOW->SLOW, max中间phi_err=0.0974r)
   [PASS] H3  T1: 50->100 kHz @20mm/s 全程 SLOW, 无档位抖动  (路径 SLOW->SLOW->SLOW->SLOW->SLOW)
+
+======================================================================================
+A6  前端模型一致性 (审计项1): 30 m/s 时 fD_peak=38.7 MHz > B_FRONTEND/2=20 MHz -- 参数化 B_frontend, 前端LPF作用于信号+噪声
+======================================================================================
+  A2 现模型: 噪声限带 ±20 MHz, 信号不限带 -- 在 30 m/s 处信号大部分时间位于噪声带外, "CNR=3dB" 不代表真实前端.
+  变体: 前端LPF = 线性相位 FIR (截止 B/2, 1025 taps, 理想模型 -- 实际硬件须用实测 I/Q 频响与噪声谱替代);
+  噪声策略: 总CNR恒定 3dB (扩带时 PSD 下降) vs PSD恒定 (扩带时总噪声功率增大, 等效CNR<3dB).
+
+  案例c (100 kHz, 30 m/s), FAST 档, 6 seeds:
+    id  变体                                      CNR_eff |  clean err  noisy err 中值  lock%  near_pi 中值
+    v0  B40 噪声±20M 信号不限带 (A2 现模型, 对照)             +3.0dB |     -0.00%        -7.67%   99.0         376
+    v1  B40 + 前端LPF (真实 40 MHz 前端)                +3.0dB |    -21.94%       -75.65%   82.9         204
+    v2  B86 总CNR=3dB + LPF (物理一致, 推荐指标)           +3.0dB |     -0.00%        -1.95%   99.0         362
+    v3  B100 总CNR=3dB + LPF (物理一致)                +3.0dB |     -0.00%        -4.86%   99.0         436
+    v4  B86 PSD恒定 + LPF (同光功率, 前端更宽)              -0.3dB |     -0.00%       -38.48%   98.3        1771
+    v5  B100 PSD恒定 + LPF                          -1.0dB |     -0.00%       -47.38%   97.6        2225
+
+  解读: v0 (现模型) 与 v2/v3 (物理一致, 总CNR=3dB) 的含噪误差同量级 -- A2 的结论在代表性前端模型下成立;
+  v1: 真实 40 MHz 前端把 30 m/s 信号削掉 (clean 已坏) -- 硬件前端必须 ≥ ±43 MHz;
+  v4/v5: 同光功率下扩带引入更多噪声, 等效 CNR 掉到 3dB 以下, 误差急剧恶化 -- CNR 指标必须在实际前端带宽上定义/实测.
+  [PASS] F1  物理一致前端 (B=86/100MHz, 总CNR=3dB, LPF on): FAST 含噪中值 |err| < 10% (案例c结论在代表性模型下成立)  (v2 -1.95%, v3 -4.86%)
+  [PASS] F2  真实 40 MHz 前端 (LPF 作用于信号) 无法通过 30 m/s: clean |err| > 20% (前端须扩至 ≥ ±43 MHz)  (clean -21.94%, noisy 中值 -75.65%)
+  [PASS] F3  PSD恒定扩带: 等效CNR < 3dB 且含噪中值 |err| > 20% (CNR 必须在实际前端带宽上定义/实测)  (v4 CNR-0.3dB err-38.5%, v5 CNR-1.0dB err-47.4%)
+
+======================================================================================
+A7  掉光重捕获 (审计项3): 30 m/s @ 100 kHz, 深衰落 -30 dB, 时长 2/10/50 µs, CNR 12/6/3 dB (B_frontend=86MHz 物理一致前端, 4 seeds)
+======================================================================================
+  指标: invalid% = 衰落窗内非 LOCK 样本占比 (产品 invalid 标志的可用性); relock = 光恢复到重新 LOCK 的时间;
+  rms_pre/post = 衰落前/重锁后+20µs 的速度 RMS 误差; gap = 跨衰落相位滑移 (周). 衰落起点取速度峰值 (+38.7 MHz Doppler, 最坏).
+
+        时长   CNR |         invalid%        relock µs rms_pre m/s rms_post m/s post/pre   gap 周(中值)
+       2µs  12dB |    0   0   0   0  0.0  0.0  0.0  0.0        0.54         0.54     1.00         226
+       2µs   6dB |    0   0   0   0  0.0  0.0  0.0  0.0        1.22         1.22     1.00         246
+       2µs   3dB |    0   0   0   0  0.0  0.0  0.0  0.0        7.94         7.67     0.97         297
+      10µs  12dB |   66  63  66  63  4.1  4.1  4.1  4.1        0.54         0.54     1.01         336
+      10µs   6dB |   72  67  74  70  4.4  4.3  4.4  4.3        1.21         1.26     1.03         359
+      10µs   3dB |   80  76  74  76  4.5  4.7  4.7  5.0        7.72         6.42     0.83         295
+      50µs  12dB |   93  93  93  93  4.1  4.1  4.1  4.1        0.54         0.54     0.99        1329
+      50µs   6dB |   94  95  94  95  4.3  4.3  4.4  4.3        1.24         1.25     1.01        1712
+      50µs   3dB |   96  95  96  96  4.8  4.7  4.8  4.5        7.67         7.76     1.01         986
+
+  产品需求 (本仿真文档化, 不是完整产品状态机): HOLD/ACQUIRE 期间必须置 invalid 标志; 任何衰落间隙上禁止位移积分 --
+  跨衰落相位滑移实测 226..1712 周 (30 m/s 时 NCO 飞轮只能外推, 位移连续性无法承诺, 即使 2 µs 衰落亦然);
+  2 µs 衰落短于门控检测常数 (tauP=1µs IIR + 0.25µs 确认), invalid 标志覆盖率实测 0-0% -- 不可靠; 若产品需要标记亚微秒级衰落, 须另加快速幅度监测通道.
+  [PASS] D1  全部 (时长×CNR×seed) 光恢复后重锁, relock ≤ 20 µs  (最大 5.0 µs (FAST acq_time=4µs + 门控检测延迟))
+  [PASS] D2  重锁后速度 RMS 误差恢复: 每组中值 post ≤ 1.5× pre  (最坏 post/pre = 1.03)
+  [PASS] D3  衰落 ≥ 10 µs: 全部 seed invalid 覆盖率 ≥ 60% (HOLD/ACQUIRE ⇒ invalid 标志可用; 2 µs 衰落仅报告不断言)  (2µs 覆盖率 0-0% (短于检测常数))
+
+======================================================================================
+A8  案例c 含噪 near-pi / 滑周统计 (审计项4): 50 seeds, CNR=3dB, FAST 档, gate=auto
+======================================================================================
+  区分两种事件: near_pi = 鉴相器 |e|>2.8 rad 的噪声激励瞬时越界 (代理量, 确定性峰值已达 1.5 rad);
+  slips = unwrap(angle(y_full)) 相对真实相位的 2π 跳变 (真滑周, 产品相关量). clean 与含噪分开断言: 含噪下不要求 near_pi=0, 只要求有界.
+
+  clean 参考: near_pi=0, slips=0
+  含噪分位数 (每 0.5 ms 记录, 50 seeds):
+    量                          p50     p90     p95     p99     max
+    near_pi 事件数                387     442     452     484     484
+    真滑周 slips                    0       1       1       2       2
+    |ampErr full| %           7.49   10.69   11.74   12.42   12.42
+
+  文档化限值 (fallback 区 100 kHz/30 m/s, phi_err=1.5 rad, CNR=3dB): 真滑周 p95 ≤ 3 / p99 ≤ 5 每 0.5 ms; near_pi 代理 p95 ≤ 700;
+  幅值误差中值 < 10% (与 E3 一致), p90 < 20%. 案例b (10 kHz, 30 m/s) phi_err=0.151 rad 守卫内, 其含噪滑周见 E2 detail (noisy slips max).
+  [PASS] N1  A8 clean 参考: near_pi=0 且真滑周=0 (与 E3 clean 判据一致)  (near_pi=0, slips=0)
+  [PASS] N2  含噪 50 seeds: 真滑周 p95≤3/p99≤5, near_pi p95≤700, |err| p50<10%/p90<20% (有界文档化限值, 非零缺陷)  (slips p95=1 p99=2 max=2, near_pi p95=452, |err| p50=7.49% p90=10.69%)
 
 ======================================================================================
 A4  结论 (用户应用: v_peak<=30 m/s, 典型 f<=100 kHz)
@@ -206,15 +272,26 @@ A4  结论 (用户应用: v_peak<=30 m/s, 典型 f<=100 kHz)
     - 需要档位关注的只有 v>20 m/s 且 f 接近 100 kHz 的组合
       (fallback 区), 本仿真已证明到 30 m/s 均正常.
 
-  [结论5] 是否需要改设计? 不需要 (仿真未发现问题).
+  [结论5] 是否需要改设计? 档位设计不需要; 有三点已实测/文档化的注意事项.
     guard-first 选档在最坏点 (100 kHz, 30 m/s) 实测正确工作; 迟滞无副作用.
-    两点非选档注意事项 (不改档位设计):
-    (1) 前端带宽: 30 m/s 时 fD_peak=38.7 MHz 超过 B_FRONTEND/2=
-        20 MHz 的噪声 ENBW 设定; 仿真中信号未被前端限带,
-        实际硬件模拟前端须通过 ±43 MHz
-        (fs=250 MS/s 复采样支持). 这是前端指标, 与选档无关.
-    (2) 若未来需求扩展到 f>100 kHz 且同时 30 m/s, 才需考虑提高 FAST fn
+    (1) 前端带宽 (A6 实测, 审计项1): 30 m/s 时 fD_peak=38.7 MHz 超过
+        B_FRONTEND/2=20 MHz; 真实 40 MHz 前端会削掉信号
+        (A6 v1: clean 误差已 >20%), 硬件前端必须通过
+        ±43 MHz (fs=250 MS/s 复采样支持), 且 CNR 指标
+        必须在实际前端带宽上定义/实测 (A6 v4/v5: 同 PSD 扩带等效 CNR<3dB,
+        误差 -39%/-47%). 物理一致模型下 (总CNR=3dB, B=86/100 MHz) 案例c 结论
+        成立 (A6 v2/v3 中值误差 -3..-5%).
+    (2) fallback 降级区 (审计项2, 选项A): 66-100 kHz × 高速组合超出 1 rad
+        守卫 (最坏 1.5 rad < pi), cfg_for_frequency 现返回
+        guard_ok=False/overrange=True 供产品上报; 保持 FAST fn=1.6M --
+        提高到 2.1-2.2 MHz 虽可满足守卫但在 3 MHz 规格点损失 ~2..3 dB 弱光
+        SNR (见 study_fast_fn_options.py). 含噪滑周有界: A8 实测 p95≤3 每
+        0.5 ms. 若未来需求扩展到 f>100 kHz 且同时 30 m/s, 再评估提高 FAST fn
         (滑周极限 215 kHz @30 m/s).
+    (3) 掉光行为 (A7 实测, 审计项3): 光恢复后 ~5 µs 重锁, 速度精度恢复;
+        但跨衰落相位滑移 10^1..10^3 周 -- HOLD/ACQUIRE 期间必须置 invalid
+        标志, 任何衰落间隙上禁止位移积分; 短于 ~2 µs 的深衰落不能保证被门控
+        标记 (检测常数限制).
 
 ======================================================================================
 A5  ASSERTION SUMMARY (主场景 PASS/FAIL 判据见文件头 docstring)
@@ -222,13 +299,22 @@ A5  ASSERTION SUMMARY (主场景 PASS/FAIL 判据见文件头 docstring)
   [PASS] S1  主网格 (f<=100kHz, v<=30m/s) 自动选档 phi_err < pi (无强制滑周)  (最大 1.50 rad @ (100kHz, 30m/s))
   [PASS] S2  主网格: hysteresis(SLOW起步) == select_band == cfg_for_frequency (升档即时生效)  (54 组合)
   [PASS] E1  案例a (100kHz, 20mm/s): 自动档=SLOW, clean|err|<5%, 噪声中值|err|<10%, SNRgain>+10dB  (sel=SLOW, err=-0.00%, noisy=-3.19%, gain=+37.52dB)
-  [PASS] E2  案例b (10kHz, 30m/s): 自动档 clean|err|<5%, 噪声中值|err|<10%, SNRgain>0dB  (sel=FAST, err=-0.00%, noisy=-0.07%, gain=+13.13dB, slips=0)
-  [PASS] E3  案例c (100kHz, 30m/s): 自动档 clean|err|<5%, 噪声中值|err|<10%, SNRgain>0dB, 档=FAST 且 clean 0 滑周  (sel=FAST, err=-0.00%, noisy=-5.50%, gain=+12.29dB, slips=0)
-  [PASS] E4  案例d (50kHz, 5m/s): 自动档 clean|err|<5%, 噪声中值|err|<10%, SNRgain>0dB  (sel=FAST, err=-0.00%, noisy=-0.76%, gain=+11.41dB, slips=0)
+  [PASS] E2  案例b (10kHz, 30m/s): 自动档 clean|err|<5%, 噪声中值|err|<10%, SNRgain>0dB  (sel=FAST, err=-0.00%, noisy=-0.07%, gain=+13.13dB, slips=0, noisy slips max=0)
+  [PASS] E3  案例c (100kHz, 30m/s): 自动档 clean|err|<5%, 噪声中值|err|<10%, SNRgain>0dB, 档=FAST 且 clean 0 滑周, cfg guard_ok=False/overrange=True (审计项2, 选项A: 保持 fn=1.6M 并上报降级区)  (sel=FAST, err=-0.00%, noisy=-5.50%, gain=+12.29dB, slips=0, noisy slips max=2, guard_ok=False, overrange=True, cfg phi_err=1.501r (噪声滑周界限见 A8/N2))
+  [PASS] E4  案例d (50kHz, 5m/s): 自动档 clean|err|<5%, 噪声中值|err|<10%, SNRgain>0dB  (sel=FAST, err=-0.00%, noisy=-0.76%, gain=+11.41dB, slips=0, noisy slips max=0)
   [PASS] E5  守卫必要性: 案例c 强制 MEDIUM (违守卫 12.9rad) clean|err|>20% (守卫升档不是保守而是必须)  (-92.6%)
+  [PASS] G1  守卫标志 API: 案例a/b/d cfg guard_ok=True/overrange=False, phi_err 与解析一致 (审计项2)  (a:SLOW 0.0974r; b:FAST 0.151r; d:FAST 0.126r)
   [PASS] H1  T2 升档: 阶跃后第 1 次更新即到守卫档 (FAST)  (update2: FAST (target FAST))
   [PASS] H2  T3 降档: 中间档全部守卫安全 (无临时错档), 2 次更新内到最优档  (路径 FAST->MEDIUM->SLOW->SLOW->SLOW, max中间phi_err=0.0974r)
   [PASS] H3  T1: 50->100 kHz @20mm/s 全程 SLOW, 无档位抖动  (路径 SLOW->SLOW->SLOW->SLOW->SLOW)
+  [PASS] F1  物理一致前端 (B=86/100MHz, 总CNR=3dB, LPF on): FAST 含噪中值 |err| < 10% (案例c结论在代表性模型下成立)  (v2 -1.95%, v3 -4.86%)
+  [PASS] F2  真实 40 MHz 前端 (LPF 作用于信号) 无法通过 30 m/s: clean |err| > 20% (前端须扩至 ≥ ±43 MHz)  (clean -21.94%, noisy 中值 -75.65%)
+  [PASS] F3  PSD恒定扩带: 等效CNR < 3dB 且含噪中值 |err| > 20% (CNR 必须在实际前端带宽上定义/实测)  (v4 CNR-0.3dB err-38.5%, v5 CNR-1.0dB err-47.4%)
+  [PASS] D1  全部 (时长×CNR×seed) 光恢复后重锁, relock ≤ 20 µs  (最大 5.0 µs (FAST acq_time=4µs + 门控检测延迟))
+  [PASS] D2  重锁后速度 RMS 误差恢复: 每组中值 post ≤ 1.5× pre  (最坏 post/pre = 1.03)
+  [PASS] D3  衰落 ≥ 10 µs: 全部 seed invalid 覆盖率 ≥ 60% (HOLD/ACQUIRE ⇒ invalid 标志可用; 2 µs 衰落仅报告不断言)  (2µs 覆盖率 0-0% (短于检测常数))
+  [PASS] N1  A8 clean 参考: near_pi=0 且真滑周=0 (与 E3 clean 判据一致)  (near_pi=0, slips=0)
+  [PASS] N2  含噪 50 seeds: 真滑周 p95≤3/p99≤5, near_pi p95≤700, |err| p50<10%/p90<20% (有界文档化限值, 非零缺陷)  (slips p95=1 p99=2 max=2, near_pi p95=452, |err| p50=7.49% p90=10.69%)
 
 ALL CHECKS PASSED
-[elapsed 15.9 s]
+[elapsed 29.8 s]
