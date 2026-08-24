@@ -39,16 +39,18 @@
 
 ## 散斑掉落(V3,诚实报告)
 
-CNR=6 dB、τ_c=50 µs:gate-on 把速度尖峰中值 110 → 46 个,但位移 rms 误差 3.8 → 8.6 µm(恶化 2.3×)。掉落期间 NCO 飞轮只能外推,位移连续性无法承诺 —— 尖峰抑制以位移精度为代价。
+V3 的档位由 `select_band(3 MHz, 20 mm/s)` 给出 —— 守卫先行规则下为 **SLOW**(见"档位选择规则")。CNR=6 dB、τ_c=50 µs、12 种子中值:gate-on 把速度尖峰中值 110 → 17 个,位移 rms 误差 3.8 → 0.9 µm(**改善 4.3×**)—— 本组实测尖峰抑制未付出位移精度代价(V3 结论行按实测 dr_on/dr_off 动态生成,不再静态断言"以位移精度换取")。但掉落期间 NCO 飞轮只能外推,位移连续性仍无法承诺。
 
-## 档位选择规则
+## 档位选择规则(守卫先行)
 
 ```python
 from design_params import select_band
 band = select_band(f_target_hz, v_peak)   # 'SLOW' | 'MEDIUM' | 'FAST'
 ```
 
-频率优先(最低档 = 最大载波路径门限扩展),再用线性跟踪误差守卫升档:`|1−H_L(f_target)|·(2·v_peak/(λ·f_target)) ≤ 1 rad`。
+在通过线性跟踪误差守卫 `|1−H_L(f_target)|·(2·v_peak/(λ·f_target)) ≤ 1 rad` 的档位中选**最窄档**(最低 B_loop = 最大弱光门限扩展);全不通过取 FAST。测量带宽由公共 4 MHz 残差窗决定、与档位无关,所以高频小振幅也用低档:`select_band(3e6, 0.02)` = **SLOW**(φ_err ≈ 0.009 rad,远低于守卫;V1 实测 3 MHz 下 SLOW 增益 +9.3 dB 还优于 FAST 的 +7.9 dB)。仅当 `v_peak=None`(无法评估守卫)时退化为频段规则(≤200 kHz → SLOW;≤1 MHz → MEDIUM;其余 FAST)。
+
+带迟滞的 `select_band_hysteresis` 同样守卫先行:升档立即生效,降档每次更新只降一档(防抖);频率-only 的 rise 阈值(200 kHz / 1 MHz)已废除 —— 它与守卫先行规则矛盾(审计:3 MHz/20 mm/s 必须得 SLOW 而非 FAST)。因此 `cfg_for_frequency(3e6, v_peak=0.02)`(默认带迟滞)与 `select_band_hysteresis(3e6, 'SLOW', 0.02)` 都返回 **SLOW**,与 `select_band` 一致。
 
 ## 产品 API:tracking_mode / gate_policy
 
@@ -87,14 +89,14 @@ python3 validate_off_mode.py              # <5 s, OFF/fixed_lp 模式冒烟回�
 
 `validate_zeta_sweep.py` 断言 Z3-1…Z3-6(输出幅值误差对 ζ 不敏感、MEDIUM click 清除条件、SNR 无回退、规格保持、掉光重捕、ZETA==1.2),当前 **6/6 PASS**(见 `results_zeta_sweep.txt`)。
 
-`validate_off_mode.py` 断言 O1–O5(OFF 旁路路由与保真、gate-off ≠ OFF、`tracking_filter` 与 `residual_mode` 逐样本一致、参数守卫),当前 **5/5 PASS**(见 `results_off_mode.txt`)。
+`validate_off_mode.py` 断言 O1–O6(OFF 旁路路由与保真、gate-off ≠ OFF、`tracking_filter` 与 `residual_mode` 逐样本一致、参数守卫、O6a fixed_lp 路由 == `fir_lp_same` 参考、O6b fixed_lp ≠ OFF),当前 **7/7 PASS**(见 `results_off_mode.txt`)。
 
 ## 文件
 
-- `design_params.py` — 三档参数表、公共窗参数、选档逻辑、产品配置入口 `cfg_for_frequency`(tracking_mode / gate_policy)
-- `core.py` — PLL 内核与信号/工具函数(移植自原项目;`residual_mode` 已改为 1025-tap FIR 产品路径,见审查项 #4);产品入口 `tracking_filter` 与 OFF 旁路 `off_mode`
+- `design_params.py` — 三档参数表、公共窗参数、守卫先行选档逻辑(含迟滞)、产品配置入口 `cfg_for_frequency`(tracking_mode pll/off/fixed_lp,gate_policy)
+- `core.py` — PLL 内核与信号/工具函数(移植自原项目;`residual_mode` 已改为 1025-tap FIR 产品路径,见审查项 #4);产品入口 `tracking_filter` 与 OFF 旁路 `off_mode` / 固定窗 `fixed_lp_mode`
 - `validate_tracking.py` — V1–V4 仿真验证 + PASS/FAIL 断言
-- `validate_off_mode.py` — OFF 模式/产品入口冒烟回归(O1–O5,见 `results_off_mode.txt`)
+- `validate_off_mode.py` — OFF / fixed_lp 模式与产品入口冒烟回归(O1–O6,见 `results_off_mode.txt`)
 - `validate_residual_alignment.py` — `core.residual_mode` vs `gear_filter` 一致性断言(审查项 #4)
 - `validate_zeta_sweep.py` — ζ 扫描:幅值误差/SNR 增益/near-π 率/掉光重捕 + 推荐值断言(审查项 #7)
 - `results.txt` — 最近一次完整运行输出
