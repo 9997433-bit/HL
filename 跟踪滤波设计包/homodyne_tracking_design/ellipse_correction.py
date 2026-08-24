@@ -32,7 +32,60 @@ import numpy as np
 
 _EPS = np.finfo(float).eps
 ARC_MIN = math.pi / 2      # below this coverage the fit is declared invalid
+FIT_RMS_MAX = 0.05
+FIT_COND_MAX = 1e6
+EPS_MAX = 0.20             # |B/A - 1|
+DEL_MAX = math.radians(15.0)
 PAR_FIELDS = ('p', 'q', 'A', 'B', 'delta')
+
+
+def _arc_span_angles(ang):
+    """Robust 98% coverage arc from sorted angles in [0, 2pi)."""
+    ang = np.sort(np.mod(ang, 2 * math.pi))
+    gaps = np.diff(np.concatenate([ang, [ang[0] + 2 * math.pi]]))
+    nang = ang.size
+    if nang < 2:
+        return 0.0
+    mcover = max(2, int(math.ceil(0.98 * nang)))
+    ang2 = np.concatenate([ang, ang + 2 * math.pi])
+    idx = np.arange(nang)
+    return float(np.min(ang2[idx + mcover - 1] - ang2[idx]))
+
+
+def arc_span_corrected(u, v, par):
+    """Arc coverage using corrected-plane angles (independent sanity check)."""
+    _, _, z = heydemann_apply(u, v, par)
+    return _arc_span_angles(np.angle(z))
+
+
+def assess_fit(par, res):
+    """Full acceptance gate (doc §2.4): arc, rms, cond, epsilon, delta, A/B."""
+    reasons = []
+    if not all(math.isfinite(par[k]) for k in PAR_FIELDS):
+        reasons.append('non-finite parameters')
+    if par.get('A', 0) <= 0 or par.get('B', 0) <= 0:
+        reasons.append('A or B non-positive')
+    if math.isfinite(par.get('A', float('nan'))) and par['A'] > 0:
+        eps = abs(par['B'] / par['A'] - 1.0)
+        if eps > EPS_MAX:
+            reasons.append(f'|epsilon|={eps:.3f} > {EPS_MAX}')
+    if abs(par.get('delta', 0)) > DEL_MAX:
+        reasons.append(f'|delta|={math.degrees(par["delta"]):.1f}° > {math.degrees(DEL_MAX):.0f}°')
+    if res.get('arc', 0) < ARC_MIN:
+        reasons.append(f'arc={res.get("arc", float("nan")):.3f} < {ARC_MIN:.3f}')
+    if res.get('rms', float('inf')) > FIT_RMS_MAX:
+        reasons.append(f'rms={res.get("rms", float("nan")):.4f} > {FIT_RMS_MAX}')
+    # cond(D) blows up when algebraic residuals ~ 0 (perfect ellipse); only
+    # gate on it when rms indicates a noisy/ambiguous fit (doc §2.4 intent).
+    if (res.get('rms', float('inf')) > 1e-3 and
+            res.get('design_cond', float('inf')) > FIT_COND_MAX):
+        reasons.append(f'cond={res.get("design_cond", float("nan")):.2e} > {FIT_COND_MAX:.0e}')
+    ok = len(reasons) == 0
+    res['ok'] = ok
+    res['reject_reasons'] = reasons
+    if not ok and not res.get('msg'):
+        res['msg'] = '; '.join(reasons)
+    return ok
 
 
 def _nan_par():
@@ -152,10 +205,7 @@ def heydemann_fit(u, v):
     res['algebraic_rms'] = float(np.sqrt(np.mean((D @ best) ** 2)))
     res['arc_all'] = float(2 * math.pi - gaps.max())   # wrap-safe coverage
     res['arc'] = float(span98.min())                   # robust to outliers
-    res['ok'] = res['arc'] >= ARC_MIN
-    if not res['ok']:
-        res['msg'] = ('coverage arc %.2f rad < pi/2: parameters usually not '
-                      'identifiable, freeze previous ones' % res['arc'])
+    assess_fit(par, res)
     return par, res
 
 
@@ -285,3 +335,72 @@ def apply_par_track(u, v, trk):
     Qc = ((v - trk['q']) / trk['B'] - Ic * np.sin(trk['delta'])) \
         / np.cos(trk['delta'])
     return Ic + 1j * Qc
+
+
+# ---------------------------------------- online bias (arc-gated, NOT block mean)
+class OnlineBiasTracker:
+    """Frozen g,delta (A,B,δ); update p,q only when block-mean arc is sufficient.
+
+    Block-mean IIR of raw u,v is WRONG at a fixed working point because
+    mean(u) ≈ p + A·cos ψ, not p.  Instead accumulate block means and fit
+    the circle centre only when the corrected-plane arc exceeds ARC_MIN.
+  On ρ jump (surface/distance switch) clear the buffer and hold p,q.
+    """
+
+    def __init__(self, gd_par, fs, blk_s=0.1, rho_jump=0.20, arc_min=ARC_MIN):
+        self.gd = {k: float(gd_par[k]) for k in ('A', 'B', 'delta')}
+        self.p = float(gd_par.get('p', 0.0))
+        self.q = float(gd_par.get('q', 0.0))
+        self.nb = max(64, int(blk_s * fs))
+        self.rho_jump = rho_jump
+        self.arc_min = arc_min
+        self.buf_u: list = []
+        self.buf_v: list = []
+        self.rho_ref = 1.0
+
+    def _par(self):
+        return dict(p=self.p, q=self.q, **self.gd)
+
+    def _try_center(self):
+        if len(self.buf_u) < 12:
+            return
+        us = np.array(self.buf_u)
+        vs = np.array(self.buf_v)
+        if arc_span_corrected(us, vs, self._par()) < self.arc_min:
+            return
+        # Scale factory A,B by current |z|: heydemann_apply with frozen A,B
+        # gives |z|≈R/R_cal, so A_eff=A·ρ recovers the true interference radius.
+        # Without this, weak-return segments subtract a factory-sized vector and
+        # drive amplitude error → 100% (audit residual after item 1).
+        _, _, z = heydemann_apply(us, vs, self._par())
+        rho_med = max(float(np.median(np.abs(z))), 1e-9)
+        Ae = self.gd['A'] * rho_med
+        Be = self.gd['B'] * rho_med
+        ang = np.angle(z)
+        c = np.mean((us - Ae * np.cos(ang))
+                    + 1j * (vs - Be * np.sin(ang + self.gd['delta'])))
+        self.p = 0.8 * self.p + 0.2 * float(c.real)
+        self.q = 0.8 * self.q + 0.2 * float(c.imag)
+
+    def process_block(self, u, v):
+        _, _, z = heydemann_apply(u, v, self._par())
+        rho = float(np.median(np.abs(z)))
+        if self.rho_ref > 0 and abs(rho / self.rho_ref - 1.0) > self.rho_jump:
+            self.buf_u.clear()
+            self.buf_v.clear()
+        self.rho_ref = 0.9 * self.rho_ref + 0.1 * max(rho, 1e-9)
+        self.buf_u.append(float(u.mean()))
+        self.buf_v.append(float(v.mean()))
+        if len(self.buf_u) > 120:
+            self.buf_u.pop(0)
+            self.buf_v.pop(0)
+        self._try_center()
+        return self._par()
+
+    def run(self, u, v):
+        z = np.zeros(u.size, dtype=complex)
+        for k in range(0, u.size, self.nb):
+            sl = slice(k, min(k + self.nb, u.size))
+            par = self.process_block(u[sl], v[sl])
+            _, _, z[sl] = heydemann_apply(u[sl], v[sl], par)
+        return z

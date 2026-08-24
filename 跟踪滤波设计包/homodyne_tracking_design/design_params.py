@@ -178,25 +178,23 @@ BAND_HYSTERESIS = {
 
 
 def select_band_hysteresis(f_target_hz, current_band='SLOW', v_peak=None):
-  """Gear select with hysteresis: default SLOW for routine work, step up for
-  occasional 1--3 MHz measurements without chattering at boundaries."""
+  """Gear select with hysteresis: explicit fall from FAST/MEDIUM (audit item 6)."""
   idx = ORDER.index(current_band) if current_band in ORDER else 0
 
-  if f_target_hz > BAND_HYSTERESIS['MEDIUM_FAST']['rise']:
+  if f_target_hz >= BAND_HYSTERESIS['MEDIUM_FAST']['rise']:
     idx = max(idx, 2)
-  elif f_target_hz > BAND_HYSTERESIS['SLOW_MEDIUM']['rise']:
+  elif f_target_hz >= BAND_HYSTERESIS['SLOW_MEDIUM']['rise']:
     idx = max(idx, 1)
-  elif f_target_hz < BAND_HYSTERESIS['SLOW_MEDIUM']['fall']:
-    idx = 0
-  elif f_target_hz < BAND_HYSTERESIS['MEDIUM_FAST']['fall']:
-    idx = min(idx, 1)
 
-  band = ORDER[idx]
+  if idx >= 2 and f_target_hz < BAND_HYSTERESIS['MEDIUM_FAST']['fall']:
+    idx = 1
+  if idx >= 1 and f_target_hz < BAND_HYSTERESIS['SLOW_MEDIUM']['fall']:
+    idx = 0
+
   if v_peak is not None:
     guarded = select_band(f_target_hz, v_peak=v_peak)
     idx = max(idx, ORDER.index(guarded))
-    band = ORDER[idx]
-  return band
+  return ORDER[idx]
 
 
 def cfg_for_frequency(f_target_hz, current_band='SLOW', v_peak=None,

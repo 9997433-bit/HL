@@ -175,6 +175,10 @@ def pll_carrier_regen(z, fs, fn, Nhat, zeta=1.2, tauP=1e-6, tauF=1e-6,
                     bad = 0
         if st == 2:
             Cref = (1.0 - aRef) * C + aRef * Cref
+        elif st == 0 and C > 0:
+            # HOLD: slow Cref decay so permanent power drop can re-lock (audit item 5)
+            aHold = math.exp(-1.0 / (fs * max(tauRef, tauP) * 8))
+            Cref = (1.0 - aHold) * C + aHold * Cref
         state[n] = st
 
         phi[n] = ph                       # output is always the pure NCO
