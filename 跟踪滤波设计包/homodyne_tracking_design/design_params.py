@@ -127,12 +127,10 @@ GATE_COMMON = dict(
 PHI_GUARD = 1.0            # rad, max allowed untracked Doppler phase
 
 # Product-level operating modes.  OFF is NOT a fourth gear: it bypasses the
-# whole tracking chain (no PLL, no residual window) and the instrument output
-# is angle(z) / FM discrimination (core.off_mode) -- the same signal used as
-# the 'OFF' reference column in V1/V3.  Do not confuse OFF with
-# gate_policy='always', which only bypasses the dropout gate while the PLL
-# keeps tracking (gate-off != OFF).
-TRACKING_MODES = ('pll', 'off')
+# whole tracking chain (no PLL, no residual window).  fixed_lp applies the
+# common B_WIN complex low-pass only (V2 LP-Bwin reference path) -- tracking
+# off but with the fixed measurement window noise floor, NOT angle(z) raw.
+TRACKING_MODES = ('pll', 'off', 'fixed_lp')
 GATE_POLICIES = ('auto', 'always')   # PLL only: 3-state dropout gate / bypassed
 
 
@@ -218,29 +216,33 @@ BAND_HYSTERESIS = {
 
 
 def select_band_hysteresis(f_target_hz, current_band='SLOW', v_peak=None):
-  """Gear select with hysteresis: explicit fall from FAST/MEDIUM (audit item 6)."""
-  idx = ORDER.index(current_band) if current_band in ORDER else 0
+  """Guard-first gear select with one-step downshift anti-chatter.
 
-  if f_target_hz >= BAND_HYSTERESIS['MEDIUM_FAST']['rise']:
-    idx = max(idx, 2)
-  elif f_target_hz >= BAND_HYSTERESIS['SLOW_MEDIUM']['rise']:
-    idx = max(idx, 1)
+  Target band comes from select_band (phase-error guard, narrowest pass).
+  Upshifts to satisfy the guard take effect immediately.  Downshifts are
+  limited to one gear step per update so f_target / v_peak dither does not
+  bounce SLOW<->FAST.  Frequency-only rise thresholds (200 kHz / 1 MHz) are
+  NOT used -- they contradicted the guard-first rule (audit: 3 MHz/20 mm/s
+  must yield SLOW, not FAST).
+  """
+  target = select_band(f_target_hz, v_peak)
+  if current_band not in ORDER:
+    return target
+  cur_i, tgt_i = ORDER.index(current_band), ORDER.index(target)
+  if tgt_i >= cur_i:
+    return target
+  if cur_i - tgt_i >= 1:
+    return ORDER[cur_i - 1]
+  return target
 
-  if idx >= 2 and f_target_hz < BAND_HYSTERESIS['MEDIUM_FAST']['fall']:
-    idx = 1
-  if idx >= 1 and f_target_hz < BAND_HYSTERESIS['SLOW_MEDIUM']['fall']:
-    idx = 0
 
-  if v_peak is not None:
-    guarded = select_band(f_target_hz, v_peak=v_peak)
-    idx = max(idx, ORDER.index(guarded))
-  return ORDER[idx]
-
-
-def cfg_for_frequency(f_target_hz, current_band='SLOW', v_peak=None,
+def cfg_for_frequency(f_target_hz, v_peak=None, current_band='SLOW',
                       hysteresis=True, tracking_mode='pll',
                       gate_policy='auto'):
   """Full config dict for the current measurement frequency.
+
+  v_peak is the second positional argument (matching select_band) so the
+  guard-first gear choice reads cfg_for_frequency(3e6, 0.02) -> SLOW.
 
   tracking_mode='pll' (default): gear-selected PLL carrier path + common
       residual window.  gate_policy='auto' runs the 3-state dropout gate;
@@ -249,6 +251,9 @@ def cfg_for_frequency(f_target_hz, current_band='SLOW', v_peak=None,
   tracking_mode='off': tracking bypass -- no gear, no PLL, no residual
       window; the output is angle(z) / FM discrimination (core.off_mode).
       gate_policy is irrelevant and ignored.
+  tracking_mode='fixed_lp': no PLL; output is the common B_WIN complex
+      low-pass of z (core.fixed_lp_mode).  Useful when tracking is off but
+      the fixed measurement-window noise floor is still wanted.
 
   Feed the returned dict to core.tracking_filter.
   """
@@ -260,6 +265,9 @@ def cfg_for_frequency(f_target_hz, current_band='SLOW', v_peak=None,
                      f'got {gate_policy!r}')
   if tracking_mode == 'off':
     return dict(tracking_mode='off', band=None, f_target_hz=f_target_hz)
+  if tracking_mode == 'fixed_lp':
+    return dict(tracking_mode='fixed_lp', band=None, f_target_hz=f_target_hz,
+                B_win=B_WIN, NT_win=NT_WIN)
   band = (select_band_hysteresis(f_target_hz, current_band, v_peak)
           if hysteresis else select_band(f_target_hz, v_peak))
   return dict(tracking_mode='pll', gate=gate_policy, band=band,

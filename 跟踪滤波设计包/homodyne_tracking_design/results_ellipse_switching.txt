@@ -23,4 +23,4 @@ seed=99  RMS比= 32.1x ampB= -13.3% ampC=  -3.6% (全速率参考 ampB= -10.6% a
 每seed门限: RMS比>3x  |ampB|<20%  |ampC|<25% -> 全部ok
 跨seed中位数: |ampB|=9.5% (<15%)  |ampC|=3.8% (<10%)
 断言 PASS
-耗时 38.4s
+耗时 38.7s
