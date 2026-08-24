@@ -341,10 +341,17 @@ def V3(nseed=12, tau_sp=50e-6, Bf=20e6):
   sp_on = stats(out[6]['spgon'])[0]
   dr_off = stats(out[6]['droff'])[0]
   dr_on = stats(out[6]['drgon'])[0]
+  worse = dr_on > dr_off
+  ratio = dr_on / max(dr_off, 1e-9) if worse else dr_off / max(dr_on, 1e-9)
   print(f"\n  诚实结论: CNR=6dB 时 gate-on 把速度尖峰中值 {sp_off:.0f} -> {sp_on:.0f}"
-        f" 个, 但位移rms误差 {dr_off:.0f} -> {dr_on:.0f} nm"
-        f" ({'恶化' if dr_on > dr_off else '改善'} {abs(dr_on/max(dr_off,1e-9)):.1f}x).")
-  print("  掉落期间NCO飞轮只能外推, 位移连续性无法承诺 -- 尖峰抑制是以位移精度换来的.")
+        f" 个, 位移rms误差 {dr_off:.0f} -> {dr_on:.0f} nm"
+        f" ({'恶化' if worse else '改善'} {ratio:.1f}x).")
+  if worse:
+    print("  本组实测: 尖峰抑制以位移精度为代价 -- 掉落期间NCO飞轮只能外推,"
+          " 位移连续性无法承诺.")
+  else:
+    print("  本组实测: 尖峰抑制未付出位移精度代价 (位移误差持平或改善);"
+          " 但掉落期间NCO飞轮只能外推, 位移连续性仍无法承诺.")
   return out
 
 
