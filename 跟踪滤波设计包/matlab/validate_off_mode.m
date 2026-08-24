@@ -46,8 +46,10 @@ function validate_off_mode()
       sprintf('ampErr %+.3f%%, v_off==v_raw: %s', e, bool2str_(same)));
 
   % ---- O3: gate-off != OFF (weak light, SLOW @100 kHz) --------------------
+  % v_peak=0.02 (the 20 mm/s scene) keeps the selector in SLOW; v_peak=[]
+  % now defaults to APP_V_PEAK_MAX=30 m/s (conservative guard) -> FAST.
   s2 = 10^(-3.0 / 10);                        % CNR = 3 dB
-  cfg_gof = cfg_for_frequency(100e3, [], 'SLOW', true, 'pll', 'always');
+  cfg_gof = cfg_for_frequency(100e3, 0.02, 'SLOW', true, 'pll', 'always');
   gains = [];
   off_is_raw = true;
   for s = 0:1
@@ -77,7 +79,7 @@ function validate_off_mode()
   gates = {'auto', 'always'};
   for ig = 1:2
     gate = gates{ig};
-    cfg = cfg_for_frequency(100e3, [], 'SLOW', true, 'pll', gate);
+    cfg = cfg_for_frequency(100e3, 0.02, 'SLOW', true, 'pll', gate);
     [ya, pa, sa] = tracking_filter(z, dp.FS, cfg, s2);
     ropts = gate_params('SLOW');
     ropts.zeta = dp.ZETA;

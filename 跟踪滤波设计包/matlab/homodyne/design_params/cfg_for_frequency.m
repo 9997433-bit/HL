@@ -17,9 +17,10 @@ function cfg = cfg_for_frequency(f_target_hz, v_peak, current_band, ...
 %       low-pass of z (fixed_lp_mode).
 %
 %   PLL cfg structs also carry the guard status of the applied gear:
-%   phi_err (rad), guard_ok, overrange -- see guard_flags (NaN when v_peak
-%   is unknown; Python uses None).  band is '' for off / fixed_lp (Python
-%   uses None).
+%   phi_err (rad), guard_ok, overrange -- see guard_flags.  v_peak = []
+%   (Python None) is evaluated CONSERVATIVELY at C.APP_V_PEAK_MAX (30 m/s),
+%   e.g. cfg_for_frequency(100e3) selects FAST with overrange=true.
+%   band is '' for off / fixed_lp (Python uses None).
 %
 %   Feed the returned struct to tracking_filter.
   C = homodyne_constants();

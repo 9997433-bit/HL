@@ -4,7 +4,10 @@ function P = hd_params()
 % GATE_COMMON).  Returned as a struct so callers read P.FS, P.BANDS.SLOW.fn, ...
   P.LAMBDA = 1550e-9;
   P.FS = 250e6;
-  P.B_FRONTEND = 40e6;       % complex-baseband two-sided ENBW
+  % Front-end bandwidth split (audit): signal passband vs noise ENBW.
+  P.F_SIGNAL_MAX = 43e6;     % single-sided hard signal passband (30 m/s)
+  P.B_NOISE_ENBW = 40e6;     % two-sided noise ENBW (measured AFE)
+  P.B_FRONTEND = P.B_NOISE_ENBW;  % backward-compat alias (noise ENBW)
   P.ZETA = 1.2;              % carrier-loop economy (flatness set by the window)
 
   % common residual measurement window (identical in every gear)
@@ -30,4 +33,8 @@ function P = hd_params()
                          'tauRef', 200e-6, 'reacq', true);
 
   P.PHI_GUARD = 1.0;         % rad, max allowed untracked Doppler phase
+
+  % Unknown v_peak ([]/NaN, Python None) is evaluated CONSERVATIVELY at the
+  % instrument maximum (30 m/s); the frequency-only fallback is removed.
+  P.APP_V_PEAK_MAX = 30.0;
 end

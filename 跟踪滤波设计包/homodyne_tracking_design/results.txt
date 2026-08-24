@@ -112,6 +112,9 @@ V4  档位切换: 按目标频率选档 + 跟踪误差守卫 (phi_err <= 1 rad)
        3000kHz    100mm/s |        0.04r    0.04r    0.03r |      SLOW    SLOW
   [PASS] C5  选档逻辑: 全部场景返回期望档位  (6 cases, guard-pass narrowest gear)
 
+  v_peak 未知 (None) 的保守默认: 按 APP_V_PEAK_MAX=30 m/s 评估守卫 -> cfg_for_frequency(100e3): band=FAST, phi_err=1.50 rad, overrange=True (频段规则已废除)
+  [PASS] V5  v_peak 未知默认 APP_V_PEAK_MAX=30 m/s 保守守卫: cfg_for_frequency(100e3) 选 FAST 且 overrange=True (非频段规则)  (band=FAST, phi_err=1.50r, guard_ok=False, overrange=True)
+
   为什么低频选低档: 载波路径(NCO) @100kHz 的弱光SNR增益 SLOW +37.6 dB vs FAST +13.0 dB (V1实测)
   为什么大动态升档: vamp=6 m/s @100kHz 时幅值误差 SLOW -35.4% vs FAST -0.0% (V2实测)
   测量带宽在换档时不变 (公共4MHz残差窗), 换档只改变载波环动态 -- 见V1: 三档3MHz幅值误差均合格.
@@ -126,6 +129,7 @@ ASSERTION SUMMARY
   [PASS] C6  静止载波: 固定LP(B_win) 与选定档(SLOW) SNR gain 差 < 3 dB (PLL无增值 -- 价值边界的诚实面)  (LP +37.23 dB vs SLOW +37.21 dB)
   [PASS] C7  fD=7.7M > B_win: 固定LP严重超出5%预算(清洁<-15%) 而 FAST档 <5% (跟踪的价值面)  (LP-Bwin -22.5% (含噪 -59.4%) vs FAST -0.0% (含噪 -0.6%))
   [PASS] C5  选档逻辑: 全部场景返回期望档位  (6 cases, guard-pass narrowest gear)
+  [PASS] V5  v_peak 未知默认 APP_V_PEAK_MAX=30 m/s 保守守卫: cfg_for_frequency(100e3) 选 FAST 且 overrange=True (非频段规则)  (band=FAST, phi_err=1.50r, guard_ok=False, overrange=True)
 
 ALL CHECKS PASSED
-[elapsed 34.6 s]
+[elapsed 33.5 s]

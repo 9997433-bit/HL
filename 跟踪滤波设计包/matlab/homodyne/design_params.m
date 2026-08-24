@@ -10,7 +10,13 @@ function dp = design_params()
     d = struct();
     d.LAMBDA = 1550e-9;
     d.FS = 250e6;
-    d.B_FRONTEND = 40e6;   % complex-baseband two-sided ENBW
+    % Front-end bandwidth split (audit): F_SIGNAL_MAX = single-sided hard
+    % signal passband (30 m/s -> fD_peak 38.7 MHz + margin); B_NOISE_ENBW =
+    % two-sided noise ENBW of the measured AFE.  B_FRONTEND stays as the
+    % backward-compat alias of the NOISE bandwidth.
+    d.F_SIGNAL_MAX = 43e6;
+    d.B_NOISE_ENBW = 40e6;
+    d.B_FRONTEND = d.B_NOISE_ENBW;   % alias (noise ENBW, NOT signal passband)
     d.ZETA = 1.2;          % carrier-loop economy (see validate_zeta_sweep)
 
     % common residual measurement window (identical in every gear)
@@ -39,6 +45,11 @@ function dp = design_params()
                            'tauRef', 200e-6, 'reacq', true);
 
     d.PHI_GUARD = 1.0;     % rad, max allowed untracked Doppler phase
+
+    % Unknown v_peak ([]/NaN, Python None) is evaluated CONSERVATIVELY at
+    % the instrument maximum (30 m/s); the frequency-only fallback is
+    % removed (audit: 100 kHz @ 30 m/s must not land in SLOW).
+    d.APP_V_PEAK_MAX = 30.0;
 
     d.TRACKING_MODES = {'pll', 'off', 'fixed_lp'};
     d.GATE_POLICIES = {'auto', 'always'};

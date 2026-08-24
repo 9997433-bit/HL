@@ -1,8 +1,11 @@
 function cfg = cfg_for_frequency(f_target_hz, v_peak, current_band, ...
                                  hysteresis, tracking_mode, gate_policy)
 %CFG_FOR_FREQUENCY Full config struct for the current measurement frequency.
-%   Port of design_params.cfg_for_frequency.  v_peak = [] means Python None.
-%   band = [] mirrors Python band=None for the off / fixed_lp modes.
+%   Port of design_params.cfg_for_frequency.  v_peak = [] means Python None
+%   and is evaluated CONSERVATIVELY at dp.APP_V_PEAK_MAX (30 m/s) by
+%   select_band / guard_flags, e.g. cfg_for_frequency(100e3) selects FAST
+%   with overrange=true.  band = [] mirrors Python band=None for the
+%   off / fixed_lp modes.
 %   Raises an error (Python ValueError) on illegal tracking_mode/gate_policy.
   dp = design_params();
   if nargin < 2, v_peak = []; end

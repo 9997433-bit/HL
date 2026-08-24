@@ -136,7 +136,8 @@ def export_off_mode():
   y, _, _, _ = tracking_filter(zc, FS, cfg_off)
   o2 = amp_err_pct(vdisc(y), sc)
   s2 = 10 ** (-3.0 / 10)
-  cfg_gof = cfg_for_frequency(100e3, gate_policy='always')
+  # v_peak=0.02 keeps SLOW (v_peak=None now defaults to APP_V_PEAK_MAX)
+  cfg_gof = cfg_for_frequency(100e3, 0.02, gate_policy='always')
   gains = []
   for s in range(2):
     rng = np.random.default_rng(50_000 + s)

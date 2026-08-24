@@ -17,7 +17,13 @@ function C = homodyne_constants()
 %     APP_HYBRID, BAND_HYSTERESIS
   C.LAMBDA = 1550e-9;
   C.FS = 250e6;
-  C.B_FRONTEND = 40e6;       % complex-baseband two-sided ENBW (20e6 also legal)
+  % Front-end bandwidth split (audit): F_SIGNAL_MAX = single-sided hard
+  % signal passband (30 m/s -> fD_peak 38.7 MHz + margin); B_NOISE_ENBW =
+  % two-sided noise ENBW of the measured AFE.  B_FRONTEND stays as the
+  % backward-compat alias of the NOISE bandwidth.
+  C.F_SIGNAL_MAX = 43e6;
+  C.B_NOISE_ENBW = 40e6;
+  C.B_FRONTEND = C.B_NOISE_ENBW;  % alias (noise ENBW, NOT signal passband)
   C.ZETA = 1.2;              % carrier-loop economy; output flatness is set by
                              % the common FIR window, NOT |H_L| (review item #7)
 
@@ -54,6 +60,11 @@ function C = homodyne_constants()
                          'tauRef', 200e-6, 'reacq', true);
 
   C.PHI_GUARD = 1.0;         % rad, max allowed untracked Doppler phase
+
+  % Unknown v_peak ([]/NaN, Python None) is evaluated CONSERVATIVELY at the
+  % instrument maximum (30 m/s); the frequency-only fallback is removed
+  % (audit: 100 kHz @ 30 m/s must not land in SLOW).
+  C.APP_V_PEAK_MAX = 30.0;
 
   % Product-level operating modes.  OFF is NOT a fourth gear.
   C.TRACKING_MODES = {'pll', 'off', 'fixed_lp'};
