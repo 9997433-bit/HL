@@ -84,9 +84,9 @@ V2  plain LP 对照 (同 B_loop=0.95M / 同 B_win=4M 固定复数低通) vs 跟�
 V3  散斑掉落 (tau_c=50us, gear=FAST, B_frontend=20MHz, 输出统一滤到 1MHz, 12 seeds) -- 诚实报告
 ======================================================================================
 
-  mean CNR = 6 dB   (gate-on lock fraction 81.7%)
+  mean CNR = 6 dB   (gate-on lock fraction 81.8%)
     metric                                         OFF       gear gate-off        gear gate-on
-    velocity spikes >0.4 m/s           110 [  73,  192]     108 [  66,  189]      56 [  38,   70]
+    velocity spikes >0.4 m/s           110 [  73,  192]     108 [  66,  189]      57 [  38,   70]
     phase slips (2pi events)             0 [   0,    0]       0 [   0,    0]       0 [   0,    0]
     disp rms err (nm, in 1 MHz)       3786 [2427,10171]    4023 [2985, 9780]    8603 [3339,32804]
 
@@ -96,7 +96,7 @@ V3  散斑掉落 (tau_c=50us, gear=FAST, B_frontend=20MHz, 输出统一滤到 1M
     phase slips (2pi events)             0 [   0,    0]       0 [   0,    0]       0 [   0,    0]
     disp rms err (nm, in 1 MHz)       2544 [ 959, 5064]    2470 [ 536, 5760]    6273 [1821,28821]
 
-  诚实结论: CNR=6dB 时 gate-on 把速度尖峰中值 110 -> 56 个, 但位移rms误差 3786 -> 8603 nm (恶化 2.3x).
+  诚实结论: CNR=6dB 时 gate-on 把速度尖峰中值 110 -> 57 个, 但位移rms误差 3786 -> 8603 nm (恶化 2.3x).
   掉落期间NCO飞轮只能外推, 位移连续性无法承诺 -- 尖峰抑制是以位移精度换来的.
 
 ======================================================================================
@@ -127,4 +127,4 @@ ASSERTION SUMMARY
   [PASS] C5  选档逻辑: 全部场景返回期望档位  (6 cases, freq-first + phi_err guard)
 
 ALL CHECKS PASSED
-[elapsed 33.5 s]
+[elapsed 33.1 s]
