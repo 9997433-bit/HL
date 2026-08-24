@@ -96,6 +96,11 @@ function rc = run_all_verify(mode)
       names{end + 1} = 'validate_ellipse_dynamic (D1-D2)';
       rcs(end + 1) = validate_ellipse_dynamic();
     end
+    if exist(fullfile(here, 'homodyne', 'validate_ellipse_audit.m'), ...
+             'file') == 2
+      names{end + 1} = 'validate_ellipse_audit (review items 1-4)';
+      rcs(end + 1) = validate_ellipse_audit();
+    end
   end
 
   % -- summary -----------------------------------------------------------------
