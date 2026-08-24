@@ -1,50 +1,60 @@
-"""1550 nm homodyne IQ tracking-filter band plan (equal-ripple design).
+"""1550 nm homodyne IQ three-gear (三档) tracking-filter parameter set.
 
-Design rule (derivation summary)
---------------------------------
+Architecture (per gear)
+-----------------------
+  carrier path   PLL carrier regeneration (core.pll_carrier_regen) with the
+                 gear's natural frequency fn -> pure-NCO phase phi.
+                 Narrowband: gives the threshold extension (weak-light SNR
+                 gain) and the dropout flywheel.
+  measurement    residual window: r = z * e^{-j phi} is low-passed by a
+                 COMMON linear-phase FIR window (cutoff B_WIN = 4 MHz) and
+                 recombined,  y_full = e^{j phi} * e^{j gs*angle(LP(r))}.
+                 The window is centred on the tracked carrier, so the
+                 measurement band is DC..B_WIN in EVERY gear: switching
+                 gears never changes the ultrasound bandwidth (this is what
+                 makes "all gears <5 % amplitude error at 3 MHz" possible).
+
+Loop design rule (carrier path, equal-ripple)
+---------------------------------------------
 Closed-loop response of the II-type loop (continuous approx., x = f/fn):
 
     |H_L(x)|^2 = (1 + 4*zeta^2*x^2) / ((1 - x^2)^2 + 4*zeta^2*x^2)
 
-The PI zero produces mid-band peaking.  Amplitude error <= 3 % over the
-whole usage band therefore needs BOTH:
+zeta = 2.65 keeps the NCO-path in-band ripple inside +/-3 % and
+fn = f_max / 1.875 puts the band edge at the -3 % crossing, so the
+carrier path itself is calibration-free over each gear's target band.
+Cost: B_loop = pi*fn*(1+4*zeta^2)/(4*zeta) = 8.62*fn.
 
-  (1) peak |H_L| <= 1.03  ->  zeta >= 2.575.  We use zeta = 2.65
-      (continuous peak +2.85 % at x ~= 0.62) so that the exact discrete
-      response at fs = 250 MS/s (peaking slightly above the continuous
-      value for FAST) still stays inside 3 %: measured discrete ripple
-      2.85 / 2.87 / 2.92 % for SLOW / MEDIUM / FAST.
-  (2) |H_L(x_edge)| >= 0.97  ->  x_edge <= 1.944  (zeta = 2.65)
+Gear selection rule (V4)
+------------------------
+Frequency-first, then a linear tracking-error guard for large motion:
+for a sinusoidal velocity v_peak at f_target the Doppler phase amplitude
+is phi_amp = 2*v_peak/(lambda*f_target) and the loop's untracked phase is
 
-So each band picks   fn = f_max / 1.875   (margin inside 1.944), giving an
-equal-ripple -2.2 % / +2.9 % response across [0, f_max].  Compare the old
-zeta = 1.2 plan: -10.9 % at the band edge and +11.4 % peaking at 0.66*fn.
+    phi_err = |1 - H_L(f_target)| * phi_amp    [rad]
 
-Cost of flatness:  B_loop = pi*fn*(1+4*zeta^2)/(4*zeta) = 8.62*fn
-(zeta = 2.65) instead of 4.424*fn (zeta = 1.2) -- about 2.9 dB of the
-weak-light ceiling is traded for a calibration-free +/-3 % band.
-(The exact discrete single-sided ENBW integrated to fs/2 is slightly
-larger: 8.69 / 8.95 / 9.69 * fn for SLOW / MEDIUM / FAST.)
-
-Other spec formulas (per band):
-    f_3dB    = 5.49 * fn                     (zeta = 2.65)
-    a_design = pi * lambda * fn^2            (e_ss = 1 rad)
-    ceiling  = 10*log10((B_frontend/2) / B_loop)   vs-OFF phase-noise gain
-    sigma_phi^2 = B_loop / (CNR_lin * B_frontend)  in-lock phase jitter
+The PLL phase detector wraps at +/-pi, so we require phi_err <= PHI_GUARD
+(= 1.0 rad, safety margin below pi) and shift up one gear until it fits.
+This replaces the earlier constant-acceleration guard, which is far too
+pessimistic for sinusoidal motion reversing faster than the loop settles.
 """
 import math
 
 LAMBDA = 1550e-9
 FS = 250e6
 B_FRONTEND = 40e6          # complex-baseband two-sided ENBW (20e6 also legal)
-ZETA = 2.65                # equal-ripple +/-3 % (see module docstring)
+ZETA = 2.65                # equal-ripple +/-3 % NCO path (see docstring)
+
+# common residual measurement window (identical in every gear)
+B_WIN = 4e6                # FIR cutoff: measurement band DC..4 MHz
+NT_WIN = 1025              # FIR taps at 250 MS/s (transition ~0.8 MHz)
+TAU_G = 2e-6               # residual soft-gate smoothing (dropout blanking)
 
 _B_LOOP_COEF = math.pi * (1 + 4 * ZETA ** 2) / (4 * ZETA)   # 8.6215 (zeta=2.65)
-_X_EDGE = 1.875            # f_max / fn (inside the 1.944 = -3 % crossing)
-_X_3DB = 5.489             # |H_L| = -3 dB crossing for zeta = 2.65
 
 BANDS = {
-  # fn = f_max / 1.875, rounded; gate constants scale with band dynamics.
+  # fn = f_max / 1.875 (equal-ripple edge), rounded; gate constants scale
+  # with band dynamics.
   'SLOW': dict(
     f_target_max=200e3, fn=110e3, label='结构/低频, 最高灵敏度',
     tauP=4e-6, tauF=8e-6,
@@ -58,6 +68,7 @@ BANDS = {
     tauP=1e-6, tauF=1e-6,
   ),
 }
+ORDER = ('SLOW', 'MEDIUM', 'FAST')
 
 # Gate = dropout detector (NOT an FM-threshold detector): weakest specified
 # light is CNR 3 dB -> snr_hat = 2.0 > SnrOn = 1.0 enters LOCK; a 10 dB fade
@@ -71,12 +82,7 @@ GATE_COMMON = dict(
   reacq=True,
 )
 
-# Legacy tentative plan: zeta = 1.2, fn set for about -1 dB at the band edge
-LEGACY_ZETA = 1.2
-LEGACY_FN = {'SLOW': 106e3, 'MEDIUM': 529e3, 'FAST': 1.589e6}
-
-# Acceleration guard: keep steady-state phase error e_ss <= 0.3 rad
-ACC_GUARD = 0.3
+PHI_GUARD = 1.0            # rad, max allowed untracked Doppler phase
 
 
 def gate_params(name):
@@ -89,62 +95,99 @@ def loop_gains(fn, fs=FS, zeta=ZETA):
   return 2 * zeta * th, th * th          # Kp, Ki
 
 
+def b_loop(fn):
+  return _B_LOOP_COEF * fn
+
+
 def band_specs(name, B_frontend=B_FRONTEND, cnr_db=3.0):
   b = BANDS[name]
   fn = b['fn']
   Kp, Ki = loop_gains(fn)
-  B_loop = _B_LOOP_COEF * fn
+  B = b_loop(fn)
   cnr = 10 ** (cnr_db / 10)
-  sigma_phi = math.sqrt(B_loop / (cnr * B_frontend))
   return dict(
     name=name, fn=fn, zeta=ZETA, Kp=Kp, Ki=Ki,
     f_target_max=b['f_target_max'],
-    B_loop=B_loop,
-    f_3db=_X_3DB * fn,
-    a_design=math.pi * LAMBDA * fn ** 2,
-    ceiling_db=10 * math.log10((B_frontend / 2) / B_loop),
-    sigma_phi_at_cnr=sigma_phi,
+    B_loop=B,
+    B_win=B_WIN,
+    ceiling_db=10 * math.log10((B_frontend / 2) / B),
+    sigma_phi_at_cnr=math.sqrt(B / (cnr * B_frontend)),
     **gate_params(name),
   )
 
 
-def select_band(f_target_hz, v_peak=None):
-  """Frequency-first band choice with an acceleration guard.
+def loop_error_mag(f, fn, zeta=ZETA):
+  """|1 - H_L| of the II-type loop at frequency f (continuous approx.)."""
+  x = f / fn
+  return x * x / math.sqrt((1 - x * x) ** 2 + (2 * zeta * x) ** 2)
 
-  1. narrowest band whose f_target_max covers the target frequency;
-  2. if the expected peak acceleration a = 2*pi*f*v exceeds
-     ACC_GUARD * a_design of that band, shift up until it fits.
+
+def tracking_error_rad(f_target, v_peak, fn, lam=LAMBDA):
+  """Untracked Doppler phase (rad) for sinusoidal motion v_peak @ f_target."""
+  phi_amp = 2 * v_peak / (lam * f_target)
+  return loop_error_mag(f_target, fn) * phi_amp
+
+
+def select_band(f_target_hz, v_peak=None):
+  """Frequency-first gear choice with a tracking-error guard.
+
+  1. narrowest gear whose f_target_max covers the target frequency
+     (lowest gear = largest carrier-path threshold extension);
+  2. if the untracked Doppler phase |1-H_L(f_target)| * phi_amp exceeds
+     PHI_GUARD rad (phase detector wraps at pi), shift up until it fits.
   """
-  order = ('SLOW', 'MEDIUM', 'FAST')
-  idx = next((i for i, n in enumerate(order)
-              if f_target_hz <= BANDS[n]['f_target_max']), len(order) - 1)
+  idx = next((i for i, n in enumerate(ORDER)
+              if f_target_hz <= BANDS[n]['f_target_max']), len(ORDER) - 1)
   if v_peak is not None:
-    a_pk = 2 * math.pi * f_target_hz * v_peak
-    while idx < len(order) - 1:
-      a_design = math.pi * LAMBDA * BANDS[order[idx]]['fn'] ** 2
-      if a_pk <= ACC_GUARD * a_design:
-        break
+    while idx < len(ORDER) - 1 and tracking_error_rad(
+        f_target_hz, v_peak, BANDS[ORDER[idx]]['fn']) > PHI_GUARD:
       idx += 1
-  return order[idx]
+  return ORDER[idx]
 
 
 def as_struct_table():
   """Code-ready parameter table (mirrors the MATLAB struct in the docs)."""
-  return {name: band_specs(name) for name in ('SLOW', 'MEDIUM', 'FAST')}
+  return {name: band_specs(name) for name in ORDER}
 
 
-# --- Single-band shortcut for <=100 kHz vibration-only systems ---
-# No band switching needed: always SLOW.  Instrument f_max <= 100 kHz fits
-# comfortably inside the SLOW band (designed to 200 kHz).
-APP_100KHZ = dict(band='SLOW', instrument_f_max=100e3, **band_specs('SLOW'))
+# --- Application: mostly <100 kHz, instrument max 3 MHz ---
+APP_HYBRID = dict(
+  typical_f_max=100e3,
+  instrument_f_max=3e6,
+  default_band='SLOW',
+)
+
+BAND_HYSTERESIS = {
+  'SLOW_MEDIUM': dict(rise=200e3, fall=150e3),
+  'MEDIUM_FAST': dict(rise=1e6, fall=800e3),
+}
 
 
-def recommended_for_app(f_max_hz=100e3, v_peak=None):
-  """Return PLL parameters for a vibration-only instrument.
+def select_band_hysteresis(f_target_hz, current_band='SLOW', v_peak=None):
+  """Gear select with hysteresis: default SLOW for routine work, step up for
+  occasional 1--3 MHz measurements without chattering at boundaries."""
+  idx = ORDER.index(current_band) if current_band in ORDER else 0
 
-  f_max_hz: highest vibration frequency of interest (default 100 kHz).
-  v_peak: optional peak velocity (m/s) for acceleration guard; rarely
-          triggers below 100 kHz.
-  """
-  band = select_band(f_max_hz, v_peak=v_peak)
-  return band_specs(band)
+  if f_target_hz > BAND_HYSTERESIS['MEDIUM_FAST']['rise']:
+    idx = max(idx, 2)
+  elif f_target_hz > BAND_HYSTERESIS['SLOW_MEDIUM']['rise']:
+    idx = max(idx, 1)
+  elif f_target_hz < BAND_HYSTERESIS['SLOW_MEDIUM']['fall']:
+    idx = 0
+  elif f_target_hz < BAND_HYSTERESIS['MEDIUM_FAST']['fall']:
+    idx = min(idx, 1)
+
+  band = ORDER[idx]
+  if v_peak is not None:
+    guarded = select_band(f_target_hz, v_peak=v_peak)
+    idx = max(idx, ORDER.index(guarded))
+    band = ORDER[idx]
+  return band
+
+
+def cfg_for_frequency(f_target_hz, current_band='SLOW', v_peak=None,
+                      hysteresis=True):
+  """Full config dict for the current measurement frequency."""
+  band = (select_band_hysteresis(f_target_hz, current_band, v_peak)
+          if hysteresis else select_band(f_target_hz, v_peak))
+  return dict(band=band, f_target_hz=f_target_hz, **band_specs(band))
