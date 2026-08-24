@@ -1,0 +1,138 @@
+:root {
+  color-scheme: light dark;
+  --bg: #0f172a;
+  --card: #1e293b;
+  --accent: #6366f1;
+  --accent-hover: #4f46e5;
+  --text: #e2e8f0;
+  --muted: #94a3b8;
+  --done: #64748b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  background: radial-gradient(circle at top, #1e293b, var(--bg));
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+.app {
+  width: min(560px, 92vw);
+  margin-top: 8vh;
+  background: var(--card);
+  border-radius: 16px;
+  padding: 32px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+}
+
+.app__header h1 {
+  margin: 0;
+  font-size: 2.5rem;
+  letter-spacing: 0.08em;
+}
+
+.app__header p {
+  margin: 4px 0 24px;
+  color: var(--muted);
+}
+
+.new-task {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+
+.new-task__input {
+  flex: 1;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid #334155;
+  background: #0f172a;
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.new-task__input:focus {
+  outline: 2px solid var(--accent);
+  border-color: transparent;
+}
+
+.new-task__button {
+  padding: 12px 20px;
+  border: none;
+  border-radius: 10px;
+  background: var(--accent);
+  color: white;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.new-task__button:hover {
+  background: var(--accent-hover);
+}
+
+.task-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.task {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: #0f172a;
+  border: 1px solid #1e293b;
+}
+
+.task__checkbox {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.task__title {
+  flex: 1;
+  font-size: 1.05rem;
+}
+
+.task--done .task__title {
+  color: var(--done);
+  text-decoration: line-through;
+}
+
+.task__delete {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1.3rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.task__delete:hover {
+  color: #f87171;
+}
+
+.empty {
+  text-align: center;
+  color: var(--muted);
+  margin-top: 16px;
+}
