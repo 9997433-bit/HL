@@ -14,6 +14,14 @@ Architecture (per gear)
                  gears never changes the ultrasound bandwidth (this is what
                  makes "all gears <5 % amplitude error at 3 MHz" possible).
 
+Click-cleanup condition (measured in V1): FM clicks are removed by the
+COMPLEX low-pass inside the window only if the carrier loop is slower than
+the window, B_loop < B_WIN.  SLOW (0.95 MHz) and MEDIUM (4.6 MHz) satisfy
+it and reach the full threshold extension at low frequency; FAST
+(B_loop = 13.8 MHz) tracks part of the click energy into the NCO, so its
+low-frequency gain saturates near +2.5 dB -- one more reason low-frequency
+targets MUST run in a low gear (select_band enforces this).
+
 Loop design rule (carrier path, equal-ripple)
 ---------------------------------------------
 Closed-loop response of the II-type loop (continuous approx., x = f/fn):

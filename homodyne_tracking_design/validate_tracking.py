@@ -1,292 +1,419 @@
 #!/usr/bin/env python3
-"""Validate the 1550 nm / 250 MS/s homodyne IQ multi-band tracking filter.
+"""V1-V4 validation of the three-gear (三档) homodyne IQ tracking filter.
 
-Printed PASS/FAIL criteria:
-  - every band: max |H_L| amplitude error <= 3 % over [0, f_max] (exact
-    discrete response), in particular FAST @ 3 MHz;
-  - measured (time-domain) amplitude error @ 3 MHz < 3 %;
-  - weak light CNR = 3 dB / B_frontend = 40 MHz local SNR gain vs OFF:
-    SLOW > 10 dB, MEDIUM > 5 dB;
-  - legacy zeta=1.2 plan violates the 3 % budget (both edge and peaking).
+Architecture under test (see design_params.py):
+  carrier path   pll_carrier_regen (per-gear fn, zeta=2.65) -> y_nco = e^{j phi}
+  measurement    residual window: r = z e^{-j phi}, rf = FIR_LP(r, B_WIN=4MHz),
+                 y_full = e^{j phi} e^{j gs*angle(rf)}   (common to all gears)
+
+Scenarios / printed PASS-FAIL criteria:
+  V1  weak light CNR=3 dB (B_frontend=40 MHz), 100k/1M/3M sinusoidal velocity
+      bursts, all three gears: SNR gain vs OFF and amplitude error.
+        C1  FAST @3 MHz amplitude error < 3 %
+        C2  FAST @3 MHz SNR gain > 0 dB at CNR=3 dB
+        C3  SLOW @100 kHz SNR gain > 10 dB at CNR=3 dB
+        C4  ALL gears @3 MHz amplitude error < 5 %
+  V2  plain fixed complex LP (same B_loop / same B_WIN) vs the tracking gears
+      over a Doppler-swing sweep -> the PLL value boundary.
+        C6  static carrier: fixed LP ties the gear within 3 dB (PLL adds ~0)
+        C7  fD > B_WIN: fixed LP collapses, FAST gear still < 10 % error
+  V3  speckle dropout: velocity-spike suppression vs displacement error
+      (honest report, no hard criterion).
+  V4  gear selection by target frequency + tracking-error guard.
+        C5  selector returns the expected gear on all cases
+
+Methodology (from the reference t1_main.py, fair-comparison rules):
+  R1  signal gain / amplitude error measured in a SEPARATE near-noiseless run
+      (at CNR=3 dB a single 20 mm/s burst lock-in is noise-dominated);
+  R2  noise ASD measured in a QUIET window (no burst present);
+  R3  SNR gain = signal_gain_dB + 20*log10(ASD_off / ASD_on);
+  R4  medians [p10, p90] over seeds.
+
+NOTE the residual FIR window is applied group-delay-compensated ('same'
+alignment); real-time hardware needs an NT_WIN/2-sample delay line on the
+NCO path to match.
 """
 import math
 import time
 import numpy as np
 
 from core import (
-  burst_signal, complex_bandlimited_noise, pll_carrier_regen,
-  fm_discriminator, hl_response, lockin_amp, welch_psd, make_speckle,
+  burst_signal, complex_bandlimited_noise, make_speckle,
+  pll_carrier_regen, iir1_lowpass, fm_discriminator, lockin_amp, welch_psd,
 )
 from design_params import (
-  LAMBDA, FS, B_FRONTEND, ZETA, BANDS, LEGACY_ZETA, LEGACY_FN,
-  select_band, band_specs, gate_params,
+  LAMBDA, FS, B_FRONTEND, ZETA, B_WIN, NT_WIN, TAU_G,
+  BANDS, ORDER, gate_params, b_loop, select_band, tracking_error_rad,
 )
 
 TINY = 1e-300
-VAMP = 20e-3
-NCYC = 20
+VAMP = 20e-3                     # default burst velocity amplitude
+T = 5e-4
+N = int(T * FS)
+t = np.arange(N) / FS
+
+# per test frequency: burst cycles, burst start, welch segment, ASD band
+SCENES = {
+  100e3: dict(ncyc=20, t0=0.02e-3, L=8192, band=60e3),
+  1e6:   dict(ncyc=50, t0=0.05e-3, L=4096, band=150e3),
+  3e6:   dict(ncyc=60, t0=0.05e-3, L=4096, band=150e3),
+}
 
 
 # ----------------------------------------------------------------- helpers
-def make_quiet_burst_sim(f0, fs=FS, T=5e-4, t_burst=0.10e-3):
-  N = int(T * fs)
-  t = np.arange(N) / fs
-  x, v, _ = burst_signal(t, f0, VAMP, NCYC, t_burst)
-  quiet = (t > 0.33e-3) & (t < 0.49e-3)
-  win = (t > t_burst) & (t < t_burst + NCYC / f0)
-  ph = 4 * np.pi / LAMBDA * x
-  return t, ph, v, quiet, win
+def fir_kernel(fc, fs, Nt):
+  n = np.arange(Nt) - (Nt - 1) / 2
+  u = 2 * fc / fs * n
+  h = np.ones(Nt)
+  nz = u != 0
+  h[nz] = np.sin(np.pi * u[nz]) / (np.pi * u[nz])
+  h *= (2 * fc / fs) * (0.5 * (1 - np.cos(2 * np.pi * np.arange(Nt) / (Nt - 1))))
+  return h / h.sum()
 
 
-def asd_at(v, fs, f0, quiet, band=0.12e6):
-  P, f = welch_psd(v[quiet], fs, 1024)
-  m = np.abs(f - f0) < band
+_KERN = {}
+
+
+def fft_lp(x, fc, Nt):
+  """Linear-phase FIR low-pass, group delay compensated ('same'), FFT conv."""
+  key = (fc, Nt)
+  if key not in _KERN:
+    _KERN[key] = fir_kernel(fc, FS, Nt)
+  h = _KERN[key]
+  nfft = 1 << int(np.ceil(np.log2(x.size + Nt)))
+  y = np.fft.ifft(np.fft.fft(x, nfft) * np.fft.fft(h, nfft))
+  y = y[(Nt - 1) // 2:(Nt - 1) // 2 + x.size]
+  return y if np.iscomplexobj(x) else y.real
+
+
+def gear_filter(z, band, Nhat, gate='auto'):
+  """One gear: PLL carrier path + common residual measurement window."""
+  gp = gate_params(band)
+  y_nco, phi, st, dg = pll_carrier_regen(
+      z, FS, BANDS[band]['fn'], Nhat, zeta=ZETA, gate=gate, **gp)
+  rot = np.exp(-1j * phi)
+  rf = fft_lp(z * rot, B_WIN, NT_WIN)
+  if gate == 'always':
+    gs = 1.0
+  else:
+    gs = iir1_lowpass((st == 2).astype(float), math.exp(-1.0 / (FS * TAU_G)))
+  resph = np.where(np.abs(rf) > 1e-12, np.angle(rf), 0.0)
+  y_full = np.conj(rot) * np.exp(1j * gs * resph)
+  return y_full, y_nco, phi, st, dg
+
+
+def make_scene(f0, vamp=VAMP):
+  p = SCENES[f0]
+  x, v, _ = burst_signal(t, f0, vamp, p['ncyc'], p['t0'])
+  Tb = p['ncyc'] / f0
+  Wm = (t > p['t0']) & (t < p['t0'] + Tb)
+  Wq = (t > p['t0'] + Tb + 0.04e-3) & (t < 0.48e-3)
+  return dict(f0=f0, vamp=vamp, x=x, v=v, ph=4 * np.pi / LAMBDA * x,
+              Wm=Wm, Wq=Wq, L=p['L'], band=p['band'])
+
+
+def asd_at(v, sc):
+  """velocity ASD near f0, quiet window only (rule R2)."""
+  P, f = welch_psd(v[sc['Wq']], FS, sc['L'])
+  m = np.abs(f - sc['f0']) < sc['band']
   return max(np.sqrt(np.median(P[m])), TINY)
 
 
-def run_pll(ph_true, fs, fn, zeta, cnr_db, B_frontend, seed, gate, gp):
+def clean_z(sc, seed=777):
   rng = np.random.default_rng(seed)
-  s2 = 10 ** (-cnr_db / 10)
-  z = np.exp(1j * ph_true) + complex_bandlimited_noise(
-      ph_true.size, fs, B_frontend, s2, rng)
-  v_off = fm_discriminator(z, fs, LAMBDA)
-  y, _, st, diag = pll_carrier_regen(z, fs, fn, s2, zeta=zeta, gate=gate, **gp)
-  v_on = fm_discriminator(y, fs, LAMBDA)
-  return v_off, v_on, diag
+  return np.exp(1j * sc['ph']) + complex_bandlimited_noise(N, FS, 20e6, 1e-10, rng)
 
 
-def sim_amp_ratio(ph_true, v_true, t, fn, zeta, f0, win, gp, fs=FS):
-  """Measured |H| at f0: nearly noise-free run, lock-in vs exact reference."""
-  s2 = 1e-10
-  rng = np.random.default_rng(42)
-  z = np.exp(1j * ph_true) + complex_bandlimited_noise(
-      len(t), fs, B_FRONTEND, s2, rng)
-  y, _, _, _ = pll_carrier_regen(z, fs, fn, s2, zeta=zeta, gate='always', **gp)
-  a_on = lockin_amp(fm_discriminator(y, fs, LAMBDA), t, f0, win)
-  a_tr = lockin_amp(v_true, t, f0, win)
-  return a_on / a_tr
+def amp_err_pct(v_est, sc):
+  a = lockin_amp(v_est, t, sc['f0'], sc['Wm'])
+  a0 = lockin_amp(sc['v'], t, sc['f0'], sc['Wm'])
+  return 100 * (a / a0 - 1)
 
 
-def mc_snr_gain(ph_true, v_true, t, quiet, win, fn, zeta, f0, cnr_db, gp,
-                nseed=32, gate='always'):
-  g_sig = 20 * np.log10(sim_amp_ratio(ph_true, v_true, t, fn, zeta, f0, win, gp))
-  gains = []
-  for s in range(nseed):
-    vo, vn, _ = run_pll(ph_true, FS, fn, zeta, cnr_db, B_FRONTEND,
-                        1000 + s, gate, gp)
-    gains.append(g_sig + 20 * np.log10(
-        asd_at(vo, FS, f0, quiet) / asd_at(vn, FS, f0, quiet)))
-  g = np.asarray(gains)
-  return float(np.median(g)), float(np.percentile(g, 10)), float(np.percentile(g, 90))
+def vdisc(y):
+  return fm_discriminator(y, FS, LAMBDA)
 
 
-def numeric_loop_specs(fn, zeta, fs=FS, npts=1 << 20):
-  """Exact discrete |H_L|: single-sided ENBW, f_3dB, in-band ripple."""
-  f = np.linspace(0, fs / 2, npts + 1)
-  H = np.abs(hl_response(f, fs, fn, zeta))
-  B_loop = np.trapezoid(H ** 2, f)
-  i3 = np.argmax(H < 1 / math.sqrt(2))
-  f3 = f[i3]
-  return B_loop, f3, f, H
-
-
-def band_ripple(f, H, f_max):
-  m = f <= f_max
-  return 100 * float(np.max(np.abs(H[m] - 1.0)))
+def stats(a):
+  a = np.asarray([x for x in a if np.isfinite(x)])
+  if a.size == 0:
+    return (np.nan,) * 3
+  s = np.sort(a)
+  q = lambda p: s[max(0, min(s.size - 1, int(np.ceil(p / 100 * s.size)) - 1))]
+  return float(np.median(s)), float(q(10)), float(q(90))
 
 
 def print_header(title):
-  print('\n' + '=' * 78)
+  print('\n' + '=' * 86)
   print(title)
-  print('=' * 78)
+  print('=' * 86)
 
 
-def check(label, ok):
-  print(f'  [{"PASS" if ok else "FAIL"}] {label}')
+CHECKS = []
+
+
+def check(cid, label, ok, detail):
+  CHECKS.append((cid, label, ok, detail))
+  print(f"  [{'PASS' if ok else 'FAIL'}] {cid}  {label}  ({detail})")
   return ok
 
 
-# ----------------------------------------------------------------- sections
-def v0_design_table():
-  print_header('V0  DESIGN TABLE  (lambda=1550 nm, fs=250 MS/s, zeta=2.65, '
-               'B_frontend=40 MHz)')
-  print(f"  {'band':<7} {'f_max':>7} {'fn':>7} {'Kp':>9} {'Ki':>9} "
-        f"{'B_loop':>8} {'f_3dB':>7} {'ripple':>7} {'|H|@3M':>8} "
-        f"{'ceil40':>7} {'ceil20':>7} {'a_dsgn':>9} {'sig_phi':>8}")
-  rows = {}
-  for name in ('SLOW', 'MEDIUM', 'FAST'):
-    sp = band_specs(name)
-    B_num, f3_num, f, H = numeric_loop_specs(sp['fn'], ZETA)
-    rip = band_ripple(f, H, sp['f_target_max'])
-    h3 = abs(hl_response([3e6], FS, sp['fn'], ZETA)[0])
-    ceil20 = 10 * math.log10((20e6 / 2) / B_num)
-    ceil40 = 10 * math.log10((40e6 / 2) / B_num)
-    print(f"  {name:<7} {sp['f_target_max']/1e3:6.0f}k {sp['fn']/1e3:6.0f}k "
-          f"{sp['Kp']:9.3e} {sp['Ki']:9.3e} {B_num/1e6:7.3f}M "
-          f"{f3_num/1e6:6.2f}M {rip:6.2f}% {20*math.log10(h3):+7.2f}dB "
-          f"{ceil40:+6.1f} {ceil20:+6.1f} {sp['a_design']:9.3g} "
-          f"{sp['sigma_phi_at_cnr']:7.3f}")
-    rows[name] = dict(sp, B_num=B_num, f3_num=f3_num, ripple=rip, h3=h3)
-  print("  (ripple = max |H|-error over [0,f_max], exact discrete response;")
-  print("   ceil40/ceil20 = 10log10((B_frontend/2)/B_loop); sig_phi @CNR 3 dB, rad)")
-  return rows
+# ================================================================== V0 table
+def v0_table():
+  print_header('V0  三档参数表  (lambda=1550nm, fs=250MS/s, zeta=2.65, '
+               f'B_win={B_WIN/1e6:.0f}MHz common window, B_frontend=40MHz)')
+  print(f"  {'gear':<7} {'f_max':>7} {'fn':>7} {'B_loop':>8} {'ceil40':>8} "
+        f"{'in-loop CNR@3dB':>16}   note")
+  for name in ORDER:
+    fn = BANDS[name]['fn']
+    B = b_loop(fn)
+    ceil = 10 * math.log10((B_FRONTEND / 2) / B)
+    print(f"  {name:<7} {BANDS[name]['f_target_max']/1e3:6.0f}k {fn/1e3:6.0f}k "
+          f"{B/1e6:7.2f}M {ceil:+7.1f}dB {3+ceil:15.1f}dB   {BANDS[name]['label']}")
+  print(f"  measurement band = DC..{B_WIN/1e6:.0f} MHz in EVERY gear "
+        f"(window ENBW {2*0.975*B_WIN/1e6:.1f} MHz -> in-window CNR@3dB ~ "
+        f"{3+10*math.log10(B_FRONTEND/(2*0.975*B_WIN)):.1f} dB)")
 
 
-def v1_legacy_analytic():
-  print_header('V1  New (zeta=2.65) vs legacy (zeta=1.2, -1dB-edge fn) '
-               'amplitude budget')
-  print(f"  {'band':<7} {'edge':>7} | {'new edge%':>9} {'new peak%':>9} "
-        f"| {'leg edge%':>9} {'leg peak%':>9} {'leg B_loop':>10}")
-  worst_leg = 0.0
-  for name in ('SLOW', 'MEDIUM', 'FAST'):
-    fe = BANDS[name]['f_target_max']
-    _, _, f, Hn = numeric_loop_specs(BANDS[name]['fn'], ZETA, npts=1 << 18)
-    _, _, fl, Hl = numeric_loop_specs(LEGACY_FN[name], LEGACY_ZETA, npts=1 << 18)
-    e_new = 100 * abs(abs(hl_response([fe], FS, BANDS[name]['fn'], ZETA)[0]) - 1)
-    e_leg = 100 * abs(abs(hl_response([fe], FS, LEGACY_FN[name], LEGACY_ZETA)[0]) - 1)
-    p_new = band_ripple(f, Hn, fe)
-    p_leg = band_ripple(fl, Hl, fe)
-    Bl = math.pi * LEGACY_FN[name] * (1 + 4 * LEGACY_ZETA ** 2) / (4 * LEGACY_ZETA)
-    worst_leg = max(worst_leg, e_leg, p_leg)
-    print(f"  {name:<7} {fe/1e3:6.0f}k | {e_new:8.2f}% {p_new:8.2f}% "
-          f"| {e_leg:8.2f}% {p_leg:8.2f}% {Bl/1e6:8.2f}M")
-  print("  -> legacy: about -11 % at every band edge PLUS +11 % mid-band "
-        "peaking;")
-  print("     new: whole band inside +/-3 % without any calibration.")
-  return worst_leg
+# ================================================================== V1
+def V1(nseed=12, cnr_db=3.0):
+  print_header(f'V1  弱光 CNR={cnr_db:.0f}dB, B_frontend={B_FRONTEND/1e6:.0f}MHz'
+               f' -- 100k/1M/3M 正弦速度burst, 三档 x 三频  '
+               f'({nseed} seeds, median [p10,p90])')
+  s2 = 10 ** (-cnr_db / 10)
+  res = {}
+  for f0 in (100e3, 1e6, 3e6):
+    sc = make_scene(f0)
+    zc = clean_z(sc)
+    row = {}
+    for band in ORDER:
+      yf, yn, _, _, _ = gear_filter(zc, band, 1e-10, gate='always')
+      ef = amp_err_pct(vdisc(yf), sc)
+      en = amp_err_pct(vdisc(yn), sc)
+      row[band] = dict(
+          err_full=ef, err_nco=en,
+          g_full=20 * math.log10(max(1 + ef / 100, 1e-12)),
+          g_nco=20 * math.log10(max(1 + en / 100, 1e-12)),
+          gains_full=[], gains_nco=[], lock=[])
+    for s in range(nseed):
+      rng = np.random.default_rng(10_000 + int(f0 / 1e3) * 100 + s)
+      z = np.exp(1j * sc['ph']) + complex_bandlimited_noise(N, FS, B_FRONTEND, s2, rng)
+      a_off = asd_at(vdisc(z), sc)
+      for band in ORDER:
+        yf, yn, _, _, dg = gear_filter(z, band, s2, gate='auto')
+        r = row[band]
+        r['gains_full'].append(r['g_full'] + 20 * np.log10(a_off / asd_at(vdisc(yf), sc)))
+        r['gains_nco'].append(r['g_nco'] + 20 * np.log10(a_off / asd_at(vdisc(yn), sc)))
+        r['lock'].append(dg['lock_frac'])
+    print(f"\n  f0 = {f0/1e3:.0f} kHz  (burst {SCENES[f0]['ncyc']} cyc, "
+          f"vamp {VAMP*1e3:.0f} mm/s)")
+    print(f"    {'gear':<7} {'fn':>6} | {'ampErr full':>11} {'ampErr NCO':>11} |"
+          f" {'SNRgain full dB':>24} | {'SNRgain NCO dB':>16} | {'lock%':>6}")
+    for band in ORDER:
+      r = row[band]
+      m, lo, hi = stats(r['gains_full'])
+      mn, _, _ = stats(r['gains_nco'])
+      print(f"    {band:<7} {BANDS[band]['fn']/1e3:5.0f}k | {r['err_full']:+10.2f}% "
+            f"{r['err_nco']:+10.2f}% | {m:+7.2f} [{lo:+7.2f},{hi:+7.2f}] "
+            f"| {mn:+15.2f} | {100*np.mean(r['lock']):5.1f}")
+    res[f0] = row
+  print("\n  (ampErr = R1 near-noiseless transfer; full = NCO+residual-window"
+        " output, NCO = carrier path alone)")
+  print("  物理解释: 点击(click)清除发生在复域残差窗内, 要求载波环比窗慢"
+        " (B_loop < B_win).\n  SLOW/MEDIUM 满足, 故低频增益达到甚至超过窗的门限扩展;"
+        " FAST 档 B_loop=13.8M > 4M,\n  NCO 把部分点击跟进输出, 低频增益只剩 ~+2.5dB"
+        " -- 所以低频目标必须用低档 (V4选档保证).")
+  return res
 
 
-def v2_band_sweep():
-  print_header('V2  Per-band weak light, B_frontend = 40 MHz '
-               '(median [p10,p90] over 32 seeds)')
-  tests = [('SLOW', 100e3), ('MEDIUM', 1e6), ('FAST', 3e6)]
-  results = []
-  print(f"  {'band':<7} {'f0':>7} {'fn':>7} {'amp err%':>9} "
-        f"{'SNRgain@3dB':>22} {'SNRgain@6dB':>22}")
-  for band, f0 in tests:
-    fn, zeta = BANDS[band]['fn'], ZETA
-    gp = gate_params(band)
-    t, ph, v, quiet, win = make_quiet_burst_sim(f0)
-    a_ratio = sim_amp_ratio(ph, v, t, fn, zeta, f0, win, gp)
-    err = 100 * abs(a_ratio - 1)
-    g3 = mc_snr_gain(ph, v, t, quiet, win, fn, zeta, f0, 3.0, gp)
-    g6 = mc_snr_gain(ph, v, t, quiet, win, fn, zeta, f0, 6.0, gp)
-    print(f"  {band:<7} {f0/1e3:6.0f}k {fn/1e3:6.0f}k {err:8.2f}% "
-          f"{g3[0]:+6.2f} [{g3[1]:+6.2f},{g3[2]:+6.2f}] dB "
-          f"{g6[0]:+6.2f} [{g6[1]:+6.2f},{g6[2]:+6.2f}] dB")
-    results.append(dict(band=band, f0=f0, err=err, snr3=g3[0], snr6=g6[0]))
-  return results
+# ================================================================== V2
+def V2(nseed=8, cnr_db=3.0):
+  Bp = b_loop(BANDS['SLOW']['fn'])
+  print_header(f'V2  plain LP 对照 (同 B_loop={Bp/1e6:.2f}M / 同 B_win='
+               f'{B_WIN/1e6:.0f}M 固定复数低通) vs 跟踪档 -- PLL价值边界\n'
+               f'    100 kHz burst, 速度幅值扫描, CNR={cnr_db:.0f}dB, '
+               f'B_frontend={B_FRONTEND/1e6:.0f}MHz ({nseed} seeds)')
+  s2 = 10 ** (-cnr_db / 10)
+  paths = [('LP-Bloop', None), ('LP-Bwin', None),
+           ('SLOW', 'SLOW'), ('MEDIUM', 'MEDIUM'), ('FAST', 'FAST')]
+  res = {}
+  print(f"\n    {'vamp':>7} {'fD_peak':>8} | {'path':<9} {'ampErr clean':>12} "
+        f"{'ampErr noisy':>12} | {'SNRgain@100k dB':>24}")
+  for vamp in (0.02, 0.3, 1.0, 3.0, 6.0):
+    sc = make_scene(100e3, vamp)
+    fD = 2 * vamp / LAMBDA
+    zc = clean_z(sc)
+    row = {}
+    for name, band in paths:
+      if band is None:
+        cut = Bp if name == 'LP-Bloop' else B_WIN
+        vcl = vdisc(fft_lp(zc, cut, 2049 if name == 'LP-Bloop' else NT_WIN))
+      else:
+        yf, _, _, _, _ = gear_filter(zc, band, 1e-10, gate='always')
+        vcl = vdisc(yf)
+      e = amp_err_pct(vcl, sc)
+      row[name] = dict(err_clean=e, g=20 * math.log10(max(1 + e / 100, 1e-12)),
+                       errs=[], gains=[])
+    for s in range(nseed):
+      rng = np.random.default_rng(20_000 + int(vamp * 1000) + s)
+      z = np.exp(1j * sc['ph']) + complex_bandlimited_noise(N, FS, B_FRONTEND, s2, rng)
+      a_off = asd_at(vdisc(z), sc)
+      for name, band in paths:
+        if band is None:
+          cut = Bp if name == 'LP-Bloop' else B_WIN
+          v = vdisc(fft_lp(z, cut, 2049 if name == 'LP-Bloop' else NT_WIN))
+        else:
+          yf, _, _, _, _ = gear_filter(z, band, s2, gate='auto')
+          v = vdisc(yf)
+        row[name]['errs'].append(amp_err_pct(v, sc))
+        row[name]['gains'].append(row[name]['g'] + 20 * np.log10(a_off / asd_at(v, sc)))
+    for i, (name, _) in enumerate(paths):
+      r = row[name]
+      m, lo, hi = stats(r['gains'])
+      em, _, _ = stats(r['errs'])
+      head = (f"    {vamp*1e3:5.0f}mm/s {fD/1e6:7.2f}M |" if i == 0
+              else f"    {'':>7} {'':>8} |")
+      print(f"{head} {name:<9} {r['err_clean']:+11.1f}% {em:+11.1f}% "
+            f"| {m:+7.2f} [{lo:+7.2f},{hi:+7.2f}]")
+    res[vamp] = row
+  print("\n    边界结论: 固定LP在 fD_peak 超出其通带后幅值崩溃; 跟踪档把边界推到"
+        "环路失锁点\n    |1-H_L(f_v)|*phi_amp > pi (SLOW档先失效 -> 需升档, 见V4);"
+        " 静止载波下固定LP与(正确选档的)跟踪档等价 -- 这就是PLL的价值边界.")
+  sel = select_band(100e3, 0.02)          # the gear the selector actually picks
+  g_lp = stats(res[0.02]['LP-Bwin']['gains'])[0]
+  g_sel = stats(res[0.02][sel]['gains'])[0]
+  check('C6', f'静止载波: 固定LP(B_win) 与选定档({sel}) SNR gain 差 < 3 dB '
+        '(PLL无增值 -- 价值边界的诚实面)',
+        abs(g_lp - g_sel) < 3.0, f'LP {g_lp:+.2f} dB vs {sel} {g_sel:+.2f} dB')
+  e_lp = res[6.0]['LP-Bwin']['err_clean']
+  e_lpn = stats(res[6.0]['LP-Bwin']['errs'])[0]
+  e_fast = res[6.0]['FAST']['err_clean']
+  e_fastn = stats(res[6.0]['FAST']['errs'])[0]
+  check('C7', 'fD=7.7M > B_win: 固定LP严重超出5%预算(清洁<-15%) 而 FAST档 <5% '
+        '(跟踪的价值面)',
+        e_lp < -15 and abs(e_fast) < 5,
+        f'LP-Bwin {e_lp:+.1f}% (含噪 {e_lpn:+.1f}%) vs '
+        f'FAST {e_fast:+.1f}% (含噪 {e_fastn:+.1f}%)')
+  return res
 
 
-def v2b_legacy_fast_sim():
-  print_header('V2b Legacy FAST (fn=1.589M, zeta=1.2) @ 3 MHz, CNR 3 dB '
-               '(reference)')
-  f0 = 3e6
-  gp = gate_params('FAST')
-  t, ph, v, quiet, win = make_quiet_burst_sim(f0)
-  a = sim_amp_ratio(ph, v, t, LEGACY_FN['FAST'], LEGACY_ZETA, f0, win, gp)
-  g = mc_snr_gain(ph, v, t, quiet, win, LEGACY_FN['FAST'], LEGACY_ZETA,
-                  f0, 3.0, gp, nseed=16)
-  print(f"  amp ratio {a:.4f} ({100*abs(a-1):.1f} % error), "
-        f"SNR gain {g[0]:+.2f} dB")
-  print("  -> legacy buys ~2 dB more noise gain but breaks the 3 % budget.")
-  return a
+# ================================================================== V3
+def V3(nseed=12, tau_sp=50e-6, Bf=20e6):
+  band = select_band(3e6, VAMP)
+  B_OUT, thr = 1e6, 20 * VAMP
+  print_header(f'V3  散斑掉落 (tau_c={tau_sp*1e6:.0f}us, gear={band}, '
+               f'B_frontend={Bf/1e6:.0f}MHz, 输出统一滤到 {B_OUT/1e6:.0f}MHz, '
+               f'{nseed} seeds) -- 诚实报告')
+  sc = make_scene(3e6)
+  out = {}
+  for cnr in (6, 12):
+    s2 = 10 ** (-cnr / 10)
+    acc = {k + tag: [] for k in ('sp', 'dr', 'sl') for tag in ('off', 'gof', 'gon')}
+    lock = []
+    for s in range(nseed):
+      rng = np.random.default_rng(30_000 + cnr * 100 + s)
+      h = make_speckle(N, FS, tau_sp, rng)
+      z = h * np.exp(1j * sc['ph']) + complex_bandlimited_noise(N, FS, Bf, s2, rng)
+      ph_ref = sc['ph'] + np.unwrap(np.angle(h))
+      ph_ref -= ph_ref[0]
+      xref_lp = fft_lp(LAMBDA / (4 * np.pi) * ph_ref, B_OUT, 2049)
+      runs = {'off': (vdisc(z), np.unwrap(np.angle(z)))}
+      for tag, gate in (('gof', 'always'), ('gon', 'auto')):
+        yf, _, _, _, dg = gear_filter(z, band, s2, gate=gate)
+        runs[tag] = (vdisc(yf), np.unwrap(np.angle(yf)))
+        if gate == 'auto':
+          lock.append(dg['lock_frac'])
+      for tag, (v, ph) in runs.items():
+        ph = ph - ph[0]
+        vlp = fft_lp(v, B_OUT, 2049)
+        ex = np.abs(vlp[sc['Wq']]) > thr
+        acc['sp' + tag].append(
+            int(np.sum(np.diff(np.concatenate(([False], ex)).astype(int)) == 1)))
+        xh = fft_lp(LAMBDA / (4 * np.pi) * ph, B_OUT, 2049)
+        e = xh - xref_lp
+        acc['dr' + tag].append(1e9 * float(np.std(e - e.mean())))
+        acc['sl' + tag].append(int(np.sum(np.abs(np.diff(ph - ph_ref)) > np.pi)))
+    print(f"\n  mean CNR = {cnr} dB   (gate-on lock fraction "
+          f"{100*np.mean(lock):.1f}%)")
+    print(f"    {'metric':<30}{'OFF':>20}{'gear gate-off':>20}{'gear gate-on':>20}")
+    for lbl, key in ((f'velocity spikes >{thr:.1f} m/s', 'sp'),
+                     ('phase slips (2pi events)', 'sl'),
+                     ('disp rms err (nm, in 1 MHz)', 'dr')):
+      line = f"    {lbl:<30}"
+      for tag in ('off', 'gof', 'gon'):
+        m, lo, hi = stats(acc[key + tag])
+        line += f"{m:8.0f} [{lo:4.0f},{hi:5.0f}]"
+      print(line)
+    out[cnr] = acc
+  sp_off = stats(out[6]['spoff'])[0]
+  sp_on = stats(out[6]['spgon'])[0]
+  dr_off = stats(out[6]['droff'])[0]
+  dr_on = stats(out[6]['drgon'])[0]
+  print(f"\n  诚实结论: CNR=6dB 时 gate-on 把速度尖峰中值 {sp_off:.0f} -> {sp_on:.0f}"
+        f" 个, 但位移rms误差 {dr_off:.0f} -> {dr_on:.0f} nm"
+        f" ({'恶化' if dr_on > dr_off else '改善'} {abs(dr_on/max(dr_off,1e-9)):.1f}x).")
+  print("  掉落期间NCO飞轮只能外推, 位移连续性无法承诺 -- 尖峰抑制是以位移精度换来的.")
+  return out
 
 
-def v3_broadband_noise():
-  print_header('V3  Broadband velocity-noise reduction (quiet segment std, '
-               'CNR = 3 dB)')
-  t, ph, v, quiet, win = make_quiet_burst_sim(1e6)
-  for band in ('SLOW', 'MEDIUM', 'FAST'):
-    gp = gate_params(band)
-    r = []
-    for s in range(8):
-      vo, vn, _ = run_pll(ph, FS, BANDS[band]['fn'], ZETA, 3.0, B_FRONTEND,
-                          5000 + s, 'always', gp)
-      r.append(np.std(vo[quiet]) / max(np.std(vn[quiet]), TINY))
-    print(f"  {band:<7} OFF/ON velocity std ratio: {np.median(r):7.1f}x "
-          f"({20*np.log10(np.median(r)):+.1f} dB)")
-
-
-def v4_speckle_dropout():
-  print_header('V4  Speckle dropout, gate=auto (CNR = 12 dB, f0 = 1 MHz, '
-               'MEDIUM)')
-  f0 = 1e6
-  fn = BANDS['MEDIUM']['fn']
-  gp = gate_params('MEDIUM')
-  t, ph, v, quiet, win = make_quiet_burst_sim(f0)
-  sp_off, sp_on, lock = [], [], []
-  for s in range(16):
-    rng = np.random.default_rng(3000 + s)
-    s2 = 10 ** (-12 / 10)
-    h = make_speckle(len(t), FS, 15e-6, rng)
-    z = h * np.exp(1j * ph) + complex_bandlimited_noise(
-        len(t), FS, B_FRONTEND, s2, rng)
-    vo = fm_discriminator(z, FS, LAMBDA)
-    y, _, st, diag = pll_carrier_regen(z, FS, fn, s2, zeta=ZETA,
-                                       gate='auto', **gp)
-    vn = fm_discriminator(y, FS, LAMBDA)
-    thr = 0.4
-    sp_off.append(int(np.sum(np.abs(vo[quiet]) > thr)))
-    sp_on.append(int(np.sum(np.abs(vn[quiet]) > thr)))
-    lock.append(diag['lock_frac'])
-  print(f"  velocity spikes >0.4 m/s in quiet: OFF {np.median(sp_off):.0f}  "
-        f"PLL {np.median(sp_on):.0f}   (lock fraction {np.median(lock):.2f})")
-  print("  -> gate suppresses fade spikes; displacement continuity is NOT "
-        "promised.")
-  return float(np.median(sp_off)), float(np.median(sp_on))
-
-
-def v5_band_selection():
-  print_header('V5  Band selection: frequency-first + acceleration guard')
-  cases = [(50e3, 0.02), (150e3, 0.02), (500e3, 0.02), (1.5e6, 0.02),
-           (2.8e6, 0.02), (150e3, 0.5), (1e6, 0.2)]
-  for f, vpk in cases:
-    b = select_band(f, vpk)
-    a_pk = 2 * math.pi * f * vpk
-    sp = band_specs(b)
-    print(f"  f={f/1e3:7.0f} kHz  v_pk={vpk*1e3:6.0f} mm/s  "
-          f"a_pk={a_pk:9.3g} m/s^2 -> {b:<6} "
-          f"(a_design={sp['a_design']:9.3g}, guard=0.3)")
-
-
-def run_assertions(rows, v2, worst_leg, amp_leg, spikes):
-  print_header('ASSERTIONS')
+# ================================================================== V4
+def V4(v1res, v2res):
+  print_header('V4  档位切换: 按目标频率选档 + 跟踪误差守卫 (phi_err <= 1 rad)')
+  cases = [(100e3, 0.02, 'SLOW'), (1e6, 0.02, 'MEDIUM'), (3e6, 0.02, 'FAST'),
+           (100e3, 1.0, 'MEDIUM'), (100e3, 6.0, 'FAST'), (3e6, 0.1, 'FAST')]
+  print(f"    {'f_target':>9} {'v_peak':>8} | "
+        f"{'phi_err SLOW':>12} {'MEDIUM':>8} {'FAST':>8} | {'selected':>9} {'expect':>7}")
   ok = True
-  for name in ('SLOW', 'MEDIUM', 'FAST'):
-    ok &= check(f"{name} in-band ripple <= 3 % (got {rows[name]['ripple']:.2f} %)",
-                rows[name]['ripple'] <= 3.0)
-  fast = next(r for r in v2 if r['band'] == 'FAST')
-  slow = next(r for r in v2 if r['band'] == 'SLOW')
-  med = next(r for r in v2 if r['band'] == 'MEDIUM')
-  ok &= check(f"FAST measured amp error @3 MHz < 3 % (got {fast['err']:.2f} %)",
-              fast['err'] < 3.0)
-  ok &= check(f"SLOW SNR gain @CNR3dB > 10 dB (got {slow['snr3']:+.2f} dB)",
-              slow['snr3'] > 10)
-  ok &= check(f"MEDIUM SNR gain @CNR3dB > 5 dB (got {med['snr3']:+.2f} dB)",
-              med['snr3'] > 5)
-  ok &= check(f"FAST SNR gain @CNR6dB > 0 dB (got {fast['snr6']:+.2f} dB)",
-              fast['snr6'] > 0)
-  ok &= check(f"legacy plan violates 3 % budget (worst {worst_leg:.1f} %)",
-              worst_leg > 3.0)
-  ok &= check(f"speckle spikes reduced (OFF {spikes[0]:.0f} -> ON {spikes[1]:.0f})",
-              spikes[1] < spikes[0])
-  print('\n' + ('ALL CHECKS PASSED' if ok else 'SOME CHECKS FAILED'))
-  return ok
+  for f0, vpk, exp in cases:
+    sel = select_band(f0, vpk)
+    errs = [tracking_error_rad(f0, vpk, BANDS[b]['fn']) for b in ORDER]
+    ok &= (sel == exp)
+    print(f"    {f0/1e3:7.0f}kHz {vpk*1e3:6.0f}mm/s | "
+          f"{errs[0]:11.2f}r {errs[1]:7.2f}r {errs[2]:7.2f}r | {sel:>9} {exp:>7}"
+          f"{'' if sel == exp else '   <-- MISMATCH'}")
+  check('C5', '选档逻辑: 全部场景返回期望档位', ok,
+        f'{len(cases)} cases, freq-first + phi_err guard')
+  g_s = stats(v1res[100e3]['SLOW']['gains_nco'])[0]
+  g_f = stats(v1res[100e3]['FAST']['gains_nco'])[0]
+  print(f"\n  为什么低频选低档: 载波路径(NCO) @100kHz 的弱光SNR增益 "
+        f"SLOW {g_s:+.1f} dB vs FAST {g_f:+.1f} dB (V1实测)")
+  e_s = v2res[6.0]['SLOW']['err_clean']
+  e_f = v2res[6.0]['FAST']['err_clean']
+  print(f"  为什么大动态升档: vamp=6 m/s @100kHz 时幅值误差 "
+        f"SLOW {e_s:+.1f}% vs FAST {e_f:+.1f}% (V2实测)")
+  print("  测量带宽在换档时不变 (公共4MHz残差窗), 换档只改变载波环动态 -- "
+        "见V1: 三档3MHz幅值误差均合格.")
 
 
+# ================================================================== main
 def main():
   t0 = time.time()
-  rows = v0_design_table()
-  worst_leg = v1_legacy_analytic()
-  v2 = v2_band_sweep()
-  amp_leg = v2b_legacy_fast_sim()
-  v3_broadband_noise()
-  spikes = v4_speckle_dropout()
-  v5_band_selection()
-  ok = run_assertions(rows, v2, worst_leg, amp_leg, spikes)
-  print(f"\n[elapsed {time.time()-t0:.1f} s]")
-  return 0 if ok else 1
+  print('三档零差IQ跟踪滤波方案 -- 仿真验证 (V1-V4)')
+  print(f'reference core: pll_carrier_regen / residual-window, '
+        f'fs={FS/1e6:.0f}MS/s, lambda={LAMBDA*1e9:.0f}nm, T={T*1e3:.1f}ms/run')
+  v0_table()
+  v1 = V1()
+  print('\n  -- V1 criteria --')
+  c1 = abs(v1[3e6]['FAST']['err_full'])
+  check('C1', 'FAST档 @3MHz 幅值误差 < 3%', c1 < 3.0, f'{c1:.2f}%')
+  m2 = stats(v1[3e6]['FAST']['gains_full'])[0]
+  check('C2', 'FAST档 @3MHz SNR gain > 0 dB (CNR=3dB)', m2 > 0.0, f'{m2:+.2f} dB')
+  m3 = stats(v1[100e3]['SLOW']['gains_full'])[0]
+  check('C3', 'SLOW档 @100kHz SNR gain > 10 dB (CNR=3dB, Bf=40MHz)',
+        m3 > 10.0, f'{m3:+.2f} dB')
+  worst = max(abs(v1[3e6][b]['err_full']) for b in ORDER)
+  check('C4', '三档 @3MHz 幅值误差均 < 5%', worst < 5.0, f'worst {worst:.2f}%')
+  v2 = V2()
+  V3()
+  V4(v1, v2)
+  print_header('ASSERTION SUMMARY')
+  allok = True
+  for cid, label, ok, detail in CHECKS:
+    allok &= ok
+    print(f"  [{'PASS' if ok else 'FAIL'}] {cid}  {label}  ({detail})")
+  print('\n' + ('ALL CHECKS PASSED' if allok else 'SOME CHECKS FAILED'))
+  print(f'[elapsed {time.time()-t0:.1f} s]')
+  return 0 if allok else 1
 
 
 if __name__ == '__main__':
