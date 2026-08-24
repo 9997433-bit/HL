@@ -17,7 +17,9 @@
 | 采样率 | 250 MS/s |
 | 前端噪声带宽 | 40 MHz(双边 ENBW) |
 | 环路阻尼 | ζ = 2.65(NCO 路径等纹波 ±3%) |
-| 残差测量窗 | 4 MHz FIR,1025 taps(三档公共) |
+| 残差测量窗 | 4 MHz 线性相位 FIR,1025 taps @ 250 MS/s 参考设计(三档公共) |
+
+**实现说明(审查项 #4)**:`core.residual_mode`(产品路径)与 `validate_tracking.gear_filter`(验证路径)共用同一 FIR 设计函数 `core.fir_lp_kernel`(1025 taps,Hann 窗加窗 sinc),**验证路径 = 产品路径**;原先 `residual_mode` 中未被任何验证覆盖的一阶 IIR 残差窗已弃用(`iir1_lowpass` 仅保留用于软门 gs 平滑)。两条路径的一致性由 `validate_residual_alignment.py` 断言(三档 × 100k/1M/3M 幅度误差差异 < 1%)。注意:250 MS/s 全速率单级跑 1025 taps 在硬件上不可行,实时实现需多级降采样(多相抽取 → 短 FIR → 内插)等效滤波器,且 NCO 相位路径需补 NT_WIN/2 采样群时延对齐(仿真中以 'same' 对齐等效补偿)。
 
 ## 三档设计与实测(CNR=3 dB, B_frontend=40 MHz, 12 seeds 中值)
 
@@ -50,14 +52,19 @@ band = select_band(f_target_hz, v_peak)   # 'SLOW' | 'MEDIUM' | 'FAST'
 
 ```bash
 cd homodyne_tracking_design
-python3 validate_tracking.py    # ~35 s, 全部断言 PASS 时退出码 0
+python3 validate_tracking.py              # ~35 s, 全部断言 PASS 时退出码 0
+python3 validate_residual_alignment.py    # 产品路径/验证路径一致性断言
 ```
 
 断言:C1 FAST@3MHz 幅值误差 <3%;C2 FAST@3MHz SNR gain >0 dB @CNR3;C3 SLOW@100kHz SNR gain >10 dB @CNR3/40MHz;C4 三档 3MHz 幅值误差均 <5%;C5 选档逻辑;C6/C7 PLL 价值边界两面。当前结果:**7/7 PASS**(见 `results.txt`)。
 
+`validate_residual_alignment.py` 另断言 `core.residual_mode` 与 `gear_filter` 在三档 × 100kHz/1MHz/3MHz 上的幅度误差差异 < 1%(见 `results_residual_alignment.txt`)。
+
 ## 文件
 
 - `design_params.py` — 三档参数表、公共窗参数、选档逻辑
-- `core.py` — PLL 内核与信号/工具函数(逐行移植自原项目,未改动)
+- `core.py` — PLL 内核与信号/工具函数(移植自原项目;`residual_mode` 已改为 1025-tap FIR 产品路径,见审查项 #4)
 - `validate_tracking.py` — V1–V4 仿真验证 + PASS/FAIL 断言
+- `validate_residual_alignment.py` — `core.residual_mode` vs `gear_filter` 一致性断言(审查项 #4)
 - `results.txt` — 最近一次完整运行输出
+- `results_residual_alignment.txt` — 一致性断言最近一次运行输出

@@ -55,7 +55,16 @@ ZETA = 2.65                # equal-ripple +/-3 % NCO path (see docstring)
 
 # common residual measurement window (identical in every gear)
 B_WIN = 4e6                # FIR cutoff: measurement band DC..4 MHz
-NT_WIN = 1025              # FIR taps at 250 MS/s (transition ~0.8 MHz)
+# NT_WIN: linear-phase Hann-window FIR taps referenced to fs=250 MS/s
+# (transition ~0.8 MHz).  A single-stage 1025-tap FIR at the full 250 MS/s
+# rate is NOT practical in hardware; the real-time implementation must be a
+# multirate equivalent (polyphase decimation to a lower rate, short FIR,
+# interpolate back) with the same DC..B_WIN response and an NT_WIN/2-sample
+# group-delay line on the NCO phase path.  Simulation (core.residual_mode
+# and validate_tracking.gear_filter) runs the full-rate reference filter
+# directly; both build it from core.fir_lp_kernel, so the validated window
+# IS the product window (review item #4, see validate_residual_alignment.py).
+NT_WIN = 1025
 TAU_G = 2e-6               # residual soft-gate smoothing (dropout blanking)
 
 _B_LOOP_COEF = math.pi * (1 + 4 * ZETA ** 2) / (4 * ZETA)   # 8.6215 (zeta=2.65)

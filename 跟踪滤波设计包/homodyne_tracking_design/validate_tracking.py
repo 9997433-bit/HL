@@ -39,7 +39,8 @@ import numpy as np
 
 from core import (
   burst_signal, complex_bandlimited_noise, make_speckle,
-  pll_carrier_regen, iir1_lowpass, fm_discriminator, lockin_amp, welch_psd,
+  pll_carrier_regen, iir1_lowpass, fir_lp_same,
+  fm_discriminator, lockin_amp, welch_psd,
 )
 from design_params import (
   LAMBDA, FS, B_FRONTEND, ZETA, B_WIN, NT_WIN, TAU_G,
@@ -61,29 +62,14 @@ SCENES = {
 
 
 # ----------------------------------------------------------------- helpers
-def fir_kernel(fc, fs, Nt):
-  n = np.arange(Nt) - (Nt - 1) / 2
-  u = 2 * fc / fs * n
-  h = np.ones(Nt)
-  nz = u != 0
-  h[nz] = np.sin(np.pi * u[nz]) / (np.pi * u[nz])
-  h *= (2 * fc / fs) * (0.5 * (1 - np.cos(2 * np.pi * np.arange(Nt) / (Nt - 1))))
-  return h / h.sum()
-
-
-_KERN = {}
-
-
 def fft_lp(x, fc, Nt):
-  """Linear-phase FIR low-pass, group delay compensated ('same'), FFT conv."""
-  key = (fc, Nt)
-  if key not in _KERN:
-    _KERN[key] = fir_kernel(fc, FS, Nt)
-  h = _KERN[key]
-  nfft = 1 << int(np.ceil(np.log2(x.size + Nt)))
-  y = np.fft.ifft(np.fft.fft(x, nfft) * np.fft.fft(h, nfft))
-  y = y[(Nt - 1) // 2:(Nt - 1) // 2 + x.size]
-  return y if np.iscomplexobj(x) else y.real
+  """Linear-phase FIR low-pass, group delay compensated ('same'), FFT conv.
+
+  Thin wrapper over core.fir_lp_same -- the SAME design function used by
+  core.residual_mode, so the validated window is the product window
+  (review item #4; consistency asserted by validate_residual_alignment.py).
+  """
+  return fir_lp_same(x, fc, FS, Nt)
 
 
 def gear_filter(z, band, Nhat, gate='auto'):

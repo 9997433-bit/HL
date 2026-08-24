@@ -8,6 +8,11 @@ Ported from:
   03_代码_零差IQ链路/homodyne_tracking_filter.m  (residual mode)
 
 Only numpy is available (no scipy / numba), so the PLL is a tight scalar loop.
+
+Deviation from the MATLAB source (review item #4): residual_mode's
+measurement low-pass is now the 1025-tap linear-phase FIR window
+(fir_lp_kernel / fir_lp_same) validated by validate_tracking.py, not the
+original first-order IIR -- validated path == product path.
 """
 import math
 import numpy as np
@@ -218,17 +223,71 @@ def iir1_lowpass(x, a):
     return Y if np.iscomplexobj(x) else Y.real
 
 
-def residual_mode(z, fs, fn, Nhat, Bwin, zeta=1.2, tauG=2e-6, **kw):  # noqa: D401
-    """Two-pass residual window architecture (self-designed, NOT a Polytec model)."""
+_FIR_KERN = {}
+
+
+def fir_lp_kernel(fc, fs, Nt):
+    """Hann-windowed-sinc linear-phase low-pass kernel, DC-normalised.
+
+    Single source of truth for the residual measurement window: both
+    residual_mode (product path) and validate_tracking.gear_filter
+    (validation path) build their FIR from this function, so the validated
+    filter IS the product filter (review item #4).
+    """
+    key = (fc, fs, Nt)
+    if key not in _FIR_KERN:
+        n = np.arange(Nt) - (Nt - 1) / 2
+        u = 2 * fc / fs * n
+        h = np.ones(Nt)
+        nz = u != 0
+        h[nz] = np.sin(np.pi * u[nz]) / (np.pi * u[nz])
+        h *= (2 * fc / fs) * (0.5 * (1 - np.cos(2 * np.pi * np.arange(Nt) / (Nt - 1))))
+        _FIR_KERN[key] = h / h.sum()
+    return _FIR_KERN[key]
+
+
+def fir_lp_same(x, fc, fs, Nt):
+    """Linear-phase FIR low-pass via FFT convolution, group-delay compensated.
+
+    Off-line the (Nt-1)/2-sample group delay is removed by slicing ('same'
+    alignment).  Real-time hardware cannot look ahead: it must instead put an
+    NT_WIN/2-sample delay line on the NCO phase path so that e^{-j*phi} stays
+    aligned with the FIR output (see validate_tracking.py header note).
+    """
+    h = fir_lp_kernel(fc, fs, Nt)
+    nfft = 1 << int(np.ceil(np.log2(x.size + Nt)))
+    y = np.fft.ifft(np.fft.fft(x, nfft) * np.fft.fft(h, nfft))
+    y = y[(Nt - 1) // 2:(Nt - 1) // 2 + x.size]
+    return y if np.iscomplexobj(x) else y.real
+
+
+def residual_mode(z, fs, fn, Nhat, Bwin, zeta=1.2, tauG=2e-6, Nt_win=1025,
+                  **kw):  # noqa: D401
+    """Two-pass residual window architecture (self-designed, NOT a Polytec model).
+
+    Measurement low-pass = 1025-tap (design_params.NT_WIN) Hann-windowed-sinc
+    linear-phase FIR from fir_lp_kernel -- the SAME design function used by
+    validate_tracking.gear_filter, so validation covers this product path.
+    The original first-order IIR residual window (iir1_lowpass on r) was
+    never exercised by validation and has been retired (review item #4);
+    iir1_lowpass is kept only for the soft-gate smoothing gs below.
+
+    Group delay: fir_lp_same removes the (Nt_win-1)/2-sample FIR delay
+    off-line; real-time hardware needs an NT_WIN/2-sample delay line on the
+    NCO phase path to keep e^{-j*phi} aligned with the window.  A 1025-tap
+    FIR at the full 250 MS/s rate is not practical in a single stage; the
+    hardware implementation is a multirate (polyphase decimation) equivalent
+    with the same DC..Bwin response (see design_params.NT_WIN note).
+    """
     y_pll, phi, state, diag = pll_carrier_regen(z, fs, fn, Nhat, zeta=zeta, **kw)
     rot = np.exp(-1j * phi)
-    r = z * rot
-    aw = math.exp(-2 * np.pi * Bwin / fs)
-    rf = iir1_lowpass(r, aw)
-    aG = math.exp(-1.0 / (fs * tauG))
-    gs = iir1_lowpass((state == 2).astype(float), aG)
-    mag = np.abs(rf)
-    resph = np.where(mag > 1e-12, np.angle(rf), 0.0)
+    rf = fir_lp_same(z * rot, Bwin, fs, Nt_win)
+    if kw.get('gate') == 'always':
+        gs = 1.0
+    else:
+        aG = math.exp(-1.0 / (fs * tauG))
+        gs = iir1_lowpass((state == 2).astype(float), aG)
+    resph = np.where(np.abs(rf) > 1e-12, np.angle(rf), 0.0)
     y = np.conj(rot) * np.exp(1j * gs * resph)
     return y, phi, state, diag
 
@@ -242,13 +301,7 @@ def fm_discriminator(z, fs, lam):
 def fir_lp(x, fc, fs, Nt=257):
     if Nt % 2 == 0:
         Nt += 1
-    n = np.arange(Nt) - (Nt - 1) / 2
-    u = 2 * fc / fs * n
-    h = np.ones(Nt)
-    nz = u != 0
-    h[nz] = np.sin(np.pi * u[nz]) / (np.pi * u[nz])
-    h = (2 * fc / fs) * h * (0.5 * (1 - np.cos(2 * np.pi * np.arange(Nt) / (Nt - 1))))
-    h = h / h.sum()
+    h = fir_lp_kernel(fc, fs, Nt)
     return np.convolve(x, h, mode='same')
 
 
