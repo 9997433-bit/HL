@@ -131,3 +131,20 @@ def select_band(f_target_hz, v_peak=None):
 def as_struct_table():
   """Code-ready parameter table (mirrors the MATLAB struct in the docs)."""
   return {name: band_specs(name) for name in ('SLOW', 'MEDIUM', 'FAST')}
+
+
+# --- Single-band shortcut for <=100 kHz vibration-only systems ---
+# No band switching needed: always SLOW.  Instrument f_max <= 100 kHz fits
+# comfortably inside the SLOW band (designed to 200 kHz).
+APP_100KHZ = dict(band='SLOW', instrument_f_max=100e3, **band_specs('SLOW'))
+
+
+def recommended_for_app(f_max_hz=100e3, v_peak=None):
+  """Return PLL parameters for a vibration-only instrument.
+
+  f_max_hz: highest vibration frequency of interest (default 100 kHz).
+  v_peak: optional peak velocity (m/s) for acceleration guard; rarely
+          triggers below 100 kHz.
+  """
+  band = select_band(f_max_hz, v_peak=v_peak)
+  return band_specs(band)
