@@ -21,4 +21,4 @@
   [PASS] FN3  选项A 可用性: fn=1.6M 在案例c clean |err|<5%, 含噪中值 |err|<10% (含噪滑周分位数由 validate_app A8/N2 断言)  (clean -0.00%, 含噪中值 -5.50%, 含噪滑周max 2)
 
 ALL CHECKS PASSED  (3/3)
-[elapsed 6.4 s]
+[elapsed 6.7 s]

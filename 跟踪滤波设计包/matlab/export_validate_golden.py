@@ -299,30 +299,39 @@ def export_app():
   nz['a7_inv_med'] = np.array(inv_med)
 
   # ---- A8: re-run the 50-seed statistics (A8() keeps results local) ----
+  # physically consistent front end: B_FE_A8 = 86 MHz noise + LPF (A6 v2)
+  from core import fir_lp_same
+
+  def fe(z):
+    return fir_lp_same(z, va.B_FE_A8 / 2, FS, va.FE_NT)
+
   sc = va.make_scene(100e3, va.V_MAX_APP)
   s2 = 10 ** (-va.CNR_DB / 10)
-  zc = np.exp(1j * sc['ph']) + complex_bandlimited_noise(
-      sc['N'], FS, 20e6, 1e-10, np.random.default_rng(777))
+  zc = fe(np.exp(1j * sc['ph']) + complex_bandlimited_noise(
+      sc['N'], FS, 20e6, 1e-10, np.random.default_rng(777)))
   yf, _, _, _, dg = va.gear_filter(zc, 'FAST', 1e-10, gate='always')
   np_clean = dg['near_pi_events']
-  sl_clean = va.slips_vs_true(yf, sc['ph'])
-  nps, sls, errs = [], [], []
+  sl_clean = va.sudden_2pi_jumps_vs_true(yf, sc['ph'])
+  fr_clean = va.fringe_slip_vs_true(yf, sc['ph'])
+  nps, sls, frs, errs = [], [], [], []
   for s in range(va.NSEED_STATS):
     rng = np.random.default_rng(90_000 + s)
-    z = (np.exp(1j * sc['ph'])
-         + complex_bandlimited_noise(sc['N'], FS, B_FRONTEND, s2, rng))
+    z = fe(np.exp(1j * sc['ph'])
+           + complex_bandlimited_noise(sc['N'], FS, va.B_FE_A8, s2, rng))
     yf, _, _, _, dg = va.gear_filter(z, 'FAST', s2, gate='auto')
     nps.append(dg['near_pi_events'])
-    sls.append(va.slips_vs_true(yf, sc['ph']))
+    sls.append(va.sudden_2pi_jumps_vs_true(yf, sc['ph']))
+    frs.append(va.fringe_slip_vs_true(yf, sc['ph']))
     errs.append(va.amp_err_pct(va.vdisc(yf), sc))
 
   def pcts(a):
     return np.array([va.pctile(a, 50), va.pctile(a, 90), va.pctile(a, 95),
                      va.pctile(a, 99), float(np.max(a))])
 
-  nz['a8_clean'] = np.array([np_clean, sl_clean], float)
+  nz['a8_clean'] = np.array([np_clean, sl_clean, fr_clean], float)
   nz['a8_np_pct'] = pcts(nps)
   nz['a8_sl_pct'] = pcts(sls)
+  nz['a8_fr_pct'] = pcts(np.abs(frs))
   nz['a8_err_pct'] = pcts(np.abs(errs))
   save('app_30ms_100khz', oks, det, nz)
 

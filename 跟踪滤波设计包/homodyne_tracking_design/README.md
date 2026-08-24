@@ -56,7 +56,7 @@ band = select_band(f_target_hz, v_peak)   # 'SLOW' | 'MEDIUM' | 'FAST'
 
 带迟滞的 `select_band_hysteresis` 同样守卫先行:升档立即生效,降档每次更新只降一档(防抖);频率-only 的 rise 阈值(200 kHz / 1 MHz)已废除 —— 它与守卫先行规则矛盾(审计:3 MHz/20 mm/s 必须得 SLOW 而非 FAST)。因此 `cfg_for_frequency(3e6, v_peak=0.02)`(默认带迟滞)与 `select_band_hysteresis(3e6, 'SLOW', 0.02)` 都返回 **SLOW**,与 `select_band` 一致。
 
-**降级区标志(审计项 2,选项 A)**:PLL cfg dict 额外携带 `phi_err / guard_ok / overrange`(`design_params.guard_flags`;`v_peak=None` 时按 `APP_V_PEAK_MAX=30 m/s` 保守评估,不再返回 `None`)。用户全域(f ≤ 100 kHz, v ≤ 30 m/s)内唯一超守卫组合是 66–100 kHz × 高速:`cfg_for_frequency(100e3, 30.0)` 返回 `guard_ok=False, overrange=True, phi_err=1.50 rad`(< π,仍可跟踪,`validate_app_30ms_100khz.py` A2/A8 实测 clean 误差 ~0、含噪真滑周 p95=1 每 0.5 ms)——产品应把 `overrange` 上报给用户。保持 FAST fn=1.6 MHz:提高到 2.1–2.2 MHz 可过守卫但在 3 MHz 规格点损失 2.7–3.3 dB 弱光 SNR,实测对比见 `study_fast_fn_options.py`。
+**降级区标志(审计项 2,选项 A)**:PLL cfg dict 额外携带 `phi_err / guard_ok / overrange`(`design_params.guard_flags`;`v_peak=None` 时按 `APP_V_PEAK_MAX=30 m/s` 保守评估,不再返回 `None`)。用户全域(f ≤ 100 kHz, v ≤ 30 m/s)内唯一超守卫组合是 66–100 kHz × 高速:`cfg_for_frequency(100e3, 30.0)` 返回 `guard_ok=False, overrange=True, phi_err=1.50 rad`(< π,仍可跟踪,`validate_app_30ms_100khz.py` A2/A8 实测 clean 误差 ~0、含噪突发2π跳变 p95=1 每 0.5 ms;但 A8 净条纹误差实测 10^1..10^2 周/0.5 ms——降级区位移积分无效,幅值/速度指标仍有效)——产品应把 `overrange` 上报给用户。保持 FAST fn=1.6 MHz:提高到 2.1–2.2 MHz 可过守卫但在 3 MHz 规格点损失 2.7–3.3 dB 弱光 SNR,实测对比见 `study_fast_fn_options.py`。
 
 ## 产品 API:tracking_mode / gate_policy
 

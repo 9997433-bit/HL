@@ -218,22 +218,27 @@ A7  掉光重捕获 (审计项3): 30 m/s @ 100 kHz, 深衰落 -30 dB, 时长 2/1
   [PASS] D3  衰落 ≥ 10 us: 全部 seed invalid 覆盖率 ≥ 60% (HOLD/ACQUIRE => invalid 标志可用; 2 us 衰落仅报告不断言)  (2us 覆盖率 0-0% (短于检测常数))
 
 ======================================================================================
-A8  案例c 含噪 near-pi / 滑周统计 (审计项4): 50 seeds, CNR=3dB, FAST 档, gate=auto
+A8  案例c 含噪 near-pi / 相位完整性统计 (审计项4): 50 seeds, CNR=3dB, FAST 档, gate=auto, B_frontend=86MHz+前端LPF (物理一致前端, 同 A6 v2/A7)
 ======================================================================================
-  区分两种事件: near_pi = 鉴相器 |e|>2.8 rad 的噪声激励瞬时越界 (代理量, 确定性峰值已达 1.5 rad);
-  slips = unwrap(angle(y_full)) 相对真实相位的 2π 跳变 (真滑周, 产品相关量). clean 与含噪分开断言: 含噪下不要求 near_pi=0, 只要求有界.
+  区分三种事件: near_pi = 鉴相器 |e|>2.8 rad 的噪声激励瞬时越界 (代理量, 确定性峰值已达 1.5 rad);
+  sudden_2pi_jumps = unwrap(angle(y_full)) 相对真实相位的相邻样本 >π 突跳 (突发2π跳变, 原名"真滑周");
+  fringe_slip = 记录末端净整周条纹误差 round(Δφ_end/2π) (慢累积整周漂移, 突跳检测不可见).
+  诚实声明: 突发2π跳变=0 只排除突跳, 不构成位移连续性证明 -- 慢漂移由 fringe_slip 度量; clean 与含噪分开断言, 含噪下只要求有界.
 
-  clean 参考: near_pi=0, slips=0
+  clean 参考: near_pi=0, sudden_2pi_jumps=0, fringe_slip=0
   含噪分位数 (每 0.5 ms 记录, 50 seeds):
     量                          p50     p90     p95     p99     max
-    near_pi 事件数                387     442     452     484     484
-    真滑周 slips                    0       1       1       2       2
-    |ampErr full| %           7.49   10.69   11.74   12.42   12.42
+    near_pi 事件数                439     496     515     537     537
+    突发2π跳变 sudden_2pi            0       1       1       1       1
+    |净条纹误差| fringe              33     121     132     198     198
+    |ampErr full| %           4.79    8.59    9.17   10.46   10.46
 
-  文档化限值 (fallback 区 100 kHz/30 m/s, phi_err=1.5 rad, CNR=3dB): 真滑周 p95 ≤ 3 / p99 ≤ 5 每 0.5 ms; near_pi 代理 p95 ≤ 700;
-  幅值误差中值 < 10% (与 E3 一致), p90 < 20%. 案例b (10 kHz, 30 m/s) phi_err=0.151 rad 守卫内, 其含噪滑周见 E2 detail (noisy slips max).
-  [PASS] N1  A8 clean 参考: near_pi=0 且真滑周=0 (与 E3 clean 判据一致)  (near_pi=0, slips=0)
-  [PASS] N2  含噪 50 seeds: 真滑周 p95≤3/p99≤5, near_pi p95≤700, |err| p50<10%/p90<20% (有界文档化限值, 非零缺陷)  (slips p95=1 p99=2 max=2, near_pi p95=452, |err| p50=7.49% p90=10.69%)
+  文档化限值 (fallback 区 100 kHz/30 m/s, phi_err=1.5 rad, CNR=3dB, B=86MHz+LPF): 突发2π跳变 p95 ≤ 3 / p99 ≤ 5 每 0.5 ms;
+  |净条纹误差| p95 ≤ 300 / p99 ≤ 400 (实测 10^1..10^2 周: 速度峰值处 ~10 us 级短暂失跟踪 (门控仍 LOCK, NCO 相位连续, 无相邻样本突跳)
+  累积整周漂移 -- 降级区 (overrange=True) 位移积分无效, 幅值/速度指标仍有效); near_pi 代理 p95 ≤ 700; 幅值误差中值 < 10% (与 E3 一致),
+  p90 < 20%. 案例b (10 kHz, 30 m/s) phi_err=0.151 rad 守卫内, 其含噪突跳见 E2 detail (noisy slips max).
+  [PASS] N1  A8 clean 参考: near_pi=0, 突发2π跳变=0, 净条纹误差=0 (与 E3 clean 判据一致, 物理一致前端下重测)  (near_pi=0, sudden_2pi_jumps=0, fringe_slip=0)
+  [PASS] N2  含噪 50 seeds: 突发2π跳变 p95≤3/p99≤5, |净条纹误差| p95≤300/p99≤400 (位移积分在降级区无效, 见上), near_pi p95≤700, |err| p50<10%/p90<20% (有界文档化限值, 非零缺陷)  (sudden_2pi p95=1 p99=1 max=1, |fringe| p95=132 p99=198 max=198, near_pi p95=515, |err| p50=4.79% p90=8.59%)
 
 ======================================================================================
 A4  结论 (用户应用: v_peak<=30 m/s, 典型 f<=100 kHz)
@@ -287,9 +292,11 @@ A4  结论 (用户应用: v_peak<=30 m/s, 典型 f<=100 kHz)
         守卫 (最坏 1.5 rad < pi), cfg_for_frequency 现返回
         guard_ok=False/overrange=True 供产品上报; 保持 FAST fn=1.6M --
         提高到 2.1-2.2 MHz 虽可满足守卫但在 3 MHz 规格点损失 ~2..3 dB 弱光
-        SNR (见 study_fast_fn_options.py). 含噪滑周有界: A8 实测 p95≤3 每
-        0.5 ms. 若未来需求扩展到 f>100 kHz 且同时 30 m/s, 再评估提高 FAST fn
-        (滑周极限 215 kHz @30 m/s).
+        SNR (见 study_fast_fn_options.py). 含噪突发2π跳变有界 (A8 实测
+        p95≤3 每 0.5 ms), 但净条纹漂移实测 10^1..10^2 周/0.5 ms (A8
+        fringe_slip) -- 降级区位移积分无效, 幅值/速度指标仍有效, 产品须按
+        overrange 上报. 若未来需求扩展到 f>100 kHz 且同时 30 m/s, 再评估
+        提高 FAST fn (滑周极限 215 kHz @30 m/s).
     (3) 掉光行为 (A7 实测, 审计项3): 光恢复后 ~5 us 重锁, 速度精度恢复;
         但跨衰落相位滑移 10^1..10^3 周 -- HOLD/ACQUIRE 期间必须置 invalid
         标志, 任何衰落间隙上禁止位移积分; 短于 ~2 us 的深衰落不能保证被门控
@@ -315,8 +322,8 @@ A5  ASSERTION SUMMARY (主场景 PASS/FAIL 判据见文件头 docstring)
   [PASS] D1  全部 (时长×CNR×seed) 光恢复后重锁, relock ≤ 20 us  (最大 5.0 us (FAST acq_time=4us + 门控检测延迟))
   [PASS] D2  重锁后速度 RMS 误差恢复: 每组中值 post ≤ 1.5× pre  (最坏 post/pre = 1.03)
   [PASS] D3  衰落 ≥ 10 us: 全部 seed invalid 覆盖率 ≥ 60% (HOLD/ACQUIRE => invalid 标志可用; 2 us 衰落仅报告不断言)  (2us 覆盖率 0-0% (短于检测常数))
-  [PASS] N1  A8 clean 参考: near_pi=0 且真滑周=0 (与 E3 clean 判据一致)  (near_pi=0, slips=0)
-  [PASS] N2  含噪 50 seeds: 真滑周 p95≤3/p99≤5, near_pi p95≤700, |err| p50<10%/p90<20% (有界文档化限值, 非零缺陷)  (slips p95=1 p99=2 max=2, near_pi p95=452, |err| p50=7.49% p90=10.69%)
+  [PASS] N1  A8 clean 参考: near_pi=0, 突发2π跳变=0, 净条纹误差=0 (与 E3 clean 判据一致, 物理一致前端下重测)  (near_pi=0, sudden_2pi_jumps=0, fringe_slip=0)
+  [PASS] N2  含噪 50 seeds: 突发2π跳变 p95≤3/p99≤5, |净条纹误差| p95≤300/p99≤400 (位移积分在降级区无效, 见上), near_pi p95≤700, |err| p50<10%/p90<20% (有界文档化限值, 非零缺陷)  (sudden_2pi p95=1 p99=1 max=1, |fringe| p95=132 p99=198 max=198, near_pi p95=515, |err| p50=4.79% p90=8.59%)
 
 ALL CHECKS PASSED
-[elapsed 29.3 s]
+[elapsed 31.9 s]

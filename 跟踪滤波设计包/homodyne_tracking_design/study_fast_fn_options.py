@@ -43,7 +43,7 @@ from validate_tracking import (
   make_scene as vt_scene, clean_z, amp_err_pct as vt_err, asd_at as vt_asd,
 )
 from validate_app_30ms_100khz import (
-  make_scene as app_scene, amp_err_pct as app_err, slips_vs_true,
+  make_scene as app_scene, amp_err_pct as app_err, sudden_2pi_jumps_vs_true,
 )
 
 FN_GRID = (1.60e6, 2.0e6, 2.1e6, 2.2e6)
@@ -116,7 +116,7 @@ def main():
       yf, dg = gear_filter_fn(z, fn, s2, gate='auto')
       errs.append(app_err(vdisc(yf), sc_c))
       nps.append(dg['near_pi_events'])
-      sls.append(slips_vs_true(yf, sc_c['ph']))
+      sls.append(sudden_2pi_jumps_vs_true(yf, sc_c['ph']))
     yf, _ = gear_filter_fn(zc_3m, fn, 1e-10, gate='always')
     e3 = vt_err(vdisc(yf), sc_3m)
     g0 = 20 * math.log10(max(1 + e3 / 100, 1e-12))

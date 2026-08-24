@@ -43,12 +43,19 @@ Sections
       fade, and the measured phase slip across the gap (product
       requirement: HOLD/ACQUIRE => invalid flag, NO displacement
       integration across the gap).
-  A8  noisy near-pi / cycle-slip statistics at case c [audit issue 4]:
-      50 seeds at CNR = 3 dB, p50/p90/p95/p99 of near-pi detector events
-      and of true cycle slips (2pi jumps of unwrap(angle(y_full)) vs the
-      true phase); clean-run and noisy-run assertions are SEPARATE -- with
-      noise at CNR = 3 dB near-pi events are NOT required to be zero, only
-      bounded (documented limits).
+  A8  noisy near-pi / phase-integrity statistics at case c [audit issue 4]:
+      50 seeds at CNR = 3 dB with the physically consistent front end
+      (B_FE_A8 = 2*F_SIGNAL_MAX = 86 MHz noise band + linear-phase LPF on
+      signal+noise, same model as A6 v2 / A7 -- the old harness generated
+      40 MHz noise with NO front-end LPF, which is not a realizable front
+      end at 30 m/s).  p50/p90/p95/p99 of (i) near-pi detector events,
+      (ii) sudden 2pi jumps of unwrap(angle(y_full)) vs the true phase
+      (renamed from "true cycle slips": adjacent-sample |diff|>pi only
+      catches ABRUPT jumps and is NOT a displacement-continuity proof) and
+      (iii) the net integer fringe error at record end (fringe_slip_vs_true,
+      catches slow whole-cycle drift that (ii) cannot see); clean-run and
+      noisy-run assertions are SEPARATE -- with noise at CNR = 3 dB near-pi
+      events are NOT required to be zero, only bounded (documented limits).
   A4  conclusions (printed + saved to results_app_30ms_100khz.txt).
   A5  PASS/FAIL assertion summary.
 
@@ -104,12 +111,18 @@ Primary-scenario PASS/FAIL criteria (documented, asserted in A5)
       and are NOT reliably flagged -- reported, and the phase slip across
       the gap (measured 10^1..10^3 cycles at 30 m/s) makes displacement
       integration across ANY fade invalid regardless of flagging.
-  N1  A8 clean reference run: zero near-pi events and zero cycle slips
-      (same as E3's clean criterion, re-measured in the A8 harness).
-  N2  A8 noisy (50 seeds, CNR = 3 dB): p95(cycle slips) <= 3 and
-      p99(cycle slips) <= 5 per 0.5 ms record; p95(near-pi events) <= 700
-      (noise-driven detector excursions, deterministic peak is already
-      1.5 rad); median |ampErr_full| < 10 % and p90 |ampErr_full| < 20 %.
+  N1  A8 clean reference run: zero near-pi events, zero sudden 2pi jumps
+      and zero net fringe error (same as E3's clean criterion, re-measured
+      in the A8 harness with the physical 86 MHz front end).
+  N2  A8 noisy (50 seeds, CNR = 3 dB, B_FE_A8 = 86 MHz + LPF): p95(sudden
+      2pi jumps) <= 3 and p99 <= 5 per 0.5 ms record; p95(|net fringe
+      error|) <= 300 and p99 <= 400 -- the fringe drift (measured
+      10^1..10^2 cycles, from ~10 us tracking-loss episodes at velocity
+      peaks that keep the gate in LOCK) means displacement integration is
+      INVALID in the overrange zone even though sudden jumps stay ~0;
+      p95(near-pi events) <= 700 (noise-driven detector excursions,
+      deterministic peak is already 1.5 rad); median |ampErr_full| < 10 %
+      and p90 |ampErr_full| < 20 %.
       These are DOCUMENTED bounded limits, not zero-defect claims.
 """
 import sys
@@ -214,14 +227,34 @@ def vdisc(y):
   return fm_discriminator(y, FS, LAMBDA)
 
 
-def slips_vs_true(y, ph_true):
-  """True cycle slips: 2pi jumps of unwrap(angle(y)) - ph_true (V3 metric).
+def sudden_2pi_jumps_vs_true(y, ph_true):
+  """Sudden 2pi jumps of unwrap(angle(y)) - ph_true between ADJACENT samples.
 
-  Valid here because per-sample increments of both phases stay < pi
-  (fD_peak = 38.7 MHz -> 0.97 rad/sample at fs = 250 MS/s; the full output's
-  residual phase is limited by the 4 MHz window)."""
+  Renamed from slips_vs_true (audit issue 2): a per-sample |diff| > pi test
+  only catches ABRUPT jumps; a slowly accumulating whole-cycle drift never
+  trips it, so this count alone is NOT a displacement-continuity proof --
+  fringe_slip_vs_true() covers the net whole-cycle error.  The adjacent-
+  sample test is valid because per-sample increments of both phases stay
+  < pi (fD_peak = 38.7 MHz -> 0.97 rad/sample at fs = 250 MS/s; the full
+  output's residual phase is limited by the 4 MHz window)."""
   ph = np.unwrap(np.angle(y))
   return int(np.sum(np.abs(np.diff(ph - ph_true)) > np.pi))
+
+
+def fringe_slip_vs_true(y, ph_true, lam=LAMBDA):
+  """Net integer fringe error at the end of the record (audit issue 2).
+
+  Complements sudden_2pi_jumps_vs_true: catches the slow accumulating
+  whole-cycle drift that adjacent-sample jump detection cannot see.  The
+  end-of-record phase error unwrap(angle(y))[-1] - ph_true[-1] is converted
+  to displacement (homodyne: ph = 4*pi/lam * x  =>  x_err = dphi*lam/(4*pi))
+  and counted in integer fringes (1 fringe = lam/2 displacement = 2*pi of
+  phase).  Robust here because the record ends in the post-burst quiet
+  window (true phase at rest), so filter group delay contributes ~0 to the
+  end-of-record error."""
+  dphi_end = float(np.unwrap(np.angle(y))[-1] - ph_true[-1])
+  x_err = dphi_end * lam / (4 * np.pi)
+  return int(round(x_err / (lam / 2)))   # == round(dphi_end / (2*pi))
 
 
 def pctile(a, p):
@@ -373,7 +406,7 @@ def run_case(case):
       r['lock'].append(dg['lock_frac'])
       r['nps_noisy'].append(dg['near_pi_events'])
       if band == sel:
-        r['slips_noisy'].append(slips_vs_true(yf, sc['ph']))
+        r['slips_noisy'].append(sudden_2pi_jumps_vs_true(yf, sc['ph']))
 
   fD = 2 * vamp / LAMBDA
   out(f"\n  案例 {case['tag']})  f0={f0/1e3:.0f} kHz, v_peak={vamp:g} m/s "
@@ -705,55 +738,97 @@ def A7():
 
 # =================================================== A8 noisy slip statistics
 NSEED_STATS = 50
+B_FE_A8 = 2 * F_SIGNAL_MAX   # physically consistent 86 MHz front end
+                             # (same model as A6 v2 / A7 -- audit issue 1)
+# A8 metrics, old (B_NOISE_ENBW=40 MHz noise, NO front-end LPF) vs new
+# (B_FE_A8=86 MHz noise + linear-phase LPF on signal+noise), 50 seeds:
+#   sudden 2pi jumps: old p50/p90/p95/p99/max = 0/1/1/2/2
+#                     new p50/p90/p95/p99/max = 0/1/1/1/1
+#   |net fringe err|: old p50/p90/p95/p99/max = 38/80/102/170/170
+#                     new p50/p90/p95/p99/max = 33/121/132/198/198
+#   near_pi events:   old p95 = 452            new p95 = 515
+#   |ampErr full| %:  old p50/p90 = 7.49/10.69 new p50/p90 = 4.79/8.59
+# The fringe drift is NOT introduced by the front-end change (old model
+# measures p95=102 as well) -- it was simply never measured before: brief
+# (~10 us) tracking-loss episodes at the velocity peaks (gate stays LOCK,
+# NCO phase continuous -> no adjacent-sample jump) accumulate 10^1..10^2
+# whole cycles.  Displacement integration is therefore INVALID in the
+# overrange zone; velocity/amplitude metrics stay valid (|err| p50 < 5%).
+# Documented ceilings below keep headroom over the measured draw (sudden
+# p95<=3/p99<=5, |fringe| p95<=300/p99<=400, near_pi p95<=700).
 
 
 def A8():
-  header(f'A8  案例c 含噪 near-pi / 滑周统计 (审计项4): {NSEED_STATS} seeds, '
-         f'CNR={CNR_DB:.0f}dB, FAST 档, gate=auto')
-  out('  区分两种事件: near_pi = 鉴相器 |e|>2.8 rad 的噪声激励瞬时越界 (代理量, '
+  header(f'A8  案例c 含噪 near-pi / 相位完整性统计 (审计项4): {NSEED_STATS} '
+         f'seeds, CNR={CNR_DB:.0f}dB, FAST 档, gate=auto, B_frontend='
+         f'{B_FE_A8/1e6:.0f}MHz+前端LPF (物理一致前端, 同 A6 v2/A7)')
+  out('  区分三种事件: near_pi = 鉴相器 |e|>2.8 rad 的噪声激励瞬时越界 (代理量, '
       '确定性峰值已达 1.5 rad);')
-  out('  slips = unwrap(angle(y_full)) 相对真实相位的 2π 跳变 (真滑周, 产品'
-      '相关量). clean 与含噪分开断言: 含噪下不要求 near_pi=0, 只要求有界.')
+  out('  sudden_2pi_jumps = unwrap(angle(y_full)) 相对真实相位的相邻样本 >π '
+      '突跳 (突发2π跳变, 原名"真滑周");')
+  out('  fringe_slip = 记录末端净整周条纹误差 round(Δφ_end/2π) '
+      '(慢累积整周漂移, 突跳检测不可见).')
+  out('  诚实声明: 突发2π跳变=0 只排除突跳, 不构成位移连续性证明 -- 慢漂移由 '
+      'fringe_slip 度量; clean 与含噪分开断言, 含噪下只要求有界.')
   sc = make_scene(100e3, V_MAX_APP)
   s2 = 10 ** (-CNR_DB / 10)
-  zc = np.exp(1j * sc['ph']) + complex_bandlimited_noise(
-      sc['N'], FS, 20e6, 1e-10, np.random.default_rng(777))
+
+  def fe(z):
+    """Front-end LPF on signal+noise, same model as A6 v2 / A7."""
+    return fir_lp_same(z, B_FE_A8 / 2, FS, FE_NT)
+
+  zc = fe(np.exp(1j * sc['ph']) + complex_bandlimited_noise(
+      sc['N'], FS, 20e6, 1e-10, np.random.default_rng(777)))
   yf, _, _, _, dg = gear_filter(zc, 'FAST', 1e-10, gate='always')
   np_clean = dg['near_pi_events']
-  sl_clean = slips_vs_true(yf, sc['ph'])
-  nps, sls, errs = [], [], []
+  sl_clean = sudden_2pi_jumps_vs_true(yf, sc['ph'])
+  fr_clean = fringe_slip_vs_true(yf, sc['ph'], LAMBDA)
+  nps, sls, frs, errs = [], [], [], []
   for s in range(NSEED_STATS):
     rng = np.random.default_rng(90_000 + s)
-    z = (np.exp(1j * sc['ph'])
-         + complex_bandlimited_noise(sc['N'], FS, B_NOISE_ENBW, s2, rng))
+    z = fe(np.exp(1j * sc['ph'])
+           + complex_bandlimited_noise(sc['N'], FS, B_FE_A8, s2, rng))
     yf, _, _, _, dg = gear_filter(z, 'FAST', s2, gate='auto')
     nps.append(dg['near_pi_events'])
-    sls.append(slips_vs_true(yf, sc['ph']))
+    sls.append(sudden_2pi_jumps_vs_true(yf, sc['ph']))
+    frs.append(fringe_slip_vs_true(yf, sc['ph'], LAMBDA))
     errs.append(amp_err_pct(vdisc(yf), sc))
-  out(f"\n  clean 参考: near_pi={np_clean}, slips={sl_clean}")
+  out(f"\n  clean 参考: near_pi={np_clean}, sudden_2pi_jumps={sl_clean}, "
+      f"fringe_slip={fr_clean}")
   out(f"  含噪分位数 (每 0.5 ms 记录, {NSEED_STATS} seeds):")
   out(f"    {'量':<22} {'p50':>7} {'p90':>7} {'p95':>7} {'p99':>7} {'max':>7}")
-  for name, a in (('near_pi 事件数', nps), ('真滑周 slips', sls)):
+  for name, a in (('near_pi 事件数', nps), ('突发2π跳变 sudden_2pi', sls),
+                  ('|净条纹误差| fringe', np.abs(frs))):
     out(f"    {name:<22} {pctile(a, 50):7.0f} {pctile(a, 90):7.0f} "
         f"{pctile(a, 95):7.0f} {pctile(a, 99):7.0f} {max(a):7.0f}")
   out(f"    {'|ampErr full| %':<22} {pctile(np.abs(errs), 50):7.2f} "
       f"{pctile(np.abs(errs), 90):7.2f} {pctile(np.abs(errs), 95):7.2f} "
       f"{pctile(np.abs(errs), 99):7.2f} {max(np.abs(errs)):7.2f}")
-  out('\n  文档化限值 (fallback 区 100 kHz/30 m/s, phi_err=1.5 rad, CNR=3dB): '
-      '真滑周 p95 ≤ 3 / p99 ≤ 5 每 0.5 ms; near_pi 代理 p95 ≤ 700;')
-  out('  幅值误差中值 < 10% (与 E3 一致), p90 < 20%. 案例b (10 kHz, 30 m/s) '
-      f'phi_err=0.151 rad 守卫内, 其含噪滑周见 E2 detail (noisy slips max).')
-  check('N1', 'A8 clean 参考: near_pi=0 且真滑周=0 (与 E3 clean 判据一致)',
-        np_clean == 0 and sl_clean == 0,
-        f'near_pi={np_clean}, slips={sl_clean}')
+  out('\n  文档化限值 (fallback 区 100 kHz/30 m/s, phi_err=1.5 rad, CNR=3dB, '
+      'B=86MHz+LPF): 突发2π跳变 p95 ≤ 3 / p99 ≤ 5 每 0.5 ms;')
+  out('  |净条纹误差| p95 ≤ 300 / p99 ≤ 400 (实测 10^1..10^2 周: 速度峰值处 '
+      '~10 us 级短暂失跟踪 (门控仍 LOCK, NCO 相位连续, 无相邻样本突跳)')
+  out('  累积整周漂移 -- 降级区 (overrange=True) 位移积分无效, 幅值/速度指标'
+      '仍有效); near_pi 代理 p95 ≤ 700; 幅值误差中值 < 10% (与 E3 一致),')
+  out('  p90 < 20%. 案例b (10 kHz, 30 m/s) phi_err=0.151 rad 守卫内, 其含噪'
+      '突跳见 E2 detail (noisy slips max).')
+  check('N1', 'A8 clean 参考: near_pi=0, 突发2π跳变=0, 净条纹误差=0 '
+        '(与 E3 clean 判据一致, 物理一致前端下重测)',
+        np_clean == 0 and sl_clean == 0 and fr_clean == 0,
+        f'near_pi={np_clean}, sudden_2pi_jumps={sl_clean}, '
+        f'fringe_slip={fr_clean}')
   ok = (pctile(sls, 95) <= 3 and pctile(sls, 99) <= 5
+        and pctile(np.abs(frs), 95) <= 300 and pctile(np.abs(frs), 99) <= 400
         and pctile(nps, 95) <= 700
         and pctile(np.abs(errs), 50) < 10.0
         and pctile(np.abs(errs), 90) < 20.0)
-  check('N2', f'含噪 {NSEED_STATS} seeds: 真滑周 p95≤3/p99≤5, near_pi p95≤700, '
+  check('N2', f'含噪 {NSEED_STATS} seeds: 突发2π跳变 p95≤3/p99≤5, |净条纹误差| '
+        'p95≤300/p99≤400 (位移积分在降级区无效, 见上), near_pi p95≤700, '
         '|err| p50<10%/p90<20% (有界文档化限值, 非零缺陷)', ok,
-        f'slips p95={pctile(sls, 95):.0f} p99={pctile(sls, 99):.0f} '
-        f'max={max(sls)}, near_pi p95={pctile(nps, 95):.0f}, '
+        f'sudden_2pi p95={pctile(sls, 95):.0f} p99={pctile(sls, 99):.0f} '
+        f'max={max(sls)}, |fringe| p95={pctile(np.abs(frs), 95):.0f} '
+        f'p99={pctile(np.abs(frs), 99):.0f} max={max(np.abs(frs))}, '
+        f'near_pi p95={pctile(nps, 95):.0f}, '
         f'|err| p50={pctile(np.abs(errs), 50):.2f}% '
         f'p90={pctile(np.abs(errs), 90):.2f}%')
 
@@ -819,9 +894,11 @@ def A4(bounds, e2e):
         守卫 (最坏 1.5 rad < pi), cfg_for_frequency 现返回
         guard_ok=False/overrange=True 供产品上报; 保持 FAST fn=1.6M --
         提高到 2.1-2.2 MHz 虽可满足守卫但在 3 MHz 规格点损失 ~2..3 dB 弱光
-        SNR (见 study_fast_fn_options.py). 含噪滑周有界: A8 实测 p95≤3 每
-        0.5 ms. 若未来需求扩展到 f>100 kHz 且同时 30 m/s, 再评估提高 FAST fn
-        (滑周极限 {bounds['f_fastpi']/1e3:.0f} kHz @30 m/s).
+        SNR (见 study_fast_fn_options.py). 含噪突发2π跳变有界 (A8 实测
+        p95≤3 每 0.5 ms), 但净条纹漂移实测 10^1..10^2 周/0.5 ms (A8
+        fringe_slip) -- 降级区位移积分无效, 幅值/速度指标仍有效, 产品须按
+        overrange 上报. 若未来需求扩展到 f>100 kHz 且同时 30 m/s, 再评估
+        提高 FAST fn (滑周极限 {bounds['f_fastpi']/1e3:.0f} kHz @30 m/s).
     (3) 掉光行为 (A7 实测, 审计项3): 光恢复后 ~5 us 重锁, 速度精度恢复;
         但跨衰落相位滑移 10^1..10^3 周 -- HOLD/ACQUIRE 期间必须置 invalid
         标志, 任何衰落间隙上禁止位移积分; 短于 ~2 us 的深衰落不能保证被门控
