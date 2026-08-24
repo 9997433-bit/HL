@@ -351,8 +351,8 @@ def V3(nseed=12, tau_sp=50e-6, Bf=20e6):
 # ================================================================== V4
 def V4(v1res, v2res):
   print_header('V4  档位切换: 按目标频率选档 + 跟踪误差守卫 (phi_err <= 1 rad)')
-  cases = [(100e3, 0.02, 'SLOW'), (1e6, 0.02, 'MEDIUM'), (3e6, 0.02, 'FAST'),
-           (100e3, 1.0, 'MEDIUM'), (100e3, 6.0, 'FAST'), (3e6, 0.1, 'FAST')]
+  cases = [(100e3, 0.02, 'SLOW'), (1e6, 0.02, 'SLOW'), (3e6, 0.02, 'SLOW'),
+           (100e3, 1.0, 'MEDIUM'), (100e3, 6.0, 'FAST'), (3e6, 0.1, 'SLOW')]
   print(f"    {'f_target':>9} {'v_peak':>8} | "
         f"{'phi_err SLOW':>12} {'MEDIUM':>8} {'FAST':>8} | {'selected':>9} {'expect':>7}")
   ok = True
@@ -364,7 +364,7 @@ def V4(v1res, v2res):
           f"{errs[0]:11.2f}r {errs[1]:7.2f}r {errs[2]:7.2f}r | {sel:>9} {exp:>7}"
           f"{'' if sel == exp else '   <-- MISMATCH'}")
   check('C5', '选档逻辑: 全部场景返回期望档位', ok,
-        f'{len(cases)} cases, freq-first + phi_err guard')
+        f'{len(cases)} cases, guard-pass narrowest gear')
   g_s = stats(v1res[100e3]['SLOW']['gains_nco'])[0]
   g_f = stats(v1res[100e3]['FAST']['gains_nco'])[0]
   print(f"\n  为什么低频选低档: 载波路径(NCO) @100kHz 的弱光SNR增益 "

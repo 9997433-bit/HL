@@ -173,20 +173,21 @@ def tracking_error_rad(f_target, v_peak, fn, lam=LAMBDA):
 
 
 def select_band(f_target_hz, v_peak=None):
-  """Frequency-first gear choice with a tracking-error guard.
+  """Homodyne gear choice: narrowest band passing the tracking-error guard.
 
-  1. narrowest gear whose f_target_max covers the target frequency
-     (lowest gear = largest carrier-path threshold extension);
-  2. if the untracked Doppler phase |1-H_L(f_target)| * phi_amp exceeds
-     PHI_GUARD rad (phase detector wraps at pi), shift up until it fits.
+  Measurement bandwidth is set by the common B_WIN residual window, not by the
+  gear's f_target_max.  Among gears whose untracked Doppler phase
+  |1-H_L(f)| * phi_amp stays below PHI_GUARD, pick the narrowest (lowest
+  B_loop) for best weak-light SNR.  If none pass, use the widest gear.
   """
-  idx = next((i for i, n in enumerate(ORDER)
-              if f_target_hz <= BANDS[n]['f_target_max']), len(ORDER) - 1)
-  if v_peak is not None:
-    while idx < len(ORDER) - 1 and tracking_error_rad(
-        f_target_hz, v_peak, BANDS[ORDER[idx]]['fn']) > PHI_GUARD:
-      idx += 1
-  return ORDER[idx]
+  if v_peak is None:
+    idx = next((i for i, n in enumerate(ORDER)
+                if f_target_hz <= BANDS[n]['f_target_max']), len(ORDER) - 1)
+    return ORDER[idx]
+  for name in ORDER:
+    if tracking_error_rad(f_target_hz, v_peak, BANDS[name]['fn']) <= PHI_GUARD:
+      return name
+  return ORDER[-1]
 
 
 def as_struct_table():
