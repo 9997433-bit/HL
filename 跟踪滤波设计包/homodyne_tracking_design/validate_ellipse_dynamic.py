@@ -9,7 +9,7 @@ import time
 import numpy as np
 
 from core import welch_psd
-from ellipse_correction import heydemann_fit, heydemann_apply, fit_arc_gated
+from ellipse_correction import heydemann_fit, heydemann_apply, fit_arc_gated, OnlineBiasTracker
 
 LAMBDA = 1550e-9
 FS = 2.5e6
@@ -87,13 +87,13 @@ def metrics(x_est, x_ref, t, f0, sel):
     return dict(rms=rms, amp=amp_err, snr=snr)
 
 
-class SplitCal:
-    """B7: learn g,delta once from reflective large-vib segment; online p,q only."""
+class SplitCalBroken:
+    """Control group: wrong block-mean IIR (audit item 1) — do not use in product."""
 
     def __init__(self, fs, gd_par, blk=0.05, tau=0.05):
         self.nb = max(64, int(blk * fs))
         self.gd = {k: gd_par[k] for k in ('A', 'B', 'delta')}
-        self.p, self.q = P_OFF0, Q_OFF
+        self.p, self.q = 0.0, 0.0
         self.a = math.exp(-1.0 / (fs * tau))
 
     def apply(self, u, v):
@@ -122,9 +122,9 @@ def main():
     par2, _ = heydemann_fit(u[:n1:max(1, n1 // 8000)], v[:n1:max(1, n1 // 8000)])
     _, _, z2 = heydemann_apply(u, v, par2)
 
-    # B7 split: g,delta from phase1, online bias
+    # B7: g,delta from phase1 fit; online p,q via arc-gated tracker (not block mean)
     par7, res7 = heydemann_fit(u[:n1:max(1, n1 // 8000)], v[:n1:max(1, n1 // 8000)])
-    z7 = SplitCal(FS, par7).apply(u, v)
+    z7 = OnlineBiasTracker(par7, FS, blk_s=0.05).run(u, v)
 
     methods = {
         'B0': u + 1j * v,
