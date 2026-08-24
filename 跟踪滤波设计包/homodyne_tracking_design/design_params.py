@@ -7,31 +7,49 @@ Architecture (per gear)
                  Narrowband: gives the threshold extension (weak-light SNR
                  gain) and the dropout flywheel.
   measurement    residual window: r = z * e^{-j phi} is low-passed by a
-                 COMMON linear-phase FIR window (cutoff B_WIN = 4 MHz) and
-                 recombined,  y_full = e^{j phi} * e^{j gs*angle(LP(r))}.
-                 The window is centred on the tracked carrier, so the
-                 measurement band is DC..B_WIN in EVERY gear: switching
-                 gears never changes the ultrasound bandwidth (this is what
-                 makes "all gears <5 % amplitude error at 3 MHz" possible).
+                 COMMON linear-phase FIR window (B_WIN = 4 MHz is the
+                 window's -6 dB cutoff) and recombined,
+                 y_full = e^{j phi} * e^{j gs*angle(LP(r))}.
+                 The window is centred on the tracked carrier and is
+                 IDENTICAL in every gear, so switching gears never changes
+                 the ultrasound bandwidth (this is what makes "all gears
+                 <5 % amplitude error at 3 MHz" possible).  The flat
+                 (<1 % amplitude error) measurement band is DC..~3.6 MHz;
+                 4 MHz is the -6 dB point, NOT a flat-band edge
+                 (validate_zeta_sweep.py Z0).
 
-Click-cleanup condition (measured in V1): FM clicks are removed by the
-COMPLEX low-pass inside the window only if the carrier loop is slower than
-the window, B_loop < B_WIN.  SLOW (0.95 MHz) and MEDIUM (4.6 MHz) satisfy
-it and reach the full threshold extension at low frequency; FAST
-(B_loop = 13.8 MHz) tracks part of the click energy into the NCO, so its
-low-frequency gain saturates near +2.5 dB -- one more reason low-frequency
-targets MUST run in a low gear (select_band enforces this).
+Click-cleanup condition (measured in V1 / zeta sweep): FM clicks are
+removed by the COMPLEX low-pass inside the window only if the carrier loop
+is slower than the window, B_loop < B_WIN.  With zeta = 1.2 SLOW
+(0.49 MHz) and MEDIUM (2.34 MHz) satisfy it and reach the full threshold
+extension at low frequency; FAST (B_loop = 7.1 MHz) tracks part of the
+click energy into the NCO, so its low-frequency gain saturates near
++12 dB -- one more reason low-frequency targets MUST run in a low gear
+(select_band enforces this).
 
-Loop design rule (carrier path, equal-ripple)
----------------------------------------------
+Loop design rule (carrier path economy, review item #7)
+-------------------------------------------------------
 Closed-loop response of the II-type loop (continuous approx., x = f/fn):
 
     |H_L(x)|^2 = (1 + 4*zeta^2*x^2) / ((1 - x^2)^2 + 4*zeta^2*x^2)
 
-zeta = 2.65 keeps the NCO-path in-band ripple inside +/-3 % and
-fn = f_max / 1.875 puts the band edge at the -3 % crossing, so the
-carrier path itself is calibration-free over each gear's target band.
-Cost: B_loop = pi*fn*(1+4*zeta^2)/(4*zeta) = 8.62*fn.
+The FULL measurement output y_full re-inserts the untracked residual
+through the common FIR window, so output flatness does NOT depend on
+|H_L|: the zeta sweep (validate_zeta_sweep.py, Z3-1) measures < 0.05 pp
+amplitude-error spread across zeta in {0.7..2.65} on every gear x
+frequency.  zeta therefore buys nothing at the output and only costs loop
+bandwidth: B_loop = pi*fn*(1+4*zeta^2)/(4*zeta) = 8.62*fn at the earlier
+zeta = 2.65 (chosen for +/-3 % NCO-path ripple -- the wrong object) vs
+4.42*fn at zeta = 1.2, i.e. ~2.9 dB of threshold-extension ceiling.
+zeta = 1.2 restores B_loop < B_WIN for MEDIUM (click cleanup, 100 kHz
+gain +36.2 -> +38.1 dB) and lifts FAST@3MHz gain +2.2 -> +7.8 dB.  Lower
+zeta (0.7/1.0) adds only ~1 dB more at FAST's 3 MHz design point but puts
+FAST's low-frequency behaviour on the bimodal click-cleanup cliff
+(B_loop ~ 1.3*B_WIN) and is underdamped -- rejected.  The NCO-path ripple
+at zeta = 1.2 (+11 %/-11 % over the gear band) affects only the carrier
+path alone (dropout flywheel, gear guard), which is insensitive to it.
+fn = f_max / 1.875 is kept from the earlier plan: with the window-defined
+output it no longer sets flatness, only the guard and B_loop scale.
 
 Gear selection rule (V4)
 ------------------------
@@ -51,10 +69,12 @@ import math
 LAMBDA = 1550e-9
 FS = 250e6
 B_FRONTEND = 40e6          # complex-baseband two-sided ENBW (20e6 also legal)
-ZETA = 2.65                # equal-ripple +/-3 % NCO path (see docstring)
+ZETA = 1.2                 # carrier-loop economy; output flatness is set by
+                           # the common FIR window, NOT |H_L| (review item #7,
+                           # zeta sweep in validate_zeta_sweep.py)
 
 # common residual measurement window (identical in every gear)
-B_WIN = 4e6                # FIR cutoff: measurement band DC..4 MHz
+B_WIN = 4e6                # FIR -6 dB cutoff; flat (<1 % err) band DC..~3.6 MHz
 # NT_WIN: linear-phase Hann-window FIR taps referenced to fs=250 MS/s
 # (transition ~0.8 MHz).  A single-stage 1025-tap FIR at the full 250 MS/s
 # rate is NOT practical in hardware; the real-time implementation must be a
@@ -67,11 +87,16 @@ B_WIN = 4e6                # FIR cutoff: measurement band DC..4 MHz
 NT_WIN = 1025
 TAU_G = 2e-6               # residual soft-gate smoothing (dropout blanking)
 
-_B_LOOP_COEF = math.pi * (1 + 4 * ZETA ** 2) / (4 * ZETA)   # 8.6215 (zeta=2.65)
+_B_LOOP_COEF = math.pi * (1 + 4 * ZETA ** 2) / (4 * ZETA)   # 4.4244 (zeta=1.2)
+# -3 dB closed-loop frequency coefficient: solve |H_L|^2 = 1/2 ->
+# x^2 = ((2+4z^2) + sqrt((2+4z^2)^2+4))/2;  2.808 at zeta=1.2
+_F3DB_COEF = math.sqrt(((2 + 4 * ZETA ** 2)
+                        + math.hypot(2 + 4 * ZETA ** 2, 2)) / 2)
 
 BANDS = {
-  # fn = f_max / 1.875 (equal-ripple edge), rounded; gate constants scale
-  # with band dynamics.
+  # fn = f_max / 1.875, rounded (kept from the earlier plan: output flatness
+  # is window-defined, fn only scales the guard and B_loop -- see docstring);
+  # gate constants scale with band dynamics.
   'SLOW': dict(
     f_target_max=200e3, fn=110e3, label='结构/低频, 最高灵敏度',
     tauP=4e-6, tauF=8e-6,
@@ -101,10 +126,6 @@ GATE_COMMON = dict(
 
 PHI_GUARD = 1.0            # rad, max allowed untracked Doppler phase
 
-# Legacy tentative plan (zeta=1.2) for regression checks in validate_tracking.py
-LEGACY_ZETA = 1.2
-LEGACY_FN = {'SLOW': 106e3, 'MEDIUM': 529e3, 'FAST': 1.589e6}
-
 
 def gate_params(name):
   b = BANDS[name]
@@ -130,7 +151,7 @@ def band_specs(name, B_frontend=B_FRONTEND, cnr_db=3.0):
     name=name, fn=fn, zeta=ZETA, Kp=Kp, Ki=Ki,
     f_target_max=b['f_target_max'],
     B_loop=B,
-    f_3db=5.489 * fn,
+    f_3db=_F3DB_COEF * fn,
     a_design=math.pi * LAMBDA * fn ** 2,
     B_win=B_WIN,
     ceiling_db=10 * math.log10((B_frontend / 2) / B),

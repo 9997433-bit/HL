@@ -2,9 +2,11 @@
 """V1-V4 validation of the three-gear (三档) homodyne IQ tracking filter.
 
 Architecture under test (see design_params.py):
-  carrier path   pll_carrier_regen (per-gear fn, zeta=2.65) -> y_nco = e^{j phi}
-  measurement    residual window: r = z e^{-j phi}, rf = FIR_LP(r, B_WIN=4MHz),
-                 y_full = e^{j phi} e^{j gs*angle(rf)}   (common to all gears)
+  carrier path   pll_carrier_regen (per-gear fn, zeta=1.2) -> y_nco = e^{j phi}
+  measurement    residual window: r = z e^{-j phi}, rf = FIR_LP(r), where the
+                 common FIR has its -6 dB cutoff at B_WIN=4MHz (flat <1 % to
+                 ~3.6 MHz), y_full = e^{j phi} e^{j gs*angle(rf)}
+                 (identical window in all gears)
 
 Scenarios / printed PASS-FAIL criteria:
   V1  weak light CNR=3 dB (B_frontend=40 MHz), 100k/1M/3M sinusoidal velocity
@@ -146,7 +148,7 @@ def check(cid, label, ok, detail):
 
 # ================================================================== V0 table
 def v0_table():
-  print_header('V0  三档参数表  (lambda=1550nm, fs=250MS/s, zeta=2.65, '
+  print_header(f'V0  三档参数表  (lambda=1550nm, fs=250MS/s, zeta={ZETA}, '
                f'B_win={B_WIN/1e6:.0f}MHz common window, B_frontend=40MHz)')
   print(f"  {'gear':<7} {'f_max':>7} {'fn':>7} {'B_loop':>8} {'ceil40':>8} "
         f"{'in-loop CNR@3dB':>16}   note")
@@ -156,7 +158,8 @@ def v0_table():
     ceil = 10 * math.log10((B_FRONTEND / 2) / B)
     print(f"  {name:<7} {BANDS[name]['f_target_max']/1e3:6.0f}k {fn/1e3:6.0f}k "
           f"{B/1e6:7.2f}M {ceil:+7.1f}dB {3+ceil:15.1f}dB   {BANDS[name]['label']}")
-  print(f"  measurement band = DC..{B_WIN/1e6:.0f} MHz in EVERY gear "
+  print(f"  公共测量窗 (三档相同): -6dB 截止 {B_WIN/1e6:.0f} MHz, "
+        f"平坦(<1%误差)区 DC..~3.6 MHz "
         f"(window ENBW {2*0.975*B_WIN/1e6:.1f} MHz -> in-window CNR@3dB ~ "
         f"{3+10*math.log10(B_FRONTEND/(2*0.975*B_WIN)):.1f} dB)")
 
@@ -205,10 +208,13 @@ def V1(nseed=12, cnr_db=3.0):
     res[f0] = row
   print("\n  (ampErr = R1 near-noiseless transfer; full = NCO+residual-window"
         " output, NCO = carrier path alone)")
+  Bf = b_loop(BANDS['FAST']['fn'])
   print("  物理解释: 点击(click)清除发生在复域残差窗内, 要求载波环比窗慢"
-        " (B_loop < B_win).\n  SLOW/MEDIUM 满足, 故低频增益达到甚至超过窗的门限扩展;"
-        " FAST 档 B_loop=13.8M > 4M,\n  NCO 把部分点击跟进输出, 低频增益只剩 ~+2.5dB"
-        " -- 所以低频目标必须用低档 (V4选档保证).")
+        " (B_loop < B_win).\n  SLOW/MEDIUM (ζ=1.2 下 0.49M/2.34M) 满足, 故低频增益"
+        "达到甚至超过窗的门限扩展;\n  FAST 档 B_loop="
+        f"{Bf/1e6:.1f}M > {B_WIN/1e6:.0f}M, NCO 把部分点击跟进输出, 低频增益只剩"
+        " ~+12dB (部分清除)\n  -- 所以低频目标必须用低档 (V4选档保证)."
+        " ζ 的选择依据见 validate_zeta_sweep.py (审查项#7).")
   return res
 
 

@@ -12,7 +12,8 @@ CNR complex-Gaussian noise, and sinusoidal true displacement, then compares:
   B2  static Heydemann   one fit on the first T_CAL seconds, applied globally
   B3  segmented-arc Heydemann  per-segment amplitude-gated fit with freeze on
                      invalid arc (document M1), parameters interpolated in time
-  B4  B3 + SLOW-gear tracking filter (pll_carrier_regen, fn=110 kHz, zeta=2.65)
+  B4  B3 + SLOW-gear tracking filter (pll_carrier_regen, fn=110 kHz,
+      zeta from design_params.ZETA -- 1.2 since review item #7)
 
 Metrics (per case, evaluated on t in [0.1, 1.9) s, decimated to 25 kS/s):
   * amplitude error [%]  lock-in at f vs true A
@@ -39,6 +40,7 @@ import time
 import numpy as np
 
 from core import pll_carrier_regen, welch_psd
+from design_params import ZETA as ZETA_SLOW
 from ellipse_correction import (heydemann_fit, heydemann_apply,
                                 segmented_heydemann, interp_par_track,
                                 apply_par_track)
@@ -71,7 +73,8 @@ T_CAL_B2 = 0.4                            # static calibration segment (s)
 SEG_B3 = 0.5                              # B3 segment length (s)
 GATE_B3 = 0.02                            # B3 amplitude gate (+-2% modulus)
 B1_AMP_SANE = 20.0                        # B1 window must keep |amp err| < 20%
-FN_SLOW, ZETA_SLOW = 110e3, 2.65          # SLOW gear (design_params.py)
+FN_SLOW = 110e3                           # SLOW gear fn (design_params.py);
+                                          # zeta imported from design_params
 
 CASES = [(A, f0) for A in (10e-9, 100e-9, 500e-9, 1e-6)
          for f0 in (100.0, 1000.0)]
@@ -274,7 +277,7 @@ def main(argv=None):
     w('方法: B0 OFF=angle(z) | B1 滑动去均值(窗扫描, 取最优窗) | '
       'B2 静态Heydemann(前0.4 s标定)')
     w(f'      B3 分段弧Heydemann(段长{SEG_B3}s, 幅度门±{GATE_B3*100:.0f}%, '
-      f'弧<π/2冻结) | B4 = B3 + SLOW跟踪滤波(fn=110 kHz, ζ=2.65)')
+      f'弧<π/2冻结) | B4 = B3 + SLOW跟踪滤波(fn=110 kHz, ζ={ZETA_SLOW})')
 
     results = {}
     for i, (A, f0) in enumerate(CASES):

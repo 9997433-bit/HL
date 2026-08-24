@@ -6,7 +6,7 @@
 
 | 文件夹 | 体制 | 说明 |
 |--------|------|------|
-| `homodyne_tracking_design/` | **零差光 IQ** | 1550 nm，分档 SLOW/MEDIUM/FAST，等纹波 ζ=2.65，载波 PLL + 公共 4 MHz 残差窗 |
+| `homodyne_tracking_design/` | **零差光 IQ** | 1550 nm，分档 SLOW/MEDIUM/FAST，ζ=1.2，载波 PLL + 公共 4 MHz 残差窗 |
 | `heterodyne_tracking_design/` | **外差电 IQ** | HeNe 632.8 nm，量程→加速度→fn，纯 NCO（无残差窗） |
 
 ## 快速开始
