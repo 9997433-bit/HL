@@ -6,7 +6,8 @@ function rc = compare_qtec_golden(golden_file)
 % PLL, block weights, diversity combine) on the EXPORTED inputs.
 % Returns rc = 0 iff every check passes.
   here = fileparts(mfilename('fullpath'));
-  addpath(fullfile(here, '..', 'homodyne'));
+  addpath(fullfile(here, '..', 'homodyne'));         % set_rng, hd_* helpers
+  addpath(fullfile(here, '..', 'homodyne', 'core')); % canonical shared core
   addpath(here);
   if nargin < 1 || isempty(golden_file)
     golden_file = fullfile(here, '..', 'golden', 'qtec_golden.mat');

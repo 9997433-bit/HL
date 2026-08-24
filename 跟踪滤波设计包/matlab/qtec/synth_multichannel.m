@@ -30,7 +30,7 @@ function out = synth_multichannel(phi, fs, M, cnr_db, varargin)
   carrier = exp(1i * phi);
   z = zeros(M, N);
   for k = 1:M
-    n = complex_bandlimited_noise(N, fs, o.B_noise, s2);
+    n = complex_bandlimited_noise(N, fs, o.B_noise, s2, @(m) randn(m, 1));
     z(k, :) = h(k, :) .* carrier * exp(1i * psi(k)) + n.';
   end
   out = struct('z', z, 'h', h, 'psi', psi, 's2', s2);

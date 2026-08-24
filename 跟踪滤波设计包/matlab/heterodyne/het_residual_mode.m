@@ -7,10 +7,10 @@ function [y, phi, state, diag] = het_residual_mode(z, fs, fn, Nhat, Bwin, vararg
 % not use it (pure-NCO architecture).
 %
 % Options: 'zeta' (default 1.2), 'tauG' (default 2e-6); the rest forwarded to
-% pll_carrier_regen.
+% pll_carrier_regen (as fields of its opts struct).
   zeta = 1.2;
   tauG = 2e-6;
-  fwd = {};
+  fwd = struct();
   for k = 1:2:numel(varargin)
     switch varargin{k}
       case 'zeta'
@@ -18,12 +18,12 @@ function [y, phi, state, diag] = het_residual_mode(z, fs, fn, Nhat, Bwin, vararg
       case 'tauG'
         tauG = varargin{k + 1};
       otherwise
-        fwd(end + 1:end + 2) = varargin(k:k + 1);
+        fwd.(varargin{k}) = varargin{k + 1};
     end
   end
+  fwd.zeta = zeta;
   z = z(:);
-  [~, phi, state, diag] = pll_carrier_regen(z, fs, fn, Nhat, ...
-                                            'zeta', zeta, fwd{:});
+  [~, phi, state, diag] = pll_carrier_regen(z, fs, fn, Nhat, fwd);
   rot = exp(-1i * phi);
   r = z .* rot;
   aw = exp(-2 * pi * Bwin / fs);

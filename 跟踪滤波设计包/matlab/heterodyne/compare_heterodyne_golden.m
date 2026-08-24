@@ -6,7 +6,8 @@ function rc = compare_heterodyne_golden(golden_file)
 % only -- randomness never crosses the language boundary.
 % Returns rc = 0 iff every check passes.
   here = fileparts(mfilename('fullpath'));
-  addpath(fullfile(here, '..', 'homodyne'));
+  addpath(fullfile(here, '..', 'homodyne'));         % set_rng, hd_* helpers
+  addpath(fullfile(here, '..', 'homodyne', 'core')); % canonical shared core
   addpath(here);
   if nargin < 1 || isempty(golden_file)
     golden_file = fullfile(here, '..', 'golden', 'heterodyne_golden.mat');
@@ -84,7 +85,7 @@ function rc = compare_heterodyne_golden(golden_file)
 
   % ---- PLL case A: burst + offset + noise (gate=always) --------------------
   [~, phiA, stA, dgA] = pll_carrier_regen(g.pllA_z, P.FS, g.pllA_fn, ...
-      g.pllA_s2, 'zeta', P.ZETA, 'gate', 'always');
+      g.pllA_s2, struct('zeta', P.ZETA, 'gate', 'always'));
   eA = angle(exp(1i * (phiA - g.pllA_phi)));
   [n_pass, n_fail] = chk('pllA phi (wrapped max err, rad)', ...
                          maxabs(eA), 1e-8, n_pass, n_fail);
@@ -116,7 +117,7 @@ function rc = compare_heterodyne_golden(golden_file)
 
   % ---- PLL case B: near-boundary dynamics (near-pi events) -----------------
   [~, phiB, ~, dgB] = pll_carrier_regen(g.pllB_z, P.FS, g.pllB_fn, ...
-      g.pllB_s2, 'zeta', P.ZETA, 'gate', 'always');
+      g.pllB_s2, struct('zeta', P.ZETA, 'gate', 'always'));
   eB = angle(exp(1i * (phiB - g.pllB_phi)));
   [n_pass, n_fail] = chk('pllB phi (wrapped max err, rad)', ...
                          maxabs(eB), 1e-8, n_pass, n_fail);

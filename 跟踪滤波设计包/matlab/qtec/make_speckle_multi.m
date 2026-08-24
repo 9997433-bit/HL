@@ -12,13 +12,13 @@ function h = make_speckle_multi(N, fs, tau_c, M, rho)
     error('make_speckle_multi: rho must be in [0, 1)');
   end
   if rho > 0.0
-    common = make_speckle(N, fs, tau_c);
+    common = make_speckle(N, fs, tau_c, @(n) randn(n, 1));
   else
     common = [];
   end
   h = zeros(M, N);
   for k = 1:M
-    g = make_speckle(N, fs, tau_c);
+    g = make_speckle(N, fs, tau_c, @(n) randn(n, 1));
     if rho > 0.0
       hk = sqrt(rho) * common + sqrt(1.0 - rho) * g;
     else

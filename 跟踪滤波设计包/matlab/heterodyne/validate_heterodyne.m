@@ -18,7 +18,8 @@ function rc = validate_heterodyne()
 %
 % Exit code 0 iff all checks PASS (also returned as rc).
   here = fileparts(mfilename('fullpath'));
-  addpath(fullfile(here, '..', 'homodyne'));
+  addpath(fullfile(here, '..', 'homodyne'));         % set_rng, hd_* helpers
+  addpath(fullfile(here, '..', 'homodyne', 'core')); % canonical shared core
   addpath(here);
   global VHET
   VHET = struct();
@@ -129,7 +130,7 @@ function [y, phi, state, dg] = run_pll(z, fs, fn, s2)
 % 统一入口: gate='always' 纯 NCO (CNR sweep 的隔离门要求).
   global VHET
   [y, phi, state, dg] = pll_carrier_regen(z, fs, fn, max(s2, 1e-12), ...
-      'zeta', VHET.P.ZETA, 'gate', 'always');
+      struct('zeta', VHET.P.ZETA, 'gate', 'always'));
 end
 
 
@@ -257,7 +258,7 @@ end
 
 function m = sigma2_phi(fs, Bf, fn, df_off, nseed, s2)
   global VHET
-  T = 1.5e-3;   %#ok<NASGU>  (VHET used below for ZETA)
+  T = 1.5e-3;
   skip = 0.7e-3;
   N = floor(T * fs);
   t = (0:N - 1)' / fs;
@@ -265,9 +266,10 @@ function m = sigma2_phi(fs, Bf, fn, df_off, nseed, s2)
   vs = zeros(nseed, 1);
   for s = 0:nseed - 1
     set_rng(41000 + s);
-    z = exp(1i * ph) + complex_bandlimited_noise(N, fs, Bf, s2);
+    z = exp(1i * ph) + complex_bandlimited_noise(N, fs, Bf, s2, ...
+                                                 @(k) randn(k, 1));
     [~, phi, ~, ~] = pll_carrier_regen(z, fs, fn, s2, ...
-        'zeta', VHET.P.ZETA, 'gate', 'always');
+        struct('zeta', VHET.P.ZETA, 'gate', 'always'));
     e = angle(exp(1i * (phi - ph)));
     e = e(t > skip);
     vs(s + 1) = mean((e - mean(e)) .^ 2);
@@ -349,7 +351,8 @@ function res = H2()
       for s = 0:nseed - 1
         set_rng(42000 + floor(f0 / 1e3) + 97 * s);
         z = exp(1i * sc.ph) ...
-            + complex_bandlimited_noise(sc.N, P.FS, P.B_FRONTEND, s2);
+            + complex_bandlimited_noise(sc.N, P.FS, P.B_FRONTEND, s2, ...
+                                        @(k) randn(k, 1));
         a_off = asd_band(vdisc(z), sc.Wq, P.FS, p.L, p.band(1), p.band(2));
         for im = 1:numel(P.ORDER)
           name = P.ORDER{im};
@@ -471,7 +474,8 @@ function res = H3()
       for s = 0:nseed - 1
         set_rng(43000 + floor(vr * 1e4) + 31 * s);
         z = exp(1i * ph) ...
-            + complex_bandlimited_noise(N, P.FS, P.B_FRONTEND, s2);
+            + complex_bandlimited_noise(N, P.FS, P.B_FRONTEND, s2, ...
+                                        @(k) randn(k, 1));
         a_off = asd_band(vdisc(z), sel, P.FS, 4096, 0.45e6, 2.9e6);
         [y, ~, ~, dg] = run_pll(z, P.FS, fn, s2);
         v_on = vdisc(y);
@@ -532,7 +536,8 @@ function [err, slips, e_off] = h4_one(f_v, vamp, t_pre, s2, fn)
   x = on .* (vamp / (2 * pi * f_v)) .* (1 - cos(2 * pi * f_v * td));
   v_true = on .* vamp .* sin(2 * pi * f_v * td);
   ph = 4 * pi / P.LAMBDA * x;
-  z = exp(1i * ph) + complex_bandlimited_noise(N, P.FS, P.B_FRONTEND, s2);
+  z = exp(1i * ph) + complex_bandlimited_noise(N, P.FS, P.B_FRONTEND, s2, ...
+                                               @(k) randn(k, 1));
   a_true = ls_amp(v_true, t, f_v, sel);
   [y, ~, ~, dg] = run_pll(z, P.FS, fn, s2);
   err = 100 * (ls_amp(vdisc(y), t, f_v, sel) / hl_mag(f_v, fn) / a_true - 1);
@@ -625,7 +630,7 @@ function res = H56()
   t = (0:N - 1)' / P.FS;
   sel = t > 1.5 / f_v;
   vrs = [0.05, 0.2, 0.6, 1.5, 3.0];
-  res = struct('fD', cell(1, numel(vrs)));
+  res = [];   % struct array built below (identical fields every iteration)
   fprintf('\n  %8s %7s %8s %8s %8s %6s | %8s %9s %10s | %8s %9s\n', ...
           'v_range', 'f_D', 'B_front', 'fn(e1)', 'B_loop', 'ceil', ...
           'err e1', 'err epi', 'err preLP', 'PLL增益', 'preLP增益');
@@ -649,7 +654,8 @@ function res = H56()
     G1 = zeros(nseed, 1); GL = zeros(nseed, 1); SP = zeros(nseed, 1);
     for s = 0:nseed - 1
       set_rng(45000 + floor(vr * 100) + 13 * s);
-      z = exp(1i * ph) + complex_bandlimited_noise(N, P.FS, B_front, s2);
+      z = exp(1i * ph) + complex_bandlimited_noise(N, P.FS, B_front, s2, ...
+                                                   @(k) randn(k, 1));
       v_off = vdisc(z);
       v_pre = vdisc(complex_lp(z, B_loop1, P.FS, 401));
       y1 = run_pll(z, P.FS, fn1, s2);
@@ -668,7 +674,11 @@ function res = H56()
                'ceil', 10 * log10(fD / B_loop1), ...
                'e1', stats(E1), 'epi', stats(EP), 'epre', stats(EL), ...
                'g1', stats(G1), 'gl', stats(GL), 'sp', stats(SP));
-    res(iv) = r;
+    if isempty(res)
+      res = r;
+    else
+      res(iv) = r;
+    end
     fprintf(['  %6.2fm %6.2fM %7.1fM %6.1fk %6.1fk %+5.1f | %+7.1f%% ' ...
              '%+8.1f%% %+9.1f%% | %+7.2f %+8.2f\n'], ...
             vr, r.fD / 1e6, r.B_front / 1e6, fn1 / 1e3, B_loop1 / 1e3, ...
