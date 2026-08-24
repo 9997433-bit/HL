@@ -147,20 +147,21 @@ def main():
     b7s = np.mean([results['B7'][1]['rms'], results['B7'][2]['rms']])
     b1a = np.mean([abs(results['B1'][1]['amp']), abs(results['B1'][2]['amp'])])
     b7a = np.mean([abs(results['B7'][1]['amp']), abs(results['B7'][2]['amp'])])
+    ok = b7s < b1s / 2 and b7a < b1a / 2
     lines += [
         '',
         f'小振动段(黑+远) 平均RMS: B1={b1s:.1f}nm  B7={b7s:.1f}nm  改善={b1s/max(b7s,0.1):.1f}x',
         f'小振动段 平均|幅值误差|: B1={b1a:.1f}%  B7={b7a:.1f}%',
-        f'阶段1 g,delta估计: ε̂={100*(par7["B"]/par7["A"]-1):+.1f}% '
-        f'δ̂={math.degrees(par7["delta"]):.1f}° (真值 ε={EPS_HW*100:.1f}% δ={math.degrees(DEL_HW):.1f}°)',
-        f'断言 PASS' if b7s < b1s / 2 and b7a < b1a / 2 else '断言 FAIL',
+        f'阶段1 g,delta估计: eps_hat={100*(par7["B"]/par7["A"]-1):+.1f}% '
+        f'delta_hat={math.degrees(par7["delta"]):.1f} deg (真值 eps={EPS_HW*100:.1f}% delta={math.degrees(DEL_HW):.1f} deg)',
+        f'断言 {"PASS" if ok else "FAIL"}',
         f'耗时 {time.time()-t0:.1f}s',
     ]
     text = '\n'.join(lines)
     print(text)
-    with open('/opt/cursor/artifacts/results_ellipse_dynamic.txt', 'w') as f:
-        f.write(text)
-    return 0
+    from _artifact_io import write_results
+    write_results('results_ellipse_dynamic.txt', text)
+    return 0 if ok else 1
 
 
 if __name__ == '__main__':

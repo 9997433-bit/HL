@@ -1,0 +1,8 @@
+椭圆校正审查回归测试
+========================================
+1. 纯高斯噪声 ok=False (应为 False)  rms=0.498
+2. 无噪短弧 ok=False (应为 False)  中心误差=0.461  rms=0.000
+3. 带噪短弧 fit_arc_gated ok=False (应为 False)  msg=pre-fit arc 1.172 < 1.571 (prev_par coverage)
+4. 整圆 ok=True (应为 True)  eps=-0.120  rms=0.0000
+
+PASS

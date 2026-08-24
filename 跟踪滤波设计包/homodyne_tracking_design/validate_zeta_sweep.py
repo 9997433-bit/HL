@@ -154,7 +154,7 @@ def Z1(nseed=NSEED, cnr_db=3.0):
     res[(f0, 'LP')] = g_lp
   print("\n  (ampErr_full: 近无噪运行, gate=always; SNRgain vs OFF, R1-R3 方法;"
         " nearπ/ms: LOCK 内 |相位误差|>2.8rad 事件率)")
-  print("  注意 FAST 档低频 (100kHz) 在 ζ≲0.9 处 p10-p90 跨度拉大 (双峰):"
+  print("  注意 FAST 档低频 (100kHz) 在 zeta<=0.9 处 p10-p90 跨度拉大 (双峰):"
         " B_loop≈1.3·B_win 恰在 click 清除悬崖边,\n  个别种子吃满清除、个别只有部分"
         " -- 低 ζ 的高中值不可依赖, 这是不取 ζ<1.2 的主要原因之一.")
   return res
@@ -162,7 +162,7 @@ def Z1(nseed=NSEED, cnr_db=3.0):
 
 # ================================================================== Z2
 def Z2(nseed=4, cnr_db=12.0, fade_db=20.0, fade_us=50.0):
-  print_header(f'Z2  掉光重捕 (简化模型: -{fade_db:.0f}dB 掉光 {fade_us:.0f}µs,'
+  print_header(f'Z2  掉光重捕 (简化模型: -{fade_db:.0f}dB 掉光 {fade_us:.0f}us,'
                f' 掉光期内速度反向 ±{VAMP*1e3:.0f}mm/s, CNR={cnr_db:.0f}dB,'
                f' {nseed} seeds, median)')
   s2 = 10 ** (-cnr_db / 10)
@@ -178,9 +178,9 @@ def Z2(nseed=4, cnr_db=12.0, fade_db=20.0, fade_us=50.0):
   box = np.ones(w2) / w2
   res = {}
   print(f"    (载波多普勒 ±{fD/1e3:.0f} kHz, 重捕需拉回 {2*fD/1e3:.0f} kHz 频差;"
-        f" settle 判据: 2µs 平滑 |相位误差| < 0.3 rad)")
-  print(f"    {'zeta':>5} {'gear':<7} | {'t_relock µs':>11} "
-        f"{'t_settle µs':>11} {'t_total µs':>10} | {'nearπ(重捕后)':>12}")
+        f" settle 判据: 2us 平滑 |相位误差| < 0.3 rad)")
+  print(f"    {'zeta':>5} {'gear':<7} | {'t_relock us':>11} "
+        f"{'t_settle us':>11} {'t_total us':>10} | {'nearpi(重捕后)':>12}")
   for band in ORDER:
     gp = gate_params(band)
     for zeta in ZETAS:
@@ -220,7 +220,7 @@ def Z3(z1, z2):
   print(f"  各 ζ 汇总 (9 个 档×频率 组合上的统计):")
   print(f"    {'zeta':>5} | {'worst|ampErr|':>13} |"
         f" {'meanSNRgain':>11} {'worstΔvsLP':>10} | {'worst nearπ/ms':>14} |"
-        f" {'worst settle µs':>15}")
+        f" {'worst settle us':>15}")
   agg = {}
   for zeta in ZETAS:
     errs = [z1[(f0, b, zeta)]['err'] for f0 in FREQS for b in ORDER]
@@ -266,9 +266,9 @@ def Z3(z1, z2):
                for b in ORDER)
   tt_265 = max(z2[(b, 2.65)]['tr'] + z2[(b, 2.65)]['ts'] for b in ORDER)
   check('Z3-5', f'ζ={RECOMMENDED_ZETA} 掉光重捕总时间 (relock+settle) 各档均'
-        ' <100µs 且不劣于 ζ=2.65 的 3 倍 + 5µs',
+        ' <100us 且不劣于 zeta=2.65 的 3 倍 + 5us',
         np.isfinite(tt_rec) and tt_rec < 100.0 and tt_rec < 3 * tt_265 + 5.0,
-        f'{tt_rec:.1f} vs {tt_265:.1f} µs')
+        f'{tt_rec:.1f} vs {tt_265:.1f} us')
 
   check('Z3-6', f'design_params.ZETA == 推荐值 {RECOMMENDED_ZETA}',
         abs(ZETA - RECOMMENDED_ZETA) < 1e-12, f'ZETA={ZETA}')

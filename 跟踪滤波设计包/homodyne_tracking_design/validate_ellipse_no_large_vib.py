@@ -8,6 +8,7 @@ import time
 
 import numpy as np
 
+from _artifact_io import write_results
 from ellipse_correction import heydemann_fit, heydemann_apply, OnlineBiasTracker
 from validate_ellipse_dynamic import FS, LAMBDA, movmean, phase_cum, to_disp, metrics
 
@@ -127,9 +128,8 @@ def main():
     ]
     text = '\n'.join(lines)
     print(text)
-    with open('/opt/cursor/artifacts/results_ellipse_no_large_vib.txt', 'w') as f:
-        f.write(text)
-    return 0
+    write_results('results_ellipse_no_large_vib.txt', text)
+    return 0 if ok else 1
 
 
 if __name__ == '__main__':

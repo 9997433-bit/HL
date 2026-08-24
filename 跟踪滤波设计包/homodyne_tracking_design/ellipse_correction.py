@@ -259,6 +259,13 @@ def fit_arc_gated(u, v, prev_par, gate_tol=0.05, max_pts=8000, min_pts=100):
     if keep.sum() < min_pts:
         return _nan_par(), dict(ok=False, arc=np.nan,
                                 msg='amplitude gate kept too few points')
+    # Pre-fit arc with trusted prev_par (not candidate fit) — blocks noise-inflated
+    # self-reported arc on short arcs (audit: arc_before < ARC_MIN => reject).
+    arc_before = arc_span_corrected(us[keep], vs[keep], prev_par)
+    if arc_before < ARC_MIN:
+        return _nan_par(), dict(ok=False, arc=arc_before,
+                                msg=f'pre-fit arc {arc_before:.3f} < {ARC_MIN:.3f} '
+                                     '(prev_par coverage)')
     return heydemann_fit(us[keep], vs[keep])
 
 

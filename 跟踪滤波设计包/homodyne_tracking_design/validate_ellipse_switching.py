@@ -179,8 +179,8 @@ def main():
               f'断言 {"PASS" if ok else "FAIL"}', f'耗时 {time.time()-t0:.1f}s']
     text = '\n'.join(lines)
     print(text)
-    with open('/opt/cursor/artifacts/results_ellipse_switching.txt', 'w') as f:
-        f.write(text)
+    from _artifact_io import write_results
+    write_results('results_ellipse_switching.txt', text)
     return 0 if ok else 1
 
 
