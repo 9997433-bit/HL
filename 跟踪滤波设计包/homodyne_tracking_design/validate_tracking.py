@@ -45,8 +45,9 @@ from core import (
   fm_discriminator, lockin_amp, welch_psd,
 )
 from design_params import (
-  LAMBDA, FS, B_FRONTEND, ZETA, B_WIN, NT_WIN, TAU_G,
+  LAMBDA, FS, B_FRONTEND, ZETA, B_WIN, NT_WIN, TAU_G, APP_V_PEAK_MAX,
   BANDS, ORDER, gate_params, b_loop, select_band, tracking_error_rad,
+  cfg_for_frequency,
 )
 
 TINY = 1e-300
@@ -372,6 +373,25 @@ def V4(v1res, v2res):
           f"{'' if sel == exp else '   <-- MISMATCH'}")
   check('C5', '选档逻辑: 全部场景返回期望档位', ok,
         f'{len(cases)} cases, guard-pass narrowest gear')
+  # V5 (审计: v_peak=None 错档): v_peak 未知时不再用频段规则 (100 kHz -> SLOW
+  # 在 30 m/s 实际运动下幅值误差 ~-90%), 而按仪器最大速度 APP_V_PEAK_MAX
+  # 保守评估守卫 -- cfg_for_frequency(100e3) 默认 v_peak 必须选 FAST 并上报
+  # overrange (无档过守卫的 fallback 降级区).
+  cfg_def = cfg_for_frequency(100e3)
+  pe_def = tracking_error_rad(100e3, APP_V_PEAK_MAX,
+                              BANDS[cfg_def['band']]['fn'])
+  ok5 = (cfg_def['band'] == 'FAST'
+         and select_band(100e3) == select_band(100e3, APP_V_PEAK_MAX) == 'FAST'
+         and cfg_def['guard_ok'] is False and cfg_def['overrange'] is True
+         and abs(cfg_def['phi_err'] - pe_def) < 1e-12)
+  print(f"\n  v_peak 未知 (None) 的保守默认: 按 APP_V_PEAK_MAX="
+        f"{APP_V_PEAK_MAX:.0f} m/s 评估守卫 -> cfg_for_frequency(100e3): "
+        f"band={cfg_def['band']}, phi_err={cfg_def['phi_err']:.2f} rad, "
+        f"overrange={cfg_def['overrange']} (频段规则已废除)")
+  check('V5', 'v_peak 未知默认 APP_V_PEAK_MAX=30 m/s 保守守卫: '
+        'cfg_for_frequency(100e3) 选 FAST 且 overrange=True (非频段规则)',
+        ok5, f"band={cfg_def['band']}, phi_err={cfg_def['phi_err']:.2f}r, "
+        f"guard_ok={cfg_def['guard_ok']}, overrange={cfg_def['overrange']}")
   g_s = stats(v1res[100e3]['SLOW']['gains_nco'])[0]
   g_f = stats(v1res[100e3]['FAST']['gains_nco'])[0]
   print(f"\n  为什么低频选低档: 载波路径(NCO) @100kHz 的弱光SNR增益 "

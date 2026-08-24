@@ -53,9 +53,9 @@ output it no longer sets flatness, only the guard and B_loop scale.
 
 Gear selection rule (V4)
 ------------------------
-Frequency-first, then a linear tracking-error guard for large motion:
-for a sinusoidal velocity v_peak at f_target the Doppler phase amplitude
-is phi_amp = 2*v_peak/(lambda*f_target) and the loop's untracked phase is
+Guard-first: for a sinusoidal velocity v_peak at f_target the Doppler
+phase amplitude is phi_amp = 2*v_peak/(lambda*f_target) and the loop's
+untracked phase is
 
     phi_err = |1 - H_L(f_target)| * phi_amp    [rad]
 
@@ -63,12 +63,30 @@ The PLL phase detector wraps at +/-pi, so we require phi_err <= PHI_GUARD
 (= 1.0 rad, safety margin below pi) and shift up one gear until it fits.
 This replaces the earlier constant-acceleration guard, which is far too
 pessimistic for sinusoidal motion reversing faster than the loop settles.
+
+When v_peak is unknown (None) the guard is evaluated CONSERVATIVELY at
+the instrument maximum APP_V_PEAK_MAX (= 30 m/s).  The earlier
+frequency-only fallback (<=200 kHz -> SLOW etc.) is REMOVED: it could
+pick SLOW at 100 kHz while the target actually moves at 30 m/s, which
+measures with ~-90 % amplitude error (audit issue: v_peak=None wrong
+gear).  Callers that know the motion amplitude should always pass
+v_peak explicitly to regain the narrow (high-sensitivity) gears.
 """
 import math
 
 LAMBDA = 1550e-9
 FS = 250e6
-B_FRONTEND = 40e6          # complex-baseband two-sided ENBW (20e6 also legal)
+# Front-end bandwidth split (audit issue: one number was used for two
+# different physical quantities):
+#   F_SIGNAL_MAX  single-sided hard signal passband the analog/digital front
+#                 end must pass: 30 m/s peak gives fD_peak = 2*v/lambda =
+#                 38.7 MHz, +margin -> 43 MHz (validate_app A6/F2).
+#   B_NOISE_ENBW  two-sided noise equivalent bandwidth of the measured AFE,
+#                 used for noise generation / CNR bookkeeping.
+F_SIGNAL_MAX = 43e6        # single-sided signal passband requirement, Hz
+B_NOISE_ENBW = 40e6        # complex-baseband two-sided noise ENBW, Hz
+B_FRONTEND = B_NOISE_ENBW  # backward-compat alias: historical name for the
+                           # NOISE bandwidth (NOT the signal passband)
 ZETA = 1.2                 # carrier-loop economy; output flatness is set by
                            # the common FIR window, NOT |H_L| (review item #7,
                            # zeta sweep in validate_zeta_sweep.py)
@@ -126,6 +144,14 @@ GATE_COMMON = dict(
 
 PHI_GUARD = 1.0            # rad, max allowed untracked Doppler phase
 
+# User-instrument maximum velocity (m/s peak).  When a caller does not know
+# v_peak (passes None), the gear guard is evaluated at this value -- the
+# CONSERVATIVE product policy (audit issue 2 of the follow-up review):
+# an unknown motion must be assumed as fast as the instrument allows, so
+# the selector never parks a 30 m/s target in SLOW/MEDIUM (~-90 % amplitude
+# error).  There is NO frequency-only fallback anymore.
+APP_V_PEAK_MAX = 30.0
+
 # Product-level operating modes.  OFF is NOT a fourth gear: it bypasses the
 # whole tracking chain (no PLL, no residual window).  fixed_lp applies the
 # common B_WIN complex low-pass only (V2 LP-Bwin reference path) -- tracking
@@ -179,11 +205,22 @@ def tracking_error_rad(f_target, v_peak, fn, lam=LAMBDA):
   return loop_error_mag(f_target, fn) * phi_amp
 
 
+def _v_peak_or_default(v_peak):
+  """Product policy: unknown v_peak (None) is assumed at the instrument
+  maximum APP_V_PEAK_MAX for CONSERVATIVE guard evaluation (never selects a
+  gear that would be wrong if the target actually moves that fast)."""
+  return APP_V_PEAK_MAX if v_peak is None else v_peak
+
+
 def guard_flags(f_target_hz, v_peak, band):
   """Tracking-error guard status of `band` at (f_target_hz, v_peak).
 
-  phi_err    untracked Doppler phase (rad); None when v_peak is unknown.
-  guard_ok   phi_err <= PHI_GUARD; None when unknown.
+  v_peak=None is evaluated at APP_V_PEAK_MAX (conservative default policy,
+  see _v_peak_or_default) -- the flags are then the WORST-CASE guard status,
+  never None.
+
+  phi_err    untracked Doppler phase (rad).
+  guard_ok   phi_err <= PHI_GUARD.
   overrange  True when the applied gear exceeds the 1 rad guard.  Because
              selection is guard-first with widest-gear fallback, this
              happens exactly when NO gear passes the guard (e.g. 100 kHz at
@@ -196,8 +233,7 @@ def guard_flags(f_target_hz, v_peak, band):
              weak-light SNR at the 3 MHz spec point, see
              study_fast_fn_options.py).
   """
-  if v_peak is None:
-    return dict(phi_err=None, guard_ok=None, overrange=None)
+  v_peak = _v_peak_or_default(v_peak)
   pe = tracking_error_rad(f_target_hz, v_peak, BANDS[band]['fn'])
   return dict(phi_err=pe, guard_ok=bool(pe <= PHI_GUARD),
               overrange=bool(pe > PHI_GUARD))
@@ -210,11 +246,13 @@ def select_band(f_target_hz, v_peak=None):
   gear's f_target_max.  Among gears whose untracked Doppler phase
   |1-H_L(f)| * phi_amp stays below PHI_GUARD, pick the narrowest (lowest
   B_loop) for best weak-light SNR.  If none pass, use the widest gear.
+
+  v_peak=None defaults to APP_V_PEAK_MAX (= 30 m/s, instrument maximum):
+  the guard is evaluated conservatively, NOT replaced by the old
+  frequency-only rule (audit: 100 kHz with unknown-but-fast motion must not
+  land in SLOW).  Pass the real v_peak to regain the narrow gears.
   """
-  if v_peak is None:
-    idx = next((i for i, n in enumerate(ORDER)
-                if f_target_hz <= BANDS[n]['f_target_max']), len(ORDER) - 1)
-    return ORDER[idx]
+  v_peak = _v_peak_or_default(v_peak)
   for name in ORDER:
     if tracking_error_rad(f_target_hz, v_peak, BANDS[name]['fn']) <= PHI_GUARD:
       return name
@@ -280,10 +318,13 @@ def cfg_for_frequency(f_target_hz, v_peak=None, current_band='SLOW',
       the fixed measurement-window noise floor is still wanted.
 
   PLL cfg dicts also carry the guard status of the applied gear (audit
-  issue 2): phi_err (rad), guard_ok, overrange -- see guard_flags().  All
-  three are None when v_peak is None (guard cannot be evaluated).
-  overrange=True marks the documented degraded zone (no gear satisfies the
-  1 rad guard; fallback FAST still tracks while phi_err < pi).
+  issue 2): phi_err (rad), guard_ok, overrange -- see guard_flags().
+  v_peak=None means "unknown motion" and is evaluated conservatively at
+  APP_V_PEAK_MAX (30 m/s): gear selection and the guard flags then reflect
+  the instrument worst case, e.g. cfg_for_frequency(100e3) selects FAST
+  with overrange=True.  overrange=True marks the documented degraded zone
+  (no gear satisfies the 1 rad guard; fallback FAST still tracks while
+  phi_err < pi).
 
   Feed the returned dict to core.tracking_filter.
   """

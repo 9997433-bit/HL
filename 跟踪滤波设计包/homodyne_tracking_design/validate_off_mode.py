@@ -80,8 +80,10 @@ def main():
         same and abs(e) < 0.5, f'ampErr {e:+.3f}%, v_off==v_raw: {same}')
 
   # ---- O3: gate-off != OFF (weak light, SLOW @100 kHz) --------------------
+  # v_peak=0.02 (the 20 mm/s scene) keeps the selector in SLOW; v_peak=None
+  # now defaults to APP_V_PEAK_MAX=30 m/s (conservative guard) -> FAST.
   s2 = 10 ** (-3.0 / 10)                      # CNR = 3 dB
-  cfg_gof = cfg_for_frequency(100e3, gate_policy='always')
+  cfg_gof = cfg_for_frequency(100e3, 0.02, gate_policy='always')
   gains = []
   off_is_raw = True
   for s in range(2):
@@ -107,7 +109,7 @@ def main():
                                                         s2, rng)
   ok4 = True
   for gate in ('auto', 'always'):
-    cfg = cfg_for_frequency(100e3, gate_policy=gate)
+    cfg = cfg_for_frequency(100e3, 0.02, gate_policy=gate)
     ya, pa, sa, _ = tracking_filter(z, FS, cfg, Nhat=s2)
     yb, pb, sb, _ = residual_mode(z, FS, BANDS['SLOW']['fn'], s2, B_WIN,
                                   zeta=ZETA, gate=gate, **gate_params('SLOW'))

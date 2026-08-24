@@ -17,7 +17,9 @@
 |------|-----|
 | 波长 | 1550 nm |
 | 采样率 | 250 MS/s |
-| 前端噪声带宽 | 40 MHz(双边 ENBW) |
+| 前端噪声带宽 `B_NOISE_ENBW` | 40 MHz(双边噪声 ENBW,实测 AFE;噪声生成/CNR 记账用) |
+| 前端信号硬通带 `F_SIGNAL_MAX` | 43 MHz(单边;30 m/s 时 fD_peak=38.7 MHz + 余量,`validate_app` A6/F2 实测 40 MHz 前端会削信号) |
+| `B_FRONTEND`(兼容别名) | = `B_NOISE_ENBW`;历史上一个数字混用两种物理量(审计已拆分),旧代码引用不受影响 |
 | 环路阻尼 | ζ = 1.2(环带宽经济值;输出平坦度由窗决定,与 ζ 无关 —— 审查项 #7) |
 | 残差测量窗 | 线性相位 FIR,−6 dB 截止 4 MHz,平坦区 DC–≈3.6 MHz,1025 taps @ 250 MS/s 参考设计(三档公共) |
 
@@ -48,11 +50,13 @@ from design_params import select_band
 band = select_band(f_target_hz, v_peak)   # 'SLOW' | 'MEDIUM' | 'FAST'
 ```
 
-在通过线性跟踪误差守卫 `|1−H_L(f_target)|·(2·v_peak/(λ·f_target)) ≤ 1 rad` 的档位中选**最窄档**(最低 B_loop = 最大弱光门限扩展);全不通过取 FAST。测量带宽由公共 4 MHz 残差窗决定、与档位无关,所以高频小振幅也用低档:`select_band(3e6, 0.02)` = **SLOW**(φ_err ≈ 0.009 rad,远低于守卫;V1 实测 3 MHz 下 SLOW 增益 +9.3 dB 还优于 FAST 的 +7.9 dB)。仅当 `v_peak=None`(无法评估守卫)时退化为频段规则(≤200 kHz → SLOW;≤1 MHz → MEDIUM;其余 FAST)。
+在通过线性跟踪误差守卫 `|1−H_L(f_target)|·(2·v_peak/(λ·f_target)) ≤ 1 rad` 的档位中选**最窄档**(最低 B_loop = 最大弱光门限扩展);全不通过取 FAST。测量带宽由公共 4 MHz 残差窗决定、与档位无关,所以高频小振幅也用低档:`select_band(3e6, 0.02)` = **SLOW**(φ_err ≈ 0.009 rad,远低于守卫;V1 实测 3 MHz 下 SLOW 增益 +9.3 dB 还优于 FAST 的 +7.9 dB)。
+
+**v_peak 未知时的保守默认(审计:v_peak=None 错档)**:`v_peak=None` 不再退化为频段规则(≤200 kHz → SLOW 等)——那会把 100 kHz、实际 30 m/s 的目标错停在 SLOW,幅值误差约 −90%。现在 `v_peak=None` 按仪器最大速度 `APP_V_PEAK_MAX = 30 m/s` 保守评估守卫:`select_band(100e3)` / `cfg_for_frequency(100e3)`(默认 v_peak)选 **FAST** 并上报 `overrange=True`(`validate_tracking` V5 断言)。想使用窄档(高灵敏度)必须显式传入真实 `v_peak`。
 
 带迟滞的 `select_band_hysteresis` 同样守卫先行:升档立即生效,降档每次更新只降一档(防抖);频率-only 的 rise 阈值(200 kHz / 1 MHz)已废除 —— 它与守卫先行规则矛盾(审计:3 MHz/20 mm/s 必须得 SLOW 而非 FAST)。因此 `cfg_for_frequency(3e6, v_peak=0.02)`(默认带迟滞)与 `select_band_hysteresis(3e6, 'SLOW', 0.02)` 都返回 **SLOW**,与 `select_band` 一致。
 
-**降级区标志(审计项 2,选项 A)**:PLL cfg dict 额外携带 `phi_err / guard_ok / overrange`(`design_params.guard_flags`;`v_peak=None` 时三者为 `None`)。用户全域(f ≤ 100 kHz, v ≤ 30 m/s)内唯一超守卫组合是 66–100 kHz × 高速:`cfg_for_frequency(100e3, 30.0)` 返回 `guard_ok=False, overrange=True, phi_err=1.50 rad`(< π,仍可跟踪,`validate_app_30ms_100khz.py` A2/A8 实测 clean 误差 ~0、含噪真滑周 p95=1 每 0.5 ms)——产品应把 `overrange` 上报给用户。保持 FAST fn=1.6 MHz:提高到 2.1–2.2 MHz 可过守卫但在 3 MHz 规格点损失 2.7–3.3 dB 弱光 SNR,实测对比见 `study_fast_fn_options.py`。
+**降级区标志(审计项 2,选项 A)**:PLL cfg dict 额外携带 `phi_err / guard_ok / overrange`(`design_params.guard_flags`;`v_peak=None` 时按 `APP_V_PEAK_MAX=30 m/s` 保守评估,不再返回 `None`)。用户全域(f ≤ 100 kHz, v ≤ 30 m/s)内唯一超守卫组合是 66–100 kHz × 高速:`cfg_for_frequency(100e3, 30.0)` 返回 `guard_ok=False, overrange=True, phi_err=1.50 rad`(< π,仍可跟踪,`validate_app_30ms_100khz.py` A2/A8 实测 clean 误差 ~0、含噪真滑周 p95=1 每 0.5 ms)——产品应把 `overrange` 上报给用户。保持 FAST fn=1.6 MHz:提高到 2.1–2.2 MHz 可过守卫但在 3 MHz 规格点损失 2.7–3.3 dB 弱光 SNR,实测对比见 `study_fast_fn_options.py`。
 
 ## 产品 API:tracking_mode / gate_policy
 
@@ -87,7 +91,7 @@ python3 validate_app_30ms_100khz.py       # ~30 s, 用户场景 A1–A8(30 m/s /
 python3 study_fast_fn_options.py          # ~7 s, 审计项 2 fn 选项对比研究(FN1–FN3)
 ```
 
-断言:C1 FAST@3MHz 幅值误差 <3%;C2 FAST@3MHz SNR gain >0 dB @CNR3;C3 SLOW@100kHz SNR gain >10 dB @CNR3/40MHz;C4 三档 3MHz 幅值误差均 <5%;C5 选档逻辑;C6/C7 PLL 价值边界两面。当前结果:**7/7 PASS**(见 `results.txt`)。
+断言:C1 FAST@3MHz 幅值误差 <3%;C2 FAST@3MHz SNR gain >0 dB @CNR3;C3 SLOW@100kHz SNR gain >10 dB @CNR3/40MHz;C4 三档 3MHz 幅值误差均 <5%;C5 选档逻辑;C6/C7 PLL 价值边界两面;V5 `v_peak` 未知按 `APP_V_PEAK_MAX=30 m/s` 保守选档(`cfg_for_frequency(100e3)` → FAST + `overrange=True`)。当前结果:**8/8 PASS**(见 `results.txt`)。
 
 `validate_residual_alignment.py` 另断言 `core.residual_mode` 与 `gear_filter` 在三档 × 100kHz/1MHz/3MHz 上的幅度误差差异 < 1%(见 `results_residual_alignment.txt`)。
 
@@ -104,7 +108,7 @@ python3 study_fast_fn_options.py          # ~7 s, 审计项 2 fn 选项对比研
 
 ## 文件
 
-- `design_params.py` — 三档参数表、公共窗参数、守卫先行选档逻辑(含迟滞)、守卫标志 `guard_flags`(phi_err/guard_ok/overrange)、产品配置入口 `cfg_for_frequency`(tracking_mode pll/off/fixed_lp,gate_policy)
+- `design_params.py` — 三档参数表、公共窗参数、前端带宽拆分常量(`F_SIGNAL_MAX`/`B_NOISE_ENBW`,`B_FRONTEND` 为兼容别名)、守卫先行选档逻辑(含迟滞,`v_peak=None` 时按 `APP_V_PEAK_MAX` 保守评估)、守卫标志 `guard_flags`(phi_err/guard_ok/overrange)、产品配置入口 `cfg_for_frequency`(tracking_mode pll/off/fixed_lp,gate_policy)
 - `core.py` — PLL 内核与信号/工具函数(移植自原项目;`residual_mode` 已改为 1025-tap FIR 产品路径,见审查项 #4);产品入口 `tracking_filter` 与 OFF 旁路 `off_mode` / 固定窗 `fixed_lp_mode`
 - `validate_tracking.py` — V1–V4 仿真验证 + PASS/FAIL 断言
 - `validate_off_mode.py` — OFF / fixed_lp 模式与产品入口冒烟回归(O1–O6,见 `results_off_mode.txt`)

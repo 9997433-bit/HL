@@ -25,18 +25,20 @@ Sections
       WRONG gear?
   A6  front-end consistency study at the worst point (100 kHz, 30 m/s)
       [audit issue 1]: at 30 m/s fD_peak = 38.7 MHz exceeds the +/-20 MHz
-      noise band of B_FRONTEND = 40 MHz, so the A2 model (signal NOT
+      noise band of B_NOISE_ENBW = 40 MHz, so the A2 model (signal NOT
       front-end limited) is not physically representative there.  A6
-      parameterizes B_frontend in {40, 86, 100} MHz, applies an optional
-      linear-phase front-end LPF (cutoff B/2) to signal+noise, and runs two
-      noise policies: const total CNR = 3 dB (PSD drops as B grows) vs
-      const PSD (total noise grows with B -> effective CNR < 3 dB).
+      parameterizes B_frontend in {B_NOISE_ENBW, 2*F_SIGNAL_MAX, 100 MHz}
+      = {40, 86, 100} MHz, applies an optional linear-phase front-end LPF
+      (cutoff B/2) to signal+noise, and runs two noise policies: const
+      total CNR = 3 dB (PSD drops as B grows) vs const PSD (total noise
+      grows with B -> effective CNR < 3 dB).
       NOTE this is still a simulation model with an explicit B_frontend
       parameter and an ideal linear-phase LPF: real hardware must use the
       MEASURED I/Q frequency response and noise spectrum instead.
   A7  deep-fade re-acquisition at (100 kHz, 30 m/s) [audit issue 3]:
       -30 dB fade of 2/10/50 us at CNR 12/6/3 dB (physically consistent
-      B_frontend = 86 MHz front end) -- relock time after light returns,
+      B_frontend = 2*F_SIGNAL_MAX = 86 MHz front end) -- relock time after
+      light returns,
       post-recovery speed RMS, invalid-flag (non-LOCK) coverage of the
       fade, and the measured phase slip across the gap (product
       requirement: HOLD/ACQUIRE => invalid flag, NO displacement
@@ -88,7 +90,7 @@ Primary-scenario PASS/FAIL criteria (documented, asserted in A5)
       the case-c conclusion survives a representative front-end model.
   F2  a REAL 40 MHz front end (LPF applied to the signal) cannot pass
       30 m/s: clean |ampErr_full| > 20 % -- hardware must widen the
-      analog/digital front end to at least +/-43 MHz.
+      analog/digital front end to at least +/-F_SIGNAL_MAX = +/-43 MHz.
   F3  const-PSD widening (same noise PSD as the 40 MHz baseline) drops the
       effective CNR below 3 dB and noisy median |ampErr_full| > 20 % --
       CNR must be specified/measured AT the actual front-end bandwidth.
@@ -110,6 +112,16 @@ Primary-scenario PASS/FAIL criteria (documented, asserted in A5)
       1.5 rad); median |ampErr_full| < 10 % and p90 |ampErr_full| < 20 %.
       These are DOCUMENTED bounded limits, not zero-defect claims.
 """
+import sys
+
+# Windows consoles often run a legacy codepage (GBK, cp936, ...) that cannot
+# encode every symbol below; never crash on print (audit issue 1).
+if hasattr(sys.stdout, 'reconfigure'):
+  try:
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+  except Exception:
+    pass
+
 import math
 import time
 import numpy as np
@@ -119,7 +131,7 @@ from core import (
   lockin_amp, welch_psd,
 )
 from design_params import (
-  LAMBDA, FS, B_FRONTEND, B_WIN, BANDS, ORDER, PHI_GUARD,
+  LAMBDA, FS, B_NOISE_ENBW, F_SIGNAL_MAX, B_WIN, BANDS, ORDER, PHI_GUARD,
   loop_error_mag, tracking_error_rad, select_band, select_band_hysteresis,
   cfg_for_frequency, b_loop,
 )
@@ -348,7 +360,7 @@ def run_case(case):
     rng = np.random.default_rng(
         50_000 + int(f0 / 1e3) * 1000 + int(vamp * 10) * 37 + s)
     z = (np.exp(1j * sc['ph'])
-         + complex_bandlimited_noise(sc['N'], FS, B_FRONTEND, s2, rng))
+         + complex_bandlimited_noise(sc['N'], FS, B_NOISE_ENBW, s2, rng))
     a_off = asd_at(vdisc(z), sc)
     for band in ORDER:
       yf, yn, _, _, dg = gear_filter(z, band, s2, gate='auto')
@@ -387,8 +399,8 @@ def run_case(case):
 
 
 def A2():
-  header(f'A2  端到端弱光仿真 (CNR={CNR_DB:.0f}dB, B_frontend='
-         f'{B_FRONTEND/1e6:.0f}MHz, {NSEED} seeds, gear_filter/R1-R3 方法'
+  header(f'A2  端到端弱光仿真 (CNR={CNR_DB:.0f}dB, 噪声带宽 B_NOISE_ENBW='
+         f'{B_NOISE_ENBW/1e6:.0f}MHz, {NSEED} seeds, gear_filter/R1-R3 方法'
          '同 validate_tracking)')
   out('  ampErr = R1 近无噪传递函数误差 (clean, gate=always); '
       'ampErr noisy = 含噪中值 (gate=auto);')
@@ -538,7 +550,7 @@ def a6_variant(sc, B_fe, pw, lpf):
 def A6():
   fD = 2 * V_MAX_APP / LAMBDA
   header(f'A6  前端模型一致性 (审计项1): 30 m/s 时 fD_peak={fD/1e6:.1f} MHz > '
-         f'B_FRONTEND/2={B_FRONTEND/2e6:.0f} MHz -- 参数化 B_frontend, '
+         f'B_NOISE_ENBW/2={B_NOISE_ENBW/2e6:.0f} MHz -- 参数化 B_frontend, '
          f'前端LPF作用于信号+噪声')
   out('  A2 现模型: 噪声限带 ±20 MHz, 信号不限带 -- 在 30 m/s 处信号大部分时间'
       '位于噪声带外, "CNR=3dB" 不代表真实前端.')
@@ -548,13 +560,15 @@ def A6():
       '增大, 等效CNR<3dB).')
   sc = make_scene(100e3, V_MAX_APP)
   s2 = 10 ** (-CNR_DB / 10)
+  B_sig = 2 * F_SIGNAL_MAX          # 86 MHz: two-sided band passing +/-43 MHz
   variants = (
-    ('v0', 40e6, s2, False, 'B40 噪声±20M 信号不限带 (A2 现模型, 对照)'),
-    ('v1', 40e6, s2, True, 'B40 + 前端LPF (真实 40 MHz 前端)'),
-    ('v2', 86e6, s2, True, 'B86 总CNR=3dB + LPF (物理一致, 推荐指标)'),
+    ('v0', B_NOISE_ENBW, s2, False, 'B40 噪声±20M 信号不限带 (A2 现模型, 对照)'),
+    ('v1', B_NOISE_ENBW, s2, True, 'B40 + 前端LPF (真实 40 MHz 前端)'),
+    ('v2', B_sig, s2, True, 'B86 总CNR=3dB + LPF (物理一致, 推荐指标)'),
     ('v3', 100e6, s2, True, 'B100 总CNR=3dB + LPF (物理一致)'),
-    ('v4', 86e6, s2 * 86 / 40, True, 'B86 PSD恒定 + LPF (同光功率, 前端更宽)'),
-    ('v5', 100e6, s2 * 100 / 40, True, 'B100 PSD恒定 + LPF'),
+    ('v4', B_sig, s2 * B_sig / B_NOISE_ENBW, True,
+     'B86 PSD恒定 + LPF (同光功率, 前端更宽)'),
+    ('v5', 100e6, s2 * 100e6 / B_NOISE_ENBW, True, 'B100 PSD恒定 + LPF'),
   )
   out(f"\n  案例c (100 kHz, 30 m/s), FAST 档, {NSEED} seeds:")
   out(f"    {'id':<3} {'变体':<38} {'CNR_eff':>8} | {'clean err':>10} "
@@ -569,7 +583,7 @@ def A6():
   out('\n  解读: v0 (现模型) 与 v2/v3 (物理一致, 总CNR=3dB) 的含噪误差同量级 --'
       ' A2 的结论在代表性前端模型下成立;')
   out('  v1: 真实 40 MHz 前端把 30 m/s 信号削掉 (clean 已坏) -- 硬件前端必须'
-      f' ≥ ±{math.ceil(fD/1e6)+4:.0f} MHz;')
+      f' ≥ ±F_SIGNAL_MAX = ±{F_SIGNAL_MAX/1e6:.0f} MHz;')
   out('  v4/v5: 同光功率下扩带引入更多噪声, 等效 CNR 掉到 3dB 以下, 误差急剧'
       '恶化 -- CNR 指标必须在实际前端带宽上定义/实测.')
   ok = all(abs(np.median(res[v]['errs'])) < 10.0 for v in ('v2', 'v3'))
@@ -578,7 +592,7 @@ def A6():
         f"v2 {np.median(res['v2']['errs']):+.2f}%, "
         f"v3 {np.median(res['v3']['errs']):+.2f}%")
   check('F2', '真实 40 MHz 前端 (LPF 作用于信号) 无法通过 30 m/s: clean '
-        '|err| > 20% (前端须扩至 ≥ ±43 MHz)',
+        f'|err| > 20% (前端须扩至 ≥ ±F_SIGNAL_MAX={F_SIGNAL_MAX/1e6:.0f}MHz)',
         abs(res['v1']['err_clean']) > 20.0,
         f"clean {res['v1']['err_clean']:+.2f}%, "
         f"noisy 中值 {np.median(res['v1']['errs']):+.2f}%")
@@ -594,7 +608,7 @@ def A6():
 
 
 # ====================================================== A7 fade re-acquisition
-B_FE_A7 = 86e6            # physically consistent front end (A6 v2)
+B_FE_A7 = 2 * F_SIGNAL_MAX   # physically consistent 86 MHz front end (A6 v2)
 FADE_DB = -30.0           # deep-fade amplitude drop
 NSEED_FADE = 4
 
@@ -636,13 +650,13 @@ def a7_run(dur, cnr_db, seed):
 
 def A7():
   header(f'A7  掉光重捕获 (审计项3): 30 m/s @ 100 kHz, 深衰落 {FADE_DB:.0f} dB, '
-         f'时长 2/10/50 µs, CNR 12/6/3 dB (B_frontend={B_FE_A7/1e6:.0f}MHz '
+         f'时长 2/10/50 us, CNR 12/6/3 dB (B_frontend={B_FE_A7/1e6:.0f}MHz '
          f'物理一致前端, {NSEED_FADE} seeds)')
   out('  指标: invalid% = 衰落窗内非 LOCK 样本占比 (产品 invalid 标志的可用性); '
       'relock = 光恢复到重新 LOCK 的时间;')
-  out('  rms_pre/post = 衰落前/重锁后+20µs 的速度 RMS 误差; gap = 跨衰落相位'
+  out('  rms_pre/post = 衰落前/重锁后+20us 的速度 RMS 误差; gap = 跨衰落相位'
       '滑移 (周). 衰落起点取速度峰值 (+38.7 MHz Doppler, 最坏).')
-  out(f"\n    {'时长':>6} {'CNR':>5} | {'invalid%':>16} {'relock µs':>16} "
+  out(f"\n    {'时长':>6} {'CNR':>5} | {'invalid%':>16} {'relock us':>16} "
       f"{'rms_pre m/s':>11} {'rms_post m/s':>12} {'post/pre':>8} "
       f"{'gap 周(中值)':>11}")
   d1_ok, d2_ok, d3_ok = True, True, True
@@ -658,7 +672,7 @@ def A7():
           np.median([r['rms_pre'] for r in rr])
       gap = float(np.median([r['gap_cyc'] for r in rr]))
       gap_lo, gap_hi = min(gap_lo, gap), max(gap_hi, gap)
-      out(f"    {dur*1e6:4.0f}µs {cnr:3d}dB | "
+      out(f"    {dur*1e6:4.0f}us {cnr:3d}dB | "
           f"{' '.join(f'{100*i:3.0f}' for i in inv):>16} "
           f"{' '.join(f'{r:4.1f}' for r in rel):>16} "
           f"{np.median([r['rms_pre'] for r in rr]):11.2f} "
@@ -675,17 +689,17 @@ def A7():
   out('\n  产品需求 (本仿真文档化, 不是完整产品状态机): HOLD/ACQUIRE 期间必须'
       '置 invalid 标志; 任何衰落间隙上禁止位移积分 --')
   out(f'  跨衰落相位滑移实测 {gap_lo:.0f}..{gap_hi:.0f} 周 (30 m/s 时 NCO 飞轮'
-      '只能外推, 位移连续性无法承诺, 即使 2 µs 衰落亦然);')
-  out(f'  2 µs 衰落短于门控检测常数 (tauP=1µs IIR + 0.25µs 确认), invalid 标志'
+      '只能外推, 位移连续性无法承诺, 即使 2 us 衰落亦然);')
+  out(f'  2 us 衰落短于门控检测常数 (tauP=1us IIR + 0.25us 确认), invalid 标志'
       f'覆盖率实测 {100*min(inv_2us):.0f}-{100*max(inv_2us):.0f}% -- 不可靠;'
       ' 若产品需要标记亚微秒级衰落, 须另加快速幅度监测通道.')
-  check('D1', '全部 (时长×CNR×seed) 光恢复后重锁, relock ≤ 20 µs',
-        d1_ok, f'最大 {d1_worst:.1f} µs (FAST acq_time=4µs + 门控检测延迟)')
+  check('D1', '全部 (时长×CNR×seed) 光恢复后重锁, relock ≤ 20 us',
+        d1_ok, f'最大 {d1_worst:.1f} us (FAST acq_time=4us + 门控检测延迟)')
   check('D2', '重锁后速度 RMS 误差恢复: 每组中值 post ≤ 1.5× pre',
         d2_ok, f'最坏 post/pre = {d2_worst:.2f}')
-  check('D3', '衰落 ≥ 10 µs: 全部 seed invalid 覆盖率 ≥ 60% '
-        '(HOLD/ACQUIRE ⇒ invalid 标志可用; 2 µs 衰落仅报告不断言)',
-        d3_ok, f'2µs 覆盖率 {100*min(inv_2us):.0f}-{100*max(inv_2us):.0f}% '
+  check('D3', '衰落 ≥ 10 us: 全部 seed invalid 覆盖率 ≥ 60% '
+        '(HOLD/ACQUIRE => invalid 标志可用; 2 us 衰落仅报告不断言)',
+        d3_ok, f'2us 覆盖率 {100*min(inv_2us):.0f}-{100*max(inv_2us):.0f}% '
         '(短于检测常数)')
 
 
@@ -711,7 +725,7 @@ def A8():
   for s in range(NSEED_STATS):
     rng = np.random.default_rng(90_000 + s)
     z = (np.exp(1j * sc['ph'])
-         + complex_bandlimited_noise(sc['N'], FS, B_FRONTEND, s2, rng))
+         + complex_bandlimited_noise(sc['N'], FS, B_NOISE_ENBW, s2, rng))
     yf, _, _, _, dg = gear_filter(z, 'FAST', s2, gate='auto')
     nps.append(dg['near_pi_events'])
     sls.append(slips_vs_true(yf, sc['ph']))
@@ -785,17 +799,19 @@ def A4(bounds, e2e):
     - 默认 SLOW + 现有 guard-first 自动选档即可覆盖用户全域
       (f<=100 kHz, v<=30 m/s), 无需人工干预档位.
     - 高速工况 SNR 增益从 SLOW 的 ~{g_slow:+.0f} dB 降到 FAST 的 ~{g_fast_100k:+.0f} dB
-      (@100 kHz): 物理必然 (环带宽换跟踪能力); 30 m/s 信号本身极大
-      (fD_peak={fD30/1e6:.1f} MHz), 幅值误差中值 <5% (A2), SNR 不是瓶颈.
+      (@100 kHz): 物理必然 (环带宽换跟踪能力). 注意: 高速度不增加回光功率;
+      CNR 由表面回光决定, 30 m/s 与弱回光可同时存在 -- 本节高速结论均在
+      CNR=3 dB 弱光下实测 (fD_peak={fD30/1e6:.1f} MHz, 幅值误差中值 <5%, A2),
+      更弱回光时 FAST 的 SNR 余量收窄 (建议 CNR >= 6 dB, 见设计方案 §2).
     - 需要档位关注的只有 v>{v_f100:.0f} m/s 且 f 接近 100 kHz 的组合
       (fallback 区), 本仿真已证明到 30 m/s 均正常.
 
   [结论5] 是否需要改设计? 档位设计不需要; 有三点已实测/文档化的注意事项.
     guard-first 选档在最坏点 (100 kHz, 30 m/s) 实测正确工作; 迟滞无副作用.
     (1) 前端带宽 (A6 实测, 审计项1): 30 m/s 时 fD_peak={fD30/1e6:.1f} MHz 超过
-        B_FRONTEND/2={B_FRONTEND/2e6:.0f} MHz; 真实 40 MHz 前端会削掉信号
+        B_NOISE_ENBW/2={B_NOISE_ENBW/2e6:.0f} MHz; 真实 40 MHz 前端会削掉信号
         (A6 v1: clean 误差已 >20%), 硬件前端必须通过
-        ±{math.ceil(fD30/1e6)+4:.0f} MHz (fs=250 MS/s 复采样支持), 且 CNR 指标
+        ±F_SIGNAL_MAX=±{F_SIGNAL_MAX/1e6:.0f} MHz (fs=250 MS/s 复采样支持), 且 CNR 指标
         必须在实际前端带宽上定义/实测 (A6 v4/v5: 同 PSD 扩带等效 CNR<3dB,
         误差 -39%/-47%). 物理一致模型下 (总CNR=3dB, B=86/100 MHz) 案例c 结论
         成立 (A6 v2/v3 中值误差 -3..-5%).
@@ -806,9 +822,9 @@ def A4(bounds, e2e):
         SNR (见 study_fast_fn_options.py). 含噪滑周有界: A8 实测 p95≤3 每
         0.5 ms. 若未来需求扩展到 f>100 kHz 且同时 30 m/s, 再评估提高 FAST fn
         (滑周极限 {bounds['f_fastpi']/1e3:.0f} kHz @30 m/s).
-    (3) 掉光行为 (A7 实测, 审计项3): 光恢复后 ~5 µs 重锁, 速度精度恢复;
+    (3) 掉光行为 (A7 实测, 审计项3): 光恢复后 ~5 us 重锁, 速度精度恢复;
         但跨衰落相位滑移 10^1..10^3 周 -- HOLD/ACQUIRE 期间必须置 invalid
-        标志, 任何衰落间隙上禁止位移积分; 短于 ~2 µs 的深衰落不能保证被门控
+        标志, 任何衰落间隙上禁止位移积分; 短于 ~2 us 的深衰落不能保证被门控
         标记 (检测常数限制).""")
 
 

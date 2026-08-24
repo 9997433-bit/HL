@@ -70,7 +70,7 @@ def assess_fit(par, res):
         if eps > EPS_MAX:
             reasons.append(f'|epsilon|={eps:.3f} > {EPS_MAX}')
     if abs(par.get('delta', 0)) > DEL_MAX:
-        reasons.append(f'|delta|={math.degrees(par["delta"]):.1f}° > {math.degrees(DEL_MAX):.0f}°')
+        reasons.append(f'|delta|={math.degrees(par["delta"]):.1f}deg > {math.degrees(DEL_MAX):.0f}deg')
     if res.get('arc', 0) < ARC_MIN:
         reasons.append(f'arc={res.get("arc", float("nan")):.3f} < {ARC_MIN:.3f}')
     if res.get('rms', float('inf')) > FIT_RMS_MAX:

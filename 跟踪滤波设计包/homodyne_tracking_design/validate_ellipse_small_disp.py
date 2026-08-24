@@ -37,6 +37,14 @@ import os
 import sys
 import time
 
+# Windows consoles often run a legacy codepage (GBK, cp936, ...) that cannot
+# encode every symbol printed below; never crash on print (audit issue 1).
+if hasattr(sys.stdout, 'reconfigure'):
+  try:
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+  except Exception:
+    pass
+
 import numpy as np
 
 from core import pll_carrier_regen, welch_psd
@@ -265,7 +273,7 @@ def main(argv=None):
     w(f'lambda = {LAMBDA*1e9:.0f} nm | 名义 fs = {FS_FULL/1e6:.0f} MS/s, '
       f'仿真在 /{DECIM} 降采样 = {FS/1e6:.1f} MS/s, 记录 {T_REC:.1f} s')
     w(f'椭圆真值(慢漂): eps {EPS_T0*100:+.0f}% → {EPS_T1*100:+.0f}%, '
-      f'delta {DEL_T0:.0f}° → {DEL_T1:.0f}°, 偏置 p={P_OFF0}(+{P_DRIFT}漂移) '
+      f'delta {DEL_T0:.0f}deg → {DEL_T1:.0f}deg, 偏置 p={P_OFF0}(+{P_DRIFT}漂移) '
       f'q={Q_OFF}, 回光幅度 ±{R_SWING*100:.0f}% 慢漂')
     w(f'工作点漂移: {FRINGE_RATE:.1f} 条纹/s 线性 + {PSI_WANDER:.1f} rad 平滑游走')
     w(f'噪声: 复高斯, 前端 CNR = {args.cnr_db:.0f} dB @250 MS/s '
@@ -320,8 +328,8 @@ def main(argv=None):
     t_c, pars, oks, arcs = rA['B3_track']
     w('')
     w('--- B3 分段参数跟踪 @ 断言场景 (真值 ε/δ 随时间线性漂移) ---')
-    w(f'{"t/s":>6} {"拟合":>4} {"弧/rad":>7} {"ε̂%":>8} {"ε真%":>7} '
-      f'{"δ̂°":>7} {"δ真°":>6}')
+    w(f'{"t/s":>6} {"拟合":>4} {"弧/rad":>7} {"ε^%":>8} {"ε真%":>7} '
+      f'{"δ^deg":>7} {"δ真deg":>6}')
     for k in range(len(t_c)):
         eps_hat = 100 * (pars[k]['B'] / pars[k]['A'] - 1)
         del_hat = math.degrees(pars[k]['delta'])
@@ -331,9 +339,9 @@ def main(argv=None):
         w(f'{t_c[k]:>6.2f} {"OK" if oks[k] else "冻结":>4} {arcs[k]:>7.2f} '
           f'{eps_hat:>8.2f} {eps_true:>7.2f} {del_hat:>7.2f} {del_true:>6.2f}')
     p2 = rA['B2_par']
-    w(f'  B2 静态参数(前{T_CAL_B2}s): ε̂={100*(p2["B"]/p2["A"]-1):+.2f}%, '
-      f'δ̂={math.degrees(p2["delta"]):.2f}° — 记录末端真值 '
-      f'ε={EPS_T1*100:+.1f}%, δ={DEL_T1:.1f}° (静态参数已过时)')
+    w(f'  B2 静态参数(前{T_CAL_B2}s): ε^={100*(p2["B"]/p2["A"]-1):+.2f}%, '
+      f'δ^={math.degrees(p2["delta"]):.2f}deg — 记录末端真值 '
+      f'ε={EPS_T1*100:+.1f}%, δ={DEL_T1:.1f}deg (静态参数已过时)')
 
     # ------------------------------------------------- CNR sensitivity sweep
     w('')
@@ -383,7 +391,7 @@ def main(argv=None):
     w(f'  * 前置条件: 工作点漂移覆盖弧 (本场景 {FRINGE_RATE:.1f} 条纹/s 自然漂移'
       '已足够); 若漂移不足, 退回 B2 静态标定并定期(激光微调频/温漂窗口)重标')
     w('  * B4 (B3+SLOW跟踪滤波) 与 B3 同级: 跟踪滤波不能修椭圆, 只在掉光/'
-      '门控上有价值; 椭圆校正必须放在跟踪滤波之前 (|z|² 2φ纹波会污染门控)')
+      '门控上有价值; 椭圆校正必须放在跟踪滤波之前 (|z|^2 2φ纹波会污染门控)')
     w('  * 不推荐: B0 直接鉴相 (偏置→大幅值误差); B1 滑动去均值只能去偏置, '
       '修不了 ε/δ, 且小位移+慢漂下窗内均值≠椭圆中心')
     w('')
