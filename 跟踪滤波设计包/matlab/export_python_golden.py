@@ -192,7 +192,11 @@ def main():
     G['pll_always_phi'] = phi_a[:2000]
 
     # ------------------------------------------------- S9 tracking_filter smoke
-    cfg = design_params.cfg_for_frequency(200e3, None, 'SLOW', True,
+    # explicit v_peak=0.02 keeps SLOW: v_peak=None now defaults to
+    # APP_V_PEAK_MAX=30 m/s -> FAST in overrange, where cycle-slip timing
+    # amplifies 1-ulp cross-language differences (S7 already covers the
+    # None-default selection logic bit-exactly).
+    cfg = design_params.cfg_for_frequency(200e3, 0.02, 'SLOW', True,
                                           'pll', 'auto')
     y_t, phi_t, state_t, _ = core.tracking_filter(z, fs, cfg, Nhat)
     G['trk_y_re'] = y_t[5000:6000].real

@@ -112,7 +112,11 @@ function G = export_golden_core()
   G.pll_always_phi = phi_a(1:2000);
 
   % ------------------------------------------------- S9 tracking_filter smoke
-  cfg = cfg_for_frequency(200e3, [], 'SLOW', true, 'pll', 'auto');
+  % explicit v_peak=0.02 keeps SLOW: v_peak=[] now defaults to
+  % APP_V_PEAK_MAX=30 m/s -> FAST in overrange, where cycle-slip timing
+  % amplifies 1-ulp cross-language differences (S7 already covers the
+  % []-default selection logic bit-exactly).
+  cfg = cfg_for_frequency(200e3, 0.02, 'SLOW', true, 'pll', 'auto');
   [y_t, phi_t, state_t] = tracking_filter(z, fs, cfg, Nhat);
   G.trk_y_re = real(y_t(5001:6000));
   G.trk_y_im = imag(y_t(5001:6000));
