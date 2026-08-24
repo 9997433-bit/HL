@@ -17,9 +17,18 @@ pip install numpy
 # 零差验证
 cd homodyne_tracking_design && python validate_tracking.py
 
+# 椭圆校正验证
+cd homodyne_tracking_design && python validate_ellipse_small_disp.py
+
 # 外差验证
 cd heterodyne_tracking_design && python validate_heterodyne.py
 ```
+
+## 椭圆标定（零差 IQ）
+
+- **操作指南**：`homodyne_tracking_design/椭圆标定操作指南.md`（出厂标定 g,δ + 在线 p,q）
+- **标定工具**：`python calibrate_ellipse.py --csv your_iq.csv --out ellipse_cal.json`
+- **无需大振动**：g,δ 出厂标定一次；日常换表面/距离只在线跟踪偏置
 
 ## 你的使用场景（参考）
 

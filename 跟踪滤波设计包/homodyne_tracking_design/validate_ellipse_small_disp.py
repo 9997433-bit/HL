@@ -63,12 +63,14 @@ Q_OFF = -0.05                        # Q offset
 FRINGE_RATE = 1.5                    # working-point drift (fringes/s)
 PSI_WANDER = 0.8                     # extra smooth phase wander (rad rms)
 R_SWING = 0.04                       # slow return-amplitude wander (+-4%)
+R_BW = 0.5                           # amplitude wander bandwidth (Hz)
 
 # --- method parameters
 B1_WINDOWS = (0.05, 0.1, 0.2, 0.5, 1.0)   # sliding-demean windows (s)
 T_CAL_B2 = 0.4                            # static calibration segment (s)
-SEG_B3 = 0.25                             # B3 segment length (s)
-GATE_B3 = 0.05                            # B3 amplitude gate (+-5% radius)
+SEG_B3 = 0.5                              # B3 segment length (s)
+GATE_B3 = 0.02                            # B3 amplitude gate (+-2% modulus)
+B1_AMP_SANE = 20.0                        # B1 window must keep |amp err| < 20%
 FN_SLOW, ZETA_SLOW = 110e3, 2.65          # SLOW gear (design_params.py)
 
 CASES = [(A, f0) for A in (10e-9, 100e-9, 500e-9, 1e-6)
@@ -145,7 +147,7 @@ def make_scenario(A, f0, cnr_frontend_db, rng, T=T_REC):
            + PSI_WANDER * smooth_noise(N, FS, 1.0, rng))
     eps_t = EPS_T0 + (EPS_T1 - EPS_T0) * t / T
     del_t = np.deg2rad(DEL_T0 + (DEL_T1 - DEL_T0) * t / T)
-    R = 1.0 + R_SWING * smooth_noise(N, FS, 2.0, rng)
+    R = 1.0 + R_SWING * smooth_noise(N, FS, R_BW, rng)
     p_t = P_OFF0 + P_DRIFT * t / T
 
     phi = (4 * math.pi / LAMBDA) * x_true + psi
@@ -208,7 +210,12 @@ def run_methods(sc, A, f0, include_b4=True):
         m['win'] = w
         sweep.append(m)
     out['B1_sweep'] = sweep
-    out['B1'] = max(sweep, key=lambda m: m['snr'])          # best window
+    # best window: highest line SNR among windows whose demodulated amplitude
+    # is at least sane (a +100% amp-error window is unusable regardless of a
+    # tall spectral line); fall back to min-RMS if no window is sane.
+    sane = [m for m in sweep if abs(m['amp']) < B1_AMP_SANE]
+    out['B1'] = (max(sane, key=lambda m: m['snr']) if sane
+                 else min(sweep, key=lambda m: m['rms']))
     out['B1_min_rms'] = min(m['rms'] for m in sweep)
 
     # B2: static Heydemann from the first T_CAL_B2 seconds
@@ -364,8 +371,9 @@ def main(argv=None):
     w('推荐: B3 分段弧 Heydemann 校正, 参数:')
     w(f'  * 标定段长 {SEG_B3} s (2.5 MS/s 下 {int(SEG_B3*FS):d} 样本, '
       f'均匀抽取 ≤8000 点入拟合)')
-    w(f'  * 幅度门: 以上一段中心为参考, 保留半径偏离中位数 ≤±{GATE_B3*100:.0f}% '
-      f'的点 (不足时放宽到±{2*GATE_B3*100:.0f}%), 防止变幅环带污染拟合')
+    w(f'  * 幅度门(稳幅弧): 先用上一段参数把点圆化, 保留 |z_c| 偏离中位数 '
+      f'≤±{GATE_B3*100:.0f}% 的点 (不足时放宽到±{2*GATE_B3*100:.0f}%); '
+      '不可用到中心的原始半径 — 椭圆本身就有 ε 量级的半径摆动')
     w('  * 有效性: 98%稳健覆盖弧 ≥ π/2 才更新参数, 否则冻结上一组 (M1/M4 规则)')
     w('  * 应用: p,q,A,B,δ 在段中心间线性内插逐样本应用 '
       '(实时实现= 用上一段参数, 滞后一段长)')

@@ -241,13 +241,16 @@ def segmented_heydemann(u, v, fs, seg_len=0.25, gate_tol=0.05, max_pts=8000):
         uu, vv = u[i0:i1], v[i0:i1]
         t_c[k] = 0.5 * (i0 + i1) / fs
         if prev is None:
-            # bootstrap: ungated fit for rough parameters, then gated refit
+            # bootstrap: ungated fit for rough parameters (annulus-biased),
+            # then two gated refit passes to wash the bias out
             cand, res = heydemann_fit(*_subsample(uu, vv, max_pts))
-            if res['ok']:
+            for _ in range(2):
+                if not res['ok']:
+                    break
                 par1, res1 = fit_arc_gated(uu, vv, cand, gate_tol, max_pts)
                 if res1['ok']:
                     cand, res = par1, res1
-            else:
+            if not res['ok']:
                 cand = None
         else:
             par1, res = fit_arc_gated(uu, vv, prev, gate_tol, max_pts)
