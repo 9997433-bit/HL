@@ -84,6 +84,10 @@ GATE_COMMON = dict(
 
 PHI_GUARD = 1.0            # rad, max allowed untracked Doppler phase
 
+# Legacy tentative plan (zeta=1.2) for regression checks in validate_tracking.py
+LEGACY_ZETA = 1.2
+LEGACY_FN = {'SLOW': 106e3, 'MEDIUM': 529e3, 'FAST': 1.589e6}
+
 
 def gate_params(name):
   b = BANDS[name]
@@ -109,6 +113,8 @@ def band_specs(name, B_frontend=B_FRONTEND, cnr_db=3.0):
     name=name, fn=fn, zeta=ZETA, Kp=Kp, Ki=Ki,
     f_target_max=b['f_target_max'],
     B_loop=B,
+    f_3db=5.489 * fn,
+    a_design=math.pi * LAMBDA * fn ** 2,
     B_win=B_WIN,
     ceiling_db=10 * math.log10((B_frontend / 2) / B),
     sigma_phi_at_cnr=math.sqrt(B / (cnr * B_frontend)),
