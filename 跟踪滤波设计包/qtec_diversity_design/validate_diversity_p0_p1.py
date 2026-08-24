@@ -9,7 +9,8 @@ P0  multi-channel speckle infrastructure
 P1  non-coherent SNR-weighted velocity-domain combining baseline
     M = 3 channels, mean CNR = 6 dB/channel, speckle tau_c = 50 us,
     3 MHz burst (the validate_tracking V3 dropout scene).  Every channel is
-    demodulated independently (homodyne FAST gear: PLL + common residual
+    demodulated independently (homodyne gear from select_band(3 MHz,
+    20 mm/s) = SLOW under the guard-first rule: PLL + common residual
     window) and FM-discriminated; block-wise weights
     q_k = (C_k/Nhat)^alpha * LOCK * gs with cross-channel relative gate and
     all-dark HOLD flywheel.  Combined output is compared against the
@@ -273,11 +274,14 @@ def P1(nseed=10, cnr_db=6.0, M=3, tau_c=50e-6):
     check('Q1-5', '加权和无系统性幅值偏置: R1 近无噪+散斑 burst 幅值误差 '
           '|中值| < 5% (α=1,2)',
           amp_worst < 5.0, f'worst |err| = {amp_worst:.2f}%')
+    g2_m = stats(agg[('gain', 2.0)])[0]
+    ginf_m = stats(agg[('gain', math.inf)])[0]
     print('\n  诚实说明: 速度域非相干合成不改变单路 FM 门限本身, 它买到的是'
           ' (a) 联合掉光率 ~p^M,\n  (b) 静默段噪声按权重平均下降, (c) 尖峰只在'
           '全通道同弱时出现. 更低 CNR 的门限扩展\n  需要 IQ 域相干合成 (P2 路线).'
           ' α=1 为速度域 MRC (平稳噪声方差最优) 但对非高斯 click\n  尖峰欠抑制;'
-          ' α=∞ 纯选路尖峰最少但放弃平均增益 (~-1.6 dB); α=2 为推荐默认折中.'
+          f' α=∞ 纯选路尖峰最少但放弃平均增益 ({ginf_m - g2_m:+.1f} dB vs α=2);'
+          ' α=2 为推荐默认折中.'
           '\n  CNR=6dB 下 burst 幅值在单 seed 上被 FM 噪声主导 (R1 规则),'
           ' 故幅值无偏性在近无噪+散斑运行中断言.')
     return agg

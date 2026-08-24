@@ -20,10 +20,11 @@ variance-optimal weight is ~ SNR for stationary Gaussian noise); alpha = 2
 over-weights strong channels; alpha = inf is pure max-select (switching
 diversity).  alpha = 2 is the recommended DEFAULT: FM click spikes from a
 fading-but-still-locked channel are strongly non-Gaussian, and alpha = 1
-under-suppresses them (validated: at M=3 / CNR 6 dB, alpha=2 keeps the
-same quiet-window SNR gain as alpha=1 within ~0.2 dB but roughly halves
-the residual spike count; alpha=inf has the fewest spikes but gives up
-~1.6 dB of averaging gain -- see validate_diversity_p0_p1.py P1 table).
+under-suppresses them (validated at M=3 / CNR 6 dB, SLOW gear from
+select_band(3 MHz, 20 mm/s): alpha=2 spike median 5.0 vs 5.5 for alpha=1
+at a ~0.8 dB quiet-window SNR-gain cost, +2.75 vs +3.54 dB; alpha=inf has
+the fewest spikes but keeps only +0.69 dB of averaging gain -- see
+validate_diversity_p0_p1.py P1 table / results_diversity.txt).
 
 C_k is NOT exposed by pll_carrier_regen, so estimate_C re-computes the
 loop's internal carrier-power estimate outside the PLL: the same one-pole
