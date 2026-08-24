@@ -38,7 +38,7 @@ cd qtec_diversity_design && python validate_diversity_p0_p1.py
 ## 你的使用场景（参考）
 
 - 日常振动 **< 100 kHz** → 零差 **SLOW** 档
-- 偶尔测到 **3 MHz** → 零差升 **FAST** 档
+- 偶尔测到 **3 MHz**(小振幅)→ 仍用 **SLOW** 档:测量带宽由公共 4 MHz 残差窗保证,与档位无关(守卫先行选档,`select_band(3 MHz, 20 mm/s)` = SLOW);只有大动态(φ_err 守卫超限)才自动升 MEDIUM/FAST
 - 外差 Polytec 类 → 按**速度量程 + 振动频率**选档（见 `heterodyne_tracking_design/README.md`）
 - 粗糙表面**散斑掉光**频繁 → QTec 多路分集（M=3 时联合掉光 ~p³，见 `qtec_diversity_design/README.md`）
 
