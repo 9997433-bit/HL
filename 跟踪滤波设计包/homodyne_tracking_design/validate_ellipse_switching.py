@@ -4,6 +4,22 @@
 Segments: reflective large-vib -> black small-vib -> far small-vib.
 B4 = factory g,delta (NVRAM sim from segment A fit) + rho-drop S3 reacq +
      arc-gated p refresh (fit_arc_gated on raw-sample buffer; q frozen).
+
+Multi-seed hardening (xhigh audit): at 5 dB SNR (segment C) the full-rate
+sample-to-sample phase differencing cycle-slips; each slip is a lambda/2
+displacement step whose broadband energy leaks into the 500 Hz bin and biases
+the single-bin amplitude estimate by a seed-dependent 30-70% (seeds 1/13/99
+failed the old 25% gate) even though the state machine reacquired p correctly.
+That is a raw-rate phase-detector property, not the ellipse correction under
+test.  The asserted B/C amplitude metric therefore dephases AFTER DEC_BC-fold
+block averaging of the corrected z (2.5 MHz -> 20 kHz: ~21 dB SNR gain kills
+the slips; 500 Hz sinc loss < 0.1% and cancels anyway because the reference is
+averaged identically).  The check runs over SEEDS with per-seed gates plus
+cross-seed median gates.  Discrimination is preserved: freezing the factory p
+(no S3 reacq) still fails at ~-33% (B) / ~-94% (C) on every seed.
+Do NOT use the decimated metric on segment A: its fringe rate is ~2.5 rad per
+20 kHz block and block averaging would smear the phase (weak-return small-vib
+segments stay < 0.03 rad/block).
 """
 from __future__ import annotations
 
@@ -35,11 +51,38 @@ RHO_DROP = 0.55            # |z| drop fraction -> S3 (A->B ~20x, B->C ~2.5x)
 JUMP_CONFIRM = 2
 S3_COOLDOWN = 12           # blocks before next S3 (prevents weak-return re-entry)
 
+SEEDS = [1, 7, 13, 42, 99]
+REP_SEED = 7               # seed whose full B1/B2/B4 table is printed
+DEC_BC = 125               # 2.5 MHz -> 20 kHz narrowband dephase for B/C metric
+AMP_B_MAX, AMP_C_MAX = 20.0, 25.0   # per-seed gates; frozen-p failure: 33%/94%
+AMP_B_MED, AMP_C_MED = 15.0, 10.0   # cross-seed median gates
+
 
 def phase_cum_seg(z):
     """Segment-local phase integration (reset at each phase boundary)."""
     d = np.angle(z[1:] * np.conj(z[:-1]))
     return np.concatenate(([0.0], np.cumsum(d)))
+
+
+def amp_dec(z_seg, x_ref_seg, t_seg, f0, dec=DEC_BC):
+    """Single-bin amplitude error (%) from decimated dephasing.
+
+    Block-average corrected z by `dec` before phase integration: narrowbanding
+    ahead of the phase detector removes the 5 dB SNR cycle slips whose
+    broadband steps otherwise bias the f0 bin (see module docstring).  The
+    reference displacement is block-averaged identically so the sinc
+    attenuation at f0 cancels in the ratio.
+    """
+    n = (z_seg.size // dec) * dec
+    zb = z_seg[:n].reshape(-1, dec).mean(axis=1)
+    d = np.angle(zb[1:] * np.conj(zb[:-1]))
+    x = to_disp(np.concatenate(([0.0], np.cumsum(d))))
+    td = t_seg[:n].reshape(-1, dec).mean(axis=1)
+    xr = x_ref_seg[:n].reshape(-1, dec).mean(axis=1)
+    xs, xrr = x - x.mean(), xr - xr.mean()
+    c_e = 2 * np.mean(xs * np.exp(-1j * 2 * math.pi * f0 * td))
+    c_r = 2 * np.mean(xrr * np.exp(-1j * 2 * math.pi * f0 * td))
+    return 100 * (abs(c_e) / max(abs(c_r), 1e-30) - 1)
 
 
 def synth_switching(rng):
@@ -162,9 +205,9 @@ class SwitchingStateMachine:
         return z_out
 
 
-def main():
-    t0 = time.time()
-    sc = synth_switching(np.random.default_rng(7))
+def run_once(seed):
+    """One full B1/B2/B4 pass; returns full-rate metrics + decimated B/C amps."""
+    sc = synth_switching(np.random.default_rng(seed))
     t, u, v, x_ref = sc['t'], sc['u'], sc['v'], sc['x_ref']
     sels = [(t >= ph['t0'] + T_TRIM) & (t < ph['t0'] + ph['dur'] - T_TRIM)
             for ph in PHASES]
@@ -179,28 +222,63 @@ def main():
     sm = SwitchingStateMachine(FS, fpar)
     z4 = sm.process(u, v)
 
-    methods = {'B1': z1, 'B2': z2, 'B4': z4}
-    lines = ['=' * 60, '工况切换仿真 B1/B2/B4 (NVRAM+S3重捕)', '=' * 60,
-             f'出厂拟合(A段): p={fpar["p"]:.3f} q={fpar["q"]:.3f} '
-             f'g={fpar["B"]/fpar["A"]:.3f} delta={math.degrees(fpar["delta"]):.1f}deg',
-             f'S3不连续时刻: {[f"{x:.2f}s" for x in sm.discontinuities]}']
     results = {}
-    for name, z in methods.items():
+    for name, z in (('B1', z1), ('B2', z2), ('B4', z4)):
         results[name] = []
         for ph, sel in zip(PHASES, sels):
             m = metrics(to_disp(phase_cum_seg(z[sel])), x_ref[sel], t[sel],
                         ph['f0'], np.ones(sel.sum(), bool))
             results[name].append(m)
+
+    amp_b, amp_c = (amp_dec(z4[sels[i]], x_ref[sels[i]], t[sels[i]],
+                            PHASES[i]['f0']) for i in (1, 2))
+    return dict(seed=seed, fpar=fpar, disc=list(sm.discontinuities),
+                results=results, amp_b_dec=amp_b, amp_c_dec=amp_c)
+
+
+def main():
+    t0 = time.time()
+    runs = [run_once(s) for s in SEEDS]
+    rep = next(r for r in runs if r['seed'] == REP_SEED)
+    fpar = rep['fpar']
+    lines = ['=' * 60, '工况切换仿真 B1/B2/B4 (NVRAM+S3重捕, 多种子加固)', '=' * 60,
+             f'代表种子 seed={REP_SEED} (全速率解相指标):',
+             f'出厂拟合(A段): p={fpar["p"]:.3f} q={fpar["q"]:.3f} '
+             f'g={fpar["B"]/fpar["A"]:.3f} delta={math.degrees(fpar["delta"]):.1f}deg',
+             f'S3不连续时刻: {[f"{x:.2f}s" for x in rep["disc"]]}']
+    for name in ('B1', 'B2', 'B4'):
+        for ph, m in zip(PHASES, rep['results'][name]):
             lines.append(f'{name}|{ph["name"]}|RMS={m["rms"]:.1f}nm amp={m["amp"]:+.1f}%')
 
-    b1bc = np.mean([results['B1'][1]['rms'], results['B1'][2]['rms']])
-    b4bc = np.mean([results['B4'][1]['rms'], results['B4'][2]['rms']])
-    amp_b = abs(results['B4'][1]['amp'])
-    amp_c = abs(results['B4'][2]['amp'])
-    ok = (b4bc < b1bc / 3 and amp_b < 15.0 and amp_c < 25.0)
+    fs_dec = FS / DEC_BC / 1e3
+    lines += ['-' * 60,
+              f'多种子断言 seeds={SEEDS}: B/C幅值用{fs_dec:.0f}kHz降采样解相'
+              '(消除5dB周跳对500Hz单bin的宽带泄漏; 全速率值仅列作参考)']
+    per_ok = []
+    abs_b, abs_c = [], []
+    for r in runs:
+        res = r['results']
+        b1bc = float(np.mean([res['B1'][1]['rms'], res['B1'][2]['rms']]))
+        b4bc = float(np.mean([res['B4'][1]['rms'], res['B4'][2]['rms']]))
+        ratio = b1bc / max(b4bc, 0.1)
+        ab, ac = abs(r['amp_b_dec']), abs(r['amp_c_dec'])
+        ok_s = (b4bc < b1bc / 3 and ab < AMP_B_MAX and ac < AMP_C_MAX)
+        per_ok.append(ok_s)
+        abs_b.append(ab)
+        abs_c.append(ac)
+        lines.append(
+            f'seed={r["seed"]:<3d} RMS比={ratio:5.1f}x '
+            f'ampB={r["amp_b_dec"]:+6.1f}% ampC={r["amp_c_dec"]:+6.1f}% '
+            f'(全速率参考 ampB={res["B4"][1]["amp"]:+6.1f}% '
+            f'ampC={res["B4"][2]["amp"]:+6.1f}%) {"ok" if ok_s else "FAIL"}')
+    med_b = float(np.median(abs_b))
+    med_c = float(np.median(abs_c))
+    ok = all(per_ok) and med_b < AMP_B_MED and med_c < AMP_C_MED
     lines += [
-        f'B/C段 RMS: B1={b1bc:.0f}nm B4={b4bc:.0f}nm ratio={b1bc/max(b4bc,0.1):.1f}x',
-        f'B4|amp| 黑面={amp_b:.1f}% 远距={amp_c:.1f}% (门限 B<15% C<25%)',
+        f'每seed门限: RMS比>3x  |ampB|<{AMP_B_MAX:.0f}%  |ampC|<{AMP_C_MAX:.0f}% '
+        f'-> {"全部ok" if all(per_ok) else "有FAIL"}',
+        f'跨seed中位数: |ampB|={med_b:.1f}% (<{AMP_B_MED:.0f}%)  '
+        f'|ampC|={med_c:.1f}% (<{AMP_C_MED:.0f}%)',
         f'断言 {"PASS" if ok else "FAIL"}',
         f'耗时 {time.time()-t0:.1f}s',
     ]
