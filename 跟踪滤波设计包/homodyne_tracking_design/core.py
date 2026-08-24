@@ -310,6 +310,25 @@ def off_mode(z):
     return np.exp(1j * phi), phi, None, dict(mode='off')
 
 
+def fixed_lp_mode(z, fs, Bwin, Nt_win):
+    """Fixed measurement window only (tracking_mode='fixed_lp'): no PLL.
+
+    Applies the common B_WIN linear-phase FIR complex low-pass (fir_lp_same)
+    directly to z -- the V2 'LP-Bwin' reference path.  Tracking is off, but
+    unlike off_mode the fixed measurement-window noise floor still applies:
+    out-of-window noise (and the FM clicks it causes) is removed, which is
+    what separates this mode from raw angle(z).
+
+    Returns (y, phi, state, diag) shaped like off_mode:
+      y = LP(z), the raw window output (NOT unit-modulus normalised, so it
+      is bit-identical to the fir_lp_same reference used in validation),
+      phi = angle(y), state = None (no gate exists here).
+    """
+    y = fir_lp_same(z, Bwin, fs, Nt_win)
+    phi = np.angle(y)
+    return y, phi, None, dict(mode='fixed_lp')
+
+
 _PLL_CFG_KEYS = ('tauP', 'tauF', 'snr_on', 'snr_off', 'reacq', 'gate',
                  'rel_on', 'rel_off', 'tauRef')
 
@@ -318,15 +337,21 @@ def tracking_filter(z, fs, cfg, Nhat=None):
     """Product entry point, driven by design_params.cfg_for_frequency dicts.
 
     cfg['tracking_mode'] == 'off': tracking bypass (off_mode); Nhat unused.
+    cfg['tracking_mode'] == 'fixed_lp': no PLL, output is the common fixed
+        measurement window LP(z) (fixed_lp_mode) built from cfg['B_win'] /
+        cfg['NT_win']; Nhat unused.
     cfg['tracking_mode'] == 'pll' (or absent, for legacy cfg dicts):
         gear PLL + common residual window (residual_mode) with the gear's
         fn / B_win / gate parameters taken from cfg; Nhat is the mandatory
         dark-calibrated noise floor.
 
-    Returns (y, phi, state, diag) in both modes.
+    Returns (y, phi, state, diag) in all modes.
     """
-    if cfg.get('tracking_mode', 'pll') == 'off':
+    mode = cfg.get('tracking_mode', 'pll')
+    if mode == 'off':
         return off_mode(z)
+    if mode == 'fixed_lp':
+        return fixed_lp_mode(z, fs, cfg['B_win'], cfg['NT_win'])
     if Nhat is None:
         raise ValueError("tracking_mode='pll' requires the dark-calibrated "
                          "noise floor Nhat")

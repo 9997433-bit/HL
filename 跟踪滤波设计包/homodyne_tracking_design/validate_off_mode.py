@@ -18,16 +18,22 @@ OFF 不是第四档, 是跟踪旁路: 无 PLL、无残差窗, 输出 angle(z) / 
       逐样本一致 (gate auto / always 各一次) -- 新入口未改变已验证路径.
   O5  参数守卫: 非法 tracking_mode / 非法 gate_policy (含把 'off' 误当
       门控值) / pll 模式缺 Nhat, 均抛 ValueError.
+  O6a fixed_lp 路由: cfg_for_frequency(tracking_mode='fixed_lp') ->
+      band=None 且带 B_win/NT_win; core.tracking_filter 输出与
+      fir_lp_same(z, B_WIN, FS, NT_WIN) 逐样本一致 (V2 LP-Bwin 参考路径),
+      phi == angle(y), state=None, 无需 Nhat.
+  O6b fixed_lp != OFF: 弱光 CNR=3 dB 下两者鉴频输出不同, 且 fixed_lp 的
+      quiet-window 速度 ASD 优于 OFF (固定窗去掉窗外噪声/点击).
 """
 import math
 import time
 import numpy as np
 
 from core import (
-  tracking_filter, residual_mode, complex_bandlimited_noise,
+  tracking_filter, residual_mode, complex_bandlimited_noise, fir_lp_same,
 )
 from design_params import (
-  FS, B_FRONTEND, ZETA, B_WIN, BANDS, gate_params, cfg_for_frequency,
+  FS, B_FRONTEND, ZETA, B_WIN, NT_WIN, BANDS, gate_params, cfg_for_frequency,
 )
 from validate_tracking import N, make_scene, clean_z, amp_err_pct, vdisc, asd_at
 
@@ -48,7 +54,7 @@ def check(cid, label, ok, detail):
 
 def main():
   t0 = time.time()
-  out('OFF 模式产品封装冒烟回归 (tracking_mode in {pll, off})')
+  out('OFF 模式产品封装冒烟回归 (tracking_mode in {pll, off, fixed_lp})')
   out(f'  fs={FS/1e6:.0f}MS/s; OFF = 跟踪旁路: 输出 angle(z)/FM 鉴频, '
       '无 PLL 无残差窗; gate-off (gate_policy=always) 仍是 PLL 模式')
 
@@ -123,6 +129,33 @@ def main():
          and raises(lambda: tracking_filter(zc, FS, cfg_for_frequency(1e5))))
   check('O5', '参数守卫: 非法 tracking_mode / gate_policy=off 误用 / '
         'pll 缺 Nhat 均 ValueError', ok5, '3/3 raised')
+
+  # ---- O6: fixed_lp = fixed common window, no PLL (V2 LP-Bwin reference) ---
+  cfg_lp = cfg_for_frequency(100e3, tracking_mode='fixed_lp')
+  y_lp, phi_lp, st_lp, dg_lp = tracking_filter(zc, FS, cfg_lp)  # 无需 Nhat
+  ref = fir_lp_same(zc, B_WIN, FS, NT_WIN)
+  ok6a = (cfg_lp['tracking_mode'] == 'fixed_lp' and cfg_lp['band'] is None
+          and cfg_lp['B_win'] == B_WIN and cfg_lp['NT_win'] == NT_WIN
+          and st_lp is None and dg_lp.get('mode') == 'fixed_lp'
+          and np.array_equal(y_lp, ref)
+          and np.array_equal(phi_lp, np.angle(ref)))
+  check('O6a', "cfg(tracking_mode='fixed_lp') 路由到固定窗: band=None, "
+        'y==fir_lp_same(z,B_WIN,FS,NT_WIN), phi==angle(y), state=None', ok6a,
+        f"band={cfg_lp['band']}, mode={dg_lp.get('mode')}, "
+        f"B_win={cfg_lp['B_win']/1e6:.0f}MHz, NT_win={cfg_lp['NT_win']}")
+
+  rng = np.random.default_rng(50_002)
+  zn = np.exp(1j * sc['ph']) + complex_bandlimited_noise(N, FS, B_FRONTEND,
+                                                         s2, rng)
+  y_lpn, _, _, _ = tracking_filter(zn, FS, cfg_lp)
+  y_offn, _, _, _ = tracking_filter(zn, FS, cfg_off)
+  differs = not np.allclose(vdisc(y_lpn), vdisc(y_offn), atol=1e-6)
+  g_lp = 20 * math.log10(asd_at(vdisc(y_offn), sc) / asd_at(vdisc(y_lpn), sc))
+  check('O6b', 'fixed_lp != OFF: 弱光下鉴频输出不同, 固定窗 ASD 优于 OFF '
+        '(去掉窗外噪声/点击, 但仍无 PLL 门限扩展)',
+        differs and g_lp > 0.0,
+        f'differs: {differs}, fixed_lp vs OFF: {g_lp:+.1f} dB '
+        '@100kHz CNR=3dB')
 
   allok = all(CHECKS)
   out('')

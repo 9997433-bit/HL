@@ -52,7 +52,7 @@ band = select_band(f_target_hz, v_peak)   # 'SLOW' | 'MEDIUM' | 'FAST'
 
 ## 产品 API:tracking_mode / gate_policy
 
-产品支持 `tracking_mode ∈ {'pll','off'}`;PLL 下 `gate_policy ∈ {'auto','always'}`。**OFF 不是第四档**,是跟踪旁路:无 PLL、无残差窗,输出 `angle(z)` / FM 鉴频(即 V1/V3 对照中的 OFF 参考列);**gate-off ≠ OFF** —— `gate_policy='always'` 只旁路掉落门,PLL 仍在跟踪。
+产品支持 `tracking_mode ∈ {'pll','off','fixed_lp'}`;PLL 下 `gate_policy ∈ {'auto','always'}`。**OFF 不是第四档**,是跟踪旁路:无 PLL、无残差窗,输出 `angle(z)` / FM 鉴频(即 V1/V3 对照中的 OFF 参考列);**gate-off ≠ OFF** —— `gate_policy='always'` 只旁路掉落门,PLL 仍在跟踪。`fixed_lp` 是固定测量窗模式:无 PLL,仅对 z 施加公共 B_WIN 复低通(V2 LP-Bwin 参考路径)—— 跟踪关闭但保留固定窗噪声底,不是 raw `angle(z)`。
 
 ```python
 from design_params import FS, cfg_for_frequency
@@ -64,9 +64,12 @@ y, phi, state, diag = tracking_filter(z, FS, cfg, Nhat)   # Nhat: 挡光标定�
 cfg = cfg_for_frequency(100e3, gate_policy='always')      # PLL, 门控旁路(仍在跟踪)
 cfg = cfg_for_frequency(100e3, tracking_mode='off')       # 跟踪旁路: angle(z)/FM 鉴频
 y, phi, state, diag = tracking_filter(z, FS, cfg)         # OFF 不需要 Nhat; state=None
+
+cfg = cfg_for_frequency(100e3, tracking_mode='fixed_lp')  # 固定窗: y = LP_Bwin(z), 无 PLL
+y, phi, state, diag = tracking_filter(z, FS, cfg)         # 同样不需要 Nhat; state=None
 ```
 
-两种模式返回同形 `(y, phi, state, diag)`;OFF 下 `y = z/|z|`(单位模,下游 `angle`/`fm_discriminator` 处理与 PLL 模式完全一致)、`state=None`(该模式不存在门控)。回归见 `validate_off_mode.py`(O1–O5:旁路路由/保真、gate-off ≠ OFF、PLL 路径逐样本一致、参数守卫)。
+三种模式返回同形 `(y, phi, state, diag)`;OFF 下 `y = z/|z|`(单位模,下游 `angle`/`fm_discriminator` 处理与 PLL 模式完全一致)、`state=None`(该模式不存在门控);`fixed_lp` 下 `y = LP_Bwin(z)`(保留窗幅度响应,与 `fir_lp_same` 参考逐样本一致)、`phi = angle(y)`、`state=None`。回归见 `validate_off_mode.py`(O1–O6:旁路路由/保真、gate-off ≠ OFF、PLL 路径逐样本一致、参数守卫、fixed_lp 路由与 fixed_lp ≠ OFF)。
 
 ## 运行验证
 
@@ -75,7 +78,7 @@ cd homodyne_tracking_design
 python3 validate_tracking.py              # ~35 s, 全部断言 PASS 时退出码 0
 python3 validate_residual_alignment.py    # 产品路径/验证路径一致性断言
 python3 validate_zeta_sweep.py            # ~50 s, ζ 扫描 + 推荐值断言(审查项 #7)
-python3 validate_off_mode.py              # <5 s, OFF 模式/产品入口冒烟回归 (O1–O5)
+python3 validate_off_mode.py              # <5 s, OFF/fixed_lp 模式冒烟回归 (O1–O6)
 ```
 
 断言:C1 FAST@3MHz 幅值误差 <3%;C2 FAST@3MHz SNR gain >0 dB @CNR3;C3 SLOW@100kHz SNR gain >10 dB @CNR3/40MHz;C4 三档 3MHz 幅值误差均 <5%;C5 选档逻辑;C6/C7 PLL 价值边界两面。当前结果:**7/7 PASS**(见 `results.txt`)。
