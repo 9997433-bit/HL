@@ -179,6 +179,30 @@ def tracking_error_rad(f_target, v_peak, fn, lam=LAMBDA):
   return loop_error_mag(f_target, fn) * phi_amp
 
 
+def guard_flags(f_target_hz, v_peak, band):
+  """Tracking-error guard status of `band` at (f_target_hz, v_peak).
+
+  phi_err    untracked Doppler phase (rad); None when v_peak is unknown.
+  guard_ok   phi_err <= PHI_GUARD; None when unknown.
+  overrange  True when the applied gear exceeds the 1 rad guard.  Because
+             selection is guard-first with widest-gear fallback, this
+             happens exactly when NO gear passes the guard (e.g. 100 kHz at
+             30 m/s: FAST phi_err = 1.50 rad).  The point is still
+             trackable while phi_err < pi (atan2 detector stays linear;
+             measured in validate_app_30ms_100khz.py A2/A8), but it is a
+             degraded zone the product must surface to the user (audit
+             issue 2, option A: FAST fn stays 1.6 MHz -- raising fn to
+             2.1-2.2 MHz would satisfy the guard here but costs ~3 dB of
+             weak-light SNR at the 3 MHz spec point, see
+             study_fast_fn_options.py).
+  """
+  if v_peak is None:
+    return dict(phi_err=None, guard_ok=None, overrange=None)
+  pe = tracking_error_rad(f_target_hz, v_peak, BANDS[band]['fn'])
+  return dict(phi_err=pe, guard_ok=bool(pe <= PHI_GUARD),
+              overrange=bool(pe > PHI_GUARD))
+
+
 def select_band(f_target_hz, v_peak=None):
   """Homodyne gear choice: narrowest band passing the tracking-error guard.
 
@@ -255,6 +279,12 @@ def cfg_for_frequency(f_target_hz, v_peak=None, current_band='SLOW',
       low-pass of z (core.fixed_lp_mode).  Useful when tracking is off but
       the fixed measurement-window noise floor is still wanted.
 
+  PLL cfg dicts also carry the guard status of the applied gear (audit
+  issue 2): phi_err (rad), guard_ok, overrange -- see guard_flags().  All
+  three are None when v_peak is None (guard cannot be evaluated).
+  overrange=True marks the documented degraded zone (no gear satisfies the
+  1 rad guard; fallback FAST still tracks while phi_err < pi).
+
   Feed the returned dict to core.tracking_filter.
   """
   if tracking_mode not in TRACKING_MODES:
@@ -271,4 +301,5 @@ def cfg_for_frequency(f_target_hz, v_peak=None, current_band='SLOW',
   band = (select_band_hysteresis(f_target_hz, current_band, v_peak)
           if hysteresis else select_band(f_target_hz, v_peak))
   return dict(tracking_mode='pll', gate=gate_policy, band=band,
-              f_target_hz=f_target_hz, **band_specs(band))
+              f_target_hz=f_target_hz, **band_specs(band),
+              **guard_flags(f_target_hz, v_peak, band))
