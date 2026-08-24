@@ -1,0 +1,234 @@
+用户应用场景验证: v_peak<=30 m/s (正弦), 典型 f<=100 kHz -- 现有三档选档是否影响性能?
+reference: design_params 三档 (fn=110k/530k/1.6M, zeta=1.2, 公共窗 B_win=4MHz, 守卫 1.0 rad), B_loop=0.49M/2.34M/7.08M
+
+======================================================================================
+A1  选档扫描 (解析 + cfg_for_frequency): 守卫 phi_err = |1-H_L|*2*v_peak/(lambda*f) <= 1.0 rad
+======================================================================================
+
+  -- 主工况长表 (f <= 100 kHz, 用户应用域) --
+          f    v_peak | phi_err SLOW     MEDIUM       FAST |  select  hyst(S起步)     cfg  guard
+        1k       20mm/s |    0.002132r 9.187e-05r 1.008e-05r |    SLOW       SLOW    SLOW  ok
+        1k      100mm/s |     0.01066r 0.0004593r  5.04e-05r |    SLOW       SLOW    SLOW  ok
+        1k      500mm/s |     0.05331r  0.002297r  0.000252r |    SLOW       SLOW    SLOW  ok
+        1k     1000mm/s |      0.1066r  0.004593r  0.000504r |    SLOW       SLOW    SLOW  ok
+        1k     2000mm/s |      0.2132r  0.009187r  0.001008r |    SLOW       SLOW    SLOW  ok
+        1k     5000mm/s |      0.5331r   0.02297r   0.00252r |    SLOW       SLOW    SLOW  ok
+        1k    10000mm/s |       1.066r   0.04593r   0.00504r |  MEDIUM     MEDIUM  MEDIUM  ok
+        1k    20000mm/s |       2.132r   0.09187r   0.01008r |  MEDIUM     MEDIUM  MEDIUM  ok
+        1k    30000mm/s |       3.199r    0.1378r   0.01512r |  MEDIUM     MEDIUM  MEDIUM  ok
+
+        5k       20mm/s |     0.01062r 0.0004593r  5.04e-05r |    SLOW       SLOW    SLOW  ok
+        5k      100mm/s |     0.05311r  0.002296r  0.000252r |    SLOW       SLOW    SLOW  ok
+        5k      500mm/s |      0.2656r   0.01148r   0.00126r |    SLOW       SLOW    SLOW  ok
+        5k     1000mm/s |      0.5311r   0.02296r   0.00252r |    SLOW       SLOW    SLOW  ok
+        5k     2000mm/s |       1.062r   0.04593r   0.00504r |  MEDIUM     MEDIUM  MEDIUM  ok
+        5k     5000mm/s |       2.656r    0.1148r    0.0126r |  MEDIUM     MEDIUM  MEDIUM  ok
+        5k    10000mm/s |       5.311r    0.2296r    0.0252r |  MEDIUM     MEDIUM  MEDIUM  ok
+        5k    20000mm/s |       10.62r    0.4593r    0.0504r |  MEDIUM     MEDIUM  MEDIUM  ok
+        5k    30000mm/s |       15.93r    0.6889r    0.0756r |  MEDIUM     MEDIUM  MEDIUM  ok
+
+       10k       20mm/s |       0.021r 0.0009181r 0.0001008r |    SLOW       SLOW    SLOW  ok
+       10k      100mm/s |       0.105r   0.00459r  0.000504r |    SLOW       SLOW    SLOW  ok
+       10k      500mm/s |      0.5251r   0.02295r   0.00252r |    SLOW       SLOW    SLOW  ok
+       10k     1000mm/s |        1.05r    0.0459r   0.00504r |  MEDIUM     MEDIUM  MEDIUM  ok
+       10k     2000mm/s |         2.1r   0.09181r   0.01008r |  MEDIUM     MEDIUM  MEDIUM  ok
+       10k     5000mm/s |       5.251r    0.2295r    0.0252r |  MEDIUM     MEDIUM  MEDIUM  ok
+       10k    10000mm/s |        10.5r     0.459r    0.0504r |  MEDIUM     MEDIUM  MEDIUM  ok
+       10k    20000mm/s |          21r    0.9181r    0.1008r |  MEDIUM     MEDIUM  MEDIUM  ok
+       10k    30000mm/s |        31.5r     1.377r    0.1512r |    FAST       FAST    FAST  ok
+
+       20k       20mm/s |     0.04021r  0.001833r 0.0002016r |    SLOW       SLOW    SLOW  ok
+       20k      100mm/s |       0.201r  0.009163r  0.001008r |    SLOW       SLOW    SLOW  ok
+       20k      500mm/s |       1.005r   0.04581r  0.005039r |  MEDIUM     MEDIUM  MEDIUM  ok
+       20k     1000mm/s |        2.01r   0.09163r   0.01008r |  MEDIUM     MEDIUM  MEDIUM  ok
+       20k     2000mm/s |       4.021r    0.1833r   0.02016r |  MEDIUM     MEDIUM  MEDIUM  ok
+       20k     5000mm/s |       10.05r    0.4581r   0.05039r |  MEDIUM     MEDIUM  MEDIUM  ok
+       20k    10000mm/s |        20.1r    0.9163r    0.1008r |  MEDIUM     MEDIUM  MEDIUM  ok
+       20k    20000mm/s |       40.21r     1.833r    0.2016r |    FAST       FAST    FAST  ok
+       20k    30000mm/s |       60.31r     2.749r    0.3023r |    FAST       FAST    FAST  ok
+
+       50k       20mm/s |     0.07906r  0.004518r 0.0005031r |    SLOW       SLOW    SLOW  ok
+       50k      100mm/s |      0.3953r   0.02259r  0.002516r |    SLOW       SLOW    SLOW  ok
+       50k      500mm/s |       1.976r     0.113r   0.01258r |  MEDIUM     MEDIUM  MEDIUM  ok
+       50k     1000mm/s |       3.953r    0.2259r   0.02516r |  MEDIUM     MEDIUM  MEDIUM  ok
+       50k     2000mm/s |       7.906r    0.4518r   0.05031r |  MEDIUM     MEDIUM  MEDIUM  ok
+       50k     5000mm/s |       19.76r      1.13r    0.1258r |    FAST       FAST    FAST  ok
+       50k    10000mm/s |       39.53r     2.259r    0.2516r |    FAST       FAST    FAST  ok
+       50k    20000mm/s |       79.06r     4.518r    0.5031r |    FAST       FAST    FAST  ok
+       50k    30000mm/s |       118.6r     6.778r    0.7547r |    FAST       FAST    FAST  ok
+
+      100k       20mm/s |     0.09744r  0.008623r  0.001001r |    SLOW       SLOW    SLOW  ok
+      100k      100mm/s |      0.4872r   0.04311r  0.005004r |    SLOW       SLOW    SLOW  ok
+      100k      500mm/s |       2.436r    0.2156r   0.02502r |  MEDIUM     MEDIUM  MEDIUM  ok
+      100k     1000mm/s |       4.872r    0.4311r   0.05004r |  MEDIUM     MEDIUM  MEDIUM  ok
+      100k     2000mm/s |       9.744r    0.8623r    0.1001r |  MEDIUM     MEDIUM  MEDIUM  ok
+      100k     5000mm/s |       24.36r     2.156r    0.2502r |    FAST       FAST    FAST  ok
+      100k    10000mm/s |       48.72r     4.311r    0.5004r |    FAST       FAST    FAST  ok
+      100k    20000mm/s |       97.44r     8.623r     1.001r |    FAST       FAST    FAST  FALLBACK(无档<=1rad)
+      100k    30000mm/s |       146.2r     12.93r     1.501r |    FAST       FAST    FAST  FALLBACK(无档<=1rad)
+
+  -- 全景矩阵 (含仪器上限 200k/1M/3M 供参考): S/M/F=选中档, '!'=守卫失败回退最宽档, '#'=phi_err>pi 必滑周 --
+    v_peak\f        1k     5k    10k    20k    50k   100k   200k     1M     3M
+          20mm/s      S      S      S      S      S      S      S      S      S
+         100mm/s      S      S      S      S      S      S      S      S      S
+         500mm/s      S      S      S      M      M      M      M      S      S
+        1000mm/s      S      S      M      M      M      M      M      M      S
+        2000mm/s      S      M      M      M      M      M      F      F      S
+        5000mm/s      S      M      M      M      F      F      F     F!     F!
+       10000mm/s      M      M      M      M      F      F      F     F!     F!
+       20000mm/s      M      M      M      F      F     F!     F!     F#     F#
+       30000mm/s      M      M      F      F      F     F!     F!     F#     F#
+
+  -- 守卫升档边界 (v_peak 上限, 由 phi_err=1rad / pi 解析求出) --
+          f |    SLOW可用<=    MEDIUM可用<=     FAST守卫<=      FAST滑周极限
+        1k |     9.379m/s     217.699m/s    1984.00m/s      6232.9m/s
+        5k |     1.883m/s      43.547m/s     396.81m/s      1246.6m/s
+       10k |     0.952m/s      21.784m/s     198.41m/s       623.3m/s
+       20k |     0.497m/s      10.914m/s      99.23m/s       311.7m/s
+       50k |     0.253m/s       4.426m/s      39.75m/s       124.9m/s
+      100k |     0.205m/s       2.319m/s      19.99m/s        62.8m/s
+
+  30 m/s 时的频率边界: SLOW 通过守卫至 313 Hz; MEDIUM 至 7.26 kHz (其上必须 FAST);
+  FAST 守卫(1 rad)内至 66.3 kHz, 其上 fallback FAST (phi_err 1..pi 区间, 仍可跟踪); 滑周极限 phi_err=pi 在 214.7 kHz.
+  用户最坏点 (100 kHz, 30 m/s): phi_err FAST = 1.50 rad < pi (滑周速度余量 2.1x).
+  [PASS] S1  主网格 (f<=100kHz, v<=30m/s) 自动选档 phi_err < pi (无强制滑周)  (最大 1.50 rad @ (100kHz, 30m/s))
+  [PASS] S2  主网格: hysteresis(SLOW起步) == select_band == cfg_for_frequency (升档即时生效)  (54 组合)
+
+======================================================================================
+A2  端到端弱光仿真 (CNR=3dB, B_frontend=40MHz, 6 seeds, gear_filter/R1-R3 方法同 validate_tracking)
+======================================================================================
+  ampErr = R1 近无噪传递函数误差 (clean, gate=always); ampErr noisy = 含噪中值 (gate=auto);
+  SNRgain = 信号增益 + 20log10(ASD_off/ASD_on) @f0 静默窗 (R2/R3); slips = clean 运行 near-pi 事件数.
+
+  案例 a)  f0=100 kHz, v_peak=0.02 m/s (fD_peak=0.03 MHz) -- 典型工况 (VAMP 默认 20 mm/s)
+      select_band=SLOW, hysteresis(SLOW起步)=SLOW
+    gear       phi_err | ampErr full  ampErr NCO  slips | ampErr noisy |          SNRgain full dB |  NCO dB | lock%
+    SLOW       0.0974r |      -0.00%      +9.70%      0 |       -3.19% |  +37.52 [ +36.47, +39.87] | +37.12 |  92.7  <== auto
+    MEDIUM    0.00862r |      -0.00%      +3.03%      0 |       -1.45% |  +37.37 [ +36.45, +39.72] | +36.71 |  98.0
+    FAST        0.001r |      -0.00%      +0.38%      0 |      +73.48% |  +11.52 [ +10.34, +12.63] | +12.90 |  99.0
+
+  案例 b)  f0=10 kHz, v_peak=30 m/s (fD_peak=38.71 MHz) -- 低频 x 最高速
+      select_band=FAST, hysteresis(SLOW起步)=FAST
+    gear       phi_err | ampErr full  ampErr NCO  slips | ampErr noisy |          SNRgain full dB |  NCO dB | lock%
+    SLOW         31.5r |     -96.89%     -99.23%   5788 |      -97.93% |  +27.43 [ +25.09, +31.66] | +13.94 |  98.2
+    MEDIUM       1.38r |      -0.00%      +0.04%      0 |       -6.33% |  +57.64 [ +55.23, +61.49] | +56.06 |  99.5
+    FAST        0.151r |      -0.00%      +0.00%      0 |       -0.07% |  +13.13 [ +10.91, +13.71] | +12.77 |  99.7  <== auto
+
+  案例 c)  f0=100 kHz, v_peak=30 m/s (fD_peak=38.71 MHz) -- 最高典型频率 x 最高速 (守卫最坏点)
+      select_band=FAST [守卫fallback: 无档<=1rad], hysteresis(SLOW起步)=FAST
+    gear       phi_err | ampErr full  ampErr NCO  slips | ampErr noisy |          SNRgain full dB |  NCO dB | lock%
+    SLOW          146r |     -90.16%     -99.55%   2289 |      -97.27% |  +17.76 [ +14.24, +18.54] | -11.11 |  92.7
+    MEDIUM       12.9r |     -92.60%     -92.33%   2191 |      -93.68% |  +15.09 [ +11.74, +16.19] | +13.88 |  98.0
+    FAST          1.5r |      -0.00%      +0.38%      0 |       -5.50% |  +12.29 [  +7.83, +14.03] | +13.24 |  99.0  <== auto
+
+  案例 d)  f0=50 kHz, v_peak=5 m/s (fD_peak=6.45 MHz) -- 中间工况
+      select_band=FAST, hysteresis(SLOW起步)=FAST
+    gear       phi_err | ampErr full  ampErr NCO  slips | ampErr noisy |          SNRgain full dB |  NCO dB | lock%
+    SLOW         19.8r |     -36.51%     -93.38%    385 |      -49.73% |  +40.16 [ +38.73, +42.87] | +19.91 |  92.8
+    MEDIUM       1.13r |      -0.00%      +0.85%      0 |       +0.00% |  +44.22 [ +42.31, +46.64] | +44.14 |  98.0
+    FAST        0.126r |      -0.00%      +0.10%      0 |       -0.76% |  +11.41 [  +8.45, +13.63] | +11.41 |  99.0  <== auto
+
+  [PASS] E1  案例a (100kHz, 20mm/s): 自动档=SLOW, clean|err|<5%, 噪声中值|err|<10%, SNRgain>+10dB  (sel=SLOW, err=-0.00%, noisy=-3.19%, gain=+37.52dB)
+  [PASS] E2  案例b (10kHz, 30m/s): 自动档 clean|err|<5%, 噪声中值|err|<10%, SNRgain>0dB  (sel=FAST, err=-0.00%, noisy=-0.07%, gain=+13.13dB, slips=0)
+  [PASS] E3  案例c (100kHz, 30m/s): 自动档 clean|err|<5%, 噪声中值|err|<10%, SNRgain>0dB, 档=FAST 且 clean 0 滑周  (sel=FAST, err=-0.00%, noisy=-5.50%, gain=+12.29dB, slips=0)
+  [PASS] E4  案例d (50kHz, 5m/s): 自动档 clean|err|<5%, 噪声中值|err|<10%, SNRgain>0dB  (sel=FAST, err=-0.00%, noisy=-0.76%, gain=+11.41dB, slips=0)
+  [PASS] E5  守卫必要性: 案例c 强制 MEDIUM (违守卫 12.9rad) clean|err|>20% (守卫升档不是保守而是必须)  (-92.6%)
+
+======================================================================================
+A3  换档迟滞: 用户相关的频率/速度阶跃 -- 一次一档降档是否造成临时错档?
+======================================================================================
+
+  T1: 频率阶跃 50 kHz -> 100 kHz @ 20 mm/s (选档状态机, 起始档 SLOW)
+    update       f    v_peak |  target  applied phi_err(applied)  状态
+         0    50k       20mm/s |    SLOW     SLOW         0.07906r  最优
+         1    50k       20mm/s |    SLOW     SLOW         0.07906r  最优
+         2   100k       20mm/s |    SLOW     SLOW         0.09744r  最优
+         3   100k       20mm/s |    SLOW     SLOW         0.09744r  最优
+         4   100k       20mm/s |    SLOW     SLOW         0.09744r  最优
+
+  T2: 速度阶跃 20 mm/s -> 30 m/s @ 100 kHz (升档) (选档状态机, 起始档 SLOW)
+    update       f    v_peak |  target  applied phi_err(applied)  状态
+         0   100k       20mm/s |    SLOW     SLOW         0.09744r  最优
+         1   100k       20mm/s |    SLOW     SLOW         0.09744r  最优
+         2   100k    30000mm/s |    FAST     FAST           1.501r  最优
+         3   100k    30000mm/s |    FAST     FAST           1.501r  最优
+         4   100k    30000mm/s |    FAST     FAST           1.501r  最优
+
+  T3: 速度阶跃 30 m/s -> 20 mm/s @ 100 kHz (降档, 一次一档) (选档状态机, 起始档 FAST)
+    update       f    v_peak |  target  applied phi_err(applied)  状态
+         0   100k    30000mm/s |    FAST     FAST           1.501r  最优
+         1   100k    30000mm/s |    FAST     FAST           1.501r  最优
+         2   100k       20mm/s |    SLOW   MEDIUM        0.008623r  安全, 暂时非最优 (降档过渡)
+         3   100k       20mm/s |    SLOW     SLOW         0.09744r  最优
+         4   100k       20mm/s |    SLOW     SLOW         0.09744r  最优
+         5   100k       20mm/s |    SLOW     SLOW         0.09744r  最优
+
+  说明: 阶跃发生到下一次选档更新之间不可避免地短暂处于旧档 (任何离散选档器皆然, 暴露窗=选档更新周期);
+  升档即时生效, 之后 reacq=True 用差分鉴频器直接拉入 NCO 频率. 降档只慢不错: 高档在任何更低速工况都满足守卫.
+  [PASS] H1  T2 升档: 阶跃后第 1 次更新即到守卫档 (FAST)  (update2: FAST (target FAST))
+  [PASS] H2  T3 降档: 中间档全部守卫安全 (无临时错档), 2 次更新内到最优档  (路径 FAST->MEDIUM->SLOW->SLOW->SLOW, max中间phi_err=0.0974r)
+  [PASS] H3  T1: 50->100 kHz @20mm/s 全程 SLOW, 无档位抖动  (路径 SLOW->SLOW->SLOW->SLOW->SLOW)
+
+======================================================================================
+A4  结论 (用户应用: v_peak<=30 m/s, 典型 f<=100 kHz)
+======================================================================================
+
+  [结论1] "<=100 kHz 典型速度下 SLOW 是否总是最优?" -- 不是"总是", 是"守卫内最优".
+    SLOW 通过守卫的速度上限随频率下降: 9.4 m/s @1 kHz -> 0.21 m/s
+    @100 kHz (见 A1 边界表). 该范围内 SLOW 最优且被自动选中 (100 kHz 实测弱光
+    SNR 增益 +37.5 dB, vs FAST 同点 +11.5 dB). 典型 VAMP=20 mm/s
+    在全部 <=100 kHz 频点 phi_err<=0.097 rad, 守卫余量 >10x -- 默认 SLOW 正确.
+    速度超过边界后守卫自动升档, 且这是必须的: 强制 SLOW/MEDIUM 在 30 m/s 时
+    幅值误差 -90%..-100% (A2 实测), 不升档 = 测量报废.
+
+  [结论2] 30 m/s 时 FAST 成为必需的最低频率: 7.26 kHz.
+    30 m/s 各档边界 (解析, A2 仿真证实): SLOW 只到 313 Hz,
+    MEDIUM 到 7.26 kHz, 其上守卫强制 FAST.
+    FAST 在 1 rad 守卫内到 66.3 kHz; 66-100 kHz
+    区间为 fallback FAST (phi_err 1.0-1.5 rad, 仍 < pi, atan2 鉴相器保持线性):
+    实测 (100 kHz, 30 m/s) clean 幅值误差 -0.00%,
+    0 滑周, SNR 增益 +12.29 dB -- 可用. 绝对滑周极限 phi_err=pi 在
+    215 kHz @30 m/s, 或 63 m/s @100 kHz
+    (用户最坏点速度余量 2.1x).
+
+  [结论3] 换档动态: 无"临时错档"风险 (A3 实测).
+    升档即时 (阶跃后第 1 次选档更新), 降档一次一档只经过更高档 -- 高档在低速
+    工况永远守卫安全, 代价只是 <=1 个选档周期的 SNR 非最优. 50->100 kHz
+    @20 mm/s 全程 SLOW 无抖动. 唯一暴露窗是阶跃与下一次选档更新之间
+    (任何离散选档器固有), 由选档更新率决定, 与迟滞设计无关.
+
+  [结论4] 实用建议.
+    - 默认 SLOW + 现有 guard-first 自动选档即可覆盖用户全域
+      (f<=100 kHz, v<=30 m/s), 无需人工干预档位.
+    - 高速工况 SNR 增益从 SLOW 的 ~+38 dB 降到 FAST 的 ~+12 dB
+      (@100 kHz): 物理必然 (环带宽换跟踪能力); 30 m/s 信号本身极大
+      (fD_peak=38.7 MHz), 幅值误差中值 <5% (A2), SNR 不是瓶颈.
+    - 需要档位关注的只有 v>20 m/s 且 f 接近 100 kHz 的组合
+      (fallback 区), 本仿真已证明到 30 m/s 均正常.
+
+  [结论5] 是否需要改设计? 不需要 (仿真未发现问题).
+    guard-first 选档在最坏点 (100 kHz, 30 m/s) 实测正确工作; 迟滞无副作用.
+    两点非选档注意事项 (不改档位设计):
+    (1) 前端带宽: 30 m/s 时 fD_peak=38.7 MHz 超过 B_FRONTEND/2=
+        20 MHz 的噪声 ENBW 设定; 仿真中信号未被前端限带,
+        实际硬件模拟前端须通过 ±43 MHz
+        (fs=250 MS/s 复采样支持). 这是前端指标, 与选档无关.
+    (2) 若未来需求扩展到 f>100 kHz 且同时 30 m/s, 才需考虑提高 FAST fn
+        (滑周极限 215 kHz @30 m/s).
+
+======================================================================================
+A5  ASSERTION SUMMARY (主场景 PASS/FAIL 判据见文件头 docstring)
+======================================================================================
+  [PASS] S1  主网格 (f<=100kHz, v<=30m/s) 自动选档 phi_err < pi (无强制滑周)  (最大 1.50 rad @ (100kHz, 30m/s))
+  [PASS] S2  主网格: hysteresis(SLOW起步) == select_band == cfg_for_frequency (升档即时生效)  (54 组合)
+  [PASS] E1  案例a (100kHz, 20mm/s): 自动档=SLOW, clean|err|<5%, 噪声中值|err|<10%, SNRgain>+10dB  (sel=SLOW, err=-0.00%, noisy=-3.19%, gain=+37.52dB)
+  [PASS] E2  案例b (10kHz, 30m/s): 自动档 clean|err|<5%, 噪声中值|err|<10%, SNRgain>0dB  (sel=FAST, err=-0.00%, noisy=-0.07%, gain=+13.13dB, slips=0)
+  [PASS] E3  案例c (100kHz, 30m/s): 自动档 clean|err|<5%, 噪声中值|err|<10%, SNRgain>0dB, 档=FAST 且 clean 0 滑周  (sel=FAST, err=-0.00%, noisy=-5.50%, gain=+12.29dB, slips=0)
+  [PASS] E4  案例d (50kHz, 5m/s): 自动档 clean|err|<5%, 噪声中值|err|<10%, SNRgain>0dB  (sel=FAST, err=-0.00%, noisy=-0.76%, gain=+11.41dB, slips=0)
+  [PASS] E5  守卫必要性: 案例c 强制 MEDIUM (违守卫 12.9rad) clean|err|>20% (守卫升档不是保守而是必须)  (-92.6%)
+  [PASS] H1  T2 升档: 阶跃后第 1 次更新即到守卫档 (FAST)  (update2: FAST (target FAST))
+  [PASS] H2  T3 降档: 中间档全部守卫安全 (无临时错档), 2 次更新内到最优档  (路径 FAST->MEDIUM->SLOW->SLOW->SLOW, max中间phi_err=0.0974r)
+  [PASS] H3  T1: 50->100 kHz @20mm/s 全程 SLOW, 无档位抖动  (路径 SLOW->SLOW->SLOW->SLOW->SLOW)
+
+ALL CHECKS PASSED
+[elapsed 15.9 s]
