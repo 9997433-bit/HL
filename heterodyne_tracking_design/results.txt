@@ -1,0 +1,68 @@
+Heterodyne electrical-IQ tracking filter validation (Polytec-class)
+lambda=632.8nm fs=50MHz zeta=0.707
+
+========================================================================================
+H1  Four bandwidth layers (heterodyne, v_range=1.5 m/s)
+========================================================================================
+  fs=50 MHz | f_D,max=4.74 MHz | B_frontend(forced)=9.48 MHz
+  SLOW   fn=   68.9kHz B_loop=0.229MHz f_3dB=0.142MHz ceiling=+13.2dB
+  MEDIUM fn=  217.7kHz B_loop=0.725MHz f_3dB=0.448MHz ceiling=+8.2dB
+  FAST   fn=  688.5kHz B_loop=2.294MHz f_3dB=1.417MHz ceiling=+3.2dB
+  noise metric if B_frontend correct: 10log10(Bn/2/Bl) = +3.2 dB
+  noise metric if use fs as noise BW (WRONG): 10log10(Bn/2/Bl) = +10.4 dB
+
+========================================================================================
+H2  Three gears @ design vibration, CNR=6dB, v_range=1.5m/s, f_v=10kHz
+========================================================================================
+  gear         fn  ceiling            SNRgain   sigG  ampErr%
+  SLOW        69k   +13.2dB +48.54 [+30.99,+51.26] +24.47 +1716.73
+  MEDIUM     218k    +8.2dB +17.17 [+12.10,+21.39] +0.02   +2.11
+  FAST       689k    +3.2dB +17.84 [+8.48,+22.04] +0.00   -0.40
+
+========================================================================================
+H3  Velocity-range sweep (f_v=10kHz fixed) — parametric fn vs fixed fn=400kHz
+========================================================================================
+   v_range   f_Dmax  fn_FAST  ceiling |  SNR param SNR fix400k | amp% param  amp% fix
+     0.05m/s    0.16M     126k    -4.2dB |     -0.48dB     -1.09dB |   +11.13   +10.74
+     0.20m/s    0.63M     251k    -1.2dB |     -1.53dB     -1.07dB |    +9.49    +8.80
+     0.60m/s    1.90M     435k    +1.2dB |    +10.26dB    +10.13dB |   +62.58    -1.35
+     1.50m/s    4.74M     689k    +3.2dB |    +17.75dB    +18.83dB |    -0.40    +0.58
+     3.00m/s    9.48M     974k    +4.7dB |    +26.11dB    +25.18dB |    -0.56    -3.46
+
+========================================================================================
+H4  Fixed preLP (B_loop) vs tracking PLL — heterodyne value boundary (from t5)
+========================================================================================
+  e_crit=1.0 design line:
+   v_range      f_D  B_front       fn   ceil | PLL gain    preLP | amp% PLL    preLP
+     0.05m/s    0.16M    0.32M      40k  +0.8 |   +8.93dB   +0.00dB |   +5.88  -67.27
+     0.20m/s    0.63M    1.26M      80k  +3.8 |   +9.31dB   +0.00dB |   +1.56  -95.48
+     0.60m/s    1.90M    3.79M     138k  +6.2 |  +14.68dB   +0.00dB |   +0.53  -98.74
+     1.50m/s    4.74M    9.48M     218k  +8.2 |  +21.92dB   +0.00dB |   +0.21  -99.51
+     3.00m/s    9.48M   18.96M     308k  +9.7 |  +28.59dB   +0.00dB |   +0.11  -99.68
+
+========================================================================================
+H5  e_crit = 1 (design) vs pi (wrap line) — must fail on pi
+========================================================================================
+  e_crit=1 design: fn=123kHz ampErr=+3.7% SNRgain=+20.25dB
+  e_crit=pi WRAP: fn=69kHz ampErr=+1716.8% SNRgain=+44.03dB
+
+========================================================================================
+H6  User scenario: mostly 100kHz structural, v_range up to 3m/s
+========================================================================================
+  daily 100kHz @0.1m/s range
+    selected=FAST fn=178kHz (req 100kHz) ceiling=-2.7dB SNRgain=+17.82 [+17.5,+18.4]
+  100kHz @3m/s range
+    selected=FAST fn=974kHz (req 549kHz) ceiling=+4.7dB SNRgain=+8.89 [+7.8,+9.7]
+  3MHz ultrasound @3m/s
+    selected=FAST fn=974kHz (req 3009kHz) ceiling=+4.7dB SNRgain=+12.40 [+11.5,+12.8]
+
+========================================================================================
+ASSERTIONS
+========================================================================================
+  [PASS] FAST gear SNR gain > 3 dB @CNR6  (+17.84 dB)
+  [PASS] e_crit=pi amp error > 20%  (1716.8%)
+  [PASS] parametric fn amp <= fixed 400k @vr=3  (param 0.6% vs fix 3.5%)
+
+ALL CHECKS PASSED
+
+[elapsed 6.2s]
