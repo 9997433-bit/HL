@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HL · Task Manager</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="app__header">
+        <h1>HL</h1>
+        <p>A minimal Node.js task manager</p>
+      </header>
+
+      <form id="new-task" class="new-task">
+        <input
+          id="task-title"
+          class="new-task__input"
+          type="text"
+          placeholder="What needs doing?"
+          autocomplete="off"
+          required
+        />
+        <button class="new-task__button" type="submit">Add</button>
+      </form>
+
+      <ul id="task-list" class="task-list"></ul>
+      <p id="empty" class="empty" hidden>No tasks yet — add one above.</p>
+    </main>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>
