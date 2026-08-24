@@ -27,6 +27,8 @@ function G = export_golden_core()
   G.burst_v = bv;
   G.burst_env = be;
   G.lockin_val = lockin_amp(bv, t_b, 1e5, be > 0);
+  y_fl = fir_lp(bx, 2e5, fs_b);
+  G.fir_lp_y = y_fl(1:1000);
 
   % ---------------------------------------------------------- S4 H_L(f)
   f_hl = [0, 1e3, 1e4, 1e5, 2e5, 5e5, 1e6, 2e6, 3e6].';
@@ -65,6 +67,8 @@ function G = export_golden_core()
                  tracking_error_rad(1e5, 0.5, 530e3); C.PHI_GUARD];
   gf = guard_flags(1e5, 30.0, 'FAST');
   G.guard_fast = [gf.phi_err; double(gf.guard_ok); double(gf.overrange)];
+  T = as_struct_table();
+  G.table_val = [T.SLOW.fn; T.MEDIUM.Kp; T.FAST.B_loop];
 
   % ---------------------------------------------------------- S7 cfg structs
   cfgs = {cfg_for_frequency(3e6, 0.02), ...
