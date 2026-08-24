@@ -13,9 +13,8 @@ function rc = validate_ellipse_dynamic()
 %   returns rc = 0 iff the assertion holds.
   t0 = tic;
   sd = fileparts(mfilename('fullpath'));          % matlab/homodyne
-  addpath(sd);
-  addpath(fullfile(sd, 'core'));
-  addpath(fullfile(sd, 'ellipse'));
+  addpath(fileparts(sd));                         % matlab/ (homodyne_setup_path)
+  homodyne_setup_path();
   ensure_kernels();
   c = ve_const();
   ph = ve_phases_dynamic();

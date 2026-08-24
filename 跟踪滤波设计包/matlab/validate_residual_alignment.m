@@ -10,7 +10,8 @@ function validate_residual_alignment()
 %   raises an error (nonzero exit code) if any combination fails.
   t_all = tic;
   sd = fileparts(mfilename('fullpath'));
-  addpath(fullfile(sd, 'homodyne'));
+  addpath(sd);
+  homodyne_setup_path();
   ensure_kernels();
 
   dp = design_params();

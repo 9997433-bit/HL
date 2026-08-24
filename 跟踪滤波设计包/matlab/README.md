@@ -4,10 +4,17 @@ Octave-compatible faithful ports of the Python packages in this repo:
 
 | MATLAB | Python source |
 |---|---|
-| `homodyne/core/` | `homodyne_tracking_design/core.py` (canonical shared core: PLL, signals, filters) |
-| `homodyne/` (flat) | homodyne design params & helpers (`hd_*`, `set_rng`, ...) |
+| `homodyne/core/` | `homodyne_tracking_design/core.py` (canonical shared core: PLL, signals, filters, numpy-exact RNG) |
+| `homodyne/design_params/` | `homodyne_tracking_design/design_params.py` (canonical parameter functions + constants) |
+| `homodyne/ellipse/` | ellipse / Heydemann correction port |
+| `homodyne/` (flat) | validator-only helpers (`hd_*`, `np_*`, `set_rng`, `vt_*`, `ve_*`) -- no DSP/param duplicates |
 | `heterodyne/` | `heterodyne_tracking_design/core.py` + `design_params.py` + `validate_heterodyne.py` |
 | `qtec/` | `qtec_diversity_design/speckle_multi.py` + `synth_multichannel.py` + `diversity_combine.py` + `validate_diversity_p0_p1.py` |
+
+Every shared function exists exactly once: DSP in `homodyne/core/`,
+design-parameter functions in `homodyne/design_params/`.
+`homodyne_setup_path.m` adds the folders in canonical-last order, and every
+validator calls it, so only one implementation is ever visible on the path.
 
 Key sharing decision (mirrors the Python layering): `pll_carrier_regen` lives
 once in `homodyne/core/` and is reused by heterodyne and qtec.  The heterodyne
@@ -41,18 +48,55 @@ Run everything:
 
 ```sh
 cd matlab
-octave --no-gui --eval "rc = run_all_verify(); exit(rc)"          # compares only
-octave --no-gui --eval "rc = run_all_verify('full'); exit(rc)"    # + validators (minutes)
+octave --no-gui --eval "rc = run_all_verify(); exit(rc)"          # 'compare': golden compares only (fast)
+octave --no-gui --eval "rc = run_all_verify('full'); exit(rc)"    # + ALL validators (~10 min)
 ```
+
+`run_all_verify('compare')` (the default) runs the golden compares:
+`compare_heterodyne_golden`, `compare_qtec_golden`, the homodyne core smoke
+(`compare_with_python`) and `compare_validate` (committed per-validator
+golden metric pairs).
+
+`run_all_verify('full')` first re-runs ALL statistical validators --
+`validate_heterodyne`, `validate_diversity_p0_p1`, `validate_tracking`,
+`validate_off_mode`, `validate_zeta_sweep`, `validate_residual_alignment`,
+`validate_app_30ms_100khz` and the three ellipse validators -- and then the
+golden compares; the homodyne validators rewrite their
+`golden/validate_*_mat.mat` metrics, so the final `compare_validate` checks
+the fresh outputs against the committed Python goldens.
+
+## MEX kernels are optional (pure-M fallback)
+
+Two optional compiled kernels accelerate the homodyne validators:
+`homodyne/core/homodyne_rng_mex.c` (numpy-exact RNG: PCG64 + ziggurat) and
+`homodyne/core/pll_core_mex.c` (PLL scalar loop).  `ensure_kernels` tries to
+build them on first use (Octave: `mkoctfile --mex`; MATLAB: `mex`); if no
+compiler is available it prints a warning and everything transparently falls
+back to the pure-M twins `np_rng_m.m` / `pll_core_m.m`, which produce
+**bit-identical** results (only slower).  No `.mex` binaries are committed
+(they are platform-specific; see `.gitignore`); set `HOMODYNE_NO_MEX=1` to
+force the pure-M paths even when the kernels are compiled.
+
+### Windows / MATLAB notes
+
+- Runs on MATLAB R2020b+ and GNU Octave >= 8; no toolboxes needed.
+- The pure-M path is the portable default: nothing needs to be compiled to
+  run the validators or the golden compares on Windows.
+- Optional MEX speedup on Windows MATLAB requires a GCC-compatible compiler
+  (install the *MATLAB Support for MinGW-w64 C/C++ Compiler* add-on and
+  select it with `mex -setup`).  MSVC cannot build `homodyne_rng_mex.c`
+  because it lacks the `__uint128_t` type.
+- On Octave (any platform) `mkoctfile --mex` with the bundled GCC works.
 
 ## Homodyne validators (full ports)
 
 The five Python homodyne validators are ported one-to-one at the `matlab/`
 top level; the three ellipse-correction validators live in `matlab/homodyne/`.
-All of them draw noise through the numpy-exact RNG kernel
-(`homodyne_rng_mex`, PCG64 + ziggurat), so every noise realization is
-bit-identical to the Python reference, and each script saves its key metrics
-to `golden/validate_<name>_mat.mat`:
+All of them draw noise through the numpy-exact RNG (`np_rng_new`: the
+`homodyne_rng_mex` kernel or the pure-M `np_rng_m` fallback, PCG64 +
+ziggurat), so every noise realization is bit-identical to the Python
+reference, and each script saves its key metrics to
+`golden/validate_<name>_mat.mat`:
 
 | Script | Checks | Python source |
 |---|---|---|
@@ -74,8 +118,8 @@ octave --no-gui --eval "validate_tracking"
 octave --no-gui --eval "cd homodyne; rc = validate_ellipse_small_disp(); exit(rc)"
 ```
 
-`run_all_verify('full')` picks up the ellipse validators automatically
-(small_disp E-checks, dynamic D-checks, audit items 1–4).
+`run_all_verify('full')` runs all of them automatically (plus the ellipse
+validators: small_disp E-checks, dynamic D-checks, audit items 1–4).
 
 ### Cross-language golden compare (`compare_validate`)
 

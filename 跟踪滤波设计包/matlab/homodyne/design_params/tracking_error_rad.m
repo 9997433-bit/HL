@@ -6,6 +6,6 @@ function pe = tracking_error_rad(f_target, v_peak, fn, lam)
     C = homodyne_constants();
     lam = C.LAMBDA;
   end
-  phi_amp = 2 * v_peak / (lam * f_target);
-  pe = loop_error_mag(f_target, fn) * phi_amp;
+  phi_amp = 2 * v_peak ./ (lam * f_target);
+  pe = loop_error_mag(f_target, fn) .* phi_amp;
 end

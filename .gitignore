@@ -1,2 +1,12 @@
 # Octave crash/interrupt dumps
 octave-workspace
+
+# Compiled MEX kernels: platform-specific binaries, built on first run by
+# matlab/homodyne/core/ensure_kernels.m -- never commit them.
+*.mex
+*.mexa64
+*.mexw32
+*.mexw64
+*.mexmaci64
+*.mexmaca64
+*.oct

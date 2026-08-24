@@ -16,9 +16,8 @@ function rc = validate_ellipse_small_disp(cnr_db)
   if nargin < 1 || isempty(cnr_db), cnr_db = 20.0; end
   t_start = tic;
   sd = fileparts(mfilename('fullpath'));          % matlab/homodyne
-  addpath(sd);
-  addpath(fullfile(sd, 'core'));
-  addpath(fullfile(sd, 'ellipse'));
+  addpath(fileparts(sd));                         % matlab/ (homodyne_setup_path)
+  homodyne_setup_path();
   ensure_kernels();
   k = sd_const_();
   dp = design_params();

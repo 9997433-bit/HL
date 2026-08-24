@@ -12,7 +12,8 @@ function validate_zeta_sweep()
 %   error (nonzero exit code) if any check fails.
   t_all = tic;
   sd = fileparts(mfilename('fullpath'));
-  addpath(fullfile(sd, 'homodyne'));
+  addpath(sd);
+  homodyne_setup_path();
   ensure_kernels();
 
   dp = design_params();

@@ -6,6 +6,6 @@ function m = loop_error_mag(f, fn, zeta)
     C = homodyne_constants();
     zeta = C.ZETA;
   end
-  x = f / fn;
+  x = f ./ fn;
   m = x .* x ./ sqrt((1 - x .* x) .^ 2 + (2 * zeta * x) .^ 2);
 end

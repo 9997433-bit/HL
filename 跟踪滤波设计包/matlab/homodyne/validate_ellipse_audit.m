@@ -10,9 +10,8 @@ function rc = validate_ellipse_audit()
 %   Saves golden metrics to golden/validate_ellipse_audit_mat.mat and returns
 %   rc = 0 iff all four assertions hold.
   sd = fileparts(mfilename('fullpath'));          % matlab/homodyne
-  addpath(sd);
-  addpath(fullfile(sd, 'core'));
-  addpath(fullfile(sd, 'ellipse'));
+  addpath(fileparts(sd));                         % matlab/ (homodyne_setup_path)
+  homodyne_setup_path();
   ensure_kernels();
   E = ellipse_constants();
 
