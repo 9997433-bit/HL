@@ -29,6 +29,30 @@ cd homodyne_tracking_design && python validate_ellipse_small_disp.py
 cd qtec_diversity_design && python validate_diversity_p0_p1.py
 ```
 
+## MATLAB / Octave 快速开始
+
+`matlab/` 下有全部四类研究的 MATLAB/Octave 移植（GNU Octave >= 8，无需工具箱），
+含 numpy 精确 RNG 内核（噪声实现与 Python 逐位一致）与已提交的金标数据：
+
+```bash
+cd matlab
+
+# 金标对比（快，数秒）：MATLAB 移植 vs Python 金标向量
+octave --no-gui --eval "rc = run_all_verify(); exit(rc)"
+
+# + 完整统计验证器（外差 H0–H6、QTec Q0–Q1、椭圆 small_disp/dynamic/audit，数分钟）
+octave --no-gui --eval "rc = run_all_verify('full'); exit(rc)"
+
+# 零差验证器金标对比：Python 侧 vs MATLAB 侧逐指标比对（det 1e-6 / noisy 1%）
+octave --no-gui --eval "compare_validate"
+
+# 单个零差验证器（示例）
+octave --no-gui --eval "validate_tracking"
+octave --no-gui --eval "cd homodyne; rc = validate_ellipse_small_disp(); exit(rc)"
+```
+
+细节（移植约定、金标生成脚本 `export_validate_golden.py` 等）见 `matlab/README.md`。
+
 ## 椭圆标定（零差 IQ）
 
 - **操作指南**：`homodyne_tracking_design/椭圆标定操作指南.md`（出厂标定 g,δ + 在线 p,q）

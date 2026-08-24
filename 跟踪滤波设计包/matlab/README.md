@@ -45,6 +45,64 @@ octave --no-gui --eval "rc = run_all_verify(); exit(rc)"          # compares onl
 octave --no-gui --eval "rc = run_all_verify('full'); exit(rc)"    # + validators (minutes)
 ```
 
+## Homodyne validators (full ports)
+
+The five Python homodyne validators are ported one-to-one at the `matlab/`
+top level; the three ellipse-correction validators live in `matlab/homodyne/`.
+All of them draw noise through the numpy-exact RNG kernel
+(`homodyne_rng_mex`, PCG64 + ziggurat), so every noise realization is
+bit-identical to the Python reference, and each script saves its key metrics
+to `golden/validate_<name>_mat.mat`:
+
+| Script | Checks | Python source |
+|---|---|---|
+| `validate_tracking.m` | V1–V4 (C1–C7) | `validate_tracking.py` |
+| `validate_off_mode.m` | O1–O6b | `validate_off_mode.py` |
+| `validate_zeta_sweep.m` | Z0–Z3 | `validate_zeta_sweep.py` |
+| `validate_residual_alignment.m` | 18 combos, <1 pp | `validate_residual_alignment.py` |
+| `validate_app_30ms_100khz.m` | A1–A8 (S/E/G/H/F/D/N) | `validate_app_30ms_100khz.py` |
+| `homodyne/validate_ellipse_small_disp.m` | B0–B4 + spec assertion | `validate_ellipse_small_disp.py` |
+| `homodyne/validate_ellipse_dynamic.m` | B0/B1/B2/B7 assertion | `validate_ellipse_dynamic.py` |
+| `homodyne/validate_ellipse_audit.m` | review items 1–4 | `validate_ellipse_audit.py` |
+
+Each validator prints the same report as its Python counterpart, raises an
+error (nonzero exit code) on any failing check, e.g.:
+
+```sh
+cd matlab
+octave --no-gui --eval "validate_tracking"
+octave --no-gui --eval "cd homodyne; rc = validate_ellipse_small_disp(); exit(rc)"
+```
+
+`run_all_verify('full')` picks up the ellipse validators automatically
+(small_disp E-checks, dynamic D-checks, audit items 1–4).
+
+### Cross-language golden compare (`compare_validate`)
+
+`export_validate_golden.py` runs the *Python* validators (tracking, off_mode,
+zeta_sweep, residual_alignment, app_30ms_100khz) with the exact seeds/criteria
+of their `main()` and writes `golden/validate_<name>_py.mat` (~2–3 min,
+needs numpy + scipy).  The MATLAB validators write the matching
+`golden/validate_<name>_mat.mat`.  `compare_validate.m` then compares each
+pair metric-by-metric:
+
+- check outcomes (`checks_ok`) must match **exactly**;
+- `det` group (deterministic grids, guard limits, phi_err tables): 1e-6
+  relative tolerance;
+- `noisy` group (simulation statistics): 1% relative tolerance;
+- a few threshold-quantized metrics (event counts, first-crossing times) get
+  documented absolute tolerances because a 1e-13 FP difference can move a
+  threshold crossing by a whole count/sample.
+
+```sh
+cd matlab
+python3 export_validate_golden.py           # refresh the Python side (optional)
+octave --no-gui --eval "compare_validate"   # errors on any mismatch
+```
+
+Both sides of the golden pairs are committed under `golden/`, so
+`compare_validate` runs out of the box without Python.
+
 The golden `.mat` files are committed under `golden/`; `run_all_verify`
 regenerates the heterodyne/qtec ones automatically (needs `python3` + numpy)
 when missing.  It also runs the homodyne core smoke compare
