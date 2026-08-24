@@ -17,7 +17,9 @@
   H2  三档弱光 CNR sweep (50 kHz 结构 + 5 MHz PSV类超声), R1-R4 公平规则
         C21 SLOW@50k: CNR=0 增益>10dB, CNR=4 >6dB (FM 门限扩展)
         C22 SLOW@50k: 增益(CNR0) - 增益(CNR20) > 6 dB (增益本质是门限扩展)
-        C23 FAST@5M: CNR=4 谱线 SNR 增益 > 0 dB (复现用户 PSV-500 实测)
+        C23 FAST@5M CNR=4: 未校正底噪下降 >10dB (复现用户 PSV-500 弱回光实测)
+            且谱线 SNR 增益 |中值|<3dB (诚实面: 5MHz 处底噪下降与信号衰减同源
+            于 |H_L|, 点击增益只在低频 -- 见 C21)
         C24 FAST@5M: 未校正幅值衰减数倍(|H_L|), 频响校正后 |err|<10%
         C25 50k 谱线: 三档频响校正后 |err|<5%
         C26 SLOW@5M: 未校正幅值比 <0.05 -- 档位=测量带宽 (无残差窗兜底)
@@ -269,7 +271,7 @@ def H2(nseed=6, cnrs=(0, 4, 10, 20)):
                 ratio_raw=a_on_c / a_true,
                 err_corr=100 * (a_on_c / H / a_true - 1),
                 g_sig=20 * math.log10(max(a_on_c, TINY) / max(a_off_c, TINY)),
-                H=H, gains={c: [] for c in cnrs}, slips={c: [] for c in cnrs})
+                H=H, gains={c: [] for c in cnrs}, nred={c: [] for c in cnrs})
         # ---- R2/R3/R4: 噪声窗 + 多种子 ----
         for cnr in cnrs:
             s2 = 10 ** (-cnr / 10)
@@ -281,21 +283,26 @@ def H2(nseed=6, cnrs=(0, 4, 10, 20)):
                 for name in ORDER:
                     y, _, _, dg = run_pll(z, FS, MODES[name]['fn'], s2)
                     a_on = asd_band(vdisc(y), sc['Wq'], FS, p['L'], *p['band'])
-                    row[name]['gains'][cnr].append(
-                        row[name]['g_sig'] + 20 * math.log10(a_off / a_on))
-                    row[name]['slips'][cnr].append(dg['near_pi_events'])
+                    nr = 20 * math.log10(a_off / a_on)
+                    row[name]['nred'][cnr].append(nr)
+                    row[name]['gains'][cnr].append(row[name]['g_sig'] + nr)
         print(f"\n  f0 = {f0/1e3:.0f} kHz burst ({p['ncyc']} cyc), 谱线 SNR 增益"
-              f" vs OFF (R3 = R1信号传递 + R2噪声窗中值, R4 中值):")
+              f" vs OFF (R3 = R1信号传递 + R2噪声窗中值, R4 中值[p10,p90]):")
         print(f"    {'档':>6} {'fn':>8} {'|H_L(f0)|':>9} {'未校正幅值比':>11} "
-              f"{'校正后err':>9} |" + ''.join(f"  {'CNR'+str(c)+'dB':>15}" for c in cnrs))
+              f"{'校正后err':>9} |"
+              + ''.join(f"{'CNR'+str(c)+'dB':>24}" for c in cnrs))
         for name in ORDER:
             r = row[name]
             cells = ''
             for c in cnrs:
                 m, lo, hi = stats(r['gains'][c])
-                cells += f"  {m:+6.1f}[{lo:+5.1f},{hi:+5.1f}]"[:17].rjust(17)
+                cells += f"  {m:+6.1f}[{lo:+6.1f},{hi:+6.1f}]"
             print(f"    {name:>6} {MODES[name]['fn']/1e3:6.1f}k {r['H']:9.4f} "
                   f"{r['ratio_raw']:11.4f} {r['err_corr']:+8.2f}% |{cells}")
+        print(f"    未校正底噪下降 (raw ASD_off/ASD_on, 中值):"
+              + '  '.join(
+                  f"{name} {stats(row[name]['nred'][4])[0]:+.1f}dB@CNR4"
+                  for name in ORDER))
         res[f0] = row
     print("\n  物理解读: 档位=测量带宽 (纯NCO无残差窗): SLOW/MED 在 5 MHz 幅值"
           "结构性塌掉 (|H_L|),\n  FAST 衰减数倍但可用已知 |H_L| 校正 -- 复现用户"
@@ -310,9 +317,12 @@ def H2(nseed=6, cnrs=(0, 4, 10, 20)):
           g0 > 10.0 and g4 > 6.0, f'CNR0 {g0:+.1f} dB, CNR4 {g4:+.1f} dB')
     check('C22', 'SLOW@50kHz: 增益(CNR0)-增益(CNR20) >6dB -- 增益只在门限以下',
           g0 - g20 > 6.0, f'{g0:+.1f} - ({g20:+.1f}) = {g0-g20:.1f} dB')
+    nF4 = stats(r5M['FAST']['nred'][4])[0]
     gF4 = stats(r5M['FAST']['gains'][4])[0]
-    check('C23', 'FAST@5MHz: CNR=4 谱线SNR增益 >0dB (复现用户 PSV-500 弱回光'
-          '底噪下降实测)', gF4 > 0.0, f'{gF4:+.1f} dB')
+    check('C23', 'FAST@5MHz CNR=4: 未校正底噪下降 >10dB (复现用户 PSV-500 '
+          '弱回光实测) 且谱线SNR增益 |中值|<3dB (底噪下降与信号衰减同源 |H_L|, '
+          '点击增益只在低频)', nF4 > 10.0 and abs(gF4) < 3.0,
+          f'底噪 {nF4:+.1f} dB, 谱线SNR {gF4:+.1f} dB')
     rr = r5M['FAST']['ratio_raw']
     ec = r5M['FAST']['err_corr']
     check('C24', 'FAST@5MHz: 未校正幅值衰减数倍 (0.1<比<0.5) 且频响校正后 '
