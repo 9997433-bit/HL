@@ -52,6 +52,8 @@ band = select_band(f_target_hz, v_peak)   # 'SLOW' | 'MEDIUM' | 'FAST'
 
 带迟滞的 `select_band_hysteresis` 同样守卫先行:升档立即生效,降档每次更新只降一档(防抖);频率-only 的 rise 阈值(200 kHz / 1 MHz)已废除 —— 它与守卫先行规则矛盾(审计:3 MHz/20 mm/s 必须得 SLOW 而非 FAST)。因此 `cfg_for_frequency(3e6, v_peak=0.02)`(默认带迟滞)与 `select_band_hysteresis(3e6, 'SLOW', 0.02)` 都返回 **SLOW**,与 `select_band` 一致。
 
+**降级区标志(审计项 2,选项 A)**:PLL cfg dict 额外携带 `phi_err / guard_ok / overrange`(`design_params.guard_flags`;`v_peak=None` 时三者为 `None`)。用户全域(f ≤ 100 kHz, v ≤ 30 m/s)内唯一超守卫组合是 66–100 kHz × 高速:`cfg_for_frequency(100e3, 30.0)` 返回 `guard_ok=False, overrange=True, phi_err=1.50 rad`(< π,仍可跟踪,`validate_app_30ms_100khz.py` A2/A8 实测 clean 误差 ~0、含噪真滑周 p95=1 每 0.5 ms)——产品应把 `overrange` 上报给用户。保持 FAST fn=1.6 MHz:提高到 2.1–2.2 MHz 可过守卫但在 3 MHz 规格点损失 2.7–3.3 dB 弱光 SNR,实测对比见 `study_fast_fn_options.py`。
+
 ## 产品 API:tracking_mode / gate_policy
 
 产品支持 `tracking_mode ∈ {'pll','off','fixed_lp'}`;PLL 下 `gate_policy ∈ {'auto','always'}`。**OFF 不是第四档**,是跟踪旁路:无 PLL、无残差窗,输出 `angle(z)` / FM 鉴频(即 V1/V3 对照中的 OFF 参考列);**gate-off ≠ OFF** —— `gate_policy='always'` 只旁路掉落门,PLL 仍在跟踪。`fixed_lp` 是固定测量窗模式:无 PLL,仅对 z 施加公共 B_WIN 复低通(V2 LP-Bwin 参考路径)—— 跟踪关闭但保留固定窗噪声底,不是 raw `angle(z)`。
@@ -81,6 +83,8 @@ python3 validate_tracking.py              # ~35 s, 全部断言 PASS 时退出�
 python3 validate_residual_alignment.py    # 产品路径/验证路径一致性断言
 python3 validate_zeta_sweep.py            # ~50 s, ζ 扫描 + 推荐值断言(审查项 #7)
 python3 validate_off_mode.py              # <5 s, OFF/fixed_lp 模式冒烟回归 (O1–O6)
+python3 validate_app_30ms_100khz.py       # ~30 s, 用户场景 A1–A8(30 m/s / 100 kHz,含审计项 1–4)
+python3 study_fast_fn_options.py          # ~7 s, 审计项 2 fn 选项对比研究(FN1–FN3)
 ```
 
 断言:C1 FAST@3MHz 幅值误差 <3%;C2 FAST@3MHz SNR gain >0 dB @CNR3;C3 SLOW@100kHz SNR gain >10 dB @CNR3/40MHz;C4 三档 3MHz 幅值误差均 <5%;C5 选档逻辑;C6/C7 PLL 价值边界两面。当前结果:**7/7 PASS**(见 `results.txt`)。
@@ -91,14 +95,24 @@ python3 validate_off_mode.py              # <5 s, OFF/fixed_lp 模式冒烟回�
 
 `validate_off_mode.py` 断言 O1–O6(OFF 旁路路由与保真、gate-off ≠ OFF、`tracking_filter` 与 `residual_mode` 逐样本一致、参数守卫、O6a fixed_lp 路由 == `fir_lp_same` 参考、O6b fixed_lp ≠ OFF),当前 **7/7 PASS**(见 `results_off_mode.txt`)。
 
+`validate_app_30ms_100khz.py` 断言 S1/S2、E1–E5、G1、H1–H3、F1–F3(审计项 1:前端模型一致性)、D1–D3(审计项 3:掉光重捕获)、N1/N2(审计项 4:含噪滑周分位数),当前 **19/19 PASS**(见 `results_app_30ms_100khz.txt`);五项审计意见的必要性判定汇总见 `审计必要性评估.md`。
+
+## 工程提醒(审计项 5)
+
+- `validate_ellipse_switching.py` 中的 `SwitchingStateMachine`(S2/S3 换面重捕状态机)是**验证原型**,未经产品化评审(无实时约束、无资源/定点化分析),不得直接搬入产品代码;产品实现须另行评审后按其行为规格重写。
+- `cfg_for_frequency` 的位置参数顺序为 `(f_target_hz, v_peak, current_band)`(与 `select_band` 对齐)。已全仓 grep 确认现有调用点(`validate_app_30ms_100khz.py`、`validate_off_mode.py`、README 示例)均为正确顺序或关键字传参;新代码建议对 `current_band` 及其后的参数一律用关键字传参。
+
 ## 文件
 
-- `design_params.py` — 三档参数表、公共窗参数、守卫先行选档逻辑(含迟滞)、产品配置入口 `cfg_for_frequency`(tracking_mode pll/off/fixed_lp,gate_policy)
+- `design_params.py` — 三档参数表、公共窗参数、守卫先行选档逻辑(含迟滞)、守卫标志 `guard_flags`(phi_err/guard_ok/overrange)、产品配置入口 `cfg_for_frequency`(tracking_mode pll/off/fixed_lp,gate_policy)
 - `core.py` — PLL 内核与信号/工具函数(移植自原项目;`residual_mode` 已改为 1025-tap FIR 产品路径,见审查项 #4);产品入口 `tracking_filter` 与 OFF 旁路 `off_mode` / 固定窗 `fixed_lp_mode`
 - `validate_tracking.py` — V1–V4 仿真验证 + PASS/FAIL 断言
 - `validate_off_mode.py` — OFF / fixed_lp 模式与产品入口冒烟回归(O1–O6,见 `results_off_mode.txt`)
 - `validate_residual_alignment.py` — `core.residual_mode` vs `gear_filter` 一致性断言(审查项 #4)
 - `validate_zeta_sweep.py` — ζ 扫描:幅值误差/SNR 增益/near-π 率/掉光重捕 + 推荐值断言(审查项 #7)
+- `validate_app_30ms_100khz.py` — 用户场景验证 A1–A8(v ≤ 30 m/s、典型 f ≤ 100 kHz;含审计项 1/3/4 的 A6 前端一致性、A7 掉光重捕获、A8 含噪滑周统计,见 `results_app_30ms_100khz.txt`)
+- `study_fast_fn_options.py` — 审计项 2:FAST fn 选项(1.6M vs 2.0/2.1/2.2M)实测对比与选项 A 决策依据(见 `results_fast_fn_options.txt`)
+- `审计必要性评估.md` — 五项审计意见的必要性判定(必要/可选/不必)与关键实测数字
 - `results.txt` — 最近一次完整运行输出
 - `results_residual_alignment.txt` — 一致性断言最近一次运行输出
 - `results_zeta_sweep.txt` — ζ 扫描最近一次运行输出
