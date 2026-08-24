@@ -292,6 +292,49 @@ def residual_mode(z, fs, fn, Nhat, Bwin, zeta=1.2, tauG=2e-6, Nt_win=1025,
     return y, phi, state, diag
 
 
+# ------------------------------------------------------------ product entry
+def off_mode(z):
+    """Tracking bypass (tracking_mode='off'): no PLL, no residual window.
+
+    OFF is NOT a fourth gear and NOT gate='always' (which only bypasses the
+    dropout gate while the PLL keeps tracking).  OFF removes the whole
+    tracking chain: the instrument output is the raw interferometric phase
+    angle(z), demodulated downstream by fm_discriminator -- exactly the OFF
+    reference column of the V1/V3 comparisons.
+
+    Returns (y, phi, state, diag) shaped like residual_mode:
+      y = z/|z| (unit modulus, so downstream angle/FM handling is identical
+      to the PLL modes), phi = angle(z), state = None (no gate exists here).
+    """
+    phi = np.angle(z)
+    return np.exp(1j * phi), phi, None, dict(mode='off')
+
+
+_PLL_CFG_KEYS = ('tauP', 'tauF', 'snr_on', 'snr_off', 'reacq', 'gate',
+                 'rel_on', 'rel_off', 'tauRef')
+
+
+def tracking_filter(z, fs, cfg, Nhat=None):
+    """Product entry point, driven by design_params.cfg_for_frequency dicts.
+
+    cfg['tracking_mode'] == 'off': tracking bypass (off_mode); Nhat unused.
+    cfg['tracking_mode'] == 'pll' (or absent, for legacy cfg dicts):
+        gear PLL + common residual window (residual_mode) with the gear's
+        fn / B_win / gate parameters taken from cfg; Nhat is the mandatory
+        dark-calibrated noise floor.
+
+    Returns (y, phi, state, diag) in both modes.
+    """
+    if cfg.get('tracking_mode', 'pll') == 'off':
+        return off_mode(z)
+    if Nhat is None:
+        raise ValueError("tracking_mode='pll' requires the dark-calibrated "
+                         "noise floor Nhat")
+    kw = {k: cfg[k] for k in _PLL_CFG_KEYS if k in cfg}
+    return residual_mode(z, fs, cfg['fn'], Nhat, cfg['B_win'],
+                         zeta=cfg.get('zeta', 1.2), **kw)
+
+
 # ----------------------------------------------------------------- utilities
 def fm_discriminator(z, fs, lam):
     d = np.angle(z[1:] * np.conj(z[:-1]))

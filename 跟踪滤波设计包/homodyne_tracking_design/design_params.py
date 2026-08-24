@@ -126,6 +126,15 @@ GATE_COMMON = dict(
 
 PHI_GUARD = 1.0            # rad, max allowed untracked Doppler phase
 
+# Product-level operating modes.  OFF is NOT a fourth gear: it bypasses the
+# whole tracking chain (no PLL, no residual window) and the instrument output
+# is angle(z) / FM discrimination (core.off_mode) -- the same signal used as
+# the 'OFF' reference column in V1/V3.  Do not confuse OFF with
+# gate_policy='always', which only bypasses the dropout gate while the PLL
+# keeps tracking (gate-off != OFF).
+TRACKING_MODES = ('pll', 'off')
+GATE_POLICIES = ('auto', 'always')   # PLL only: 3-state dropout gate / bypassed
+
 
 def gate_params(name):
   b = BANDS[name]
@@ -229,8 +238,29 @@ def select_band_hysteresis(f_target_hz, current_band='SLOW', v_peak=None):
 
 
 def cfg_for_frequency(f_target_hz, current_band='SLOW', v_peak=None,
-                      hysteresis=True):
-  """Full config dict for the current measurement frequency."""
+                      hysteresis=True, tracking_mode='pll',
+                      gate_policy='auto'):
+  """Full config dict for the current measurement frequency.
+
+  tracking_mode='pll' (default): gear-selected PLL carrier path + common
+      residual window.  gate_policy='auto' runs the 3-state dropout gate;
+      gate_policy='always' bypasses the gate (loop always closed) -- the PLL
+      still tracks, this is NOT the OFF mode.
+  tracking_mode='off': tracking bypass -- no gear, no PLL, no residual
+      window; the output is angle(z) / FM discrimination (core.off_mode).
+      gate_policy is irrelevant and ignored.
+
+  Feed the returned dict to core.tracking_filter.
+  """
+  if tracking_mode not in TRACKING_MODES:
+    raise ValueError(f'tracking_mode must be one of {TRACKING_MODES}, '
+                     f'got {tracking_mode!r}')
+  if gate_policy not in GATE_POLICIES:
+    raise ValueError(f'gate_policy must be one of {GATE_POLICIES}, '
+                     f'got {gate_policy!r}')
+  if tracking_mode == 'off':
+    return dict(tracking_mode='off', band=None, f_target_hz=f_target_hz)
   band = (select_band_hysteresis(f_target_hz, current_band, v_peak)
           if hysteresis else select_band(f_target_hz, v_peak))
-  return dict(band=band, f_target_hz=f_target_hz, **band_specs(band))
+  return dict(tracking_mode='pll', gate=gate_policy, band=band,
+              f_target_hz=f_target_hz, **band_specs(band))

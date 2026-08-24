@@ -50,6 +50,24 @@ band = select_band(f_target_hz, v_peak)   # 'SLOW' | 'MEDIUM' | 'FAST'
 
 频率优先(最低档 = 最大载波路径门限扩展),再用线性跟踪误差守卫升档:`|1−H_L(f_target)|·(2·v_peak/(λ·f_target)) ≤ 1 rad`。
 
+## 产品 API:tracking_mode / gate_policy
+
+产品支持 `tracking_mode ∈ {'pll','off'}`;PLL 下 `gate_policy ∈ {'auto','always'}`。**OFF 不是第四档**,是跟踪旁路:无 PLL、无残差窗,输出 `angle(z)` / FM 鉴频(即 V1/V3 对照中的 OFF 参考列);**gate-off ≠ OFF** —— `gate_policy='always'` 只旁路掉落门,PLL 仍在跟踪。
+
+```python
+from design_params import FS, cfg_for_frequency
+from core import tracking_filter
+
+cfg = cfg_for_frequency(100e3, v_peak=0.02)               # PLL + 选档, 门控 'auto'
+y, phi, state, diag = tracking_filter(z, FS, cfg, Nhat)   # Nhat: 挡光标定噪声底
+
+cfg = cfg_for_frequency(100e3, gate_policy='always')      # PLL, 门控旁路(仍在跟踪)
+cfg = cfg_for_frequency(100e3, tracking_mode='off')       # 跟踪旁路: angle(z)/FM 鉴频
+y, phi, state, diag = tracking_filter(z, FS, cfg)         # OFF 不需要 Nhat; state=None
+```
+
+两种模式返回同形 `(y, phi, state, diag)`;OFF 下 `y = z/|z|`(单位模,下游 `angle`/`fm_discriminator` 处理与 PLL 模式完全一致)、`state=None`(该模式不存在门控)。回归见 `validate_off_mode.py`(O1–O5:旁路路由/保真、gate-off ≠ OFF、PLL 路径逐样本一致、参数守卫)。
+
 ## 运行验证
 
 ```bash
@@ -57,6 +75,7 @@ cd homodyne_tracking_design
 python3 validate_tracking.py              # ~35 s, 全部断言 PASS 时退出码 0
 python3 validate_residual_alignment.py    # 产品路径/验证路径一致性断言
 python3 validate_zeta_sweep.py            # ~50 s, ζ 扫描 + 推荐值断言(审查项 #7)
+python3 validate_off_mode.py              # <5 s, OFF 模式/产品入口冒烟回归 (O1–O5)
 ```
 
 断言:C1 FAST@3MHz 幅值误差 <3%;C2 FAST@3MHz SNR gain >0 dB @CNR3;C3 SLOW@100kHz SNR gain >10 dB @CNR3/40MHz;C4 三档 3MHz 幅值误差均 <5%;C5 选档逻辑;C6/C7 PLL 价值边界两面。当前结果:**7/7 PASS**(见 `results.txt`)。
@@ -65,11 +84,14 @@ python3 validate_zeta_sweep.py            # ~50 s, ζ 扫描 + 推荐值断言(�
 
 `validate_zeta_sweep.py` 断言 Z3-1…Z3-6(输出幅值误差对 ζ 不敏感、MEDIUM click 清除条件、SNR 无回退、规格保持、掉光重捕、ZETA==1.2),当前 **6/6 PASS**(见 `results_zeta_sweep.txt`)。
 
+`validate_off_mode.py` 断言 O1–O5(OFF 旁路路由与保真、gate-off ≠ OFF、`tracking_filter` 与 `residual_mode` 逐样本一致、参数守卫),当前 **5/5 PASS**(见 `results_off_mode.txt`)。
+
 ## 文件
 
-- `design_params.py` — 三档参数表、公共窗参数、选档逻辑
-- `core.py` — PLL 内核与信号/工具函数(移植自原项目;`residual_mode` 已改为 1025-tap FIR 产品路径,见审查项 #4)
+- `design_params.py` — 三档参数表、公共窗参数、选档逻辑、产品配置入口 `cfg_for_frequency`(tracking_mode / gate_policy)
+- `core.py` — PLL 内核与信号/工具函数(移植自原项目;`residual_mode` 已改为 1025-tap FIR 产品路径,见审查项 #4);产品入口 `tracking_filter` 与 OFF 旁路 `off_mode`
 - `validate_tracking.py` — V1–V4 仿真验证 + PASS/FAIL 断言
+- `validate_off_mode.py` — OFF 模式/产品入口冒烟回归(O1–O5,见 `results_off_mode.txt`)
 - `validate_residual_alignment.py` — `core.residual_mode` vs `gear_filter` 一致性断言(审查项 #4)
 - `validate_zeta_sweep.py` — ζ 扫描:幅值误差/SNR 增益/near-π 率/掉光重捕 + 推荐值断言(审查项 #7)
 - `results.txt` — 最近一次完整运行输出
