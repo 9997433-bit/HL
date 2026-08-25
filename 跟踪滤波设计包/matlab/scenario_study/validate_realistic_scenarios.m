@@ -11,12 +11,20 @@ function rc = validate_realistic_scenarios(mode)
 %
 %   Homodyne (1550 nm, user app v_peak <= 30 m/s, f <= 100 kHz typical)
 %     S1  operating map   f={1,10,50,100}k x v={0.02,1,5,20,30}m/s x
-%                         CNR={3,6,12}dB: clean amp err, SNR gain, gear,
-%                         guard flags (86 MHz+LPF physical front end on the
-%                         high-speed / high-frequency cells).
+%                         CNR={3,6,12}dB: clean amp err, SNR gain (R2
+%                         static-carrier noise drop, labelled as such),
+%                         gear, guard flags; 86 MHz+LPF physical front end
+%                         exactly on the cells where the Doppler peak
+%                         fD = 2*v_peak/LAMBDA exceeds B_NOISE_ENBW/2
+%                         (fixed hardware -- velocity, NOT vibration
+%                         frequency, sets the front-end model); plus the
+%                         S1e dynamic spot check (3 cells, full noisy
+%                         dynamic runs on the actual motion).
 %     S2  speckle matrix  tau_c={20,50,100}us x CNR={3,6,12}dB @100kHz/20mm/s.
 %     S3  transients      freq step 50k->100kHz, vel step 5->30 m/s (5 seeds)
-%                         + WRONG-gear exposure window measurement.
+%                         + WRONG-gear exposure window measurement; upshift
+%                         immediacy asserted on the T3 SLOW->FAST trace
+%                         (T2 is FAST->FAST on both sides, audit issue 2).
 %     S4  multi-surface   reflective -> black -> far (CNR 12/6/3 dB, 20 us
 %                         gaps), relock time / per-segment lock% and amp err.
 %     S5  worst corner    100kHz/30m/s + speckle 50us + CNR=3dB (honest).
@@ -71,8 +79,8 @@ function rc = validate_realistic_scenarios(mode)
                 'zeta=1.2 公共窗 %.0fMHz | heterodyne: lambda=%.1fnm ' ...
                 'fs=%.0fMS/s zeta=%g 档位=f(v_range)'], K.FS / 1e6, ...
                K.B_WIN / 1e6, K.HLAM * 1e9, K.HFS / 1e6, K.HZ));
-  out_(['规则: R1-R4 公平比较 (validate_tracking); 零差高速/高频格点用 ' ...
-        'B_FE=86MHz+LPF 物理前端 (validate_app A6 v2 模型)']);
+  out_(['规则: R1-R4 公平比较 (validate_tracking); 零差 fD_peak=2*v/lambda > ' ...
+        '20MHz 的高速格点用 B_FE=86MHz+LPF 物理前端 (validate_app A6 v2 模型)']);
 
   [s1_cells, s1_cache] = S1_(K);
   S2_(K);
@@ -223,9 +231,13 @@ function a = ls_amp_(v, t, f_v, sel)
   a = hypot(b(2), b(3));
 end
 
-function [B_fe, lpf] = fe_rule_(K, f0, vpk)
-%FE_RULE_ physical 86 MHz front end when v>10 m/s or f>50 kHz.
-  if vpk > 10.0 || f0 > 50e3
+function [B_fe, lpf] = fe_rule_(K, vpk)
+%FE_RULE_ physical 86 MHz front end iff the optical Doppler peak
+%   fD_peak = 2*v_peak/LAMBDA exceeds the 40 MHz noise-band model's
+%   half-width B_NOISE_ENBW/2.  The front end is fixed hardware: the
+%   trigger is the signal's Doppler extent (velocity), NEVER the
+%   mechanical vibration frequency (audit issue 1).
+  if 2.0 * vpk / K.LAMBDA > K.B_NOISE_ENBW / 2
     B_fe = K.B_FE_PHYS;
     lpf = true;
   else
@@ -295,7 +307,7 @@ function c = s1_clean_cell_(K, f0, vpk)
 %S1_CLEAN_CELL_ R1 near-noiseless run of the auto-selected gear on (f0, vpk).
   band = select_band(f0, vpk);
   gf = guard_flags(f0, vpk, band);
-  [B_fe, lpf] = fe_rule_(K, f0, vpk);
+  [B_fe, lpf] = fe_rule_(K, vpk);
   [N, ~, te, t] = grid_(K, s1T_(f0));
   xe = cos_start_motion_(K, te, f0, vpk);
   [~, v] = cos_start_motion_(K, t, f0, vpk);
@@ -369,9 +381,11 @@ function [cells_map, cache] = S1_(K)
   nseed = 3;
   header_(sprintf(['S1  零差工况地图: f={1,10,50,100}kHz x ' ...
       'v={0.02,1,5,20,30}m/s x CNR={3,6,12}dB\n    (amp err = R1 近无噪 LS ' ...
-      '幅值; SNR gain = R3 信号增益 + 静态载波 10..100kHz 底噪下降中值, ' ...
-      '%d seeds;\n    前端: v>10m/s 或 f>50kHz 用 B_FE=86MHz 总CNR + ' ...
-      '线性相位 LPF, 其余 40MHz 噪声带模型)'], nseed));
+      '幅值; stG = R3 信号增益 + R2 静态载波底噪下降中值 (结构带 ' ...
+      '10..100kHz, %d seeds) -- 非逐格动态实测, 动态抽查见 S1e;\n    前端: ' ...
+      'fD_peak=2*v/lambda > B_NOISE_ENBW/2=20MHz (即 v_peak > 15.5 m/s) ' ...
+      '的格点用 B_FE=86MHz 总CNR + 线性相位 LPF, 其余 40MHz 噪声带模型)'], ...
+      nseed));
   cells = cell(numel(S1F), numel(S1V));
   flat = {};
   for i = 1:numel(S1F)
@@ -384,7 +398,7 @@ function [cells_map, cache] = S1_(K)
 
   gh = '';
   for icnr = 1:numel(S1CNR)
-    gh = [gh, sprintf('%10s', sprintf('gain@%ddB', S1CNR(icnr)))]; %#ok<AGROW>
+    gh = [gh, sprintf('%10s', sprintf('stG@%ddB', S1CNR(icnr)))]; %#ok<AGROW>
   end
   out_(sprintf(['\n    %6s %9s %7s %8s %10s %6s | %8s %9s %3s |%s'], ...
                'f', 'v_peak', 'gear', 'phi_err', 'guard', 'FE', ...
@@ -435,6 +449,9 @@ function [cells_map, cache] = S1_(K)
         '点击门限之下 (feed-through, 增益 ~+12dB), 在 86M 同总CNR 环内CNR 高 ' ...
         '3.3dB 越过门限\n  (滑周率对环内CNR指数敏感) -- 全输出噪声底由公共窗' ...
         '决定, 三档增益趋同 ~+50dB. CNR 指标必须在实际前端带宽上定义 (A6).']));
+  out_(sprintf(['  说明4: stG 列是 R2 静态载波方法的底噪下降 (刻意与运动场景' ...
+        '无关, 每个 (档位, CNR, 前端) 组合一个缓存值),\n  不是该格点真实运动下' ...
+        '的逐格实测 -- 动态实测抽查见下方 S1e (audit issue 3).']));
   check_('S1a', '守卫内 (guard_ok) 全部格点: clean |ampErr| < 5% 且 0 near-pi', ...
          ok_a, sprintf('worst %.2f%%', worst_a));
   check_('S1b', ['OVERRANGE 格点 (100kHz x 20/30m/s): clean |ampErr| < 10% ' ...
@@ -443,7 +460,86 @@ function [cells_map, cache] = S1_(K)
   check_('S1c', 'SLOW 档格点 CNR=3dB SNR gain > +10 dB (门限扩展)', ok_c1, ...
          'see table');
   check_('S1d', '全部格点 CNR=3dB SNR gain > 0 dB', ok_c2, 'see table');
+  s1_dynamic_spot_(K, cells, cache);
   cells_map = cells;
+end
+
+
+% --------------------------------------------- S1e dynamic spot check (issue 3)
+function s1_dynamic_spot_(K, cells, cache)
+%S1_DYNAMIC_SPOT_ R1+R3 on ACTUAL motion: full dynamic noisy runs on 3 cells.
+%   Noise on each output = (chain output of signal+noise) - (chain output
+%   of the clean signal), both with the SAME gate policy, so the
+%   deterministic motion cancels and the residual is the true dynamic
+%   output noise (clicks, slip transients, dropout flywheel included).
+%   ASD in the structure band 10..100 kHz, median over seeds; compared
+%   against the S1 static-carrier cached value of the same (gear, CNR, FE).
+  PTS = [100e3, 0.02; 10e3, 30.0; 100e3, 30.0];   % (f0, v_peak) spot cells
+  IJ = [4, 1; 2, 5; 4, 5];                        % indices into cells{i,j}
+  CNR = 3;
+  nseed = 3;
+  L = 16384;
+  out_('');
+  out_(sprintf(['  S1e 动态抽查 (audit issue 3): 3 个格点在真实运动 + ' ...
+                'CNR=%ddB 噪声下全动态实测底噪下降 (%d seeds 中值);'], ...
+               CNR, nseed));
+  out_(['  噪声 = 含噪运行输出 - 同链路清洁运行输出 (gate=auto 两者一致), ' ...
+        '评估带同缓存 (10..100kHz).']);
+  out_(sprintf('    %-22s %7s %6s | %12s %13s %9s %6s', 'cell', 'gear', ...
+               'FE', 'dynGain@3dB', 'statGain@3dB', 'dyn-stat', 'np中'));
+  G = zeros(size(PTS, 1), 2);
+  for ipt = 0:size(PTS, 1)-1
+    f0 = PTS(ipt + 1, 1);
+    vpk = PTS(ipt + 1, 2);
+    c = cells{IJ(ipt + 1, 1), IJ(ipt + 1, 2)};
+    band = c.band;
+    [B_fe, lpf] = fe_rule_(K, vpk);
+    [N, Ne, te, t] = grid_(K, s1T_(f0));
+    xe = cos_start_motion_(K, te, f0, vpk);
+    ph_e = 4 * pi / K.LAMBDA * xe(:);
+    s2 = 10 ^ (-CNR / 10);
+    W = t > s1skip_(f0);
+    zc = fe_slice_(K, exp(1i * ph_e), B_fe, lpf, N);
+    ycf = vt_gear_filter(zc, band, s2, 'auto');
+    v_off_c = vdisc_h_(K, zc);
+    v_on_c = vdisc_h_(K, ycf);
+    vals = zeros(1, nseed);
+    nps = zeros(1, nseed);
+    for s = 0:nseed-1
+      rng = np_rng_new(215000 + ipt * 1000 + s);
+      z = fe_slice_(K, exp(1i * ph_e) + ...
+                    complex_bandlimited_noise(Ne, K.FS, B_fe, s2, rng), ...
+                    B_fe, lpf, N);
+      [yf, ~, ~, ~, dg] = vt_gear_filter(z, band, s2, 'auto');
+      vals(s + 1) = 20 * log10( ...
+          s1_asd_(K, vdisc_h_(K, z) - v_off_c, W, L) / ...
+          s1_asd_(K, vdisc_h_(K, yf) - v_on_c, W, L));
+      nps(s + 1) = dg.near_pi_events;
+    end
+    g_sig = 20 * log10(max(1 + c.err / 100, 1e-12));
+    g_dyn = g_sig + vt_stats(vals);
+    g_stat = g_sig + cache(ckey_(band, CNR, lpf));
+    np_med = vt_stats(nps);
+    if lpf, fetag = '86M+L'; else, fetag = '40M'; end
+    out_(sprintf(['    %4.0fkHz/%6.0fmm/s     %7s %6s | %+11.2f %+12.2f ' ...
+                  '%+8.2f %6.0f'], f0 / 1e3, vpk * 1e3, band, fetag, ...
+                 g_dyn, g_stat, g_dyn - g_stat, np_med));
+    key_(sprintf('S1e_dyn_f%.0fk_v%.0f', f0 / 1e3, vpk * 1e3), g_dyn);
+    G(ipt + 1, :) = [g_dyn, g_stat];
+  end
+  out_(sprintf(['  解读: 用户点 (100kHz/20mm/s, SLOW) 动态实测与静态缓存一致 ' ...
+        '(差 ~1 dB, SLOW 的 B_loop=0.49MHz < B_WIN, 点击被公共窗清除) --\n  ' ...
+        '缓存方法在窄档格点成立; 30 m/s FAST 格点动态增益坍缩: 真实运动把环路' ...
+        '推入点击高发区 (np 中值数百..数千, 静态载波下 ~0),\n  且 FAST 的 ' ...
+        'B_loop=7.1MHz > B_WIN=4MHz 点击直通全输出 (说明3 的 feed-through ' ...
+        '同机理) -- 静态缓存值在高速 FAST 格点只是\n  场景无关上界, 不可当动态 ' ...
+        'SNR 读 (S1 表因此标注 stG; 产品在 OVERRANGE 角点必须按 S5 的降级语义' ...
+        '上报).']));
+  det = sprintf('%+.1f/%+.1f, ', G.');
+  check_('S1e', ['动态抽查: 用户点 (100k/20mm) dyn > +30 dB 且 |dyn-stat| < ' ...
+         '6 dB; 30m/s FAST 格点 dyn 比 stat 低 > 20 dB (静态缓存=上界)'], ...
+         G(1, 1) > 30.0 && abs(G(1, 1) - G(1, 2)) < 6.0 && ...
+         all(G(2:end, 2) - G(2:end, 1) > 20.0), det(1:end-2));
 end
 
 
@@ -456,10 +552,12 @@ function S2_(K)
   B_OUT = 1e6;
   vamp = 0.02;
   thr = 20 * vamp;
-  [B_fe, lpf] = fe_rule_(K, 100e3, vamp);   % f>50kHz -> 86 MHz physical FE
+  [B_fe, lpf] = fe_rule_(K, vamp);   % fD_peak=25.8kHz << 20MHz -> 40MHz 噪声带
+  if lpf, fetag = sprintf('%.0fMHz+LPF', B_fe / 1e6);
+  else, fetag = sprintf('%.0fMHz', B_fe / 1e6); end
   header_(sprintf(['S2  散斑矩阵 @100kHz/20mm/s (gear=%s, gate=auto, ' ...
-      'B_FE=%.0fMHz+LPF, 输出滤到 %.0fMHz, %d seeds) -- V3 方法在用户工况点'], ...
-      band, B_fe / 1e6, B_OUT / 1e6, nseed));
+      'B_FE=%s, 输出滤到 %.0fMHz, %d seeds) -- V3 方法在用户工况点'], ...
+      band, fetag, B_OUT / 1e6, nseed));
   [N, Ne, te, t] = grid_(K, 5e-4);
   xe = burst_signal(te, 100e3, vamp, 20, 0.02e-3);
   ph_e = 4 * pi / K.LAMBDA * xe(:);
@@ -637,9 +735,9 @@ function S3_(K)
       '20mm/s->30m/s 阶跃甩在错档上).']));
   selector_trace_(K, 'T1 选档轨迹: 50 kHz -> 100 kHz @ 20 mm/s', ...
       [repmat([50e3, 0.02], 2, 1); repmat([100e3, 0.02], 3, 1)], 'SLOW');
-  tr2 = selector_trace_(K, 'T2 选档轨迹: 5 m/s -> 30 m/s @ 100 kHz', ...
+  selector_trace_(K, 'T2 选档轨迹: 5 m/s -> 30 m/s @ 100 kHz', ...
       [repmat([100e3, 5.0], 2, 1); repmat([100e3, 30.0], 3, 1)], 'FAST');
-  selector_trace_(K, 'T3 选档轨迹: 20 mm/s -> 30 m/s @ 100 kHz (SLOW 起)', ...
+  tr3 = selector_trace_(K, 'T3 选档轨迹: 20 mm/s -> 30 m/s @ 100 kHz (SLOW 起)', ...
       [repmat([100e3, 0.02], 2, 1); repmat([100e3, 30.0], 3, 1)], 'SLOW');
 
   T = 0.5e-3;
@@ -653,13 +751,13 @@ function S3_(K)
   [~, v] = s3_freq_step_motion_(K, t, ts, 50e3, 100e3, 0.02);
   W1p = (t > 0.10e-3) & (t < 0.24e-3);
   W1q = (t > 0.30e-3) & (t < 0.48e-3);
-  [B_fe, lpf] = fe_rule_(K, 100e3, 0.02);
+  [B_fe, lpf] = fe_rule_(K, 0.02);
   r1 = s3_run_(K, 'T1 freq step 50k->100k @20mm/s', 'SLOW', xe, v, N, Ne, ...
                t, 50e3, 100e3, W1p, W1q, B_fe, lpf, 0);
 
   [xe, ve] = s3_vel_step_motion_(K, te, ts, 100e3, 5.0, 30.0);
   v = ve(K.PAD+1 : K.PAD+N);
-  [B_fe, lpf] = fe_rule_(K, 100e3, 30.0);
+  [B_fe, lpf] = fe_rule_(K, 30.0);
   r2 = s3_run_(K, 'T2 vel step 5->30m/s @100k', 'FAST', xe, v, N, Ne, t, ...
                100e3, 100e3, W1p, W1q, B_fe, lpf, 1);
 
@@ -688,9 +786,10 @@ function S3_(K)
   check_('S3b', 'T2 (FAST 跨 5->30m/s 阶跃): 清洁 post |ampErr| < 10% 且 0 near-pi', ...
          abs(r2.e_post_c) < 10 && r2.np_c == 0, ...
          sprintf('post %+.2f%%, np %d', r2.e_post_c, r2.np_c));
-  check_('S3c', 'T2 升档即时性 (选档轨迹): 阶跃后第 1 次更新即 FAST', ...
-         strcmp(tr2{3}.applied, 'FAST'), ...
-         sprintf('update2 -> %s', tr2{3}.applied));
+  check_('S3c', ['T3 升档即时性 (选档轨迹): SLOW 起, 20mm/s->30m/s 阶跃后第 ' ...
+         '1 次选档更新即 FAST (真 SLOW->FAST 升档; T2 的 FAST->FAST 不构成检验)'], ...
+         strcmp(tr3{2}.applied, 'SLOW') && strcmp(tr3{3}.applied, 'FAST'), ...
+         sprintf('update1 %s -> update2 %s', tr3{2}.applied, tr3{3}.applied));
   check_('S3d', 'T3 旧档暴露窗: SLOW 在 30 m/s 上 |ampErr| > 50% (升档必须即时生效)', ...
          abs(e3) > 50, sprintf('%+.1f%%', e3));
 end
@@ -705,7 +804,7 @@ function S4_(K)
   GAPDROP = 10 ^ (-30 / 20);
   nseed = 4;
   band = select_band(100e3, 0.02);
-  [B_fe, lpf] = fe_rule_(K, 100e3, 0.02);
+  [B_fe, lpf] = fe_rule_(K, 0.02);
   header_(sprintf(['S4  多表面切换 (反光->黑面->远距, 段CNR=12/6/3dB, 段边界 ' ...
       '%.0fus -30dB 缝隙, gear=%s, gate=auto, %d seeds)\n    -- ' ...
       'validate_ellipse_switching 的表面切换概念移植到 IQ 跟踪域: 噪声底恒定, ' ...
@@ -1138,13 +1237,15 @@ function H4_(K)
     key_(sprintf('H4_nred_c%d', cnr), nred(i));
   end
   out_(sprintf(['\n  解读: 底噪下降与信号衰减同源于 |H_L| -- 校正恢复刻度但' ...
-        '不改变谱线 SNR; 下降幅度随 CNR 升高而减小\n  (门限以下 OFF 被点击' ...
-        '噪声支配, 门限以上两者同为相位噪声).']));
+        '不改变谱线 SNR; 0..8dB 全程在 FM 门限过渡区内,\n  下降量 ~15.2..15.8 ' ...
+        'dB 近乎平坦 (非单调, 逐点差在 seed 统计噪声量级), 仅端点呈弱收缩趋势' ...
+        ';\n  门限以上 (CNR>=12dB) OFF/ON 同为相位噪声, 下降才真正归零 -- 见 ' ...
+        'H1 表 5MHz 行的 gain@12dB 列 (~0 dB).']));
   check_('H4a', 'CNR<=4dB: 未校正底噪下降 > +10 dB (C23 复现)', ...
          all(nred(1:3) > 10.0), ...
          sprintf('0dB:%+.1f, 2dB:%+.1f, 4dB:%+.1f', nred(1), nred(2), nred(3)));
-  check_('H4b', '底噪下降随 CNR 单调收缩: nred(0dB) > nred(8dB)', ...
-         nred(1) > nred(end), ...
+  check_('H4b', ['端点弱收缩: nred(0dB) > nred(8dB) (0..8dB 区间实测近乎平坦, ' ...
+         '不断言逐点单调)'], nred(1) > nred(end), ...
          sprintf('%+.1f vs %+.1f dB', nred(1), nred(end)));
 end
 
@@ -1156,8 +1257,6 @@ function X1_(K, s1_cells, s1_cache)
   hc = s1_cells{4, 1};                    % (f=100 kHz, v=0.02 m/s)
   g_h = 20 * log10(max(1 + hc.err / 100, 1e-12)) + ...
         s1_cache(ckey_(hc.band, 3, hc.lpf));
-  k40 = ckey_('SLOW', 3, false);
-  if isKey(s1_cache, k40), g_h40 = s1_cache(k40); else, g_h40 = NaN; end
   modes = het_mode_params(1.0);
   Kp = K;
   Kp.pick_f = 100e3;
@@ -1188,15 +1287,16 @@ function X1_(K, s1_cells, s1_cache)
   for i = 1:size(rows, 1)
     out_(sprintf('    %-26s %22s %22s', rows{i, 1}, rows{i, 2}, rows{i, 3}));
   end
-  out_(sprintf(['    (零差 40MHz 噪声带模型参考: SLOW 底噪下降 %+.1f dB -- ' ...
-        '与 validate_tracking V1 的 +38dB 同一物理, 评估带不同)'], g_h40));
+  out_(['    (零差数字与 validate_tracking V1 的 SLOW +38dB 同一物理, 评估带' ...
+        '不同: 此处为 10..100kHz 结构带的静态载波底噪下降)']);
   key_('X1_gain_homodyne', g_h);
   key_('X1_gain_heterodyne', g_t);
   out_('');
   out_('  苹果/橘子注记 (必须读):');
   out_('    - 波长不同: 同一 20 mm/s 在 1550 nm 是 25.8 kHz 多普勒, 在 632.8 nm 是');
   out_('      63.2 kHz -- 相位摆幅差 2.45x, 两环工作点并不相同.');
-  out_('    - 前端不同: 零差 86 MHz (物理一致规则) vs 外差 19 MHz, "CNR=3dB" 的');
+  out_('    - 前端不同: 零差 40 MHz 噪声带 (fD=25.8kHz << 20MHz, 物理规则不触发 86M');
+  out_('      前端) vs 外差 19 MHz, "CNR=3dB" 的');
   out_('      噪声 PSD 完全不同; 增益各自相对自己的 OFF 参考, 不能跨列相减.');
   out_('    - 架构不同: 零差增益含残差窗点击清除 (B_loop < B_win 条件), 换档不改');
   out_('      测量带宽; 外差增益是纯 NCO 的 FM 门限扩展, 换档同时改变测量带宽.');
