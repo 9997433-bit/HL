@@ -52,6 +52,33 @@ octave --no-gui --eval "cd homodyne; rc = validate_ellipse_small_disp(); exit(rc
 ```
 
 细节（移植约定、金标生成脚本 `export_validate_golden.py` 等）见 `matlab/README.md`。
+**Windows + MATLAB 用户**请看逐步操作指南 `matlab/RUN_ON_WINDOWS.md`（含命令速查表与常见错误处理）。
+
+## 真实场景仿真（scenario_study）
+
+`matlab/scenario_study/` 是面向应用的**真实场景仿真研究**：把三类设计放到
+应用式工况下出图，直观回答"我的工况落在哪个档、掉光概率多大、外差能跟多快"。
+
+```matlab
+cd matlab
+rc = validate_realistic_scenarios     % 结果 -> scenario_study/results_realistic_scenarios.mat
+cd scenario_study
+plot_scenario_results                 % 4 张图 -> scenario_study/figs/*.png + *.fig
+```
+
+四张关键图：
+
+| 图 | 内容 |
+|---|---|
+| `fig1_homodyne_operating_map` | 零差工作域热力图：自动选档后的未跟踪多普勒相位（频率 x 速度平面），白虚线 = 1 rad 守卫 |
+| `fig2_homodyne_band_map` | 零差选档地图：守卫先行规则在 (f, v) 平面上选 SLOW/MEDIUM/FAST |
+| `fig3_speckle_tradeoff` | QTec 散斑分集权衡：联合深衰落概率 vs 通道数 M（理论 p^M + 蒙特卡洛） |
+| `fig4_heterodyne_bathtub` | 外差浴缸曲线：各档可跟踪速度上限（谷底在 f = fn）+ IF 窗/混叠上限 |
+
+结果文件的字段约定见 `matlab/validate_realistic_scenarios.m` 头部注释
+（OUTPUT CONTRACT）；当前为接口占位版（确定性设计公式 + 小规模散斑蒙特卡洛），
+完整时域蒙特卡洛场景研究将以相同接口替换。Windows 操作步骤见
+`matlab/RUN_ON_WINDOWS.md`。
 
 ## 椭圆标定（零差 IQ）
 

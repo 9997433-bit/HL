@@ -1,6 +1,11 @@
 # Octave crash/interrupt dumps
 octave-workspace
 
+# Generated realistic-scenario study outputs (validate_realistic_scenarios +
+# plot_scenario_results); regenerate locally, do not commit.
+*/matlab/scenario_study/results_realistic_scenarios.mat
+*/matlab/scenario_study/figs/
+
 # Compiled MEX kernels: platform-specific binaries, built on first run by
 # matlab/homodyne/core/ensure_kernels.m -- never commit them.
 *.mex

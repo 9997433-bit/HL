@@ -65,6 +65,24 @@ golden compares; the homodyne validators rewrite their
 `golden/validate_*_mat.mat` metrics, so the final `compare_validate` checks
 the fresh outputs against the committed Python goldens.
 
+## Realistic-scenario study (`scenario_study/`)
+
+Application-facing figures on top of the verified ports:
+`validate_realistic_scenarios.m` (top level; currently an interface stub --
+see its OUTPUT CONTRACT help text -- to be replaced by the full Monte-Carlo
+study with the same interface) writes
+`scenario_study/results_realistic_scenarios.mat`, and
+`scenario_study/plot_scenario_results.m` turns it into four figures
+(homodyne operating-map heatmap, gear-selection map, QTec speckle-diversity
+tradeoff, heterodyne velocity bathtub), each saved as `.png` + `.fig` under
+`scenario_study/figs/`:
+
+```sh
+cd matlab
+octave --no-gui --eval "rc = validate_realistic_scenarios(); exit(rc)"
+octave --no-gui --eval "cd scenario_study; rc = plot_scenario_results(); exit(rc)"
+```
+
 ## MEX kernels are optional (pure-M fallback)
 
 Two optional compiled kernels accelerate the homodyne validators:
@@ -79,6 +97,8 @@ force the pure-M paths even when the kernels are compiled.
 
 ### Windows / MATLAB notes
 
+- Step-by-step Windows walkthrough (Chinese, with a command cheat sheet and
+  troubleshooting table): `RUN_ON_WINDOWS.md`.
 - Runs on MATLAB R2020b+ and GNU Octave >= 8; no toolboxes needed.
 - The pure-M path is the portable default: nothing needs to be compiled to
   run the validators or the golden compares on Windows.
