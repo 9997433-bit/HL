@@ -61,9 +61,11 @@ rc = run_all_verify('full')    % rc == 0 表示全部通过
 ## 第 4 步：真实场景仿真研究（scenario_study）
 
 ```matlab
-rc = validate_realistic_scenarios     % 生成 scenario_study/results_realistic_scenarios.mat
 cd scenario_study
+rc = validate_realistic_scenarios     % 完整场景套件 (S1-S5/H1-H4/X1), 打印全部表格,
+                                      % 生成 results_realistic_scenarios.txt + .mat
 plot_scenario_results                 % 生成 4 张图 -> scenario_study/figs/*.png + *.fig
+cd ..
 ```
 
 生成的四张图：
@@ -77,10 +79,12 @@ plot_scenario_results                 % 生成 4 张图 -> scenario_study/figs/*
 
 `.fig` 文件可在 MATLAB 中 `openfig` 交互查看，`.png` 可直接分享。
 
-> 说明：`validate_realistic_scenarios.m` 当前为**接口占位版**（用确定性设计公式 +
-> 小规模散斑蒙特卡洛填充全部结果字段），完整的时域蒙特卡洛场景研究由并行任务
-> 开发中，将以**相同的文件名、命令和输出格式**替换，届时上述命令不变。
-> 结果字段说明见该文件头部注释（OUTPUT CONTRACT 一节）。
+> 说明：`scenario_study/validate_realistic_scenarios.m` 是完整版时域蒙特卡洛场景
+> 套件（零差 S1–S5、外差 H1–H4、交叉对照 X1），与 Python 主脚本
+> `scenario_study/validate_realistic_scenarios.py` 同种子、同判据；噪声流经
+> numpy 精确 RNG 逐位一致，"KEY," 指标行可直接与 Python 输出对比。
+> 无编译器时自动走纯 M 回退（结果不变，速度较慢）。
+> 结果字段说明见该文件头部注释（OUTPUT 一节）。
 
 ## MEX 编译失败怎么办（HOMODYNE_NO_MEX=1）
 
@@ -105,7 +109,7 @@ MATLAB 主页 → 附加功能 → 搜索安装 *MATLAB Support for MinGW-w64 C/
 | `未定义函数 'pll_carrier_regen'`（或其它底层函数） | 没有先运行 `homodyne_setup_path` | 先运行 `homodyne_setup_path`（或直接用 `run_all_verify` 等入口脚本） |
 | MEX 报错：`未找到支持的编译器` 或 `__uint128_t` 相关错误 | Windows 缺 MinGW / 用了 MSVC | `setenv('HOMODYNE_NO_MEX','1')` 跳过（结果不变），或安装 MinGW-w64 附加功能 |
 | `golden data missing -- regenerating (python3 export)...` 然后报错 | 金标 `.mat` 文件缺失且本机无 `python3` | 金标已随仓库提交，正常不会触发；若触发说明下载不完整，请重新完整下载/克隆分支 |
-| `plot_scenario_results` 报 `results_realistic_scenarios.mat not found` | 还没生成结果文件 | 先在 `matlab/` 下运行 `validate_realistic_scenarios` |
+| `plot_scenario_results` 报 `results_realistic_scenarios.mat not found` | 还没生成结果文件 | 先在 `matlab\scenario_study\` 下运行 `validate_realistic_scenarios` |
 | 打开 `.m`/`.md` 文件中文注释乱码 | 编辑器没用 UTF-8 编码 | MATLAB：预设 → 编辑器/调试器 → 将文本文件编码设为 UTF-8；或用 VS Code 打开 |
 | `addpath`/`mex` 在中文路径下行为异常 | 个别旧版 MATLAB 对非 ASCII 路径支持不佳 | 把仓库移到纯 ASCII 短路径（如 `C:\work\HL`）再试 |
 | 某统计验证器偶发 FAIL 后重跑又 PASS | 不应出现：所有种子固定、结果确定 | 请完整复制输出反馈（附 MATLAB 版本），便于排查 |
@@ -127,8 +131,8 @@ rc = run_all_verify('full')                % rc == 0 即全部通过
 rc = run_all_verify()                      % 只做金标对比（数秒）
 
 % ---- 真实场景仿真研究 ----
-rc = validate_realistic_scenarios          % 结果 -> scenario_study\results_realistic_scenarios.mat
 cd scenario_study
+rc = validate_realistic_scenarios          % 完整场景套件 -> results_realistic_scenarios.txt/.mat
 plot_scenario_results                      % 4 张图 -> scenario_study\figs\
 cd ..
 

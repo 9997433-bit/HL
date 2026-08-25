@@ -60,9 +60,8 @@ octave --no-gui --eval "cd homodyne; rc = validate_ellipse_small_disp(); exit(rc
 应用式工况下出图，直观回答"我的工况落在哪个档、掉光概率多大、外差能跟多快"。
 
 ```matlab
-cd matlab
-rc = validate_realistic_scenarios     % 结果 -> scenario_study/results_realistic_scenarios.mat
-cd scenario_study
+cd matlab/scenario_study
+rc = validate_realistic_scenarios     % 完整场景套件: 表格 + results_realistic_scenarios.txt/.mat
 plot_scenario_results                 % 4 张图 -> scenario_study/figs/*.png + *.fig
 ```
 
@@ -75,10 +74,11 @@ plot_scenario_results                 % 4 张图 -> scenario_study/figs/*.png + 
 | `fig3_speckle_tradeoff` | QTec 散斑分集权衡：联合深衰落概率 vs 通道数 M（理论 p^M + 蒙特卡洛） |
 | `fig4_heterodyne_bathtub` | 外差浴缸曲线：各档可跟踪速度上限（谷底在 f = fn）+ IF 窗/混叠上限 |
 
-结果文件的字段约定见 `matlab/validate_realistic_scenarios.m` 头部注释
-（OUTPUT CONTRACT）；当前为接口占位版（确定性设计公式 + 小规模散斑蒙特卡洛），
-完整时域蒙特卡洛场景研究将以相同接口替换。Windows 操作步骤见
-`matlab/RUN_ON_WINDOWS.md`。
+`matlab/scenario_study/validate_realistic_scenarios.m` 是完整版时域蒙特卡洛
+场景套件（零差 S1–S5、外差 H1–H4、交叉对照 X1），与 Python 主脚本
+`scenario_study/validate_realistic_scenarios.py` 同种子、同判据；场景说明与
+仿真数字驱动的优化建议见 `scenario_study/OPTIMIZATION_GUIDE.md`。
+Windows 操作步骤见 `matlab/RUN_ON_WINDOWS.md`。
 
 ## 椭圆标定（零差 IQ）
 

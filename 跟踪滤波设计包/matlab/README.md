@@ -67,20 +67,22 @@ the fresh outputs against the committed Python goldens.
 
 ## Realistic-scenario study (`scenario_study/`)
 
-Application-facing figures on top of the verified ports:
-`validate_realistic_scenarios.m` (top level; currently an interface stub --
-see its OUTPUT CONTRACT help text -- to be replaced by the full Monte-Carlo
-study with the same interface) writes
-`scenario_study/results_realistic_scenarios.mat`, and
-`scenario_study/plot_scenario_results.m` turns it into four figures
+The full realistic-scenario suite on top of the verified ports:
+`scenario_study/validate_realistic_scenarios.m` (full port of the Python
+master script `scenario_study/validate_realistic_scenarios.py`; same
+scenarios S1-S5 / H1-H4 / X1, same seeds, same PASS/FAIL criteria and
+matching "KEY," metric lines) prints the full tables, writes
+`scenario_study/results_realistic_scenarios.txt` and
+`scenario_study/results_realistic_scenarios.mat` (plotting contract), and
+`scenario_study/plot_scenario_results.m` turns the `.mat` into four figures
 (homodyne operating-map heatmap, gear-selection map, QTec speckle-diversity
 tradeoff, heterodyne velocity bathtub), each saved as `.png` + `.fig` under
 `scenario_study/figs/`:
 
 ```sh
-cd matlab
+cd matlab/scenario_study
 octave --no-gui --eval "rc = validate_realistic_scenarios(); exit(rc)"
-octave --no-gui --eval "cd scenario_study; rc = plot_scenario_results(); exit(rc)"
+octave --no-gui --eval "rc = plot_scenario_results(); exit(rc)"
 ```
 
 ## MEX kernels are optional (pure-M fallback)
