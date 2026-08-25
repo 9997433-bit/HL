@@ -1,5 +1,5 @@
 function validate_tracking()
-%VALIDATE_TRACKING V1-V4 validation of the three-gear homodyne IQ tracking filter.
+%VALIDATE_TRACKING V1-V5 validation of the three-gear homodyne IQ tracking filter.
 %   MATLAB/Octave port of homodyne_tracking_design/validate_tracking.py with
 %   the same scenarios, seeds and PASS/FAIL criteria:
 %     V1  weak light CNR=3 dB, 100k/1M/3M bursts, all gears (C1-C4)
@@ -21,7 +21,7 @@ function validate_tracking()
   dp = design_params();
   c = vt_const();
 
-  fprintf('三档零差IQ跟踪滤波方案 -- 仿真验证 (V1-V4)\n');
+  fprintf('三档零差IQ跟踪滤波方案 -- 仿真验证 (V1-V5)\n');
   fprintf(['reference core: pll_carrier_regen / residual-window, ' ...
            'fs=%.0fMS/s, lambda=%.0fnm, T=%.1fms/run\n'], ...
           dp.FS / 1e6, dp.LAMBDA * 1e9, c.T * 1e3);

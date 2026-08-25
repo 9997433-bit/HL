@@ -122,7 +122,7 @@ reference, and each script saves its key metrics to
 
 | Script | Checks | Python source |
 |---|---|---|
-| `validate_tracking.m` | V1–V4 (C1–C7) | `validate_tracking.py` |
+| `validate_tracking.m` | V1–V5 (C1–C7) | `validate_tracking.py` |
 | `validate_off_mode.m` | O1–O6b | `validate_off_mode.py` |
 | `validate_zeta_sweep.m` | Z0–Z3 | `validate_zeta_sweep.py` |
 | `validate_residual_alignment.m` | 18 combos, <1 pp | `validate_residual_alignment.py` |

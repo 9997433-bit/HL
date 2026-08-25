@@ -4,7 +4,12 @@
 MATLAB/Octave 移植验证，并运行新的**真实场景仿真研究**（scenario_study）。
 
 - 适用环境：**MATLAB R2020b 或更高**（GNU Octave >= 8 亦可），**无需任何工具箱**。
-- 所有脚本输出均为 ASCII/英文，不受 Windows GBK 控制台编码影响。
+- 输出编码说明：核心对比脚本输出为 ASCII/英文；统计验证器与场景套件
+  （`validate_tracking`、`scenario_study` 等）的说明行含 **UTF-8 中文**。所有
+  机器可读行（`KEY,...`、`[PASS]/[FAIL] <编号>`、`ALL CHECKS PASSED`）均为纯
+  ASCII —— Windows GBK 控制台若把中文说明行显示成乱码，**不影响判定与数字**；
+  完整结果同时写入 UTF-8 编码的 `results_*.txt`，用 VS Code 等 UTF-8 编辑器
+  查看即可。
 - 不需要编译器：MEX 内核是可选加速，缺编译器时自动回退纯 M 代码，**结果逐位一致**。
 
 ---
@@ -41,7 +46,8 @@ homodyne_setup_path
 
 ```matlab
 compare_with_python      % 零差核心金标对比：MATLAB vs Python，rtol=1e-10，数秒
-validate_tracking        % 零差跟踪统计验证器 V1–V4（含逐位一致的 numpy RNG），数分钟
+validate_tracking        % 零差跟踪统计验证器 V1–V5（含逐位一致的 numpy RNG；V5 =
+                         % v_peak 未知时按 APP_V_PEAK_MAX=30 m/s 保守评估守卫），数分钟
 ```
 
 - `compare_with_python` 末尾应打印 `compare_with_python: PASS -- all N fields match ...`。
@@ -124,7 +130,7 @@ homodyne_setup_path                        % 初始化路径
 
 % ---- 快速冒烟（约 5 分钟）----
 compare_with_python                        % 核心金标对比（数秒）
-validate_tracking                          % 零差 V1–V4 统计验证
+validate_tracking                          % 零差 V1–V5 统计验证
 
 % ---- 完整验证（约 10 分钟）----
 rc = run_all_verify('full')                % rc == 0 即全部通过

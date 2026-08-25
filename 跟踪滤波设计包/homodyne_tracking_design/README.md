@@ -110,7 +110,7 @@ python3 study_fast_fn_options.py          # ~7 s, 审计项 2 fn 选项对比研
 
 - `design_params.py` — 三档参数表、公共窗参数、前端带宽拆分常量(`F_SIGNAL_MAX`/`B_NOISE_ENBW`,`B_FRONTEND` 为兼容别名)、守卫先行选档逻辑(含迟滞,`v_peak=None` 时按 `APP_V_PEAK_MAX` 保守评估)、守卫标志 `guard_flags`(phi_err/guard_ok/overrange)、产品配置入口 `cfg_for_frequency`(tracking_mode pll/off/fixed_lp,gate_policy)
 - `core.py` — PLL 内核与信号/工具函数(移植自原项目;`residual_mode` 已改为 1025-tap FIR 产品路径,见审查项 #4);产品入口 `tracking_filter` 与 OFF 旁路 `off_mode` / 固定窗 `fixed_lp_mode`
-- `validate_tracking.py` — V1–V4 仿真验证 + PASS/FAIL 断言
+- `validate_tracking.py` — V1–V5 仿真验证 + PASS/FAIL 断言
 - `validate_off_mode.py` — OFF / fixed_lp 模式与产品入口冒烟回归(O1–O6,见 `results_off_mode.txt`)
 - `validate_residual_alignment.py` — `core.residual_mode` vs `gear_filter` 一致性断言(审查项 #4)
 - `validate_zeta_sweep.py` — ζ 扫描:幅值误差/SNR 增益/near-π 率/掉光重捕 + 推荐值断言(审查项 #7)

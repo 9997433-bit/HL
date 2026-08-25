@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""V1-V4 validation of the three-gear (三档) homodyne IQ tracking filter.
+"""V1-V5 validation of the three-gear (三档) homodyne IQ tracking filter.
 
 Architecture under test (see design_params.py):
   carrier path   pll_carrier_regen (per-gear fn, zeta=1.2) -> y_nco = e^{j phi}
@@ -407,7 +407,7 @@ def V4(v1res, v2res):
 # ================================================================== main
 def main():
   t0 = time.time()
-  print('三档零差IQ跟踪滤波方案 -- 仿真验证 (V1-V4)')
+  print('三档零差IQ跟踪滤波方案 -- 仿真验证 (V1-V5)')
   print(f'reference core: pll_carrier_regen / residual-window, '
         f'fs={FS/1e6:.0f}MS/s, lambda={LAMBDA*1e9:.0f}nm, T={T*1e3:.1f}ms/run')
   v0_table()

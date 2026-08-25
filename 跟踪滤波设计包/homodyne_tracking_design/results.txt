@@ -1,4 +1,4 @@
-三档零差IQ跟踪滤波方案 -- 仿真验证 (V1-V4)
+三档零差IQ跟踪滤波方案 -- 仿真验证 (V1-V5)
 reference core: pll_carrier_regen / residual-window, fs=250MS/s, lambda=1550nm, T=0.5ms/run
 
 ======================================================================================
@@ -132,4 +132,4 @@ ASSERTION SUMMARY
   [PASS] V5  v_peak 未知默认 APP_V_PEAK_MAX=30 m/s 保守守卫: cfg_for_frequency(100e3) 选 FAST 且 overrange=True (非频段规则)  (band=FAST, phi_err=1.50r, guard_ok=False, overrange=True)
 
 ALL CHECKS PASSED
-[elapsed 33.5 s]
+[elapsed 34.1 s]
