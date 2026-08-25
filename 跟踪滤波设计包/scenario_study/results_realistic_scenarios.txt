@@ -1,0 +1,392 @@
+真实场景仿真套件: 零差(S1-S5) + 外差(H1-H4) + 交叉对照(X1)
+homodyne: lambda=1550nm fs=250MS/s 三档 fn=110k/530k/1.6M zeta=1.2 公共窗 4MHz | heterodyne: lambda=632.8nm fs=50MS/s zeta=0.707 档位=f(v_range)
+规则: R1-R4 公平比较 (validate_tracking); 零差高速/高频格点用 B_FE=86MHz+LPF 物理前端 (validate_app A6 v2 模型)
+
+============================================================================================
+S1  零差工况地图: f={1,10,50,100}kHz x v={0.02,1,5,20,30}m/s x CNR={3,6,12}dB
+    (amp err = R1 近无噪 LS 幅值; SNR gain = R3 信号增益 + 静态载波 10..100kHz 底噪下降中值, 3 seeds;
+    前端: v>10m/s 或 f>50kHz 用 B_FE=86MHz 总CNR + 线性相位 LPF, 其余 40MHz 噪声带模型)
+============================================================================================
+
+         f    v_peak    gear  phi_err      guard     FE |   ampErr ampErrNCO  np |  gain@3dB  gain@6dB gain@12dB
+       1k      20mm    SLOW   0.002r         ok    40M |   -0.00%    +0.01%   0 |   +43.30    +39.80     +0.08 
+       1k    1000mm    SLOW   0.107r         ok    40M |   -0.00%    +0.01%   0 |   +43.30    +39.80     +0.08 
+       1k    5000mm    SLOW   0.533r         ok    40M |   -0.00%    +0.01%   0 |   +43.30    +39.80     +0.08 
+       1k   20000mm  MEDIUM   0.092r         ok  86M+L |   -0.00%    +0.00%   0 |   +50.58    +43.24     +0.42 
+       1k   30000mm  MEDIUM   0.138r         ok  86M+L |   -0.00%    +0.00%   0 |   +50.58    +43.24     +0.42 
+
+      10k      20mm    SLOW   0.021r         ok    40M |   +0.00%    +0.79%   0 |   +43.30    +39.80     +0.08 
+      10k    1000mm  MEDIUM   0.046r         ok    40M |   -0.00%    +0.04%   0 |   +43.23    +39.76     +0.14 
+      10k    5000mm  MEDIUM   0.230r         ok    40M |   -0.00%    +0.04%   0 |   +43.23    +39.76     +0.14 
+      10k   20000mm  MEDIUM   0.918r         ok  86M+L |   -0.00%    +0.04%   0 |   +50.58    +43.24     +0.42 
+      10k   30000mm    FAST   0.151r         ok  86M+L |   -0.00%    +0.00%   0 |   +50.61    +43.16     +0.40 
+
+      50k      20mm    SLOW   0.079r         ok    40M |   +0.00%    +9.71%   0 |   +43.30    +39.80     +0.08 
+      50k    1000mm  MEDIUM   0.226r         ok    40M |   +0.00%    +0.85%   0 |   +43.23    +39.76     +0.14 
+      50k    5000mm    FAST   0.126r         ok    40M |   -0.00%    +0.10%   0 |   +12.06    +39.62     +0.12 
+      50k   20000mm    FAST   0.503r         ok  86M+L |   -0.00%    +0.10%   0 |   +50.61    +43.16     +0.40 
+      50k   30000mm    FAST   0.755r         ok  86M+L |   -0.00%    +0.10%   0 |   +50.61    +43.16     +0.40 
+
+     100k      20mm    SLOW   0.097r         ok  86M+L |   +0.00%    +9.70%   0 |   +50.57    +43.27     +0.40 
+     100k    1000mm  MEDIUM   0.431r         ok  86M+L |   +0.00%    +3.03%   0 |   +50.58    +43.24     +0.42 
+     100k    5000mm    FAST   0.250r         ok  86M+L |   -0.00%    +0.38%   0 |   +50.61    +43.16     +0.40 
+     100k   20000mm    FAST   1.001r  OVERRANGE  86M+L |   -0.00%    +0.38%   0 |   +50.61    +43.16     +0.40 
+     100k   30000mm    FAST   1.501r  OVERRANGE  86M+L |   -0.00%    +0.38%   0 |   +50.61    +43.16     +0.40 
+
+  说明1: (100kHz, 20m/s) 的 phi_err=1.001 rad 恰好压在守卫线上 -- 守卫边界实测就在用户 20..30 m/s 高速区内.
+  说明2: ampErr(full输出) 由公共 4MHz 残差窗定标, 与档位/phi_err 几乎无关 (设计意图); ampErrNCO 是载波路径单独的
+  幅值误差, 随 phi_err 增大而恶化 -- 档位动态只影响载波路径与噪声, 不影响 full 输出的幅值刻度 (validate_zeta_sweep 结论).
+  说明3: 40M 与 86M+L 格点的 OFF 参考不同 (同总CNR下更宽前端点击更多, PSD 更低), 增益不可跨前端相减.
+  FAST 在 40M/CNR3 处于环内点击门限之下 (feed-through, 增益 ~+12dB), 在 86M 同总CNR 环内CNR 高 3.3dB 越过门限
+  (滑周率对环内CNR指数敏感) -- 全输出噪声底由公共窗决定, 三档增益趋同 ~+50dB. CNR 指标必须在实际前端带宽上定义 (A6).
+  [PASS] S1a  守卫内 (guard_ok) 全部格点: clean |ampErr| < 5% 且 0 near-pi  (worst 0.00%)
+  [PASS] S1b  OVERRANGE 格点 (100kHz x 20/30m/s): clean |ampErr| < 10% 且 0 near-pi (降级区仍可测幅值)  (worst 0.00%)
+  [PASS] S1c  SLOW 档格点 CNR=3dB SNR gain > +10 dB (门限扩展)  (see table)
+  [PASS] S1d  全部格点 CNR=3dB SNR gain > 0 dB  (see table)
+
+============================================================================================
+S2  散斑矩阵 @100kHz/20mm/s (gear=SLOW, gate=auto, B_FE=86MHz+LPF, 输出滤到 1MHz, 4 seeds) -- V3 方法在用户工况点
+============================================================================================
+
+     tau_c   CNR |  spikes OFF  spikes ON | disp rms OFF nm  disp rms ON nm |  lock%
+      20us   3dB |         169          2 |           10788            3127 |   43.6
+      20us   6dB |         120          4 |            7582             940 |   71.1
+      20us  12dB |          22          1 |            4239             596 |   88.7
+
+      50us   3dB |         148          2 |           11113             714 |   55.0
+      50us   6dB |         144          2 |            5537             687 |   64.2
+      50us  12dB |           6          0 |            3560              97 |   89.1
+
+     100us   3dB |         158          0 |            7975              86 |   80.0
+     100us   6dB |         104          0 |            8376             167 |   75.3
+     100us  12dB |          16          0 |            2587              76 |   85.2
+
+  诚实注记: 掉落期间 NCO 飞轮只能外推, 位移连续性无法承诺 (同 V3); ON 的位移 rms 含掉落期外推误差;
+  lock% 不到 100 是门控按设计在散斑深衰落中放开 (invalid 标志), 不是缺陷 -- 见 OPTIMIZATION_GUIDE 门控节.
+  [PASS] S2a  全部 (tau_c x CNR): gate-on 速度尖峰中值 <= OFF (尖峰不恶化)  (see table)
+  [PASS] S2b  CNR=12dB: lock fraction > 75% (全部 tau_c; 余量在散斑衰落统计内)  (see table)
+
+============================================================================================
+S3  瞬态: 频率阶跃 50k->100kHz @20mm/s 与速度阶跃 5->30m/s @100kHz (CNR=6dB, 5 seeds)
+    换档只发生在选档更新时刻 (离散状态机); 本节先给选档轨迹, 再给 "阶跃两侧同一档" PLL 实测 (T1/T2 阶跃前后选档不变),
+    最后实测 "旧档暴露窗" (T3: SLOW 被 20mm/s->30m/s 阶跃甩在错档上).
+============================================================================================
+
+  T1 选档轨迹: 50 kHz -> 100 kHz @ 20 mm/s (选档状态机, 每行=一次选档更新, 起始档 SLOW)
+    update       f    v_peak |  target  applied phi_err(applied)
+         0    50k       20mm/s |    SLOW     SLOW         0.07906r
+         1    50k       20mm/s |    SLOW     SLOW         0.07906r
+         2   100k       20mm/s |    SLOW     SLOW         0.09744r
+         3   100k       20mm/s |    SLOW     SLOW         0.09744r
+         4   100k       20mm/s |    SLOW     SLOW         0.09744r
+
+  T2 选档轨迹: 5 m/s -> 30 m/s @ 100 kHz (选档状态机, 每行=一次选档更新, 起始档 FAST)
+    update       f    v_peak |  target  applied phi_err(applied)
+         0   100k     5000mm/s |    FAST     FAST          0.2502r
+         1   100k     5000mm/s |    FAST     FAST          0.2502r
+         2   100k    30000mm/s |    FAST     FAST           1.501r
+         3   100k    30000mm/s |    FAST     FAST           1.501r
+         4   100k    30000mm/s |    FAST     FAST           1.501r
+
+  T3 选档轨迹: 20 mm/s -> 30 m/s @ 100 kHz (SLOW 起) (选档状态机, 每行=一次选档更新, 起始档 SLOW)
+    update       f    v_peak |  target  applied phi_err(applied)
+         0   100k       20mm/s |    SLOW     SLOW         0.09744r
+         1   100k       20mm/s |    SLOW     SLOW         0.09744r
+         2   100k    30000mm/s |    FAST     FAST           1.501r
+         3   100k    30000mm/s |    FAST     FAST           1.501r
+         4   100k    30000mm/s |    FAST     FAST           1.501r
+
+    scenario                             gear |    pre清洁   post清洁   np |   pre噪中值  post噪中值   np中  lock%
+    T1 freq step 50k->100k @20mm/s       SLOW |    +0.00%    -0.00%    0 |    -2.07%    +1.16%    18   93.2
+    T2 vel step 5->30m/s @100k           FAST |    +0.00%    +0.00%    0 |    +0.00%    -0.02%    72   99.1
+    T3 WRONG gear (SLOW跨 20mm->30m/s)   SLOW |       --   -96.24% 5109 | (clean only: 暴露窗内旧档的实测破坏)
+
+  解读: T1/T2 阶跃前后选档不变 (SLOW/FAST), 环路自身跟过阶跃, 幅值误差保持; T3 显示若选档更新慢了,
+  旧档 (SLOW) 在 30 m/s 上幅值误差 -96% 且 near-pi 5109 次 -- 选档更新周期就是唯一暴露窗 (validate_app A3 结论的实测版).
+  [PASS] S3a  T1 (SLOW 跨频率阶跃): 清洁 pre/post |ampErr| < 5%  (pre +0.00%, post -0.00%)
+  [PASS] S3b  T2 (FAST 跨 5->30m/s 阶跃): 清洁 post |ampErr| < 10% 且 0 near-pi  (post +0.00%, np 0)
+  [PASS] S3c  T2 升档即时性 (选档轨迹): 阶跃后第 1 次更新即 FAST  (update2 -> FAST)
+  [PASS] S3d  T3 旧档暴露窗: SLOW 在 30 m/s 上 |ampErr| > 50% (升档必须即时生效)  (-96.2%)
+
+============================================================================================
+S4  多表面切换 (反光->黑面->远距, 段CNR=12/6/3dB, 段边界 20us -30dB 缝隙, gear=SLOW, gate=auto, 4 seeds)
+    -- validate_ellipse_switching 的表面切换概念移植到 IQ 跟踪域: 噪声底恒定, 回光幅值分段跳变.
+============================================================================================
+
+    segment              CNR |   lock% 中值   ampErr% 中值
+    反光膜(强回光)            12dB |      100.0        -0.18
+    黑面(弱回光)              6dB |      100.0        -0.11
+    远距(更弱)               3dB |      100.0        +0.03
+
+    boundary           |   gap invalid% 中值   relock us 中值
+    反光->黑面             |                25           33.4
+    黑面->远距             |                51           34.8
+
+  解读: 段间 6dB 幅值跳变本身不触发门控 (rel_off=0.08 容忍), 边界缝隙触发 HOLD->ACQUIRE->LOCK 重捕;
+  SLOW 档重捕时间由 acq_time=4*tauF=32us + 门控检测延迟决定.
+  [PASS] S4a  每个边界每个 seed 都重捕, relock <= 80 us  (medians 33.4 / 34.8 us)
+  [PASS] S4b  三段 (12/6/3dB) 幅值误差中值 |err| < 10%  (-0.2%, -0.1%, +0.0%)
+  [PASS] S4c  最弱段 (远距 3dB) lock% 中值 > 80%  (100.0%)
+
+============================================================================================
+S5  最坏角点: 100kHz/30m/s + 散斑 tau_c=50us + CNR=3dB (gear=FAST fallback, B_FE=86MHz+LPF, gate=auto, 6 seeds) -- 有界诚实报告
+============================================================================================
+
+    metric                                 median        p10        p90
+    ampErr % (全窗含掉落)                        -49.5      -65.9      -30.9
+    ampErr % (仅 LOCK 有效样本)                  -33.2      -36.6      -20.1
+    lock %                                   76.5       66.1       83.3
+    near-pi events                         2234.5     1455.0     2713.0
+    sudden 2pi jumps                          7.5        2.0       12.0
+    |net fringe err| (cycles)               263.5       82.0      523.0
+    disp rms err nm (1MHz)               108444.5    66388.3   223796.1
+
+  诚实结论: 最坏角点三重叠加 (fallback 档 phi_err=1.5 rad + 散斑掉落 + 3dB 弱光): 全窗幅值被掉落期 NCO 外推稀释 (invalid 期数据本就不该计入);
+  仅取 LOCK 有效样本后幅值刻度有界可用. 净条纹漂移 10^1..10^2 周/0.5ms -- 位移积分在该角点无效 (与 validate_app A8/N2 一致),
+  产品须按 overrange + 散斑 invalid 同时上报.
+  [PASS] S5a  最坏角点 LOCK 有效样本 ampErr 中值 |err| < 40% (有界降级 -- 实测约 -33%, 全窗则 ~-50%)  (-33.2%)
+  [PASS] S5b  最坏角点 lock fraction 中值 > 50% (可用数据比例)  (76.5%)
+
+============================================================================================
+H1  外差量程-速度地图: v_range={0.1,1,3}m/s x f={50k,500k,5M}Hz x CNR={0,4,12}dB
+    (外差档位同时决定测量带宽 f_3dB=2.058*fn 与动态; 5MHz > f_3dB 时只能 FAST+频响校正; R1-R4 规则, gate=always)
+============================================================================================
+  硬边界: v_if = 3.01 m/s (IF 频偏窗), v_alias = 7.91 m/s (fs 混叠), fn <= fs/50 = 1000k (离散稳定)
+
+     v_range      f    mode       fn    f_3dB   |H_L|    raw比  corr err fn<=fs/50 |  gain@0dB  gain@4dB gain@12dB
+       0.1m    50k  MEDIUM   56.2k  115.7k  1.2616  1.2612    -0.03%        ok |   +41.22    +37.68     +0.07 
+       0.1m   500k    FAST  177.8k  365.9k  0.5254  0.5253    -0.02%        ok |   +20.01    +13.80     -0.69 
+       0.1m  5000k    FAST  177.8k  365.9k  0.0524  0.0515    -1.64%        ok |    +0.18     +0.56     -0.11 
+
+       1.0m    50k    SLOW   56.2k  115.7k  1.2616  1.2612    -0.03%        ok |   +41.30    +36.76     +0.51 
+       1.0m   500k    FAST  562.2k 1157.0k  1.2730  1.2728    -0.02%        ok |   +17.64    +15.68     +0.21 
+       1.0m  5000k    FAST  562.2k 1157.0k  0.1750  0.1721    -1.64%        ok |    -0.22     +0.13     -0.11 
+
+       3.0m    50k    SLOW   97.4k  200.4k  1.1949  1.1950    +0.01%        ok |   +37.93    +35.21     -0.12 
+       3.0m   500k  MEDIUM  307.9k  633.7k  0.9121  0.9120    -0.02%        ok |   +18.64    +15.67     +0.33 
+       3.0m  5000k    FAST  973.7k 2004.0k  0.3222  0.3169    -1.64%        ok |    -0.17     +0.44     -0.05 
+
+  解读: 档内 (f<=f_3dB) 频响校正后幅值刻度保持; 5 MHz 超出所有档的 f_3dB, 只有 FAST 的 |H_L| 足够校正;
+  增益本质是 FM 门限扩展, 高 CNR 时归零 (校正不改变谱线 SNR).
+  [PASS] H1a  档内格点 (f <= f_3dB): 频响校正后 |err| < 10%  (see table)
+  [PASS] H1b  5MHz 格点 |H_L|>=0.1 者: 校正后 |err| < 15% (FAST+校正可用)  (see table)
+  [PASS] H1c  v_range=1, f=50kHz (SLOW) CNR=0dB 线SNR增益 > +10 dB (门限扩展)  (+41.3 dB)
+
+============================================================================================
+H2  超出 f_3dB: 5MHz 三档 raw vs corrected (复现 validate_heterodyne C24/C26 -- 外差档位=测量带宽, 无残差窗兜底)
+============================================================================================
+
+       mode       fn    f_3dB  |H_L(5M)|     raw幅值比  corr err
+       SLOW   56.2k  115.7k     0.0163     0.0160    -1.64%
+     MEDIUM  177.8k  365.9k     0.0524     0.0515    -1.64%
+       FAST  562.2k 1157.0k     0.1750     0.1721    -1.64%
+  [PASS] H2a  SLOW@5MHz 未校正幅值比 < 0.05 (C26 复现: 档位=测量带宽)  (0.0160)
+  [PASS] H2b  FAST@5MHz: 0.1 < raw比 < 0.5 且校正后 |err| < 10% (C24 复现)  (比 0.172, 校正后 -1.64%)
+
+============================================================================================
+H3  浴缸谷底夹逼: 每档在 f=fn 处测 0.5*v_pi (应过) 与 2*v_pi (应败)  (v_pi = pi*lambda*fn/sqrt2 卷绕线谷值, CNR=30dB)
+============================================================================================
+
+       mode       fn       v_pi |  0.5*v_pi err/slips |  2*v_pi err/slips
+       SLOW   56.2k    79.02mm |      +0.0%/0    pass |    -82.9%/40   fail(期望)
+     MEDIUM  177.8k   249.87mm |      +0.0%/0    pass |    -83.3%/53   fail(期望)
+       FAST  562.2k   790.16mm |      -0.1%/0    pass |    -81.9%/172  fail(期望)
+  [PASS] H3a  三档: 0.5*v_pi 通过 (|err|<25%, 0 slips) 且 2*v_pi 失败 -- 实测边界夹在卷绕线 2 倍以内  (see table)
+  [PASS] H3b  谷值随档单调上升 (SLOW < MEDIUM < FAST)  (79.02mm / 249.87mm / 790.16mm)
+
+============================================================================================
+H4  弱回光 PSV 类: FAST@5MHz (fn=562k), CNR 0..8dB 扫描 (4 seeds) -- 未校正底噪下降 (复现 PSV-500 弱回光实测) 与线 SNR 增益 (诚实面)
+============================================================================================
+
+      CNR |     底噪下降 dB (raw)     线SNR增益 dB
+      0dB |              15.3           0.2
+      2dB |              15.8           0.6
+      4dB |              15.5           0.4
+      6dB |              15.5           0.3
+      8dB |              15.2           0.1
+
+  解读: 底噪下降与信号衰减同源于 |H_L| -- 校正恢复刻度但不改变谱线 SNR; 下降幅度随 CNR 升高而减小
+  (门限以下 OFF 被点击噪声支配, 门限以上两者同为相位噪声).
+  [PASS] H4a  CNR<=4dB: 未校正底噪下降 > +10 dB (C23 复现)  (0dB:+15.3, 2dB:+15.8, 4dB:+15.5)
+  [PASS] H4b  底噪下降随 CNR 单调收缩: nred(0dB) > nred(8dB)  (+15.3 vs +15.2 dB)
+
+============================================================================================
+X1  同一运动 (100 kHz, 20 mm/s): 零差 SLOW vs 外差 SLOW -- 诚实的苹果/橘子对照 (非产品排名)
+============================================================================================
+
+                                        零差 (homodyne)        外差 (heterodyne)
+    波长 / 采样率                         1550nm / 250MS/s       632.8nm / 50MS/s
+    前端 (噪声 ENBW)                           86 MHz+LPF                 19 MHz
+    档 / fn                                SLOW / 110k           SLOW / 56.2k
+    B_loop                                   0.49 MHz                187 kHz
+    测量带宽                                  4 MHz 公共残差窗   f_3dB = 116 kHz (档定)
+    clean ampErr                               +0.00%         +0.00% (频响校正后)
+    SNR gain @CNR=3dB                        +50.6 dB               +30.5 dB
+    (零差 40MHz 噪声带模型参考: SLOW 底噪下降 +43.3 dB -- 与 validate_tracking V1 的 +38dB 同一物理, 评估带不同)
+
+  苹果/橘子注记 (必须读):
+    - 波长不同: 同一 20 mm/s 在 1550 nm 是 25.8 kHz 多普勒, 在 632.8 nm 是
+      63.2 kHz -- 相位摆幅差 2.45x, 两环工作点并不相同.
+    - 前端不同: 零差 86 MHz (物理一致规则) vs 外差 19 MHz, "CNR=3dB" 的
+      噪声 PSD 完全不同; 增益各自相对自己的 OFF 参考, 不能跨列相减.
+    - 架构不同: 零差增益含残差窗点击清除 (B_loop < B_win 条件), 换档不改
+      测量带宽; 外差增益是纯 NCO 的 FM 门限扩展, 换档同时改变测量带宽.
+    - 结论只有一个是公平的: 两种架构在各自设计域内都给出 >+10dB 量级的
+      弱光门限扩展, 且幅值刻度保持 -- 选型依据见 OPTIMIZATION_GUIDE 决策树.
+  [PASS] X1a  两架构在该工况各自 SNR gain > +10 dB (各自参考系内)  (homo +50.6, het +30.5 dB)
+
+============================================================================================
+ASSERTION SUMMARY
+============================================================================================
+  [PASS] S1a  守卫内 (guard_ok) 全部格点: clean |ampErr| < 5% 且 0 near-pi  (worst 0.00%)
+  [PASS] S1b  OVERRANGE 格点 (100kHz x 20/30m/s): clean |ampErr| < 10% 且 0 near-pi (降级区仍可测幅值)  (worst 0.00%)
+  [PASS] S1c  SLOW 档格点 CNR=3dB SNR gain > +10 dB (门限扩展)  (see table)
+  [PASS] S1d  全部格点 CNR=3dB SNR gain > 0 dB  (see table)
+  [PASS] S2a  全部 (tau_c x CNR): gate-on 速度尖峰中值 <= OFF (尖峰不恶化)  (see table)
+  [PASS] S2b  CNR=12dB: lock fraction > 75% (全部 tau_c; 余量在散斑衰落统计内)  (see table)
+  [PASS] S3a  T1 (SLOW 跨频率阶跃): 清洁 pre/post |ampErr| < 5%  (pre +0.00%, post -0.00%)
+  [PASS] S3b  T2 (FAST 跨 5->30m/s 阶跃): 清洁 post |ampErr| < 10% 且 0 near-pi  (post +0.00%, np 0)
+  [PASS] S3c  T2 升档即时性 (选档轨迹): 阶跃后第 1 次更新即 FAST  (update2 -> FAST)
+  [PASS] S3d  T3 旧档暴露窗: SLOW 在 30 m/s 上 |ampErr| > 50% (升档必须即时生效)  (-96.2%)
+  [PASS] S4a  每个边界每个 seed 都重捕, relock <= 80 us  (medians 33.4 / 34.8 us)
+  [PASS] S4b  三段 (12/6/3dB) 幅值误差中值 |err| < 10%  (-0.2%, -0.1%, +0.0%)
+  [PASS] S4c  最弱段 (远距 3dB) lock% 中值 > 80%  (100.0%)
+  [PASS] S5a  最坏角点 LOCK 有效样本 ampErr 中值 |err| < 40% (有界降级 -- 实测约 -33%, 全窗则 ~-50%)  (-33.2%)
+  [PASS] S5b  最坏角点 lock fraction 中值 > 50% (可用数据比例)  (76.5%)
+  [PASS] H1a  档内格点 (f <= f_3dB): 频响校正后 |err| < 10%  (see table)
+  [PASS] H1b  5MHz 格点 |H_L|>=0.1 者: 校正后 |err| < 15% (FAST+校正可用)  (see table)
+  [PASS] H1c  v_range=1, f=50kHz (SLOW) CNR=0dB 线SNR增益 > +10 dB (门限扩展)  (+41.3 dB)
+  [PASS] H2a  SLOW@5MHz 未校正幅值比 < 0.05 (C26 复现: 档位=测量带宽)  (0.0160)
+  [PASS] H2b  FAST@5MHz: 0.1 < raw比 < 0.5 且校正后 |err| < 10% (C24 复现)  (比 0.172, 校正后 -1.64%)
+  [PASS] H3a  三档: 0.5*v_pi 通过 (|err|<25%, 0 slips) 且 2*v_pi 失败 -- 实测边界夹在卷绕线 2 倍以内  (see table)
+  [PASS] H3b  谷值随档单调上升 (SLOW < MEDIUM < FAST)  (79.02mm / 249.87mm / 790.16mm)
+  [PASS] H4a  CNR<=4dB: 未校正底噪下降 > +10 dB (C23 复现)  (0dB:+15.3, 2dB:+15.8, 4dB:+15.5)
+  [PASS] H4b  底噪下降随 CNR 单调收缩: nred(0dB) > nred(8dB)  (+15.3 vs +15.2 dB)
+  [PASS] X1a  两架构在该工况各自 SNR gain > +10 dB (各自参考系内)  (homo +50.6, het +30.5 dB)
+
+ALL CHECKS PASSED
+[elapsed 20.1 s]
+
+--------------------------------------------------------------------------------------------
+KEY metrics (machine readable, for the Python<->MATLAB comparison):
+KEY,S1_err_f1k_v20,-4.32664e-09
+KEY,S1_nco_f1k_v20,0.00826121
+KEY,S1_gain3_f1k_v20,43.3007
+KEY,S1_err_f1k_v1000,-4.32663e-09
+KEY,S1_nco_f1k_v1000,0.00826121
+KEY,S1_gain3_f1k_v1000,43.3007
+KEY,S1_err_f1k_v5000,-4.32664e-09
+KEY,S1_nco_f1k_v5000,0.00826121
+KEY,S1_gain3_f1k_v5000,43.3007
+KEY,S1_err_f1k_v20000,-2.66116e-09
+KEY,S1_nco_f1k_v20000,0.00035599
+KEY,S1_gain3_f1k_v20000,50.5814
+KEY,S1_err_f1k_v30000,-2.66543e-09
+KEY,S1_nco_f1k_v30000,0.00035599
+KEY,S1_gain3_f1k_v30000,50.5814
+KEY,S1_err_f10k_v20,7.62713e-07
+KEY,S1_nco_f10k_v20,0.794993
+KEY,S1_gain3_f10k_v20,43.3007
+KEY,S1_err_f10k_v1000,-2.44934e-07
+KEY,S1_nco_f10k_v1000,0.0355392
+KEY,S1_gain3_f10k_v1000,43.2257
+KEY,S1_err_f10k_v5000,-2.44934e-07
+KEY,S1_nco_f10k_v5000,0.0355392
+KEY,S1_gain3_f10k_v5000,43.2257
+KEY,S1_err_f10k_v20000,-2.44915e-07
+KEY,S1_nco_f10k_v20000,0.0355392
+KEY,S1_gain3_f10k_v20000,50.5814
+KEY,S1_err_f10k_v30000,-2.61955e-07
+KEY,S1_nco_f10k_v30000,0.00390525
+KEY,S1_gain3_f10k_v30000,50.6122
+KEY,S1_err_f50k_v20,0.000559613
+KEY,S1_nco_f50k_v20,9.71212
+KEY,S1_gain3_f50k_v20,43.3008
+KEY,S1_err_f50k_v1000,1.1034e-05
+KEY,S1_nco_f50k_v1000,0.85352
+KEY,S1_gain3_f50k_v1000,43.2257
+KEY,S1_err_f50k_v5000,-5.12224e-06
+KEY,S1_nco_f50k_v5000,0.097193
+KEY,S1_gain3_f50k_v5000,12.0646
+KEY,S1_err_f50k_v20000,-5.12271e-06
+KEY,S1_nco_f50k_v20000,0.097193
+KEY,S1_gain3_f50k_v20000,50.6122
+KEY,S1_err_f50k_v30000,-5.11606e-06
+KEY,S1_nco_f50k_v30000,0.097193
+KEY,S1_gain3_f50k_v30000,50.6122
+KEY,S1_err_f100k_v20,0.00217987
+KEY,S1_nco_f100k_v20,9.69804
+KEY,S1_gain3_f100k_v20,50.572
+KEY,S1_err_f100k_v1000,0.000175329
+KEY,S1_nco_f100k_v1000,3.03317
+KEY,S1_gain3_f100k_v1000,50.5814
+KEY,S1_err_f100k_v5000,-7.47975e-06
+KEY,S1_nco_f100k_v5000,0.383382
+KEY,S1_gain3_f100k_v5000,50.6122
+KEY,S1_err_f100k_v20000,-7.71126e-06
+KEY,S1_nco_f100k_v20000,0.383382
+KEY,S1_gain3_f100k_v20000,50.6122
+KEY,S1_err_f100k_v30000,-7.99395e-06
+KEY,S1_nco_f100k_v30000,0.383382
+KEY,S1_gain3_f100k_v30000,50.6122
+KEY,S2_lock_t20_c3,43.6242
+KEY,S2_dron_t20_c3,3127.38
+KEY,S2_lock_t20_c6,71.1446
+KEY,S2_dron_t20_c6,940.232
+KEY,S2_lock_t20_c12,88.6706
+KEY,S2_dron_t20_c12,595.858
+KEY,S2_lock_t50_c3,54.9854
+KEY,S2_dron_t50_c3,713.712
+KEY,S2_lock_t50_c6,64.2386
+KEY,S2_dron_t50_c6,686.906
+KEY,S2_lock_t50_c12,89.063
+KEY,S2_dron_t50_c12,96.6504
+KEY,S2_lock_t100_c3,80.0244
+KEY,S2_dron_t100_c3,86.2353
+KEY,S2_lock_t100_c6,75.2978
+KEY,S2_dron_t100_c6,166.741
+KEY,S2_lock_t100_c12,85.2112
+KEY,S2_dron_t100_c12,75.6628
+KEY,S3_T1_post,-1.14509e-05
+KEY,S3_T2_post,1.50301e-06
+KEY,S3_T3_post,-96.2368
+KEY,S4_lock_seg0,100
+KEY,S4_err_seg0,-0.182638
+KEY,S4_lock_seg1,100
+KEY,S4_err_seg1,-0.112839
+KEY,S4_lock_seg2,100
+KEY,S4_err_seg2,0.0260717
+KEY,S5_err_med,-49.4835
+KEY,S5_errl_med,-33.1533
+KEY,S5_lock_med,76.5212
+KEY,H1_err_vr0.1_f50k,-0.0317698
+KEY,H1_gain0_vr0.1_f50k,41.2167
+KEY,H1_err_vr0.1_f500k,-0.0156849
+KEY,H1_gain0_vr0.1_f500k,20.011
+KEY,H1_err_vr0.1_f5000k,-1.63682
+KEY,H1_gain0_vr0.1_f5000k,0.175308
+KEY,H1_err_vr1_f50k,-0.0317698
+KEY,H1_gain0_vr1_f50k,41.3038
+KEY,H1_err_vr1_f500k,-0.0182763
+KEY,H1_gain0_vr1_f500k,17.6446
+KEY,H1_err_vr1_f5000k,-1.63679
+KEY,H1_gain0_vr1_f5000k,-0.218831
+KEY,H1_err_vr3_f50k,0.00652221
+KEY,H1_gain0_vr3_f50k,37.9323
+KEY,H1_err_vr3_f500k,-0.0161979
+KEY,H1_gain0_vr3_f500k,18.6418
+KEY,H1_err_vr3_f5000k,-1.63674
+KEY,H1_gain0_vr3_f5000k,-0.168039
+KEY,H2_ratio_SLOW,0.0160191
+KEY,H2_ratio_MEDIUM,0.0515069
+KEY,H2_ratio_FAST,0.172106
+KEY,H3_e1_SLOW,0.00717545
+KEY,H3_e1_MEDIUM,0.0281121
+KEY,H3_e1_FAST,-0.0899767
+KEY,H4_nred_c0,15.3299
+KEY,H4_nred_c2,15.7584
+KEY,H4_nred_c4,15.5211
+KEY,H4_nred_c6,15.4712
+KEY,H4_nred_c8,15.2298
+KEY,X1_gain_homodyne,50.572
+KEY,X1_gain_heterodyne,30.47
