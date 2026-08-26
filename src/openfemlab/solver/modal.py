@@ -535,10 +535,12 @@ def eigenvalue_count_below(K, M, sigma: float) -> int:
 
 
 def eigenvalue_count_in_range(K, M, lower: float, upper: float) -> int:
-    """Number of eigenvalues in ``[lower, upper]``, by two inertia counts.
+    """Number of eigenvalues in the half-open ``[lower, upper)``, by two counts.
 
-    The bounds are the ones :func:`_apply_window` filters on, so the count and
-    the filter agree on a mode sitting exactly on a bound.
+    A frequency window is closed on both sides, which the solver gets by
+    widening the bounds by :data:`WINDOW_RTOL` before calling this — the same
+    padding :func:`_apply_window` filters on, so the count and the filter agree
+    on a mode sitting exactly on a bound.
     """
     return eigenvalue_count_below(K, M, upper) - eigenvalue_count_below(K, M, lower)
 

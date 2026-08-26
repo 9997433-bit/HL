@@ -20,7 +20,7 @@ AC-<MODULE>-<NNN>[<suffix>]
 ```
 
 - `<MODULE>` ∈ `MODAL` (M1), `CORR` (M2), `UPD` (M3), `WORK` (M4), `OPT` (M5),
-  `DYN` (M6).
+  `DYN` (M6), `ELEM` (M7).
 - `<NNN>`: three-digit number, dense per module (no gaps).
 - `<suffix>`: optional single lowercase letter for closely coupled
   sub-criteria that share a number (e.g. `AC-UPD-006a` / `AC-UPD-006b`).
@@ -48,8 +48,11 @@ AC-<MODULE>-<NNN>[<suffix>]
 Canonical fixtures live in `tests/fixtures/` (`two_dof_analytic.yaml`,
 `ten_dof_chain.yaml`, `test_modes.yaml`) plus procedurally generated
 spring–mass chains and Euler–Bernoulli cantilever beams (closed-form
-frequencies). All randomized inputs use seeded `numpy.random.Generator`
-instances; a criterion is only "verified" if its test is deterministic.
+frequencies). The M7 gates add the structured element meshes of
+`openfemlab.mesh.simple` (`quad_plate_mesh`, `tet_block_mesh`,
+`hex_block_mesh`) with deterministically displaced interior nodes. All
+randomized inputs use seeded `numpy.random.Generator` instances; a criterion is
+only "verified" if its test is deterministic.
 
 ### 1.5 Status lifecycle
 
@@ -322,14 +325,57 @@ frequency-domain counterparts of the M2 gates AC-CORR-001/002.
 
 ---
 
-## 8. Registry and enforcement
+## 8. M7 — Element Library (spec MS-8)
+
+Added in Round 2 by R2-T02 (gap GAP-02) once the QUAD4, TET4 and HEX8
+formulations were all on the trunk. The module supplies the `K` and `M` every
+other module consumes, so its criteria are the preconditions of the M1 gates:
+AC-ELEM-002 is what makes the AC-MODAL-004 rigid-body count meaningful, and
+AC-ELEM-003 is the mesh-convergence half of AC-MODAL-001's "mesh-converged
+oracle" wording. Each criterion is checked on **every** formulation in MS-8.2,
+not on a representative one.
+
+| ID | Pri | Criterion (summary) | Quantitative gate | Spec |
+|----|-----|--------------------|-------------------|------|
+| AC-ELEM-001 | P0 | Patch test exact to machine precision | distorted patch: interior rel. err ≤ 1e-12; element stress rel. err ≤ 1e-9 | MS-8.3 |
+| AC-ELEM-002 | P0 | Rigid-body invariance and zero-energy mode count | ‖Kd‖ and energy ≤ 1e-10 relative; nullity = 3 (planar) / 6 (spatial) exactly | MS-8.3 |
+| AC-ELEM-003 | P1 | Quadratic h-convergence on the continuum oracle | error ratio ≥ 3.6 per halving (observed order ∈ [1.8, 2.2]); finest ≤ 1e-3 | MS-8.4 |
+
+### Details
+
+- **AC-ELEM-001** (`oracle`) — A patch of 9 (planar) or 27 (spatial) cells whose
+  interior nodes are pulled 20 % off the regular grid, so no element is a
+  parallelogram or parallelepiped, carries the linear field `u = G x` on every
+  boundary node. Then: the interior displacements reproduce `G x` to ≤ 1e-12
+  relative to the largest prescribed value, and every element reports the
+  constant stress `D ε(G)` to ≤ 1e-9 relative at every sampled natural point
+  (no component of that stress is allowed to be trivially zero). The
+  single-element form — exact strain recovery on distorted geometry and
+  self-equilibrated consistent nodal forces — is asserted alongside.
+- **AC-ELEM-002** (`property`) — On the same distorted geometry, each of the 3
+  planar or 6 spatial rigid-body motions gives `‖K d‖_∞ ≤ 1e-10 · max|K| · ‖d‖_∞`,
+  strain energy ≤ 1e-10 relative, and zero recovered strain. The element
+  stiffness has exactly that many zero eigenvalues — full integration leaves no
+  hourglass mode — and an unsupported assembly returns exactly that many
+  zero frequencies with the first elastic mode well separated.
+- **AC-ELEM-003** (`property`) — With `ν = 0` the lateral directions decouple
+  and a strip/block cantilever discretizes the continuum bar whose first axial
+  frequency is `c/(4L)`, `c = √(E/ρ)`. Refining 4 → 8 → 16 elements, the
+  frequency error is positive (a conforming displacement field with consistent
+  mass converges from above), strictly decreasing, at least 3.6× smaller per
+  halving with an observed order in [1.8, 2.2], and below 1e-3 at the finest
+  mesh.
+
+---
+
+## 9. Registry and enforcement
 
 `tests/acceptance/test_criteria_registry.py` holds the machine-readable
 registry (one entry per criterion: ID, title, module, spec anchor, priority,
 verification method, planned test reference, status).
 
-The current inventory is **40 criteria**: M1 = 9, M2 = 8, M3 = 9,
-M4 = 5, M5 = 4, and M6 = 5. The two suffixed M3 rows
+The current inventory is **43 criteria**: M1 = 9, M2 = 8, M3 = 9,
+M4 = 5, M5 = 4, M6 = 5, and M7 = 3. The two suffixed M3 rows
 (`AC-UPD-006a` / `AC-UPD-006b`) are distinct criteria under one dense base
 number.
 

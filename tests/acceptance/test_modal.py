@@ -18,6 +18,16 @@ Implemented here
 - **AC-MODAL-006** (contract, MS-1.2) — every returned eigenpair satisfies the
   MS-1.2 relative residual, and a starved Lanczos run raises
   ``SolverConvergenceError`` with the residuals attached.
+- **AC-MODAL-007** (oracle, MS-1.4) — over the complete modal basis the
+  effective modal masses sum to the total translational mass in every
+  direction, to 1e-8 relative; a truncated basis visibly does not.
+- **AC-MODAL-008** (oracle, MS-1.2) — a ``freq_window`` request returns exactly
+  the modes the dense reference places in the window, and a window the
+  extraction cannot fill raises ``MissedModesWarning`` (a ``SolverError`` under
+  ``strict=True``).
+- **AC-MODAL-009** (contract, MS-1.1) — asymmetric, indefinite and non-finite
+  inputs fail with typed exceptions off the ``OpenFEMLabError`` hierarchy
+  instead of returning plausible numbers.
 
 MS-1.2 also lists ``lobpcg`` as an optional third backend. ``ModalSolver``
 exposes the dense and shift-invert Lanczos paths today through its ``sparse``
@@ -27,19 +37,29 @@ lands later, so the pairwise comparison extends without editing this suite.
 
 from __future__ import annotations
 
+import ast
 import inspect
 from itertools import combinations
+from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pytest
 from scipy.linalg import eigh, null_space
 
-from openfemlab import ModalSolver
+from openfemlab import DOF, ModalSolver, Section
 from openfemlab.correlation import mac
-from openfemlab.exceptions import SolverConvergenceError
-from openfemlab.mesh.simple import beam_mesh, spring_mass_chain
-from openfemlab.solver.modal import residual_floor
+from openfemlab.exceptions import (
+    MatrixDefinitenessError,
+    MatrixSymmetryError,
+    MissedModesWarning,
+    OpenFEMLabError,
+    SolverConvergenceError,
+    SolverError,
+)
+from openfemlab.mesh.simple import beam_mesh, spring_mass_chain, truss_from_arrays
+from openfemlab.solver import modal as modal_module
+from openfemlab.solver.modal import SYMMETRY_TOL, eigenvalue_count_in_range, residual_floor
 
 from ._support import (
     SQUARE,
@@ -67,6 +87,9 @@ BACKEND_MAC_TOLERANCE = 1e-10
 ORTHONORMALITY_TOLERANCE = 1e-8
 RESIDUAL_TOLERANCE = 1e-8
 SIGN_TIE_TOLERANCE = 1e-8
+
+#: Gate of AC-MODAL-007.
+EFFECTIVE_MASS_RTOL = 1e-8
 
 #: Solver keywords per MS-1.2 backend name.
 BACKENDS: dict[str, dict[str, Any]] = {
@@ -483,3 +506,377 @@ def test_ac_modal_006_a_loosely_converged_run_is_rejected_by_the_residual_gate()
     # — and not some other guard — the thing that rejected them.
     loose = ModalSolver(model).solve(num_modes=10, sparse=True, tol=1e-3, residual_tol=None)
     assert np.max(_free_dof_residuals(loose)) > RESIDUAL_TOLERANCE
+
+
+# --------------------------------------------------------------- AC-MODAL-007
+
+EFFECTIVE_MASS_CHAIN_MASSES = 10
+EFFECTIVE_MASS_PER_NODE = 2.0
+
+#: A pyramid on four pinned feet: one free node carrying mass in all three
+#: translational directions, so the completeness relation has three
+#: independent instances rather than the single one a chain offers.
+TRUSS_APEX = (0.5, 0.5, 0.8)
+TRUSS_BASE = ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (1.0, 1.0, 0.0), (0.0, 1.0, 0.0))
+
+
+def _pyramid_truss():
+    coordinates = np.array([*TRUSS_BASE, TRUSS_APEX], dtype=float)
+    connectivity = [(index, 4) for index in range(4)]
+    model = truss_from_arrays(
+        coordinates, connectivity, STEEL, Section(area=1e-4, name="1 cm2 rod")
+    )
+    for node in range(4):
+        model.fix(node)
+    return model
+
+
+def _influence_vector(system, direction: DOF) -> np.ndarray:
+    """Rigid-body influence vector ``r`` for one translational direction.
+
+    Spelled out here rather than taken from ``ModalResult`` for the same reason
+    as the residual helper: AC-MODAL-007 must not be checked against the
+    private vector the quantity under test is built from.
+    """
+    vector = np.zeros(system.num_dofs, dtype=float)
+    vector[np.asarray(system.dof_types) == int(direction)] = 1.0
+    vector[system.constrained_dofs] = 0.0
+    return vector
+
+
+@criterion("AC-MODAL-007")
+def test_ac_modal_007_chain_effective_masses_sum_to_the_physical_total():
+    """The simplest oracle: lumped masses, so the total is known by counting."""
+    solver = ModalSolver(
+        spring_mass_chain(EFFECTIVE_MASS_CHAIN_MASSES, 1.0, EFFECTIVE_MASS_PER_NODE)
+    )
+
+    result = solver.solve(num_modes=EFFECTIVE_MASS_CHAIN_MASSES, sparse=False)
+
+    total = EFFECTIVE_MASS_CHAIN_MASSES * EFFECTIVE_MASS_PER_NODE
+    recovered = float(np.sum(result.effective_masses(DOF.UX)))
+    assert abs(recovered / total - 1.0) <= EFFECTIVE_MASS_RTOL
+    # Mass normalization is what makes ``m_eff = L^2`` in MS-1.4; assert it
+    # rather than assume it, since the completeness relation depends on it.
+    np.testing.assert_allclose(result.modal_masses, 1.0, rtol=EFFECTIVE_MASS_RTOL)
+
+
+@criterion("AC-MODAL-007")
+@pytest.mark.parametrize("direction", [DOF.UX, DOF.UY, DOF.UZ])
+def test_ac_modal_007_completeness_holds_in_every_translational_direction(direction):
+    """``sum_j m_eff,j = r^T M r`` per direction over the complete basis."""
+    solver = ModalSolver(_pyramid_truss())
+    system = solver.system
+
+    result = solver.solve(num_modes=system.num_free_dofs, sparse=False)
+
+    influence = _influence_vector(system, direction)
+    total = float(influence @ (system.M @ influence))
+    assert total > 0.0
+    recovered = float(np.sum(result.effective_masses(direction)))
+    assert abs(recovered / total - 1.0) <= EFFECTIVE_MASS_RTOL, (
+        f"{direction.name}: {recovered:.12g} vs {total:.12g}"
+    )
+
+
+@criterion("AC-MODAL-007")
+def test_ac_modal_007_a_truncated_basis_does_not_close_the_sum():
+    """"Complete basis" is load-bearing: the gate fails for any smaller one."""
+    solver = ModalSolver(
+        spring_mass_chain(EFFECTIVE_MASS_CHAIN_MASSES, 1.0, EFFECTIVE_MASS_PER_NODE)
+    )
+    total = EFFECTIVE_MASS_CHAIN_MASSES * EFFECTIVE_MASS_PER_NODE
+
+    partial = [
+        float(np.sum(solver.solve(num_modes=k, sparse=False).effective_masses(DOF.UX)))
+        for k in range(1, EFFECTIVE_MASS_CHAIN_MASSES + 1)
+    ]
+
+    assert partial == sorted(partial), "adding a mode can only add effective mass"
+    assert partial[-1] == pytest.approx(total, rel=EFFECTIVE_MASS_RTOL)
+    assert partial[-2] < total * (1.0 - EFFECTIVE_MASS_RTOL)
+
+
+# --------------------------------------------------------------- AC-MODAL-008
+
+WINDOW_CHAIN_MASSES = 12
+#: Windows over the fixed-free chain spectrum, all with bounds strictly between
+#: two eigenvalues so the contents do not depend on how a bound is rounded. The
+#: expected contents come from the dense reference, never hard-coded. The
+#: closed-interval behaviour on a bound is pinned separately below.
+WINDOW_CASES = ("low", "interior", "empty", "everything")
+
+
+def _window_reference() -> np.ndarray:
+    """Every frequency of the window chain, from a full dense extraction."""
+    solver = ModalSolver(spring_mass_chain(WINDOW_CHAIN_MASSES, 1.0, 1.0))
+    return solver.solve(num_modes=WINDOW_CHAIN_MASSES, sparse=False).frequencies
+
+
+def _window_bounds(case: str, reference: np.ndarray) -> tuple[float, float]:
+    if case == "low":
+        return 0.0, float(0.5 * (reference[2] + reference[3]))
+    if case == "interior":
+        return (
+            float(0.5 * (reference[3] + reference[4])),
+            float(0.5 * (reference[7] + reference[8])),
+        )
+    if case == "empty":
+        gap = float(reference[1] - reference[0])
+        return float(reference[0] + 0.3 * gap), float(reference[0] + 0.7 * gap)
+    return 0.0, float(2.0 * reference[-1])
+
+
+@criterion("AC-MODAL-008")
+@pytest.mark.parametrize("case", WINDOW_CASES)
+@pytest.mark.parametrize("backend", sorted(BACKENDS))
+def test_ac_modal_008_a_window_returns_exactly_the_dense_reference_contents(case, backend):
+    """``f in [f_lo, f_hi]`` selects the reference modes and nothing else."""
+    reference = _window_reference()
+    low, high = _window_bounds(case, reference)
+    expected = reference[(reference >= low) & (reference <= high)]
+    solver = ModalSolver(spring_mass_chain(WINDOW_CHAIN_MASSES, 1.0, 1.0))
+
+    # Headroom over the window contents, so nothing is truncated, but still
+    # under the ARPACK ``k < n - 1`` limit wherever the window is narrow enough
+    # for the Lanczos path to be the one actually taken.
+    result = solver.solve(
+        num_modes=min(WINDOW_CHAIN_MASSES, expected.size + 2),
+        freq_window=(low, high),
+        **BACKENDS[backend],
+    )
+
+    assert result.num_modes == expected.size, (
+        f"{case}/{backend}: {result.frequencies} vs {expected}"
+    )
+    if expected.size:
+        assert np.max(relative_error(result.frequencies, expected)) <= BACKEND_FREQUENCY_RTOL
+    assert result.meta["modes_in_window"] == expected.size
+    assert result.meta["expected_in_window"] == expected.size
+
+
+@criterion("AC-MODAL-008")
+def test_ac_modal_008_a_mode_exactly_on_a_bound_is_inside_the_window():
+    """The window is closed, so its bounds cannot drop a mode to round-off."""
+    reference = _window_reference()
+    low, high = float(reference[2]), float(reference[6])
+    solver = ModalSolver(spring_mass_chain(WINDOW_CHAIN_MASSES, 1.0, 1.0))
+
+    result = solver.solve(num_modes=WINDOW_CHAIN_MASSES, freq_window=(low, high), sparse=False)
+
+    assert result.num_modes == 5
+    assert result.frequencies[0] == pytest.approx(low, rel=BACKEND_FREQUENCY_RTOL)
+    assert result.frequencies[-1] == pytest.approx(high, rel=BACKEND_FREQUENCY_RTOL)
+
+
+@criterion("AC-MODAL-008")
+def test_ac_modal_008_the_inertia_count_agrees_with_the_dense_reference():
+    """The guard's Sylvester count is the number the dense spectrum shows.
+
+    Counted without extracting a single mode, which is what makes the guard
+    independent of the extraction it is checking.
+    """
+    solver = ModalSolver(spring_mass_chain(WINDOW_CHAIN_MASSES, 1.0, 1.0))
+    K, M = solver.system.reduced()
+    reference = _window_reference()
+
+    for case in WINDOW_CASES:
+        low, high = _window_bounds(case, reference)
+        inside = int(np.count_nonzero((reference >= low) & (reference < high)))
+        counted = eigenvalue_count_in_range(
+            dense(K), dense(M), (2.0 * np.pi * low) ** 2, (2.0 * np.pi * high) ** 2
+        )
+        assert counted == inside, f"{case}: inertia count {counted}, reference {inside}"
+
+
+@criterion("AC-MODAL-008")
+@pytest.mark.parametrize("backend", sorted(BACKENDS))
+def test_ac_modal_008_an_unfillable_window_warns_about_the_missed_modes(backend):
+    """Capping ``num_modes`` below the window contents must not look complete."""
+    reference = _window_reference()
+    low, high = _window_bounds("everything", reference)
+    solver = ModalSolver(spring_mass_chain(WINDOW_CHAIN_MASSES, 1.0, 1.0))
+
+    with pytest.warns(MissedModesWarning, match="holds 12 modes but only 3"):
+        result = solver.solve(
+            num_modes=3, freq_window=(low, high), **BACKENDS[backend]
+        )
+
+    assert result.num_modes == 3
+    assert result.meta["expected_in_window"] == WINDOW_CHAIN_MASSES
+
+
+@criterion("AC-MODAL-008")
+def test_ac_modal_008_strict_turns_the_missed_modes_into_an_error():
+    """P1 escalation: the same run under ``strict=True`` refuses to return."""
+    reference = _window_reference()
+    low, high = _window_bounds("everything", reference)
+    solver = ModalSolver(spring_mass_chain(WINDOW_CHAIN_MASSES, 1.0, 1.0))
+
+    with pytest.raises(SolverError, match="holds 12 modes but only 3"):
+        solver.solve(num_modes=3, freq_window=(low, high), sparse=False, strict=True)
+
+    # The same request without the cap is complete, so it is the truncation and
+    # not the window itself that the guard objects to.
+    complete = solver.solve(
+        num_modes=WINDOW_CHAIN_MASSES, freq_window=(low, high), sparse=False, strict=True
+    )
+    assert complete.num_modes == WINDOW_CHAIN_MASSES
+
+
+@criterion("AC-MODAL-008")
+def test_ac_modal_008_skipping_the_inertia_check_is_recorded_not_assumed():
+    """A skipped guard reports ``None``, never a count it did not compute."""
+    reference = _window_reference()
+    low, high = _window_bounds("everything", reference)
+    solver = ModalSolver(spring_mass_chain(WINDOW_CHAIN_MASSES, 1.0, 1.0))
+
+    result = solver.solve(
+        num_modes=3, freq_window=(low, high), sparse=False, missed_mode_check=False
+    )
+
+    assert result.num_modes == 3
+    assert result.meta["expected_in_window"] is None
+
+
+@criterion("AC-MODAL-008")
+@pytest.mark.parametrize("window", [(-1.0, 1.0), (2.0, 1.0)])
+def test_ac_modal_008_an_impossible_window_is_rejected(window):
+    """``0 <= f_lo <= f_hi`` is a precondition, not a thing to interpret."""
+    solver = ModalSolver(spring_mass_chain(4, 1.0, 1.0))
+
+    with pytest.raises(SolverError, match="freq_window"):
+        solver.solve(num_modes=2, freq_window=window)
+
+
+# --------------------------------------------------------------- AC-MODAL-009
+
+#: A 2-DOF chain, the smallest well-posed problem to corrupt one input of.
+VALID_K = np.array([[2.0, -1.0], [-1.0, 1.0]])
+VALID_M = np.eye(2)
+
+
+def _solve(K, M, **kwargs):
+    return ModalSolver.from_matrices(K, M).solve(num_modes=2, sparse=False, **kwargs)
+
+
+@criterion("AC-MODAL-009")
+@pytest.mark.parametrize("corrupted", ["K", "M"])
+def test_ac_modal_009_an_asymmetric_matrix_raises_before_it_is_symmetrized(corrupted):
+    """MS-1.1 symmetrizes silently, so it has to refuse what it cannot repair."""
+    K, M = VALID_K.copy(), VALID_M.copy()
+    matrix = K if corrupted == "K" else M
+    matrix[0, 1] += 0.25
+
+    with pytest.raises(MatrixSymmetryError) as excinfo:
+        _solve(K, M)
+
+    error = excinfo.value
+    assert corrupted in str(error)
+    assert error.tolerance == SYMMETRY_TOL
+    assert error.asymmetry > SYMMETRY_TOL
+    # The symmetrized problem would have solved happily, which is exactly the
+    # plausible wrong answer the guard exists to prevent.
+    symmetric = 0.5 * (matrix + matrix.T)
+    if corrupted == "K":
+        assert _solve(symmetric, M).num_modes == 2
+    else:
+        assert _solve(K, symmetric).num_modes == 2
+
+
+@criterion("AC-MODAL-009")
+def test_ac_modal_009_asymmetry_inside_the_tolerance_is_repaired_not_rejected():
+    """The gate is a tolerance: assembly round-off must still go through."""
+    K = VALID_K.copy()
+    K[0, 1] += 0.1 * SYMMETRY_TOL * float(np.max(np.abs(K)))
+
+    result = _solve(K, VALID_M)
+
+    exact = _solve(VALID_K, VALID_M)
+    assert np.max(relative_error(result.eigenvalues, exact.eigenvalues)) <= 1e-9
+
+
+@criterion("AC-MODAL-009")
+@pytest.mark.parametrize(
+    ("case", "mass"),
+    [
+        ("negative_mass_dof", np.diag([1.0, -1.0])),
+        ("indefinite_coupling", np.array([[1.0, 2.0], [2.0, 1.0]])),
+    ],
+)
+def test_ac_modal_009_an_indefinite_mass_matrix_raises_the_definiteness_error(case, mass):
+    """Both flavours of indefinite ``M`` land on the same typed failure."""
+    with pytest.raises(MatrixDefinitenessError):
+        _solve(VALID_K, mass)
+
+
+@criterion("AC-MODAL-009")
+def test_ac_modal_009_a_negative_eigenvalue_beyond_the_noise_floor_raises():
+    """An unstable model is reported, not clipped to a 0 Hz rigid-body mode."""
+    K = np.diag([1.0, -1.0])
+
+    with pytest.raises(MatrixDefinitenessError) as excinfo:
+        _solve(K, VALID_M)
+
+    error = excinfo.value
+    assert error.eigenvalue == pytest.approx(-1.0)
+    assert error.floor < 0.0
+    # A free-free structure has eigenvalues at the floor rather than past it,
+    # so the guard separates round-off around zero from genuine instability.
+    free_free = ModalSolver.from_matrices(*free_free_chain_matrices(4)).solve(
+        num_modes=4, sparse=False
+    )
+    assert free_free.eigenvalues[0] == 0.0
+
+
+@criterion("AC-MODAL-009")
+@pytest.mark.parametrize("value", [np.nan, np.inf])
+def test_ac_modal_009_non_finite_entries_do_not_propagate_into_the_result(value):
+    """A NaN in the input must stop the solve, not come back as a NaN frequency."""
+    K = VALID_K.copy()
+    K[1, 1] = value
+
+    with pytest.raises(SolverError, match="NaN or infinite"):
+        _solve(K, VALID_M)
+
+
+@criterion("AC-MODAL-009")
+@pytest.mark.parametrize(
+    ("kwargs", "match"),
+    [
+        ({"num_modes": 0}, "num_modes"),
+        ({"num_modes": 2, "normalization": "unit-torque"}, "normalization"),
+    ],
+)
+def test_ac_modal_009_invalid_requests_are_typed_failures_too(kwargs, match):
+    """The same contract covers the request, not only the matrices."""
+    solver = ModalSolver.from_matrices(VALID_K, VALID_M)
+
+    with pytest.raises(SolverError, match=match):
+        solver.solve(**kwargs)
+
+
+@criterion("AC-MODAL-009")
+def test_ac_modal_009_every_declared_failure_is_an_openfemlab_error():
+    """One hierarchy, so a caller can catch the whole solver in one clause."""
+    for failure in (
+        MatrixSymmetryError,
+        MatrixDefinitenessError,
+        SolverConvergenceError,
+        SolverError,
+    ):
+        assert issubclass(failure, OpenFEMLabError)
+    assert issubclass(MatrixSymmetryError, SolverError)
+    assert issubclass(MatrixDefinitenessError, SolverError)
+
+
+@criterion("AC-MODAL-009")
+def test_ac_modal_009_the_solver_carries_no_bare_assertions():
+    """``assert`` vanishes under ``python -O``; a validation gate may not."""
+    source = Path(modal_module.__file__).read_text(encoding="utf-8")
+    asserts = [
+        node.lineno
+        for node in ast.walk(ast.parse(source))
+        if isinstance(node, ast.Assert)
+    ]
+    assert not asserts, f"bare assert statements at lines {asserts} of solver/modal.py"
