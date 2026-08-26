@@ -10,14 +10,16 @@ Implemented here
   ``|g| <= 1e-6``.
 - **AC-OPT-003** (contract, MS-5.2) — every recorded iterate satisfies the box
   to 1e-12, *and* no objective or constraint evaluation is requested outside
-  it: the reference model records every parameter point it is asked for.
+  it: the reference model records every parameter point it is asked for.  A
+  third case puts the optimum itself on a bound, where the contract is hardest
+  to keep and the reported KKT measure needs a bound multiplier to be right.
 - **AC-OPT-004** (twin, MS-5.2) — across a mode crossing the constraint stays
   attached to the physical branch (MAC >= 0.9 against the previous iterate)
   and the active-constraint report names it consistently.
 
 Reference problems
 ------------------
-Both AC-OPT-002 problems are solved analytically rather than against a stored
+The AC-OPT-002 problems are solved analytically rather than against a stored
 run, and each is the smallest system that makes its constraint bind.
 
 *Sized oscillator* — the scenario the criteria document describes (minimize
@@ -38,12 +40,31 @@ For ``K = [[2, -1], [-1, 2]]`` the mode ``phi = (1, 1)`` equalizes
 ``dlambda_1/dm_j = -lambda_1 phi_j^2``, so the stationary split is the even
 one: ``m_1 = m_2 = m_req / 2`` with ``lambda_1 = 2 / m_req``.  The mass floor
 is active because a lighter structure would be stiffer still.
+
+*Sized chain* — a two-group version of the sized oscillator, added because the
+optimum of the other two is recoverable by a method that never has to choose
+between the variables: the oscillator has one, and the payload optimum is the
+symmetric point.  Here the two spring groups of a fixed-free two-mass chain are
+sized independently, each carrying ``eps`` of mass per unit of stiffness::
+
+    K(k) = [[k1 + k2, -k2], [-k2, k2]]      M(k) = (1 + eps S) I,  S = k1 + k2
+
+``det(K - mu I) = mu^2 - (k1 + 2 k2) mu + k1 k2``, and since ``M`` is a multiple
+of the identity, ``lambda = mu / (1 + eps S)``.  Total mass ``2 (1 + eps S)`` is
+increasing in ``S``, so the objective is ``S``; at fixed ``S`` the fundamental
+is largest for the split ``(3S/5, 2S/5)``, where the characteristic polynomial
+becomes ``mu^2 - 1.4 S mu + 0.24 S^2`` with roots ``S/5`` and ``6S/5``.  The
+floor therefore first becomes reachable at ``S* = lambda*/(1/5 - eps lambda*)``
+and only at that split, so the optimum is the single asymmetric point
+``k* = (3 S*/5, 2 S*/5)`` with mass ``2 (1 + eps S*)``.  With ``eps = 1/10`` and
+``lambda* = 1``: ``k* = (6, 4)`` at mass 4, exactly.
 """
 
 from __future__ import annotations
 
 import numpy as np
 import pytest
+from scipy.optimize import brentq
 
 from openfemlab.correlation import mac_value
 from openfemlab.optimization import (
@@ -311,6 +332,154 @@ def test_a_run_started_on_a_bound_stays_on_the_feasible_side():
     lower, upper = problem.bounds
     assert all(iterate.in_bounds for iterate in result.history)
     assert np.all(result.x >= lower - BOUND_TOL) and np.all(result.x <= upper + BOUND_TOL)
+
+
+# ---------------------------------------------------------------------------
+# Sized chain — an optimum that is neither one-dimensional nor symmetric
+# ---------------------------------------------------------------------------
+
+#: Mass carried per unit of stiffness, and the frequency floor as an eigenvalue.
+CHAIN_COUPLING = 0.1
+CHAIN_LAMBDA = 1.0
+
+#: Closed-form optimum of the sized chain (see the module docstring).
+CHAIN_S_STAR = CHAIN_LAMBDA / (0.2 - CHAIN_COUPLING * CHAIN_LAMBDA)
+CHAIN_K_STAR = np.array([0.6 * CHAIN_S_STAR, 0.4 * CHAIN_S_STAR])
+
+
+def _chain_eigenvalue(k1: float, k2: float) -> float:
+    """``lambda_1`` of the sized chain, computed without the code under test."""
+    stiffness = np.array([[k1 + k2, -k2], [-k2, k2]])
+    return float(np.linalg.eigvalsh(stiffness)[0]) / (
+        1.0 + CHAIN_COUPLING * (k1 + k2)
+    )
+
+
+def _chain_mass(k1: float, k2: float) -> float:
+    return 2.0 * (1.0 + CHAIN_COUPLING * (k1 + k2))
+
+
+def _sized_chain(lower=(0.5, 0.5), start=(8.0, 8.0)):
+    stiffness_parts, _ = spring_chain_parts(2, ((1,), (2,)), ())
+    carried = CHAIN_COUPLING * np.eye(2)
+    model = ScalingModel(
+        stiffness_parts=stiffness_parts,
+        mass_parts={name: carried for name in stiffness_parts},
+        base_mass=np.eye(2),
+    )
+    params = [
+        UpdatableParameter(name, value=value, lower=lo, upper=20.0)
+        for name, value, lo in zip(("k1", "k2"), start, lower, strict=True)
+    ]
+    return model, params
+
+
+#: The chain deliberately does *not* pass the exact zero objective Hessian the
+#: sized oscillator uses.  Here the curvature lives entirely in the frequency
+#: constraint, whose Hessian the backend neglects; declaring the objective's
+#: exact zero as well leaves the trust-region subproblem with no curvature at
+#: all, and the run stalls at 2e-3 relative instead of converging.  Keeping the
+#: quasi-Newton objective Hessian costs scipy's "delta_grad == 0.0" warning on
+#: every step -- the exact linearity it is complaining about is the reason.
+CHAIN_LINEAR_OBJECTIVE_WARNING = "ignore:delta_grad == 0.0:UserWarning"
+
+
+def _solve_sized_chain(backend: str, model, params, **kwargs):
+    problem, _ = compile_sizing_problem(
+        model,
+        params,
+        Objective(TotalMass()),
+        [frequency_floor(0, f_min=np.sqrt(CHAIN_LAMBDA) / TWO_PI)],
+    )
+    return problem, problem.solve(backend, **kwargs)
+
+
+@criterion("AC-OPT-002")
+def test_the_sized_chain_optimum_is_the_constrained_minimum():
+    """Guard the oracle before gating against it.
+
+    The closed form is only an oracle if it is the constrained minimum: it has
+    to sit exactly on the frequency floor, with no neighbouring design both
+    feasible and lighter.
+    """
+    assert np.allclose(CHAIN_K_STAR, [6.0, 4.0])
+    assert _chain_eigenvalue(*CHAIN_K_STAR) == pytest.approx(CHAIN_LAMBDA, abs=1e-14)
+    assert _chain_mass(*CHAIN_K_STAR) == pytest.approx(4.0, abs=1e-14)
+
+    optimal_mass = _chain_mass(*CHAIN_K_STAR)
+    angles = np.linspace(0.0, 2.0 * np.pi, 24, endpoint=False)
+    for radius in (1e-3, 1e-2, 1e-1):
+        for angle in angles:
+            k = CHAIN_K_STAR + radius * np.array([np.cos(angle), np.sin(angle)])
+            lighter = _chain_mass(*k) < optimal_mass - 1e-15
+            feasible = _chain_eigenvalue(*k) >= CHAIN_LAMBDA
+            assert not (lighter and feasible), f"{k} beats the claimed optimum"
+
+
+@criterion("AC-OPT-002")
+@pytest.mark.filterwarnings(CHAIN_LINEAR_OBJECTIVE_WARNING)
+@pytest.mark.parametrize("backend", BACKENDS)
+def test_sized_chain_reaches_its_asymmetric_optimum(backend):
+    """Both variables must be sized *differently*: k* = (6, 4), mass 4."""
+    model, params = _sized_chain()
+    problem, result = _solve_sized_chain(
+        backend, model, params, tol=1e-10, max_iter=300
+    )
+
+    assert result.converged, result.message
+    expected = _chain_mass(*CHAIN_K_STAR)
+    assert abs(result.objective - expected) / expected <= OBJECTIVE_RTOL
+    assert result.x == pytest.approx(CHAIN_K_STAR, abs=1e-4)
+    assert result.max_violation <= ACTIVE_TOL
+    # The starting point is symmetric, so the split is the solver's doing.
+    assert problem.x0[0] == problem.x0[1]
+    if backend == "slsqp":
+        assert abs(result.max_violation) <= ACTIVE_TOL
+        assert result.active_set == [problem.constraints[0].name]
+
+
+@criterion("AC-OPT-003")
+@pytest.mark.filterwarnings(CHAIN_LINEAR_OBJECTIVE_WARNING)
+@pytest.mark.parametrize("backend", BACKENDS)
+def test_a_bound_tighter_than_the_free_optimum_is_never_crossed(backend):
+    """With the optimum *on* a bound, the run works along the boundary.
+
+    Raising the lower bound of ``k2`` above its free optimum (4) moves the
+    solution onto that bound, instead of approaching it from well inside.  The
+    oracle is the smallest ``k1`` still meeting the floor at ``k2 = 5``,
+    bracketed below the interior maximum of ``lambda_1(., 5)``.
+
+    The two methods arrive differently, so the objective gate is the
+    criterion's 1e-4 rather than machine precision: SLSQP is an active-set
+    method and lands on the bound exactly, trust-constr is a barrier method and
+    stops a barrier width inside it.  What both must satisfy exactly is the
+    *direction* of the error — neither may end up, or evaluate, below the bound.
+    """
+    floor = 5.0
+    expected_k1 = brentq(
+        lambda k1: _chain_eigenvalue(k1, floor) - CHAIN_LAMBDA,
+        0.5,
+        1.5 * floor,
+        xtol=1e-15,
+        rtol=8.9e-16,
+    )
+    model, params = _sized_chain(lower=(0.5, floor), start=(9.0, 9.0))
+    _, result = _solve_sized_chain(
+        backend, _recording(model), params, tol=1e-10, max_iter=300
+    )
+
+    assert result.converged, result.message
+    expected_mass = _chain_mass(expected_k1, floor)
+    assert result.objective == pytest.approx(expected_mass, rel=OBJECTIVE_RTOL)
+    assert result.x == pytest.approx([expected_k1, floor], abs=1e-3)
+
+    assert result.x[1] >= floor - BOUND_TOL
+    assert min(values["k2"] for values in model.requested) >= floor - BOUND_TOL
+    assert all(iterate.in_bounds for iterate in result.history)
+    # The KKT residual only vanishes here if the bound carries a multiplier of
+    # its own; fitting the constraint multiplier first and projecting the bound
+    # out afterwards leaves ~2.6e-2 behind in the free component.
+    assert result.stationarity <= 1e-6
 
 
 # ---------------------------------------------------------------------------
