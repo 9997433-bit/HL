@@ -1,0 +1,185 @@
+/* ==========================================================================
+   components.css — 识字 App / 数学 App 共享基础组件类（.btn / .card）
+   ==========================================================================
+   规范：.agent_workspace/ui-ux-design-spec.md §7（组件规范）
+   前置：必须在 shared/styles/design-tokens.css 之后引入——
+         本文件只引用语义令牌与尺寸/动效令牌，四主题
+         （sunny / care / night / cosmos）下无需任何覆盖即可用。
+   引入顺序（各 App 入口 CSS）：
+     1. @import '@shared/styles/design-tokens.css';
+     2. @import '@shared/styles/components.css';
+     3. App 本地样式（过渡期的本地 .btn/.card 副本按后声明覆盖本层，
+        迁移完成后删除，见 .agent_workspace/design-tokens-migration.md）
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   按钮 .btn — 药丸形 + 3px 实体压边，儿童界面默认高度 --btn-h-md(56px)
+   -------------------------------------------------------------------------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--gap-xs);
+  min-height: var(--btn-h-md);
+  min-width: var(--tap-min);
+  padding: 0 var(--gap-lg);
+  border: none;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-round);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-heavy);
+  line-height: var(--lh-tight);
+  color: var(--text-strong);
+  background: var(--surface-strong);
+  box-shadow: var(--shadow-sm), var(--shadow-press);
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition:
+    transform var(--dur-fast) var(--ease-pop),
+    box-shadow var(--dur-fast) ease,
+    filter var(--dur-fast) ease;
+}
+
+.btn:hover:not(:disabled) {
+  filter: brightness(1.04);
+}
+
+/* 按下：3px 位移吃掉压边阴影，模拟实体按键（规范 §6.2：90ms 按下） */
+.btn:active:not(:disabled) {
+  transform: translateY(3px);
+  box-shadow: var(--shadow-sm);
+  transition-duration: var(--dur-instant);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* ---------- 语义变体（主按钮同屏唯一） ---------- */
+
+.btn--primary {
+  background: linear-gradient(180deg, var(--brand) 0%, var(--brand-strong) 100%);
+  color: var(--text-invert);
+}
+
+.btn--accent {
+  background: linear-gradient(
+    180deg,
+    var(--accent) 0%,
+    color-mix(in srgb, var(--accent) 78%, #000 22%) 100%
+  );
+  color: var(--text-invert);
+}
+
+/* 幽灵按钮：仅家长面板使用（规范 §7.1） */
+.btn--ghost {
+  background: var(--surface);
+  border: 2px solid var(--surface-border);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ---------- 尺寸变体 ---------- */
+
+/* 44px：仅家长面板，儿童界面禁用 */
+.btn--sm {
+  min-height: var(--btn-h-sm);
+  min-width: var(--btn-h-sm);
+  padding: 0 var(--gap-md);
+  font-size: var(--fs-sm);
+}
+
+.btn--lg {
+  min-height: var(--btn-h-lg);
+  min-width: 96px;
+  padding: 0 var(--gap-xl);
+  font-size: 1.2rem;
+}
+
+.btn--hero {
+  min-height: var(--btn-h-hero);
+  min-width: 160px;
+  padding: 0 var(--gap-2xl);
+  font-size: 1.35rem;
+}
+
+/* ---------- 布局变体 ---------- */
+
+.btn--icon {
+  min-width: var(--btn-h-md);
+  padding: 0 var(--gap-md);
+}
+
+.btn--block {
+  display: flex;
+  width: 100%;
+}
+
+/* --------------------------------------------------------------------------
+   卡片 .card — 圆角面板，四主题经 --surface* / --shadow-* 自适应
+   -------------------------------------------------------------------------- */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  padding: var(--card-pad);
+  color: var(--text);
+  backdrop-filter: blur(6px);
+}
+
+.card--flat {
+  box-shadow: var(--shadow-sm);
+}
+
+.card--strong {
+  background: var(--surface-strong);
+  backdrop-filter: none;
+}
+
+.card--sunken {
+  background: var(--surface-sunken);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+/* 辉光卡：当前任务/可交互高亮；care 主题 --shadow-glow 为 none 自动禁用 */
+.card--glow {
+  box-shadow: var(--shadow-md), var(--shadow-glow);
+}
+
+/* 可点卡片：与按钮同款按压手感与焦点环 */
+.card--tap {
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    transform var(--dur-fast) var(--ease-pop),
+    box-shadow var(--dur-fast) ease;
+}
+
+.card--tap:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+.card--tap:active {
+  transform: translateY(1px) scale(0.99);
+  box-shadow: var(--shadow-sm);
+  transition-duration: var(--dur-instant);
+}
+
+.card--tap:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
