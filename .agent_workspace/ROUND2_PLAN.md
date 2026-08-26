@@ -33,7 +33,7 @@ the imported-shell modal example (A128), and the A121 closure above.
 | Task | Status |
 |---|---|
 | R2-T01 dynamics/FRF | **COMPLETE** — engine (`acda625`), AC-DYN-001..005 **`verified`**, report `frf` block at schema 1.1 (A41), `openfemlab correlate-frf` CLI (A54). |
-| R2-T02 3D elements | **PARTIAL** — all formulations in `core/elements.py` (QUAD4/TET4/HEX8/`BeamElement3D`/`ShellQuad4Element`); `io/neutral_convert.py` binds rod/beam/quad/tet/hex and **`quad4_as="shell"`** (A129). Open: solid/shell BDF cards, folding the shell into the AC-ELEM case table. |
+| R2-T02 3D elements | **PARTIAL** — all formulations in `core/elements.py`; `neutral_convert` with `quad4_as="shell"` (A129); Nastran BDF reads CQUAD4/CTETRA/CHEXA/CBAR + PSHELL/PSOLID (A119). Open: fold shell into AC-ELEM case table. |
 | R2-T03 reduction/expansion | **ACCEPTANCE-COMPLETE** — engine (A36), AC-CORR-006/009 **`verified`**. Open: sparse inputs. |
 | R2-T04 Bayesian MAP | **ACCEPTANCE-COMPLETE** — estimator (A49), AC-UPD-006a/b **`verified`**, σ_post in `CorrectionReport`. Open: σ_post in CLI `update` document. |
 | R2-T05 meshio & IO | **PARTIAL** — meshio bridge (A89), `neutral_convert` (A106), end-to-end `read_meshio` → modal (A128 example). Open: AC-IO-001..003 registration, UNV 2411/2412, UFF writing. |

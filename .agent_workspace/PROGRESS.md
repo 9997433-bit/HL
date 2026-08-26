@@ -79,6 +79,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A129 | parent orchestrator | R2-T02: `neutral_convert` shell branch via `quad4_as="shell"` binding `QUAD4` → `ShellQuad4Element` (+4 tests) | complete — 1335 passed, Ruff clean |
 | A128 | gpt-5.6-sol-xhigh-fast | Example: `read_meshio` → `neutral_to_model(quad4_as="shell")` → modal on plate VTK; README + 中文指南 | complete — example runs 6 modes, 1335 passed |
 | A126 | claude-fable-5-thinking-xhigh | Reconcile ROUND2_PLAN §0 / STATUS / PR_DRAFT to 1331-test / 14-verified snapshot (extended to 44 verified by A121 merge) | complete — §0 re-pinned at `8065205`, 44/44 verified |
+| A119 | claude-opus-5-thinking-high-fast | R2-T02/R2-T05: Nastran BDF CQUAD4/CTETRA/CHEXA/CBAR + PSHELL/PSOLID (+30 tests) | complete — 1365 passed at `9704232`, Ruff clean |
 | A121 | gpt-5.6-sol-xhigh-fast | R2-T09 batch promotion: run every remaining implemented criterion through `promote_verified.py --run --apply` | complete — all 30 promoted; registry 44 `verified` / 0 `implemented` |
 
 ## Reference: FEMtools Core Capabilities
@@ -3451,3 +3452,61 @@ passed, with 273 tagged test cases in the promotion runs:
 The registry moves from **14 `verified` / 30 `implemented`** to
 **44 `verified` / 0 `implemented`**. No criterion was blocked or left at
 `implemented`.
+
+#### A119 — R2-T05: the shell, solid and bar BDF cards
+
+Branch `cursor/bdf-extended-cards-7aa3`, off `cursor/femtools-industrial-7aa3` at
+`d5c1bc0`. This closes the "solid/shell BDF cards" item A114 recorded as the last open
+piece of R2-T02's io side.
+
+**What the reader could not read.** `io/nastran.py` covered `GRID`, `CROD` and `MAT1`.
+That is a rod mesh and nothing else: `QUAD4`, `TET4`, `HEX8` and `BEAM2` all have
+formulations, `neutral_convert` binds all four, and none of them could arrive from a
+`.bdf` at all. A Nastran user's shell model had to detour through meshio, which carries
+geometry but no thickness and no material, so the mesh came in at the converter's
+fallback rather than at what the file said.
+
+**One connectivity card per block.** `CQUAD4` → `QUAD4`, `CTETRA` → `TET4`, `CHEXA` →
+`HEX8`, `CBAR` → `BEAM2`, beside the existing `CROD` → `ROD2`. The pleasant part is that
+Nastran numbers the grids of all four the way `core.elements` expects — a `CQUAD4` runs
+counter-clockwise, a `CTETRA` puts its first three counter-clockwise seen from the
+fourth, a `CHEXA` gives one face then the opposite face in the same order — so
+connectivity passes through unpermuted and the reader owes the element library no
+renumbering table.
+
+**What is read past, and what is refused.** Fields after the grid list are ignored,
+which is what makes a `CBAR`'s orientation vector (or its `G0` form) and a `CQUAD4`'s
+`THETA`/`ZOFFS` harmless. A `CTETRA` or `CHEXA` carrying mid-side grids is *rejected*,
+not truncated to its corners: a reader that silently drops nodes hands back a different
+mesh than the file describes, and a typed error is the only honest answer until TET10
+and HEX20 exist.
+
+**`PSHELL` and `PSOLID`** fill `NeutralModel.properties`, the shell with `t` — the key
+`neutral_convert._THICKNESS_ALIASES` already looks for, so a `CQUAD4` now binds at the
+thickness the deck states and beats the `thickness=` fallback, which a test asserts
+directly. `PSOLID` carries only its material, since `CORDM`/`IN`/`STRESS`/`ISOP`/`FCTN`
+describe integration and output choices that isotropic, fully integrated solids do not
+take from the file. `PROD` and `PBAR` stay out of subset, so a rod or bar deck still
+needs `section=` at conversion — the `read_bdf` docstring now says so instead of leaving
+it to be discovered.
+
+**Continuation lines.** A `CHEXA` needs ten data fields and a small-field line holds
+eight, so the reader could not have read one without them. Card lines are now assembled
+before parsing: a line blank in field 1, or opening with `+` or a comma, appends its
+data fields to the card above it, and columns 73-80 are treated as the marker they are
+rather than as a ninth data field. A continuation whose card was skipped is skipped with
+it, and an orphan one is dropped. Errors still report the card's *first* line, which is
+the line a user has to go edit.
+
+**Three smaller corrections that came with it.** Element ids are unique across all
+connectivity cards now, not within one kind, so a `CROD` and a `CQUAD4` sharing an id is
+the error Nastran says it is. Blocks are emitted in a fixed order, so two decks
+declaring the same elements in a different order produce identical models.
+`meta["element_ids"]` carries only the blocks that exist, instead of always claiming an
+empty `rod2`.
+
+**Verification.** **1365 passed, 0 failed** and `ruff check .` clean at `9704232`, in a
+private worktree at `/tmp/a119` with `PYTHONPATH` pinned to its own `src` — the hazard
+A114 logged was live again, the inherited `PYTHONPATH` pointing at `/tmp/a114`. 30 of
+those tests are the new `tests/test_nastran.py`, which leaves the existing
+`tests/test_nastran_io.py` to hold the `GRID`/`CROD`/`MAT1` core it already covered.
