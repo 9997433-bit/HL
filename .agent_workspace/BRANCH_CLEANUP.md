@@ -4,8 +4,8 @@ Audit date: 2026-08-26
 Initial integration snapshot audited and tested: `cursor/femtools-industrial-7aa3` at `8604807`
 
 These remote branches no longer carry work that should be merged. Delete them after
-review; no GitHub pull request (open or closed) is associated with any of the seven.
-All seven were deleted from `origin` on 2026-08-26.
+review; no GitHub pull request (open or closed) is associated with any of the eight.
+All eight were deleted from `origin` on 2026-08-26.
 
 | Branch | Deleted remote tip | Relationship to trunk | Deletion status |
 |---|---|---|---|
@@ -16,6 +16,7 @@ All seven were deleted from `origin` on 2026-08-26.
 | `cursor/optimization-acceptance-gates-2414` | `00572d8` | The remote tip is an ancestor of trunk and has zero branch-only commits. Its strengthened AC-OPT-002/003 gates and documentation entered trunk through A52's merge. | **Deleted from `origin` as fully merged.** |
 | `cursor/ac-corr-009-tam-orthogonality-113b` | `927f164` | The remote tip is an ancestor of integration tip `9052f95` and has zero branch-only commits. Its AC-CORR-009 registration and `SensorMap.signs` wiring are already integrated. | **Deleted from `origin` as fully merged.** |
 | `cursor/hex8-brick-ac-elem-d0b7` | `226728b` | The remote tip is an ancestor of integration tip `441f80a` and has zero branch-only commits. Its HEX8 implementation and AC-ELEM-001..003 acceptance slice entered the integration history through merge `8a0f10f`. | **Deleted from `origin` as fully merged.** |
+| `cursor/beam3d-cbar-element-c9a7` | `c5433f7` | The remote tip is an ancestor of trunk and has zero branch-only commits. Its `BeamElement3D` formulation, `MeshBuilder.add_beam3d` seam and 42-test suite entered the integration history through merge `75dd070`, verified at that merge as **1089 passed, 0 failed** with `ruff check .` clean. | **Deleted from `origin` as fully merged.** |
 
 Verification for the original five used the fetched remote tips, not potentially stale
 local branch pointers:
@@ -54,6 +55,19 @@ yes
 
 git rev-list --left-right --count 441f80a...226728b
 28  0
+```
+
+The A93 follow-up merged and then verified the eighth branch before deletion. Unlike
+the others it was still *unmerged* when the audit ran, so A93 merged it into the
+integration branch first and confirmed the ancestry afterwards:
+
+```text
+git merge-base --is-ancestor origin/cursor/beam3d-cbar-element-c9a7 \
+                             origin/cursor/femtools-industrial-7aa3
+yes
+
+git rev-list --left-right --count 75dd070...c5433f7
+2  0
 ```
 
 > [!WARNING]
