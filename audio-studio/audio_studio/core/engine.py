@@ -13,7 +13,10 @@ The ring buffer is what keeps the device callback free of file I/O and of the
 GIL-heavy work that would otherwise cause dropouts. Because the feeder talks to
 a ``SampleSource`` rather than to a decoded array, the same transport plays an
 in-memory clip, a file being streamed off disk, and an
-:class:`~audio_studio.core.edit_session.EditSession` document mid-edit.
+:class:`~audio_studio.core.edit_session.EditSession` document mid-edit. An
+optional per-block insert — the live effect rack — runs on the feeder as well,
+so a rack deep enough to miss a deadline costs latency instead of a dropout;
+see :meth:`AudioEngine.set_stream_processor`.
 
 The playhead is derived as ``frames_queued - frames_still_in_ring`` so it
 reports what the listener is actually hearing rather than how far the feeder
@@ -64,6 +67,11 @@ FALLBACK_SAMPLE_RATE: int = 48000
 VOLUME_RAMP_MS: float = 10.0
 
 StateListener = Callable[[TransportState], None]
+
+#: ``processor(block, sample_rate) -> block``. Run on the feeder thread over a
+#: ``(frames, channels)`` float32 block before it reaches the ring buffer; see
+#: :meth:`AudioEngine.set_stream_processor`.
+StreamProcessor = Callable[[np.ndarray, int], np.ndarray]
 
 
 class AudioEngine:
@@ -123,6 +131,8 @@ class AudioEngine:
         self._frames_rendered = 0
         self._render_span = 0
         self._render_time = time.perf_counter()
+
+        self._stream_processor: StreamProcessor | None = None
 
         self._feeder: threading.Thread | None = None
         self._feeder_stop = threading.Event()
@@ -501,6 +511,42 @@ class AudioEngine:
         """
         return self._gain
 
+    # ---------------------------------------------------------------- insert
+
+    @property
+    def stream_processor(self) -> StreamProcessor | None:
+        return self._stream_processor
+
+    def set_stream_processor(self, processor: StreamProcessor | None) -> None:
+        """Install a per-block insert that runs on the **feeder** thread.
+
+        ``processor(block, sample_rate)`` is handed each decoded block on its
+        way into the ring buffer and returns the block to queue — the same
+        shape and dtype, or the input untouched. Running it here rather than in
+        :meth:`render_into` buys it the ring buffer's whole depth as slack: a
+        block that takes longer than its own duration to process costs latency
+        the ring absorbs, where on the device thread it would have cost a
+        dropout.
+
+        The cost is that a parameter change only reaches the speakers once the
+        already-queued blocks have drained, so an insert whose settings must
+        respond instantly wants the device path instead.
+        """
+        self._stream_processor = processor
+
+    def _process_block(self, block: np.ndarray, sample_rate: int) -> np.ndarray:
+        """Run the insert on the feeder thread, falling back to dry audio."""
+        processor = self._stream_processor
+        if processor is None or block.size == 0:
+            return block
+        try:
+            processed = np.asarray(processor(block, sample_rate), dtype=SAMPLE_DTYPE)
+        except Exception:  # noqa: BLE001 - a broken insert must not kill the feeder
+            return block
+        # A processor that changed the block's length would desynchronise the
+        # playhead from the audio, so only a same-shaped result is accepted.
+        return processed if processed.shape == block.shape else block
+
     # ------------------------------------------------------------- listeners
 
     def add_state_listener(self, listener: StateListener) -> None:
@@ -748,12 +794,15 @@ class AudioEngine:
             position = self._source_pos
             generation = self._generation
             scratch = self._scratch
+            sample_rate = source.sample_rate
             n = min(self._block_size, region.end - position)
 
-        # Decoding happens outside the lock. A streaming source touches the disk
-        # here, and the GUI polls :attr:`position` thirty times a second.
+        # Decoding and processing happen outside the lock. A streaming source
+        # touches the disk here, an insert runs a whole effect chain, and the
+        # GUI polls :attr:`position` thirty times a second throughout.
         chunk = scratch[:n]
         decoded = source.read_into(chunk, position)
+        block = self._process_block(chunk[:decoded], sample_rate) if decoded else chunk[:0]
 
         with self._lock:
             if generation != self._generation or ring is not self._ring:
@@ -761,7 +810,7 @@ class AudioEngine:
             if decoded == 0:  # truncated, closed or failed source
                 self._exhausted = True
                 return False
-            written = ring.write(chunk[:decoded])
+            written = ring.write(block)
             self._source_pos = position + written
             return written > 0
 

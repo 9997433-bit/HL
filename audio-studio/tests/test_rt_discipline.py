@@ -6,7 +6,9 @@ timescale and the device's:
 * a fader move is spread over a few milliseconds instead of landing as a step,
   because a step in the waveform is a click;
 * the playhead the UI draws is interpolated between device callbacks, so a
-  30 Hz repaint does not show a 20 ms staircase.
+  30 Hz repaint does not show a 20 ms staircase;
+* the effect rack runs on the feeder thread, ahead of the ring buffer, so a
+  chain that runs long costs latency rather than a dropout.
 
 The signal under test is DC — a constant 1.0 — because then the rendered value
 *is* the gain that was applied to it, and a ramp can be read straight out of
@@ -15,6 +17,7 @@ the output block.
 
 from __future__ import annotations
 
+import threading
 import time
 from collections.abc import Iterator
 
@@ -25,11 +28,14 @@ from audio_studio.core.engine import AudioEngine
 from audio_studio.core.output import NullOutput
 from audio_studio.core.sample_source import MemorySampleSource
 from audio_studio.core.types import AudioBuffer, TransportState
+from audio_studio.dsp.effects import Effect, EffectChain, GainEffect
+from audio_studio.dsp.preview import EffectPreview
 
 RATE = 48_000
 BLOCK = 128
 #: Block big enough (85 ms) that a sleep can be timed against it reliably.
 SLOW_BLOCK = 4096
+HALF_GAIN_DB = -6.0206
 
 
 def dc_source(seconds: float = 1.0, channels: int = 1) -> MemorySampleSource:
@@ -293,3 +299,117 @@ class TestPlayheadInterpolation:
         assert slow.position_seconds_interpolated == pytest.approx(
             slow.position_interpolated / RATE, abs=1e-3
         )
+
+
+class ThreadProbe(Effect):
+    """Records which thread the chain was processed on."""
+
+    name = "Thread probe"
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.threads: set[str] = set()
+
+    def _process_planar(self, audio: np.ndarray, sample_rate: float) -> np.ndarray:
+        self.threads.add(threading.current_thread().name)
+        return audio
+
+
+def half_preview(*, realtime: bool = False) -> EffectPreview:
+    return EffectPreview(
+        NullOutput(realtime=realtime),
+        EffectChain([GainEffect(gain_db=HALF_GAIN_DB, ramp_ms=0.0)]),
+    )
+
+
+class TestEffectsRunAheadOfTheDevice:
+    """DEV-19: the rack belongs on the feeder, not in the device callback."""
+
+    def test_the_engine_takes_the_rack_off_the_device_thread(self) -> None:
+        preview = half_preview()
+        engine = dc_engine(preview)
+        try:
+            engine.play()
+
+            assert preview.runs_on_feeder
+            assert engine.stream_processor == preview.process_block
+        finally:
+            engine.shutdown()
+
+        assert not preview.runs_on_feeder
+        assert engine.stream_processor is None
+
+    def test_the_ring_buffer_already_holds_processed_audio(self) -> None:
+        """The proof that the callback only copies: the queue is wet."""
+        preview = half_preview()
+        engine = dc_engine(preview)
+        try:
+            engine.play()  # primes the ring before the device pulls anything
+
+            queued = engine._ring.peek(BLOCK)  # noqa: SLF001 - the point of the test
+
+            assert np.allclose(queued, 0.5, atol=1e-3)
+            assert preview.processed_blocks > 0
+        finally:
+            engine.shutdown()
+
+    def test_the_chain_never_runs_on_the_device_thread(self) -> None:
+        probe = ThreadProbe()
+        preview = EffectPreview(NullOutput(realtime=True), EffectChain([probe]))
+        engine = AudioEngine(preview, block_size=512, ring_blocks=8)
+        engine.set_source(dc_source())
+        try:
+            engine.play()
+            time.sleep(0.25)
+            engine.stop()
+        finally:
+            engine.shutdown()
+
+        assert probe.threads, "the chain never ran"
+        assert "NullOutput" not in probe.threads, "the rack ran in the device callback"
+        assert "AudioFeeder" in probe.threads
+        assert probe.threads <= {"AudioFeeder", threading.current_thread().name}
+
+    def test_the_master_fader_is_applied_after_the_insert(self) -> None:
+        preview = half_preview()
+        engine = dc_engine(preview)
+        try:
+            engine.volume = 0.5
+            engine.play()
+
+            assert np.allclose(pump(engine), 0.25, atol=1e-3)
+        finally:
+            engine.shutdown()
+
+    def test_a_backend_driven_by_hand_keeps_the_device_path(self) -> None:
+        """Nothing to bind to, so the wrapper processes in its own render()."""
+        preview = half_preview()
+        preview.open(RATE, 1, lambda n: np.ones((n, 1), dtype=np.float32))
+        preview.start()
+        try:
+            block = preview.pump(64)
+
+            assert not preview.runs_on_feeder
+            assert preview.processed_blocks == 1
+            assert np.allclose(block, 0.5, atol=1e-3)
+        finally:
+            preview.close()
+
+    def test_a_raising_effect_on_the_feeder_still_costs_one_block(self) -> None:
+        class Boom(Effect):
+            name = "Boom"
+
+            def _process_planar(self, audio: np.ndarray, sample_rate: float) -> np.ndarray:
+                raise ValueError("bad parameter")
+
+        preview = EffectPreview(NullOutput(realtime=False), EffectChain([Boom()]))
+        engine = dc_engine(preview)
+        try:
+            engine.play()
+            rendered = pump(engine, blocks=2)
+
+            assert preview.failed_blocks > 0
+            assert isinstance(preview.last_error, ValueError)
+            assert np.allclose(rendered, 1.0), "a failing effect must pass the dry block"
+        finally:
+            engine.shutdown()
