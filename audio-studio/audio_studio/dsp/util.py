@@ -195,7 +195,14 @@ def rms_level(audio: np.ndarray) -> float:
     return float(np.sqrt(np.mean(np.square(arr))))
 
 
-def true_peak_level(audio: np.ndarray, oversample: int = 4, *, exact: bool = False) -> float:
+def true_peak_level(
+    audio: np.ndarray,
+    oversample: int = 4,
+    *,
+    exact: bool = False,
+    start: int = 0,
+    stop: int | None = None,
+) -> float:
     """Inter-sample (true) peak estimate, following ITU-R BS.1770 practice.
 
     The signal is polyphase-upsampled by ``oversample`` (4x is the BS.1770
@@ -216,18 +223,30 @@ def true_peak_level(audio: np.ndarray, oversample: int = 4, *, exact: bool = Fal
     bound above is a strict one — the shortcut returns the *same* number as
     interpolating everything. ``exact=True`` does interpolate everything, and
     the tests assert the two agree.
+
+    ``start`` and ``stop`` restrict which *samples are measured* without
+    restricting which are read: the kernel still reaches outside the range for
+    its context. That is what a streaming meter needs, so that the end of a
+    block — where the samples that follow have not arrived yet — is not read as
+    the end of the signal and does not ring.
     """
     arr = np.asarray(audio)
     if arr.size == 0:
         return 0.0
     if oversample <= 1:
+        if start or stop is not None:
+            sliced = arr[..., start : arr.shape[-1] if stop is None else stop]
+            return peak_level(sliced)
         return peak_level(arr)
 
     # float32 carries ~7 digits, four more than any peak read-out resolves, and
     # halves the cost of the interpolation matmul below.
     arr = arr.astype(np.float32, copy=False)
     channels = arr.reshape(1, -1) if arr.ndim == 1 else arr.reshape(-1, arr.shape[-1])
-    return max(_channel_true_peak(channel, int(oversample), exact) for channel in channels)
+    return max(
+        _channel_true_peak(channel, int(oversample), exact, start, stop)
+        for channel in channels
+    )
 
 
 def true_peak_candidate_db(oversample: int = 4) -> float:
@@ -247,29 +266,44 @@ def true_peak_candidate_db(oversample: int = 4) -> float:
     return float(-linear_to_db(np.abs(phases).sum(axis=0).max()))
 
 
-def _channel_true_peak(channel: np.ndarray, oversample: int, exact: bool) -> float:
+def _channel_true_peak(
+    channel: np.ndarray,
+    oversample: int,
+    exact: bool,
+    start: int = 0,
+    stop: int | None = None,
+) -> float:
     """True peak of one channel, interpolating only where the peak can be."""
-    if channel.size == 0:
+    first = max(0, int(start))
+    last = channel.size if stop is None else min(int(stop), channel.size)
+    if last <= first:
         return 0.0
-    if exact or channel.size < _TRUE_PEAK_MIN_SPLIT:
+    length = last - first
+    if exact or length < _TRUE_PEAK_MIN_SPLIT:
         # Phase 0 of the kernel is the identity, so this covers the sample peak.
-        return _interpolated_peak(channel, oversample, 0, channel.size)
+        return _interpolated_peak(channel, oversample, first, last)
 
-    blocks = _block_peaks(channel, TRUE_PEAK_BLOCK)
+    region = channel[first:last]
+    blocks = _block_peaks(region, TRUE_PEAK_BLOCK)
     sample_peak = float(blocks.max())
     if sample_peak <= 0.0:
         return 0.0  # digital silence interpolates to digital silence
 
     threshold = sample_peak * float(db_to_linear(true_peak_candidate_db(oversample)))
-    starts, stops = _candidate_windows(blocks >= threshold, channel.size)
+    starts, stops = _candidate_windows(blocks >= threshold, length)
     covered = int(np.sum(stops - starts))
-    if covered + starts.size * TRUE_PEAK_WINDOW_COST > channel.size:
+    if covered + starts.size * TRUE_PEAK_WINDOW_COST > length:
         # Too little left to skip to pay for the windows: one pass is cheaper.
-        return _interpolated_peak(channel, oversample, 0, channel.size)
+        return _interpolated_peak(channel, oversample, first, last)
 
     peak = sample_peak
-    for start, stop in zip(starts, stops, strict=True):
-        peak = max(peak, _interpolated_peak(channel, oversample, int(start), int(stop)))
+    for window_start, window_stop in zip(starts, stops, strict=True):
+        peak = max(
+            peak,
+            _interpolated_peak(
+                channel, oversample, first + int(window_start), first + int(window_stop)
+            ),
+        )
     return peak
 
 

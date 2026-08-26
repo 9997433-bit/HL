@@ -8,7 +8,11 @@ Quick start::
     spectrogram = analyzer.spectrogram(audio)      # calibrated, dBFS-referenced
     eq = ThreeBandEQ(low_gain_db=3.0, mid_frequency=2_500.0, mid_gain_db=-4.0)
     processed = eq.process(audio, 48_000)
-    LoudnessMeter(48_000).integrated(processed)    # LUFS, ITU-R BS.1770
+    LoudnessMeter(48_000).analyze(processed).check("EBU R128")   # ITU-R BS.1770-4
+
+Restoration lives in :mod:`audio_studio.dsp.repair`: ``DeClickEffect`` for
+impulsive damage, ``DeHumEffect`` for mains interference. Both are ordinary
+rack effects.
 
 All buffers are planar ``(n_channels, n_samples)`` float arrays; mono may be
 passed as plain 1-D. See :mod:`audio_studio.dsp.util` for the conversion
@@ -33,14 +37,30 @@ from .effects import (
     measure_levels,
 )
 from .loudness import (
+    DELIVERY_TARGETS,
+    ComplianceResult,
+    DeliveryTarget,
     LoudnessMeter,
     LoudnessReport,
+    StreamingLoudnessMeter,
     channel_weights,
+    delivery_target,
     format_lufs,
     integrated_loudness,
     k_weighting_sos,
+    true_peak_oversample,
 )
 from .preview import EffectPreview
+from .repair import (
+    ClickEvent,
+    DeClickEffect,
+    DeClickReport,
+    DeHumEffect,
+    HumEstimate,
+    detect_clicks,
+    detect_hum,
+    repair_clicks,
+)
 from .spectral import (
     RealtimeSpectrum,
     SpectralAnalyzer,
@@ -95,15 +115,30 @@ __all__ = [
     "FadeShape",
     "fade_envelope",
     "apply_fade",
+    # restoration
+    "DeClickEffect",
+    "DeClickReport",
+    "ClickEvent",
+    "detect_clicks",
+    "repair_clicks",
+    "DeHumEffect",
+    "HumEstimate",
+    "detect_hum",
     # live preview
     "EffectPreview",
     # loudness
     "LoudnessMeter",
+    "StreamingLoudnessMeter",
     "LoudnessReport",
+    "ComplianceResult",
+    "DeliveryTarget",
+    "DELIVERY_TARGETS",
+    "delivery_target",
     "channel_weights",
     "format_lufs",
     "integrated_loudness",
     "k_weighting_sos",
+    "true_peak_oversample",
     # utils
     "as_planar",
     "as_interleaved",

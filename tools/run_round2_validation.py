@@ -13,8 +13,9 @@ from pathlib import Path
 from typing import Any
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
-if str(REPOSITORY_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPOSITORY_ROOT))
+for search_path in (REPOSITORY_ROOT, REPOSITORY_ROOT / "audio-studio"):
+    if str(search_path) not in sys.path:
+        sys.path.insert(0, str(search_path))
 
 from benchmarks.slo import run_slo_suite
 from tools.ebu_r128 import integrated_loudness, loudness_range
@@ -24,6 +25,11 @@ from tools.ebu_vectors import (
     TECH_3342_VECTORS,
     synthesize_segments,
 )
+
+try:  # The product meter is measured alongside the oracle when it is importable.
+    from audio_studio.dsp.loudness import LoudnessMeter
+except ImportError:  # pragma: no cover - reported in the JSON rather than raised
+    LoudnessMeter = None
 
 DEFAULT_OUTPUT = (
     REPOSITORY_ROOT / ".agent_workspace" / "round2" / "slo-compliance-report.json"
@@ -53,41 +59,88 @@ def _run_pytest() -> dict[str, Any]:
     }
 
 
+def _product_integrated(audio: Any) -> float | None:
+    if LoudnessMeter is None:
+        return None
+    return LoudnessMeter(SAMPLE_RATE).integrated(audio, channels_last=True)
+
+
+def _product_lra(audio: Any) -> float | None:
+    if LoudnessMeter is None:
+        return None
+    return LoudnessMeter(SAMPLE_RATE).loudness_range(audio, channels_last=True)
+
+
+def _case(
+    case_id: str,
+    expected: float,
+    tolerance: float,
+    oracle: float,
+    product: float | None,
+    expected_key: str,
+) -> dict[str, Any]:
+    """One vector's result for both meters, plus the verdict for each."""
+    entry: dict[str, Any] = {
+        "case_id": case_id,
+        expected_key: expected,
+        "tolerance_lu": tolerance,
+        "oracle_lu": round(oracle, 6),
+        "oracle_error_lu": round(oracle - expected, 6),
+        "oracle_status": "pass" if abs(oracle - expected) <= tolerance else "fail",
+    }
+    if product is None:
+        entry["product_status"] = "not-measured"
+        return entry
+    entry["product_lu"] = round(product, 6)
+    entry["product_error_lu"] = round(product - expected, 6)
+    entry["product_status"] = "pass" if abs(product - expected) <= tolerance else "fail"
+    return entry
+
+
 def _compliance_measurements() -> dict[str, Any]:
-    tech_3341: list[dict[str, Any]] = []
+    tech_3341 = []
     for vector in TECH_3341_VECTORS:
         audio = synthesize_segments(vector.segments)
-        measured = integrated_loudness(audio, SAMPLE_RATE)
-        error = measured - vector.expected_integrated_lufs
         tech_3341.append(
-            {
-                "case_id": vector.case_id,
-                "expected_lufs": vector.expected_integrated_lufs,
-                "measured_lufs": round(measured, 6),
-                "error_lu": round(error, 6),
-                "tolerance_lu": 0.1,
-                "status": "pass" if abs(error) <= 0.1 else "fail",
-            }
+            _case(
+                vector.case_id,
+                vector.expected_integrated_lufs,
+                vector.tolerance_lu,
+                integrated_loudness(audio, SAMPLE_RATE),
+                _product_integrated(audio),
+                "expected_lufs",
+            )
         )
 
-    lra_vector = TECH_3342_VECTORS[0]
-    lra_audio = synthesize_segments(lra_vector.segments)
-    measured_lra = loudness_range(lra_audio, SAMPLE_RATE)
-    lra_error = measured_lra - lra_vector.expected_lra_lu
-    tech_3342 = [
-        {
-            "case_id": lra_vector.case_id,
-            "expected_lra_lu": lra_vector.expected_lra_lu,
-            "measured_lra_lu": round(measured_lra, 6),
-            "error_lu": round(lra_error, 6),
-            "tolerance_lu": 1.0,
-            "status": "pass" if abs(lra_error) <= 1.0 else "fail",
-        }
+    tech_3342 = []
+    for vector in TECH_3342_VECTORS:
+        audio = synthesize_segments(vector.segments)
+        tech_3342.append(
+            _case(
+                vector.case_id,
+                vector.expected_lra_lu,
+                vector.tolerance_lu,
+                loudness_range(audio, SAMPLE_RATE),
+                _product_lra(audio),
+                "expected_lra_lu",
+            )
+        )
+
+    statuses = [
+        case[key]
+        for cases in (tech_3341, tech_3342)
+        for case in cases
+        for key in ("oracle_status", "product_status")
     ]
     return {
         "oracle": "tools.ebu_r128 (independent test oracle)",
-        "product_meter_status": "not-available",
-        "product_compliance_claimed": False,
+        "product_meter_status": (
+            "not-importable"
+            if LoudnessMeter is None
+            else "audio_studio.dsp.loudness.LoudnessMeter"
+        ),
+        "product_compliance_claimed": LoudnessMeter is not None
+        and all(status == "pass" for status in statuses),
         "tech_3341": tech_3341,
         "tech_3342": tech_3342,
     }
@@ -99,9 +152,10 @@ def build_report(work_dir: Path) -> dict[str, Any]:
         slo = run_slo_suite(Path(temporary), quick=False)
     compliance = _compliance_measurements()
     compliance_passed = all(
-        case["status"] == "pass"
+        case[key] in ("pass", "not-measured")
         for standard in ("tech_3341", "tech_3342")
         for case in compliance[standard]
+        for key in ("oracle_status", "product_status")
     )
     return {
         "schema_version": 1,
@@ -121,7 +175,10 @@ def build_report(work_dir: Path) -> dict[str, Any]:
         },
         "caveats": [
             "Cloud results are headless proxies, not audio-device or UI SLO certification.",
-            "EBU values validate the independent oracle; no production loudness meter exists.",
+            (
+                "EBU values are measured twice: by the independent oracle and by "
+                "the product meter. A vector only one of them passes is a defect."
+            ),
             "Tech 3342 uses its normative ±1 LU tolerance.",
         ],
     }

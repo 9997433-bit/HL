@@ -13,7 +13,8 @@ from audio_studio.core.loader import LoadedAudio
 from audio_studio.core.output import NullOutput
 from audio_studio.core.peaks import PeakPyramid
 from audio_studio.core.types import TimeRange, TransportState
-from audio_studio.dsp.effects import EffectChain
+from audio_studio.dsp.effects import EffectChain, ThreeBandEQ
+from audio_studio.dsp.repair import DeHumEffect
 from audio_studio.ui.effect_rack import EffectRackPanel, default_preview_chain
 from audio_studio.ui.level_meter import FLOOR_DB, LevelMeter
 from audio_studio.ui.main_window import MainWindow
@@ -340,7 +341,7 @@ class TestEffectRackPanel:
     ) -> None:
         other = default_preview_chain()
         other.mix = 0.6
-        other[0].low.gain_db = -4.0
+        next(e for e in other if isinstance(e, ThreeBandEQ)).low.gain_db = -4.0
 
         rack.set_chain(other)
 
@@ -363,9 +364,67 @@ class TestEffectRackPanel:
         """The panel targets EQ and trim, but must not require them."""
         panel = EffectRackPanel(EffectChain())
         assert panel.eq is None and panel.trim is None
+        assert panel.dehum is None and panel.declick is None
         assert panel.summary() == "FX empty"
         panel.reset()
         panel.eq_low.set_value(3.0)  # no crash without an EQ to write to
+        panel.hum_q.set_value(20.0)
+        panel.declick_sensitivity.set_value(80.0)
+
+    def test_repair_starts_switched_off(self, rack: EffectRackPanel) -> None:
+        """A new session must not be quietly rewriting samples."""
+        assert not rack.dehum.enabled
+        assert not rack.declick.enabled
+        assert "De-Hum" not in rack.summary()
+        assert "De-Click" not in rack.summary()
+
+    def test_the_dehum_controls_reach_the_effect(self, rack: EffectRackPanel) -> None:
+        rack.dehum_enabled.setChecked(True)
+        rack.hum_frequency.setCurrentIndex(2)  # 60 Hz
+        rack.hum_harmonics.setValue(5)
+        rack.hum_q.set_value(45.0)
+
+        assert rack.dehum.enabled
+        assert rack.dehum.frequency == pytest.approx(60.0)
+        assert rack.dehum.harmonics == 5
+        assert rack.dehum.q == pytest.approx(45.0)
+        assert "De-Hum" in rack.summary()
+
+    def test_auto_hum_detection_is_the_first_choice(self, rack: EffectRackPanel) -> None:
+        rack.hum_frequency.setCurrentIndex(1)  # 50 Hz
+        assert not rack.dehum.auto
+        rack.hum_frequency.setCurrentIndex(0)  # Auto
+        assert rack.dehum.auto
+
+    def test_the_declick_controls_reach_the_effect(self, rack: EffectRackPanel) -> None:
+        rack.declick_enabled.setChecked(True)
+        rack.declick_sensitivity.set_value(80.0)
+
+        assert rack.declick.enabled
+        assert rack.declick.sensitivity == pytest.approx(0.8)
+
+    def test_reset_switches_repair_back_off(self, rack: EffectRackPanel) -> None:
+        rack.dehum_enabled.setChecked(True)
+        rack.declick_enabled.setChecked(True)
+
+        rack.reset()
+
+        assert not rack.dehum.enabled and not rack.declick.enabled
+        assert rack.dehum_enabled.isChecked() is False
+        assert rack.declick_enabled.isChecked() is False
+
+    def test_the_panel_reads_repair_state_back_from_a_chain(self, rack: EffectRackPanel) -> None:
+        other = default_preview_chain()
+        dehum = next(e for e in other if isinstance(e, DeHumEffect))
+        dehum.enabled = True
+        dehum.frequency = 60.0
+        dehum.harmonics = 3
+
+        rack.set_chain(other)
+
+        assert rack.dehum_enabled.isChecked()
+        assert rack.hum_frequency.currentIndex() == 2
+        assert rack.hum_harmonics.value() == 3
 
 
 class TestWindowIntegration:

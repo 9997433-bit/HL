@@ -30,12 +30,17 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from audio_studio.dsp import (  # noqa: E402
+    DeClickEffect,
+    DeHumEffect,
     EffectChain,
     FadeEffect,
+    LoudnessMeter,
     NormalizeEffect,
     RealtimeSpectrum,
     SpectralAnalyzer,
+    StreamingLoudnessMeter,
     ThreeBandEQ,
+    detect_clicks,
 )
 
 SAMPLE_RATE = 48_000
@@ -269,6 +274,80 @@ def bench_effects(audio: np.ndarray, duration_s: float, runs: int) -> list[Resul
     return results
 
 
+def bench_restoration(audio: np.ndarray, duration_s: float, runs: int) -> list[Result]:
+    """Repair throughput on damaged material, which is what these are for."""
+    damaged = audio.copy()
+    rng = np.random.default_rng(11)
+    positions = rng.integers(64, damaged.shape[1] - 64, size=int(duration_s * 5))
+    for position in positions:
+        damaged[:, position : position + 2] += 0.7
+
+    hummed = audio.copy()
+    t = np.arange(audio.shape[1], dtype=np.float64) / SAMPLE_RATE
+    for harmonic in range(1, 9):
+        hummed += (0.02 / harmonic) * np.sin(2 * np.pi * 50.0 * harmonic * t)
+    hummed = hummed.astype(audio.dtype)
+
+    operations = [
+        ("declick (detect)", lambda: detect_clicks(damaged, SAMPLE_RATE)),
+        ("declick (repair)", lambda: DeClickEffect().process(damaged, SAMPLE_RATE)),
+        ("dehum (8 harmonics)", lambda: DeHumEffect().process(hummed, SAMPLE_RATE)),
+        ("dehum (auto detect)", lambda: DeHumEffect(frequency="auto").process(hummed, SAMPLE_RATE)),
+    ]
+
+    results = []
+    for name, call in operations:
+        median, best, stdev = timeit(call, runs=max(3, runs // 2))
+        results.append(
+            Result(
+                group="Restoration (stereo, float32, offline)",
+                name=name,
+                audio_seconds=duration_s,
+                median_s=median,
+                best_s=best,
+                stdev_s=stdev,
+                runs=max(3, runs // 2),
+            )
+        )
+    return results
+
+
+def bench_loudness(audio: np.ndarray, duration_s: float, runs: int) -> list[Result]:
+    """BS.1770-4 measurement, offline and block by block."""
+    meter = LoudnessMeter(SAMPLE_RATE)
+    blocks = [audio[:, i : i + 1024] for i in range(0, audio.shape[1], 1024)]
+
+    def stream() -> None:
+        live = StreamingLoudnessMeter(SAMPLE_RATE, n_channels=audio.shape[0])
+        for block in blocks:
+            live.push(block)
+        live.report()
+
+    operations = [
+        ("integrated", lambda: meter.integrated(audio), ""),
+        ("true peak", lambda: meter.true_peak(audio), ""),
+        ("analyze (full report)", lambda: meter.analyze(audio), "M, S, LRA, true peak"),
+        ("streaming, block=1024", stream, "21.3 ms per callback"),
+    ]
+
+    results = []
+    for name, call, detail in operations:
+        median, best, stdev = timeit(call, runs=max(3, runs // 2))
+        results.append(
+            Result(
+                group="Loudness (BS.1770-4, stereo)",
+                name=name,
+                audio_seconds=duration_s,
+                median_s=median,
+                best_s=best,
+                stdev_s=stdev,
+                runs=max(3, runs // 2),
+                detail=detail,
+            )
+        )
+    return results
+
+
 def bench_realtime(duration_s: float, runs: int) -> list[Result]:
     """Live metering path, measured block by block as a device would call it."""
     results = []
@@ -440,6 +519,8 @@ def main(argv: list[str] | None = None) -> int:
         results += bench_threads(audio, duration_s, args.runs)
         results += bench_pipeline(audio, duration_s, args.runs)
         results += bench_effects(audio, duration_s, args.runs)
+        results += bench_restoration(audio, duration_s, args.runs)
+        results += bench_loudness(audio, duration_s, args.runs)
         results += bench_realtime(duration_s, args.runs)
         results += bench_render(args.runs)
 

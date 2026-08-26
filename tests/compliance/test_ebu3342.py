@@ -1,31 +1,62 @@
-"""EBU Tech 3342 LRA compliance skeleton and first reference case."""
+"""EBU Tech 3342 loudness range vectors.
+
+As in the Tech 3341 suite, every case runs through both the independent oracle
+and the application meter. Tech 3342 specifies +-1 LU here rather than the
++-0.1 LU of a loudness reading, because the range is built from a percentile of
+a distribution and moves with the block grid.
+"""
 
 from __future__ import annotations
 
+import numpy as np
 import pytest
+from audio_studio.dsp.loudness import LoudnessMeter
 
 from tools.ebu_r128 import loudness_range
-from tools.ebu_vectors import SAMPLE_RATE, TECH_3342_VECTORS, synthesize_segments
+from tools.ebu_vectors import (
+    LRA_TOLERANCE_LU,
+    SAMPLE_RATE,
+    TECH_3342_VECTORS,
+    synthesize_segments,
+)
 
-# Tech 3342 specifies ±1 LU for LRA (not the ±0.1 LU loudness tolerance in 3341).
-TECH_3342_TOLERANCE_LU = 1.0
+TECH_3342_TOLERANCE_LU = LRA_TOLERANCE_LU
+
+METERS = ("oracle", "product")
 
 
-def test_lra_case_1_two_tone_levels() -> None:
-    vector = TECH_3342_VECTORS[0]
+def measure_lra(meter: str, audio: np.ndarray, sample_rate: int = SAMPLE_RATE) -> float:
+    if meter == "oracle":
+        return loudness_range(audio, sample_rate)
+    return LoudnessMeter(sample_rate).loudness_range(audio, channels_last=True)
+
+
+@pytest.mark.parametrize("meter", METERS)
+@pytest.mark.parametrize("vector", TECH_3342_VECTORS, ids=lambda item: item.case_id)
+def test_loudness_range_reference_vectors(vector, meter: str) -> None:
     audio = synthesize_segments(vector.segments)
 
-    measured = loudness_range(audio, SAMPLE_RATE)
+    measured = measure_lra(meter, audio)
 
-    assert measured == pytest.approx(
-        vector.expected_lra_lu,
-        abs=TECH_3342_TOLERANCE_LU,
-    )
+    assert measured == pytest.approx(vector.expected_lra_lu, abs=vector.tolerance_lu)
 
 
-@pytest.mark.parametrize("vector", TECH_3342_VECTORS)
-def test_remaining_vector_definitions_are_well_formed(vector) -> None:
-    """Keep cases 2/3 visible until the product-meter adapter is connected."""
-    assert vector.case_id.startswith("3342-")
-    assert vector.expected_lra_lu > 0.0
-    assert len(vector.segments) >= 2
+@pytest.mark.parametrize("meter", METERS)
+def test_a_steady_programme_has_no_range(meter: str) -> None:
+    audio = synthesize_segments(((30.0, -23.0),))
+    assert measure_lra(meter, audio) < 1.0
+
+
+def test_the_two_implementations_agree_on_every_vector() -> None:
+    """Different code, same standard: the readings have to land together."""
+    for vector in TECH_3342_VECTORS:
+        audio = synthesize_segments(vector.segments)
+        assert measure_lra("product", audio) == pytest.approx(
+            measure_lra("oracle", audio), abs=TECH_3342_TOLERANCE_LU
+        )
+
+
+def test_the_range_ignores_a_passage_below_the_relative_gate() -> None:
+    """Tech 3342 gates 20 LU down, so a fade to nothing is not 60 LU of range."""
+    audio = synthesize_segments(((20.0, -23.0), (20.0, -80.0)))
+    assert LoudnessMeter(SAMPLE_RATE).loudness_range(audio, channels_last=True) < 1.0

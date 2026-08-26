@@ -9,6 +9,12 @@ is a monitoring insert until the user renders it.
 Two controls sit above the individual effects, matching a mixer's insert slot:
 **Bypass** takes the whole rack out of the path, and **Mix** crossfades the
 processed signal against the untouched one.
+
+The restoration pair (**De-Hum**, **De-Click**) sits at the top of the chain,
+where repair belongs: correcting the recording before shaping it. Both start
+switched off, so a new session's rack is inaudible. De-clicking needs the audio
+on both sides of a click and therefore only applies on render — the panel says
+so rather than leaving the user wondering why preview sounds unchanged.
 """
 
 from __future__ import annotations
@@ -16,17 +22,20 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
     QPushButton,
     QSlider,
+    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
 
 from ..dsp.effects import EffectChain, GainEffect, ThreeBandEQ
+from ..dsp.repair import DeClickEffect, DeHumEffect
 from .theme import PALETTE, Palette
 
 __all__ = ["EffectRackPanel", "default_preview_chain"]
@@ -35,14 +44,39 @@ __all__ = ["EffectRackPanel", "default_preview_chain"]
 GAIN_RANGE_DB = (-24.0, 24.0)
 EQ_RANGE_DB = (-18.0, 18.0)
 
+#: Mains frequency choices offered by the de-hummer, plus auto-detection.
+HUM_CHOICES: tuple[tuple[str, float | str], ...] = (
+    ("Auto", "auto"),
+    ("50 Hz", 50.0),
+    ("60 Hz", 60.0),
+)
+
 
 def default_preview_chain() -> EffectChain:
-    """The rack a new session starts with: a 3-band EQ into a trim.
+    """The rack a new session starts with: repair, then a 3-band EQ into a trim.
 
-    Both are flat, so the chain is inaudible until something is moved, and
-    both stream, so the whole rack works as a live preview.
+    The EQ and trim are flat and the two repair effects are switched off, so
+    the chain is inaudible until something is moved. Everything but the
+    de-clicker streams, and the chain skips that one during preview.
     """
-    return EffectChain([ThreeBandEQ(), GainEffect(gain_db=0.0, ramp_ms=20.0)])
+    return EffectChain(
+        [
+            DeHumEffect(enabled=False),
+            DeClickEffect(enabled=False),
+            ThreeBandEQ(),
+            GainEffect(gain_db=0.0, ramp_ms=20.0),
+        ]
+    )
+
+
+def _hum_choice_index(dehum: DeHumEffect) -> int:
+    """Which entry of :data:`HUM_CHOICES` an effect's setting corresponds to."""
+    if dehum.auto:
+        return 0
+    for index, (_label, value) in enumerate(HUM_CHOICES):
+        if isinstance(value, float) and abs(value - dehum.frequency) < 0.5:
+            return index
+    return 0
 
 
 class _DbSlider(QWidget):
@@ -132,6 +166,8 @@ class EffectRackPanel(QWidget):
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(8)
         layout.addWidget(self._build_master())
+        layout.addWidget(self._build_dehum())
+        layout.addWidget(self._build_declick())
         layout.addWidget(self._build_eq())
         layout.addWidget(self._build_trim())
         layout.addWidget(self._build_footer())
@@ -156,6 +192,59 @@ class EffectRackPanel(QWidget):
         layout.setSpacing(6)
         layout.addWidget(self.bypass_button)
         layout.addWidget(self.mix_slider)
+        return box
+
+    def _build_dehum(self) -> QWidget:
+        box = QGroupBox("De-Hum")
+        self.dehum_enabled = QCheckBox("Enabled")
+        self.dehum_enabled.toggled.connect(lambda on: self._set_enabled(self.dehum, on))
+
+        self.hum_frequency = QComboBox()
+        for label, _value in HUM_CHOICES:
+            self.hum_frequency.addItem(label)
+        self.hum_frequency.setToolTip(
+            "Mains frequency. Auto measures the harmonic stack of the first buffer"
+        )
+        self.hum_frequency.currentIndexChanged.connect(self._on_hum_frequency)
+
+        self.hum_harmonics = QSpinBox()
+        self.hum_harmonics.setRange(1, 12)
+        self.hum_harmonics.setToolTip("Notched harmonics, counting the fundamental")
+        self.hum_harmonics.valueChanged.connect(self._on_hum_harmonics)
+
+        self.hum_q = _DbSlider("Notch Q (narrowness)", 5.0, 60.0, 30.0, suffix="")
+        self.hum_q.valueChanged.connect(self._on_hum_q)
+
+        header = QHBoxLayout()
+        header.setContentsMargins(0, 0, 0, 0)
+        header.addWidget(self.hum_frequency)
+        header.addWidget(self.hum_harmonics)
+
+        layout = QVBoxLayout(box)
+        layout.setContentsMargins(8, 4, 8, 8)
+        layout.setSpacing(4)
+        layout.addWidget(self.dehum_enabled)
+        layout.addLayout(header)
+        layout.addWidget(self.hum_q)
+        return box
+
+    def _build_declick(self) -> QWidget:
+        box = QGroupBox("De-Click")
+        self.declick_enabled = QCheckBox("Enabled (applies on render)")
+        self.declick_enabled.setToolTip(
+            "Interpolates across impulsive damage. Needs the audio either side of "
+            "a click, so it is skipped during live preview"
+        )
+        self.declick_enabled.toggled.connect(lambda on: self._set_enabled(self.declick, on))
+
+        self.declick_sensitivity = _DbSlider("Sensitivity", 0.0, 100.0, 60.0, suffix=" %")
+        self.declick_sensitivity.valueChanged.connect(self._on_declick_sensitivity)
+
+        layout = QVBoxLayout(box)
+        layout.setContentsMargins(8, 4, 8, 8)
+        layout.setSpacing(4)
+        layout.addWidget(self.declick_enabled)
+        layout.addWidget(self.declick_sensitivity)
         return box
 
     def _build_eq(self) -> QWidget:
@@ -224,6 +313,14 @@ class EffectRackPanel(QWidget):
     def trim(self) -> GainEffect | None:
         return next((e for e in self.chain if isinstance(e, GainEffect)), None)
 
+    @property
+    def dehum(self) -> DeHumEffect | None:
+        return next((e for e in self.chain if isinstance(e, DeHumEffect)), None)
+
+    @property
+    def declick(self) -> DeClickEffect | None:
+        return next((e for e in self.chain if isinstance(e, DeClickEffect)), None)
+
     def set_chain(self, chain: EffectChain) -> None:
         """Point the panel at a different chain and re-read its state."""
         self.chain = chain
@@ -237,11 +334,22 @@ class EffectRackPanel(QWidget):
                 self.bypass_button, self.mix_slider.slider, self.eq_enabled,
                 self.eq_low.slider, self.eq_mid.slider, self.eq_high.slider,
                 self.trim_enabled, self.trim_gain.slider, self.polarity,
+                self.dehum_enabled, self.hum_frequency, self.hum_harmonics,
+                self.hum_q.slider, self.declick_enabled, self.declick_sensitivity.slider,
             )
         ]
         try:
             self.bypass_button.setChecked(self.chain.bypass)
             self.mix_slider.set_value(self.chain.mix * 100.0)
+            dehum, declick = self.dehum, self.declick
+            if dehum is not None:
+                self.dehum_enabled.setChecked(dehum.enabled)
+                self.hum_frequency.setCurrentIndex(_hum_choice_index(dehum))
+                self.hum_harmonics.setValue(dehum.harmonics)
+                self.hum_q.set_value(dehum.q)
+            if declick is not None:
+                self.declick_enabled.setChecked(declick.enabled)
+                self.declick_sensitivity.set_value(declick.sensitivity * 100.0)
             eq, trim = self.eq, self.trim
             if eq is not None:
                 self.eq_enabled.setChecked(eq.enabled)
@@ -255,14 +363,27 @@ class EffectRackPanel(QWidget):
         finally:
             for widget, previous in blocked:
                 widget.blockSignals(previous)
-        for slider in (self.mix_slider, self.eq_low, self.eq_mid, self.eq_high, self.trim_gain):
+        for slider in (
+            self.mix_slider, self.eq_low, self.eq_mid, self.eq_high, self.trim_gain,
+            self.hum_q, self.declick_sensitivity,
+        ):
             slider._update_readout()  # noqa: SLF001 - sibling widget, signals were blocked
         self._update_status()
 
     def reset(self) -> None:
-        """Flatten every control without replacing the chain object."""
+        """Flatten every control without replacing the chain object.
+
+        Repair is switched off rather than reset to a default strength: a rack
+        that quietly kept rewriting samples after a reset would be the worst
+        kind of surprise.
+        """
         self.chain.bypass = False
         self.chain.mix = 1.0
+        dehum, declick = self.dehum, self.declick
+        if dehum is not None:
+            dehum.enabled = False
+        if declick is not None:
+            declick.enabled = False
         eq, trim = self.eq, self.trim
         if eq is not None:
             eq.enabled = True
@@ -298,6 +419,31 @@ class EffectRackPanel(QWidget):
     def _set_enabled(self, effect, enabled: bool) -> None:
         if effect is not None:
             effect.enabled = bool(enabled)
+        self._changed()
+
+    def _on_hum_frequency(self, index: int) -> None:
+        dehum = self.dehum
+        if dehum is not None and 0 <= index < len(HUM_CHOICES):
+            dehum.frequency = HUM_CHOICES[index][1]
+            dehum.reset()
+        self._changed()
+
+    def _on_hum_harmonics(self, count: int) -> None:
+        dehum = self.dehum
+        if dehum is not None:
+            dehum.harmonics = int(count)
+        self._changed()
+
+    def _on_hum_q(self, q: float) -> None:
+        dehum = self.dehum
+        if dehum is not None:
+            dehum.q = float(q)
+        self._changed()
+
+    def _on_declick_sensitivity(self, percent: float) -> None:
+        declick = self.declick
+        if declick is not None:
+            declick.sensitivity = percent / 100.0
         self._changed()
 
     def _set_band(self, band: str, gain_db: float) -> None:
