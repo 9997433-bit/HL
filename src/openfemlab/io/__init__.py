@@ -36,6 +36,7 @@ from ._native import (
     write_model,
     write_test_data,
 )
+from .nastran import read_bdf, read_nastran
 from .uff import (
     UFFDataset,
     UFFFunction,
@@ -114,6 +115,8 @@ __all__ = [
     "dof_map_from_dict",
     "dof_map_from_labels",
     "from_meshio",
+    "read_bdf",
+    "read_nastran",
     "UFFDataset",
     "UFFFunction",
     "UFFMode",
