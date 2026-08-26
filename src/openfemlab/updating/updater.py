@@ -307,6 +307,34 @@ class ModelUpdater:
     def cost(self, residual: np.ndarray) -> float:
         return 0.5 * float(residual @ residual)
 
+    def penalty(self, design_values: np.ndarray, reference_values: np.ndarray) -> float:
+        """Regularisation term added to the data-misfit cost."""
+        beta = float(self.options.regularization)
+        if beta <= 0.0:
+            return 0.0
+        offset = design_values - reference_values
+        return 0.5 * beta * float(offset @ offset)
+
+    def normal_equations(
+        self,
+        jacobian: np.ndarray,
+        residual: np.ndarray,
+        design_values: np.ndarray,
+        reference_values: np.ndarray,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Gauss-Newton Hessian and gradient of ``cost + penalty``.
+
+        Subclasses override this to change the estimator without touching the
+        loop; :mod:`openfemlab.updating.bayesian` swaps in the MAP system.
+        """
+        hessian = jacobian.T @ jacobian
+        gradient = jacobian.T @ residual
+        beta = float(self.options.regularization)
+        if beta > 0.0:
+            hessian = hessian + beta * np.eye(hessian.shape[0])
+            gradient = gradient + beta * (design_values - reference_values)
+        return hessian, gradient
+
     # ------------------------------------------------------------------
     # sensitivity matrix
     # ------------------------------------------------------------------
@@ -402,7 +430,6 @@ class ModelUpdater:
         initial_cost = cost
         x0 = x.copy()
         damping = 0.0 if options.is_gauss_newton else options.initial_damping
-        beta = float(options.regularization)
 
         history: list[IterationRecord] = []
         sensitivity: SensitivityResult | None = None
@@ -421,11 +448,7 @@ class ModelUpdater:
                 scheme=options.fd_scheme,
             )
 
-            hessian = jacobian.T @ jacobian
-            gradient = jacobian.T @ residual
-            if beta > 0.0:
-                hessian = hessian + beta * np.eye(hessian.shape[0])
-                gradient = gradient + beta * (x - x0)
+            hessian, gradient = self.normal_equations(jacobian, residual, x, x0)
 
             if np.max(np.abs(gradient)) <= options.gradient_tolerance:
                 converged = True
@@ -447,9 +470,7 @@ class ModelUpdater:
                     damping = min(damping * options.damping_increase, options.max_damping)
                     continue
                 trial_residual = self.residual(trial_data, trial_pairs)
-                trial_cost = self.cost(trial_residual)
-                if beta > 0.0:
-                    trial_cost += 0.5 * beta * float((trial_x - x0) @ (trial_x - x0))
+                trial_cost = self.cost(trial_residual) + self.penalty(trial_x, x0)
 
                 if trial_cost < cost:
                     accepted = True
