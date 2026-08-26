@@ -173,6 +173,7 @@ start_static_server() {
 import { createServer } from 'node:http'
 import { readFile, stat } from 'node:fs/promises'
 import { extname, resolve, sep } from 'node:path'
+import { gzipSync } from 'node:zlib'
 
 const [, , distArg, portArg] = process.argv
 const dist = resolve(distArg)
@@ -192,8 +193,20 @@ const server = createServer(async (request, response) => {
     let file = resolve(dist, relative || 'index.html')
     if (file !== dist && !file.startsWith(`${dist}${sep}`)) file = resolve(dist, 'index.html')
     if (!(await stat(file).catch(() => null))?.isFile()) file = resolve(dist, 'index.html')
-    const body = await readFile(file)
-    response.writeHead(200, { 'content-type': mime[extname(file)] ?? 'application/octet-stream' })
+    const extension = extname(file)
+    const acceptsGzip = /\bgzip\b/i.test(request.headers['accept-encoding'] ?? '')
+    const shouldGzip = acceptsGzip && (extension === '.js' || extension === '.css')
+    const source = await readFile(file)
+    const body = shouldGzip ? gzipSync(source, { level: 9 }) : source
+    const headers = {
+      'content-type': mime[extension] ?? 'application/octet-stream',
+      'content-length': body.byteLength,
+    }
+    if (shouldGzip) {
+      headers['content-encoding'] = 'gzip'
+      headers.vary = 'Accept-Encoding'
+    }
+    response.writeHead(200, headers)
     response.end(body)
   } catch (error) {
     response.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' })
