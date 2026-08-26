@@ -146,7 +146,7 @@ export const WORD_PROBLEMS = [
   },
   {
     id: 'share',
-    skill: 'wp-times',
+    skill: 'wp-share',
     tag: '平均分',
     steps: 1,
     emoji: '🍬',
@@ -205,8 +205,7 @@ export const WORD_PROBLEMS = [
   },
   {
     id: 'money-change',
-    skill: 'wp-times',
-    tag: '钱',
+    skill: 'wp-two-step',
     steps: 2,
     emoji: '💰',
     scene: '文具店',
@@ -371,8 +370,7 @@ export const WORD_PROBLEMS = [
   },
   {
     id: 'quotitive',
-    skill: 'wp-times',
-    tag: '包含除',
+    skill: 'wp-share',
     steps: 1,
     emoji: '🥮',
     scene: '点心铺',
@@ -392,8 +390,7 @@ export const WORD_PROBLEMS = [
   },
   {
     id: 'div-remainder',
-    skill: 'wp-times',
-    tag: '有余数',
+    skill: 'wp-two-step',
     steps: 2,
     emoji: '🍭',
     scene: '糖果屋',
