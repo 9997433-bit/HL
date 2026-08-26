@@ -109,6 +109,42 @@ exit code is 0 when every file rendered, 1 when any failed, 2 when nothing
 matched. The same pipeline is scriptable from Python via
 `audio_studio.batch.BatchJob` and `run_batch`.
 
+## VST3 plugins (optional `plugins` extra — not enabled by default)
+
+Audio Studio can host VST3 effect plugins through
+[pedalboard](https://github.com/spotify/pedalboard). The bridge is **not part
+of the default install**: nothing in the application imports pedalboard unless
+you opt in explicitly.
+
+```bash
+pip install -e ".[plugins]"      # installs pedalboard (GPL-3.0)
+```
+
+```python
+from audio_studio.plugins import create_plugin_host
+
+host = create_plugin_host("/path/to/Plugin.vst3")
+host.prepare(sample_rate=48_000, n_channels=2)
+out = host.process_block(block, 48_000)   # planar (n_channels, n_samples)
+host.parameters()                          # {name: normalised value}
+host.latency_samples()                     # reported plugin delay, in samples
+```
+
+`audio_studio.plugins` always imports cleanly — pedalboard is loaded lazily,
+inside the single bridge module `audio_studio/plugins/pedalboard_bridge.py`,
+the first time a plugin is opened. Without the extra installed, loading a
+plugin raises `PluginLoadError` with installation instructions. The current
+scaffold is API-only: plugins are not yet wired into the effect rack or the
+UI, and plugin state is not yet persisted into projects.
+
+**License notice.** pedalboard is GPL-3.0 (incorporating JUCE, Rubber Band
+and FFTW). Installing the `plugins` extra for private use does not change the
+MIT license of Audio Studio's source, but *distributing* Audio Studio together
+with pedalboard — in a wheel, installer or application bundle — creates a
+combined work that must be distributed under GPL-3.0 as a whole. Official MIT
+binary artifacts must not include it. See
+[`THIRD_PARTY_LICENSES.md`](../THIRD_PARTY_LICENSES.md).
+
 ## What the MVP does
 
 **Audio engine** (`audio_studio.core.engine.AudioEngine`)
@@ -152,6 +188,9 @@ matched. The same pipeline is scriptable from Python via
 
 - Multi-resolution min/max/RMS pyramid, so a repaint costs O(widget width)
   rather than O(clip length).
+- The pyramid is cached to a `.pk` sidecar (see *Peak cache* below), so
+  reopening a file restores the overview instead of reducing every sample
+  again.
 - Below ~4 px per sample the view switches to a sample-accurate polyline with
   individual sample dots.
 - Zoom (`Ctrl`+wheel, anchored under the pointer), horizontal scroll (wheel),
@@ -196,6 +235,31 @@ matched. The same pipeline is scriptable from Python via
 - Cached spectrogram reduction/colorization and candidate-window true-peak
   evaluation keep common redraw and normalization paths bounded.
 
+### Peak cache
+
+Reducing a clip into the waveform pyramid costs one pass over every sample,
+which is the part of opening a long file that is actually slow. `AudioEngine`
+therefore persists the finished pyramid next to the audio as a `.pk` sidecar —
+`track.flac` gets `track.flac.pk`, roughly 0.4% of the audio's size — and reads
+it back on the next open, both for decoded (`load`) and streamed
+(`open_stream(build_pyramid=True)`) clips.
+
+The sidecar header stores the source's size and modification time, so editing
+or replacing the file misses instead of drawing a stale waveform, and the write
+goes through a temporary file plus a rename, so a reader never sees a partial
+pyramid. Every failure — unreadable sidecar, corrupt payload, read-only folder
+— falls back to building the pyramid in memory.
+
+```bash
+AUDIO_STUDIO_PEAK_CACHE=0                     python -m audio_studio  # never read or write .pk
+AUDIO_STUDIO_PEAK_CACHE_DIR=~/.cache/hl-peaks python -m audio_studio  # keep sidecars out of the audio folders
+AUDIO_STUDIO_PEAK_CACHE_KEY=content           python -m audio_studio  # fingerprint by SHA-256 instead of mtime+size
+```
+
+`.hlproj` bundles carry the same file for each media copy and point at it from
+an optional `peaks` key in the media entry; a bundle written without one (or by
+an older build) simply rebuilds the overview on load.
+
 ### Keyboard
 
 | Shortcut | Action |
@@ -224,10 +288,11 @@ FFmpeg is discovered as a separate executable and is never linked into the
 application.
 
 pedalboard is GPL-3.0 and is intentionally absent from the default dependency
-tree and current package manifests. A future pedalboard plugin bridge must be
-an explicit, lazy-loaded optional extra; any installer that bundles it must
-distribute the combined work under GPL-3.0. The ASIO SDK is not included, and
-Audio Studio does not enable `SD_ENABLE_ASIO`.
+tree. It is reachable only through the explicit `plugins` optional extra and
+is imported lazily inside the isolated bridge module
+`audio_studio/plugins/pedalboard_bridge.py`; any installer that bundles it
+must distribute the combined work under GPL-3.0. The ASIO SDK is not included,
+and Audio Studio does not enable `SD_ENABLE_ASIO`.
 
 See [`THIRD_PARTY_LICENSES.md`](../THIRD_PARTY_LICENSES.md) for versions,
 upstream license pointers, LGPL source/relinking obligations, FFmpeg build
