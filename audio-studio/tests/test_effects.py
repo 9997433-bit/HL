@@ -464,9 +464,12 @@ class TestEffectChain:
         chain = EffectChain([GainEffect(gain_db=-20.0, enabled=False), GainEffect(gain_db=0.0)])
         assert np.allclose(chain.process(np.ones(16), SR), 1.0)
 
-    def test_reports_offline_only_when_a_member_is(self) -> None:
-        assert not EffectChain([GainEffect()]).is_offline_only
-        assert EffectChain([GainEffect(), NormalizeEffect()]).is_offline_only
+    def test_a_strict_chain_reports_offline_only_when_a_member_is(self) -> None:
+        strict = EffectChain([GainEffect(), NormalizeEffect()], skip_offline_in_stream=False)
+        assert strict.is_offline_only
+        assert not EffectChain([GainEffect()], skip_offline_in_stream=False).is_offline_only
+        with pytest.raises(NotImplementedError):
+            strict.process_block(np.ones(128), SR)
 
     def test_streaming_chain_matches_offline(self) -> None:
         audio = white_noise(duration_s=0.2, amplitude=0.3)
