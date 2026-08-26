@@ -122,7 +122,7 @@ at audit time the suite did **not** collect cleanly (Appendix A).
 | GAP-02 | P0 | Elements | 1D-only element library; no shells/solids/3D beam despite declared `ElementType`s | R2 |
 | GAP-03 | P0 | IO | No UNV/UFF, Nastran BDF/OP2, or meshio import/export — cannot touch an industrial model or real test data | R2 |
 | GAP-04 | P0 | Dynamics | No damping, complex modes, harmonic/transient response, or FRF synthesis | R2 |
-| GAP-05 | P1 | Correlation | No FRF correlation metrics (FRAC/FDAC) and no FRF residual in updating | R2/R3 |
+| GAP-05 | P1 | Correlation | **Closed** — FRAC/FDAC landed in R2 (MS-7.4); the FRF updating residual is `openfemlab.updating.frf` (MS-3.2 item 3), analytic `dH/dtheta` included, AC-UPD-009 implemented | R2/R3 |
 | GAP-06 | P1 | MPE | **Closed for the FRF domain** — `openfemlab.mpe` fits an LSCF/poly-reference model with a stabilization diagram and populates `TestData` from measurements, AC-MPE-001..005 verified (MS-10). Open: SSI-based OMA (output-only) | R3 |
 | GAP-07 | P1 | Pretest | No sensor/exciter placement (Effective Independence, kinetic energy), no test planning | R3 |
 | GAP-08 | P1 | Reduction/expansion | No Guyan/IRS/SEREP/Craig-Bampton, no TAM pseudo-orthogonality, no shape expansion to full FE DOFs | R2/R3 |
@@ -174,6 +174,13 @@ harmonic response, FRF synthesis, FRF correlation (FRAC/FDAC), and FRF-based upd
 residuals. Test campaigns deliver FRFs, and FEMtools Dynamics + FRF updating is a core
 industrial workflow; without this chain OpenFEMLab can only correlate pre-extracted mode
 tables.
+
+*Closed in Round 3:* Round 2 landed the synthesis and the FRAC/FDAC metrics (MS-7.3/7.4);
+the remaining half — the FRF **updating residual** — is now `openfemlab.updating.frf`
+(spec MS-3.2 item 3). `FRFResidual` stacks the real/imaginary misfit
+`W [H(omega; theta) - H_meas(omega)]` over a chosen line subset and supplies the exact
+`dH/dtheta = -H (dK - omega^2 dM + i omega dC) H`; `FRFUpdater` drives it with the MS-3.4
+estimator, line search, bounds and sigma_post unchanged. Gated by AC-UPD-009.
 
 ### 4. GAP-06 — No experimental modal analysis (MPE) (P1)
 The `TestData` contract exists but nothing produces it from measurements. Parity needs at
