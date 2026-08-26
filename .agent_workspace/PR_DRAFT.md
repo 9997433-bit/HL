@@ -1,7 +1,7 @@
 # PR Draft — OpenFEMLab Round 1
 
 Ready to file. Base: `main`. Head: `cursor/femtools-industrial-7aa3`.
-Verified at `0928f95`: full suite **876 passed**, `ruff check .` clean
+Verified at `8604807`: full suite **876 passed**, `ruff check .` clean
 (Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1).
 
 ## Title
@@ -81,7 +81,7 @@ synthesis, and optimization hooks — all behind one CLI and a schema-versioned 
 
 ## Verification
 
-- `PYTHONPATH=src python -m pytest` — **876 passed** at `0928f95` on Python 3.12.3 /
+- `PYTHONPATH=src python -m pytest` — **876 passed** at `8604807` on Python 3.12.3 /
   NumPy 2.5.2 / SciPy 1.18.1.
 - `ruff check .` — clean.
 - Per-suite breakdown (sums to 876): acceptance registry + gates 253, dynamics 82, TET4 66,
