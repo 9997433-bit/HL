@@ -194,7 +194,7 @@ class ModalSolver:
     # ---------------------------------------------------------- construction
 
     @classmethod
-    def from_matrices(cls, K, M, *, free_dofs=None, dof_types=None) -> "ModalSolver":
+    def from_matrices(cls, K, M, *, free_dofs=None, dof_types=None) -> ModalSolver:
         """Build a solver directly from stiffness/mass matrices (test rigs, ROMs)."""
         K = sp.csr_matrix(K, dtype=float)
         M = sp.csr_matrix(M, dtype=float)

@@ -11,9 +11,8 @@ gives an exact reference for the 2-DOF closed-form solution.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Callable
 
 import numpy as np
 
@@ -73,7 +72,7 @@ class SpringMassChain:
         if ks.size != n or ms.size != n:
             raise ValueError("scale vectors must have one entry per spring / mass")
         K = np.zeros((n, n))
-        for scale, block in zip(ks, self.spring_matrices()):
+        for scale, block in zip(ks, self.spring_matrices(), strict=False):
             K += scale * block
         M = np.diag(ms * self.masses)
         return K, M

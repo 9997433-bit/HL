@@ -89,7 +89,7 @@ class FrequencyDifference:
         header = f"{'mode':>5} {'f_test [Hz]':>12} {'f_fe [Hz]':>12} {'Δf [Hz]':>10} {'Δf [%]':>9}"
         lines = [header, "-" * len(header)]
         for i, (ft, ffe, da, dp) in enumerate(
-            zip(self.test, self.fe, self.absolute, self.percent, strict=True)
+            zip(self.test, self.fe, self.absolute, self.percent, strict=False)
         ):
             lines.append(f"{i:>5} {ft:12.4f} {ffe:12.4f} {da:10.4f} {dp:9.3f}")
         return "\n".join(lines)

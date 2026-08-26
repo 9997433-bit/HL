@@ -52,7 +52,7 @@ class DofMap:
             raise ValueError("node_ids and dof_types must be 1-D and equal length")
         self._index: dict[tuple[int, int], int] = {
             (int(n), int(d)): i
-            for i, (n, d) in enumerate(zip(self._node_ids, self._dof_types))
+            for i, (n, d) in enumerate(zip(self._node_ids, self._dof_types, strict=False))
         }
         if len(self._index) != self._node_ids.size:
             raise ValueError("duplicate (node_id, dof_type) pair in DofMap")

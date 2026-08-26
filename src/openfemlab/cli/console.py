@@ -13,7 +13,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, TextIO
 
-__all__ = ["Column", "Reporter", "format_number", "format_percent"]
+__all__ = ["Column", "Reporter", "format_fixed", "format_number", "format_percent"]
 
 try:  # pragma: no cover - exercised by whichever branch the environment has
     from rich.console import Console as _RichConsole
@@ -43,6 +43,17 @@ def format_number(value: Any, digits: int = 6) -> str:
     if number in (float("inf"), float("-inf")):
         return "inf" if number > 0 else "-inf"
     return f"{number:.{digits}g}"
+
+
+def format_fixed(value: Any, digits: int = 4) -> str:
+    """Fixed-point formatting for bounded indicators such as the MAC."""
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return str(value)
+    if number != number or number in (float("inf"), float("-inf")):
+        return format_number(number)
+    return f"{number:.{digits}f}"
 
 
 def format_percent(value: Any, digits: int = 3) -> str:

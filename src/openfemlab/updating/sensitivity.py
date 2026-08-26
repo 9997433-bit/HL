@@ -17,9 +17,8 @@ Two complementary routes are provided:
 from __future__ import annotations
 
 import warnings
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Callable
 
 import numpy as np
 
@@ -171,7 +170,7 @@ class SensitivityResult:
     def table(self) -> str:
         header = f"{'response':<16}" + "".join(f"{name:>14}" for name in self.parameter_names)
         lines = [header, "-" * len(header)]
-        for label, row in zip(self.response_labels, self.matrix):
+        for label, row in zip(self.response_labels, self.matrix, strict=False):
             lines.append(f"{label:<16}" + "".join(f"{value:14.6g}" for value in row))
         return "\n".join(lines)
 
@@ -244,21 +243,21 @@ def eigenvalue_sensitivity(
     if mass_matrix is None:
         norms = np.ones(phi.shape[1])
     else:
-        mass_matrix = np.asarray(mass_matrix, dtype=float)
         norms = np.real(np.einsum("ij,ij->j", phi.conj(), mass_matrix @ phi))
     if np.any(norms <= 0.0):
         raise ValueError("mode shapes must have positive generalised mass")
 
     sensitivity = np.zeros((phi.shape[1], len(dK)))
-    for k, (dk, dm) in enumerate(zip(dK, dM)):
-        for i in range(phi.shape[1]):
-            vector = phi[:, i]
-            value = 0.0
-            if dk is not None:
-                value += float(np.real(np.vdot(vector, np.asarray(dk) @ vector)))
-            if dm is not None:
-                value -= lambdas[i] * float(np.real(np.vdot(vector, np.asarray(dm) @ vector)))
-            sensitivity[i, k] = value / norms[i]
+    for k, (dk, dm) in enumerate(zip(dK, dM, strict=False)):
+        values = np.zeros(phi.shape[1])
+        if dk is not None:
+            applied = dk @ phi
+            values += np.real(np.einsum("ij,ij->j", phi.conj(), applied))
+        if dm is not None:
+            applied = dm @ phi
+            quadratic = np.real(np.einsum("ij,ij->j", phi.conj(), applied))
+            values -= lambdas * quadratic
+        sensitivity[:, k] = values / norms
     return sensitivity
 
 
@@ -348,33 +347,36 @@ def mode_shape_sensitivity(
         raise ValueError("stiffness and mass derivative lists must have equal length")
     indices = np.arange(phi.shape[1]) if modes is None else np.asarray(modes, dtype=int)
 
+    selected = phi[:, indices]
+    selected_lambdas = lambdas[indices]
     out = np.zeros((len(dK), phi.shape[0], indices.size), dtype=phi.dtype)
     degenerate: set[int] = set()
-    for k, (dk, dm) in enumerate(zip(dK, dM)):
+    for k, (dk, dm) in enumerate(zip(dK, dM, strict=False)):
         if dk is None and dm is None:
             continue
-        for column, i in enumerate(indices):
-            phi_i = phi[:, i]
-            residual = np.zeros_like(phi_i)
-            if dk is not None:
-                residual = residual + np.asarray(dk) @ phi_i
-            if dm is not None:
-                residual = residual - lambdas[i] * (np.asarray(dm) @ phi_i)
+        residual = np.zeros_like(selected)
+        if dk is not None:
+            residual += dk @ selected
+        mass_applied = None
+        if dm is not None:
+            mass_applied = dm @ selected
+            residual -= mass_applied * selected_lambdas[None, :]
 
-            projections = phi.conj().T @ residual
-            gaps = lambdas[i] - lambdas
-            close = np.abs(gaps) < cluster_tolerance * max(abs(lambdas[i]), 1.0)
-            coefficients = np.zeros_like(projections)
-            usable = ~close
-            coefficients[usable] = projections[usable] / gaps[usable]
-            if close.sum() > 1:
-                degenerate.add(int(i))
+        projections = phi.conj().T @ residual
+        gaps = selected_lambdas[None, :] - lambdas[:, None]
+        thresholds = cluster_tolerance * np.maximum(np.abs(selected_lambdas), 1.0)
+        close = np.abs(gaps) < thresholds[None, :]
+        coefficients = np.zeros_like(projections)
+        np.divide(projections, gaps, out=coefficients, where=~close)
+        degenerate.update(int(i) for i in indices[np.count_nonzero(close, axis=0) > 1])
 
-            # The φ_i component is fixed by the mass-normalisation constraint.
-            coefficients[i] = 0.0
-            if dm is not None:
-                coefficients[i] = -0.5 * np.vdot(phi_i, np.asarray(dm) @ phi_i)
-            out[k, :, column] = phi @ coefficients
+        # Each φ_i component is fixed by the mass-normalisation constraint.
+        columns = np.arange(indices.size)
+        coefficients[indices, columns] = 0.0
+        if mass_applied is not None:
+            self_projection = np.einsum("ij,ij->j", selected.conj(), mass_applied)
+            coefficients[indices, columns] = -0.5 * self_projection
+        out[k] = phi @ coefficients
 
     if degenerate:
         warnings.warn(
@@ -433,23 +435,26 @@ def mac_sensitivity(
         if w.size != a.shape[0]:
             raise ValueError(f"weights has {w.size} entries but the shapes have {a.shape[0]} DOFs")
 
+    weighted_a = w[:, None] * a
+    weighted_b = w[:, None] * b
+    cross = np.einsum("ij,ij->j", a.conj(), weighted_b)
+    norm_a = np.real(np.einsum("ij,ij->j", a.conj(), weighted_a))
+    norm_b = np.real(np.einsum("ij,ij->j", b.conj(), weighted_b))
+
+    projections = np.einsum("dm,pdm->pm", weighted_a.conj(), derivatives)
+    norm_derivatives = np.real(
+        np.einsum("dm,pdm->pm", weighted_b.conj(), derivatives)
+    )
+    cross_derivatives = np.real(cross.conj()[None, :] * projections)
+
     out = np.zeros((b.shape[1], derivatives.shape[0]))
-    for i in range(b.shape[1]):
-        ai, bi = a[:, i], b[:, i]
-        cross = np.vdot(ai, w * bi)
-        norm_a = float(np.real(np.vdot(ai, w * ai)))
-        norm_b = float(np.real(np.vdot(bi, w * bi)))
-        if norm_a <= 0.0 or norm_b <= 0.0:
-            continue
-        for k in range(derivatives.shape[0]):
-            db = derivatives[k, :, i]
-            d_cross = np.real(np.conj(cross) * np.vdot(ai, w * db))
-            d_norm_b = float(np.real(np.vdot(bi, w * db)))
-            out[i, k] = (
-                2.0
-                / (norm_a * norm_b)
-                * (d_cross - abs(cross) ** 2 / norm_b * d_norm_b)
-            )
+    valid = (norm_a > 0.0) & (norm_b > 0.0)
+    numerator = cross_derivatives[:, valid] - (
+        np.abs(cross[valid]) ** 2 / norm_b[valid]
+    )[None, :] * norm_derivatives[:, valid]
+    out[valid, :] = (
+        2.0 * numerator / (norm_a[valid] * norm_b[valid])[None, :]
+    ).T
     return out
 
 

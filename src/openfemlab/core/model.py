@@ -49,7 +49,7 @@ class DOF(IntEnum):
     RZ = 5
 
     @classmethod
-    def parse(cls, value: "DOF | str | int") -> "DOF":
+    def parse(cls, value: DOF | str | int) -> DOF:
         """Coerce ``value`` (enum member, name such as ``"ux"``, or index) to a :class:`DOF`."""
         if isinstance(value, DOF):
             return value
@@ -80,7 +80,7 @@ TRANSLATIONAL_DOFS: tuple[DOF, ...] = (DOF.UX, DOF.UY, DOF.UZ)
 ROTATIONAL_DOFS: tuple[DOF, ...] = (DOF.RX, DOF.RY, DOF.RZ)
 
 
-def _parse_dofs(dofs: "Iterable[DOF | str | int] | DOF | str | int") -> tuple[DOF, ...]:
+def _parse_dofs(dofs: Iterable[DOF | str | int] | DOF | str | int) -> tuple[DOF, ...]:
     if isinstance(dofs, (DOF, str, int, np.integer)):
         dofs = [dofs]
     parsed = tuple(DOF.parse(d) for d in dofs)
@@ -222,10 +222,10 @@ class Model:
     def rotational_dofs(self) -> tuple[DOF, ...]:
         return tuple(d for d in self.dofs if d.is_rotational)
 
-    def has_dof(self, dof: "DOF | str | int") -> bool:
+    def has_dof(self, dof: DOF | str | int) -> bool:
         return DOF.parse(dof) in self._dof_position
 
-    def dof_index(self, node_id: Hashable, dof: "DOF | str | int") -> int:
+    def dof_index(self, node_id: Hashable, dof: DOF | str | int) -> int:
         """Global equation number of ``dof`` at ``node_id``."""
         node = self.node(node_id)
         parsed = DOF.parse(dof)
@@ -403,7 +403,7 @@ class Model:
     # ---------------------------------------------------------------- extras
 
     def add_spring(self, node_a: Hashable, node_b: Hashable, stiffness: float, dof=DOF.UX):
-        """Convenience wrapper creating a scalar :class:`~openfemlab.core.elements.SpringElement`."""
+        """Create a scalar :class:`~openfemlab.core.elements.SpringElement`."""
         from .elements import SpringElement
 
         return self.add_element(SpringElement((node_a, node_b), stiffness, dof=dof))

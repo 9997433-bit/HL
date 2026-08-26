@@ -302,12 +302,17 @@ class BeamElement2D(Element):
         return length, transform
 
     def local_stiffness_matrix(self, length: float) -> np.ndarray:
-        E, A, I, L = self.material.E, self.section.area, self.section.inertia_z, length
+        E, A, inertia, L = (
+            self.material.E,
+            self.section.area,
+            self.section.inertia_z,
+            length,
+        )
         ea = E * A / L
-        b1 = 12.0 * E * I / L**3
-        b2 = 6.0 * E * I / L**2
-        b3 = 4.0 * E * I / L
-        b4 = 2.0 * E * I / L
+        b1 = 12.0 * E * inertia / L**3
+        b2 = 6.0 * E * inertia / L**2
+        b3 = 4.0 * E * inertia / L
+        b4 = 2.0 * E * inertia / L
         return np.array(
             [
                 [ea, 0.0, 0.0, -ea, 0.0, 0.0],

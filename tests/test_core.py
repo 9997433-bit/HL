@@ -293,7 +293,9 @@ def test_bar_mesh_geometry_and_options():
 
 def test_truss_from_arrays_validation():
     coords = [[0.0, 0.0], [1.0, 0.0], [0.5, 1.0]]
-    model = truss_from_arrays(coords, [(0, 1), (1, 2), (2, 0)], STEEL, SQUARE, dofs=(DOF.UX, DOF.UY))
+    model = truss_from_arrays(
+        coords, [(0, 1), (1, 2), (2, 0)], STEEL, SQUARE, dofs=(DOF.UX, DOF.UY)
+    )
     assert model.num_nodes == 3 and model.num_elements == 3
     total = sum(e.total_mass(model.node_coords(e.node_ids)) for e in model.elements)
     perimeter = 1.0 + 2.0 * math.hypot(0.5, 1.0)

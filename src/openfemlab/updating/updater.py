@@ -21,9 +21,8 @@ by MAC at every iteration so that mode switching during updating is handled.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Callable
 
 import numpy as np
 
@@ -279,7 +278,7 @@ class ModelUpdater:
                 )
                 blocks.append(options.shape_weight * mode_weights * mac_terms)
             else:
-                for weight, (i, j) in zip(mode_weights, pairs):
+                for weight, (i, j) in zip(mode_weights, pairs, strict=False):
                     phi_test = test_shapes[:, i]
                     phi_fe = fe_shapes[:, j]
                     scaled = phi_fe * modal_scale_factor(phi_test, phi_fe)
@@ -351,7 +350,7 @@ class ModelUpdater:
             )
         mode_weights = self._mode_weights(pairs)
         rows = []
-        for weight, (i, j) in zip(mode_weights, pairs):
+        for weight, (i, j) in zip(mode_weights, pairs, strict=False):
             row = df_dp[j, :] / self.target.frequencies[i]
             rows.append(self.options.frequency_weight * weight * row)
         jacobian = np.array(rows, dtype=float)
