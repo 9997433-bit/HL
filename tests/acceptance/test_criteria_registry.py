@@ -143,9 +143,9 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
     _c("AC-OPT-001", "Analytic gradients vs central FD",
        "P0", "oracle", "MS-5.1", _OPT_SUITE),
     _c("AC-OPT-002", "Reference problem reaches known optimum",
-       "P0", "oracle", "MS-5.2", _OPT_SUITE),
+       "P0", "oracle", "MS-5.2", _OPT_SUITE, "implemented"),
     _c("AC-OPT-003", "Box bounds never violated",
-       "P0", "contract", "MS-5.2", _OPT_SUITE),
+       "P0", "contract", "MS-5.2", _OPT_SUITE, "implemented"),
     _c("AC-OPT-004", "Mode tracking across crossings",
        "P1", "twin", "MS-5.2", _OPT_SUITE),
 )
