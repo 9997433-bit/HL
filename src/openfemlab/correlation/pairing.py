@@ -156,6 +156,7 @@ def pair_modes(
     method: str = "greedy",
     mac_threshold: float = 0.0,
     frequency_tolerance_pct: float | None = None,
+    freq_penalty: float = 0.0,
     weights: Any = None,
     max_pairs: int | None = None,
 ) -> ModePairing:
@@ -176,11 +177,18 @@ def pair_modes(
         Candidate filters.  Modes left without an acceptable partner are
         reported in ``unpaired_test`` / ``unpaired_fe`` rather than forced into
         a bad pair.
+    freq_penalty:
+        Weight ``β`` of the relative frequency distance in the MAC score
+        (MS-2.3 suggests 0.1), which separates candidates whose shapes are
+        nearly as similar as each other.  The score stays MAC-only at the
+        default 0, and the filters above always act on the raw MAC.
     max_pairs:
         Keep only the ``max_pairs`` best-scoring pairs.
     """
     if method not in {"greedy", "optimal", "frequency"}:
         raise ValueError(f"unknown pairing method {method!r}")
+    if freq_penalty < 0.0:
+        raise ValueError("freq_penalty must be non-negative")
 
     test_freq = None if test_frequencies is None else np.asarray(test_frequencies, float).ravel()
     fe_freq = None if fe_frequencies is None else np.asarray(fe_frequencies, float).ravel()
@@ -210,9 +218,18 @@ def pair_modes(
         outside = np.abs(frequency_error_matrix(test_freq, fe_freq)) > frequency_tolerance_pct
         score[outside] = -np.inf
 
-    threshold = mac_threshold if use_shapes else -np.inf
+    threshold = -np.inf
     if use_shapes:
-        score[score < mac_threshold] = -np.inf
+        # Filters act on the raw MAC, so a frequency penalty can never turn an
+        # acceptable candidate into a rejected one -- it only ranks candidates.
+        numerical_floor = 100.0 * np.finfo(float).eps
+        minimum_mac = max(float(mac_threshold), numerical_floor)
+        score[macs < minimum_mac] = -np.inf  # type: ignore[operator]
+        if freq_penalty > 0.0:
+            if test_freq is None or fe_freq is None:
+                raise ValueError("freq_penalty requires both frequency vectors")
+            distance = np.abs(frequency_error_matrix(test_freq, fe_freq)) / 100.0
+            score = score - freq_penalty * np.where(np.isfinite(distance), distance, np.inf)
 
     if method == "optimal" and use_shapes:
         assignments = _optimal_assignment(score, threshold)
