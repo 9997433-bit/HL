@@ -1,7 +1,11 @@
 /**
  * 生活行星应用题母题库。
  * 每个母题都是一个生成器：调用 make() 会随机出一道数值不同、结构相同的新题，
- * 因此 16 个母题可以覆盖上百道不重复的练习。
+ * 因此几十个母题可以覆盖成千上万道不重复的练习。
+ *
+ * steps 表示解题步数，也是难度分档：1 = 一步题，2 = 两步题，>=3 = 进阶题
+ * （和差倍、鸡兔同笼、相遇这类需要先转换再计算的题型）。
+ * 参数域都做过约束，保证答案是正整数，不会出现负数或小数。
  */
 import { randInt, sample } from '@/utils/random'
 
@@ -341,6 +345,399 @@ export const WORD_PROBLEMS = [
       }
     },
   },
+
+  /* ------------------------------------------------ 乘除专题 */
+
+  {
+    id: 'times-multiple',
+    skill: 'wp-times',
+    tag: '倍数',
+    steps: 1,
+    emoji: '🕊️',
+    scene: '手工课',
+    make() {
+      const [a, b] = pair()
+      const x = randInt(3, 12)
+      const n = randInt(2, 5)
+      return {
+        text: `${a}折了 ${x} 只纸鹤，${b}折的是${a}的 ${n} 倍。${b}折了多少只纸鹤？`,
+        equation: `${x} × ${n} = ?`,
+        answer: x * n,
+        unit: '只',
+        hint: `「是…的 ${n} 倍」就是 ${n} 个 ${x} 加起来，也就是乘 ${n}。`,
+        visual: { icon: '🕊️', groups: Array.from({ length: n }, () => x) },
+      }
+    },
+  },
+  {
+    id: 'quotitive',
+    skill: 'wp-times',
+    tag: '包含除',
+    steps: 1,
+    emoji: '🥮',
+    scene: '点心铺',
+    make() {
+      const per = randInt(2, 6)
+      const boxes = randInt(2, 6)
+      const total = per * boxes
+      return {
+        text: `有 ${total} 个月饼，每 ${per} 个装一盒，可以装满多少盒？`,
+        equation: `${total} ÷ ${per} = ?`,
+        answer: boxes,
+        unit: '盒',
+        hint: `看看 ${total} 里面一共有几个 ${per}。`,
+        visual: { icon: '🥮', groups: Array.from({ length: boxes }, () => per) },
+      }
+    },
+  },
+  {
+    id: 'div-remainder',
+    skill: 'wp-times',
+    tag: '有余数',
+    steps: 2,
+    emoji: '🍭',
+    scene: '糖果屋',
+    make() {
+      const [who] = pair()
+      const per = randInt(3, 6)
+      const bags = randInt(2, 6)
+      const rest = randInt(1, per - 1)
+      const total = per * bags + rest
+      return {
+        text: `${who}有 ${total} 颗糖，每 ${per} 颗装一袋。装满若干袋后，还剩多少颗糖？`,
+        equation: `${total} ÷ ${per} = ${bags} …… ?`,
+        answer: rest,
+        unit: '颗',
+        hint: `先看能装满几袋，装不满一袋的那几颗就是剩下的。`,
+      }
+    },
+  },
+  {
+    id: 'unit-price',
+    skill: 'wp-times',
+    tag: '归一',
+    steps: 2,
+    emoji: '📓',
+    scene: '文具店',
+    make() {
+      const n1 = randInt(2, 5)
+      const price = randInt(2, 9)
+      const n2 = randInt(2, 8)
+      return {
+        text: `${n1} 本笔记本一共 ${n1 * price} 元。照这样计算，买 ${n2} 本要多少元？`,
+        equation: `${n1 * price} ÷ ${n1} × ${n2} = ?`,
+        answer: price * n2,
+        unit: '元',
+        hint: `先求出 1 本多少元，再乘 ${n2}。`,
+      }
+    },
+  },
+  {
+    id: 'fraction-part',
+    skill: 'wp-times',
+    tag: '几分之几',
+    steps: 2,
+    emoji: '🍊',
+    scene: '果篮',
+    make() {
+      const parts = randInt(2, 4)
+      const each = randInt(2, 6)
+      const take = randInt(1, parts - 1)
+      return {
+        text: `把 ${parts * each} 个橘子平均分成 ${parts} 份，其中的 ${take} 份是多少个？`,
+        equation: `${parts * each} ÷ ${parts} × ${take} = ?`,
+        answer: each * take,
+        unit: '个',
+        hint: `先算 1 份有几个，再乘 ${take}。`,
+        visual: { icon: '🍊', groups: Array.from({ length: parts }, () => each) },
+      }
+    },
+  },
+  {
+    id: 'minibus',
+    skill: 'wp-times',
+    tag: '进一法',
+    steps: 3,
+    emoji: '🚐',
+    scene: '春游',
+    make() {
+      const per = randInt(4, 8)
+      const full = randInt(2, 6)
+      const extra = randInt(1, per - 1)
+      const total = per * full + extra
+      return {
+        text: `${total} 个小朋友去春游，每辆小车最多坐 ${per} 人。至少要几辆车才能都坐下？`,
+        equation: `${total} ÷ ${per} = ${full} …… ${extra}，${full} + 1 = ?`,
+        answer: full + 1,
+        unit: '辆',
+        hint: `坐不满的那 ${extra} 个小朋友也要上车，所以还得再加一辆。`,
+      }
+    },
+  },
+
+  /* ------------------------------------------------ 行程与工程 */
+
+  {
+    id: 'distance',
+    skill: 'wp-times',
+    tag: '行程',
+    steps: 1,
+    emoji: '🚂',
+    scene: '小火车',
+    make() {
+      const speed = randInt(40, 90)
+      const minutes = randInt(2, 8)
+      return {
+        text: `一辆小火车每分钟行 ${speed} 米，一共行了 ${minutes} 分钟。它行了多少米？`,
+        equation: `${speed} × ${minutes} = ?`,
+        answer: speed * minutes,
+        unit: '米',
+        hint: `每分钟 ${speed} 米，${minutes} 分钟就是 ${minutes} 个 ${speed} 米。`,
+      }
+    },
+  },
+  {
+    id: 'meet',
+    skill: 'wp-times',
+    tag: '相遇',
+    steps: 3,
+    emoji: '🛣️',
+    scene: '林荫道',
+    make() {
+      const [a, b] = pair()
+      const sa = randInt(30, 70)
+      const sb = randInt(30, 70)
+      const minutes = randInt(2, 6)
+      return {
+        text: `${a}和${b}从相距 ${(sa + sb) * minutes} 米的两地同时出发，面对面走来。${a}每分钟走 ${sa} 米，${b}每分钟走 ${sb} 米。几分钟后两人相遇？`,
+        equation: `${(sa + sb) * minutes} ÷ (${sa} + ${sb}) = ?`,
+        answer: minutes,
+        unit: '分钟',
+        hint: `两人每分钟一共走近 ${sa + sb} 米，看看总路程里有几个 ${sa + sb}。`,
+      }
+    },
+  },
+  {
+    id: 'work-days',
+    skill: 'wp-times',
+    tag: '工程',
+    steps: 1,
+    emoji: '🤖',
+    scene: '机器人工厂',
+    make() {
+      const per = randInt(4, 9)
+      const days = randInt(3, 8)
+      return {
+        text: `机器人每天能拼 ${per} 个模型，一共要拼 ${per * days} 个。需要拼多少天？`,
+        equation: `${per * days} ÷ ${per} = ?`,
+        answer: days,
+        unit: '天',
+        hint: `每天 ${per} 个，看看 ${per * days} 里面有几个 ${per}。`,
+      }
+    },
+  },
+  {
+    id: 'planting',
+    skill: 'wp-combine',
+    tag: '植树',
+    steps: 2,
+    emoji: '🌳',
+    scene: '林间小路',
+    make() {
+      const gap = sample([2, 3, 4, 5])
+      const trees = randInt(4, 10)
+      const length = gap * (trees - 1)
+      return {
+        text: `一条 ${length} 米长的小路，从头到尾每隔 ${gap} 米种一棵树，两端都要种。一共要种多少棵树？`,
+        equation: `${length} ÷ ${gap} + 1 = ?`,
+        answer: trees,
+        unit: '棵',
+        hint: `小路被分成了 ${trees - 1} 段，两端都种树的话，棵数要比段数多 1。`,
+      }
+    },
+  },
+
+  /* ------------------------------------------------ 和差倍与推理 */
+
+  {
+    id: 'sum-diff',
+    skill: 'wp-diff',
+    tag: '和差',
+    steps: 3,
+    emoji: '🃏',
+    scene: '卡片收藏',
+    make() {
+      const [a, b] = pair()
+      const small = randInt(2, 12)
+      const diff = randInt(2, 8)
+      const sum = small + small + diff
+      return {
+        text: `${a}和${b}一共有 ${sum} 张卡片，${a}比${b}多 ${diff} 张。${a}有多少张卡片？`,
+        equation: `(${sum} + ${diff}) ÷ 2 = ?`,
+        answer: small + diff,
+        unit: '张',
+        hint: `如果${b}也有那么多，总数就变成 ${sum + diff} 张，再平均分成两份。`,
+      }
+    },
+  },
+  {
+    id: 'sum-times',
+    skill: 'wp-times',
+    tag: '和倍',
+    steps: 3,
+    emoji: '🐠',
+    scene: '水族箱',
+    make() {
+      const [a, b] = pair()
+      const small = randInt(2, 9)
+      const n = randInt(2, 4)
+      return {
+        text: `${a}和${b}一共养了 ${small * (n + 1)} 条小鱼，${a}养的是${b}的 ${n} 倍。${b}养了多少条？`,
+        equation: `${small * (n + 1)} ÷ (${n} + 1) = ?`,
+        answer: small,
+        unit: '条',
+        hint: `把${b}的看成 1 份，${a}就是 ${n} 份，一共 ${n + 1} 份。`,
+      }
+    },
+  },
+  {
+    id: 'chicken-rabbit',
+    skill: 'wp-diff',
+    tag: '鸡兔同笼',
+    steps: 3,
+    emoji: '🐰',
+    scene: '农场笼子',
+    make() {
+      const chicken = randInt(2, 8)
+      const rabbit = randInt(2, 8)
+      const heads = chicken + rabbit
+      const legs = chicken * 2 + rabbit * 4
+      return {
+        text: `笼子里有鸡和兔一共 ${heads} 只，数一数腿有 ${legs} 条。笼子里有多少只兔子？`,
+        equation: `(${legs} − ${heads} × 2) ÷ 2 = ?`,
+        answer: rabbit,
+        unit: '只',
+        hint: `假设全是鸡，就只有 ${heads * 2} 条腿；多出来的每 2 条腿，就是一只兔子。`,
+      }
+    },
+  },
+  {
+    id: 'average',
+    skill: 'wp-times',
+    tag: '平均数',
+    steps: 2,
+    emoji: '📖',
+    scene: '读书角',
+    make() {
+      const [who] = pair()
+      const avg = randInt(3, 9)
+      const d = randInt(0, 2)
+      return {
+        text: `${who}三天分别读了 ${avg - d}、${avg}、${avg + d} 页书。平均每天读多少页？`,
+        equation: `(${avg - d} + ${avg} + ${avg + d}) ÷ 3 = ?`,
+        answer: avg,
+        unit: '页',
+        hint: `先把三天的页数加起来，再平均分成 3 天。`,
+      }
+    },
+  },
+  {
+    id: 'age-later',
+    skill: 'wp-combine',
+    tag: '年龄',
+    steps: 2,
+    emoji: '👨‍👩‍👧',
+    scene: '全家福',
+    make() {
+      const [who] = pair()
+      const kid = randInt(6, 10)
+      const gap = randInt(20, 30)
+      const years = randInt(2, 6)
+      return {
+        text: `今年${who} ${kid} 岁，妈妈比${who}大 ${gap} 岁。${years} 年后妈妈多少岁？`,
+        equation: `${kid} + ${gap} + ${years} = ?`,
+        answer: kid + gap + years,
+        unit: '岁',
+        hint: `先算出妈妈今年 ${kid + gap} 岁，再加上 ${years} 年。`,
+      }
+    },
+  },
+
+  /* ------------------------------------------------ 图形与时间 */
+
+  {
+    id: 'perimeter',
+    skill: 'wp-combine',
+    tag: '周长',
+    steps: 2,
+    emoji: '🥬',
+    scene: '菜地',
+    make() {
+      const long = randInt(3, 15)
+      const wide = randInt(2, long)
+      return {
+        text: `一块长方形菜地长 ${long} 米、宽 ${wide} 米。绕着它走一圈是多少米？`,
+        equation: `(${long} + ${wide}) × 2 = ?`,
+        answer: (long + wide) * 2,
+        unit: '米',
+        hint: `一圈里有两条长和两条宽。`,
+      }
+    },
+  },
+  {
+    id: 'area',
+    skill: 'wp-times',
+    tag: '面积',
+    steps: 1,
+    emoji: '🏷️',
+    scene: '贴纸工坊',
+    make() {
+      const long = randInt(2, 12)
+      const wide = randInt(2, 9)
+      return {
+        text: `一张长方形贴纸长 ${long} 厘米、宽 ${wide} 厘米。它的面积是多少平方厘米？`,
+        equation: `${long} × ${wide} = ?`,
+        answer: long * wide,
+        unit: '平方厘米',
+        hint: `面积就是每行 ${long} 个小方格，一共 ${wide} 行。`,
+      }
+    },
+  },
+  {
+    id: 'duration',
+    skill: 'wp-times',
+    tag: '时间',
+    steps: 2,
+    emoji: '⏰',
+    scene: '课程表',
+    make() {
+      const start = randInt(8, 11)
+      const hours = randInt(1, 3)
+      return {
+        text: `围棋课 ${start} 时开始，${start + hours} 时结束。这节课一共上了多少分钟？`,
+        equation: `(${start + hours} − ${start}) × 60 = ?`,
+        answer: hours * 60,
+        unit: '分钟',
+        hint: `先算上了几个小时，1 小时是 60 分钟。`,
+      }
+    },
+  },
 ]
 
 export const WORD_PROBLEM_COUNT = WORD_PROBLEMS.length
+
+/** 按解题步数分档：一步 / 两步 / 进阶（>=3 步）。 */
+export const WORD_PROBLEM_TIERS = [
+  { id: 'all', label: '🌍 全部', match: () => true },
+  { id: 'one', label: '1️⃣ 一步题', match: (p) => p.steps === 1 },
+  { id: 'two', label: '2️⃣ 两步题', match: (p) => p.steps === 2 },
+  { id: 'multi', label: '🧠 进阶题', match: (p) => p.steps >= 3 },
+]
+
+export function problemsOfTier(tierId) {
+  const tier = WORD_PROBLEM_TIERS.find((t) => t.id === tierId) ?? WORD_PROBLEM_TIERS[0]
+  return WORD_PROBLEMS.filter(tier.match)
+}
+
+/** 母题覆盖的语义类别，用于内容自检与家长报告。 */
+export const WORD_PROBLEM_TAGS = [...new Set(WORD_PROBLEMS.map((p) => p.tag))]

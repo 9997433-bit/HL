@@ -1,50 +1,33 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+/**
+ * 生活行星 · 应用题。
+ * 这里只负责抽母题、实例化题面和画线段/实物图，
+ * 答题流程（选项/键盘/判题/提示扣星/进度条/总结）复用 QuizShell。
+ */
+import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import gsap from 'gsap'
-import MascotBot from '@/components/MascotBot.vue'
-import SessionBar from '@/components/SessionBar.vue'
-import RoundSummary from '@/components/RoundSummary.vue'
-import { useProgressStore } from '@/stores/progress.js'
-import { useFeedback } from '@/composables/useFeedback'
-import { WORD_PROBLEMS } from '@/data/wordProblems'
-import { numericOptions, sample, shuffle } from '@/utils/random'
+import QuizShell from '@/components/QuizShell.vue'
+import {
+  WORD_PROBLEMS,
+  WORD_PROBLEM_TIERS,
+  problemsOfTier,
+} from '@/data/wordProblems'
+import { numericOptions, shuffle } from '@/utils/random'
 import { sound } from '@/core/audio/sound.js'
 
 const ROUND_SIZE = 8
 const MODULE_ID = 'word'
 
 const router = useRouter()
-const progress = useProgressStore()
-const { correct: fxCorrect, wrong: fxWrong, burst, flyStar, enter } = useFeedback()
 
-const filter = ref('all') // all | one | two
+const tier = ref('all')
 const inputMode = ref('choice')
 
-const questions = ref([])
-const index = ref(0)
-const marks = ref([])
-const correctCount = ref(0)
-const starsEarned = ref(0)
-const showSummary = ref(false)
-const locked = ref(false)
-const chosen = ref(null)
-const typed = ref('')
-const hintLevel = ref(0) // 0 无 / 1 文字提示 / 2 显示算式
-const mood = ref('idle')
-const message = ref('慢慢读题，把关键的数字圈出来。')
-const cardRef = ref(null)
-
-const current = computed(() => questions.value[index.value] ?? null)
-
-const bank = computed(() => {
-  if (filter.value === 'one') return WORD_PROBLEMS.filter((p) => p.steps === 1)
-  if (filter.value === 'two') return WORD_PROBLEMS.filter((p) => p.steps === 2)
-  return WORD_PROBLEMS
-})
+const bank = computed(() => problemsOfTier(tier.value))
 
 function buildQuestion(template) {
   const made = template.make()
+  const base = template.steps >= 3 ? 4 : template.steps === 2 ? 3 : 2
   return {
     ...made,
     id: template.id,
@@ -53,6 +36,11 @@ function buildQuestion(template) {
     emoji: template.emoji,
     scene: template.scene,
     steps: template.steps,
+    hints: [made.hint, `先列式：${made.equation}`].filter(Boolean),
+    stars: base,
+    xp: template.steps >= 3 ? 26 : template.steps === 2 ? 20 : 14,
+    errorTags:
+      template.steps >= 3 ? ['multi-step'] : template.steps === 2 ? ['two-step'] : ['one-step'],
     options: numericOptions(made.answer, {
       count: 4,
       spread: Math.max(3, Math.round(made.answer * 0.35) + 2),
@@ -61,307 +49,112 @@ function buildQuestion(template) {
   }
 }
 
-function drawTemplates() {
+/** 洗牌抽题：先把母题池打乱轮着用，池子空了再洗一次，避免一轮里反复撞同一道母题。 */
+function drawRound() {
   const list = bank.value
   const out = []
   let pool = shuffle(list)
   while (out.length < ROUND_SIZE) {
     if (!pool.length) pool = shuffle(list)
-    out.push(pool.pop())
+    out.push(buildQuestion(pool.pop()))
   }
   return out
 }
 
-/* ---------- 判题 ---------- */
+const questions = ref(drawRound())
 
-function grade(value, anchor) {
-  const q = current.value
-  const right = value === q.answer
-  marks.value[index.value] = right ? 'ok' : 'no'
-  chosen.value = value
-
-  if (right) {
-    const base = q.steps === 2 ? 3 : 2
-    const stars = Math.max(1, base - hintLevel.value)
-    correctCount.value += 1
-    starsEarned.value += stars
-    progress.recordAnswer(MODULE_ID, true, {
-      skill: q.skill,
-      stars,
-      xp: q.steps === 2 ? 20 : 14,
-    })
-    fxCorrect(anchor)
-    burst(anchor, { count: 20 })
-    flyStar(anchor)
-    mood.value = 'cheer'
-    message.value = `${q.equation.replace('?', q.answer)} —— 解题成功！`
-  } else {
-    progress.recordAnswer(MODULE_ID, false, {
-      skill: q.skill,
-      errorTags: q.steps === 2 ? ['two-step'] : ['one-step'],
-    })
-    fxWrong(anchor)
-    mood.value = 'sad'
-    message.value = `正确算式是 ${q.equation.replace('?', q.answer)}，答案 ${q.answer} ${q.unit}。`
-  }
-  hintLevel.value = 2
+function newRound() {
+  questions.value = drawRound()
 }
 
-function chooseOption(value, e) {
-  if (locked.value) return
-  locked.value = true
-  grade(value, e.currentTarget)
-  setTimeout(next, 2000)
-}
+watch(tier, newRound)
 
-function submitTyped() {
-  if (locked.value || typed.value === '') return
-  locked.value = true
-  grade(Number(typed.value), cardRef.value)
-  setTimeout(next, 2000)
-}
-
-function tapKey(k) {
-  if (locked.value) return
+function setTier(id) {
+  if (tier.value === id) return
   sound.click()
-  if (k === 'del') {
-    typed.value = typed.value.slice(0, -1)
-    return
-  }
-  if (typed.value.length >= 4) return
-  typed.value = `${typed.value}${k}`
+  tier.value = id
 }
-
-function next() {
-  chosen.value = null
-  typed.value = ''
-  hintLevel.value = 0
-  locked.value = false
-  mood.value = 'idle'
-  if (index.value + 1 >= ROUND_SIZE) {
-    finish()
-    return
-  }
-  index.value += 1
-  message.value = sample([
-    '慢慢读题，把关键的数字圈出来。',
-    '先想清楚问的是什么，再列算式。',
-    '读两遍题目，不着急。',
-  ])
-  animateIn()
-}
-
-function finish() {
-  const perfect = correctCount.value === ROUND_SIZE
-  progress.finishSession(MODULE_ID, {
-    correct: correctCount.value,
-    total: ROUND_SIZE,
-    bonusStars: perfect ? 5 : 0,
-  })
-  if (perfect) starsEarned.value += 5
-  showSummary.value = true
-}
-
-function startRound() {
-  questions.value = drawTemplates().map(buildQuestion)
-  index.value = 0
-  marks.value = []
-  correctCount.value = 0
-  starsEarned.value = 0
-  showSummary.value = false
-  locked.value = false
-  chosen.value = null
-  typed.value = ''
-  hintLevel.value = 0
-  mood.value = 'idle'
-  message.value = '慢慢读题，把关键的数字圈出来。'
-  progress.resetCombo()
-  animateIn()
-}
-
-function animateIn() {
-  requestAnimationFrame(() => {
-    if (cardRef.value) {
-      gsap.fromTo(
-        cardRef.value,
-        { opacity: 0, y: 20 },
-        { opacity: 1, y: 0, duration: 0.38, ease: 'power2.out' },
-      )
-    }
-    enter([...document.querySelectorAll('.opt')], { stagger: 0.06, y: 14, delay: 0.12 })
-  })
-}
-
-function moreHint() {
-  sound.click()
-  if (hintLevel.value < 2) hintLevel.value += 1
-}
-
-function setFilter(v) {
-  if (filter.value === v) return
-  sound.click()
-  filter.value = v
-  startRound()
-}
-
-function toggleMode() {
-  sound.click()
-  inputMode.value = inputMode.value === 'choice' ? 'keypad' : 'choice'
-}
-
-function onKeydown(e) {
-  if (showSummary.value || inputMode.value !== 'keypad') return
-  if (/^[0-9]$/.test(e.key)) tapKey(e.key)
-  else if (e.key === 'Backspace') tapKey('del')
-  else if (e.key === 'Enter') submitTyped()
-}
-
-onMounted(() => {
-  startRound()
-  window.addEventListener('keydown', onKeydown)
-})
-onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 </script>
 
 <template>
-  <main class="page stack">
-    <section class="panel controls">
-      <div class="seg" role="group" aria-label="题目类型">
-        <button class="seg-btn" :class="{ on: filter === 'all' }" @click="setFilter('all')">
-          🌍 全部
-        </button>
-        <button class="seg-btn" :class="{ on: filter === 'one' }" @click="setFilter('one')">
-          1️⃣ 一步题
-        </button>
-        <button class="seg-btn" :class="{ on: filter === 'two' }" @click="setFilter('two')">
-          2️⃣ 两步题
-        </button>
-      </div>
-      <div class="spacer" />
-      <span class="chip">📚 母题 {{ bank.length }} 道</span>
-      <button class="btn btn-ghost btn-sm" @click="toggleMode">
-        {{ inputMode === 'choice' ? '⌨️ 改为输入' : '🔢 改为选择' }}
-      </button>
-    </section>
-
-    <section class="panel bar-panel">
-      <SessionBar
-        :index="index"
-        :total="ROUND_SIZE"
-        :correct="correctCount"
-        :streak="progress.combo"
-        :marks="marks"
-      />
-    </section>
-
-    <section v-if="current" class="panel stage">
-      <header class="stage-head">
-        <MascotBot :mood="mood" :size="72" />
-        <p class="muted say">{{ message }}</p>
-      </header>
-
-      <article ref="cardRef" class="problem">
-        <div class="problem-top">
-          <span class="scene-emoji">{{ current.emoji }}</span>
-          <div>
-            <span class="chip scene">{{ current.scene }}</span>
-            <span v-if="current.tag !== current.scene" class="chip">{{ current.tag }}</span>
-            <span class="chip" :class="{ 'chip-on': current.steps === 2 }">
-              {{ current.steps === 2 ? '两步' : '一步' }}
-            </span>
-          </div>
-        </div>
-
-        <p class="problem-text">{{ current.text }}</p>
-
-        <!-- 可视化：把题目里的数量画出来 -->
-        <div v-if="current.visual" class="visual">
-          <div v-for="(g, gi) in current.visual.groups" :key="gi" class="vgroup">
-            <span
-              v-for="k in g"
-              :key="k"
-              class="vicon"
-              :class="{
-                gone:
-                  current.visual.strike !== undefined &&
-                  gi === 0 &&
-                  k > g - current.visual.strike,
-              }"
-            >
-              {{ current.visual.icon }}
-            </span>
-            <em class="vcount">{{ g }}</em>
-          </div>
-        </div>
-
-        <p v-if="hintLevel >= 1" class="hint">💡 {{ current.hint }}</p>
-        <p v-if="hintLevel >= 2" class="eq">
-          {{ locked ? current.equation.replace('?', current.answer) : current.equation }}
-        </p>
-
-        <button v-if="hintLevel < 2 && !locked" class="btn btn-ghost btn-sm hint-btn" @click="moreHint">
-          {{ hintLevel === 0 ? '💡 给点提示' : '🧮 看看算式（少 1⭐）' }}
-        </button>
-      </article>
-
-      <!-- 选择题 -->
-      <div v-if="inputMode === 'choice'" class="options">
-        <button
-          v-for="o in current.options"
-          :key="o"
-          class="opt"
-          :class="{
-            right: locked && o === current.answer,
-            bad: locked && chosen === o && o !== current.answer,
-          }"
-          :disabled="locked"
-          @click="chooseOption(o, $event)"
-        >
-          {{ o }} <small>{{ current.unit }}</small>
-        </button>
-      </div>
-
-      <!-- 输入模式 -->
-      <div v-else class="keypad-wrap">
-        <div class="answer-slot" :class="{ filled: typed !== '' }">
-          {{ typed || '?' }} <small>{{ current.unit }}</small>
-        </div>
-        <div class="keypad">
+  <main class="page">
+    <QuizShell
+      v-model:inputMode="inputMode"
+      :module-id="MODULE_ID"
+      module-name="生活行星"
+      :questions="questions"
+      :perfect-bonus="5"
+      :feedback-delay="2000"
+      :max-digits="4"
+      :hint-labels="['💡 给点提示', '🧮 看看算式（少 1⭐）']"
+      :prompts="[
+        '慢慢读题，把关键的数字圈出来。',
+        '先想清楚问的是什么，再列算式。',
+        '读两遍题目，不着急。',
+      ]"
+      @replay="newRound"
+      @home="router.push('/')"
+    >
+      <template #controls>
+        <div class="seg" role="group" aria-label="题目难度">
           <button
-            v-for="k in ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'del', '0', 'ok']"
-            :key="k"
-            class="key"
-            :class="{ wide: k === 'ok', del: k === 'del' }"
-            :disabled="locked || (k === 'ok' && typed === '')"
-            @click="k === 'ok' ? submitTyped() : tapKey(k)"
+            v-for="t in WORD_PROBLEM_TIERS"
+            :key="t.id"
+            class="seg-btn"
+            :class="{ on: tier === t.id }"
+            @click="setTier(t.id)"
           >
-            {{ k === 'del' ? '⌫' : k === 'ok' ? '确定' : k }}
+            {{ t.label }}
           </button>
         </div>
-      </div>
-    </section>
+        <span class="chip">📚 母题 {{ bank.length }} / {{ WORD_PROBLEMS.length }} 道</span>
+      </template>
 
-    <RoundSummary
-      v-if="showSummary"
-      :correct="correctCount"
-      :total="ROUND_SIZE"
-      :stars-earned="starsEarned"
-      module-name="生活行星"
-      @replay="startRound"
-      @home="router.push('/')"
-    />
+      <template #question="{ question }">
+        <article class="problem">
+          <div class="problem-top">
+            <span class="scene-emoji">{{ question.emoji }}</span>
+            <div>
+              <span class="chip scene">{{ question.scene }}</span>
+              <span v-if="question.tag !== question.scene" class="chip">{{ question.tag }}</span>
+              <span class="chip" :class="{ 'chip-on': question.steps >= 2 }">
+                {{ question.steps >= 3 ? '进阶' : question.steps === 2 ? '两步' : '一步' }}
+              </span>
+            </div>
+          </div>
+
+          <p class="problem-text">{{ question.text }}</p>
+
+          <!-- 可视化：把题目里的数量画出来（CPA 教学法的 Pictorial 一段） -->
+          <div v-if="question.visual" class="visual">
+            <div v-for="(g, gi) in question.visual.groups" :key="gi" class="vgroup">
+              <span
+                v-for="k in g"
+                :key="k"
+                class="vicon"
+                :class="{
+                  gone:
+                    question.visual.strike !== undefined &&
+                    gi === 0 &&
+                    k > g - question.visual.strike,
+                }"
+              >
+                {{ question.visual.icon }}
+              </span>
+              <em class="vcount">{{ g }}</em>
+            </div>
+          </div>
+        </article>
+      </template>
+
+      <template #extra="{ question, locked }">
+        <p v-if="locked" class="eq">{{ question.equation.replace('?', question.answer) }}</p>
+      </template>
+    </QuizShell>
   </main>
 </template>
 
 <style scoped>
-.controls {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  flex-wrap: wrap;
-  padding: 14px 18px;
-}
-
 .seg {
   display: flex;
   gap: 4px;
@@ -369,6 +162,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.12);
+  flex-wrap: wrap;
 }
 
 .seg-btn {
@@ -385,29 +179,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   background: linear-gradient(135deg, var(--orange), var(--gold));
   color: #3a2400;
   box-shadow: 0 6px 16px rgba(255, 159, 69, 0.32);
-}
-
-.bar-panel {
-  padding: 14px 18px;
-}
-
-.stage {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.stage-head {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  flex-wrap: wrap;
-}
-
-.say {
-  font-size: 14px;
-  flex: 1;
-  min-width: 200px;
 }
 
 .problem {
@@ -485,15 +256,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   color: var(--gold);
 }
 
-.hint {
-  padding: 10px 14px;
-  border-radius: var(--radius-s);
-  background: rgba(255, 206, 77, 0.12);
-  border: 1px solid rgba(255, 206, 77, 0.4);
-  color: var(--gold);
-  font-size: 14px;
-}
-
 .eq {
   align-self: flex-start;
   padding: 8px 18px;
@@ -503,111 +265,5 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   font-size: 22px;
   font-weight: 900;
   color: var(--cyan);
-}
-
-.hint-btn {
-  align-self: flex-start;
-}
-
-.options {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-  gap: 12px;
-}
-
-.opt {
-  padding: 20px 10px;
-  font-size: 26px;
-  font-weight: 900;
-  border-radius: var(--radius-m);
-  background: linear-gradient(160deg, rgba(255, 159, 69, 0.16), rgba(255, 206, 77, 0.14));
-  border: 2px solid rgba(255, 159, 69, 0.42);
-  transition: transform 0.14s ease, box-shadow 0.14s ease;
-}
-
-.opt small {
-  font-size: 14px;
-  color: var(--ink-soft);
-}
-
-.opt:hover:not(:disabled) {
-  transform: translateY(-3px);
-  box-shadow: 0 10px 24px rgba(255, 159, 69, 0.26);
-}
-
-.opt.right {
-  background: rgba(85, 230, 165, 0.28);
-  border-color: var(--green);
-}
-
-.opt.bad {
-  background: rgba(255, 107, 125, 0.26);
-  border-color: var(--red);
-}
-
-.keypad-wrap {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-}
-
-.answer-slot {
-  min-width: 160px;
-  padding: 10px 20px;
-  text-align: center;
-  font-size: 34px;
-  font-weight: 900;
-  color: var(--cyan);
-  border-radius: var(--radius-s);
-  border: 3px dashed rgba(94, 231, 255, 0.55);
-}
-
-.answer-slot.filled {
-  border-style: solid;
-  background: rgba(94, 231, 255, 0.12);
-}
-
-.answer-slot small {
-  font-size: 16px;
-  color: var(--ink-soft);
-}
-
-.keypad {
-  display: grid;
-  grid-template-columns: repeat(3, 84px);
-  gap: 10px;
-}
-
-.key {
-  height: 58px;
-  font-size: 24px;
-  font-weight: 900;
-  border-radius: var(--radius-s);
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  transition: transform 0.12s ease, background 0.12s ease;
-}
-
-.key:hover:not(:disabled) {
-  transform: translateY(-2px);
-  background: rgba(255, 255, 255, 0.16);
-}
-
-.key.del {
-  color: var(--orange);
-}
-
-.key.wide {
-  font-size: 17px;
-  background: linear-gradient(135deg, var(--gold), var(--orange));
-  color: #3a2400;
-  border-color: transparent;
-}
-
-@media (max-width: 560px) {
-  .keypad {
-    grid-template-columns: repeat(3, 72px);
-  }
 }
 </style>

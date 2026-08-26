@@ -20,6 +20,56 @@ function shuffled(arr) {
   return a
 }
 
+/** 取档位规格；传入未知档位直接抛错，避免静默退化成 4×4。 */
+export function specOf(sizeKey) {
+  const spec = BOARD_SPECS[sizeKey]
+  if (!spec) throw new Error(`不支持的棋盘档位: ${sizeKey}`)
+  return spec
+}
+
+/** 某格的全部同伴格（同行、同列、同宫，不含自己）。 */
+export function peersOf(spec, idx) {
+  const { size, boxW, boxH } = spec
+  const row = Math.floor(idx / size)
+  const col = idx % size
+  const peers = new Set()
+  for (let c = 0; c < size; c++) peers.add(row * size + c)
+  for (let r = 0; r < size; r++) peers.add(r * size + col)
+  const br = Math.floor(row / boxH) * boxH
+  const bc = Math.floor(col / boxW) * boxW
+  for (let r = br; r < br + boxH; r++) {
+    for (let c = bc; c < bc + boxW; c++) peers.add(r * size + c)
+  }
+  peers.delete(idx)
+  return peers
+}
+
+/** 与该格数字重复的同伴格下标，用于冲突高亮。 */
+export function conflictsOf(board, spec, idx) {
+  const val = board[idx]
+  if (!val) return []
+  return [...peersOf(spec, idx)].filter((p) => board[p] === val)
+}
+
+/** 该空格在当前盘面下还能填哪些数字（候选数笔记）。 */
+export function candidatesOf(board, spec, idx) {
+  if (board[idx]) return []
+  const used = new Set([...peersOf(spec, idx)].map((p) => board[p]).filter(Boolean))
+  const out = []
+  for (let v = 1; v <= spec.size; v++) if (!used.has(v)) out.push(v)
+  return out
+}
+
+/**
+ * 「提示」按钮用：随机挑一个还没填对的格子，给出它的正确数字。
+ * 已经填错的格子也算在内，这样提示能顺手帮孩子纠错。
+ */
+export function nextHint(board, solution) {
+  const wrong = shuffled([...Array(board.length).keys()]).filter((i) => board[i] !== solution[i])
+  if (!wrong.length) return null
+  return { index: wrong[0], value: solution[wrong[0]] }
+}
+
 export function isValidPlacement(board, spec, idx, val) {
   const { size, boxW, boxH } = spec
   const row = Math.floor(idx / size)
@@ -86,8 +136,7 @@ export function solve(board, spec) {
  * @returns {{ puzzle: number[], solution: number[], spec, holes: number }}
  */
 export function generateSudoku(sizeKey = 4, holes = null) {
-  const spec = BOARD_SPECS[sizeKey]
-  if (!spec) throw new Error(`不支持的棋盘档位: ${sizeKey}`)
+  const spec = specOf(sizeKey)
   const total = spec.size * spec.size
   const targetHoles = holes ?? Math.floor(total * 0.5)
 
