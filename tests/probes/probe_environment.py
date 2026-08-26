@@ -13,7 +13,6 @@ import warnings
 from collections.abc import Sequence
 from typing import Any
 
-
 DEFAULT_MIN_NUMPY = "1.24"
 DEFAULT_MIN_SCIPY = "1.10"
 

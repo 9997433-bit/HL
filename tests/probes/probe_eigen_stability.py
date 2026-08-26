@@ -8,7 +8,6 @@ import json
 from collections.abc import Sequence
 from typing import Any
 
-
 DEFAULT_REPEATS = 25
 
 

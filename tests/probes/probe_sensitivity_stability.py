@@ -9,7 +9,6 @@ import math
 from collections.abc import Sequence
 from typing import Any
 
-
 DEFAULT_STEPS = (1.0e-4, 1.0e-5, 1.0e-6)
 
 
