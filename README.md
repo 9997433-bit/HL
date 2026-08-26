@@ -85,6 +85,15 @@ other formats meshio reads:
 python -m pip install -e ".[io]"
 ```
 
+Read a supported mesh into the neutral model and write it in another format:
+
+```python
+from openfemlab.io import read_meshio, write_meshio
+
+model = read_meshio("bracket.msh")
+write_meshio(model, "bracket.vtu")
+```
+
 ## Quickstart
 
 Build a steel cantilever and extract its first five modes:
