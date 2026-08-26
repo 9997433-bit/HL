@@ -1,7 +1,25 @@
-"""Qt-free audio core: decoding, transport, buffering and waveform summaries."""
+"""Qt-free audio core: decoding, transport, buffering, editing and waveform summaries."""
 
 from __future__ import annotations
 
+from .edit_session import (
+    AudioDocument,
+    Chunk,
+    CutCommand,
+    DeleteCommand,
+    EditCommand,
+    EditError,
+    EditSession,
+    FadeCommand,
+    GainCommand,
+    InsertSilenceCommand,
+    PasteCommand,
+    ReverseCommand,
+    Segment,
+    SilenceCommand,
+    TrimCommand,
+    UndoStack,
+)
 from .engine import AudioEngine
 from .loader import (
     SUPPORTED_EXTENSIONS,
@@ -17,6 +35,12 @@ from .loader import (
 from .output import AudioOutput, NullOutput, OutputDeviceError, PyAudioOutput, create_output
 from .peaks import Envelope, PeakPyramid
 from .ring_buffer import RingBuffer
+from .sample_source import (
+    MemorySampleSource,
+    SampleSource,
+    StreamingSampleSource,
+    open_source,
+)
 from .types import (
     AudioBuffer,
     AudioFormat,
@@ -31,26 +55,46 @@ from .types import (
 __all__ = [
     "SUPPORTED_EXTENSIONS",
     "AudioBuffer",
+    "AudioDocument",
     "AudioEngine",
     "AudioFormat",
     "AudioLoadError",
     "AudioOutput",
+    "Chunk",
+    "CutCommand",
+    "DeleteCommand",
+    "EditCommand",
+    "EditError",
+    "EditSession",
     "Envelope",
+    "FadeCommand",
+    "GainCommand",
+    "InsertSilenceCommand",
     "LevelReading",
     "LoadedAudio",
+    "MemorySampleSource",
     "NullOutput",
     "OutputDeviceError",
+    "PasteCommand",
     "PeakPyramid",
     "PyAudioOutput",
+    "ReverseCommand",
     "RingBuffer",
+    "SampleSource",
+    "Segment",
+    "SilenceCommand",
+    "StreamingSampleSource",
     "TimeRange",
     "TransportState",
+    "TrimCommand",
+    "UndoStack",
     "amplitude_to_db",
     "create_output",
     "db_to_amplitude",
     "file_dialog_filter",
     "format_timecode",
     "load_audio",
+    "open_source",
     "probe",
     "resample",
     "save_audio",
