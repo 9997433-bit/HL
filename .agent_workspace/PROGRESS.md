@@ -66,6 +66,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A58 | claude-opus-5-thinking-high-fast | R2-T03: register AC-CORR-009 (TAM pseudo-orthogonality) and wire `SensorMap.signs` through the reduction bases (backfill for A43) | complete |
 | A76 | gpt-5.6-sol-xhigh-fast | Current-tip pytest verification (backfill for completed A75) | complete — A75 done; 921 passed |
 | A80 | gpt-5.6-sol-xhigh-fast | Authoritative current-tip pytest count (backfill for completed A76) | complete — 1033 passed at `ff484e4`; collection confirmed 1033 |
+| A84 | claude-fable-5-thinking-xhigh | P0 32/32 milestone recorded; registry counts reconciled with A57's AC-UPD-006 branch (backfill for completed A69) | complete — 1033 passed at `c5afc35`; trunk 39/5, post-merge union 41/3 |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
@@ -2619,3 +2620,55 @@ staged in a private clone under a name no other agent would pick, committed as s
 was coherent, and pushed through a fetch-merge-push retry loop rather than a single push.
 Two of those three upstream moves touched files this merge also touched and still merged
 cleanly; the loop is cheap insurance, not ceremony.
+
+#### A84 — the P0 milestone pinned and the A57 AC-UPD-006 counts reconciled (backfill for A69)
+
+The registry crossed its most load-bearing threshold across three commits by three
+agents, and the trunk documents disagreed with a side branch about two rows. This
+entry pins the milestone and reconciles the counts.
+
+**Every P0 acceptance criterion is `implemented` — 32/32 at the milestone commit,
+34/34 at today's tip.** The bar was cleared at `1e99970`, where the AC-CORR-008
+round-trip batch flipped the last open P0 row of the then-41-row registry
+(recorded in STATUS.md by `ca5abae`). Twenty-six seconds later the HEX8 merge
+(`8a0f10f`) grew the P0 set itself: AC-ELEM-001/002 arrived already `implemented`,
+so the milestone survived its own denominator changing — **34 of 34** at
+`c5afc35`. Nothing, P0 or otherwise, has reached `verified`; that promotion is
+R2-T09's, defined but never applied.
+
+**The A57 reconciliation.** A57 closed the R2-T04 acceptance gate on
+`cursor/ac-upd-006-registration-6615` (`c479ee4`): AC-UPD-006a (weak prior → GN
+limit) and AC-UPD-006b (posterior contraction) carry tagged tests in
+`tests/acceptance/test_updating.py` there, and its entry recorded
+"34 implemented / 6 specified (P1: 5 / 3)". Re-counted from the registry source
+at each commit, every one of those numbers was exact — *for that branch's
+then-40-row tree*. The trunk never received the merge, so the two histories have
+since counted different things:
+
+- trunk `c5afc35` — 44 rows: **39 implemented / 5 specified**; P0 34/34,
+  P1 5/5. Specified: AC-MODAL-008, AC-UPD-006a/b, AC-UPD-008, AC-WORK-003.
+- A57 branch `e2d24d3` — 41 rows: 37 implemented / 4 specified; it carries the
+  AC-UPD-006a/b flips but predates the trunk's AC-CORR-008 flip and the ELEM
+  family, so its specified set is AC-MODAL-008, AC-CORR-008, AC-UPD-008,
+  AC-WORK-003.
+
+Neither side miscounted; they diverged. The union after merging the branch is
+**41 implemented / 3 specified** (P1 7/3), which makes that merge the cheapest
+registry progress available — it is recorded as the top open-gaps item in
+STATUS.md, and anyone reading A57's "gate closed" note should know the trunk's
+gate stays open until it lands.
+
+**Verification (independent, this run).** Private clone at `/tmp/a84`,
+`PYTHONPATH` pinned to its `src`, Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1, at
+`c5afc35`: **1033 passed, 0 failed**; `ruff check .` clean. That matches A79's
+count at the merge tip — the two commits between are docs-only — and the
+per-suite collection sums to the same 1033 (706 unit + 327 acceptance;
+`test_hex8.py` 76, acceptance elements 24, acceptance correlation 107 after the
+AC-CORR-008 batch). STATUS.md is superseded with the A84 snapshot carrying these
+numbers.
+
+**The hazard, again.** Between two consecutive commands of this run the shared
+`/workspace` checkout was switched to another agent's branch
+(`cursor/ac-backfill-a56-02bf`), and the integration tip advanced once
+(`ff484e4` → `c5afc35`) before this run's clone was even made. All work was
+staged in the private clone and pushed through a fetch-merge-push loop.
