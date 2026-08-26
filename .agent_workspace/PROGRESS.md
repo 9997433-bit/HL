@@ -1497,9 +1497,9 @@ A27. The A24 backlog above is otherwise the live plan.
   Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1: **595 passed** at the QUAD4 merge, **601**
   with the harvest at `6cf0f49`, **617** after merging the trunk tip back in (A31's P0
   acceptance batch), **642** once A41's FRF correlation block landed, and finally
-  **674 passed, 0 failed** (117 s) at `44f2ec0`, the commit this sweep pushed to the
+  **679 passed, 0 failed** (114 s) at `16ff791`, the commit this sweep pushed to the
   trunk. `ruff check .` clean at every step. `PR_DRAFT.md` refreshed off the stale 498
-  baseline — count, title, per-suite breakdown (sums to 674), the QUAD4,
+  baseline — count, title, per-suite breakdown (sums to 679), the QUAD4,
   reduction/expansion and FRF-block capabilities, 40 registered criteria, and the scope
   note that used to claim no continuum elements exist. The trunk moved under this task
   eight times; the count holds only for as long as that does, and the per-suite
