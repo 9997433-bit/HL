@@ -23,6 +23,12 @@ const routes = [
     meta: { title: '比大小擂台' },
   },
   {
+    path: '/daily',
+    name: 'daily',
+    component: () => import('@/modules/daily/DailyView.vue'),
+    meta: { title: '今日冒险' },
+  },
+  {
     path: '/arithmetic',
     name: 'arithmetic',
     component: () => import('@/modules/arithmetic/ArithmeticView.vue'),

@@ -11,6 +11,7 @@ import { updateMastery, MASTERY_THRESHOLD } from '@/utils/mastery.js'
 import { isKnownSkill, SKILLS } from '@/data/curriculum.js'
 import { CURRICULUM_ID, MODULES } from '@/data/modules.js'
 import { ACHIEVEMENTS, ACHIEVEMENT_MAP } from '@/data/achievements.js'
+import { DAILY_SIZE, dailyDateKey } from '@/data/daily.js'
 
 const STORAGE_KEY = 'mathquest/progress'
 
@@ -37,6 +38,21 @@ const emptyModuleStat = () => ({
 
 const emptyDay = () => ({ seconds: 0, answered: 0, correct: 0, stars: 0 })
 
+/**
+ * 今日冒险的进度。date 是这份记录属于哪一天，跨天后自动归零，
+ * streak / lastCompletedDate 跨天保留，用来算「连续完成多少天」。
+ */
+const emptyDailyQuest = () => ({
+  date: '',
+  done: 0,
+  correct: 0,
+  total: DAILY_SIZE,
+  completedAt: 0,
+  streak: 0,
+  bestStreak: 0,
+  lastCompletedDate: '',
+})
+
 function defaultState() {
   return {
     pilotName: '小小宇航员',
@@ -52,7 +68,8 @@ function defaultState() {
     lastPlayedDate: '',
     errorTagCounts: {},
     modules: Object.fromEntries(MODULES.map((m) => [m.id, emptyModuleStat()])),
-    counters: { arithmeticHardCorrect: 0, sudokuSolved: 0, perfectRuns: 0 },
+    counters: { arithmeticHardCorrect: 0, sudokuSolved: 0, perfectRuns: 0, dailyQuests: 0 },
+    dailyQuest: emptyDailyQuest(),
     achievements: {},
     settings: { sound: true, animations: true },
     history: [],
@@ -100,6 +117,11 @@ function mergeState(saved) {
     errorTagCounts: numberMap(saved.errorTagCounts),
     modules,
     counters: { ...base.counters, ...numberMap(saved.counters) },
+    dailyQuest: {
+      ...base.dailyQuest,
+      ...(saved.dailyQuest && typeof saved.dailyQuest === 'object' ? saved.dailyQuest : {}),
+      total: DAILY_SIZE,
+    },
     achievements: { ...(saved.achievements || {}) },
     settings: { ...base.settings, ...(saved.settings || {}) },
     history: Array.isArray(saved.history) ? saved.history.slice(0, 40) : [],
@@ -247,6 +269,79 @@ export const useProgressStore = defineStore('progress', () => {
       }
     }
     return state.daily[key]
+  }
+
+  /* ---------- 今日冒险 ---------- */
+
+  /** 跨天后把今日冒险归零；连续天数与历史完成日不动。 */
+  function rollDailyQuest() {
+    const today = dateKey()
+    const quest = state.dailyQuest
+    if (quest.date !== today) {
+      quest.date = today
+      quest.done = 0
+      quest.correct = 0
+      quest.completedAt = 0
+    }
+    quest.total = DAILY_SIZE
+    return quest
+  }
+
+  const dailyQuest = computed(() => {
+    const quest = state.dailyQuest
+    const fresh = quest.date === dateKey()
+    return {
+      date: quest.date,
+      done: fresh ? quest.done : 0,
+      correct: fresh ? quest.correct : 0,
+      total: DAILY_SIZE,
+      completed: fresh && quest.completedAt > 0,
+      completedAt: fresh ? quest.completedAt : 0,
+      streak: quest.streak,
+      bestStreak: quest.bestStreak,
+    }
+  })
+
+  const dailyQuestDone = computed(() => dailyQuest.value.completed)
+
+  /** 进入今日冒险时调用，返回今天该做的题号（断点续做用）。 */
+  function startDailyQuest() {
+    const quest = rollDailyQuest()
+    persist()
+    return { date: quest.date, done: quest.done, total: quest.total }
+  }
+
+  /** 每答一题记一步。答题本身的星星 / 掌握度仍走 recordAnswer。 */
+  function recordDailyStep(isCorrect) {
+    const quest = rollDailyQuest()
+    quest.done = Math.min(quest.total, quest.done + 1)
+    if (isCorrect) quest.correct = Math.min(quest.total, quest.correct + 1)
+    return { done: quest.done, total: quest.total }
+  }
+
+  /**
+   * 今日冒险收尾：记完成时间、算连续天数、发完成奖励。
+   * 同一天重复完成不再发奖，否则刷「再来一轮」就能白拿星星。
+   */
+  function finishDailyQuest({ correct = 0, bonusStars = 2 } = {}) {
+    const quest = rollDailyQuest()
+    if (quest.completedAt) return { alreadyDone: true, streak: quest.streak, stars: 0 }
+
+    const today = quest.date
+    const yesterday = dailyDateKey(new Date(Date.now() - 864e5))
+    quest.streak = quest.lastCompletedDate === yesterday ? quest.streak + 1 : 1
+    quest.bestStreak = Math.max(quest.bestStreak, quest.streak)
+    quest.lastCompletedDate = today
+    quest.completedAt = Date.now()
+    quest.done = quest.total
+    quest.correct = Math.min(quest.total, correct)
+
+    state.counters.dailyQuests = (state.counters.dailyQuests ?? 0) + 1
+    if (bonusStars > 0) state.stars += bonusStars
+
+    touchStreak()
+    checkAchievements()
+    return { alreadyDone: false, streak: quest.streak, stars: bonusStars }
   }
 
   function touchStreak() {
@@ -485,6 +580,12 @@ export const useProgressStore = defineStore('progress', () => {
     totalMinutes,
     last7Days,
     recordUsage,
+    // 今日冒险
+    dailyQuest,
+    dailyQuestDone,
+    startDailyQuest,
+    recordDailyStep,
+    finishDailyQuest,
     addStars,
     bumpCounter,
     recordAnswer,

@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import gsap from 'gsap'
 import MascotBot from '@/components/MascotBot.vue'
 import { ACHIEVEMENTS } from '@/data/achievements'
-import { MODULES, MODULE_MAP } from '@/data/modules.js'
+import { moduleInfo, MODULES } from '@/data/modules.js'
 import { useProgressStore } from '@/stores/progress.js'
 import { useSettingsStore } from '@/stores/settings.js'
 import { useFeedback } from '@/composables/useFeedback'
@@ -349,8 +349,8 @@ onMounted(() => {
       </svg>
       <ul class="history">
         <li v-for="(h, i) in spark.list.slice().reverse()" :key="i" class="hist-row">
-          <span class="chip">{{ MODULE_MAP[h.moduleId]?.icon ?? '🎯' }}</span>
-          <span>{{ MODULE_MAP[h.moduleId]?.name ?? h.moduleId }}</span>
+          <span class="chip">{{ moduleInfo(h.moduleId)?.icon ?? '🎯' }}</span>
+          <span>{{ moduleInfo(h.moduleId)?.name ?? h.moduleId }}</span>
           <div class="spacer" />
           <span class="dim">{{ h.correct }}/{{ h.total }}</span>
           <strong :class="{ good: h.score >= 80 }">{{ h.score }}%</strong>

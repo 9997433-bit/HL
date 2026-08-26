@@ -101,7 +101,19 @@ export const MODULES = [
 
 export const MODULE_MAP = Object.fromEntries(MODULES.map((m) => [m.id, m]))
 
+/**
+ * 不占学习地图星球位、但会写进度与历史记录的玩法。
+ * 少了这份登记，成就墙的历史列表里就会冒出裸 id。
+ */
+export const SIDE_MODULES = {
+  daily: { id: 'daily', name: '今日冒险', icon: '🗓️', route: '/daily' },
+  compare: { id: 'compare', name: '比大小擂台', icon: '⚖️', route: '/compare' },
+}
+
+/** 玩法 id → 展示信息，星球与非星球玩法都能查到。 */
+export const moduleInfo = (id) => MODULE_MAP[id] ?? SIDE_MODULES[id] ?? null
+
 /** 玩法模块 id → curriculum.js 中的架构模块 id */
 export const CURRICULUM_ID = Object.fromEntries(MODULES.map((m) => [m.id, m.curriculumId]))
 
-export const moduleName = (id) => MODULE_MAP[id]?.name ?? id
+export const moduleName = (id) => moduleInfo(id)?.name ?? id
