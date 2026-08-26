@@ -316,10 +316,9 @@ orchestrator to diff against the landed implementation in Round 2.
 - Verified on Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1: `tests/test_correlation.py` 35 passed,
   full suite 157 passed. `ruff check src/openfemlab/correlation tests/test_correlation.py`
   clean.
-- Open for the orchestrator: `cli/analysis.py` carries its own `mac_matrix`/`pair_modes`/
-  `common_rows` implementations; the `correlate` command should be repointed at
-  `openfemlab.correlation` (and at `CorrelationReport.to_json`) in Round 2 so there is one
-  correlation kernel.
+- Resolved by A16: `cli/analysis.py` contains only solver/result adapters, while the
+  `correlate` command delegates DOF alignment, MAC, mode pairing, COMAC, summaries, and
+  serialization to the public `openfemlab.correlation` report pipeline.
 
 #### A04 — Sensitivity Kernel, Updater Wiring & Updating Test Suite
 - Completed `updating/sensitivity.py` against MS-3.3. On top of the Fox–Kapoor eigenvalue
@@ -396,6 +395,13 @@ orchestrator to diff against the landed implementation in Round 2.
   pass Ruff.
 - Remaining GAP-03 scope: datasets 2411/2412, Nastran BDF/OP2, meshio conversion, UFF
   writing, and binary 58b.
+
+#### A16 — CLI Correlation Kernel Reconciliation
+- Confirmed the pulled integration branch no longer contains duplicate `mac_matrix`,
+  `pair_modes`, or `common_rows` implementations in `cli/analysis.py`; correlation
+  numerics have one owner in `openfemlab.correlation`.
+- Added a CLI seam regression that replaces the public correlation entry point and verifies
+  the `correlate` command forwards all alignment and pairing settings to that kernel.
 
 ### Round 2 — Targeted Refactor & Deep Optimization
 **Status:** PENDING

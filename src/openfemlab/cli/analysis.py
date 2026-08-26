@@ -4,6 +4,9 @@ Bridges the solver-side objects (:class:`openfemlab.core.model.Model`,
 :class:`openfemlab.solver.modal.ModalResult`) to the DOF-mapped interchange
 contracts of :mod:`openfemlab.core.results`, which is the form
 ``openfemlab.io`` persists and ``openfemlab.correlation`` consumes.
+
+Numerical correlation intentionally does not live here: CLI commands delegate
+MAC calculation, mode pairing, and reporting to :mod:`openfemlab.correlation`.
 """
 
 from __future__ import annotations
