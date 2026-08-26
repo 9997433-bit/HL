@@ -6,6 +6,10 @@ Implemented here
   sensitivity ``dlambda_i/dp_j = phi_i^T (dK/dp_j - lambda_i dM/dp_j) phi_i``
   matches central finite differences with ``h = 1e-6 p_j,0`` to relative error
   1e-6 for every mode/parameter pair.
+- **AC-UPD-007** (twin, MS-3.6) — a deliberately duplicated parameter is caught
+  by the pre-updating collinearity screen at pairwise cosine > 0.99, one of the
+  pair is frozen with a reported reason, and updating still recovers the
+  survivor to the AC-UPD-003 gates.
 
 The model is the ``ten_dof_chain`` fixture split into three stiffness groups
 and two mass groups. The split is affine, so the group matrices *are* the
@@ -18,8 +22,9 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from openfemlab.updating import ScalingModel
+from openfemlab.updating import ScalingModel, UpdatableParameter
 from openfemlab.updating.sensitivity import eigenvalue_sensitivity
+from openfemlab.workflow import run_correction, select_parameters
 
 from ._support import (
     criterion,
@@ -34,10 +39,19 @@ from ._support import (
 SENSITIVITY_RTOL = 1e-6
 FD_RELATIVE_STEP = 1e-6
 
+#: Gates of AC-UPD-007; the recovery half is the AC-UPD-003 gate set.
+COLLINEARITY_COSINE = 0.99
+RECOVERY_ATOL = 1e-3
+RECOVERY_FREQ_PCT = 0.1
+RECOVERY_MAC = 0.999
+
 NUM_MASSES = 10
 NUM_MODES = 6
 STIFFNESS_GROUPS = ((1, 2, 3), (4, 5, 6), (7, 8, 9, 10))
 MASS_GROUPS = ((1, 2, 3, 4, 5), (6, 7, 8, 9, 10))
+
+#: AC-UPD-007 twin: ``k1`` is detuned and ``k1_twin`` scales the same springs.
+DUPLICATED_TRUTH = {"k1": 1.20, "k2": 0.80, "k3": 1.15, "k1_twin": 1.00}
 
 #: Operating points: the nominal model and a detuned one (MS-3.3 holds anywhere).
 OPERATING_POINTS = {
@@ -51,6 +65,35 @@ def _scaling_model() -> ScalingModel:
         NUM_MASSES, STIFFNESS_GROUPS, MASS_GROUPS
     )
     return ScalingModel(stiffness_parts, mass_parts, num_modes=NUM_MODES)
+
+
+def _duplicated_model() -> ScalingModel:
+    """The same chain with a second factor scaling exactly the first spring group.
+
+    ``k1`` and ``k1_twin`` share an element set, so only their sum is
+    identifiable — the rank deficiency MS-3.6 exists to catch. The nodal masses
+    stay unparameterized so the only degeneracy is the deliberate one.
+    """
+    stiffness_parts, mass_parts = spring_chain_parts(
+        NUM_MASSES, STIFFNESS_GROUPS, MASS_GROUPS
+    )
+    stiffness_parts["k1_twin"] = stiffness_parts["k1"].copy()
+    return ScalingModel(
+        stiffness_parts,
+        base_mass=sum(mass_parts.values()),
+        num_modes=NUM_MODES,
+        use_solver=False,
+    )
+
+
+def _duplicated_run():
+    """S1-S6 on the duplicated-parameter twin, all four factors declared free."""
+    model = _duplicated_model()
+    measured = model.modal_data(DUPLICATED_TRUTH)
+    parameters = [
+        UpdatableParameter(name, 1.0, 0.5, 2.0) for name in model.parameter_names
+    ]
+    return run_correction(model, measured, None, parameters, seed=0)
 
 
 def _central_difference_eigenvalues(model: ScalingModel, theta: np.ndarray) -> np.ndarray:
@@ -120,3 +163,67 @@ def test_ac_upd_001_sensitivity_signs_follow_the_physics():
     stiffness_columns = len(STIFFNESS_GROUPS)
     assert np.all(sensitivity[:, :stiffness_columns] > 0.0)
     assert np.all(sensitivity[:, stiffness_columns:] < 0.0)
+
+
+# --------------------------------------------- AC-UPD-007 collinearity screen
+
+
+@criterion("AC-UPD-007")
+def test_ac_upd_007_the_screen_frees_one_of_an_exactly_collinear_pair():
+    """A duplicated column is a cosine-1 detection on the sensitivity matrix alone."""
+    sensitivity = np.array(
+        [
+            [1.0, 0.0, 1.0],
+            [0.0, 2.0, 0.0],
+            [1.0, 1.0, 1.0],
+        ]
+    )
+
+    selection = select_parameters(sensitivity, ["a", "b", "a_twin"])
+
+    frozen = [d for d in selection.diagnostics if not d.selected]
+    assert len(frozen) == 1
+    assert frozen[0].reason == "collinear"
+    assert {frozen[0].name, frozen[0].collinear_with} == {"a", "a_twin"}
+    assert frozen[0].max_cosine > COLLINEARITY_COSINE
+    # Dropping the redundant column is what makes the normal equations solvable:
+    # the full matrix is rank-deficient, the retained subset is well conditioned.
+    assert selection.condition_number > 1.0 / np.finfo(float).eps
+    assert selection.selected_condition_number < 10.0
+
+
+@criterion("AC-UPD-007")
+def test_ac_upd_007_the_duplicated_parameter_is_detected_and_frozen():
+    """S3 flags the pair at cosine > 0.99 and reports which twin it froze, and why."""
+    report = _duplicated_run()
+    selection = report.parameter_selection
+
+    assert selection.frozen == ["k1_twin"]
+    assert set(selection.selected) == {"k1", "k2", "k3"}
+
+    diagnostic = next(d for d in selection.diagnostics if d.name == "k1_twin")
+    assert diagnostic.reason == "collinear"
+    assert diagnostic.collinear_with == "k1"
+    assert diagnostic.max_cosine > COLLINEARITY_COSINE
+
+    entry = report.parameter("k1_twin")
+    assert not entry.selected
+    assert entry.freeze_reason == "collinear"
+    assert entry.final == 1.0
+    assert "collinear with k1" in selection.table()
+
+
+@criterion("AC-UPD-007")
+def test_ac_upd_007_updating_still_meets_the_recovery_gates():
+    """With the twin frozen the run converges and the survivor lands on the truth."""
+    report = _duplicated_run()
+
+    assert report.status == "PASS", report.failure
+    selected = report.parameter_selection.selected
+    recovered = np.array([report.parameter(name).final for name in selected])
+    expected = np.array([DUPLICATED_TRUTH[name] for name in selected])
+    assert np.max(np.abs(recovered - expected)) <= RECOVERY_ATOL
+
+    summary = report.final_correlation.summary
+    assert summary.max_abs_freq_error_pct <= RECOVERY_FREQ_PCT
+    assert summary.min_mac >= RECOVERY_MAC
