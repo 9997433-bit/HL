@@ -519,3 +519,33 @@ def test_the_engine_can_play_an_edit_session(wav: tuple[Path, AudioBuffer]) -> N
 
     assert np.all(rendered == 0.0)
     assert not session.document.segments[0].chunk.data.flags.writeable
+
+
+class TestFrozenSpecNames:
+    """`core.sources` is the module path the Round 2 convergence audit froze.
+
+    The names there must stay bound to the very same objects, not to wrappers,
+    or a caller mixing the two import styles would see `isinstance` fail.
+    """
+
+    def test_the_aliases_are_the_implementation_classes(self) -> None:
+        from audio_studio.core import sources
+        from audio_studio.core.edit_session import EditSession
+
+        assert sources.ArraySource is MemorySampleSource
+        assert sources.FileStreamSource is StreamingSampleSource
+        assert sources.ChunkTableSource is EditSession
+        assert sources.SampleSource is SampleSource
+
+    def test_a_source_built_via_the_alias_satisfies_the_protocol(
+        self, wav: tuple[Path, AudioBuffer]
+    ) -> None:
+        from audio_studio.core.sources import ArraySource, FileStreamSource
+
+        memory = ArraySource(wav[1])
+        with FileStreamSource(wav[0]) as stream:
+            assert isinstance(memory, SampleSource)
+            assert isinstance(stream, SampleSource)
+            # The audit's `exact` flag is what tells a caller which one may block.
+            assert memory.exact and not stream.exact
+            assert np.allclose(memory.read(0, 512), stream.read(0, 512), atol=1e-6)
