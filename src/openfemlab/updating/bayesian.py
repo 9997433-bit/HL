@@ -51,6 +51,7 @@ __all__ = [
     "precision_matrix",
     "map_step",
     "posterior_covariance",
+    "posterior_sigma",
     "update_model_bayesian",
 ]
 
@@ -309,6 +310,41 @@ def posterior_covariance(
         return _symmetrize(np.linalg.inv(information))
     except np.linalg.LinAlgError:
         return _symmetrize(np.linalg.pinv(information))
+
+
+def posterior_sigma(result: UpdatingResult) -> dict[str, float]:
+    """Per-parameter σ_post of an updating run, keyed by parameter name.
+
+    A MAP run — one driven by :class:`BayesianUpdater` — already carries the
+    Laplace posterior ``(Jᵀ C_ε⁻¹ J + C_p⁻¹)⁻¹`` evaluated at the solution, and
+    that is what gets reported.  A deterministic run has neither ``C_ε`` nor
+    ``C_p``, so it falls back to the least-squares counterpart
+    ``C_post ≈ σ² (JᵀJ)⁻¹`` with ``σ²`` estimated from the final residual: a
+    weaker statement, but it keeps the column populated.
+
+    The values live in the updater's design space, so a ``log_scaled``
+    parameter reports the spread of ``log(factor)`` rather than of the factor.
+    """
+    if isinstance(result, BayesianUpdatingResult) and result.posterior is not None:
+        posterior = result.posterior
+        return {
+            name: float(value)
+            for name, value in zip(posterior.names, posterior.std, strict=False)
+        }
+
+    sensitivity = result.sensitivity
+    if sensitivity is None or sensitivity.matrix.size == 0:
+        return {}
+    jacobian = np.asarray(sensitivity.matrix, dtype=float)
+    n_residuals, n_parameters = jacobian.shape
+    dof = max(n_residuals - n_parameters, 1)
+    variance = 2.0 * result.final_cost / dof
+    covariance = np.linalg.pinv(jacobian.T @ jacobian) * variance
+    diagonal = np.clip(np.diag(covariance), 0.0, None)
+    return {
+        name: float(np.sqrt(value))
+        for name, value in zip(sensitivity.parameter_names, diagonal, strict=False)
+    }
 
 
 def _solve(matrix: np.ndarray, rhs: np.ndarray, size: int) -> np.ndarray:

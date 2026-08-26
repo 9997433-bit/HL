@@ -26,6 +26,7 @@ from .bayesian import (
     covariance_matrix,
     map_step,
     posterior_covariance,
+    posterior_sigma,
     precision_matrix,
     update_model_bayesian,
 )
@@ -80,6 +81,7 @@ __all__ = [
     "modal_sensitivity",
     "mode_shape_sensitivity",
     "posterior_covariance",
+    "posterior_sigma",
     "precision_matrix",
     "relative_sensitivity",
     "track_modes",

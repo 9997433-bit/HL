@@ -19,9 +19,9 @@ import numpy as np
 from ..correlation.report import CorrelationReport, correlation_report
 from ..updating.bayesian import (
     BayesianUpdater,
-    BayesianUpdatingResult,
     CovarianceSpec,
     GaussianPrior,
+    posterior_sigma,
 )
 from ..updating.parameters import Parameter, ParameterSet, UpdatableParameter
 from ..updating.sensitivity import ModalData, as_modal_data, modal_sensitivity
@@ -64,39 +64,6 @@ class _SensorModel:
         if self._sensor_map is None or data.mode_shapes is None:
             return data
         return ModalData(data.frequencies, self._sensor_map.reduce(data.mode_shapes))
-
-
-def _posterior_sigma(result: UpdatingResult) -> dict[str, float]:
-    """Per-parameter posterior standard deviations for the report's σ_post column.
-
-    A MAP run — S4 driven by
-    :class:`~openfemlab.updating.bayesian.BayesianUpdater` — already carries the
-    MS-3.5 Laplace posterior ``(Jᵀ C_ε⁻¹ J + C_p⁻¹)⁻¹`` evaluated at the
-    solution, and that is what gets reported.  A deterministic run has neither
-    ``C_ε`` nor ``C_p``, so it falls back to the least-squares counterpart
-    ``C_post ≈ σ² (JᵀJ)⁻¹`` with ``σ²`` estimated from the final residual: a
-    weaker statement, but it keeps the column populated.
-    """
-    if isinstance(result, BayesianUpdatingResult) and result.posterior is not None:
-        posterior = result.posterior
-        return {
-            name: float(value)
-            for name, value in zip(posterior.names, posterior.std, strict=False)
-        }
-
-    sensitivity = result.sensitivity
-    if sensitivity is None or sensitivity.matrix.size == 0:
-        return {}
-    jacobian = np.asarray(sensitivity.matrix, dtype=float)
-    n_residuals, n_parameters = jacobian.shape
-    dof = max(n_residuals - n_parameters, 1)
-    variance = 2.0 * result.final_cost / dof
-    covariance = np.linalg.pinv(jacobian.T @ jacobian) * variance
-    diagonal = np.clip(np.diag(covariance), 0.0, None)
-    return {
-        name: float(np.sqrt(value))
-        for name, value in zip(sensitivity.parameter_names, diagonal, strict=False)
-    }
 
 
 class CorrectionWorkflow:
@@ -594,7 +561,7 @@ class CorrectionWorkflow:
         return self._build_report(failure, holdout_baseline, holdout_final)
 
     def _parameter_entries(self) -> list[ParameterEntry]:
-        sigma = _posterior_sigma(self._updating) if self._updating is not None else {}
+        sigma = posterior_sigma(self._updating) if self._updating is not None else {}
         diagnosed = set() if self._selection is None else set(self._selection.parameter_names)
         entries = []
         for parameter in self.parameters:

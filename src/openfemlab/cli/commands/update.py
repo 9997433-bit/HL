@@ -1,4 +1,22 @@
-"""``openfemlab update`` -- sensitivity-based model updating driven by a config file."""
+"""``openfemlab update`` -- sensitivity-based model updating driven by a config file.
+
+Two estimators share the command.  Without a ``prior`` or a ``noise`` section
+the run is the deterministic Levenberg-Marquardt loop of
+:mod:`openfemlab.updating.updater`.  With either of them it is the MS-3.5
+maximum-a-posteriori loop of :mod:`openfemlab.updating.bayesian`, and the
+report gains the resolved prior, the noise model, and the Laplace posterior
+whose diagonal is the per-parameter σ_post::
+
+    prior:
+      std: 0.05             # scalar, per-parameter list, or {name: value}
+      mean: {stiffness: 1.0}
+    noise:
+      std: 0.005            # over the assembled residual entries
+
+``std``, ``variance`` and ``covariance`` are three ways of writing the same
+block; exactly one of them may appear.  Both live in the updater's *design*
+space, so a ``log_scaled`` parameter takes its prior on ``log(factor)``.
+"""
 
 from __future__ import annotations
 
@@ -98,11 +116,12 @@ class Declaration:
 
 
 def run(args: argparse.Namespace, reporter: Reporter) -> int:
-    from ...updating import ModelUpdater, ParameterSet, UpdatingOptions
+    from ...updating import BayesianUpdater, ModelUpdater, ParameterSet, UpdatingOptions
 
     config = load_spec(args.config)
     model_spec = _model_spec(config, args.config)
     declarations = _declarations(config, model_spec)
+    statistics = _statistics(config, declarations)
     target_frequencies, target_shapes, target_source = _target(config, args.config)
 
     num_modes = int(args.modes or config.get("modes") or target_frequencies.size)
@@ -128,9 +147,22 @@ def run(args: argparse.Namespace, reporter: Reporter) -> int:
         f"updating {len(declarations)} parameters against {target_frequencies.size} "
         f"target frequencies ({num_modes} FE modes per evaluation)"
     )
-    updater = ModelUpdater(
-        evaluate, parameters, target_frequencies, target_shapes, options=options
-    )
+    updater: ModelUpdater
+    if statistics is None:
+        updater = ModelUpdater(
+            evaluate, parameters, target_frequencies, target_shapes, options=options
+        )
+    else:
+        reporter.note(f"maximum-a-posteriori estimator: {statistics.description}")
+        updater = BayesianUpdater(
+            evaluate,
+            parameters,
+            target_frequencies,
+            target_shapes,
+            prior=statistics.prior,
+            noise_covariance=statistics.noise_covariance,
+            options=options,
+        )
     result = updater.run()
 
     factors = {
@@ -147,6 +179,7 @@ def run(args: argparse.Namespace, reporter: Reporter) -> int:
         updated_spec=updated_spec,
         num_modes=num_modes,
         shape_correlation=target_shapes is not None,
+        statistics=statistics,
     )
 
     if args.format == "table":
@@ -259,6 +292,164 @@ def _options(config: Mapping[str, Any], max_iterations: int | None) -> dict[str,
     return options
 
 
+# -------------------------------------------------- prior and noise (MS-3.5)
+
+#: The three interchangeable ways of writing one dispersion block.
+DISPERSION_KEYS = ("std", "variance", "covariance")
+
+
+@dataclass(frozen=True)
+class Statistics:
+    """The resolved MS-3.5 inputs of a MAP run, plus their report blocks."""
+
+    prior: Any
+    noise_covariance: Any
+    prior_block: dict[str, Any] | None
+    noise_block: dict[str, Any] | None
+
+    @property
+    def description(self) -> str:
+        parts = []
+        if self.prior_block is not None:
+            parts.append(f"prior by {self.prior_block['given_as']}")
+        if self.noise_block is not None:
+            parts.append(f"noise by {self.noise_block['given_as']}")
+        return ", ".join(parts)
+
+
+def _statistics(config: Mapping[str, Any], declarations: list[Declaration]) -> Statistics | None:
+    """Read the ``prior`` and ``noise`` sections; ``None`` keeps the LM estimator."""
+    from ...updating import GaussianPrior
+
+    prior_raw = config.get("prior")
+    noise_raw = config.get("noise", config.get("noise_covariance"))
+    if prior_raw is None and noise_raw is None:
+        return None
+
+    names = [declaration.name for declaration in declarations]
+    prior, prior_block = _prior(prior_raw, declarations)
+    noise_spec, noise_block = _noise(noise_raw)
+    return Statistics(
+        prior=GaussianPrior.uninformative(names) if prior is None else prior,
+        noise_covariance=noise_spec,
+        prior_block=prior_block,
+        noise_block=noise_block,
+    )
+
+
+def _numbers(raw: Any, names: list[str] | None, label: str) -> np.ndarray:
+    """One dispersion entry as an array: scalar, vector, matrix or ``{name: value}``."""
+    if isinstance(raw, Mapping):
+        if names is None:
+            raise SpecError(f"{label}: a per-parameter mapping only applies to the prior")
+        unknown = sorted({str(key) for key in raw} - set(names))
+        if unknown:
+            raise SpecError(f"{label}: no such parameter: {', '.join(unknown)}")
+        missing = [name for name in names if name not in raw]
+        if missing:
+            raise SpecError(f"{label}: no entry for {', '.join(missing)}")
+        raw = [raw[name] for name in names]
+    try:
+        array = np.asarray(raw, dtype=float)
+    except (TypeError, ValueError) as exc:
+        raise SpecError(f"{label}: expected a number, a list or a matrix") from exc
+    if not np.all(np.isfinite(array)):
+        raise SpecError(f"{label}: every entry must be finite")
+    return array
+
+
+def _dispersion(
+    block: Any, label: str, names: list[str] | None
+) -> tuple[np.ndarray, str]:
+    """Covariance specification of one block, plus the key it was written with."""
+    if not isinstance(block, Mapping):
+        raise SpecError(f"'{label}' must be a mapping")
+    given = [key for key in DISPERSION_KEYS if key in block]
+    if not given:
+        raise SpecError(f"'{label}' needs one of {', '.join(DISPERSION_KEYS)}")
+    if len(given) > 1:
+        raise SpecError(f"'{label}' sets {' and '.join(given)}; give exactly one")
+    key = given[0]
+    values = _numbers(block[key], names, f"{label}.{key}")
+    if key == "std":
+        if np.any(values <= 0.0):
+            raise SpecError(f"{label}.std: standard deviations must be positive")
+        return values**2, key
+    return values, key
+
+
+def _prior(raw: Any, declarations: list[Declaration]) -> tuple[Any, dict[str, Any] | None]:
+    """Resolve the ``prior`` section against the declared parameters."""
+    from ...updating import GaussianPrior
+
+    if raw is None:
+        return None, None
+    names = [declaration.name for declaration in declarations]
+    size = len(names)
+    unknown = sorted(set(raw) - {*DISPERSION_KEYS, "mean"}) if isinstance(raw, Mapping) else []
+    if unknown:
+        raise SpecError(f"unknown keys in 'prior': {', '.join(unknown)}")
+    covariance, given_as = _dispersion(raw, "prior", names)
+
+    mean: np.ndarray | None = None
+    if raw.get("mean") is not None:
+        mean = _numbers(raw["mean"], names, "prior.mean")
+        mean = np.full(size, float(mean)) if mean.ndim == 0 else mean.ravel()
+        if mean.size != size:
+            raise SpecError(f"prior.mean: expected {size} entries, got {mean.size}")
+
+    prior = GaussianPrior(covariance=covariance, mean=mean, names=tuple(names))
+    try:
+        matrix = prior.matrix(size)
+        sigma = prior.std(size)
+    except ValueError as exc:
+        raise SpecError(f"prior: {exc}") from exc
+    # An unset mean anchors on the run's starting point, which is the unit
+    # scaling factor mapped into each parameter's own design space.
+    start = np.array(
+        [0.0 if declaration.log_scaled else 1.0 for declaration in declarations], dtype=float
+    )
+    block = {
+        "given_as": given_as,
+        "space": "design",
+        "names": names,
+        "std": [float(value) for value in sigma],
+        "mean": [float(value) for value in prior.center(size, start)],
+        "covariance": [[float(value) for value in row] for row in matrix],
+    }
+    return prior, block
+
+
+def _noise(raw: Any) -> tuple[np.ndarray | None, dict[str, Any] | None]:
+    """Resolve the ``noise`` section; its size is the residual's, known only at run time."""
+    if raw is None:
+        return None, None
+    unknown = sorted(set(raw) - set(DISPERSION_KEYS)) if isinstance(raw, Mapping) else []
+    if unknown:
+        raise SpecError(f"unknown keys in 'noise': {', '.join(unknown)}")
+    covariance, given_as = _dispersion(raw, "noise", None)
+    if covariance.ndim > 2:
+        raise SpecError("noise: expected a number, a list of variances or a matrix")
+    if np.any(covariance <= 0.0) and covariance.ndim < 2:
+        raise SpecError("noise: variances must be positive")
+    block: dict[str, Any] = {
+        "given_as": given_as,
+        "space": "residual",
+        "std": _sigma_of(covariance),
+    }
+    if covariance.ndim == 2:
+        block["covariance"] = [[float(value) for value in row] for row in covariance]
+    return covariance, block
+
+
+def _sigma_of(covariance: np.ndarray) -> float | list[float]:
+    """σ of a covariance specification: scalar in, scalar out; diagonal otherwise."""
+    if covariance.ndim == 0:
+        return float(np.sqrt(covariance))
+    diagonal = np.diag(covariance) if covariance.ndim == 2 else covariance
+    return [float(value) for value in np.sqrt(np.clip(diagonal, 0.0, None))]
+
+
 def _make_evaluator(model_spec, declarations, *, num_modes: int, rows):
     """Return the ``{parameter: factor} -> ModalData`` callable the updater drives."""
     from ...updating.sensitivity import ModalData
@@ -288,8 +479,13 @@ def build_report(
     updated_spec: Mapping[str, Any],
     num_modes: int,
     shape_correlation: bool,
+    statistics: Statistics | None = None,
 ) -> dict[str, Any]:
     """Assemble the JSON-ready summary of one updating run."""
+    from ...updating import posterior_sigma
+
+    sigma_post = posterior_sigma(result)
+    sigma_prior = _prior_sigma(statistics)
     parameters = []
     for declaration in declarations:
         factor = float(result.parameters[declaration.name])
@@ -302,10 +498,15 @@ def build_report(
                 "updated": declaration.nominal * factor,
                 "change_pct": 100.0 * (factor - 1.0),
                 "bounds": [declaration.lower, declaration.upper],
+                # Both spreads are design-space quantities, like the factor
+                # itself for a linear parameter and like its logarithm for a
+                # log-scaled one.
+                "sigma_post": _finite(sigma_post.get(declaration.name)),
+                "sigma_prior": _finite(sigma_prior.get(declaration.name)),
             }
         )
 
-    return {
+    report: dict[str, Any] = {
         "command": NAME,
         "source": config_source,
         "target": {
@@ -317,6 +518,7 @@ def build_report(
             "num_modes": num_modes,
             "evaluations": updater.n_evaluations,
             "shape_correlation": shape_correlation,
+            "estimator": "least-squares" if statistics is None else "map",
         },
         "converged": bool(result.converged),
         "message": result.message,
@@ -330,6 +532,17 @@ def build_report(
             "initial": _correlation(result.initial_correlation),
             "final": _correlation(result.final_correlation),
         },
+        # Null for a deterministic run; the MS-3.5 inputs and the Laplace
+        # posterior they produce for a MAP one.
+        "bayesian": (
+            None
+            if statistics is None
+            else {
+                "prior": statistics.prior_block,
+                "noise": statistics.noise_block,
+                "posterior": _posterior(result),
+            }
+        ),
         "parameters": parameters,
         "history": [
             {
@@ -346,6 +559,43 @@ def build_report(
         ],
         "updated_model": dict(updated_spec),
     }
+    return report
+
+
+def _prior_sigma(statistics: Statistics | None) -> dict[str, float]:
+    """Per-parameter σ_prior, empty unless an informative prior was configured."""
+    if statistics is None or statistics.prior_block is None:
+        return {}
+    block = statistics.prior_block
+    return dict(zip(block["names"], block["std"], strict=True))
+
+
+def _posterior(result) -> dict[str, Any] | None:
+    """The Laplace posterior of a MAP run, in the updater's design space."""
+    posterior = getattr(result, "posterior", None)
+    if posterior is None:  # pragma: no cover - run() always reports modal data
+        return None
+    return {
+        "space": "design",
+        "names": list(posterior.names),
+        "mean": [float(value) for value in posterior.mean],
+        "sigma_post": [float(value) for value in posterior.std],
+        "sigma_prior": [_finite(value) for value in posterior.prior_std],
+        "covariance": [[float(value) for value in row] for row in posterior.covariance],
+    }
+
+
+def _finite(value: float | None) -> float | None:
+    """JSON-safe scalar; ``None`` stands in for an absent or infinite spread."""
+    if value is None:
+        return None
+    number = float(value)
+    return number if np.isfinite(number) else None
+
+
+def _spread(value: float | None) -> str:
+    """Table cell for a standard deviation the run could not put a number on."""
+    return "-" if value is None else format_number(value, 3)
 
 
 def render(report: dict[str, Any], reporter: Reporter) -> None:
@@ -353,6 +603,7 @@ def render(report: dict[str, Any], reporter: Reporter) -> None:
     cost = report["cost"]
     reporter.fields(
         {
+            "estimator": report["analysis"]["estimator"],
             "converged": f"{report['converged']} ({report['message']})",
             "iterations": report["iterations"],
             "model evaluations": report["analysis"]["evaluations"],
@@ -361,6 +612,10 @@ def render(report: dict[str, Any], reporter: Reporter) -> None:
         }
     )
 
+    # σ_prior only says something once a prior has been configured; σ_post is
+    # the Laplace posterior for a MAP run and the least-squares estimate
+    # otherwise, so it is worth showing either way.
+    with_prior = any(p["sigma_prior"] is not None for p in report["parameters"])
     reporter.table(
         (
             Column("parameter", justify="left"),
@@ -369,6 +624,8 @@ def render(report: dict[str, Any], reporter: Reporter) -> None:
             Column("updated"),
             Column("factor"),
             Column("change [%]"),
+            Column("sigma_post"),
+            *([Column("sigma_prior")] if with_prior else []),
             Column("bounds"),
         ),
         [
@@ -379,6 +636,8 @@ def render(report: dict[str, Any], reporter: Reporter) -> None:
                 format_number(parameter["updated"]),
                 format_number(parameter["factor"], 5),
                 format_percent(parameter["change_pct"], 2),
+                _spread(parameter["sigma_post"]),
+                *([_spread(parameter["sigma_prior"])] if with_prior else []),
                 f"[{format_number(parameter['bounds'][0], 3)}, "
                 f"{format_number(parameter['bounds'][1], 3)}]",
             )
