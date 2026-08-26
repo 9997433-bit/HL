@@ -81,7 +81,18 @@ MVP 骨架建立：364 tests、波形/频谱/DSP 模块、测试基建。关键�
 
 ## Round 3 Brief
 
-_(Pending Round 3 dispatch)_
+_(Pending Round 3 completion)_
+
+### Round 3 Dispatch Log (2026-08-26)
+
+| # | Alias | Model Slug | Role | Agent ID | Env | Status |
+|---|-------|------------|------|----------|-----|--------|
+| 1 | fable | claude-fable-5-thinking-xhigh | SOTA 最终验收审计 | bc-63e6fdf0 | cloud | 🔄 |
+| 2 | fable | claude-fable-5-thinking-xhigh | 架构签收 & 发布路线图 | bc-11509187 | cloud | 🔄 |
+| 3 | opus-fast | claude-opus-5-thinking-high-fast | 多轨 Session MVP | bc-da156ab0 | local | 🔄 |
+| 4 | opus-fast | claude-opus-5-thinking-high-fast | BS.1770 产品合规 & 修复套件 | bc-c21cf033 | local | 🔄 |
+| 5 | gpt-sol | gpt-5.6-sol-xhigh-fast | CI 修复 & 验收自动化 | bc-d2a00c73 | local | 🔄 |
+| 6 | gpt-sol | gpt-5.6-sol-xhigh-fast | 许可清单 & 最终 PR 准备 | bc-6e17c961 | local | 🔄 |
 
 ## Final Summary
 
