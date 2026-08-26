@@ -1,9 +1,13 @@
 """Independent ITU-R BS.1770 / EBU R128 measurement oracle.
 
-This module intentionally lives in ``tools`` rather than the application.  It
-gives compliance tests a small, inspectable reference implementation while the
-production loudness meter is developed.  Audio is expected as float samples in
-``(frames, channels)`` order.
+This module intentionally lives in ``tools`` rather than the application. It is
+deliberately the simplest thing that implements the standard — no gating
+shortcuts, no cumulative sums, no candidate windows — so that the compliance
+suite has something to disagree with the product meter about. Both are measured
+against every vector; a case only one of them passes is a defect in whichever
+of the two is wrong.
+
+Audio is expected as float samples in ``(frames, channels)`` order.
 """
 
 from __future__ import annotations
@@ -45,11 +49,16 @@ def _k_weighting_sos(sample_rate: int) -> np.ndarray:
     high_pass_q = 0.5003270373238773
     k = math.tan(math.pi * high_pass_frequency / sample_rate)
     denominator = 1.0 + k / high_pass_q + k * k
+    # BS.1770-4 Table 2 lists the RLB numerator as exactly (1, -2, 1): only the
+    # denominator is normalised. Dividing the numerator through as well costs
+    # 0.043 dB of passband gain, which is small enough to hide inside the
+    # +-0.1 LU tolerance on a steady tone and large enough to fail a vector
+    # whose blocks straddle a gate.
     high_pass = np.array(
         [
-            1.0 / denominator,
-            -2.0 / denominator,
-            1.0 / denominator,
+            1.0,
+            -2.0,
+            1.0,
             1.0,
             2.0 * (k * k - 1.0) / denominator,
             (1.0 - k / high_pass_q + k * k) / denominator,
