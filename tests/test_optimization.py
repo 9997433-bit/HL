@@ -1,8 +1,15 @@
 """Contract tests for the optimization hook (spec MS-5, AC-OPT-001..004).
 
-The Round 1 deliverable is the *design*: the lowering pipeline, the gradient
-interface and the mode tracking are real and tested here; the only stub is
-``ScipyBackend.solve`` (Round 2, GAP-12), whose stub-ness is itself pinned.
+Covers the whole path: the design space, the lowering pipeline, both gradient
+routes, mode tracking, the scipy backends, and the seam that re-expresses a
+model-updating run as the same vector problem.  The quantified acceptance
+gates themselves live in ``tests/acceptance/test_optimization.py``; what is
+pinned here is the behaviour those gates rest on.
+
+The reference sizing problem is a chain whose links carry both stiffness and
+structural mass on top of a fixed non-structural mass, so minimizing mass
+genuinely fights a frequency floor and the optimum sits on the constraint
+boundary.
 """
 
 from __future__ import annotations
@@ -16,6 +23,7 @@ from openfemlab.optimization import (
     NaturalFrequency,
     Objective,
     OptimizationProblem,
+    ScipyBackend,
     ShapeVariable,
     TotalMass,
     available_backends,
@@ -23,12 +31,17 @@ from openfemlab.optimization import (
     compile_sizing_problem,
     frequency_floor,
     get_backend,
+    kkt_residual,
     minimize_sizing,
     problem_from_updater,
 )
 from openfemlab.updating import ModelUpdater, ScalingModel, UpdatableParameter
 
 TWO_PI = 2.0 * np.pi
+
+#: Structural and non-structural mass per link of the sizing reference chain.
+LINK_MASS = 1.0
+FIXED_MASS = 0.5
 
 
 def chain_model(mass_scale: bool = True) -> ScalingModel:
@@ -51,6 +64,37 @@ def sizing_parameters(include_mass: bool = True) -> list[UpdatableParameter]:
     if include_mass:
         params.append(UpdatableParameter("pm", value=1.0, lower=0.1, upper=3.0, kind="mass"))
     return params
+
+
+def link_stiffness(num_masses: int, link: int) -> np.ndarray:
+    """Unit stiffness contribution of link ``link`` of a grounded chain."""
+    part = np.zeros((num_masses, num_masses))
+    part[link, link] += 1.0
+    if link > 0:
+        part[link - 1, link - 1] += 1.0
+        part[link, link - 1] -= 1.0
+        part[link - 1, link] -= 1.0
+    return part
+
+
+def sizing_chain(num_masses: int = 3, *, uniform: bool = False) -> ScalingModel:
+    """Chain whose links carry stiffness *and* structural mass (see the module docstring)."""
+    if uniform:
+        stiffness = {"t": sum(link_stiffness(num_masses, j) for j in range(num_masses))}
+        mass = {"t": LINK_MASS * np.eye(num_masses)}
+    else:
+        stiffness = {f"t{j + 1}": link_stiffness(num_masses, j) for j in range(num_masses)}
+        mass = {
+            f"t{j + 1}": LINK_MASS * np.diag(np.eye(num_masses)[j]) for j in range(num_masses)
+        }
+    return ScalingModel(
+        stiffness, mass, base_mass=FIXED_MASS * np.eye(num_masses), num_modes=num_masses
+    )
+
+
+def sizing_chain_parameters(num_masses: int = 3, *, uniform: bool = False):
+    names = ["t"] if uniform else [f"t{j + 1}" for j in range(num_masses)]
+    return [UpdatableParameter(name, value=1.0, lower=0.25, upper=6.0) for name in names]
 
 
 # ---------------------------------------------------------------------------
@@ -249,14 +293,130 @@ class TestProblemAndBackends:
         with pytest.raises(OptimizationError):
             get_backend("nelder-mead")
 
-    def test_scipy_backend_is_the_round_2_stub(self):
-        with pytest.raises(NotImplementedError, match="GAP-12"):
-            minimize_sizing(
-                chain_model(),
-                sizing_parameters(),
-                TotalMass(),
-                [frequency_floor(0, f_min=0.05)],
-            )
+    def test_backend_settings_are_validated(self):
+        with pytest.raises(OptimizationError, match="unknown scipy method"):
+            ScipyBackend(method="powell")
+        with pytest.raises(OptimizationError, match="tolerance must be positive"):
+            ScipyBackend(tol=0.0)
+        with pytest.raises(OptimizationError, match="max_iter"):
+            ScipyBackend(max_iter=0)
+
+    def test_backend_refuses_to_differentiate_internally(self):
+        """MS-5.2: a hidden 2-point jacobian would cost one modal solve per column."""
+        problem = OptimizationProblem(
+            objective=lambda x: float(x @ x),
+            x0=np.array([0.5]),
+            bounds=(np.zeros(1), np.ones(1)),
+        )
+        with pytest.raises(OptimizationError, match="no gradient callback"):
+            problem.solve("slsqp")
+
+    def test_unconstrained_problem_reaches_the_interior_minimum(self):
+        problem = OptimizationProblem(
+            objective=lambda x: float((x[0] - 0.25) ** 2),
+            x0=np.array([0.9]),
+            bounds=(np.zeros(1), np.ones(1)),
+            gradient=lambda x: np.array([2.0 * (x[0] - 0.25)]),
+        )
+        result = problem.solve("slsqp")
+        assert result.converged, result.report()
+        assert np.isclose(result.x[0], 0.25, atol=1e-6)
+        assert result.stationarity == pytest.approx(0.0, abs=1e-6)
+        assert result.active_set == []
+        assert result.n_evaluations > 0
+
+    def test_kkt_residual_reads_the_active_set(self):
+        bounds = (np.zeros(1), np.ones(1))
+        interior = np.array([0.5])
+        assert kkt_residual(np.array([0.0]), {}, interior, bounds) == pytest.approx(0.0)
+        assert kkt_residual(np.array([2.0]), {}, interior, bounds) == pytest.approx(1.0)
+        # Pressed against the lower bound, a downhill gradient is still stationary.
+        assert kkt_residual(np.array([2.0]), {}, np.zeros(1), bounds) == pytest.approx(
+            0.0, abs=1e-12
+        )
+
+    def test_unreachable_constraint_reports_failure_inside_the_box(self):
+        """A floor the box cannot reach fails loudly rather than escaping the bounds."""
+        result = minimize_sizing(
+            sizing_chain(2),
+            sizing_chain_parameters(2),
+            TotalMass(),
+            [frequency_floor(0, f_min=10.0)],
+        )
+        assert not result.converged
+        assert result.max_violation > 0.0
+        assert np.all(result.x >= 0.25 - 1e-12) and np.all(result.x <= 6.0 + 1e-12)
+
+
+class TestSizingRuns:
+    """End-to-end runs of the reference sizing problem through both backends."""
+
+    @staticmethod
+    def uniform_optimum(num_masses: int, f_min: float) -> float:
+        """Closed-form ``t*`` where the floor binds: see the module docstring."""
+        K1 = sum(link_stiffness(num_masses, j) for j in range(num_masses))
+        mu_1 = float(np.linalg.eigvalsh(K1)[0])
+        omega_squared = (TWO_PI * f_min) ** 2
+        return omega_squared * FIXED_MASS / (mu_1 - omega_squared * LINK_MASS)
+
+    def test_uniform_chain_lands_on_the_closed_form_optimum(self):
+        num_masses, f_min = 3, 0.065
+        t_star = self.uniform_optimum(num_masses, f_min)
+        assert 0.25 < t_star < 6.0
+
+        result = minimize_sizing(
+            sizing_chain(num_masses, uniform=True),
+            sizing_chain_parameters(num_masses, uniform=True),
+            TotalMass(),
+            [frequency_floor(0, f_min=f_min)],
+        )
+
+        assert result.converged, result.report()
+        assert result.variables["t"] == pytest.approx(t_star, rel=1e-4)
+        assert abs(result.max_violation) <= 1e-6
+        assert result.active_set == [f"f1 >= {f_min:g}"]
+        assert result.n_modal_solves > 0
+        assert "design variables" in result.report()
+
+    @pytest.mark.filterwarnings("ignore:delta_grad == 0.0")  # a linear mass objective
+    def test_trust_constr_agrees_with_slsqp(self):
+        num_masses, f_min = 3, 0.065
+        arguments = (
+            sizing_chain(num_masses, uniform=True),
+            sizing_chain_parameters(num_masses, uniform=True),
+            TotalMass(),
+            [frequency_floor(0, f_min=f_min)],
+        )
+        slsqp = minimize_sizing(*arguments, backend="slsqp")
+        trust = minimize_sizing(*arguments, backend="trust-constr", tol=1e-10)
+        assert trust.converged, trust.report()
+        assert trust.objective == pytest.approx(slsqp.objective, rel=1e-4)
+
+    def test_multi_variable_optimum_beats_every_feasible_sample(self):
+        num_masses, f_min = 3, 0.066
+        model, parameters = sizing_chain(num_masses), sizing_chain_parameters(num_masses)
+        result = minimize_sizing(
+            model, parameters, TotalMass(), [frequency_floor(0, f_min)]
+        )
+        assert result.converged, result.report()
+        assert result.stationarity < 1e-4
+
+        problem, _ = compile_sizing_problem(
+            model,
+            sizing_chain_parameters(num_masses),
+            TotalMass(),
+            [frequency_floor(0, f_min)],
+        )
+        lo, hi = problem.bounds
+        rng = np.random.default_rng(7)
+        feasible = 0
+        for _ in range(80):
+            x = lo + (hi - lo) * rng.random(problem.n_variables)
+            if problem.constraints[0].fun(x) > 0.0:
+                continue
+            feasible += 1
+            assert problem.objective(x) >= result.objective - 1e-8
+        assert feasible >= 5, "the random probe must actually hit feasible designs"
 
 
 # ---------------------------------------------------------------------------
