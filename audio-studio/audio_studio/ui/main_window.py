@@ -23,7 +23,6 @@ dragging a selection re-analyses once rather than on every mouse move.
 
 from __future__ import annotations
 
-import html
 import tempfile
 from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
@@ -39,8 +38,6 @@ from PySide6.QtGui import (
     QKeySequence,
 )
 from PySide6.QtWidgets import (
-    QDialog,
-    QDialogButtonBox,
     QDockWidget,
     QFileDialog,
     QHBoxLayout,
@@ -48,7 +45,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
     QMessageBox,
-    QTextBrowser,
     QToolBar,
     QVBoxLayout,
     QWidget,
@@ -114,42 +110,6 @@ UI_REFRESH_MS: int = 33
 ANALYSIS_DEBOUNCE_MS: int = 250
 
 MAX_RECENT_FILES: int = 8
-
-
-def strip_mnemonic(text: str) -> str:
-    """``"Fade &In"`` → ``"Fade In"``, keeping a literal ``&&`` as one ``&``."""
-    return text.replace("&&", "\x00").replace("&", "").replace("\x00", "&")
-
-
-class ShortcutsDialog(QDialog):
-    """Help ▸ Keyboard Shortcuts — the menu bindings as a readable table.
-
-    Modeless on purpose: the point of the sheet is to try a shortcut while it
-    is on screen, which a modal dialog would swallow.
-    """
-
-    def __init__(self, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self.setWindowTitle("Keyboard Shortcuts")
-        self.setObjectName("ShortcutsDialog")
-        self.resize(560, 640)
-
-        self.browser = QTextBrowser(self)
-        self.browser.setOpenExternalLinks(False)
-        self.browser.setAccessibleName("Keyboard shortcuts")
-        self.browser.setAccessibleDescription(
-            "Table of every menu command and the key that runs it"
-        )
-
-        self.buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close, self)
-        self.buttons.rejected.connect(self.reject)
-
-        layout = QVBoxLayout(self)
-        layout.addWidget(self.browser, 1)
-        layout.addWidget(self.buttons)
-
-    def set_html(self, markup: str) -> None:
-        self.browser.setHtml(markup)
 
 
 class MainWindow(QMainWindow):
@@ -336,13 +296,10 @@ class MainWindow(QMainWindow):
             QKeySequence.StandardKey.SaveAs,
             tip="Write the clip (or the selection) to a new file",
         )
-        # Ctrl+S rather than Ctrl+Shift+S: the latter is the platform's
-        # Save As, which Export already owns, and two actions on one sequence
-        # make both of them ambiguous rather than one of them a synonym.
         self.action_save_project = action(
             "Save &Project",
             self.save_project,
-            QKeySequence.StandardKey.Save,
+            "Ctrl+Shift+S",
             tip="Save the session to an .hlproj project bundle",
         )
         self.action_save_project_as = action(
@@ -496,13 +453,11 @@ class MainWindow(QMainWindow):
         self.action_remove_marker = action(
             "&Remove Marker",
             self.remove_selected_marker,
-            "Ctrl+Shift+Del",
             tip="Delete the marker selected in the Markers list",
         )
         self.action_clear_markers = action(
             "&Clear All Markers",
             self.clear_markers,
-            "Ctrl+Alt+M",
             tip="Remove every marker and region from the document",
         )
 
