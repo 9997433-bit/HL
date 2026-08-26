@@ -32,6 +32,7 @@ from .loader import (
     save_audio,
     supported_formats,
 )
+from .markers import Marker, MarkerItem, MarkerList, Region
 from .output import AudioOutput, NullOutput, OutputDeviceError, PyAudioOutput, create_output
 from .peaks import Envelope, PeakPyramid
 from .ring_buffer import RingBuffer
@@ -76,6 +77,9 @@ __all__ = [
     "LevelReading",
     "LoadedAudio",
     "LoopSource",
+    "Marker",
+    "MarkerItem",
+    "MarkerList",
     "MasterBus",
     "MemorySampleSource",
     "MultitrackSession",
@@ -84,6 +88,7 @@ __all__ = [
     "PasteCommand",
     "PeakPyramid",
     "PyAudioOutput",
+    "Region",
     "RegionSource",
     "ReverseCommand",
     "RingBuffer",
