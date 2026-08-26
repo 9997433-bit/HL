@@ -50,6 +50,10 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
+          // characters.js imports this tiny catalogue too; keep the catalogue
+          // with the shell instead of letting Rollup pull it into the rich-data
+          // chunk and preload that chunk on the home page.
+          if (id.endsWith('/src/data/character-index.js')) return 'character-index'
           if (id.endsWith('/src/data/characters.js')) return 'characters'
         }
       }
