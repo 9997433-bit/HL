@@ -174,8 +174,10 @@ matched. The same pipeline is scriptable from Python via
 
 - Calibrated STFT/iSTFT, eight window functions, linear/log frequency display,
   waterfall data and color-blind-safe maps.
-- Gain, peak/RMS/true-peak normalization, multiple fade curves, and
-  RBJ parametric EQ with stateful block processing.
+- Gain, soft-knee lookahead compression, dBTP brickwall limiting,
+  peak/RMS/true-peak normalization, multiple fade curves, and RBJ parametric
+  EQ with stateful block processing. Compressor and limiter have basic
+  threshold/ratio and ceiling controls in the live rack.
 - ITU-R BS.1770 K-weighted integrated loudness and EBU-style loudness range.
 - Cached spectrogram reduction/colorization and candidate-window true-peak
   evaluation keep common redraw and normalization paths bounded.
@@ -227,9 +229,10 @@ over/under-run handling, decoding round-trips and resampling, the peak pyramid
 against brute-force numpy reductions, the transport state machine, seek
 accuracy (including discarding stale buffered audio mid-playback), gain and
 metering, copy-on-write edits and deep undo/redo, disk-streaming sources, DSP
-streaming equivalence, loudness/spectrum behavior, and Qt widgets under the
-offscreen platform plugin. Repository-level compliance, null-roundtrip and SLO
-tests live one directory above this package.
+streaming equivalence (including compressor/true-peak limiter dynamics),
+loudness/spectrum behavior, and Qt widgets under the offscreen platform plugin.
+Repository-level compliance, null-roundtrip and SLO tests live one directory
+above this package.
 
 ## Known limitations
 

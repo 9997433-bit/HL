@@ -20,6 +20,7 @@ helpers used at file and device boundaries.
 """
 
 from .effects import (
+    CompressorEffect,
     Effect,
     EffectChain,
     EQBand,
@@ -28,6 +29,7 @@ from .effects import (
     FilterType,
     GainEffect,
     LevelReport,
+    LimiterEffect,
     NormalizeEffect,
     NormalizeMode,
     ParametricEQ,
@@ -102,6 +104,8 @@ __all__ = [
     # effects
     "Effect",
     "EffectChain",
+    "CompressorEffect",
+    "LimiterEffect",
     "ThreeBandEQ",
     "ParametricEQ",
     "EQBand",
