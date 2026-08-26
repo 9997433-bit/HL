@@ -11,6 +11,8 @@ Three layers:
   Levenberg-Marquardt loop minimising frequency and MAC residuals.
 - :mod:`~openfemlab.updating.bayesian` — the MS-3.5 MAP variant of that loop:
   Gaussian prior, measurement-noise covariance, Laplace posterior covariance.
+- :mod:`~openfemlab.updating.frf` — the MS-3.2 FRF residual provider driving
+  the same loop from a measured frequency response instead of a mode table.
 
 :class:`~openfemlab.updating.scaling_model.ScalingModel` ties them together for
 the affine ``K(θ) = K_0 + Σ θ_j K_j`` substructuring parameterisation.
@@ -29,6 +31,14 @@ from .bayesian import (
     posterior_sigma,
     precision_matrix,
     update_model_bayesian,
+)
+from .frf import (
+    FRF_WEIGHTINGS,
+    FRFResidual,
+    FRFState,
+    FRFUpdater,
+    FRFUpdatingResult,
+    update_model_frf,
 )
 from .parameters import Parameter, ParameterSet, ParameterType, UpdatableParameter
 from .scaling_model import ScalingModel
@@ -55,8 +65,13 @@ from .updater import (
 )
 
 __all__ = [
+    "FRF_WEIGHTINGS",
     "BayesianUpdater",
     "BayesianUpdatingResult",
+    "FRFResidual",
+    "FRFState",
+    "FRFUpdater",
+    "FRFUpdatingResult",
     "GaussianPrior",
     "IterationRecord",
     "ModalData",
@@ -87,4 +102,5 @@ __all__ = [
     "track_modes",
     "update_model",
     "update_model_bayesian",
+    "update_model_frf",
 ]

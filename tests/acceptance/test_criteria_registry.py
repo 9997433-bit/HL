@@ -70,7 +70,7 @@ FAMILY_TO_MODULE = {
     "PERF": "M1",
 }
 EXPECTED_CRITERIA_PER_FAMILY = {
-    "MODAL": 9, "CORR": 9, "UPD": 9, "WORK": 5, "OPT": 4, "DYN": 5, "ELEM": 3,
+    "MODAL": 9, "CORR": 9, "UPD": 10, "WORK": 5, "OPT": 4, "DYN": 5, "ELEM": 3,
     "IO": 3, "MPE": 5, "PRETEST": 5, "PERF": 2,
 }
 
@@ -169,6 +169,8 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P0", "twin", "MS-3.6", _UPD_SUITE, "verified"),
     _c("AC-UPD-008", "Mode switching handled by re-pairing",
        "P1", "twin", "MS-3.2", _UPD_SUITE, "verified"),
+    _c("AC-UPD-009", "FRF residual recovers a damped twin",
+       "P2", "twin", "MS-3.2, MS-7.3", _UPD_SUITE, "verified"),
     # --- M4 Simulation correction workflow (MS-4) -----------------------------
     _c("AC-WORK-001", "End-to-end correction passes gates",
        "P0", "twin", "MS-4.1, MS-4.2", _WORK_SUITE, "verified"),
@@ -235,7 +237,7 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
     _c("AC-PRETEST-004", "Determinism, constraints, and typed failures",
        "P0", "contract", "MS-11.2, MS-11.5", _PRETEST_SUITE, "verified"),
     _c("AC-PRETEST-005", "MKE ranking matches the closed-form chain",
-       "P2", "oracle", "MS-11.3", _PRETEST_SUITE, "implemented"),
+       "P2", "oracle", "MS-11.3", _PRETEST_SUITE, "verified"),
 )
 
 _BY_ID = {c.test_id: c for c in REGISTRY}
@@ -265,7 +267,7 @@ def test_registry_inventory_matches_documented_scope():
         for family in EXPECTED_CRITERIA_PER_FAMILY
     }
     assert counts == EXPECTED_CRITERIA_PER_FAMILY
-    assert len(REGISTRY) == 59
+    assert len(REGISTRY) == 60
 
 
 def test_ids_unique():

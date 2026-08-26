@@ -39,6 +39,12 @@ Implemented here
   parameters; freezing the pairing to the mode order converges onto the wrong
   ones with a zero frequency residual, which is what makes the re-pairing
   load-bearing.
+- **AC-UPD-009** (twin, MS-3.2/MS-7.3) — the same chain, damped and detuned in
+  three stiffness factors and one damping factor, is recovered from noisy
+  synthesized FRFs alone: the MS-3.2 real/imaginary residual reaches
+  ``|theta* - theta_true|_inf <= 1e-2`` and FRAC >= 0.99 on frequency lines
+  held out of the fit, and the analytic ``dH/dtheta`` matches central finite
+  differences to 1e-6.
 
 The model is the ``ten_dof_chain`` fixture split into three stiffness groups
 and two mass groups. The split is affine, so the group matrices *are* the
@@ -53,9 +59,17 @@ import pytest
 
 from openfemlab.correlation import modal_scale_factor
 from openfemlab.exceptions import UpdatingDivergenceError
+from openfemlab.solver.dynamics import (
+    FrequencyResponse,
+    RayleighDamping,
+    direct_frf,
+    frac,
+)
 from openfemlab.updating import (
     BayesianUpdater,
     BayesianUpdatingResult,
+    FRFResidual,
+    FRFUpdater,
     GaussianPrior,
     ModelUpdater,
     ParameterSet,
@@ -1241,3 +1255,268 @@ def test_ac_upd_008_freezing_the_pairing_to_the_mode_order_gets_it_wrong():
     expected = np.array(list(CROSSING_TRUTH.values()))
     assert np.max(np.abs(recovered - expected)) > RECOVERY_TOLERANCE
     assert result.final_correlation.min_mac < MAC_GATE
+
+
+# ------------------------------------------ AC-UPD-009 FRF residual updating
+
+#: The damped twin: the AC-UPD-003 chain with its masses held fixed, three
+#: stiffness factors detuned by up to 20 % and the damping level by 30 %.
+FRF_FREE = ("k1", "k2", "k3", "c")
+FRF_TRUTH = {"k1": 0.80, "k2": 1.20, "k3": 0.85, "c": 1.30}
+
+#: Instrumentation: four sensors along the chain, driven at the free end.
+FRF_SENSOR_DOFS = (1, 4, 7, 9)
+FRF_DRIVE_DOFS = (9,)
+
+#: 2 % modal damping at both ends of the nominal spectrum, and a band wide
+#: enough to bracket every resonance of both the nominal and the true model.
+FRF_DAMPING_RATIO = 0.02
+FRF_BAND = (0.02, 0.34)
+FRF_NUM_LINES = 129
+
+#: Every second line is fitted and the rest are the independent check, so the
+#: held-out gate reads lines the residual never saw.
+FRF_FITTED_LINES = np.arange(0, FRF_NUM_LINES, 2)
+FRF_HELD_OUT_LINES = np.arange(1, FRF_NUM_LINES, 2)
+
+#: Multiplicative complex measurement noise, seeded per AC section 1.4.
+FRF_NOISE = 0.02
+FRF_SEED = 20260826
+
+#: Gates of AC-UPD-009.
+FRF_RECOVERY_TOLERANCE = 1e-2
+FRAC_GATE = 0.99
+FRF_SENSITIVITY_RTOL = 1e-6
+FRF_ROUTE_AGREEMENT = 1e-5
+FRF_MAX_ITERATIONS = 30
+
+
+def _frf_model() -> ScalingModel:
+    """The AC-UPD-003 chain with the masses folded into the fixed base."""
+    stiffness_parts, mass_parts = spring_chain_parts(
+        NUM_MASSES, STIFFNESS_GROUPS, MASS_GROUPS
+    )
+    return ScalingModel(
+        stiffness_parts,
+        base_mass=sum(mass_parts.values()),
+        num_modes=NUM_MASSES,
+        use_solver=False,
+    )
+
+
+def _frf_reference_damping(model: ScalingModel) -> np.ndarray:
+    """``C_ref = alpha M + beta K`` at 2 % over the nominal band.
+
+    The updated factor ``c`` scales this matrix, so ``dC/dc = C_ref`` exactly
+    and the damping level is identifiable alongside the stiffness.
+    """
+    nominal = {name: 1.0 for name in model.parameter_names}
+    frequencies = model.modal_data(nominal).frequencies
+    rayleigh = RayleighDamping.from_frequencies(
+        frequencies[0], frequencies[-1], FRF_DAMPING_RATIO, FRF_DAMPING_RATIO
+    )
+    K, M = model.assemble(nominal)
+    return dense(rayleigh.matrix(K, M))
+
+
+def _frf_synthesis(
+    model: ScalingModel,
+    reference_damping: np.ndarray,
+    values: dict[str, float],
+    frequencies: np.ndarray,
+):
+    """Invert the dynamic stiffness at the sensor set for one parameter point.
+
+    Assembled straight from the M6 kernel rather than through the provider
+    under test, so the twin's "measurement" and the model it is judged against
+    do not share an implementation.
+    """
+    K, M = model.assemble(values)
+    return direct_frf(
+        frequencies,
+        dense(K),
+        dense(M),
+        float(values["c"]) * reference_damping,
+        response_dofs=FRF_SENSOR_DOFS,
+        excitation_dofs=FRF_DRIVE_DOFS,
+    )
+
+
+def _frf_measurement(
+    model: ScalingModel, reference_damping: np.ndarray, frequencies: np.ndarray
+) -> FrequencyResponse:
+    """The truth FRFs with 2 % multiplicative complex noise on every entry."""
+    clean = _frf_synthesis(model, reference_damping, FRF_TRUTH, frequencies)
+    rng = np.random.default_rng(FRF_SEED)
+    shape = clean.data.shape
+    noise = FRF_NOISE * (
+        rng.standard_normal(shape) + 1j * rng.standard_normal(shape)
+    ) / np.sqrt(2.0)
+    return FrequencyResponse(
+        frequencies=clean.frequencies,
+        data=clean.data * (1.0 + noise),
+        response_dofs=clean.response_dofs,
+        excitation_dofs=clean.excitation_dofs,
+        response_type=clean.response_type,
+    )
+
+
+def _frf_rig() -> tuple[ScalingModel, np.ndarray, FrequencyResponse, FRFResidual]:
+    """``(model, C_ref, measurement, residual provider)`` of the twin."""
+    model = _frf_model()
+    reference_damping = _frf_reference_damping(model)
+    line = np.linspace(*FRF_BAND, FRF_NUM_LINES)
+    measured = _frf_measurement(model, reference_damping, line)
+    residual = FRFResidual(
+        model,
+        measured,
+        damping_parts={"c": reference_damping},
+        lines=FRF_FITTED_LINES,
+    )
+    return model, reference_damping, measured, residual
+
+
+def _frf_parameters() -> ParameterSet:
+    return ParameterSet(
+        [
+            UpdatableParameter(
+                name,
+                value=1.0,
+                lower=0.5,
+                upper=2.0,
+                kind="damping" if name == "c" else "stiffness",
+            )
+            for name in FRF_FREE
+        ]
+    )
+
+
+def _frf_nominal() -> dict[str, float]:
+    return {name: 1.0 for name in FRF_FREE}
+
+
+def _frf_run(*, analytic_jacobian: bool = True):
+    """Run the FRF updater on the twin; returns ``(updater, result, error)``."""
+    _, _, _, residual = _frf_rig()
+    updater = FRFUpdater(
+        residual,
+        _frf_parameters(),
+        analytic_jacobian=analytic_jacobian,
+        max_iterations=FRF_MAX_ITERATIONS,
+    )
+    result = updater.run()
+    error = max(abs(result.parameters[name] - FRF_TRUTH[name]) for name in FRF_FREE)
+    return updater, result, error
+
+
+def _held_out_frac(
+    model: ScalingModel,
+    reference_damping: np.ndarray,
+    measured: FrequencyResponse,
+    values: dict[str, float],
+) -> np.ndarray:
+    """Per-channel FRAC against the measurement on the unfitted lines."""
+    lines = FRF_HELD_OUT_LINES
+    reference = measured.data[lines].reshape(lines.size, -1)
+    trial = _frf_synthesis(
+        model, reference_damping, values, measured.frequencies[lines]
+    ).data.reshape(lines.size, -1)
+    return np.atleast_1d(frac(reference, trial, axis=0))
+
+
+def _central_difference_frf_jacobian(
+    residual: FRFResidual, values: dict[str, float], names: list[str]
+) -> np.ndarray:
+    """``dr/dtheta`` by central differences of the assembled residual vector."""
+    columns = []
+    for name in names:
+        forward, backward = dict(values), dict(values)
+        forward[name] += FD_RELATIVE_STEP
+        backward[name] -= FD_RELATIVE_STEP
+        columns.append(
+            (
+                residual.residual(residual.state(forward))
+                - residual.residual(residual.state(backward))
+            )
+            / (2.0 * FD_RELATIVE_STEP)
+        )
+    return np.column_stack(columns)
+
+
+@criterion("AC-UPD-009")
+def test_ac_upd_009_the_damped_twin_starts_uncorrelated_and_is_really_noisy():
+    """Guard: the nominal FRFs fail the gate, and the measurement carries noise."""
+    model, damping, measured, residual = _frf_rig()
+    nominal = _frf_nominal()
+
+    fitted = residual.correlation(residual.state(nominal))
+    held_out = _held_out_frac(model, damping, measured, nominal)
+
+    assert fitted.max_frac < FRAC_GATE
+    assert held_out.max() < FRAC_GATE
+
+    clean = _frf_synthesis(model, damping, FRF_TRUTH, measured.frequencies).data
+    deviation = float(np.mean(np.abs(measured.data - clean) / np.abs(clean)))
+    assert 0.5 * FRF_NOISE < deviation < 2.0 * FRF_NOISE
+
+
+@criterion("AC-UPD-009")
+def test_ac_upd_009_the_analytic_frf_sensitivity_matches_central_differences():
+    """``dH/dp = -H (dK - omega^2 dM + i omega dC) H`` agrees to 1e-6 relative."""
+    _, _, _, residual = _frf_rig()
+    nominal = _frf_nominal()
+    names = list(FRF_FREE)
+
+    analytic = residual.jacobian(nominal, names, residual.state(nominal))
+    finite = _central_difference_frf_jacobian(residual, nominal, names)
+
+    assert analytic.shape == (residual.n_residuals, len(names))
+    error = np.max(np.abs(analytic - finite)) / np.max(np.abs(finite))
+    assert error <= FRF_SENSITIVITY_RTOL, f"worst relative error {error:.3e}"
+
+
+@criterion("AC-UPD-009")
+def test_ac_upd_009_the_frf_residual_recovers_the_detuned_factors():
+    """Stiffness and damping come back out of the noisy FRFs to 1e-2."""
+    updater, result, error = _frf_run()
+
+    assert result.converged, result.message
+    assert result.stop_reason in CONVERGED_REASONS
+    assert error <= FRF_RECOVERY_TOLERANCE, f"worst factor error {error:.3e}"
+    assert result.final_cost < result.initial_cost
+    assert result.initial_frf_correlation.min_frac < FRAC_GATE
+    assert result.final_frf_correlation.min_frac >= FRAC_GATE
+    # One model evaluation per accepted iteration: the analytic Jacobian is
+    # the active path, not a finite-difference sweep behind it.
+    assert updater.n_evaluations <= 2 * result.iterations + 1
+
+
+@criterion("AC-UPD-009")
+def test_ac_upd_009_the_held_out_frequency_lines_confirm_the_update():
+    """FRAC >= 0.99 on lines the residual never saw — the criterion's gate."""
+    model, damping, measured, _ = _frf_rig()
+    _, result, _ = _frf_run()
+
+    before = _held_out_frac(model, damping, measured, _frf_nominal())
+    after = _held_out_frac(model, damping, measured, result.parameters)
+
+    assert after.min() >= FRAC_GATE, f"worst held-out FRAC {after.min():.4f}"
+    # The gate measures the update rather than the twin: the starting model is
+    # nowhere near it on the very same lines.
+    assert before.max() < FRAC_GATE
+
+
+@criterion("AC-UPD-009")
+def test_ac_upd_009_the_finite_difference_route_reaches_the_same_answer():
+    """The analytic Jacobian is an accelerator, not a different estimator."""
+    analytic_updater, analytic, _ = _frf_run()
+    finite_updater, finite, error = _frf_run(analytic_jacobian=False)
+
+    assert error <= FRF_RECOVERY_TOLERANCE
+    difference = max(
+        abs(analytic.parameters[name] - finite.parameters[name]) for name in FRF_FREE
+    )
+    assert difference <= FRF_ROUTE_AGREEMENT, (
+        f"the two Jacobian routes disagree by {difference:.3e}"
+    )
+    assert finite_updater.n_evaluations > 4 * analytic_updater.n_evaluations

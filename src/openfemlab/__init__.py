@@ -68,6 +68,8 @@ _EXPORTS: dict[str, str] = {
     "correlation_summary": "openfemlab.correlation",
     # updating
     "BayesianUpdater": "openfemlab.updating",
+    "FRFResidual": "openfemlab.updating",
+    "FRFUpdater": "openfemlab.updating",
     "GaussianPrior": "openfemlab.updating",
     "ModelUpdater": "openfemlab.updating",
     "ParameterSet": "openfemlab.updating",
@@ -75,6 +77,7 @@ _EXPORTS: dict[str, str] = {
     "UpdatableParameter": "openfemlab.updating",
     "update_model": "openfemlab.updating",
     "update_model_bayesian": "openfemlab.updating",
+    "update_model_frf": "openfemlab.updating",
     # correction workflow
     "CorrectionReport": "openfemlab.workflow",
     "HoldoutSpec": "openfemlab.workflow",
@@ -171,6 +174,8 @@ if TYPE_CHECKING:  # pragma: no cover
     from .solver.modal import ModalResult as ModalResult
     from .solver.modal import ModalSolver as ModalSolver
     from .updating import BayesianUpdater as BayesianUpdater
+    from .updating import FRFResidual as FRFResidual
+    from .updating import FRFUpdater as FRFUpdater
     from .updating import GaussianPrior as GaussianPrior
     from .updating import ModelUpdater as ModelUpdater
     from .updating import ParameterSet as ParameterSet
@@ -178,6 +183,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from .updating import UpdatableParameter as UpdatableParameter
     from .updating import update_model as update_model
     from .updating import update_model_bayesian as update_model_bayesian
+    from .updating import update_model_frf as update_model_frf
     from .workflow import CorrectionReport as CorrectionReport
     from .workflow import HoldoutSpec as HoldoutSpec
     from .workflow import SensorMap as SensorMap

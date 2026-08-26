@@ -249,6 +249,7 @@ to honor the sparse matrix contract of MS-0.2 and MS-1.6.
 | AC-UPD-006b | P1 | Posterior contraction (tight prior) | σ_post ≤ σ_prior componentwise | MS-3.5 |
 | AC-UPD-007 | P0 | Collinear parameter detection & freeze | duplicate flagged (cos > 0.99), one frozen, still converges | MS-3.6 |
 | AC-UPD-008 | P1 | Mode switching handled by re-pairing | residual ordering correct through a mode crossing | MS-3.2 |
+| AC-UPD-009 | P2 | FRF residual recovers a damped twin | ‖θ* − θ_true‖_∞ ≤ 1e-2 from noisy FRFs; held-out FRAC ≥ 0.99 | MS-3.2, MS-7.3 |
 
 ### Details
 
@@ -287,6 +288,20 @@ to honor the sparse matrix contract of MS-0.2 and MS-1.6.
   during updating is handled by per-iteration re-pairing: residuals stay
   attached to the physically correct modes (verified by ground-truth MAC
   tracking) and the run converges.
+- **AC-UPD-009** (`twin`) — A damped 10-DOF chain detuned in three stiffness
+  factors and one damping factor is recovered from **FRFs alone**: the
+  "measurement" is the FRF matrix synthesized at `θ_true` and corrupted with
+  2 % multiplicative complex noise from a seeded generator, and the residual
+  is the MS-3.2 real/imaginary stack
+  `r(ω_l) = W_l [H(ω_l; θ) − H_meas(ω_l)]` over the fitted frequency lines.
+  The run recovers `‖θ* − θ_true‖_∞ ≤ 1e-2` and reaches FRAC ≥ 0.99 on every
+  channel of a **held-out** line set that took no part in the fit — the
+  baseline model is far below that, so the gate measures the update rather
+  than the twin. The analytic sensitivity
+  `∂H/∂θ = −H (∂K/∂θ − ω² ∂M/∂θ + iω ∂C/∂θ) H` matches central finite
+  differences of the assembled residual to relative error ≤ 1e-6 and is the
+  active path, and switching it off for finite differences reaches the same
+  answer.
 
 ---
 
@@ -678,21 +693,18 @@ with no promoted row.
 registry (one entry per criterion: ID, title, module, spec anchor, priority,
 verification method, planned test reference, status).
 
-The current inventory is **59 criteria**: M1 = 11 (`MODAL` = 9, `PERF` = 2),
-M2 = 9, M3 = 9, M4 = 5, M5 = 4, M6 = 5, M7 = 3, M8 = 3, M9 = 5, and
+The current inventory is **60 criteria**: M1 = 11 (`MODAL` = 9, `PERF` = 2),
+M2 = 9, M3 = 10, M4 = 5, M5 = 4, M6 = 5, M7 = 3, M8 = 3, M9 = 5, and
 M10 = 5. The two suffixed M3 rows (`AC-UPD-006a` / `AC-UPD-006b`) are
 distinct criteria under one dense base number.
 
 Fourteen of them were `verified` after the first two promotion waves (A109,
 A121). The third wave — promoted at Round 2 sign-off — closed module **M8**
-(AC-IO-001..003), putting every Round-1/2 row on the CI gate. Round 3 opened
-modules **M9** (section 10) and **M10** (section 11) spec-first. Round 3's
-fourth wave closed **M9** (AC-MPE-001..005) and **M10**'s P0/P1 gates
-(AC-PRETEST-001..004). The industrial-scale wave adds the cross-cutting
-**PERF** family to M1 and promotes both rows through the same gate;
-AC-PRETEST-005 remains **`implemented`** pending its own promotion. The
-inventory reads **58 `verified`, 1 `implemented`, 0 `specified`** — every
-Round-1..3 blocking row is on the CI gate.
+(AC-IO-001..003), putting every Round-1/2 row on the CI gate. Round 3 closed
+**M9** (AC-MPE-001..005), **M10** (AC-PRETEST-001..005), the cross-cutting
+**PERF** family (AC-PERF-001..002), and **AC-UPD-009** (FRF updating residual).
+The inventory reads **60 `verified`, 0 `implemented`, 0 `specified`** — every
+registered criterion is on the CI gate.
 
 The registry tests enforce:
 
