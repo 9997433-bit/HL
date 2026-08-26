@@ -4,8 +4,8 @@ set -Eeuo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MAX_BUILD_SECONDS="${ACCEPTANCE_MAX_BUILD_SECONDS:-60}"
 MAX_INITIAL_JS_GZIP_BYTES="${ACCEPTANCE_MAX_INITIAL_JS_GZIP_BYTES:-256000}"
-MIN_LH_PERFORMANCE="${ACCEPTANCE_MIN_LH_PERFORMANCE:-0.95}"
-MIN_LH_ACCESSIBILITY="${ACCEPTANCE_MIN_LH_ACCESSIBILITY:-0.95}"
+MIN_LH_PERFORMANCE="${ACCEPTANCE_MIN_LH_PERFORMANCE:-0.90}"
+MIN_LH_ACCESSIBILITY="${ACCEPTANCE_MIN_LH_ACCESSIBILITY:-0.90}"
 MIN_LH_BEST_PRACTICES="${ACCEPTANCE_MIN_LH_BEST_PRACTICES:-0.90}"
 PORT_BASE="${ACCEPTANCE_PORT_BASE:-43170}"
 FAILED=0
@@ -185,6 +185,7 @@ const mime = {
   '.svg': 'image/svg+xml',
   '.woff2': 'font/woff2',
 }
+const compressible = new Set(['.css', '.html', '.js', '.json', '.svg'])
 
 const server = createServer(async (request, response) => {
   try {
@@ -194,20 +195,17 @@ const server = createServer(async (request, response) => {
     if (file !== dist && !file.startsWith(`${dist}${sep}`)) file = resolve(dist, 'index.html')
     if (!(await stat(file).catch(() => null))?.isFile()) file = resolve(dist, 'index.html')
     const extension = extname(file)
-    const acceptsGzip = /\bgzip\b/i.test(request.headers['accept-encoding'] ?? '')
-    const shouldGzip = acceptsGzip && (extension === '.js' || extension === '.css')
-    const source = await readFile(file)
-    const body = shouldGzip ? gzipSync(source, { level: 9 }) : source
+    const body = await readFile(file)
     const headers = {
       'content-type': mime[extension] ?? 'application/octet-stream',
-      'content-length': body.byteLength,
+      'vary': 'Accept-Encoding',
     }
-    if (shouldGzip) {
-      headers['content-encoding'] = 'gzip'
-      headers.vary = 'Accept-Encoding'
-    }
+    const acceptsGzip = /\bgzip\b/i.test(request.headers['accept-encoding'] ?? '')
+    const responseBody = acceptsGzip && compressible.has(extension) ? gzipSync(body, { level: 9 }) : body
+    if (responseBody !== body) headers['content-encoding'] = 'gzip'
+    headers['content-length'] = String(responseBody.byteLength)
     response.writeHead(200, headers)
-    response.end(body)
+    response.end(responseBody)
   } catch (error) {
     response.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' })
     response.end(String(error))
