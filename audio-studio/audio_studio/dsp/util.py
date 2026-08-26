@@ -30,6 +30,7 @@ __all__ = [
     "peak_level",
     "rms_level",
     "true_peak_level",
+    "true_peak_candidate_db",
 ]
 
 #: Channel counts above this are assumed to be a transposed (interleaved) buffer.
@@ -38,20 +39,23 @@ MAX_SANE_CHANNELS = 64
 #: Anything quieter than this is clamped before taking a logarithm.
 _DB_EPS = 1e-20
 
-#: Samples this far below the sample peak cannot host the true peak (see
-#: :func:`true_peak_level`), so the audio around them is never oversampled.
-TRUE_PEAK_CANDIDATE_DB = -3.0
+#: Granularity of the candidate scan, in samples. Screening by block keeps the
+#: scan to one strided reduction rather than an index per sample; 512 is where
+#: that reduction stops being the dominant cost (~1 ms per channel-minute).
+TRUE_PEAK_BLOCK = 512
 
 #: Input samples kept on each side of a candidate before its window is closed.
-TRUE_PEAK_MARGIN = 24
+#: Must be at least :data:`TRUE_PEAK_KERNEL_HALF` for the shortcut to be exact.
+TRUE_PEAK_MARGIN = 64
 
-#: Candidate windows nearer than this are merged. Each window costs a fixed
+#: Candidate blocks nearer than this are merged. Each window costs a fixed
 #: setup, so bridging a short quiet gap is cheaper than starting a new pass.
-TRUE_PEAK_MERGE_GAP = 512
+TRUE_PEAK_MERGE_GAP = 2
 
-#: Once candidate windows cover this fraction of a channel there is nothing
-#: left to skip, and one contiguous pass beats many small ones.
-TRUE_PEAK_FULL_COVERAGE = 0.5
+#: What one window costs to set up, expressed in samples of interpolation. Used
+#: to decide when so many windows have accumulated that a single pass over the
+#: whole channel would be cheaper.
+TRUE_PEAK_WINDOW_COST = 2048
 
 #: Half-length of the interpolation kernel in input samples. ``6`` gives a
 #: ``2*6*4 + 1`` tap prototype, i.e. ~12 taps per phase at 4x — the length
@@ -198,19 +202,20 @@ def true_peak_level(audio: np.ndarray, oversample: int = 4, *, exact: bool = Fal
     minimum for sample rates up to 48 kHz) before the peak is measured, which
     catches reconstruction overshoots that a plain sample peak misses.
 
-    Only *candidate windows* are interpolated. Reconstruction convolves the
-    signal with a windowed sinc whose L1 norm is barely above one, so audio
-    whose samples all sit well below the sample peak cannot host the maximum:
-    the interpolated magnitude there is bounded by ``||h||_1`` times the local
-    sample magnitude. Windows are therefore grown around every sample within
-    :data:`TRUE_PEAK_CANDIDATE_DB` of the sample peak and only those are
-    interpolated — on sparse material that is a few thousand samples out of
-    millions, which is what makes true-peak normalisation usable interactively.
+    Only *candidate windows* are interpolated. An interpolated sample is a
+    weighted sum of the ``2 * TRUE_PEAK_KERNEL_HALF + 1`` input samples around
+    it, so its magnitude cannot exceed ``||h||_1`` times the largest of them.
+    Audio whose local maximum is below ``sample_peak / ||h||_1`` therefore
+    cannot host the true peak and is skipped;
+    :func:`true_peak_candidate_db` is where that level comes from. On sparse
+    material that leaves a few thousand samples out of millions to interpolate,
+    which is what makes true-peak normalisation usable interactively.
 
     Windows read their filter context straight out of the source array, so a
-    window boundary is not an edge as far as the kernel is concerned and the
-    result is *identical* to interpolating the whole buffer. ``exact=True``
-    does exactly that, and the tests assert the two agree.
+    window boundary is not an edge as far as the kernel is concerned, and the
+    bound above is a strict one — the shortcut returns the *same* number as
+    interpolating everything. ``exact=True`` does interpolate everything, and
+    the tests assert the two agree.
     """
     arr = np.asarray(audio)
     if arr.size == 0:
@@ -225,22 +230,41 @@ def true_peak_level(audio: np.ndarray, oversample: int = 4, *, exact: bool = Fal
     return max(_channel_true_peak(channel, int(oversample), exact) for channel in channels)
 
 
+def true_peak_candidate_db(oversample: int = 4) -> float:
+    """Level, relative to the sample peak, below which no true peak can hide.
+
+    The interpolation kernel's largest L1 norm across phases bounds how far an
+    inter-sample value can rise above the samples around it, so this is the
+    threshold that makes the candidate-window shortcut in
+    :func:`true_peak_level` exact rather than merely likely.
+
+    Examples
+    --------
+    >>> round(true_peak_candidate_db(4), 2)
+    -5.64
+    """
+    phases = _interpolation_phases(int(oversample))
+    return float(-linear_to_db(np.abs(phases).sum(axis=0).max()))
+
+
 def _channel_true_peak(channel: np.ndarray, oversample: int, exact: bool) -> float:
     """True peak of one channel, interpolating only where the peak can be."""
-    magnitude = np.abs(channel)
-    sample_peak = float(magnitude.max()) if magnitude.size else 0.0
+    if channel.size == 0:
+        return 0.0
+    if exact or channel.size < _TRUE_PEAK_MIN_SPLIT:
+        # Phase 0 of the kernel is the identity, so this covers the sample peak.
+        return _interpolated_peak(channel, oversample, 0, channel.size)
+
+    blocks = _block_peaks(channel, TRUE_PEAK_BLOCK)
+    sample_peak = float(blocks.max())
     if sample_peak <= 0.0:
         return 0.0  # digital silence interpolates to digital silence
 
-    if exact or channel.size < _TRUE_PEAK_MIN_SPLIT:
-        return _interpolated_peak(channel, oversample, 0, channel.size)
-
-    starts, stops = _candidate_windows(
-        magnitude >= sample_peak * float(db_to_linear(TRUE_PEAK_CANDIDATE_DB)),
-        margin=TRUE_PEAK_MARGIN,
-        length=channel.size,
-    )
-    if int(np.sum(stops - starts)) > channel.size * TRUE_PEAK_FULL_COVERAGE:
+    threshold = sample_peak * float(db_to_linear(true_peak_candidate_db(oversample)))
+    starts, stops = _candidate_windows(blocks >= threshold, channel.size)
+    covered = int(np.sum(stops - starts))
+    if covered + starts.size * TRUE_PEAK_WINDOW_COST > channel.size:
+        # Too little left to skip to pay for the windows: one pass is cheaper.
         return _interpolated_peak(channel, oversample, 0, channel.size)
 
     peak = sample_peak
@@ -249,18 +273,30 @@ def _channel_true_peak(channel: np.ndarray, oversample: int, exact: bool) -> flo
     return peak
 
 
-def _candidate_windows(
-    hot: np.ndarray, margin: int, length: int
-) -> tuple[np.ndarray, np.ndarray]:
-    """Merge the runs of ``True`` in ``hot`` into padded ``[start, stop)`` windows."""
+def _block_peaks(channel: np.ndarray, block: int) -> np.ndarray:
+    """Largest magnitude in each ``block`` samples, in one pass over the data.
+
+    ``reduceat`` is used rather than a reshape so a channel whose length is not
+    a multiple of ``block`` needs no separate tail, and because reducing a
+    strided view this way is several times faster than ``max(axis=1)``.
+    """
+    edges = np.arange(0, channel.size, block)
+    return np.maximum(
+        np.maximum.reduceat(channel, edges), -np.minimum.reduceat(channel, edges)
+    )
+
+
+def _candidate_windows(hot: np.ndarray, length: int) -> tuple[np.ndarray, np.ndarray]:
+    """Merge the hot blocks into padded ``[start, stop)`` ranges of samples."""
     indices = np.flatnonzero(hot)
-    if indices.size == 0:  # pragma: no cover - the sample peak is always hot
+    if indices.size == 0:  # pragma: no cover - the block holding the peak is always hot
         return np.zeros(0, dtype=np.int64), np.zeros(0, dtype=np.int64)
 
-    gap = max(2 * margin, TRUE_PEAK_MERGE_GAP)
-    breaks = np.flatnonzero(np.diff(indices) > gap)
-    starts = np.maximum(indices[np.concatenate(([0], breaks + 1))] - margin, 0)
-    stops = np.minimum(indices[np.concatenate((breaks, [indices.size - 1]))] + margin + 1, length)
+    breaks = np.flatnonzero(np.diff(indices) > TRUE_PEAK_MERGE_GAP)
+    first = indices[np.concatenate(([0], breaks + 1))]
+    last = indices[np.concatenate((breaks, [indices.size - 1]))]
+    starts = np.maximum(first * TRUE_PEAK_BLOCK - TRUE_PEAK_MARGIN, 0)
+    stops = np.minimum((last + 1) * TRUE_PEAK_BLOCK + TRUE_PEAK_MARGIN, length)
     return starts, stops
 
 
@@ -273,12 +309,17 @@ def _interpolation_phases(oversample: int) -> np.ndarray:
     be multiplied straight through it. Splitting the kernel this way turns
     interpolation into one BLAS matrix product, which runs several times faster
     than the equivalent ``scipy.signal.resample_poly`` call.
+
+    The prototype is normalised so that phase 0 is exactly the input sample —
+    a reconstruction filter has to agree with the samples it interpolates
+    between, and it lets the sample peak stand in for that phase.
     """
     from scipy.signal import firwin
 
     half = TRUE_PEAK_KERNEL_HALF * oversample
     # Same anti-imaging filter resample_poly designs for this ratio.
     taps = firwin(2 * half + 1, 1.0 / oversample, window=("kaiser", 5.0)) * oversample
+    taps /= taps[half]
     padded = np.concatenate([taps, np.zeros(oversample - 1)])
     phases = padded.reshape(-1, oversample)[::-1]
     return np.ascontiguousarray(phases, dtype=np.float32)

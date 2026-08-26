@@ -184,7 +184,7 @@ class FadeEffect(Effect):
 
     def parameters(self) -> dict[str, Any]:
         return {
-            "enabled": self.enabled,
+            **super().parameters(),
             "fade_in_s": self.fade_in_s,
             "fade_out_s": self.fade_out_s,
             "shape": self.shape.value,

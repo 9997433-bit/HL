@@ -23,7 +23,7 @@ from audio_studio.dsp.effects import (
     fade_envelope,
     measure_levels,
 )
-from audio_studio.dsp.util import linear_to_db, peak_level, rms_level
+from audio_studio.dsp.util import linear_to_db, peak_level, rms_level, true_peak_level
 
 
 def measured_gain_db(effect: Effect, frequency: float, sample_rate: int = SR) -> float:
@@ -324,6 +324,92 @@ class TestNormalizeEffect:
             NormalizeEffect().process_block(np.ones(128), SR)
 
 
+class TestTruePeakLevel:
+    """The candidate-window shortcut behind true-peak normalisation.
+
+    Only the audio that can host the peak is oversampled. The bound that makes
+    that safe is the interpolation kernel's L1 norm, so every case here is
+    checked against ``exact=True`` — a shortcut that is merely usually right
+    would be worse than no shortcut at all.
+    """
+
+    def signals(self) -> dict[str, np.ndarray]:
+        rng = np.random.default_rng(4)
+        n = 5 * SR
+        t = np.arange(n) / SR
+        click = np.zeros(n)
+        click[::SR] = 0.95  # loud transients in an otherwise quiet bed
+        return {
+            "tone": 0.9 * np.sin(2 * np.pi * 11_037.0 * t),
+            "noise": 0.3 * rng.standard_normal(n),
+            "clicks": click + 0.001 * rng.standard_normal(n),
+            "fade": np.linspace(0.0, 0.9, n) * np.sin(2 * np.pi * 997.0 * t),
+            "dc": np.full(n, 0.7),
+            "one_hot_sample": np.concatenate([np.zeros(n - 1), [0.8]]),
+            "stereo": stereo(0.5 * sine(11_037.0, 5.0), 0.9 * white_noise(5.0, 0.3)),
+        }
+
+    def test_shortcut_agrees_with_full_oversampling(self) -> None:
+        for name, audio in self.signals().items():
+            fast = true_peak_level(audio)
+            exact = true_peak_level(audio, exact=True)
+            assert fast == pytest.approx(exact, rel=1e-6), name
+
+    def test_the_candidate_threshold_comes_from_the_kernel(self) -> None:
+        """Not a tuned constant: it is what the kernel's L1 norm allows."""
+        from audio_studio.dsp.util import _interpolation_phases, true_peak_candidate_db
+
+        bound = float(np.abs(_interpolation_phases(4)).sum(axis=0).max())
+        assert true_peak_candidate_db(4) == pytest.approx(-linear_to_db(bound))
+        assert true_peak_candidate_db(4) < -3.0  # a -3 dB gate would not be safe
+
+    def test_worst_case_intersample_overshoot_is_found(self) -> None:
+        """fs/4 at 45 degrees never samples its own peak: +3 dB is hiding."""
+        n = np.arange(SR)
+        audio = np.sin(np.pi * n / 2 + np.pi / 4)
+        assert float(linear_to_db(peak_level(audio))) == pytest.approx(-3.01, abs=0.01)
+        assert float(linear_to_db(true_peak_level(audio))) == pytest.approx(0.0, abs=0.2)
+
+    def test_never_reads_below_the_sample_peak(self) -> None:
+        for audio in self.signals().values():
+            assert true_peak_level(audio) >= peak_level(audio) - 1e-6
+
+    def test_silence_and_degenerate_input(self) -> None:
+        assert true_peak_level(np.zeros(4 * SR)) == 0.0
+        assert true_peak_level(np.zeros(0)) == 0.0
+        assert true_peak_level(0.5 * np.ones(8)) > 0.0
+
+    def test_oversampling_off_is_just_the_sample_peak(self) -> None:
+        audio = sine(11_037.0, 0.1, 0.5)
+        assert true_peak_level(audio, oversample=1) == pytest.approx(peak_level(audio))
+
+    def test_a_quiet_channel_does_not_hide_a_loud_one(self) -> None:
+        audio = stereo(0.001 * white_noise(1.0), sine(11_037.0, 1.0, 0.9))
+        assert true_peak_level(audio) == pytest.approx(true_peak_level(audio[1]))
+
+    @pytest.mark.parametrize("length", [1, 7, 4095, 8191, 8193, 12_345])
+    def test_odd_lengths_are_handled(self, length: int) -> None:
+        rng = np.random.default_rng(length)
+        audio = 0.4 * rng.standard_normal(length)
+        assert true_peak_level(audio) == pytest.approx(true_peak_level(audio, exact=True))
+
+    def test_sixty_seconds_of_stereo_stays_interactive(self) -> None:
+        """The bottleneck this replaced took 356 ms for this buffer."""
+        import time
+
+        t = np.arange(60 * SR) / SR
+        rng = np.random.default_rng(1)
+        audio = np.stack([
+            0.4 * np.sin(2 * np.pi * 997.0 * t) + 0.2 * rng.standard_normal(t.size),
+            0.5 * np.sin(2 * np.pi * 11_037.0 * t),
+        ]).astype(np.float32)
+
+        true_peak_level(audio[:, :SR])  # warm the kernel cache
+        start = time.perf_counter()
+        true_peak_level(audio)
+        assert time.perf_counter() - start < 0.15
+
+
 def test_measure_levels_reports_sensible_numbers() -> None:
     report = measure_levels(sine(1000.0, duration_s=0.5, amplitude=1.0))
     assert report.peak_db == pytest.approx(0.0, abs=0.01)
@@ -496,6 +582,121 @@ class TestEffectChain:
     def test_chain_is_iterable(self) -> None:
         chain = EffectChain([GainEffect(), FadeEffect()])
         assert [type(e).__name__ for e in chain] == ["GainEffect", "FadeEffect"]
+
+
+class TestWetDryAndBypass:
+    """The two controls every insert has: how much, and whether at all."""
+
+    def test_mix_crossfades_between_dry_and_wet(self) -> None:
+        effect = GainEffect(gain_db=-20.0, ramp_ms=0.0)  # wet = 0.1
+        effect.mix = 0.25
+        out = effect.process(np.ones(64), SR)
+        assert np.allclose(out, 0.75 * 1.0 + 0.25 * 0.1, rtol=1e-4)
+
+    def test_mix_of_zero_is_the_input_untouched(self) -> None:
+        effect = ThreeBandEQ(mid_gain_db=12.0)
+        effect.mix = 0.0
+        audio = white_noise(0.05)
+        assert np.allclose(effect.process(audio, SR), audio)
+
+    def test_mix_is_clamped_to_a_sane_range(self) -> None:
+        effect = GainEffect()
+        effect.mix = 4.2
+        assert effect.mix == 1.0
+        effect.mix = -1.0
+        assert effect.mix == 0.0
+
+    def test_bypass_is_the_other_face_of_enabled(self) -> None:
+        effect = GainEffect(gain_db=-20.0)
+        effect.bypass = True
+        assert not effect.enabled
+        assert np.allclose(effect.process(np.ones(16), SR), 1.0)
+        effect.bypass = False
+        assert effect.enabled
+
+    def test_a_pass_through_result_is_still_a_fresh_array(self) -> None:
+        """A dry return must not alias the caller's buffer."""
+        audio = np.ones(32)
+        for effect in (GainEffect(gain_db=-20.0, enabled=False), GainEffect(gain_db=-20.0)):
+            effect.mix = 0.0
+            out = effect.process(audio, SR)
+            out[0] = 99.0
+            assert audio[0] == 1.0
+
+    def test_chain_mix_blends_the_whole_rack_against_its_input(self) -> None:
+        chain = EffectChain([GainEffect(gain_db=-6.0206), GainEffect(gain_db=-6.0206)])
+        chain.mix = 0.5
+        assert np.allclose(chain.process(np.ones(16), SR), 0.5 * 1.0 + 0.5 * 0.25, rtol=1e-4)
+
+    def test_chain_bypass_beats_every_member(self) -> None:
+        chain = EffectChain([ThreeBandEQ(low_gain_db=12.0), GainEffect(gain_db=-20.0)])
+        chain.bypass = True
+        assert np.allclose(chain.process(np.ones(64), SR), 1.0)
+
+    def test_member_mix_blends_against_what_reached_it(self) -> None:
+        """The dry side of member two is member one's output, not the source."""
+        first = GainEffect(gain_db=-6.0206)  # 0.5
+        second = GainEffect(gain_db=-6.0206)  # 0.25 of the original
+        second.mix = 0.5
+        chain = EffectChain([first, second])
+        assert np.allclose(chain.process(np.ones(16), SR), 0.5 * 0.5 + 0.5 * 0.25, rtol=1e-4)
+
+    def test_streaming_honours_mix_the_same_way_offline_does(self) -> None:
+        audio = white_noise(duration_s=0.1, amplitude=0.3)
+        chain = EffectChain([ThreeBandEQ(mid_gain_db=9.0)])
+        chain.mix = 0.35
+
+        offline = chain.process(audio, SR)
+        chain.reset()
+        chain.prepare(SR, 1)
+        streamed = np.concatenate(
+            [chain.process_block(audio[i : i + 128], SR) for i in range(0, audio.size, 128)]
+        )
+        assert np.allclose(streamed, offline, atol=1e-9)
+
+    def test_active_lists_only_what_is_switched_on(self) -> None:
+        eq, gain = ThreeBandEQ(), GainEffect(enabled=False)
+        chain = EffectChain([eq, gain])
+        assert chain.active == [eq]
+        gain.enabled = True
+        assert chain.active == [eq, gain]
+
+    def test_mix_and_bypass_round_trip_through_parameters(self) -> None:
+        chain = EffectChain([GainEffect(gain_db=-3.0)], mix=0.4)
+        chain.bypass = True
+        params = chain.parameters()
+        assert params["mix"] == pytest.approx(0.4)
+        assert params["enabled"] is False
+        assert params["effects"][0]["mix"] == pytest.approx(1.0)
+
+
+class TestRackEditing:
+    def test_insert_move_and_clear(self) -> None:
+        eq, gain, fade = ThreeBandEQ(), GainEffect(), FadeEffect()
+        chain = EffectChain([eq, gain])
+        chain.insert(0, fade)
+        assert list(chain) == [fade, eq, gain]
+
+        chain.move(0, 2)
+        assert list(chain) == [eq, gain, fade]
+
+        chain.clear()
+        assert len(chain) == 0
+
+    def test_a_member_added_later_is_prepared_for_the_running_stream(self) -> None:
+        chain = EffectChain()
+        chain.prepare(SR, 2)
+        gain = GainEffect(gain_db=-6.0)
+        chain.add(gain)
+        assert gain._prepared_sample_rate == float(SR)  # noqa: SLF001 - prepare bookkeeping
+        assert gain._prepared_channels == 2  # noqa: SLF001
+
+    def test_a_streaming_chain_skips_an_offline_member_instead_of_raising(self) -> None:
+        """A live preview must not die because a normaliser is in the rack."""
+        chain = EffectChain([GainEffect(gain_db=-6.0206), NormalizeEffect()])
+        out = chain.process_block(np.ones(128), SR)
+        assert np.allclose(out, 0.5, rtol=1e-4)
+        assert not chain.is_offline_only
 
 
 class TestLayoutHandling:

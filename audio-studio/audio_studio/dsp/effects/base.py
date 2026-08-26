@@ -277,8 +277,7 @@ class EffectChain(Effect):
 
     def parameters(self) -> dict[str, Any]:
         return {
-            "enabled": self.enabled,
-            "mix": self.mix,
+            **super().parameters(),
             "effects": [
                 {"type": type(e).__name__, **e.parameters()} for e in self.effects
             ],

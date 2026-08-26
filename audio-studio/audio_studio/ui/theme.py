@@ -156,6 +156,45 @@ def stylesheet(palette: Palette = PALETTE) -> str:
         background: {p.accent_dim};
         border-radius: 2px;
     }}
+    QDockWidget {{
+        color: {p.text_dim};
+        titlebar-close-icon: none;
+    }}
+    QDockWidget::title {{
+        background: {p.surface};
+        border-bottom: 1px solid {p.border};
+        padding: 4px 8px;
+        text-align: left;
+    }}
+    QWidget#SpectrumControls {{
+        background-color: {p.surface};
+        border-bottom: 1px solid {p.border};
+    }}
+    QComboBox {{
+        background-color: {p.surface_alt};
+        border: 1px solid {p.border};
+        border-radius: 3px;
+        padding: 2px 6px;
+        color: {p.text};
+    }}
+    QComboBox:hover {{ border-color: {p.accent_dim}; }}
+    QComboBox QAbstractItemView {{
+        background-color: {p.surface};
+        selection-background-color: {p.accent_dim};
+        border: 1px solid {p.border};
+    }}
+    QCheckBox {{ color: {p.text_dim}; }}
+    QCheckBox::indicator {{
+        width: 12px;
+        height: 12px;
+        border: 1px solid {p.border};
+        border-radius: 2px;
+        background: {p.surface_alt};
+    }}
+    QCheckBox::indicator:checked {{
+        background: {p.accent};
+        border-color: {p.accent};
+    }}
     QScrollBar:horizontal {{
         background: {p.surface};
         height: 12px;
