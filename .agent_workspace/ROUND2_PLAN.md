@@ -158,8 +158,8 @@ consistency tests fail.
   quadrature-exact on a distorted brick, and the bending comparison that motivates the
   element: +8.0 % against Euler–Bernoulli at 2475 DOF where TET4 on the same grid is
   +25 %.
-  *Spatial beam* (A82, `cursor/beam3d-cbar-element-c9a7`; suite **1075 passed**, Ruff
-  clean): `BeamElement3D`, the CBAR-like two-node frame member with six DOFs per node —
+  *Spatial beam* (A82, `cursor/beam3d-cbar-element-c9a7`; suite **1089 passed** at the
+  merged tip, Ruff clean): `BeamElement3D`, the CBAR-like two-node frame member with six DOFs per node —
   axial extension, St Venant torsion and uncoupled bending in the two principal planes,
   built from the same Hermitian 4x4 blocks the planar beam uses, so the
   `(u, v, theta_z)` sub-block of both local matrices reproduces `BeamElement2D` to

@@ -2688,7 +2688,8 @@ invariant under a rigid rotation of the whole model.
 Verified in a private worktree with `PYTHONPATH` pinned, Python 3.12.3 / NumPy 2.5.2 /
 SciPy 1.18.1, at the branch tip on trunk `c5afc35`: full suite **1075 passed, 0 failed**
 (74 s), `ruff check .` clean. That is the trunk's 1033 plus exactly the 42 this slice
-adds. No acceptance criterion was touched: AC-ELEM-001's constant-strain patch test has
+adds. Re-verified after merging the trunk tip `e809290` (which moved under the task):
+**1089 passed, 0 failed** (85 s), Ruff clean — again the trunk's 1047 plus the same 42. No acceptance criterion was touched: AC-ELEM-001's constant-strain patch test has
 no beam analogue and AC-ELEM-003's continuum bar oracle is the wrong convergence target
 for a cubic element, so the pinned 43-criterion inventory does not move. AC-ELEM-002
 (rigid-body invariance) is the one row the beam could join in
