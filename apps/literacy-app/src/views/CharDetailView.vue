@@ -171,7 +171,8 @@ function onStepClick(id) {
 function nextStep() {
   const id = phaseAfter(phase.value)
   if (!id) return
-  done[phase.value] = phase.value === 'reward' ? done[phase.value] : true
+  // 「认一认」看过听过就算过；写 / 听 / 考三步得真做完才记数，光按「下一步」不算
+  if (phase.value === 'intro') done.intro = true
   goPhase(id, { manual: true })
 }
 
@@ -361,7 +362,7 @@ function wobble(selector) {
 }
 
 /** 换步骤时面板整块弹进来，步骤条上的当前点跟着跳一下。 */
-watch(phase, async () => {
+async function playPhaseTransition() {
   await nextTick()
   if (settings.reduceMotion) return
   const panel = panelRef.value
@@ -399,7 +400,9 @@ watch(phase, async () => {
       { scale: 1, duration: 0.5, ease: 'back.out(2.6)', clearProps: 'transform' }
     )
   }
-})
+}
+
+watch(phase, playPhaseTransition)
 
 function flash(msg) {
   toast.value = msg
@@ -454,6 +457,7 @@ onMounted(() => {
   }
   resetFlow()
   track()
+  playPhaseTransition()
 })
 
 watch(decoded, () => {
@@ -486,6 +490,7 @@ onBeforeUnmount(clearTimers)
             type="button"
             :data-step="p.id"
             :aria-current="phase === p.id ? 'step' : undefined"
+            :aria-disabled="canJump(p.id) ? undefined : 'true'"
             :aria-label="`第 ${i + 1} 步 ${p.label}${done[p.id] ? '，已完成' : ''}`"
             @click="onStepClick(p.id)"
           >
