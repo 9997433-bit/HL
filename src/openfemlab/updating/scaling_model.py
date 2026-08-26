@@ -303,3 +303,19 @@ class ScalingModel:
             return self.frequency_sensitivity(parameters, selected)
 
         return evaluate
+
+    def shape_sensitivity_function(
+        self, names: Sequence[str]
+    ) -> Callable[[Mapping[str, float], ModalData], np.ndarray]:
+        """Adapter feeding ``dΦ/dθ`` to the updater's analytical MAC rows.
+
+        Pass it as ``shape_sensitivity_function`` alongside
+        :meth:`sensitivity_function` to keep a MAC shape residual off finite
+        differences.
+        """
+        selected = list(names)
+
+        def evaluate(parameters: Mapping[str, float], data: ModalData) -> np.ndarray:
+            return self.mode_shape_sensitivity(parameters, selected)
+
+        return evaluate
