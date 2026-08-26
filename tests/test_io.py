@@ -9,7 +9,8 @@ import pytest
 
 from openfemlab.core.dofs import DofMap, DofType
 from openfemlab.core.model import ElementType, Material, Model, Property
-from openfemlab.core.results import ModalResult, TestData as ModalTestData
+from openfemlab.core.results import ModalResult
+from openfemlab.core.results import TestData as ModalTestData
 from openfemlab.io import (
     FormatError,
     read,
