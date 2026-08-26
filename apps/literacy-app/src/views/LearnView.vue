@@ -145,11 +145,15 @@ const randomChar = computed(() => {
         <span class="unit__count pill">{{ currentPage.stat.done }} / {{ currentPage.total }}</span>
       </header>
       <div class="grid-auto grid-chars">
+        <!--
+          单元锁只拦「还没学过的字」。孩子从复习队列或搜索里学过的字如果
+          因为所在单元没解锁而变成不可点，等于把到期要复习的字锁在门外。
+        -->
         <CharCard
           v-for="c in currentPage.chars"
           :key="c.char"
           :item="c"
-          :locked="!currentPage.unlocked"
+          :locked="!currentPage.unlocked && !progress.isLearned(c.char)"
         />
       </div>
 
