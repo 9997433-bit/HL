@@ -6,17 +6,18 @@
  * 学习计时也放在这里：只在页面可见时走秒，切到后台就暂停，
  * 免得家长在报表里看到孩子「学了 3 小时」其实是忘了关标签页。
  */
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 
 import NavBar from '@/components/NavBar.vue'
 import EyeCareToggle from '@/components/EyeCareToggle.vue'
 import ProgressRing from '@/components/ProgressRing.vue'
-import CelebrationLayer from '@/components/CelebrationLayer.vue'
-import MascotCompanion from '@/components/MascotCompanion.vue'
 
 import { useProgressStore } from '@/stores/progress.js'
 import { cancelSpeech, sfx } from '@/utils/audio.js'
+
+const CelebrationLayer = defineAsyncComponent(() => import('@/components/CelebrationLayer.vue'))
+const MascotCompanion = defineAsyncComponent(() => import('@/components/MascotCompanion.vue'))
 
 const progress = useProgressStore()
 const route = useRoute()
@@ -139,7 +140,7 @@ const gateOk = computed(
 
     <NavBar />
 
-    <CelebrationLayer />
+    <CelebrationLayer v-if="progress.pendingCelebration" />
 
     <!-- 护眼休息提醒 -->
     <Transition name="fade-slide">
