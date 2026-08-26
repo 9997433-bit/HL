@@ -1513,6 +1513,62 @@ A27. The A24 backlog above is otherwise the live plan.
   `PYTHONPATH=<worktree>/src` or it silently tests the shared checkout — which is exactly
   how the first QUAD4 run failed to import `Quad4Element`.
 
+#### A34 — AC-OPT-002/003 strengthened; three parallel backends reconciled (backfill for A02)
+- **Task as issued, and why it changed.** A34 was dispatched to wire `ScipyBackend.solve`
+  and land the AC-OPT-002/003 cases. By the time it read the tree, that work existed
+  **three times**: A27's, already merged and closing GAP-12 on the trunk; A33's, pushed on
+  `cursor/optimization-scipy-backend-f421` and still being extended; and this branch's
+  merge of A33. Writing a fourth was the GAP-01 failure mode, so the branch adopted the
+  trunk's module wholesale — `src/openfemlab/optimization`, `docs/OPTIMIZATION.md`,
+  `tests/test_optimization.py` and both acceptance files — and kept only what the trunk
+  did not already have. The abandoned intermediate states are in this branch's history,
+  not in its diff against the trunk.
+- **Independent corroboration of the KKT design.** Working from A33's implementation, A34
+  found a verified optimum reported at stationarity **2.6e-2**: the multipliers were fitted
+  over the active constraints alone and bound-blocked components projected out afterwards,
+  which leaves the residue in the *free* components. Putting the active bound directions
+  (`∓e_i`) into the same non-negative fit dropped it to **2.8e-17**. A27's `kkt_residual`
+  on the trunk was already built that way, so the fix was discarded on merge — two
+  independent derivations of the same requirement, which is the useful part of the finding.
+- **What this branch adds: an optimum that distributes material.** The trunk's AC-OPT-002
+  oracle is the *uniform* chain (one variable scaling every link), and the multi-variable
+  case is gated by sampling — 80 random feasible designs must not beat the answer. Neither
+  exercises the thing sizing optimization is for: a solver that never broke the symmetry of
+  its start would pass both. The two-link chain does. Each link carries mass with its
+  stiffness, so `M = (1 + ε S) I` with `S = k1 + k2` and minimizing mass is minimizing `S`;
+  at fixed `S` the fundamental is largest for the split `(3S/5, 2S/5)` (the characteristic
+  polynomial becomes `μ² − 1.4 S μ + 0.24 S²`, roots `S/5` and `6S/5`), so the floor is
+  first met at `S* = λ*/(1/5 − ε λ*)` **and only at that split**. With `ε = 1/10`, `λ* = 1`
+  the optimum is exactly `(6, 4)` at mass 4.
+- **Results.** From the symmetric start `(8, 8)`, SLSQP recovers `k* = (6, 4)` to
+  **1.1e-16** relative on the objective with `|g| = 2.2e-16` in **10 iterations /
+  11 eigensolves**; trust-constr agrees to 2.6e-9 in 123 iterations. A companion test
+  guards the oracle itself — over 72 neighbours at radii 1e-3..1e-1, none is both feasible
+  and lighter — so a mis-derived "optimum" fails before the solver is blamed.
+- **AC-OPT-003 with the optimum *on* a bound.** Raising the `k2` lower bound above its free
+  optimum (4) puts the solution on the bound instead of leaving it approached from inside.
+  The oracle is a `brentq` root of `λ_1(·, 5) = λ*`. The gate pins the *direction* of the
+  error rather than its size, because the methods differ in kind: SLSQP is active-set and
+  lands on the bound (`k2 = 5` to 1e-9, stationarity 0), trust-constr is a barrier method
+  and stops **1.8e-4** inside it — so its solution is not a KKT point of the bound-active
+  problem and its residual legitimately does not vanish. Neither crosses the bound, and no
+  point below it is ever handed to an eigensolve.
+- **Where the KKT measure earns its keep.** At that solution `df/dx = (0.2, 0.2)` is not in
+  the cone of the only constraint gradient, `(−3.8e-2, −6.2e-3)`; a constraint-only fit
+  reports **0.166** where the bound-aware fit reports 0. The test asserts the bound-aware
+  number, so a regression to the projection form fails here.
+- **Also recorded in the docs.** `docs/OPTIMIZATION.md` §8 gains the two-link oracle and the
+  bound-active behaviour of each method; §7 gains the measured evidence for why bound
+  multipliers belong in the same fit.
+- Verified on Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1: **600 passed, 0 failed**,
+  `ruff check src tests` clean. The five added tests cost 1.2 s.
+- **Hazard for the orchestrator, repeated because it recurred.** Three agents implemented
+  GAP-12 concurrently, and A34 additionally found the shared `/workspace` checkout on
+  another agent's branch with uncommitted work, which it restored before moving to a private
+  worktree at `/tmp/a34` (the same hazard A27 and A28 recorded). Dispatching a backfill for
+  a task already closed on the trunk is what produced the duplication; a check of the trunk's
+  gap table before dispatch would have caught it.
+
 ### Round 3 — SOTA Polish & Final Acceptance
 **Status:** PENDING
 
