@@ -1,7 +1,7 @@
 # Superseded Branch Cleanup
 
 Audit date: 2026-08-26  
-Integration branch audited: `cursor/femtools-industrial-7aa3` at `7cc1120`
+Integration branch audited and tested: `cursor/femtools-industrial-7aa3` at `8604807`
 
 These remote branches no longer carry work that should be merged. Delete them after
 review; no GitHub pull request (open or closed) is associated with any of the three.
@@ -25,3 +25,6 @@ r1o2-correlation-updating: 200  3
 merge-quad4-backfill:        4  0
 dynamics-damping-frf:      133  0
 ```
+
+The full committed trunk suite passed at that snapshot: **876 passed, 0 failed** in
+29.26 seconds.

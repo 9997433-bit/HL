@@ -57,7 +57,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A43 | claude-opus-5-thinking-high-fast | R2-T03: AC-CORR-006 acceptance gate (reduced- vs expanded-space pairing) and its registration (backfill for A36) | complete |
 | A46 | claude-opus-5-thinking-high-fast | R2-T02 continued: TET4 constant-strain tetrahedron, Kuhn tet-block mesh, 3D patch suite (backfill for A42) | complete |
 | A54 | claude-opus-5-thinking-high-fast | `openfemlab correlate-frf`: the CLI surface over `correlation/frf.py`, closing the last R2-T01 exit item (backfill for A41) | complete |
-| A62 | gpt-5.6-sol-xhigh-fast | Superseded-branch closure record and current-trunk verification (backfill for A40) | in progress — cleanup record committed; full suite pending |
+| A62 | gpt-5.6-sol-xhigh-fast | Superseded-branch closure record and current-trunk verification (backfill for A40) | complete |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
@@ -2162,3 +2162,20 @@ the AC-UPD-006a/b registry rows stay `specified` because their tags belong in
   checkout, and it was again the right call: the integration tip moved twice during this
   landing (a 34-commit A40/A52 merge sweep, then the A43 AC-CORR-006 batch) and both were
   absorbed by rebase with no conflicts and no lost work.
+
+#### A62 — superseded-branch closure record and trunk verification (backfill for A40)
+
+- Added `.agent_workspace/BRANCH_CLEANUP.md` with explicit closure dispositions for
+  `cursor/r1o2-correlation-updating-e393`, `cursor/merge-quad4-backfill-4595`, and
+  `cursor/dynamics-damping-frf-9500`.
+- Verified against fetched remote tips that the QUAD4 backfill (`d3498b4`) and
+  dynamics/FRF (`f4683d6`) branches are ancestors of trunk with zero branch-only commits.
+  R1-O2 (`f1452f8`) remains intentionally non-ancestral: A14's reconciliation tip
+  (`5762f2d`) is on trunk, while merging the three obsolete branch-only commits would
+  restore a parallel implementation and weaken the trunk's null-mode MAC contract.
+- Confirmed that none of the three branches has an associated open or closed GitHub pull
+  request. All three remote branches can be deleted; R1-O2 must be closed as superseded,
+  not merged.
+- Verified the exact committed trunk snapshot `8604807` from the isolated
+  `/tmp/a62-cleanup` clone with `PYTHONPATH` pinned to its own `src`: **876 passed,
+  0 failed** in 29.26 seconds.
