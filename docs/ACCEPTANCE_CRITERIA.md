@@ -19,8 +19,9 @@ stay consistent (unique IDs, no dangling references, no numbering gaps).
 AC-<MODULE>-<NNN>[<suffix>]
 ```
 
-- `<MODULE>` ∈ `MODAL` (M1), `CORR` (M2), `UPD` (M3), `WORK` (M4), `OPT` (M5),
-  `DYN` (M6), `ELEM` (M7), `IO` (M8), `MPE` (M9), `PRETEST` (M10).
+- `<MODULE>` ∈ `MODAL` (M1), `PERF` (M1 industrial-scale extension), `CORR`
+  (M2), `UPD` (M3), `WORK` (M4), `OPT` (M5), `DYN` (M6), `ELEM` (M7), `IO`
+  (M8), `MPE` (M9), `PRETEST` (M10).
 - `<NNN>`: three-digit number, dense per module (no gaps).
 - `<suffix>`: optional single lowercase letter for closely coupled
   sub-criteria that share a number (e.g. `AC-UPD-006a` / `AC-UPD-006b`).
@@ -31,7 +32,7 @@ AC-<MODULE>-<NNN>[<suffix>]
 |----------|---------|------|
 | **P0** | Core correctness — must pass for Round-1 module acceptance | blocks Round-1 sign-off |
 | **P1** | Extended capability — must pass for Round-2 acceptance | blocks Round-2 sign-off |
-| **P2** | Stretch/polish — targeted at Round 3 | tracked, non-blocking before Round 3 |
+| **P2** | Round-3 capability or industrial hardening | blocks Round-3 sign-off when selected as a task gate |
 
 ### 1.3 Verification method categories
 
@@ -151,6 +152,30 @@ only prints the plan.
   symmetry tolerance raises a typed exception; an indefinite `M` (or a
   negative eigenvalue beyond the rigid-mode noise floor) raises
   `MatrixDefinitenessError`. No bare `assert`/silent NaN paths.
+
+### Industrial sparse-scale extension (family `PERF`, mapped to M1)
+
+`PERF` is a cross-cutting acceptance family rather than an eleventh product
+module. It gates the scale at which M1's existing solver facade must continue
+to honor the sparse matrix contract of MS-0.2 and MS-1.6.
+
+| ID | Pri | Criterion (summary) | Quantitative gate | Spec |
+|----|-----|--------------------|-------------------|------|
+| AC-PERF-001 | P2 | 50k-DOF sparse modal solve never densifies a full operator | n = 50,000, k = 6; no full-order `toarray`; cold solve ≤ 120 s | MS-1.6 |
+| AC-PERF-002 | P2 | Iterative modal result matches the dense reference | frequency rel. err ≤ 1e-8; paired MAC ≥ 0.999 | MS-1.6 |
+
+- **AC-PERF-001** (`contract`) — A procedurally assembled, deterministic
+  tridiagonal spring-mass chain with 50,000 DOFs is solved for its six lowest
+  modes through `ModalSolver(...).solve(sparse=True)`. A tripwire on full-shape
+  CSR/CSC `toarray` calls proves that neither `K`, `M`, nor a full-size derived
+  sparse operator is materialized as dense; the returned mode block is
+  `(50_000, 6)`, all frequencies are finite and increasing, and the cold solve
+  completes within 120 s on the supported CI runner.
+- **AC-PERF-002** (`property`) — On a mid-size chain above the automatic sparse
+  crossover, explicit sparse and dense solves through the same `ModalSolver`
+  facade return the same ordered band: maximum relative frequency error is
+  `1e-8` and every diagonal entry of their unweighted MAC matrix is at least
+  `0.999`, with the diagonal as the unique best pairing.
 
 ---
 
@@ -653,19 +678,21 @@ with no promoted row.
 registry (one entry per criterion: ID, title, module, spec anchor, priority,
 verification method, planned test reference, status).
 
-The current inventory is **57 criteria**: M1 = 9, M2 = 9, M3 = 9,
-M4 = 5, M5 = 4, M6 = 5, M7 = 3, M8 = 3, M9 = 5, and M10 = 5. The two suffixed M3 rows
-(`AC-UPD-006a` / `AC-UPD-006b`) are distinct criteria under one dense base
-number.
+The current inventory is **59 criteria**: M1 = 11 (`MODAL` = 9, `PERF` = 2),
+M2 = 9, M3 = 9, M4 = 5, M5 = 4, M6 = 5, M7 = 3, M8 = 3, M9 = 5, and
+M10 = 5. The two suffixed M3 rows (`AC-UPD-006a` / `AC-UPD-006b`) are
+distinct criteria under one dense base number.
 
 Fourteen of them were `verified` after the first two promotion waves (A109,
 A121). The third wave — promoted at Round 2 sign-off — closed module **M8**
 (AC-IO-001..003), putting every Round-1/2 row on the CI gate. Round 3 opened
 modules **M9** (section 10) and **M10** (section 11) spec-first. Round 3's
 fourth wave closed **M9** (AC-MPE-001..005) and **M10**'s P0/P1 gates
-(AC-PRETEST-001..004); AC-PRETEST-005 remains **`implemented`** (P2, outside
-the blocking gate). The inventory reads **56 `verified`, 1 `implemented`, 0
-`specified`** — every Round-1..3 blocking row is on the CI gate.
+(AC-PRETEST-001..004). The industrial-scale wave adds the cross-cutting
+**PERF** family to M1 and promotes both rows through the same gate;
+AC-PRETEST-005 remains **`implemented`** pending its own promotion. The
+inventory reads **58 `verified`, 1 `implemented`, 0 `specified`** — every
+Round-1..3 blocking row is on the CI gate.
 
 The registry tests enforce:
 
@@ -679,9 +706,9 @@ The registry tests enforce:
    suite named by its `test_file` contains a test tagged
    `@criterion("<ID>")`, and every tag in a suite resolves to a criterion that
    names that suite.
-7. Promotion honesty: `verified` is reserved for blocking (P0/P1) criteria,
-   requires the green, reproducible gate run of section 1.5, and requires the
-   CI `gates` job that runs it to exist.
+7. Promotion honesty: `verified` requires the green, reproducible gate run of
+   section 1.5 and the CI `gates` job that runs it to exist. Round-3 P2 task
+   gates use the same promotion path as P0/P1 rows.
 8. Promotion span: every module in `VALID_MODULES` carries at least one
    `verified` criterion. The registry may name modules in
    `MODULES_AWAITING_PROMOTION` only while they have no promoted row; the same

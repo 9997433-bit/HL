@@ -153,6 +153,30 @@ def solve_modes(K, M, k: int, *, backend: str = "auto",
                 dof_map: DofMap | None = None) -> ModalResult
 ```
 
+### MS-1.6 Industrial sparse-scale contract
+
+The M1 interface is also the platform's industrial-scale seam: callers do not
+switch to a benchmark-only solver when a model grows beyond workstation-dense
+size. For a sparse pair `(K, M)` with at least **50,000 free DOFs** and
+`k << n`, the explicitly selected iterative path shall preserve sparse storage
+through validation, symmetrization, shift construction, factorization and
+eigenvalue extraction. A dense `(n, n)` materialization (`toarray`, `todense`,
+or an implicit array conversion) of either full-order operator is forbidden;
+only the returned `(n, k)` mode block and genuinely reduced blocks may be
+dense.
+
+The reference acceptance problem is a deterministic tridiagonal spring-mass
+chain with `n = 50,000` and `k = 6`. A cold solve on the supported CI runner
+must complete within a deliberately loose **120 s** envelope. The envelope is
+a hang/regression tripwire, not a portable speed claim; the primary invariant
+is sparse end-to-end storage (AC-PERF-001).
+
+The sparse path remains numerically interchangeable with the dense reference:
+on a mid-size problem for which both paths are practical, corresponding
+frequencies agree to relative error `1e-8` and diagonal mode-shape MAC is at
+least `0.999` (AC-PERF-002). Both checks use the same `ModalSolver` facade and
+an explicit `sparse=True`/`False` override.
+
 ---
 
 ## 2. Module M2 — Correlation (`openfemlab.correlation`) (MS-2)

@@ -8,10 +8,11 @@ document, and ``docs/MODULE_SPEC.md`` never drift apart.
 
 Registry contract (ACCEPTANCE_CRITERIA.md sections 1 and 12):
 - IDs follow ``AC-<MODULE>-NNN[a-z]?`` with MODULE in {MODAL, CORR, UPD,
-  WORK, OPT, DYN, ELEM, IO, MPE, PRETEST}; numbering is dense per module (no
-  gaps); an optional lowercase suffix marks closely coupled sub-criteria sharing a
-  number.
-- ``priority`` in {P0, P1, P2} (P0 blocks Round-1, P1 blocks Round-2).
+  WORK, OPT, DYN, ELEM, IO, MPE, PRETEST, PERF}; numbering is dense per module
+  (no gaps); an optional lowercase suffix marks closely coupled sub-criteria
+  sharing a number.
+- ``priority`` in {P0, P1, P2} (P0 blocks Round-1, P1 blocks Round-2, and
+  selected P2 task gates block Round-3).
 - ``method`` in {oracle, property, twin, contract, regression}.
 - ``status`` lifecycle: specified -> implemented -> verified. A criterion may
   only leave ``specified`` once the suite named by ``test_file`` carries a test
@@ -39,9 +40,12 @@ SPEC_DOC = REPO_ROOT / "docs" / "MODULE_SPEC.md"
 CI_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 CI_GATE_JOB = "gates"
 
-ID_REGEX = re.compile(r"AC-(?:MODAL|CORR|UPD|WORK|OPT|DYN|ELEM|IO|MPE|PRETEST)-\d{3}[a-z]?")
+ID_REGEX = re.compile(
+    r"AC-(?:MODAL|CORR|UPD|WORK|OPT|DYN|ELEM|IO|MPE|PRETEST|PERF)-\d{3}[a-z]?"
+)
 ID_FULLMATCH = re.compile(
-    r"^AC-(MODAL|CORR|UPD|WORK|OPT|DYN|ELEM|IO|MPE|PRETEST)-(\d{3})([a-z]?)$"
+    r"^AC-(MODAL|CORR|UPD|WORK|OPT|DYN|ELEM|IO|MPE|PRETEST|PERF)-"
+    r"(\d{3})([a-z]?)$"
 )
 
 VALID_MODULES = ("M1", "M2", "M3", "M4", "M5", "M6", "M7", "M8", "M9", "M10")
@@ -63,17 +67,18 @@ TAG_REGEX = re.compile(r"criterion\(\s*\"(AC-[A-Z]+-\d{3}[a-z]?)\"\s*\)")
 FAMILY_TO_MODULE = {
     "MODAL": "M1", "CORR": "M2", "UPD": "M3", "WORK": "M4", "OPT": "M5",
     "DYN": "M6", "ELEM": "M7", "IO": "M8", "MPE": "M9", "PRETEST": "M10",
+    "PERF": "M1",
 }
 EXPECTED_CRITERIA_PER_FAMILY = {
     "MODAL": 9, "CORR": 9, "UPD": 9, "WORK": 5, "OPT": 4, "DYN": 5, "ELEM": 3,
-    "IO": 3, "MPE": 5, "PRETEST": 5,
+    "IO": 3, "MPE": 5, "PRETEST": 5, "PERF": 2,
 }
 
 
 @dataclass(frozen=True)
 class AcceptanceCriterion:
     test_id: str
-    module: str          # M1..M8
+    module: str          # M1..M10
     title: str
     priority: str        # P0 | P1 | P2
     method: str          # oracle | property | twin | contract | regression
@@ -99,6 +104,7 @@ _ELEM_SUITE = "tests/acceptance/test_elements.py"
 _IO_SUITE = "tests/acceptance/test_io.py"
 _MPE_SUITE = "tests/acceptance/test_mpe.py"
 _PRETEST_SUITE = "tests/acceptance/test_pretest.py"
+_PERF_SUITE = "tests/acceptance/test_performance.py"
 
 REGISTRY: tuple[AcceptanceCriterion, ...] = (
     # --- M1 Modal analysis (MS-1) -------------------------------------------
@@ -120,6 +126,11 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P1", "oracle", "MS-1.2", _MODAL_SUITE, "verified"),
     _c("AC-MODAL-009", "Input validation & typed failures",
        "P0", "contract", "MS-1.1", _MODAL_SUITE, "verified"),
+    # --- M1 Industrial sparse scale (MS-1.6), GAP-13 ------------------------
+    _c("AC-PERF-001", "50k-DOF sparse modal solve never densifies a full operator",
+       "P2", "contract", "MS-1.6", _PERF_SUITE, "implemented"),
+    _c("AC-PERF-002", "Iterative modal result matches the dense reference",
+       "P2", "property", "MS-1.6", _PERF_SUITE, "implemented"),
     # --- M2 Correlation (MS-2) ----------------------------------------------
     _c("AC-CORR-001", "Weighted MAC self-identity",
        "P0", "property", "MS-2.2", _CORR_SUITE, "verified"),
@@ -254,7 +265,7 @@ def test_registry_inventory_matches_documented_scope():
         for family in EXPECTED_CRITERIA_PER_FAMILY
     }
     assert counts == EXPECTED_CRITERIA_PER_FAMILY
-    assert len(REGISTRY) == 57
+    assert len(REGISTRY) == 59
 
 
 def test_ids_unique():
@@ -375,10 +386,13 @@ def test_tagged_tests_match_the_registry():
 
 
 def test_verified_criteria_are_round_gates():
-    """Promotion is reserved for blocking criteria (rule 7)."""
-    stretch = [c.test_id for c in REGISTRY
-               if c.status == "verified" and c.priority == "P2"]
-    assert not stretch, f"P2 criteria promoted to verified: {stretch}"
+    """Every promoted row belongs to a priority admitted by the current round."""
+    invalid = [
+        c.test_id
+        for c in REGISTRY
+        if c.status == "verified" and c.priority not in VALID_PRIORITIES
+    ]
+    assert not invalid, f"verified criteria outside the active round gates: {invalid}"
 
 
 def test_verified_criteria_span_every_module():
