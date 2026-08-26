@@ -4,14 +4,20 @@ Three threads meet here:
 
 * the **control thread** (the Qt GUI thread) calls :meth:`AudioEngine.play`,
   :meth:`~AudioEngine.seek` and friends;
-* the **feeder thread** copies frames from the loaded clip into a
+* the **feeder thread** pulls frames from the active
+  :class:`~audio_studio.core.sample_source.SampleSource` into a
   :class:`~audio_studio.core.ring_buffer.RingBuffer`;
 * the **device thread** drains that ring buffer from :meth:`AudioEngine.render`.
 
 The ring buffer is what keeps the device callback free of file I/O and of the
-GIL-heavy work that would otherwise cause dropouts. The playhead is derived as
-``frames_queued - frames_still_in_ring`` so it reports what the listener is
-actually hearing rather than how far the feeder has run ahead.
+GIL-heavy work that would otherwise cause dropouts. Because the feeder talks to
+a ``SampleSource`` rather than to a decoded array, the same transport plays an
+in-memory clip, a file being streamed off disk, and an
+:class:`~audio_studio.core.edit_session.EditSession` document mid-edit.
+
+The playhead is derived as ``frames_queued - frames_still_in_ring`` so it
+reports what the listener is actually hearing rather than how far the feeder
+has run ahead.
 """
 
 from __future__ import annotations
@@ -28,6 +34,7 @@ from .loader import LoadedAudio, load_audio, resample
 from .output import DEFAULT_BLOCK_SIZE, AudioOutput, OutputDeviceError, create_output
 from .peaks import PeakPyramid
 from .ring_buffer import RingBuffer
+from .sample_source import MemorySampleSource, SampleSource, StreamingSampleSource
 from .types import (
     SAMPLE_DTYPE,
     AudioBuffer,
@@ -62,6 +69,9 @@ class AudioEngine:
 
         self._lock = threading.RLock()
         self._clip: LoadedAudio | None = None
+        self._source: SampleSource | None = None
+        self._owns_source = False
+        self._audio_format: AudioFormat | None = None
         self._pyramid: PeakPyramid | None = None
         self._ring: RingBuffer | None = None
 
@@ -69,6 +79,9 @@ class AudioEngine:
         self._source_pos = 0
         self._play_origin = 0
         self._exhausted = False
+        # Bumped whenever the playhead jumps, so a block decoded outside the
+        # lock can tell that it is describing a position nobody wants any more.
+        self._generation = 0
         self._selection: TimeRange | None = None
         self._loop = False
         self._play_selection_only = True
@@ -86,7 +99,13 @@ class AudioEngine:
 
     @property
     def clip(self) -> LoadedAudio | None:
+        """The decoded clip, or ``None`` when playing a streamed or edited source."""
         return self._clip
+
+    @property
+    def source(self) -> SampleSource | None:
+        """Whatever the feeder is currently pulling frames from."""
+        return self._source
 
     @property
     def buffer(self) -> AudioBuffer | None:
@@ -99,50 +118,108 @@ class AudioEngine:
 
     @property
     def audio_format(self) -> AudioFormat | None:
-        return self._clip.audio_format if self._clip else None
+        return self._audio_format
 
     @property
     def has_clip(self) -> bool:
-        return self._clip is not None
+        return self._source is not None
+
+    @property
+    def is_streaming(self) -> bool:
+        """True when frames are being decoded from disk rather than held in RAM."""
+        return isinstance(self._source, StreamingSampleSource)
 
     @property
     def n_frames(self) -> int:
-        return self._clip.buffer.n_frames if self._clip else 0
+        return self._source.n_frames if self._source else 0
 
     @property
     def n_channels(self) -> int:
-        return self._clip.buffer.n_channels if self._clip else 0
+        return self._source.n_channels if self._source else 0
 
     @property
     def sample_rate(self) -> int:
-        return self._clip.buffer.sample_rate if self._clip else 0
+        return self._source.sample_rate if self._source else 0
 
     @property
     def duration(self) -> float:
-        return self._clip.buffer.duration if self._clip else 0.0
+        rate = self.sample_rate
+        return self.n_frames / rate if rate else 0.0
 
     def load(self, path: str | Path) -> LoadedAudio:
-        """Decode ``path`` and arm the transport at its start."""
+        """Decode ``path`` into memory and arm the transport at its start."""
         clip = load_audio(path)
         self.set_clip(clip)
         return clip
 
+    def open_stream(
+        self, path: str | Path, *, build_pyramid: bool = False
+    ) -> StreamingSampleSource:
+        """Play ``path`` straight off disk instead of decoding it up front.
+
+        Nothing but the file header is read, so an hour-long session opens
+        instantly. ``build_pyramid`` streams the file once more to build the
+        waveform overview, which is what a UI wants but a batch job does not.
+        """
+        source = StreamingSampleSource(path)
+        pyramid = PeakPyramid(source.read(0, source.n_frames)) if build_pyramid else None
+        self.set_source(
+            source,
+            audio_format=source.audio_format(),
+            pyramid=pyramid,
+            owns_source=True,
+        )
+        return source
+
     def set_clip(self, clip: LoadedAudio | None) -> None:
         """Install an already-decoded clip (used by tests and by DSP results)."""
+        if clip is None:
+            self.set_source(None)
+            return
+        self.set_source(
+            MemorySampleSource(clip.buffer),
+            clip=clip,
+            audio_format=clip.audio_format,
+            pyramid=PeakPyramid(clip.buffer.data),
+        )
+
+    def set_source(
+        self,
+        source: SampleSource | None,
+        *,
+        clip: LoadedAudio | None = None,
+        audio_format: AudioFormat | None = None,
+        pyramid: PeakPyramid | None = None,
+        owns_source: bool = False,
+    ) -> None:
+        """Point the transport at any :class:`SampleSource` and rewind it.
+
+        ``owns_source`` makes the engine responsible for closing the source when
+        it is replaced or the engine shuts down — the right default for a file
+        handle it opened itself, and the wrong one for a session the UI shares.
+        """
         self.stop()
         with self._lock:
+            previous, owned = self._source, self._owns_source
+            self._source = source
+            self._owns_source = owns_source
             self._clip = clip
-            self._pyramid = PeakPyramid(clip.buffer.data) if clip is not None else None
+            self._audio_format = audio_format
+            self._pyramid = pyramid
             self._selection = None
             self._source_pos = 0
             self._play_origin = 0
             self._exhausted = False
+            self._generation += 1
             self._levels = LevelReading()
             self._ring = None
+        if owned and previous is not None and previous is not source:
+            with suppress(Exception):  # a stale handle must not block the new clip
+                previous.close()
         self._close_output()
 
     def close_clip(self) -> None:
-        self.set_clip(None)
+        self.set_source(None)
 
     # ------------------------------------------------------------- transport
 
@@ -162,7 +239,7 @@ class AudioEngine:
     def play(self) -> None:
         """Start or resume playback from the current playhead."""
         with self._lock:
-            if self._clip is None or self._state is TransportState.PLAYING:
+            if self._source is None or self._state is TransportState.PLAYING:
                 return
 
             region = self.playback_region
@@ -201,19 +278,20 @@ class AudioEngine:
         """Stop playback and rewind to where the current pass started."""
         self._teardown(join_feeder=True)
         with self._lock:
-            if self._clip is not None:
+            if self._source is not None:
                 self._source_pos = self._play_origin
             self._levels = LevelReading()
 
     def seek(self, frame: int) -> int:
         """Move the playhead to ``frame``; returns the clamped position."""
         with self._lock:
-            if self._clip is None:
+            if self._source is None:
                 return 0
             target = max(0, min(int(frame), self.n_frames))
             self._source_pos = target
             self._play_origin = target
             self._exhausted = False
+            self._generation += 1
             if self._ring is not None:
                 self._ring.clear()
             return target
@@ -225,7 +303,7 @@ class AudioEngine:
     def position(self) -> int:
         """Playhead in frames, compensated for what is still queued in the ring."""
         with self._lock:
-            if self._clip is None:
+            if self._source is None:
                 return 0
             queued = self._ring.available_read if self._ring is not None else 0
             return int(max(0, min(self._source_pos - queued, self.n_frames)))
@@ -343,43 +421,58 @@ class AudioEngine:
         )
 
     def _prepare_stream(self) -> None:
-        """Open the device for the clip's format, resampling only if forced."""
-        assert self._clip is not None
-        buffer = self._clip.buffer
+        """Open the device for the source's format, resampling only if forced."""
+        source = self._source
+        assert source is not None
+        sample_rate, channels = source.sample_rate, source.n_channels
         if (
             self._output.is_open
-            and self._output.sample_rate == buffer.sample_rate
-            and self._output.channels == buffer.n_channels
+            and self._output.sample_rate == sample_rate
+            and self._output.channels == channels
         ):
-            self._reset_ring(buffer.n_channels)
+            self._reset_ring(channels)
             return
 
         try:
-            self._output.open(
-                buffer.sample_rate,
-                buffer.n_channels,
-                self.render,
-                block_size=self._block_size,
-            )
+            self._output.open(sample_rate, channels, self.render, block_size=self._block_size)
         except OutputDeviceError:
-            converted = resample(buffer, FALLBACK_SAMPLE_RATE)
-            ratio = FALLBACK_SAMPLE_RATE / buffer.sample_rate
+            channels = self._resample_to_fallback_rate(sample_rate)
+            self._output.open(
+                FALLBACK_SAMPLE_RATE, channels, self.render, block_size=self._block_size
+            )
+        self._reset_ring(channels)
+
+    def _resample_to_fallback_rate(self, sample_rate: int) -> int:
+        """Convert the whole source when the device refuses its native rate.
+
+        Streamed sources are materialised first: a device that cannot be opened
+        at the file's rate leaves no way to convert block by block without a
+        stateful resampler, and pulling one in belongs to a later milestone.
+        """
+        source = self._source
+        assert source is not None
+        original = source.to_buffer() if hasattr(source, "to_buffer") else None
+        if original is None:
+            original = AudioBuffer(source.read(0, source.n_frames), sample_rate)
+        converted = resample(original, FALLBACK_SAMPLE_RATE)
+        ratio = FALLBACK_SAMPLE_RATE / sample_rate
+
+        if self._owns_source:
+            with suppress(Exception):
+                source.close()
+        self._source = MemorySampleSource(converted)
+        self._owns_source = False
+        if self._clip is not None:
             self._clip = LoadedAudio(
                 buffer=converted,
                 audio_format=self._clip.audio_format,
                 path=self._clip.path,
             )
+        if self._pyramid is not None:
             self._pyramid = PeakPyramid(converted.data)
-            self._source_pos = int(self._source_pos * ratio)
-            self._play_origin = int(self._play_origin * ratio)
-            self._output.open(
-                converted.sample_rate,
-                converted.n_channels,
-                self.render,
-                block_size=self._block_size,
-            )
-            buffer = converted
-        self._reset_ring(buffer.n_channels)
+        self._source_pos = int(self._source_pos * ratio)
+        self._play_origin = int(self._play_origin * ratio)
+        return converted.n_channels
 
     def _reset_ring(self, channels: int) -> None:
         capacity = max(self._block_size * self._ring_blocks, self._block_size * 4)
@@ -425,10 +518,11 @@ class AudioEngine:
                 self._feeder_stop.wait(idle)
 
     def _pump_once(self) -> bool:
-        """Copy at most one block from the clip into the ring buffer."""
+        """Pull at most one block from the source into the ring buffer."""
         with self._lock:
             ring = self._ring
-            if ring is None or self._clip is None or self._exhausted:
+            source = self._source
+            if ring is None or source is None or self._exhausted:
                 return False
             if ring.available_write < self._block_size:
                 return False
@@ -441,10 +535,22 @@ class AudioEngine:
                     self._exhausted = True
                     return False
 
-            n = min(self._block_size, region.end - self._source_pos)
-            chunk = self._clip.buffer.data[self._source_pos : self._source_pos + n]
+            position = self._source_pos
+            generation = self._generation
+            n = min(self._block_size, region.end - position)
+
+        # Decoding happens outside the lock. A streaming source touches the disk
+        # here, and the GUI polls :attr:`position` thirty times a second.
+        chunk = source.read(position, n)
+
+        with self._lock:
+            if generation != self._generation or ring is not self._ring:
+                return True  # a seek landed mid-read: drop the block and re-pump
+            if chunk.shape[0] == 0:  # truncated or closed source
+                self._exhausted = True
+                return False
             written = ring.write(chunk)
-            self._source_pos += written
+            self._source_pos = position + written
             return written > 0
 
     def _handle_stream_end(self) -> None:
@@ -475,6 +581,12 @@ class AudioEngine:
             self._set_state(TransportState.STOPPED)
 
     def shutdown(self) -> None:
-        """Release the device; safe to call more than once."""
+        """Release the device and any file handle we own; safe to call twice."""
         self._teardown(join_feeder=True)
+        with self._lock:
+            source, owned = self._source, self._owns_source
+            self._owns_source = False
+        if owned and source is not None:
+            with suppress(Exception):  # shutdown is best-effort
+                source.close()
         self._close_output()
