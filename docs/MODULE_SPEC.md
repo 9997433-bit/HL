@@ -748,6 +748,15 @@ The two requirements that make an element admissible, both gated:
   that many zero frequencies (AC-ELEM-002). This is the element-level
   precondition for the AC-MODAL-004 rigid-body count.
 
+Both are gated on **every** formulation of MS-8.2 through the one case table in
+`tests/acceptance/test_elements.py`. Two things a rotational element states
+differently, and both are the shell facet's: its patch prescribes a constant
+membrane strain and a constant curvature at once, because a facet that
+reproduced only the first would still be an inadmissible plate; and its six
+rigid-body motions carry the director rotation with the component about the
+facet normal projected out, since the director does not turn about itself and
+the drilling stiffness is a penalty on a fictitious DOF, not a rotation field.
+
 ### MS-8.4 Mass matrices and convergence
 
 - **Consistent mass** `M = ∫ ρ NᵀN dV` is the default; **lumped mass** is its
@@ -764,6 +773,14 @@ The two requirements that make an element admissible, both gated:
   oracle (AC-ELEM-003). The oracle used is the axial spectrum of a bar,
   `f_1 = c/(4L)` with `c = √(E/ρ)`, which a 2D or 3D mesh reproduces exactly
   in the limit once `ν = 0` decouples the lateral directions.
+- **Bending convergence** needs a second oracle, because the bar reaches a
+  shell only through its membrane. `ShellQuad4Element` is refined against the
+  Reissner–Mindlin Navier spectrum of a hard simply supported plate,
+  `ω² = ω_Kirchhoff² / (1 + D k² / (κGt))` with `k² = π²(m² + n²)/a²`. Rotary
+  inertia is absent from that closed form and from the element's default mass
+  matrix alike, so the two describe the same theory and the observed error is
+  the discretization error alone; against the Kirchhoff form it would instead
+  stall at the plate's own shear correction.
 
 ### MS-8.5 Public API
 
