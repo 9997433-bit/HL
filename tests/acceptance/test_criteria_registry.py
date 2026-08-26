@@ -142,7 +142,7 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
     _c("AC-WORK-002", "Deterministic reproducibility",
        "P0", "contract", "MS-4.3", _WORK_SUITE, "implemented"),
     _c("AC-WORK-003", "Held-out validation detects overfitting",
-       "P1", "twin", "MS-4.1", _WORK_SUITE),
+       "P1", "twin", "MS-4.1", _WORK_SUITE, "implemented"),
     _c("AC-WORK-004", "Failed gate halts with typed reason",
        "P0", "contract", "MS-4.1", _WORK_SUITE, "implemented"),
     _c("AC-WORK-005", "CorrectionReport schema & versioning",
