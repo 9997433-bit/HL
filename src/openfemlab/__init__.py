@@ -35,6 +35,8 @@ _EXPORTS: dict[str, str] = {
     "TrussElement": "openfemlab.core.elements",
     "BarElement": "openfemlab.core.elements",
     "BeamElement2D": "openfemlab.core.elements",
+    "Quad4Element": "openfemlab.core.elements",
+    "plane_constitutive_matrix": "openfemlab.core.elements",
     # assembly
     "AssembledSystem": "openfemlab.core.assembly",
     "assemble_system": "openfemlab.core.assembly",
@@ -52,6 +54,8 @@ _EXPORTS: dict[str, str] = {
     "complex_modal_frf": "openfemlab.solver.dynamics",
     "complex_modes": "openfemlab.solver.dynamics",
     "direct_frf": "openfemlab.solver.dynamics",
+    "fdac": "openfemlab.solver.dynamics",
+    "frac": "openfemlab.solver.dynamics",
     "harmonic_response": "openfemlab.solver.dynamics",
     "modal_frf": "openfemlab.solver.dynamics",
     # correlation
@@ -112,8 +116,10 @@ if TYPE_CHECKING:  # pragma: no cover
     from .core.elements import BarElement as BarElement
     from .core.elements import BeamElement2D as BeamElement2D
     from .core.elements import Element as Element
+    from .core.elements import Quad4Element as Quad4Element
     from .core.elements import SpringElement as SpringElement
     from .core.elements import TrussElement as TrussElement
+    from .core.elements import plane_constitutive_matrix as plane_constitutive_matrix
     from .core.model import DOF as DOF
     from .core.model import Material as Material
     from .core.model import Model as Model
@@ -139,6 +145,8 @@ if TYPE_CHECKING:  # pragma: no cover
     from .solver.dynamics import complex_modal_frf as complex_modal_frf
     from .solver.dynamics import complex_modes as complex_modes
     from .solver.dynamics import direct_frf as direct_frf
+    from .solver.dynamics import fdac as fdac
+    from .solver.dynamics import frac as frac
     from .solver.dynamics import harmonic_response as harmonic_response
     from .solver.dynamics import modal_frf as modal_frf
     from .solver.modal import ModalResult as ModalResult
