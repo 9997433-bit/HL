@@ -1,9 +1,9 @@
 <script setup>
 /**
  * 环形进度条。数值变化时由 CSS 补间 stroke-dashoffset，
- * 避免为了一个属性动画把整套动画运行时放进首屏。
+ * 避免为了一个简单过渡把动画运行时放进首屏脚本。
  */
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed } from 'vue'
 
 const props = defineProps({
   /** 0 ~ 1 */
@@ -19,28 +19,9 @@ const props = defineProps({
 
 const radius = computed(() => (props.size - props.thickness) / 2)
 const circumference = computed(() => 2 * Math.PI * radius.value)
-
-/** 供动画补间的中间值。 */
-const shown = ref(0)
-const offset = computed(() => circumference.value * (1 - Math.min(1, Math.max(0, shown.value))))
-
-let frame = null
-
-function show(target) {
-  if (frame !== null) cancelAnimationFrame(frame)
-  frame = requestAnimationFrame(() => {
-    shown.value = Math.min(1, Math.max(0, target))
-    frame = null
-  })
-}
-
-onMounted(() => show(props.value))
-onBeforeUnmount(() => {
-  if (frame !== null) cancelAnimationFrame(frame)
-})
-watch(() => props.value, show)
-
-const percent = computed(() => Math.round(shown.value * 100))
+const normalizedValue = computed(() => Math.min(1, Math.max(0, props.value)))
+const offset = computed(() => circumference.value * (1 - normalizedValue.value))
+const percent = computed(() => Math.round(normalizedValue.value * 100))
 </script>
 
 <template>
@@ -92,7 +73,9 @@ const percent = computed(() => Math.round(shown.value * 100))
 }
 
 .ring__bar {
-  transition: stroke var(--dur-mid) ease, stroke-dashoffset 0.7s ease-out;
+  transition:
+    stroke var(--dur-mid) ease,
+    stroke-dashoffset 0.7s var(--ease-pop);
   filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.12));
 }
 

@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import BadgeShelf from '@/components/BadgeShelf.vue'
 import ProgressRing from '@/components/ProgressRing.vue'
 import { useProgressStore } from '@/stores/progress.js'
+import { useSettingsStore } from '@/stores/settings.js'
 import { BOOKS } from '@/data/books.js'
 import { IDIOMS } from '@/data/idioms.js'
 import { RADICALS } from '@/data/radicals.js'
@@ -10,6 +11,7 @@ import { sfx } from '@/utils/sfx.js'
 import OpenMojiIcon from '@shared/components/OpenMojiIcon.vue'
 
 const progress = useProgressStore()
+const settings = useSettingsStore()
 
 const nextChar = computed(() => progress.nextChar)
 
@@ -122,7 +124,7 @@ const stations = computed(() => [
         学习地图
       </h3>
 
-      <div class="map">
+      <div class="map" :class="{ 'map--quiet': settings.reduceMotion }">
         <span class="map__path" aria-hidden="true" />
         <RouterLink
           v-for="(s, i) in stations"
@@ -130,7 +132,7 @@ const stations = computed(() => [
           class="station"
           :class="[`station--${i % 2 === 0 ? 'left' : 'right'}`, { 'is-locked': s.locked }]"
           :to="s.locked ? '' : s.to"
-          :style="{ '--station-color': s.color }"
+          :style="{ '--station-color': s.color, '--station-index': i }"
           :aria-disabled="s.locked || undefined"
           @click="(e) => (s.locked ? e.preventDefault() : sfx.tap())"
         >
@@ -251,7 +253,26 @@ const stations = computed(() => [
   border: 2px solid var(--surface-border);
   box-shadow: var(--shadow-md);
   backdrop-filter: blur(6px);
+  animation: station-enter 0.45s var(--ease-pop) backwards;
+  animation-delay: calc(var(--station-index, 0) * 70ms);
   transition: transform var(--dur-fast) var(--ease-pop), box-shadow var(--dur-fast) ease;
+}
+
+@keyframes station-enter {
+  from {
+    opacity: 0;
+    transform: translateY(26px) scale(0.94);
+  }
+}
+
+.map--quiet .station {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .station {
+    animation: none;
+  }
 }
 
 .station--left {
