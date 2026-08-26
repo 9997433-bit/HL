@@ -1,7 +1,7 @@
 # PR Draft — OpenFEMLab Round 2 Sign-Off
 
 Ready to file. Base: `main`. Head: `cursor/femtools-industrial-7aa3`.
-Verified at commit pending sign-off push: full suite **1508 passed**,
+Verified at commit `681f556`: full suite **1508 passed**,
 `ruff check .` clean (Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1).
 Registry: **47/47 acceptance criteria `verified`**.
 Source references: [README](../README.md), [Chinese user guide](../docs/USER_GUIDE_zh.md),
