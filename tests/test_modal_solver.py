@@ -28,16 +28,20 @@ Uniform Euler-Bernoulli cantilever::
 from __future__ import annotations
 
 import math
+from pathlib import Path
 
 import numpy as np
 import pytest
 import scipy.sparse as sp
+import yaml
 
-from openfemlab import DOF, Material, Model, ModalSolver, Section, SolverError
+from openfemlab import DOF, Material, ModalSolver, Model, Section, SolverError
 from openfemlab.mesh.simple import bar_mesh, beam_mesh, spring_mass_chain, truss_from_arrays
 
 STEEL = Material(E=2.1e11, density=7850.0, nu=0.3, name="steel")
 SQUARE = Section(area=1e-4, inertia_z=1e-4**2 / 12.0, name="10x10 mm")
+
+FIXTURES = Path(__file__).parent / "fixtures"
 
 
 # --------------------------------------------------------------------- helpers
@@ -75,6 +79,155 @@ def analytic_chain_fixed_fixed(n: int, k: float, m: float):
     return omega, shapes
 
 
+# ------------------------------------------------------ reference fixtures
+#
+# ``tests/fixtures/*.yaml`` hold the two benchmark eigenproblems with their
+# closed-form spectra. They are the shared reference for this suite and for the
+# io/correlation suites, so the numbers live in data rather than in code.
+
+
+def load_fixture(name: str) -> dict:
+    with (FIXTURES / f"{name}.yaml").open(encoding="utf-8") as handle:
+        return yaml.safe_load(handle)
+
+
+def fixture_matrices(data: dict) -> tuple[np.ndarray, np.ndarray]:
+    return (
+        np.array(data["stiffness_matrix"], dtype=float),
+        np.array(data["mass_matrix"], dtype=float),
+    )
+
+
+def fixture_mode_shapes(data: dict) -> np.ndarray:
+    """Reference shapes as ``(ndof, nmodes)``, i.e. the solver's own layout."""
+    expected = data["expected"]
+    shapes = np.array(expected["mass_normalized_mode_shapes"], dtype=float)
+    if expected["mode_shape_layout"] == "modes_by_dof":
+        shapes = shapes.T
+    return shapes
+
+
+def align_signs(computed: np.ndarray, reference: np.ndarray) -> np.ndarray:
+    """Flip whole columns so that sign-arbitrary shapes become comparable."""
+    signs = np.sign(np.einsum("ij,ij->j", computed, reference))
+    signs[signs == 0.0] = 1.0
+    return computed * signs
+
+
+#: Fixture name and the ``mesh.simple`` model that must reproduce it.
+FIXTURE_CASES = [
+    ("two_dof_analytic", lambda: spring_mass_chain(2, 1.0, 1.0, fixed_end=True)),
+    ("ten_dof_chain", lambda: spring_mass_chain(10, 1.0, 1.0)),
+]
+FIXTURE_NAMES = [name for name, _ in FIXTURE_CASES]
+
+
+@pytest.mark.parametrize("name", FIXTURE_NAMES)
+def test_fixture_spectrum_matches_the_reference_values(name):
+    data = load_fixture(name)
+    K, M = fixture_matrices(data)
+    expected = data["expected"]
+    rtol = float(data["tolerances"]["eigenvalue_relative"])
+
+    result = ModalSolver.from_matrices(K, M).solve(num_modes=K.shape[0])
+
+    assert result.num_modes == K.shape[0]
+    np.testing.assert_allclose(result.eigenvalues, expected["eigenvalues"], rtol=rtol)
+    np.testing.assert_allclose(
+        result.angular_frequencies, expected["angular_frequencies"], rtol=rtol
+    )
+    np.testing.assert_allclose(result.frequencies, expected["frequencies_hz"], rtol=rtol)
+    assert not np.any(result.rigid_body_modes)
+
+
+@pytest.mark.parametrize("name", FIXTURE_NAMES)
+def test_fixture_eigenpairs_satisfy_the_residual_and_orthogonality_contract(name):
+    """``K phi = lambda M phi`` to machine precision, with ``phi^T M phi = I``."""
+    data = load_fixture(name)
+    K, M = fixture_matrices(data)
+    ndof = K.shape[0]
+
+    result = ModalSolver.from_matrices(K, M).solve(num_modes=ndof)
+    phi = result.mode_shapes
+
+    np.testing.assert_allclose(phi.T @ M @ phi, np.eye(ndof), atol=1e-12)
+    np.testing.assert_allclose(phi.T @ K @ phi, np.diag(result.eigenvalues), atol=1e-12)
+    residual = K @ phi - (M @ phi) * result.eigenvalues
+    relative = np.linalg.norm(residual, axis=0) / np.linalg.norm(K @ phi, axis=0)
+    assert np.max(relative) < 1e-12
+
+
+def test_two_dof_fixture_mode_shapes_match_the_reference():
+    data = load_fixture("two_dof_analytic")
+    K, M = fixture_matrices(data)
+    reference = fixture_mode_shapes(data)
+    atol = float(data["tolerances"]["mode_shape_absolute"])
+
+    result = ModalSolver.from_matrices(K, M).solve(num_modes=2, normalization="mass")
+
+    assert data["expected"]["mode_shape_sign_is_arbitrary"]
+    np.testing.assert_allclose(align_signs(result.mode_shapes, reference), reference, atol=atol)
+    for mode in range(2):
+        assert mac(result.mode_shapes[:, mode], reference[:, mode]) == pytest.approx(1.0, abs=1e-12)
+
+
+def test_ten_dof_fixture_shapes_follow_the_fixed_free_sine_law():
+    """``phi_ij = sin((2i - 1) j pi / (2N + 1))`` for the unit fixed-free chain."""
+    data = load_fixture("ten_dof_chain")
+    K, M = fixture_matrices(data)
+    ndof = K.shape[0]
+    assert data["boundary_condition"] == "fixed_free"
+
+    result = ModalSolver.from_matrices(K, M).solve(num_modes=ndof)
+    reference = analytic_chain_fixed_free(ndof, 1.0, 1.0)[1]
+
+    for mode in range(ndof):
+        assert mac(result.mode_shapes[:, mode], reference[:, mode]) == pytest.approx(1.0, abs=1e-9)
+
+
+@pytest.mark.parametrize(("name", "model_factory"), FIXTURE_CASES, ids=FIXTURE_NAMES)
+def test_mesh_builder_assembles_the_fixture_eigenproblem(name, model_factory):
+    """``mesh.simple`` + ``core.assembly`` must produce the fixture's K and M."""
+    data = load_fixture(name)
+    K, M = fixture_matrices(data)
+
+    system = model_factory().assemble()
+    K_ff, M_ff = system.reduced()
+
+    assert system.num_free_dofs == len(data["dof_labels"])
+    np.testing.assert_allclose(K_ff.toarray(), K, atol=1e-12)
+    np.testing.assert_allclose(M_ff.toarray(), M, atol=1e-12)
+
+
+@pytest.mark.parametrize(("name", "model_factory"), FIXTURE_CASES, ids=FIXTURE_NAMES)
+def test_meshed_model_reproduces_the_fixture_spectrum_end_to_end(name, model_factory):
+    """Model -> assembly -> eigensolve agrees with the closed-form reference."""
+    data = load_fixture(name)
+    expected = data["expected"]
+    rtol = float(data["tolerances"]["eigenvalue_relative"])
+    ndof = len(data["dof_labels"])
+
+    result = ModalSolver(model_factory()).solve(num_modes=ndof)
+
+    np.testing.assert_allclose(result.eigenvalues, expected["eigenvalues"], rtol=rtol)
+    np.testing.assert_allclose(result.frequencies, expected["frequencies_hz"], rtol=rtol)
+    # the ground node is constrained, so the full-space shapes carry a zero row
+    assert result.mode_shapes.shape[0] > ndof
+    np.testing.assert_allclose(result.mode_shapes[result.system.constrained_dofs], 0.0, atol=0.0)
+
+
+def test_ten_dof_fixture_sparse_backend_matches_the_reference():
+    data = load_fixture("ten_dof_chain")
+    K, M = fixture_matrices(data)
+    solver = ModalSolver.from_matrices(K, M)
+
+    result = solver.solve(num_modes=4, sparse=True)
+
+    np.testing.assert_allclose(
+        result.eigenvalues, data["expected"]["eigenvalues"][:4], rtol=1e-9
+    )
+
+
 # ------------------------------------------------------------------- 2 DOF
 
 
@@ -83,7 +236,8 @@ def test_two_dof_uniform_chain_matches_closed_form():
     model = spring_mass_chain(2, k, m)
     result = ModalSolver(model).solve(num_modes=2)
 
-    expected = np.sqrt(np.array([(3.0 - math.sqrt(5.0)) / 2.0, (3.0 + math.sqrt(5.0)) / 2.0]) * k / m)
+    ratios = np.array([(3.0 - math.sqrt(5.0)) / 2.0, (3.0 + math.sqrt(5.0)) / 2.0])
+    expected = np.sqrt(ratios * k / m)
     assert result.num_modes == 2
     np.testing.assert_allclose(result.angular_frequencies, expected, rtol=1e-10)
     np.testing.assert_allclose(result.frequencies, expected / (2.0 * np.pi), rtol=1e-10)
