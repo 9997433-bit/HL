@@ -12,6 +12,9 @@ Implemented here
   pairs a candidate below ``mac_min``.
 - **AC-CORR-004** (twin, MS-2.5) — COMAC puts its minimum on the one sensor DOF
   a synthetic fault was injected into.
+- **AC-CORR-006** (twin, MS-2.1) — SEREP expansion of noise-free sensor data
+  reproduces the full-space analysis shapes with MAC >= 0.999, and the pairing
+  computed on the sensor DOFs equals the pairing computed after expansion.
 
 The first two criteria are checked on a diagonal mass matrix (the chain
 fixtures) and on the consistent, fully populated mass matrix of the cantilever
@@ -28,13 +31,22 @@ import numpy as np
 import pytest
 
 from openfemlab import ModalSolver
-from openfemlab.correlation import automac, comac, mac, pair_modes
+from openfemlab.correlation import (
+    automac,
+    comac,
+    expand_shapes,
+    guyan_reduction,
+    mac,
+    pair_modes,
+    tam_mass,
+)
 from openfemlab.mesh.simple import beam_mesh
 
 from ._support import (
     SQUARE,
     STEEL,
     criterion,
+    dense,
     fixture_matrices,
     load_fixture,
 )
@@ -356,3 +368,247 @@ def test_ac_corr_004_a_polarity_error_on_some_modes_does_not_localize_either():
     # Worse than a miss: a healthy sensor scores lower, and the broken one sits
     # 0.06 % above it — inside the scatter the flip induced everywhere else.
     assert values[FAULTY_DOF] - np.min(healthy) < 1e-3
+
+
+# ---------------------------------------------------------------- AC-CORR-006
+
+#: Modes the SEREP basis spans, and the sensor sets that must observe them.
+SEREP_BAND = 4
+CHAIN_SENSORS = (0, 2, 5, 7, 9)
+BEAM_SENSOR_NODES = (2, 5, 8, 10, 12)
+
+#: Ground truth of the reduction/expansion twin: test mode ``i`` is analysis
+#: mode ``MEASURED_ORDER[i]``, recorded with an arbitrary sign and gain.
+MEASURED_ORDER = (2, 0, 3, 1)
+
+#: Reconstruction gate of AC-CORR-006 and the seed of its measurement draws.
+EXPANSION_MAC_MIN = 0.999
+EXPANSION_SEED = 96031
+
+#: Noise floors of the robustness cases, as a fraction of each column's norm.
+LIGHT_NOISE = 0.002
+HEAVY_NOISE = 0.02
+
+
+def _chain_twin():
+    """``(Phi, K, M, sensors)`` of the 10-DOF chain read by 5 of its 10 DOFs."""
+    K, M = fixture_matrices(load_fixture("ten_dof_chain"))
+    result = ModalSolver.from_matrices(K, M).solve(num_modes=K.shape[0], sparse=False)
+    return result.mode_shapes[:, :SEREP_BAND], dense(K), dense(M), list(CHAIN_SENSORS)
+
+
+def _beam_twin():
+    """The same, for the cantilever, instrumented the way a rig actually is.
+
+    Accelerometers see transverse translation only, so the rotational DOFs of
+    every node and the axial DOFs are unmeasured — the under-instrumentation
+    SEREP expansion exists for. Everything is expressed on the free partition
+    so the clamped rows, which are identically zero and would make the Guyan
+    slave block singular, stay out of the condensation.
+    """
+    beam = beam_mesh(1.0, 12, STEEL, SQUARE, support="cantilever")
+    result = ModalSolver(beam).solve(num_modes=SEREP_BAND, sparse=False)
+    system = result.system
+    free = np.asarray(system.free_dofs)
+    labels = list(system.dof_labels)
+    sensors = [
+        int(np.flatnonzero(free == labels.index(f"{node}:UY"))[0])
+        for node in BEAM_SENSOR_NODES
+    ]
+    partition = np.ix_(free, free)
+    return (
+        result.mode_shapes[free, :SEREP_BAND],
+        dense(system.K)[partition],
+        dense(system.M)[partition],
+        sensors,
+    )
+
+
+TWIN_MODELS = {"cantilever_beam": _beam_twin, "ten_dof_chain": _chain_twin}
+
+
+def _measured(sensor_shapes: np.ndarray, num_modes: int = SEREP_BAND, noise: float = 0.0):
+    """``(Phi_test, truth)`` — sensor-space test data extracted from the model.
+
+    The columns are reordered by ``MEASURED_ORDER`` and given an arbitrary sign
+    and gain, because a measurement carries neither the FE mode order nor the
+    FE scaling. ``truth`` is the ``(test, analysis)`` correspondence both
+    pairings have to recover.
+    """
+    rng = np.random.default_rng(EXPANSION_SEED)
+    order = list(MEASURED_ORDER[:num_modes])
+    scales = rng.uniform(0.2, 5.0, len(order)) * rng.choice([-1.0, 1.0], len(order))
+    measured = sensor_shapes[:, order] * scales
+    if noise:
+        measured = measured + noise * np.linalg.norm(measured, axis=0) * rng.standard_normal(
+            measured.shape
+        )
+    return measured, list(enumerate(order))
+
+
+def _paired_mac(shapes: np.ndarray, analysis: np.ndarray, truth) -> np.ndarray:
+    """MAC of each test shape against the analysis mode it is known to be."""
+    values = mac(shapes, analysis)
+    return np.array([values[test, fe] for test, fe in truth])
+
+
+def _both_pairings(analysis, sensors, measured, method="optimal"):
+    """The two pairings AC-CORR-006 requires to agree: reduced and expanded."""
+    sensor_analysis = analysis[sensors, :]
+    reduced = pair_modes(
+        test_shapes=measured,
+        fe_shapes=sensor_analysis,
+        method=method,
+        mac_threshold=MAC_MIN,
+    )
+    expanded = pair_modes(
+        test_shapes=expand_shapes(analysis, sensors, measured),
+        fe_shapes=analysis,
+        method=method,
+        mac_threshold=MAC_MIN,
+    )
+    return reduced, expanded
+
+
+@criterion("AC-CORR-006")
+@pytest.mark.parametrize("case", sorted(TWIN_MODELS))
+def test_ac_corr_006_serep_expansion_reproduces_the_analysis_shapes(case):
+    """Expanded test shapes correlate with their analysis modes at MAC >= 0.999."""
+    analysis, _, _, sensors = TWIN_MODELS[case]()
+    measured, truth = _measured(analysis[sensors, :])
+
+    expanded = expand_shapes(analysis, sensors, measured)
+
+    assert expanded.shape == analysis.shape
+    worst = float(np.min(_paired_mac(expanded, analysis, truth)))
+    assert worst >= EXPANSION_MAC_MIN, f"{case}: worst reconstruction MAC {worst:.6f}"
+
+
+@criterion("AC-CORR-006")
+@pytest.mark.parametrize("case", sorted(TWIN_MODELS))
+def test_ac_corr_006_noise_free_in_band_data_is_reconstructed_exactly(case):
+    """The gate has room to spare here: in-band data comes back to solver precision.
+
+    ``T = Phi (Phi_s)^+`` is a left inverse of the sensor partition as long as
+    that partition has full column rank, so the twin is not merely above the
+    0.999 gate — it is exact, and the instrumented rows return their own values.
+    """
+    analysis, _, _, sensors = TWIN_MODELS[case]()
+    measured, truth = _measured(analysis[sensors, :])
+
+    expanded = expand_shapes(analysis, sensors, measured)
+
+    np.testing.assert_allclose(expanded[sensors, :], measured, atol=1e-10)
+    np.testing.assert_allclose(_paired_mac(expanded, analysis, truth), 1.0, atol=1e-12)
+
+
+@criterion("AC-CORR-006")
+@pytest.mark.parametrize("case", sorted(TWIN_MODELS))
+@pytest.mark.parametrize("method", ["greedy", "optimal"])
+def test_ac_corr_006_reduced_and_expanded_pairing_agree(case, method):
+    """The MS-2.1 consistency requirement, stated for both assignment methods."""
+    analysis, _, _, sensors = TWIN_MODELS[case]()
+    measured, truth = _measured(analysis[sensors, :])
+
+    reduced, expanded = _both_pairings(analysis, sensors, measured, method)
+
+    assert reduced.as_tuples() == truth
+    assert expanded.as_tuples() == reduced.as_tuples()
+    assert reduced.unpaired_test == expanded.unpaired_test == []
+    assert reduced.unpaired_fe == expanded.unpaired_fe == []
+
+
+@criterion("AC-CORR-006")
+@pytest.mark.parametrize("case", sorted(TWIN_MODELS))
+def test_ac_corr_006_the_pairings_agree_about_an_unmeasured_mode(case):
+    """Agreement covers what was *not* paired, not only the pairs themselves."""
+    analysis, _, _, sensors = TWIN_MODELS[case]()
+    measured, truth = _measured(analysis[sensors, :], num_modes=SEREP_BAND - 1)
+    unmeasured = sorted(set(range(SEREP_BAND)) - {fe for _, fe in truth})
+
+    reduced, expanded = _both_pairings(analysis, sensors, measured)
+
+    assert reduced.as_tuples() == expanded.as_tuples() == truth
+    assert reduced.unpaired_fe == expanded.unpaired_fe == unmeasured
+    assert reduced.unpaired_test == expanded.unpaired_test == []
+
+
+@criterion("AC-CORR-006")
+@pytest.mark.parametrize("case", sorted(TWIN_MODELS))
+def test_ac_corr_006_the_two_pairings_are_not_the_same_arithmetic(case):
+    """The agreement above is a result, not an identity of the two computations.
+
+    ``T`` is not orthogonal, so the MAC of the expanded shapes is genuinely a
+    different matrix from the MAC of the sensor rows: the two differ by more
+    than 0.1 somewhere, and the sensor-space matrix carries off-diagonals large
+    enough that the assignment has something to get wrong. What the criterion
+    asserts is that the assignment survives that difference.
+    """
+    analysis, _, _, sensors = TWIN_MODELS[case]()
+    measured, truth = _measured(analysis[sensors, :])
+
+    reduced_mac = mac(measured, analysis[sensors, :])
+    expanded_mac = mac(expand_shapes(analysis, sensors, measured), analysis)
+
+    assert np.max(np.abs(reduced_mac - expanded_mac)) > 0.1
+    off_diagonal = reduced_mac.copy()
+    for test_index, fe_index in truth:
+        off_diagonal[test_index, fe_index] = 0.0
+    assert np.max(off_diagonal) > 0.1, "the reduced-space MAC must be ambiguous enough to matter"
+
+
+@criterion("AC-CORR-006")
+@pytest.mark.parametrize("case", sorted(TWIN_MODELS))
+def test_ac_corr_006_the_guyan_tam_weighted_pairing_agrees_as_well(case):
+    """MS-2.1's other reduced-space route: mass-weighted MAC on the Guyan TAM."""
+    analysis, K, M, sensors = TWIN_MODELS[case]()
+    measured, truth = _measured(analysis[sensors, :])
+
+    tam = tam_mass(guyan_reduction(K, sensors), M)
+    weighted = pair_modes(
+        test_shapes=measured,
+        fe_shapes=analysis[sensors, :],
+        weights=tam,
+        method="optimal",
+        mac_threshold=MAC_MIN,
+    )
+
+    assert np.all(np.linalg.eigvalsh(tam) > 0.0), "the TAM mass must stay positive definite"
+    assert weighted.as_tuples() == truth
+
+
+@criterion("AC-CORR-006")
+@pytest.mark.parametrize("case", sorted(TWIN_MODELS))
+def test_ac_corr_006_agreement_survives_a_light_measurement_noise_floor(case):
+    """0.2 % noise per channel: both pairings hold and the gate still passes."""
+    analysis, _, _, sensors = TWIN_MODELS[case]()
+    measured, truth = _measured(analysis[sensors, :], noise=LIGHT_NOISE)
+
+    reduced, expanded = _both_pairings(analysis, sensors, measured)
+    worst = float(np.min(_paired_mac(expand_shapes(analysis, sensors, measured), analysis, truth)))
+
+    assert reduced.as_tuples() == expanded.as_tuples() == truth
+    assert worst >= EXPANSION_MAC_MIN, f"{case}: worst reconstruction MAC {worst:.6f}"
+
+
+@criterion("AC-CORR-006")
+@pytest.mark.parametrize("case", sorted(TWIN_MODELS))
+def test_ac_corr_006_noise_breaks_the_reconstruction_gate_before_the_pairing(case):
+    """What the 0.999 gate measures, and what it does not.
+
+    At 2 % noise the expansion no longer reconstructs the analysis shapes to
+    0.999 — SEREP projects the noise onto the retained band rather than
+    rejecting it — yet the assignment is nowhere near ambiguous and the two
+    pairings still agree. The gate is a reconstruction-fidelity requirement;
+    pairing consistency is the separate, more robust half of AC-CORR-006, and
+    reading a passing gate as "the pairing is safe" would overstate it.
+    """
+    analysis, _, _, sensors = TWIN_MODELS[case]()
+    measured, truth = _measured(analysis[sensors, :], noise=HEAVY_NOISE)
+
+    reduced, expanded = _both_pairings(analysis, sensors, measured)
+    worst = float(np.min(_paired_mac(expand_shapes(analysis, sensors, measured), analysis, truth)))
+
+    assert reduced.as_tuples() == expanded.as_tuples() == truth
+    assert worst < EXPANSION_MAC_MIN, f"{case}: noise left the gate intact at {worst:.6f}"
+    assert worst > 0.95

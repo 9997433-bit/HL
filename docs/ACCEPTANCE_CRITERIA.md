@@ -153,7 +153,9 @@ default branch). The registry file is the single source of truth for status.
   `MAC(φ, ψ) = MAC(conj(φ), conj(ψ))` (Hermitian transpose handling).
 - **AC-CORR-008** (`contract`) — A `CorrelationReport` written to JSON and
   parsed back compares equal: settings and pairing table exactly, float
-  arrays to ≤ 1e-15; the artifact carries `schema_version`.
+  arrays to ≤ 1e-15; the artifact carries `schema_version` (currently `"1.1"`,
+  bumped when the `frf` block was added) and emits every schema key, `frf`
+  included, whether or not the corresponding analysis ran.
 
 ---
 

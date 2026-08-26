@@ -146,8 +146,14 @@ pairing**, which drives reduction (Guyan/SEREP) or expansion transparently.
         correlation.pair_modes  (Hungarian assignment on MAC + Δf penalty)
                     │
                     ▼
-        CorrelationReport  (paired table: f_FE, f_test, Δf%, MAC) ──► cli/JSON
+        CorrelationReport  (paired table: f_FE, f_test, Δf%, MAC,      ──► cli/JSON
+                            plus the optional FRAC/FDAC block)
 ```
+
+An FRF comparison joins the same artifact rather than a parallel one:
+`correlation.frf_correlation` drives the `frac`/`fdac` kernels of
+`solver.dynamics` over a measured/synthesized pair and returns the
+`FRFCorrelation` block the report publishes under `frf` (schema 1.1).
 
 ### 5.3 Model updating loop (the heart of the platform)
 

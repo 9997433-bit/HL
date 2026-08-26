@@ -51,6 +51,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A35 | claude-fable-5-thinking-xhigh | AC-DYN registration (backfill for A28): found R2-T01 had landed it mid-run; dropped the duplicate, verified the head | complete |
 | A45 | gpt-5.6-sol-xhigh-fast | Current-tip 595-test/Ruff verification and PR-draft refresh (backfill for A37) | complete |
 | A47 | gpt-5.6-sol-xhigh-fast | Reconcile A23's 41-vs-40 criteria audit count and pin the registry inventory (backfill for A35) | complete |
+| A41 | claude-opus-5-thinking-high-fast | FRF block in the `CorrelationReport` schema, `schema_version` 1.1 (backfill for R2-T01) | complete |
 | A40 | claude-opus-5-thinking-high-fast | Side-branch merge sweep (scipy backend harvest; QUAD4 raced with A37), full-suite verification & PR-draft refresh (backfill for A38) | complete |
 
 ## Reference: FEMtools Core Capabilities
@@ -953,8 +954,9 @@ Core backlog (prioritized, from `docs/SOTA_GAP_ANALYSIS.md` §4/§6 + Round 1 co
    `cursor/dynamics-damping-frf-9500`, and AC-DYN-001..005 are now registered spec-first
    against that API and `implemented` (see the R2-T01 entry below). GAP-04 is closed;
    GAP-05 is closed apart from the FRF updating residual the plan defers to Round 3.
-   Handed on to the exit-bar work: the measured-vs-synthesized FRF demo through the CLI,
-   and an FRF block in the `CorrelationReport` schema.
+   The last exit item of the task — an FRF block in the `CorrelationReport` schema — is
+   closed too (A41, `schema_version` 1.1). Handed on to the exit-bar work: only the
+   measured-vs-synthesized FRF demo through the CLI.
 2. **R2-T02 3D continuum elements** (GAP-02, P0) — QUAD4/TET4/HEX8 + 3D beam with patch
    /convergence gates (AC-MODAL-001/003/004/007 extended, new AC-ELEM-*). **PARTIAL:
    QUAD4 is landed on the trunk**, merged from `cursor/quad4-plane-stress-element-b99c`
@@ -1025,8 +1027,9 @@ new dynamics/element/IO criteria at least `implemented`, GAP-01 stays closed.
 - **FRAC/FDAC reachable from the correlation namespace.** `openfemlab.correlation` and
   the package root now re-export `frac`/`fdac` from `solver.dynamics` — a re-export, not
   a copy, and the import points downward (correlation is L3, solver L2). The
-  `CorrelationReport` schema is deliberately untouched: an FRF block there is a
-  `schema_version` bump that belongs with the CLI demo in the exit-bar work.
+  `CorrelationReport` schema was deliberately left untouched here, since an FRF block
+  there is a `schema_version` bump; **A41 has since closed that item** (schema 1.1),
+  leaving only the CLI demo in the exit-bar work.
 - Verified on Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1: `tests/test_dynamics.py`
   **82 passed**, `tests/acceptance` **59 passed** (13 new AC-DYN tests + 46 existing),
   full suite **443 passed** (430 before this change), Ruff clean.
@@ -1038,6 +1041,51 @@ new dynamics/element/IO criteria at least `implemented`, GAP-01 stays closed.
   `/tmp/a28/src`. The work was redone in a private detached worktree at `/tmp/r2t01` and
   pushed from there. A13, A15, A21 and A26 all report the same failure mode; the
   private-worktree rule should be mandatory, not advisory.
+
+#### A41 — FRF block in the `CorrelationReport` schema (closes the last R2-T01 exit item)
+- **The gap this closes.** R2-T01 shipped `frac`/`fdac` and re-exported them from
+  `openfemlab.correlation`, but left the report artifact modal-only, so an FRF comparison
+  had no way to be published: the exit item it handed on. `correlation/frf.py` now drives
+  those same kernels — imported from `solver.dynamics`, not reimplemented — over a
+  reference/comparison pair and returns the `FRFCorrelation` block the report carries.
+- **What the builder resolves, so callers do not.** `frf_correlation` accepts either
+  `FrequencyResponse` objects or plain `(n_frequencies, n_channels)` arrays and settles
+  the three things that silently corrupt an FRF comparison: the shared frequency line
+  (two sets on different lines are rejected, not interpolated), the exciter column (a
+  multi-exciter response demands an explicit `excitation_dof` rather than guessing), and
+  the response type (receptance against accelerance is refused, naming
+  `FrequencyResponse.converted`). Channel labels default to the response DOFs.
+- **Schema 1.1.** `CorrelationReport` gained an optional `frf` field, serialized under
+  the `frf` key and rendered by `report()`; `SCHEMA_VERSION` moved `1.0 → 1.1` as MS-6
+  requires for any change to the external interface. The key is emitted as `null` when no
+  FRF comparison ran, so the artifact's key set does not depend on which analyses were
+  performed — a consumer can read `payload["frf"]` unconditionally.
+  `is_correlated(frac_threshold=...)` extends the MS-4.2 modal gates with the MS-7.4
+  frequency-domain one and *raises* when the report has no block, rather than reporting a
+  gate it could not evaluate as a failure. `docs/MODULE_SPEC.md` (MS-2.6, MS-7.4),
+  `docs/ACCEPTANCE_CRITERIA.md` (AC-CORR-008) and `docs/ARCHITECTURE.md` record the bump.
+- **`tests/test_frf_correlation.py`, 25 tests** on a damped fixed-free spring/mass chain
+  whose FRFs come from the untruncated `direct_frf`, so every number is physics rather
+  than a recorded run. Self-correlation: FRAC deviates by **4.4e-16** and the FDAC
+  diagonal by **8.9e-16**; a complex scale factor `2.5 − 1.3j` moves FRAC by **4.4e-16**.
+  The negative control is what makes those meaningful — a chain stiffened 15 % gives
+  per-channel FRAC **0.072..0.315** (mean **0.174**), drops the worst FDAC diagonal to
+  **0.500**, and pushes the FDAC peak above the diagonal on **88.3 %** of lines, which is
+  the frequency shift showing up exactly where the metric is supposed to expose it.
+- Verified from a private worktree at `/tmp/a41` with `PYTHONPATH` pinned to its `src`,
+  on Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1: full suite **636 passed** (611 before
+  this change), `ruff check src tests` and `ruff format --check` clean.
+- **Working-tree hazard, again.** The first pass was written directly in `/workspace`,
+  verified green there, and then destroyed mid-run when a concurrent agent reset the
+  shared checkout onto `cursor/tag-work-upd-acceptance-0809`; the whole change had to be
+  rewritten in the private worktree. A13, A15, A19, A21, A26 and A36 all report this. The
+  private-worktree rule should be the default first step of every task, not a recovery
+  procedure.
+- Open for the orchestrator: the CLI FRF demo is the only R2-T01 exit item left
+  (`ROUND2_PLAN.md` §5 item 4) — a command surface over `frf_correlation`, with the
+  metric and the artifact already in place. Registering an AC ID for the block (the
+  natural home is an AC-CORR-* contract row alongside AC-CORR-008) needs the spec-first
+  three-file commit and was deliberately not half-done here.
 
 #### A35 — AC-DYN registration backfill: duplicate dropped, head verified (backfill for A28)
 - Dispatched to register AC-DYN-* criteria (FRF match, damping ratios, FRAC) and wire the

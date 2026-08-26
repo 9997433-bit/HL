@@ -61,8 +61,11 @@ consistency tests fail.
   `openfemlab.correlation`. Measured margins are recorded in the R2-T01 entry of
   [`PROGRESS.md`](PROGRESS.md); the proposed criteria below were adopted as written apart
   from AC-DYN-005, whose dataset-58 formatter lives in the test because UFF *writing* is
-  R2-T05 scope. Still open and handed on: an FRF block in the `CorrelationReport` schema
-  and the CLI FRF demo, both folded into the exit-bar work of §5.
+  R2-T05 scope. The FRF block in the `CorrelationReport` schema is **now closed too**
+  (A41): `correlation/frf.py` drives the same `frac`/`fdac` kernels into an
+  `FRFCorrelation` block that the report publishes under `frf`, `schema_version` is
+  bumped to `1.1`, and `tests/test_frf_correlation.py` (25 tests) gates it. Still open
+  and handed on to the exit-bar work of §5: only the CLI FRF demo.
 - **Priority:** 1 (P0) · **Gaps:** [GAP-04, GAP-05](../docs/SOTA_GAP_ANALYSIS.md) (§5.3)
 - **Why first:** the largest missing FEMtools pillar. Test campaigns deliver FRFs; today
   only pre-extracted mode tables can be correlated. UFF-58 FRF *import* already exists
@@ -265,7 +268,10 @@ Round 2 is done when, on the integration branch in CI:
    are at least `implemented`.
 4. A measured FRF (UFF-58) can be compared against a synthesized FRF from a damped model
    via FRAC/FDAC through the CLI, and a meshio- or BDF-imported 3D mesh can be
-   re-analyzed internally — the two headline workflow demos for the round.
+   re-analyzed internally — the two headline workflow demos for the round. The library
+   half of the FRF demo is done (A41): `frf_correlation` publishes an `FRFCorrelation`
+   block through `CorrelationReport` at `schema_version` `1.1`, so what the CLI still
+   needs is a command surface over it, not a metric.
 5. Full suite + Ruff + registry consistency green; no duplicate implementations of any
    numeric kernel (GAP-01 stays closed).
 
