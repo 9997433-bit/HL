@@ -162,9 +162,13 @@ is absent.
 
 > [!NOTE]
 > `cursor/merge-shell-quad4-facet-6224` was opened in parallel to land the same shell
-> code while A98's branch was still in flight, so its merge commit `48666ea` duplicates
-> what trunk already reached through `9ad7a6b`. It is **not** retired here: it has since
-> grown branch-only documentation commits (the module-spec and user-guide description of
-> the facet, and a plan/progress record) that trunk does not carry. Whoever owns it
-> should land those docs rather than the duplicate merge, and only then audit it for
-> deletion.
+> code while A98's branch was still in flight. A114 landed its branch-only documentation
+> (`3accf8b`, `319c50e`) onto the integration branch, after which the branch tip matched
+> trunk with zero unique commits. It was deleted from `origin` on 2026-08-26.
+
+## A109 backfill — R2-T09 promotion tool retired
+
+The promotion branch tip is an ancestor of integration tip `319c50e` with zero
+branch-only commits; its `scripts/promote_verified.py` tool and five-criterion promotion
+landed through merges at `571c864`. `cursor/r2-t09-promote-verified-bb5f` was deleted
+from `origin` on 2026-08-26 after reverification.
