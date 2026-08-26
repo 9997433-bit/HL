@@ -603,6 +603,219 @@ await interact('描红：键盘替代通道可以写完整个字', `/#/learn/${e
   return `键盘写完「日」（traced=${finished.traced}），Esc 可跳过`
 })
 
+/** 在田字格里拖一笔；坐标是 svg 内的相对位置（0-1）。 */
+const drawStroke = async (page, from, to) => {
+  const box = await page.evaluate(() => {
+    const svg = document.querySelector('.hz__host svg')
+    if (!svg) return null
+    const r = svg.getBoundingClientRect()
+    return { x: r.x, y: r.y, w: r.width, h: r.height }
+  })
+  if (!box) throw new Error('田字格里没有 svg，无法模拟书写')
+  const at = (t) => ({ x: box.x + t.x * box.w, y: box.y + t.y * box.h })
+  const a = at(from)
+  const b = at(to)
+  await page.mouse.move(a.x, a.y)
+  await page.mouse.down()
+  for (let i = 1; i <= 8; i += 1) {
+    await page.mouse.move(a.x + ((b.x - a.x) * i) / 8, a.y + ((b.y - a.y) * i) / 8)
+  }
+  await page.mouse.up()
+  await new Promise((r) => setTimeout(r, 220))
+}
+
+const phaseOf = (page) => page.evaluate(() => document.querySelector('.detail')?.dataset.phase ?? '')
+
+const waitPhase = (page, want, timeout = 12000) =>
+  page.waitForFunction(
+    (id) => document.querySelector('.detail')?.dataset.phase === id,
+    { timeout },
+    want
+  )
+
+await interact('单字五步状态机：认→写→听→考→奖自动衔接', `/#/learn/${encodeURIComponent('日')}`, async (page) => {
+  await page.evaluate(() => localStorage.clear())
+  await page.reload({ waitUntil: 'networkidle2' })
+  await page.waitForSelector('.rail__step', { timeout: 8000 })
+
+  const rail = await page.evaluate(() =>
+    [...document.querySelectorAll('.rail__step')].map((n) => n.dataset.step)
+  )
+  const want = ['intro', 'trace', 'listen', 'quiz', 'reward']
+  if (rail.join(',') !== want.join(',')) {
+    throw new Error(`步骤条不是五步 ${want.join('→')}，实际是 ${rail.join('→')}`)
+  }
+  if ((await phaseOf(page)) !== 'intro') throw new Error('进页面没有停在「认一认」')
+
+  // 认一认：听一次读音就应当自动排上「写一写」
+  if (!(await clickText(page, '怎么读'))) throw new Error('「认一认」缺少听读音按钮')
+  const queued = await page.evaluate(() => document.querySelector('.autonext')?.innerText ?? '')
+  if (!queued.includes('写一写')) throw new Error(`听完读音没有预告下一步：「${queued}」`)
+  if (!queued.includes('等一下')) throw new Error('自动衔接没有给「等一下」的按停出口')
+  await waitPhase(page, 'trace')
+
+  // 写一写：进入这一步田字格会自己开始描红，用「写下一笔」写完
+  await page.waitForFunction(
+    () => document.querySelector('.hz__stage')?.getAttribute('tabindex') === '0',
+    { timeout: 8000 }
+  )
+  for (let i = 0; i < 8; i += 1) {
+    const done = await page.evaluate(() =>
+      /满分|写完啦/.test(document.querySelector('.hz__hint')?.innerText ?? '')
+    )
+    if (done) break
+    if (!(await clickText(page, '写下一笔'))) break
+  }
+  await waitPhase(page, 'listen')
+
+  // 听一听 / 考一考：都选正确项，每一步作答后自动进入下一步
+  const pickAnswer = async (label) => {
+    await page.waitForSelector('.opt[data-char="日"]', { timeout: 8000 })
+    const ok = await page.evaluate(() => {
+      const btn = document.querySelector('.opt[data-char="日"]')
+      if (!btn || btn.disabled) return false
+      btn.click()
+      return true
+    })
+    if (!ok) throw new Error(`「${label}」里点不到正确选项`)
+  }
+  await pickAnswer('听一听')
+  await waitPhase(page, 'quiz')
+  await pickAnswer('考一考')
+  await waitPhase(page, 'reward')
+
+  const settled = await page.evaluate(() => {
+    const saved = JSON.parse(localStorage.getItem('happy-literacy:v1') ?? '{}')
+    return {
+      flows: saved.flowsCompleted ?? 0,
+      charFlows: saved.chars?.['日']?.flows ?? 0,
+      traced: saved.chars?.['日']?.traced ?? 0,
+      steps: [...document.querySelectorAll('.rail__step.is-done')].map((n) => n.dataset.step),
+      reward: document.querySelector('.reward')?.innerText.replace(/\s+/g, ' ').trim() ?? ''
+    }
+  })
+  if (settled.flows < 1) throw new Error('走完五步没有记下一次完整闭环')
+  if (settled.charFlows < 1) throw new Error('「日」自己的闭环次数没有加上')
+  if (settled.traced < 1) throw new Error('五步里的描红没有记进「会写了」')
+  for (const step of ['intro', 'trace', 'listen', 'quiz']) {
+    if (!settled.steps.includes(step)) throw new Error(`步骤条上「${step}」没有标成已完成`)
+  }
+  if (!settled.reward) throw new Error('「领奖励」这一步是空的')
+
+  // 手动回跳：点步骤条应当能回到前面的步骤
+  await page.evaluate(() => document.querySelector('.rail__step[data-step="listen"]')?.click())
+  await waitPhase(page, 'listen', 5000)
+
+  return `五步自动衔接完成（闭环 ${settled.flows} 次，描红 ${settled.traced} 遍），步骤条可回跳`
+})
+
+await interact('描红：同一笔连错 3 次自动示范这一笔', `/#/learn/${encodeURIComponent('日')}`, async (page) => {
+  await page.evaluate(() => localStorage.clear())
+  await page.reload({ waitUntil: 'networkidle2' })
+  await page.waitForSelector('.hz__host svg', { timeout: 8000 })
+
+  if (!(await clickText(page, '我来写'))) throw new Error('单字页缺少「我来写」描红入口')
+  await new Promise((r) => setTimeout(r, 400))
+
+  // 「日」第一笔是左边的竖；沿着顶边横着划三次，三次都不该被判对
+  for (let i = 0; i < 3; i += 1) {
+    await drawStroke(page, { x: 0.15, y: 0.08 }, { x: 0.85, y: 0.08 })
+  }
+  await page.waitForFunction(() => Number(document.querySelector('.hz')?.dataset.demos ?? 0) >= 1, {
+    timeout: 8000
+  })
+
+  const state = await page.evaluate(() => ({
+    demos: Number(document.querySelector('.hz')?.dataset.demos ?? 0),
+    mistakes: Number(document.querySelector('.hz')?.dataset.mistakes ?? 0),
+    hint: document.querySelector('.hz__hint')?.innerText.trim() ?? '',
+    label: document.querySelector('.hz__stage')?.getAttribute('aria-label') ?? ''
+  }))
+  if (state.mistakes < 3) throw new Error(`只记到 ${state.mistakes} 次错笔，没能连错 3 次`)
+  if (!/示范|看我写/.test(state.hint)) throw new Error(`自动示范没有播报出来：「${state.hint}」`)
+  if (!state.label.includes('示范')) throw new Error('描红区没有说明连错会自动示范')
+
+  // 示范完要把测验接回原处：还能继续写，写满全部笔画照样算完成
+  await page.waitForFunction(
+    () => !/示范|看我写/.test(document.querySelector('.hz__hint')?.innerText ?? ''),
+    { timeout: 8000 }
+  )
+  for (let i = 0; i < 8; i += 1) {
+    const done = await page.evaluate(() =>
+      /满分|写完啦/.test(document.querySelector('.hz__hint')?.innerText ?? '')
+    )
+    if (done) break
+    if (!(await clickText(page, '写下一笔'))) break
+  }
+  const finished = await page.evaluate(() => ({
+    hint: document.querySelector('.hz__hint')?.innerText.trim() ?? '',
+    traced: JSON.parse(localStorage.getItem('happy-literacy:v1') ?? '{}')?.chars?.['日']?.traced ?? 0
+  }))
+  if (!/写完啦|满分/.test(finished.hint)) {
+    throw new Error(`示范后接不回测验，没写完：「${finished.hint}」`)
+  }
+  if (finished.traced < 1) throw new Error('示范后写完的这一遍没有记进「会写了」')
+  if (!/错了\s*\d+\s*次/.test(finished.hint)) {
+    throw new Error(`示范前的错笔数被重启测验清零了：「${finished.hint}」`)
+  }
+
+  return `连错 ${state.mistakes} 次触发 ${state.demos} 次自动示范，接回测验后写完（${finished.hint}）`
+})
+
+await interact('徽章：学会第一个字就点亮，首页与家长中心都看得见', '/#/', async (page) => {
+  await page.evaluate(() => localStorage.clear())
+  await page.goto(`${page.url().replace(/#.*$/, '')}#/learn/${encodeURIComponent('日')}`, {
+    waitUntil: 'networkidle2'
+  })
+  await new Promise((r) => setTimeout(r, 700))
+
+  const stored = await page.evaluate(
+    () => Object.keys(JSON.parse(localStorage.getItem('happy-literacy:v1') ?? '{}').badges ?? {})
+  )
+  if (!stored.includes('first-step')) {
+    throw new Error(`学会第一个字后没有解锁「启蒙芽」，存档里只有：${stored.join('、') || '空'}`)
+  }
+
+  await page.goto(page.url().replace(/#.*$/, '#/'), { waitUntil: 'networkidle2' })
+  await new Promise((r) => setTimeout(r, 500))
+  const home = await page.evaluate(() => ({
+    shelf: !!document.querySelector('.badges'),
+    lit: document.querySelectorAll('.badge[data-unlocked="true"]').length,
+    first: document.querySelector('.badge[data-badge="first-step"]')?.dataset.unlocked,
+    chip: /徽章\s*\d+\/\d+/.test(document.body.innerText)
+  }))
+  if (!home.shelf) throw new Error('首页没有徽章架')
+  if (home.first !== 'true') throw new Error('首页徽章架上「启蒙芽」还是灰的')
+  if (!home.chip) throw new Error('首页顶部没有徽章数量')
+
+  await page.goto(page.url().replace(/#.*$/, '#/parent'), { waitUntil: 'networkidle2' })
+  await new Promise((r) => setTimeout(r, 400))
+  await page.evaluate(() => {
+    const label = document.body.innerText.match(/(\d+)\s*\+\s*(\d+)/)
+    const input = document.querySelector('input[type="number"]')
+    if (!label || !input) return
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
+    setter.call(input, String(Number(label[1]) + Number(label[2])))
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  await new Promise((r) => setTimeout(r, 200))
+  await clickText(page, '进入')
+  await new Promise((r) => setTimeout(r, 400))
+
+  const parent = await page.evaluate(() => ({
+    total: document.querySelectorAll('.badge').length,
+    lit: document.querySelectorAll('.badge[data-unlocked="true"]').length,
+    locked: document.querySelectorAll('.badge[data-unlocked="false"] .badge__fill').length,
+    wall: document.body.innerText.includes('成就徽章墙')
+  }))
+  if (!parent.wall) throw new Error('家长中心没有徽章墙')
+  if (parent.total < 5) throw new Error(`徽章种类只有 ${parent.total} 种，Round 4 要求至少 5 种`)
+  if (parent.lit < 1) throw new Error('家长中心徽章墙上一枚都没点亮')
+  if (!parent.locked) throw new Error('未解锁的徽章没有显示进度条')
+
+  return `首页点亮 ${home.lit} 枚；家长中心共 ${parent.total} 枚（点亮 ${parent.lit}，${parent.locked} 枚带进度条）`
+})
+
 await interact('播报：答题与庆祝都有 aria-live', '/#/listen', async (page) => {
   await clickText(page, '开始游戏')
   await new Promise((r) => setTimeout(r, 600))

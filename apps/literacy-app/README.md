@@ -44,6 +44,29 @@ Round 3 扩容至 200 字,规模由 `check:data` 与 `gen:hanzi` 双重守护),
 家长中心的记忆强度热力图按每个字此刻的保持率着色,点格子直接去复习。
 老存档没有记忆卡时,会按已有掌握度反推一张初始卡,升级不清零进度。
 
+## 单字学习闭环与徽章
+
+单字详情页(`CharDetailView`)是一台五步状态机:
+**认一认 → 写一写 → 听一听 → 考一考 → 领奖励**。
+每一步做完自动衔接下一步——衔接不是立刻跳走:先在面板上挂出「马上进入『听一听』…」
+并同时写进 `aria-live` 播报,期间随时可以按「等一下」停下(WCAG §2.2.1)。
+顶部步骤条也可以手动跳,但只能往回看或往前一步,而且**跳过去不等于做过**:
+只有四步都真的做完,「领奖励」才会调 `progress.completeCharFlow()` 给这一轮记账,
+所以「五步全通」徽章刷不出来。田字格、组词、例句和底部操作在所有步骤都留在原地,
+孩子想临时写一笔、听个词不必先退出当前步骤。
+
+描红时**同一笔连错 3 次会自动示范那一笔**:`HanziStrokeBox` 自己按笔序记错误次数,
+够 3 次就调 HanziWriter 的 `animateStroke()` 慢放这一笔。`animateStroke()` 会顺手取消
+当前测验,所以示范完再用 `quizStartStrokeNum` 从同一笔把测验接回来;
+错误总数、已辅助笔数这些账记在组件里,重启测验不会被清零。
+
+徽章体系 v1 的 10 枚徽章定义在 `src/data/badges.js`,规则统一是「某个指标攒够阈值」:
+识字量 1 / 10 / 50、掌握 5 字、描红 10 遍、五步闭环 3 次、听音连对 5 题、
+连续 3 天、读完 3 本绘本、看懂 3 个成语。store 里 `badgeStats` 一变就自动对表解锁,
+老存档读档时静默补发(不发星星也不弹庆祝)。`BadgeShelf` 负责展示:
+首页摆已点亮的加最接近的三枚,家长中心摆整面墙。徽章不做隐藏成就——
+没拿到的也显示条件和「还差多少」的进度条,才能当成下一个小目标。
+
 ## 无障碍
 
 设计令牌统一来自仓库根目录的 `shared/styles/design-tokens.css`（由 `src/styles/base.css`
@@ -57,7 +80,9 @@ Round 3 扩容至 200 字,规模由 `check:data` 与 `gen:hanzi` 双重守护),
   标了 `aria-hidden`，避免读屏念两遍。
 - **描红**：描红本身要在田字格里拖拽，键盘和开关设备做不到。进入描红后田字格可聚焦，
   按空格 / 回车 / → 或点「写下一笔」由程序补一笔，写满全部笔画同样算完成、照常升级
-  掌握度；按 Esc 或点「跳过描红」随时退出。
+  掌握度；按 Esc 或点「跳过描红」随时退出。同一笔连错 3 次自动示范这件事也写在田字格的
+  `aria-label` 里，示范开始与结束都经由 `hz__hint` 播报，示范期间「写下一笔」会禁用，
+  免得孩子在示范中途把这一笔跳掉。
 
 `node scripts/axe-states.mjs`（仓库根目录，也可 `npm run test:a11y`）会用三套主题
 把每条路由和「描红练习中 / 答题反馈 / 庆祝浮层」这三个交互态各扫一遍，
@@ -69,7 +94,7 @@ critical 与 serious 都必须为 0；`npm run test:acceptance` 已经接上这�
 |------|------|------|
 | 学习地图(首页) | `/` | `HomeView` |
 | 字库学习(单元) | `/learn` | `LearnView` |
-| 单字详情·写一写(笔顺动画+描红判定) | `/learn/:char` | `CharDetailView` |
+| 单字详情·五步闭环(认→写→听→考→奖) | `/learn/:char` | `CharDetailView` |
 | 听音识字游戏 | `/game/listen` | `ListenGameView` |
 | 偏旁部首·字源 | `/radicals` | `RadicalsView` |
 | 分级绘本 | `/books` `/books/:id` | `BooksView` / `BookReadView` |
@@ -95,8 +120,8 @@ src/
 ├── router/index.js          # hash 路由,懒加载
 ├── stores/                  # progress(进度/星星/每日统计) · settings(家长设置)
 ├── utils/                   # speech · sfx · audio · hanziWriter · hanziData · srs(FSRS-lite,已接入复习队列)
-├── data/                    # characters / books / idioms / radicals — 全部数据驱动
-├── components/              # HanziStrokeBox · ProgressRing · AppHeader · BottomNav · BreakReminder
+├── data/                    # characters / books / idioms / radicals / badges — 全部数据驱动
+├── components/              # HanziStrokeBox · BadgeShelf · ProgressRing · AppHeader · BottomNav · BreakReminder
 ├── views/                   # 各路由页面
 └── styles/                  # base.css(引入共享设计令牌+通用组件类) · theme.css(仅识字独有的 --art-tint)
 ```
@@ -125,6 +150,10 @@ npm test             # test:srs + check:data + build + smoke
 家长验证与主题切换(含刷新后是否保持)、进度存档累加、笔顺 SVG 是否画出来,
 以及三条无障碍硬断言——只用键盘写完「日」并记进「会写了」、Esc 能跳过描红、
 答题与庆祝都有 aria-live 播报、共享设计令牌确实生效。
+
+Round 4 又加了三项闭环断言:五步状态机自动从「认一认」走到「领奖励」并记下闭环次数、
+在田字格里横着乱划三次会触发这一笔的自动示范且示范后能接着写完、
+学会第一个字就点亮「启蒙芽」且首页与家长中心都看得见。
 
 `smoke` 依赖仓库根目录的 `puppeteer-core` 与系统里的 Chrome,
 CI 上跑不了时可以只跑 `check:data`。
