@@ -1,22 +1,21 @@
 # PR #5 Merge Readiness — OpenFEMLab 0.1.0
 
-**Checked:** 2026-08-26 (UTC)  
-**Pull request:** [PR #5](https://github.com/9997433-bit/HL/pull/5)  
-**Base:** `main` at `5bad55d`  
-**PR head:** `cursor/femtools-industrial-7aa3` at `a662cc3`  
+**Checked:** 2026-08-26 (UTC)
+**Pull request:** [PR #5](https://github.com/9997433-bit/HL/pull/5)
+**Base:** `main` at `5bad55d`
+**PR head:** `cursor/femtools-industrial-7aa3` at `459a3d2`
 **Readiness branch base:** `091ff8d`
 
 ## CI on the latest trunk
 
-- [x] The remote PR head is `a662cc3`; no newer integration-branch commit was
+- [x] The remote PR head is `459a3d2`; no newer integration-branch commit was
   pending when this checklist was recorded.
-- [x] [Push CI run 32971309888](https://github.com/9997433-bit/HL/actions/runs/32971309888)
-  completed successfully for `a662cc3`.
-- [x] [Pull-request CI run 32971313566](https://github.com/9997433-bit/HL/actions/runs/32971313566)
-  completed successfully for the same commit.
-- [x] Both runs passed Python 3.10, 3.11, 3.12 and 3.13 plus the acceptance-gates
-  job. Ruff, registry consistency, verified-criteria and acceptance-suite steps
-  are green.
+- [ ] [Push CI run 32971541774](https://github.com/9997433-bit/HL/actions/runs/32971541774)
+  must complete successfully for `459a3d2`.
+- [ ] [Pull-request CI run 32971545766](https://github.com/9997433-bit/HL/actions/runs/32971545766)
+  must complete successfully for the same commit.
+- [ ] Both runs must pass Python 3.10, 3.11, 3.12 and 3.13 plus the
+  acceptance-gates job.
 - [x] The PR-body synchronization check passed. The live title and body advertise
   **1508 tests and 47 verified criteria** and contain neither obsolete current-state
   count.
@@ -24,11 +23,12 @@
 ## Conflicts and review state
 
 - [x] `origin/main` is an ancestor of the PR head. The divergence is
-  `0` main-only / `402` PR-only commits.
+  `0` main-only / `405` PR-only commits.
 - [x] `git merge-tree --write-tree origin/main
   origin/cursor/femtools-industrial-7aa3` completed without conflicts (resulting
-  tree `a8c5c037e7b7a086b42d28eb48a2b079fb99fbdb`).
-- [x] GitHub reports `MERGEABLE` with merge state `CLEAN`.
+  tree `d4f1fa6450c87bff3d13c78a05caa01afc9a30b7`).
+- [x] GitHub reports `MERGEABLE`; merge state is expected to return to `CLEAN`
+  after the current checks finish.
 - [ ] Convert the PR from Draft to ready for review.
 - [ ] Obtain any human approval required by repository policy. No review was
   recorded when this checklist was written.
