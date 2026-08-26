@@ -991,7 +991,6 @@ new dynamics/element/IO criteria at least `implemented`, GAP-01 stays closed.
   something the offending agent can see.
 
 **Round 2 entry state.** Both packages Round 1 left uncommitted are now in and green:
-<<<<<<< HEAD
 `workflow/` via A13/A26, and the `optimization/` build-out (`variables`, `responses`,
 `gradients`, `problem`, `sizing`, `backends`) via the A28 merge below. No Round-1
 carry-over remains, and what R2-T07 still owes is narrower than the plan states — the
