@@ -405,6 +405,28 @@ orchestrator to diff against the landed implementation in Round 2.
 - Verified the regression in isolation and the complete suite: **167 passed**. The touched
   CLI module and regression test pass Ruff.
 
+#### A10 — Sparse Assembly, Factorization Cache & Vectorized Sensitivity
+- Reworked `core/assembly.py` around preallocated COO buffers and a single shared topology
+  traversal for `K` and `M`; coordinates, global DOF maps, rows, and columns are no longer
+  rebuilt in two separate element passes. All-zero element matrices skip COO conversion.
+- Added per-`ModalSolver` reduced-problem and shift-invert LU caches. Repeated sparse solves
+  reuse `K - sigma M`; `cache_factorization=False` supports cold-run comparisons and
+  `clear_cache()` explicitly invalidates caches after an in-place matrix change.
+- Vectorized Fox–Kapoor eigenvalue/eigenvector and MAC sensitivities over all requested
+  modes, preserving complex arithmetic and adding native sparse `dK/dp`, `dM/dp`, and mass
+  matrix support.
+- Updated the modal and updating benchmarks to report before/after medians. With one BLAS
+  thread and seven repetitions: repeated spring-chain solves improved at 10/100/1000 DOF
+  by **1.17x / 1.11x / 1.14x**, and the 100-DOF five-iteration updating loop improved
+  **35.301 ms -> 7.904 ms (4.47x)** using exact vectorized sensitivities.
+- Added `tests/probes/probe_performance_regression.py` with numerical-equivalence and minimum
+  speed gates. Measured medians: 2,000-DOF sparse assembly **26.302 -> 19.331 ms (1.36x)**;
+  repeated 1,600-DOF sparse solve **12.270 -> 9.449 ms (1.30x)**; 240-DOF, 24-mode,
+  12-parameter eigenvalue sensitivity **1.829 -> 0.678 ms (2.70x)**. All probe gates pass.
+- Added focused guards for one-pass assembly, LU reuse/bypass/invalidation, sparse derivative
+  matrices, and complex vectorized MAC derivatives. Focused core/modal/updating/performance
+  suite: **94 passed**; touched files pass Ruff.
+
 ### Round 2 — Targeted Refactor & Deep Optimization
 **Status:** PENDING
 
