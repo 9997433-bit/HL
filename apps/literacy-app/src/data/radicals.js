@@ -382,7 +382,29 @@ const FALLBACK = {
   shizitou: { id: 'shizitou', glyph: '士', name: '士字头', pinyin: 'shì zì tóu' },
   yinbu: { id: 'yinbu', glyph: '音', name: '音字旁', pinyin: 'yīn zì páng' },
   qianbu: { id: 'qianbu', glyph: '欠', name: '欠字旁', pinyin: 'qiàn zì páng' },
-  qibu: { id: 'qibu', glyph: '气', name: '气字头', pinyin: 'qì zì tóu' }
+  qibu: { id: 'qibu', glyph: '气', name: '气字头', pinyin: 'qì zì tóu' },
+
+  /* 字表扩到 1000 字后新出现的部首 */
+  jinpang: { id: 'jinpang', glyph: '斤', name: '斤字旁', pinyin: 'jīn zì páng' },
+  shizipang: { id: 'shizipang', glyph: '礻', name: '示字旁', pinyin: 'shì zì páng' },
+  danerpang: { id: 'danerpang', glyph: '卩', name: '单耳旁', pinyin: 'dān ěr páng' },
+  jianbu: { id: 'jianbu', glyph: '见', name: '见字旁', pinyin: 'jiàn zì páng' },
+  zhipang: { id: 'zhipang', glyph: '豸', name: '豸字旁', pinyin: 'zhì zì páng' },
+  zhuibu: { id: 'zhuibu', glyph: '隹', name: '隹字旁', pinyin: 'zhuī zì páng' },
+  sanpie: { id: 'sanpie', glyph: '彡', name: '三撇儿', pinyin: 'sān piě ér' },
+  genbu: { id: 'genbu', glyph: '艮', name: '艮字旁', pinyin: 'gèn zì páng' },
+  shupang: { id: 'shupang', glyph: '殳', name: '殳字旁', pinyin: 'shū zì páng' },
+  leibu: { id: 'leibu', glyph: '耒', name: '耒字旁', pinyin: 'lěi zì páng' },
+  longbu: { id: 'longbu', glyph: '龙', name: '龙字旁', pinyin: 'lóng zì páng' },
+  shizibu: { id: 'shizibu', glyph: '氏', name: '氏字旁', pinyin: 'shì zì páng' },
+  chuanbu: { id: 'chuanbu', glyph: '川', name: '川字旁', pinyin: 'chuān zì páng' },
+  bubu: { id: 'bubu', glyph: '卜', name: '卜字头', pinyin: 'bǔ zì tóu' },
+  sibu: { id: 'sibu', glyph: '巳', name: '巳字旁', pinyin: 'sì zì páng' },
+  gupang: { id: 'gupang', glyph: '鼓', name: '鼓字旁', pinyin: 'gǔ zì páng' },
+  bozitou: { id: 'bozitou', glyph: '癶', name: '登字头', pinyin: 'dēng zì tóu' },
+  zhizibu: { id: 'zhizibu', glyph: '止', name: '止字旁', pinyin: 'zhǐ zì páng' },
+  pizu: { id: 'pizu', glyph: '疋', name: '疋字旁', pinyin: 'pǐ zì páng' },
+  doupang: { id: 'doupang', glyph: '斗', name: '斗字旁', pinyin: 'dǒu zì páng' }
 }
 
 export function getRadical(id) {
