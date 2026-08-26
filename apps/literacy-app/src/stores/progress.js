@@ -373,7 +373,7 @@ export const useProgressStore = defineStore('progress', () => {
       b.finishedAt = Date.now()
       addStars(5)
       addXp(30)
-      celebrate({ kind: 'book', title: '一本绘本读完啦！', emoji: '📖' })
+      celebrate({ kind: 'book', title: '一本绘本读完啦！', emoji: '📖', stars: 5 })
     }
     b.times = (b.times ?? 0) + 1
   }
