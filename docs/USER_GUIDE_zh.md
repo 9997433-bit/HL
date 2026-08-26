@@ -39,7 +39,8 @@ python -m pip install -e .
 python -m pip install -e ".[dev,cli]"
 ```
 
-可选的 `io` 附加依赖安装 `meshio`，用于未来的格式适配：
+可选的 `io` 附加依赖安装 `meshio`，`openfemlab.io.meshio_bridge` 借此读写
+Gmsh、Abaqus、VTK 等 meshio 支持的网格格式：
 
 ```bash
 python -m pip install -e ".[io]"
