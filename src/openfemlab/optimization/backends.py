@@ -81,26 +81,41 @@ def _stationarity(
     gradient: np.ndarray,
     active_jacobians: Sequence[np.ndarray],
 ) -> float:
-    """First-order KKT residual at ``x``: ``max |proj(grad f + sum_k lambda_k grad g_k)|``.
+    """First-order KKT residual at ``x``: ``max |grad f + sum_k mu_k a_k|``.
 
-    The multipliers of the active inequalities are recovered by non-negative
-    least squares (the sign condition ``lambda_k >= 0`` is part of KKT, so an
-    unsigned solve could report a spuriously small residual).  Components held
-    at a bound are projected out when the residual points out of the box, since
-    a bound multiplier legitimately absorbs them.
+    The multipliers of everything active at ``x`` are recovered together by one
+    non-negative least squares over the columns ``a_k``: the jacobian of each
+    active inequality, and ``-e_i`` / ``+e_i`` for a variable sitting on its
+    lower / upper bound.  Non-negativity is part of KKT, so an unsigned solve
+    could report a spuriously small residual; and the bound directions have to
+    enter the *same* fit rather than being projected out afterwards, because
+    the constraint multipliers that best explain the free components are not
+    the ones a fit over all components returns.  Projecting last leaves a
+    residue in the free components of a bound-active solution, which is exactly
+    where the measure has to be trustworthy.
     """
     from scipy.optimize import nnls
 
-    residual = np.asarray(gradient, dtype=float).ravel().copy()
-    if len(active_jacobians):
-        jacobian = np.column_stack([np.asarray(j, dtype=float).ravel() for j in active_jacobians])
-        multipliers, _ = nnls(jacobian, -residual)
-        residual = residual + jacobian @ multipliers
+    residual = np.asarray(gradient, dtype=float).ravel()
+    if residual.size == 0:
+        return 0.0
 
     lower, upper = problem.bounds
-    residual[(x <= lower + BOUND_TOL) & (residual > 0.0)] = 0.0
-    residual[(x >= upper - BOUND_TOL) & (residual < 0.0)] = 0.0
-    return float(np.max(np.abs(residual))) if residual.size else 0.0
+    columns = [np.asarray(j, dtype=float).ravel() for j in active_jacobians]
+    for index in np.flatnonzero(x <= lower + BOUND_TOL):
+        direction = np.zeros(residual.size)
+        direction[index] = -1.0
+        columns.append(direction)
+    for index in np.flatnonzero(x >= upper - BOUND_TOL):
+        direction = np.zeros(residual.size)
+        direction[index] = 1.0
+        columns.append(direction)
+
+    if columns:
+        active = np.column_stack(columns)
+        multipliers, _ = nnls(active, -residual)
+        residual = residual + active @ multipliers
+    return float(np.max(np.abs(residual)))
 
 
 @dataclass
