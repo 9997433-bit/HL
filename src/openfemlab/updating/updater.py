@@ -17,6 +17,11 @@ reduction, ``λ = 0`` reduces the step to plain Gauss-Newton) and ``β`` is an
 optional Tikhonov regularisation pulling the parameters towards their initial
 values.  Steps are projected onto the parameter bounds, and modes are re-paired
 by MAC at every iteration so that mode switching during updating is handled.
+
+The loop reports *why* it stopped through a closed vocabulary
+(:data:`STOP_REASONS`) rather than through prose, and MS-3.4's divergence guard
+aborts a run whose objective rises over
+:attr:`UpdatingOptions.divergence_patience` consecutive accepted steps.
 """
 
 from __future__ import annotations
@@ -29,10 +34,13 @@ import numpy as np
 from ..correlation.mac import mac_value, modal_scale_factor
 from ..correlation.pairing import pair_modes
 from ..correlation.summary import CorrelationSummary, correlation_summary
+from ..exceptions import UpdatingDivergenceError
 from .parameters import ParameterSet, UpdatableParameter
 from .sensitivity import ModalData, SensitivityResult, as_modal_data
 
 __all__ = [
+    "CONVERGED_REASONS",
+    "STOP_REASONS",
     "UpdatingOptions",
     "IterationRecord",
     "UpdatingResult",
@@ -41,6 +49,18 @@ __all__ = [
 ]
 
 ModelCallable = Callable[[Mapping[str, float]], object]
+
+#: Machine-readable stop reasons an :class:`UpdatingResult` may carry (MS-3.4).
+#:
+#: The first three plus ``max_iter`` are the MS-3.4 termination criteria —
+#: parameter step, cost decrease, correlation gates, iteration cap.
+#: ``gradient_tol`` is the stationary point the same convergence test reaches
+#: when the gradient vanishes first, and ``no_step`` is the one non-convergent
+#: exit: the line search ran out of damping without finding a decrease.
+STOP_REASONS = ("step_tol", "cost_tol", "gates_met", "gradient_tol", "max_iter", "no_step")
+
+#: The reasons that mean the run converged rather than merely stopped.
+CONVERGED_REASONS = ("step_tol", "cost_tol", "gates_met", "gradient_tol")
 
 
 @dataclass
@@ -52,6 +72,14 @@ class UpdatingOptions:
     tools use, ``"optimal"`` is the Hungarian assignment maximising the total
     MAC over all pairs, ``"frequency"`` pairs on frequency proximity, and
     ``"order"`` freezes the pairing to the mode order.
+
+    ``target_min_mac`` and ``target_max_freq_error_pct`` are the optional
+    correlation gates of MS-3.4: once the paired modes satisfy them there is
+    nothing left to update, so the loop exits with ``gates_met`` rather than
+    grinding on to a tolerance. ``line_search`` and ``divergence_patience``
+    govern the two lines of defence against a diverging run — the inner search
+    that refuses an uphill step, and the guard that aborts when uphill steps
+    are accepted anyway.
     """
 
     method: str = "levenberg-marquardt"
@@ -73,6 +101,10 @@ class UpdatingOptions:
     mode_pairing: str = "mac"
     mac_threshold: float = 0.0
     frequency_tolerance_pct: float | None = None
+    line_search: bool = True
+    divergence_patience: int = 3
+    target_min_mac: float | None = None
+    target_max_freq_error_pct: float | None = None
 
     def __post_init__(self) -> None:
         if self.method not in {"levenberg-marquardt", "lm", "gauss-newton", "gn"}:
@@ -83,6 +115,24 @@ class UpdatingOptions:
             raise ValueError(f"unknown mode pairing strategy {self.mode_pairing!r}")
         if self.max_iterations < 1:
             raise ValueError("max_iterations must be at least 1")
+        if self.divergence_patience < 1:
+            raise ValueError("divergence_patience must be at least 1")
+
+    @property
+    def has_correlation_gates(self) -> bool:
+        """Whether any MS-3.4 correlation gate was requested."""
+        return self.target_min_mac is not None or self.target_max_freq_error_pct is not None
+
+    def gates_met(self, correlation: CorrelationSummary) -> bool:
+        """Whether ``correlation`` satisfies the requested gates."""
+        if not self.has_correlation_gates or correlation.n_paired == 0:
+            return False
+        if self.target_min_mac is not None and correlation.min_mac < self.target_min_mac:
+            return False
+        return not (
+            self.target_max_freq_error_pct is not None
+            and correlation.max_abs_freq_error_pct > self.target_max_freq_error_pct
+        )
 
     @property
     def is_gauss_newton(self) -> bool:
@@ -126,6 +176,12 @@ class UpdatingResult:
     history: list[IterationRecord] = field(default_factory=list)
     sensitivity: SensitivityResult | None = None
     modal_data: ModalData | None = None
+    stop_reason: str = "max_iter"
+
+    @property
+    def accepted_costs(self) -> list[float]:
+        """Objective after every accepted step, oldest first (MS-3.4)."""
+        return [record.cost for record in self.history if record.accepted]
 
     @property
     def cost_reduction(self) -> float:
@@ -136,7 +192,7 @@ class UpdatingResult:
 
     def report(self) -> str:
         lines = [
-            f"converged   : {self.converged} ({self.message})",
+            f"converged   : {self.converged} ({self.stop_reason}: {self.message})",
             f"iterations  : {self.iterations}",
             f"cost        : {self.initial_cost:.6e} -> {self.final_cost:.6e} "
             f"({100.0 * self.cost_reduction:.2f}% reduction)",
@@ -433,9 +489,25 @@ class ModelUpdater:
 
         history: list[IterationRecord] = []
         sensitivity: SensitivityResult | None = None
-        converged = False
+        stop_reason = "max_iter"
         message = "maximum number of iterations reached"
         iteration = 0
+        accepted_costs: list[float] = []
+        rising_steps = 0
+
+        if options.gates_met(initial_correlation):
+            return self._result(
+                stop_reason="gates_met",
+                message="the correlation gates are already met at the initial model",
+                iteration=0,
+                x=x,
+                initial_correlation=initial_correlation,
+                initial_cost=initial_cost,
+                cost=cost,
+                history=history,
+                sensitivity=None,
+                data=data,
+            )
 
         for iteration in range(1, options.max_iterations + 1):
             jacobian = self.jacobian(x, pairs, residual, data)
@@ -451,12 +523,13 @@ class ModelUpdater:
             hessian, gradient = self.normal_equations(jacobian, residual, x, x0)
 
             if np.max(np.abs(gradient)) <= options.gradient_tolerance:
-                converged = True
+                stop_reason = "gradient_tol"
                 message = "gradient below tolerance"
                 break
 
             accepted = False
             step_norm = 0.0
+            previous_cost = cost
             for _ in range(options.max_inner_iterations):
                 step = self._solve_step(hessian, gradient, damping)
                 trial_x = self.parameters.clip_design(x + step)
@@ -472,7 +545,7 @@ class ModelUpdater:
                 trial_residual = self.residual(trial_data, trial_pairs)
                 trial_cost = self.cost(trial_residual) + self.penalty(trial_x, x0)
 
-                if trial_cost < cost:
+                if trial_cost < cost or not options.line_search:
                     accepted = True
                     x, data, pairs = trial_x, trial_data, trial_pairs
                     previous_cost, cost = cost, trial_cost
@@ -509,33 +582,76 @@ class ModelUpdater:
             )
 
             if not accepted:
+                stop_reason = "no_step"
                 message = "no cost reduction possible (damping limit reached)"
                 break
+
+            accepted_costs.append(cost)
+            rising_steps = rising_steps + 1 if cost > previous_cost else 0
+            if rising_steps >= options.divergence_patience:
+                raise UpdatingDivergenceError(
+                    f"the objective rose on {rising_steps} consecutive accepted steps "
+                    f"(iteration {iteration}, J {cost:.6e}); the updating problem is "
+                    "diverging",
+                    costs=accepted_costs,
+                    iteration=iteration,
+                )
+
+            if options.gates_met(correlation):
+                stop_reason = "gates_met"
+                message = "correlation gates met"
+                break
             if step_norm <= options.parameter_tolerance * (1.0 + float(np.max(np.abs(x)))):
-                converged = True
+                stop_reason = "step_tol"
                 message = "parameter step below tolerance"
                 break
             if abs(previous_cost - cost) <= options.cost_tolerance * max(previous_cost, 1.0e-30):
-                converged = True
+                stop_reason = "cost_tol"
                 message = "cost reduction below tolerance"
                 break
 
+        return self._result(
+            stop_reason=stop_reason,
+            message=message,
+            iteration=iteration,
+            x=x,
+            initial_correlation=initial_correlation,
+            initial_cost=initial_cost,
+            cost=cost,
+            history=history,
+            sensitivity=sensitivity,
+            data=data,
+        )
+
+    def _result(
+        self,
+        *,
+        stop_reason: str,
+        message: str,
+        iteration: int,
+        x: np.ndarray,
+        initial_correlation: CorrelationSummary,
+        initial_cost: float,
+        cost: float,
+        history: list[IterationRecord],
+        sensitivity: SensitivityResult | None,
+        data: ModalData,
+    ) -> UpdatingResult:
         self.parameters.apply_design(x)
-        final_data = data
-        final_correlation = self.correlation(final_data)
         return UpdatingResult(
-            converged=converged,
+            converged=stop_reason in CONVERGED_REASONS,
             message=message,
             iterations=iteration,
             parameters=self.parameters.as_dict(),
             parameter_set=self.parameters,
             initial_correlation=initial_correlation,
-            final_correlation=final_correlation,
+            final_correlation=self.correlation(data),
             initial_cost=initial_cost,
             final_cost=cost,
             history=history,
             sensitivity=sensitivity,
-            modal_data=final_data,
+            modal_data=data,
+            stop_reason=stop_reason,
         )
 
     @staticmethod

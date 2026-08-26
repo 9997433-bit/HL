@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
-from ..exceptions import OpenFEMLabError
+from ..exceptions import OpenFEMLabError, UpdatingDivergenceError
 
 __all__ = [
     "STAGE_ORDER",
@@ -103,10 +103,6 @@ class StageGateError(WorkflowError):
             "message": self.message,
             "details": dict(self.details),
         }
-
-
-class UpdatingDivergenceError(WorkflowError):
-    """The updating loop increased the objective instead of reducing it."""
 
 
 @dataclass
