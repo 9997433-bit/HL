@@ -1,4 +1,4 @@
-"""Audio effects: EQ, level control and fades.
+"""Audio effects: EQ, dynamics, level control and fades.
 
 Every processor subclasses :class:`~audio_studio.dsp.effects.base.Effect` and
 can be combined with :class:`~audio_studio.dsp.effects.base.EffectChain`::
@@ -12,6 +12,7 @@ can be combined with :class:`~audio_studio.dsp.effects.base.EffectChain`::
 """
 
 from .base import Effect, EffectChain
+from .dynamics import CompressorEffect, LimiterEffect
 from .eq import EQBand, FilterType, ParametricEQ, ThreeBandEQ
 from .fade import FadeEffect, FadeShape, apply_fade, fade_envelope
 from .gain import (
@@ -25,6 +26,8 @@ from .gain import (
 __all__ = [
     "Effect",
     "EffectChain",
+    "CompressorEffect",
+    "LimiterEffect",
     "EQBand",
     "FilterType",
     "ParametricEQ",

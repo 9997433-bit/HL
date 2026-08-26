@@ -34,7 +34,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..dsp.effects import EffectChain, GainEffect, ThreeBandEQ
+from ..dsp.effects import (
+    CompressorEffect,
+    EffectChain,
+    GainEffect,
+    LimiterEffect,
+    ThreeBandEQ,
+)
 from ..dsp.repair import DeClickEffect, DeHumEffect
 from .theme import PALETTE, Palette
 
@@ -64,7 +70,9 @@ def default_preview_chain() -> EffectChain:
             DeHumEffect(enabled=False),
             DeClickEffect(enabled=False),
             ThreeBandEQ(),
+            CompressorEffect(enabled=False),
             GainEffect(gain_db=0.0, ramp_ms=20.0),
+            LimiterEffect(enabled=False),
         ]
     )
 
@@ -169,7 +177,9 @@ class EffectRackPanel(QWidget):
         layout.addWidget(self._build_dehum())
         layout.addWidget(self._build_declick())
         layout.addWidget(self._build_eq())
+        layout.addWidget(self._build_compressor())
         layout.addWidget(self._build_trim())
+        layout.addWidget(self._build_limiter())
         layout.addWidget(self._build_footer())
         layout.addStretch(1)
         self.setMinimumWidth(240)
@@ -287,6 +297,41 @@ class EffectRackPanel(QWidget):
         layout.addWidget(self.polarity)
         return box
 
+    def _build_compressor(self) -> QWidget:
+        box = QGroupBox("Compressor")
+        self.compressor_enabled = QCheckBox("Enabled")
+        self.compressor_enabled.toggled.connect(
+            lambda on: self._set_enabled(self.compressor, on)
+        )
+
+        self.compressor_threshold = _DbSlider("Threshold", -60.0, 0.0, -18.0)
+        self.compressor_threshold.valueChanged.connect(self._on_compressor_threshold)
+        self.compressor_ratio = _DbSlider("Ratio", 1.0, 20.0, 4.0, suffix=":1")
+        self.compressor_ratio.valueChanged.connect(self._on_compressor_ratio)
+
+        layout = QVBoxLayout(box)
+        layout.setContentsMargins(8, 4, 8, 8)
+        layout.setSpacing(4)
+        layout.addWidget(self.compressor_enabled)
+        layout.addWidget(self.compressor_threshold)
+        layout.addWidget(self.compressor_ratio)
+        return box
+
+    def _build_limiter(self) -> QWidget:
+        box = QGroupBox("True Peak Limiter")
+        self.limiter_enabled = QCheckBox("Enabled")
+        self.limiter_enabled.toggled.connect(lambda on: self._set_enabled(self.limiter, on))
+
+        self.limiter_ceiling = _DbSlider("Ceiling", -12.0, 0.0, -1.0, suffix=" dBTP")
+        self.limiter_ceiling.valueChanged.connect(self._on_limiter_ceiling)
+
+        layout = QVBoxLayout(box)
+        layout.setContentsMargins(8, 4, 8, 8)
+        layout.setSpacing(4)
+        layout.addWidget(self.limiter_enabled)
+        layout.addWidget(self.limiter_ceiling)
+        return box
+
     def _build_footer(self) -> QWidget:
         footer = QWidget()
         self.status = QLabel()
@@ -314,6 +359,14 @@ class EffectRackPanel(QWidget):
         return next((e for e in self.chain if isinstance(e, GainEffect)), None)
 
     @property
+    def compressor(self) -> CompressorEffect | None:
+        return next((e for e in self.chain if isinstance(e, CompressorEffect)), None)
+
+    @property
+    def limiter(self) -> LimiterEffect | None:
+        return next((e for e in self.chain if isinstance(e, LimiterEffect)), None)
+
+    @property
     def dehum(self) -> DeHumEffect | None:
         return next((e for e in self.chain if isinstance(e, DeHumEffect)), None)
 
@@ -334,6 +387,9 @@ class EffectRackPanel(QWidget):
                 self.bypass_button, self.mix_slider.slider, self.eq_enabled,
                 self.eq_low.slider, self.eq_mid.slider, self.eq_high.slider,
                 self.trim_enabled, self.trim_gain.slider, self.polarity,
+                self.compressor_enabled, self.compressor_threshold.slider,
+                self.compressor_ratio.slider, self.limiter_enabled,
+                self.limiter_ceiling.slider,
                 self.dehum_enabled, self.hum_frequency, self.hum_harmonics,
                 self.hum_q.slider, self.declick_enabled, self.declick_sensitivity.slider,
             )
@@ -360,11 +416,21 @@ class EffectRackPanel(QWidget):
                 self.trim_enabled.setChecked(trim.enabled)
                 self.trim_gain.set_value(trim.gain_db)
                 self.polarity.setChecked(trim.invert_polarity)
+            compressor = self.compressor
+            if compressor is not None:
+                self.compressor_enabled.setChecked(compressor.enabled)
+                self.compressor_threshold.set_value(compressor.threshold_db)
+                self.compressor_ratio.set_value(compressor.ratio)
+            limiter = self.limiter
+            if limiter is not None:
+                self.limiter_enabled.setChecked(limiter.enabled)
+                self.limiter_ceiling.set_value(limiter.ceiling_db)
         finally:
             for widget, previous in blocked:
                 widget.blockSignals(previous)
         for slider in (
             self.mix_slider, self.eq_low, self.eq_mid, self.eq_high, self.trim_gain,
+            self.compressor_threshold, self.compressor_ratio, self.limiter_ceiling,
             self.hum_q, self.declick_sensitivity,
         ):
             slider._update_readout()  # noqa: SLF001 - sibling widget, signals were blocked
@@ -393,6 +459,15 @@ class EffectRackPanel(QWidget):
             trim.enabled = True
             trim.gain_db = 0.0
             trim.invert_polarity = False
+        compressor = self.compressor
+        if compressor is not None:
+            compressor.enabled = False
+            compressor.threshold_db = -18.0
+            compressor.ratio = 4.0
+        limiter = self.limiter
+        if limiter is not None:
+            limiter.enabled = False
+            limiter.ceiling_db = -1.0
         self.refresh()
         self.chainChanged.emit()
 
@@ -456,6 +531,24 @@ class EffectRackPanel(QWidget):
         trim = self.trim
         if trim is not None:
             trim.gain_db = float(gain_db)
+        self._changed()
+
+    def _on_compressor_threshold(self, threshold_db: float) -> None:
+        compressor = self.compressor
+        if compressor is not None:
+            compressor.threshold_db = float(threshold_db)
+        self._changed()
+
+    def _on_compressor_ratio(self, ratio: float) -> None:
+        compressor = self.compressor
+        if compressor is not None:
+            compressor.ratio = float(ratio)
+        self._changed()
+
+    def _on_limiter_ceiling(self, ceiling_db: float) -> None:
+        limiter = self.limiter
+        if limiter is not None:
+            limiter.ceiling_db = float(ceiling_db)
         self._changed()
 
     def _on_polarity(self, inverted: bool) -> None:
