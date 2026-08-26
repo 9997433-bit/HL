@@ -54,8 +54,8 @@ COVERED_STATUSES = ("implemented", "verified")
 
 #: Modules whose rows are all still awaiting their first promotion, exempt from
 #: the span rule of ACCEPTANCE_CRITERIA.md section 12 rule 8. M9 (MPE, GAP-06)
-#: and M10 (Pretest, GAP-07) were added spec-first in Round 3: all their rows
-#: are ``specified``.
+#: and M10 (Pretest, GAP-07) were added spec-first in Round 3; M9 now carries
+#: an implemented suite and leaves the list at its first promotion.
 MODULES_AWAITING_PROMOTION: tuple[str, ...] = ("M9", "M10")
 
 #: How an implementation suite tags a test with the criterion it verifies.
@@ -98,8 +98,6 @@ _OPT_SUITE = "tests/acceptance/test_optimization.py"
 _DYN_SUITE = "tests/acceptance/test_dynamics.py"
 _ELEM_SUITE = "tests/acceptance/test_elements.py"
 _IO_SUITE = "tests/acceptance/test_io.py"
-#: Planned suite for the spec-first M9 rows; does not exist yet (all rows
-#: are ``specified``, which claims no test).
 _MPE_SUITE = "tests/acceptance/test_mpe.py"
 _PRETEST_SUITE = "tests/acceptance/test_pretest.py"
 
@@ -206,17 +204,17 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P1", "contract", "MS-9.3", _IO_SUITE, "verified"),
     _c("AC-IO-003", "Imported mesh assembles as the hand-built model",
        "P0", "contract", "MS-9.4", _IO_SUITE, "verified"),
-    # --- M9 Modal parameter extraction (MS-10) — spec-first, GAP-06 ----------
+    # --- M9 Modal parameter extraction (MS-10), GAP-06 -----------------------
     _c("AC-MPE-001", "LSCF pole recovery on synthesized FRFs",
-       "P0", "oracle", "MS-10.2", _MPE_SUITE),
+       "P0", "oracle", "MS-10.2", _MPE_SUITE, "implemented"),
     _c("AC-MPE-002", "Shape/residue recovery (LSFD)",
-       "P0", "twin", "MS-10.4", _MPE_SUITE),
+       "P0", "twin", "MS-10.4", _MPE_SUITE, "implemented"),
     _c("AC-MPE-003", "Stabilization diagram separates physical from computational poles",
-       "P0", "property", "MS-10.3", _MPE_SUITE),
+       "P0", "property", "MS-10.3", _MPE_SUITE, "implemented"),
     _c("AC-MPE-004", "Measurement path: UFF-58 -> MPE -> TestData -> correlate",
-       "P1", "contract", "MS-10.5", _MPE_SUITE),
+       "P1", "contract", "MS-10.5", _MPE_SUITE, "implemented"),
     _c("AC-MPE-005", "Noise robustness of the estimator",
-       "P1", "property", "MS-10.2, MS-10.3", _MPE_SUITE),
+       "P1", "property", "MS-10.2, MS-10.3", _MPE_SUITE, "implemented"),
     # --- M10 Pretest planning (MS-11) — spec-first, GAP-07 -------------------
     _c("AC-PRETEST-001", "EI leverage identities and det-FIM downdate",
        "P0", "property", "MS-11.2", _PRETEST_SUITE),

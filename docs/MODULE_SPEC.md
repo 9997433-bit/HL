@@ -1036,12 +1036,10 @@ Round-3 module (gap GAP-06). Numbering note — the eighth module took `MS-9`
 because `MS-6` is the inter-module contracts section, so the ninth takes
 `MS-10`.
 
-**Status: specification only (spec-first).** This section and the
-`AC-MPE-001..005` rows of `docs/ACCEPTANCE_CRITERIA.md` are binding, but
-nothing below is implemented: `openfemlab.mpe` currently holds typed
-placeholders that raise `NotImplementedError` naming their spec anchor, every
-M9 registry row is `specified`, and no gate is claimed. Importability is not
-capability.
+**Status: implemented.** `openfemlab.mpe` implements the MS-10.6 surface, and
+the `AC-MPE-001..005` rows of `docs/ACCEPTANCE_CRITERIA.md` are gated by
+`tests/acceptance/test_mpe.py`. The section below is the binding
+specification, not a plan.
 
 ### MS-10.1 Problem statement
 
@@ -1080,9 +1078,10 @@ Right matrix-fraction description with a common denominator:
 H(Ω_f) ≈ B(Ω_f) A(Ω_f)⁻¹ ,   B(Ω) = Σ_{k=0..n} β_k Ω^k ,   A(Ω) = Σ_{k=0..n} α_k Ω^k
 ```
 
-- **Basis** `Ω_f = exp(iω_f Δt)` with `Δt = 1/(2 f_max)` — the discrete-time
-  (z-domain) basis of the LSCF family, chosen because a continuous-time power
-  basis is numerically unusable beyond low model orders.
+- **Basis** `Ω_f = exp(iω_f Δt)` with `Δt = 1/(2 f_max)`, `f_max` the top line
+  of the *measured* frequency axis rather than of the estimation band — the
+  discrete-time (z-domain) basis of the LSCF family, chosen because a
+  continuous-time power basis is numerically unusable beyond low model orders.
 - **Poly-reference** (pLSCF, PolyMAX-class): `α_k ∈ R^{e×e}` so the
   denominator carries the participation directions; the scalar-`α_k`
   common-denominator LSCF is the single-reference degenerate case of the same
@@ -1092,8 +1091,10 @@ H(Ω_f) ≈ B(Ω_f) A(Ω_f)⁻¹ ,   B(Ω) = Σ_{k=0..n} β_k Ω^k ,   A(Ω) = �
   normal equations so only the denominator block is solved globally; the
   constraint `α_n = I` removes the parameterization ambiguity.
 - **Poles**: eigenvalues of the block companion matrix of `A(Ω)`, mapped back
-  by `s_r = ln(z_r)/Δt`; participation factors from the associated
-  eigenvectors.
+  by `s_r = ln(z_r)/Δt`. The participation factor `L_r` is the *left* null
+  vector of `A(z_r)`: with `adj(A) = v uᵀ` the right matrix fraction
+  `H = B A⁻¹` factors its residue as `(B v) uᵀ`, so `u` is the reference
+  direction and `e = 1` degenerates it to a scalar.
 - **Physicality filter** applied before anything is reported: discard poles
   with negative damping (the stable/unstable mirror pairs the LS produces by
   construction), poles outside the band, and poles with `ζ_r > ζ_max`
@@ -1145,8 +1146,9 @@ H(Ω_f) ≈ B(Ω_f) A(Ω_f)⁻¹ ,   B(Ω) = Σ_{k=0..n} β_k Ω^k ,   A(Ω) = �
 
 - `MPEResult` (frozen dataclass): `frequencies_hz`, `damping_ratios`,
   `poles`, `shapes` (`s×n` complex, channel space), `participation`
-  (`e×n` complex), residual terms, per-channel `frac`, and a `diagnostics`
-  dict (orders fitted, band, tolerances, weighting) per MS-0.3.
+  (`e×n` complex), per-channel `frac`, and a `diagnostics` dict per MS-0.3 —
+  orders fitted, band, tolerances, weighting, the scaling that was achieved,
+  and the `UR`/`LR` residual blocks.
 - `to_test_data(dof_map)` returns a `TestData` with `damping` populated,
   shapes on the sensor channels the `DofMap` names, and `meta` provenance
   (method, model order, band, tolerances) — the bridge that lets M2/M3/M4

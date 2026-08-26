@@ -1,18 +1,26 @@
 """Experimental modal parameter extraction — module M9, spec MS-10 (GAP-06).
 
-**Spec-first placeholder package.** The MS-10 section of
-``docs/MODULE_SPEC.md`` and the AC-MPE-001..005 rows of
-``docs/ACCEPTANCE_CRITERIA.md`` are binding specification; nothing here is
-implemented. Every callable raises :class:`NotImplementedError` naming its
-spec anchor, and the result dataclasses exist so downstream signatures can
-already be typed against them. Do not treat importability as capability:
-every M9 acceptance row is ``specified``, none is implemented or verified.
+Every other module of the platform ends at a synthesized FRF; this one runs
+the arrow the other way, estimating an experimental modal model from a
+measured (or synthesized) receptance matrix and handing it to the M2
+correlation input. Together with the M8 dataset-58 reader it closes the raw
+measurement → correlation loop GAP-06 named.
 
-Planned surface (MS-10.6): the LSCF / poly-reference curve fitter
-(:func:`fit_lscf`), the stabilization diagram over model orders
+Surface (MS-10.6): the LSCF / poly-reference curve fitter (:func:`fit_lscf`),
+the stabilization diagram over model orders
 (:func:`stabilization_diagram`), LSFD residue/shape estimation
 (:func:`extract_shapes`), the one-call driver (:func:`extract_modes`), and
 the ``MPEResult.to_test_data`` bridge into the M2 correlation input.
+
+The estimators are direct solves over the measured lines, so they take no
+seed and identical inputs produce bitwise-identical results (MS-10.1). Input
+must be receptance in the MS-7.3 ``FrequencyResponse`` contract; mobility and
+accelerance are converted by the caller.
+
+    from openfemlab.mpe import extract_modes
+
+    result = extract_modes(frf, range(4, 17, 2), band=(5.0, 120.0))
+    test_data = result.to_test_data(sensor_dof_map)
 """
 
 from __future__ import annotations

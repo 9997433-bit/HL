@@ -525,13 +525,11 @@ run (AC-IO-003).
 
 ## 10. M9 — Modal Parameter Extraction (spec MS-10)
 
-Specified in Round 3 (A133, gap GAP-06), **spec-first**: `openfemlab.mpe`
-holds typed placeholders only, every row below is `specified`, and no gate is
-claimed. The rows bind the future implementation — none may be promoted to
-`implemented` until `tests/acceptance/test_mpe.py` exists and carries the
-tagged tests, nor to `verified` outside the section-1.5 gate run. Until its
-first promotion, M9 sits in the registry's `MODULES_AWAITING_PROMOTION`, the
-rule-8 exemption for a module with no promoted row.
+Specified in Round 3 (A133, gap GAP-06) ahead of its implementation, which
+landed in the same round: `openfemlab.mpe` implements the MS-10.6 surface and
+every row below is gated by `tests/acceptance/test_mpe.py`. M9 leaves the
+registry's `MODULES_AWAITING_PROMOTION` list — the rule-8 exemption for a
+module with no promoted row — at its first promotion.
 
 The fixtures are the modules already on the trunk: FRFs synthesized by the M6
 chain (`modal_frf`, MS-7.3) from models with known modal parameters are the
@@ -663,9 +661,10 @@ number.
 Fourteen of them were `verified` after the first two promotion waves (A109,
 A121). The third wave — promoted at Round 2 sign-off — closed module **M8**
 (AC-IO-001..003), putting every Round-1/2 row on the CI gate. Round 3 opened
-modules **M9** (section 10) and **M10** (section 11) spec-first, so the
-inventory reads **47 `verified`, 0 `implemented`, 10 `specified`**; M9 and M10
-are carried in `MODULES_AWAITING_PROMOTION` until their first promotion.
+modules **M9** (section 10) and **M10** (section 11) spec-first and then
+implemented M9, so the inventory reads **47 `verified`, 5 `implemented`,
+5 `specified`**; M9 and M10 are carried in `MODULES_AWAITING_PROMOTION` until
+their first promotion.
 
 The registry tests enforce:
 
