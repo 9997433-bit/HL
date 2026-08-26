@@ -1138,7 +1138,9 @@ new dynamics/element/IO criteria at least `implemented`, GAP-01 stays closed.
   parameterized by response/reference node and direction. The suite writes UFF in one
   place; the library still writes none (that is R2-T05).
 - Verified from a private clone at `/tmp/a54` (`PYTHONPATH` pinned to its `src`), Python
-  3.12.3: full suite **695 passed** (679 before this change), `ruff check .` clean.
+  3.12.3: full suite **695 passed** (679 before this change) on the clone's base, and
+  **797 passed** after rebasing onto the branch tip the sibling agents had advanced
+  meanwhile; `ruff check .` clean at both points.
 - **Working-tree hazard, a seventh time.** The first pass was written in `/workspace` and
   wiped mid-run by a concurrent agent's `git reset --hard`; only the untracked new files
   survived. Same lesson as A13/A15/A19/A21/A26/A36/A41 — start in a private clone.
