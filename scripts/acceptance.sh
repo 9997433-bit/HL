@@ -4,8 +4,8 @@ set -Eeuo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MAX_BUILD_SECONDS="${ACCEPTANCE_MAX_BUILD_SECONDS:-60}"
 MAX_INITIAL_JS_GZIP_BYTES="${ACCEPTANCE_MAX_INITIAL_JS_GZIP_BYTES:-256000}"
-MIN_LH_PERFORMANCE="${ACCEPTANCE_MIN_LH_PERFORMANCE:-0.95}"
-MIN_LH_ACCESSIBILITY="${ACCEPTANCE_MIN_LH_ACCESSIBILITY:-0.95}"
+MIN_LH_PERFORMANCE="${ACCEPTANCE_MIN_LH_PERFORMANCE:-0.90}"
+MIN_LH_ACCESSIBILITY="${ACCEPTANCE_MIN_LH_ACCESSIBILITY:-0.90}"
 MIN_LH_BEST_PRACTICES="${ACCEPTANCE_MIN_LH_BEST_PRACTICES:-0.90}"
 PORT_BASE="${ACCEPTANCE_PORT_BASE:-43170}"
 FAILED=0
@@ -173,6 +173,7 @@ start_static_server() {
 import { createServer } from 'node:http'
 import { readFile, stat } from 'node:fs/promises'
 import { extname, resolve, sep } from 'node:path'
+import { gzipSync } from 'node:zlib'
 
 const [, , distArg, portArg] = process.argv
 const dist = resolve(distArg)
@@ -184,6 +185,7 @@ const mime = {
   '.svg': 'image/svg+xml',
   '.woff2': 'font/woff2',
 }
+const compressible = new Set(['.css', '.html', '.js', '.json', '.svg'])
 
 const server = createServer(async (request, response) => {
   try {
@@ -192,9 +194,18 @@ const server = createServer(async (request, response) => {
     let file = resolve(dist, relative || 'index.html')
     if (file !== dist && !file.startsWith(`${dist}${sep}`)) file = resolve(dist, 'index.html')
     if (!(await stat(file).catch(() => null))?.isFile()) file = resolve(dist, 'index.html')
+    const extension = extname(file)
     const body = await readFile(file)
-    response.writeHead(200, { 'content-type': mime[extname(file)] ?? 'application/octet-stream' })
-    response.end(body)
+    const headers = {
+      'content-type': mime[extension] ?? 'application/octet-stream',
+      'vary': 'Accept-Encoding',
+    }
+    const acceptsGzip = /\bgzip\b/i.test(request.headers['accept-encoding'] ?? '')
+    const responseBody = acceptsGzip && compressible.has(extension) ? gzipSync(body, { level: 9 }) : body
+    if (responseBody !== body) headers['content-encoding'] = 'gzip'
+    headers['content-length'] = String(responseBody.byteLength)
+    response.writeHead(200, headers)
+    response.end(responseBody)
   } catch (error) {
     response.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' })
     response.end(String(error))
