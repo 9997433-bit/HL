@@ -1,13 +1,14 @@
 # PR Draft — OpenFEMLab Round 1
 
 Ready to file. Base: `main`. Head: `cursor/femtools-industrial-7aa3`.
-Verified at `f0c65c2`: full suite **498 passed**, `ruff check .` clean
+Verified at `b34f072` — the QUAD4 merge, i.e. the last code-bearing commit; anything
+after it is documentation only: full suite **595 passed**, `ruff check .` clean
 (Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1).
 
 ## Title
 
 ```
-OpenFEMLab: solver-independent CAE platform — modal analysis, correlation, model updating, damped dynamics (498 tests)
+OpenFEMLab: solver-independent CAE platform — modal analysis, correlation, model updating, damped dynamics (595 tests)
 ```
 
 ## Body
@@ -23,7 +24,10 @@ synthesis, and optimization hooks — all behind one CLI and a schema-versioned 
 ## What's included
 
 - **Core FEM & modal solver** (`core/`, `solver/modal.py`, `mesh/`): node-major DOF
-  model with SPCs and lumped masses; spring/truss/planar-beam elements; one-pass
+  model with SPCs and lumped masses; spring/truss/planar-beam elements plus the QUAD4
+  isoparametric plane-stress/plane-strain continuum element (2×2 Gauss stiffness,
+  consistent mass, `mesh.simple.quad_plate_mesh` generator) that passes the constant-strain
+  patch test exactly and matches an equivalent bar spectrum to 2.4e-13; one-pass
   preallocated COO→CSR assembly; one `ModalSolver` façade with dense and sparse
   shift-invert backends, static condensation of massless DOFs, mass normalization,
   participation/effective masses, and a shift-invert LU cache. Validated against
@@ -35,7 +39,8 @@ synthesis, and optimization hooks — all behind one CLI and a schema-versioned 
 - **Correlation** (`correlation/`): MAC / autoMAC / mass-weighted MAC, MSF,
   pseudo-orthogonality, COMAC; sensor/DOF alignment with orientation signs; Hungarian
   or greedy mode pairing with MAC threshold, frequency window, and frequency penalty;
-  schema-versioned JSON `CorrelationReport`.
+  Guyan / IRS / SEREP reduction bases with the TAM mass and SEREP mode-shape expansion
+  back into full FE space; schema-versioned JSON `CorrelationReport`.
 - **Model updating** (`updating/`): analytic Fox–Kapoor eigenvalue, eigenvector, and
   MAC sensitivities (vectorized, sparse-aware, FD-verified to ≤ 1e-6); affine
   `ScalingModel` (one eigensolve per iteration); Levenberg–Marquardt / Gauss–Newton
@@ -56,23 +61,23 @@ synthesis, and optimization hooks — all behind one CLI and a schema-versioned 
 - **CLI** (`cli/`): `openfemlab modal | correlate | update` over JSON/YAML model
   specs; machine-readable JSON on stdout, diagnostics on stderr, CI acceptance gates
   via exit codes; covered end to end including subprocess runs.
-- **QA stack**: 498 tests including a machine-readable registry of 35 quantified
+- **QA stack**: 595 tests including a machine-readable registry of 40 quantified
   acceptance criteria wired to tagged acceptance tests, boundary/probe suites,
   performance-regression gates, and benchmarks; GitHub Actions CI on Python
   3.10–3.13; `ruff check` clean.
-- **Docs**: `ARCHITECTURE.md`, `MODULE_SPEC.md` (MS-0..6), `ACCEPTANCE_CRITERIA.md`
-  (35 criteria), `SOTA_GAP_ANALYSIS.md` (GAP-01..15), `OPTIMIZATION.md`, README with
+- **Docs**: `ARCHITECTURE.md`, `MODULE_SPEC.md` (MS-0..7), `ACCEPTANCE_CRITERIA.md`
+  (40 criteria), `SOTA_GAP_ANALYSIS.md` (GAP-01..15), `OPTIMIZATION.md`, README with
   reproducible CLI walkthrough, runnable `examples/`.
 
 ## Verification
 
-- `python -m pytest` — **498 passed** at `f0c65c2` in 29.42 s on Python 3.12.3 /
+- `python -m pytest` — **595 passed** at `b34f072` in 78.64 s on Python 3.12.3 /
   NumPy 2.5.2 / SciPy 1.18.1.
 - `ruff check .` — clean.
-- Per-suite breakdown (sums to 498): dynamics 82, updating 57, correlation 52,
-  modal solver 44, workflow 38, acceptance registry + gates 107, CLI 22+1,
-  core 18, result contract 17, optimization 23, IO (native/UFF/Nastran) 24,
-  boundary/performance/e2e/scaffold 13.
+- Per-suite breakdown (sums to 595): dynamics 82, QUAD4 61, updating 57, correlation 52,
+  modal solver 44, workflow 38, reduction/expansion 25, optimization 23, CLI 22+1,
+  core 18, result contract 17, IO (native/UFF/Nastran) 24, acceptance registry + gates
+  118, boundary/performance/e2e/scaffold 13.
 - End-to-end: model → modal → correlate → update → re-solve converges 22.86 % → 0 %
   frequency error at MAC 1.0; the README CLI session reproduces exit codes 0/3/0/0.
 - Performance (single BLAS thread, medians): 100-DOF five-iteration updating loop
@@ -95,14 +100,16 @@ openness, and automation:
 | Scripting | proprietary BASIC-like | full Python + SciPy ecosystem, CI-native CLI | **exceed** |
 | Reproducibility | binary project files | plain-text models, journaled runs in git, headless reruns | **exceed** |
 | Cost / auditability | commercial licenses, closed numerics | MIT, every algorithm inspectable | **exceed** |
-| GUI, pretest planning, MPE from FRFs | mature | not in v1 (MPE targeted Round 2+, GAP-06/07/08) | gap (accepted) |
+| Reduction & expansion (TAM) | mature | Guyan/IRS/SEREP bases, TAM mass, SEREP expansion | parity |
+| GUI, pretest planning, MPE from FRFs | mature | not in v1 (MPE targeted Round 2+, GAP-06/07) | gap (accepted) |
 | Format breadth (Ansys/Abaqus native) | yes | partial (planned via meshio) | gap (accepted) |
 
 ## Notes for reviewers
 
 - `.agent_workspace/` holds orchestration records (progress log, Round 2 plan);
   it is documentation, not runtime code.
-- Known scope limits are registered, not hidden: no continuum elements yet, no
-  MPE from measured FRFs, no pretest/TAM reduction, Bayesian MAP updating pending —
-  tracked in `docs/SOTA_GAP_ANALYSIS.md` and `.agent_workspace/ROUND2_PLAN.md`.
+- Known scope limits are registered, not hidden: QUAD4 is the only continuum element
+  (TET4/HEX8/3-D beam pending), no MPE from measured FRFs, no pretest planning,
+  Bayesian MAP updating pending — tracked in `docs/SOTA_GAP_ANALYSIS.md` and
+  `.agent_workspace/ROUND2_PLAN.md`.
 ```
