@@ -5,7 +5,7 @@ const routes = [
   {
     path: '/',
     name: 'home',
-    component: () => import('@/views/HomeView.vue'),
+    component: () => import('@/modules/home/HomeView.vue'),
     meta: { title: '学习地图' },
   },
   {
