@@ -1107,8 +1107,8 @@ A27. The A24 backlog above is otherwise the live plan.
   the registry's own status-honesty test enforces the tagging. Extended
   `tests/test_optimization.py` over the wired backend, replacing the test that pinned the
   stub's stub-ness.
-- Verified on Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1: full suite **445 passed** (22 s),
-  `ruff check src tests` clean.
+- Verified on Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1: full suite **485 passed** (13 s)
+  after the final rebase onto `2f9d6e6`, `ruff check src tests` clean.
 - Open for the orchestrator: shape variables still route through finite differences (no
   geometric `dK/da`), `problem_from_updater` is wired and gradient-checked but nothing
   drives `ModelUpdater` through it yet, and DOE/surrogates remain Round 3. Ran in a private
