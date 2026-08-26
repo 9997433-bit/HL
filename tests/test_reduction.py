@@ -380,3 +380,128 @@ def test_reduction_accepts_sparse_matrices(toy):
         dense_basis.reduce_matrix(M),
         atol=1e-14,
     )
+
+
+# ---------------------------------------------------------------------------
+# Sparse inputs stay sparse (GAP-13)
+# ---------------------------------------------------------------------------
+
+
+def guarded_csr(matrix):
+    """CSR copy of ``matrix`` that refuses to materialize itself whole.
+
+    Only a ``toarray`` of the *full* ``(n, n)`` shape trips the guard: the
+    condensation is entitled to densify the ``(n_s, m)`` right-hand side, and
+    SciPy slicing hands sub-blocks the class default of ``None`` rather than the
+    instance's guarded shape, so those stay allowed. What must never happen at
+    50k DOF is the system matrix itself becoming a dense array.
+    """
+    sparse = pytest.importorskip("scipy.sparse")
+
+    class GuardedCSR(sparse.csr_matrix):
+        guarded_shape = None
+
+        def toarray(self, *args, **kwargs):
+            if self.shape == self.guarded_shape:
+                raise AssertionError(f"a {self.shape} system matrix was densified")
+            return super().toarray(*args, **kwargs)
+
+    guarded = GuardedCSR(matrix)
+    guarded.guarded_shape = guarded.shape
+    return guarded
+
+
+def sparse_chain(n_dof: int, mass: float = 1.5, stiffness: float = 2500.0):
+    """``(K, M)`` of a grounded uniform chain, assembled straight into CSR."""
+    sparse = pytest.importorskip("scipy.sparse")
+    off = np.full(n_dof - 1, -stiffness)
+    diagonal = np.full(n_dof, 2.0 * stiffness)
+    diagonal[-1] = 2.0 * stiffness  # the last mass is grounded by its own spring
+    K = sparse.diags([off, diagonal, off], offsets=[-1, 0, 1], format="csr")
+    M = sparse.diags([np.full(n_dof, mass)], offsets=[0], format="csr")
+    return K, M
+
+
+def test_the_guard_itself_catches_a_densified_system_matrix(toy):
+    """The tripwire is only evidence if it actually trips."""
+    K, _ = toy
+    with pytest.raises(AssertionError, match="densified"):
+        guarded_csr(K).toarray()
+
+
+@pytest.mark.parametrize("fmt", ["csr", "csc", "coo", "lil", "dia", "bsr"])
+def test_every_sparse_format_reduces_like_the_dense_matrix(fmt, toy):
+    """COO and friends cannot be sliced, so they convert to CSR — not to dense."""
+    sparse = pytest.importorskip("scipy.sparse")
+    K, M = toy
+    basis = guyan_reduction(sparse.csr_matrix(K).asformat(fmt), SENSOR)
+    np.testing.assert_allclose(basis.transformation, static_transformation(K), rtol=1e-13)
+    np.testing.assert_allclose(
+        tam_mass(basis, sparse.csr_matrix(M).asformat(fmt)),
+        tam_mass(guyan_reduction(K, SENSOR), M),
+        atol=1e-13,
+    )
+
+
+def test_a_singular_sparse_slave_partition_still_raises_solver_error():
+    """The SuperLU branch must report a mechanism the same way the dense one does."""
+    K = np.array([[1.0, 0.0], [0.0, 0.0]])
+    with pytest.raises(SolverError, match="singular"):
+        guyan_reduction(guarded_csr(K), SENSOR)
+
+
+def test_guyan_never_densifies_a_sparse_stiffness(toy):
+    K, _ = toy
+    guarded = guyan_reduction(guarded_csr(K), SENSOR)
+    np.testing.assert_allclose(guarded.transformation, static_transformation(K), rtol=1e-13)
+
+
+def test_irs_never_densifies_a_sparse_stiffness_or_mass(toy):
+    K, M = toy
+    guarded = irs_reduction(guarded_csr(K), guarded_csr(M), SENSOR)
+    np.testing.assert_allclose(
+        guarded.transformation, irs_reduction(K, M, SENSOR).transformation, atol=1e-12
+    )
+
+
+def test_the_tam_mass_is_formed_without_densifying_the_mass(toy):
+    K, M = toy
+    basis = guyan_reduction(guarded_csr(K), SENSOR)
+    np.testing.assert_allclose(tam_mass(basis, guarded_csr(M)), tam_mass(basis, M), atol=1e-13)
+
+
+def test_serep_accepts_a_sparse_mode_set(instrumented_chain):
+    """SEREP densifies ``(n, k)`` shapes on purpose, and must get the same basis."""
+    sparse = pytest.importorskip("scipy.sparse")
+    shapes, _, _, _ = instrumented_chain
+    from_sparse = serep_basis(sparse.csr_matrix(shapes), list(ORIENTED_ROWS))
+    from_dense = serep_basis(shapes, list(ORIENTED_ROWS))
+    np.testing.assert_allclose(from_sparse.transformation, from_dense.transformation, atol=1e-12)
+
+
+@pytest.mark.parametrize("kind", ["guyan", "irs"])
+def test_a_5000_dof_sparse_chain_condenses_without_ever_going_dense(kind):
+    """The GAP-13 shape of the problem: ``n`` far past what ``n²`` floats allow.
+
+    A dense copy of this stiffness is 200 MB and grows quadratically, so the
+    guard failing here is the same failure that caps the path well short of the
+    AC-PERF-001 50k-DOF budget. The reduced stiffness is checked to be SPD
+    rather than against a closed form — the point under test is the data path.
+    """
+    n_dof, stiffness = 5000, 2500.0
+    K, M = sparse_chain(n_dof, stiffness=stiffness)
+    masters = np.arange(0, n_dof, 100)
+    guarded_K, guarded_M = guarded_csr(K), guarded_csr(M)
+
+    if kind == "guyan":
+        basis = guyan_reduction(guarded_K, masters)
+    else:
+        basis = irs_reduction(guarded_K, guarded_M, masters)
+
+    assert basis.transformation.shape == (n_dof, masters.size)
+    np.testing.assert_allclose(basis.reduce_shapes(np.eye(n_dof)[:, masters]), np.eye(masters.size))
+
+    K_r = basis.reduce_matrix(guarded_K)
+    assert K_r.shape == (masters.size, masters.size)
+    np.linalg.cholesky(K_r)  # raises unless the reduced stiffness is SPD
+    assert np.all(np.linalg.eigvalsh(tam_mass(basis, guarded_M)) > 0.0)
