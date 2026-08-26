@@ -38,7 +38,7 @@ AC-CORR-008/009. Every **P0** row is `implemented` (34/34); the three still
 | R2-T06 updating depth | P0 slice closed (AC-UPD-007, A44); P1 depth (MAC-row Jacobian wiring, model-level resolver, per-element dK/dp) open. |
 | R2-T07 optimization | **COMPLETE for sizing** — A27 backend + A40 harvest; AC-OPT-001..004 `implemented`. Shape variables still FD. |
 | R2-T08 R1-O2 reconciliation | **COMPLETE** — content reconciled by A14; the superseded side branches were audited in [`BRANCH_CLEANUP.md`](BRANCH_CLEANUP.md) and deleted from `origin` (A62, and `cursor/beam3d-cbar-element-c9a7` by A93). |
-| R2-T09 exit hardening | **NOT STARTED** — no CI job, so nothing can move `implemented → verified`. |
+| R2-T09 exit hardening | **PARTIAL** — CI now runs the full suite and `ruff check .` on every push and pull request; the explicit import smoke test and registry status advancement remain. |
 
 ---
 
@@ -377,7 +377,7 @@ consistency tests fail.
 | R2-T06 | 6 | Updating depth completion: the MS-3.6 collinearity screen with norm-ranked subset selection is **done** ([AC-UPD-007](../docs/ACCEPTANCE_CRITERIA.md), P0, `twin`: duplicated parameter detected at cosine > 0.99, one frozen, recovery gates still met — `workflow/selection.py`, tagged by A44); wire the analytic MAC-row Jacobian into the updater's shape-residual path (A04 flagged this as a cheap win — FD fallback currently used whenever shapes are present); model-level parameter target resolver (`material.<id>.<attr>`) with assembled per-element dK/dp providers | [GAP-10](../docs/SOTA_GAP_ANALYSIS.md), AC-UPD-007, MS-3.1/3.3/3.6 | What is left is P1 depth work; the P0 slice closed with the AC-UPD-007 tagging. |
 | R2-T07 | 7 | Optimization backend: replace `optimization.solve` `NotImplementedError` with a scipy SLSQP/trust-constr backend using the sensitivity kernel for gradients and MAC-based mode tracking | [GAP-12](../docs/SOTA_GAP_ANALYSIS.md), [AC-OPT-001..003](../docs/ACCEPTANCE_CRITERIA.md) (P0), AC-OPT-004 (P1), MS-5 | Coordinate with the in-flight `optimization/{backends,gradients,problem,responses,variables}.py` on `cursor/dynamics-damping-frf-9500` — land that branch, don't fork. |
 | R2-T08 | 8 | R1-O2 reconciliation: diff `cursor/r1o2-correlation-updating-e393` against the landed correlation/updating packages; harvest superior pieces (per-DOF MSF-scaled shape residuals, log-space parameter transform, frequency-window pairing acceptance) and delete the rest | GAP-01 hygiene | Already in progress on `cursor/reconcile-r1o2-correlation-updating-64c5`; merge through the integration branch, not around it. |
-| R2-T09 | 9 | Round 2 exit hardening: CI job runs `import openfemlab` + full suite + Ruff + registry consistency on every push; registry statuses advanced `specified → implemented → verified` for every criterion a Round 2 task closes | Round 1 exit-bar carryover, AC §1.5 | The Round 1 bar ("suite must collect and pass before Round 2 refactors begin") is now met — 192 passed — and must not regress. |
+| R2-T09 | 9 | Round 2 exit hardening: CI job runs `import openfemlab` + full suite + Ruff + registry consistency on every push; registry statuses advanced `specified → implemented → verified` for every criterion a Round 2 task closes | Round 1 exit-bar carryover, AC §1.5 | **PARTIAL:** the existing CI matrix now runs the full suite and `ruff check .` on every push and pull request. Explicit import smoke coverage and registry status advancement remain. |
 
 ---
 
