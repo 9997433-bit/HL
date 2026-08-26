@@ -16,6 +16,26 @@ A supporting backlog covers the remaining Round 2 items from
 
 ---
 
+## 0. Status snapshot — mid-round (A61, 2026-08-26, code baseline `7cc1120`)
+
+Verified at that tip from a private clone (`PYTHONPATH` pinned): full suite
+**876 passed, 0 failed**, `ruff check .` clean, on Python 3.12.3 / NumPy 2.5.2 /
+SciPy 1.18.1. Registry: **40 criteria — 32 `implemented`, 8 `specified`, 0 `verified`.**
+
+| Task | Status |
+|---|---|
+| R2-T01 dynamics/FRF | **COMPLETE** — engine (`acda625`), AC-DYN-001..005 `implemented`, report `frf` block at schema 1.1 (A41), `openfemlab correlate-frf` CLI (A54). No open work. |
+| R2-T02 3D elements | **PARTIAL** — QUAD4 (A37) and TET4 (A46) landed with mesh generators and 127 tests. Open: HEX8, 3D beam, `NeutralModel` → `Model` conversion, solid/shell BDF cards, AC-ELEM-* registration. |
+| R2-T03 reduction/expansion | **PARTIAL** — engine (A36, `correlation/reduction.py`) and the AC-CORR-006 gate `implemented` (A43). Open: AC-CORR-009 registration, `SensorMap.signs` wiring, sparse inputs, `verified` flip. |
+| R2-T04 Bayesian MAP | **PARTIAL** — estimator (A49, `updating/bayesian.py`, 35 tests). Open: AC-UPD-006a/b tagging + registry flip, σ_post in the CLI/report output. |
+| R2-T05 meshio & IO | **NOT STARTED** — the only core track with no commit. |
+| R2-T06 updating depth | P0 slice closed (AC-UPD-007, A44); P1 depth (MAC-row Jacobian wiring, model-level resolver, per-element dK/dp) open. |
+| R2-T07 optimization | **COMPLETE for sizing** — A27 backend + A40 harvest; AC-OPT-001..004 `implemented`. Shape variables still FD. |
+| R2-T08 R1-O2 reconciliation | Pending a close-as-superseded decision (A40/A14); no merge wanted. |
+| R2-T09 exit hardening | **NOT STARTED** — no CI job, so nothing can move `implemented → verified`. |
+
+---
+
 ## 1. Starting state — what is already closed or in flight
 
 The plan is *targeted*: it excludes work Round 1 backfills already landed. Delta against
@@ -30,7 +50,7 @@ the gap register at audit time:
 | GAP-09 node mapping | P1, absent | **Partial.** Label-based DOF alignment (`correlation/align.py`, `workflow/sensors.py`). Remaining: geometry-based nearest-node mapping → folded into R2-T05/T06 scope notes. |
 | GAP-04/05 dynamics & FRF | P0/P1, absent | **Closed by R2-T01.** `cursor/dynamics-damping-frf-9500` merged at `acda625`; AC-DYN-001..005 registered and `implemented`. GAP-05's FRF *updating residual* stays deferred to Round 3 as planned below. |
 | GAP-02 3D elements | P0, absent | **Partial.** QUAD4 plane stress/strain landed with `mesh.simple.quad_plate_mesh` and 61 tests (R2-T02 first slice, merged from `cursor/quad4-plane-stress-element-b99c`); TET4 landed with `mesh.simple.tet_block_mesh` and 66 tests (A46). Remaining: HEX8, 3D beam, the solid/shell BDF cards → R2-T02 remainder. |
-| GAP-08 reduction/expansion | P1, absent | Open (R2 slice: Guyan/SEREP/TAM + expansion) → R2-T03. |
+| GAP-08 reduction/expansion | P1, absent | **Partial.** `correlation/reduction.py` landed (A36): Guyan/IRS/SEREP bases, `expand_shapes`, `tam_mass`, 25 tests; the AC-CORR-006 gate is `implemented` via the 19-case acceptance batch (A43). Remaining: AC-CORR-009 registration, `SensorMap.signs` wiring, the `verified` flip → R2-T03 remainder. |
 | GAP-11 Bayesian/UQ | P1, absent | **Closed for MAP by R2-T04.** The MS-3.5 estimator landed in `updating/bayesian.py` with Gaussian prior, noise covariance and Laplace posterior σ_post (A49, 35 tests); AC-UPD-006a/b are registered and `implemented`, and the `CorrectionReport` σ_post column now carries the posterior (A57). Remaining: σ_post in the CLI `update` document. Sampling (TMCMC/MC/DOE) stays Round 3 → R2-T04. |
 | GAP-12 optimization backend | P2, stub | **Closed for sizing by R2-T07.** `ScipyBackend.solve` runs SLSQP/trust-constr with analytic Jacobians, hard bounds and active-set KKT residuals; AC-OPT-001..004 are implemented. `cursor/optimization-scipy-backend-f421` was harvested by A40 (active-set multipliers, zero trust-constr constraint Hessian). Shape variables still fall back to finite differences. |
 | R1-O2 parallel implementation | — | Reconciliation of `cursor/r1o2-correlation-updating-e393` in progress on `cursor/reconcile-r1o2-correlation-updating-64c5` → R2-T08 harvests the diff. |
@@ -53,7 +73,7 @@ consistency tests fail.
 
 ### R2-T01 — Dynamics & FRF chain (damping, forced response, FRF synthesis, FRF correlation)
 
-- **Status: DONE.** The in-flight branch was merged at `acda625` (no second dynamics
+- **Status: COMPLETE.** The in-flight branch was merged at `acda625` (no second dynamics
   implementation on the branch) and the spec-first deliverable landed: `MODULE_SPEC.md`
   §7 (module M6, anchors MS-7.1..7.5), `ACCEPTANCE_CRITERIA.md` §7, and registry entries
   AC-DYN-001..005, all `implemented` and tagged in
@@ -161,6 +181,21 @@ consistency tests fail.
 
 ### R2-T03 — SEREP / Guyan reduction, TAM pseudo-orthogonality, mode-shape expansion
 
+- **Status: PARTIAL — engine and gate are on the trunk.**
+  *Engine* (A36): `correlation/reduction.py` carries `ReductionBasis` with
+  `reduce_matrix` / `reduce_shapes` / `expand`, built by `guyan_reduction`,
+  `irs_reduction` and `serep_basis`, plus `expand_shapes` (the MS-2.1
+  back-projection) and `tam_mass` feeding the existing weighted-MAC machinery —
+  no second metric kernel (GAP-01 rule). 25 closed-form tests in
+  `tests/test_reduction.py`. *Gate* (A43): **AC-CORR-006 is `implemented`** — the
+  19-case acceptance batch in `tests/acceptance/test_correlation.py` checks both
+  halves (SEREP reconstruction MAC ≥ 0.999, reduced-space pairing = expanded-space
+  pairing) on the 10-DOF chain and a 36-DOF cantilever twin, and additionally pins
+  where each half stops holding under noise. **Remaining to close the task:**
+  register AC-CORR-009 (engine and test exist; needs the spec-first three-file
+  commit and moves the pinned 40-criterion inventory), fold `SensorMap.signs`
+  into the basis (`from_sensor_map`), stop densifying sparse inputs, and move
+  AC-CORR-006 `implemented → verified` once CI runs it (R2-T09).
 - **Priority:** 3 (P1 — **blocks Round-2 sign-off** via AC-CORR-006) ·
   **Gap:** [GAP-08](../docs/SOTA_GAP_ANALYSIS.md) (§5.5, R2 slice)
 - **Why third:** the highest-ranked *gate-blocking* criterion. Correlation currently
@@ -318,14 +353,17 @@ Round 2 is done when, on the integration branch in CI:
 
 ## 6. Top 3 priorities (summary)
 
-1. ~~**R2-T01 — Dynamics/FRF chain** (GAP-04/05, P0)~~ — **done**: merged at `acda625`,
-   AC-DYN-001..005 registered and `implemented`. The live top three are now T02, T03 and
+1. ~~**R2-T01 — Dynamics/FRF chain** (GAP-04/05, P0)~~ — **COMPLETE**: merged at
+   `acda625`, AC-DYN-001..005 registered and `implemented`, report `frf` block (A41)
+   and `correlate-frf` CLI (A54) landed. The live top three are now T02, T03 and
    T04.
 2. **R2-T02 — 3D continuum elements** (GAP-02, P0): QUAD4/TET4/HEX8 (+ 3D beam) so
    imported industrial meshes can be re-analyzed, unblocking the meshio bridge
    (R2-T05). QUAD4 and TET4 are landed; HEX8 and the 3D beam remain.
 3. **R2-T03 — SEREP/TAM reduction & expansion** (GAP-08) and **R2-T04 Bayesian MAP**
-   were the tied Round-2 sign-off blockers via AC-CORR-006 and AC-UPD-006a/b. Both
-   engines are on the trunk (`correlation/reduction.py`, `updating/bayesian.py`) and
-   all three criteria are now registered and `implemented` (A43, A57), so what stands
-   between them and the gate is a CI run that moves them to `verified`.
+   were the tied Round-2 sign-off blockers, via AC-CORR-006 and AC-UPD-006a/b. Both
+   engines are on the trunk (`correlation/reduction.py` A36, `updating/bayesian.py`
+   A49) and all three criteria are now registered and `implemented` (A43, A57), so
+   what stands between them and the gate is a CI run that moves them to `verified`.
+   R2-T03 still owes AC-CORR-009 registration; R2-T04 still owes σ_post in the CLI
+   `update` document.

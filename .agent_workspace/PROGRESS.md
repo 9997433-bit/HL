@@ -56,9 +56,11 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A44 | claude-opus-5-thinking-high-fast | Tag AC-WORK-001/002/004/005 and AC-UPD-007; new `tests/acceptance/test_workflow.py` (backfill for A23) | complete |
 | A43 | claude-opus-5-thinking-high-fast | R2-T03: AC-CORR-006 acceptance gate (reduced- vs expanded-space pairing) and its registration (backfill for A36) | complete |
 | A46 | claude-opus-5-thinking-high-fast | R2-T02 continued: TET4 constant-strain tetrahedron, Kuhn tet-block mesh, 3D patch suite (backfill for A42) | complete |
+| A64 | claude-fable-5-thinking-xhigh | Chinese quickstart user guide `docs/USER_GUIDE_zh.md`: install, CLI, workflow, FEMtools mapping (backfill for A52) | complete |
 | A54 | claude-opus-5-thinking-high-fast | `openfemlab correlate-frf`: the CLI surface over `correlation/frf.py`, closing the last R2-T01 exit item (backfill for A41) | complete |
 | A62 | gpt-5.6-sol-xhigh-fast | Superseded-branch closure record and current-trunk verification (backfill for A40) | complete |
 | A55 | claude-fable-5-thinking-xhigh | Status snapshot: `.agent_workspace/STATUS.md` — 876-test verification, Round 1/2 state, module table, open gaps (backfill for A51) | complete |
+| A61 | claude-fable-5-thinking-xhigh | Round 2 mid-point brief, plan status snapshot & 876-test tip verification (backfill for A53) | complete |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
@@ -948,12 +950,14 @@ integrate rather than fork.
   gradients).
 
 ### Round 2 — Targeted Refactor & Deep Optimization
-**Status:** IN PROGRESS — backlog planned in `.agent_workspace/ROUND2_PLAN.md` (A24); the
-MS-4 workflow carried over from Round 1 is landed and verified at `5bc6a6d` (A26), the
-damped-dynamics and optimization tracks are merged in at `acda625` (A19 implementation,
-A28 integration), **R2-T01 is DONE** — AC-DYN-001..005 registered and implemented — and
-**R2-T02 is PARTIAL**, its QUAD4 slice merged onto the trunk by A37 and its TET4 slice
-landed by A46
+**Status:** IN PROGRESS, past the mid-point — backlog planned in
+`.agent_workspace/ROUND2_PLAN.md` (A24; §0 status snapshot refreshed by A61).
+**R2-T01 is COMPLETE** (engine `acda625`, AC-DYN-001..005, report `frf` block A41,
+`correlate-frf` CLI A54 — no open work); **R2-T02, R2-T03 and R2-T04 are PARTIAL** —
+QUAD4/TET4 landed (A37/A46) with HEX8 and the 3D beam open, the reduction/expansion
+engine and its AC-CORR-006 gate landed (A36/A43) with AC-CORR-009 open, and the
+Bayesian MAP estimator landed (A49) with the AC-UPD-006a/b tagging open. See the
+mid-point brief below.
 
 Core backlog (prioritized, from `docs/SOTA_GAP_ANALYSIS.md` §4/§6 + Round 1 conclusion):
 1. ~~**R2-T01 Dynamics/FRF chain** (GAP-04/05, P0) — damping models, harmonic response,
@@ -980,22 +984,70 @@ Core backlog (prioritized, from `docs/SOTA_GAP_ANALYSIS.md` §4/§6 + Round 1 co
    AC-CORR-006 from `implemented` to `verified` once CI has run it. See the A36 and A43
    entries below.*
 4. **R2-T04 Bayesian MAP updating** (GAP-11 slice, MS-3.5) — Gaussian-prior MAP step +
-   posterior covariance; closes Round-2 gates AC-UPD-006a/b. *Engine landed by A49
-   (`updating/bayesian.py`, 35 tests) and **both criteria are now `implemented`** — A57
-   added the eight-test acceptance gate on the ten-DOF twin, flipped the registry in
-   the same commit and wired the Laplace σ_post into the `CorrectionReport` column
+   posterior covariance; closes Round-2 gates AC-UPD-006a/b. *The estimator landed by
+   A49 (`updating/bayesian.py`, 35 tests), driving the shared LM loop through the new
+   `normal_equations`/`penalty` hooks, and **both criteria are now `implemented`** —
+   A57 added the eight-test acceptance gate on the ten-DOF twin, flipped the registry
+   in the same commit and wired the Laplace σ_post into the `CorrectionReport` column
    AC-WORK-005 reserves. Remaining: σ_post in the CLI `update` document, and moving
    both rows from `implemented` to `verified` once CI has run them. See the A49 and A57
    entries below.*
 5. **R2-T05 meshio bridge & IO completion** (GAP-03 remainder) — optional-dependency
-   meshio ↔ NeutralModel bridge, UNV 2411/2412.
+   meshio ↔ NeutralModel bridge, UNV 2411/2412. **NOT STARTED.**
 
-Supporting: R2-T06 updating depth (incl. the still-unimplemented **P0** AC-UPD-007
-collinearity screen), R2-T07 scipy optimization backend (GAP-12 — the surrounding M5
-package landed at `acda625` and `ScipyBackend.solve` is now wired too, so this is
-**done**, A27), R2-T08 R1-O2 branch reconciliation, R2-T09 CI exit hardening.
-Exit bar: all P0+P1 criteria `verified`,
+Supporting: R2-T06 updating depth (the P0 AC-UPD-007 collinearity-screen slice closed
+with A44's tagging; P1 depth work remains), R2-T07 scipy optimization backend (GAP-12 —
+the surrounding M5 package landed at `acda625` and `ScipyBackend.solve` is now wired
+too, so this is **done**, A27), R2-T08 R1-O2 branch reconciliation, R2-T09 CI exit
+hardening. Exit bar: all P0+P1 criteria `verified`,
 new dynamics/element/IO criteria at least `implemented`, GAP-01 stays closed.
+
+#### Round 2 — mid-point brief (A61, backfill for A53)
+
+Written at code baseline `7cc1120` and verified there from a private clone
+(`/tmp/a61`, `PYTHONPATH` pinned): full suite **876 passed, 0 failed**,
+`ruff check .` clean, Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1. For scale: Round 2
+opened at 430 tests, so the round has roughly doubled the suite while keeping it
+green throughout.
+
+- **Scoreboard.** Of the five core tracks, one is closed and three are half-way:
+  **R2-T01 COMPLETE** (dynamics engine, AC-DYN-001..005, `frf` report block at schema
+  1.1, `correlate-frf` CLI — the round's first headline demo is deliverable today);
+  **R2-T02 PARTIAL** (QUAD4 + TET4 landed with generators and 127 tests; HEX8, the 3D
+  beam, the `NeutralModel` → `Model` conversion, solid/shell BDF cards and AC-ELEM-*
+  registration open); **R2-T03 PARTIAL** (reduction/expansion engine plus the
+  AC-CORR-006 gate `implemented`; AC-CORR-009, `SensorMap.signs`, the `verified` flip
+  open); **R2-T04 PARTIAL** (MAP estimator with posterior covariance landed on the
+  shared LM loop; acceptance tagging and σ_post surfacing open); **R2-T05 NOT
+  STARTED** — the only core track with no commit. Supporting: R2-T06's P0 slice and
+  R2-T07 are done, R2-T08 needs only a close-as-superseded decision, R2-T09 has not
+  begun.
+- **Registry.** 40 criteria: **32 `implemented`, 8 `specified`, 0 `verified`.** Still
+  `specified`: AC-CORR-008, AC-UPD-004, AC-UPD-005 (P0) and AC-MODAL-008,
+  AC-UPD-006a/b, AC-UPD-008, AC-WORK-003 (P1) — every one an engine-exists /
+  acceptance-tags-missing case, which is the cheap kind of open work. The structural
+  risk is the third number: the exit bar demands every P0+P1 criterion `verified`, and
+  nothing can reach `verified` until R2-T09 stands up CI. That task is the round's
+  critical path even though it is ranked last.
+- **Headline demos.** The FRF demo (exit-bar item 4, first half) works end to end:
+  `openfemlab correlate-frf measured.unv model.yaml --require-frac 0.9`. The second
+  half — a meshio- or BDF-imported 3D mesh re-analyzed internally — is blocked on the
+  R2-T02 remainder (conversion + BDF cards) and R2-T05, which should be dispatched
+  together per the plan's Wave-2 sequencing.
+- **Recommended second-half order.** (1) R2-T04's acceptance slice — the cheapest
+  gate-blocker close, since `tests/test_bayesian_updating.py` already proves both
+  MS-3.5 limits; (2) the R2-T02 remainder, which unblocks the second demo and carries
+  the AC-ELEM-* registration (a spec-first, three-file change that moves the pinned
+  40-criterion inventory); (3) R2-T05 meshio/UNV; (4) R2-T09 CI so the
+  `implemented → verified` flips can start; alongside, the small closes: AC-CORR-009,
+  the seven remaining tag-only criteria above, and `SensorMap.signs`.
+- **Process.** The shared-`/workspace` hazard has hit essentially every task since
+  A28 — twelve-plus recorded occurrences, including destroyed *committed* work (A52)
+  and a moved branch ref (A43). The private-clone rule is now the working standard and
+  was followed here; the tip moved once during this brief's preparation
+  (`d3498b4 → 7cc1120`), confirming it is still necessary. GAP-01 discipline has held:
+  no duplicate kernels were introduced this round, and the two near-misses (A35's
+  AC-DYN registration, A34's backend) were both caught and dropped before landing.
 
 #### R2-T01 — Dynamics & FRF chain closed out (GAP-04/05, P0)
 - **Integration first, and only one implementation.** The plan's binding constraint was
@@ -2287,3 +2339,37 @@ finishes the σ_post surface A49 listed as outstanding.
   already-pushed acceptance commit survived. Redone in a timestamped, PID-suffixed
   directory. Two rules, not one: work in a private clone, and give it a name no other
   agent would pick.
+
+#### A64 — Chinese quickstart user guide `docs/USER_GUIDE_zh.md` (backfill for A52)
+
+Documentation-only landing: the first end-user document in a language other than
+English, aimed at the FEMtools-adjacent audience the platform targets.
+
+- `docs/USER_GUIDE_zh.md` (new): a Simplified-Chinese quickstart covering the whole
+  README surface plus the file formats the README only points at. Sections: project
+  positioning with a FEMtools-module-to-OpenFEMLab-module mapping table (Framework →
+  API/CLI, Dynamics → `solver`, Pretest & Correlation → `correlation`, Model Updating →
+  `updating`, Optimization → `optimization`, MPE → not provided but UFF 55/58 readable);
+  installation (Python ≥ 3.10, `pip install -e .` and the `dev,cli` / `io` extras);
+  the five-minute Python cantilever quickstart; a CLI overview with the global flags
+  and the CI exit-code contract (0 / 1 / 3 `CORRELATION_FAILED` / 4 `NOT_CONVERGED`);
+  the model-spec document (all five `mesh.type` builders, named material/section
+  tables, supports/point masses/rotary inertias, the optional `damping` block, and the
+  dotted-path addressing `update` relies on); one section per analysis command with an
+  option table each; and the four-step end-to-end workflow over the
+  `examples/02_model_updating_workflow.py` fixtures, mirroring the README shell session.
+- Every documented default, choice list and format was pinned against the source rather
+  than the README: `modal` defaults (`-n 6`, `mass|max|none` normalization, direction
+  auto-pick), `correlate` pairing methods and `--require-*` gates, the `update`
+  configuration schema from `commands/update.py` (`parameters[].target` dotted paths,
+  bounds defaults 0.5/2.0, `kind` ∈ stiffness/mass/damping/generic per `ParameterType`),
+  and `correlate-frf` damping resolution order (CLI flag → spec block → 0.02 default)
+  with the JSON/YAML FRF document shape from `commands/correlate_frf.py`. The
+  `test_data` sample matches `io/_native.py`'s writer (`dofs_by_mode` layout,
+  `dof_map.node_ids`/`dof_types` by name).
+- No code changes, so the suite is untouched; the tree at the base tip `e47426e` was
+  already verified at **876 passed** by A62/A63's records.
+- Followed the shared-checkout rule: worked from the private detached worktree
+  `/tmp/a64`, and the base tip indeed moved twice (`8604807` → `e47426e` → the A67
+  record) between the first fetch and the landing — re-synced by rebase both times,
+  nothing lost.

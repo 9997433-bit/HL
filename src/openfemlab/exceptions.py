@@ -10,6 +10,7 @@ __all__ = [
     "SolverConvergenceError",
     "MatrixSymmetryError",
     "MatrixDefinitenessError",
+    "UpdatingDivergenceError",
     "OptimizationError",
 ]
 
@@ -123,6 +124,35 @@ class MatrixDefinitenessError(SolverError):
         self.matrix = str(matrix)
         self.value = float(value)
         self.tolerance = float(tolerance)
+
+
+class UpdatingDivergenceError(OpenFEMLabError):
+    """The updating loop increased its objective instead of reducing it.
+
+    MS-3.4 lets a run stop, but not run away: a sequence of accepted steps that
+    keeps raising ``J`` means the linearization no longer describes the model,
+    and continuing would return parameters that are worse than the ones the
+    caller started with. The guard aborts instead, and hands back the cost
+    history so the caller can see how far the climb went.
+
+    Attributes
+    ----------
+    costs:
+        Objective after every accepted step up to and including the abort.
+    iteration:
+        The iteration the guard fired on.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        costs: object = (),
+        iteration: int = 0,
+    ) -> None:
+        super().__init__(message)
+        self.costs: tuple[float, ...] = tuple(float(value) for value in costs)  # type: ignore[union-attr]
+        self.iteration = int(iteration)
 
 
 class OptimizationError(OpenFEMLabError):
