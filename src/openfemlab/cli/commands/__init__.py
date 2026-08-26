@@ -7,9 +7,26 @@ registry rather than a dispatcher full of analysis code.
 
 from __future__ import annotations
 
-from . import correlate, correlate_frf, modal, update
+from . import correlate, correlate_frf, modal, quickstart, report, update, wizard
 
 #: Registration order, which is also the order shown by ``openfemlab --help``.
-COMMANDS = (modal, correlate, correlate_frf, update)
+COMMANDS = (
+    quickstart,
+    wizard,
+    modal,
+    correlate,
+    correlate_frf,
+    update,
+    report,
+)
 
-__all__ = ["COMMANDS", "correlate", "correlate_frf", "modal", "update"]
+__all__ = [
+    "COMMANDS",
+    "correlate",
+    "correlate_frf",
+    "modal",
+    "quickstart",
+    "report",
+    "update",
+    "wizard",
+]

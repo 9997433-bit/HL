@@ -152,6 +152,26 @@ PYTHONPATH=src python examples/05_five_minute_workflow.py
 
 ## Command-line interface
 
+Install the CLI extras for coloured tables and the interactive wizard:
+
+```bash
+python -m pip install -e ".[cli]"
+```
+
+**Zero setup** — run the built-in demo (no YAML files):
+
+```bash
+openfemlab quickstart
+openfemlab wizard    # menu-driven: modal, correlate, update, HTML report
+```
+
+Turn a JSON correlation or correction artifact into a browser report:
+
+```bash
+openfemlab correlate model.yaml measured.yaml -o corr.json --format json
+openfemlab report corr.json -o corr.html --open
+```
+
 The CLI consumes JSON or YAML specifications and can emit tables, JSON, or
 YAML. Show all commands with:
 

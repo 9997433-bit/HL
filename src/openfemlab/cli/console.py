@@ -145,6 +145,25 @@ class Reporter:
             return
         print(f"error: {text}", file=target)
 
+    def success(self, text: str) -> None:
+        """Highlight a completed step or a passing gate."""
+        if self.quiet:
+            return
+        if self._diagnostic_console is not None:
+            self._diagnostic_console.print(text, style="bold green")
+            return
+        print(text, file=self.diagnostics)
+
+    def hint(self, text: str) -> None:
+        """Actionable next-step guidance (dim, on the diagnostics stream)."""
+        if self.quiet:
+            return
+        prefix = "→ "
+        if self._diagnostic_console is not None:
+            self._diagnostic_console.print(f"{prefix}{text}", style="cyan")
+            return
+        print(f"{prefix}{text}", file=self.diagnostics)
+
     # --------------------------------------------------------------- tables
 
     def table(

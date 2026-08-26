@@ -36,10 +36,14 @@ def build_parser() -> argparse.ArgumentParser:
         prog="openfemlab",
         description="OpenFEMLab: modal analysis, FE-test correlation and model updating.",
         epilog=(
+            "getting started:\n"
+            "  openfemlab quickstart          # 60-second demo, no input files\n"
+            "  openfemlab wizard              # interactive menu\n"
+            "\n"
             "examples:\n"
             "  openfemlab modal cantilever.yaml -n 8\n"
-            "  openfemlab correlate cantilever.yaml measured.yaml --mac-threshold 0.7\n"
-            "  openfemlab correlate-frf measured.unv cantilever.yaml --require-frac 0.9\n"
+            "  openfemlab correlate cantilever.yaml measured.yaml -o corr.json --format json\n"
+            "  openfemlab report corr.json -o corr.html --open\n"
             "  openfemlab update updating.yaml -o cantilever.updated.yaml"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
