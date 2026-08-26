@@ -1956,10 +1956,11 @@ Verified in a private clone at `/tmp/a46` with `PYTHONPATH=/tmp/a46/src`, on Pyt
 clean. That is the trunk's 636 at `1db2f03` plus the 66 new ones. The trunk moved to
 `0bed333` (A40's merge sweep and A41's FRF report block) while this was being verified, so
 the slice was merged onto that tip and re-run: **737 passed**, Ruff still clean. It moved
-again to `44f2ec0` (A44's AC-WORK/AC-UPD-007 tagging) during the push, so the branch was
-synced once more and re-run at **740 passed**, Ruff clean. Both conflicts were the Active
-Pool table and the appended entries at the end of this file, where each side had added its
-own rows; everything was kept.
+three more times during the push — A44's AC-WORK/AC-UPD-007 tagging, A43's AC-CORR-006
+gate and the R2-T04 Bayesian MAP landing — so the branch was synced after each and re-run
+at 740, 746 and finally **781 passed** at the pushed tip `e4bd20c`, Ruff clean throughout.
+Every conflict was the Active Pool table or the appended entries at the end of this file,
+where each side had added its own rows; all were kept.
 
 **Working-tree hazard, again.** A concurrent agent ran `git reset --hard` on `/workspace`
 mid-edit and discarded the first pass of this element wholesale. The work was redone in a

@@ -111,8 +111,8 @@ consistency tests fail.
   and 61 tests in `tests/test_quad4.py` — MacNeal-Harder patch exact to machine precision,
   exactly three zero-energy modes under full integration, axial spectrum matching an
   equivalent bar mesh to 2.4e-13, quadratic h-convergence.
-  *TET4* (A46, `cursor/tet4-solid-element-08d1`; suite **740 passed** after the merge,
-  Ruff clean):
+  *TET4* (A46, `cursor/tet4-solid-element-08d1`; suite **781 passed** at the merged tip
+  `e4bd20c`, Ruff clean):
   `Tet4Element` constant-strain tetrahedron plus `solid_constitutive_matrix`,
   `tet_block_mesh` / `MeshBuilder.add_tet4`, and 66 tests in `tests/test_tet4.py` —
   a 162-element distorted 3D patch exact to 2.8e-16, exactly six zero-energy modes,
