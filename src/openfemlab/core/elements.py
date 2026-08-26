@@ -1,4 +1,4 @@
-"""Element library: scalar springs, 2-node bars/trusses and a planar beam.
+"""Element library: scalar springs, 2-node bars/trusses, a planar beam and QUAD4.
 
 Every element exposes the same contract used by :mod:`openfemlab.core.assembly`:
 
@@ -24,6 +24,10 @@ __all__ = [
     "TrussElement",
     "BarElement",
     "BeamElement2D",
+    "Quad4Element",
+    "PLANE_STATES",
+    "gauss_legendre_2d",
+    "plane_constitutive_matrix",
 ]
 
 
@@ -352,3 +356,253 @@ class BeamElement2D(Element):
     def mass_matrix(self, coords: np.ndarray) -> np.ndarray:
         length, transform = self._transformation(coords)
         return transform.T @ self.local_mass_matrix(length) @ transform
+
+
+#: Two-dimensional idealizations supported by :class:`Quad4Element`.
+PLANE_STATES: tuple[str, ...] = ("stress", "strain")
+
+#: Natural coordinates of the QUAD4 corner nodes, counter-clockwise from (-1, -1).
+_QUAD4_NATURAL = np.array([[-1.0, -1.0], [1.0, -1.0], [1.0, 1.0], [-1.0, 1.0]], dtype=float)
+
+
+def gauss_legendre_2d(order: int = 2) -> tuple[np.ndarray, np.ndarray]:
+    """Tensor-product Gauss-Legendre rule on ``[-1, 1]^2``.
+
+    Returns ``(points, weights)`` with ``points`` of shape ``(order**2, 2)``. A
+    rule of ``order`` points per direction integrates polynomials of degree
+    ``2*order - 1`` per direction exactly.
+    """
+    if not 1 <= int(order) <= 4:
+        raise ElementError(f"integration order must lie in [1, 4], got {order}")
+    nodes, weights = np.polynomial.legendre.leggauss(int(order))
+    xi, eta = np.meshgrid(nodes, nodes, indexing="ij")
+    wxi, weta = np.meshgrid(weights, weights, indexing="ij")
+    return np.column_stack((xi.ravel(), eta.ravel())), (wxi * weta).ravel()
+
+
+def plane_constitutive_matrix(material: Material, plane: str = "stress") -> np.ndarray:
+    """Isotropic 2D elasticity matrix relating ``[sxx, syy, sxy]`` to ``[exx, eyy, gxy]``.
+
+    Plane stress (thin sheet loaded in its plane, ``szz = 0``)::
+
+        D = E / (1 - nu^2) * [[1, nu, 0], [nu, 1, 0], [0, 0, (1 - nu) / 2]]
+
+    Plane strain (long prismatic body, ``ezz = 0``)::
+
+        D = E / ((1 + nu) (1 - 2 nu))
+            * [[1 - nu, nu, 0], [nu, 1 - nu, 0], [0, 0, (1 - 2 nu) / 2]]
+    """
+    if plane not in PLANE_STATES:
+        raise ElementError(f"unknown plane state {plane!r}; expected one of {list(PLANE_STATES)}")
+    E, nu = float(material.E), float(material.nu)
+    if plane == "stress":
+        factor = E / (1.0 - nu**2)
+        return factor * np.array(
+            [[1.0, nu, 0.0], [nu, 1.0, 0.0], [0.0, 0.0, 0.5 * (1.0 - nu)]], dtype=float
+        )
+    factor = E / ((1.0 + nu) * (1.0 - 2.0 * nu))
+    return factor * np.array(
+        [
+            [1.0 - nu, nu, 0.0],
+            [nu, 1.0 - nu, 0.0],
+            [0.0, 0.0, 0.5 * (1.0 - 2.0 * nu)],
+        ],
+        dtype=float,
+    )
+
+
+class Quad4Element(Element):
+    """4-node isoparametric bilinear quadrilateral in the XY plane (DOFs ``UX``, ``UY``).
+
+    Nodes are given counter-clockwise; the element is mapped from the reference
+    square by the bilinear shape functions
+
+    ``N_i(xi, eta) = (1 + xi xi_i) (1 + eta eta_i) / 4``
+
+    so that geometry and displacement share the same interpolation. With
+    ``B`` the strain-displacement operator and ``D`` the plane constitutive
+    matrix (:func:`plane_constitutive_matrix`),
+
+    ``K = t * int B^T D B dA``  and  ``M = rho t * int N^T N dA``
+
+    are evaluated by a tensor-product Gauss rule (2x2 by default, which
+    integrates both exactly for any non-degenerate quadrilateral). Full
+    integration means the element has exactly three zero-energy modes -- the
+    planar rigid-body motions -- and no hourglass modes; ``integration_order=1``
+    is available for comparison studies but is rank deficient.
+
+    Because the displacement field is bilinear the element reproduces any
+    constant strain state exactly (it passes the patch test) but represents
+    bending through shear, so it locks on coarse, high-aspect-ratio bending
+    meshes. Refine, or use it where membrane action dominates.
+
+    Parameters
+    ----------
+    material:
+        Isotropic linear elastic material; ``density`` may be zero.
+    thickness:
+        Out-of-plane thickness ``t``.
+    plane:
+        ``"stress"`` (default) or ``"strain"``.
+    lumped_mass:
+        Diagonalize the consistent mass matrix by row summing, which preserves
+        the total translational mass for any element shape.
+    integration_order:
+        Gauss points per direction.
+    """
+
+    expected_nodes = 4
+
+    def __init__(
+        self,
+        node_ids: Sequence[Hashable],
+        material: Material,
+        *,
+        thickness: float = 1.0,
+        plane: str = "stress",
+        lumped_mass: bool = False,
+        integration_order: int = 2,
+        eid: Hashable | None = None,
+    ) -> None:
+        super().__init__(node_ids, eid=eid)
+        if thickness <= 0.0:
+            raise ElementError(f"Quad4Element thickness must be positive, got {thickness}")
+        if plane not in PLANE_STATES:
+            raise ElementError(
+                f"unknown plane state {plane!r}; expected one of {list(PLANE_STATES)}"
+            )
+        self.material = material
+        self.thickness = float(thickness)
+        self.plane = plane
+        self.lumped_mass = bool(lumped_mass)
+        self.integration_order = int(integration_order)
+        self._points, self._weights = gauss_legendre_2d(self.integration_order)
+
+    def required_dofs(self, available: tuple[DOF, ...]) -> tuple[DOF, ...]:
+        return (DOF.UX, DOF.UY)
+
+    # ------------------------------------------------------------- kinematics
+
+    @staticmethod
+    def shape_functions(xi: float, eta: float) -> np.ndarray:
+        """Bilinear shape functions ``N`` at a natural point, shape ``(4,)``."""
+        signs = _QUAD4_NATURAL
+        return 0.25 * (1.0 + signs[:, 0] * xi) * (1.0 + signs[:, 1] * eta)
+
+    @staticmethod
+    def shape_function_derivatives(xi: float, eta: float) -> np.ndarray:
+        """``dN/d(xi, eta)`` at a natural point, shape ``(2, 4)``."""
+        signs = _QUAD4_NATURAL
+        return 0.25 * np.array(
+            [
+                signs[:, 0] * (1.0 + signs[:, 1] * eta),
+                signs[:, 1] * (1.0 + signs[:, 0] * xi),
+            ],
+            dtype=float,
+        )
+
+    def _planar_coords(self, coords: np.ndarray) -> np.ndarray:
+        """The ``(4, 2)`` in-plane coordinates, rejecting out-of-plane geometry."""
+        points = np.asarray(coords, dtype=float).reshape(4, -1)
+        if points.shape[1] > 2:
+            spread = float(np.ptp(points[:, 2]))
+            scale = float(np.max(np.abs(points[:, :2]))) or 1.0
+            if spread > 1e-9 * scale:
+                raise ElementError(
+                    f"Quad4Element {self.node_ids} is a planar XY element but its nodes "
+                    f"span {spread:g} in Z"
+                )
+        return points[:, :2]
+
+    def jacobian(self, coords: np.ndarray, xi: float, eta: float) -> tuple[np.ndarray, float]:
+        """``(dN/dx, det J)`` at a natural point; ``dN/dx`` has shape ``(2, 4)``."""
+        points = self._planar_coords(coords)
+        natural = self.shape_function_derivatives(xi, eta)
+        jac = natural @ points
+        det = float(jac[0, 0] * jac[1, 1] - jac[0, 1] * jac[1, 0])
+        if det <= 0.0:
+            raise ElementError(
+                f"Quad4Element {self.node_ids} has a non-positive Jacobian ({det:g}) at "
+                f"(xi, eta) = ({xi:g}, {eta:g}); the element is degenerate, inverted or "
+                "its nodes are not ordered counter-clockwise"
+            )
+        inverse = np.array([[jac[1, 1], -jac[0, 1]], [-jac[1, 0], jac[0, 0]]], dtype=float) / det
+        return inverse @ natural, det
+
+    def strain_displacement_matrix(
+        self, coords: np.ndarray, xi: float, eta: float
+    ) -> tuple[np.ndarray, float]:
+        """``(B, det J)`` with ``B`` of shape ``(3, 8)`` in node-major DOF order."""
+        gradient, det = self.jacobian(coords, xi, eta)
+        b = np.zeros((3, 8), dtype=float)
+        b[0, 0::2] = gradient[0]
+        b[1, 1::2] = gradient[1]
+        b[2, 0::2] = gradient[1]
+        b[2, 1::2] = gradient[0]
+        return b, det
+
+    # --------------------------------------------------------------- physics
+
+    @property
+    def constitutive_matrix(self) -> np.ndarray:
+        """Plane elasticity matrix ``D`` for the element's material and plane state."""
+        return plane_constitutive_matrix(self.material, self.plane)
+
+    def area(self, coords: np.ndarray) -> float:
+        """Element area, integrated with the element's own quadrature rule."""
+        return float(
+            sum(
+                weight * self.jacobian(coords, *point)[1]
+                for point, weight in zip(self._points, self._weights, strict=True)
+            )
+        )
+
+    def stiffness_matrix(self, coords: np.ndarray) -> np.ndarray:
+        D = self.constitutive_matrix
+        k = np.zeros((8, 8), dtype=float)
+        for point, weight in zip(self._points, self._weights, strict=True):
+            b, det = self.strain_displacement_matrix(coords, *point)
+            k += (weight * det * self.thickness) * (b.T @ D @ b)
+        return k
+
+    def consistent_mass_matrix(self, coords: np.ndarray) -> np.ndarray:
+        """``rho t int N^T N dA`` regardless of the ``lumped_mass`` setting."""
+        density = float(self.material.density)
+        m = np.zeros((8, 8), dtype=float)
+        if density == 0.0:
+            return m
+        for point, weight in zip(self._points, self._weights, strict=True):
+            shape = self.shape_functions(*point)
+            _, det = self.jacobian(coords, *point)
+            block = np.outer(shape, shape)
+            factor = weight * det * self.thickness * density
+            m[0::2, 0::2] += factor * block
+            m[1::2, 1::2] += factor * block
+        return m
+
+    def mass_matrix(self, coords: np.ndarray) -> np.ndarray:
+        consistent = self.consistent_mass_matrix(coords)
+        if not self.lumped_mass:
+            return consistent
+        return np.diag(consistent.sum(axis=1))
+
+    def total_mass(self, coords: np.ndarray) -> float:
+        return float(self.material.density) * self.thickness * self.area(coords)
+
+    # ------------------------------------------------------------ recovery
+
+    def strain(
+        self, coords: np.ndarray, displacements: np.ndarray, xi: float = 0.0, eta: float = 0.0
+    ) -> np.ndarray:
+        """Strain ``[exx, eyy, gxy]`` at a natural point from the 8 nodal displacements."""
+        values = np.asarray(displacements, dtype=float).reshape(-1)
+        if values.size != 8:
+            raise ElementError(f"expected 8 nodal displacements, got {values.size}")
+        b, _ = self.strain_displacement_matrix(coords, xi, eta)
+        return b @ values
+
+    def stress(
+        self, coords: np.ndarray, displacements: np.ndarray, xi: float = 0.0, eta: float = 0.0
+    ) -> np.ndarray:
+        """Stress ``[sxx, syy, sxy]`` at a natural point from the 8 nodal displacements."""
+        return self.constitutive_matrix @ self.strain(coords, displacements, xi, eta)
