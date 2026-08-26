@@ -86,6 +86,8 @@ other formats meshio reads:
 python -m pip install -e ".[io]"
 ```
 
+Install `openfemlab[plot]` for the optional Matplotlib mode-shape and MAC plotting helpers.
+
 Read a supported mesh into the neutral model and write it in another format:
 
 ```python
