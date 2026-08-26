@@ -4,15 +4,20 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
 import pytest
+from PyQt6.QtCore import Qt
 
 from audio_studio.core.engine import AudioEngine
 from audio_studio.core.loader import LoadedAudio
 from audio_studio.core.output import NullOutput
 from audio_studio.core.peaks import PeakPyramid
 from audio_studio.core.types import TimeRange, TransportState
+from audio_studio.dsp.effects import EffectChain
+from audio_studio.ui.effect_rack import EffectRackPanel, default_preview_chain
 from audio_studio.ui.level_meter import FLOOR_DB, LevelMeter
 from audio_studio.ui.main_window import MainWindow
+from audio_studio.ui.spectrum_panel import SpectrumPanel
 from audio_studio.ui.waveform_view import MIN_VIEW_FRAMES, WaveformView
 
 pytestmark = pytest.mark.usefixtures("qapp")
@@ -186,6 +191,284 @@ def test_seek_from_the_ruler_moves_the_playhead(window: MainWindow) -> None:
 
     assert window.engine.position == 12_345
     assert window.track_panel.waveform.playhead == 12_345
+
+
+class TestSpectrumPanel:
+    """The dockable spectral view and the controls that drive it."""
+
+    @pytest.fixture()
+    def panel(self, loaded_clip: LoadedAudio) -> SpectrumPanel:
+        view = SpectrumPanel()
+        view.resize(800, 300)
+        return view
+
+    def test_starts_empty_and_says_so(self, panel: SpectrumPanel) -> None:
+        assert not panel.has_data
+        assert "No spectral" in panel.info_label.text()
+        assert panel.spectrogram.render_image(100, 50) is None
+
+    def test_analysis_fills_the_view_and_the_read_out(
+        self, panel: SpectrumPanel, loaded_clip: LoadedAudio
+    ) -> None:
+        buffer = loaded_clip.buffer
+        panel.analyze(buffer.data, buffer.sample_rate)
+
+        assert panel.has_data
+        assert panel.spectrogram.render_image(200, 100) is not None
+        assert "columns" in panel.info_label.text()
+        assert f"{panel.fft_size}-pt" in panel.info_label.text()
+
+    def test_a_long_clip_is_not_analysed_at_full_resolution(self) -> None:
+        """Past a few thousand columns the hop widens instead of the wait."""
+        from audio_studio.ui.spectrum_panel import MAX_ANALYSIS_FRAMES, analysis_config
+
+        config = analysis_config(48_000, 48_000 * 600, 2048)
+        assert config.hop_size > 512
+        assert config.n_frames(48_000 * 600) <= MAX_ANALYSIS_FRAMES + 1
+
+    def test_clearing_returns_to_the_empty_state(
+        self, panel: SpectrumPanel, loaded_clip: LoadedAudio
+    ) -> None:
+        panel.analyze(loaded_clip.buffer.data, loaded_clip.buffer.sample_rate)
+        panel.clear()
+        assert not panel.has_data
+
+    def test_empty_or_nonsense_input_clears_instead_of_raising(
+        self, panel: SpectrumPanel
+    ) -> None:
+        panel.analyze(None, 48_000)
+        panel.analyze(np.zeros((0, 2)), 48_000)
+        panel.analyze(np.zeros((128, 2)), 0)
+        assert not panel.has_data
+
+    def test_the_range_control_moves_the_floor(self, panel: SpectrumPanel) -> None:
+        panel.range_box.setCurrentIndex(0)
+        assert panel.spectrogram.db_range == (-60.0, 0.0)
+        panel.range_box.setCurrentIndex(2)
+        assert panel.spectrogram.db_range == (-120.0, 0.0)
+
+    def test_the_scale_button_switches_the_frequency_axis(self, panel: SpectrumPanel) -> None:
+        from audio_studio.ui.spectrogram_widget import FrequencyScale
+
+        panel.scale_button.setChecked(False)
+        assert panel.spectrogram.frequency_scale is FrequencyScale.LINEAR
+        assert panel.scale_button.text() == "Linear"
+
+    def test_changing_the_fft_size_asks_the_owner_to_re_analyse(
+        self, panel: SpectrumPanel
+    ) -> None:
+        sizes: list[int] = []
+        panel.fftSizeChanged.connect(sizes.append)
+
+        panel.fft_box.setCurrentText("8192")
+
+        assert sizes == [8192]
+        assert panel.fft_size == 8192
+
+    def test_a_click_seeks_in_clip_time_not_selection_time(
+        self, panel: SpectrumPanel, loaded_clip: LoadedAudio
+    ) -> None:
+        """A selection is analysed on its own, so its offset has to come back."""
+        seeks: list[float] = []
+        panel.seekRequested.connect(seeks.append)
+        buffer = loaded_clip.buffer
+        panel.analyze(buffer.data[:20_000], buffer.sample_rate, offset_s=1.5)
+
+        panel.spectrogram.positionClicked.emit(0.25, 1000.0)
+
+        assert seeks == [pytest.approx(1.75)]
+
+
+class TestEffectRackPanel:
+    """Controls that write straight into the chain the device thread reads."""
+
+    @pytest.fixture()
+    def rack(self, qapp) -> EffectRackPanel:
+        return EffectRackPanel(default_preview_chain())
+
+    def test_moving_a_band_reaches_the_effect_immediately(
+        self, rack: EffectRackPanel
+    ) -> None:
+        changes: list[None] = []
+        rack.chainChanged.connect(lambda: changes.append(None))
+
+        rack.eq_low.set_value(6.0)
+
+        assert rack.eq.low.gain_db == pytest.approx(6.0)
+        assert changes
+
+    def test_the_bypass_button_bypasses_the_whole_rack(self, rack: EffectRackPanel) -> None:
+        rack.bypass_button.setChecked(True)
+        assert rack.chain.bypass
+        assert rack.summary() == "FX bypassed"
+
+    def test_the_mix_slider_is_the_chains_wet_amount(self, rack: EffectRackPanel) -> None:
+        rack.mix_slider.set_value(40.0)
+        assert rack.chain.mix == pytest.approx(0.4)
+        assert "40% wet" in rack.summary()
+
+    def test_switching_a_member_off_takes_it_out_of_the_summary(
+        self, rack: EffectRackPanel
+    ) -> None:
+        rack.eq_enabled.setChecked(False)
+        assert not rack.eq.enabled
+        assert "3-Band EQ" not in rack.summary()
+        assert "Gain" in rack.summary()
+
+    def test_polarity_and_trim_reach_the_gain_stage(self, rack: EffectRackPanel) -> None:
+        rack.trim_gain.set_value(-3.0)
+        rack.polarity.setChecked(True)
+        assert rack.trim.gain_db == pytest.approx(-3.0)
+        assert rack.trim.invert_polarity
+
+    def test_reset_flattens_without_swapping_the_chain(self, rack: EffectRackPanel) -> None:
+        chain = rack.chain
+        rack.eq_high.set_value(9.0)
+        rack.mix_slider.set_value(20.0)
+        rack.bypass_button.setChecked(True)
+
+        rack.reset()
+
+        assert rack.chain is chain  # the device thread keeps its object
+        assert rack.eq.high.gain_db == 0.0
+        assert chain.mix == 1.0
+        assert not chain.bypass
+        assert rack.bypass_button.isChecked() is False
+
+    def test_pointing_the_panel_at_another_chain_reads_its_state(
+        self, rack: EffectRackPanel
+    ) -> None:
+        other = default_preview_chain()
+        other.mix = 0.6
+        other[0].low.gain_db = -4.0
+
+        rack.set_chain(other)
+
+        assert rack.mix_slider.value == pytest.approx(60.0)
+        assert rack.eq_low.value == pytest.approx(-4.0)
+
+    def test_refreshing_does_not_write_back_through_the_signals(
+        self, rack: EffectRackPanel
+    ) -> None:
+        rack.chain.mix = 0.5
+        changes: list[None] = []
+        rack.chainChanged.connect(lambda: changes.append(None))
+
+        rack.refresh()
+
+        assert changes == []
+        assert rack.chain.mix == 0.5
+
+    def test_an_unrecognised_rack_still_renders(self, qapp) -> None:
+        """The panel targets EQ and trim, but must not require them."""
+        panel = EffectRackPanel(EffectChain())
+        assert panel.eq is None and panel.trim is None
+        assert panel.summary() == "FX empty"
+        panel.reset()
+        panel.eq_low.set_value(3.0)  # no crash without an EQ to write to
+
+
+class TestWindowIntegration:
+    def test_the_docks_are_built_and_named(self, window: MainWindow) -> None:
+        assert window.spectrum_dock.widget() is window.spectrum_panel
+        assert window.effects_dock.widget() is window.effect_rack
+        assert window.dockWidgetArea(window.spectrum_dock) == Qt.DockWidgetArea.BottomDockWidgetArea
+        assert window.dockWidgetArea(window.effects_dock) == Qt.DockWidgetArea.RightDockWidgetArea
+
+    def test_loading_a_clip_analyses_it(self, window: MainWindow) -> None:
+        assert window.spectrum_panel.has_data
+        assert "columns" in window.spectrum_panel.info_label.text()
+
+    @pytest.mark.parametrize(
+        ("mode", "editor", "spectrum"),
+        [("waveform", True, False), ("spectrum", False, True), ("split", True, True)],
+    )
+    def test_view_modes_show_the_right_panes(
+        self, window: MainWindow, qapp, mode: str, editor: bool, spectrum: bool
+    ) -> None:
+        window.show()
+        qapp.processEvents()
+
+        window.set_view_mode(mode)
+        qapp.processEvents()
+
+        assert window.view_mode == mode
+        assert window.editor_widget.isVisible() is editor
+        assert window.spectrum_dock.isVisible() is spectrum
+        assert window.effects_dock.isVisible()  # the rack is independent of the mode
+        window.hide()
+
+    def test_the_view_menu_actions_stay_in_step_with_the_mode(
+        self, window: MainWindow
+    ) -> None:
+        window.action_view_spectrum.trigger()
+        assert window.view_mode == "spectrum"
+        assert window.action_view_spectrum.isChecked()
+        assert not window.action_view_waveform.isChecked()
+
+    def test_an_unknown_mode_is_refused(self, window: MainWindow) -> None:
+        with pytest.raises(ValueError, match="unknown view mode"):
+            window.set_view_mode("waterfall")
+
+    def test_selecting_a_range_analyses_only_that_range(self, window: MainWindow) -> None:
+        rate = window.engine.sample_rate
+        window.track_panel.waveform.set_selection(TimeRange(rate // 2, rate))
+
+        assert window.analysis_region() == TimeRange(rate // 2, rate)
+        window.analyze_spectrum()
+
+        assert window.spectrum_panel.has_data
+        assert window.spectrum_panel._offset_s == pytest.approx(0.5)  # noqa: SLF001
+
+    def test_clicking_the_spectrogram_seeks_the_transport(self, window: MainWindow) -> None:
+        window.spectrum_panel.seekRequested.emit(0.5)
+        assert window.engine.position == window.engine.sample_rate // 2
+
+    def test_the_hover_read_out_reaches_the_status_bar(self, window: MainWindow) -> None:
+        window.spectrum_panel.readoutChanged.emit("0.500 s  1000.0 Hz  -20.0 dB")
+        assert "1000.0 Hz" in window.statusBar().currentMessage()
+
+        window.spectrum_panel.readoutChanged.emit("")
+        assert window.statusBar().currentMessage() == ""
+
+    def test_the_rack_is_inserted_in_the_playback_path(self, window: MainWindow) -> None:
+        assert window.engine.output is window.preview
+        assert window.preview.chain is window.effect_chain
+        assert window.effect_rack.chain is window.effect_chain
+        assert "+fx" in window.status_backend.text()
+
+    def test_a_rack_change_is_reported_in_the_status_bar(self, window: MainWindow) -> None:
+        window.effect_rack.trim_gain.set_value(-6.0)
+        assert "Gain" in window.status_fx.text()
+
+        window.effect_rack.bypass_button.setChecked(True)
+        assert window.status_fx.text() == "FX bypassed"
+
+    def test_loudness_is_measured_off_the_ui_thread_and_reported(
+        self, window: MainWindow
+    ) -> None:
+        window.measure_loudness()
+        assert "measuring" in window.status_loudness.text()
+
+        window._loudness_job.result(timeout=30.0)  # noqa: SLF001 - wait for the worker
+        window._collect_loudness()  # noqa: SLF001 - normally driven by the refresh timer
+
+        assert window.loudness is not None
+        # Two 0.5-amplitude sines: -6.02 dB of mean square per channel, summed
+        # over two channels and offset by the -0.691 LU of BS.1770.
+        assert window.loudness.integrated_lufs == pytest.approx(-6.7, abs=0.5)
+        assert "LUFS" in window.status_loudness.text()
+        assert "dBTP" in window.status_loudness.text()
+
+    def test_a_window_with_no_clip_reports_no_loudness(self, qapp) -> None:
+        engine = AudioEngine(NullOutput(realtime=False), block_size=256)
+        main = MainWindow(engine)
+        try:
+            assert main.status_loudness.text() == "Loudness: —"
+            assert not main.spectrum_panel.has_data
+            main.set_view_mode("spectrum")  # must not raise without audio
+        finally:
+            main.close()
 
 
 def test_opening_a_real_file_through_the_window(wav_path: Path) -> None:
