@@ -46,7 +46,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A36 | claude-opus-5-thinking-high-fast | R2-T03 start: `correlation/reduction.py` (Guyan/IRS/SEREP, TAM mass, expansion) + 2-DOF suite (backfill for A32) | complete |
 | A23 | claude-fable-5-thinking-xhigh | Round 1 sign-off audit: independent multi-tip verification & first PR body draft (backfill for A20) | complete |
 | A42 | gpt-5.6-sol-xhigh-fast | 498-test baseline timestamp & current-tip CI verification (backfill for A39) | complete |
-| R2-T02 | claude-opus-5-thinking-high-fast | GAP-02 QUAD4 plane-stress/plane-strain element, patch test & modal suite (backfill for A19) | partial — QUAD4 and TET4 slices landed; HEX8/3D beam open |
+| R2-T02 | claude-opus-5-thinking-high-fast | GAP-02 QUAD4 plane-stress/plane-strain element, patch test & modal suite (backfill for A19) | partial — QUAD4, TET4 and HEX8 landed with AC-ELEM-001..003 registered; 3D beam, shell facet and the solid/shell BDF cards open |
 | A37 | claude-opus-5-thinking-high-fast | Merge the QUAD4 branch onto the trunk and re-verify the suite (backfill for R2-T02) | complete |
 | A35 | claude-fable-5-thinking-xhigh | AC-DYN registration (backfill for A28): found R2-T01 had landed it mid-run; dropped the duplicate, verified the head | complete |
 | A45 | gpt-5.6-sol-xhigh-fast | Current-tip 595-test/Ruff verification and PR-draft refresh (backfill for A37) | complete |
@@ -56,6 +56,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A44 | claude-opus-5-thinking-high-fast | Tag AC-WORK-001/002/004/005 and AC-UPD-007; new `tests/acceptance/test_workflow.py` (backfill for A23) | complete |
 | A43 | claude-opus-5-thinking-high-fast | R2-T03: AC-CORR-006 acceptance gate (reduced- vs expanded-space pairing) and its registration (backfill for A36) | complete |
 | A46 | claude-opus-5-thinking-high-fast | R2-T02 continued: TET4 constant-strain tetrahedron, Kuhn tet-block mesh, 3D patch suite (backfill for A42) | complete |
+| A59 | claude-opus-5-thinking-high-fast | R2-T02 continued: HEX8 trilinear brick, hex-block mesh, and the AC-ELEM-001..003 registration over QUAD4/TET4/HEX8 (backfill for A46) | complete |
 | A64 | claude-fable-5-thinking-xhigh | Chinese quickstart user guide `docs/USER_GUIDE_zh.md`: install, CLI, workflow, FEMtools mapping (backfill for A52) | complete |
 | A54 | claude-opus-5-thinking-high-fast | `openfemlab correlate-frf`: the CLI surface over `correlation/frf.py`, closing the last R2-T01 exit item (backfill for A41) | complete |
 | A62 | gpt-5.6-sol-xhigh-fast | Superseded-branch closure record and current-trunk verification (backfill for A40) | complete |
@@ -2475,3 +2476,95 @@ uncommitted AC-UPD-004/005 tree — the shared-checkout hazard the earlier entri
 describe for `/workspace`, but one directory further out. The work was rebuilt in a
 uniquely named directory and pushed immediately after each commit. Private
 worktrees are only private if their names are unlikely to collide.
+
+#### A59 — R2-T02 continued: HEX8 brick and the AC-ELEM-001..003 registration (backfill for A46)
+
+The third element slice closes the *continuum* half of GAP-02 and, with it, the
+spec-first debt A46 deliberately left standing: the element family now has acceptance
+criteria, and they are gated on all three formulations rather than on the new one.
+
+**`Hex8Element` (`core/elements.py`).** The 8-node trilinear brick in the CHEXA/VTK
+corner order (`-ζ` face counter-clockwise, then `+ζ`), `K = ∫BᵀDB dV` and
+`M = ρ∫NᵀN dV` on a `gauss_legendre_3d` tensor rule (2×2×2 default), row-sum lumping,
+and strain/stress recovery at any natural point. It reuses `solid_constitutive_matrix`
+rather than re-deriving `D` — the seam A46 extracted for exactly this. Three quadrature
+facts decide what the element is *exact* at, so all three are pinned by tests rather
+than assumed: `det J` of a trilinear map is degree ≤ 2 per direction, so the **volume**
+and the **mass row sums** (hence the total mass and the whole lumped matrix) are
+integrated exactly by the default rule on *any* hexahedron, while the off-diagonal
+consistent-mass terms are only quadrature-approximated on a distorted brick (0.09 %
+against `integration_order=3`, and exact on any parallelepiped).
+
+**Meshing.** `hex_block_mesh` plus `MeshBuilder.add_hex8`. Its node numbering is
+identical to `tet_block_mesh`'s — the structured grid both need is now one `_box_grid`
+helper — so the two generators are interchangeable discretizations of the same box and
+can be compared element for element, which the bending test below does.
+
+**`tests/test_hex8.py`, 76 tests.** The 3D MacNeal–Harder patch (27 elements, interior
+nodes pulled 20 % off the grid) recovers the interior displacements to **2.8e-16** and
+the constant stress to 2.5e-15 — and, unlike TET4, the stress is sampled at four natural
+points per element rather than one, because a trilinear element could pass at the
+centroid and fail elsewhere. Exactly six zero-energy modes under full integration and
+exactly eighteen (6 rigid + 12 hourglass) under `integration_order=1`; axial modes
+converge from above at ratios 4.005/4.001; a roller-supported block returns `σxx = Eε`
+with `−νε` contractions to 1e-10.
+
+**The headline comparison.** Against the Euler–Bernoulli cantilever the brick is
+**+89 %** at one element through the thickness (shear locking, pinned so it is not
+mistaken for a bending element) but **+8.0 %** at 2475 DOF, where TET4 on the *same*
+grid is still **+25 %** — a 3× accuracy gap at equal DOF count, which is the concrete
+reason a mesher should prefer hexes. Both numbers are asserted, so neither can drift.
+
+**AC-ELEM-001..003 registered, atomically and with QUAD4/TET4 evidence.** Module **M7**
+(`ELEM` family) is new: `MODULE_SPEC.md` §8 (MS-8.1 contract, MS-8.2 formulations,
+MS-8.3 completeness/stability, MS-8.4 mass and convergence, MS-8.5 API — the seventh
+module takes `MS-8` because MS-6 is the contracts section), `ACCEPTANCE_CRITERIA.md` §8
+with the enforcement contract renumbered to §9, the registry rows, and
+`tests/acceptance/test_elements.py` all in one commit, as the spec-first rule and the
+registry's two-way status check require. The pinned inventory moves **40 → 43**
+(M7 = 3, so 35 `implemented` / 8 `specified`) and
+`VALID_MODULES`/`FAMILY_TO_MODULE`/`ID_REGEX` grow the family.
+
+- **AC-ELEM-001** (P0, `oracle`, MS-8.3) — patch test exact to machine precision.
+- **AC-ELEM-002** (P0, `property`, MS-8.3) — rigid-body invariance plus the exact
+  zero-energy mode count, at element and at assembly level. This is the precondition
+  AC-MODAL-004 leans on.
+- **AC-ELEM-003** (P1, `property`, MS-8.4) — quadratic h-convergence against the
+  continuum bar `c/(4L)`; the gate is the *observed order* in [1.8, 2.2], not just a
+  ratio, so a lucky pair of meshes cannot pass it.
+
+Each is parametrized over an `ELEMENT_CASES` table covering **QUAD4, TET4 and HEX8**
+(24 cases), so the criteria describe the library rather than the newest element, and a
+future formulation is covered by adding a row. Measured: patch defects 1.5e-16 /
+2.8e-16 / 2.8e-16 and convergence ratios 4.005 / 4.095 / 4.005. QUAD4 and HEX8 return
+*identical* axial numbers, which is the expected result rather than a coincidence — with
+`ν = 0` and lateral motion suppressed both reduce to the same 1D axial discretization.
+
+Verified from a private clone with `PYTHONPATH` pinned to it, Python 3.12.3 /
+NumPy 2.5.2 / SciPy 1.18.1, at the rebuilt tip on the current trunk: full suite
+**976 passed, 0 failed** (158 s), `ruff check .` clean. That is the trunk's **876**
+plus exactly the **100** this slice adds (76 in `tests/test_hex8.py`, 24 in
+`tests/acceptance/test_elements.py`).
+
+**Working-tree hazard, and two new variants of it.** Two agents were writing
+`/workspace` at once. This slice's `git add -A` swept a concurrent agent's in-flight
+`solver/modal.py`/`exceptions.py` edits into its first commit, and minutes later that
+agent's commit swept *this* slice's uncommitted AC-ELEM registration (both documents,
+the registry rows and `tests/acceptance/test_elements.py`) into theirs — on this
+branch. Then the fallback failed too: the private clone this run made at `/tmp/.a59-*`
+was itself checked out and `reset --hard` by another agent within minutes, so a private
+clone is only safe under a path nobody will guess, and the only durable store is the
+remote. Resolution: the entangled branch `cursor/hex8-solid-element-d0b7` is
+**superseded and must not be merged** — the other agent's AC-MODAL work reached the
+trunk independently (AC-MODAL-007/009 are `implemented` there from their own landing),
+so merging that branch would fork a second copy of it. This slice was rebuilt clean on
+the current trunk as `cursor/hex8-brick-ac-elem-d0b7`, carrying only the five element
+files plus the three registration edits. Two rules follow: in a shared checkout never
+stage with `git add -A` — stage explicit paths — and push as soon as a slice is
+coherent.
+
+**Remaining on R2-T02**, unchanged: the 3D two-node beam, the flat-facet shell with
+drilling DOFs, the `CQUAD4`/`CTETRA`/`CHEXA`/`CBAR`/`PSHELL`/`PSOLID` cards in
+`io/nastran.py`, and the `NeutralModel → Model` conversion that turns an imported block
+into bound elements. AC-ELEM-001..003 need a CI run, not another test, to reach
+`verified`.
