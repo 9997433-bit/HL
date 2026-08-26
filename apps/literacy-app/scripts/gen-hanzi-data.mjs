@@ -89,10 +89,8 @@ function main() {
   }
 
   // 索引文件让运行时可以先判断「本地有没有」，避免无谓的 404。
-  fs.writeFileSync(
-    path.join(outDir, 'index.json'),
-    JSON.stringify({ generatedAt: new Date().toISOString(), chars: written })
-  )
+  // 刻意不写生成时间：这些文件是入库的，带时间戳会让每次构建都把工作区弄脏。
+  fs.writeFileSync(path.join(outDir, 'index.json'), JSON.stringify({ chars: written }))
 
   const kb = (bytes / 1024).toFixed(0)
   console.log(`[hanzi-data] 已生成 ${written.length} 个字的离线笔顺数据（约 ${kb} KB）。`)
