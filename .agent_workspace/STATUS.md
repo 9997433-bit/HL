@@ -1,9 +1,9 @@
 # OpenFEMLab — Status Snapshot
 
-**Recorded by:** A93 (backfill for completed A82) · **Date:** 2026-08-26
-**Branch:** `cursor/femtools-industrial-7aa3` · **Tested code commit:** `e3ef8f8`
+**Recorded by:** A100 (backfill for completed A83) · **Date:** 2026-08-26
+**Branch:** `cursor/femtools-industrial-7aa3` · **Tested code commit:** `c92729a`
 **Pull request:** [PR #5](https://github.com/9997433-bit/HL/pull/5) — open against
-`main`. [`PR_DRAFT.md`](PR_DRAFT.md) is synchronized to this 1,133-test
+`main`. [`PR_DRAFT.md`](PR_DRAFT.md) is synchronized to this 1,168-test
 verification snapshot.
 
 This file supersedes the earlier R2-T01-scoped status note with a full-project
@@ -13,28 +13,21 @@ snapshot.
 
 ## 1. Verification snapshot (independent, this run)
 
-Run from a detached private worktree with `PYTHONPATH` pinned to its `src`,
-after fetching and checking out the remote tip `e3ef8f8`. This snapshot is the
-first taken after the spatial-beam side branch was merged into the integration
-branch (merge `75dd070`, A93) and after the meshio bridge landed. Every commit
-between `e3ef8f8` and this documentation sync touches records only, so the run
-below still describes the branch tip's code.
+Run from a detached private worktree with `PYTHONPATH` pinned to its `src` at
+the pushed tip `c92729a`. This snapshot includes the spatial beam, meshio
+bridge, and the acceptance-registry closure.
 
-- `PYTHONPATH=src python -m pytest` — **1,133 passed, 0 failed** in 74.87 s; a
-  collection-only pass independently confirmed 1,133 tests.
-- A100 independently reconfirmed **1,133 passed, 0 failed** in 28.29 s at
-  `92e387d`; `src/`, `tests/`, and `pyproject.toml` are unchanged through the
-  current documentation tip `73c4032`.
+- `PYTHONPATH=src python -m pytest` — **1,168 passed, 0 failed** in 58.50 s.
 - `ruff check .` — clean, no findings.
-- Acceptance-criteria registry — **44 criteria: 41 `implemented`,
-  3 `specified`, 0 `verified`**. By priority: **P0 34/34 implemented** and
-  **P1 7/10 implemented**. The P0 bar was first cleared at `1e99970` as
+- Acceptance-criteria registry — **44 criteria: 44 `implemented`,
+  0 `specified`, 0 `verified`**. By priority: **P0 34/34 implemented** and
+  **P1 10/10 implemented**. The P0 bar was first cleared at `1e99970` as
   **32/32** on the then-41-row registry; the HEX8 merge then grew the P0 set
   to 34 with AC-ELEM-001/002 arriving already `implemented`, and it has read
   34/34 since (chronology pinned by A84 in `PROGRESS.md`).
-- The count rose by 257 from the prior 876-test snapshot: +42 from the spatial
+- The count rose by 292 from the prior 876-test snapshot: +42 from the spatial
   beam merge (1,089 at `75dd070`, re-run there before this one) and +44 from
-  the meshio bridge.
+  the meshio bridge, followed by +35 from the final registry-closure gates.
 
 Unit suites (796 tests):
 
@@ -54,7 +47,7 @@ Unit suites (796 tests):
 | `test_e2e_workflow.py` | 1 | | `test_frf_correlation.py` | 25 |
 | `test_cli.py` + `test_cli_correlation.py` | 23 | | | |
 
-Acceptance registry and gate suites: **337 tests**.
+Acceptance registry and gate suites: **372 tests**.
 
 ## 2. Round status
 
@@ -84,25 +77,22 @@ Acceptance registry and gate suites: **337 tests**.
 
 | Module | Package | Tests (unit / acceptance) | State |
 |---|---|---|---|
-| M1 Modal analysis (MS-1) | `solver/modal.py` (+ `modal/eigen.py` adapter) | 44 / 98 | Complete for Round-2 scope, incl. typed input validation (MS-1.1). AC-MODAL-001..007 and 009 implemented; only 008 (P1 frequency window) `specified`. |
+| M1 Modal analysis (MS-1) | `solver/modal.py` (+ `modal/eigen.py` adapter) | 44 / 120 | Complete for Round-2 scope, incl. typed input validation and frequency-window extraction. AC-MODAL-001..009 are implemented. |
 | M2 Correlation (MS-2) | `correlation/` (mac, metrics, pairing, align, reduction, frf, report) | 52 + 32 + 25 | Engine complete incl. Guyan/IRS/SEREP + TAM and the schema-1.1 FRF block; the report now parses back from its own JSON. AC-CORR-001..009 all implemented. |
-| M3 Model updating (MS-3) | `updating/` | 57 + 36 | LM/GN with analytic Fox–Kapoor + MAC sensitivities complete; Bayesian MAP estimator landed and gated. AC-UPD-001..007 incl. 006a/b implemented; only 008 (P1 mode switching) remains `specified`. |
-| M4 Correction workflow (MS-4) | `workflow/` | 41 | Complete (S1–S6, gates, collinearity screen, Laplace or least-squares σ_post, reproducible report). AC-WORK-001/002/004/005 and AC-UPD-007 implemented; AC-WORK-003 `specified`. |
+| M3 Model updating (MS-3) | `updating/` | 57 + 36 | LM/GN with analytic Fox–Kapoor + MAC sensitivities complete; Bayesian MAP estimator landed and gated. AC-UPD-001..008 incl. 006a/b are implemented. |
+| M4 Correction workflow (MS-4) | `workflow/` | 41 | Complete (S1–S6, gates, collinearity screen, held-out validation, Laplace or least-squares σ_post, reproducible report). AC-WORK-001..005 and AC-UPD-007 are implemented. |
 | M5 Optimization (MS-5) | `optimization/` | 27 / 15 | Sizing complete (GAP-12 closed) with bound-active KKT oracles; shape variables fall back to finite differences. AC-OPT-001..004 implemented. |
 | M6 Damped dynamics (MS-7) | `solver/dynamics.py` | 82 / 13 | Complete; FRF updating residual deferred to Round 3. AC-DYN-001..005 implemented. |
 | Core, elements & mesh | `core/`, `mesh/` | 18 + 42 + 61 + 66 + 76 + 17 (contracts) | Partial: 1D set, spatial beam, QUAD4, TET4, and HEX8 landed; the shell facet remains open. |
 | IO | `io/` | 13 + 5 + 6 + 44 | Partial: native YAML/JSON round trip, UFF 55/58 reader, BDF `GRID`/`CROD`/`MAT1`, meshio bridge (optional `[io]` extra; its 44 tests skip without it). UNV 2411/2412, solid/shell cards, UFF writing open; no AC-IO rows registered. |
 | CLI | `cli/` | 23 + 16 (+1 e2e) | `modal` / `correlate` / `update` / `correlate-frf` complete end to end. |
-| QA / infra | `tests/acceptance/`, CI | 337 acceptance + 5 boundary + 4 perf + 3 scaffold | Registry enforcement green; CI matrix 3.10–3.13; Ruff missing from CI (R2-T09). |
+| QA / infra | `tests/acceptance/`, CI | 372 acceptance + 5 boundary + 4 perf + 3 scaffold | Registry enforcement green; CI matrix 3.10–3.13 runs pytest and Ruff. |
 
 ## 4. Open gaps (priority order)
 
-1. **Registry closure.** Every P0 criterion is `implemented` (**34/34**); 3 of
-   44 remain `specified` (all P1: AC-MODAL-008, AC-UPD-008, AC-WORK-003) and nothing
-   has been advanced to `verified`, which the Round-2 exit bar requires for
-   every P0+P1 criterion. All three cover gate
-   behaviour that already exists and is unit-tested — these are
-   acceptance-test-and-tagging tasks, not feature work.
+1. **Registry promotion.** All 44 criteria are `implemented` (**34/34 P0,
+   10/10 P1**). Nothing has yet been advanced to `verified`, which the Round-2
+   exit bar requires for every P0+P1 criterion.
 2. **R2-T02 remainder** (P0): the shell facet and the
    `CQUAD4`/`CTETRA`/`CHEXA`/`PSHELL`/`PSOLID` BDF cards (HEX8 and the
    AC-ELEM-001..003 registrations landed with the `5641d75` merge; the
@@ -137,6 +127,6 @@ Acceptance registry and gate suites: **337 tests**.
 Since the earlier snapshot, AC-CORR-008 supplied the final P0 acceptance gate;
 AC-UPD-006a/b and the Laplace σ_post report integration landed; the 42-test
 spatial beam slice was merged into the integration branch and its side branch
-deleted; and the meshio bridge opened R2-T05. The registry stands at **44 rows
-— 41 `implemented` / 3 `specified`, including P0 34/34 implemented** — and the
-suite at **1,133 passed**.
+deleted; the meshio bridge opened R2-T05; and the last three acceptance gates
+closed. The registry stands at **44/44 `implemented` (34 P0 + 10 P1)**, and the
+suite at **1,168 passed**.
