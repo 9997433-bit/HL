@@ -198,7 +198,23 @@ min_{λ, μ ≥ 0}  ‖ df/dx + Σ_k λ_k dg_k/dx + μ_bounds ‖
 ```
 
 and returns the residual relative to the gradient scale. Zero means the
-first-order KKT conditions hold at the solution.
+first-order KKT conditions hold at the solution. Only the *active* constraints
+are handed to that solve: complementary slackness (`λ_k g_k = 0`) forbids a
+nonzero multiplier on a strictly satisfied constraint, and admitting one would
+let it cancel the residual and certify a non-stationary point.
+
+**Hessians (trust-constr only).** trust-constr needs a Lagrangian Hessian and
+the package has no second derivatives, so it approximates one. Constraint
+curvature is neglected — the usual SQP approximation, and a necessary one here:
+scipy's default is a per-constraint BFGS, which degenerates when the jacobian is
+constant, and the canonical sizing constraint (a mass budget) is exactly linear.
+With the default, the two-variable payload-placement problem of §8 exhausts
+`maxiter` while warning once per evaluation; with a zero constraint Hessian it
+converges in 23 iterations. This costs step quality, not correctness — the
+gradients that drive the KKT test are exact either way. The *objective* Hessian
+is still quasi-Newton unless the caller passes an exact one as
+`options={"hess": …}`, which is worth doing for a minimum-mass objective,
+because that objective is linear and its exact Hessian is zero.
 
 **Status.** Wired and gated. AC-OPT-002 is verified against the closed-form
 optimum of §8 (objective within 1e-4 relative, active `|g| ≤ 1e-6`), AC-OPT-003

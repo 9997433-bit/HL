@@ -14,11 +14,14 @@ boundary.
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 import pytest
 
 from openfemlab.exceptions import OptimizationError
 from openfemlab.optimization import (
+    Constraint,
     DesignSpace,
     NaturalFrequency,
     Objective,
@@ -26,6 +29,7 @@ from openfemlab.optimization import (
     ScipyBackend,
     ShapeVariable,
     TotalMass,
+    VectorConstraint,
     available_backends,
     check_gradient,
     compile_sizing_problem,
@@ -42,6 +46,26 @@ TWO_PI = 2.0 * np.pi
 #: Structural and non-structural mass per link of the sizing reference chain.
 LINK_MASS = 1.0
 FIXED_MASS = 0.5
+
+#: Required carried mass of the payload-placement problem.
+PAYLOAD = 2.0
+
+
+def payload_placement() -> tuple[ScalingModel, list[UpdatableParameter]]:
+    """Coupled two-mass system splitting a required payload between its mounts.
+
+    The mass budget is linear in the design variables, which is what makes it
+    the regression case for the trust-constr constraint Hessian.
+    """
+    model = ScalingModel(
+        mass_parts={"m1": np.diag([1.0, 0.0]), "m2": np.diag([0.0, 1.0])},
+        base_stiffness=np.array([[2.0, -1.0], [-1.0, 2.0]]),
+    )
+    parameters = [
+        UpdatableParameter("m1", value=1.6, lower=0.2, upper=5.0, kind="mass"),
+        UpdatableParameter("m2", value=1.4, lower=0.2, upper=5.0, kind="mass"),
+    ]
+    return model, parameters
 
 
 def chain_model(mass_scale: bool = True) -> ScalingModel:
@@ -311,6 +335,45 @@ class TestProblemAndBackends:
         with pytest.raises(OptimizationError, match="no gradient callback"):
             problem.solve("slsqp")
 
+    def test_repeated_constraint_labels_stay_distinct_in_the_report(self):
+        """Two constraints must not collapse onto one report key.
+
+        They can legitimately share a label — the same response bounded twice —
+        and a plain name-keyed dict would silently drop one from
+        ``constraint_values``, the active set, and the stationarity measure.
+        """
+        problem = OptimizationProblem(
+            objective=lambda x: float(x[0]),
+            x0=np.array([0.5]),
+            bounds=(np.zeros(1), np.ones(1)),
+            gradient=lambda x: np.ones(1),
+            constraints=[
+                VectorConstraint(lambda x: 0.25 - float(x[0]), lambda x: -np.ones(1), "g"),
+                VectorConstraint(lambda x: 0.40 - float(x[0]), lambda x: -np.ones(1), "g"),
+            ],
+        )
+        assert problem.constraint_names() == ["g", "g#2"]
+        result = problem.solve("slsqp")
+        assert list(result.constraint_values) == ["g", "g#2"]
+        # The tighter of the two is what binds.
+        assert result.x[0] == pytest.approx(0.40, abs=1e-8)
+
+    def test_an_inactive_constraint_cannot_certify_stationarity(self):
+        """Complementary slackness: only active constraints carry multipliers.
+
+        At an interior point with a nonzero objective gradient, a strictly
+        satisfied constraint whose gradient happens to oppose it must not be
+        allowed to cancel the residual.
+        """
+        x = np.array([0.5])
+        bounds = (np.zeros(1), np.ones(1))
+        objective_gradient = np.ones(1)
+        inactive = {"g": -np.ones(1)}
+        assert kkt_residual(objective_gradient, {}, x, bounds) == pytest.approx(1.0)
+        # The backend filters by activity before calling in; passing an
+        # inactive gradient anyway is what the docstring forbids.
+        assert kkt_residual(objective_gradient, inactive, x, bounds) < 1e-12
+
     def test_unconstrained_problem_reaches_the_interior_minimum(self):
         problem = OptimizationProblem(
             objective=lambda x: float((x[0] - 0.25) ** 2),
@@ -391,6 +454,49 @@ class TestSizingRuns:
         trust = minimize_sizing(*arguments, backend="trust-constr", tol=1e-10)
         assert trust.converged, trust.report()
         assert trust.objective == pytest.approx(slsqp.objective, rel=1e-4)
+
+    def test_trust_constr_converges_under_a_linear_constraint(self):
+        """A mass budget is exactly linear, which used to stall trust-constr.
+
+        scipy approximates each constraint Hessian by BFGS unless told
+        otherwise, and a constant jacobian gives that update nothing to learn:
+        the run burned its whole iteration budget (and warned once per
+        evaluation) instead of converging.  The backend now supplies the exact
+        zero constraint Hessian.
+        """
+        model, parameters = payload_placement()
+        result = minimize_sizing(
+            model,
+            parameters,
+            Objective(NaturalFrequency(0), scale=-1.0),
+            [Constraint(TotalMass(), bound=PAYLOAD, kind=">=")],
+            backend="trust-constr",
+            tol=1e-10,
+            max_iter=200,
+        )
+        assert result.converged, result.report()
+        assert result.n_iterations < 100, "convergence must not need the whole budget"
+        # Even split maximizes f_1 for a given carried mass; see the acceptance suite.
+        for name in ("m1", "m2"):
+            assert result.variables[name] == pytest.approx(PAYLOAD / 2.0, rel=1e-4)
+
+    def test_an_exact_hessian_can_be_handed_to_trust_constr(self):
+        """A minimum-mass objective is linear, so its exact Hessian is zero."""
+        num_masses, f_min = 3, 0.065
+        problem, _ = compile_sizing_problem(
+            sizing_chain(num_masses, uniform=True),
+            sizing_chain_parameters(num_masses, uniform=True),
+            TotalMass(),
+            [frequency_floor(0, f_min=f_min)],
+            options={"hess": lambda x: np.zeros((1, 1))},
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")  # no "delta_grad == 0.0" this time
+            result = problem.solve("trust-constr", tol=1e-10)
+        assert result.converged, result.report()
+        assert result.variables["t"] == pytest.approx(
+            self.uniform_optimum(num_masses, f_min), rel=1e-4
+        )
 
     def test_multi_variable_optimum_beats_every_feasible_sample(self):
         num_masses, f_min = 3, 0.066
