@@ -24,6 +24,19 @@ import numpy as np
 from .mac import mac
 from .metrics import frequency_error_matrix
 
+
+def _json_float(value: float | None) -> float | None:
+    """Map a non-finite scalar onto ``null``.
+
+    RFC 8259 has no ``NaN`` or ``Infinity`` literal, and Python's ``json``
+    emits those bare tokens by default -- an artifact only Python can read
+    back. Both arise here legitimately: an unscored pair carries ``nan`` and a
+    pair against a 0 Hz mode carries an infinite percentage error.
+    """
+    if value is None or not np.isfinite(value):
+        return None
+    return float(value)
+
 __all__ = [
     "ModePair",
     "ModePairing",
@@ -60,10 +73,10 @@ class ModePair:
         return {
             "test_index": self.test_index,
             "fe_index": self.fe_index,
-            "mac": self.mac,
+            "mac": _json_float(self.mac),
             "test_frequency": self.test_frequency,
             "fe_frequency": self.fe_frequency,
-            "frequency_error_pct": self.frequency_error_pct,
+            "frequency_error_pct": _json_float(self.frequency_error_pct),
         }
 
     @classmethod
@@ -71,10 +84,13 @@ class ModePair:
         """Inverse of :meth:`as_dict`; the frequency error is recomputed."""
         test_frequency = payload["test_frequency"]
         fe_frequency = payload["fe_frequency"]
+        mac_value = payload["mac"]
         return cls(
             test_index=int(payload["test_index"]),
             fe_index=int(payload["fe_index"]),
-            mac=float(payload["mac"]),
+            # A frequency-only pairing has no shapes to score, so it carries
+            # ``nan``; ``as_dict`` writes that as ``null`` to stay inside JSON.
+            mac=float("nan") if mac_value is None else float(mac_value),
             test_frequency=None if test_frequency is None else float(test_frequency),
             fe_frequency=None if fe_frequency is None else float(fe_frequency),
         )

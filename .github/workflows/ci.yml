@@ -23,5 +23,30 @@ jobs:
           cache: pip
       - name: Install project
         run: python -m pip install -e ".[dev]"
+      - name: Ruff
+        run: python -m ruff check .
       - name: Test
         run: python -m pytest
+
+  gates:
+    name: Acceptance gates
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install project
+        run: python -m pip install -e ".[dev]"
+      - name: Import check
+        run: python -c "import openfemlab"
+      - name: Lint
+        run: ruff check .
+      - name: Registry consistency
+        run: python -m pytest tests/acceptance/test_criteria_registry.py
+      - name: Verified-criteria gate
+        run: python -m pytest tests/acceptance/test_registry_ci.py
+      - name: Acceptance suites
+        run: python -m pytest -m acceptance

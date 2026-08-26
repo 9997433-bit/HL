@@ -93,6 +93,7 @@ _EXPORTS: dict[str, str] = {
     "SolverConvergenceError": "openfemlab.exceptions",
     "MatrixSymmetryError": "openfemlab.exceptions",
     "MatrixDefinitenessError": "openfemlab.exceptions",
+    "MissedModesWarning": "openfemlab.exceptions",
     "OptimizationError": "openfemlab.exceptions",
 }
 
@@ -144,6 +145,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from .exceptions import ElementError as ElementError
     from .exceptions import MatrixDefinitenessError as MatrixDefinitenessError
     from .exceptions import MatrixSymmetryError as MatrixSymmetryError
+    from .exceptions import MissedModesWarning as MissedModesWarning
     from .exceptions import ModelError as ModelError
     from .exceptions import OpenFEMLabError as OpenFEMLabError
     from .exceptions import OptimizationError as OptimizationError

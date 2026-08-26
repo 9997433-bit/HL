@@ -4,8 +4,8 @@ Audit date: 2026-08-26
 Initial integration snapshot audited and tested: `cursor/femtools-industrial-7aa3` at `8604807`
 
 These remote branches no longer carry work that should be merged. Delete them after
-review; no GitHub pull request (open or closed) is associated with any of the seven.
-All seven were deleted from `origin` on 2026-08-26.
+review; no GitHub pull request (open or closed) is associated with any of the eight.
+All eight were deleted from `origin` on 2026-08-26.
 
 | Branch | Deleted remote tip | Relationship to trunk | Deletion status |
 |---|---|---|---|
@@ -16,6 +16,7 @@ All seven were deleted from `origin` on 2026-08-26.
 | `cursor/optimization-acceptance-gates-2414` | `00572d8` | The remote tip is an ancestor of trunk and has zero branch-only commits. Its strengthened AC-OPT-002/003 gates and documentation entered trunk through A52's merge. | **Deleted from `origin` as fully merged.** |
 | `cursor/ac-corr-009-tam-orthogonality-113b` | `927f164` | The remote tip is an ancestor of integration tip `9052f95` and has zero branch-only commits. Its AC-CORR-009 registration and `SensorMap.signs` wiring are already integrated. | **Deleted from `origin` as fully merged.** |
 | `cursor/hex8-brick-ac-elem-d0b7` | `226728b` | The remote tip is an ancestor of integration tip `441f80a` and has zero branch-only commits. Its HEX8 implementation and AC-ELEM-001..003 acceptance slice entered the integration history through merge `8a0f10f`. | **Deleted from `origin` as fully merged.** |
+| `cursor/beam3d-cbar-element-c9a7` | `c5433f7` | The remote tip is an ancestor of trunk and has zero branch-only commits. Its `BeamElement3D` formulation, `MeshBuilder.add_beam3d` seam and 42-test suite entered the integration history through merge `75dd070`, verified at that merge as **1089 passed, 0 failed** with `ruff check .` clean. | **Deleted from `origin` as fully merged.** |
 
 Verification for the original five used the fetched remote tips, not potentially stale
 local branch pointers:
@@ -56,6 +57,19 @@ git rev-list --left-right --count 441f80a...226728b
 28  0
 ```
 
+The A93 follow-up merged and then verified the eighth branch before deletion. Unlike
+the others it was still *unmerged* when the audit ran, so A93 merged it into the
+integration branch first and confirmed the ancestry afterwards:
+
+```text
+git merge-base --is-ancestor origin/cursor/beam3d-cbar-element-c9a7 \
+                             origin/cursor/femtools-industrial-7aa3
+yes
+
+git rev-list --left-right --count 75dd070...c5433f7
+2  0
+```
+
 > [!WARNING]
 > `cursor/hex8-solid-element-d0b7` **MUST NOT be merged**. It is superseded by the
 > integrated `cursor/hex8-brick-ac-elem-d0b7` work and is contaminated with
@@ -67,3 +81,56 @@ The full committed trunk suite passed for the initial five-branch snapshot:
 
 After deletion, `git ls-remote --heads origin` returned no ref for any branch in
 this table.
+
+## A56 registry closure — two more branches to retire
+
+The A56 run produced two remote branches, only one of which should be merged. Both
+were audited at trunk `4668ff6`, the merge that closed the acceptance registry at
+44/44 (**1168 passed, 0 failed**, `ruff check .` clean, collection confirming the
+same 1168).
+
+| Branch | Remote tip | Relationship to trunk | Recommendation |
+|---|---|---|---|
+| `cursor/ac-backfill-a56-r2-02bf` | `89c93a5` | Ancestor of trunk with zero branch-only commits. Its MS-1.2 frequency-window feature, the AC-MODAL-008/UPD-008/WORK-003 suites and the non-finite JSON fix entered the integration history through merge `8bc2ec4`. | **Deleted from `origin` as fully merged.** |
+| `cursor/ac-backfill-a56-02bf` | `03757fe` | Not an ancestor; four branch-only commits. This is the same run's first attempt, based on `7faaf23` and finished against a trunk 60 commits further on. Its `modal.py`, `test_modal.py` and `test_workflow.py` are byte-identical to trunk; its only other content is a second, independent AC-CORR-008 implementation superseded by `1e99970` plus the fix now on trunk. | **Do not merge.** Retained on `origin` as superseded pending separate deletion review. |
+
+```text
+git merge-base --is-ancestor origin/cursor/ac-backfill-a56-r2-02bf \
+                             origin/cursor/femtools-industrial-7aa3
+yes
+git rev-list --left-right --count origin/cursor/femtools-industrial-7aa3...origin/cursor/ac-backfill-a56-r2-02bf
+42  0
+
+git merge-base --is-ancestor origin/cursor/ac-backfill-a56-02bf \
+                             origin/cursor/femtools-industrial-7aa3
+no
+git rev-list --left-right --count origin/cursor/femtools-industrial-7aa3...origin/cursor/ac-backfill-a56-02bf
+110  4
+```
+
+The fully merged R2 branch was deleted from `origin` on 2026-08-26 after its
+`89c93a5` tip was reverified against trunk. The first-attempt branch remains on
+`origin` and must not be merged.
+
+> [!NOTE]
+> The warning above about `cursor/hex8-solid-element-d0b7` being "contaminated with
+> unrelated AC-MODAL-008 commits" no longer describes work at risk of being lost.
+> AC-MODAL-008 was rebuilt against the reviewed trunk and landed in `8bc2ec4`, so
+> that branch holds nothing unique and the warning stands unchanged: do not merge it.
+
+## A116 backfill — R2-T09 verified promotion retired
+
+The R2-T09 promotion branch was verified against integration tip `a3e6375` before
+deletion. Its tip `b7b526b` is an ancestor with zero branch-only commits:
+
+```text
+git merge-base --is-ancestor origin/cursor/r2-t09-verified-promotion-c554 a3e6375
+yes
+
+git rev-list --left-right --count a3e6375...origin/cursor/r2-t09-verified-promotion-c554
+3  0
+```
+
+`cursor/r2-t09-verified-promotion-c554` was deleted locally and from `origin` on
+2026-08-26. A subsequent `git ls-remote --heads origin` confirmed that the remote
+ref is absent.

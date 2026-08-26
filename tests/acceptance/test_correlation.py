@@ -27,7 +27,11 @@ Implemented here
   and parsed back compares equal: settings and pairing table exactly, float
   arrays to 1e-15. The artifact always emits the full schema-1.1 key set, the
   ``frf`` block included as ``null`` when no FRF comparison ran, and a payload
-  that is truncated or carries another schema version is refused.
+  that is truncated or carries another schema version is refused. The scalars
+  that can legitimately be non-finite -- an unscored ``mac``, a percentage
+  error against a 0 Hz mode -- are written as ``null`` rather than as the bare
+  ``NaN``/``Infinity`` tokens RFC 8259 lacks, so the file is readable outside
+  Python.
 - **AC-CORR-009** (twin, MS-2.1/MS-2.2) — the same noise-free sensor data,
   normalized through the TAM mass ``T^T M T``, stays pseudo-orthogonal to the
   analysis modes: paired ``|POC|`` diagonal >= 0.99, off-diagonal <= 0.10.
@@ -1381,27 +1385,40 @@ def test_ac_corr_008_a_report_with_no_shapes_at_all_round_trips_too():
 
 
 @criterion("AC-CORR-008")
-def test_ac_corr_008_that_unknown_mac_is_written_as_a_token_strict_json_lacks():
-    """What the NaN above costs a reader that is not Python.
+def test_ac_corr_008_an_unknown_mac_is_written_as_null_not_as_a_bare_nan():
+    """The artifact stays inside RFC 8259 even where the value is unknown.
 
-    ``json`` writes it as the bare token ``NaN``: the value survives the round
-    trip, which is why the parse above reproduces the report, but the file is
-    not RFC 8259 and a conforming reader (``JSON.parse``, ``serde_json``)
-    rejects it -- as does ``json`` itself the moment ``allow_nan=False`` is
-    asked for. Every report built from mode shapes, which is what the CLI
-    publishes, is conforming, so this bounds the exposure to the shape-free
-    case rather than excusing it. The same NaN is why comparing the two
-    payloads with ``==`` fails here: NaN is not equal to itself, and that is
-    not a round-trip failure.
+    ``json`` would write the NaN above as the bare token ``NaN``, which every
+    conforming reader (``JSON.parse``, ``serde_json``) rejects -- the value
+    would survive a Python round trip while the file stayed unreadable to
+    anything else. The pairing table encodes it as ``null`` instead, so
+    "unknown" is expressible without leaving the format, and the parse above
+    is what shows ``null`` comes back as NaN rather than as a zero.
     """
     report = _frequency_only_report()
     text = report.to_json()
-    payload = json.loads(text)
 
-    assert '"mac": NaN' in text
+    def _reject(token: str) -> float:
+        raise AssertionError(f"artifact carries the non-JSON token {token}")
+
+    payload = json.loads(text, parse_constant=_reject)
+
+    assert "NaN" not in text and "Infinity" not in text
+    assert all(pair["mac"] is None for pair in payload["pairs"])
+    assert all(math.isnan(pair.mac) for pair in CorrelationReport.from_json(text).pairing.pairs)
+
+
+@criterion("AC-CORR-008")
+def test_ac_corr_008_a_non_finite_value_anywhere_else_fails_loudly():
+    """``allow_nan=False`` is the guard that keeps the encoding honest.
+
+    The blocks that legitimately hold a non-finite scalar map it onto
+    ``null`` themselves. Anything left over is a defect, and writing it must
+    raise here rather than produce a file whose reader discovers it.
+    """
+    report = _round_trip_report(with_frf=True)
+    assert json.dumps(report.to_dict(), allow_nan=False)
+
+    report.meta["headroom_db"] = float("inf")
     with pytest.raises(ValueError, match="not JSON compliant"):
-        json.dumps(payload, allow_nan=False)
-    assert all(math.isnan(pair["mac"]) for pair in payload["pairs"])
-    assert payload != report.to_dict()
-
-    assert json.dumps(_round_trip_report(with_frf=True).to_dict(), allow_nan=False)
+        report.to_json()
