@@ -261,7 +261,21 @@ await interact('FSRS：到期卡进入复习队列，未到期卡不进入', `/#
   if (!visible.includes('日')) throw new Error(`到期卡“日”没有进入复习队列：${visible.join('、')}`)
   if (visible.includes('月')) throw new Error('未到期卡“月”错误进入复习队列')
 
-  return `持久化卡=${seeded.count}，到期“日”可见，未来“月”已排除`
+  const opened = await page.evaluate(() => {
+    const card = [...document.querySelectorAll('.cc')].find(
+      (node) => node.querySelector('.cc__char')?.textContent?.trim() === '日'
+    )
+    if (!card || card.getAttribute('aria-disabled') === 'true') return false
+    card.click()
+    return true
+  })
+  if (!opened) throw new Error('到期卡“日”在复习队列中不可打开')
+  await page.waitForFunction(
+    () => location.hash === `#/learn/${encodeURIComponent('日')}`,
+    { timeout: 5000 }
+  )
+
+  return `持久化卡=${seeded.count}，到期“日”可见且可打开，未来“月”已排除`
 })
 
 await interact('200 字字表：分页渲染且所有字可达', '/#/learn', async (page) => {
