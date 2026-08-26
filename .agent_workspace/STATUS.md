@@ -71,7 +71,7 @@ Acceptance registry and gate suites: **388 tests**.
 | Task | Scope | Status |
 |---|---|---|
 | R2-T01 | Dynamics/FRF chain (GAP-04/05) | **Done, including the exit-bar demo** — engine, AC-DYN-001..005, FRF report block (schema 1.1, A41), and the `openfemlab correlate-frf` CLI command (A54, 16 tests). |
-| R2-T02 | 3D element library (GAP-02) | **Partial** — QUAD4 (61 tests), TET4 (66), HEX8 (76), the 42-test spatial `BeamElement3D`, and AC-ELEM-001..003 (24 acceptance cases) are all on the integration branch; the beam arrived with merge `75dd070` (A93) and `cursor/beam3d-cbar-element-c9a7` was deleted from `origin` afterwards. `io/neutral_convert.py` binds an imported block into those formulations (A106, 52 tests), and the flat-facet `ShellQuad4Element` landed with 72 tests (A98), so no element formulation is outstanding. What remains is folding the shell into the AC-ELEM case table, a shell branch in the converter (which today binds an imported `QUAD4` block to the *membrane* element), and the solid/shell BDF cards. |
+| R2-T02 | 3D element library (GAP-02) | **Done** — QUAD4 (61 tests), TET4 (66), HEX8 (76), the 42-test spatial `BeamElement3D` and the flat-facet `ShellQuad4Element` (A98, 72 tests) are all on the integration branch; the beam arrived with merge `75dd070` (A93) and `cursor/beam3d-cbar-element-c9a7` was deleted from `origin` afterwards. `io/neutral_convert.py` binds an imported block into those formulations (A106, 52 tests) and reaches the shell through `quad4_as="shell"` (A129). The three items that kept this partial all closed: the solid/shell BDF cards (A119), the converter's shell branch (A129), and the AC-ELEM case table over the shell (A124) — AC-ELEM-001..003 now run **33 acceptance cases** across QUAD4/TET4/HEX8/SHELL4, 9 of them the shell's. |
 | R2-T03 | Reduction/expansion, TAM (GAP-08) | **Acceptance-complete** — `correlation/reduction.py` (A36), AC-CORR-006/009, and `SensorMap.signs` folding are implemented; AC-CORR-006 is now `verified`. Sparse inputs still densify and must be addressed before GAP-13 scale. |
 | R2-T04 | Bayesian MAP updating (GAP-11 slice) | **Acceptance-complete** — the MS-3.5 MAP estimator with prior/posterior covariance landed (`4b2a416`, now 36 tests), and AC-UPD-006a/b are `implemented` with Laplace σ_post in the `CorrectionReport` (A57, merged to the trunk by A83). Only σ_post in the CLI `update` document is left, and it is outside the acceptance slice. |
 | R2-T05 | meshio bridge + IO completion (GAP-03) | **Partial** — the meshio bridge landed behind the P7 optional-dependency seam (A89, `io/meshio_bridge.py`, 44 tests): `from_meshio`/`to_meshio` over a one-to-one cell-type table, `read_meshio`/`write_meshio`, `MissingDependencyError`. A106's `io/neutral_convert.py` closed the re-analysis half, so `read_meshio` → `neutral_to_model` → `ModalSolver` runs end to end, and A123's `write_uff`/`format_uff` (20 round-trip tests) made UFF datasets 55/58 writable as well as readable. UNV 2411/2412 and the AC-IO-* rows remain open. |
@@ -93,7 +93,7 @@ Acceptance registry and gate suites: **388 tests**.
 | M4 Correction workflow (MS-4) | `workflow/` | 41 | Complete (S1–S6, gates, collinearity screen, held-out validation, Laplace or least-squares σ_post, reproducible report). AC-WORK-001..005 and AC-UPD-007 are covered. |
 | M5 Optimization (MS-5) | `optimization/` | 27 / 15 | Sizing complete (GAP-12 closed) with bound-active KKT oracles; shape variables fall back to finite differences. AC-OPT-001..004 are covered, including one `verified` row. |
 | M6 Damped dynamics (MS-7) | `solver/dynamics.py` | 82 / 13 | Complete; FRF updating residual deferred to Round 3. AC-DYN-001..005 are covered, including one `verified` row. |
-| Core, elements & mesh | `core/`, `mesh/` | 18 + 42 + 61 + 66 + 72 + 76 + 17 (contracts) | Partial: 1D set, spatial beam, QUAD4, TET4, HEX8 and the MITC4 flat-facet shell all landed, so no formulation is outstanding; AC-ELEM-001 is `verified`, but the AC-ELEM case table does not yet include the shell. |
+| Core, elements & mesh | `core/`, `mesh/` | 18 + 42 + 61 + 66 + 72 + 76 + 17 (contracts) | Complete: 1D set, spatial beam, QUAD4, TET4, HEX8 and the MITC4 flat-facet shell all landed, and AC-ELEM-001..003 — all three `verified` — carry a row per formulation, the shell included since A124. |
 | IO | `io/` | 13 + 5 + 20 + 6 + 44 + 52 | Partial: native YAML/JSON round trip, UFF 55/58 reader and writer, BDF `GRID`/`CROD`/`MAT1`, meshio bridge (optional `[io]` extra; its 44 tests skip without it), `NeutralModel` → `Model` conversion. UNV 2411/2412 and solid/shell cards open; no AC-IO rows registered. |
 | CLI | `cli/` | 23 + 16 (+1 e2e) | `modal` / `correlate` / `update` / `correlate-frf` complete end to end. |
 | QA / infra | `tests/acceptance/`, CI | 388 acceptance + 5 boundary + 4 perf + 3 scaffold | Registry enforcement green; CI matrix 3.10–3.13 runs pytest, Ruff, and the promotion gate. |
@@ -103,11 +103,10 @@ Acceptance registry and gate suites: **388 tests**.
 1. **Registry promotion.** All 44 criteria are covered (**34/34 P0,
    10/10 P1**): 14 are `verified` and the remaining 30 are `implemented`.
    The Round-2 exit bar requires promoting all remaining rows.
-2. **R2-T02 remainder** (P0): the `CQUAD4`/`CTETRA`/`CHEXA`/`PSHELL`/`PSOLID`
+2. ~~**R2-T02 remainder** (P0): the `CQUAD4`/`CTETRA`/`CHEXA`/`PSHELL`/`PSOLID`
    BDF cards, the shell branch in `neutral_convert`, and the AC-ELEM case
-   table over the shell (HEX8 and the AC-ELEM-001..003 registrations landed
-   with the `5641d75` merge; the spatial beam and then the shell landed
-   later). No element formulation is outstanding.
+   table over the shell.~~ **Closed** by A119, A129 and A124 respectively;
+   R2-T02 reads **Done** in the task table above.
 3. **R2-T05 IO completion**: UNV 2411/2412 and the AC-IO-001..003
    registration (the meshio bridge landed with A89, the `NeutralModel` →
    `Model` conversion that makes an imported mesh re-analyzable with A106,

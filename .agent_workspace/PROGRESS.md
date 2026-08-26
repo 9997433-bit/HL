@@ -82,6 +82,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A119 | claude-opus-5-thinking-high-fast | R2-T02/R2-T05: Nastran BDF CQUAD4/CTETRA/CHEXA/CBAR + PSHELL/PSOLID (+30 tests) | complete — 1365 passed at `9704232`, Ruff clean |
 | A121 | gpt-5.6-sol-xhigh-fast | R2-T09 batch promotion: run every remaining implemented criterion through `promote_verified.py --run --apply` | complete — all 30 promoted; registry 44 `verified` / 0 `implemented` |
 | A123 | claude-opus-5-thinking-high-fast | R2-T05: UFF datasets 55/58 writer `write_uff`/`format_uff` (+20 tests) | complete — 1385 passed, Ruff clean |
+| A124 | claude-opus-5-thinking-high-fast | R2-T02 last item: fold `ShellQuad4Element` into the AC-ELEM-001..003 case table (patch, zero-energy count, h-convergence) | complete — 9 shell cases across all three criteria, 1394 passed, Ruff clean |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
@@ -3520,3 +3521,98 @@ those tests are the new `tests/test_nastran.py`, which leaves the existing
 `write_uff`/`format_uff` in `io/uff.py` (+20 round-trip tests in
 `tests/test_uff_write.py`); `tests/_uff58.py` now builds dataset-58 fixtures via the
 library writer. **1385 passed, 0 failed**, Ruff clean on the merged integration branch.
+
+#### A124 — the shell facet joins the AC-ELEM case table
+
+The last item A114 left open on R2-T02. `docs/ACCEPTANCE_CRITERIA.md` §8 has said since
+R2-T02 that "each criterion is checked on **every** formulation in MS-8.2, not on a
+representative one", and the `ELEMENT_CASES` table it refers to stopped at QUAD4, TET4
+and HEX8. `ShellQuad4Element` landed after that sentence was written and was gated only
+by its own developer suite, so the one claim §8 makes about its own completeness was the
+one thing not true of it. **AC-ELEM-001, AC-ELEM-002 and AC-ELEM-003 now all carry a
+`SHELL4` row — 9 cases: 4 + 3 + 2** — and every one of them is in the CI `gates` job,
+since A121 promoted all three criteria to `verified`.
+
+**Three things the suite held as constants had to become properties of the row**, and
+they are the whole reason this was not a one-line table entry.
+
+- *The prescribed state is two states.* A continuum row prescribes one linear
+  displacement field. The shell row prescribes a constant membrane strain **and** a
+  constant curvature at once, because a facet that reproduced only the first would still
+  be an inadmissible plate; what it recovers is the membrane stress, the bending moment,
+  and the transverse shear the exact state leaves at zero.
+- *The fixtures are not axis-aligned.* A facet reports resultants in a frame its own node
+  order fixes, so both the patch and the single element are laid on a plane sharing no
+  axis with the global frame, and every expected resultant is rotated into the reporting
+  facet's frame. Laid in the global XY plane, every facet rotation would be an identity
+  and none of the machinery that makes the element a shell would be under the gate —
+  which the mutation run below confirms is not a hypothetical.
+- *The rigid-body set drops its drilling component.* Rotation about the facet normal is
+  not shell kinematics: the director does not turn about itself, and the drilling
+  stiffness is a penalty on a fictitious DOF (MS-8.2). The six motions carry the director
+  rotation with its normal component projected out — which is what an unsupported shell
+  assembly actually moves along, and the free-assembly half of AC-ELEM-002 confirms
+  exactly six zero frequencies on a `shell_plate_mesh` with the elastic spectrum starting
+  at 114 Hz.
+
+**One gate had to be restated, not just re-parameterized.** AC-ELEM-002 counted
+eigenvalues below `1e-8 · max` and asserted the count equalled the rigid-body nullity.
+On the shell that count was *right for the wrong reason*: the facet's smallest elastic
+mode **is** the drilling penalty, measured at 1.97e-8 of its largest — a factor of two
+above the cut, so a slightly thinner facet would have reported ten zero-energy modes and
+the gate would have been reading fixture geometry rather than element rank. It is now
+the two halves of the same statement — every rigid eigenvalue below `1e-10 · max`
+(measured 1e-16 on all four rows) and eigenvalue number `nullity` above a
+formulation-dependent floor of it (1e-3 for the continuum rows, which sit at 5e-2 to
+2.5e-1; 1e-9 for the shell) — which is strictly stronger for the three existing rows and
+says out loud that where the cut may sit is a property of the formulation.
+
+**AC-ELEM-003 gained a second row rather than a second gate.** The bar oracle reaches a
+shell only through its membrane: fix `UY`, `UZ`, `RX`, `RY`, `RZ` on a shell strip and
+what is left under `c/(4L)` is the QUAD4 membrane, which duly reproduces the QUAD4 row's
+numbers to the digit (6.437e-3 → 1.607e-3 → 4.016e-4, order 2.002 / 2.001). That is worth
+having — it gates the shell's assembly and massless-DOF condensation — but it says
+nothing about curvature. So a simply supported square plate is refined 4 → 8 → 16 against
+the **Reissner–Mindlin** Navier spectrum, `ω² = ω_K²/(1 + D k²/(κGt))`. Rotary inertia is
+absent from that closed form and from the element's default mass matrix alike, so the two
+describe the same theory and the whole error is discretization error: 7.250e-2 → 1.741e-2
+→ 4.311e-3, observed order 2.058 and 2.014. Against the *Kirchhoff* form the error would
+instead stall at the plate's own shear correction and no rate could be measured at all —
+that was checked, not assumed: at `t/L` of 1/100, 1/200 and 1/500 the Mindlin-relative
+error is 7.2507e-2 / 1.7414e-2 / 4.3110e-3 to five digits regardless of thickness, which
+is what a pure discretization error looks like.
+
+**Two gate numbers differ from the continuum rows, and the reasons are in the doc.** The
+patch tolerance is 1e-10, not 1e-12: the facet couples a membrane going as `t`, a bending
+rigidity going as `t³` and two penalties, which puts `cond(K)` of the patch at 1.4e7
+against the continuum patches' ~1e4, so the measured defect is 2.6e-12 rather than the
+1.4e-16 / 1.9e-16 / 2.8e-16 the other three reach. The gate keeps the same two decades of
+headroom over the measurement that `PATCH_TOLERANCE` does. And the finest-mesh
+convergence gate on the plate oracle is 6e-3, not 1e-3, because that oracle's error
+constant is an order of magnitude above the bar's; the *rate* gates (≥ 3.6× per halving,
+observed order in [1.8, 2.2]) are the same numbers the other rows meet.
+
+**The row was checked for teeth, not only for green.** Four mutations of the element,
+each run against all six shell gates: removing the drilling penalty
+(`drilling_factor=0`) and switching to reduced integration (`integration_order=1`) each
+drop eigenvalue 6 to ~1e-17 of the largest and fail the zero-energy gate; replacing the
+MITC4 assumed shear with the directly evaluated field fails the patch displacement
+(4.5e-2), the patch resultants (3.2e-1) and the single-element strain (2.3e-2); and
+collapsing `transformation_matrix` to the identity fails those three plus the rigid-body
+gate. A row that passes on a broken element is not a gate, and this one does not.
+
+**Documentation.** `ACCEPTANCE_CRITERIA.md` §8 now names all four families, points at the
+table that makes the "every formulation" claim mechanical, and carries a *The shell row*
+subsection for the five points above. `MODULE_SPEC.md` MS-8.3 picks up the two-state patch
+and the projected rigid-body set, MS-8.4 the plate oracle.
+
+**Verification.** Full suite **1394 passed, 0 failed** in 21.1 s and `ruff check .` clean,
+at the merge of this branch with trunk `2371256` — exactly the trunk's 1385 plus these 9,
+so the row moves nothing else. The criterion report confirms the split: AC-ELEM-001 16
+tests (4 shell), AC-ELEM-002 12 (3 shell), AC-ELEM-003 5 (2 shell), all passing. Python
+3.12.3, private worktree `/tmp/a124`.
+
+**Process.** The `PYTHONPATH` this run inherited pointed at `/tmp/a119` — another agent's
+worktree, the exact hazard A114 recorded. Pinned to this worktree's own `src` before the
+first measurement. `/workspace` was on a third agent's branch with uncommitted changes
+throughout and was not touched.

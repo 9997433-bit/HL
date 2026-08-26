@@ -33,7 +33,7 @@ the imported-shell modal example (A128), and the A121 closure above.
 | Task | Status |
 |---|---|
 | R2-T01 dynamics/FRF | **COMPLETE** — engine (`acda625`), AC-DYN-001..005 **`verified`**, report `frf` block at schema 1.1 (A41), `openfemlab correlate-frf` CLI (A54). |
-| R2-T02 3D elements | **PARTIAL** — all formulations in `core/elements.py`; `neutral_convert` with `quad4_as="shell"` (A129); Nastran BDF reads CQUAD4/CTETRA/CHEXA/CBAR + PSHELL/PSOLID (A119). Open: fold shell into AC-ELEM case table. |
+| R2-T02 3D elements | **COMPLETE** — all formulations in `core/elements.py`; `neutral_convert` with `quad4_as="shell"` (A129); Nastran BDF reads CQUAD4/CTETRA/CHEXA/CBAR + PSHELL/PSOLID (A119); AC-ELEM-001..003 carry a `SHELL4` row beside QUAD4/TET4/HEX8 (A124), so the "every formulation" claim of ACCEPTANCE_CRITERIA §8 is now mechanical. |
 | R2-T03 reduction/expansion | **ACCEPTANCE-COMPLETE** — engine (A36), AC-CORR-006/009 **`verified`**. Open: sparse inputs. |
 | R2-T04 Bayesian MAP | **ACCEPTANCE-COMPLETE** — estimator (A49), AC-UPD-006a/b **`verified`**, σ_post in `CorrectionReport`. Open: σ_post in CLI `update` document. |
 | R2-T05 meshio & IO | **PARTIAL** — meshio bridge (A89), `neutral_convert` (A106), end-to-end import example (A128), `write_uff`/`format_uff` for datasets 55/58 (A123). Open: AC-IO-001..003 registration, UNV 2411/2412. |
@@ -209,10 +209,12 @@ consistency tests fail.
   field, membrane and bending do not couple inside one facet, and the bending rotary
   inertia is off by default (`rotary_inertia=True` restores it, at the cost of a mass
   matrix ill conditioned enough to trip the modal residual guard on a thin plate).
-  **The AC-ELEM-* rows are registered** (see the acceptance-links bullet below), so
-  what remains open is the solid/shell BDF cards, the shell branch of the neutral-model
-  conversion and folding the shell into the AC-ELEM case table; the task does **not**
-  close. See the R2-T02, A37, A46, A59, A82 and A98 entries in
+  **The AC-ELEM-* rows are registered** (see the acceptance-links bullet below) and
+  since A124 they are parameterized over the facet too, so the patch test, the
+  zero-energy mode count and h-convergence gate it at acceptance level and not only in
+  the developer suite. With the solid/shell BDF cards (A119) and the neutral-model
+  conversion's shell branch (A129) also landed, **the task closes**. See the R2-T02,
+  A37, A46, A59, A82, A98, A119, A124 and A129 entries in
   [`PROGRESS.md`](PROGRESS.md).
 - **Scope:**
   - ~~QUAD4 (plane stress/strain first; shell via flat facet + drilling treatment
@@ -494,9 +496,10 @@ Round 2 is done when, on the integration branch in CI:
    bridge (R2-T05). All three continuum elements are landed, AC-ELEM-001..003 are
    registered, the CBAR-like `BeamElement3D` closed the frame slice (A82, merged at
    `75dd070` by A93) and `ShellQuad4Element` closed the shell slice (A98); **no element
-   formulation is outstanding in `core/elements.py`**. What remains is plumbing — a
-   shell branch in `io/neutral_convert.py`, the solid/shell BDF cards, and folding the
-   shell into the AC-ELEM case table. R2-T05 is unblocked for solid, frame *and* shell
+   formulation is outstanding in `core/elements.py`**. The plumbing that remained after
+   that — the shell branch in `io/neutral_convert.py` (A129), the solid/shell BDF cards
+   (A119) and the shell row in the AC-ELEM case table (A124) — has since landed, so the
+   task is complete. R2-T05 is unblocked for solid, frame *and* shell
    meshes, and A106's `neutral_to_model` connected the two tracks: an imported block now
    reaches the assembler.
 3. **R2-T03 — SEREP/TAM reduction & expansion** (GAP-08) and **R2-T04 Bayesian MAP**
