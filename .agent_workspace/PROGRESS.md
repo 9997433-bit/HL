@@ -80,7 +80,18 @@
 
 ## Round 2 Brief
 
-_(Pending Round 2 dispatch)_
+_(Pending Round 2 completion)_
+
+### Round 2 Dispatch Log (2026-08-26)
+
+| # | Alias | Model Slug | Role | Agent ID | Env | Status |
+|---|-------|------------|------|----------|-----|--------|
+| 1 | fable | claude-fable-5-thinking-xhigh | Round 2 架构收敛审计 | bc-81118806 | cloud | 🔄 |
+| 2 | fable | claude-fable-5-thinking-xhigh | Round 2 SOTA 差距复审 | bc-0247424d | cloud | 🔄 |
+| 3 | opus-fast | claude-opus-5-thinking-high-fast | 引擎重构：EditSession/流式/SPSC | bc-ded8025e | local | 🔄 |
+| 4 | opus-fast | claude-opus-5-thinking-high-fast | DSP/UI 集成 & True Peak 优化 | bc-32308bf7 | local | 🔄 |
+| 5 | gpt-sol | gpt-5.6-sol-xhigh-fast | SLO 基准 & EBU 3341/3342 合规向量 | bc-d70ed740 | local | 🔄 |
+| 6 | gpt-sol | gpt-5.6-sol-xhigh-fast | CI 矩阵 & Round 2 性能报告 | bc-90494473 | local | 🔄 |
 
 ## Round 3 Brief
 
