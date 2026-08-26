@@ -1,10 +1,9 @@
 <script setup>
 /**
- * 环形进度条。数值变化时用 GSAP 补间 stroke-dashoffset，
- * 比直接跳变更容易让孩子注意到「我又前进了一点」。
+ * 环形进度条。数值变化时由 CSS 补间 stroke-dashoffset，
+ * 避免为了一个属性动画把整套动画运行时放进首屏。
  */
-import { computed, onMounted, ref, watch } from 'vue'
-import { gsap } from 'gsap'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 const props = defineProps({
   /** 0 ~ 1 */
@@ -25,21 +24,21 @@ const circumference = computed(() => 2 * Math.PI * radius.value)
 const shown = ref(0)
 const offset = computed(() => circumference.value * (1 - Math.min(1, Math.max(0, shown.value))))
 
-const tween = { v: 0 }
+let frame = null
 
-function animateTo(target) {
-  gsap.to(tween, {
-    v: Math.min(1, Math.max(0, target)),
-    duration: 0.7,
-    ease: 'power2.out',
-    onUpdate: () => {
-      shown.value = tween.v
-    }
+function show(target) {
+  if (frame !== null) cancelAnimationFrame(frame)
+  frame = requestAnimationFrame(() => {
+    shown.value = Math.min(1, Math.max(0, target))
+    frame = null
   })
 }
 
-onMounted(() => animateTo(props.value))
-watch(() => props.value, animateTo)
+onMounted(() => show(props.value))
+onBeforeUnmount(() => {
+  if (frame !== null) cancelAnimationFrame(frame)
+})
+watch(() => props.value, show)
 
 const percent = computed(() => Math.round(shown.value * 100))
 </script>
@@ -93,7 +92,7 @@ const percent = computed(() => Math.round(shown.value * 100))
 }
 
 .ring__bar {
-  transition: stroke var(--dur-mid) ease;
+  transition: stroke var(--dur-mid) ease, stroke-dashoffset 0.7s ease-out;
   filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.12));
 }
 
