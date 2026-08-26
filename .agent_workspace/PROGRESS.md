@@ -23,6 +23,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 |-------|-------|-------|--------|
 | A01 | claude-fable-5-thinking-xhigh | Module spec & acceptance criteria (docs + registry) | complete |
 | A03 | claude-fable-5-thinking-xhigh | SOTA gap audit & Round 1 conclusion (backfill) | complete |
+| A04 | claude-opus-5-thinking-high-fast | Updating sensitivity kernel, updater wiring & test suite | complete |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
@@ -312,15 +313,74 @@ orchestrator to diff against the landed implementation in Round 2.
   |Δf| ≤ 2 %). Same numbers through the `DofMap` pipeline (min MAC 0.999999999999999,
   3 correlation DOFs, 1 unmatched FE DOF). With 2 % shape noise and 0.2 % frequency noise the
   pairing is unchanged and min MAC stays above 0.95.
-- Verified on Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1: `tests/test_correlation.py` 35 passed;
-  full suite 157 tests with the only failure in `tests/test_updating.py`
-  (`test_truncated_mode_shape_sensitivity_keeps_the_dominant_terms`, in-flight work by the
-  updating agent, unrelated to correlation). `ruff check src/openfemlab/correlation
-  tests/test_correlation.py` clean.
+- Verified on Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1: `tests/test_correlation.py` 35 passed,
+  full suite 157 passed. `ruff check src/openfemlab/correlation tests/test_correlation.py`
+  clean.
 - Open for the orchestrator: `cli/analysis.py` carries its own `mac_matrix`/`pair_modes`/
   `common_rows` implementations; the `correlate` command should be repointed at
   `openfemlab.correlation` (and at `CorrelationReport.to_json`) in Round 2 so there is one
   correlation kernel.
+
+#### A04 — Sensitivity Kernel, Updater Wiring & Updating Test Suite
+- Completed `updating/sensitivity.py` against MS-3.3. On top of the Fox–Kapoor eigenvalue
+  sensitivity it now carries `mode_shape_sensitivity` (modal-superposition eigenvector
+  derivatives, with the degenerate-cluster contributions dropped and warned about, since
+  only a cluster's subspace is differentiable), the induced `mac_sensitivity`
+  `dMAC_ii/dp`, and `frequency_sensitivity` folding in the λ → Hz conversion. This makes
+  the MAC residual block differentiable analytically, not just by finite differences.
+- Added `updating/scaling_model.py`: `ScalingModel`, the parametric model for the
+  substructuring form `K(θ) = K_0 + Σ θ_j K_j`, `M(θ) = M_0 + Σ θ_j M_j`. Because the
+  assembly is affine, `∂K/∂θ_j` *is* the contribution matrix, so the whole sensitivity
+  matrix costs one eigensolve per iteration instead of one per parameter. It is callable
+  (so it drops straight into `ModelUpdater`), restricts reported shapes to the sensor DOFs,
+  solves through `solver.modal.ModalSolver` when the core stack is importable and through a
+  dense `scipy.linalg.eigh` otherwise, and exposes `sensitivity_function(names)` matching
+  the updater's analytical-Jacobian signature.
+- Repointed `updating/updater.py` at the correlation layer as A06 restructured it
+  (`mac.mac_value`, `pairing.pair_modes`, `summary.correlation_summary`).
+- **Collision recovery.** The updating stack was unimportable when A04 started: the
+  correlation rewrite had removed the pairing and summary API that `metrics.py` and the
+  updater build on, `updating/parameters.py` had been replaced by a declaration-only
+  `Parameter`, and the root `__init__` eagerly imported a `core.model` that no longer
+  exported `DOF`. Rather than restore the old files, A04 moved the layer to where the
+  rewrite was heading: added `correlation/pairing.py` (the module the new `mac.py` already
+  type-references) and `correlation/summary.py`, merged the declarative `Parameter`
+  alongside the mutable `UpdatableParameter`/`ParameterSet` the optimiser iterates on, and
+  made top-level names resolve lazily (PEP 562) so a leaf subpackage imports without
+  dragging in the whole core stack. A06 then built `report.py` on top of `summary.py`.
+- Added `tests/test_updating.py` (28 tests) as twin experiments on a grouped fixed-free
+  spring/mass chain: measurements are generated from a detuned truth model, the updater
+  starts from the nominal one, so recovery is checked against the truth and not only
+  against a shrinking residual.
+- **Results.** 10-DOF chain, 4 stiffness groups, truth `θ = (0.80, 1.25, 0.95, 1.10)`,
+  6 modes: max |Δf| **3.561 % → 2.1e-12 %**, min MAC **0.857 → 1.000**, cost
+  1.27e-3 → 2.3e-28 in 5 iterations, every factor recovered to machine precision.
+  With only 5 of 10 DOFs instrumented and the MAC residual active: max |Δf|
+  **1.968 % → 4.2e-13 %**, min MAC **0.936 → 1.000** in 7 iterations. With 0.5 % frequency
+  noise and no shapes: 94.2 % cost reduction, all four factors within 0.045 of the truth
+  (no overfitting). Analytical sensitivities match central differences to **< 1e-6
+  relative** (AC-UPD-001) for eigenvalues and to 1e-6 absolute for eigenvectors and
+  `dMAC/dp` (AC-UPD-002). Underdetermined (6 parameters, 2 modes): iterates stay inside
+  the bounds and the cost is monotone over accepted steps (AC-UPD-005).
+- **Two identifiability facts the suite now records rather than papers over.** Eigenvalues
+  only see `K/M`, so leaving every stiffness *and* every mass group free admits a
+  one-parameter family of exact fits — the updater reaches cost 4.3e-26 and lands on the
+  truth scaled by a single common factor (0.9738 across all five parameters). Fixing one
+  mass anchors the scale and the truth is recovered exactly. Likewise two collinear
+  parameters are redundant, not fatal: LM damping alone converges to machine precision and
+  only their sum is observable (2.400 ± 1e-3 recovered from 1.20 + 1.20).
+- Verified on Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1: `tests/test_updating.py` **28
+  passed** (0.31 s), full suite **157 passed** (0.80 s) — including the
+  `test_truncated_mode_shape_sensitivity` case A06 saw failing in flight, now restated as
+  the exact property (a truncated derivative is the mass-orthogonal projection of the exact
+  one onto the retained subspace) and passing to 1e-12. `ruff check` clean on
+  `src/openfemlab/updating`, `src/openfemlab/correlation`, `tests/test_updating.py` and
+  `src/openfemlab/__init__.py`.
+- Open for the orchestrator: the updater's analytical-Jacobian path is used only when the
+  residual has no shape block (it falls back to finite differences otherwise), even though
+  `mac_sensitivity` now makes the MAC rows analytic — wiring the two together is a cheap
+  Round 2 win. MS-3.5 Bayesian MAP and MS-3.6 automatic parameter selection
+  (QR-pivoting collinearity screening) are still unimplemented.
 
 ### Round 2 — Targeted Refactor & Deep Optimization
 **Status:** PENDING
