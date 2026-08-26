@@ -100,7 +100,11 @@ class RingBuffer:
 
     @property
     def overrun_frames(self) -> int:
-        """Frames the producer had to drop because the consumer fell behind."""
+        """Frames refused because the consumer fell behind.
+
+        Stays at zero for a producer that sizes each write to
+        :attr:`available_write`, so a non-zero reading is real backpressure.
+        """
         return self._overrun_frames
 
     @property
