@@ -48,6 +48,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A42 | gpt-5.6-sol-xhigh-fast | 498-test baseline timestamp & current-tip CI verification (backfill for A39) | complete |
 | R2-T02 | claude-opus-5-thinking-high-fast | GAP-02 QUAD4 plane-stress/plane-strain element, patch test & modal suite (backfill for A19) | partial — QUAD4 slice landed; TET4/HEX8/3D beam open |
 | A37 | claude-opus-5-thinking-high-fast | Merge the QUAD4 branch onto the trunk and re-verify the suite (backfill for R2-T02) | complete |
+| A35 | claude-fable-5-thinking-xhigh | AC-DYN registration (backfill for A28): found R2-T01 had landed it mid-run; dropped the duplicate, verified the head | complete |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
@@ -1034,6 +1035,36 @@ new dynamics/element/IO criteria at least `implemented`, GAP-01 stays closed.
   `/tmp/a28/src`. The work was redone in a private detached worktree at `/tmp/r2t01` and
   pushed from there. A13, A15, A21 and A26 all report the same failure mode; the
   private-worktree rule should be mandatory, not advisory.
+
+#### A35 — AC-DYN registration backfill: duplicate dropped, head verified (backfill for A28)
+- Dispatched to register AC-DYN-* criteria (FRF match, damping ratios, FRAC) and wire the
+  first three to `tests/test_dynamics.py` — the item A28 left open ("no AC-DYN-* criteria
+  exist yet"). Built the full registration in a private worktree (`/tmp/a35`, base
+  `b9d26f0`): `DYN` family → M6 with spec anchors MS-7.1..7.4, criteria doc §7, and
+  `@criterion` tags on six existing `tests/test_dynamics.py` cases; 430 passed, Ruff
+  clean at that base.
+- The pre-push fetch showed R2-T01's `a5766f5` had landed the same registration four
+  minutes into this run — same five IDs, different definitions and numbering, bound to a
+  new dedicated suite `tests/acceptance/test_dynamics.py` (13 tests, oracle gates the
+  unit suite doesn't state). Rebasing would have re-registered rival definitions of
+  already-landed IDs, so the duplicate commit (`b51546a`) was **dropped unpushed** and
+  the landed set adopted — the GAP-01 "one implementation" rule applied to criteria.
+- Deliberately did **not** add the tasked `@criterion` tags to `tests/test_dynamics.py`:
+  the registry binds AC-DYN-001..005 to the acceptance suite, and a tag in a suite the
+  registry does not name is exactly the drift the section-8 enforcement rules exist to
+  reject. The unit suite stays the engine's regression net; the acceptance suite carries
+  the criteria.
+- Independent verification at head `3fcc6a6` (Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1,
+  `PYTHONPATH` pinned to the private worktree): full suite **534 passed** (67 s),
+  `pytest -m acceptance` **106 passed**, `ruff check .` clean. Registry now holds
+  **40 criteria, 20 implemented / 20 specified**, with all five AC-DYN `implemented`
+  (A23's audit counted 41 at the previous tip; the registry itself says 40 — worth a
+  one-line reconciliation next audit).
+- Working-tree hazard, still live: `/workspace` was mid-rebase on
+  `cursor/optimization-sizing-hook-254c` with unresolved conflicts when this run
+  started, and the branch tip advanced five times during the run (three of them while
+  this entry was being verified). Concurs with R2-T01: private worktree + fetch-before-
+  push should be mandatory.
 
 #### A26 — Round 1 carry-over cleared: MS-4 workflow landed (backfill for A17)
 - Round 1 closed with the MS-4 `workflow/` package listed as its single largest piece of
