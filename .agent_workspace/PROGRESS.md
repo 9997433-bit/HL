@@ -181,6 +181,24 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
   `core/elements.py` E741, `core/model.py` UP037/E501), and `openfemlab/modal/eigen.py`
   still duplicates the eigen extraction in `solver/modal.py`.
 
+#### A08 — Concurrent Integration Reconciliation
+- Made native IO use the explicit `NeutralModel`, `NeutralMaterial`, and
+  `NeutralProperty` contracts from `core.neutral`; it no longer aliases or imports the
+  internal solver model types from `core.model`.
+- Replaced the duplicate eigensolver in `modal/eigen.py` with a compatibility adapter over
+  `solver/modal.py::ModalSolver`, retaining the portable `DofMap`/`core.results.ModalResult`
+  API while keeping one numerical eigen-extraction implementation.
+- Completed the correlation package seam required by updating and retained compatibility
+  aliases (`auto_mac`, `mac_matrix`); numerically orthogonal modes are no longer paired as
+  valid zero-threshold candidates.
+- Added `tests/test_e2e_workflow.py`: Model → modal solve → correlation → LM update →
+  explicit re-solve → validation. The stiffness scale converged from 0.72 to 1.21 in five
+  iterations; maximum frequency error fell from 22.861078% to 0%, with minimum MAC 1.0
+  (acceptance gates: frequency error <1%, MAC >0.95).
+- Verified the portable modal adapter directly, and `pytest --collect-only -q` collected
+  all 156 current tests without errors. The focused E2E + IO + modal regression run passed
+  all 58 tests.
+
 ### Round 2 — Targeted Refactor & Deep Optimization
 **Status:** PENDING
 
@@ -188,4 +206,38 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 **Status:** PENDING
 
 ## Round Conclusions
-_(filled after each round)_
+
+### Round 1 — Conclusion (DRAFT, pending R1-F1 / R1-O2 completion)
+
+**Delivered.** Round 1 produced a working single-architecture skeleton of the platform:
+packaging/CI/benchmarks (R1-G1), boundary tests and numerical probes (R1-G2), a verified
+core FEM + modal solver — springs/trusses/planar beams, sparse assembly, dense + shift-invert
+eigensolvers, massless-DOF condensation, closed-form validation to 1e-9 (R1-O1), native
+schema-versioned model/result IO (A09), correlation and sensitivity-based updating modules
+(R1-O2, in flight), and the full spec stack: architecture, module spec, 35 quantified
+acceptance criteria with a machine-readable registry (R1-F1/F2/A01), plus a SOTA gap
+analysis (A03).
+
+**Verified.** Modal solutions match analytic chains/bars/beams (≤0.2% worst case, most 1e-9);
+50 repeated eigensolves show zero drift; FD sensitivities match analytic derivatives to
+1.69e-9; modal benchmarks at 10/100/1000 DOF run in 0.7–1.8 ms median.
+
+**Main finding (A03 audit).** Parallel subagents created a split-brain core: two `Model`
+representations, duplicate `ModalResult`/eigensolver paths, and renamed seam symbols that
+left the package unimportable at several points during integration (GAP-01, P0). Beyond
+integration, the platform covers only the "analyze + shape-correlate + update-frequencies"
+slice of the FEMtools workflow: no industrial IO (GAP-03), no damping/FRF chain (GAP-04/05),
+no MPE (GAP-06), no pretest/TAM/expansion (GAP-07/08), optimization is a stub (GAP-12).
+
+**Round 2 priorities (from `docs/SOTA_GAP_ANALYSIS.md` §6).**
+1. Unify the core: one `Model`/`ModalResult` contract, one eigensolver façade, green
+   `import openfemlab` + full suite in CI; seam changes must land atomically with consumers.
+2. Industrial reach: UFF/UNV (55/58/2411/2412) + Nastran BDF subset importers; meshio bridge.
+3. Dynamics chain: damping models, FRF synthesis, harmonic response.
+4. Updating depth: parameter target resolver, assembled dK/dp providers, wired scipy
+   optimization backend, node-mapping for test DOFs.
+5. Element growth: QUAD4/TET4/HEX8 minimum continuum set.
+
+**Round 1 exit bar:** met on module content and spec coverage; **not yet met** on
+integration health (test suite must collect and pass end-to-end before Round 2 refactors
+begin).
