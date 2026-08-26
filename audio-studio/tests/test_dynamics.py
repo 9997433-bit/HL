@@ -8,7 +8,6 @@ import pytest
 from audio_studio.dsp.effects import CompressorEffect, Effect, LimiterEffect
 from audio_studio.dsp.util import db_to_linear, linear_to_db, true_peak_level
 
-
 SR = 48_000
 
 
