@@ -80,9 +80,9 @@ RecordingTake = Take
 class TakeRegistry:
     """Persistent, monotonically numbered recording takes for one session.
 
-    Passing an ``.hlproj`` directory stores ``takes.json`` and the recordings
-    inside that bundle.  Any other path is treated as a sidecar anchor:
-    ``session.wav`` gets ``session.wav.takes.json``.  A path already ending in
+    Passing an ``.hlproj`` or an existing directory stores ``takes.json`` and
+    the recordings inside it. Any other path is treated as a sidecar anchor:
+    ``session.wav`` gets ``session.wav.takes.json``. A path already ending in
     ``.takes.json`` is used as-is.
     """
 
@@ -95,7 +95,7 @@ class TakeRegistry:
         session = Path(session_path).expanduser().resolve()
         self.session_path = session
         self.project_root: Path | None
-        if session.suffix.lower() == ".hlproj":
+        if session.suffix.lower() == ".hlproj" or session.is_dir():
             self.project_root = session
             self.metadata_path = session / _TAKES_JSON
             default_media = session / "takes"

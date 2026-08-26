@@ -73,6 +73,15 @@ def test_non_project_session_uses_a_sidecar(tmp_path: Path) -> None:
     assert TakeRegistry(session).takes[0].path == path.resolve()
 
 
+def test_existing_directory_keeps_metadata_inside_it(tmp_path: Path) -> None:
+    registry = TakeRegistry(tmp_path)
+    path = write_take(registry)
+    registry.register(path, sample_rate=48_000, channels=1, frames=48)
+
+    assert registry.metadata_path == tmp_path / "takes.json"
+    assert registry.takes[0].path.parent == tmp_path / "takes"
+
+
 def test_registry_never_reuses_a_number_after_reload(tmp_path: Path) -> None:
     session = tmp_path / "session.takes.json"
     registry = TakeRegistry(session)
@@ -110,13 +119,17 @@ def test_corrupt_or_unknown_metadata_is_rejected(tmp_path: Path) -> None:
         TakeRegistry(sidecar)
 
 
-def test_main_window_registers_completed_recording_and_lists_it(qapp) -> None:
+def test_main_window_registers_completed_recording_and_lists_it(qapp, tmp_path: Path) -> None:
     recorder = NullRecorder(realtime=False, tone_frequency=220.0)
     main = MainWindow(
         AudioEngine(NullOutput(realtime=False)),
         recorder=recorder,
     )
     try:
+        project = tmp_path / "recording.hlproj"
+        main._project_path = project  # noqa: SLF001 - stand in for an open project
+        main.take_registry = TakeRegistry(project)
+        main._refresh_takes_menu()  # noqa: SLF001
         assert not main.takes_menu.isEnabled()
         main._on_record()  # noqa: SLF001 - exercise the transport slot
         recorder.pump(96)
@@ -130,7 +143,10 @@ def test_main_window_registers_completed_recording_and_lists_it(qapp) -> None:
         assert main.take_registry.metadata_path.is_file()
         assert main.takes_menu.isEnabled()
         assert "Take 001" in main.takes_menu.actions()[0].text()
+        assert main._project_path == project  # noqa: SLF001
+        assert main._project_dirty  # noqa: SLF001 - the take became the waveform document
         assert main.open_take(1)
         assert main.engine.n_frames == 96
     finally:
+        main._mark_project_saved()  # noqa: SLF001 - avoid a close confirmation
         main.close()

@@ -885,7 +885,7 @@ class MainWindow(QMainWindow):
         # waveform document must not turn that project into an untitled file.
         if project_path is not None:
             self._project_path = project_path
-            self._update_window_title()
+            self._mark_project_dirty()
         self.statusBar().showMessage(f"Opened {entry.name}", 4000)
         return True
 
@@ -1932,6 +1932,7 @@ class MainWindow(QMainWindow):
 
     def _finish_recording(self) -> None:
         target = self._recording_path
+        project_path = self._project_path
         try:
             captured = self.recorder.stop()
         except (AudioLoadError, RecorderDeviceError, OSError) as exc:
@@ -1962,6 +1963,9 @@ class MainWindow(QMainWindow):
             take = None
         self._refresh_takes_menu()
         if self.open_file(target, preserve_take_registry=True):
+            if project_path is not None:
+                self._project_path = project_path
+                self._mark_project_dirty()
             label = take.name if take is not None else target.name
             self.statusBar().showMessage(
                 f"Recorded {label} · {format_timecode(captured.duration)}", 5000
