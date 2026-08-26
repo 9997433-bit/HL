@@ -5,11 +5,13 @@ import gsap from 'gsap'
 import MascotBot from '@/components/MascotBot.vue'
 import { useProgressStore } from '@/stores/progress.js'
 import { useFeedback } from '@/composables/useFeedback'
+import { sudokuSkill } from '@/data/skill-mapping.js'
 import { conflictsOf, generatePuzzle, nextHint } from '@/utils/sudoku'
 import { sound } from '@/utils/sound'
 
 const MODULE_ID = 'sudoku'
 const BOARD_SIZE = 4
+const SKILL = sudokuSkill(BOARD_SIZE)
 const DIFFICULTIES = [
   { id: 'easy', label: '简单', clues: 9, emoji: '🌱', stars: 3 },
   { id: 'normal', label: '普通', clues: 7, emoji: '🔥', stars: 4 },
@@ -130,7 +132,7 @@ function place(n) {
 
   if (solution.value[i] !== n) {
     mistakes.value += 1
-    progress.recordAnswer(MODULE_ID, false, { skill: 'sudoku-4' })
+    progress.recordAnswer(MODULE_ID, false, { skill: SKILL })
     fxWrong(cellEl)
     mood.value = 'sad'
     message.value = '这个数字在这一行、列或宫里重复啦，再想想～'
@@ -177,7 +179,7 @@ function checkSolved(anchor) {
   const penalty = Math.min(base - 1, hintsUsed.value + Math.floor(mistakes.value / 2))
   const stars = Math.max(1, base - penalty)
 
-  progress.recordAnswer(MODULE_ID, true, { skill: 'sudoku-4', stars, xp: 20 + base * 4 })
+  progress.recordAnswer(MODULE_ID, true, { skill: SKILL, stars, xp: 20 + base * 4 })
   progress.bumpCounter('sudokuSolved')
   progress.finishSession(MODULE_ID, {
     correct: 1,

@@ -8,6 +8,7 @@ import RoundSummary from '@/components/RoundSummary.vue'
 import { useProgressStore } from '@/stores/progress.js'
 import { useFeedback } from '@/composables/useFeedback'
 import { numericOptions, randInt, sample } from '@/utils/random'
+import { arithmeticSkill } from '@/data/skill-mapping.js'
 import { sound } from '@/utils/sound'
 
 const ROUND_SIZE = 10
@@ -118,13 +119,6 @@ const numberLine = computed(() => {
 
 /* ---------- 判题 ---------- */
 
-/** 映射到 curriculum 技能点，让自适应掌握度引擎能收到反馈。 */
-function skillOf(q) {
-  if (level.value === 100) return 'add-within-100'
-  if (level.value === 20) return q.kind === 'add' ? 'add-carry-20' : 'sub-borrow-20'
-  return q.kind === 'add' ? 'add-within-10' : 'sub-within-10'
-}
-
 /**
  * 错因归类：个位相加过 10 却答错多半是忘进位，个位不够减则是忘退位。
  * 家长报告里按这些标签统计薄弱点。
@@ -144,7 +138,7 @@ function grade(value, anchor) {
   const q = current.value
   const right = value === q.answer
   marks.value[index.value] = right ? 'ok' : 'no'
-  const skill = skillOf(q)
+  const skill = arithmeticSkill({ level: level.value, kind: q.kind })
 
   if (right) {
     const elapsed = Date.now() - questionStart.value

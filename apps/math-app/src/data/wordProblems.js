@@ -1,7 +1,17 @@
 /**
  * 生活行星应用题母题库。
  * 每个母题都是一个生成器：调用 make() 会随机出一道数值不同、结构相同的新题，
- * 因此 16 个母题可以覆盖上百道不重复的练习。
+ * 因此十几个母题可以覆盖上百道不重复的练习。
+ *
+ * skill 是这道母题「在教什么」，直接决定掌握度记到技能雷达的哪一格，
+ * 归类规则（与 curriculum 的技能点一一对应）：
+ *   wp-combine  合并：若干个量加起来求总数，连加也算
+ *   wp-remain   剩余：从总量里去掉一部分求剩下多少，连减也算
+ *   wp-diff     比较差：比多／比少，求相差量或较小量
+ *   wp-times    倍数与几个几：乘法，求 n 个 m 是多少
+ *   wp-share    平均分与包含除：除法，等分或按份数分
+ *   wp-two-step 两步混合：两步用的是不同运算，必须先求中间量再换一种算法
+ * 同一种运算重复两次（连加、连减）练的仍是那一种运算，不归到两步混合。
  */
 import { randInt, sample } from '@/utils/random'
 
@@ -122,7 +132,7 @@ export const WORD_PROBLEMS = [
   },
   {
     id: 'bus',
-    skill: 'wp-remain',
+    skill: 'wp-two-step',
     tag: '两步',
     steps: 2,
     emoji: '🚌',
@@ -142,7 +152,7 @@ export const WORD_PROBLEMS = [
   },
   {
     id: 'share',
-    skill: 'wp-times',
+    skill: 'wp-share',
     tag: '平均分',
     steps: 1,
     emoji: '🍬',
@@ -181,6 +191,47 @@ export const WORD_PROBLEMS = [
     },
   },
   {
+    id: 'times-more',
+    skill: 'wp-times',
+    tag: '倍数',
+    steps: 1,
+    emoji: '📕',
+    scene: '图书馆',
+    make() {
+      const [a, b] = pair()
+      const base = randInt(2, 9)
+      const times = randInt(2, 5)
+      return {
+        text: `${a}借了 ${base} 本书，${b}借的是${a}的 ${times} 倍。${b}借了多少本书？`,
+        equation: `${base} × ${times} = ?`,
+        answer: base * times,
+        unit: '本',
+        hint: `${times} 倍就是 ${times} 个 ${base} 相加。`,
+        visual: { icon: '📕', groups: Array.from({ length: times }, () => base) },
+      }
+    },
+  },
+  {
+    id: 'contain-div',
+    skill: 'wp-share',
+    tag: '包含除',
+    steps: 1,
+    emoji: '🧃',
+    scene: '野餐',
+    make() {
+      const per = randInt(2, 6)
+      const boxes = randInt(2, 6)
+      return {
+        text: `有 ${per * boxes} 瓶果汁，每 ${per} 瓶装一箱，能装满几箱？`,
+        equation: `${per * boxes} ÷ ${per} = ?`,
+        answer: boxes,
+        unit: '箱',
+        hint: `看看 ${per * boxes} 里面有几个 ${per}。`,
+        visual: { icon: '🧃', groups: Array.from({ length: boxes }, () => per) },
+      }
+    },
+  },
+  {
     id: 'time',
     skill: 'wp-combine',
     tag: '时间',
@@ -201,7 +252,7 @@ export const WORD_PROBLEMS = [
   },
   {
     id: 'money-change',
-    skill: 'wp-times',
+    skill: 'wp-two-step',
     tag: '钱',
     steps: 2,
     emoji: '💰',
@@ -259,7 +310,7 @@ export const WORD_PROBLEMS = [
   },
   {
     id: 'garden',
-    skill: 'wp-times',
+    skill: 'wp-two-step',
     tag: '两步',
     steps: 2,
     emoji: '🌻',

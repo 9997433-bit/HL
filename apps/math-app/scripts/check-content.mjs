@@ -5,6 +5,16 @@
  * 用法：node --import ./scripts/register-alias.mjs scripts/check-content.mjs
  */
 import { WORD_PROBLEMS } from '../src/data/wordProblems.js'
+import { isKnownSkill, SKILL_MAP, skillsOfModule } from '../src/data/curriculum.js'
+import {
+  arithmeticSkill,
+  countingSkill,
+  geometrySkill,
+  logicSkill,
+  LOGIC_QUESTION_TYPES,
+  sudokuSkill,
+  SUDOKU_SIZES,
+} from '../src/data/skill-mapping.js'
 import { BOARD_SPECS, generatePuzzle, solve, conflictsOf } from '../src/utils/sudoku.js'
 import { numericOptions } from '../src/utils/random.js'
 import { CUES, noteToFreq } from '../src/utils/sound.js'
@@ -44,6 +54,45 @@ for (const tpl of WORD_PROBLEMS) {
   }
 }
 console.log(`  场景 ${scenes.size} 种，一步 ${oneStep} 个 / 两步 ${twoStep} 个，每个母题各生成 2000 道`)
+
+/* ------------------------------------------------ 技能点映射 */
+// 掌握度只认 curriculum 里的技能 id：写错一个 id，那道题就白练了，
+// 界面上不会报错，只是进度环永远不动。这里把所有映射的输出域穷举一遍。
+const produced = new Set()
+
+for (const tpl of WORD_PROBLEMS) {
+  produced.add(tpl.skill)
+  const skill = SKILL_MAP[tpl.skill]
+  if (!skill) fail(`母题 ${tpl.id} 的技能点「${tpl.skill}」不在图谱里`)
+  else if (skill.module !== 'word-problems') {
+    fail(`母题 ${tpl.id} 记到了 ${skill.module} 的技能点「${tpl.skill}」`)
+  }
+}
+
+for (const type of ['drag', 'count', 'seq']) {
+  for (let target = 1; target <= 20; target++) produced.add(countingSkill({ type, target }))
+}
+for (const level of [10, 20, 100]) {
+  for (const kind of ['add', 'sub']) produced.add(arithmeticSkill({ level, kind }))
+}
+for (const dim of ['2d', '3d']) produced.add(geometrySkill({ dim }))
+for (const type of [...LOGIC_QUESTION_TYPES, 'unknown-type']) produced.add(logicSkill(type))
+for (const size of SUDOKU_SIZES) produced.add(sudokuSkill(size))
+
+for (const id of produced) {
+  if (!isKnownSkill(id)) fail(`映射产出的技能点「${id}」不在图谱里`)
+}
+
+// 反向检查：应用题的每个技能点都得有母题能练到，否则技能雷达上会永远空一格
+for (const skill of skillsOfModule('word-problems')) {
+  const covered = WORD_PROBLEMS.filter((t) => t.skill === skill.id).length
+  if (!covered) fail(`技能点「${skill.id}」(${skill.name}) 没有任何母题能练到`)
+}
+console.log(
+  `技能点映射：产出 ${produced.size} 个 id 全部在图谱里，应用题 ${
+    skillsOfModule('word-problems').length
+  } 个技能点均有母题覆盖`,
+)
 
 /* ------------------------------------------------ 数独 */
 // solve() 走的是随机化回溯：题面若有第二个解，随机顺序迟早会先撞上它，
