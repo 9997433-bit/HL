@@ -88,7 +88,26 @@ def run_probe(*, dof: int = 2_000, repeats: int = 5) -> dict[str, Any]:
     assembly_before = _timing(lambda: _legacy_assemble_system(model), repeats)
     assembly_after = _timing(lambda: assemble_system(model), repeats)
 
-    solver = ModalSolver(model)
+    grid_side = 40
+    grid_line = sp.diags(
+        (-np.ones(grid_side - 1), 4.0 * np.ones(grid_side), -np.ones(grid_side - 1)),
+        (-1, 0, 1),
+        format="csr",
+    )
+    grid_coupling = sp.diags(
+        (-np.ones(grid_side - 1), -np.ones(grid_side - 1)),
+        (-1, 1),
+        shape=(grid_side, grid_side),
+        format="csr",
+    )
+    grid_stiffness = (
+        sp.kron(sp.eye(grid_side, format="csr"), grid_line, format="csr")
+        + sp.kron(grid_coupling, sp.eye(grid_side, format="csr"), format="csr")
+    )
+    solver = ModalSolver.from_matrices(
+        grid_stiffness,
+        sp.eye(grid_side**2, format="csr"),
+    )
 
     def cold_solve() -> object:
         solver.clear_cache()
@@ -171,6 +190,7 @@ def run_probe(*, dof: int = 2_000, repeats: int = 5) -> dict[str, Any]:
         "status": "pass" if all(checks.values()) else "fail",
         "configuration": {
             "assembly_dof": dof,
+            "factorization_dof": grid_side**2,
             "sensitivity_dof": sensitivity_dof,
             "modes": modes,
             "parameters": parameters,

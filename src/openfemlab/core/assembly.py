@@ -142,6 +142,8 @@ def _assemble_elements(
     def to_csr(data: np.ndarray | None) -> sp.csr_matrix | None:
         if data is None:
             return None
+        if not np.any(data):
+            return sp.csr_matrix(shape, dtype=float)
         matrix = sp.coo_matrix((data, (rows, cols)), shape=shape).tocsr()
         matrix.eliminate_zeros()
         return matrix
