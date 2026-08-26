@@ -42,6 +42,8 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A32 | claude-fable-5-thinking-xhigh | Round 1 closure: 430-test/Ruff verification, PR draft, progress reconciliation (backfill for A29) | complete |
 | A30 | claude-fable-5-thinking-xhigh | Round 1 close-out: independent full-suite verification & PR-draft completion (backfill for A14) | complete |
 | A27 | claude-opus-5-thinking-high-fast | R2-T07 scipy optimization backend & AC-OPT gates (backfill for A25) | complete |
+| R2-T02 | claude-opus-5-thinking-high-fast | GAP-02 QUAD4 plane-stress/plane-strain element, patch test & modal suite (backfill for A19) | partial — QUAD4 slice landed; TET4/HEX8/3D beam open |
+| A37 | claude-opus-5-thinking-high-fast | Merge the QUAD4 branch onto the trunk and re-verify the suite (backfill for R2-T02) | complete |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
@@ -934,7 +936,8 @@ integrate rather than fork.
 **Status:** IN PROGRESS — backlog planned in `.agent_workspace/ROUND2_PLAN.md` (A24); the
 MS-4 workflow carried over from Round 1 is landed and verified at `5bc6a6d` (A26), the
 damped-dynamics and optimization tracks are merged in at `acda625` (A19 implementation,
-A28 integration), and **R2-T01 is DONE** — AC-DYN-001..005 registered and implemented
+A28 integration), **R2-T01 is DONE** — AC-DYN-001..005 registered and implemented — and
+**R2-T02 is PARTIAL**, its QUAD4 slice merged onto the trunk by A37
 
 Core backlog (prioritized, from `docs/SOTA_GAP_ANALYSIS.md` §4/§6 + Round 1 conclusion):
 1. ~~**R2-T01 Dynamics/FRF chain** (GAP-04/05, P0) — damping models, harmonic response,
@@ -945,7 +948,11 @@ Core backlog (prioritized, from `docs/SOTA_GAP_ANALYSIS.md` §4/§6 + Round 1 co
    Handed on to the exit-bar work: the measured-vs-synthesized FRF demo through the CLI,
    and an FRF block in the `CorrelationReport` schema.
 2. **R2-T02 3D continuum elements** (GAP-02, P0) — QUAD4/TET4/HEX8 + 3D beam with patch
-   /convergence gates (AC-MODAL-001/003/004/007 extended, new AC-ELEM-*).
+   /convergence gates (AC-MODAL-001/003/004/007 extended, new AC-ELEM-*). **PARTIAL:
+   QUAD4 is landed on the trunk**, merged from `cursor/quad4-plane-stress-element-b99c`
+   by A37 (see the R2-T02 and A37 entries below); TET4, HEX8, the 3D beam, the
+   `CQUAD4`/`CTETRA`/`CHEXA`/`PSHELL`/`PSOLID` BDF cards and the AC-ELEM-* registry rows
+   are the remaining slice.
 3. **R2-T03 SEREP/TAM reduction & expansion** (GAP-08) — Guyan/IRS/SEREP, TAM
    pseudo-orthogonality, shape expansion; closes Round-2 gate AC-CORR-006.
 4. **R2-T04 Bayesian MAP updating** (GAP-11 slice, MS-3.5) — Gaussian-prior MAP step +
@@ -1060,11 +1067,109 @@ new dynamics/element/IO criteria at least `implemented`, GAP-01 stays closed.
   rule mandatory rather than advisory, since `git clean`/branch-switch collateral is not
   something the offending agent can see.
 
+#### R2-T02 — QUAD4 plane-stress/plane-strain element (first slice of GAP-02; PARTIAL)
+- **The first continuum element on the branch.** `ElementType.QUAD4` has been declared in
+  `core/neutral.py` since Round 1 with no formulation behind it, so an imported shell mesh
+  could be correlated but never re-analyzed. `core/elements.py` now carries
+  `Quad4Element`: a four-node isoparametric bilinear quadrilateral in the XY plane
+  (`UX`, `UY`), with `K = t ∫ BᵀDB dA` and `M = ρt ∫ NᵀN dA` on a tensor-product
+  Gauss-Legendre rule (`gauss_legendre_2d`, 1–4 points per direction, 2×2 by default,
+  which integrates both exactly for any non-degenerate quadrilateral). Plane stress and
+  plane strain share one `plane_constitutive_matrix` helper; mass is consistent by
+  default, or row-sum lumped, which preserves the total mass for any element shape.
+  `strain()`/`stress()` recover the element state at any natural point.
+- **Validation is refused rather than tolerated.** A non-positive Jacobian at any Gauss
+  point — degenerate, inverted, or clockwise connectivity — raises `ElementError` naming
+  the point, and nodes spanning Z beyond 1e-9 of the in-plane scale are rejected instead
+  of being silently projected. A constant Z offset is accepted, so a plate at `z = 3.5`
+  gives bit-identical matrices to the same plate at `z = 0`.
+- `mesh/simple.py` gained `quad_plate_mesh(length, height, num_x, num_y, material, …)` —
+  a row-major structured grid with counter-clockwise connectivity and
+  `cantilever`/`free`/`simply-supported` supports — plus `MeshBuilder.add_quad4`, so the
+  convergence and modal fixtures are generated rather than hand-written.
+- **Patch test, exactly.** The MacNeal-Harder five-element distorted patch (0.24 × 0.12
+  rectangle, four interior nodes, boundary field `u = 1e-3(x + y/2)`,
+  `v = 1e-3(y + x/2)`) recovers the interior displacements to **2.7e-20 absolute against
+  a 2e-4 field** — machine precision — and every element reports the exact constant stress
+  **σₓ = σᵧ = 1333.333, τₓᵧ = 400.0** at every sample point, for integration orders 2 and 3
+  alike. At element level an arbitrary constant strain state is reproduced to 1e-12
+  relative on a distorted quad, and its consistent nodal forces are self-equilibrated.
+- **Zero-energy modes are counted, not assumed.** With full 2×2 integration a distorted
+  element has exactly **three** zero eigenvalues (the planar rigid-body motions) and no
+  hourglass modes; the suite also pins the counterpart, that one-point reduced integration
+  is rank deficient with **five**. Rigid translation produces no nodal force and rigid
+  rotation produces neither strain nor strain energy, both to 1e-12 of the matrix scale.
+- **Modal results.** With `ν = 0` the column-constant axial subspace of a rectangular
+  QUAD4 strip is both K- and M-invariant and coincides with a linear bar discretization,
+  so the strip's axial spectrum must equal `bar_mesh`'s exactly — measured agreement is
+  **2.4e-13 relative** over three modes, which is a far sharper oracle than a continuum
+  comparison. Against the continuum bar the first axial frequency converges
+  quadratically, error **4.1e-3 → 1.0e-3 → 2.6e-4** for 5/10/20 elements. Bending is the
+  honest weak spot and is recorded as such: bilinear elements carry bending through shear,
+  so a cantilever strip locks *from above* at **+18.7 % → +4.9 % → +1.2 %** for
+  20×2 / 40×4 / 80×8, a clean 4× error reduction per refinement. A free plate returns
+  exactly three rigid-body modes with the first elastic mode at 6.9 kHz, cantilever modes
+  are mass-orthonormal to < 1e-9, plane strain is stiffer than plane stress, and lumped
+  mass is never stiffer than consistent mass.
+- Added `tests/test_quad4.py` — **61 tests** covering shape-function and quadrature
+  identities, the two constitutive closed forms, geometry validation and every error path,
+  stiffness invariances (including in-plane rotation and linear scaling in `t` and `E`),
+  the patch tests above, mass bookkeeping (total mass in each direction, lumped = row sum,
+  massless material), the mesh generator and assembly, and the modal checks.
+- Verified on Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1: full suite **491 passed**
+  (430 + 61) at `174a0fc`, `ruff check src tests` clean.
+- **Working-tree hazard, fifth occurrence.** Two variants hit this run. The venv's
+  editable install had been repointed at a sibling agent's `/tmp/a28/src`, so an unguarded
+  `pytest` in `/workspace` tested that tree and could not even import `Quad4Element`;
+  every run here pinned `PYTHONPATH`. Then a concurrent agent ran
+  `git reset --hard origin/…` plus a branch checkout on the shared clone mid-commit, which
+  deleted `tests/test_quad4.py` from disk and left the branch pointer on a foreign tree.
+  The work was recovered from the reflog commit `6e6d126` and finished in a private
+  worktree at `/tmp/quad4wt`. The same `git add -A src` also swept a concurrent agent's
+  uncommitted `correlation/__init__.py` FRAC/FDAC edit into the first commit; it was
+  dropped from the recovered one, so this branch touches only element, mesh and export
+  files.
+- Open for the orchestrator: the AC-ELEM-001/002/003 registry rows the A24 plan proposes
+  are **not** registered — this branch adds no criteria IDs, so the spec-first rule is not
+  violated, but the numbers above are exactly the evidence those rows want (AC-ELEM-001
+  patch test at machine precision, AC-ELEM-002 rigid-body invariance, AC-ELEM-003
+  quadratic h-convergence). Registering them should land with the TET4/HEX8 slice, in the
+  same change as the `ACCEPTANCE_CRITERIA.md` / `MODULE_SPEC.md` edits.
+
 **Round 2 entry state.** Both packages Round 1 left uncommitted are now in and green:
 `workflow/` via A13/A26, and the `optimization/` build-out (`variables`, `responses`,
 `gradients`, `problem`, `sizing`, `backends`) via the A28 merge below. No Round-1
 carry-over remains, and R2-T07's remaining debt — `ScipyBackend.solve` — was cleared by
 A27. The A24 backlog above is otherwise the live plan.
+
+#### A37 — QUAD4 branch merged onto the trunk (backfill for R2-T02)
+- Merged `cursor/quad4-plane-stress-element-b99c` into the integration branch. The branch
+  had been cut from `b9d26f0` and the trunk had moved on by the R2-T01 dynamics close-out,
+  the AC-DYN/AC-MODAL/AC-OPT acceptance batches and the A27 optimization backend, so the
+  merge was replayed against the current trunk rather than fast-forwarded.
+- **Conflicts and how they were resolved.** Both were documentation-only:
+  - `PROGRESS.md` Active Pool — the two sides appended different rows to the same table
+    line. Both kept; the R2-T02 row is recorded as **partial** rather than complete, since
+    the branch delivers only the QUAD4 slice of GAP-02.
+  - `ROUND2_PLAN.md` §1 gap table — the trunk had rewritten the GAP-04/05 row to
+    "Closed by R2-T01" while the branch rewrote the adjacent GAP-02 row to "Partial".
+    Both rewrites kept.
+  - `src/openfemlab/__init__.py` auto-merged: the trunk's `SolverConvergenceError` export
+    and the branch's `Quad4Element` / `plane_constitutive_matrix` / `fdac` / `frac`
+    exports land side by side. Verified by resolving all 54 names in `__all__` through
+    the lazy `__getattr__`, so the PEP 562 table and the `TYPE_CHECKING` aliases agree.
+- No source conflicts: the branch only adds to `core/elements.py`, `core/__init__.py` and
+  `mesh/simple.py`, none of which the trunk touched in the interval.
+- **Verification after the merge** (Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1, `PYTHONPATH`
+  pinned at the worktree `src` so the venv's editable install cannot shadow it): full
+  suite **559 passed**, `ruff check .` clean. That is the trunk's 498 plus the branch's
+  61 QUAD4 tests, comfortably past the 491 the R2-T02 record measured in isolation.
+- **Working-tree hazard, sixth occurrence.** A concurrent agent ran
+  `git reset --hard origin/cursor/femtools-industrial-7aa3` on the shared `/workspace`
+  clone twice during this run, discarding a completed and verified merge commit both
+  times. The merge was redone in a private worktree at `/tmp/a37wt`, which git protects
+  because a branch checked out in one worktree cannot be checked out in another. The
+  private-worktree rule R2-T02 asked to make mandatory should be treated as such.
 
 #### A28 — Dynamics & Optimization Branch Integration (backfill for A15)
 - Merged `cursor/dynamics-damping-frf-9500` into the integration branch at `acda625`,
