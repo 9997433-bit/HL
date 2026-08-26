@@ -424,11 +424,15 @@ class ModelUpdater:
         data = self.evaluate(x)
         pairs = self.pair(data)
         residual = self.residual(data, pairs)
-        cost = self.cost(residual)
+        x0 = x.copy()
+        # Penalized, so that the starting cost measures the same objective as
+        # the trial costs it is compared against. It only differs from the bare
+        # misfit when the penalty is off-centre at the starting point, which of
+        # the estimators here means a Gaussian prior with an explicit mean.
+        cost = self.cost(residual) + self.penalty(x, x0)
 
         initial_correlation = self.correlation(data)
         initial_cost = cost
-        x0 = x.copy()
         damping = 0.0 if options.is_gauss_newton else options.initial_damping
 
         history: list[IterationRecord] = []
