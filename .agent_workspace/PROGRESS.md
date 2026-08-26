@@ -382,6 +382,21 @@ orchestrator to diff against the landed implementation in Round 2.
   Round 2 win. MS-3.5 Bayesian MAP and MS-3.6 automatic parameter selection
   (QR-pivoting collinearity screening) are still unimplemented.
 
+#### A12 — GAP-03 UFF 55/58 Reader
+- Added `io/uff.py`, a dependency-free ASCII UFF/UNV reader for dataset 55 normal-mode
+  shapes and dataset 58 functions at nodal DOFs. Dataset 55 supports real and complex
+  nodal values with arbitrary values-per-node; dataset 58 supports real/complex ordinates
+  and even/uneven frequency abscissae.
+- Exposed `read_uff`, `read_uff_modes`, and `read_uff_functions` plus typed `UFFMode` and
+  `UFFFunction` records through `openfemlab.io`. Mixed UFF files skip unrelated datasets;
+  malformed supported records and unsupported binary dataset 58b raise `FormatError`.
+- Added five synthetic tests covering fixed-width dataset headers, normal-mode metadata and
+  shapes, complex FRFs, uneven real abscissae, mixed datasets, incomplete records, and the
+  58b boundary. Focused IO tests: **18 passed**; full suite: **166 passed**. Touched files
+  pass Ruff.
+- Remaining GAP-03 scope: datasets 2411/2412, Nastran BDF/OP2, meshio conversion, UFF
+  writing, and binary 58b.
+
 ### Round 2 — Targeted Refactor & Deep Optimization
 **Status:** PENDING
 
