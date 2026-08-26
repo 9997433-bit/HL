@@ -158,7 +158,7 @@ onMounted(() => {
 <template>
   <main class="page stack">
     <!-- 档案卡 -->
-    <section class="panel profile">
+    <section class="card profile">
       <div class="avatar-block">
         <span class="avatar">{{ progress.state.avatar }}</span>
         <MascotBot :mood="unlockedCount > 0 ? 'happy' : 'idle'" :size="64" />
@@ -174,11 +174,11 @@ onMounted(() => {
               placeholder="输入昵称"
               @keyup.enter="saveName"
             />
-            <button class="btn btn-primary btn-sm" @click="saveName">保存</button>
+            <button class="btn btn--primary btn--sm" @click="saveName">保存</button>
           </template>
           <template v-else>
             <h2 class="pilot">{{ progress.state.pilotName }}</h2>
-            <button class="btn btn-ghost btn-sm" @click="startEditName">✏️ 改名</button>
+            <button class="btn btn--ghost btn--sm" @click="startEditName">✏️ 改名</button>
           </template>
         </div>
 
@@ -264,7 +264,7 @@ onMounted(() => {
     </section>
 
     <!-- 成就墙 -->
-    <section class="panel">
+    <section class="card">
       <header class="wall-head">
         <h3 class="panel-title">🏆 成就墙</h3>
         <div class="spacer" />
@@ -304,7 +304,7 @@ onMounted(() => {
     </section>
 
     <!-- 各星球掌握度 -->
-    <section class="panel">
+    <section class="card">
       <h3 class="panel-title">🪐 星球掌握度</h3>
       <ul class="mod-list">
         <li v-for="m in moduleRows" :key="m.id" class="mod-row" :style="{ '--c': m.color }">
@@ -321,13 +321,13 @@ onMounted(() => {
             </div>
           </div>
           <span class="chip">⭐ {{ m.stars }}</span>
-          <RouterLink :to="m.route" class="btn btn-ghost btn-sm">练习</RouterLink>
+          <RouterLink :to="m.route" class="btn btn--ghost btn--sm">练习</RouterLink>
         </li>
       </ul>
     </section>
 
     <!-- 最近表现 -->
-    <section v-if="spark" class="panel">
+    <section v-if="spark" class="card">
       <h3 class="panel-title">📈 最近 {{ spark.list.length }} 轮表现</h3>
       <p class="dim tiny">平均得分 {{ spark.avg }}%</p>
       <svg class="spark" :viewBox="`0 0 ${spark.w} ${spark.h}`" preserveAspectRatio="none">
@@ -359,7 +359,7 @@ onMounted(() => {
     </section>
 
     <!-- 设置 -->
-    <section class="panel settings">
+    <section class="card settings">
       <h3 class="panel-title">⚙️ 设置</h3>
       <div class="set-row">
         <span>音效</span>
@@ -392,22 +392,22 @@ onMounted(() => {
       <div class="set-row">
         <span>导出学习报告<em class="dim tiny note">JSON 格式，可备份或给家长查看</em></span>
         <div class="spacer" />
-        <button class="btn btn-ghost btn-sm" @click="exportReport">📤 导出</button>
+        <button class="btn btn--ghost btn--sm" @click="exportReport">📤 导出</button>
       </div>
       <div class="set-row">
         <span>清空全部进度</span>
         <div class="spacer" />
-        <button v-if="!confirmReset" class="btn btn-ghost btn-sm" @click="confirmReset = true">
+        <button v-if="!confirmReset" class="btn btn--ghost btn--sm" @click="confirmReset = true">
           🗑️ 重置
         </button>
         <template v-else>
-          <button class="btn btn-ghost btn-sm" @click="confirmReset = false">取消</button>
-          <button class="btn btn-sm danger" @click="doReset">确认清空</button>
+          <button class="btn btn--ghost btn--sm" @click="confirmReset = false">取消</button>
+          <button class="btn btn--sm danger" @click="doReset">确认清空</button>
         </template>
       </div>
       <p class="dim tiny">进度保存在本机浏览器里，不会上传到任何服务器。</p>
 
-      <button class="btn btn-primary" @click="router.push('/')">🗺️ 回到学习地图</button>
+      <button class="btn btn--primary" @click="router.push('/')">🗺️ 回到学习地图</button>
     </section>
   </main>
 </template>

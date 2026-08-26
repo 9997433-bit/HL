@@ -302,15 +302,15 @@ defineExpose({ restart, index, current, locked, typed })
 
 <template>
   <div class="quiz-shell stack">
-    <section v-if="$slots.controls || allowModeToggle" class="panel quiz-controls">
+    <section v-if="$slots.controls || allowModeToggle" class="card quiz-controls">
       <slot name="controls" />
       <div class="spacer" />
-      <button v-if="allowModeToggle" class="btn btn-ghost btn-sm" @click="toggleMode">
+      <button v-if="allowModeToggle" class="btn btn--ghost btn--sm" @click="toggleMode">
         {{ inputMode === 'choice' ? '⌨️ 改为输入' : '🔢 改为选择' }}
       </button>
     </section>
 
-    <section class="panel quiz-bar">
+    <section class="card quiz-bar">
       <SessionBar
         :index="index"
         :total="total"
@@ -335,7 +335,7 @@ defineExpose({ restart, index, current, locked, typed })
       </div>
     </section>
 
-    <section v-if="current" ref="stageRef" class="panel quiz-stage">
+    <section v-if="current" ref="stageRef" class="card quiz-stage">
       <header class="stage-head">
         <MascotBot :mood="mood" :size="72" />
         <p class="muted say">{{ message }}</p>
@@ -343,7 +343,7 @@ defineExpose({ restart, index, current, locked, typed })
         <slot name="head-extra" v-bind="slotCtx" />
         <button
           v-if="hints.length"
-          class="btn btn-ghost btn-sm"
+          class="btn btn--ghost btn--sm"
           :disabled="!canHint"
           @click="moreHint"
         >

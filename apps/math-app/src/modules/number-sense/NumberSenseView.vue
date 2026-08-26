@@ -314,7 +314,7 @@ onBeforeUnmount(() => {
 
 <template>
   <main class="page stack">
-    <section class="panel bar-panel">
+    <section class="card bar-panel">
       <SessionBar
         :index="index"
         :total="ROUND_SIZE"
@@ -324,14 +324,14 @@ onBeforeUnmount(() => {
       />
     </section>
 
-    <section v-if="current" ref="stageRef" class="panel stage">
+    <section v-if="current" ref="stageRef" class="card stage">
       <header class="stage-head">
         <MascotBot :mood="mood" :size="76" />
         <div class="head-text">
           <h2 class="prompt">{{ current.prompt }}</h2>
           <p class="muted say">{{ message }}</p>
         </div>
-        <button class="btn btn-ghost btn-sm hint-btn" @click="showHint = !showHint">
+        <button class="btn btn--ghost btn--sm hint-btn" @click="showHint = !showHint">
           💡 {{ showHint ? '收起' : '提示' }}
         </button>
       </header>
@@ -405,10 +405,10 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="actions">
-          <button class="btn btn-ghost btn-sm" :disabled="locked || !shipCount" @click="pool.forEach((p) => (p.inShip = false))">
+          <button class="btn btn--ghost btn--sm" :disabled="locked || !shipCount" @click="pool.forEach((p) => (p.inShip = false))">
             🧹 清空货舱
           </button>
-          <button class="btn btn-primary btn-lg" :disabled="locked" @click="submitDrag">
+          <button class="btn btn--primary btn--lg" :disabled="locked" @click="submitDrag">
             🚀 发射！
           </button>
         </div>

@@ -335,7 +335,7 @@ onBeforeUnmount(() => {
 
 <template>
   <main class="page stack">
-    <section class="panel controls">
+    <section class="card controls">
       <div class="seg" role="group" aria-label="棋盘档位">
         <button
           v-for="b in BOARDS"
@@ -365,7 +365,7 @@ onBeforeUnmount(() => {
       <span class="chip">🔢 {{ filledCount }}/{{ total }}</span>
     </section>
 
-    <section class="panel stage">
+    <section class="card stage">
       <header class="stage-head">
         <MascotBot :mood="mood" :size="72" />
         <p class="muted say">{{ message }}</p>
@@ -427,23 +427,23 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="actions">
-        <button class="btn btn-ghost btn-sm" :disabled="solved" @click="useHint">
+        <button class="btn btn--ghost btn--sm" :disabled="solved" @click="useHint">
           💡 提示（-1⭐）
         </button>
-        <button class="btn btn-ghost btn-sm" :class="{ 'btn-on': showNotes }" @click="toggleNotes">
+        <button class="btn btn--ghost btn--sm" :class="{ 'btn-on': showNotes }" @click="toggleNotes">
           {{ showNotes ? '✏️ 关闭候选数' : '✏️ 候选数笔记' }}
         </button>
-        <button class="btn btn-ghost btn-sm" :disabled="solved" @click="restart">🔄 重来这局</button>
-        <button class="btn btn-primary" @click="newGame">
+        <button class="btn btn--ghost btn--sm" :disabled="solved" @click="restart">🔄 重来这局</button>
+        <button class="btn btn--primary" @click="newGame">
           {{ solved ? '🧩 下一局' : '🎲 换一局' }}
         </button>
-        <button class="btn btn-ghost btn-sm" @click="router.push('/')">🗺️ 回到地图</button>
+        <button class="btn btn--ghost btn--sm" @click="router.push('/')">🗺️ 回到地图</button>
       </div>
 
       <p v-if="solvedCount" class="dim tiny">本次进入空间站已完成 {{ solvedCount }} 局</p>
     </section>
 
-    <section class="panel rules">
+    <section class="card rules">
       <h3 class="panel-title">🧠 玩法说明</h3>
       <ul class="rule-list muted">
         <li>当前是 {{ board.label }} 棋盘：{{ board.desc }}。</li>
