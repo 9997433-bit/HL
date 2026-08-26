@@ -118,10 +118,9 @@ def mac(
     norm_a = np.einsum("ij,ij->j", a.conj(), wa).real           # (ma,)
     norm_b = np.einsum("ij,ij->j", b.conj(), wb).real           # (mb,)
     denom = np.outer(norm_a, norm_b)
-    values = np.zeros_like(denom, dtype=np.float64)
-    valid = denom > 0.0
-    values[valid] = np.abs(cross[valid]) ** 2 / denom[valid]
-    return np.clip(values, 0.0, 1.0)
+    if np.any(denom <= 0.0):
+        raise ValueError("zero-norm mode shape encountered")
+    return np.clip(np.abs(cross) ** 2 / denom, 0.0, 1.0).astype(np.float64)
 
 
 def mac_value(phi_a: Shapes, phi_b: Shapes, weights: Any = None) -> float:
