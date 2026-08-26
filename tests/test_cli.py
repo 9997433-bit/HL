@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -14,6 +17,9 @@ from openfemlab.core.dofs import DofMap, DofType
 from openfemlab.core.results import TestData as ModalTestData
 from openfemlab.io import read_data, write_data, write_test_data
 from openfemlab.solver.modal import ModalSolver
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+EXAMPLE_02 = REPOSITORY_ROOT / "examples" / "02_model_updating_workflow.py"
 
 # Steel strip, 1 m long: the analytic first cantilever frequency is 8.3552 Hz.
 CANTILEVER: dict[str, Any] = {
@@ -339,6 +345,104 @@ def test_update_requires_a_numeric_parameter_target(model_file, test_file, tmp_p
     write_data(config, path)
     assert main(["--no-color", "update", str(path)]) == 1
     assert "does not address a number" in capsys.readouterr().err
+
+
+# ----------------------------------------------------------- the real process
+
+
+@pytest.fixture(scope="module")
+def example_02_fixtures(tmp_path_factory) -> Path:
+    """Generate the model, test data, and updating config documented by example 02."""
+    output_dir = tmp_path_factory.mktemp("example-02")
+    completed = subprocess.run(
+        [sys.executable, str(EXAMPLE_02), "--output-dir", str(output_dir)],
+        cwd=REPOSITORY_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+    for name in ("cantilever.yaml", "measured.yaml", "updating.yaml"):
+        assert (output_dir / name).is_file()
+    return output_dir
+
+
+def _run_cli(*args: object) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, "-m", "openfemlab.cli", "--no-color", *(str(arg) for arg in args)],
+        cwd=REPOSITORY_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def test_modal_subprocess_emits_json(example_02_fixtures):
+    completed = _run_cli(
+        "modal",
+        example_02_fixtures / "cantilever.yaml",
+        "-n",
+        4,
+        "--format",
+        "json",
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    report = json.loads(completed.stdout)
+    assert report["command"] == "modal"
+    assert report["model"]["name"] == "steel cantilever"
+    assert report["analysis"]["num_modes"] == 4
+    assert report["modes"][0]["frequency_hz"] == pytest.approx(8.35517, rel=1e-5)
+
+
+def test_correlate_subprocess_emits_json_and_gate_exit_code(example_02_fixtures):
+    arguments = (
+        "correlate",
+        example_02_fixtures / "cantilever.yaml",
+        example_02_fixtures / "measured.yaml",
+        "-n",
+        4,
+        "--partial-dofs",
+        "--format",
+        "json",
+    )
+    completed = _run_cli(*arguments)
+
+    assert completed.returncode == 0, completed.stderr
+    report = json.loads(completed.stdout)
+    assert report["command"] == "correlate"
+    assert report["summary"]["n_paired"] == 4
+    assert report["summary"]["min_mac"] == pytest.approx(1.0, abs=1e-9)
+    assert report["summary"]["max_abs_freq_error_pct"] == pytest.approx(9.233, abs=1e-2)
+
+    rejected = _run_cli(*arguments, "--require-frequency", 1.0)
+    assert rejected.returncode == 3
+    assert json.loads(rejected.stdout)["command"] == "correlate"
+    assert "exceeds the allowed" in rejected.stderr
+
+
+def test_update_subprocess_emits_json(example_02_fixtures):
+    updated = example_02_fixtures / "subprocess.updated.yaml"
+    completed = _run_cli(
+        "update",
+        example_02_fixtures / "updating.yaml",
+        "--output",
+        updated,
+        "--format",
+        "json",
+        "--strict",
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    report = json.loads(completed.stdout)
+    assert report["command"] == "update"
+    assert report["converged"] is True
+    assert report["correlation"]["final"]["max_abs_freq_error_pct"] < 1e-4
+    assert {parameter["name"] for parameter in report["parameters"]} == {
+        "youngs_modulus",
+        "cross_section",
+    }
+    assert updated.is_file()
 
 
 # ------------------------------------------------------------------ the shell
