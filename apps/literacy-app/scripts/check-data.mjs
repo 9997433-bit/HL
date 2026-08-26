@@ -9,7 +9,12 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { CHARACTERS, CHARACTER_MAP, TOTAL_CHARACTERS, UNITS } from '../src/data/characters.js'
+import {
+  CHARACTER_MAP,
+  TOTAL_CHARACTERS,
+  UNITS,
+  loadAllCharacters
+} from '../src/data/characters.js'
 import { BOOKS, charsInBook, verifyBookCoverage } from '../src/data/books.js'
 import { IDIOMS } from '../src/data/idioms.js'
 import { RADICALS, getRadical } from '../src/data/radicals.js'
@@ -22,8 +27,35 @@ const notes = []
 
 const check = (ok, msg) => (ok ? notes.push(`✓ ${msg}`) : fails.push(`✗ ${msg}`))
 
+/**
+ * 字表分成「索引」和「按单元切开的详情包」两层，运行时按需加载。
+ * 内容自检要看的是完整语料，所以这里把详情包全拉起来合并一遍——
+ * 顺带也就验证了每个单元的详情包都存在、都能解析。
+ */
+const CHARACTERS = await loadAllCharacters()
+
 /* ----------------------------------------------------------------- 字表 */
-check(TOTAL_CHARACTERS >= 200, `字表 ${TOTAL_CHARACTERS} 个字（要求 ≥ 200）`)
+check(TOTAL_CHARACTERS >= 500, `字表 ${TOTAL_CHARACTERS} 个字（要求 ≥ 500）`)
+
+const noDetail = CHARACTERS.filter((c) => !c.meaning || !c.words || !c.sentence)
+check(
+  noDetail.length === 0,
+  `每个字都能在单元详情包里找到课文${noDetail.length ? `（缺：${noDetail.map((c) => c.char).join('')}）` : ''}`
+)
+
+const strayDetails = []
+for (const unit of UNITS) {
+  const pack = await import(`../src/data/chars/${unit.id}.js`).then((m) => m.default).catch(() => null)
+  if (!pack) continue
+  for (const char of Object.keys(pack)) {
+    const light = CHARACTER_MAP.get(char)
+    if (!light || light.unit !== unit.id) strayDetails.push(`${unit.id}:${char}`)
+  }
+}
+check(
+  strayDetails.length === 0,
+  `详情包里没有索引之外的字${strayDetails.length ? `（${strayDetails.join('、')}）` : ''}`
+)
 
 const dupes = CHARACTERS.map((c) => c.char).filter((c, i, a) => a.indexOf(c) !== i)
 check(dupes.length === 0, `字表无重复${dupes.length ? `（重复：${dupes.join('')}）` : ''}`)
@@ -58,7 +90,7 @@ check(thinUnits.length === 0, `每个单元至少 5 个字${thinUnits.length ? `
  * 否则两边一分叉，孩子在不同入口看到的读音就会打架。
  */
 const baseline = JSON.parse(fs.readFileSync(baselineFile, 'utf8')).characters ?? []
-check(baseline.length >= 200, `共享字库基线 ${baseline.length} 个字（要求 ≥ 200）`)
+check(baseline.length >= 500, `共享字库基线 ${baseline.length} 个字（要求 ≥ 500）`)
 
 const missingFromTable = baseline.filter((b) => !CHARACTER_MAP.has(b.character))
 check(

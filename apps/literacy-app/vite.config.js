@@ -12,6 +12,20 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url))
     }
   },
+  build: {
+    rollupOptions: {
+      output: {
+        /**
+         * 每个单元的课文单独成块（chars-u7.js 这样），文件名一眼能看出是哪一单元，
+         * 也保证主包里只有字表索引，不会把 500 个字的释义例句一次性背上。
+         */
+        manualChunks(id) {
+          const unit = id.match(/src[\\/]data[\\/]chars[\\/](u\d+)\.js$/)
+          return unit ? `chars-${unit[1]}` : null
+        }
+      }
+    }
+  },
   server: {
     host: true,
     port: 5173
