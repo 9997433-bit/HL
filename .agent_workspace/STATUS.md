@@ -78,8 +78,9 @@ Acceptance registry and gate suites: **388 tests**.
 | R2-T08 | R1-O2 branch reconciliation | **Done** — content reconciled by A14; the superseded/merged side branches were audited in [`BRANCH_CLEANUP.md`](BRANCH_CLEANUP.md) and deleted from `origin` (A62, plus `cursor/beam3d-cbar-element-c9a7` once A93 merged it). |
 | R2-T09 | CI exit hardening | **Complete** — the `gates` job and `scripts/promote_verified.py` (A109, A121, sign-off) advanced all **47** criteria to `verified` behind green gate evidence. |
 
-- **Round 3 — PENDING.** GAP-06 (MPE), GAP-07 (pretest EI), GAP-13 (50k-DOF
-  scale), GAP-15 (plotting), and the FRF updating residual stay deferred.
+- **Round 3 — PLANNED.** Backlog in [`ROUND3_PLAN.md`](ROUND3_PLAN.md) (A130):
+  GAP-06 (MPE), GAP-07 (pretest EI), GAP-13 (50k-DOF scale), GAP-15
+  (plotting), OP2, the R2-T06 remainder, and the FRF updating residual.
 
 ## 3. Module completion
 
