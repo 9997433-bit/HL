@@ -33,7 +33,7 @@ interchange, and Nastran OP2 mode import — behind one CLI and schema-versioned
 - **IO (M8, MS-9)** (`io/`): native YAML/JSON round trip; UFF 55/58 read/write; UNV 2411/2412
   reader; extended Nastran BDF; meshio bridge behind `[io]` extra; `read_meshio` →
   `neutral_to_model` → re-analysis path gated by AC-IO-001..003 (**verified**).
-- **CLI** (`cli/`): `openfemlab modal | correlate | correlate-frf | update` with JSON/YAML
+- **CLI** (`cli/`): `openfemlab quickstart | wizard | modal | correlate | correlate-frf | update | report`
   specs, UFF-58 FRF input, MAP `prior:`/`noise:` and σ_post in `update` output.
 - **QA stack**: **1658 tests** (3 skipped OP2 corpus opt-in); registry **60 acceptance
   criteria — 60 `verified`** (37 P0 + 10 P1 + 7 P2); CI Python 3.10–3.13 + `gates`;
