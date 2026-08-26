@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import gsap from 'gsap'
+import BadgeShelf from '@/components/BadgeShelf.vue'
 import ProgressRing from '@/components/ProgressRing.vue'
 import { useProgressStore } from '@/stores/progress.js'
 import { useSettingsStore } from '@/stores/settings.js'
@@ -110,6 +111,7 @@ onMounted(() => {
         <div class="hero__chips">
           <span class="pill">🔥 连续 {{ progress.streakDays || 1 }} 天</span>
           <span class="pill pill--accent">🏆 掌握 {{ progress.masteredCount }} 字</span>
+          <span class="pill">🎖️ 徽章 {{ progress.badgeCount }}/{{ progress.totalBadges }}</span>
           <span v-if="progress.dueCount" class="pill">🔁 该复习 {{ progress.dueCount }} 字</span>
           <span class="pill">⏱️ 今天 {{ Math.round(progress.todayStats.seconds / 60) }} 分钟</span>
         </div>
@@ -170,6 +172,8 @@ onMounted(() => {
         </RouterLink>
       </div>
     </section>
+
+    <BadgeShelf mode="compact" title="我的徽章" />
 
     <p class="home__foot muted">
       开源项目 · 所有学习数据只保存在这台设备上 🌱

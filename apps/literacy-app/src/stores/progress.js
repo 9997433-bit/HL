@@ -11,6 +11,7 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { CHARACTER_MAP, CHARACTERS, TOTAL_CHARACTERS, UNITS } from '@/data/characters.js'
+import { BADGES, TOTAL_BADGES } from '@/data/badges.js'
 import { BOOKS } from '@/data/books.js'
 import { IDIOMS } from '@/data/idioms.js'
 import { RADICALS } from '@/data/radicals.js'
@@ -39,6 +40,8 @@ function emptyChar() {
     traced: 0,
     quizRight: 0,
     quizWrong: 0,
+    /** 完整走完「认—写—听—考—奖」五步的次数。 */
+    flows: 0,
     level: 0,
     firstAt: null,
     lastAt: null
@@ -80,6 +83,11 @@ function defaultState() {
     books: {},
     idioms: {},
     radicals: {},
+
+    /** 已解锁的徽章：{ 'first-step': { unlockedAt } }，定义见 data/badges.js。 */
+    badges: {},
+    /** 单字五步闭环的完成总次数，「五步全通」徽章看它。 */
+    flowsCompleted: 0,
 
     /** FSRS 记忆卡：{ '人': { charId, due, stability, difficulty, reps, lapses, ... } } */
     srs: {},
@@ -131,6 +139,8 @@ function migrate(saved) {
     books: { ...(saved.books || {}) },
     idioms: { ...(saved.idioms || {}) },
     radicals: { ...(saved.radicals || {}) },
+    badges: { ...(saved.badges || {}) },
+    flowsCompleted: saved.flowsCompleted ?? 0,
     srs: saved.srs ? { ...saved.srs } : seedCards(chars),
     listen: { ...base.listen, ...(saved.listen || {}) },
     daily: { ...(saved.daily || {}) }
@@ -152,6 +162,11 @@ export const useProgressStore = defineStore('progress', () => {
 
   /** 待播放的庆祝事件，由 App.vue 的彩带层消费。 */
   const pendingCelebration = ref(null)
+  /**
+   * 本次打开页面刚解锁的徽章，最新的排在最前面。
+   * 单字页的「领奖励」一步和首页成就架都读它；不持久化，刷新即清空。
+   */
+  const recentBadges = ref([])
   /** 本次打开页面已连续学习的秒数，用于护眼提醒；不持久化。 */
   const sessionSeconds = ref(0)
   const restDue = ref(false)
@@ -300,6 +315,79 @@ export const useProgressStore = defineStore('progress', () => {
     () => CHARACTERS.find((c) => (state.chars[c.char]?.level ?? 0) === 0) ?? CHARACTERS[0]
   )
 
+  /* ---------------------------------------------------------------- 徽章 */
+
+  const tracedTotal = computed(() =>
+    Object.values(state.chars).reduce((n, s) => n + (s.traced ?? 0), 0)
+  )
+
+  /** 徽章只认这一张指标表；data/badges.js 里的 metric 就是它的键。 */
+  const badgeStats = computed(() => ({
+    learned: learnedCount.value,
+    mastered: masteredChars.value.length,
+    traced: tracedTotal.value,
+    flows: state.flowsCompleted ?? 0,
+    listenStreak: state.listen.bestStreak,
+    streak: streakDays.value,
+    books: booksFinished.value,
+    idioms: idiomsRead.value,
+    radicals: radicalsSeen.value
+  }))
+
+  /** 全部徽章 × 当前进度，成就墙直接渲染这一份。 */
+  const badges = computed(() =>
+    BADGES.map((b) => {
+      const raw = badgeStats.value[b.metric] ?? 0
+      const record = state.badges[b.id] ?? null
+      return {
+        ...b,
+        raw,
+        value: Math.min(raw, b.goal),
+        unlocked: Boolean(record),
+        unlockedAt: record?.unlockedAt ?? null,
+        percent: b.goal ? Math.min(100, Math.round((raw / b.goal) * 100)) : 0
+      }
+    })
+  )
+
+  const unlockedBadges = computed(() => badges.value.filter((b) => b.unlocked))
+  const badgeCount = computed(() => unlockedBadges.value.length)
+  const totalBadges = TOTAL_BADGES
+
+  /** 差得最少的三枚未解锁徽章，用来告诉孩子「再做一点点就到手了」。 */
+  const nextBadges = computed(() =>
+    badges.value
+      .filter((b) => !b.unlocked)
+      .sort((a, b) => b.percent - a.percent || a.goal - b.goal)
+      .slice(0, 3)
+  )
+
+  /**
+   * 对一遍指标表，把够格的徽章记进存档。
+   *
+   * `silent` 用于读档时的补发：老存档里没有 badges 字段，第一次进来要把
+   * 早就该拿到的徽章补上，但不该为此发星星、更不该弹一堆庆祝。
+   */
+  function refreshBadges({ silent = false } = {}) {
+    const stats = badgeStats.value
+    const fresh = []
+    for (const b of BADGES) {
+      if (state.badges[b.id]) continue
+      if ((stats[b.metric] ?? 0) < b.goal) continue
+      state.badges[b.id] = { unlockedAt: Date.now() }
+      fresh.push(b)
+    }
+    if (!fresh.length || silent) return fresh
+    recentBadges.value = [...fresh, ...recentBadges.value].slice(0, 8)
+    addStars(fresh.length * 2)
+    addXp(fresh.length * 15)
+    return fresh
+  }
+
+  function clearRecentBadges() {
+    recentBadges.value = []
+  }
+
   /* ---------------------------------------------------------------- 内部 */
 
   function ensureChar(char) {
@@ -404,6 +492,19 @@ export const useProgressStore = defineStore('progress', () => {
     reviewCard(char, RATING.GOOD)
     recomputeLevel(char)
     addXp(8)
+  }
+
+  /**
+   * 单字页的五步闭环走完了一整轮（认一认 → 写一写 → 听一听 → 考一考 → 领奖励）。
+   * 返回这一轮顺带解锁的徽章，好让「领奖励」那一步当场把它们摆出来。
+   */
+  function completeCharFlow(char) {
+    const s = ensureChar(char)
+    s.flows = (s.flows ?? 0) + 1
+    state.flowsCompleted = (state.flowsCompleted ?? 0) + 1
+    addStars(2)
+    addXp(20)
+    return { flows: s.flows, badges: refreshBadges() }
   }
 
   /** 记录一次测验作答（听音识字、成语小测都走这里）。 */
@@ -558,6 +659,7 @@ export const useProgressStore = defineStore('progress', () => {
       const payload = parsed?.data ?? parsed
       Object.assign(state, migrate(payload))
       applyAppearance()
+      refreshBadges({ silent: true })
       persist()
       return true
     } catch {
@@ -693,11 +795,15 @@ export const useProgressStore = defineStore('progress', () => {
   }
 
   applyAppearance()
+  // 读档时先把老存档欠下的徽章补齐（不发星星、不弹庆祝），之后指标一变就重新对表。
+  refreshBadges({ silent: true })
+  watch(badgeStats, () => refreshBadges())
   watch(() => JSON.stringify(state), persist, { flush: 'post' })
 
   return {
     state,
     pendingCelebration,
+    recentBadges,
     sessionSeconds,
     restDue,
 
@@ -714,6 +820,16 @@ export const useProgressStore = defineStore('progress', () => {
     memoryCards,
     averageRetention,
     nextChar,
+
+    badges,
+    badgeStats,
+    unlockedBadges,
+    badgeCount,
+    totalBadges,
+    nextBadges,
+    refreshBadges,
+    clearRecentBadges,
+    completeCharFlow,
 
     markHeard,
     markTraced,

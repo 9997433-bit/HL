@@ -12,6 +12,11 @@
  *      写满全部笔画同样算完成，掌握度照常升级；
  *   2. 跳过通道「跳过描红」——按 Esc 或点按钮直接离开描红，不留下半途状态。
  * 每一步的进度都写进 hz__hint 这个 live region，读屏能听到还剩几笔。
+ *
+ * 同一笔连错 `demoAfterMistakes`（默认 3）次，就不再让孩子继续撞墙：
+ * 自动把那一笔慢放示范一遍，再从这一笔接着写。hanzi-writer 的 animateStroke()
+ * 会顺手取消当前测验，所以示范完要用 quizStartStrokeNum 从原地把测验接回来；
+ * 错误总数、已辅助笔数这些账都记在组件自己手里，重启测验不会把它们清零。
  */
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { loadHanziWriter } from '@/utils/hanziWriter.js'
@@ -22,10 +27,12 @@ import { useSettingsStore } from '@/stores/settings.js'
 const props = defineProps({
   char: { type: String, required: true },
   size: { type: Number, default: 260 },
-  autoplay: { type: Boolean, default: true }
+  autoplay: { type: Boolean, default: true },
+  /** 同一笔连错几次就自动示范这一笔；设成 0 表示不自动示范。 */
+  demoAfterMistakes: { type: Number, default: 3 }
 })
 
-const emit = defineEmits(['quiz-complete', 'quiz-mistake', 'quiz-skip'])
+const emit = defineEmits(['quiz-complete', 'quiz-mistake', 'quiz-skip', 'quiz-start', 'stroke-demo'])
 
 const settings = useSettingsStore()
 
@@ -39,9 +46,17 @@ const hint = ref('')
 const strokeCount = ref(0)
 /** 已经由键盘/按钮替程序写掉的笔数。 */
 const assisted = ref(0)
+/** 本轮描红的错误总数；示范后重启测验也不清零，由组件自己记账。 */
+const mistakes = ref(0)
+/** 本轮自动示范过几笔。 */
+const demoCount = ref(0)
+/** 正在示范的笔序（0 开始）；-1 表示没有在示范。 */
+const demoStroke = ref(-1)
 
 let writer = null
 let disposed = false
+/** 每一笔各错了几次，key 是笔序；这一笔写对之后清零。 */
+let strokeMistakes = new Map()
 
 function cssColor(name, fallback) {
   if (typeof window === 'undefined') return fallback
@@ -67,7 +82,7 @@ async function build() {
   status.value = 'loading'
   hint.value = ''
   strokeCount.value = 0
-  assisted.value = 0
+  resetQuizTally()
 
   let HanziWriter
   try {
@@ -135,34 +150,93 @@ function loop() {
   writer.loopCharacterAnimation()
 }
 
+function resetQuizTally() {
+  assisted.value = 0
+  mistakes.value = 0
+  demoCount.value = 0
+  demoStroke.value = -1
+  strokeMistakes = new Map()
+}
+
+/**
+ * 真正把 hanzi-writer 的测验跑起来。
+ * `from` 不是 0 时表示从示范过的那一笔接着写：前面写好的笔画照旧留在格子里。
+ */
+function runQuiz(from = 0) {
+  if (!writer) return
+  writer.quiz({
+    quizStartStrokeNum: from,
+    showHintAfterMisses: 2,
+    onCorrectStroke({ strokeNum, strokesRemaining }) {
+      sfx.tap()
+      strokeMistakes.delete(strokeNum)
+      hint.value = strokesRemaining > 0 ? `太棒了，还剩 ${strokesRemaining} 笔` : '完成啦！'
+    },
+    onMistake({ strokeNum }) {
+      const missed = (strokeMistakes.get(strokeNum) ?? 0) + 1
+      strokeMistakes.set(strokeNum, missed)
+      mistakes.value += 1
+      emit('quiz-mistake', { strokeNum, mistakesOnStroke: missed, total: mistakes.value })
+      if (props.demoAfterMistakes > 0 && missed >= props.demoAfterMistakes) {
+        demonstrateStroke(strokeNum)
+        return
+      }
+      sfx.wrong()
+      hint.value = `第 ${strokeNum + 1} 笔再试一次～`
+    },
+    onComplete() {
+      sfx.correct()
+      const total = mistakes.value
+      quizResult.value = { mistakes: total }
+      hint.value = total === 0 ? '一笔不错，满分！' : `写完啦，错了 ${total} 次，再来一遍会更好！`
+      mode.value = 'watch'
+      demoStroke.value = -1
+      emit('quiz-complete', { mistakes: total, assisted: assisted.value, demos: demoCount.value })
+    }
+  })
+}
+
 function startQuiz() {
   if (!writer) return
   sfx.tap()
   mode.value = 'quiz'
   quizResult.value = null
-  assisted.value = 0
+  resetQuizTally()
   hint.value = `用手指或鼠标按顺序写一写；也可以按空格或「写下一笔」，让我帮你写。${
     strokeCount.value ? `一共 ${strokeCount.value} 笔。` : ''
   }`
-  writer.quiz({
-    showHintAfterMisses: 2,
-    onCorrectStroke({ strokesRemaining }) {
-      sfx.tap()
-      hint.value = strokesRemaining > 0 ? `太棒了，还剩 ${strokesRemaining} 笔` : '完成啦！'
-    },
-    onMistake({ strokeNum }) {
-      sfx.wrong()
-      hint.value = `第 ${strokeNum + 1} 笔再试一次～`
-      emit('quiz-mistake', strokeNum)
-    },
-    onComplete({ totalMistakes }) {
-      sfx.correct()
-      quizResult.value = { mistakes: totalMistakes }
-      hint.value = totalMistakes === 0 ? '一笔不错，满分！' : `写完啦，错了 ${totalMistakes} 次，再来一遍会更好！`
-      mode.value = 'watch'
-      emit('quiz-complete', { mistakes: totalMistakes })
-    }
-  })
+  runQuiz(0)
+  emit('quiz-start')
+  nextTick(() => stage.value?.focus?.({ preventScroll: true }))
+}
+
+/**
+ * 同一笔连错够了次数：慢放示范这一笔，再把测验接回原处。
+ * 示范期间田字格不接受书写（animateStroke 已经取消了测验），
+ * 所以要挡住键盘的「写下一笔」，免得孩子在示范中途把这一笔跳掉。
+ */
+async function demonstrateStroke(strokeNum) {
+  if (!writer || demoStroke.value >= 0) return
+  demoStroke.value = strokeNum
+  demoCount.value += 1
+  strokeMistakes.set(strokeNum, 0)
+  sfx.tap()
+  hint.value = `第 ${strokeNum + 1} 笔连着错了 ${props.demoAfterMistakes} 次，先看我写一遍 ✍️`
+  emit('stroke-demo', { strokeNum, demos: demoCount.value })
+
+  try {
+    await writer.animateStroke(strokeNum)
+  } catch {
+    /* 数据被回收或组件已卸载，下面的守卫会兜住 */
+  }
+  if (disposed || !writer || mode.value !== 'quiz') {
+    demoStroke.value = -1
+    return
+  }
+
+  runQuiz(strokeNum)
+  hint.value = `看清楚啦？轮到你写第 ${strokeNum + 1} 笔`
+  demoStroke.value = -1
   nextTick(() => stage.value?.focus?.({ preventScroll: true }))
 }
 
@@ -172,7 +246,7 @@ function startQuiz() {
  * 最后一笔补完照样触发 onComplete，所以键盘用户拿到的结果与手写完全一致。
  */
 function writeNextStroke() {
-  if (!writer || mode.value !== 'quiz') return
+  if (!writer || mode.value !== 'quiz' || demoStroke.value >= 0) return
   sfx.tap()
   assisted.value += 1
   const remaining = strokeCount.value ? Math.max(strokeCount.value - assisted.value, 0) : null
@@ -198,7 +272,7 @@ function exitQuiz() {
   mode.value = 'watch'
   hint.value = ''
   quizResult.value = null
-  assisted.value = 0
+  resetQuizTally()
 }
 
 /** 跳过通道：离开描红，不给掌握度记账，也不留半截笔画。 */
@@ -239,19 +313,20 @@ const boxStyle = computed(() => ({ width: `${props.size}px`, height: `${props.si
 const stageLabel = computed(() =>
   mode.value === 'quiz'
     ? `「${props.char}」描红练习区${strokeCount.value ? `，共 ${strokeCount.value} 笔` : ''}：` +
-      '可以直接在格子里写；按空格、回车或方向键右键，我帮你写下一笔；按 Esc 跳过描红。'
+      '可以直接在格子里写；按空格、回车或方向键右键，我帮你写下一笔；按 Esc 跳过描红。' +
+      `同一笔连错 ${props.demoAfterMistakes} 次，我会先示范给你看。`
     : undefined
 )
 
-defineExpose({ play, startQuiz, writeNextStroke, skipQuiz })
+defineExpose({ play, startQuiz, writeNextStroke, skipQuiz, mode, demoCount, mistakes })
 </script>
 
 <template>
-  <div class="hz">
+  <div class="hz" :data-demos="demoCount" :data-mistakes="mistakes">
     <div
       ref="stage"
       class="hz__stage tianzige"
-      :class="{ 'is-quiz': mode === 'quiz' }"
+      :class="{ 'is-quiz': mode === 'quiz', 'is-demo': demoStroke >= 0 }"
       :style="boxStyle"
       :tabindex="mode === 'quiz' ? 0 : undefined"
       :role="mode === 'quiz' ? 'group' : undefined"
@@ -298,7 +373,14 @@ defineExpose({ play, startQuiz, writeNextStroke, skipQuiz })
         ✍️ 我来写
       </button>
       <template v-else>
-        <button class="btn btn--accent" type="button" @click="writeNextStroke">✏️ 写下一笔</button>
+        <button
+          class="btn btn--accent"
+          type="button"
+          :disabled="demoStroke >= 0"
+          @click="writeNextStroke"
+        >
+          ✏️ 写下一笔
+        </button>
         <button class="btn btn--ghost" type="button" @click="skipQuiz">⏭ 跳过描红</button>
       </template>
       <button
@@ -332,6 +414,12 @@ defineExpose({ play, startQuiz, writeNextStroke, skipQuiz })
 /* 描红时格子本身可聚焦，键盘用户要看得见焦点落在哪 */
 .hz__stage.is-quiz:focus-visible {
   outline: 3px solid var(--brand);
+  outline-offset: 3px;
+}
+
+/* 自动示范这一笔时给格子镶一圈高亮，说明现在是「看」而不是「写」 */
+.hz__stage.is-demo {
+  outline: 3px dashed var(--star);
   outline-offset: 3px;
 }
 
