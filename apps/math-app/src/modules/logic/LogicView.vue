@@ -309,7 +309,7 @@ onMounted(startRound)
 
 <template>
   <main class="page stack">
-    <section class="panel bar-panel">
+    <section class="card bar-panel">
       <SessionBar
         :index="index"
         :total="ROUND_SIZE"
@@ -319,14 +319,14 @@ onMounted(startRound)
       />
     </section>
 
-    <section v-if="current" class="panel stage">
+    <section v-if="current" class="card stage">
       <header class="stage-head">
         <MascotBot :mood="mood" :size="72" />
         <div class="head-text">
           <h2 class="prompt">{{ current.prompt }}</h2>
           <p class="muted say">{{ message }}</p>
         </div>
-        <button class="btn btn-ghost btn-sm" @click="toggleHint">
+        <button class="btn btn--ghost btn--sm" @click="toggleHint">
           💡 {{ showHint ? '收起提示' : '提示（少 1⭐）' }}
         </button>
       </header>

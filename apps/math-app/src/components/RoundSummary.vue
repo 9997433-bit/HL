@@ -43,7 +43,7 @@ onMounted(() => {
 
 <template>
   <div class="overlay">
-    <div ref="card" class="summary panel">
+    <div ref="card" class="summary card">
       <MascotBot :mood="mood" :size="110" />
       <h2 class="head">{{ moduleName }}完成！</h2>
 
@@ -69,8 +69,8 @@ onMounted(() => {
       <p class="remark muted">{{ remark }}</p>
 
       <div class="actions">
-        <button class="btn btn-primary btn-lg" @click="emit('replay')">🔄 再来一轮</button>
-        <button class="btn btn-ghost" @click="emit('home')">🗺️ 回到地图</button>
+        <button class="btn btn--primary btn--lg" @click="emit('replay')">🔄 再来一轮</button>
+        <button class="btn btn--ghost" @click="emit('home')">🗺️ 回到地图</button>
       </div>
     </div>
   </div>

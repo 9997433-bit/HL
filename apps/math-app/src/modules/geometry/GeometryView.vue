@@ -251,7 +251,7 @@ onMounted(startRound)
 
 <template>
   <main class="page stack">
-    <section class="panel controls">
+    <section class="card controls">
       <div class="seg" role="group" aria-label="图形范围">
         <button class="seg-btn" :class="{ on: scope === '2d' }" @click="setScope('2d')">
           ▲ 平面图形
@@ -267,7 +267,7 @@ onMounted(startRound)
       <span class="chip">共 {{ pool.length }} 种图形</span>
     </section>
 
-    <section class="panel bar-panel">
+    <section class="card bar-panel">
       <SessionBar
         :index="index"
         :total="ROUND_SIZE"
@@ -277,7 +277,7 @@ onMounted(startRound)
       />
     </section>
 
-    <section v-if="current" ref="stageRef" class="panel stage">
+    <section v-if="current" ref="stageRef" class="card stage">
       <header class="stage-head">
         <MascotBot :mood="mood" :size="72" />
         <div class="head-text">

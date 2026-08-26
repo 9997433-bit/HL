@@ -82,7 +82,7 @@ onMounted(() => {
 
 <template>
   <main class="page stack">
-    <section class="hero panel">
+    <section class="hero card">
       <div class="hero-text">
         <p class="kicker">开源儿童数学启蒙</p>
         <h2 class="hero-title">星际数学冒险</h2>
@@ -90,10 +90,10 @@ onMounted(() => {
           点亮六颗数学星球：从数数、加减法，到图形、规律、数独与生活应用题。
         </p>
         <div class="hero-actions">
-          <button v-if="nextPlanet" class="btn btn-primary btn-lg" @click="open(nextPlanet)">
+          <button v-if="nextPlanet" class="btn btn--primary btn--lg" @click="open(nextPlanet)">
             🚀 继续冒险 · {{ nextPlanet.name }}
           </button>
-          <RouterLink to="/progress" class="btn btn-ghost">🏆 我的成就</RouterLink>
+          <RouterLink to="/progress" class="btn btn--ghost">🏆 我的成就</RouterLink>
         </div>
       </div>
       <MascotBot mood="idle" :size="128" class="hero-bot" />
@@ -107,7 +107,7 @@ onMounted(() => {
       </div>
     </section>
 
-    <section class="map panel">
+    <section class="map card">
       <div class="map-head row">
         <h3 class="panel-title">🗺️ 学习地图</h3>
         <span class="chip">收集星星解锁新星球</span>
@@ -152,7 +152,7 @@ onMounted(() => {
       <button
         v-for="p in planets"
         :key="`card-${p.id}`"
-        class="mod-card panel"
+        class="mod-card card"
         :class="{ locked: !p.unlocked }"
         :style="{ '--pc': p.color, '--pa': p.accent }"
         @click="open(p)"

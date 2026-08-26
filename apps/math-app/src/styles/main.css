@@ -1,4 +1,11 @@
 /* MathQuest 深空主题 — 设计变量体系 */
+
+/* 引入顺序固定：共享令牌 → 共享组件层 → App 本地覆盖。
+   主题由 index.html 的 <html data-theme="cosmos"> 静态选中，避免首帧闪白。 */
+@import '@shared/styles/design-tokens.css';
+@import '@shared/styles/components.css';
+
+/* 下面这批变量与令牌 §11 兼容别名同值，等 Phase 2 语义化换名后整块删除。 */
 :root {
   /* 骨架期变量(ModuleCard / ModulePlaceholder 仍在使用) */
   --bg-deep: #0b1030;
@@ -141,19 +148,24 @@ a {
   flex: 1;
 }
 
-/* ---------- 面板 ---------- */
+/* ---------- 面板 ----------
+   基础形态（面色/描边/圆角/阴影/内边距）来自 shared/styles/components.css 的
+   .card；这里只叠加深空专属的星际渐变与顶缘高光。 */
 
-.panel {
-  background: linear-gradient(160deg, rgba(37, 46, 108, 0.92), rgba(16, 21, 60, 0.92));
-  border: 1px solid rgba(140, 158, 255, 0.22);
-  border-radius: var(--radius-l);
-  box-shadow: var(--shadow-card);
-  padding: 22px;
+.card {
+  /* 装饰性深空渐变：--cosmos-1 属原始色板，仅用于这层背景纵深 */
+  background: linear-gradient(
+    160deg,
+    var(--surface) 0%,
+    color-mix(in srgb, var(--cosmos-1) 92%, transparent) 100%
+  );
+  box-shadow: var(--shadow-lg);
   position: relative;
   overflow: hidden;
+  backdrop-filter: none;
 }
 
-.panel::after {
+.card::after {
   content: '';
   position: absolute;
   inset: 0 0 auto 0;
@@ -175,63 +187,14 @@ a {
   color: var(--ink-dim);
 }
 
-/* ---------- 按钮 ---------- */
+/* ---------- 按钮 ----------
+   .btn / .btn--primary / .btn--ghost / .btn--sm / .btn--lg 全部来自
+   shared/styles/components.css；这里只保留深空专属的配色差异。 */
 
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 12px 22px;
-  border-radius: 999px;
-  font-weight: 800;
-  font-size: 16px;
-  background: rgba(155, 140, 255, 0.16);
-  border: 1px solid rgba(155, 140, 255, 0.4);
-  color: var(--ink);
-  transition: transform 0.14s ease, box-shadow 0.14s ease, background 0.14s ease;
-}
-
-.btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  background: rgba(155, 140, 255, 0.28);
-}
-
-.btn:active:not(:disabled) {
-  transform: translateY(1px) scale(0.98);
-}
-
-.btn-primary {
-  background: linear-gradient(135deg, var(--cyan), var(--violet));
-  border-color: transparent;
-  color: #08122b;
-  box-shadow: 0 10px 26px rgba(94, 231, 255, 0.28);
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: linear-gradient(135deg, #7ceeff, #ab9dff);
-}
-
-.btn-warm {
-  background: linear-gradient(135deg, var(--gold), var(--orange));
-  border-color: transparent;
-  color: #3a2400;
-  box-shadow: 0 10px 26px rgba(255, 159, 69, 0.28);
-}
-
-.btn-ghost {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.16);
-}
-
-.btn-sm {
-  padding: 8px 16px;
-  font-size: 14px;
-}
-
-.btn-lg {
-  padding: 16px 34px;
-  font-size: 20px;
+/* 主按钮：共享层是同色相纵向渐变，深空版沿用青→紫的星际斜向渐变。 */
+.btn--primary {
+  background: linear-gradient(135deg, var(--brand), var(--accent));
+  box-shadow: var(--shadow-press), 0 10px 26px color-mix(in srgb, var(--brand) 28%, transparent);
 }
 
 /* ---------- 标签 ---------- */
@@ -303,9 +266,9 @@ a {
     padding: 12px 14px 88px;
   }
 
-  .panel {
-    padding: 16px;
-    border-radius: var(--radius-m);
+  .card {
+    padding: var(--gap-md);
+    border-radius: var(--radius-md);
   }
 }
 
