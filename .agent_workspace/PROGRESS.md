@@ -64,8 +64,8 @@
 ### 性能瓶颈
 
 - STFT 60s/48kHz stereo：**37.7 ms**（1593× realtime）— 达标
-- True Peak 归一化：**356 ms** — Round 2 首要优化项
-- 频谱渲染 1920×1080：**14 fps** — 需缓存中间结果
+- True Peak 归一化：356 ms → **45 ms**（Round 2 候选窗口法，结果与全量过采样逐位一致）
+- 频谱渲染 1920×1080：14 fps → **30 fps 首帧 / 57 fps 调色板**（两级缓存 + gather 池化）
 - 播放延迟估算：44.1kHz **11.6 ms** / 48kHz **10.7 ms** — 接近目标
 
 ### Round 2 攻坚重点
@@ -89,9 +89,9 @@ _(Pending Round 2 completion)_
 | 1 | fable | claude-fable-5-thinking-xhigh | Round 2 架构收敛审计 | bc-81118806 | cloud | 🔄 |
 | 2 | fable | claude-fable-5-thinking-xhigh | Round 2 SOTA 差距复审 | bc-0247424d | cloud | 🔄 |
 | 3 | opus-fast | claude-opus-5-thinking-high-fast | 引擎重构：EditSession/流式/SPSC | bc-ded8025e | local | 🔄 |
-| 4 | opus-fast | claude-opus-5-thinking-high-fast | DSP/UI 集成 & True Peak 优化 | bc-32308bf7 | local | 🔄 |
+| 4 | opus-fast | claude-opus-5-thinking-high-fast | DSP/UI 集成 & True Peak 优化 | bc-32308bf7 | local | ✅ DONE |
 | 5 | gpt-sol | gpt-5.6-sol-xhigh-fast | SLO 基准 & EBU 3341/3342 合规向量 | bc-d70ed740 | local | 🔄 |
-| 6 | gpt-sol | gpt-5.6-sol-xhigh-fast | CI 矩阵 & Round 2 性能报告 | bc-90494473 | local | 🔄 |
+| 6 | gpt-sol | gpt-5.6-sol-xhigh-fast | CI 矩阵 & Round 2 性能报告 | bc-90494473 | local | ✅ DONE |
 
 ## Round 3 Brief
 
