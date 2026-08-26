@@ -73,6 +73,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A101 | gpt-5.6-sol-xhigh-fast | Confirm A89's meshio bridge landed and verify the full suite | complete — A89 landed; 1133 passed at `92e387d` |
 | A102 | gpt-5.6-sol-xhigh-fast | Independent meshio bridge/full-suite verification (backfill for completed A101) | complete — A101 done; A89 present; 1133 passed at `92e387d` |
 | A56 | claude-opus-5-thinking-high-fast | Close the acceptance registry: MS-1.2 frequency windows plus the last three unwritten criteria, AC-MODAL-008/UPD-008/WORK-003 (backfill for A44) | complete — registry 44/44 `implemented`, 1168 passed, Ruff clean |
+| A109 | claude-opus-5-thinking-high-fast | R2-T09 continued: `scripts/promote_verified.py` and the tests that flip five criteria to `verified` on a gate run (backfill for completed A107) | complete — registry 14 `verified` / 30 `implemented`, 1207 passed, Ruff clean |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
@@ -3136,3 +3137,52 @@ Here it was equivalent in structure and wrong in one detail, and diffing the two
 what surfaced the non-finite JSON. Work was done in a private worktree at `/tmp/a56`
 with `PYTHONPATH` pinned to its own `src`; the shared `/workspace` checkout was in use
 by other agents throughout and was never touched.
+
+#### A109 — R2-T09 continued: promotion becomes a tool run (backfill for completed A107)
+
+A72 made `verified` an enforced claim — `tests/acceptance/test_registry_ci.py` re-runs
+the tagged tests of every promoted row — but performing a promotion was still an edit
+of a string literal, with the gate consulted afterwards, if at all. This slice inverts
+that: the status flip is now the *output* of the gate run.
+
+- **`scripts/promote_verified.py` (new)** — takes criterion IDs (or
+  `--all-implemented`), obtains evidence either by running the gate itself (`--run`,
+  the same `--criterion`/`--criterion-report` selection CI's `gates` job uses) or from
+  the report of a run that already happened (`--report PATH`), and rewrites the
+  registry only for rows the evidence supports. A row is promoted when the run exited
+  zero *and* every one of the criterion's collected tests passed *and* those node IDs
+  land in the suite the registry names. A skip, a partial result (`passed != tests`),
+  evidence borrowed from another suite, a red run, a row still `specified`, or an
+  unknown ID is reported as blocked and changes nothing; the exit status is 1 if
+  anything was blocked, 2 for a registry/report error. `--apply` is required to write,
+  and the rewrite is span-exact: the registry is parsed with `ast`, only the status
+  literals are replaced, so the promotion diff is exactly the claim it makes.
+- **`tests/test_promote_verified.py` (new, 23 tests)** — the headline test builds a
+  synthetic registry, a tagged suite and a copy of the real `tests/conftest.py` plugin
+  in `tmp_path`, runs the gate for real in a pytest subprocess, and asserts that five
+  `implemented` rows come back `verified` while the rest of the file is unchanged
+  line for line. The blocking paths are covered the same way — the skipping and the
+  failing criterion through real runs, the rest through handcrafted reports — plus
+  idempotency, the dry run, `--json`, the two usage errors, and two tests that point
+  the parser at the *real* registry and check its static view matches what Python
+  imports (which is how the shared-suite-constant bug in the first parser was caught:
+  `test_file` is `_DYN_SUITE`, not a literal).
+- **Promotions (5, all P0, 18 tagged tests)** — applied with
+  `promote_verified.py --run --apply`: AC-DYN-001/002/003 and AC-OPT-001/002. The slice
+  completes the P0 rows of the two modules whose Round-2 tasks are complete (R2-T01
+  dynamics, R2-T07 optimization), joining the AC-DYN-004 and AC-OPT-003 rows A72
+  promoted.   Registry split is now **14 `verified` / 30 `implemented`** of 44 — 13 of the 34 P0
+  rows and 1 of the 10 P1 rows are promoted; the P1 rows of both modules (AC-DYN-005,
+  AC-OPT-004) stay `implemented`.
+  `ACCEPTANCE_CRITERIA.md` §1.5 documents the tool and §9 records the widened slice.
+- **Measured** — full suite **1207 passed** in 14.6 s, `ruff check .` clean, on Python
+  3.12.3 from the private clone `/tmp/a109` with `PYTHONPATH` pinned to its own `src`.
+  The gate suite re-runs the widened slice twice under different hash seeds in 13 s;
+  the five criteria were chosen partly because their tests are fast, so the gate stays
+  cheap as it widens.
+- **The shared checkout was in use again.** `/workspace` was mid-cherry-pick on another
+  agent's branch while this task started, and the branch created there vanished under
+  it; the work moved to a private clone and `/workspace` was left as it was found.
+- **Open for R2-T09** — 30 rows are still `implemented`, and each is now one tool run
+  away from promotion as its track closes; the remaining exit item is nothing more than
+  running it.
