@@ -1,0 +1,37 @@
+services:
+  audio-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+      args:
+        USER_UID: "${USER_UID:-1000}"
+        USER_GID: "${USER_GID:-1000}"
+    image: audio-analysis-dev:local
+    init: true
+    stdin_open: true
+    tty: true
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+      - python-cache:/home/developer/.cache
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  # Opt in on Linux only:
+  #   AUDIO_GID=$(getent group audio | cut -d: -f3) \
+  #     docker compose --profile linux-audio run --rm audio-dev-linux
+  # This exposes ALSA hardware, but PulseAudio/PipeWire still needs its host
+  # socket mounted explicitly. Docker Desktop cannot expose CoreAudio/WASAPI.
+  audio-dev-linux:
+    extends:
+      service: audio-dev
+    profiles: ["linux-audio"]
+    devices:
+      - /dev/snd:/dev/snd
+    group_add:
+      - "${AUDIO_GID:-29}"
+
+volumes:
+  python-cache:
