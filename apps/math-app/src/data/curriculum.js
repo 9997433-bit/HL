@@ -17,6 +17,7 @@ export const SKILLS = [
   { id: 'count-to-20', module: 'number-sense', level: 'L2', name: '20以内点数', deps: ['count-to-10'] },
   { id: 'number-order', module: 'number-sense', level: 'L2', name: '数序与相邻数', deps: ['count-to-10'] },
   { id: 'compare-to-10', module: 'number-sense', level: 'L1', name: '10以内比大小', deps: ['count-to-5'] },
+  { id: 'compare-to-20', module: 'number-sense', level: 'L2', name: '20以内比大小', deps: ['compare-to-10'] },
   { id: 'compose-ten', module: 'number-sense', level: 'L2', name: '10的分与合', deps: ['count-to-10'] },
   { id: 'number-trace', module: 'number-sense', level: 'L1', name: '数字描红0-9', deps: [] },
 
