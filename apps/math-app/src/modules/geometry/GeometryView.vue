@@ -306,7 +306,7 @@ onMounted(startRound)
         <button
           v-for="c in current.choices"
           :key="c.id"
-          class="rock"
+          class="opt rock"
           :class="{
             right: locked && c.id === current.answer,
             bad: locked && chosen === c.id && c.id !== current.answer,
@@ -325,7 +325,7 @@ onMounted(startRound)
         <button
           v-for="c in current.choices"
           :key="c"
-          class="word-opt"
+          class="opt word-opt"
           :class="{
             right: locked && c === current.answer,
             bad: locked && chosen === c && c !== current.answer,

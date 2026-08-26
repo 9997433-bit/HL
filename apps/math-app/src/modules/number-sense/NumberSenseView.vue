@@ -153,6 +153,7 @@ function onPointerUp(e) {
   dragging.value = null
   dropActive.value = false
   if (!d) return
+  pointerHandledAt = Date.now()
 
   const overShip = pointerInDropZone(e)
   const item = pool.value.find((p) => p.id === d.id)
@@ -174,7 +175,31 @@ function setInShip(item, value) {
   if (value) pop(shipRef.value, { scale: 1.03 })
 }
 
+/**
+ * 键盘（Enter / 空格）激活按钮时浏览器只派发 click，不派发 pointer 事件，
+ * 所以这里补一个兜底。指针操作后浏览器还会补发一个 click，用时间窗把它挡掉，
+ * 否则一次点击会被计成两次。
+ */
+let pointerHandledAt = 0
+
+function onCargoClick(item) {
+  if (locked.value || current.value?.type !== 'drag') return
+  if (Date.now() - pointerHandledAt < 400) return
+  setInShip(item, !item.inShip)
+}
+
 /* ---------------- 判题 ---------------- */
+
+/** 机器人的鼓励语。标题已经写了题目，这里不再重复念一遍。 */
+function encourage() {
+  return sample([
+    '别着急，一个一个慢慢数。',
+    '用手指点着数，不容易数漏哦。',
+    '我在旁边给你加油 🤖',
+    '数完再确认，稳一点更好。',
+  ])
+}
+
 
 /** 映射到 curriculum 技能点，让自适应掌握度引擎能收到反馈。 */
 function skillOf(q) {
@@ -229,7 +254,7 @@ function next() {
   }
   index.value += 1
   resetPool(current.value)
-  message.value = current.value.prompt
+  message.value = encourage()
   animateIn()
 }
 
@@ -255,7 +280,7 @@ function startRound() {
   mood.value = 'idle'
   progress.resetCombo()
   resetPool(current.value)
-  message.value = current.value.prompt
+  message.value = encourage()
   animateIn()
 }
 
@@ -266,7 +291,7 @@ function animateIn() {
       { opacity: 0, y: 16 },
       { opacity: 1, y: 0, duration: 0.35, ease: 'power2.out' },
     )
-    enter([...document.querySelectorAll('.opt')], { stagger: 0.05, y: 14 })
+    enter([...document.querySelectorAll('.options .opt')], { stagger: 0.05, y: 14 })
   })
 }
 
@@ -325,10 +350,12 @@ onBeforeUnmount(() => {
             <button
               v-for="item in outside"
               :key="item.id"
-              class="cargo"
+              class="opt cargo"
               :class="{ ghosted: dragging?.id === item.id }"
               :disabled="locked"
+              :aria-label="`装入一个${current.cargo.name}`"
               @pointerdown="onPointerDown($event, item)"
+              @click="onCargoClick(item)"
             >
               {{ current.cargo.icon }}
             </button>
@@ -366,7 +393,9 @@ onBeforeUnmount(() => {
                   :key="item.id"
                   class="cargo in"
                   :disabled="locked"
+                  :aria-label="`取出一个${current.cargo.name}`"
                   @pointerdown="onPointerDown($event, item)"
+                  @click="onCargoClick(item)"
                 >
                   {{ current.cargo.icon }}
                 </button>
@@ -728,7 +757,7 @@ onBeforeUnmount(() => {
   gap: 12px;
 }
 
-.opt {
+.options .opt {
   padding: 20px 10px;
   font-size: 28px;
   font-weight: 900;
@@ -738,17 +767,17 @@ onBeforeUnmount(() => {
   transition: transform 0.14s ease, box-shadow 0.14s ease;
 }
 
-.opt:hover:not(:disabled) {
+.options .opt:hover:not(:disabled) {
   transform: translateY(-3px);
   box-shadow: 0 10px 24px rgba(94, 231, 255, 0.24);
 }
 
-.opt.right {
+.options .opt.right {
   background: rgba(85, 230, 165, 0.28);
   border-color: var(--green);
 }
 
-.opt.bad {
+.options .opt.bad {
   background: rgba(255, 107, 125, 0.26);
   border-color: var(--red);
 }

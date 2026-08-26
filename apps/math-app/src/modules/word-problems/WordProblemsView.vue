@@ -265,7 +265,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
           <span class="scene-emoji">{{ current.emoji }}</span>
           <div>
             <span class="chip scene">{{ current.scene }}</span>
-            <span class="chip">{{ current.tag }}</span>
+            <span v-if="current.tag !== current.scene" class="chip">{{ current.tag }}</span>
             <span class="chip" :class="{ 'chip-on': current.steps === 2 }">
               {{ current.steps === 2 ? '两步' : '一步' }}
             </span>
