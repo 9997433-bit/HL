@@ -1,13 +1,13 @@
 # PR Draft — OpenFEMLab Round 1
 
 Ready to file. Base: `main`. Head: `cursor/femtools-industrial-7aa3`.
-Verified at `9109e17`: full suite **611 passed**, `ruff check .` clean
+Verified at `d6c70b1`: full suite **617 passed**, `ruff check .` clean
 (Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1).
 
 ## Title
 
 ```
-OpenFEMLab: solver-independent CAE platform — modal analysis, correlation, model updating, damped dynamics (611 tests)
+OpenFEMLab: solver-independent CAE platform — modal analysis, correlation, model updating, damped dynamics (617 tests)
 ```
 
 ## Body
@@ -23,13 +23,16 @@ synthesis, and optimization hooks — all behind one CLI and a schema-versioned 
 ## What's included
 
 - **Core FEM & modal solver** (`core/`, `solver/modal.py`, `mesh/`): node-major DOF
-  model with SPCs and lumped masses; spring/truss/planar-beam elements plus QUAD4
-  plane-stress/plane-strain support; one-pass preallocated COO→CSR assembly; one
-  `ModalSolver` façade with dense and sparse shift-invert backends, static condensation
-  of massless DOFs, mass normalization, participation/effective masses, and a shift-invert
-  LU cache. Validated against closed-form spectra to 1e-9 relative (worst continuum case
-  0.2 %). R2-T02 remains **partial**: TET4, HEX8, the 3D beam, shell facets, and the
-  corresponding solid/shell BDF cards are still open.
+  model with SPCs and lumped masses; spring/truss/planar-beam elements plus the QUAD4
+  isoparametric plane-stress/plane-strain continuum element (2×2 Gauss stiffness,
+  consistent mass, `mesh.simple.quad_plate_mesh` generator) that passes the constant-strain
+  patch test exactly and matches an equivalent bar spectrum to 2.4e-13; one-pass
+  preallocated COO→CSR assembly; one `ModalSolver` façade with dense and sparse
+  shift-invert backends, static condensation of massless DOFs, mass normalization,
+  participation/effective masses, and a shift-invert LU cache. Validated against
+  closed-form spectra to 1e-9 relative (worst continuum case 0.2 %). R2-T02 remains
+  **partial**: TET4, HEX8, the 3D beam, shell facets, and the corresponding solid/shell
+  BDF cards are still open.
 - **Damped dynamics** (`solver/dynamics.py`): Rayleigh, modal, and structural damping
   models; complex modes with modal phase collinearity; modal, complex-modal, and direct
   FRF synthesis; harmonic response; residual flexibility; FRAC/FDAC FRF correlation
@@ -37,7 +40,9 @@ synthesis, and optimization hooks — all behind one CLI and a schema-versioned 
 - **Correlation** (`correlation/`): MAC / autoMAC / mass-weighted MAC, MSF,
   pseudo-orthogonality, COMAC; sensor/DOF alignment with orientation signs; Hungarian
   or greedy mode pairing with MAC threshold, frequency window, and frequency penalty;
-  schema-versioned JSON `CorrelationReport`.
+  Guyan / IRS / SEREP reduction bases with the TAM mass and SEREP mode-shape expansion
+  back into full FE space; FRAC/FDAC FRF correlation carried as the schema-1.1 `frf`
+  block of the schema-versioned JSON `CorrelationReport`.
 - **Model updating** (`updating/`): analytic Fox–Kapoor eigenvalue, eigenvector, and
   MAC sensitivities (vectorized, sparse-aware, FD-verified to ≤ 1e-6); affine
   `ScalingModel` (one eigensolve per iteration); Levenberg–Marquardt / Gauss–Newton
@@ -51,29 +56,31 @@ synthesis, and optimization hooks — all behind one CLI and a schema-versioned 
   functions, analytic gradients with MAC mode tracking, `OptimizationProblem`, sizing
   compilation reusing the updater's model contract, and an implemented SciPy backend for
   SLSQP/trust-constr with hard bounds, analytic Jacobians, standardized inequalities,
-  iteration audits, and method-independent KKT residuals. GAP-12 is closed for sizing.
+  iteration audits, and method-independent KKT residuals over the active set only.
+  GAP-12 is closed for sizing.
 - **IO** (`io/`): schema-versioned native YAML/JSON round trip for models, modal
   results, and test data; ASCII UFF/UNV dataset 55/58 reader; minimal Nastran BDF
   reader (GRID/CROD/MAT1 → neutral model).
 - **CLI** (`cli/`): `openfemlab modal | correlate | update` over JSON/YAML model
   specs; machine-readable JSON on stdout, diagnostics on stderr, CI acceptance gates
   via exit codes; covered end to end including subprocess runs.
-- **QA stack**: 611 tests including a machine-readable registry of 35 quantified
+- **QA stack**: 617 tests including a machine-readable registry of 40 quantified
   acceptance criteria wired to tagged acceptance tests, boundary/probe suites,
   performance-regression gates, and benchmarks; GitHub Actions CI on Python
   3.10–3.13; `ruff check` clean.
-- **Docs**: `ARCHITECTURE.md`, `MODULE_SPEC.md` (MS-0..6), `ACCEPTANCE_CRITERIA.md`
-  (35 criteria), `SOTA_GAP_ANALYSIS.md` (GAP-01..15), `OPTIMIZATION.md`, README with
+- **Docs**: `ARCHITECTURE.md`, `MODULE_SPEC.md` (MS-0..7), `ACCEPTANCE_CRITERIA.md`
+  (40 criteria), `SOTA_GAP_ANALYSIS.md` (GAP-01..15), `OPTIMIZATION.md`, README with
   reproducible CLI walkthrough, runnable `examples/`.
 
 ## Verification
 
-- `python -m pytest` — **611 passed** at `9109e17` in 19.21 s on Python 3.12.3 /
+- `PYTHONPATH=src python -m pytest` — **617 passed** at `d6c70b1` in 88.42 s on Python 3.12.3 /
   NumPy 2.5.2 / SciPy 1.18.1.
 - `ruff check .` — clean.
-- The current suite includes 61 QUAD4 tests and 25 reduction/expansion tests in addition
-  to the established dynamics, updating, correlation, workflow, optimization, IO, CLI,
-  acceptance, boundary, performance, and end-to-end coverage.
+- Per-suite breakdown (sums to 617): dynamics 82, QUAD4 61, updating 57, correlation 52,
+  modal solver 44, workflow 38, optimization 27, reduction/expansion 25, CLI 22+1,
+  core 18, result contract 17, IO (native/UFF/Nastran) 24, acceptance registry + gates
+  136, boundary/performance/e2e/scaffold 13.
 - End-to-end: model → modal → correlate → update → re-solve converges 22.86 % → 0 %
   frequency error at MAC 1.0; the README CLI session reproduces exit codes 0/3/0/0.
 - Performance (single BLAS thread, medians): 100-DOF five-iteration updating loop
@@ -96,7 +103,8 @@ openness, and automation:
 | Scripting | proprietary BASIC-like | full Python + SciPy ecosystem, CI-native CLI | **exceed** |
 | Reproducibility | binary project files | plain-text models, journaled runs in git, headless reruns | **exceed** |
 | Cost / auditability | commercial licenses, closed numerics | MIT, every algorithm inspectable | **exceed** |
-| GUI, pretest planning, MPE from FRFs | mature | not in v1 (MPE targeted Round 2+, GAP-06/07/08) | gap (accepted) |
+| Reduction & expansion (TAM) | mature | Guyan/IRS/SEREP bases, TAM mass, SEREP expansion | parity |
+| GUI, pretest planning, MPE from FRFs | mature | not in v1 (MPE targeted Round 2+, GAP-06/07) | gap (accepted) |
 | Format breadth (Ansys/Abaqus native) | yes | partial (planned via meshio) | gap (accepted) |
 
 ## Notes for reviewers

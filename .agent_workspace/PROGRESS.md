@@ -52,6 +52,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A45 | gpt-5.6-sol-xhigh-fast | Current-tip 595-test/Ruff verification and PR-draft refresh (backfill for A37) | complete |
 | A47 | gpt-5.6-sol-xhigh-fast | Reconcile A23's 41-vs-40 criteria audit count and pin the registry inventory (backfill for A35) | complete |
 | A41 | claude-opus-5-thinking-high-fast | FRF block in the `CorrelationReport` schema, `schema_version` 1.1 (backfill for R2-T01) | complete |
+| A40 | claude-opus-5-thinking-high-fast | Side-branch merge sweep (scipy backend harvest; QUAD4 raced with A37), full-suite verification & PR-draft refresh (backfill for A38) | complete |
 | A44 | claude-opus-5-thinking-high-fast | Tag AC-WORK-001/002/004/005 and AC-UPD-007; new `tests/acceptance/test_workflow.py` (backfill for A23) | complete |
 
 ## Reference: FEMtools Core Capabilities
@@ -1463,6 +1464,53 @@ A27. The A24 backlog above is otherwise the live plan.
   **QUAD4 plane stress/strain is landed, but the task remains partial** while TET4, HEX8,
   the 3D beam, shell facets, and corresponding solid/shell BDF cards remain open.
 
+#### A40 — side-branch merge sweep & verification (backfill for A38)
+- **Swept every side branch for work not yet on the integration branch** and merged the
+  two that still carried unique commits. `cursor/optimization-sizing-hook-254c` needed
+  nothing — it is an ancestor of the trunk (zero unique commits), so the sizing hook was
+  already landed. Same for `cursor/dynamics-damping-frf-9500` and
+  `cursor/dynamics-optimization-integration-75b6`.
+- **QUAD4 (R2-T02) — merged here as `b34f072`, but A37 landed the same merge on the trunk
+  concurrently**, so the trunk merge in this task's history is a no-op re-merge of an
+  identical tree rather than the delivery. Recorded because the conflict resolution was
+  independent and agreed: the branch was cut before R2-T01 landed and still described
+  dynamics as in flight, so its `ROUND2_PLAN.md` GAP-04/05 row had to lose to the trunk's
+  newer status while its GAP-02 row was kept. Two agents merging one side branch is the
+  dispatch-level twin of the working-tree hazard below.
+- **`cursor/optimization-scipy-backend-f421` harvested** as `6cf0f49` — the one branch in
+  the sweep nobody else had taken, and *not* redundant with A27's backend: it had been
+  rebased onto trunk tip `b1b0ab8` and carries two real fixes on top of it.
+  `kkt_residual` now receives only the constraints active at `x` — a multiplier on a strictly satisfied constraint violates complementary slackness
+  and can certify a non-stationary point as converged — and `trust-constr` gets an
+  explicit zero constraint Hessian, because scipy's per-constraint BFGS default
+  degenerates on the linear mass-budget constraint that dominates sizing work (the
+  2-variable payload problem exhausted `maxiter` before, converges in under 30 iterations
+  now). Merged additively: +6 tests, no conflicts.
+  `cursor/optimization-acceptance-gates-2414` is subsumed (its unique content is the same
+  `932fccd` plus a merge commit).
+- **Still unmerged, deliberately:** `cursor/r1o2-correlation-updating-e393` and
+  `cursor/reconcile-r1o2-correlation-updating-64c5` — both branch from pre-Round-1-close
+  ancestors and A14 already reconciled their content; merging them now would resurrect a
+  parallel correlation/updating implementation. Left for the orchestrator to close as
+  superseded rather than merged.
+- **Verified** from a private worktree at `/tmp/a40` with `PYTHONPATH` pinned to it,
+  Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1: **595 passed** at the QUAD4 merge, **601**
+  with the harvest at `6cf0f49`, **617** after merging the trunk tip back in (A31's P0
+  acceptance batch), and **642 passed, 0 failed** (82.4 s) at `3014d25` once the FRF
+  correlation block landed on the trunk. `ruff check .` clean at every step.
+  `PR_DRAFT.md` refreshed off the stale 498 baseline — count, title, per-suite breakdown
+  (sums to 642), the QUAD4, reduction/expansion and FRF-block capabilities, 40 registered
+  criteria, and the scope note that used to claim no continuum elements exist. The trunk
+  moved four times during the sweep; the count is only stable for as long as that holds.
+- **Working-tree hazard, sixth occurrence.** `/workspace` was on another agent's branch
+  with an uncommitted FRF-correlation draft (`correlation/frf.py`, untracked) and gained
+  three commits *during* this task's first merge attempt, which is how that merge ended up
+  parented on A36's reduction work by accident. Redone from the private worktree and
+  `/workspace` was handed back on the branch and tree state it was found in. The editable
+  install still points at `/workspace/src`, so any private worktree needs
+  `PYTHONPATH=<worktree>/src` or it silently tests the shared checkout — which is exactly
+  how the first QUAD4 run failed to import `Quad4Element`.
+
 ### Round 3 — SOTA Polish & Final Acceptance
 **Status:** PENDING
 
@@ -1748,10 +1796,16 @@ acceptance test claimed them.
   under GAP-14, and `ROUND2_PLAN.md` stops calling AC-UPD-007 the last unimplemented P0
   (R2-T06's remainder is P1 depth work).
 - Verified on Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1 from the private `/tmp/a44merge`
-  worktree with `PYTHONPATH` pinned to its own `src`: **668 passed** in 78 s,
-  `ruff check .` clean.
-- Third report of the shared-checkout hazard: a concurrent agent reset `/workspace` onto
-  `cursor/femtools-industrial-7aa3` mid-run and the tracked-file edits were lost. The
-  work was redone and finished from private worktrees; the integration tip had also moved
-  three times, so the AC-UPD-002/003 batch that landed in parallel was merged by hand
-  into the M3 suite instead of overwriting it.
+  worktree with `PYTHONPATH` pinned to its own `src`: **674 passed** in 50 s,
+  `ruff check .` clean, after merging the A40 sweep that landed underneath this record.
+- Third report of the shared-checkout hazard, and the sharpest one yet. A concurrent
+  agent reset `/workspace` onto `cursor/femtools-industrial-7aa3` mid-run and the
+  tracked-file edits were lost, so the work was redone from private worktrees. The
+  integration tip then moved four times during the landing: the AC-UPD-002/003 batch that
+  arrived in parallel was merged into the M3 suite by hand rather than overwritten, and
+  the A40 sweep picked up the still-untracked `tests/acceptance/test_workflow.py` from the
+  shared checkout and committed it verbatim at `529739e`. The AC-WORK half of this task
+  therefore reached the branch under A40's commit; the file merged without conflict
+  because it is the same bytes. Nothing was duplicated or reverted, but the shared
+  checkout is now demonstrably a place where one agent's uncommitted work becomes
+  another's commit — private worktrees are not optional.
