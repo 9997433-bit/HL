@@ -435,8 +435,14 @@ export const CHARACTERS = [
 
 export const CHARACTER_MAP = new Map(CHARACTERS.map((c) => [c.char, c]))
 
+/**
+ * 查一个字。既接受 '人' 这样的字符串，也接受已经查出来的字条目本身，
+ * 这样调用方不必先判断手里拿到的是 id 还是对象。
+ */
 export function getCharacter(char) {
-  return CHARACTER_MAP.get(char) || null
+  if (!char) return null
+  const key = typeof char === 'string' ? char : char.char
+  return CHARACTER_MAP.get(key) || null
 }
 
 export function charsOfUnit(unitId) {

@@ -18,7 +18,7 @@ const FILTERS = [
 
 const filter = ref('all')
 
-const reviewSet = computed(() => new Set(progress.reviewQueue))
+const reviewSet = computed(() => new Set(progress.reviewQueue.map((c) => c.char)))
 
 function matches(char) {
   switch (filter.value) {

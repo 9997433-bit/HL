@@ -10,7 +10,7 @@
 
 import { computed, reactive, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
-import { CHARACTERS, TOTAL_CHARACTERS } from '@/data/characters.js'
+import { CHARACTERS, TOTAL_CHARACTERS, UNITS } from '@/data/characters.js'
 import { BOOKS } from '@/data/books.js'
 import { IDIOMS } from '@/data/idioms.js'
 import { RADICALS } from '@/data/radicals.js'
@@ -145,11 +145,34 @@ export const useProgressStore = defineStore('progress', () => {
 
   const unitProgress = (unitId) => {
     const chars = CHARACTERS.filter((c) => c.unit === unitId)
-    if (!chars.length) return { total: 0, learned: 0, mastered: 0, ratio: 0 }
+    if (!chars.length) return { total: 0, learned: 0, done: 0, mastered: 0, ratio: 0, percent: 0 }
     const learned = chars.filter((c) => (state.chars[c.char]?.level ?? 0) >= 1).length
     const mastered = chars.filter((c) => (state.chars[c.char]?.level ?? 0) >= 3).length
-    return { total: chars.length, learned, mastered, ratio: learned / chars.length }
+    const ratio = learned / chars.length
+    return {
+      total: chars.length,
+      learned,
+      /** `done` 是 `learned` 的别名，给按「完成了几个」叙述的界面用。 */
+      done: learned,
+      mastered,
+      ratio,
+      percent: Math.round(ratio * 100)
+    }
   }
+
+  /**
+   * 单元解锁：第一单元永远开着，后面的单元要求上一单元学会 60%。
+   * 门槛不高，目的是给孩子一个「按顺序推进」的暗示，而不是真的拦住他。
+   */
+  const unlockedUnits = computed(() => {
+    const out = {}
+    let open = true
+    for (const u of UNITS) {
+      out[u.id] = open
+      open = open && unitProgress(u.id).ratio >= 0.6
+    }
+    return out
+  })
 
   const booksFinished = computed(() => BOOKS.filter((b) => state.books[b.id]?.finishedAt).length)
   const idiomsRead = computed(() => IDIOMS.filter((i) => state.idioms[i.id]?.read).length)
@@ -362,6 +385,7 @@ export const useProgressStore = defineStore('progress', () => {
       addStars(2)
       addXp(12)
     }
+    i.seen = true
     i.lastAt = Date.now()
   }
 
@@ -383,12 +407,22 @@ export const useProgressStore = defineStore('progress', () => {
     if (r.seen === 1) addXp(5)
   }
 
-  /** 计时器每秒调一次，累计学习时长并触发护眼提醒。 */
-  function tickSecond() {
-    sessionSeconds.value += 1
-    ensureToday().seconds += 1
+  /**
+   * 累计学习时长并在坐得太久时触发护眼提醒。
+   * 传秒数是为了让「每 15 秒对一次表」这种低频计时器也能算准。
+   */
+  function addSeconds(delta = 1) {
+    const secs = Math.max(0, Math.round(delta))
+    if (!secs) return
+    sessionSeconds.value += secs
+    ensureToday().seconds += secs
     const limit = state.settings.restReminderMin
     if (limit > 0 && sessionSeconds.value >= limit * 60) restDue.value = true
+  }
+
+  /** 计时器每秒调一次。 */
+  function tickSecond() {
+    addSeconds(1)
   }
 
   function acknowledgeRest() {
@@ -483,6 +517,132 @@ export const useProgressStore = defineStore('progress', () => {
     persist()
   }
 
+  /* ------------------------------------------------------------ 扁平视图层
+   *
+   * 上面那套接口围绕 `state` 组织，适合写 store 逻辑；页面组件则更愿意直接问
+   * 「这个字学过没有」「绘本读到百分之几」。下面这一层就是把同一份数据换个说法
+   * 讲一遍：只读的部分做成 computed，动作则是上面动作的薄封装。
+   * 两套接口共享同一份 state，怎么混用都不会出现两个互相打架的进度。
+   */
+
+  const totalChars = TOTAL_CHARACTERS
+  const masteredCount = computed(() => masteredChars.value.length)
+  const overallPercent = computed(() => Math.round(overallProgress.value * 100))
+
+  const isLearned = (char) => (state.chars[char]?.level ?? 0) >= 1
+  const isMastered = (char) => (state.chars[char]?.level ?? 0) >= MASTERY_THRESHOLD
+
+  /** 逐字统计，字段名换成页面惯用的说法。 */
+  const chars = computed(() => {
+    const out = {}
+    for (const [char, s] of Object.entries(state.chars)) {
+      out[char] = { ...s, views: s.seen ?? 0, correct: s.quizRight ?? 0, wrong: s.quizWrong ?? 0 }
+    }
+    return out
+  })
+
+  const books = computed(() => {
+    const out = {}
+    for (const [id, b] of Object.entries(state.books)) {
+      out[id] = { ...b, finished: Boolean(b.finishedAt) }
+    }
+    return out
+  })
+
+  const idioms = computed(() => {
+    const out = {}
+    for (const [id, i] of Object.entries(state.idioms)) {
+      out[id] = { ...i, seen: Boolean(i.seen || i.read) }
+    }
+    return out
+  })
+
+  const stars = computed(() => state.stars)
+  const level = computed(() => state.level)
+  const daily = computed(() => state.daily)
+  const todayStats = today
+  const idiomsSeen = idiomsRead
+  const lastActiveDay = computed(() => todayKey())
+
+  const last7Days = computed(() => {
+    const out = []
+    for (let i = 6; i >= 0; i -= 1) {
+      const key = todayKey(Date.now() - i * 86400000)
+      const d = state.daily[key]
+      out.push({
+        key,
+        label: key.slice(5),
+        seconds: d?.seconds ?? 0,
+        newChars: d?.chars?.length ?? 0,
+        stars: d?.stars ?? 0
+      })
+    }
+    return out
+  })
+
+  const game = computed(() => ({
+    plays: state.listen.rounds,
+    rounds: state.listen.rounds,
+    correct: state.listen.right,
+    right: state.listen.right,
+    wrong: state.listen.wrong,
+    bestStreak: state.listen.bestStreak
+  }))
+
+  const gameAccuracy = computed(() => {
+    const { right, wrong } = state.listen
+    return right + wrong === 0 ? 0 : Math.round((right / (right + wrong)) * 100)
+  })
+
+  /** 打开某个字的学习页。 */
+  const visitChar = markSeen
+
+  /** 看过某个偏旁的讲解。 */
+  const viewRadical = markRadicalSeen
+
+  const markIdiomSeen = markIdiomRead
+
+  function markIdiomQuiz(idiomId, correct = true) {
+    recordIdiomQuiz(idiomId, correct)
+  }
+
+  /** 记一次作答，并告诉调用方这一下是不是刚好把字练成了「掌握」。 */
+  function recordAnswer(char, correct = true) {
+    const before = state.chars[char]?.level ?? 0
+    recordQuiz(char, correct)
+    const after = state.chars[char]?.level ?? 0
+    return {
+      level: after,
+      justMastered: before < MASTERY_THRESHOLD && after >= MASTERY_THRESHOLD
+    }
+  }
+
+  function recordGameRound({ correct = false, streak = 0 } = {}) {
+    state.listen.rounds += 1
+    if (correct) {
+      state.listen.right += 1
+      addStars(1)
+    } else {
+      state.listen.wrong += 1
+    }
+    state.listen.bestStreak = Math.max(state.listen.bestStreak, streak)
+  }
+
+  /** 读到绘本第 pageIndex 页；读到最后一页时顺手结本，并说明是不是第一次读完。 */
+  function readPage(bookId, pageIndex, total) {
+    const firstTimeFinishing =
+      total != null && pageIndex >= total - 1 && !state.books[bookId]?.finishedAt
+    markBookPage(bookId, pageIndex)
+    if (firstTimeFinishing) finishBook(bookId)
+    return { firstFinish: firstTimeFinishing }
+  }
+
+  function bookPercent(bookId, totalPages) {
+    if (!totalPages) return 0
+    const read = state.books[bookId]?.pagesRead ?? 0
+    return Math.min(100, Math.round((read / totalPages) * 100))
+  }
+
   applyAppearance()
   watch(() => JSON.stringify(state), persist, { flush: 'post' })
 
@@ -537,6 +697,39 @@ export const useProgressStore = defineStore('progress', () => {
     exportJson,
     importJson,
     resetProgress,
-    resetAll
+    resetAll,
+
+    /* ---------------------------------------------------------- 扁平视图层 */
+    totalChars,
+    masteredCount,
+    overallPercent,
+    unlockedUnits,
+    isLearned,
+    isMastered,
+    chars,
+    books,
+    idioms,
+    stars,
+    level,
+    daily,
+    todayStats,
+    lastActiveDay,
+    last7Days,
+    idiomsSeen,
+    game,
+    gameAccuracy,
+
+    addSeconds,
+    visitChar,
+    viewRadical,
+    markIdiomSeen,
+    markIdiomQuiz,
+    recordAnswer,
+    recordGameRound,
+    readPage,
+    bookPercent,
+
+    exportJSON: exportJson,
+    importJSON: importJson
   }
 })
