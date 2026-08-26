@@ -74,7 +74,7 @@ Acceptance registry and gate suites: **388 tests**.
 | R2-T02 | 3D element library (GAP-02) | **Partial** — QUAD4 (61 tests), TET4 (66), HEX8 (76), the 42-test spatial `BeamElement3D`, and AC-ELEM-001..003 (24 acceptance cases) are all on the integration branch; the beam arrived with merge `75dd070` (A93) and `cursor/beam3d-cbar-element-c9a7` was deleted from `origin` afterwards. `io/neutral_convert.py` binds an imported block into those formulations (A106, 52 tests), and the flat-facet `ShellQuad4Element` landed with 72 tests (A98), so no element formulation is outstanding. What remains is folding the shell into the AC-ELEM case table, a shell branch in the converter (which today binds an imported `QUAD4` block to the *membrane* element), and the solid/shell BDF cards. |
 | R2-T03 | Reduction/expansion, TAM (GAP-08) | **Acceptance-complete** — `correlation/reduction.py` (A36), AC-CORR-006/009, and `SensorMap.signs` folding are implemented; AC-CORR-006 is now `verified`. Sparse inputs still densify and must be addressed before GAP-13 scale. |
 | R2-T04 | Bayesian MAP updating (GAP-11 slice) | **Acceptance-complete** — the MS-3.5 MAP estimator with prior/posterior covariance landed (`4b2a416`, now 36 tests), and AC-UPD-006a/b are `implemented` with Laplace σ_post in the `CorrectionReport` (A57, merged to the trunk by A83). Only σ_post in the CLI `update` document is left, and it is outside the acceptance slice. |
-| R2-T05 | meshio bridge + IO completion (GAP-03) | **Partial** — the meshio bridge landed behind the P7 optional-dependency seam (A89, `io/meshio_bridge.py`, 44 tests): `from_meshio`/`to_meshio` over a one-to-one cell-type table, `read_meshio`/`write_meshio`, `MissingDependencyError`. A106's `io/neutral_convert.py` closed the re-analysis half, so `read_meshio` → `neutral_to_model` → `ModalSolver` runs end to end. UNV 2411/2412, UFF writing and the AC-IO-* rows remain open. |
+| R2-T05 | meshio bridge + IO completion (GAP-03) | **Partial** — the meshio bridge landed behind the P7 optional-dependency seam (A89, `io/meshio_bridge.py`, 44 tests): `from_meshio`/`to_meshio` over a one-to-one cell-type table, `read_meshio`/`write_meshio`, `MissingDependencyError`. A106's `io/neutral_convert.py` closed the re-analysis half, so `read_meshio` → `neutral_to_model` → `ModalSolver` runs end to end, and A123's `write_uff`/`format_uff` (20 round-trip tests) made UFF datasets 55/58 writable as well as readable. UNV 2411/2412 and the AC-IO-* rows remain open. |
 | R2-T06 | Updating depth (GAP-10) | **Partial** — AC-UPD-007 (P0) is tagged and `implemented` (A44); the collinearity screen was already in `workflow/selection.py`. QR-pivoting refinement, analytic MAC-row Jacobian wiring, and the model-level parameter resolver remain. |
 | R2-T07 | SciPy optimization backend (GAP-12) | **Done** — SLSQP/trust-constr with analytic Jacobians (A27), active-set KKT + trust-constr Hessian fixes (A40 harvest), and strengthened AC-OPT-002/003 oracles incl. a bound-active optimum (A34). Shape variables still FD. |
 | R2-T08 | R1-O2 branch reconciliation | **Done** — content reconciled by A14; the superseded/merged side branches were audited in [`BRANCH_CLEANUP.md`](BRANCH_CLEANUP.md) and deleted from `origin` (A62, plus `cursor/beam3d-cbar-element-c9a7` once A93 merged it). |
@@ -94,7 +94,7 @@ Acceptance registry and gate suites: **388 tests**.
 | M5 Optimization (MS-5) | `optimization/` | 27 / 15 | Sizing complete (GAP-12 closed) with bound-active KKT oracles; shape variables fall back to finite differences. AC-OPT-001..004 are covered, including one `verified` row. |
 | M6 Damped dynamics (MS-7) | `solver/dynamics.py` | 82 / 13 | Complete; FRF updating residual deferred to Round 3. AC-DYN-001..005 are covered, including one `verified` row. |
 | Core, elements & mesh | `core/`, `mesh/` | 18 + 42 + 61 + 66 + 72 + 76 + 17 (contracts) | Partial: 1D set, spatial beam, QUAD4, TET4, HEX8 and the MITC4 flat-facet shell all landed, so no formulation is outstanding; AC-ELEM-001 is `verified`, but the AC-ELEM case table does not yet include the shell. |
-| IO | `io/` | 13 + 5 + 6 + 44 | Partial: native YAML/JSON round trip, UFF 55/58 reader, BDF `GRID`/`CROD`/`MAT1`, meshio bridge (optional `[io]` extra; its 44 tests skip without it). UNV 2411/2412, solid/shell cards, UFF writing open; no AC-IO rows registered. |
+| IO | `io/` | 13 + 5 + 20 + 6 + 44 + 52 | Partial: native YAML/JSON round trip, UFF 55/58 reader and writer, BDF `GRID`/`CROD`/`MAT1`, meshio bridge (optional `[io]` extra; its 44 tests skip without it), `NeutralModel` → `Model` conversion. UNV 2411/2412 and solid/shell cards open; no AC-IO rows registered. |
 | CLI | `cli/` | 23 + 16 (+1 e2e) | `modal` / `correlate` / `update` / `correlate-frf` complete end to end. |
 | QA / infra | `tests/acceptance/`, CI | 388 acceptance + 5 boundary + 4 perf + 3 scaffold | Registry enforcement green; CI matrix 3.10–3.13 runs pytest, Ruff, and the promotion gate. |
 
@@ -108,10 +108,10 @@ Acceptance registry and gate suites: **388 tests**.
    table over the shell (HEX8 and the AC-ELEM-001..003 registrations landed
    with the `5641d75` merge; the spatial beam and then the shell landed
    later). No element formulation is outstanding.
-3. **R2-T05 IO completion**: UNV 2411/2412, UFF writing, and the
-   AC-IO-001..003 registration (the meshio bridge landed with A89 and the
-   `NeutralModel` → `Model` conversion that makes an imported mesh
-   re-analyzable with A106).
+3. **R2-T05 IO completion**: UNV 2411/2412 and the AC-IO-001..003
+   registration (the meshio bridge landed with A89, the `NeutralModel` →
+   `Model` conversion that makes an imported mesh re-analyzable with A106,
+   and UFF 55/58 writing with A123).
 4. **R2-T06 remainder**: QR-with-pivoting refinement of the collinearity
    screen, analytic MAC-row Jacobian in the updater's shape-residual path,
    model-level parameter resolver with assembled per-element dK/dp.

@@ -81,6 +81,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A126 | claude-fable-5-thinking-xhigh | Reconcile ROUND2_PLAN §0 / STATUS / PR_DRAFT to 1331-test / 14-verified snapshot (extended to 44 verified by A121 merge) | complete — §0 re-pinned at `8065205`, 44/44 verified |
 | A119 | claude-opus-5-thinking-high-fast | R2-T02/R2-T05: Nastran BDF CQUAD4/CTETRA/CHEXA/CBAR + PSHELL/PSOLID (+30 tests) | complete — 1365 passed at `9704232`, Ruff clean |
 | A121 | gpt-5.6-sol-xhigh-fast | R2-T09 batch promotion: run every remaining implemented criterion through `promote_verified.py --run --apply` | complete — all 30 promoted; registry 44 `verified` / 0 `implemented` |
+| A123 | claude-opus-5-thinking-high-fast | R2-T05: UFF datasets 55/58 writer `write_uff`/`format_uff` (+20 tests) | complete — 1385 passed, Ruff clean |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
@@ -1021,8 +1022,11 @@ Core backlog (prioritized, from `docs/SOTA_GAP_ANALYSIS.md` §4/§6 + Round 1 co
    meshio ↔ NeutralModel bridge, UNV 2411/2412. **PARTIAL:** the bridge landed behind
    the P7 seam (A89, `io/meshio_bridge.py`, 44 tests) and A106's `io/neutral_convert.py`
    makes what it imports re-analyzable, so `read_meshio` → `neutral_to_model` →
-   `ModalSolver` runs end to end. Remaining: the AC-IO-001..003 registration,
-   UNV 2411/2412 in `io/uff.py`, and UFF writing. See the A89 and A106 entries below.
+   `ModalSolver` runs end to end, and A123 gave `io/uff.py` the writer it was missing
+   (`write_uff`/`format_uff` for datasets 55 and 58, 20 round-trip tests), so modal and
+   FRF data now leave the platform in the format it reads. Remaining: the
+   AC-IO-001..003 registration and UNV 2411/2412 in `io/uff.py`. See the A89, A106 and
+   A123 entries below.
 
 Supporting: R2-T06 updating depth (the P0 AC-UPD-007 collinearity-screen slice closed
 with A44's tagging; P1 depth work remains), R2-T07 scipy optimization backend (GAP-12 —
@@ -3510,3 +3514,9 @@ private worktree at `/tmp/a119` with `PYTHONPATH` pinned to its own `src` — th
 A114 logged was live again, the inherited `PYTHONPATH` pointing at `/tmp/a114`. 30 of
 those tests are the new `tests/test_nastran.py`, which leaves the existing
 `tests/test_nastran_io.py` to hold the `GRID`/`CROD`/`MAT1` core it already covered.
+
+#### A123 — UFF writing: datasets 55 and 58
+
+`write_uff`/`format_uff` in `io/uff.py` (+20 round-trip tests in
+`tests/test_uff_write.py`); `tests/_uff58.py` now builds dataset-58 fixtures via the
+library writer. **1385 passed, 0 failed**, Ruff clean on the merged integration branch.

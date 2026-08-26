@@ -36,7 +36,7 @@ the imported-shell modal example (A128), and the A121 closure above.
 | R2-T02 3D elements | **PARTIAL** — all formulations in `core/elements.py`; `neutral_convert` with `quad4_as="shell"` (A129); Nastran BDF reads CQUAD4/CTETRA/CHEXA/CBAR + PSHELL/PSOLID (A119). Open: fold shell into AC-ELEM case table. |
 | R2-T03 reduction/expansion | **ACCEPTANCE-COMPLETE** — engine (A36), AC-CORR-006/009 **`verified`**. Open: sparse inputs. |
 | R2-T04 Bayesian MAP | **ACCEPTANCE-COMPLETE** — estimator (A49), AC-UPD-006a/b **`verified`**, σ_post in `CorrectionReport`. Open: σ_post in CLI `update` document. |
-| R2-T05 meshio & IO | **PARTIAL** — meshio bridge (A89), `neutral_convert` (A106), end-to-end `read_meshio` → modal (A128 example). Open: AC-IO-001..003 registration, UNV 2411/2412, UFF writing. |
+| R2-T05 meshio & IO | **PARTIAL** — meshio bridge (A89), `neutral_convert` (A106), end-to-end import example (A128), `write_uff`/`format_uff` for datasets 55/58 (A123). Open: AC-IO-001..003 registration, UNV 2411/2412. |
 | R2-T06 updating depth | P0 slice closed (AC-UPD-007 **`verified`**); P1 depth (MAC-row Jacobian, model-level resolver) open. |
 | R2-T07 optimization | **COMPLETE for sizing** — AC-OPT-001..004 **`verified`**. Shape variables still FD. |
 | R2-T08 R1-O2 reconciliation | **COMPLETE** |
@@ -52,7 +52,7 @@ the gap register at audit time:
 | Gap | Audit status | Status entering Round 2 |
 |---|---|---|
 | GAP-01 integration split-brain | P0, suite not collecting | **Largely closed.** `ModalResult` unified (commit `508813e`), `modal/eigen.py` is a thin adapter over `solver/modal.py` (A08), full suite green at **192 passed** (A22). Residual: enforce the "seams land atomically with consumers" rule and keep CI green. |
-| GAP-03 industrial IO | P0, absent | **Partial.** UFF datasets 55/58 reader (A12), minimal Nastran BDF `GRID`/`CROD`/`MAT1` (A18), and the meshio bridge behind the P7 optional-dependency seam (A89, `io/meshio_bridge.py`, 44 tests) — every format meshio reads now enters the platform as a `NeutralModel`, and `io/neutral_convert.py` (A106, 52 tests) converts that into the internal `Model` so the imported mesh can be re-analyzed rather than only correlated. Remaining: UNV 2411/2412, broader BDF cards, AC-IO-001..003 registration, UFF writing, OP2. |
+| GAP-03 industrial IO | P0, absent | **Partial.** UFF datasets 55/58 reader (A12), minimal Nastran BDF `GRID`/`CROD`/`MAT1` (A18), and the meshio bridge behind the P7 optional-dependency seam (A89, `io/meshio_bridge.py`, 44 tests) — every format meshio reads now enters the platform as a `NeutralModel`, and `io/neutral_convert.py` (A106, 52 tests) converts that into the internal `Model` so the imported mesh can be re-analyzed rather than only correlated. UFF datasets 55/58 are now written as well as read (A123, `write_uff`/`format_uff`, 20 round-trip tests). Remaining: UNV 2411/2412, broader BDF cards, AC-IO-001..003 registration, OP2. |
 | GAP-14 CLI stubs | P2, stubbed | **Closed for R2.** `modal`/`correlate`/`update` landed with model-spec format, gates, JSON/YAML documents on clean stdout (A07/A16/A22). |
 | GAP-10 updating depth | P1, absent | **Partial.** Dotted-path parameter targeting in the CLI spec layer (A07), affine `ScalingModel` dK/dθ (A04), vectorized Fox–Kapoor + MAC sensitivities (A04/A10). Remaining: model-level resolver, assembled per-element dK/dp, analytic MAC-row Jacobian wiring → R2-T06. The MS-3.6 collinearity screen is done: `workflow/selection.py` plus the AC-UPD-007 acceptance tests (A44). |
 | GAP-09 node mapping | P1, absent | **Partial.** Label-based DOF alignment (`correlation/align.py`, `workflow/sensors.py`). Remaining: geometry-based nearest-node mapping → folded into R2-T05/T06 scope notes. |
@@ -386,8 +386,10 @@ consistency tests fail.
   tables, and taking caller-supplied `material=` / `section=` / `thickness=` fallbacks
   for the geometry-only files meshio returns. `read_meshio` → `neutral_to_model` →
   `ModalSolver` is therefore a working path for rod, beam, quad, tet and hex blocks.
+  UFF writing landed with A123: `write_uff`/`format_uff` emit datasets 55 and 58 in the
+  records `read_uff` accepts, with 20 round-trip tests.
   **Remaining to close the task:** register AC-IO-001..003 (spec-first, three files in
-  one commit), UNV 2411/2412 in `io/uff.py`, and UFF writing.
+  one commit) and UNV 2411/2412 in `io/uff.py`.
 - **Scope:**
   - ~~`io/meshio_bridge.py`: bidirectional `meshio.Mesh` ↔ `NeutralModel` conversion
     (points → node arrays, cell blocks → `ElementType` blocks with an explicit,

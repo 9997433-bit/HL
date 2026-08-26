@@ -74,7 +74,7 @@ the A50/A58 landings):
 | R2-T02 3D elements | **Partial** | QUAD4, TET4, HEX8, and the 42-test `BeamElement3D` batch have landed with AC-ELEM-001..003 implemented; remaining: shell facet and solid/shell BDF cards |
 | R2-T03 reduction/TAM | **Done at gate level** | AC-CORR-006 and AC-CORR-009 registered and implemented; `SensorMap.signs` folded into the bases (A58). Residual: reduction densifies sparse inputs (a GAP-13-scale concern, not a correctness one) |
 | R2-T04 Bayesian MAP | **Acceptance-complete** | Estimator + posterior landed (36 tests); AC-UPD-006a/b are registered and `implemented`, with Laplace σ_post in the `CorrectionReport` (A57, merged by A83). The remaining CLI `update` document work is outside the acceptance slice. |
-| R2-T05 meshio/IO | **Partial** | The meshio bridge landed with 44 tests; UNV 2411/2412, UFF writing, and AC-IO-001..003 registration remain. |
+| R2-T05 meshio/IO | **Partial** | The meshio bridge landed with 44 tests and UFF 55/58 writing with 20; UNV 2411/2412 and AC-IO-001..003 registration remain. |
 | R2-T06 updating depth | **Partial** | MS-3.4 divergence guard landed this window; remaining: QR-pivot refinement of the collinearity screen, analytic MAC-row Jacobian in the shape-residual path, model-level parameter resolver |
 | R2-T07 optimization | **Done** | Shape variables still fall back to finite differences (documented) |
 | R2-T08 branch reconciliation | **Done** | — (audited and cleaned, see `BRANCH_CLEANUP.md`) |
