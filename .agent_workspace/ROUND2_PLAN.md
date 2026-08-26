@@ -28,7 +28,7 @@ the gap register at audit time:
 | GAP-14 CLI stubs | P2, stubbed | **Closed for R2.** `modal`/`correlate`/`update` landed with model-spec format, gates, JSON/YAML documents on clean stdout (A07/A16/A22). |
 | GAP-10 updating depth | P1, absent | **Partial.** Dotted-path parameter targeting in the CLI spec layer (A07), affine `ScalingModel` dK/dθ (A04), vectorized Fox–Kapoor + MAC sensitivities (A04/A10). Remaining: model-level resolver, assembled per-element dK/dp, analytic MAC-row Jacobian wiring, MS-3.6 collinearity screen (**AC-UPD-007 is P0 and unimplemented**) → R2-T06. |
 | GAP-09 node mapping | P1, absent | **Partial.** Label-based DOF alignment (`correlation/align.py`, `workflow/sensors.py`). Remaining: geometry-based nearest-node mapping → folded into R2-T05/T06 scope notes. |
-| GAP-04/05 dynamics & FRF | P0/P1, absent | **In flight** on branch `cursor/dynamics-damping-frf-9500` (damping/FRF plus optimization/workflow files uncommitted at planning time). R2-T01 integrates and completes that work; do not restart it on the integration branch. |
+| GAP-04/05 dynamics & FRF | P0/P1, absent | **Closed by R2-T01.** `cursor/dynamics-damping-frf-9500` merged at `acda625`; AC-DYN-001..005 registered and `implemented`. GAP-05's FRF *updating residual* stays deferred to Round 3 as planned below. |
 | GAP-02 3D elements | P0, absent | Open → R2-T02. |
 | GAP-08 reduction/expansion | P1, absent | Open (R2 slice: Guyan/SEREP/TAM + expansion) → R2-T03. |
 | GAP-11 Bayesian/UQ | P1, absent | Open (R2 slice: MS-3.5 MAP + posterior covariance) → R2-T04. |
@@ -53,6 +53,16 @@ consistency tests fail.
 
 ### R2-T01 — Dynamics & FRF chain (damping, forced response, FRF synthesis, FRF correlation)
 
+- **Status: DONE.** The in-flight branch was merged at `acda625` (no second dynamics
+  implementation on the branch) and the spec-first deliverable landed: `MODULE_SPEC.md`
+  §7 (module M6, anchors MS-7.1..7.5), `ACCEPTANCE_CRITERIA.md` §7, and registry entries
+  AC-DYN-001..005, all `implemented` and tagged in
+  `tests/acceptance/test_dynamics.py`. `frac`/`fdac` are re-exported from
+  `openfemlab.correlation`. Measured margins are recorded in the R2-T01 entry of
+  [`PROGRESS.md`](PROGRESS.md); the proposed criteria below were adopted as written apart
+  from AC-DYN-005, whose dataset-58 formatter lives in the test because UFF *writing* is
+  R2-T05 scope. Still open and handed on: an FRF block in the `CorrelationReport` schema
+  and the CLI FRF demo, both folded into the exit-bar work of §5.
 - **Priority:** 1 (P0) · **Gaps:** [GAP-04, GAP-05](../docs/SOTA_GAP_ANALYSIS.md) (§5.3)
 - **Why first:** the largest missing FEMtools pillar. Test campaigns deliver FRFs; today
   only pre-extracted mode tables can be correlated. UFF-58 FRF *import* already exists
@@ -214,7 +224,7 @@ Respecting the Round 2 rule from the audit (**seam changes land atomically with 
 consumers** — `SOTA_GAP_ANALYSIS.md` Appendix A):
 
 - **Wave 1 (parallel, disjoint files):** R2-T01 (dynamics — after landing the in-flight
-  branch), R2-T02 (elements), R2-T04 (Bayesian). These touch `dynamics/`-new,
+  branch; **done**), R2-T02 (elements), R2-T04 (Bayesian). These touch `dynamics/`-new,
   `core/elements.py`, `updating/` respectively, with no shared seams.
 - **Wave 2:** R2-T03 (SEREP — consumes `SensorMap`, `correlation/mac.py` weighting),
   R2-T05 (meshio + UNV 2411/2412 — consumes R2-T02 element types), R2-T06 (updating
@@ -243,9 +253,9 @@ Round 2 is done when, on the integration branch in CI:
 
 ## 6. Top 3 priorities (summary)
 
-1. **R2-T01 — Dynamics/FRF chain** (GAP-04/05, P0): damping models, harmonic response,
-   FRF synthesis, FRAC/FDAC — integrating the in-flight
-   `cursor/dynamics-damping-frf-9500` work.
+1. ~~**R2-T01 — Dynamics/FRF chain** (GAP-04/05, P0)~~ — **done**: merged at `acda625`,
+   AC-DYN-001..005 registered and `implemented`. The live top three are now T02, T03 and
+   T04.
 2. **R2-T02 — 3D continuum elements** (GAP-02, P0): QUAD4/TET4/HEX8 (+ 3D beam) so
    imported industrial meshes can be re-analyzed, unblocking the meshio bridge
    (R2-T05).

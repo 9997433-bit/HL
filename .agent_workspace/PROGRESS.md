@@ -928,17 +928,19 @@ integrate rather than fork.
   gradients).
 
 ### Round 2 — Targeted Refactor & Deep Optimization
-**Status:** KICKED OFF — backlog planned in `.agent_workspace/ROUND2_PLAN.md` (A24); the
-MS-4 workflow carried over from Round 1 is landed and verified at `5bc6a6d` (A26), and the
+**Status:** IN PROGRESS — backlog planned in `.agent_workspace/ROUND2_PLAN.md` (A24); the
+MS-4 workflow carried over from Round 1 is landed and verified at `5bc6a6d` (A26), the
 damped-dynamics and optimization tracks are merged in at `acda625` (A19 implementation,
-A28 integration)
+A28 integration), and **R2-T01 is DONE** — AC-DYN-001..005 registered and implemented
 
 Core backlog (prioritized, from `docs/SOTA_GAP_ANALYSIS.md` §4/§6 + Round 1 conclusion):
-1. **R2-T01 Dynamics/FRF chain** (GAP-04/05, P0) — damping models, harmonic response,
-   FRF synthesis, FRAC/FDAC. The engine is landed: `cursor/dynamics-damping-frf-9500`
-   was merged into the trunk at `acda625`. What remains is the AC-DYN-* criteria
-   registered spec-first against that API, plus the measured-vs-synthesized FRF demo
-   named in the Round 2 exit bar.
+1. ~~**R2-T01 Dynamics/FRF chain** (GAP-04/05, P0) — damping models, harmonic response,
+   FRF synthesis, FRAC/FDAC.~~ **DONE.** The engine landed with the `acda625` merge of
+   `cursor/dynamics-damping-frf-9500`, and AC-DYN-001..005 are now registered spec-first
+   against that API and `implemented` (see the R2-T01 entry below). GAP-04 is closed;
+   GAP-05 is closed apart from the FRF updating residual the plan defers to Round 3.
+   Handed on to the exit-bar work: the measured-vs-synthesized FRF demo through the CLI,
+   and an FRF block in the `CorrelationReport` schema.
 2. **R2-T02 3D continuum elements** (GAP-02, P0) — QUAD4/TET4/HEX8 + 3D beam with patch
    /convergence gates (AC-MODAL-001/003/004/007 extended, new AC-ELEM-*).
 3. **R2-T03 SEREP/TAM reduction & expansion** (GAP-08) — Guyan/IRS/SEREP, TAM
@@ -954,6 +956,68 @@ package landed at `acda625` and `ScipyBackend.solve` is now wired too, so this i
 **done**, A27), R2-T08 R1-O2 branch reconciliation, R2-T09 CI exit hardening.
 Exit bar: all P0+P1 criteria `verified`,
 new dynamics/element/IO criteria at least `implemented`, GAP-01 stays closed.
+
+#### R2-T01 — Dynamics & FRF chain closed out (GAP-04/05, P0)
+- **Integration first, and only one implementation.** The plan's binding constraint was
+  to harvest `cursor/dynamics-damping-frf-9500` rather than fork a rival dynamics kernel
+  (the GAP-01 lesson). Confirmed done: A28's merge `acda625` carries `solver/dynamics.py`
+  (1,288 lines — damping models, complex modes, FRF synthesis, FRAC/FDAC),
+  `tests/test_dynamics.py` (**82 passed**) and the `optimization/` sizing contracts, and
+  `frac`/`fdac` are defined in exactly one place on the branch. This entry adds the
+  spec-first half of R2-T01 that the merge did not cover.
+- **Criteria registered spec-first.** `MODULE_SPEC.md` §7 defines module **M6** with
+  anchors **MS-7.1..7.5** (damping models, complex modes, harmonic response and FRF
+  synthesis, FRF correlation, public API). MS-6 was already the inter-module contracts
+  section, so the sixth module takes the `MS-7` prefix rather than renumbering live
+  anchors. `ACCEPTANCE_CRITERIA.md` §7 defines AC-DYN-001..005; the registry gained the
+  `DYN` family (→ M6) and all five entries at `implemented`, which the enforcement tests
+  accept only because `tests/acceptance/test_dynamics.py` carries a `@criterion` tag for
+  each ID.
+- **AC-DYN-001** (`oracle`, gate 1e-8) — 1-DOF damped receptance against
+  `1/(k − mω² + iωc)`: direct inversion **exact (0)**, real-mode superposition
+  **1.9e-16**. 2-DOF fixture against the hand-inverted 2×2 dynamic stiffness on 31
+  off-resonance lines: **1.1e-15** direct, **1.2e-15** modal. Mobility and accelerance
+  are checked against `iωH` and `−ω²H`, so the MS-7.3 conventions are pinned rather than
+  assumed.
+- **AC-DYN-002** (`property`, gate 1e-8) — with the full basis retained on the 10-DOF
+  chain, real-mode superposition matches `Z(ω)⁻¹` to **8.0e-15**; for a deliberately
+  non-classical `C` (single grounded dashpot, Caughey–O'Kelly residual **0.632**) the
+  complex-mode residue expansion matches to **8.4e-15** — the case where real-mode
+  superposition is not valid at all. Truncating to 3 of 10 modes costs **4.6 %** at 0 Hz
+  and `residual_flexibility` brings it back to **9.8e-16**; the test asserts the
+  truncation error is real before crediting the correction.
+- **AC-DYN-003** (`property`) — for `C = αM + βK` (α=0.02, β=0.004, ζ spanning
+  **0.90 %..6.72 %** across the chain spectrum) the complex modes are monophase to
+  **1 − 2.2e-16** MPC, the extracted ratios match `α/(2ω_r) + βω_r/2` to **1.2e-15**, and
+  `ω_d = ω_r√(1 − ζ²)` holds. The negative control is what makes the gate meaningful: the
+  grounded dashpot drops the worst MPC to **0.7516** and `is_proportional` rejects it.
+- **AC-DYN-004** (`property`, gate 1e-12) — the frequency-domain mirror of
+  AC-CORR-001/002. Self-FRAC deviates by **4.4e-16**; 8 seeded complex scale factors move
+  FRAC by at most **1.2e-15** against a non-trivial reference (cross-DOF FRAC spans
+  **0.0014..0.5353**, so invariance is measured against real signal, not against 1); the
+  FDAC diagonal is unit to **8.9e-16** with **exact** symmetry; zero-norm inputs return 0,
+  not NaN.
+- **AC-DYN-005** (`contract`, gate 1e-9) — a synthesized drive-point receptance written
+  as an ASCII dataset-58 record (ordinate type 6, even spacing) and read back through
+  `io/uff.py` recovers the abscissa **exactly** and the complex ordinates to **1.2e-13**,
+  correlating with its source at FRAC **1 − 0**. The formatter lives in the test, not the
+  library: the criterion gates the reader contract, and UFF *writing* stays R2-T05 scope.
+- **FRAC/FDAC reachable from the correlation namespace.** `openfemlab.correlation` and
+  the package root now re-export `frac`/`fdac` from `solver.dynamics` — a re-export, not
+  a copy, and the import points downward (correlation is L3, solver L2). The
+  `CorrelationReport` schema is deliberately untouched: an FRF block there is a
+  `schema_version` bump that belongs with the CLI demo in the exit-bar work.
+- Verified on Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1: `tests/test_dynamics.py`
+  **82 passed**, `tests/acceptance` **59 passed** (13 new AC-DYN tests + 46 existing),
+  full suite **443 passed** (430 before this change), Ruff clean.
+- **Working-tree hazard, fourth occurrence** — and this time it destroyed work rather
+  than just risking it. The R2-T02 element agent was editing `/workspace` concurrently;
+  midway through, a reset there wiped four of this task's edited files
+  (`MODULE_SPEC.md`, `ACCEPTANCE_CRITERIA.md`, the registry, `correlation/__init__.py`)
+  out of the tree, and the editable install briefly resolved `openfemlab` to
+  `/tmp/a28/src`. The work was redone in a private detached worktree at `/tmp/r2t01` and
+  pushed from there. A13, A15, A21 and A26 all report the same failure mode; the
+  private-worktree rule should be mandatory, not advisory.
 
 #### A26 — Round 1 carry-over cleared: MS-4 workflow landed (backfill for A17)
 - Round 1 closed with the MS-4 `workflow/` package listed as its single largest piece of
