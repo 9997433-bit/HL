@@ -76,6 +76,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A106 | claude-opus-5-thinking-high-fast | R2-T02/R2-T05 shared item: `io/neutral_convert.py`, the `NeutralModel` → `Model` conversion for rod/beam/quad/tet/hex (backfill for completed A105) | complete — 52 tests, 1236 passed at `f0cd39a`, Ruff clean |
 | A109 | claude-opus-5-thinking-high-fast | R2-T09 continued: `scripts/promote_verified.py` and the tests that flip five criteria to `verified` on a gate run (backfill for completed A107) | complete — registry 14 `verified` / 30 `implemented`, 1259 passed, Ruff clean |
 | A114 | claude-opus-5-thinking-high-fast | Confirm the A104/A98 shell merge landed and close the user-facing documentation gap it left (backfill) | complete — merge already on the trunk; `MODULE_SPEC.md` / `USER_GUIDE_zh.md` now cover the shell, 1331 passed at `571c864`, Ruff clean |
+| A129 | parent orchestrator | R2-T02: `neutral_convert` shell branch via `quad4_as="shell"` binding `QUAD4` → `ShellQuad4Element` (+4 tests) | complete — 1335 passed, Ruff clean |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
