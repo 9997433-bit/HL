@@ -1,15 +1,31 @@
 # SOTA 验收标准 — 识字 App 与 数学 App
 
-> 版本：Round 1 v1.0（2026-08-26）
-> 配套：`.agent_workspace/ui-ux-design-spec.md`（设计规范）、`.agent_workspace/test-baseline.md`（构建基线）
+> 版本：Round 2 v1.1（2026-08-26，依据 `.agent_workspace/round2-sota-gap.md` 审计修订）
+> 配套：`.agent_workspace/ui-ux-design-spec.md`（设计规范）、`.agent_workspace/test-baseline.md`（构建基线）、`.agent_workspace/round2-sota-gap.md`（差距审计与轮次分配）
 > 目标：每一条都可被脚本或 10 分钟内的手动步骤验证，最终两 App 全量达标即为 SOTA。
 
 ## 0. 验收总则
 
 - **优先级**：P0 = 不达标不得出包；P1 = Round 3 结束前必须达标；P2 = 加分项（超越洪恩的差异化）。
 - **环境**：以 `npm run build:all` 产物 zip 解压后经静态服务器（如 `npx serve`）访问为准；性能项在 Chrome DevTools「4× CPU 节流 + Fast 3G→离线切换」下测。
-- **轮次门槛**：Round 1 通过全部构建级 P0；Round 2 通过全部功能 P0 + 性能 P0；Round 3 全部 P0/P1 清零。
-- **工具**：Lighthouse（Performance/Accessibility/Best-Practices）、axe DevTools、Chrome Performance 面板、`scripts/verify-resources.sh`、手动走查脚本（见 §5）。
+- **轮次门槛**：Round 1 通过全部构建级 P0（已达成）；Round 2 按 §0.1 修订门槛执行；Round 3 全部 P0/P1 清零。
+- **工具**：Lighthouse（Performance/Accessibility/Best-Practices）、axe DevTools、Chrome Performance 面板、`scripts/acceptance.sh`（自动化门禁）、`scripts/axe-check.mjs`、`scripts/verify-resources.sh`、手动走查脚本（见 §5）。
+
+### 0.1 Round 2 门槛（Round 2 审计后修订）
+
+Round 2 审计（`round2-sota-gap.md`）实测：识字 P0 完成度 ≈42%、数学 ≈34%，性能/无障碍 17 个 P0 指标中 15 个无实测数据。原「全部功能 P0 + 性能 P0」门槛据此拆细为下表——**硬门槛不过不得出 Round 2 包**，过渡阈值在 Round 3 提至终值：
+
+| 类别 | Round 2 硬门槛 | 验证方式 | Round 3 终值 |
+|---|---|---|---|
+| 功能-识字 | L-F1 ≥ 100 字；L-F5 FSRS 接线且复习队列首页可见 | `check:data` + smoke | 200 字；其余功能 P0 清零 |
+| 功能-数学 | M-F3 教具 ≥3 种（含点选替代）；M-F6 错题本；M-F8 家长面板；M-F10 防沉迷；M-F1 玩法 7 类齐（乘法/比较进入口） | smoke + 手动走查 | 题库 ≥300；M-F4 演示；M-F5 补全 |
+| 性能 | 首屏 JS gzip < 250KB（双 App，已达标须保持）；Lighthouse Performance **≥ 90**（过渡值）；单 App 构建 ≤ 60s；填写 `acceptance-log-round2.md` 实测数据（不得留空） | `npm run test:acceptance` | Lighthouse ≥ 95；L-P5–P7/M-P8 手动项实测达标 |
+| 无障碍 | axe critical = **0**（双 App 全路由）；Lighthouse Accessibility ≥ 90（过渡值）；两 App 引入 `shared/styles/design-tokens.css`（C-4 提前，支撑 56px 触控） | `scripts/axe-check.mjs` | axe serious = 0；LH A11y ≥ 95；键盘/读屏/对比度走查 |
+| 离线 | L-O1/M-O1：SW 预缓存后断网冷启动完成一个学习闭环（双 App） | `scripts/offline-smoke.sh` + 手动 | 弱网角色化重试 UI（L-O3） |
+| 合规 | C-2：`THIRD_PARTY_NOTICES` 补齐四项署名并通过 `verify-resources.sh` | 脚本 | 保持 |
+| 工程 | 双套实现归并至单份（engine/generator、word-problems 数据、sound.js）；M-P9 题目生成种子化可复现 | 代码审查 + 单测 | 保持 |
+
+主题数说明：Round 2 允许 3 主题（sunny/care/night）；§4「4 主题」为 Round 3 终值（第 4 主题 Round 3 交付，L-A3 随之做四主题对比度抽查）。
 
 ---
 
@@ -48,7 +64,7 @@
 |---|---|---|
 | L-A1 | Lighthouse Accessibility | ≥ 95 且 axe 无 critical/serious |
 | L-A2 | 触控目标 | 儿童界面全部 ≥ 56×56 CSS px，相邻间距 ≥ 8px |
-| L-A3 | 对比度 | 正文 ≥ 4.5:1、大字 ≥ 3:1，四主题（sunny/care/night）逐一抽查 |
+| L-A3 | 对比度 | 正文 ≥ 4.5:1、大字 ≥ 3:1，全部主题逐一抽查（Round 2：sunny/care/night 三主题；Round 3 补第 4 主题后按四主题抽查） |
 | L-A4 | 键盘 | 学习闭环全流程可纯键盘完成；焦点环可见 |
 | L-A5 | 读屏（P1） | 关键流程 VoiceOver/NVDA 可完成；答题结果 aria-live 通报 |
 | L-A6 | 动效降级 | `prefers-reduced-motion` 与家长开关下功能完整、无空白等待 |
