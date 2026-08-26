@@ -2,7 +2,13 @@
  * 内容自检：不开浏览器，直接把题库和生成器跑上几千次，
  * 确认不会出现负数答案、NaN 文案、重复选项、无解或多解的数独。
  */
-import { WORD_PROBLEMS, WORD_PROBLEM_TAGS, problemsOfTier } from '../src/data/wordProblems.js'
+import {
+  SCENE_SKINS,
+  SEMANTIC_TEMPLATES,
+  WORD_PROBLEMS,
+  WORD_PROBLEM_TAGS,
+  problemsOfTier,
+} from '../src/data/wordProblems.js'
 import { isKnownSkill, SKILL_MAP, skillsOfModule } from '../src/data/curriculum.js'
 import {
   arithmeticSkill,
@@ -20,7 +26,13 @@ import {
   solve,
   specOf,
 } from '../src/core/engine/sudoku.js'
-import { createRng, numericOptions, parseQuestionId, questionId } from '../src/utils/random.js'
+import {
+  createRng,
+  numericOptions,
+  parseQuestionId,
+  questionId,
+  reseed,
+} from '../src/utils/random.js'
 import { COMPARE_SYMBOLS, compareQuestion, compareSymbol } from '../src/data/compare.js'
 import {
   buildDailyQuestion,
@@ -39,7 +51,8 @@ import {
   weakestSkills,
 } from '../src/core/engine/adaptive.js'
 
-const MIN_TEMPLATES = 25
+const MIN_TEMPLATES = 100
+const MIN_SCENES = 30
 
 let failures = 0
 const fail = (msg) => {
@@ -81,6 +94,8 @@ for (const tpl of WORD_PROBLEMS) {
     if (!q.hint) fail(`${tpl.id} 缺少提示文案`)
   }
 }
+if (scenes.size < MIN_SCENES) fail(`只有 ${scenes.size} 种场景，少于要求的 ${MIN_SCENES} 种`)
+if (WORD_PROBLEM_TAGS.some((t) => !t)) fail('存在没有语义标签的母题')
 console.log(
   `  ${WORD_PROBLEM_TAGS.length} 类语义标签 / ${scenes.size} 种场景，` +
     `一步 ${byStep[1]} · 两步 ${byStep[2]} · 进阶 ${byStep[3]}，每个母题各生成 2000 道`,
@@ -88,6 +103,40 @@ console.log(
 
 for (const tierId of ['one', 'two', 'multi']) {
   if (problemsOfTier(tierId).length === 0) fail(`难度档「${tierId}」一道母题都没有`)
+}
+
+/* 语义模板 × 场景皮肤：笛卡尔积必须完整铺满，否则等于悄悄少了一批母题 */
+{
+  const skinned = new Set(WORD_PROBLEMS.map((t) => t.id))
+  let missing = 0
+  for (const semantic of SEMANTIC_TEMPLATES) {
+    for (const skin of SCENE_SKINS) {
+      if (!skinned.has(`${semantic.id}-${skin.id}`)) {
+        missing++
+        fail(`语义「${semantic.id}」缺少皮肤「${skin.id}」的组合`)
+      }
+    }
+  }
+  const crossed = SEMANTIC_TEMPLATES.length * SCENE_SKINS.length - missing
+  console.log(
+    `  语义模板 ${SEMANTIC_TEMPLATES.length} × 场景皮肤 ${SCENE_SKINS.length} = ${crossed} 个组合母题，` +
+      `另有 ${WORD_PROBLEMS.length - crossed} 个手写母题`,
+  )
+}
+
+/* 种子化 PRNG：同一个 seed 下整个题库逐字复现，换 seed 才换题 */
+{
+  const snapshot = (seed) => {
+    reseed(seed)
+    return JSON.stringify(WORD_PROBLEMS.map((tpl) => tpl.make()))
+  }
+  if (snapshot('wp-2026') !== snapshot('wp-2026')) {
+    fail('同一 seed 下应用题母题两次生成结果不一致')
+  }
+  if (snapshot('wp-2026') === snapshot('wp-2027')) {
+    fail('换了 seed 应用题母题却生成出完全相同的题面')
+  }
+  console.log(`  种子化 PRNG：reseed 后 ${WORD_PROBLEMS.length} 道题逐字复现，换 seed 即换题`)
 }
 
 /* 技能点映射 */

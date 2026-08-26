@@ -3,9 +3,19 @@
  * 每个母题都是一个生成器：调用 make() 会随机出一道数值不同、结构相同的新题，
  * 因此几十个母题可以覆盖成千上万道不重复的练习。
  *
+ * 母题分两层来源：
+ *   1. CRAFTED —— 手写母题，题面各有各的说法（鸡兔同笼、相遇、植树、找零……），
+ *      这类结构没法套模板，只能一道道写。
+ *   2. SEMANTIC_TEMPLATES × SCENE_SKINS —— 语义模板负责数学结构（合并 / 剩余 /
+ *      和倍 / 进一法……），场景皮肤只负责「在哪里、数的是什么」。两者做笛卡尔积，
+ *      一个新语义或一张新皮肤就能整排地扩出母题，题面又不会读起来像同一道。
+ *
  * steps 表示解题步数，也是难度分档：1 = 一步题，2 = 两步题，>=3 = 进阶题
  * （和差倍、鸡兔同笼、相遇这类需要先转换再计算的题型）。
  * 参数域都做过约束，保证答案是正整数，不会出现负数或小数。
+ *
+ * 随机数一律走 @/utils/random 的种子化 mulberry32 流：reseed(seed) 之后
+ * 整个题库的产出逐字可复现，家长报告里的错题才回放得出来。
  */
 import { randInt, sample } from '@/utils/random'
 
@@ -18,7 +28,8 @@ const pair = () => {
   return [a, b]
 }
 
-export const WORD_PROBLEMS = [
+/** 手写母题：题面结构独一份，套不进语义模板。 */
+const CRAFTED = [
   {
     id: 'add-join',
     skill: 'wp-combine',
@@ -206,6 +217,7 @@ export const WORD_PROBLEMS = [
   {
     id: 'money-change',
     skill: 'wp-two-step',
+    tag: '找零',
     steps: 2,
     emoji: '💰',
     scene: '文具店',
@@ -371,6 +383,7 @@ export const WORD_PROBLEMS = [
   {
     id: 'quotitive',
     skill: 'wp-share',
+    tag: '包含除',
     steps: 1,
     emoji: '🥮',
     scene: '点心铺',
@@ -391,6 +404,7 @@ export const WORD_PROBLEMS = [
   {
     id: 'div-remainder',
     skill: 'wp-two-step',
+    tag: '有余数',
     steps: 2,
     emoji: '🍭',
     scene: '糖果屋',
@@ -720,6 +734,372 @@ export const WORD_PROBLEMS = [
     },
   },
 ]
+
+/* ================================================== 语义模板 × 场景皮肤 */
+
+/**
+ * 场景皮肤：一张皮肤只回答「故事发生在哪里、数的是什么、动词怎么说」，
+ * 不带任何数学结构，因此可以套在每一个语义模板上。
+ *
+ * verb  收集类动词，能接「上午…了 5 个」「比…多…了 3 个」
+ * away  拿走类动词短语，能接数量：`小星${away} 3 个`
+ * place 存放处所，能作主语：`${place}原来有 12 个…`
+ * holder 容器量词，能作「装一${holder}」「3 ${holder}」
+ */
+export const SCENE_SKINS = [
+  {
+    id: 'shell',
+    scene: '海边拾贝',
+    emoji: '🐚',
+    item: '贝壳',
+    unit: '个',
+    verb: '捡',
+    away: '送给妹妹',
+    place: '小桶里',
+    holder: '桶',
+  },
+  {
+    id: 'bakery',
+    scene: '面包坊',
+    emoji: '🥐',
+    item: '可颂',
+    unit: '个',
+    verb: '烤',
+    away: '卖掉',
+    place: '面包篮里',
+    holder: '袋',
+  },
+  {
+    id: 'space',
+    scene: '太空基地',
+    emoji: '🚀',
+    item: '星星贴',
+    unit: '张',
+    verb: '收集',
+    away: '送给队友',
+    place: '收纳格里',
+    holder: '格',
+  },
+  {
+    id: 'bug',
+    scene: '昆虫屋',
+    emoji: '🐞',
+    item: '瓢虫',
+    unit: '只',
+    verb: '找到',
+    away: '放回草地',
+    place: '观察盒里',
+    holder: '盒',
+  },
+  {
+    id: 'bamboo',
+    scene: '竹林',
+    emoji: '🎋',
+    item: '竹笋',
+    unit: '根',
+    verb: '挖',
+    away: '分给熊猫',
+    place: '竹篓里',
+    holder: '篓',
+  },
+  {
+    id: 'post',
+    scene: '小小邮局',
+    emoji: '✉️',
+    item: '明信片',
+    unit: '张',
+    verb: '写',
+    away: '寄走',
+    place: '邮包里',
+    holder: '包',
+  },
+]
+
+/**
+ * 语义模板：只管数学结构与取值范围，题面里的名词动词全部从皮肤取。
+ * make(skin) 的返回值和手写母题完全一致，下游不需要区分两种来源。
+ */
+export const SEMANTIC_TEMPLATES = [
+  {
+    id: 'join',
+    skill: 'wp-combine',
+    tag: '合并',
+    steps: 1,
+    make(s) {
+      const [a] = pair()
+      const x = randInt(3, 12)
+      const y = randInt(2, 10)
+      return {
+        text: `${a}上午${s.verb}了 ${x} ${s.unit}${s.item}，下午又${s.verb}了 ${y} ${s.unit}。${a}一共${s.verb}了多少${s.unit}${s.item}？`,
+        equation: `${x} + ${y} = ?`,
+        answer: x + y,
+        unit: s.unit,
+        hint: '「一共」就是把两次的数量加起来。',
+        visual: { icon: s.emoji, groups: [x, y] },
+      }
+    },
+  },
+  {
+    id: 'remain',
+    skill: 'wp-remain',
+    tag: '剩余',
+    steps: 1,
+    make(s) {
+      const [a] = pair()
+      const total = randInt(8, 20)
+      const gone = randInt(2, total - 2)
+      return {
+        text: `${s.place}原来有 ${total} ${s.unit}${s.item}，${a}${s.away} ${gone} ${s.unit}。${s.place}还剩多少${s.unit}？`,
+        equation: `${total} − ${gone} = ?`,
+        answer: total - gone,
+        unit: s.unit,
+        hint: '「还剩」要用减法：原来的减去拿走的。',
+        visual: { icon: s.emoji, groups: [total], strike: gone },
+      }
+    },
+  },
+  {
+    id: 'gap',
+    skill: 'wp-diff',
+    tag: '比多少',
+    steps: 1,
+    make(s) {
+      const [a, b] = pair()
+      const x = randInt(5, 18)
+      const y = randInt(1, x - 1)
+      return {
+        text: `${a}${s.verb}了 ${x} ${s.unit}${s.item}，${b}${s.verb}了 ${y} ${s.unit}。${a}比${b}多${s.verb}了多少${s.unit}？`,
+        equation: `${x} − ${y} = ?`,
+        answer: x - y,
+        unit: s.unit,
+        hint: '「多多少」就是用多的减去少的。',
+        visual: { icon: s.emoji, groups: [x, y] },
+      }
+    },
+  },
+  {
+    id: 'times',
+    skill: 'wp-times',
+    tag: '倍数',
+    steps: 1,
+    make(s) {
+      const [a, b] = pair()
+      const x = randInt(3, 9)
+      const n = randInt(2, 4)
+      return {
+        text: `${a}${s.verb}了 ${x} ${s.unit}${s.item}，${b}${s.verb}的是${a}的 ${n} 倍。${b}${s.verb}了多少${s.unit}？`,
+        equation: `${x} × ${n} = ?`,
+        answer: x * n,
+        unit: s.unit,
+        hint: `「是…的 ${n} 倍」就是 ${n} 个 ${x} 加起来，也就是乘 ${n}。`,
+        visual: { icon: s.emoji, groups: Array.from({ length: n }, () => x) },
+      }
+    },
+  },
+  {
+    id: 'pack',
+    skill: 'wp-times',
+    tag: '几个几',
+    steps: 1,
+    make(s) {
+      const per = randInt(2, 6)
+      const boxes = randInt(2, 5)
+      return {
+        text: `一${s.holder}${s.item}有 ${per} ${s.unit}，${boxes} ${s.holder}一共有多少${s.unit}${s.item}？`,
+        equation: `${per} × ${boxes} = ?`,
+        answer: per * boxes,
+        unit: s.unit,
+        hint: `就是 ${boxes} 个 ${per} 相加：${Array.from({ length: boxes }, () => per).join(' + ')}。`,
+        visual: { icon: s.emoji, groups: Array.from({ length: boxes }, () => per) },
+      }
+    },
+  },
+  {
+    id: 'share',
+    skill: 'wp-share',
+    tag: '平均分',
+    steps: 1,
+    make(s) {
+      const each = randInt(2, 6)
+      const kids = randInt(2, 5)
+      return {
+        text: `有 ${each * kids} ${s.unit}${s.item}，平均分给 ${kids} 个小朋友，每人能分到多少${s.unit}？`,
+        equation: `${each * kids} ÷ ${kids} = ?`,
+        answer: each,
+        unit: s.unit,
+        hint: '平均分就是每人一样多，看看每人拿几个才刚好分完。',
+        visual: { icon: s.emoji, groups: Array.from({ length: kids }, () => each) },
+      }
+    },
+  },
+  {
+    id: 'fit',
+    skill: 'wp-share',
+    tag: '包含除',
+    steps: 1,
+    make(s) {
+      const per = randInt(2, 6)
+      const boxes = randInt(2, 6)
+      const total = per * boxes
+      return {
+        text: `有 ${total} ${s.unit}${s.item}，每 ${per} ${s.unit}装一${s.holder}，可以装满多少${s.holder}？`,
+        equation: `${total} ÷ ${per} = ?`,
+        answer: boxes,
+        unit: s.holder,
+        hint: `看看 ${total} 里面一共有几个 ${per}。`,
+        visual: { icon: s.emoji, groups: Array.from({ length: boxes }, () => per) },
+      }
+    },
+  },
+  {
+    id: 'both',
+    skill: 'wp-combine',
+    tag: '比多少',
+    steps: 2,
+    make(s) {
+      const [a, b] = pair()
+      const x = randInt(3, 12)
+      const more = randInt(2, 8)
+      return {
+        text: `${a}${s.verb}了 ${x} ${s.unit}${s.item}，${b}比${a}多${s.verb}了 ${more} ${s.unit}。两人一共${s.verb}了多少${s.unit}？`,
+        equation: `${x} + (${x} + ${more}) = ?`,
+        answer: x + (x + more),
+        unit: s.unit,
+        hint: `先算出${b}${s.verb}了多少（${x} + ${more}），再把两人的加起来。`,
+        visual: { icon: s.emoji, groups: [x, x + more] },
+      }
+    },
+  },
+  {
+    id: 'flow',
+    skill: 'wp-remain',
+    tag: '一进一出',
+    steps: 2,
+    make(s) {
+      const [a] = pair()
+      const total = randInt(10, 30)
+      const out = randInt(2, 8)
+      const back = randInt(2, 9)
+      return {
+        text: `${s.place}原来有 ${total} ${s.unit}${s.item}，${a}${s.away} ${out} ${s.unit}，后来又${s.verb}了 ${back} ${s.unit}放进去。现在有多少${s.unit}？`,
+        equation: `${total} − ${out} + ${back} = ?`,
+        answer: total - out + back,
+        unit: s.unit,
+        hint: '拿走是减，放回是加，按顺序一步一步算。',
+      }
+    },
+  },
+  {
+    id: 'twice-away',
+    skill: 'wp-remain',
+    tag: '两步',
+    steps: 2,
+    make(s) {
+      const [a] = pair()
+      const total = randInt(15, 40)
+      // 两次都从「还剩多少」里取上限，保证至少剩 1 个，不会算出负数
+      const first = randInt(3, Math.min(10, total - 5))
+      const second = randInt(2, Math.min(8, total - first - 1))
+      return {
+        text: `${s.place}有 ${total} ${s.unit}${s.item}，${a}先${s.away} ${first} ${s.unit}，又${s.away} ${second} ${s.unit}。还剩多少${s.unit}？`,
+        equation: `${total} − ${first} − ${second} = ?`,
+        answer: total - first - second,
+        unit: s.unit,
+        hint: `两次一共拿走 ${first + second} ${s.unit}，用总数减掉它。`,
+      }
+    },
+  },
+  {
+    id: 'pack-loss',
+    skill: 'wp-two-step',
+    tag: '两步',
+    steps: 2,
+    make(s) {
+      const [a] = pair()
+      const boxes = randInt(2, 5)
+      const per = randInt(3, 8)
+      const lost = randInt(1, Math.min(6, boxes * per - 1))
+      return {
+        text: `${a}把${s.item}装成 ${boxes} ${s.holder}，每${s.holder} ${per} ${s.unit}，路上弄丢了 ${lost} ${s.unit}。现在还有多少${s.unit}？`,
+        equation: `${per} × ${boxes} − ${lost} = ?`,
+        answer: per * boxes - lost,
+        unit: s.unit,
+        hint: `先算原来一共 ${per * boxes} ${s.unit}，再减掉丢掉的。`,
+      }
+    },
+  },
+  {
+    id: 'sum-times',
+    skill: 'wp-times',
+    tag: '和倍',
+    steps: 3,
+    make(s) {
+      const [a, b] = pair()
+      const small = randInt(2, 9)
+      const n = randInt(2, 4)
+      return {
+        text: `${a}和${b}一共${s.verb}了 ${small * (n + 1)} ${s.unit}${s.item}，${a}${s.verb}的是${b}的 ${n} 倍。${b}${s.verb}了多少${s.unit}？`,
+        equation: `${small * (n + 1)} ÷ (${n} + 1) = ?`,
+        answer: small,
+        unit: s.unit,
+        hint: `把${b}的看成 1 份，${a}就是 ${n} 份，一共 ${n + 1} 份。`,
+      }
+    },
+  },
+  {
+    id: 'sum-gap',
+    skill: 'wp-diff',
+    tag: '和差',
+    steps: 3,
+    make(s) {
+      const [a, b] = pair()
+      const small = randInt(2, 12)
+      const diff = randInt(2, 8)
+      const sum = small + small + diff
+      return {
+        text: `${a}和${b}一共${s.verb}了 ${sum} ${s.unit}${s.item}，${a}比${b}多${s.verb}了 ${diff} ${s.unit}。${a}${s.verb}了多少${s.unit}？`,
+        equation: `(${sum} + ${diff}) ÷ 2 = ?`,
+        answer: small + diff,
+        unit: s.unit,
+        hint: `如果${b}也${s.verb}那么多，总数就变成 ${sum + diff} ${s.unit}，再平均分成两份。`,
+      }
+    },
+  },
+  {
+    id: 'ceil-pack',
+    skill: 'wp-share',
+    tag: '进一法',
+    steps: 3,
+    make(s) {
+      const per = randInt(4, 8)
+      const full = randInt(2, 6)
+      const extra = randInt(1, per - 1)
+      const total = per * full + extra
+      return {
+        text: `有 ${total} ${s.unit}${s.item}，每${s.holder}最多装 ${per} ${s.unit}。至少要几${s.holder}才能全部装下？`,
+        equation: `${total} ÷ ${per} = ${full} …… ${extra}，${full} + 1 = ?`,
+        answer: full + 1,
+        unit: s.holder,
+        hint: `装不满的那 ${extra} ${s.unit}也要有地方放，所以还得再加一${s.holder}。`,
+      }
+    },
+  },
+]
+
+/** 语义模板 × 场景皮肤：每个组合都是一个独立母题，id 为 `语义-皮肤`。 */
+const SKINNED = SEMANTIC_TEMPLATES.flatMap((semantic) =>
+  SCENE_SKINS.map((skin) => ({
+    id: `${semantic.id}-${skin.id}`,
+    skill: semantic.skill,
+    tag: semantic.tag,
+    steps: semantic.steps,
+    emoji: skin.emoji,
+    scene: skin.scene,
+    make: () => semantic.make(skin),
+  })),
+)
+
+export const WORD_PROBLEMS = [...CRAFTED, ...SKINNED]
 
 export const WORD_PROBLEM_COUNT = WORD_PROBLEMS.length
 
