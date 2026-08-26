@@ -145,6 +145,7 @@ def test_main_window_registers_completed_recording_and_lists_it(qapp, tmp_path: 
         assert "Take 001" in main.takes_menu.actions()[0].text()
         assert main._project_path == project  # noqa: SLF001
         assert main._project_dirty  # noqa: SLF001 - the take became the waveform document
+        main._mark_project_saved()  # noqa: SLF001 - accept the new waveform document
         assert main.open_take(1)
         assert main.engine.n_frames == 96
     finally:
