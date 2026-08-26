@@ -22,16 +22,26 @@ import path from 'node:path'
 import { CHARACTERS } from '../src/data/characters.js'
 import { RADICALS } from '../src/data/radicals.js'
 import { IDIOMS } from '../src/data/idioms.js'
+import { BOOKS } from '../src/data/books.js'
 
 const require = createRequire(import.meta.url)
 const here = path.dirname(fileURLToPath(import.meta.url))
 const appDir = path.resolve(here, '..')
 const outDir = path.join(appDir, 'public', 'hanzi-data')
 
-/** 收集全部需要笔顺数据的汉字。 */
-function collectChars() {
+const isHan = (ch) => /\p{Script=Han}/u.test(ch)
+
+/** 课程字表：这些字必须有离线笔顺数据，缺一个就算构建失败。 */
+function requiredChars() {
+  return [...new Set(CHARACTERS.map((c) => c.char))].filter(isHan).sort()
+}
+
+/**
+ * 顺带收进来的字：部首讲解里的示例、成语拆解、绘本正文。
+ * 缺了只是少一段动画，不阻断构建。
+ */
+function extraChars() {
   const set = new Set()
-  for (const c of CHARACTERS) set.add(c.char)
   for (const r of RADICALS) {
     for (const c of r.chars ?? []) set.add(c)
     for (const c of r.more ?? []) set.add(c)
@@ -43,7 +53,14 @@ function collectChars() {
     for (const ch of idiom.word) set.add(ch)
     for (const item of idiom.chars ?? []) set.add(item.c)
   }
-  return [...set].filter((ch) => /\p{Script=Han}/u.test(ch)).sort()
+  // 绘本正文可以点字听音，点到的字最好也能看笔顺
+  for (const b of BOOKS) {
+    for (const page of b.pages ?? []) {
+      for (const ch of page.text ?? '') set.add(ch)
+    }
+  }
+  const required = new Set(requiredChars())
+  return [...set].filter((ch) => isHan(ch) && !required.has(ch)).sort()
 }
 
 function resolveDataDir() {
@@ -55,7 +72,9 @@ function resolveDataDir() {
 }
 
 function main() {
-  const chars = collectChars()
+  const required = requiredChars()
+  const extra = extraChars()
+  const chars = [...required, ...extra].sort()
   const dataDir = resolveDataDir()
 
   if (!dataDir) {
@@ -93,9 +112,25 @@ function main() {
   fs.writeFileSync(path.join(outDir, 'index.json'), JSON.stringify({ chars: written }))
 
   const kb = (bytes / 1024).toFixed(0)
-  console.log(`[hanzi-data] 已生成 ${written.length} 个字的离线笔顺数据（约 ${kb} KB）。`)
-  if (missing.length) {
-    console.warn(`[hanzi-data] 数据包中缺失 ${missing.length} 个字：${missing.join(' ')}`)
+  console.log(
+    `[hanzi-data] 已生成 ${written.length} 个字的离线笔顺数据（约 ${kb} KB）：` +
+      `课程字 ${required.length} 个 + 部首/成语/绘本用字 ${extra.length} 个。`
+  )
+
+  // 课程字缺笔顺 = 学习页的核心环节直接残废，必须让构建红掉；
+  // 其余来源缺字只是少一段动画，提示一下就好。
+  const missingRequired = missing.filter((ch) => required.includes(ch))
+  const missingExtra = missing.filter((ch) => !required.includes(ch))
+  if (missingExtra.length) {
+    console.warn(`[hanzi-data] 数据包中缺失 ${missingExtra.length} 个非课程字：${missingExtra.join(' ')}`)
+  }
+  if (missingRequired.length) {
+    console.error(
+      `[hanzi-data] 字表里有 ${missingRequired.length} 个字在 hanzi-writer-data 中找不到：` +
+        `${missingRequired.join(' ')}\n` +
+        '            请换字或补数据，否则这些字的「写一写」无法离线使用。'
+    )
+    process.exitCode = 1
   }
 }
 

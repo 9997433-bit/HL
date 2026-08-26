@@ -236,8 +236,11 @@ await interact('FSRS：到期卡进入复习队列，未到期卡不进入', `/#
     throw new Error('作答后未在持久化进度中找到日、月两张 FSRS 卡')
   }
 
+  // 改到期时间是直接写 localStorage 的，只切 hash 不会重新读档；
+  // 刷新一次既能让改动生效，也顺带验证了记忆卡确实是从存档里恢复出来的。
   await page.goto(`${base}/#/learn`, { waitUntil: 'networkidle2', timeout: 20000 })
-  await new Promise((r) => setTimeout(r, 500))
+  await page.reload({ waitUntil: 'networkidle2', timeout: 20000 })
+  await new Promise((r) => setTimeout(r, 600))
   if (!(await clickText(page, '要复习'))) {
     throw new Error('字表缺少“要复习”筛选入口')
   }

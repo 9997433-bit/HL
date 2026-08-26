@@ -16,7 +16,7 @@ const notes = []
 const check = (ok, msg) => (ok ? notes.push(`✓ ${msg}`) : fails.push(`✗ ${msg}`))
 
 /* ----------------------------------------------------------------- 字表 */
-check(TOTAL_CHARACTERS >= 20, `字表 ${TOTAL_CHARACTERS} 个字（要求 ≥ 20）`)
+check(TOTAL_CHARACTERS >= 100, `字表 ${TOTAL_CHARACTERS} 个字（要求 ≥ 100）`)
 
 const dupes = CHARACTERS.map((c) => c.char).filter((c, i, a) => a.indexOf(c) !== i)
 check(dupes.length === 0, `字表无重复${dupes.length ? `（重复：${dupes.join('')}）` : ''}`)
@@ -31,6 +31,18 @@ check(badUnit.length === 0, `每个字都归属到已定义的单元`)
 
 const badRadical = CHARACTERS.filter((c) => !getRadical(c.radical))
 check(badRadical.length === 0, `每个字的部首都能查到${badRadical.length ? `（${badRadical.map((c) => `${c.char}:${c.radical}`).join(', ')}）` : ''}`)
+
+// 拼音色标按声调着色，缺声调会退化成灰色；emoji 是卡片上唯一的图形，两者都不能少。
+const badTone = CHARACTERS.filter((c) => !(c.tone >= 1 && c.tone <= 5) || !c.emoji)
+check(badTone.length === 0, `每个字都有 1–5 的声调和卡片图标${badTone.length ? `（${badTone.map((c) => c.char).join('')}）` : ''}`)
+
+const badWords = CHARACTERS.filter(
+  (c) => c.words.length < 2 || c.words.some((w) => !w.w || !w.p) || !c.sentence.p
+)
+check(badWords.length === 0, `每个字至少 2 个带拼音的组词，例句也有拼音${badWords.length ? `（${badWords.map((c) => c.char).join('')}）` : ''}`)
+
+const thinUnits = UNITS.filter((u) => CHARACTERS.filter((c) => c.unit === u.id).length < 5)
+check(thinUnits.length === 0, `每个单元至少 5 个字${thinUnits.length ? `（${thinUnits.map((u) => u.name).join('、')}）` : ''}`)
 
 /* ----------------------------------------------------------------- 绘本 */
 check(BOOKS.length >= 2, `绘本 ${BOOKS.length} 本（要求 ≥ 2）`)

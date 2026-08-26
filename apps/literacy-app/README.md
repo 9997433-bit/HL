@@ -25,6 +25,17 @@ npm run preview
 
 Service Worker 不支持 `file://`，不能通过直接双击 `dist/index.html` 安装离线缓存。可在仓库根目录运行 `npm run build && npm run test:offline`，验证关闭 HTTP 服务后仍能启动详情页并读取笔顺数据。
 
+## 字表与复习曲线
+
+字表 106 字、12 个单元(`src/data/characters.js`),字表页一次只挂一个单元,
+底部按单元翻页,避免上百张卡片同时进 DOM。
+
+复习不看「答对几次」,而是由 `src/utils/srs.js` 的 FSRS-lite 记忆卡决定:
+描红和答题都会更新记忆卡的稳定性与难度,首页的「该复习 N 字」、
+字表的「要复习」筛选、听音识字的出题偏好都取自同一个到期队列;
+家长中心的记忆强度热力图按每个字此刻的保持率着色,点格子直接去复习。
+老存档没有记忆卡时,会按已有掌握度反推一张初始卡,升级不清零进度。
+
 ## 功能模块与路由
 
 | 模块 | 路由 | 视图 |
@@ -56,7 +67,7 @@ src/
 ├── main.js / App.vue        # 应用壳
 ├── router/index.js          # hash 路由,懒加载
 ├── stores/                  # progress(进度/星星/每日统计) · settings(家长设置)
-├── utils/                   # speech · sfx · audio · hanziWriter · hanziData · srs(FSRS-lite,R2 接入)
+├── utils/                   # speech · sfx · audio · hanziWriter · hanziData · srs(FSRS-lite,已接入复习队列)
 ├── data/                    # characters / books / idioms / radicals — 全部数据驱动
 ├── components/              # HanziStrokeBox · ProgressRing · AppHeader · BottomNav · BreakReminder
 ├── views/                   # 各路由页面
@@ -66,15 +77,19 @@ src/
 ## 自检与测试
 
 ```bash
+npm run test:srs     # FSRS 调度纯函数单测
 npm run check:data   # 内容自检,不需要浏览器
 npm run smoke        # 无头 Chrome 跑完全部路由与关键交互(需先 build)
-npm test             # check:data + build + smoke
+npm test             # test:srs + check:data + build + smoke
 ```
 
 `check:data` 守住分级绘本最重要的那条约束——**正文只能用字表里已有的汉字**。
 绘本的价值就在于孩子能从头到尾自己读下来,一句超纲的话就会让他卡住,
-所以这条必须自动化。它还会校验字表字段完整性、部首示例是否都在字表内、
-成语的四字拆解与情景题答案下标。
+所以这条必须自动化。它还会校验字表规模(≥100 字)与字段完整性(声调/图标/组词拼音)、
+每个单元至少 5 个字、部首示例是否都在字表内、成语的四字拆解与情景题答案下标。
+
+`gen:hanzi` 把课程字表和顺带收录的字(部首示例、成语、绘本正文)分开处理:
+课程字缺笔顺数据会让构建直接失败,其余缺字只警告。
 
 `smoke` 用无头 Chrome 依次打开 17 条路由,收集控制台报错与未捕获异常,
 并检查:组件是否挂载、页面有没有漏出 `NaN`/`undefined`、

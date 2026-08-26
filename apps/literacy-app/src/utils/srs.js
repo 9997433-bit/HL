@@ -1,18 +1,19 @@
 /**
  * FSRS-lite 记忆曲线调度 — 纯函数,无副作用,便于单测。
  *
- * 现状(R1): 复习队列由 progress store 的「掌握阈值 + 3 天未碰」规则驱动,
- * 本文件尚未接线,是 Round 2 的升级契约:
- *   - progress.recordAnswer() 内改为调用 schedule(card, rating) 更新记忆卡;
- *   - 首页「今日复习」入口改为 dueCards(cards) 驱动;
- *   - 家长中心用 card.stability 渲染记忆强度热力图。
  * 参数经简化,行为对标 open-spaced-repetition/ts-fsrs 的核心思想:
  * 稳定性(stability,天)随成功复习指数增长,失败则大幅回退并提升难度。
  *
- * rating 取值: 1=忘了(again) 2=较难(hard) 3=记得(good) 4=轻松(easy)
+ * 调用方是 stores/progress.js:
+ *   - 每次描红 / 答题都会 schedule(card, rating) 更新记忆卡;
+ *   - 复习队列 = dueCards(cards);
+ *   - 家长中心用 retention(card) 渲染记忆强度热力图。
  */
 
 const DAY_MS = 24 * 60 * 60 * 1000
+
+/** 一次复习的四种评价。 */
+export const RATING = { AGAIN: 1, HARD: 2, GOOD: 3, EASY: 4 }
 
 /** 各评分对应的稳定性增长倍率。 */
 const GROWTH = { 2: 1.4, 3: 2.3, 4: 3.2 }

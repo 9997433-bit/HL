@@ -10,11 +10,12 @@
 
 import { computed, reactive, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
-import { CHARACTERS, TOTAL_CHARACTERS, UNITS } from '@/data/characters.js'
+import { CHARACTER_MAP, CHARACTERS, TOTAL_CHARACTERS, UNITS } from '@/data/characters.js'
 import { BOOKS } from '@/data/books.js'
 import { IDIOMS } from '@/data/idioms.js'
 import { RADICALS } from '@/data/radicals.js'
 import { setSoundEnabled, setSpeechEnabled } from '@/utils/audio.js'
+import { RATING, createCard, dueCards, retention, schedule } from '@/utils/srs.js'
 
 const STORAGE_KEY = 'happy-literacy:v1'
 
@@ -78,6 +79,9 @@ function defaultState() {
     idioms: {},
     radicals: {},
 
+    /** FSRS 记忆卡：{ '人': { charId, due, stability, difficulty, reps, lapses, ... } } */
+    srs: {},
+
     listen: { rounds: 0, right: 0, wrong: 0, bestStreak: 0 },
 
     /** 按天聚合：{ '2026-08-26': { seconds, chars: [...], stars, quizRight, quizWrong } } */
@@ -87,17 +91,45 @@ function defaultState() {
   }
 }
 
+/**
+ * 老存档（FSRS 接线之前的版本）里只有掌握度，没有记忆卡。
+ * 直接按掌握度反推一张初始卡，孩子的历史进度就不会因为升级被清零：
+ * 认识 → 半天后复习，会写 → 一天半，掌握 → 四天。
+ */
+const SEED_STABILITY = [0, 0.5, 1.5, 4]
+
+function seedCards(chars) {
+  const out = {}
+  for (const [char, s] of Object.entries(chars)) {
+    const level = s?.level ?? 0
+    if (level < 1) continue
+    const stability = SEED_STABILITY[Math.min(level, 3)]
+    const lastReviewAt = s.lastAt ?? s.firstAt ?? Date.now()
+    out[char] = {
+      ...createCard(char, lastReviewAt),
+      stability,
+      reps: (s.quizRight ?? 0) + (s.traced ?? 0),
+      lapses: s.quizWrong ?? 0,
+      lastReviewAt,
+      due: lastReviewAt + stability * 24 * 60 * 60 * 1000
+    }
+  }
+  return out
+}
+
 function migrate(saved) {
   const base = defaultState()
   if (!saved || typeof saved !== 'object') return base
+  const chars = { ...(saved.chars || {}) }
   return {
     ...base,
     ...saved,
     settings: { ...base.settings, ...(saved.settings || {}) },
-    chars: { ...(saved.chars || {}) },
+    chars,
     books: { ...(saved.books || {}) },
     idioms: { ...(saved.idioms || {}) },
     radicals: { ...(saved.radicals || {}) },
+    srs: saved.srs ? { ...saved.srs } : seedCards(chars),
     listen: { ...base.listen, ...(saved.listen || {}) },
     daily: { ...(saved.daily || {}) }
   }
@@ -121,10 +153,18 @@ export const useProgressStore = defineStore('progress', () => {
   /** 本次打开页面已连续学习的秒数，用于护眼提醒；不持久化。 */
   const sessionSeconds = ref(0)
   const restDue = ref(false)
+  /**
+   * 粗粒度的「现在」。遗忘曲线和到期判断都读它，
+   * 这样孩子把页面开着不动，复习队列也会自己长出来，而不必每秒重算一遍。
+   */
+  const clock = ref(Date.now())
+
+  function touchClock() {
+    const now = Date.now()
+    if (now - clock.value > 30000) clock.value = now
+  }
 
   /* ---------------------------------------------------------------- 派生 */
-
-  const charStat = (char) => state.chars[char] ?? emptyChar()
 
   const learnedChars = computed(() =>
     CHARACTERS.filter((c) => (state.chars[c.char]?.level ?? 0) >= 1)
@@ -195,27 +235,6 @@ export const useProgressStore = defineStore('progress', () => {
 
   const today = computed(() => state.daily[todayKey()] ?? { seconds: 0, chars: [], stars: 0 })
 
-  const todayNewChars = computed(() => today.value.chars?.length ?? 0)
-
-  const dailyGoalReached = computed(() => todayNewChars.value >= state.settings.dailyGoal)
-
-  /** 最近 14 天的学习曲线，家长面板画柱状图用。 */
-  const recentDays = computed(() => {
-    const out = []
-    for (let i = 13; i >= 0; i -= 1) {
-      const key = todayKey(Date.now() - i * 86400000)
-      const d = state.daily[key]
-      out.push({
-        key,
-        label: key.slice(5),
-        minutes: Math.round((d?.seconds ?? 0) / 60),
-        chars: d?.chars?.length ?? 0,
-        stars: d?.stars ?? 0
-      })
-    }
-    return out
-  })
-
   /** 连续学习天数。 */
   const streakDays = computed(() => {
     let n = 0
@@ -230,23 +249,48 @@ export const useProgressStore = defineStore('progress', () => {
   })
 
   /**
-   * 复习推荐：优先挑「学过但还没掌握」的字，
-   * 其次按最久没碰过排序——这是最省事也最有效的间隔重复近似。
+   * 复习推荐由 FSRS 记忆卡驱动：到期最久的排最前。
+   * 和旧的「学过但还没掌握」规则相比，掌握过的字也会在遗忘曲线走低时重新回到队列，
+   * 而刚练过的字不会反复出现——这正是间隔重复的意义。
    */
-  const reviewQueue = computed(() => {
-    const now = Date.now()
-    return CHARACTERS.filter((c) => {
-      const s = state.chars[c.char]
-      return s && s.level >= 1 && s.level < 3
-    })
-      .sort((a, b) => {
-        const sa = state.chars[a.char]
-        const sb = state.chars[b.char]
-        const wa = (now - (sa.lastAt ?? 0)) * (4 - sa.level)
-        const wb = (now - (sb.lastAt ?? 0)) * (4 - sb.level)
-        return wb - wa
+  const dueCharCards = computed(() => {
+    const now = clock.value
+    return dueCards(state.srs, now).filter((card) => CHARACTER_MAP.has(card.charId))
+  })
+
+  const reviewQueue = computed(() =>
+    dueCharCards.value.slice(0, 12).map((card) => CHARACTER_MAP.get(card.charId))
+  )
+
+  const dueCount = computed(() => dueCharCards.value.length)
+
+  /**
+   * 学过的字 × 记忆强度，按记忆最弱的排在前面。
+   * 这是家长中心热力图与「该复习了」提示的唯一数据源。
+   */
+  const memoryCards = computed(() =>
+    learnedChars.value
+      .map((c) => {
+        const card = state.srs[c.char] ?? createCard(c.char, clock.value)
+        return {
+          char: c.char,
+          unit: c.unit,
+          stability: card.stability,
+          difficulty: card.difficulty,
+          reps: card.reps,
+          lapses: card.lapses,
+          due: card.due,
+          retention: retention(card, clock.value),
+          isDue: card.due <= clock.value
+        }
       })
-      .slice(0, 12)
+      .sort((a, b) => a.retention - b.retention || a.due - b.due)
+  )
+
+  const averageRetention = computed(() => {
+    const list = memoryCards.value
+    if (!list.length) return 0
+    return list.reduce((n, c) => n + c.retention, 0) / list.length
   })
 
   /** 下一个还没学的字，首页「继续学习」按钮用。 */
@@ -262,6 +306,22 @@ export const useProgressStore = defineStore('progress', () => {
     if (!s.firstAt) s.firstAt = Date.now()
     s.lastAt = Date.now()
     return s
+  }
+
+  function ensureCard(char) {
+    if (!state.srs[char]) state.srs[char] = createCard(char)
+    return state.srs[char]
+  }
+
+  /**
+   * 把一次学习行为记进记忆卡。
+   * 描红、答题都会调它，rating 决定下一次复习排在多久以后。
+   */
+  function reviewCard(char, rating) {
+    const now = Date.now()
+    state.srs[char] = schedule(ensureCard(char), rating, now)
+    clock.value = now
+    return state.srs[char]
   }
 
   function ensureToday() {
@@ -322,6 +382,8 @@ export const useProgressStore = defineStore('progress', () => {
   function markSeen(char) {
     const s = ensureChar(char)
     s.seen += 1
+    // 只是看见还不算复习：建卡但不排期，它会立刻出现在复习队列里等着被练。
+    ensureCard(char)
     recomputeLevel(char)
   }
 
@@ -329,6 +391,7 @@ export const useProgressStore = defineStore('progress', () => {
   function markHeard(char) {
     const s = ensureChar(char)
     s.heard += 1
+    ensureCard(char)
     recomputeLevel(char)
   }
 
@@ -336,6 +399,7 @@ export const useProgressStore = defineStore('progress', () => {
   function markTraced(char) {
     const s = ensureChar(char)
     s.traced += 1
+    reviewCard(char, RATING.GOOD)
     recomputeLevel(char)
     addXp(8)
   }
@@ -350,15 +414,14 @@ export const useProgressStore = defineStore('progress', () => {
       s.quizWrong += 1
       addXp(1)
     }
+    // 已经掌握的字还能答对，说明记得很牢，间隔可以拉得更开。
+    const rating = correct
+      ? s.level >= MASTERY_THRESHOLD
+        ? RATING.EASY
+        : RATING.GOOD
+      : RATING.AGAIN
+    reviewCard(char, rating)
     recomputeLevel(char)
-  }
-
-  function recordListenRound({ right = 0, wrong = 0, bestStreak = 0 } = {}) {
-    state.listen.rounds += 1
-    state.listen.right += right
-    state.listen.wrong += wrong
-    state.listen.bestStreak = Math.max(state.listen.bestStreak, bestStreak)
-    if (right > 0) addStars(Math.ceil(right / 2))
   }
 
   function markBookPage(bookId, pageIndex) {
@@ -373,7 +436,7 @@ export const useProgressStore = defineStore('progress', () => {
       b.finishedAt = Date.now()
       addStars(5)
       addXp(30)
-      celebrate({ kind: 'book', title: '一本绘本读完啦！', emoji: '📖' })
+      celebrate({ kind: 'book', title: '一本绘本读完啦！', emoji: '📖', stars: 5 })
     }
     b.times = (b.times ?? 0) + 1
   }
@@ -389,7 +452,7 @@ export const useProgressStore = defineStore('progress', () => {
     i.lastAt = Date.now()
   }
 
-  function recordIdiomQuiz(idiomId, correct) {
+  function recordIdiomQuiz(idiomId, correct = true) {
     const i = state.idioms[idiomId] ?? (state.idioms[idiomId] = { read: true, quizRight: 0 })
     if (correct) {
       i.quizRight += 1
@@ -416,6 +479,7 @@ export const useProgressStore = defineStore('progress', () => {
     if (!secs) return
     sessionSeconds.value += secs
     ensureToday().seconds += secs
+    touchClock()
     const limit = state.settings.restReminderMin
     if (limit > 0 && sessionSeconds.value >= limit * 60) restDue.value = true
   }
@@ -499,18 +563,6 @@ export const useProgressStore = defineStore('progress', () => {
     }
   }
 
-  function resetProgress() {
-    const keepSettings = { ...state.settings }
-    const keepName = state.childName
-    const keepAvatar = state.avatar
-    Object.assign(state, defaultState())
-    state.settings = keepSettings
-    state.childName = keepName
-    state.avatar = keepAvatar
-    applyAppearance()
-    persist()
-  }
-
   function resetAll() {
     Object.assign(state, defaultState())
     applyAppearance()
@@ -527,7 +579,6 @@ export const useProgressStore = defineStore('progress', () => {
 
   const totalChars = TOTAL_CHARACTERS
   const masteredCount = computed(() => masteredChars.value.length)
-  const overallPercent = computed(() => Math.round(overallProgress.value * 100))
 
   const isLearned = (char) => (state.chars[char]?.level ?? 0) >= 1
   const isMastered = (char) => (state.chars[char]?.level ?? 0) >= MASTERY_THRESHOLD
@@ -562,7 +613,6 @@ export const useProgressStore = defineStore('progress', () => {
   const daily = computed(() => state.daily)
   const todayStats = today
   const idiomsSeen = idiomsRead
-  const lastActiveDay = computed(() => todayKey())
 
   const last7Days = computed(() => {
     const out = []
@@ -601,10 +651,7 @@ export const useProgressStore = defineStore('progress', () => {
   const viewRadical = markRadicalSeen
 
   const markIdiomSeen = markIdiomRead
-
-  function markIdiomQuiz(idiomId, correct = true) {
-    recordIdiomQuiz(idiomId, correct)
-  }
+  const markIdiomQuiz = recordIdiomQuiz
 
   /** 记一次作答，并告诉调用方这一下是不是刚好把字练成了「掌握」。 */
   function recordAnswer(char, correct = true) {
@@ -652,37 +699,22 @@ export const useProgressStore = defineStore('progress', () => {
     sessionSeconds,
     restDue,
 
-    charStat,
-    learnedChars,
-    masteredChars,
     learnedCount,
     overallProgress,
-    xpToNext,
     levelProgress,
     unitProgress,
     booksFinished,
-    idiomsRead,
     radicalsSeen,
-    quizTotals,
     accuracy,
-    today,
-    todayNewChars,
-    dailyGoalReached,
-    recentDays,
     streakDays,
     reviewQueue,
+    dueCount,
+    memoryCards,
+    averageRetention,
     nextChar,
 
-    markSeen,
     markHeard,
     markTraced,
-    recordQuiz,
-    recordListenRound,
-    markBookPage,
-    finishBook,
-    markIdiomRead,
-    recordIdiomQuiz,
-    markRadicalSeen,
     tickSecond,
     acknowledgeRest,
     celebrate,
@@ -696,13 +728,11 @@ export const useProgressStore = defineStore('progress', () => {
 
     exportJson,
     importJson,
-    resetProgress,
     resetAll,
 
     /* ---------------------------------------------------------- 扁平视图层 */
     totalChars,
     masteredCount,
-    overallPercent,
     unlockedUnits,
     isLearned,
     isMastered,
@@ -713,13 +743,11 @@ export const useProgressStore = defineStore('progress', () => {
     level,
     daily,
     todayStats,
-    lastActiveDay,
     last7Days,
     idiomsSeen,
     game,
     gameAccuracy,
 
-    addSeconds,
     visitChar,
     viewRadical,
     markIdiomSeen,
@@ -727,9 +755,6 @@ export const useProgressStore = defineStore('progress', () => {
     recordAnswer,
     recordGameRound,
     readPage,
-    bookPercent,
-
-    exportJSON: exportJson,
-    importJSON: importJson
+    bookPercent
   }
 })
