@@ -904,6 +904,9 @@ The native format is one versioned document schema emitted in either encoding;
 - A mesh file has geometry but no material data, so `materials` and
   `properties` come back empty and only the property *ids* survive, from cell
   data when the file has it.
+- Every reader in this table is text. The one binary format worth adding,
+  Nastran OP2, is scoped but unimplemented in MS-9.6 and deliberately absent
+  from the package namespace until it reads a file.
 
 ### MS-9.4 Neutral → internal conversion
 
@@ -964,3 +967,55 @@ def neutral_to_model(neutral, *, dofs=None, name=None, material=None, section=No
                      skip_unsupported=False) -> Model
 def infer_dofs(model: NeutralModel) -> tuple[DOF, ...]
 ```
+
+### MS-9.6 Nastran OP2 — extension, not implemented
+
+Round-3 extension of GAP-03, scoped by the A139 spike. OP2 is the binary
+companion of the bulk data MS-9.3 already reads, and the only industrial format
+that carries the analysed model *and* its normal-mode solution in one file —
+the pair M3 correlation and M4 updating want from an external solver. The seam
+exists as `openfemlab.io.op2` with the format knowledge and the API below;
+every entry point raises `NotImplementedError`.
+
+| Entry point | Phase | Returns |
+|---|---|---|
+| `list_op2_tables(source)` | 1 | the file's data blocks, in file order |
+| `read_op2_modes(source)` | 2 | `ModalResult` from `LAMA` + `OUGV1` |
+| `read_op2(source)` | 3 | `NeutralModel` from `GEOM1`/`GEOM2`/`EPT`/`MPT` |
+
+- **Nothing is re-exported from `openfemlab.io`.** A name in that namespace
+  advertises a working reader; these stay reachable only as
+  `openfemlab.io.op2.read_op2` until they read a file. This is the one place
+  MS-9.5's "every reader is a package-level name" rule is deliberately broken,
+  and the break ends when Phase 2 lands.
+- **The subset is the same one every other reader targets**: geometry into a
+  `NeutralModel` and modes into a `ModalResult`, with the file's grid labels
+  surviving into the `DofMap` (MS-9.1). Element stresses and forces
+  (`OES`/`OEF`), loads and constraints (`GEOM3`/`GEOM4`) and the matrix blocks
+  are outside it — no module consumes them, and MS-9.4 already excludes
+  boundary conditions from the interchange contract.
+- **Phasing is by risk, not by table.** Phase 1 is the Fortran record framing
+  alone (word size and byte order from the opening byte count, the key
+  continuation walk, block names and trailers), which reads no engineering data
+  and is therefore the only layer that can be tested exhaustively offline.
+  Phases 2 and 3 build on it; Phase 4 adds the `CORD` coordinate-system cards
+  that Phases 2 and 3 must **raise** on, since `GRID` carries `CP`/`CD` frames
+  and OP2 eigenvectors are written in `CD` — the line `read_bdf` already draws
+  for `GRID` and `read_unv` draws for dataset 2420.
+- **Record keys are stable, record contents are not.** `GEOM2` records are
+  addressed by a three-integer key (`CQUAD4` is `(2958, 51, 177)`), but MSC
+  writes 15 words per `CQUAD4` entry where NX writes 14. Every unpack must
+  check the record length against the entry size it assumes and name the block
+  and key when it does not divide, rather than reading past an entry.
+- **The blocker is fixtures, not parsing.** An OP2 cannot be produced without a
+  Nastran licence, so CI cannot generate one the way it generates UFF and BDF
+  text. The plan is a test-only writer that emits the documented framing from a
+  known model — which validates the layouts against *our reading of the spec* —
+  paired with an opt-in corpus test over real MSC and NX output, skipped when
+  the corpus path is unset. The reader stays experimental until the corpus test
+  has run; **no partial binary parser lands without both.**
+- **`pyNastran` (BSD-3) belongs on the dev side, not behind the MS-9.3 optional
+  seam.** It would cover all of this today, but OP2 is the format an
+  FE-correlation platform is judged on, and the Phase 1-2 subset is small over
+  a stable framing. Its place is as the oracle that says whether our reading of
+  a real file matches a mature one.
