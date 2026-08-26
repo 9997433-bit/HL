@@ -727,6 +727,61 @@ into the integration branch, so nothing is left stranded on a side branch.**
   headline demos — measured UFF-58 FRF vs synthesized FRF via FRAC/FDAC through the
   CLI, and an imported 3D mesh re-analyzed internally.
 
+#### A21 — First P0 Acceptance Batch (backfill for A10)
+- Turned the first six P0 criteria of `docs/ACCEPTANCE_CRITERIA.md` from registry rows
+  into executable gates under `tests/acceptance/`: `test_modal.py` (AC-MODAL-001..003),
+  `test_correlation.py` (AC-CORR-001..002) and `test_updating.py` (AC-UPD-001), on the
+  suite paths the registry already declared. 34 acceptance tests, selectable with
+  `pytest -m acceptance`.
+- Added `tests/acceptance/_support.py`: the `@criterion("AC-…")` tag (rejects IDs the
+  registry does not define, at collection time), the fixture loaders, the closed-form
+  spectra (fixed-free / fixed-fixed chains, Euler–Bernoulli cantilever) and the affine
+  spring-chain group contributions used as exact `∂K/∂θ`, `∂M/∂θ`.
+- **Wired status to evidence.** The six criteria are now `implemented`, and two new
+  registry tests make that claim falsifiable in both directions: a criterion may only
+  leave `specified` when the suite it names carries a test tagged with its ID, and every
+  tag must resolve to a criterion that names that suite. Recorded as enforcement item 6
+  in the criteria document; `pyproject.toml` registers the `acceptance`/`criterion` marks.
+- **AC-MODAL-001** (gate: fixtures ≤ 1e-10 rel., beam ≤ 0.5 %): 2-DOF **2.2e-16**, 10-DOF
+  chain **2.8e-15** against the closed forms (the stored fixture spectra are checked
+  against the same closed form, so the data cannot drift either). Cantilever, 40 elements:
+  per-mode error **5.5e-8 / 1.3e-5 / 1.0e-4 / 3.9e-4 / 1.1e-3 %** — 460x inside the gate,
+  and the discretization is verified to converge from above.
+- **AC-MODAL-002** (gate: 1e-8 rel. freq., paired MAC ≥ 1 − 1e-10): 240-DOF chain, 10
+  modes, dense vs shift-invert Lanczos — frequency difference **6.2e-12**, worst paired
+  MAC **1 − 1.6e-15**, and the pairing is verified to be the diagonal (no crossings).
+  MS-1.2's optional `lobpcg` backend is not exposed by `ModalSolver`; the backend table
+  picks up a `backend=` keyword automatically if one lands, so the pairwise comparison
+  extends without touching the suite.
+- **AC-MODAL-003** (gate: 1e-8): `‖ΦᵀMΦ − I‖_max` over four models × both backends, worst
+  **1.3e-15** (chain-240 dense); includes the cantilever, whose massless rotations are
+  condensed and recovered, and the consistent (non-diagonal) beam mass matrix.
+- **AC-CORR-001** (gate: 1e-8): mass-weighted self-MAC defect **2.2e-16** on the fixtures
+  and on the beam. The beam makes the gate real — its *unweighted* off-diagonal MAC
+  reaches **0.327**, so only the mass weighting recovers the identity. The unweighted
+  diagonal is 1 to **2.2e-16**, not bitwise (clipping bounds MAC ≤ 1 from above but the
+  ratio of two differently accumulated dot products can land one ulp below); the suite
+  asserts 1e-15, one place where the prose "exactly" in the criteria detail is stricter
+  than float arithmetic allows.
+- **AC-CORR-002** (gate: 1e-12): 8 seeded draws scaling every column of either mode set by
+  factors spanning ±10⁻³..±10³ against a non-trivial reference MAC (2.3e-6 .. 0.970);
+  worst deviation **6.7e-16**. Pure sign flips are asserted **bitwise identical**.
+- **AC-UPD-001** (gate: 1e-6 rel.): 10-DOF chain, 3 stiffness + 2 mass groups, 6 modes,
+  central FD with `h = 1e-6·p_j,0` — max relative error **1.4e-7** at θ = 1 and **5.2e-8**
+  at a detuned point. The parameterization is pinned to the fixture (contributions sum
+  back to its exact `K`/`M`) and the FD comparison is guarded against a vanishing
+  denominator, so the relative gate cannot pass by accident.
+- Verified on Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1: `tests/acceptance` **46 passed**
+  (34 acceptance + 12 registry), full suite **286 passed** (4.4 s) on `b5a0099`; Ruff clean.
+- Same working-tree hazard A13/A15 report: a concurrent agent switched `/workspace` onto
+  `cursor/dynamics-damping-frf-9500` mid-run and the tracked-file edits were lost, so the
+  batch was finished and pushed from a detached worktree at `/tmp/a21`.
+- Open for the orchestrator: 29 criteria remain `specified`. The next batches are
+  AC-MODAL-004..007/009 and AC-CORR-003..005/007..008 (engines exist, tests are the only
+  gap), then AC-UPD-002..005/007 and the M4/M5 suites — `tests/test_workflow.py` already
+  demonstrates AC-WORK-001..004 numerically but is not tagged, so those criteria stay
+  `specified` until an `tests/acceptance/test_workflow.py` claims them.
+
 ### Round 2 — Targeted Refactor & Deep Optimization
 **Status:** PLANNED — see `.agent_workspace/ROUND2_PLAN.md` (A24)
 
