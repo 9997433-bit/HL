@@ -40,6 +40,7 @@ from PySide6.QtWidgets import (
     QDockWidget,
     QFileDialog,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QMainWindow,
     QMessageBox,
@@ -65,6 +66,14 @@ from ..core.session import MultitrackSession, Track
 from ..core.types import TimeRange, TransportState, format_timecode
 from ..dsp.loudness import LoudnessMeter, LoudnessReport, format_lufs
 from ..dsp.preview import EffectPreview
+from ..project.store import (
+    ProjectLoadError,
+    ProjectSnapshot,
+    load_project,
+    load_waveform_document,
+    restore_multitrack,
+    save_project,
+)
 from .effect_rack import EffectRackPanel, default_preview_chain
 from .level_meter import LevelMeter
 from .multitrack_view import MultitrackView
@@ -111,6 +120,8 @@ class MainWindow(QMainWindow):
         # forgets it while the transport is pointed at the session mixer.
         self._editor_clip: LoadedAudio | None = None
         self._edit_session: EditSession | None = None
+        self._project_path: Path | None = None
+        self._project_dirty: bool = False
 
         self._loudness_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="loudness")
         self._loudness_job: Future[LoudnessReport] | None = None
@@ -215,6 +226,18 @@ class MainWindow(QMainWindow):
             "&Export As…", self.export_dialog, QKeySequence.StandardKey.SaveAs,
             tip="Write the clip (or the selection) to a new file",
         )
+        self.action_save_project = action(
+            "Save &Project", self.save_project, "Ctrl+Shift+S",
+            tip="Save the session to an .hlproj project bundle",
+        )
+        self.action_save_project_as = action(
+            "Save Project &As…", self.save_project_as, "Ctrl+Alt+S",
+            tip="Save the session to a new .hlproj directory",
+        )
+        self.action_open_project = action(
+            "Open &Project…", self.open_project_dialog, "Ctrl+Shift+O",
+            tip="Open an .hlproj project bundle",
+        )
         self.action_quit = action("E&xit", self.close, QKeySequence.StandardKey.Quit)
 
         self.action_select_all = action(
@@ -250,12 +273,32 @@ class MainWindow(QMainWindow):
             tip="Delete the selected range",
         )
         self.action_silence = action(
-            "&Silence", self.edit_silence, "Ctrl+Shift+S",
+            "&Silence", self.edit_silence, "Ctrl+Shift+M",
             tip="Replace the selection with digital silence",
         )
         self.action_trim = action(
             "Trim to &Selection", self.edit_trim, "Ctrl+T",
             tip="Keep only the selected range",
+        )
+        self.action_gain = action(
+            "Apply &Gain…", self.edit_gain, "Ctrl+G",
+            tip="Change the level of the selection in decibels",
+        )
+        self.action_fade_in = action(
+            "Fade &In", self.edit_fade_in, "Ctrl+Shift+I",
+            tip="Apply a cosine fade-in across the selection",
+        )
+        self.action_fade_out = action(
+            "Fade O&ut", self.edit_fade_out, "Ctrl+Shift+U",
+            tip="Apply a cosine fade-out across the selection",
+        )
+        self.action_reverse = action(
+            "&Reverse", self.edit_reverse, "Ctrl+R",
+            tip="Reverse the selected audio",
+        )
+        self.action_insert_silence = action(
+            "Insert &Silence…", self.edit_insert_silence, "Ctrl+Shift+N",
+            tip="Insert silence at the playhead",
         )
 
         self.action_zoom_in = action("Zoom &In", self.track_panel.waveform.zoom_in, "Ctrl+=")
@@ -335,6 +378,11 @@ class MainWindow(QMainWindow):
         self.recent_menu.setEnabled(False)
         file_menu.addSeparator()
         file_menu.addAction(self.action_export)
+        file_menu.addSeparator()
+        file_menu.addAction(self.action_open_project)
+        file_menu.addAction(self.action_save_project)
+        file_menu.addAction(self.action_save_project_as)
+        file_menu.addSeparator()
         file_menu.addAction(self.action_close)
         file_menu.addSeparator()
         file_menu.addAction(self.action_quit)
@@ -350,6 +398,12 @@ class MainWindow(QMainWindow):
         edit_menu.addSeparator()
         edit_menu.addAction(self.action_silence)
         edit_menu.addAction(self.action_trim)
+        edit_menu.addSeparator()
+        edit_menu.addAction(self.action_gain)
+        edit_menu.addAction(self.action_fade_in)
+        edit_menu.addAction(self.action_fade_out)
+        edit_menu.addAction(self.action_reverse)
+        edit_menu.addAction(self.action_insert_silence)
         edit_menu.addSeparator()
         edit_menu.addAction(self.action_select_all)
         edit_menu.addAction(self.action_deselect)
@@ -457,11 +511,15 @@ class MainWindow(QMainWindow):
 
     def open_file(self, path: str | Path) -> bool:
         """Load ``path`` into the editor; returns False and reports on failure."""
+        if not self._confirm_discard_unsaved(action="opening another file"):
+            return False
         try:
             clip = self.engine.load(path)
         except AudioLoadError as exc:
             QMessageBox.critical(self, "Cannot open file", str(exc))
             return False
+        self._project_path = None
+        self._project_dirty = False
         self._bind_edit_session(clip)
         self._remember_recent(clip.path)
         self._update_for_clip()
@@ -513,6 +571,145 @@ class MainWindow(QMainWindow):
             act.setStatusTip(str(entry))
             act.triggered.connect(lambda _checked=False, p=entry: self.open_file(p))
             self.recent_menu.addAction(act)
+
+    def open_project_dialog(self) -> None:
+        path = QFileDialog.getExistingDirectory(
+            self,
+            "Open project (.hlproj folder)",
+            str(self._project_path.parent if self._project_path else Path.home()),
+        )
+        if not path:
+            return
+        self._open_project(Path(path))
+
+    def _open_project(self, path: Path) -> bool:
+        if not self._confirm_discard_unsaved(action="opening a project"):
+            return False
+        root = path if path.suffix.lower() == ".hlproj" else path.with_suffix(".hlproj")
+        try:
+            snapshot = load_project(root)
+        except ProjectLoadError as exc:
+            QMessageBox.critical(self, "Cannot open project", str(exc))
+            return False
+        try:
+            self._apply_project(root, snapshot)
+        except ProjectLoadError as exc:
+            QMessageBox.critical(self, "Cannot open project", str(exc))
+            return False
+        self.statusBar().showMessage(f"Opened project {root.name}", 4000)
+        return True
+
+    def _apply_project(self, path: Path, snapshot: ProjectSnapshot) -> None:
+        """Replace the current session with the contents of a project bundle."""
+        self.engine.stop()
+        self._clear_edit_session()
+        self._editor_clip = None
+
+        self.session = restore_multitrack(snapshot.multitrack, path)
+        self.multitrack_view.set_session(self.session)
+
+        if snapshot.waveform is not None:
+            clip, session, playhead, selection = load_waveform_document(snapshot)
+            session.add_listener(self._on_edit_session_changed)
+            self._edit_session = session
+            self._editor_clip = clip
+            self._install_editor_source(clip)
+            self.engine.seek(playhead)
+            self.engine.set_selection(selection)
+            self.track_panel.set_selection(selection)
+            self.track_panel.set_playhead(playhead, follow=False)
+        else:
+            self.engine.set_source(None)
+
+        self._project_path = path
+        self._mark_project_saved()
+        self.set_view_mode(snapshot.view_mode)
+        self.set_workspace(snapshot.workspace)
+        self._update_for_clip()
+
+    def save_project(self) -> bool:
+        if self._project_path is None:
+            return self.save_project_as()
+        try:
+            saved = self._write_project(self._project_path)
+        except OSError as exc:
+            QMessageBox.critical(self, "Save failed", str(exc))
+            return False
+        self._project_path = saved
+        self._mark_project_saved()
+        self.statusBar().showMessage(f"Saved project {saved.name}", 4000)
+        return True
+
+    def save_project_as(self) -> bool:
+        suggested = (
+            self._project_path
+            if self._project_path is not None
+            else Path.home() / "Untitled.hlproj"
+        )
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save project as",
+            str(suggested),
+            "Audio Studio Project (*.hlproj)",
+        )
+        if not path:
+            return False
+        try:
+            saved = self._write_project(Path(path))
+        except OSError as exc:
+            QMessageBox.critical(self, "Save failed", str(exc))
+            return False
+        self._project_path = saved
+        self._mark_project_saved()
+        self.statusBar().showMessage(f"Saved project {saved.name}", 4000)
+        return True
+
+    def _write_project(self, path: Path) -> Path:
+        playhead = self.engine.position if not self.is_playing_session else 0
+        selection = self.engine.selection if not self.is_playing_session else None
+        return save_project(
+            path,
+            edit_session=self._edit_session,
+            editor_clip=self._editor_clip,
+            multitrack=self.session,
+            workspace=self._workspace,
+            view_mode=self.view_mode,
+            playhead=playhead,
+            selection=selection,
+        )
+
+    def _has_unsaved_changes(self) -> bool:
+        if self._project_dirty:
+            return True
+        return self._edit_session is not None and self._edit_session.is_modified
+
+    def _mark_project_dirty(self) -> None:
+        self._project_dirty = True
+        self._update_window_title()
+
+    def _mark_project_saved(self) -> None:
+        self._project_dirty = False
+        if self._edit_session is not None:
+            self._edit_session.undo_stack.set_clean()
+        self._update_window_title()
+
+    def _confirm_discard_unsaved(self, *, action: str = "continue") -> bool:
+        if not self._has_unsaved_changes():
+            return True
+        reply = QMessageBox.question(
+            self,
+            "Unsaved changes",
+            f"You have unsaved changes. Save before {action}?",
+            QMessageBox.StandardButton.Save
+            | QMessageBox.StandardButton.Discard
+            | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Save,
+        )
+        if reply == QMessageBox.StandardButton.Cancel:
+            return False
+        if reply == QMessageBox.StandardButton.Save and not self.save_project():
+            return False
+        return True
 
     # ----------------------------------------------------------- editing
 
@@ -622,17 +819,25 @@ class MainWindow(QMainWindow):
             self.action_delete,
             self.action_silence,
             self.action_trim,
+            self.action_gain,
+            self.action_fade_in,
+            self.action_fade_out,
+            self.action_reverse,
         ):
             act.setEnabled(editing and has_selection)
         self.action_paste.setEnabled(editing and has_clipboard)
+        self.action_insert_silence.setEnabled(editing)
 
     def _update_window_title(self) -> None:
         clip = self.editor_clip
-        if clip is None:
+        dirty = self._has_unsaved_changes()
+        if self._project_path is not None:
+            prefix = self._project_path.stem + ("*" if dirty else "")
+        elif clip is None:
             self.setWindowTitle(__app_name__)
             return
-        modified = self._edit_session is not None and self._edit_session.is_modified
-        prefix = f"{clip.name}*" if modified else clip.name
+        else:
+            prefix = f"{clip.name}*" if dirty else clip.name
         self.setWindowTitle(f"{prefix} — {__app_name__}")
 
     def _selected_range(self) -> TimeRange:
@@ -710,6 +915,68 @@ class MainWindow(QMainWindow):
             self._edit_session.trim(self._selected_range())
 
         self._run_edit("Trim", _trim)
+
+    def edit_gain(self) -> None:
+        gain_db, ok = QInputDialog.getDouble(
+            self,
+            "Apply Gain",
+            "Gain (dB):",
+            0.0,
+            -96.0,
+            24.0,
+            2,
+        )
+        if not ok:
+            return
+
+        def _gain() -> None:
+            assert self._edit_session is not None
+            self._edit_session.apply_gain(self._selected_range(), gain_db)
+
+        self._run_edit("Apply Gain", _gain)
+
+    def edit_fade_in(self) -> None:
+        def _fade() -> None:
+            assert self._edit_session is not None
+            self._edit_session.fade_in(self._selected_range(), shape="cosine")
+
+        self._run_edit("Fade In", _fade)
+
+    def edit_fade_out(self) -> None:
+        def _fade() -> None:
+            assert self._edit_session is not None
+            self._edit_session.fade_out(self._selected_range(), shape="cosine")
+
+        self._run_edit("Fade Out", _fade)
+
+    def edit_reverse(self) -> None:
+        def _reverse() -> None:
+            assert self._edit_session is not None
+            self._edit_session.reverse(self._selected_range())
+
+        self._run_edit("Reverse", _reverse)
+
+    def edit_insert_silence(self) -> None:
+        rate = max(self.engine.sample_rate, 1)
+        duration_ms, ok = QInputDialog.getDouble(
+            self,
+            "Insert Silence",
+            "Duration (milliseconds):",
+            1000.0,
+            1.0,
+            3_600_000.0,
+            1,
+        )
+        if not ok:
+            return
+        n_frames = max(1, int(round(duration_ms * rate / 1000.0)))
+
+        def _insert() -> None:
+            assert self._edit_session is not None
+            at = int(self.engine.position)
+            self._edit_session.insert_silence(at, n_frames)
+
+        self._run_edit("Insert Silence", _insert)
 
     # ---------------------------------------------------------- analysis
 
@@ -928,6 +1195,7 @@ class MainWindow(QMainWindow):
         self.level_meter.reset()
 
     def _on_session_edited(self) -> None:
+        self._mark_project_dirty()
         self._route_transport()
         self._update_status_format()
 
@@ -963,8 +1231,17 @@ class MainWindow(QMainWindow):
             self.action_delete,
             self.action_silence,
             self.action_trim,
+            self.action_gain,
+            self.action_fade_in,
+            self.action_fade_out,
+            self.action_reverse,
+            self.action_insert_silence,
         ):
             act.setEnabled(has_clip)
+        can_save = self._edit_session is not None or self.session.n_tracks > 0
+        self.action_save_project.setEnabled(can_save)
+        self.action_save_project_as.setEnabled(can_save)
+        self.action_open_project.setEnabled(True)
         self.action_add_track.setEnabled(clip is not None)
 
         self._update_edit_actions()
@@ -1120,6 +1397,9 @@ class MainWindow(QMainWindow):
                 return
 
     def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802 - Qt override
+        if not self._confirm_discard_unsaved(action="closing"):
+            event.ignore()
+            return
         self._refresh_timer.stop()
         self._analysis_timer.stop()
         self.engine.shutdown()

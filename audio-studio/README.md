@@ -201,11 +201,14 @@ tests live one directory above this package.
 - Single visible track/clip. `TrackPanel` is reusable, but there is no finished
   multitrack mixer, clip timeline, bus/send routing or automation workflow.
 - Waveform editing is wired through `EditSession`: cut, copy, paste, delete,
-  silence, trim and unlimited undo/redo from the Edit menu and toolbar. Project
-  save and recovery are not implemented yet — export the edited clip to disk.
+  silence, trim, gain, fade in/out, reverse, insert silence and unlimited
+  undo/redo from the Edit menu. Save and reopen sessions as `.hlproj` directory
+  bundles (File ▸ Save/Open Project); undo history is not persisted — the saved
+  document is the flattened edit result. Export remains available for one-off
+  audio files.
 - No recording path, no repair suite (de-click, de-hum, noise reduction), no
   spectral selection editing, no production VST3/AU host or plugin delay
-  compensation, no batch processing, and no project files or markers yet — see
+  compensation, no batch processing, and no timeline markers yet — see
   the roadmap in the release sign-off.
 - Not a low-latency monitor: the default device block is 1024 frames
   (~21 ms at 48 kHz) and there is no exclusive-mode backend handling; playhead

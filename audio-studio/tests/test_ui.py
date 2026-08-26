@@ -45,6 +45,7 @@ def window(loaded_clip: LoadedAudio) -> MainWindow:
     main._bind_edit_session(loaded_clip)  # noqa: SLF001 - mirrors open_file()
     main._update_for_clip()  # noqa: SLF001 - normally triggered by open_file()
     yield main
+    main._mark_project_saved()  # noqa: SLF001 - avoid blocking close prompts in tests
     main.close()
 
 
@@ -573,3 +574,57 @@ class TestEditSessionUi:
         window.track_panel.waveform.set_selection(TimeRange(0, 100))
         window.edit_delete()
         assert "*" in window.windowTitle()
+
+    def test_gain_shortens_the_selection_in_level(self, window: MainWindow, monkeypatch) -> None:
+        window.track_panel.waveform.set_selection(TimeRange(0, 500))
+        monkeypatch.setattr(
+            "audio_studio.ui.main_window.QInputDialog.getDouble",
+            lambda *args, **kwargs: (-6.0, True),
+        )
+        before = window._edit_session.read(0, 500).copy()  # noqa: SLF001
+        window.edit_gain()
+        after = window._edit_session.read(0, 500)  # noqa: SLF001
+        assert np.max(np.abs(after)) < np.max(np.abs(before))
+
+    def test_insert_silence_extends_the_document(self, window: MainWindow, monkeypatch) -> None:
+        before = window.engine.n_frames
+        window.engine.seek(1_000)
+        monkeypatch.setattr(
+            "audio_studio.ui.main_window.QInputDialog.getDouble",
+            lambda *args, **kwargs: (10.0, True),
+        )
+        window.edit_insert_silence()
+        rate = window.engine.sample_rate
+        expected = max(1, int(round(10.0 * rate / 1000.0)))
+        assert window.engine.n_frames == before + expected
+
+
+def test_project_apply_roundtrip_through_window(
+    loaded_clip: LoadedAudio, tmp_path: Path,
+) -> None:
+    from audio_studio.project.store import load_project
+
+    engine = AudioEngine(NullOutput(realtime=False))
+    main = MainWindow(engine)
+    try:
+        main._bind_edit_session(loaded_clip)  # noqa: SLF001
+        main._update_for_clip()  # noqa: SLF001
+        main.track_panel.waveform.set_selection(TimeRange(0, 200))
+        main.edit_delete()
+        project_dir = tmp_path / "roundtrip.hlproj"
+        main._write_project(project_dir)  # noqa: SLF001
+        main._mark_project_saved()  # noqa: SLF001
+
+        other = MainWindow(AudioEngine(NullOutput(realtime=False)))
+        try:
+            snapshot = load_project(project_dir)
+            other._apply_project(project_dir, snapshot)  # noqa: SLF001
+            assert other._project_path == project_dir  # noqa: SLF001
+            assert other.engine.n_frames == main.engine.n_frames
+            assert not other._has_unsaved_changes()  # noqa: SLF001
+        finally:
+            other._mark_project_saved()  # noqa: SLF001
+            other.close()
+    finally:
+        main._mark_project_saved()  # noqa: SLF001
+        main.close()
