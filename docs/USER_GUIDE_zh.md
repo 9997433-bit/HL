@@ -39,7 +39,8 @@ python -m pip install -e .
 python -m pip install -e ".[dev,cli]"
 ```
 
-可选的 `io` 附加依赖安装 `meshio`，用于未来的格式适配：
+可选的 `io` 附加依赖安装 `meshio`，`openfemlab.io.meshio_bridge` 借此读写
+Gmsh、Abaqus、VTK 等 meshio 支持的网格格式：
 
 ```bash
 python -m pip install -e ".[io]"
@@ -142,7 +143,9 @@ point_masses:
 构件，每节点 6 个自由度（UX/UY/UZ/RX/RY/RZ），涵盖轴向拉压、St Venant 扭转与两个
 主平面内互不耦合的弯曲；局部坐标系按 CBAR 约定由方向向量（`orientation`）确定，
 截面需给出正的 `inertia_y`、`inertia_z` 与 `torsion_constant`。该单元由 42 项专门
-测试覆盖，项目完整测试套件也随之达到 **1089 项测试全部通过** 的验证里程碑。
+测试覆盖，项目完整测试套件也随之达到 **1089 项测试全部通过** 的验证里程碑。[^latest-suite]
+
+[^latest-suite]: 最新的完整测试套件现已包含 **1133+ 项测试**。
 
 模型修正通过**点分路径**寻址文档中的单个数值，例如 `materials.steel.E` 或
 `mesh.elements.2.stiffness`——这是第 8 节参数声明中 `target` 字段的含义。

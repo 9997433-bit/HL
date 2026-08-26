@@ -68,6 +68,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A80 | gpt-5.6-sol-xhigh-fast | Authoritative current-tip pytest count (backfill for completed A76) | complete — 1033 passed at `ff484e4`; collection confirmed 1033 |
 | A57 | claude-opus-5-thinking-high-fast | R2-T04 acceptance gate: register AC-UPD-006a/b, penalize the starting cost, and carry the Laplace σ_post into the `CorrectionReport` (backfill for A49) | complete |
 | A83 | claude-opus-5-thinking-high-fast | Land the AC-UPD-006 registration branch on the trunk, verify the tip and mark R2-T04 acceptance-complete (backfill for completed A57) | complete — 1089 passed at `7368c92`, Ruff clean, side branch deleted |
+| A84 | claude-fable-5-thinking-xhigh | P0 32/32→34/34 milestone chronology pinned; AC-UPD-006 registry-count divergence with A57's branch reconciled (backfill for completed A69) | complete — 1033 passed at `c5afc35`; post-merge union 41/3 confirmed at the tip |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
@@ -2829,6 +2830,73 @@ at a pinned tip). That is now the only structural blocker on the P0 set; the fiv
 tagging tasks are independent of it and can go in parallel.
 A90 backfill verification: **1089 passed, 0 failed**; `ruff check .` clean.
 
+#### A89 — R2-T05 opens: the meshio bridge (backfill for completed A85)
+
+R2-T05 was the last core track with no commit. This slice lands its first half — the
+optional-dependency seam and the mesh conversion — and leaves the acceptance
+registration and the UNV/UFF work for the rest of the track.
+
+**`io/meshio_bridge.py`.** `from_meshio` turns a `meshio.Mesh` into a `NeutralModel`
+and `to_meshio` goes back, through one explicit table,
+`CELL_TYPE_TO_ELEMENT`: `vertex`/`line`/`triangle`/`quad`/`tetra`/`hexahedron` ↔
+`MASS1`/`ROD2`/`TRI3`/`QUAD4`/`TET4`/`HEX8`. `read_meshio` and `write_meshio` wrap
+meshio's file entry points and re-raise its errors as `FormatError`, the same error
+type the BDF and UFF readers use. Four conversion decisions are worth recording:
+
+- **The table is one-to-one, and `BEAM2`/`SPRING2` are deliberately outside it.**
+  meshio's `line` cell carries no attribute distinguishing a rod from a beam or a
+  bushing, so exporting one would come back as a `ROD2` — a silently different model.
+  `to_meshio` raises `FormatError` instead, and a test pins that the two stay unmapped.
+- **Connectivity stores node *ids*, not point indices**, per the `NeutralModel`
+  contract; meshio's zero-based indices are translated on the way in and back out.
+  Labels survive a round trip because `to_meshio` writes them as the `node_ids` point
+  data and `element_ids` cell data that `from_meshio` reads back — which is exactly the
+  shape the proposed AC-IO-001 asks for.
+- **Property ids come from whatever the file has**: `property_ids`, else
+  `gmsh:physical`, else `medit:ref`, else a configurable default. A mesher tag is the
+  closest thing most formats have to a property assignment, and no format carries
+  material data at all, so `materials`/`properties` come back empty by construction
+  rather than by omission.
+- **Unmapped cell types are skipped, not fatal** — a `UserWarning` plus a per-type count
+  in `meta["skipped_cell_types"]`, mirroring the BDF reader's "import the supported
+  subset" policy. A second-order mesh therefore imports its corner cells instead of
+  refusing to open.
+
+**The P7 seam.** `meshio` is imported lazily inside `require_meshio()`, never at module
+import time, so `import openfemlab.io` still works with only numpy/scipy/pyyaml — a test
+asserts it. A missing package raises the new `MissingDependencyError`, which subclasses
+**both** `OpenFEMLabError` and `ImportError`: the typed hierarchy gets the error, and the
+`except ImportError` call sites that predate it keep working. `from_meshio` goes one step
+further and needs nothing but NumPy — it is duck-typed on `points`/`cells`, so a caller
+holding a mesh converts it in an installation without the extra. This replaces the
+`NotImplementedError` stub that had been sitting in `io/__init__.py`.
+
+**`tests/test_meshio_bridge.py`, 44 tests**, skipped as a module via
+`pytest.importorskip` when meshio is absent. Coverage runs from the simple cases (a
+two-quad mesh, a unit cube, 2-D points padded to three columns, mixed and repeated cell
+blocks) through the id plumbing, the malformed-input rejections, the export round trip,
+a real file round trip through `.vtu`, and the seam itself — the missing-dependency path
+is exercised by monkeypatching the guarded `import_module`, so it is tested even in an
+environment that *has* meshio. Two findings shaped the tests: `meshio.Mesh` validates
+cell-data lengths itself, so the bridge's own check needs a duck-typed mesh to reach,
+and meshio raises `ReadError` (not `WriteError`) when a writer cannot deduce the format
+from the path, so both are caught.
+
+`pyproject.toml`'s `[dev]` extra grew `meshio` — the `[io]` extra already had it — so
+`make install` exercises the bridge instead of skipping it; without the extra the module
+skips cleanly, which was verified by blocking the import.
+
+**Verification** from a private clone with `PYTHONPATH` pinned, Python 3.12.3: full
+suite **1133 passed, 0 failed** at the merged tip (the trunk's 1089 from A90 plus
+exactly these 44), `ruff check .` clean. With meshio unavailable: **1089 passed,
+1 skipped**.
+
+**Remaining on R2-T05**: AC-IO-001..003 registration (AC-IO-001's engine and test now
+exist, so it needs the three-file spec-first commit and moves the pinned 44-criterion
+inventory), UNV 2411/2412 in `io/uff.py`, UFF writing, and — shared with R2-T02 — the
+`NeutralModel` → `Model` conversion, which is the one thing standing between
+`read_meshio` and the round's imported-3D-mesh demo.
+
 #### A83 — R2-T04 is acceptance-complete; the AC-UPD-006 branch is closed out (backfill for completed A57)
 
 A57's work — the AC-UPD-006a/b acceptance gate, the starting-cost penalty fix and the
@@ -2929,3 +2997,56 @@ first slice makes it an enforced claim and promotes the first batch of criteria.
 - **Open for R2-T09** — the remaining 32 `implemented` rows still have to be promoted
   as their tracks close, and the 3 `specified` ones need tests first; the gate itself
   scales to them by construction (flip the status, the gate picks it up).
+
+#### A84 — the P0 milestone chronology pinned and the AC-UPD-006 count divergence reconciled (backfill for A69)
+
+This task was dispatched to record the P0 milestone and reconcile the registry
+counts with A57's AC-UPD-006 work; sibling agents were recording and merging
+both while it ran (A78's entry above, the `3e2df81` merge), so this entry pins
+the arithmetic and the chronology rather than re-announcing either.
+
+**The milestone, dated.** Every P0 criterion has been `implemented` since
+`1e99970`, where the AC-CORR-008 flip closed the last open P0 row — **32 of
+32** on the then-41-row registry. Twenty-six seconds after the milestone was
+recorded in STATUS.md (`ca5abae`), the HEX8 merge (`8a0f10f`) grew the P0 set
+itself: AC-ELEM-001/002 arrived already `implemented`, so the bar has read
+**34 of 34** ever since. Nothing has reached `verified`; that promotion is
+R2-T09's, defined but never applied.
+
+**The count corrections.** Re-counted by executing the registry source rather
+than reading its prose: at `c5afc35` the split was P0 34/0 and **P1 5/5** —
+39 implemented of 44. A80's STATUS snapshot recorded P0 35 / P1 4, and A78's
+entry above P0 34 / P1 4 (internally inconsistent with the 39 total it also
+quotes); both P1 figures drop AC-ELEM-003, and A80's P0 gains it. Per family
+the P0 set is 8 MODAL + 7 CORR + 6 UPD + 4 WORK + 3 OPT + 4 DYN + 2 ELEM = 34.
+
+**The AC-UPD-006 divergence, now closed.** Between `c479ee4` (A57 flips
+AC-UPD-006a/b to `implemented` on `cursor/ac-upd-006-registration-6615`) and
+`3e2df81` (that branch merges onto the trunk), the two histories legitimately
+disagreed about the same two rows: A57's "34 implemented / 6 specified
+(P1 5/3)" was exact for its then-40-row tree, and the trunk's 39/5 was exact
+for its 44-row tree — the branch carried the UPD-006a/b flips but predated the
+trunk's AC-CORR-008 flip and the ELEM family. The merge produced the union
+this task was dispatched to predict: **44 rows, 41 `implemented` /
+3 `specified` (P0 34/34, P1 7/3)**, re-counted from the registry source at the
+current tip, leaving AC-MODAL-008, AC-UPD-008 and AC-WORK-003. The rule this
+window demonstrates: a registry count is only meaningful together with the
+commit it was counted at, so status claims in these documents should always
+carry one.
+
+**Verification (independent, this run).** Private clone, `PYTHONPATH` pinned
+to its `src`, Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1, at `c5afc35`:
+**1033 passed, 0 failed**; `ruff check .` clean; the per-suite collection
+summed to the same 1033 (706 unit + 327 acceptance). The tip moved four more
+times during the run (the spatial-beam slice, the AC-UPD-006 merge, the meshio
+bridge, the shape-free AC-CORR-008 cases), so A95's 1,089-test STATUS snapshot
+supersedes these suite numbers; the milestone chronology and the registry
+arithmetic above are commit-pinned and unaffected.
+
+**Hazards, again, twice.** The shared `/workspace` checkout was switched to
+another agent's branch between two consecutive commands of this run, and the
+run's own private clone at `/tmp/a84` was fetch-and-`reset --hard` by a
+concurrent agent mid-edit — the guessable-name variant A50 and A57 recorded.
+The in-flight edits survived the interleaving and reached the remote through a
+fetch-merge-push loop, but only because they had not yet been staged when the
+reset hit; the durable store is the remote, nothing else.

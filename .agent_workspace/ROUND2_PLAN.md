@@ -37,7 +37,7 @@ gate landed, so the split is now **44 criteria — 9 `verified`, 32 `implemented
 | R2-T02 3D elements | **PARTIAL** — QUAD4 (A37), TET4 (A46) and HEX8 (A59, merged by A79) are all on the integration branch with mesh generators and 203 tests, AC-ELEM-001..003 are registered as module M7 over all three (+24 acceptance cases) with AC-ELEM-001 **`verified`** through the R2-T09 gate (A72), and the spatial beam `BeamElement3D` landed with 42 tests (A82). Open: flat-facet shell, `NeutralModel` → `Model` conversion, solid/shell BDF cards (`CBAR` included). |
 | R2-T03 reduction/expansion | **ACCEPTANCE-COMPLETE** — engine (A36, `correlation/reduction.py`) with the AC-CORR-006 gate `implemented` (A43) and **`verified`** through the R2-T09 gate (A72), and AC-CORR-009 plus the `SensorMap.signs` wiring landed (A58). Open: sparse inputs. |
 | R2-T04 Bayesian MAP | **ACCEPTANCE-COMPLETE** — estimator (A49, `updating/bayesian.py`, 36 tests) plus the AC-UPD-006a/b tagging, the registry flip and the Laplace σ_post in the `CorrectionReport` (A57, on the trunk since the `ac-upd-006-registration-6615` merge). Open: σ_post in the CLI `update` document, which is outside the acceptance slice. |
-| R2-T05 meshio & IO | **NOT STARTED** — the only core track with no commit. |
+| R2-T05 meshio & IO | **PARTIAL** — the meshio bridge landed (A89, `io/meshio_bridge.py`, 44 tests): `from_meshio`/`to_meshio` over a one-to-one cell-type table, `read_meshio`/`write_meshio`, and the P7 optional-dependency seam with `MissingDependencyError`. Open: AC-IO-001..003 registration, UNV 2411/2412, `NeutralModel` → `Model` re-analysis of an imported mesh, UFF writing. |
 | R2-T06 updating depth | P0 slice closed (AC-UPD-007, A44); P1 depth (MAC-row Jacobian wiring, model-level resolver, per-element dK/dp) open. |
 | R2-T07 optimization | **COMPLETE for sizing** — A27 backend + A40 harvest; AC-OPT-001..004 `implemented`. Shape variables still FD. |
 | R2-T08 R1-O2 reconciliation | Pending a close-as-superseded decision (A40/A14); no merge wanted. |
@@ -53,7 +53,7 @@ the gap register at audit time:
 | Gap | Audit status | Status entering Round 2 |
 |---|---|---|
 | GAP-01 integration split-brain | P0, suite not collecting | **Largely closed.** `ModalResult` unified (commit `508813e`), `modal/eigen.py` is a thin adapter over `solver/modal.py` (A08), full suite green at **192 passed** (A22). Residual: enforce the "seams land atomically with consumers" rule and keep CI green. |
-| GAP-03 industrial IO | P0, absent | **Partial.** UFF datasets 55/58 reader (A12), minimal Nastran BDF `GRID`/`CROD`/`MAT1` (A18). Remaining: UNV 2411/2412, broader BDF cards, **meshio bridge (R2-T05)**, UFF writing, OP2. |
+| GAP-03 industrial IO | P0, absent | **Partial.** UFF datasets 55/58 reader (A12), minimal Nastran BDF `GRID`/`CROD`/`MAT1` (A18), and the meshio bridge behind the P7 optional-dependency seam (A89, `io/meshio_bridge.py`, 44 tests) — every format meshio reads now enters the platform as a `NeutralModel`. Remaining: UNV 2411/2412, broader BDF cards, AC-IO-001..003 registration, UFF writing, OP2. |
 | GAP-14 CLI stubs | P2, stubbed | **Closed for R2.** `modal`/`correlate`/`update` landed with model-spec format, gates, JSON/YAML documents on clean stdout (A07/A16/A22). |
 | GAP-10 updating depth | P1, absent | **Partial.** Dotted-path parameter targeting in the CLI spec layer (A07), affine `ScalingModel` dK/dθ (A04), vectorized Fox–Kapoor + MAC sensitivities (A04/A10). Remaining: model-level resolver, assembled per-element dK/dp, analytic MAC-row Jacobian wiring → R2-T06. The MS-3.6 collinearity screen is done: `workflow/selection.py` plus the AC-UPD-007 acceptance tests (A44). |
 | GAP-09 node mapping | P1, absent | **Partial.** Label-based DOF alignment (`correlation/align.py`, `workflow/sensors.py`). Remaining: geometry-based nearest-node mapping → folded into R2-T05/T06 scope notes. |
@@ -325,25 +325,50 @@ consistency tests fail.
 - **Why fifth:** highest leverage-per-effort in IO — one optional dependency imports
   dozens of mesh formats (Abaqus, Gmsh, VTK, Exodus, …) — but its re-analysis value
   multiplies only once R2-T02 elements exist, so it trails the element task.
+- **Status: PARTIAL — the bridge is on the trunk (A89).**
+  `src/openfemlab/io/meshio_bridge.py` carries `from_meshio` / `to_meshio` over the
+  one-to-one `CELL_TYPE_TO_ELEMENT` table
+  (`vertex`/`line`/`triangle`/`quad`/`tetra`/`hexahedron` ↔
+  `MASS1`/`ROD2`/`TRI3`/`QUAD4`/`TET4`/`HEX8`), the `read_meshio` / `write_meshio` file
+  entry points, and the P7 seam: `meshio` is imported lazily by `require_meshio`, which
+  raises the new `MissingDependencyError` (an `OpenFEMLabError` that is *also* an
+  `ImportError`, so the old `except ImportError` call sites still work) with an install
+  hint. `from_meshio` itself is duck-typed on `points`/`cells`, so a caller that already
+  holds a mesh converts it without the extra installed. Node labels ride in `node_ids`
+  point data and element labels in `element_ids` cell data, so `to_meshio` → `from_meshio`
+  is label-preserving; `gmsh:physical` / `medit:ref` / `property_ids` cell data become
+  `element_property_ids`; unmapped cell types are skipped with a `UserWarning` and
+  recorded in `meta["skipped_cell_types"]`. `BEAM2` / `SPRING2` are deliberately absent
+  from the export table because meshio's `line` cell cannot distinguish them from `ROD2`,
+  and exporting one raises `FormatError` rather than silently changing the element type.
+  `tests/test_meshio_bridge.py` (44 tests) skips as a module when meshio is missing; the
+  `[dev]` extra now installs it so the bridge is exercised by default.
+  **Remaining to close the task:** register AC-IO-001..003 (spec-first, three files in
+  one commit), UNV 2411/2412 in `io/uff.py`, the `NeutralModel` → `Model` conversion that
+  makes an imported mesh re-analyzable (shared with R2-T02), and UFF writing.
 - **Scope:**
-  - `io/meshio_bridge.py`: bidirectional `meshio.Mesh` ↔ `NeutralModel` conversion
+  - ~~`io/meshio_bridge.py`: bidirectional `meshio.Mesh` ↔ `NeutralModel` conversion
     (points → node arrays, cell blocks → `ElementType` blocks with an explicit,
     documented mapping table; unmapped cell types skipped with a diagnostic, mirroring
-    the BDF reader's policy).
-  - Optional-dependency seam per the ARCHITECTURE P7 policy (import guarded, clear
+    the BDF reader's policy).~~ **landed** (A89).
+  - ~~Optional-dependency seam per the ARCHITECTURE P7 policy (import guarded, clear
     `MissingDependencyError`, `[io]` extra grows `meshio`), matching how the `[cli]`
-    extra degrades.
+    extra degrades.~~ **landed** (A89); the `[io]` extra already carried `meshio`, and
+    `[dev]` grew it so the tests do not silently skip in CI.
   - UNV 2411/2412 (nodes/elements) in `io/uff.py` so a *complete* UFF test model —
     geometry + modes (55) + FRFs (58) — round-trips; this also gives correlation a real
     test-geometry source for the GAP-09 nearest-node mapping.
 - **Acceptance links:** no AC rows exist for IO — register (proposed): AC-IO-001
   meshio round-trip `NeutralModel → meshio → NeutralModel` preserves nodes, blocks,
-  ids (`contract`, exact); AC-IO-002 imported Gmsh/Abaqus fixture assembles and solves
+  ids (`contract`, exact) — the engine and a developer-suite test exist (A89), so this
+  needs the three-file registration commit and moves the pinned 44-criterion inventory;
+  AC-IO-002 imported Gmsh/Abaqus fixture assembles and solves
   through the modal pipeline with AC-MODAL-003/006 holding (`contract`, needs R2-T02
   for 3D cells); AC-IO-003 UNV 2411/2412 + 55 fixture feeds
   `correlate_modal_data` end to end (`contract`).
-- **Dependencies:** R2-T02 for solid/shell re-analysis (bridge itself can land first,
-  restricted to already-supported element types).
+- **Dependencies:** R2-T02 for solid/shell re-analysis (the bridge landed first,
+  restricted to already-supported element types, as planned). AC-IO-002 additionally
+  waits on the `NeutralModel` → `Model` conversion still open in R2-T02.
 
 ---
 
@@ -401,7 +426,9 @@ Round 2 is done when, on the integration branch in CI:
    measured.unv chain.yaml --require-frac 0.9` reads the dataset-58 column, synthesizes
    the same channels from the spec's damping, and publishes the `FRFCorrelation` block
    through `schema_version` `1.1`, with FRAC = 1 against its own model in
-   `tests/test_cli_frf.py`. The imported-3D-mesh demo still waits on R2-T02/T05.
+   `tests/test_cli_frf.py`. The imported-3D-mesh demo now has its *import* half —
+   `read_meshio` turns any meshio-supported file into a `NeutralModel` (A89) — and waits
+   only on the `NeutralModel` → `Model` conversion open in R2-T02.
 5. Full suite + Ruff + registry consistency green; no duplicate implementations of any
    numeric kernel (GAP-01 stays closed).
 
