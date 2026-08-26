@@ -183,6 +183,8 @@ python -m ruff check .
 ```
 
 The equivalent convenience targets are `make test` and `make lint`.
+See the [orchestrator report](.agent_workspace/ORCHESTRATOR_REPORT.md) for the
+full delivery status and 876-test verification record.
 
 ## Benchmarks
 

@@ -3,6 +3,8 @@
 Ready to file. Base: `main`. Head: `cursor/femtools-industrial-7aa3`.
 Verified at `8604807`: full suite **876 passed**, `ruff check .` clean
 (Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1).
+See the [orchestrator report](ORCHESTRATOR_REPORT.md) for the full delivery
+status and verification record.
 
 ## Title
 
