@@ -1,5 +1,5 @@
 /**
- * 进度 store — 掌握度 / 星星 / 经验等级 / 成就 / 打卡 / 错因统计，localStorage 持久化。
+ * 进度 store — 掌握度 / 星星 / 经验等级 / 成就 / 打卡 / 错因统计 / 错题本，localStorage 持久化。
  *
  * 同时满足两套调用契约：
  *  - 架构契约：mastery / stars / dailyStreak / moduleProgress / recordAnswer(question, ok) / exportReport
@@ -21,6 +21,16 @@ const BACKUP_VERSION = 1
 
 /** 每日明细只留最近 30 天，够画 7 天曲线也不会把 localStorage 撑爆。 */
 const DAILY_KEEP_DAYS = 30
+
+/** 错题本只留最近错的 60 道：再多孩子也刷不完，反而看着发怵。 */
+const WRONG_BOOK_MAX = 60
+
+/**
+ * 错题本的键：模块 + 题目 id。
+ * 不同玩法的题目 id 各自成体系（口算是「7+5」，应用题是母题 id），
+ * 不加模块前缀迟早会撞在一起。
+ */
+export const wrongBookKey = (moduleId, questionId) => `${moduleId || 'unknown'}:${questionId}`
 
 /** 升级所需经验随等级递增：level n -> n × 40。 */
 const xpForLevel = (level) => level * 40
@@ -67,6 +77,8 @@ function defaultState() {
     dailyStreak: 0,
     lastPlayedDate: '',
     errorTagCounts: {},
+    /** questionId -> { skill, errorTag, attempts, lastAt, ... }，答错入库、重做答对出库 */
+    wrongBook: {},
     modules: Object.fromEntries(MODULES.map((m) => [m.id, emptyModuleStat()])),
     counters: { arithmeticHardCorrect: 0, sudokuSolved: 0, perfectRuns: 0, dailyQuests: 0 },
     dailyQuest: emptyDailyQuest(),
@@ -86,6 +98,56 @@ function numberMap(raw, max = Number.POSITIVE_INFINITY) {
     if (Number.isFinite(n)) out[key] = Math.min(max, Math.max(0, n))
   }
   return out
+}
+
+/** 错题本超量时按「最后错的时间」淘汰最旧的几条。 */
+function trimWrongBook(book) {
+  const keys = Object.keys(book)
+  if (keys.length <= WRONG_BOOK_MAX) return book
+  const stale = keys
+    .sort((a, b) => (book[a].lastAt ?? 0) - (book[b].lastAt ?? 0))
+    .slice(0, keys.length - WRONG_BOOK_MAX)
+  for (const key of stale) delete book[key]
+  return book
+}
+
+const text = (value, fallback = '') => (typeof value === 'string' ? value : fallback)
+
+/**
+ * 洗一份外部错题本：没有正确答案的条目直接丢掉——重做流程验不了答案，
+ * 留着只会在界面上变成一行点不动的死记录。
+ */
+function mergeWrongBook(raw) {
+  const out = {}
+  for (const [key, value] of Object.entries(raw ?? {})) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) continue
+    const answer = value.answer
+    if (typeof answer !== 'number' && typeof answer !== 'string') continue
+    if (typeof answer === 'number' && !Number.isFinite(answer)) continue
+
+    const attempts = Math.round(Number(value.attempts))
+    const retries = Math.round(Number(value.retries))
+    const lastAt = Number(value.lastAt)
+    const addedAt = Number(value.addedAt)
+    out[key] = {
+      id: key,
+      module: text(value.module),
+      skill: isKnownSkill(value.skill) ? value.skill : null,
+      errorTag: text(value.errorTag, 'miscalc'),
+      errorTags: Array.isArray(value.errorTags) ? value.errorTags.filter((t) => text(t)) : [],
+      title: text(value.title),
+      answer,
+      options: Array.isArray(value.options) ? value.options.slice(0, 8) : [],
+      unit: text(value.unit),
+      hint: text(value.hint),
+      lastWrong: value.lastWrong ?? null,
+      attempts: Number.isFinite(attempts) ? Math.max(1, attempts) : 1,
+      retries: Number.isFinite(retries) ? Math.max(0, retries) : 0,
+      addedAt: Number.isFinite(addedAt) ? addedAt : Date.now(),
+      lastAt: Number.isFinite(lastAt) ? lastAt : Date.now(),
+    }
+  }
+  return trimWrongBook(out)
 }
 
 function mergeDaily(raw) {
@@ -115,6 +177,7 @@ function mergeState(saved) {
     ...saved,
     mastery: numberMap(saved.mastery, 1),
     errorTagCounts: numberMap(saved.errorTagCounts),
+    wrongBook: mergeWrongBook(saved.wrongBook),
     modules,
     counters: { ...base.counters, ...numberMap(saved.counters) },
     dailyQuest: {
@@ -169,6 +232,15 @@ export const useProgressStore = defineStore('progress', () => {
   const lockedAchievements = computed(() => ACHIEVEMENTS.filter((a) => !state.achievements[a.id]))
 
   const moduleStat = (moduleId) => state.modules[moduleId] ?? emptyModuleStat()
+
+  // ---------- 错题本 ----------
+
+  /** 最近错的排在最前，界面直接按这个顺序渲染。 */
+  const wrongList = computed(() =>
+    Object.values(state.wrongBook).sort((a, b) => (b.lastAt ?? 0) - (a.lastAt ?? 0)),
+  )
+  const wrongCount = computed(() => wrongList.value.length)
+  const wrongOfModule = (moduleId) => wrongList.value.filter((e) => e.module === moduleId)
 
   // ---------- 使用时长 ----------
 
@@ -431,6 +503,75 @@ export const useProgressStore = defineStore('progress', () => {
     return { combo: combo.value }
   }
 
+  /**
+   * 答错入错题本。同一道题再错一次只累加 attempts，不会刷出两行。
+   * 除了统计字段，还存下题面/选项/答案，进度页的重做流程才能离线复现这道题。
+   */
+  function recordWrong(entry) {
+    const id = text(entry?.id)
+    const answer = entry?.answer
+    if (!id) return null
+    if (typeof answer !== 'number' && typeof answer !== 'string') return null
+    if (typeof answer === 'number' && !Number.isFinite(answer)) return null
+
+    const now = Date.now()
+    const prev = state.wrongBook[id]
+    const tags = [...new Set([...(entry.errorTags ?? [])].filter((t) => text(t)))]
+    const next = {
+      id,
+      module: text(entry.module, prev?.module ?? ''),
+      skill: isKnownSkill(entry.skill) ? entry.skill : (prev?.skill ?? null),
+      errorTag: text(entry.errorTag, tags[0] ?? prev?.errorTag ?? 'miscalc'),
+      errorTags: tags.length ? tags : (prev?.errorTags ?? []),
+      title: text(entry.title, prev?.title ?? ''),
+      answer,
+      options: Array.isArray(entry.options) ? entry.options.slice(0, 8) : (prev?.options ?? []),
+      unit: text(entry.unit, prev?.unit ?? ''),
+      hint: text(entry.hint, prev?.hint ?? ''),
+      lastWrong: entry.lastWrong ?? null,
+      attempts: (prev?.attempts ?? 0) + 1,
+      retries: prev?.retries ?? 0,
+      addedAt: prev?.addedAt ?? now,
+      lastAt: now,
+    }
+    state.wrongBook[id] = next
+    trimWrongBook(state.wrongBook)
+    return next
+  }
+
+  /** 从错题本移出一道题；返回是否真的移出了，方便调用方决定要不要报喜。 */
+  function clearWrong(id) {
+    if (!id || !state.wrongBook[id]) return false
+    delete state.wrongBook[id]
+    return true
+  }
+
+  /**
+   * 错题本里重做一道题。
+   * 答对：掌握度上调、移出错题本、奖 1 颗星；答错：留在本子里，attempts 再 +1。
+   * 这里不走 recordAnswer，重做不该把「总题数 / 正确率」这些主统计冲淡。
+   */
+  function retryWrong(id, isCorrect) {
+    const entry = state.wrongBook[id]
+    if (!entry) return null
+    if (entry.skill) state.mastery[entry.skill] = updateMastery(state.mastery[entry.skill], isCorrect)
+    entry.retries += 1
+    entry.lastAt = Date.now()
+
+    if (!isCorrect) {
+      entry.attempts += 1
+      return { cleared: false, entry }
+    }
+    delete state.wrongBook[id]
+    addXp(6)
+    addStars(1)
+    return { cleared: true, entry }
+  }
+
+  function clearWrongBook() {
+    state.wrongBook = {}
+  }
+
   /** 记录一轮练习结束，用于历史曲线与「完美通关」成就。 */
   function finishSession(moduleId, { correct = 0, total = 0, bonusStars = 0 } = {}) {
     const stat = state.modules[moduleId] ?? (state.modules[moduleId] = emptyModuleStat())
@@ -543,6 +684,14 @@ export const useProgressStore = defineStore('progress', () => {
         mastery: state.mastery,
         modules: state.modules,
         errorTagCounts: state.errorTagCounts,
+        wrongBook: wrongList.value.map(({ id, module, skill, errorTag, attempts, lastAt }) => ({
+          id,
+          module,
+          skill,
+          errorTag,
+          attempts,
+          lastAt,
+        })),
         achievements: Object.keys(state.achievements),
         history: state.history,
       },
@@ -562,6 +711,15 @@ export const useProgressStore = defineStore('progress', () => {
     dailyStreak: computed(() => state.dailyStreak),
     mastery: computed(() => state.mastery),
     errorTagCounts: computed(() => state.errorTagCounts),
+    // 错题本
+    wrongBook: computed(() => state.wrongBook),
+    wrongList,
+    wrongCount,
+    wrongOfModule,
+    recordWrong,
+    clearWrong,
+    retryWrong,
+    clearWrongBook,
     badges,
     masteredCount,
     totalSkills,
