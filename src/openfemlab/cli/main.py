@@ -1,9 +1,10 @@
 """``openfemlab`` console entry point.
 
-Three analysis commands mirror the platform layers: ``modal`` extracts normal
+Four analysis commands mirror the platform layers: ``modal`` extracts normal
 modes from a model specification, ``correlate`` compares them against measured
-data, and ``update`` closes the loop by tuning model parameters. ``version``
-and ``info`` round out the interface for scripting and support.
+modal data, ``correlate-frf`` does the same in the frequency domain against a
+measured FRF, and ``update`` closes the loop by tuning model parameters.
+``version`` and ``info`` round out the interface for scripting and support.
 """
 
 from __future__ import annotations
@@ -38,6 +39,7 @@ def build_parser() -> argparse.ArgumentParser:
             "examples:\n"
             "  openfemlab modal cantilever.yaml -n 8\n"
             "  openfemlab correlate cantilever.yaml measured.yaml --mac-threshold 0.7\n"
+            "  openfemlab correlate-frf measured.unv cantilever.yaml --require-frac 0.9\n"
             "  openfemlab update updating.yaml -o cantilever.updated.yaml"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
