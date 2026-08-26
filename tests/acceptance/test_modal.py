@@ -21,6 +21,11 @@ Implemented here
 - **AC-MODAL-007** (oracle, MS-1.4) — summed over the complete modal basis, the
   effective modal masses reproduce the rigid-body mass of the structure in each
   translational direction to 1e-8 relative.
+- **AC-MODAL-008** (oracle, MS-1.2) — a ``freq_window`` request returns exactly
+  the modes a full dense extraction places in that window, on both backends;
+  the Sylvester inertia count reproduces the reference occupancy without
+  extracting anything, and a window the request cannot fill raises
+  ``MissedModesWarning`` (``SolverError`` under ``strict``).
 - **AC-MODAL-009** (contract, MS-1.1) — an asymmetric ``K`` or ``M`` beyond the
   MS-1.1 tolerance raises ``MatrixSymmetryError``, an indefinite ``M`` or a
   negative eigenvalue past the rigid-body noise floor raises
@@ -37,6 +42,7 @@ from __future__ import annotations
 
 import ast
 import inspect
+import warnings
 from itertools import combinations
 from pathlib import Path
 from typing import Any
@@ -52,12 +58,19 @@ from openfemlab.correlation import mac
 from openfemlab.exceptions import (
     MatrixDefinitenessError,
     MatrixSymmetryError,
+    MissedModesWarning,
     OpenFEMLabError,
     SolverConvergenceError,
     SolverError,
 )
 from openfemlab.mesh.simple import beam_mesh, quad_plate_mesh, spring_mass_chain
-from openfemlab.solver.modal import SYMMETRY_TOL, residual_floor, symmetry_defect
+from openfemlab.solver.modal import (
+    SYMMETRY_TOL,
+    eigenvalue_count_below,
+    eigenvalue_count_in_range,
+    residual_floor,
+    symmetry_defect,
+)
 
 from ._support import (
     SQUARE,
@@ -666,6 +679,229 @@ def test_ac_modal_007_effective_mass_is_the_squared_participation_factor():
     np.testing.assert_allclose(
         result.effective_masses("UX"), result.participation_factors("UX") ** 2, rtol=1e-12
     )
+
+
+# --------------------------------------------------------------- AC-MODAL-008
+
+#: Chain the window requests are cut out of. Long enough that a window can sit
+#: strictly inside the spectrum with modes on both sides of it, short enough
+#: that the dense reference extraction stays instant.
+WINDOW_CHAIN_DOFS = 40
+
+#: Modes a windowed request asks for. Above the occupancy of every window below
+#: (so nothing is capped away) and below ``n - 1`` (so the Lanczos path stays
+#: available, which is the point of parameterizing over the backends).
+WINDOW_MODES = 12
+
+#: Fraction of a modal gap the empty-window bounds are pulled in by.
+GAP_FRACTION = 0.25
+
+
+def _window_chain() -> ModalSolver:
+    return ModalSolver(spring_mass_chain(WINDOW_CHAIN_DOFS, 1.0, 1.0))
+
+
+def _reference_frequencies(solver: ModalSolver) -> np.ndarray:
+    """The whole spectrum, extracted without a window: the AC-MODAL-008 oracle."""
+    return solver.solve(
+        num_modes=solver.system.num_free_dofs, sparse=False
+    ).frequencies
+
+
+def _gap_window(frequencies: np.ndarray, first: int, last: int) -> tuple[float, float]:
+    """Bounds placed in the gaps around modes ``first..last`` inclusive.
+
+    Putting the bounds between modes rather than on them keeps this helper's
+    own answer independent of the inclusivity rule, which a separate test pins
+    on its own.
+    """
+    low = 0.0 if first == 0 else 0.5 * (frequencies[first - 1] + frequencies[first])
+    high = 0.5 * (frequencies[last] + frequencies[last + 1])
+    return low, high
+
+
+#: ``(first, last)`` mode indices each window is built around: the bottom of the
+#: spectrum, an interior band the shift-invert path can only reach by shifting,
+#: and a single mode on its own.
+WINDOW_BANDS = {"low": (0, 3), "interior": (14, 19), "single": (25, 25)}
+
+
+@criterion("AC-MODAL-008")
+@pytest.mark.parametrize("band", sorted(WINDOW_BANDS))
+@pytest.mark.parametrize("backend", sorted(BACKENDS))
+def test_ac_modal_008_a_window_returns_exactly_the_reference_contents(band, backend):
+    """``f in [f_lo, f_hi]`` returns the modes the dense reference puts there."""
+    solver = _window_chain()
+    reference = _reference_frequencies(solver)
+    first, last = WINDOW_BANDS[band]
+    window = _gap_window(reference, first, last)
+
+    result = solver.solve(
+        num_modes=WINDOW_MODES, freq_window=window, **BACKENDS[backend]
+    )
+
+    expected = reference[first : last + 1]
+    assert result.num_modes == expected.size
+    assert np.max(relative_error(result.frequencies, expected)) <= BACKEND_FREQUENCY_RTOL
+    assert np.all(result.frequencies >= window[0])
+    assert np.all(result.frequencies <= window[1])
+    assert result.meta["modes_in_window"] == expected.size
+    assert result.meta["expected_in_window"] == expected.size
+
+
+@criterion("AC-MODAL-008")
+@pytest.mark.parametrize("backend", sorted(BACKENDS))
+def test_ac_modal_008_an_empty_window_returns_nothing_rather_than_the_nearest_modes(backend):
+    """A band between two adjacent modes is empty, and says so instead of rounding."""
+    solver = _window_chain()
+    reference = _reference_frequencies(solver)
+    gap = reference[8] - reference[7]
+    window = (reference[7] + GAP_FRACTION * gap, reference[8] - GAP_FRACTION * gap)
+
+    result = solver.solve(
+        num_modes=WINDOW_MODES, freq_window=window, **BACKENDS[backend]
+    )
+
+    assert result.num_modes == 0
+    assert result.meta["expected_in_window"] == 0
+
+
+@criterion("AC-MODAL-008")
+def test_ac_modal_008_a_mode_sitting_on_a_bound_is_inside_the_window():
+    """The window is closed: ``f_lo`` and ``f_hi`` themselves belong to it.
+
+    Without the MS-1.2 padding this is a coin toss on the last bit of an
+    eigenvalue, so a caller stepping a band in contiguous slices would lose or
+    duplicate the mode on the seam.
+    """
+    solver = _window_chain()
+    reference = _reference_frequencies(solver)
+
+    result = solver.solve(
+        num_modes=WINDOW_MODES,
+        freq_window=(reference[5], reference[10]),
+        sparse=False,
+    )
+
+    assert result.num_modes == 6
+    assert np.max(relative_error(result.frequencies, reference[5:11])) <= EIGENVALUE_RTOL
+
+
+@criterion("AC-MODAL-008")
+@pytest.mark.parametrize("band", sorted(WINDOW_BANDS))
+def test_ac_modal_008_the_inertia_count_agrees_with_the_reference(band):
+    """Sylvester's law counts the window without extracting a single mode."""
+    solver = _window_chain()
+    reference = _reference_frequencies(solver)
+    first, last = WINDOW_BANDS[band]
+    low, high = _gap_window(reference, first, last)
+    K, M, _, _ = solver._prepare_problem(True)
+
+    counted = eigenvalue_count_in_range(
+        K, M, (2.0 * np.pi * low) ** 2, (2.0 * np.pi * high) ** 2
+    )
+
+    assert counted == last - first + 1
+    assert eigenvalue_count_below(K, M, (2.0 * np.pi * high) ** 2) == last + 1
+    # The whole spectrum lies below any bound above the top mode, and none of it
+    # below zero: the count has to reproduce both ends, not just the interior.
+    top = (2.0 * np.pi * reference[-1] * 2.0) ** 2
+    assert eigenvalue_count_below(K, M, top) == reference.size
+    assert eigenvalue_count_below(K, M, 0.0) == 0
+
+
+@criterion("AC-MODAL-008")
+def test_ac_modal_008_a_window_the_request_cannot_fill_is_reported():
+    """``num_modes`` below the occupancy of the window raises MissedModesWarning."""
+    solver = _window_chain()
+    reference = _reference_frequencies(solver)
+    first, last = WINDOW_BANDS["interior"]
+    window = _gap_window(reference, first, last)
+    held = last - first + 1
+
+    with pytest.warns(MissedModesWarning, match=rf"holds {held} modes but only 2"):
+        result = solver.solve(num_modes=2, freq_window=window, sparse=False)
+
+    assert result.num_modes == 2
+    assert result.meta["modes_in_window"] == 2
+    assert result.meta["expected_in_window"] == held
+    # The two it did return are still genuine members of the window.
+    assert np.max(relative_error(result.frequencies, reference[first : first + 2])) <= (
+        EIGENVALUE_RTOL
+    )
+
+
+@criterion("AC-MODAL-008")
+def test_ac_modal_008_strict_turns_the_missed_modes_into_an_error():
+    """``strict=True`` is for callers who cannot act on a warning."""
+    solver = _window_chain()
+    reference = _reference_frequencies(solver)
+    window = _gap_window(reference, *WINDOW_BANDS["interior"])
+
+    with pytest.raises(SolverError, match="frequency window holds"):
+        solver.solve(num_modes=2, freq_window=window, sparse=False, strict=True)
+
+
+@criterion("AC-MODAL-008")
+def test_ac_modal_008_skipping_the_count_is_recorded_rather_than_assumed():
+    """``missed_mode_check=False`` reports "unknown", never "complete"."""
+    solver = _window_chain()
+    reference = _reference_frequencies(solver)
+    window = _gap_window(reference, *WINDOW_BANDS["interior"])
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", MissedModesWarning)
+        result = solver.solve(
+            num_modes=2, freq_window=window, sparse=False, missed_mode_check=False
+        )
+
+    assert result.meta["modes_in_window"] == 2
+    assert result.meta["expected_in_window"] is None
+
+
+@criterion("AC-MODAL-008")
+@pytest.mark.parametrize(
+    ("label", "window"),
+    [
+        ("reversed", (12.0, 4.0)),
+        ("negative", (-1.0, 4.0)),
+        ("not_a_pair", (1.0, 2.0, 3.0)),
+        ("not_numeric", ("low", "high")),
+        ("not_finite", (0.0, float("inf"))),
+    ],
+)
+def test_ac_modal_008_an_impossible_window_is_a_typed_failure(label, window):
+    """A malformed request is refused up front, not silently reinterpreted."""
+    solver = _window_chain()
+
+    with pytest.raises(SolverError):
+        solver.solve(num_modes=WINDOW_MODES, freq_window=window)
+
+
+@criterion("AC-MODAL-008")
+def test_ac_modal_008_windowed_modes_are_the_reference_modes():
+    """The window selects modes; it does not change the ones it selects."""
+    solver = _window_chain()
+    full = solver.solve(num_modes=solver.system.num_free_dofs, sparse=False)
+    first, last = WINDOW_BANDS["interior"]
+    window = _gap_window(full.frequencies, first, last)
+
+    result = solver.solve(num_modes=WINDOW_MODES, freq_window=window, sparse=False)
+
+    paired = np.diag(mac(full.mode_shapes[:, first : last + 1], result.mode_shapes))
+    assert np.min(paired) >= 1.0 - BACKEND_MAC_TOLERANCE
+    assert mass_orthonormality_error(result.mode_shapes, result.system.M) <= (
+        ORTHONORMALITY_TOLERANCE
+    )
+
+
+@criterion("AC-MODAL-008")
+def test_ac_modal_008_an_unwindowed_solve_carries_no_window_metadata():
+    """The MS-1.2 window keys appear only when a window was actually requested."""
+    result = _window_chain().solve(num_modes=4, sparse=False)
+
+    assert "freq_window_hz" not in result.meta
+    assert "expected_in_window" not in result.meta
 
 
 # --------------------------------------------------------------- AC-MODAL-009
