@@ -26,7 +26,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A04 | claude-opus-5-thinking-high-fast | Updating sensitivity kernel, updater wiring & test suite | complete |
 | A17 | claude-fable-5-thinking-xhigh | Round 1 conclusion brief & full-suite verification (backfill) | complete |
 | A07 | claude-opus-5-thinking-high-fast | Rich CLI (modal/correlate/update), model spec format & workflow example | complete |
-| A25 | gpt-5.6-sol-xhigh-fast | CLI subprocess coverage over example 02 fixtures | in progress |
+| A25 | gpt-5.6-sol-xhigh-fast | CLI subprocess coverage over example 02 fixtures | complete |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
@@ -432,7 +432,9 @@ orchestrator to diff against the landed implementation in Round 2.
 - The process tests generate their model, measured-data, and updating-configuration fixtures
   through `examples/02_model_updating_workflow.py`, parse each command's stdout as JSON, and
   assert successful exit statuses plus correlation's intentional acceptance-gate exit 3.
-- Verification is pending the required pre-test commit and push.
+- Child processes explicitly import the current checkout, preventing an editable installation
+  from a sibling worktree from silently testing stale code.
+- Verified on Python 3.12: `tests/test_cli.py` **22 passed**; complete suite **195 passed**.
 
 #### A16 — CLI Correlation Kernel Reconciliation
 - Confirmed the pulled integration branch no longer contains duplicate `mac_matrix`,
