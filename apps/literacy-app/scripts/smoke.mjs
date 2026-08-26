@@ -281,7 +281,7 @@ await interact('FSRS：到期卡进入复习队列，未到期卡不进入', `/#
   return `持久化卡=${seeded.count}，到期“日”可见且可打开，未来“月”已排除`
 })
 
-await interact('500 字字表：分页渲染且所有字可达', '/#/learn', async (page) => {
+await interact('字表：分页渲染且所有字可达', '/#/learn', async (page) => {
   const snapshot = () =>
     page.evaluate(() => {
       const text = document.body.innerText
@@ -314,7 +314,7 @@ await interact('500 字字表：分页渲染且所有字可达', '/#/learn', asy
   let previous = first.chars.join('|')
 
   // 字表按单元翻页，单元数会随字库增长；上限只是防死循环，留足余量即可。
-  while (reached.size < first.total && turns < 40) {
+  while (reached.size < first.total && turns < 150) {
     const clicked = await page.evaluate(() => {
       const nextPattern = /下一页|下一批|加载更多|显示更多|查看更多|更多汉字/
       const controls = [...document.querySelectorAll('button, a')].filter((node) => {
