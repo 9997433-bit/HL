@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
-__all__ = ["OpenFEMLabError", "ModelError", "ElementError", "SolverError"]
+__all__ = [
+    "OpenFEMLabError",
+    "ModelError",
+    "ElementError",
+    "SolverError",
+    "OptimizationError",
+]
 
 
 class OpenFEMLabError(Exception):
@@ -19,3 +25,7 @@ class ElementError(OpenFEMLabError):
 
 class SolverError(OpenFEMLabError):
     """The requested analysis cannot be carried out."""
+
+
+class OptimizationError(OpenFEMLabError):
+    """Ill-posed optimization statement or a failed optimization run."""
