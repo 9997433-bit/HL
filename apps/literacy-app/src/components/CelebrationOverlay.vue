@@ -51,6 +51,29 @@ const skipEl = ref(null)
 const pieces = ref([])
 const litStars = ref(0)
 
+/**
+ * 播报文案。
+ *
+ * 浮层是随庆祝一起插进 DOM 的，读屏对「新插入时就带内容的 live region」
+ * 不一定会念；所以这里先挂空的 live region，等浮层挂上去之后再写内容，
+ * 顺手把星数和跳过方式也说清楚。
+ */
+const liveText = ref('')
+
+const spoken = computed(() =>
+  [
+    props.title,
+    props.highlight,
+    props.subtitle,
+    props.stars > 0 ? `获得 ${props.stars} 颗星` : '',
+    '按 Esc 或回车可以跳过'
+  ]
+    .filter(Boolean)
+    // 标题本身常带感叹号，拼接前先削掉，免得读屏念出「读完啦！，获得」
+    .map((part) => part.replace(/[，。！？、]+$/, ''))
+    .join('，')
+)
+
 let tail = null
 let starCalls = []
 let settled = true
@@ -124,6 +147,7 @@ async function run() {
 
   await nextTick()
   if (!props.open) return
+  liveText.value = spoken.value
   popCard()
   litUpStars()
   if (!quiet.value) fling()
@@ -171,6 +195,7 @@ watch(
       clearTail()
       settled = true
       pieces.value = []
+      liveText.value = ''
     }
   },
   { immediate: true }
@@ -209,13 +234,15 @@ onBeforeUnmount(() => {
         }"
       />
 
-      <div ref="cardEl" class="cel__card" role="status" aria-live="polite">
+      <p class="sr-only" role="status" aria-live="polite" aria-atomic="true">{{ liveText }}</p>
+
+      <div ref="cardEl" class="cel__card">
         <span class="cel__emoji" aria-hidden="true">{{ emoji }}</span>
         <strong class="cel__title">{{ title }}</strong>
         <span v-if="highlight" class="cel__highlight">{{ highlight }}</span>
         <span v-if="subtitle" class="cel__subtitle">{{ subtitle }}</span>
 
-        <span v-if="stars > 0" class="cel__stars" :aria-label="`获得 ${stars} 颗星`">
+        <span v-if="stars > 0" class="cel__stars" role="img" :aria-label="`获得 ${stars} 颗星`">
           <span
             v-for="n in stars"
             :key="n"

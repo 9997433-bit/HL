@@ -530,6 +530,123 @@ await interact('进度追踪：学过的字刷新后仍在', `/#/learn/${encodeU
   return `存档键=${stored.key}，刷新后记录了 ${after.length} 个字（山+水 都在=${ok}）`
 })
 
+await interact('描红：键盘替代通道可以写完整个字', `/#/learn/${encodeURIComponent('日')}`, async (page) => {
+  await page.evaluate(() => localStorage.clear())
+  await page.reload({ waitUntil: 'networkidle2' })
+  await page.waitForSelector('.hz__host svg', { timeout: 8000 })
+
+  if (!(await clickText(page, '我来写'))) throw new Error('单字页缺少「我来写」描红入口')
+  await new Promise((r) => setTimeout(r, 400))
+
+  const staged = await page.evaluate(() => {
+    const stage = document.querySelector('.hz__stage')
+    return {
+      focusable: stage?.getAttribute('tabindex') === '0',
+      focused: document.activeElement === stage,
+      labelled: (stage?.getAttribute('aria-label') ?? '').includes('Esc'),
+      live: document.querySelector('.hz__hint')?.getAttribute('aria-live') === 'polite'
+    }
+  })
+  if (!staged.focusable) throw new Error('描红时田字格不可聚焦，键盘进不去')
+  if (!staged.focused) throw new Error('进入描红后焦点没有落到田字格上')
+  if (!staged.labelled) throw new Error('描红区没有说明键盘怎么用')
+  if (!staged.live) throw new Error('描红提示不是 aria-live 播报区')
+
+  // 「日」四笔：只用键盘，一笔一笔写完
+  for (let i = 0; i < 6; i++) {
+    const done = await page.evaluate(() => /满分|写完啦/.test(document.querySelector('.hz__hint')?.innerText ?? ''))
+    if (done) break
+    await page.keyboard.press('Space')
+    await new Promise((r) => setTimeout(r, 320))
+  }
+
+  const finished = await page.evaluate(() => ({
+    hint: document.querySelector('.hz__hint')?.innerText.trim() ?? '',
+    traced: JSON.parse(localStorage.getItem('happy-literacy:v1') ?? '{}')?.chars?.['日']?.traced ?? 0
+  }))
+  if (!/满分|写完啦/.test(finished.hint)) {
+    throw new Error(`键盘写完全部笔画后没有完成提示：「${finished.hint}」`)
+  }
+  if (finished.traced < 1) throw new Error('键盘写完一个字没有记进「会写了」')
+
+  // 跳过通道：再进一次描红，按 Esc 应当直接退出
+  if (!(await clickText(page, '我来写'))) throw new Error('完成后无法再次进入描红')
+  await new Promise((r) => setTimeout(r, 300))
+  await page.keyboard.press('Escape')
+  await new Promise((r) => setTimeout(r, 300))
+  const escaped = await page.evaluate(() => ({
+    quizOff: document.querySelector('.hz__stage')?.getAttribute('tabindex') !== '0',
+    hint: document.querySelector('.hz__hint')?.innerText ?? ''
+  }))
+  if (!escaped.quizOff) throw new Error('按 Esc 之后还停在描红状态')
+  if (!escaped.hint.includes('跳过')) throw new Error('跳过描红没有给出提示')
+
+  return `键盘写完「日」（traced=${finished.traced}），Esc 可跳过`
+})
+
+await interact('播报：答题与庆祝都有 aria-live', '/#/listen', async (page) => {
+  await clickText(page, '开始游戏')
+  await new Promise((r) => setTimeout(r, 600))
+
+  const region = await page.evaluate(() => {
+    const node = [...document.querySelectorAll('[aria-live="polite"]')].find((n) =>
+      n.classList.contains('sr-only')
+    )
+    return node ? node.innerText.trim() : ''
+  })
+  if (!/第\s*\d+\s*关/.test(region)) throw new Error(`答题开始没有播报关卡：「${region}」`)
+
+  await page.evaluate(() => document.querySelector('.opt')?.click())
+  await new Promise((r) => setTimeout(r, 500))
+  const answered = await page.evaluate(
+    () =>
+      [...document.querySelectorAll('.sr-only[aria-live="polite"]')]
+        .map((n) => n.innerText.trim())
+        .join(' ')
+  )
+  if (!/答对了|正确答案/.test(answered)) throw new Error(`作答后没有播报对错：「${answered}」`)
+
+  // 庆祝浮层：读完一本没读过的绘本
+  await page.goto(page.url().replace(/#.*$/, '#/books/b2'), { waitUntil: 'networkidle2' })
+  await new Promise((r) => setTimeout(r, 400))
+  for (let i = 0; i < 8; i++) {
+    if (await clickText(page, '下一页')) continue
+    if (await clickText(page, '读完啦')) break
+    break
+  }
+  await new Promise((r) => setTimeout(r, 500))
+  const celebration = await page.evaluate(() => {
+    const layer = document.querySelector('.cel')
+    if (!layer) return null
+    const live = layer.querySelector('[aria-live="polite"]')
+    return { text: live?.innerText.trim() ?? '', prohibited: !!layer.querySelector('span[aria-label]:not([role])') }
+  })
+  if (!celebration) throw new Error('读完绘本没有弹出庆祝层')
+  if (!celebration.text) throw new Error('庆祝层没有播报内容')
+  if (!celebration.text.includes('跳过')) throw new Error('庆祝播报没有告诉用户可以跳过')
+  if (celebration.prohibited) throw new Error('庆祝层里有 span 直接挂 aria-label（axe aria-prohibited-attr）')
+
+  return `答题播报「${region.slice(0, 14)}…」，庆祝播报「${celebration.text.slice(0, 18)}…」`
+})
+
+await interact('设计令牌：识字 App 用的是共享令牌层', '/#/', async (page) => {
+  const tokens = await page.evaluate(() => {
+    const cs = getComputedStyle(document.documentElement)
+    const read = (name) => cs.getPropertyValue(name).trim()
+    return {
+      shared: read('--tap-hero'),
+      palette: read('--mango-500'),
+      textSoft: read('--text-soft'),
+      artTint: read('--art-tint')
+    }
+  })
+  if (!tokens.shared || !tokens.palette) {
+    throw new Error('没有读到 shared/styles/design-tokens.css 里的令牌，说明没接进来')
+  }
+  if (!tokens.artTint) throw new Error('识字 App 自己的 --art-tint 丢了')
+  return `共享令牌 --tap-hero=${tokens.shared}，--mango-500=${tokens.palette}，--text-soft=${tokens.textSoft}`
+})
+
 await interact('单字页：笔顺数据可用', `/#/learn/${encodeURIComponent('日')}`, async (page) => {
   await new Promise((r) => setTimeout(r, 1500))
   return await page.evaluate(() => {

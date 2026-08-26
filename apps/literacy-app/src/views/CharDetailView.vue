@@ -64,6 +64,10 @@ function markKnown() {
   if (justMastered) sfx.levelUp()
 }
 
+function onQuizSkip() {
+  flash('跳过描红也没关系，随时可以回来写 ✍️')
+}
+
 function onQuizComplete({ mistakes }) {
   // 写完一遍才算「会写」，掌握度要靠它才能从「认识了」升到「会写了」。
   progress.markTraced(decoded.value)
@@ -134,10 +138,13 @@ watch(decoded, () => {
         :char="item.char"
         :size="252"
         @quiz-complete="onQuizComplete"
+        @quiz-skip="onQuizSkip"
       />
     </section>
 
-    <p v-if="toast" class="toast">{{ toast }}</p>
+    <!-- 播报区常驻，读屏才认得出后来写进去的提示；视觉气泡另走一份 -->
+    <p class="sr-only" role="status" aria-live="polite" aria-atomic="true">{{ toast }}</p>
+    <p v-if="toast" class="toast" aria-hidden="true">{{ toast }}</p>
 
     <VoiceNotice fallback="拼音就在字的上面，家长可以照着拼音读给孩子听。" />
 
