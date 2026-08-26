@@ -1639,9 +1639,11 @@ objective; a fourth case repeats it through the finite-difference/MAC-residual p
 result does not rest on the analytical Jacobian.
 
 Verified at `33473fe` on Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1: full suite
-**550 passed**, `ruff check .` clean (ruff 0.16.4). Run from a private clone (`/tmp/a31c`)
-rather than a worktree — the first attempt used a worktree under `/tmp` and lost committed
-test edits to a concurrent reset, the working-tree hazard A28/A32 already report.
+**550 passed**, `ruff check .` clean (ruff 0.16.4). Re-verified after the concurrent
+criterion-inventory commit `c8e3ce2` landed underneath this record: **611 passed**, ruff
+clean. Run from a private clone (`/tmp/a31c`) rather than a worktree — the first attempt
+used a worktree under `/tmp` and lost committed test edits to a concurrent reset, the
+working-tree hazard A28/A32 already report.
 
 Remaining P0 rows still `specified`: AC-MODAL-007/009, AC-CORR-005/007/008,
 AC-UPD-004/005/007, AC-WORK-001/002/004/005.
