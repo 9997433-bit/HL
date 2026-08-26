@@ -318,7 +318,7 @@ export const useProgressStore = defineStore('progress', () => {
   /** 下一个还没学的字，首页「继续学习」按钮用。 */
   const nextChar = computed(
     () =>
-      CHARACTER_INDEX.find((c) => (state.chars[c.char]?.level ?? 0) === 0) ?? CHARACTER_INDEX[0]
+      CHARACTERS.find((c) => (state.chars[c.char]?.level ?? 0) === 0) ?? CHARACTERS[0]
   )
 
   /* ---------------------------------------------------------------- 徽章 */

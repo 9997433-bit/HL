@@ -132,7 +132,7 @@ export function charsInBook(book) {
 export function verifyBookCoverage() {
   const problems = []
   for (const book of BOOKS) {
-    const missing = charsInBook(book).filter((ch) => !CHARACTER_INDEX_MAP.has(ch))
+    const missing = charsInBook(book).filter((ch) => !CHARACTER_MAP.has(ch))
     if (missing.length) problems.push({ book: book.title, missing })
   }
   return problems
