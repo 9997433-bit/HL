@@ -4,8 +4,8 @@ Audit date: 2026-08-26
 Initial integration snapshot audited and tested: `cursor/femtools-industrial-7aa3` at `8604807`
 
 These remote branches no longer carry work that should be merged. Delete them after
-review; no GitHub pull request (open or closed) is associated with any of the six.
-All six were deleted from `origin` on 2026-08-26.
+review; no GitHub pull request (open or closed) is associated with any of the seven.
+All seven were deleted from `origin` on 2026-08-26.
 
 | Branch | Deleted remote tip | Relationship to trunk | Deletion status |
 |---|---|---|---|
@@ -15,6 +15,7 @@ All six were deleted from `origin` on 2026-08-26.
 | `cursor/optimization-scipy-backend-f421` | `069d37a` | The functional tip (`8b46480`) entered trunk through harvest merge `6cf0f49`. The five branch-only commits at deletion are two base merges and three progress-only commits; the active-set KKT and trust-constr Hessian fixes are on trunk and summarized in A40's progress record. | **Deleted from `origin` as superseded.** |
 | `cursor/optimization-acceptance-gates-2414` | `00572d8` | The remote tip is an ancestor of trunk and has zero branch-only commits. Its strengthened AC-OPT-002/003 gates and documentation entered trunk through A52's merge. | **Deleted from `origin` as fully merged.** |
 | `cursor/ac-corr-009-tam-orthogonality-113b` | `927f164` | The remote tip is an ancestor of integration tip `9052f95` and has zero branch-only commits. Its AC-CORR-009 registration and `SensorMap.signs` wiring are already integrated. | **Deleted from `origin` as fully merged.** |
+| `cursor/hex8-brick-ac-elem-d0b7` | `226728b` | The remote tip is an ancestor of integration tip `441f80a` and has zero branch-only commits. Its HEX8 implementation and AC-ELEM-001..003 acceptance slice entered the integration history through merge `8a0f10f`. | **Deleted from `origin` as fully merged.** |
 
 Verification for the original five used the fetched remote tips, not potentially stale
 local branch pointers:
@@ -44,6 +45,22 @@ yes
 git rev-list --left-right --count 9052f95...origin/cursor/ac-corr-009-tam-orthogonality-113b
 12  0
 ```
+
+The A86 follow-up verified the seventh branch before deletion:
+
+```text
+git merge-base --is-ancestor 226728b 441f80a
+yes
+
+git rev-list --left-right --count 441f80a...226728b
+28  0
+```
+
+The same audit retained `cursor/hex8-solid-element-d0b7` at `404522c`. Its tip is
+not an ancestor of `441f80a` (`62  4` from `git rev-list --left-right --count`),
+and its four branch-only commits include AC-MODAL-008 frequency-window extraction
+and the missed-mode guard. The integration snapshot still marks AC-MODAL-008 as
+`specified`, so deleting that branch is not yet safe.
 
 The full committed trunk suite passed for the initial five-branch snapshot:
 **876 passed, 0 failed** in 29.26 seconds.
