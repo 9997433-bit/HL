@@ -66,7 +66,9 @@ function defaultState() {
       /** 连续使用多少分钟后弹护眼休息提醒；0 表示关闭。 */
       restReminderMin: 20,
       /** 每天目标学字数，家长面板可调。 */
-      dailyGoal: 5
+      dailyGoal: 5,
+      /** 听音识字的场景皮肤：card / fish / mole。 */
+      listenSkin: 'fish'
     },
 
     stars: 0,

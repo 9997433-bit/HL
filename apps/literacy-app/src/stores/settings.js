@@ -43,6 +43,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const showPinyin = computed(() => raw().showPinyin)
   const speechRate = computed(() => raw().speechRate ?? DEFAULT_SPEECH_RATE)
   const dailyLimitMinutes = computed(() => raw().restReminderMin)
+  const listenSkin = computed(() => raw().listenSkin ?? 'fish')
   const breakReminder = computed(() => raw().breakReminder ?? DEFAULT_BREAK_REMINDER)
   const childName = computed(() => progress.state.childName)
 
@@ -99,7 +100,8 @@ export const useSettingsStore = defineStore('settings', () => {
       showPinyin: true,
       restReminderMin: 20,
       speechRate: DEFAULT_SPEECH_RATE,
-      breakReminder: DEFAULT_BREAK_REMINDER
+      breakReminder: DEFAULT_BREAK_REMINDER,
+      listenSkin: 'fish'
     })
   }
 
@@ -117,6 +119,7 @@ export const useSettingsStore = defineStore('settings', () => {
     showPinyin,
     speechRate,
     dailyLimitMinutes,
+    listenSkin,
     breakReminder,
     childName,
     themeMeta,
