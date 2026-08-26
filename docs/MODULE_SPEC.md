@@ -387,9 +387,15 @@ Iterative MAP step (linearized):
 Pre-updating diagnosis on the initial sensitivity matrix `S_0` (columns
 scaled by `θ` — relative sensitivities):
 
-- Rank/collinearity: pairwise column cosine `> 0.99` or subset condition
-  number `κ(S_sel) > 1e6` flags redundancy; greedy subset selection keeps the
-  most observable independent columns (QR with column pivoting).
+- Rank/collinearity: greedy QR with column pivoting keeps the most observable
+  independent columns. The pivot is the column with the largest component
+  orthogonal to the span already retained, and a column is frozen when that
+  component leaves it at cosine `> 0.99` to that span, or when admitting it
+  would take the subset past `κ(S_sel) > 1e6`. Screening against the span
+  subsumes the pairwise duplicate of AC-UPD-007 and additionally catches
+  redundancy that exists only in combination (`S_c = S_a + S_b`, no pair
+  near-parallel) and the wide-matrix case where parameters outnumber targets,
+  neither of which a pairwise cosine or `κ(S_sel)` reveals.
 - Low-sensitivity rejection: `‖S_·j‖ < 1e-3 · max_j ‖S_·j‖` → parameter
   frozen with a report entry (never silently).
 - Requirement AC-UPD-007: a deliberately duplicated parameter must be
