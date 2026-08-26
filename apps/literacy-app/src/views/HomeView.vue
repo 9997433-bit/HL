@@ -23,7 +23,7 @@ const stations = computed(() => [
     emoji: '🈶',
     title: '单字学习',
     desc: '看字形、听读音、写笔顺',
-    color: 'var(--seed-mango)',
+    color: 'var(--mango-400)',
     done: progress.learnedCount,
     total: progress.totalChars,
     unit: '字'
@@ -33,7 +33,7 @@ const stations = computed(() => [
     emoji: '🎧',
     title: '听音识字',
     desc: '听一听，选出正确的字',
-    color: 'var(--seed-mint)',
+    color: 'var(--mint-400)',
     done: progress.game.correct,
     total: null,
     unit: '次答对',
@@ -45,7 +45,7 @@ const stations = computed(() => [
     emoji: '🧩',
     title: '偏旁部首',
     desc: '认识汉字的小零件',
-    color: 'var(--seed-sky)',
+    color: 'var(--sky-400)',
     done: progress.radicalsSeen,
     total: RADICALS.length,
     unit: '个'
@@ -55,7 +55,7 @@ const stations = computed(() => [
     emoji: '📖',
     title: '分级绘本',
     desc: '只用学过的字，读完一整本',
-    color: 'var(--seed-leaf)',
+    color: 'var(--leaf-400)',
     done: progress.booksFinished,
     total: BOOKS.length,
     unit: '本'
@@ -65,7 +65,7 @@ const stations = computed(() => [
     emoji: '🎭',
     title: '成语启蒙',
     desc: '四格小剧场，看懂一个成语',
-    color: 'var(--seed-grape)',
+    color: 'var(--grape-400)',
     done: progress.idiomsSeen,
     total: IDIOMS.length,
     unit: '个'
@@ -75,7 +75,7 @@ const stations = computed(() => [
     emoji: '👨‍👩‍👧',
     title: '家长中心',
     desc: '学习报告与使用设置',
-    color: 'var(--seed-coral)',
+    color: 'var(--coral-400)',
     done: null,
     total: null
   }

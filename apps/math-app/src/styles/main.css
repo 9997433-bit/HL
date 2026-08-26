@@ -1,46 +1,6 @@
 @import '@shared/styles/design-tokens.css'; /* 顺序固定：令牌 → 共享组件层 → App 本地 */
 @import '@shared/styles/components.css';
 
-/* MathQuest 深空主题 — 主题由 index.html 的 <html data-theme="cosmos"> 静态选中，
-   避免首帧闪白。下面这批变量与令牌 §11 兼容别名同值，Phase 2 语义化换名后整块删除。 */
-:root {
-  /* 骨架期变量(ModuleCard / ModulePlaceholder 仍在使用) */
-  --bg-deep: #0b1030;
-  --bg-card: rgba(255, 255, 255, 0.08);
-  --text-main: #f2f5ff;
-  --text-dim: rgba(255, 248, 240, 0.65);
-  --star-gold: #ffce4d;
-  --radius-card: 20px;
-  --font-kid: 'ZCOOL KuaiLe', 'Nunito', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
-
-  /* 星际主题调色板 */
-  --space-0: #060818;
-  --space-1: #0b1030;
-  --space-2: #141a46;
-  --space-3: #1e2760;
-
-  --ink: #f2f5ff;
-  --ink-soft: #b9c2ee;
-  --ink-dim: #7b86c4;
-
-  --cyan: #5ee7ff;
-  --violet: #9b8cff;
-  --pink: #ff7ac6;
-  --gold: #ffce4d;
-  --green: #55e6a5;
-  --red: #ff6b7d;
-  --orange: #ff9f45;
-
-  --radius-s: 12px;
-  --radius-m: 20px;
-  --radius-l: 32px;
-
-  --shadow-card: 0 18px 40px rgba(3, 6, 24, 0.55);
-  --shadow-glow: 0 0 24px rgba(94, 231, 255, 0.35);
-
-  color-scheme: dark;
-}
-
 * {
   margin: 0;
   padding: 0;
@@ -55,10 +15,10 @@ body,
 }
 
 body {
-  font-family: var(--font-kid);
-  background: radial-gradient(120% 90% at 50% 0%, #1b2360 0%, var(--space-1) 45%, var(--space-0) 100%);
+  font-family: var(--font-round);
+  background: var(--bg-page);
   background-attachment: fixed;
-  color: var(--text-main);
+  color: var(--text-strong);
   overflow-x: hidden;
   user-select: none;
 }
@@ -110,7 +70,7 @@ a {
 }
 
 .page-subtitle {
-  color: var(--text-dim);
+  color: var(--text-soft);
   font-size: 15px;
   margin-bottom: 24px;
 }
@@ -119,14 +79,14 @@ a {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: var(--text-dim);
+  color: var(--text-soft);
   font-size: 15px;
   padding: 8px 0;
   margin-bottom: 8px;
 }
 
 .back-btn:hover {
-  color: var(--text-main);
+  color: var(--text-strong);
 }
 
 .stack {
@@ -177,11 +137,11 @@ a {
 }
 
 .muted {
-  color: var(--ink-soft);
+  color: var(--text);
 }
 
 .dim {
-  color: var(--ink-dim);
+  color: var(--text-soft);
 }
 
 /* ---------- 按钮 ----------
@@ -206,13 +166,13 @@ a {
   font-weight: 700;
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.14);
-  color: var(--ink-soft);
+  color: var(--text);
 }
 
 .chip-on {
   background: linear-gradient(135deg, rgba(94, 231, 255, 0.28), rgba(155, 140, 255, 0.28));
   border-color: rgba(94, 231, 255, 0.6);
-  color: var(--ink);
+  color: var(--text-strong);
 }
 
 /* ---------- 其它 ---------- */

@@ -151,7 +151,7 @@ function goBack() {
 
 .ring-fg {
   stroke: url(#lvl);
-  stroke: var(--cyan);
+  stroke: var(--brand);
   filter: drop-shadow(0 0 5px rgba(94, 231, 255, 0.7));
   transition: stroke-dasharray 0.5s ease;
 }

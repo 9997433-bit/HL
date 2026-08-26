@@ -28,15 +28,21 @@ const EMOJI_SETS = [
   ['🍎', '🍌', '🍇'],
 ]
 const SHAPE_SET = ['triangle', 'square', 'circle', 'star', 'hexagon']
-const PALETTE = ['#5ee7ff', '#9b8cff', '#ff7ac6', '#ffce4d', '#55e6a5']
+const PALETTE = [
+  'var(--neon-cyan)',
+  'var(--neon-violet)',
+  'var(--neon-pink)',
+  'var(--neon-gold)',
+  'var(--neon-green)',
+]
 
 /** 颜色的中文名：选项只有图形，读屏得靠这两个名字把四个按钮区分开。 */
 const COLOR_NAMES = {
-  '#5ee7ff': '天蓝色',
-  '#9b8cff': '紫色',
-  '#ff7ac6': '粉色',
-  '#ffce4d': '金色',
-  '#55e6a5': '绿色',
+  'var(--neon-cyan)': '天蓝色',
+  'var(--neon-violet)': '紫色',
+  'var(--neon-pink)': '粉色',
+  'var(--neon-gold)': '金色',
+  'var(--neon-green)': '绿色',
 }
 
 const shapeName = (id) => SHAPE_MAP[id]?.name ?? id
@@ -399,7 +405,7 @@ onMounted(startRound)
             <svg v-else viewBox="0 0 40 40" width="34" height="34" :style="{ transform: `rotate(${a}deg)` }">
               <path
                 d="M20 5 L31 30 L20 24 L9 30 Z"
-                fill="#ffce4d"
+                fill="var(--star)"
                 stroke="rgba(255,255,255,0.6)"
                 stroke-width="1.6"
                 stroke-linejoin="round"
@@ -451,7 +457,7 @@ onMounted(startRound)
             >
               <path
                 d="M20 5 L31 30 L20 24 L9 30 Z"
-                fill="#ffce4d"
+                fill="var(--star)"
                 stroke="rgba(255,255,255,0.6)"
                 stroke-width="1.6"
                 stroke-linejoin="round"
@@ -547,10 +553,10 @@ onMounted(startRound)
 
 .hint {
   padding: 10px 14px;
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-sm);
   background: rgba(85, 230, 165, 0.1);
   border: 1px solid rgba(85, 230, 165, 0.36);
-  color: var(--green);
+  color: var(--success);
   font-size: 14px;
 }
 
@@ -561,7 +567,7 @@ onMounted(startRound)
   justify-content: center;
   flex-wrap: wrap;
   padding: 20px 12px;
-  border-radius: var(--radius-m);
+  border-radius: var(--radius-md);
   background:
     linear-gradient(90deg, rgba(85, 230, 165, 0.08), rgba(94, 231, 255, 0.08)),
     rgba(6, 9, 30, 0.42);
@@ -576,7 +582,7 @@ onMounted(startRound)
   place-items: center;
   font-size: 26px;
   font-weight: 900;
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.07);
   border: 1px solid rgba(255, 255, 255, 0.14);
 }
@@ -602,8 +608,8 @@ onMounted(startRound)
 }
 
 .cell.blank {
-  color: var(--gold);
-  border: 2px dashed var(--gold);
+  color: var(--star);
+  border: 2px dashed var(--star);
   background: rgba(255, 206, 77, 0.1);
   animation: pulse 1.4s ease-in-out infinite;
 }
@@ -638,7 +644,7 @@ onMounted(startRound)
   padding: 14px 10px;
   font-size: 28px;
   font-weight: 900;
-  border-radius: var(--radius-m);
+  border-radius: var(--radius-md);
   background: linear-gradient(160deg, rgba(85, 230, 165, 0.15), rgba(94, 231, 255, 0.15));
   border: 2px solid rgba(85, 230, 165, 0.4);
   transition: transform 0.14s ease, box-shadow 0.14s ease;
@@ -651,12 +657,12 @@ onMounted(startRound)
 
 .opt.right {
   background: rgba(85, 230, 165, 0.3);
-  border-color: var(--green);
+  border-color: var(--success);
 }
 
 .opt.bad {
   background: rgba(255, 107, 125, 0.26);
-  border-color: var(--red);
+  border-color: var(--danger);
 }
 
 @media (max-width: 560px) {

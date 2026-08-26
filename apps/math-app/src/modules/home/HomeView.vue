@@ -203,14 +203,14 @@ onMounted(() => {
   font-size: 13px;
   font-weight: 800;
   letter-spacing: 2px;
-  color: var(--cyan);
+  color: var(--brand);
 }
 
 .hero-title {
   font-size: clamp(28px, 5vw, 44px);
   font-weight: 900;
   line-height: 1.1;
-  background: linear-gradient(120deg, #ffffff, var(--cyan) 40%, var(--pink));
+  background: linear-gradient(120deg, var(--text-strong), var(--brand) 40%, var(--neon-pink));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -244,7 +244,7 @@ onMounted(() => {
   align-items: center;
   gap: 2px;
   padding: 12px 8px;
-  border-radius: var(--radius-m);
+  border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
@@ -273,7 +273,7 @@ onMounted(() => {
 .map-canvas {
   position: relative;
   height: 340px;
-  border-radius: var(--radius-m);
+  border-radius: var(--radius-md);
   background:
     radial-gradient(60% 80% at 20% 80%, rgba(94, 231, 255, 0.14), transparent 60%),
     radial-gradient(60% 80% at 80% 20%, rgba(255, 122, 198, 0.14), transparent 60%),
@@ -324,7 +324,11 @@ onMounted(() => {
   display: grid;
   place-items: center;
   font-size: 30px;
-  background: radial-gradient(circle at 32% 28%, #ffffff33, transparent 55%),
+  background: radial-gradient(
+      circle at 32% 28%,
+      color-mix(in srgb, var(--surface-strong) 20%, transparent),
+      transparent 55%
+    ),
     linear-gradient(140deg, var(--pc), var(--pa));
   box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.08), 0 12px 28px rgba(0, 0, 0, 0.45);
   transition: transform 0.18s ease;
@@ -335,7 +339,7 @@ onMounted(() => {
 }
 
 .planet.locked .planet-body {
-  background: linear-gradient(140deg, #3a4272, #262c52);
+  background: linear-gradient(140deg, var(--surface-strong), var(--surface-sunken));
   filter: saturate(0.4);
 }
 
@@ -347,7 +351,7 @@ onMounted(() => {
   font-weight: 900;
   padding: 2px 7px;
   border-radius: 999px;
-  background: #0b1030;
+  background: var(--cosmos-1);
   border: 1px solid var(--pc);
   color: var(--pc);
 }
@@ -368,7 +372,7 @@ onMounted(() => {
 .planet-label em {
   font-style: normal;
   font-size: 11px;
-  color: var(--ink-dim);
+  color: var(--text-soft);
 }
 
 .mod-card {
@@ -378,7 +382,7 @@ onMounted(() => {
   gap: 10px;
   padding: 18px;
   transition: transform 0.16s ease, border-color 0.16s ease;
-  border-radius: var(--radius-m);
+  border-radius: var(--radius-md);
 }
 
 .mod-card:hover {

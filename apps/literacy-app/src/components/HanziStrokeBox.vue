@@ -92,11 +92,11 @@ async function build() {
       strokeAnimationSpeed: settings.reduceMotion ? 3 : 1.1,
       delayBetweenStrokes: settings.reduceMotion ? 120 : 420,
       delayBetweenLoops: 1400,
-      strokeColor: cssColor('--stroke-ink', '#3d2f1f'),
-      radicalColor: cssColor('--brand-strong', '#f57c00'),
-      outlineColor: cssColor('--stroke-hint', '#e6ded2'),
-      drawingColor: cssColor('--accent', '#4ecdc4'),
-      highlightColor: cssColor('--star', '#ffc93c'),
+      strokeColor: cssColor('--stroke-ink', '#3d2f1f'), // token-ok: non-DOM fallback mirrors sunny token
+      radicalColor: cssColor('--brand-strong', '#f57c00'), // token-ok: non-DOM fallback mirrors sunny token
+      outlineColor: cssColor('--stroke-hint', '#e6ded2'), // token-ok: non-DOM fallback mirrors sunny token
+      drawingColor: cssColor('--accent', '#4ecdc4'), // token-ok: non-DOM fallback mirrors sunny token
+      highlightColor: cssColor('--star', '#ffc93c'), // token-ok: non-DOM fallback mirrors sunny token
       drawingWidth: 26
     })
     status.value = 'ready'

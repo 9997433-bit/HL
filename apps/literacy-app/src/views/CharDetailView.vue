@@ -314,7 +314,7 @@ watch(decoded, () => {
   padding: 10px 22px;
   border-radius: var(--radius-pill);
   background: var(--success);
-  color: #fff;
+  color: var(--text-invert);
   font-weight: 800;
   box-shadow: var(--shadow-md);
   animation: pop-in var(--dur-mid) var(--ease-pop);

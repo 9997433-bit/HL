@@ -14,7 +14,7 @@
    分层：
      §1 原始色板  §2 排印  §3 间距/圆角/层级  §4 动效  §5 交互尺寸
      §6 组件令牌  §7 音频令牌  §8 主题层(sunny/care/night/cosmos)
-     §9 字号缩放  §10 动效降级  §11 兼容别名
+     §9 字号缩放  §10 动效降级
    ========================================================================== */
 
 /* --------------------------------------------------------------------------
@@ -447,44 +447,4 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
   }
-}
-
-/* --------------------------------------------------------------------------
-   §11 兼容别名（Round 2 迁移完成后删除）
-   -------------------------------------------------------------------------- */
-
-/* literacy-app theme.css 旧名 */
-:root {
-  --seed-mango: var(--mango-400);
-  --seed-coral: var(--coral-400);
-  --seed-mint: var(--mint-400);
-  --seed-sky: var(--sky-400);
-  --seed-grape: var(--grape-400);
-  --seed-leaf: var(--leaf-400);
-}
-
-/* math-app main.css 旧名（仅 cosmos 主题下生效；--space-* 在旧文件中是颜色而非间距） */
-:root[data-theme='cosmos'] {
-  --space-0: var(--cosmos-0);
-  --space-1: var(--cosmos-1);
-  --space-2: var(--cosmos-2);
-  --space-3: var(--cosmos-3);
-
-  --ink: var(--ice-100);
-  --ink-soft: var(--ice-300);
-  --ink-dim: var(--ice-500);
-
-  --cyan: var(--neon-cyan);
-  --violet: var(--neon-violet);
-  --pink: var(--neon-pink);
-  --gold: var(--neon-gold);
-  --green: var(--neon-green);
-  --red: var(--neon-red);
-  --orange: var(--neon-orange);
-
-  --radius-s: var(--radius-sm);
-  --radius-m: var(--radius-md);
-  --radius-l: var(--radius-xl);
-
-  --shadow-card: var(--shadow-lg);
 }

@@ -444,7 +444,7 @@ defineExpose({ restart, index, current, locked, typed })
   display: block;
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, var(--cyan), var(--violet), var(--gold));
+  background: linear-gradient(90deg, var(--brand), var(--accent), var(--star));
   transition: width 0.35s ease;
 }
 
@@ -476,10 +476,10 @@ defineExpose({ restart, index, current, locked, typed })
 
 .quiz-hint {
   padding: 10px 14px;
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-sm);
   background: rgba(255, 206, 77, 0.12);
   border: 1px solid rgba(255, 206, 77, 0.4);
-  color: var(--gold);
+  color: var(--star);
   font-size: 14px;
 }
 
@@ -489,7 +489,7 @@ defineExpose({ restart, index, current, locked, typed })
   gap: 8px;
   flex-wrap: wrap;
   padding: 10px 14px;
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-sm);
   background: rgba(255, 107, 125, 0.12);
   border: 1px solid rgba(255, 107, 125, 0.42);
 }
@@ -497,7 +497,7 @@ defineExpose({ restart, index, current, locked, typed })
 .why-head {
   font-size: 13px;
   font-weight: 900;
-  color: var(--red);
+  color: var(--danger);
 }
 
 .why-chip {
@@ -507,13 +507,13 @@ defineExpose({ restart, index, current, locked, typed })
   font-weight: 800;
   background: rgba(255, 107, 125, 0.22);
   border: 1px solid rgba(255, 107, 125, 0.5);
-  color: var(--ink);
+  color: var(--text-strong);
 }
 
 .why-tip {
   flex-basis: 100%;
   font-size: 13px;
-  color: var(--ink-soft);
+  color: var(--text);
 }
 
 .options {
@@ -526,7 +526,7 @@ defineExpose({ restart, index, current, locked, typed })
   padding: 22px 10px;
   font-size: 30px;
   font-weight: 900;
-  border-radius: var(--radius-m);
+  border-radius: var(--radius-md);
   background: linear-gradient(160deg, rgba(255, 206, 77, 0.16), rgba(255, 159, 69, 0.14));
   border: 2px solid rgba(255, 206, 77, 0.42);
   transition: transform 0.14s ease, box-shadow 0.14s ease;
@@ -534,7 +534,7 @@ defineExpose({ restart, index, current, locked, typed })
 
 .opt small {
   font-size: 14px;
-  color: var(--ink-soft);
+  color: var(--text);
   margin-left: 2px;
 }
 
@@ -545,12 +545,12 @@ defineExpose({ restart, index, current, locked, typed })
 
 .opt.right {
   background: rgba(85, 230, 165, 0.28);
-  border-color: var(--green);
+  border-color: var(--success);
 }
 
 .opt.bad {
   background: rgba(255, 107, 125, 0.26);
-  border-color: var(--red);
+  border-color: var(--danger);
 }
 
 .keypad-wrap {
@@ -566,8 +566,8 @@ defineExpose({ restart, index, current, locked, typed })
   text-align: center;
   font-size: 34px;
   font-weight: 900;
-  color: var(--cyan);
-  border-radius: var(--radius-s);
+  color: var(--brand);
+  border-radius: var(--radius-sm);
   border: 3px dashed rgba(94, 231, 255, 0.55);
 }
 
@@ -578,7 +578,7 @@ defineExpose({ restart, index, current, locked, typed })
 
 .answer-slot small {
   font-size: 16px;
-  color: var(--ink-soft);
+  color: var(--text);
 }
 
 .keypad {
@@ -591,7 +591,7 @@ defineExpose({ restart, index, current, locked, typed })
   height: 60px;
   font-size: 26px;
   font-weight: 900;
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.16);
   transition: transform 0.12s ease, background 0.12s ease;
@@ -603,13 +603,13 @@ defineExpose({ restart, index, current, locked, typed })
 }
 
 .key.del {
-  color: var(--orange);
+  color: var(--neon-orange);
 }
 
 .key.wide {
   font-size: 18px;
-  background: linear-gradient(135deg, var(--cyan), var(--violet));
-  color: #08122b;
+  background: linear-gradient(135deg, var(--brand), var(--accent));
+  color: var(--text-invert);
   border-color: transparent;
 }
 

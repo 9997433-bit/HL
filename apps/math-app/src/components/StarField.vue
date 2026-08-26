@@ -30,7 +30,7 @@ function resize() {
 function seed() {
   const density = Math.round((w * h) / 9000)
   const count = Math.max(70, Math.min(240, density))
-  const palette = ['#ffffff', '#cfe4ff', '#ffe9b0', '#b9d4ff', '#ffd7f2']
+  const palette = ['#ffffff', '#cfe4ff', '#ffe9b0', '#b9d4ff', '#ffd7f2'] // token-ok: Canvas fillStyle cannot resolve CSS custom-property strings.
   stars = Array.from({ length: count }, () => ({
     x: Math.random() * w,
     y: Math.random() * h,

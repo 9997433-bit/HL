@@ -367,8 +367,8 @@ onBeforeUnmount(() => {
               <svg class="ship-svg" viewBox="0 0 240 120" aria-hidden="true">
                 <defs>
                   <linearGradient id="hull" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stop-color="#8ef0ff" />
-                    <stop offset="100%" stop-color="#4a67d8" />
+                    <stop offset="0%" stop-color="var(--brand)" />
+                    <stop offset="100%" stop-color="var(--accent)" />
                   </linearGradient>
                 </defs>
                 <ellipse cx="120" cy="96" rx="104" ry="18" fill="rgba(94,231,255,0.16)" />
@@ -378,9 +378,9 @@ onBeforeUnmount(() => {
                   stroke="rgba(255,255,255,0.5)"
                   stroke-width="2"
                 />
-                <circle cx="120" cy="60" r="24" fill="rgba(13,18,54,0.75)" stroke="#bff3ff" stroke-width="2" />
-                <circle cx="70" cy="76" r="6" fill="#ffce4d" />
-                <circle cx="170" cy="76" r="6" fill="#ff7ac6" />
+                <circle cx="120" cy="60" r="24" fill="rgba(13,18,54,0.75)" stroke="var(--brand)" stroke-width="2" />
+                <circle cx="70" cy="76" r="6" fill="var(--star)" />
+                <circle cx="170" cy="76" r="6" fill="var(--neon-pink)" />
               </svg>
               <div class="hold">
                 <button
@@ -534,10 +534,10 @@ onBeforeUnmount(() => {
 
 .hint {
   padding: 10px 14px;
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-sm);
   background: rgba(255, 206, 77, 0.12);
   border: 1px solid rgba(255, 206, 77, 0.4);
-  color: var(--gold);
+  color: var(--star);
   font-size: 14px;
 }
 
@@ -557,7 +557,7 @@ onBeforeUnmount(() => {
   gap: 8px;
   padding: 14px;
   min-height: 190px;
-  border-radius: var(--radius-m);
+  border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.04);
   border: 1px dashed rgba(255, 255, 255, 0.2);
 }
@@ -601,14 +601,14 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: 8px;
   padding: 12px;
-  border-radius: var(--radius-m);
+  border-radius: var(--radius-md);
   border: 2px dashed rgba(94, 231, 255, 0.35);
   background: rgba(94, 231, 255, 0.05);
   transition: all 0.18s ease;
 }
 
 .ship-wrap.active {
-  border-color: var(--green);
+  border-color: var(--success);
   background: rgba(85, 230, 165, 0.14);
   box-shadow: 0 0 28px rgba(85, 230, 165, 0.3);
 }
@@ -616,7 +616,7 @@ onBeforeUnmount(() => {
 .ship {
   position: relative;
   flex: 1;
-  border-radius: var(--radius-m);
+  border-radius: var(--radius-md);
   padding: 6px;
 }
 
@@ -646,7 +646,7 @@ onBeforeUnmount(() => {
 .counter-num {
   font-size: 32px;
   font-weight: 900;
-  color: var(--cyan);
+  color: var(--brand);
   text-shadow: 0 0 18px rgba(94, 231, 255, 0.6);
 }
 
@@ -684,7 +684,7 @@ onBeforeUnmount(() => {
   gap: 6px;
   justify-items: center;
   padding: 20px;
-  border-radius: var(--radius-m);
+  border-radius: var(--radius-md);
   background:
     repeating-radial-gradient(circle at 50% 50%, rgba(94, 231, 255, 0.08) 0 1px, transparent 1px 34px),
     rgba(6, 9, 30, 0.5);
@@ -722,14 +722,14 @@ onBeforeUnmount(() => {
   place-items: center;
   font-size: 26px;
   font-weight: 900;
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.07);
   border: 1px solid rgba(255, 255, 255, 0.14);
 }
 
 .seq-cell.blank {
-  color: var(--gold);
-  border: 2px dashed var(--gold);
+  color: var(--star);
+  border: 2px dashed var(--star);
   background: rgba(255, 206, 77, 0.1);
   animation: pulse 1.4s ease-in-out infinite;
 }
@@ -756,7 +756,7 @@ onBeforeUnmount(() => {
   padding: 20px 10px;
   font-size: 28px;
   font-weight: 900;
-  border-radius: var(--radius-m);
+  border-radius: var(--radius-md);
   background: linear-gradient(160deg, rgba(94, 231, 255, 0.16), rgba(155, 140, 255, 0.16));
   border: 2px solid rgba(155, 140, 255, 0.4);
   transition: transform 0.14s ease, box-shadow 0.14s ease;
@@ -769,12 +769,12 @@ onBeforeUnmount(() => {
 
 .options .opt.right {
   background: rgba(85, 230, 165, 0.28);
-  border-color: var(--green);
+  border-color: var(--success);
 }
 
 .options .opt.bad {
   background: rgba(255, 107, 125, 0.26);
-  border-color: var(--red);
+  border-color: var(--danger);
 }
 
 @media (max-width: 720px) {

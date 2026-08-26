@@ -9,12 +9,12 @@ const props = defineProps({
 const bodyColor = computed(
   () =>
     ({
-      idle: '#5ee7ff',
-      happy: '#55e6a5',
-      cheer: '#ffce4d',
-      sad: '#ff6b7d',
-      think: '#9b8cff',
-    })[props.mood] || '#5ee7ff',
+      idle: 'var(--brand)',
+      happy: 'var(--success)',
+      cheer: 'var(--star)',
+      sad: 'var(--danger)',
+      think: 'var(--accent)',
+    })[props.mood] || 'var(--brand)',
 )
 </script>
 
@@ -27,7 +27,7 @@ const bodyColor = computed(
           <stop offset="100%" :stop-color="bodyColor" stop-opacity="0" />
         </radialGradient>
         <linearGradient :id="`body-${mood}`" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#ffffff" />
+          <stop offset="0%" stop-color="var(--surface-strong)" />
           <stop offset="100%" :stop-color="bodyColor" />
         </linearGradient>
       </defs>
@@ -49,33 +49,33 @@ const bodyColor = computed(
         stroke="rgba(10,16,48,0.35)"
         stroke-width="2"
       />
-      <rect x="33" y="33" width="54" height="38" rx="18" fill="#0d1236" />
+      <rect x="33" y="33" width="54" height="38" rx="18" fill="var(--cosmos-1)" />
 
       <!-- 眼睛 -->
       <g v-if="mood === 'happy' || mood === 'cheer'">
-        <path d="M44 54 q7 -11 14 0" stroke="#7ef3c4" stroke-width="4" fill="none" stroke-linecap="round" />
-        <path d="M64 54 q7 -11 14 0" stroke="#7ef3c4" stroke-width="4" fill="none" stroke-linecap="round" />
+        <path d="M44 54 q7 -11 14 0" stroke="var(--success)" stroke-width="4" fill="none" stroke-linecap="round" />
+        <path d="M64 54 q7 -11 14 0" stroke="var(--success)" stroke-width="4" fill="none" stroke-linecap="round" />
       </g>
       <g v-else-if="mood === 'sad'">
-        <path d="M44 50 q7 9 14 0" stroke="#ffc3cb" stroke-width="4" fill="none" stroke-linecap="round" />
-        <path d="M64 50 q7 9 14 0" stroke="#ffc3cb" stroke-width="4" fill="none" stroke-linecap="round" />
+        <path d="M44 50 q7 9 14 0" stroke="var(--danger)" stroke-width="4" fill="none" stroke-linecap="round" />
+        <path d="M64 50 q7 9 14 0" stroke="var(--danger)" stroke-width="4" fill="none" stroke-linecap="round" />
       </g>
       <g v-else-if="mood === 'think'">
-        <circle cx="50" cy="52" r="5" fill="#d7cdff" />
-        <circle cx="72" cy="50" r="5" fill="#d7cdff" />
+        <circle cx="50" cy="52" r="5" fill="var(--accent)" />
+        <circle cx="72" cy="50" r="5" fill="var(--accent)" />
       </g>
       <g v-else class="eyes">
-        <circle cx="50" cy="52" r="6" fill="#bff3ff" />
-        <circle cx="72" cy="52" r="6" fill="#bff3ff" />
-        <circle cx="52" cy="50" r="2" fill="#ffffff" />
-        <circle cx="74" cy="50" r="2" fill="#ffffff" />
+        <circle cx="50" cy="52" r="6" fill="var(--brand)" />
+        <circle cx="72" cy="52" r="6" fill="var(--brand)" />
+        <circle cx="52" cy="50" r="2" fill="var(--surface-strong)" />
+        <circle cx="74" cy="50" r="2" fill="var(--surface-strong)" />
       </g>
 
       <!-- 嘴 -->
       <path
         v-if="mood === 'sad'"
         d="M50 66 q10 -8 20 0"
-        stroke="#ffc3cb"
+        stroke="var(--danger)"
         stroke-width="3"
         fill="none"
         stroke-linecap="round"
@@ -83,7 +83,7 @@ const bodyColor = computed(
       <path
         v-else
         d="M50 64 q10 9 20 0"
-        stroke="#8de9ff"
+        stroke="var(--brand)"
         stroke-width="3"
         fill="none"
         stroke-linecap="round"
@@ -91,9 +91,9 @@ const bodyColor = computed(
 
       <!-- 身体 -->
       <rect x="38" y="82" width="44" height="26" rx="13" :fill="bodyColor" opacity="0.9" />
-      <circle cx="52" cy="95" r="3.5" fill="#0d1236" opacity="0.55" />
-      <circle cx="60" cy="95" r="3.5" fill="#0d1236" opacity="0.55" />
-      <circle cx="68" cy="95" r="3.5" fill="#0d1236" opacity="0.55" />
+      <circle cx="52" cy="95" r="3.5" fill="var(--cosmos-1)" opacity="0.55" />
+      <circle cx="60" cy="95" r="3.5" fill="var(--cosmos-1)" opacity="0.55" />
+      <circle cx="68" cy="95" r="3.5" fill="var(--cosmos-1)" opacity="0.55" />
     </svg>
   </div>
 </template>

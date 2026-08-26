@@ -15,7 +15,14 @@ import { sound } from '@/utils/sound'
 
 const ROUND_SIZE = 10
 const MODULE_ID = 'geometry'
-const PALETTE = ['#5ee7ff', '#9b8cff', '#ff7ac6', '#ffce4d', '#55e6a5', '#ff9f45']
+const PALETTE = [
+  'var(--neon-cyan)',
+  'var(--neon-violet)',
+  'var(--neon-pink)',
+  'var(--neon-gold)',
+  'var(--neon-green)',
+  'var(--neon-orange)',
+]
 
 const router = useRouter()
 const progress = useProgressStore()
@@ -376,14 +383,14 @@ onMounted(startRound)
   border-radius: 999px;
   font-size: 13px;
   font-weight: 800;
-  color: var(--ink-soft);
+  color: var(--text);
   transition: all 0.16s ease;
   white-space: nowrap;
 }
 
 .seg-btn.on {
-  background: linear-gradient(135deg, var(--pink), var(--violet));
-  color: #1a0a22;
+  background: linear-gradient(135deg, var(--neon-pink), var(--accent));
+  color: var(--text-invert);
   box-shadow: 0 6px 16px rgba(255, 122, 198, 0.32);
 }
 
@@ -423,7 +430,7 @@ onMounted(startRound)
   display: grid;
   place-items: center;
   padding: 12px;
-  border-radius: var(--radius-m);
+  border-radius: var(--radius-md);
   background:
     radial-gradient(60% 80% at 50% 40%, rgba(155, 140, 255, 0.16), transparent 70%),
     rgba(6, 9, 30, 0.4);
@@ -441,7 +448,7 @@ onMounted(startRound)
   place-items: center;
   gap: 6px;
   padding: 16px 8px;
-  border-radius: var(--radius-m);
+  border-radius: var(--radius-md);
   background:
     radial-gradient(70% 70% at 30% 25%, rgba(255, 255, 255, 0.1), transparent 70%),
     rgba(255, 255, 255, 0.05);
@@ -456,19 +463,19 @@ onMounted(startRound)
 }
 
 .rock.right {
-  border-color: var(--green);
+  border-color: var(--success);
   background: rgba(85, 230, 165, 0.16);
 }
 
 .rock.bad {
-  border-color: var(--red);
+  border-color: var(--danger);
   background: rgba(255, 107, 125, 0.16);
 }
 
 .rock-name {
   font-size: 13px;
   font-weight: 800;
-  color: var(--ink-soft);
+  color: var(--text);
 }
 
 .word-options {
@@ -481,7 +488,7 @@ onMounted(startRound)
   padding: 18px 12px;
   font-size: 20px;
   font-weight: 900;
-  border-radius: var(--radius-m);
+  border-radius: var(--radius-md);
   background: linear-gradient(160deg, rgba(255, 122, 198, 0.16), rgba(155, 140, 255, 0.16));
   border: 2px solid rgba(255, 122, 198, 0.4);
   transition: transform 0.14s ease, box-shadow 0.14s ease;
@@ -494,20 +501,20 @@ onMounted(startRound)
 
 .word-opt.right {
   background: rgba(85, 230, 165, 0.28);
-  border-color: var(--green);
+  border-color: var(--success);
 }
 
 .word-opt.bad {
   background: rgba(255, 107, 125, 0.26);
-  border-color: var(--red);
+  border-color: var(--danger);
 }
 
 .fact {
   padding: 12px 16px;
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-sm);
   background: rgba(94, 231, 255, 0.1);
   border: 1px solid rgba(94, 231, 255, 0.32);
-  color: var(--ink-soft);
+  color: var(--text);
   font-size: 14px;
 }
 

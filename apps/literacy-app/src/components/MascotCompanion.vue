@@ -143,8 +143,8 @@ watch(
       <svg ref="body" viewBox="0 0 100 100" class="mascot__svg" aria-hidden="true">
         <defs>
           <linearGradient :id="`mascotBody-${size}`" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="var(--seed-mango)" />
-            <stop offset="100%" stop-color="var(--seed-coral)" />
+            <stop offset="0%" stop-color="var(--mango-400)" />
+            <stop offset="100%" stop-color="var(--coral-400)" />
           </linearGradient>
         </defs>
 
@@ -159,17 +159,17 @@ watch(
         <ellipse cx="50" cy="62" rx="24" ry="22" fill="var(--surface-strong)" opacity="0.9" />
 
         <!-- 腮红 -->
-        <ellipse cx="28" cy="60" rx="6" ry="4" fill="var(--seed-coral)" :opacity="face.cheek" />
-        <ellipse cx="72" cy="60" rx="6" ry="4" fill="var(--seed-coral)" :opacity="face.cheek" />
+        <ellipse cx="28" cy="60" rx="6" ry="4" fill="var(--coral-400)" :opacity="face.cheek" />
+        <ellipse cx="72" cy="60" rx="6" ry="4" fill="var(--coral-400)" :opacity="face.cheek" />
 
         <!-- 眼睛 -->
         <g ref="eyeL" :style="{ transform: `scaleY(${face.eyeScale})`, transformOrigin: '38px 48px' }">
           <ellipse cx="38" cy="48" rx="5" ry="6.5" fill="var(--stroke-ink)" />
-          <circle cx="40" cy="45.5" r="1.9" fill="#fff" />
+          <circle cx="40" cy="45.5" r="1.9" fill="var(--surface-strong)" />
         </g>
         <g ref="eyeR" :style="{ transform: `scaleY(${face.eyeScale})`, transformOrigin: '62px 48px' }">
           <ellipse cx="62" cy="48" rx="5" ry="6.5" fill="var(--stroke-ink)" />
-          <circle cx="64" cy="45.5" r="1.9" fill="#fff" />
+          <circle cx="64" cy="45.5" r="1.9" fill="var(--surface-strong)" />
         </g>
 
         <!-- 嘴 -->
@@ -182,7 +182,7 @@ watch(
         />
 
         <!-- 头顶小笔（墨墨是一支会写字的小精灵） -->
-        <rect x="47" y="4" width="6" height="14" rx="3" fill="var(--seed-mint)" />
+        <rect x="47" y="4" width="6" height="14" rx="3" fill="var(--mint-400)" />
         <path d="M 47 16 L 53 16 L 50 21 Z" fill="var(--stroke-ink)" />
 
         <!-- 睡着时的 Z -->

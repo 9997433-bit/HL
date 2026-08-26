@@ -287,27 +287,27 @@ function setOp(id) {
   border-radius: 999px;
   font-size: 13px;
   font-weight: 800;
-  color: var(--ink-soft);
+  color: var(--text);
   transition: all 0.16s ease;
   white-space: nowrap;
 }
 
 .seg-btn.on {
-  background: linear-gradient(135deg, var(--gold), var(--orange));
-  color: #3a2400;
+  background: linear-gradient(135deg, var(--star), var(--neon-orange));
+  color: var(--text-invert);
   box-shadow: 0 6px 16px rgba(255, 159, 69, 0.32);
 }
 
 .combo em {
   font-style: normal;
   font-weight: 900;
-  color: var(--gold);
+  color: var(--star);
 }
 
 .combo.hot {
   background: linear-gradient(135deg, rgba(255, 159, 69, 0.32), rgba(255, 107, 125, 0.32));
   border-color: rgba(255, 159, 69, 0.6);
-  color: var(--ink);
+  color: var(--text-strong);
 }
 
 .equation {
@@ -316,7 +316,7 @@ function setOp(id) {
   justify-content: center;
   gap: 14px;
   padding: 26px 12px;
-  border-radius: var(--radius-m);
+  border-radius: var(--radius-md);
   background:
     radial-gradient(70% 120% at 50% 0%, rgba(255, 206, 77, 0.16), transparent 70%),
     rgba(6, 9, 30, 0.45);
@@ -336,7 +336,7 @@ function setOp(id) {
 }
 
 .sign {
-  color: var(--gold);
+  color: var(--star);
 }
 
 .slot {
@@ -346,9 +346,9 @@ function setOp(id) {
   font-weight: 900;
   line-height: 1;
   text-align: center;
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-sm);
   border: 3px dashed rgba(94, 231, 255, 0.6);
-  color: var(--cyan);
+  color: var(--brand);
 }
 
 .slot.filled {
@@ -374,7 +374,7 @@ function setOp(id) {
   top: 0;
   height: 4px;
   border-radius: 999px;
-  background: linear-gradient(90deg, var(--cyan), var(--violet));
+  background: linear-gradient(90deg, var(--brand), var(--accent));
   opacity: 0.5;
 }
 
@@ -396,14 +396,14 @@ function setOp(id) {
 .nl-tick.start .nl-dot {
   width: 14px;
   height: 14px;
-  background: var(--gold);
+  background: var(--star);
   box-shadow: 0 0 12px rgba(255, 206, 77, 0.8);
 }
 
 .nl-tick.end .nl-dot {
   width: 14px;
   height: 14px;
-  background: var(--green);
+  background: var(--success);
   box-shadow: 0 0 12px rgba(85, 230, 165, 0.8);
 }
 
@@ -412,6 +412,6 @@ function setOp(id) {
   top: 12px;
   font-size: 11px;
   font-style: normal;
-  color: var(--ink-dim);
+  color: var(--text-soft);
 }
 </style>

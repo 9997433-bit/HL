@@ -153,7 +153,7 @@ const shelf = computed(() =>
   padding: 2px 9px;
   border-radius: var(--radius-pill);
   background: rgba(255, 255, 255, 0.85);
-  color: #4a3a22;
+  color: var(--text-strong);
   font-size: 0.72rem;
   font-weight: 800;
 }

@@ -251,8 +251,8 @@ onMounted(() => {
           />
           <defs>
             <linearGradient id="achGrad" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stop-color="#ffce4d" />
-              <stop offset="100%" stop-color="#ff7ac6" />
+              <stop offset="0%" stop-color="var(--star)" />
+              <stop offset="100%" stop-color="var(--neon-pink)" />
             </linearGradient>
           </defs>
         </svg>
@@ -333,15 +333,15 @@ onMounted(() => {
       <svg class="spark" :viewBox="`0 0 ${spark.w} ${spark.h}`" preserveAspectRatio="none">
         <defs>
           <linearGradient id="sparkFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#5ee7ff" stop-opacity="0.5" />
-            <stop offset="100%" stop-color="#5ee7ff" stop-opacity="0" />
+            <stop offset="0%" stop-color="var(--brand)" stop-opacity="0.5" />
+            <stop offset="100%" stop-color="var(--brand)" stop-opacity="0" />
           </linearGradient>
         </defs>
         <polygon :points="spark.area" fill="url(#sparkFill)" />
         <polyline
           :points="spark.points"
           fill="none"
-          stroke="#5ee7ff"
+          stroke="var(--brand)"
           stroke-width="2"
           stroke-linejoin="round"
           vector-effect="non-scaling-stroke"
@@ -464,7 +464,7 @@ onMounted(() => {
   font-family: inherit;
   font-size: 16px;
   font-weight: 700;
-  color: var(--ink);
+  color: var(--text-strong);
   background: rgba(255, 255, 255, 0.09);
   border: 1px solid rgba(255, 255, 255, 0.24);
   outline: none;
@@ -492,7 +492,7 @@ onMounted(() => {
 }
 
 .av-pick.on {
-  border-color: var(--gold);
+  border-color: var(--star);
   background: rgba(255, 206, 77, 0.2);
 }
 
@@ -507,7 +507,7 @@ onMounted(() => {
   flex-direction: column;
   align-items: center;
   padding: 10px 4px;
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
@@ -532,7 +532,7 @@ onMounted(() => {
   display: block;
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, var(--cyan), var(--violet));
+  background: linear-gradient(90deg, var(--brand), var(--accent));
   transition: width 0.6s ease;
 }
 
@@ -583,14 +583,14 @@ onMounted(() => {
   border-radius: 999px;
   font-size: 12px;
   font-weight: 800;
-  color: var(--ink-soft);
+  color: var(--text);
   transition: all 0.16s ease;
   white-space: nowrap;
 }
 
 .seg-btn.on {
-  background: linear-gradient(135deg, var(--gold), var(--pink));
-  color: #2a0f1e;
+  background: linear-gradient(135deg, var(--star), var(--neon-pink));
+  color: var(--text-invert);
 }
 
 .wall {
@@ -606,7 +606,7 @@ onMounted(() => {
   gap: 4px;
   padding: 16px 10px;
   text-align: center;
-  border-radius: var(--radius-m);
+  border-radius: var(--radius-md);
   background: linear-gradient(160deg, rgba(255, 206, 77, 0.18), rgba(255, 122, 198, 0.12));
   border: 2px solid rgba(255, 206, 77, 0.42);
   transition: transform 0.16s ease, box-shadow 0.16s ease;
@@ -642,7 +642,7 @@ onMounted(() => {
 .ach-date {
   font-size: 10px;
   font-weight: 800;
-  color: var(--gold);
+  color: var(--star);
 }
 
 .empty {
@@ -664,7 +664,7 @@ onMounted(() => {
   align-items: center;
   gap: 12px;
   padding: 10px 12px;
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
@@ -721,13 +721,13 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   padding: 6px 10px;
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.04);
   font-size: 13px;
 }
 
 .hist-row strong.good {
-  color: var(--green);
+  color: var(--success);
 }
 
 /* ---- 设置 ---- */
@@ -765,7 +765,7 @@ onMounted(() => {
 }
 
 .toggle.on {
-  background: linear-gradient(135deg, var(--green), var(--cyan));
+  background: linear-gradient(135deg, var(--success), var(--brand));
 }
 
 .knob {
@@ -775,7 +775,7 @@ onMounted(() => {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--surface-strong);
   transition: transform 0.2s ease;
 }
 
@@ -785,8 +785,8 @@ onMounted(() => {
 
 .danger {
   background: rgba(255, 107, 125, 0.22);
-  border-color: var(--red);
-  color: #ffd3d9;
+  border-color: var(--danger);
+  color: var(--danger);
 }
 
 @media (max-width: 560px) {
