@@ -12,6 +12,15 @@ Implemented here
 - **AC-UPD-003** (twin, MS-3.4) — a model detuned by +/-20 % is recovered from
   noise-free measurements to 1e-3 in at most ten iterations, and the corrected
   model passes the MS-4.2 correlation gates.
+- **AC-UPD-004** (contract, MS-3.4) — the objective is non-increasing over the
+  accepted steps, every run reports a stop reason from the closed
+  ``STOP_REASONS`` vocabulary and every token in it is reachable, and a
+  wrong-signed Jacobian raises ``UpdatingDivergenceError`` after three
+  consecutive accepted increases.
+- **AC-UPD-005** (property, MS-3.4) — with four parameters against two
+  residuals and an exactly collinear pair, the run completes, keeps every
+  iterate inside the parameter bounds, never raises the objective, and leaves
+  the unidentifiable direction where it started.
 - **AC-UPD-007** (twin, MS-3.6) — a deliberately duplicated parameter is caught
   by the pre-updating collinearity screen at pairwise cosine > 0.99, one of the
   pair is frozen with a reported reason, and updating still recovers the
@@ -29,8 +38,10 @@ import numpy as np
 import pytest
 
 from openfemlab.correlation import modal_scale_factor
+from openfemlab.exceptions import UpdatingDivergenceError
 from openfemlab.updating import ModelUpdater, ParameterSet, ScalingModel, UpdatableParameter
 from openfemlab.updating.sensitivity import eigenvalue_sensitivity, mode_shape_sensitivity
+from openfemlab.updating.updater import CONVERGED_REASONS, STOP_REASONS
 from openfemlab.workflow import run_correction, select_parameters
 
 from ._support import (
@@ -551,3 +562,342 @@ def test_ac_upd_007_updating_still_meets_the_recovery_gates():
     summary = report.final_correlation.summary
     assert summary.max_abs_freq_error_pct <= FREQUENCY_GATE_PERCENT
     assert summary.min_mac >= MAC_GATE
+
+
+# ------------------------------------- AC-UPD-004 convergence and divergence
+
+#: Gates handed to the updater for the ``gates_met`` exit. Loose next to the
+#: MS-4.2 gates above, so the run reaches them well before it converges.
+GATE_MIN_MAC = 0.99
+GATE_MAX_FREQ_PCT = 0.5
+
+#: Overrides that drive the twin onto each stop reason in turn.
+#:
+#: MS-3.4 names four termination criteria — the parameter step, the cost
+#: decrease, the correlation gates and the iteration cap. The loop can also
+#: reach a stationary point (``gradient_tol``) and exhaust its line search
+#: (``no_step``), and the run below pins the whole set, so a seventh reason
+#: cannot appear without this criterion being revisited.
+#:
+#: The twin is exactly solvable, so its gradient collapses to round-off before
+#: either tolerance can fire; that is why every case other than ``gradient_tol``
+#: has to switch the gradient test off to reach the criterion it is about.
+AC_UPD_004_REASONS = {
+    "gradient_tol": {},
+    "step_tol": {"gradient_tolerance": 0.0},
+    "cost_tol": {
+        "gradient_tolerance": 0.0,
+        "parameter_tolerance": 0.0,
+        # Loose enough that the first step's ~95 % reduction already counts as
+        # converged, which keeps the exit off the round-off floor.
+        "cost_tolerance": 0.99,
+    },
+    "gates_met": {
+        "target_min_mac": GATE_MIN_MAC,
+        "target_max_freq_error_pct": GATE_MAX_FREQ_PCT,
+    },
+    "max_iter": {
+        "max_iterations": 1,
+        "gradient_tolerance": 0.0,
+        "parameter_tolerance": 0.0,
+        "cost_tolerance": 0.0,
+    },
+    "no_step": {
+        "gradient_tolerance": 0.0,
+        "parameter_tolerance": 0.0,
+        "cost_tolerance": 0.0,
+    },
+}
+
+
+def _wrong_sign_sensitivity(model: ScalingModel, free):
+    """MS-3.4's "wrong-sign residual injection", as an analytical Jacobian.
+
+    Handing the updater ``-dr/dx`` makes every Gauss-Newton step point uphill.
+    With the line search switched off those steps are taken anyway, which is
+    the situation the divergence guard exists for: a run walking away from the
+    solution one accepted step at a time.
+    """
+    honest = model.sensitivity_function(list(free))
+
+    def evaluate(*args, **kwargs):
+        return -np.asarray(honest(*args, **kwargs), dtype=float)
+
+    return evaluate
+
+
+def _updater(case: str, **overrides) -> ModelUpdater:
+    """An AC-UPD-003 twin updater with the analytical Jacobian, plus overrides.
+
+    ``sensitivity_function="wrong_sign"`` swaps in :func:`_wrong_sign_sensitivity`
+    so the divergence cases stay readable at the call site.
+    """
+    free, truth = TWINS[case]
+    model = _scaling_model()
+    target = _twin_target(model, truth)
+    options = {
+        "sensitivity_function": model.sensitivity_function(list(free)),
+        "shape_weight": 0.0,
+        "max_iterations": MAX_UPDATING_ITERATIONS,
+    }
+    options.update(overrides)
+    if options.get("sensitivity_function") == "wrong_sign":
+        options["sensitivity_function"] = _wrong_sign_sensitivity(model, free)
+    return ModelUpdater(
+        model, _twin_parameters(free), target.frequencies, target.mode_shapes, **options
+    )
+
+
+@criterion("AC-UPD-004")
+@pytest.mark.parametrize("case", sorted(TWINS))
+def test_ac_upd_004_the_objective_is_non_increasing_over_accepted_steps(case):
+    """The line search only ever accepts a step that lowers ``J`` (MS-3.4)."""
+    result = _updater(case).run()
+
+    costs = result.accepted_costs
+    assert costs, "the run accepted no step"
+    assert costs == [record.cost for record in result.history if record.accepted]
+    assert all(
+        later <= earlier for earlier, later in zip(costs, costs[1:], strict=False)
+    ), f"{case}: {costs}"
+    assert costs[0] <= result.initial_cost
+    assert result.final_cost == costs[-1]
+
+
+@criterion("AC-UPD-004")
+@pytest.mark.parametrize("case", sorted(TWINS))
+def test_ac_upd_004_the_stop_reason_is_machine_readable(case):
+    """``stop_reason`` is a token from a closed vocabulary, not prose."""
+    result = _updater(case).run()
+
+    assert result.stop_reason in STOP_REASONS
+    assert result.converged is (result.stop_reason in CONVERGED_REASONS)
+    assert result.message and result.message != result.stop_reason
+    assert result.stop_reason in result.report()
+
+
+@criterion("AC-UPD-004")
+@pytest.mark.parametrize("reason", sorted(AC_UPD_004_REASONS))
+def test_ac_upd_004_every_documented_stop_reason_is_reachable(reason):
+    """Every token in the vocabulary is produced by some run of this model.
+
+    A vocabulary nothing can produce would be no contract at all, so the
+    reasons are driven one at a time by switching off whichever tests would
+    otherwise fire first.
+    """
+    assert set(AC_UPD_004_REASONS) == set(STOP_REASONS)
+
+    result = _updater("stiffness", **AC_UPD_004_REASONS[reason]).run()
+
+    assert result.stop_reason == reason, result.report()
+    assert result.converged is (reason in CONVERGED_REASONS)
+
+
+@criterion("AC-UPD-004")
+def test_ac_upd_004_the_gates_stop_the_run_before_the_tolerances_do():
+    """``gates_met`` is an early exit, not a relabelled convergence."""
+    gated = _updater(
+        "stiffness",
+        target_min_mac=GATE_MIN_MAC,
+        target_max_freq_error_pct=GATE_MAX_FREQ_PCT,
+    ).run()
+    ungated = _updater("stiffness").run()
+
+    assert gated.stop_reason == "gates_met"
+    assert gated.converged
+    assert gated.iterations < ungated.iterations
+    assert gated.final_correlation.min_mac >= GATE_MIN_MAC
+    assert gated.final_correlation.max_abs_freq_error_pct <= GATE_MAX_FREQ_PCT
+
+
+@criterion("AC-UPD-004")
+def test_ac_upd_004_a_wrong_sign_jacobian_aborts_as_a_divergence():
+    """Three consecutive rising accepted steps raise ``UpdatingDivergenceError``."""
+    updater = _updater(
+        "stiffness", sensitivity_function="wrong_sign", line_search=False, max_iterations=20
+    )
+
+    with pytest.raises(UpdatingDivergenceError) as excinfo:
+        updater.run()
+
+    error = excinfo.value
+    assert error.iteration == 3
+    assert len(error.costs) == 3
+    assert all(
+        later > earlier for earlier, later in zip(error.costs, error.costs[1:], strict=False)
+    ), error.costs
+
+
+@criterion("AC-UPD-004")
+def test_ac_upd_004_the_line_search_is_what_keeps_the_same_problem_from_diverging():
+    """The guard is a backstop, not the first line of defence.
+
+    The identical wrong-signed Jacobian with the line search left on cannot
+    take a single uphill step, so the run stops at ``no_step`` with the initial
+    model untouched instead of aborting. That contrast is what makes the
+    divergence above a property of the run rather than of the model.
+    """
+    result = _updater(
+        "stiffness", sensitivity_function="wrong_sign", max_iterations=20
+    ).run()
+
+    assert result.stop_reason == "no_step"
+    assert not result.converged
+    assert result.final_cost <= result.initial_cost
+    assert result.accepted_costs == []
+
+
+@criterion("AC-UPD-004")
+def test_ac_upd_004_the_divergence_patience_is_the_documented_three_steps():
+    """MS-3.4 says three, and the guard fires on exactly the patience it is given."""
+    for patience in (1, 2, 3):
+        updater = _updater(
+            "stiffness",
+            sensitivity_function="wrong_sign",
+            line_search=False,
+            max_iterations=20,
+            divergence_patience=patience,
+        )
+        with pytest.raises(UpdatingDivergenceError) as excinfo:
+            updater.run()
+        assert excinfo.value.iteration == patience
+
+    with pytest.raises(ValueError, match="divergence_patience"):
+        _updater("stiffness", divergence_patience=0)
+
+
+# --------------------------------------------- AC-UPD-005 ill-posed robustness
+
+#: The over-parameterized statement: every spring group *and* the duplicate is
+#: free, against a target of fewer modes than there are parameters.
+ILL_POSED_TRUTH = {"k1": 1.20, "k2": 0.80, "k3": 1.15, "k1_twin": 1.00}
+ILL_POSED_MODES = 2
+PARAMETER_LOWER = 0.5
+PARAMETER_UPPER = 2.0
+NULL_SPACE_TOLERANCE = 1e-12
+
+
+def _ill_posed_updater(**overrides) -> ModelUpdater:
+    """More parameters than residuals, two of them exactly collinear.
+
+    ``k1`` and ``k1_twin`` scale the same springs, so the sensitivity matrix is
+    rank deficient by construction; restricting the target to two modes and
+    dropping the shape residual leaves two residuals for four free parameters,
+    which is the under-determined half of MS-3.4's robustness requirement.
+    Unlike AC-UPD-007 the collinearity screen is deliberately bypassed here —
+    the point is what the bare loop does when nobody removed the degeneracy.
+    """
+    model = _duplicated_model()
+    names = list(model.parameter_names)
+    target = model.modal_data(ILL_POSED_TRUTH)
+    parameters = ParameterSet(
+        [
+            UpdatableParameter(name, 1.0, PARAMETER_LOWER, PARAMETER_UPPER)
+            for name in names
+        ]
+    )
+    options = {
+        "sensitivity_function": model.sensitivity_function(names),
+        "shape_weight": 0.0,
+        "max_iterations": 30,
+    }
+    options.update(overrides)
+    return ModelUpdater(
+        model, parameters, target.frequencies[:ILL_POSED_MODES], None, **options
+    )
+
+
+def _iterates(result) -> np.ndarray:
+    """``(n_iterations, n_parameters)`` table of the parameters at each step."""
+    names = sorted(result.parameters)
+    return np.array(
+        [[record.parameters[name] for name in names] for record in result.history],
+        dtype=float,
+    )
+
+
+@criterion("AC-UPD-005")
+def test_ac_upd_005_the_statement_really_is_under_determined():
+    """Guard: four parameters, two residuals, and a rank-deficient Jacobian."""
+    result = _ill_posed_updater().run()
+
+    assert len(result.parameters) == 4
+    jacobian = result.sensitivity.matrix
+    assert jacobian.shape == (ILL_POSED_MODES, 4)
+    assert np.linalg.matrix_rank(jacobian) < jacobian.shape[1]
+    # The duplicated pair is the degeneracy: identical sensitivity columns.
+    names = list(result.sensitivity.parameter_names)
+    left, right = names.index("k1"), names.index("k1_twin")
+    np.testing.assert_allclose(jacobian[:, left], jacobian[:, right], rtol=1e-10)
+
+
+@criterion("AC-UPD-005")
+@pytest.mark.parametrize("method", ["levenberg-marquardt", "gauss-newton"])
+def test_ac_upd_005_the_ill_posed_run_completes_without_raising(method):
+    """No exception, a finite answer, and a stop reason from the vocabulary."""
+    result = _ill_posed_updater(method=method).run()
+
+    assert result.stop_reason in STOP_REASONS
+    assert np.all(np.isfinite(list(result.parameters.values())))
+    assert np.isfinite(result.final_cost)
+    assert result.history, "the run recorded no iterations"
+
+
+@criterion("AC-UPD-005")
+@pytest.mark.parametrize("method", ["levenberg-marquardt", "gauss-newton"])
+def test_ac_upd_005_every_iterate_stays_inside_the_bounds(method):
+    """Bounded iterates: the projection holds at every recorded step, not just the last."""
+    result = _ill_posed_updater(method=method).run()
+
+    iterates = _iterates(result)
+    assert iterates.size
+    assert np.all(iterates >= PARAMETER_LOWER - 1e-12), iterates.min()
+    assert np.all(iterates <= PARAMETER_UPPER + 1e-12), iterates.max()
+    for parameter in result.parameter_set:
+        assert parameter.lower <= parameter.value <= parameter.upper
+
+
+@criterion("AC-UPD-005")
+@pytest.mark.parametrize("method", ["levenberg-marquardt", "gauss-newton"])
+def test_ac_upd_005_the_objective_is_non_increasing_and_bounded(method):
+    """``J`` falls monotonically and the iterates do not run away."""
+    result = _ill_posed_updater(method=method).run()
+
+    costs = result.accepted_costs
+    assert costs
+    assert all(
+        later <= earlier for earlier, later in zip(costs, costs[1:], strict=False)
+    ), costs
+    assert result.final_cost < result.initial_cost
+    assert np.max(np.abs(_iterates(result))) <= PARAMETER_UPPER
+
+
+@criterion("AC-UPD-005")
+def test_ac_upd_005_the_unidentifiable_direction_is_left_where_it_started():
+    """What an under-determined run may and may not claim.
+
+    Two residuals cannot pin four parameters, so no individual value here is
+    recoverable — not even the sum ``k1 + k1_twin`` that collapsing the
+    duplicate leaves behind, because three effective factors still outnumber
+    the two frequencies. What the run must *not* do is wander along the null
+    space: the pair enters the stiffness identically and starts from the same
+    value, so their difference is the degenerate direction, and the iteration
+    has to leave it at zero from the first step to the last. The fit is the
+    part that is determined, and it is reached.
+    """
+    result = _ill_posed_updater(regularization=1e-6).run()
+
+    recovered = result.parameters
+    assert recovered["k1"] == pytest.approx(
+        recovered["k1_twin"], abs=NULL_SPACE_TOLERANCE
+    )
+
+    names = sorted(recovered)
+    left, right = names.index("k1"), names.index("k1_twin")
+    iterates = _iterates(result)
+    drift = np.max(np.abs(iterates[:, left] - iterates[:, right]))
+    assert drift <= NULL_SPACE_TOLERANCE, drift
+
+    # The identifiable combination did move: the run fitted, it did not idle.
+    assert recovered["k1"] + recovered["k1_twin"] > 2.0
+    assert result.final_correlation.max_abs_freq_error_pct <= FREQUENCY_GATE_PERCENT
