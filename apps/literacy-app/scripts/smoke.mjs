@@ -476,7 +476,7 @@ await interact('庆祝动画：可以立刻跳过', '/#/books/b3', async (page) 
     if (await clickText(page, '读完啦')) break
     break
   }
-  await new Promise((r) => setTimeout(r, 400))
+  await page.waitForSelector('.cel', { timeout: 5000 })
 
   const before = await page.evaluate(() => ({
     open: !!document.querySelector('.cel'),
@@ -846,7 +846,7 @@ await interact('播报：答题与庆祝都有 aria-live', '/#/listen', async (p
     if (await clickText(page, '读完啦')) break
     break
   }
-  await new Promise((r) => setTimeout(r, 500))
+  await page.waitForSelector('.cel', { timeout: 5000 })
   const celebration = await page.evaluate(() => {
     const layer = document.querySelector('.cel')
     if (!layer) return null
