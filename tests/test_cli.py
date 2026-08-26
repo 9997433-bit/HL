@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -350,6 +351,17 @@ def test_update_requires_a_numeric_parameter_target(model_file, test_file, tmp_p
 # ----------------------------------------------------------- the real process
 
 
+def _subprocess_environment() -> dict[str, str]:
+    """Make child interpreters import this checkout, even with an editable install elsewhere."""
+    environment = os.environ.copy()
+    current = environment.get("PYTHONPATH")
+    paths = [str(REPOSITORY_ROOT / "src")]
+    if current:
+        paths.append(current)
+    environment["PYTHONPATH"] = os.pathsep.join(paths)
+    return environment
+
+
 @pytest.fixture(scope="module")
 def example_02_fixtures(tmp_path_factory) -> Path:
     """Generate the model, test data, and updating config documented by example 02."""
@@ -360,6 +372,7 @@ def example_02_fixtures(tmp_path_factory) -> Path:
         capture_output=True,
         text=True,
         check=False,
+        env=_subprocess_environment(),
     )
     assert completed.returncode == 0, completed.stderr
     for name in ("cantilever.yaml", "measured.yaml", "updating.yaml"):
@@ -374,6 +387,7 @@ def _run_cli(*args: object) -> subprocess.CompletedProcess[str]:
         capture_output=True,
         text=True,
         check=False,
+        env=_subprocess_environment(),
     )
 
 
