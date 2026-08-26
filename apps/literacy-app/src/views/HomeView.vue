@@ -5,7 +5,7 @@ import ProgressRing from '@/components/ProgressRing.vue'
 import { useProgressStore } from '@/stores/progress.js'
 import { useSettingsStore } from '@/stores/settings.js'
 import { BOOKS } from '@/data/books.js'
-import { IDIOMS } from '@/data/idioms.js'
+import { TOTAL_IDIOMS } from '@/data/idiom-index.js'
 import { RADICALS } from '@/data/radicals.js'
 import { sfx } from '@/utils/sfx.js'
 import OpenMojiIcon from '@shared/components/OpenMojiIcon.vue'
@@ -65,7 +65,7 @@ const stations = computed(() => [
     desc: '四格小剧场，看懂一个成语',
     color: 'var(--grape-400)',
     done: progress.idiomsSeen,
-    total: IDIOMS.length,
+    total: TOTAL_IDIOMS,
     unit: '个'
   },
   {

@@ -17,6 +17,7 @@ import {
 } from '../src/data/characters.js'
 import { BOOKS, charsInBook, verifyBookCoverage } from '../src/data/books.js'
 import { IDIOMS } from '../src/data/idioms.js'
+import { TOTAL_IDIOMS } from '../src/data/idiom-index.js'
 import { RADICALS, getRadical } from '../src/data/radicals.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
@@ -130,7 +131,25 @@ for (const b of BOOKS) {
 }
 
 /* ----------------------------------------------------------------- 成语 */
-check(IDIOMS.length >= 20, `成语 ${IDIOMS.length} 个（要求 ≥ 20）`)
+check(IDIOMS.length >= 60, `成语 ${IDIOMS.length} 个（要求 ≥ 60）`)
+
+const idiomWordDupes = IDIOMS.map((i) => i.word).filter((v, i, a) => a.indexOf(v) !== i)
+check(
+  idiomWordDupes.length === 0,
+  `成语正文无重复${idiomWordDupes.length ? `（${idiomWordDupes.join('、')}）` : ''}`
+)
+
+// 逐字拆解卡是按成语正文一格一格摆的，两边对不上就会出现「拆解里没有这个字」。
+const charDrift = IDIOMS.filter((i) => (i.chars ?? []).map((c) => c.c).join('') !== i.word)
+check(
+  charDrift.length === 0,
+  `逐字拆解与成语正文逐字对应${charDrift.length ? `（${charDrift.map((i) => i.word).join('、')}）` : ''}`
+)
+
+check(
+  TOTAL_IDIOMS === IDIOMS.length,
+  `首页用的成语总数索引与语料一致（idiom-index=${TOTAL_IDIOMS}，语料=${IDIOMS.length}）`
+)
 
 const idiomDupes = IDIOMS.map((i) => i.id).filter((v, i, a) => a.indexOf(v) !== i)
 check(idiomDupes.length === 0, `成语 id 无重复${idiomDupes.length ? `（${idiomDupes.join(',')}）` : ''}`)
