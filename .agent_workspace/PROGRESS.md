@@ -988,11 +988,14 @@ Core backlog (prioritized, from `docs/SOTA_GAP_ANALYSIS.md` §4/§6 + Round 1 co
    **The only remaining item is the `implemented` → `verified` flip, which needs a CI
    run rather than more code**, i.e. R2-T09. See the A36, A43 and A58 entries below.*
 4. **R2-T04 Bayesian MAP updating** (GAP-11 slice, MS-3.5) — Gaussian-prior MAP step +
-   posterior covariance; closes Round-2 gates AC-UPD-006a/b. **PARTIAL: the estimator
-   is on the trunk** (A49, `updating/bayesian.py`, 35 tests) driving the shared LM loop
-   through the new `normal_equations`/`penalty` hooks; remaining are the AC-UPD-006a/b
-   acceptance tags + registry flips and σ_post in the CLI `update` document and the
-   `CorrectionReport` table.
+   posterior covariance; closes Round-2 gates AC-UPD-006a/b. *The estimator landed by
+   A49 (`updating/bayesian.py`, 35 tests), driving the shared LM loop through the new
+   `normal_equations`/`penalty` hooks, and **both criteria are now `implemented`** —
+   A57 added the eight-test acceptance gate on the ten-DOF twin, flipped the registry
+   in the same commit and wired the Laplace σ_post into the `CorrectionReport` column
+   AC-WORK-005 reserves. Remaining: σ_post in the CLI `update` document, and moving
+   both rows from `implemented` to `verified` once CI has run them. See the A49 and A57
+   entries below.*
 5. **R2-T05 meshio bridge & IO completion** (GAP-03 remainder) — optional-dependency
    meshio ↔ NeutralModel bridge, UNV 2411/2412. **NOT STARTED.**
 
@@ -2356,6 +2359,69 @@ the AC-UPD-006a/b registry rows stay `specified` because their tags belong in
 - The unpinned pytest invocation inherited `/workspace/src` and failed collection
   against that unrelated checkout. Pinning the branch-local source removed the
   cross-worktree import contamination; no product-code fix was required.
+
+#### A57 — R2-T04 closes its acceptance gate: AC-UPD-006a/b registered (backfill for A49)
+
+The second slice of the second Round-2 gate-blocker. A49 landed the MS-3.5 estimator
+and left the two registry rows at `specified` because their tags belong in the M3
+acceptance suite; this run writes them, flips both rows in the same commit, and
+finishes the σ_post surface A49 listed as outstanding.
+
+- `tests/acceptance/test_updating.py` gains eight tagged tests on the suite's *own*
+  rig — the `ten_dof_chain` split into three stiffness and two mass groups, run as the
+  AC-UPD-003 `stiffness` twin, so the deterministic answer the weak-prior limit has to
+  reproduce is already pinned a few tests above. Deliberately not a copy of A49's 2-DOF
+  unit suite: different model, different residual dimension (6 modes / 3 free factors,
+  over-determined rather than square), and the linearization the step tests compare on
+  is assembled in the suite from the model's analytic frequency sensitivity rather than
+  read back from either estimator.
+- **AC-UPD-006a** three ways. A zero prior precision is an *identity*, not a limit, so
+  the MAP step matches Gauss–Newton to 1e-12 even with an off-centre prior mean. Over
+  precisions 1e-2 → 1e-6 → 1e-12 the relative gap falls monotonically 2.2e-1 → 3.8e-5 →
+  3.8e-11, inside the documented 1e-8; the sweep asserts the strongest prior bends the
+  step by > 10 % so the gate cannot pass vacuously. End to end a σ = 1e6 prior
+  reproduces the deterministic run's factors to 1e-8 and still clears the MS-4.2 gates.
+- **AC-UPD-006b** likewise. σ_post ≤ σ_prior componentwise over σ ∈ {1, 0.1, 0.01} and
+  below the width the same run reports with no prior at all; every narrowing of the
+  prior strictly narrows every posterior marginal; and at σ = 0.01 the solution stays
+  inside 3σ_prior of θ₀ (7.9e-6, against a 3e-2 limit) while provably *not* recovering
+  the truth — which is what makes the three-sigma statement a gate rather than an
+  accident of a prior that happens to agree with the data.
+- **A real bug fell out of the σ_post work.** `ModelUpdater.run()` recorded the bare
+  data misfit as the starting cost but compared every trial against `cost + penalty`,
+  so the first acceptance test weighed two different objectives. Both penalties in the
+  tree are zero at the starting point — `regularization` is anchored at θ₀, and so is a
+  Gaussian prior that takes its default mean — which is why nothing caught it. Give the
+  prior an explicit mean and it bites: with `from_std(0.01, mean=[0.90, 1.10])` on the
+  2-DOF chain the initial cost read 2.85e-3 against a first trial of 8.5e-3, no step
+  was ever accepted, and the run returned θ₀ with the prior mean silently ignored.
+  Penalizing the starting cost fixes it (initial 4.50, step accepted, run lands on the
+  prior mean). `GaussianPrior.mean` was effectively dead at run level until now; the
+  existing test only exercised the linearized step.
+- **σ_post reaches the `CorrectionReport`.** AC-WORK-005 has reserved the column since
+  the schema landed, but S4 could only fill it with the least-squares stand-in
+  `C_post ≈ σ² (JᵀJ)⁻¹`, σ² read off the final residual — on the noise-free twins the
+  workflow tests use that collapses to ~1e-12, a statement about how well the fit
+  closed rather than about what the measurement was worth. `CorrectionWorkflow` now
+  takes `prior` and `noise_covariance`; either switches S4 from `ModelUpdater` to
+  `BayesianUpdater` and the column carries the Laplace posterior the run already
+  evaluated at its solution. With neither, nothing changes to the last digit, so
+  AC-WORK-002 reproducibility and every existing report stay put.
+- Verified from the isolated clone with `PYTHONPATH` pinned to its own `src`:
+  **888 passed** (884 at the merged trunk tip + 1 updating + 3 workflow, on top of the
+  8 acceptance tests already counted), `ruff check .` clean.
+- **Left open for R2-T04:** σ_post in the CLI `update` document — that needs a
+  prior/noise block in the update spec schema, a column in the rendered table and the
+  JSON payload, and CLI doc updates, which is a slice of its own rather than a
+  footnote. Also still open from A49: whether the prior should be expressible in
+  *physical* space rather than only the updater's design space.
+- **Process note, the hard way.** The private-clone rule A48/A49 established is not
+  enough on its own if the clone has a *guessable* name. A concurrent agent ran
+  `git checkout && git fetch && git reset --hard` inside `/tmp/a57` — the obvious path
+  for subagent A57 — and destroyed this run's uncommitted working tree; only the
+  already-pushed acceptance commit survived. Redone in a timestamped, PID-suffixed
+  directory. Two rules, not one: work in a private clone, and give it a name no other
+  agent would pick.
 
 #### A64 — Chinese quickstart user guide `docs/USER_GUIDE_zh.md` (backfill for A52)
 
