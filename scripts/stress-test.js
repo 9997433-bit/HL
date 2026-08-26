@@ -20,11 +20,15 @@ const positiveInteger = (name, fallback) => {
 }
 
 const config = {
-  hanziCount: positiveInteger('STRESS_HANZI_COUNT', 20_000),
-  mathCount: positiveInteger('STRESS_MATH_COUNT', 100_000),
+  round: 2,
+  hanziCount: positiveInteger('STRESS_HANZI_COUNT', 50_000),
+  mathCount: positiveInteger('STRESS_MATH_COUNT', 250_000),
   seed: positiveInteger('STRESS_SEED', 20_260_826),
-  maxDurationMs: positiveInteger('STRESS_MAX_DURATION_MS', 5_000),
-  maxHeapMb: positiveInteger('STRESS_MAX_HEAP_MB', 256),
+  maxDurationMs: positiveInteger('STRESS_MAX_DURATION_MS', 2_000),
+  maxHeapMb: positiveInteger('STRESS_MAX_HEAP_MB', 128),
+  minHanziDataset: positiveInteger('STRESS_MIN_HANZI_DATASET', 100),
+  minMathDataset: positiveInteger('STRESS_MIN_MATH_DATASET', 80),
+  minMathTypes: positiveInteger('STRESS_MIN_MATH_TYPES', 9),
 }
 
 const readJson = (filename) => {
@@ -75,11 +79,11 @@ function validateData(charactersData, mathData) {
   const characters = charactersData.characters
   const problems = mathData.problems
 
-  if (!Array.isArray(characters) || characters.length < 50) {
-    errors.push('common-hanzi.json 至少需要 50 个汉字')
+  if (!Array.isArray(characters) || characters.length < config.minHanziDataset) {
+    errors.push(`common-hanzi.json 至少需要 ${config.minHanziDataset} 个汉字`)
   }
-  if (!Array.isArray(problems) || problems.length === 0) {
-    errors.push('math-problems.json 的 problems 不能为空')
+  if (!Array.isArray(problems) || problems.length < config.minMathDataset) {
+    errors.push(`math-problems.json 至少需要 ${config.minMathDataset} 道题`)
   }
   if (Array.isArray(characters)) {
     const values = characters.map((item) => item.character)
@@ -91,6 +95,10 @@ function validateData(charactersData, mathData) {
   if (Array.isArray(problems)) {
     const ids = problems.map((item) => item.id)
     if (new Set(ids).size !== ids.length) errors.push('数学题 id 存在重复项')
+    const problemTypes = new Set(problems.map((item) => item.type))
+    if (problemTypes.size < config.minMathTypes) {
+      errors.push(`数学题至少需要覆盖 ${config.minMathTypes} 类题型`)
+    }
     for (const problem of problems) {
       if (!['number', 'string'].includes(typeof problem.answer)) {
         errors.push(`数学题 ${problem.id || '(无 id)'} 缺少有效答案`)
@@ -216,8 +224,12 @@ function stressMathGeneration(count, seed) {
 }
 
 function report(result) {
-  console.log('边界压力测试')
+  console.log(`Round ${config.round} 边界压力测试`)
   console.log(`Node.js: ${process.version} | seed: ${config.seed}`)
+  console.log(
+    `预算: 单项 ≤ ${config.maxDurationMs} ms | 堆增量 ≤ ${config.maxHeapMb} MiB | ` +
+      `数据集 ≥ ${config.minHanziDataset} 字 / ${config.minMathDataset} 题 / ${config.minMathTypes} 类`,
+  )
   console.log(
     `汉字标记生成: ${result.hanzi.count.toLocaleString('en-US')} 张卡片 | ` +
       `${result.hanzi.durationMs.toFixed(2)} ms | ` +

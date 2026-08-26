@@ -170,6 +170,169 @@ const clickText = async (page, text) => {
   return done
 }
 
+await interact('FSRS：到期卡进入复习队列，未到期卡不进入', `/#/learn/${encodeURIComponent('日')}`, async (page) => {
+  await page.evaluate(() => localStorage.clear())
+  await page.reload({ waitUntil: 'networkidle2' })
+  await new Promise((r) => setTimeout(r, 500))
+
+  if (!(await clickText(page, '我认识这个字'))) {
+    throw new Error('单字页缺少“我认识这个字”评分入口')
+  }
+  await page.goto(`${base}/#/learn/${encodeURIComponent('月')}`, {
+    waitUntil: 'networkidle2',
+    timeout: 20000
+  })
+  await new Promise((r) => setTimeout(r, 500))
+  if (!(await clickText(page, '我认识这个字'))) {
+    throw new Error('第二张单字卡无法提交评分')
+  }
+
+  const seeded = await page.evaluate(() => {
+    const now = Date.now()
+    const storageKeys = Object.keys(localStorage)
+
+    for (const key of storageKeys) {
+      let value
+      try {
+        value = JSON.parse(localStorage.getItem(key))
+      } catch {
+        continue
+      }
+
+      const cards = []
+      const seen = new Set()
+      const walk = (node, path = '$') => {
+        if (!node || typeof node !== 'object' || seen.has(node)) return
+        seen.add(node)
+        if (
+          typeof node.charId === 'string' &&
+          Number.isFinite(node.due) &&
+          Number.isFinite(node.stability)
+        ) {
+          cards.push({ node, path })
+        }
+        for (const [name, child] of Object.entries(node)) walk(child, `${path}.${name}`)
+      }
+      walk(value)
+
+      const due = cards.find(({ node }) => node.charId === '日')
+      const future = cards.find(({ node }) => node.charId === '月')
+      if (!due || !future) continue
+
+      due.node.due = now - 60_000
+      future.node.due = now + 7 * 24 * 60 * 60 * 1000
+      localStorage.setItem(key, JSON.stringify(value))
+      return {
+        key,
+        count: cards.length,
+        duePath: due.path,
+        futurePath: future.path
+      }
+    }
+    return null
+  })
+
+  if (!seeded) {
+    throw new Error('作答后未在持久化进度中找到日、月两张 FSRS 卡')
+  }
+
+  await page.goto(`${base}/#/learn`, { waitUntil: 'networkidle2', timeout: 20000 })
+  await new Promise((r) => setTimeout(r, 500))
+  if (!(await clickText(page, '要复习'))) {
+    throw new Error('字表缺少“要复习”筛选入口')
+  }
+
+  const visible = await page.evaluate(() =>
+    [...document.querySelectorAll('.cc')]
+      .filter((node) => {
+        const style = getComputedStyle(node)
+        return style.display !== 'none' && style.visibility !== 'hidden' && node.getClientRects().length > 0
+      })
+      .map((node) => node.querySelector('.cc__char')?.textContent?.trim())
+      .filter(Boolean)
+  )
+  if (!visible.includes('日')) throw new Error(`到期卡“日”没有进入复习队列：${visible.join('、')}`)
+  if (visible.includes('月')) throw new Error('未到期卡“月”错误进入复习队列')
+
+  return `持久化卡=${seeded.count}，到期“日”可见，未来“月”已排除`
+})
+
+await interact('100 字字表：分页渲染且所有字可达', '/#/learn', async (page) => {
+  const snapshot = () =>
+    page.evaluate(() => {
+      const text = document.body.innerText
+      const total = Number(text.match(/共\s*(\d+)\s*个常用字/)?.[1] ?? 0)
+      const chars = [...document.querySelectorAll('.cc')]
+        .filter((node) => {
+          const style = getComputedStyle(node)
+          return (
+            style.display !== 'none' &&
+            style.visibility !== 'hidden' &&
+            node.getClientRects().length > 0
+          )
+        })
+        .map((node) => node.querySelector('.cc__char')?.textContent?.trim())
+        .filter(Boolean)
+      return { total, chars }
+    })
+
+  const first = await snapshot()
+  if (first.total < 100) throw new Error(`字库规模只有 ${first.total}，Round 2 要求至少 100 字`)
+  if (!first.chars.length) throw new Error('字表首屏没有渲染单字卡')
+  if (first.chars.length >= first.total) {
+    throw new Error(`首屏一次挂载 ${first.chars.length}/${first.total} 张卡片，未启用分页`)
+  }
+
+  const reached = new Set(first.chars)
+  let mountedMax = first.chars.length
+  let turns = 0
+  let unchanged = 0
+  let previous = first.chars.join('|')
+
+  while (reached.size < first.total && turns < 20) {
+    const clicked = await page.evaluate(() => {
+      const nextPattern = /下一页|下一批|加载更多|显示更多|查看更多|更多汉字/
+      const controls = [...document.querySelectorAll('button, a')].filter((node) => {
+        const style = getComputedStyle(node)
+        return (
+          !node.disabled &&
+          node.getAttribute('aria-disabled') !== 'true' &&
+          style.display !== 'none' &&
+          style.visibility !== 'hidden' &&
+          node.getClientRects().length > 0
+        )
+      })
+      const control = controls.find((node) =>
+        nextPattern.test(`${node.innerText} ${node.getAttribute('aria-label') ?? ''}`)
+      )
+      if (!control) return ''
+      const label = control.innerText.trim() || control.getAttribute('aria-label') || '下一页'
+      control.click()
+      return label
+    })
+    if (!clicked) break
+
+    turns += 1
+    await new Promise((r) => setTimeout(r, 350))
+    const current = await snapshot()
+    mountedMax = Math.max(mountedMax, current.chars.length)
+    current.chars.forEach((char) => reached.add(char))
+    const signature = current.chars.join('|')
+    unchanged = signature === previous ? unchanged + 1 : 0
+    previous = signature
+    if (unchanged >= 2) break
+  }
+
+  if (mountedMax > 50) {
+    throw new Error(`分页过程中同时挂载 ${mountedMax} 张卡片，超过 50 张 DOM 预算`)
+  }
+  if (reached.size < first.total) {
+    throw new Error(`分页只覆盖 ${reached.size}/${first.total} 个字（翻页 ${turns} 次）`)
+  }
+
+  return `总数=${first.total}，首屏=${first.chars.length}，最大挂载=${mountedMax}，翻页=${turns}`
+})
+
 await interact('听音识字：开始并答 3 题', '/#/listen', async (page) => {
   const started = await clickText(page, '开始')
   let answered = 0

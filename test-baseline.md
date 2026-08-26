@@ -1,27 +1,46 @@
-# Round 1 动画、音效与性能探针基线
+# Round 2 FSRS、E2E 与压力测试基线
 
-记录时间：2026-08-26 07:19 UTC  
+记录日期：2026-08-26
 环境：Linux 6.12.94+ x86_64、Node.js v22.14.0、npm 10.9.7
 
-## 资源校验
+## FSRS 调度单元测试
 
 命令：
 
 ```bash
-bash scripts/verify-resources.sh
+npm --prefix apps/literacy-app run test:srs
 ```
 
-结果：**PASS**
+结果：**PASS（8/8）**
 
-```text
-Resource verification passed: 100 hanzi, 85 math problems, 42 idioms,
-6 SVG icons, 3 stroke fixtures, 3 WAV effects, and 1 Lottie animation.
+覆盖初始卡创建、四档评分、首次复习基线、遗忘回退、难度修正与上下限、到期边界、
+到期队列筛选/排序、指数保持率，以及 `schedule()` / `dueCards()` 不修改输入对象。
+测试使用固定 UTC 时间，不依赖系统时钟或网络。
+
+`apps/literacy-app` 的默认 `test` 链已把该单元测试放在数据校验、生产构建和浏览器冒烟
+之前；FSRS 纯函数回归会最先失败并给出具体用例。
+
+## 浏览器 E2E 门禁
+
+命令：
+
+```bash
+npm --prefix apps/literacy-app run build
+npm --prefix apps/literacy-app run smoke
 ```
 
-JSON 数据满足当前校验基线：汉字不少于 50 字、数学题覆盖 9 类题型、成语无重复，
-并声明相应许可信息。
+原有 17 条路由和 6 项交互保留，并新增两项硬断言：
 
-## 边界压力测试
+1. 从单字页真实提交“认识”评分，确认持久化层生成 FSRS 卡；把“日”设为已到期、
+   “月”设为未来到期后，复习筛选必须只显示“日”。
+2. 字表声明至少 100 字；首屏不得一次挂载全部卡片；翻页过程中同时挂载不超过
+   50 张卡片，且在 20 次翻页内能够覆盖全部字。
+
+这两项探针通过抛错决定退出状态，不把“按钮存在”或说明文字当作功能通过。它们是
+Round 2 FSRS 接线、100 字数据和分页实现的合并门禁；单独运行在 Round 1 功能基线上会
+按预期失败。
+
+## Round 2 边界压力测试
 
 命令：
 
@@ -31,43 +50,22 @@ node scripts/stress-test.js
 
 结果：**PASS**（固定种子 `20260826`，单次冷运行）
 
-| 探针 | 规模 | 耗时 | 内存/产物 | 完整性 |
+| 探针 | Round 2 规模 | 实测耗时 | 内存/产物 | 完整性 |
 | --- | ---: | ---: | ---: | --- |
-| 汉字卡片标记生成 | 20,000 张 | 35.33 ms | 堆增量 12.64 MiB；HTML 2.55 MiB | PASS |
-| 数学题生成 | 100,000 题 | 9.11 ms | 堆增量 7.44 MiB；约 10,971,709 题/秒 | 0 无效题 |
+| 汉字卡片标记生成 | 50,000 张 | 74.77 ms | 堆增量 32.27 MiB；HTML 6.38 MiB | PASS |
+| 数学题生成 | 250,000 题 | 21.31 ms | 堆增量 18.25 MiB；约 11,732,476 题/秒 | 0 无效题 |
 
-静态数据输入为 100 个汉字、85 道数学题和 9 类题型。该测试测量 Node.js 中的
-数据与 HTML 标记构造，不包含浏览器样式计算、布局、绘制和动画帧率。
+Round 2 默认预算为单项不超过 2,000 ms、峰值堆增量不超过 128 MiB；静态输入门槛提升为
+至少 100 个汉字、80 道数学题和 9 类题型。当前输入为 100 字、85 题、9 类。
 
-## 构建与 Lighthouse 探针
+环境变量 `STRESS_HANZI_COUNT`、`STRESS_MATH_COUNT`、`STRESS_MAX_DURATION_MS`、
+`STRESS_MAX_HEAP_MB`、`STRESS_MIN_HANZI_DATASET`、`STRESS_MIN_MATH_DATASET` 和
+`STRESS_MIN_MATH_TYPES` 可用于 CI 分档，但默认值就是 Round 2 门禁。
 
-命令：
+## 边界说明
 
-```bash
-bash scripts/benchmark.sh
-```
-
-结果：**BLOCKED**（脚本正确返回非零，并保留双应用报告）
-
-| 应用 | 状态 | 失败前耗时 | 包体积 | 阻断项 |
-| --- | --- | ---: | ---: | --- |
-| 识字 App | FAIL | 568 ms | 不可得 | 路由引用缺失的 `src/views/ListenGame.vue` |
-| 数学 App | FAIL | 425 ms | 不可得 | 路由引用缺失的 `src/views/LogicView.vue` |
-
-本机未安装 Lighthouse；且两个生产构建均未完成，因此 Performance、LCP、TBT 和
-CLS 均记录为 `SKIP`，不能把缺失值当作 0 分或通过。补齐视图并提供本地
-`lighthouse` 可执行文件（或设置 `LIGHTHOUSE_BIN`）后，可由同一脚本重测构建时间、
-原始/gzip 估算包体积及 Lighthouse 指标。
-
-## 已发现的边界问题
-
-1. 当前两个 App 的路由均可引用尚未落盘的视图，生产构建缺少前置完整性检查；建议在
-   CI 中把 `npm run build:all` 设为必过门禁。
-2. 20,000 张汉字卡片仅标记字符串已达 2.55 MiB；真实 DOM 同时挂载还会产生明显更高的
-   节点、布局与绘制成本，应采用分页或虚拟列表。
-3. 数学题库同时包含选择题和无 `choices` 的自由作答题；消费端和测试工具不能假定每题
-   都有选项。
-4. Web Audio 首次播放受浏览器自动播放策略约束，必须在点击/触摸手势中调用
-   `unlockAudio()`；关闭声音及 reduced-motion 偏好也需要由 UI 层接入。
-5. Node 压力探针不代表浏览器渲染帧率；构建恢复后仍需用 Lighthouse 和浏览器性能面板
-   补齐真机渲染基线。
+1. 50,000 张卡片的字符串标记已达 6.38 MiB；浏览器真实 DOM 的布局和绘制成本更高，
+   因此 E2E 另设 50 张同时挂载上限。
+2. Node 压力探针不代表浏览器帧率、LCP 或交互延迟；这些指标仍由 Lighthouse 和真机
+   性能探针负责。
+3. 耗时与堆增量会因硬件和 GC 时机波动；是否通过以预算为准，不要求复现实测小数。
