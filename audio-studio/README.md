@@ -67,6 +67,26 @@ AUDIO_STUDIO_OUTPUT=sounddevice python -m audio_studio   # never fall back to Py
 AUDIO_STUDIO_OUTPUT=null        python -m audio_studio   # skip hardware entirely
 ```
 
+On **Windows only**, the sounddevice backend can additionally request WASAPI
+*exclusive* mode. Shared mode (the default) routes through the Windows audio
+engine's mixer, which adds its own buffering (typically around 10 ms) on top of
+the device period; exclusive mode bypasses the mixer and talks to the device
+directly, so output latency is bounded mostly by the negotiated block size
+(256 frames ≈ 5.3 ms at 48 kHz). The trade-off is that an exclusive stream
+takes over the device — other applications go silent — and the device may
+refuse to open at all, in which case the backend automatically falls back to a
+shared-mode stream. Because of that footgun it is off by default and must be
+switched on explicitly:
+
+```bash
+set AUDIO_STUDIO_WASAPI_EXCLUSIVE=1        # cmd.exe; ignored on non-Windows hosts
+python -m audio_studio
+python -m audio_studio --wasapi-exclusive  # equivalent: sets the variable for you
+```
+
+The active mode shows up in the status bar and the About box as
+`sounddevice (WASAPI exclusive)`.
+
 ## Run
 
 ```bash
@@ -80,6 +100,7 @@ Useful flags:
 | Flag | Purpose |
 |---|---|
 | `--null-audio` | Force the simulated backend instead of a hardware device |
+| `--wasapi-exclusive` | Request WASAPI exclusive-mode output (Windows only, see above) |
 | `--offscreen` | Use Qt's offscreen platform plugin (headless smoke tests) |
 | `--exit-after N` | Quit after N seconds, for CI |
 
@@ -444,10 +465,13 @@ above this package.
   Batch processing is covered by the `audio_studio.batch` CLI above.
 - The default device block is now 256 frames (~5.3 ms at 48 kHz);
   `SoundDeviceOutput` and `PyAudioOutput` retry with 512 and then 1024 frames
-  when the device rejects it. This lowers callback latency but is not certified
-  low-latency monitoring: shared-mode host buffering still applies, WASAPI
-  exclusive mode, ASIO and per-host latency hints are not wired up, and the
-  ASIO SDK is not shipped.
+  when the device rejects it. On Windows, opt-in WASAPI exclusive mode
+  (`--wasapi-exclusive` or `AUDIO_STUDIO_WASAPI_EXCLUSIVE=1`) additionally
+  bypasses the shared-mode mixer. This lowers callback latency but is not
+  certified low-latency monitoring: shared-mode host buffering still applies
+  unless exclusive mode is enabled, ASIO and per-host latency hints are not
+  wired up, the ASIO SDK is not shipped, and no hardware round-trip
+  measurements back the numbers.
 - On the first playback, the engine collects cyclic garbage and freezes the
   existing GC-tracked object graph until shutdown to keep old objects out of
   playback-time collections. Set `AUDIO_STUDIO_RT_GC=0` to disable this

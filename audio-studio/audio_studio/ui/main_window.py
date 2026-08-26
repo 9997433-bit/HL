@@ -135,7 +135,7 @@ class MainWindow(QMainWindow):
         self.transport_bar = TransportBar()
         self.spectrum_panel = SpectrumPanel()
         self.effect_rack = EffectRackPanel(self.effect_chain)
-        # One external-plugin slot, inserted into the same preview chain the
+        # Three external-plugin slots, inserted into the same preview chain the
         # rack drives, so a VST3 is auditioned through the same path.
         self.plugin_panel = PluginPanel(self.effect_chain)
 
@@ -232,10 +232,10 @@ class MainWindow(QMainWindow):
         )
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.effects_dock)
 
-        # The plugin slot feeds the same chain as the rack, so it belongs on the
-        # same side of the window — tabbed behind it rather than competing for
-        # width with a panel most sessions never open.
-        self.plugin_dock = QDockWidget("VST3 Plugin", self)
+        # The plugin slots feed the same chain as the rack, so they belong on
+        # the same side of the window — tabbed behind it rather than competing
+        # for width with a panel most sessions never open.
+        self.plugin_dock = QDockWidget("VST3 Plugins", self)
         self.plugin_dock.setObjectName("PluginDock")
         self.plugin_dock.setWidget(self.plugin_panel)
         self.plugin_dock.setAllowedAreas(
@@ -855,6 +855,11 @@ class MainWindow(QMainWindow):
         self.session = restore_multitrack(snapshot.multitrack, path)
         self.multitrack_view.set_session(self.session)
         self.set_markers(snapshot.markers)
+        # Plugins are the one part of a project that belongs to the machine as
+        # much as to the bundle: a plugin that is not installed here reports
+        # itself in the panel and leaves its slot empty rather than failing the
+        # open.
+        self.plugin_panel.restore_project_state(snapshot.plugins)
 
         if snapshot.waveform is not None:
             clip, session, playhead, selection = load_waveform_document(snapshot)
@@ -925,6 +930,7 @@ class MainWindow(QMainWindow):
             playhead=playhead,
             selection=selection,
             markers=self.markers,
+            plugins=self.plugin_panel.project_state(),
         )
 
     def _has_unsaved_changes(self) -> bool:

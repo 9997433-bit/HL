@@ -6,16 +6,24 @@ reopened on another machine without chasing the original source files.
 
 The schema stays at version 1 while it grows: readers treat every key they do
 not recognise as absent, and every key added after the first release (the
-top-level ``markers`` array, the per-media ``peaks`` sidecar pointer and the
-multitrack ``buses`` array with its per-track ``send_to_bus`` pointer, so far)
-is written only when it carries something, so a bundle saved by this build still
-opens in one that predates the addition.
+top-level ``markers`` array, the top-level ``plugins`` array, the per-media
+``peaks`` sidecar pointer and the multitrack ``buses`` array with its per-track
+``send_to_bus`` pointer, so far) is written only when it carries something, so a
+bundle saved by this build still opens in one that predates the addition.
+
+The ``plugins`` array records which VST3 bundle sits in which slot of the plugin
+rack — paths only. Plugin *parameter* state is a backend-specific blob that
+would have to survive plugin updates and machine moves to be worth writing, and
+the bundles themselves are properties of the machine rather than of the project,
+so a section that cannot be honoured (plugin uninstalled, no ``plugins`` extra
+here) is the UI's problem to report, not a reason to refuse the bundle.
 """
 
 from __future__ import annotations
 
 import json
 import shutil
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -64,6 +72,7 @@ class ProjectSnapshot:
     view_mode: str = "split"
     source_path: Path | None = None
     markers: MarkerList = field(default_factory=MarkerList)
+    plugins: list[dict[str, Any]] = field(default_factory=list)
 
 
 def _time_range_to_json(rng: TimeRange | None) -> dict[str, int] | None:
@@ -76,6 +85,50 @@ def _time_range_from_json(data: dict[str, int] | None) -> TimeRange | None:
     if not data:
         return None
     return TimeRange(int(data["start"]), int(data["end"]))
+
+
+def _plugins_to_json(entries: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """Normalise the plugin rack for the bundle: one entry per loaded slot.
+
+    Entries without a path carry nothing a reader could act on and are dropped;
+    ``bypass`` is written only when it is set, so the common case serialises the
+    way it did before bypass was recorded.
+    """
+    out: list[dict[str, Any]] = []
+    for entry in entries:
+        path = str(entry.get("path", "")).strip()
+        if not path:
+            continue
+        item: dict[str, Any] = {"slot": int(entry.get("slot", len(out))), "path": path}
+        if entry.get("bypass"):
+            item["bypass"] = True
+        out.append(item)
+    return out
+
+
+def _plugins_from_json(raw: Any) -> list[dict[str, Any]]:
+    """Read the ``plugins`` array back, skipping anything unusable.
+
+    A malformed plugin entry is not worth refusing a project over: the audio,
+    the arrangement and the markers are all still there, and the rack simply
+    comes back with one slot fewer.
+    """
+    if not isinstance(raw, list):
+        return []
+    entries: list[dict[str, Any]] = []
+    for index, item in enumerate(raw):
+        if not isinstance(item, dict):
+            continue
+        path = str(item.get("path", "")).strip()
+        if not path:
+            continue
+        try:
+            slot = int(item.get("slot", index))
+        except (TypeError, ValueError):
+            slot = index
+        entries.append({"slot": slot, "path": path, "bypass": bool(item.get("bypass", False))})
+    entries.sort(key=lambda entry: entry["slot"])
+    return entries
 
 
 def _write_wav(path: Path, source: SampleSource) -> np.ndarray:
@@ -114,6 +167,7 @@ class ProjectStore:
         playhead: int,
         selection: TimeRange | None,
         markers: MarkerList | None = None,
+        plugins: Sequence[Mapping[str, Any]] | None = None,
     ) -> None:
         self.root.mkdir(parents=True, exist_ok=True)
         self.media_dir.mkdir(parents=True, exist_ok=True)
@@ -135,6 +189,9 @@ class ProjectStore:
         }
         if markers is not None and not markers.is_empty:
             payload["markers"] = markers.to_json()
+        plugin_entries = _plugins_to_json(plugins or [])
+        if plugin_entries:
+            payload["plugins"] = plugin_entries
 
         if edit_session is not None and editor_clip is not None:
             source_rel = "media/source.wav"
@@ -190,6 +247,7 @@ class ProjectStore:
             view_mode=str(ui.get("view_mode", "split")),
             source_path=self.root,
             markers=markers,
+            plugins=_plugins_from_json(payload.get("plugins")),
         )
 
     def _serialize_multitrack(self, session: MultitrackSession) -> dict[str, Any]:
@@ -293,6 +351,7 @@ def save_project(
     playhead: int,
     selection: TimeRange | None,
     markers: MarkerList | None = None,
+    plugins: Sequence[Mapping[str, Any]] | None = None,
 ) -> Path:
     """Write a project bundle and return the normalized directory path."""
     root = path
@@ -307,6 +366,7 @@ def save_project(
         playhead=playhead,
         selection=selection,
         markers=markers,
+        plugins=plugins,
     )
     return root
 
