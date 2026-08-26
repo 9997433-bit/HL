@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue'
+import BadgeShelf from '@/components/BadgeShelf.vue'
 import ProgressRing from '@/components/ProgressRing.vue'
 import { FONT_SCALES, THEMES, useSettingsStore } from '@/stores/settings.js'
 import { MASTERY_THRESHOLD, useProgressStore } from '@/stores/progress.js'
@@ -214,8 +215,17 @@ function resetSettings() {
           <div><strong>{{ totalMinutes }}</strong><small>累计分钟</small></div>
           <div><strong>{{ progress.streakDays || 1 }}</strong><small>连续天数</small></div>
           <div><strong>{{ progress.stars }}</strong><small>获得星星</small></div>
+          <div><strong>{{ progress.badgeCount }}</strong><small>点亮徽章</small></div>
+          <div><strong>{{ progress.badgeStats.flows }}</strong><small>完整学完</small></div>
         </div>
       </section>
+
+      <!-- 徽章墙 -->
+      <BadgeShelf mode="full" title="成就徽章墙" />
+      <p class="muted badges__note">
+        徽章按「攒够某个指标」发放，没有隐藏条件：孩子看得见还差多少，
+        您也能拿灰着的那几枚当这周的小目标。
+      </p>
 
       <!-- 近 7 天 -->
       <section class="card stack">
@@ -623,6 +633,12 @@ function resetSettings() {
 .overview__grid small {
   font-size: 0.7rem;
   color: var(--text-soft);
+}
+
+.badges__note {
+  margin-top: -6px;
+  font-size: 0.8rem;
+  line-height: 1.7;
 }
 
 /* 图表 */
