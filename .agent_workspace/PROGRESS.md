@@ -70,6 +70,8 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A83 | claude-opus-5-thinking-high-fast | Land the AC-UPD-006 registration branch on the trunk, verify the tip and mark R2-T04 acceptance-complete (backfill for completed A57) | complete — 1089 passed at `7368c92`, Ruff clean, side branch deleted |
 | A84 | claude-fable-5-thinking-xhigh | P0 32/32→34/34 milestone chronology pinned; AC-UPD-006 registry-count divergence with A57's branch reconciled (backfill for completed A69) | complete — 1033 passed at `c5afc35`; post-merge union 41/3 confirmed at the tip |
 | A99 | gpt-5.6-sol-xhigh-fast | Current-tip pytest verification (backfill for completed A97) | complete — A97 done; 1133 passed |
+| A101 | gpt-5.6-sol-xhigh-fast | Confirm A89's meshio bridge landed and verify the full suite | complete — A89 landed; 1133 passed at `92e387d` |
+| A102 | gpt-5.6-sol-xhigh-fast | Independent meshio bridge/full-suite verification (backfill for completed A101) | complete — A101 done; A89 present; 1133 passed at `92e387d` |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
