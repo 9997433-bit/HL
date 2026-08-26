@@ -1,4 +1,4 @@
-"""Element library: springs, bars/trusses, planar and spatial beams, QUAD4, TET4, HEX8.
+"""Element library: springs, bars/trusses, beams, QUAD4, shell facet, TET4, HEX8.
 
 Every element exposes the same contract used by :mod:`openfemlab.core.assembly`:
 
@@ -26,6 +26,7 @@ __all__ = [
     "BeamElement2D",
     "BeamElement3D",
     "Quad4Element",
+    "ShellQuad4Element",
     "Tet4Element",
     "Hex8Element",
     "PLANE_STATES",
@@ -848,6 +849,373 @@ class Quad4Element(Element):
     ) -> np.ndarray:
         """Stress ``[sxx, syy, sxy]`` at a natural point from the 8 nodal displacements."""
         return self.constitutive_matrix @ self.strain(coords, displacements, xi, eta)
+
+
+#: Local DOF positions of the three shell sub-problems inside the 24-DOF,
+#: node-major ``(ux, uy, uz, rx, ry, rz)`` ordering.
+_SHELL4_MEMBRANE_DOFS = [6 * node + axis for node in range(4) for axis in (0, 1)]
+_SHELL4_PLATE_DOFS = [6 * node + axis for node in range(4) for axis in (2, 3, 4)]
+_SHELL4_DRILLING_DOFS = [6 * node + 5 for node in range(4)]
+
+#: MITC4 transverse-shear tying points as ``(natural point, natural direction)``:
+#: the covariant shear ``gamma_xi`` is sampled on the two ``eta = +-1`` edges and
+#: ``gamma_eta`` on the two ``xi = +-1`` edges, always at the edge midpoint.
+_MITC4_TYING: tuple[tuple[tuple[float, float], int], ...] = (
+    ((0.0, -1.0), 0),
+    ((0.0, 1.0), 0),
+    ((1.0, 0.0), 1),
+    ((-1.0, 0.0), 1),
+)
+
+
+class ShellQuad4Element(Element):
+    """4-node flat shell facet: the QUAD4 membrane plus a MITC4 Mindlin plate.
+
+    Six DOFs per node (``UX``, ``UY``, ``UZ``, ``RX``, ``RY``, ``RZ``) let the
+    element sit at an arbitrary orientation in space, which is what makes an
+    imported shell mesh analysable. The facet frame is built from the element
+    geometry -- ``e_z`` along the normal of the two diagonals, ``e_x`` along the
+    averaged ``xi`` direction, ``e_y = e_z x e_x`` -- and the local 24x24 matrix
+    is rotated into global axes node by node, exactly as
+    :class:`BeamElement3D` rotates its 12x12 blocks.
+
+    In the facet frame the element splits into three uncoupled parts:
+
+    * **membrane** -- the plane-stress :class:`Quad4Element` evaluated on the
+      projected in-plane coordinates, so the library keeps one bilinear
+      membrane kernel and not two;
+    * **bending** -- a Reissner-Mindlin plate,
+      ``K = int B_k^T D_b B_k dA + kappa G t int B_s^T B_s dA`` with
+      ``D_b = t^3 / 12 * D_plane-stress`` and the shear correction factor
+      ``kappa = 5/6``. The transverse shear uses the **MITC4** assumed-strain
+      field of Bathe and Dvorkin: the covariant shears are sampled at the four
+      edge midpoints and interpolated linearly across the element, which cures
+      shear locking *without* the rank deficiency that reduced integration
+      leaves behind, and reproduces a constant-curvature state exactly on any
+      planar quadrilateral;
+    * **drilling** -- the rotation about the facet normal carries no physical
+      stiffness in this formulation, so a fictitious diagonal torsional
+      stiffness (``drilling_factor`` times the mean rotational diagonal of the
+      plate block) keeps the local matrix non-singular.
+
+    Consequences worth knowing before using it:
+
+    * the facet is **flat**: nodes out of plane by more than
+      :attr:`flatness_tolerance` times the element size are rejected rather than
+      silently projected, so a warped quadrilateral must be refined;
+    * the drilling stiffness is a penalty, not a formulation (no Allman or
+      Hughes-Brezzi rotation field), and it is *decoupled* from the membrane.
+      A flat, coplanar assembly therefore never loads it and keeps exactly six
+      rigid-body modes; a folded assembly picks up a small, mesh-dependent
+      artificial stiffness at the fold;
+    * the drilling DOFs are always massless and the bending rotations are
+      massless unless ``rotary_inertia`` is set. The modal solver condenses
+      such DOFs exactly, but a damped or direct solve must constrain them;
+    * membrane and bending do not couple within one facet, so curvature is
+      represented only by the faceting of the mesh.
+
+    Parameters
+    ----------
+    material:
+        Isotropic linear elastic material; ``density`` may be zero.
+    thickness:
+        Shell thickness ``t``, entering as ``t`` in the membrane, ``t^3 / 12``
+        in bending and ``t^2 / 12`` in the rotary inertia.
+    lumped_mass:
+        Row-sum the consistent mass in the facet frame before rotating it.
+    rotary_inertia:
+        Carry the ``rho t^3 / 12`` inertia of the bending rotations. Off by
+        default, the usual shell convention: on a thin plate it is a small
+        correction, it makes the mass matrix ill conditioned beside the
+        translational terms, and leaving it out makes the rotations massless
+        and exactly condensable. Turn it on for a thick plate.
+    integration_order:
+        Gauss points per direction for membrane, bending and shear.
+    drilling_factor:
+        Fictitious drilling stiffness as a fraction of the mean plate
+        rotational diagonal; ``0`` disables it and leaves the drilling DOFs
+        free, which only a model that constrains them can solve.
+    """
+
+    expected_nodes = 4
+
+    #: Out-of-plane spread, relative to the in-plane size, still called flat.
+    flatness_tolerance = 1e-8
+
+    #: Reissner-Mindlin transverse shear correction factor for a solid section.
+    shear_correction = 5.0 / 6.0
+
+    def __init__(
+        self,
+        node_ids: Sequence[Hashable],
+        material: Material,
+        *,
+        thickness: float,
+        lumped_mass: bool = False,
+        rotary_inertia: bool = False,
+        integration_order: int = 2,
+        drilling_factor: float = 1e-3,
+        eid: Hashable | None = None,
+    ) -> None:
+        super().__init__(node_ids, eid=eid)
+        if drilling_factor < 0.0:
+            raise ElementError(
+                f"ShellQuad4Element drilling_factor must be non-negative, got {drilling_factor}"
+            )
+        self.material = material
+        self.thickness = float(thickness)
+        self.lumped_mass = bool(lumped_mass)
+        self.rotary_inertia = bool(rotary_inertia)
+        self.integration_order = int(integration_order)
+        self.drilling_factor = float(drilling_factor)
+        self.membrane = Quad4Element(
+            node_ids,
+            material,
+            thickness=thickness,
+            plane="stress",
+            integration_order=integration_order,
+            eid=eid,
+        )
+        self._points, self._weights = gauss_legendre_2d(self.integration_order)
+
+    def required_dofs(self, available: tuple[DOF, ...]) -> tuple[DOF, ...]:
+        return (DOF.UX, DOF.UY, DOF.UZ, DOF.RX, DOF.RY, DOF.RZ)
+
+    # -------------------------------------------------------------- geometry
+
+    def _facet_coords(self, coords: np.ndarray) -> np.ndarray:
+        """The ``(4, 3)`` nodal coordinates, padding a planar input with zeros."""
+        points = np.asarray(coords, dtype=float).reshape(4, -1)
+        if points.shape[1] > 3:
+            raise ElementError(
+                f"ShellQuad4Element {self.node_ids} needs at most three coordinates per "
+                f"node, got {points.shape[1]}"
+            )
+        padded = np.zeros((4, 3), dtype=float)
+        padded[:, : points.shape[1]] = points
+        return padded
+
+    def local_frame(self, coords: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """The facet origin (node centroid) and the rows ``[e_x, e_y, e_z]`` of its frame."""
+        points = self._facet_coords(coords)
+        xi_direction = 0.5 * ((points[1] + points[2]) - (points[0] + points[3]))
+        eta_direction = 0.5 * ((points[3] + points[2]) - (points[0] + points[1]))
+        normal = np.cross(xi_direction, eta_direction)
+        norm = float(np.linalg.norm(normal))
+        if norm <= 0.0:
+            raise ElementError(
+                f"ShellQuad4Element {self.node_ids} is degenerate: its diagonals do not "
+                "span a plane"
+            )
+        e_z = normal / norm
+        e_x = xi_direction - float(xi_direction @ e_z) * e_z
+        norm = float(np.linalg.norm(e_x))
+        if norm <= 0.0:
+            raise ElementError(
+                f"ShellQuad4Element {self.node_ids} is degenerate: it has no in-plane "
+                "xi direction"
+            )
+        e_x = e_x / norm
+        return points.mean(axis=0), np.array([e_x, np.cross(e_z, e_x), e_z], dtype=float)
+
+    def local_coords(self, coords: np.ndarray) -> np.ndarray:
+        """The ``(4, 2)`` in-plane facet coordinates, rejecting a warped element."""
+        points = self._facet_coords(coords)
+        origin, rotation = self.local_frame(points)
+        local = (points - origin) @ rotation.T
+        size = float(np.max(np.linalg.norm(local[:, :2], axis=1))) or 1.0
+        warp = float(np.ptp(local[:, 2]))
+        if warp > self.flatness_tolerance * size:
+            raise ElementError(
+                f"ShellQuad4Element {self.node_ids} is a flat facet but its nodes are out "
+                f"of plane by {warp:g} over an element size of {size:g}; refine the mesh "
+                "so that every quadrilateral is planar"
+            )
+        return local[:, :2]
+
+    def transformation_matrix(self, coords: np.ndarray) -> np.ndarray:
+        """Global-to-local rotation of the 24 element DOFs."""
+        rotation = self.local_frame(coords)[1]
+        transform = np.zeros((24, 24), dtype=float)
+        for block in range(8):
+            offset = 3 * block
+            transform[offset : offset + 3, offset : offset + 3] = rotation
+        return transform
+
+    def area(self, coords: np.ndarray) -> float:
+        """Facet area, integrated with the element's own quadrature rule."""
+        return self.membrane.area(self.local_coords(coords))
+
+    # ------------------------------------------------------------ kinematics
+
+    def curvature_matrix(
+        self, local_xy: np.ndarray, xi: float, eta: float
+    ) -> tuple[np.ndarray, float]:
+        """``(B_k, det J)`` mapping the 12 plate DOFs to ``[kxx, kyy, kxy]``.
+
+        The plate DOFs are node-major ``(w, theta_x, theta_y)`` and the
+        kinematics are ``u = z theta_y``, ``v = -z theta_x``, so the curvatures
+        are ``d(theta_y)/dx``, ``-d(theta_x)/dy`` and
+        ``d(theta_y)/dy - d(theta_x)/dx``.
+        """
+        gradient, det = self.membrane.jacobian(local_xy, xi, eta)
+        b = np.zeros((3, 12), dtype=float)
+        b[0, 2::3] = gradient[0]
+        b[1, 1::3] = -gradient[1]
+        b[2, 1::3] = -gradient[0]
+        b[2, 2::3] = gradient[1]
+        return b, det
+
+    def tying_rows(self, local_xy: np.ndarray) -> np.ndarray:
+        """Covariant shear rows at the four MITC4 tying points, shape ``(4, 12)``.
+
+        Row ``i`` expresses ``gamma_xi`` (rows 0, 1) or ``gamma_eta`` (rows 2, 3)
+        as a linear form in the plate DOFs, from
+        ``gamma_d = dw/dd + (dx/dd) theta_y - (dy/dd) theta_x``. Because the
+        edges are straight, the mid-edge value of that form is exact for any
+        state of constant curvature, which is what makes the assumed field pass
+        the bending patch test.
+        """
+        rows = np.zeros((4, 12), dtype=float)
+        for index, (point, direction) in enumerate(_MITC4_TYING):
+            shape = Quad4Element.shape_functions(*point)
+            natural = Quad4Element.shape_function_derivatives(*point)
+            tangent = natural[direction] @ local_xy
+            rows[index, 0::3] = natural[direction]
+            rows[index, 1::3] = -tangent[1] * shape
+            rows[index, 2::3] = tangent[0] * shape
+        return rows
+
+    def shear_strain_matrix(
+        self,
+        local_xy: np.ndarray,
+        xi: float,
+        eta: float,
+        tying: np.ndarray | None = None,
+    ) -> tuple[np.ndarray, float]:
+        """``(B_s, det J)`` mapping the 12 plate DOFs to ``[gxz, gyz]``.
+
+        The two covariant shears are interpolated linearly away from their tying
+        points and pulled back to Cartesian axes with ``J^-1``.
+        """
+        rows = self.tying_rows(local_xy) if tying is None else tying
+        covariant = np.array(
+            [
+                0.5 * (1.0 - eta) * rows[0] + 0.5 * (1.0 + eta) * rows[1],
+                0.5 * (1.0 + xi) * rows[2] + 0.5 * (1.0 - xi) * rows[3],
+            ],
+            dtype=float,
+        )
+        _, det = self.membrane.jacobian(local_xy, xi, eta)
+        jac = Quad4Element.shape_function_derivatives(xi, eta) @ local_xy
+        inverse = np.array([[jac[1, 1], -jac[0, 1]], [-jac[1, 0], jac[0, 0]]], dtype=float) / det
+        return inverse @ covariant, det
+
+    # --------------------------------------------------------------- physics
+
+    @property
+    def bending_constitutive_matrix(self) -> np.ndarray:
+        """Plate rigidity ``D_b = t^3 / 12 * D`` relating curvatures to moments."""
+        return (self.thickness**3 / 12.0) * plane_constitutive_matrix(self.material, "stress")
+
+    @property
+    def shear_rigidity(self) -> float:
+        """Transverse shear rigidity ``kappa G t`` per unit length."""
+        return self.shear_correction * self.material.shear_modulus * self.thickness
+
+    def plate_stiffness_matrix(self, local_xy: np.ndarray) -> np.ndarray:
+        """The 12x12 Mindlin plate stiffness (bending plus MITC4 shear)."""
+        bending = self.bending_constitutive_matrix
+        shear = self.shear_rigidity
+        tying = self.tying_rows(local_xy)
+        k = np.zeros((12, 12), dtype=float)
+        for point, weight in zip(self._points, self._weights, strict=True):
+            b_k, det = self.curvature_matrix(local_xy, *point)
+            b_s, _ = self.shear_strain_matrix(local_xy, *point, tying=tying)
+            k += (weight * det) * (b_k.T @ bending @ b_k + shear * (b_s.T @ b_s))
+        return k
+
+    def drilling_stiffness(self, plate: np.ndarray) -> float:
+        """Fictitious torsional stiffness about the normal, sized off ``plate``."""
+        rotational = np.diag(plate)[[1, 2, 4, 5, 7, 8, 10, 11]]
+        return self.drilling_factor * float(rotational.mean())
+
+    def local_stiffness_matrix(self, coords: np.ndarray) -> np.ndarray:
+        """The 24x24 stiffness in the facet frame."""
+        local_xy = self.local_coords(coords)
+        membrane = _SHELL4_MEMBRANE_DOFS
+        k = np.zeros((24, 24), dtype=float)
+        k[np.ix_(membrane, membrane)] = self.membrane.stiffness_matrix(local_xy)
+        plate = self.plate_stiffness_matrix(local_xy)
+        k[np.ix_(_SHELL4_PLATE_DOFS, _SHELL4_PLATE_DOFS)] = plate
+        k[_SHELL4_DRILLING_DOFS, _SHELL4_DRILLING_DOFS] = self.drilling_stiffness(plate)
+        return k
+
+    def local_mass_matrix(self, coords: np.ndarray) -> np.ndarray:
+        """The 24x24 mass in the facet frame; the drilling DOFs stay massless."""
+        block = self.membrane.consistent_mass_matrix(self.local_coords(coords))[0::2, 0::2]
+        m = np.zeros((24, 24), dtype=float)
+        if not block.any():
+            return m
+        axes = range(5) if self.rotary_inertia else range(3)
+        rotary = block * (self.thickness**2 / 12.0)
+        for axis in axes:
+            index = [6 * node + axis for node in range(4)]
+            m[np.ix_(index, index)] = block if axis < 3 else rotary
+        if self.lumped_mass:
+            return np.diag(m.sum(axis=1))
+        return m
+
+    def stiffness_matrix(self, coords: np.ndarray) -> np.ndarray:
+        transform = self.transformation_matrix(coords)
+        return transform.T @ self.local_stiffness_matrix(coords) @ transform
+
+    def mass_matrix(self, coords: np.ndarray) -> np.ndarray:
+        transform = self.transformation_matrix(coords)
+        return transform.T @ self.local_mass_matrix(coords) @ transform
+
+    def total_mass(self, coords: np.ndarray) -> float:
+        return float(self.material.density) * self.thickness * self.area(coords)
+
+    # ------------------------------------------------------------- recovery
+
+    def local_displacements(self, coords: np.ndarray, displacements: np.ndarray) -> np.ndarray:
+        """Rotate 24 global nodal displacements into the facet frame."""
+        values = np.asarray(displacements, dtype=float).reshape(-1)
+        if values.size != 24:
+            raise ElementError(f"expected 24 nodal displacements, got {values.size}")
+        return self.transformation_matrix(coords) @ values
+
+    def membrane_stress(
+        self, coords: np.ndarray, displacements: np.ndarray, xi: float = 0.0, eta: float = 0.0
+    ) -> np.ndarray:
+        """Mid-surface stress ``[sxx, syy, sxy]`` in the facet frame."""
+        local = self.local_displacements(coords, displacements)
+        return self.membrane.stress(
+            self.local_coords(coords), local[_SHELL4_MEMBRANE_DOFS], xi, eta
+        )
+
+    def curvature(
+        self, coords: np.ndarray, displacements: np.ndarray, xi: float = 0.0, eta: float = 0.0
+    ) -> np.ndarray:
+        """Curvature ``[kxx, kyy, kxy]`` in the facet frame."""
+        local = self.local_displacements(coords, displacements)
+        b_k, _ = self.curvature_matrix(self.local_coords(coords), xi, eta)
+        return b_k @ local[_SHELL4_PLATE_DOFS]
+
+    def bending_moment(
+        self, coords: np.ndarray, displacements: np.ndarray, xi: float = 0.0, eta: float = 0.0
+    ) -> np.ndarray:
+        """Moment resultants ``[mxx, myy, mxy]`` per unit length in the facet frame."""
+        return self.bending_constitutive_matrix @ self.curvature(coords, displacements, xi, eta)
+
+    def transverse_shear(
+        self, coords: np.ndarray, displacements: np.ndarray, xi: float = 0.0, eta: float = 0.0
+    ) -> np.ndarray:
+        """Assumed MITC4 shear strains ``[gxz, gyz]`` in the facet frame."""
+        local = self.local_displacements(coords, displacements)
+        b_s, _ = self.shear_strain_matrix(self.local_coords(coords), xi, eta)
+        return b_s @ local[_SHELL4_PLATE_DOFS]
 
 
 #: ``dN/d(xi, eta, zeta)`` of the TET4 shape functions -- constant, shape ``(3, 4)``.

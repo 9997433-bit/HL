@@ -16,6 +16,7 @@ from ..core.elements import (
     BeamElement3D,
     Hex8Element,
     Quad4Element,
+    ShellQuad4Element,
     SpringElement,
     Tet4Element,
     TrussElement,
@@ -29,6 +30,7 @@ __all__ = [
     "bar_mesh",
     "beam_mesh",
     "quad_plate_mesh",
+    "shell_plate_mesh",
     "tet_block_mesh",
     "hex_block_mesh",
     "truss_from_arrays",
@@ -100,6 +102,9 @@ class MeshBuilder:
 
     def add_quad4(self, node_ids: Sequence[Hashable], material: Material, **kwargs):
         return self.model.add_element(Quad4Element(node_ids, material, **kwargs))
+
+    def add_shell_quad4(self, node_ids: Sequence[Hashable], material: Material, **kwargs):
+        return self.model.add_element(ShellQuad4Element(node_ids, material, **kwargs))
 
     def add_tet4(self, node_ids: Sequence[Hashable], material: Material, **kwargs):
         return self.model.add_element(Tet4Element(node_ids, material, **kwargs))
@@ -350,6 +355,89 @@ def quad_plate_mesh(
         model.fix_nodes([node_id(0, row) for row in range(num_y + 1)], (DOF.UY,))
         model.fix_nodes([node_id(num_x, row) for row in range(num_y + 1)], (DOF.UY,))
         model.fix(node_id(0, 0), (DOF.UX,))
+    return model
+
+
+def shell_plate_mesh(
+    length: float,
+    width: float,
+    num_x: int,
+    num_y: int,
+    material: Material,
+    *,
+    thickness: float,
+    support: str = "cantilever",
+    origin: Sequence[float] = (0.0, 0.0, 0.0),
+    lumped_mass: bool = False,
+    rotary_inertia: bool = False,
+    integration_order: int = 2,
+    drilling_factor: float = 1e-3,
+    name: str = "shell plate",
+) -> Model:
+    """Structured ``num_x x num_y`` grid of flat shell facets in the XY plane.
+
+    Nodes are numbered row major (``id = row * (num_x + 1) + column``, with the
+    row index running along Y) exactly as in :func:`quad_plate_mesh`, so the
+    membrane-only and shell discretizations of the same rectangle share a node
+    set; the model carries all six DOFs.
+
+    ``support`` selects the boundary conditions: ``"cantilever"`` clamps the
+    ``x = origin_x`` edge in all six DOFs, ``"free"`` leaves the plate
+    unsupported (six rigid-body modes), ``"simply-supported"`` holds all four
+    edges immovable in translation and blocks the edge rotation that ``w = 0``
+    along an edge already implies -- the *hard* simple support whose thin-plate
+    limit is the Navier solution.
+    """
+    supports = {"cantilever", "free", "simply-supported"}
+    if support not in supports:
+        raise ModelError(f"unknown support {support!r}; expected one of {sorted(supports)}")
+    if length <= 0.0 or width <= 0.0:
+        raise ModelError(f"length and width must be positive, got {length} and {width}")
+    if num_x < 1 or num_y < 1:
+        raise ModelError(f"num_x and num_y must be >= 1, got {num_x} and {num_y}")
+
+    start = _as_point(origin)
+    model = Model(dofs=(DOF.UX, DOF.UY, DOF.UZ, DOF.RX, DOF.RY, DOF.RZ), name=name)
+
+    def node_id(column: int, row: int) -> int:
+        return row * (num_x + 1) + column
+
+    for row in range(num_y + 1):
+        for column in range(num_x + 1):
+            model.add_node(
+                node_id(column, row),
+                start[0] + length * column / num_x,
+                start[1] + width * row / num_y,
+                start[2],
+            )
+
+    for row in range(num_y):
+        for column in range(num_x):
+            model.add_element(
+                ShellQuad4Element(
+                    (
+                        node_id(column, row),
+                        node_id(column + 1, row),
+                        node_id(column + 1, row + 1),
+                        node_id(column, row + 1),
+                    ),
+                    material,
+                    thickness=thickness,
+                    lumped_mass=lumped_mass,
+                    rotary_inertia=rotary_inertia,
+                    integration_order=integration_order,
+                    drilling_factor=drilling_factor,
+                )
+            )
+
+    if support == "cantilever":
+        model.fix_nodes([node_id(0, row) for row in range(num_y + 1)])
+    elif support == "simply-supported":
+        x_edges = [node_id(column, row) for column in (0, num_x) for row in range(num_y + 1)]
+        y_edges = [node_id(column, row) for row in (0, num_y) for column in range(num_x + 1)]
+        model.fix_nodes(x_edges + y_edges, (DOF.UX, DOF.UY, DOF.UZ))
+        model.fix_nodes(x_edges, (DOF.RX,))
+        model.fix_nodes(y_edges, (DOF.RY,))
     return model
 
 
