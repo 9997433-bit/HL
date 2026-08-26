@@ -28,6 +28,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A07 | claude-opus-5-thinking-high-fast | Rich CLI (modal/correlate/update), model spec format & workflow example | complete |
 | A24 | claude-fable-5-thinking-xhigh | Round 2 plan: prioritized backlog with AC links (backfill for A22) | complete |
 | A25 | gpt-5.6-sol-xhigh-fast | CLI subprocess coverage over example 02 fixtures | complete |
+| A19 | claude-opus-5-thinking-high-fast | GAP-04/05 damped dynamics: damping, complex modes, FRF synthesis (backfill for A11) | complete |
 | A15 | claude-opus-5-thinking-high-fast | GAP-01 `ModalResult` contract unification (backfill for R1-F1) | complete |
 | A13 | claude-opus-5-thinking-high-fast | M4 correction workflow state machine & `CorrectionReport` (backfill for A01) | complete |
 
