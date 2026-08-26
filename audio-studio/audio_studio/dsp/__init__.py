@@ -55,23 +55,23 @@ from .loudness import (
 )
 from .preview import EffectPreview
 from .repair import (
-    ClipEvent,
     ClickEvent,
-    DeClipEffect,
-    DeClipReport,
+    ClipEvent,
     DeClickEffect,
     DeClickReport,
+    DeClipEffect,
+    DeClipReport,
     DeHumEffect,
     HumEstimate,
     NoiseProfile,
     NoiseReduceEffect,
-    detect_clipping,
     detect_clicks,
+    detect_clipping,
     detect_hum,
     learn_noise_profile,
     reduce_noise,
-    repair_clipping,
     repair_clicks,
+    repair_clipping,
 )
 from .spectral import (
     RealtimeSpectrum,
