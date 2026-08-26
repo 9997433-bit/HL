@@ -309,6 +309,13 @@ if ! node "$ROOT_DIR/scripts/axe-check.mjs"; then
   FAILED=1
 fi
 
+# 上面扫的是「每条路由刚打开、默认主题」。描红、答题反馈、庆祝浮层要操作几步
+# 才出现，护眼与夜间又是另一整套颜色，这一轮把它们全铺开，serious 也必须为 0。
+printf '\n运行识字 App 状态级 axe 扫描（三套主题 × 交互态，critical/serious 必须为 0）...\n'
+if ! node "$ROOT_DIR/scripts/axe-states.mjs"; then
+  FAILED=1
+fi
+
 if (( FAILED != 0 )); then
   printf '\n验收失败：至少一个自动化门槛未通过。\n' >&2
   exit 1

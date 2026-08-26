@@ -9,6 +9,7 @@ import ShapeGlyph from '@/components/ShapeGlyph.vue'
 import { useProgressStore } from '@/stores/progress.js'
 import { useFeedback } from '@/composables/useFeedback'
 import { logicSkill } from '@/data/skill-mapping.js'
+import { SHAPE_MAP } from '@/data/shapes.js'
 import { numericOptions, pick, randInt, sample, shuffle } from '@/utils/random'
 import { sound } from '@/utils/sound'
 
@@ -28,6 +29,18 @@ const EMOJI_SETS = [
 ]
 const SHAPE_SET = ['triangle', 'square', 'circle', 'star', 'hexagon']
 const PALETTE = ['#5ee7ff', '#9b8cff', '#ff7ac6', '#ffce4d', '#55e6a5']
+
+/** 颜色的中文名：选项只有图形，读屏得靠这两个名字把四个按钮区分开。 */
+const COLOR_NAMES = {
+  '#5ee7ff': '天蓝色',
+  '#9b8cff': '紫色',
+  '#ff7ac6': '粉色',
+  '#ffce4d': '金色',
+  '#55e6a5': '绿色',
+}
+
+const shapeName = (id) => SHAPE_MAP[id]?.name ?? id
+const optionLabel = (option) => `${COLOR_NAMES[option.color] ?? '彩色'}的${shapeName(option.shape)}`
 
 /* ---------------- 题目生成 ---------------- */
 
@@ -426,9 +439,16 @@ onMounted(startRound)
               bad: locked && chosen === a && a !== current.answer,
             }"
             :disabled="locked"
+            :aria-label="`箭头转 ${a} 度`"
             @click="answer(a, $event)"
           >
-            <svg viewBox="0 0 40 40" width="42" height="42" :style="{ transform: `rotate(${a}deg)` }">
+            <svg
+              viewBox="0 0 40 40"
+              width="42"
+              height="42"
+              aria-hidden="true"
+              :style="{ transform: `rotate(${a}deg)` }"
+            >
               <path
                 d="M20 5 L31 30 L20 24 L9 30 Z"
                 fill="#ffce4d"
@@ -451,9 +471,10 @@ onMounted(startRound)
               bad: locked && chosen === o.key && o.key !== current.answer,
             }"
             :disabled="locked"
+            :aria-label="optionLabel(o)"
             @click="answer(o.key, $event)"
           >
-            <ShapeGlyph :shape="o.shape" :size="52" :color="o.color" />
+            <ShapeGlyph :shape="o.shape" :size="52" :color="o.color" :label="optionLabel(o)" />
           </button>
         </template>
 
