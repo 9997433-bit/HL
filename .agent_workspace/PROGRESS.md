@@ -816,7 +816,10 @@ new dynamics/element/IO criteria at least `implemented`, GAP-01 stays closed.
   rebased onto the branch as "patch contents already upstream", so there is exactly one
   MS-4 implementation on this branch, not two competing ones.
 - Verified at `5bc6a6d` on Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1: `tests/test_workflow.py`
-  **38 passed**, full suite **332 passed** (7 s), `ruff check src tests` clean.
+  **38 passed**, full suite **332 passed** (7 s), `ruff check src tests` clean. Re-verified
+  after `acda625` merged the dynamics and optimization branches in: workflow still **38
+  passed**, full suite **430 passed**, Ruff still clean — the S1-S6 pipeline is unaffected
+  by the merged tracks.
 - Coverage confirmed against the spec section by section: MS-4.1 stage order and the
   machine-readable `(stage, reason)` halt with `SKIPPED` successors; MS-4.2 gates
   (MAC ≥ 0.95, |Δf| ≤ 1 %, ≥ 3 pairs, bounds, warning-severity plausibility, held-out
