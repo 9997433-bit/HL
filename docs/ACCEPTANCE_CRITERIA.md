@@ -324,7 +324,14 @@ frequency-domain counterparts of the M2 gates AC-CORR-001/002.
 
 `tests/acceptance/test_criteria_registry.py` holds the machine-readable
 registry (one entry per criterion: ID, title, module, spec anchor, priority,
-verification method, planned test reference, status) and enforces:
+verification method, planned test reference, status).
+
+The current inventory is **40 criteria**: M1 = 9, M2 = 8, M3 = 9,
+M4 = 5, M5 = 4, and M6 = 5. The two suffixed M3 rows
+(`AC-UPD-006a` / `AC-UPD-006b`) are distinct criteria under one dense base
+number.
+
+The registry tests enforce:
 
 1. ID uniqueness and format (`AC-<MODULE>-NNN[a-z]?`).
 2. Dense numbering per module (no gaps).

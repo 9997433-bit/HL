@@ -2,10 +2,11 @@
 
 :mod:`~openfemlab.correlation.summary` reduces a pairing to the scalars an
 updater steers on; this module packages those scalars together with the MAC
-matrix, the pairing table and the COMAC vector into a schema-versioned,
-JSON-serializable :class:`CorrelationReport` — the exchange currency between
-the correlation, updating and workflow layers, and the artifact the CLI and CI
-publish.
+matrix, the pairing table, the COMAC vector and — since schema 1.1 — the
+optional FRF block of :mod:`~openfemlab.correlation.frf` into a
+schema-versioned, JSON-serializable :class:`CorrelationReport`: the exchange
+currency between the correlation, updating and workflow layers, and the
+artifact the CLI and CI publish.
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ import numpy as np
 import numpy.typing as npt
 
 from .align import AlignedShapes, align_modal_data
+from .frf import FRFCorrelation
 from .mac import comac as comac_vector
 from .pairing import ModePairing, pair_modes
 from .summary import CorrelationSummary, correlation_summary
@@ -32,7 +34,10 @@ __all__ = [
     "correlation_report",
 ]
 
-SCHEMA_VERSION = "1.0"
+#: 1.1 added the optional ``frf`` block (MS-7.4); a report without an FRF
+#: comparison still serializes it as ``null``, so the key set does not depend
+#: on which analyses were run.
+SCHEMA_VERSION = "1.1"
 
 
 @dataclass
@@ -44,6 +49,7 @@ class CorrelationReport:
     mac_matrix: npt.NDArray[np.float64] | None = None
     comac: npt.NDArray[np.float64] | None = None
     dof_labels: tuple[str, ...] | None = None
+    frf: FRFCorrelation | None = None
     settings: dict[str, Any] = field(default_factory=dict)
     meta: dict[str, Any] = field(default_factory=dict)
     schema_version: str = SCHEMA_VERSION
@@ -60,9 +66,32 @@ class CorrelationReport:
     def max_abs_freq_error_pct(self) -> float:
         return self.summary.max_abs_freq_error_pct
 
-    def is_correlated(self, mac_threshold: float = 0.9, freq_tolerance_pct: float = 2.0) -> bool:
-        """Apply the MS-4.2 validation gates to every paired mode."""
-        return self.summary.is_correlated(mac_threshold, freq_tolerance_pct)
+    @property
+    def mean_frac(self) -> float | None:
+        return None if self.frf is None else self.frf.mean_frac
+
+    @property
+    def min_frac(self) -> float | None:
+        return None if self.frf is None else self.frf.min_frac
+
+    def is_correlated(
+        self,
+        mac_threshold: float = 0.9,
+        freq_tolerance_pct: float = 2.0,
+        frac_threshold: float | None = None,
+    ) -> bool:
+        """Apply the MS-4.2 validation gates to every paired mode.
+
+        Naming ``frac_threshold`` adds the MS-7.4 frequency-domain gate to the
+        modal ones; asking for it without an FRF block is a caller error rather
+        than a silently failed gate.
+        """
+        modal = self.summary.is_correlated(mac_threshold, freq_tolerance_pct)
+        if frac_threshold is None:
+            return modal
+        if self.frf is None:
+            raise ValueError("this report carries no FRF block, so FRAC cannot be gated")
+        return modal and self.frf.is_correlated(frac_threshold)
 
     def worst_comac_dof(self) -> tuple[int, float] | None:
         """``(dof_index, value)`` of the least consistent correlation DOF."""
@@ -93,6 +122,7 @@ class CorrelationReport:
             "mac_matrix": None if self.mac_matrix is None else self.mac_matrix.tolist(),
             "comac": None if self.comac is None else self.comac.tolist(),
             "dof_labels": None if self.dof_labels is None else list(self.dof_labels),
+            "frf": None if self.frf is None else self.frf.as_dict(),
             "settings": dict(self.settings),
             "meta": dict(self.meta),
         }
@@ -107,6 +137,8 @@ class CorrelationReport:
             index, value = worst
             label = self.dof_labels[index] if self.dof_labels else f"dof {index}"
             lines.append(f"\nworst COMAC DOF         : {label} ({value:.4f})")
+        if self.frf is not None:
+            lines.append(f"\n{self.frf.report()}")
         return "\n".join(lines)
 
     def __str__(self) -> str:  # pragma: no cover - convenience only
@@ -124,6 +156,7 @@ def correlation_report(
     weights: Any = None,
     pairing: ModePairing | None = None,
     with_comac: bool = True,
+    frf: FRFCorrelation | None = None,
     meta: dict[str, Any] | None = None,
     **pairing_kwargs: Any,
 ) -> CorrelationReport:
@@ -139,6 +172,10 @@ def correlation_report(
         ``test_shapes`` / ``fe_shapes`` / ``dof_labels`` when given.
     with_comac:
         Also compute the per-DOF COMAC over the paired modes.
+    frf:
+        FRF correlation block from
+        :func:`~openfemlab.correlation.frf.frf_correlation`, carried alongside
+        the modal correlation in the same artifact (schema 1.1).
     **pairing_kwargs:
         Forwarded to :func:`~openfemlab.correlation.pairing.pair_modes`
         (``method``, ``mac_threshold``, ``frequency_tolerance_pct``,
@@ -176,6 +213,7 @@ def correlation_report(
         mac_matrix=pairing.mac_matrix,
         comac=comac,
         dof_labels=None if dof_labels is None else tuple(str(label) for label in dof_labels),
+        frf=frf,
         settings=settings,
         meta=dict(meta or {}),
     )
