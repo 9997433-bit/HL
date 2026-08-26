@@ -131,7 +131,7 @@ def probe_library(
     try:
         importlib.import_module(module)
         importable = True
-    except Exception as exc:  # A failed native extension is a probe result.
+    except Exception as exc:  # noqa: BLE001 - any import failure is probe data.
         importable = False
         error = f"{type(exc).__name__}: {exc}"
 
@@ -226,14 +226,21 @@ def probe_devices() -> dict[str, Any]:
                 "devices": normalized,
             }
         )
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - device APIs can raise backend errors.
         result["error"] = f"{type(exc).__name__}: {exc}"
     return result
 
 
 def probe_audio() -> dict[str, Any]:
     system = platform.system()
-    portaudio_library = ctypes.util.find_library("portaudio")
+    system_portaudio_library = ctypes.util.find_library("portaudio")
+    bundled_portaudio_library: str | None = None
+    try:
+        sounddevice = importlib.import_module("sounddevice")
+        bundled_portaudio_library = getattr(sounddevice, "_libname", None)
+    except Exception:  # noqa: BLE001 - availability is reported by library probes.
+        pass
+    portaudio_library = system_portaudio_library or bundled_portaudio_library
     alsa_library = ctypes.util.find_library("asound") if system == "Linux" else None
     proc_asound = Path("/proc/asound")
 
@@ -241,6 +248,13 @@ def probe_audio() -> dict[str, Any]:
         "portaudio": {
             "library_available": portaudio_library is not None,
             "library": portaudio_library,
+            "source": (
+                "system"
+                if system_portaudio_library
+                else "sounddevice_wheel"
+                if bundled_portaudio_library
+                else None
+            ),
             "pkg_config_version": pkg_config_version("portaudio-2.0"),
         },
         "alsa": {
