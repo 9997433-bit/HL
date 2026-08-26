@@ -1,13 +1,13 @@
 # PR Draft — OpenFEMLab Round 1
 
 Ready to file. Base: `main`. Head: `cursor/femtools-industrial-7aa3`.
-Verified at `2bbd695`: full suite **595 passed**, `ruff check .` clean
+Verified at `9109e17`: full suite **611 passed**, `ruff check .` clean
 (Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1).
 
 ## Title
 
 ```
-OpenFEMLab: solver-independent CAE platform — modal analysis, correlation, model updating, damped dynamics (595 tests)
+OpenFEMLab: solver-independent CAE platform — modal analysis, correlation, model updating, damped dynamics (611 tests)
 ```
 
 ## Body
@@ -58,7 +58,7 @@ synthesis, and optimization hooks — all behind one CLI and a schema-versioned 
 - **CLI** (`cli/`): `openfemlab modal | correlate | update` over JSON/YAML model
   specs; machine-readable JSON on stdout, diagnostics on stderr, CI acceptance gates
   via exit codes; covered end to end including subprocess runs.
-- **QA stack**: 595 tests including a machine-readable registry of 35 quantified
+- **QA stack**: 611 tests including a machine-readable registry of 35 quantified
   acceptance criteria wired to tagged acceptance tests, boundary/probe suites,
   performance-regression gates, and benchmarks; GitHub Actions CI on Python
   3.10–3.13; `ruff check` clean.
@@ -68,7 +68,7 @@ synthesis, and optimization hooks — all behind one CLI and a schema-versioned 
 
 ## Verification
 
-- `python -m pytest` — **595 passed** at `2bbd695` in 64.15 s on Python 3.12.3 /
+- `python -m pytest` — **611 passed** at `9109e17` in 19.21 s on Python 3.12.3 /
   NumPy 2.5.2 / SciPy 1.18.1.
 - `ruff check .` — clean.
 - The current suite includes 61 QUAD4 tests and 25 reduction/expansion tests in addition
