@@ -162,6 +162,15 @@ binary artifacts must not include it. See
   selection-restricted playback.
 - The reported playhead subtracts what is still queued in the ring buffer, so
   it reflects what is audible rather than how far the feeder has run ahead.
+  `position` moves once per device block; `position_interpolated` walks the
+  last block off against the wall clock and returns a fractional frame, which
+  is what the UI draws so a 30 Hz repaint glides instead of stepping.
+- Master volume and mute are ramped over 10 ms rather than applied as a step,
+  so moving the fader during playback cannot click.
+- An optional per-block insert (`set_stream_processor`) runs on the feeder
+  thread, ahead of the ring buffer. The live effect rack uses it, so a chain
+  that overruns a block period costs latency the ring absorbs rather than a
+  dropout.
 - Per-channel peak/RMS metering published from the render callback.
 - Pluggable output: `SoundDeviceOutput` (PortAudio via `sounddevice`, reporting
   device under/overruns through `xruns`), `PyAudioOutput` (PortAudio via
@@ -211,7 +220,9 @@ binary artifacts must not include it. See
   of the whole clip or just the selection, and a status bar carrying format,
   duration, selection and active output backend.
 - Dockable spectrum and effects-rack panels, live wet/dry/bypass preview, and
-  asynchronous integrated loudness/LRA analysis.
+  asynchronous integrated loudness/LRA analysis. The rack is processed on the
+  feeder thread, before the master fader, so a rack change reaches the speakers
+  once the already-queued blocks have drained rather than instantly.
 
 **Markers and regions** (`audio_studio.core.markers.MarkerList`)
 
@@ -308,9 +319,11 @@ The suite covers value-type invariants, ring-buffer wrap-around and
 over/under-run handling, decoding round-trips and resampling, the peak pyramid
 against brute-force numpy reductions, the transport state machine, seek
 accuracy (including discarding stale buffered audio mid-playback), gain and
-metering, copy-on-write edits and deep undo/redo, disk-streaming sources, DSP
-streaming equivalence (including compressor/true-peak limiter dynamics),
-loudness/spectrum behavior, and Qt widgets under the offscreen platform plugin.
+metering, the real-time discipline rules (volume ramping, playhead
+interpolation and which thread the effect rack runs on), copy-on-write edits
+and deep undo/redo, disk-streaming sources, DSP streaming equivalence
+(including compressor/true-peak limiter dynamics), loudness/spectrum behavior,
+and Qt widgets under the offscreen platform plugin.
 Repository-level compliance, null-roundtrip and SLO tests live one directory
 above this package.
 
@@ -332,7 +345,8 @@ above this package.
   markers yet — see the roadmap in the release sign-off. Batch processing is
   covered by the `audio_studio.batch` CLI above.
 - Not a low-latency monitor: the default device block is 1024 frames
-  (~21 ms at 48 kHz) and playhead accuracy is bounded by the block size.
+  (~21 ms at 48 kHz), and while the drawn playhead is interpolated between
+  callbacks, the audio it tracks is still quantised to that block.
   `SoundDeviceOutput` is the step towards fixing this, but it currently opens
   the host API's shared mode only — WASAPI exclusive mode, ASIO and per-host
   latency hints are not wired up, and the ASIO SDK is not shipped.
@@ -340,9 +354,11 @@ above this package.
   `.underflows`, `.overflows`) but nothing surfaces them in the UI yet, and
   `PyAudioOutput` cannot report them at all. Recording still runs on PyAudio
   input regardless of which output backend is selected.
-- The effect-rack preview chain runs on the device render path. Light chains
-  are fine in practice; a heavy chain can starve the callback. Committed
-  (offline) effects are unaffected.
+- The effect-rack preview chain runs on the feeder thread, so a heavy chain no
+  longer starves the device callback — but it is processed a ring buffer ahead
+  of what you hear, so a parameter or bypass change lands after the queued
+  blocks drain (~340 ms at the default block and ring depth). A backend opened
+  outside the transport still processes in the render callback.
 - The SPSC ring is lock-free at the Python level but still executes under
   CPython/GIL scheduling; physical-device p99 timing and a long soak are not
   certified by headless tests.
