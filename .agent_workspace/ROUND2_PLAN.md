@@ -28,7 +28,7 @@ AC-CORR-008/009. Every **P0** row is `implemented` (34/34); the three still
 `specified` are all P1 (AC-MODAL-008, AC-UPD-008, AC-WORK-003). Nothing can reach
 `verified` until R2-T09 stands up the CI job.
 
-Registry update (A72, R2-T09 first slice, code baseline `176ce3a`): the promotion
+Registry update (A72, R2-T09 first slice, code baseline `06e85ba`): the promotion
 gate landed, so the split is now **44 criteria — 9 `verified`, 32 `implemented`,
 3 `specified`** (69 tagged tests behind the promoted rows); suite **1149 passed**,
 `ruff check .` clean.

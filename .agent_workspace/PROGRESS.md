@@ -2982,7 +2982,7 @@ first slice makes it an enforced claim and promotes the first batch of criteria.
   an AC-CORR-001 test turned three gate tests red, and deleting the Ruff step from the
   workflow failed the corresponding parametrization — the gate is load-bearing, not
   decorative.
-- **Measured** — full suite **1149 passed** (the trunk's 1133 at `176ce3a` plus the 16
+- **Measured** — full suite **1149 passed** (the trunk's 1133 at `06e85ba` plus the 16
   this slice adds), `ruff check .` clean, on Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1
   from the private worktree `/tmp/a72` with `PYTHONPATH` pinned to its own `src`.
   Pinning BLAS to one thread inside the gate cut the two concurrent runs from 17.4 s to
