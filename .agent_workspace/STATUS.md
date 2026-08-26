@@ -79,7 +79,7 @@ optimization 15, dynamics 13, registry consistency 12, workflow 11.
 |---|---|---|---|
 | M1 Modal analysis (MS-1) | `solver/modal.py` (+ `modal/eigen.py` adapter) | 44 / 98 | Complete for Round-2 scope, incl. typed input validation (MS-1.1). AC-MODAL-001..007 and 009 implemented; only 008 (P1 frequency window) `specified`. |
 | M2 Correlation (MS-2) | `correlation/` (mac, metrics, pairing, align, reduction, frf, report) | 52 + 25 + 25 / 81 | Engine complete incl. Guyan/IRS/SEREP + TAM and the schema-1.1 FRF block. AC-CORR-005/006/007 implemented; 008 (report round-trip) `specified`; AC-CORR-009 unregistered. |
-| M3 Model updating (MS-3) | `updating/` | 57 + 36 / 31 | LM/GN with analytic Fox–Kapoor + MAC sensitivities complete; Bayesian MAP estimator landed and gated. AC-UPD-006a/006b implemented; AC-UPD-004/005 (P0) and 008 (P1) still `specified`. |
+| M3 Model updating (MS-3) | `updating/` | 57 + 36 / 55 | LM/GN with analytic Fox–Kapoor + MAC sensitivities complete; Bayesian MAP estimator landed and gated. AC-UPD-001..007 implemented; only 008 (P1 mode switching) still `specified`. |
 | M4 Correction workflow (MS-4) | `workflow/` | 41 / 11 | Complete (S1–S6, gates, collinearity screen, Laplace or least-squares σ_post, reproducible report). AC-WORK-001/002/004/005 and AC-UPD-007 implemented; AC-WORK-003 `specified`. |
 | M5 Optimization (MS-5) | `optimization/` | 27 / 15 | Sizing complete (GAP-12 closed) with bound-active KKT oracles; shape variables fall back to finite differences. AC-OPT-001..004 implemented. |
 | M6 Damped dynamics (MS-7) | `solver/dynamics.py` | 82 / 13 | Complete; FRF updating residual deferred to Round 3. AC-DYN-001..005 implemented. |
@@ -90,12 +90,11 @@ optimization 15, dynamics 13, registry consistency 12, workflow 11.
 
 ## 4. Open gaps (priority order)
 
-1. **Registry closure.** 6 of 40 criteria remain `specified` and nothing has
+1. **Registry closure.** 4 of 40 criteria remain `specified` and nothing has
    been advanced to `verified`; the Round-2 exit bar requires every P0+P1
-   criterion `verified`. Remaining P0: AC-CORR-008 (report JSON round-trip),
-   AC-UPD-004 (convergence/divergence guard), AC-UPD-005 (ill-posed
-   robustness). Remaining P1: AC-MODAL-008, AC-UPD-008, AC-WORK-003.
-   Several gate behaviour that already exists and is unit-tested — these are
+   criterion `verified`. Remaining P0: AC-CORR-008 (report JSON round-trip).
+   Remaining P1: AC-MODAL-008, AC-UPD-008, AC-WORK-003. All four gate
+   behaviour that already exists and is unit-tested — these are
    acceptance-test-and-tagging tasks, not feature work.
 2. **R2-T02 remainder** (P0): HEX8, the 3D beam, the shell facet,
    `CQUAD4`/`CTETRA`/`CHEXA`/`PSHELL`/`PSOLID` BDF cards, and the
@@ -128,6 +127,7 @@ deleted from `origin` (R2-T08 fully closed), and `PR_DRAFT.md` was refreshed to
 the verified 876 count.
 
 Resolved since (sections 2–4 above track it, section 1 stays pinned at A55's
-commit): A57 registered AC-UPD-006a/b and wired the Laplace σ_post into the
-`CorrectionReport`, taking the registry to **34 `implemented` / 6 `specified`**
-(P1: 5 implemented / 3 specified) and the suite to **888 passed**.
+commit): A50 registered AC-UPD-004/005 and AC-CORR-005/007, and A57 registered
+AC-UPD-006a/b and wired the Laplace σ_post into the `CorrectionReport`. Together
+they take the registry to **36 `implemented` / 4 `specified`** (P0: 31 / 1;
+P1: 5 / 3) and the suite to **912 passed**.

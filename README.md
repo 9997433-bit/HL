@@ -109,6 +109,9 @@ See
 for a complete model → synthetic test → correlation → update → validation
 workflow.
 
+For a detailed Chinese introduction and workflow reference, see the
+[`中文用户指南`](docs/USER_GUIDE_zh.md).
+
 ## Command-line interface
 
 The CLI consumes JSON or YAML specifications and can emit tables, JSON, or
@@ -180,6 +183,8 @@ python -m ruff check .
 ```
 
 The equivalent convenience targets are `make test` and `make lint`.
+See the [orchestrator report](.agent_workspace/ORCHESTRATOR_REPORT.md) for the
+full delivery status and 876-test verification record.
 
 ## Benchmarks
 
