@@ -92,8 +92,8 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 
 | Agent | Model | Focus | Status |
 |-------|-------|-------|--------|
-| A130 | claude-fable-5-thinking-xhigh | ROUND3_PLAN.md from SOTA_GAP §6 + SIGNOFF deferred items | dispatched |
-| A131 | claude-opus-5-thinking-high-fast | GAP-13: sparse-aware reduction (stop densifying in correlation/reduction.py) | dispatched |
+| A130 | claude-fable-5-thinking-xhigh | ROUND3_PLAN.md from SOTA_GAP §6 + SIGNOFF deferred items | complete — merged `476b81f`, R3-T01..T08 backlog |
+| A131 | claude-opus-5-thinking-high-fast | GAP-13: sparse-aware reduction (stop densifying in correlation/reduction.py) | complete — merged `93d6f75`, +14 reduction tests |
 | A132 | claude-opus-5-thinking-high-fast | R2-T06: QR-with-pivoting collinearity screen refinement | dispatched |
 | A133 | claude-fable-5-thinking-xhigh | GAP-06 MPE: MODULE_SPEC + acceptance scaffold (spec-first) | dispatched |
 | A134 | claude-fable-5-thinking-xhigh | GAP-07 pretest EI: spec + stub API | dispatched |
