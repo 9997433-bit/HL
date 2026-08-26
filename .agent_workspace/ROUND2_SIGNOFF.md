@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-26  
 **Branch:** `cursor/femtools-industrial-7aa3`  
-**Integration tip:** pending push from `cursor/r2-signoff-7aa3`
+**Integration tip:** `104e9e1` on `cursor/femtools-industrial-7aa3`
 
 ## Exit bar
 
