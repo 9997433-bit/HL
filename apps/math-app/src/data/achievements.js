@@ -105,6 +105,20 @@ export const ACHIEVEMENTS = [
       ),
   },
   {
+    id: 'daily-first',
+    name: '今日出发',
+    desc: '完成 1 次今日冒险',
+    emoji: '🗓️',
+    test: (s) => (s.counters.dailyQuests ?? 0) >= 1,
+  },
+  {
+    id: 'daily-seven',
+    name: '七日巡航',
+    desc: '累计完成 7 次今日冒险',
+    emoji: '🛎️',
+    test: (s) => (s.counters.dailyQuests ?? 0) >= 7,
+  },
+  {
     id: 'perfect-run',
     name: '完美通关',
     desc: '一轮练习全部答对',
