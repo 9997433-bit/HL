@@ -6,7 +6,8 @@ reopened on another machine without chasing the original source files.
 
 The schema stays at version 1 while it grows: readers treat every key they do
 not recognise as absent, and every key added after the first release (the
-top-level ``markers`` array and the per-media ``peaks`` sidecar pointer, so far)
+top-level ``markers`` array, the per-media ``peaks`` sidecar pointer and the
+multitrack ``buses`` array with its per-track ``send_to_bus`` pointer, so far)
 is written only when it carries something, so a bundle saved by this build still
 opens in one that predates the addition.
 """
@@ -29,7 +30,7 @@ from ..core.loader import LoadedAudio, load_audio, save_audio
 from ..core.markers import MarkerList
 from ..core.peaks import PeakPyramid
 from ..core.sample_source import MemorySampleSource, SampleSource
-from ..core.session import MultitrackSession, Track
+from ..core.session import Bus, MultitrackSession, Track
 from ..core.types import AudioBuffer, TimeRange
 
 SCHEMA_VERSION = 1
@@ -229,25 +230,39 @@ class ProjectStore:
                         "fade_out": int(clip.fade_out),
                     }
                 )
-            tracks_json.append(
-                {
-                    "id": track.track_id,
-                    "name": track.name,
-                    "gain_db": float(track.gain_db),
-                    "pan": float(track.pan),
-                    "mute": bool(track.mute),
-                    "solo": bool(track.solo),
-                    "clips": clips_json,
-                }
-            )
+            track_json: dict[str, Any] = {
+                "id": track.track_id,
+                "name": track.name,
+                "gain_db": float(track.gain_db),
+                "pan": float(track.pan),
+                "mute": bool(track.mute),
+                "solo": bool(track.solo),
+                "clips": clips_json,
+            }
+            # Only routed tracks carry the key, so an unrouted arrangement
+            # serializes byte-for-byte the way it did before buses existed.
+            if track.send_to_bus:
+                track_json["send_to_bus"] = str(track.send_to_bus)
+            tracks_json.append(track_json)
 
-        return {
+        payload: dict[str, Any] = {
             "sample_rate": int(session.sample_rate),
             "channels": int(session.n_channels),
             "master_gain_db": float(session.master.gain_db),
             "media": media_items,
             "tracks": tracks_json,
         }
+        if session.n_buses:
+            payload["buses"] = [
+                {
+                    "id": bus.bus_id,
+                    "name": bus.name,
+                    "gain_db": float(bus.gain_db),
+                    "mute": bool(bus.mute),
+                }
+                for bus in session.buses
+            ]
+        return payload
 
     def _write_peaks(self, media_rel: str, samples: np.ndarray) -> str | None:
         """Cache the waveform overview beside a media copy.
@@ -311,6 +326,18 @@ def restore_multitrack(data: dict[str, Any], project_root: Path) -> MultitrackSe
     )
     session.master.gain_db = float(data.get("master_gain_db", 0.0))
 
+    # Buses come back before the tracks that send to them so a restored send
+    # always resolves; a bundle written before buses existed simply has none.
+    for bus_data in data.get("buses", []):
+        session.add_bus(
+            Bus(
+                bus_id=str(bus_data["id"]),
+                name=str(bus_data.get("name", "Bus")),
+                gain_db=float(bus_data.get("gain_db", 0.0)),
+                mute=bool(bus_data.get("mute", False)),
+            )
+        )
+
     media_by_id = {item["id"]: item for item in data.get("media", [])}
     source_cache: dict[str, MemorySampleSource] = {}
 
@@ -324,6 +351,7 @@ def restore_multitrack(data: dict[str, Any], project_root: Path) -> MultitrackSe
         return source_cache[media_id]
 
     for track_data in data.get("tracks", []):
+        send_to = track_data.get("send_to_bus")
         track = session.add_track(
             Track(
                 name=str(track_data.get("name", "Track")),
@@ -332,6 +360,7 @@ def restore_multitrack(data: dict[str, Any], project_root: Path) -> MultitrackSe
                 pan=float(track_data.get("pan", 0.0)),
                 mute=bool(track_data.get("mute", False)),
                 solo=bool(track_data.get("solo", False)),
+                send_to_bus=str(send_to) if send_to else None,
             )
         )
         for clip_data in track_data.get("clips", []):
