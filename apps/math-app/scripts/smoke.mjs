@@ -337,14 +337,25 @@ await interact('成就墙：改名 / 导出 / 清空进度', '/#/progress', asyn
 })
 
 await interact('无障碍：键盘也能装货', '/#/number-sense', async (page) => {
-  // 先跳到一道装货题
-  let found = false
+  // 先跳到一道装货题（装货题的货物也带 .opt 类，所以这里不能用 answerOnce 盲点）
+  const isCargoQuestion = () =>
+    page.evaluate(() => /把\s*\d+\s*个/.test(document.body.innerText))
+  let found = await isCargoQuestion()
   for (let i = 0; i < 8 && !found; i++) {
-    found = await page.evaluate(() => /把\s*\d+\s*个/.test(document.body.innerText))
-    if (found) break
     if (!(await answerOnce(page))) break
+    await sleep(1600)
+    found = await isCargoQuestion()
   }
   if (!found) return '本轮没抽到装货题，跳过'
+
+  // 上一题的反馈期内货物是锁住的，等它过去再测键盘
+  await page.waitForFunction(
+    () => {
+      const go = [...document.querySelectorAll('button')].find((b) => /发射/.test(b.innerText))
+      return go && !go.disabled
+    },
+    { timeout: 5000 },
+  )
 
   const before = await page.evaluate(
     () => Number(document.querySelector('.counter-num')?.innerText ?? -1),
