@@ -1,6 +1,6 @@
 # OpenFEMLab 编排总报告（Orchestrator Report）
 
-**报告人：** A103（顶替已完成的 A99）· **日期：** 2026-08-26
+**报告人：** A115（补录）· **日期：** 2026-08-26
 **分支：** `cursor/femtools-industrial-7aa3` · **Pull Request：** [PR #5](https://github.com/9997433-bit/hl/pull/5)（Draft，base `main`）
 **已验证快照：** 提交 `e111901` —— 全量 `pytest` **1184 通过 / 0 失败**（52.32 s），`ruff check .` 干净（Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1）。
 
@@ -61,8 +61,8 @@ OpenFEMLab 是一个受 FEMtools 启发、但完全开源（MIT）、求解器�
 | 任务 | 内容 | 状态 |
 |---|---|---|
 | R2-T01 | 动力学/FRF 链（阻尼、复模态、FRF 综合与相关、schema 1.1 `frf` 块、`correlate-frf` CLI） | **完成**（AC-DYN-001..005 已注册并实现，含退出门槛演示，无遗留项） |
-| R2-T02 | 3D 单元库 | **部分**——QUAD4（61）、TET4（66）、HEX8（76）与 **空间梁 BeamElement3D（42）** 均已上主干，AC-ELEM-001..003 已注册并 `implemented`；**除壳面元外单元列式再无缺口**。余量：带钻转自由度的平板壳面元；`CQUAD4`/`CTETRA`/`CHEXA`/`CBAR`/`PSHELL`/`PSOLID` BDF 卡；`NeutralModel → Model` 转换 |
-| R2-T03 | SEREP/Guyan/IRS 缩减 + TAM + 振型扩展 | **基本完成**——引擎落地，AC-CORR-006/009 均已注册并 `implemented`，`SensorMap.signs` 已接入缩减基（A58）；余量：缩减模块对稀疏输入的稠密化（GAP-13 规模前需改） |
+| R2-T02 | 3D 单元库 | **部分**——QUAD4（61）、TET4（66）、HEX8（76）与 **空间梁 BeamElement3D（42）** 均已上主干，AC-ELEM-001..003 已覆盖，其中 AC-ELEM-001 已 `verified`；**除壳面元外单元列式再无缺口**。余量：带钻转自由度的平板壳面元；`CQUAD4`/`CTETRA`/`CHEXA`/`CBAR`/`PSHELL`/`PSOLID` BDF 卡；`NeutralModel → Model` 转换 |
+| R2-T03 | SEREP/Guyan/IRS 缩减 + TAM + 振型扩展 | **基本完成**——引擎落地，AC-CORR-006 已 `verified`、AC-CORR-009 已 `implemented`，`SensorMap.signs` 已接入缩减基（A58）；余量：缩减模块对稀疏输入的稠密化（GAP-13 规模前需改） |
 | R2-T04 | 贝叶斯 MAP 修正（MS-3.5） | **验收完成**——估计器落地（36 个测试），AC-UPD-006a/b 已注册并 `implemented`（10 自由度孪生上的八用例验收门），`CorrectionReport` σ_post 列已接入；验收范围外余量：CLI `update` 文档输出 σ_post |
 | R2-T05 | meshio 桥 + UNV 2411/2412 | **部分**——`from_meshio`/`to_meshio` 与 `read_meshio`/`write_meshio` 已落地（44 个测试）；节点/单元标签和 `property_ids`/`gmsh:physical`/`medit:ref` 属性标签可往返，未知单元带诊断跳过，缺少 `[io]` 附加依赖时抛出带安装提示的 `MissingDependencyError`。余量：AC-IO-001..003、UNV 2411/2412、UFF 写出及 `NeutralModel → Model` 再分析 |
 | R2-T06 | 修正深度（共线性筛查等） | **P0 部分完成**（MS-3.6 筛查 + AC-UPD-007 已 `implemented`）；P1 余量（QR 选主元精化、解析 MAC 行 Jacobian 接线、模型级参数解析器）开放 |
@@ -83,7 +83,7 @@ OpenFEMLab 是一个受 FEMtools 启发、但完全开源（MIT）、求解器�
 
 ## 六、Pull Request
 
-[PR #5 — OpenFEMLab: solver-independent CAE platform](https://github.com/9997433-bit/hl/pull/5)（Draft，head `cursor/femtools-industrial-7aa3` → base `main`）。标题中的测试数（430）反映的是开 PR 时的规模，现已增长至 **1184**，建议在转正式评审前刷新 PR 标题与正文（`.agent_workspace/PR_DRAFT.md` 备有草案，需同步至本快照）。
+[PR #5 — OpenFEMLab: solver-independent CAE platform](https://github.com/9997433-bit/hl/pull/5)（Draft，head `cursor/femtools-industrial-7aa3` → base `main`）。标题中的测试数（430）反映的是开 PR 时的规模，现已增长至 **1184**，建议在转正式评审前刷新 PR 标题与正文（`.agent_workspace/PR_DRAFT.md` 已同步至本快照）。
 
 ## 七、下一步
 

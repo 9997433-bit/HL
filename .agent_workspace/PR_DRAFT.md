@@ -84,10 +84,10 @@ synthesis, and optimization hooks — all behind one CLI and a schema-versioned 
   diagnostics on stderr, CI acceptance gates via exit codes; covered end to end
   including subprocess runs.
 - **QA stack**: 1184 tests including a machine-readable registry of 44 quantified
-  acceptance criteria: 35 `implemented`, 0 `specified`, and 9 `verified`, with
+  acceptance criteria: 9 `verified`, 35 `implemented`, and 0 `specified`, with
   **34/34 P0** and **10/10 P1** rows covered — plus boundary/probe suites,
-  performance-regression
-  gates, and benchmarks; GitHub Actions CI on Python 3.10–3.13; `ruff check` clean.
+  performance-regression gates, and benchmarks; GitHub Actions CI on Python
+  3.10–3.13; `ruff check` clean.
 - **Docs**: [`README`](README.md) with a reproducible CLI walkthrough,
   [`中文用户指南`](docs/USER_GUIDE_zh.md), `ARCHITECTURE.md`, `MODULE_SPEC.md` (MS-0..8),
   `ACCEPTANCE_CRITERIA.md` (44 criteria), `SOTA_GAP_ANALYSIS.md` (GAP-01..15),
@@ -99,9 +99,8 @@ synthesis, and optimization hooks — all behind one CLI and a schema-versioned 
 - `PYTHONPATH=src python -m pytest` — **1184 passed in 52.32 s** at commit `e111901`
   on Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1, from a detached private worktree.
 - `ruff check .` — clean.
-- A93 re-ran the suite one commit earlier, at the merge that brought the spatial
-  beam onto the integration branch (`75dd070`): **1089 passed in 56.82 s**,
-  `ruff check .` clean. The 44 tests between the two tips are the meshio bridge.
+- The 16 tests added since the 1168-test registry-closure snapshot exercise the
+  R2-T09 verified-criterion promotion gate.
 - Per-suite breakdown (sums to 1184): acceptance registry + gates 388, dynamics 82,
   HEX8 76, TET4 66, QUAD4 61, updating 57, correlation 52, meshio bridge 44,
   modal solver 44, `BeamElement3D` 42, workflow 41, Bayesian updating 36,
