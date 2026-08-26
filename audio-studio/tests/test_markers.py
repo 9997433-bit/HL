@@ -1,10 +1,15 @@
-"""Timeline markers and named regions."""
+"""Timeline markers and named regions, from the value types up to the window."""
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
+from audio_studio.core.engine import AudioEngine
+from audio_studio.core.loader import LoadedAudio
 from audio_studio.core.markers import Marker, MarkerList, Region
+from audio_studio.core.output import NullOutput
 from audio_studio.core.types import TimeRange
 
 
@@ -291,3 +296,327 @@ class TestSerialization:
 
         assert json.loads(json.dumps(markers.to_json())) == markers.to_json()
 
+
+@pytest.fixture()
+def window(qapp, loaded_clip: LoadedAudio):
+    """A window holding the in-memory clip, as ``open_file`` would leave it."""
+    from audio_studio.ui.main_window import MainWindow
+
+    engine = AudioEngine(NullOutput(realtime=False), block_size=256)
+    main = MainWindow(engine)
+    main.resize(1200, 700)
+    engine.set_clip(loaded_clip)
+    main._bind_edit_session(loaded_clip)  # noqa: SLF001 - mirrors open_file()
+    main._update_for_clip()  # noqa: SLF001
+    yield main
+    main._mark_project_saved()  # noqa: SLF001 - no close prompt in tests
+    main.close()
+
+
+class TestMarkerPanel:
+    """The dockable list is a view: it reports intent and shows what it is given."""
+
+    @pytest.fixture()
+    def panel(self, qapp):
+        from audio_studio.ui.marker_panel import MarkerPanel
+
+        return MarkerPanel()
+
+    def test_it_starts_empty_with_the_edit_buttons_off(self, panel) -> None:
+        assert panel.row_count == 0
+        assert not panel.rename_button.isEnabled()
+        assert not panel.remove_button.isEnabled()
+
+    def test_it_lists_markers_before_regions_with_timecodes(self, panel) -> None:
+        markers = MarkerList()
+        markers.add_marker(44_100, "Verse")
+        markers.add_region(0, 22_050, "Head")
+
+        panel.set_markers(markers, 44_100)
+
+        assert panel.row_count == 2
+        first = panel.tree.topLevelItem(0)
+        assert first.text(0) == "Verse"
+        assert first.text(1) == "00:01.000"
+        assert first.text(2) == "—"
+        assert panel.tree.topLevelItem(1).text(2) == "00:00.500"
+
+    def test_selecting_a_row_enables_editing_and_is_announced(self, panel) -> None:
+        markers = MarkerList()
+        marker = markers.add_marker(10, "Cue")
+        panel.set_markers(markers, 44_100)
+        seen: list[object] = []
+        panel.selectionChanged.connect(seen.append)
+
+        assert panel.select(marker.id)
+
+        assert panel.selected_id == marker.id
+        assert panel.rename_button.isEnabled()
+        assert seen[-1] == marker.id
+
+    def test_the_selected_row_survives_a_refresh(self, panel) -> None:
+        markers = MarkerList()
+        marker = markers.add_marker(10, "Cue")
+        panel.set_markers(markers, 44_100)
+        panel.select(marker.id)
+
+        markers.add_marker(20, "Other")
+        panel.set_markers(markers, 44_100)
+
+        assert panel.selected_id == marker.id
+
+    def test_activating_a_region_row_asks_for_the_seek_and_the_range(self, panel) -> None:
+        markers = MarkerList()
+        markers.add_marker(10, "Cue")
+        region = markers.add_region(100, 400, "Chorus")
+        panel.set_markers(markers, 44_100)
+        frames: list[int] = []
+        regions: list[object] = []
+        panel.goToRequested.connect(frames.append)
+        panel.regionActivated.connect(regions.append)
+
+        panel.tree.itemDoubleClicked.emit(panel.tree.topLevelItem(0), 0)  # the marker
+        panel.tree.itemDoubleClicked.emit(panel.tree.topLevelItem(1), 0)  # the region
+
+        assert frames == [10, 100]
+        assert regions == [region]
+
+    def test_the_buttons_report_intent_rather_than_editing(self, panel) -> None:
+        markers = MarkerList()
+        marker = markers.add_marker(10, "Cue")
+        panel.set_markers(markers, 44_100)
+        panel.select(marker.id)
+        removals: list[str] = []
+        panel.removeRequested.connect(removals.append)
+
+        panel.remove_button.click()
+
+        assert removals == [marker.id]
+        assert panel.row_count == 1  # the panel does not edit the list itself
+
+
+class TestMarkerCommands:
+    def test_a_new_window_has_no_markers(self, window) -> None:
+        assert window.markers.is_empty
+        assert window.marker_panel.row_count == 0
+        assert window.markers_dock.isHidden()
+
+    def test_adding_a_marker_puts_it_at_the_playhead(self, window) -> None:
+        window.engine.seek(12_345)
+
+        marker = window.add_marker_at_playhead()
+
+        assert marker is not None
+        assert marker.frame == 12_345
+        assert window.markers.markers == (marker,)
+        assert window.marker_panel.row_count == 1
+        assert window.track_panel.waveform.markers is window.markers
+
+    def test_the_m_shortcut_is_wired_to_the_command(self, window) -> None:
+        window.engine.seek(500)
+
+        window.action_add_marker.trigger()
+
+        assert window.action_add_marker.shortcut().toString() == "M"
+        assert window.markers.markers[0].frame == 500
+
+    def test_adding_a_marker_shows_the_dock_and_dirties_the_project(self, window) -> None:
+        window._mark_project_saved()  # noqa: SLF001
+
+        window.add_marker_at_playhead()
+
+        assert not window.markers_dock.isHidden()
+        assert window._has_unsaved_changes()  # noqa: SLF001
+
+    def test_a_region_spans_the_selection(self, window) -> None:
+        window.track_panel.waveform.set_selection(TimeRange(1_000, 5_000))
+
+        region = window.add_region_from_selection()
+
+        assert region is not None
+        assert region.range == TimeRange(1_000, 5_000)
+        assert window.markers.regions == (region,)
+
+    def test_a_region_needs_a_selection(self, window) -> None:
+        window.track_panel.waveform.clear_selection()
+
+        assert window.add_region_from_selection() is None
+        assert window.markers.is_empty
+        assert "Select a range" in window.statusBar().currentMessage()
+
+    def test_the_add_region_action_follows_the_selection(self, window) -> None:
+        window.track_panel.waveform.clear_selection()
+        assert not window.action_add_region.isEnabled()
+
+        window.track_panel.waveform.set_selection(TimeRange(0, 100))
+        assert window.action_add_region.isEnabled()
+
+    def test_renaming_goes_through_the_dialog(self, window, monkeypatch) -> None:
+        marker = window.add_marker_at_playhead()
+        monkeypatch.setattr(
+            "audio_studio.ui.main_window.QInputDialog.getText",
+            lambda *args, **kwargs: ("Downbeat", True),
+        )
+
+        assert window.rename_marker(marker.id)
+
+        assert window.markers.get(marker.id).name == "Downbeat"
+        assert window.marker_panel.tree.topLevelItem(0).text(0) == "Downbeat"
+
+    def test_a_cancelled_rename_changes_nothing(self, window, monkeypatch) -> None:
+        marker = window.add_marker_at_playhead()
+        monkeypatch.setattr(
+            "audio_studio.ui.main_window.QInputDialog.getText",
+            lambda *args, **kwargs: ("", False),
+        )
+
+        assert not window.rename_marker(marker.id)
+        assert window.markers.get(marker.id).name == marker.name
+
+    def test_removing_takes_the_row_with_it(self, window) -> None:
+        marker = window.add_marker_at_playhead()
+
+        assert window.remove_marker(marker.id)
+        assert not window.remove_marker(marker.id)
+        assert window.markers.is_empty
+        assert window.marker_panel.row_count == 0
+
+    def test_the_selected_row_drives_rename_and_remove(self, window) -> None:
+        marker = window.add_marker_at_playhead()
+        window.marker_panel.select(marker.id)
+
+        assert window.action_remove_marker.isEnabled()
+        assert window.remove_selected_marker()
+        assert window.markers.is_empty
+        assert not window.action_remove_marker.isEnabled()
+        assert not window.remove_selected_marker()
+
+    def test_clearing_empties_both_kinds(self, window) -> None:
+        window.add_marker_at_playhead()
+        window.track_panel.waveform.set_selection(TimeRange(0, 100))
+        window.add_region_from_selection()
+
+        window.clear_markers()
+
+        assert window.markers.is_empty
+        assert window.marker_panel.row_count == 0
+
+    def test_closing_the_clip_drops_its_markers(self, window) -> None:
+        window.add_marker_at_playhead()
+
+        window.close_clip()
+
+        assert window.markers.is_empty
+
+
+class TestMarkerNavigation:
+    def test_next_and_previous_move_the_playhead(self, window) -> None:
+        window.engine.seek(1_000)
+        window.add_marker_at_playhead()
+        window.engine.seek(20_000)
+        window.add_marker_at_playhead()
+        window.engine.seek(0)
+
+        assert window.go_to_next_marker()
+        assert window.engine.position == 1_000
+        assert window.go_to_next_marker()
+        assert window.engine.position == 20_000
+        assert not window.go_to_next_marker()
+
+        assert window.go_to_previous_marker()
+        assert window.engine.position == 1_000
+        assert not window.go_to_previous_marker()
+
+    def test_navigation_is_off_until_there_is_a_marker(self, window) -> None:
+        assert not window.action_next_marker.isEnabled()
+
+        window.add_marker_at_playhead()
+
+        assert window.action_next_marker.isEnabled()
+        assert window.action_prev_marker.isEnabled()
+
+    def test_reaching_a_marker_selects_its_row(self, window) -> None:
+        window.engine.seek(4_000)
+        marker = window.add_marker_at_playhead()
+        window.engine.seek(0)
+
+        window.go_to_next_marker()
+
+        assert window.marker_panel.selected_id == marker.id
+        assert marker.name in window.statusBar().currentMessage()
+
+    def test_activating_a_region_restores_its_range_as_the_selection(self, window) -> None:
+        window.track_panel.waveform.set_selection(TimeRange(2_000, 6_000))
+        region = window.add_region_from_selection()
+        window.track_panel.waveform.clear_selection()
+
+        window.marker_panel.regionActivated.emit(region)
+
+        assert window.engine.selection == TimeRange(2_000, 6_000)
+
+
+class TestMarkerProjectIntegration:
+    def test_markers_survive_a_save_and_reopen(
+        self, window, qapp, tmp_path: Path
+    ) -> None:
+        from audio_studio.project.store import load_project
+        from audio_studio.ui.main_window import MainWindow
+
+        window.engine.seek(3_000)
+        window.add_marker_at_playhead()
+        window.track_panel.waveform.set_selection(TimeRange(100, 900))
+        window.add_region_from_selection()
+        project_dir = tmp_path / "markers.hlproj"
+        window._write_project(project_dir)  # noqa: SLF001
+        window._mark_project_saved()  # noqa: SLF001
+
+        other = MainWindow(AudioEngine(NullOutput(realtime=False)))
+        try:
+            other._apply_project(project_dir, load_project(project_dir))  # noqa: SLF001
+
+            assert other.markers == window.markers
+            assert other.marker_panel.row_count == 2
+            assert other.track_panel.waveform.markers.markers[0].frame == 3_000
+        finally:
+            other._mark_project_saved()  # noqa: SLF001
+            other.close()
+
+    def test_opening_another_file_starts_a_fresh_list(
+        self, window, wav_path: Path
+    ) -> None:
+        window.add_marker_at_playhead()
+        window._mark_project_saved()  # noqa: SLF001
+
+        assert window.open_file(wav_path)
+        assert window.markers.is_empty
+
+
+def test_the_waveform_paints_markers_without_error(qapp, loaded_clip: LoadedAudio) -> None:
+    from PySide6.QtGui import QPixmap
+
+    from audio_studio.core.peaks import PeakPyramid
+    from audio_studio.ui.waveform_view import WaveformView
+
+    view = WaveformView()
+    view.resize(800, 200)
+    view.set_clip(
+        PeakPyramid(loaded_clip.buffer.data),
+        loaded_clip.buffer.sample_rate,
+        loaded_clip.buffer.data,
+    )
+    markers = MarkerList()
+    markers.add_marker(0, "at the very start")
+    markers.add_marker(view.n_frames // 2, "middle", color="#ff0000")
+    markers.add_marker(view.n_frames, "at the very end")
+    markers.add_marker(10, "", color="not-a-colour")
+    markers.add_region(1_000, 20_000, "Chorus")
+    markers.add_region(0, 0, "empty")
+
+    view.set_markers(markers)
+
+    assert view.markers is markers
+    for frames in (view.n_frames, 20_000, 200):
+        view.set_view(0, frames)
+        target = QPixmap(view.size())
+        view.render(target)
+        assert not target.isNull()

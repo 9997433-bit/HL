@@ -61,6 +61,7 @@ from ..core.loader import (
     file_dialog_filter,
     save_audio,
 )
+from ..core.markers import Marker, MarkerList, Region
 from ..core.peaks import PeakPyramid
 from ..core.recorder import (
     AudioRecorder,
@@ -83,6 +84,7 @@ from ..project.store import (
 )
 from .effect_rack import EffectRackPanel, default_preview_chain
 from .level_meter import LevelMeter
+from .marker_panel import MarkerPanel
 from .multitrack_view import MultitrackView
 from .spectrum_panel import SpectrumPanel
 from .theme import PALETTE, stylesheet
@@ -125,6 +127,11 @@ class MainWindow(QMainWindow):
         self.transport_bar = TransportBar()
         self.spectrum_panel = SpectrumPanel()
         self.effect_rack = EffectRackPanel(self.effect_chain)
+
+        # Markers annotate the waveform document, so they live with the window
+        # rather than the engine and are saved into the project bundle.
+        self.markers = MarkerList()
+        self.marker_panel = MarkerPanel()
 
         self.session = MultitrackSession()
         self.multitrack_view = MultitrackView(self.session)
@@ -213,6 +220,16 @@ class MainWindow(QMainWindow):
             Qt.DockWidgetArea.RightDockWidgetArea | Qt.DockWidgetArea.LeftDockWidgetArea
         )
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.effects_dock)
+
+        self.markers_dock = QDockWidget("Markers", self)
+        self.markers_dock.setObjectName("MarkersDock")
+        self.markers_dock.setWidget(self.marker_panel)
+        self.markers_dock.setAllowedAreas(
+            Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea
+        )
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.markers_dock)
+        self.markers_dock.hide()
+
         self.resizeDocks([self.spectrum_dock], [320], Qt.Orientation.Vertical)
 
     def _build_actions(self) -> None:
@@ -312,6 +329,35 @@ class MainWindow(QMainWindow):
         self.action_insert_silence = action(
             "Insert &Silence…", self.edit_insert_silence, "Ctrl+Shift+N",
             tip="Insert silence at the playhead",
+        )
+
+        self.action_add_marker = action(
+            "Add &Marker", self.add_marker_at_playhead, "M",
+            tip="Drop a marker at the playhead",
+        )
+        self.action_add_region = action(
+            "Add &Region from Selection", self.add_region_from_selection, "Shift+M",
+            tip="Name the selected range as a region",
+        )
+        self.action_next_marker = action(
+            "&Next Marker", self.go_to_next_marker, "Ctrl+Right",
+            tip="Move the playhead to the next marker",
+        )
+        self.action_prev_marker = action(
+            "&Previous Marker", self.go_to_previous_marker, "Ctrl+Left",
+            tip="Move the playhead to the previous marker",
+        )
+        self.action_rename_marker = action(
+            "Re&name Marker…", self.rename_selected_marker, "F2",
+            tip="Rename the marker selected in the Markers list",
+        )
+        self.action_remove_marker = action(
+            "&Remove Marker", self.remove_selected_marker,
+            tip="Delete the marker selected in the Markers list",
+        )
+        self.action_clear_markers = action(
+            "&Clear All Markers", self.clear_markers,
+            tip="Remove every marker and region from the document",
         )
 
         self.action_zoom_in = action("Zoom &In", self.track_panel.waveform.zoom_in, "Ctrl+=")
@@ -421,6 +467,20 @@ class MainWindow(QMainWindow):
         edit_menu.addAction(self.action_select_all)
         edit_menu.addAction(self.action_deselect)
 
+        markers_menu = bar.addMenu("&Markers")
+        markers_menu.addAction(self.action_add_marker)
+        markers_menu.addAction(self.action_add_region)
+        markers_menu.addSeparator()
+        markers_menu.addAction(self.action_prev_marker)
+        markers_menu.addAction(self.action_next_marker)
+        markers_menu.addSeparator()
+        markers_menu.addAction(self.action_rename_marker)
+        markers_menu.addAction(self.action_remove_marker)
+        markers_menu.addAction(self.action_clear_markers)
+        markers_menu.addSeparator()
+        markers_menu.addAction(self.markers_dock.toggleViewAction())
+        self.markers_menu = markers_menu
+
         view_menu = bar.addMenu("&View")
         view_menu.addAction(self.action_zoom_in)
         view_menu.addAction(self.action_zoom_out)
@@ -441,6 +501,7 @@ class MainWindow(QMainWindow):
         view_menu.addSeparator()
         view_menu.addAction(self.spectrum_dock.toggleViewAction())
         view_menu.addAction(self.effects_dock.toggleViewAction())
+        view_menu.addAction(self.markers_dock.toggleViewAction())
         view_menu.addAction(self.action_analyze)
 
         transport_menu = bar.addMenu("&Transport")
@@ -511,6 +572,14 @@ class MainWindow(QMainWindow):
         self.spectrum_panel.fftSizeChanged.connect(lambda _size: self.analyze_spectrum())
         self.effect_rack.chainChanged.connect(self._on_chain_changed)
 
+        self.marker_panel.selectionChanged.connect(self._update_marker_actions)
+        self.marker_panel.goToRequested.connect(self._on_seek)
+        self.marker_panel.regionActivated.connect(self._on_region_activated)
+        self.marker_panel.addMarkerRequested.connect(self.add_marker_at_playhead)
+        self.marker_panel.addRegionRequested.connect(self.add_region_from_selection)
+        self.marker_panel.renameRequested.connect(self.rename_marker)
+        self.marker_panel.removeRequested.connect(self.remove_marker)
+
         self.multitrack_view.seekRequested.connect(self._on_seek)
         self.multitrack_view.sessionChanged.connect(self._on_session_edited)
 
@@ -546,6 +615,7 @@ class MainWindow(QMainWindow):
         self._clear_edit_session()
         self.engine.close_clip()
         self._editor_clip = None
+        self.set_markers(MarkerList())
         self._update_for_clip()
 
     def export_dialog(self) -> None:
@@ -623,6 +693,7 @@ class MainWindow(QMainWindow):
 
         self.session = restore_multitrack(snapshot.multitrack, path)
         self.multitrack_view.set_session(self.session)
+        self.set_markers(snapshot.markers)
 
         if snapshot.waveform is not None:
             clip, session, playhead, selection = load_waveform_document(snapshot)
@@ -692,6 +763,7 @@ class MainWindow(QMainWindow):
             view_mode=self.view_mode,
             playhead=playhead,
             selection=selection,
+            markers=self.markers,
         )
 
     def _has_unsaved_changes(self) -> bool:
@@ -738,6 +810,8 @@ class MainWindow(QMainWindow):
     def _bind_edit_session(self, clip: LoadedAudio) -> None:
         """Wrap the loaded clip in an :class:`EditSession` wired to the transport."""
         self._clear_edit_session()
+        # Markers address frames in the outgoing document, so they go with it.
+        self.set_markers(MarkerList())
         session = EditSession.from_buffer(clip.buffer)
         session.add_listener(self._on_edit_session_changed)
         self._edit_session = session
@@ -994,6 +1068,126 @@ class MainWindow(QMainWindow):
 
         self._run_edit("Insert Silence", _insert)
 
+    # ----------------------------------------------------------- markers
+
+    def set_markers(self, markers: MarkerList) -> None:
+        """Replace the document's annotations and refresh everything showing them."""
+        self.markers = markers
+        self._refresh_markers()
+
+    def _refresh_markers(self) -> None:
+        self.track_panel.set_markers(self.markers)
+        self.marker_panel.set_markers(self.markers, max(self.engine.sample_rate, 1))
+        self._update_marker_actions()
+
+    def _update_marker_actions(self, _selected_id: str | None = None) -> None:
+        editing = self.engine.has_clip and self._workspace == "waveform"
+        selection = self.engine.selection
+        has_markers = bool(self.markers.markers)
+        selected = self.marker_panel.selected_id is not None
+
+        self.action_add_marker.setEnabled(editing)
+        self.action_add_region.setEnabled(
+            editing and selection is not None and not selection.is_empty
+        )
+        self.action_next_marker.setEnabled(has_markers)
+        self.action_prev_marker.setEnabled(has_markers)
+        self.action_rename_marker.setEnabled(selected)
+        self.action_remove_marker.setEnabled(selected)
+        self.action_clear_markers.setEnabled(not self.markers.is_empty)
+
+    def _after_markers_changed(self, message: str = "") -> None:
+        self._refresh_markers()
+        self._mark_project_dirty()
+        if message:
+            self.statusBar().showMessage(message, 4000)
+
+    def add_marker_at_playhead(self) -> Marker | None:
+        """Drop an auto-named marker where the playhead is."""
+        if not self.engine.has_clip:
+            return None
+        marker = self.markers.add_marker(int(self.engine.position))
+        self.markers_dock.show()
+        self._after_markers_changed(f"{marker.name} at {self._timecode(marker.frame)}")
+        self.marker_panel.select(marker.id)
+        return marker
+
+    def add_region_from_selection(self) -> Region | None:
+        """Name the selected range as a region."""
+        selection = self.engine.selection
+        if not self.engine.has_clip or selection is None or selection.is_empty:
+            self.statusBar().showMessage("Select a range first to make a region", 4000)
+            return None
+        region = self.markers.add_region(selection.start, selection.end)
+        self.markers_dock.show()
+        self._after_markers_changed(
+            f"{region.name} spans {self._timecode(region.start)}"
+            f" → {self._timecode(region.end)}"
+        )
+        self.marker_panel.select(region.id)
+        return region
+
+    def rename_marker(self, item_id: str) -> bool:
+        item = self.markers.get(item_id)
+        if item is None:
+            return False
+        name, ok = QInputDialog.getText(self, "Rename", "Name:", text=item.name)
+        if not ok or not name.strip():
+            return False
+        renamed = self.markers.rename(item_id, name.strip())
+        self._after_markers_changed(f"Renamed to {renamed.name}")
+        self.marker_panel.select(item_id)
+        return True
+
+    def rename_selected_marker(self) -> bool:
+        item_id = self.marker_panel.selected_id
+        return False if item_id is None else self.rename_marker(item_id)
+
+    def remove_marker(self, item_id: str) -> bool:
+        item = self.markers.get(item_id)
+        if item is None or not self.markers.remove(item_id):
+            return False
+        self._after_markers_changed(f"Removed {item.name}")
+        return True
+
+    def remove_selected_marker(self) -> bool:
+        item_id = self.marker_panel.selected_id
+        return False if item_id is None else self.remove_marker(item_id)
+
+    def clear_markers(self) -> None:
+        if self.markers.is_empty:
+            return
+        count = len(self.markers)
+        self.markers.clear()
+        self._after_markers_changed(f"Removed {count} markers and regions")
+
+    def go_to_next_marker(self) -> bool:
+        return self._go_to_marker(self.markers.next_marker(int(self.engine.position)))
+
+    def go_to_previous_marker(self) -> bool:
+        return self._go_to_marker(self.markers.previous_marker(int(self.engine.position)))
+
+    def _go_to_marker(self, marker: Marker | None) -> bool:
+        if marker is None:
+            self.statusBar().showMessage("No marker in that direction", 2500)
+            return False
+        self._on_seek(marker.frame)
+        self.marker_panel.select(marker.id)
+        self.statusBar().showMessage(
+            f"{marker.name} · {self._timecode(marker.frame)}", 3000
+        )
+        return True
+
+    def _on_region_activated(self, region: object) -> None:
+        """Restore a region's span as the editor selection."""
+        if not isinstance(region, Region):
+            return
+        clipped = region.range.clamped(self.engine.n_frames)
+        self.track_panel.set_selection(None if clipped.is_empty else clipped)
+
+    def _timecode(self, frame: int) -> str:
+        return format_timecode(frame / max(self.engine.sample_rate, 1))
+
     # ---------------------------------------------------------- analysis
 
     def audio_range(self, start: int, stop: int) -> np.ndarray | None:
@@ -1138,6 +1332,7 @@ class MainWindow(QMainWindow):
         else:
             self._refresh_editor_waveform()
         self._update_edit_actions()
+        self._update_marker_actions()
         self._update_status_format()
 
     def _refresh_editor_waveform(self) -> None:
@@ -1262,6 +1457,7 @@ class MainWindow(QMainWindow):
         self.action_add_track.setEnabled(clip is not None)
 
         self._update_edit_actions()
+        self._refresh_markers()
         self._update_window_title()
         self._route_transport()
         self._update_status_format()
@@ -1456,6 +1652,7 @@ class MainWindow(QMainWindow):
 
     def _on_selection_changed(self, selection: TimeRange | None) -> None:
         self.engine.set_selection(selection)
+        self._update_marker_actions()
         # Coalesce: a drag emits a selection per mouse move, and each one would
         # otherwise start a transform over the range.
         self._analysis_timer.start()

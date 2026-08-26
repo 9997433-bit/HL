@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..core.loader import LoadedAudio
+from ..core.markers import MarkerList
 from ..core.peaks import PeakPyramid
 from ..core.types import TimeRange
 from .theme import PALETTE, Palette
@@ -174,6 +175,9 @@ class TrackPanel(QWidget):
 
     def set_selection(self, selection: TimeRange | None) -> None:
         self.waveform.set_selection(selection)
+
+    def set_markers(self, markers: MarkerList | None) -> None:
+        self.waveform.set_markers(markers)
 
     def _on_view_changed(self, view_start: int, view_frames: int) -> None:
         self.ruler.set_view(view_start, view_frames)

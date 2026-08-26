@@ -36,6 +36,8 @@ class Palette:
     selection_edge: str = "#7fd4ff"
     playhead: str = "#ffb300"
     cursor: str = "#d7dade"
+    marker: str = "#9ccc65"
+    region: str = "#ab7df6"
 
     meter_low: str = "#4caf50"
     meter_mid: str = "#ffc107"

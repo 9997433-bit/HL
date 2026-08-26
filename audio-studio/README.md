@@ -160,6 +160,16 @@ matched. The same pipeline is scriptable from Python via
 - Dockable spectrum and effects-rack panels, live wet/dry/bypass preview, and
   asynchronous integrated loudness/LRA analysis.
 
+**Markers and regions** (`audio_studio.core.markers.MarkerList`)
+
+- Drop a marker at the playhead or name the current selection as a region, then
+  walk the timeline marker to marker from the keyboard.
+- Both kinds are drawn as coloured flags over the waveform and listed in a
+  dockable panel where they can be renamed, removed or double-clicked to seek
+  (a region also restores its span as the selection).
+- Saved into the `.hlproj` bundle as an optional `markers` array, so a project
+  written with markers still opens in a build that predates them.
+
 **DSP and analysis** (`audio_studio.dsp`)
 
 - Calibrated STFT/iSTFT, eight window functions, linear/log frequency display,
@@ -183,6 +193,9 @@ matched. The same pipeline is scriptable from Python via
 | `Ctrl+=` / `Ctrl+-` / `Ctrl+0` | Zoom in / out / fit |
 | `Ctrl+Shift+0` | Zoom to selection |
 | `Ctrl+Up` / `Ctrl+Down` | Amplitude zoom |
+| `M` / `Shift+M` | Add a marker at the playhead / a region from the selection |
+| `Ctrl+Left` / `Ctrl+Right` | Go to the previous / next marker |
+| `F2` | Rename the marker selected in the Markers panel |
 | `Ctrl+Shift+S` | Export as… |
 
 ## Licensing and optional components
