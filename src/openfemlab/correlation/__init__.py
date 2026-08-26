@@ -14,14 +14,17 @@ and measured :class:`~openfemlab.core.results.TestData`:
 - ``frac`` / ``fdac`` — the frequency-domain counterparts of MAC, re-exported
   from :mod:`openfemlab.solver.dynamics` so FRF correlation is reachable from
   this namespace without a second implementation of the kernel.
+- :mod:`~openfemlab.correlation.frf` — ``frf_correlation``, which drives those
+  two kernels over a measured/synthesized FRF pair and returns the
+  ``FRFCorrelation`` block the report carries.
 - :mod:`~openfemlab.correlation.pairing` — ``pair_modes``, globally optimal
   FE/test pairing via Hungarian assignment on a combined MAC + frequency cost,
   instead of the greedy max-MAC pass classic tools use.
 - :mod:`~openfemlab.correlation.summary` — the scalar quality indicators an
   updating run steers on.
 - :mod:`~openfemlab.correlation.report` — ``CorrelationReport``, the paired
-  table (f_FE, f_test, Δf%, MAC) plus MAC matrix and COMAC, serializable to
-  JSON for the CLI and CI artifacts.
+  table (f_FE, f_test, Δf%, MAC) plus MAC matrix, COMAC and the optional FRF
+  block, serializable to JSON for the CLI and CI artifacts.
 
 The layer works on plain arrays, so results from any solver — internal or
 imported through :mod:`openfemlab.io` — correlate the same way::
@@ -41,6 +44,7 @@ from .align import (
     align_shapes,
     selection_matrix,
 )
+from .frf import FRFCorrelation, frf_correlation
 from .mac import (
     auto_mac,
     automac,
@@ -66,7 +70,12 @@ from .reduction import (
     serep_basis,
     tam_mass,
 )
-from .report import CorrelationReport, correlate_modal_data, correlation_report
+from .report import (
+    SCHEMA_VERSION,
+    CorrelationReport,
+    correlate_modal_data,
+    correlation_report,
+)
 from .summary import (
     CorrelationSummary,
     correlate,
@@ -97,9 +106,11 @@ __all__ = [
     "frequency_difference",
     "frequency_error_matrix",
     "relative_frequency_error",
-    # FRF metrics (implemented in openfemlab.solver.dynamics)
+    # FRF metrics (kernels implemented in openfemlab.solver.dynamics)
+    "FRFCorrelation",
     "fdac",
     "frac",
+    "frf_correlation",
     # pairing
     "ModePair",
     "ModePairing",
@@ -112,6 +123,7 @@ __all__ = [
     "serep_basis",
     "tam_mass",
     # aggregated results
+    "SCHEMA_VERSION",
     "CorrelationReport",
     "CorrelationSummary",
     "correlate",

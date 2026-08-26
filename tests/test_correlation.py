@@ -16,6 +16,7 @@ import pytest
 import yaml
 
 from openfemlab.correlation import (
+    SCHEMA_VERSION,
     align_by_labels,
     auto_mac,
     automac,
@@ -476,7 +477,8 @@ def test_report_serializes_the_whole_correlation_to_json(aligned, fixture_data) 
 
     payload = json.loads(report.to_json())
 
-    assert payload["schema_version"] == "1.0"
+    assert payload["schema_version"] == SCHEMA_VERSION == "1.1"
+    assert payload["frf"] is None  # the key exists even without an FRF comparison
     assert payload["dof_labels"] == fixture_data["expected"]["shared_dof_labels"]
     assert [pair["mac"] for pair in payload["pairs"]] == pytest.approx([1.0, 1.0, 1.0])
     assert [[pair["test_index"], pair["fe_index"]] for pair in payload["pairs"]] == fixture_data[
