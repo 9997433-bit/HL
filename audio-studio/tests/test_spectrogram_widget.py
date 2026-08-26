@@ -112,6 +112,45 @@ class TestColormaps:
 # ---------------------------------------------------------------------------
 
 
+class TestPixelReduce:
+    """The pooling primitive both render caches are built on."""
+
+    @pytest.mark.parametrize("axis", [0, 1])
+    @pytest.mark.parametrize(
+        ("length", "cells"),
+        [(1000, 320), (320, 320), (50, 200), (7, 3), (1, 8), (999, 100)],
+    )
+    def test_matches_reduceat_element_for_element(
+        self, length: int, cells: int, axis: int
+    ) -> None:
+        from audio_studio.ui.spectrogram_widget import _pixel_reduce
+
+        rng = np.random.default_rng(length * 10 + cells)
+        shape = (length, 17) if axis == 0 else (17, length)
+        data = rng.uniform(-90.0, 0.0, size=shape).astype(np.float32)
+        bounds = np.clip((np.arange(cells) * length) // cells, 0, length - 1)
+
+        assert np.array_equal(
+            _pixel_reduce(data, bounds, axis=axis),
+            np.maximum.reduceat(data, bounds, axis=axis),
+        )
+
+    def test_empty_input_gives_an_empty_grid(self) -> None:
+        from audio_studio.ui.spectrogram_widget import _pixel_reduce
+
+        assert _pixel_reduce(np.zeros((0, 4)), np.arange(3), axis=0).shape == (3, 4)
+        assert _pixel_reduce(np.zeros((5, 4)), np.zeros(0, dtype=int), axis=0).shape == (0, 4)
+
+    def test_a_single_hot_cell_survives_being_pooled_away(self) -> None:
+        from audio_studio.ui.spectrogram_widget import _pixel_reduce
+
+        data = np.full((1000, 4), -90.0, dtype=np.float32)
+        data[517, 2] = 0.0
+        bounds = np.clip((np.arange(10) * 1000) // 10, 0, 999)
+
+        assert _pixel_reduce(data, bounds, axis=0)[5, 2] == 0.0
+
+
 class TestSpectrogramWidget:
     def test_renders_nothing_before_data_arrives(self, widget: SpectrogramWidget) -> None:
         assert widget.render_image(320, 180) is None
@@ -243,6 +282,142 @@ class TestSpectrogramWidget:
         widget.set_spectrogram(spectrogram)
         widget.clear()
         assert widget.render_image(100, 50) is None
+
+
+class TestRenderCache:
+    """Palette and range changes must not re-run the pooling, let alone the STFT.
+
+    The widget keeps two intermediates: the source matrix pooled onto the pixel
+    *columns*, and that pooled again onto the pixel *rows*. They are keyed
+    separately because a vertical resize or a frequency zoom invalidates only
+    the second one, and on a long file the first is the expensive half.
+    """
+
+    def pooled(self, widget: SpectrogramWidget, monkeypatch) -> list[int]:
+        """Count calls to the pooling primitive while rendering."""
+        from audio_studio.ui import spectrogram_widget as module
+
+        calls: list[int] = []
+        original = module._pixel_reduce
+
+        def counted(data, bounds, axis):
+            calls.append(axis)
+            return original(data, bounds, axis)
+
+        monkeypatch.setattr(module, "_pixel_reduce", counted)
+        return calls
+
+    def test_a_repeated_render_pools_nothing(
+        self, widget: SpectrogramWidget, spectrogram, monkeypatch
+    ) -> None:
+        widget.set_spectrogram(spectrogram)
+        widget.render_image(320, 180)
+
+        calls = self.pooled(widget, monkeypatch)
+        widget.render_image(320, 180)
+        assert calls == []
+
+    def test_a_palette_or_range_change_only_recolours(
+        self, widget: SpectrogramWidget, spectrogram, monkeypatch
+    ) -> None:
+        widget.set_spectrogram(spectrogram)
+        first = widget.render_image(320, 180)
+
+        calls = self.pooled(widget, monkeypatch)
+        widget.set_colormap("viridis")
+        widget.set_db_range(-70.0, -5.0)
+        second = widget.render_image(320, 180)
+
+        assert calls == []
+        assert first is not None and second is not None
+        assert second.pixelColor(160, 90) != first.pixelColor(160, 90)
+
+    def test_auto_scale_reuses_the_grid_it_measured(
+        self, widget: SpectrogramWidget, spectrogram, monkeypatch
+    ) -> None:
+        widget.set_spectrogram(spectrogram)
+        widget.render_image(320, 180)
+        before = widget.db_range
+
+        calls = self.pooled(widget, monkeypatch)
+        widget.auto_scale()
+        widget.render_image(320, 180)
+
+        assert widget.db_range != before
+        assert calls == []
+
+    def test_a_frequency_zoom_keeps_the_column_reduction(
+        self, widget: SpectrogramWidget, spectrogram, monkeypatch
+    ) -> None:
+        widget.set_spectrogram(spectrogram)
+        widget.render_image(320, 180)
+
+        calls = self.pooled(widget, monkeypatch)
+        widget.set_frequency_range(200.0, 8000.0)
+        widget.render_image(320, 180)
+        widget.set_frequency_scale(FrequencyScale.LINEAR)
+        widget.render_image(320, 180)
+
+        assert calls == [1, 1]  # rows re-pooled twice, columns never
+
+    def test_a_width_change_re_pools_both_axes(
+        self, widget: SpectrogramWidget, spectrogram, monkeypatch
+    ) -> None:
+        widget.set_spectrogram(spectrogram)
+        widget.render_image(320, 180)
+
+        calls = self.pooled(widget, monkeypatch)
+        widget.render_image(400, 180)
+        assert calls == [0, 1]
+
+    def test_new_data_drops_the_cache(
+        self, widget: SpectrogramWidget, spectrogram, monkeypatch
+    ) -> None:
+        widget.set_spectrogram(spectrogram)
+        widget.render_image(320, 180)
+
+        calls = self.pooled(widget, monkeypatch)
+        widget.set_spectrogram(spectrogram)
+        widget.render_image(320, 180)
+        assert calls == [0, 1]
+
+    def test_the_cached_grid_matches_what_a_cold_widget_produces(
+        self, app, spectrogram
+    ) -> None:
+        warm = SpectrogramWidget()
+        warm.render_image(200, 120)  # populate with nothing
+        warm.set_spectrogram(spectrogram)
+        warm.render_image(200, 120)
+        warm.set_colormap("magma")
+        warm.set_frequency_range(100.0, 10_000.0)
+
+        cold = SpectrogramWidget()
+        cold.set_spectrogram(spectrogram)
+        cold.set_colormap("magma")
+        cold.set_frequency_range(100.0, 10_000.0)
+
+        assert np.array_equal(warm.reduced_matrix(200, 120), cold.reduced_matrix(200, 120))
+
+    def test_repeated_repaints_of_a_long_file_stay_interactive(
+        self, app, spectrogram
+    ) -> None:
+        """The cache is the difference between 14 fps and a usable palette control."""
+        import time
+
+        rng = np.random.default_rng(3)
+        long_matrix = rng.uniform(-90.0, 0.0, size=(20_000, 1025)).astype(np.float32)
+        widget = SpectrogramWidget()
+        widget._data = long_matrix  # noqa: SLF001 - stand in for a 4-minute analysis
+        widget._frequencies = np.linspace(0.0, SR / 2, 1025)  # noqa: SLF001
+        widget._invalidate(data_changed=True)  # noqa: SLF001
+        widget.render_image(1200, 600)
+
+        start = time.perf_counter()
+        for name in ("viridis", "magma", "inferno", "viridis", "magma"):
+            widget.set_colormap(name)
+            assert widget.render_image(1200, 600) is not None
+        per_frame = (time.perf_counter() - start) / 5
+        assert per_frame < 0.02  # 50 fps floor
 
 
 class TestWaterfallMode:

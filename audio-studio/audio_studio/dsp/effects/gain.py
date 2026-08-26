@@ -57,7 +57,7 @@ class GainEffect(Effect):
 
     def parameters(self) -> dict[str, Any]:
         return {
-            "enabled": self.enabled,
+            **super().parameters(),
             "gain_db": self.gain_db,
             "ramp_ms": self.ramp_ms,
             "invert_polarity": self.invert_polarity,
@@ -200,7 +200,7 @@ class NormalizeEffect(Effect):
 
     def parameters(self) -> dict[str, Any]:
         return {
-            "enabled": self.enabled,
+            **super().parameters(),
             "target_db": self.target_db,
             "mode": self.mode.value,
             "per_channel": self.per_channel,

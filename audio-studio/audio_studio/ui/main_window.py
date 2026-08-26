@@ -1,12 +1,35 @@
-"""Main application window: a DAW-style single-track editing surface."""
+"""Main application window: a DAW-style single-track editing surface.
+
+Three views share the window: the waveform lane in the centre, a dockable
+spectral display, and a dockable effect rack. The rack is a *preview* insert —
+it is spliced into the engine's output path (see
+:class:`~audio_studio.dsp.preview.EffectPreview`) and changes what is heard
+without touching the clip in memory.
+
+Analysis that costs real time — the spectrogram transform, the BS.1770
+integrated loudness — never runs on the Qt thread while the user waits.
+Loudness is measured on a worker and collected by the same 30 Hz tick that
+drives the playhead; the spectrogram is coalesced behind a short timer so that
+dragging a selection re-analyses once rather than on every mouse move.
+"""
 
 from __future__ import annotations
 
+from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
 
+import numpy as np
 from PySide6.QtCore import Qt, QTimer, Slot
-from PySide6.QtGui import QAction, QCloseEvent, QDragEnterEvent, QDropEvent, QKeySequence
+from PySide6.QtGui import (
+    QAction,
+    QActionGroup,
+    QCloseEvent,
+    QDragEnterEvent,
+    QDropEvent,
+    QKeySequence,
+)
 from PySide6.QtWidgets import (
+    QDockWidget,
     QFileDialog,
     QHBoxLayout,
     QLabel,
@@ -27,13 +50,21 @@ from ..core.loader import (
     save_audio,
 )
 from ..core.types import TimeRange, TransportState, format_timecode
+from ..dsp.loudness import LoudnessMeter, LoudnessReport, format_lufs
+from ..dsp.preview import EffectPreview
+from .effect_rack import EffectRackPanel, default_preview_chain
 from .level_meter import LevelMeter
+from .spectrum_panel import SpectrumPanel
 from .theme import PALETTE, stylesheet
 from .track_panel import TrackPanel
 from .transport_bar import TransportBar
 
 #: UI refresh rate for the playhead and the meters.
 UI_REFRESH_MS: int = 33
+
+#: Delay before a changed selection is re-analysed, in milliseconds. Long
+#: enough that a drag produces one transform, short enough to feel immediate.
+ANALYSIS_DEBOUNCE_MS: int = 250
 
 MAX_RECENT_FILES: int = 8
 
@@ -43,7 +74,9 @@ class MainWindow(QMainWindow):
 
     def __init__(self, engine: AudioEngine | None = None) -> None:
         super().__init__()
+        self.effect_chain = default_preview_chain()
         self.engine = engine if engine is not None else AudioEngine()
+        self.preview = attach_preview(self.engine, self.effect_chain)
         self._recent: list[Path] = []
 
         self.setWindowTitle(__app_name__)
@@ -54,13 +87,25 @@ class MainWindow(QMainWindow):
         self.track_panel = TrackPanel()
         self.level_meter = LevelMeter(channels=2)
         self.transport_bar = TransportBar()
+        self.spectrum_panel = SpectrumPanel()
+        self.effect_rack = EffectRackPanel(self.effect_chain)
+
+        self._loudness_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="loudness")
+        self._loudness_job: Future[LoudnessReport] | None = None
+        self.loudness: LoudnessReport | None = None
 
         self._build_central()
+        self._build_docks()
         self._build_actions()
         self._build_menus()
         self._build_toolbar()
         self._build_statusbar()
         self._connect()
+
+        self._analysis_timer = QTimer(self)
+        self._analysis_timer.setSingleShot(True)
+        self._analysis_timer.setInterval(ANALYSIS_DEBOUNCE_MS)
+        self._analysis_timer.timeout.connect(self.analyze_spectrum)
 
         self._refresh_timer = QTimer(self)
         self._refresh_timer.setInterval(UI_REFRESH_MS)
@@ -96,6 +141,26 @@ class MainWindow(QMainWindow):
         central = QWidget()
         central.setLayout(root)
         self.setCentralWidget(central)
+        self.editor_widget = central
+
+    def _build_docks(self) -> None:
+        """Spectral display along the bottom, effect rack down the right."""
+        self.spectrum_dock = QDockWidget("Spectral Frequency Display", self)
+        self.spectrum_dock.setObjectName("SpectrumDock")
+        self.spectrum_dock.setWidget(self.spectrum_panel)
+        self.spectrum_dock.setAllowedAreas(
+            Qt.DockWidgetArea.BottomDockWidgetArea | Qt.DockWidgetArea.TopDockWidgetArea
+        )
+        self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.spectrum_dock)
+
+        self.effects_dock = QDockWidget("Effects Rack", self)
+        self.effects_dock.setObjectName("EffectsDock")
+        self.effects_dock.setWidget(self.effect_rack)
+        self.effects_dock.setAllowedAreas(
+            Qt.DockWidgetArea.RightDockWidgetArea | Qt.DockWidgetArea.LeftDockWidgetArea
+        )
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.effects_dock)
+        self.resizeDocks([self.spectrum_dock], [320], Qt.Orientation.Vertical)
 
     def _build_actions(self) -> None:
         def action(
@@ -144,6 +209,31 @@ class MainWindow(QMainWindow):
             "Amplitude &Down", lambda: self._scale_amplitude(1 / 1.5), "Ctrl+Down"
         )
 
+        # Layout modes are exclusive: the spectral view can take over the
+        # window, sit under the waveform, or be out of the way entirely.
+        self.layout_group = QActionGroup(self)
+        self.layout_group.setExclusive(True)
+        self.action_view_waveform = action(
+            "&Waveform", lambda: self.set_view_mode("waveform"), "Alt+1", checkable=True,
+            tip="Waveform editor only",
+        )
+        self.action_view_spectrum = action(
+            "&Spectral", lambda: self.set_view_mode("spectrum"), "Alt+2", checkable=True,
+            tip="Spectral frequency display only",
+        )
+        self.action_view_split = action(
+            "S&plit", lambda: self.set_view_mode("split"), "Alt+3", checkable=True,
+            tip="Waveform above, spectral display below",
+        )
+        for act in (self.action_view_waveform, self.action_view_spectrum, self.action_view_split):
+            self.layout_group.addAction(act)
+        self.action_view_split.setChecked(True)
+
+        self.action_analyze = action(
+            "&Analyze Now", self.analyze_spectrum, "F5",
+            tip="Re-run the spectral analysis over the selection (or the whole clip)",
+        )
+
         self.action_play = action("&Play / Pause", self._on_play_pause, "Space")
         self.action_stop = action("&Stop", self._on_stop, "Esc")
         self.action_home = action("Go to &Start", self._on_skip_start, "Home")
@@ -182,6 +272,14 @@ class MainWindow(QMainWindow):
         view_menu.addSeparator()
         view_menu.addAction(self.action_amp_up)
         view_menu.addAction(self.action_amp_down)
+        view_menu.addSeparator()
+        view_menu.addAction(self.action_view_waveform)
+        view_menu.addAction(self.action_view_spectrum)
+        view_menu.addAction(self.action_view_split)
+        view_menu.addSeparator()
+        view_menu.addAction(self.spectrum_dock.toggleViewAction())
+        view_menu.addAction(self.effects_dock.toggleViewAction())
+        view_menu.addAction(self.action_analyze)
 
         transport_menu = bar.addMenu("&Transport")
         transport_menu.addAction(self.action_play)
@@ -212,9 +310,16 @@ class MainWindow(QMainWindow):
     def _build_statusbar(self) -> None:
         self.status_format = QLabel("No file")
         self.status_selection = QLabel("Selection: —")
+        self.status_loudness = QLabel("Loudness: —")
+        self.status_loudness.setToolTip(
+            "ITU-R BS.1770 integrated loudness and true peak of the loaded clip"
+        )
+        self.status_fx = QLabel(self.effect_rack.summary())
         self.status_backend = QLabel(f"Output: {self.engine.output.name}")
         bar = self.statusBar()
         bar.addWidget(self.status_format, 1)
+        bar.addPermanentWidget(self.status_loudness)
+        bar.addPermanentWidget(self.status_fx)
         bar.addPermanentWidget(self.status_selection)
         bar.addPermanentWidget(self.status_backend)
 
@@ -229,6 +334,11 @@ class MainWindow(QMainWindow):
         self.transport_bar.skipToEndRequested.connect(self._on_skip_end)
         self.transport_bar.loopToggled.connect(self._on_loop_toggled)
         self.transport_bar.volumeChanged.connect(self._on_volume)
+
+        self.spectrum_panel.seekRequested.connect(self._on_spectrum_seek)
+        self.spectrum_panel.readoutChanged.connect(self._on_spectrum_readout)
+        self.spectrum_panel.fftSizeChanged.connect(lambda _size: self.analyze_spectrum())
+        self.effect_rack.chainChanged.connect(self._on_chain_changed)
 
         self.engine.add_state_listener(self._on_engine_state)
 
@@ -291,12 +401,118 @@ class MainWindow(QMainWindow):
             act.triggered.connect(lambda _checked=False, p=entry: self.open_file(p))
             self.recent_menu.addAction(act)
 
+    # ---------------------------------------------------------- analysis
+
+    def audio_range(self, start: int, stop: int) -> np.ndarray | None:
+        """Interleaved frames ``[start, stop)`` of the loaded audio, or ``None``.
+
+        Reads through the engine's sample source when there is one, so a clip
+        streamed off disk analyses the same way as one held in memory.
+        """
+        start, stop = max(0, int(start)), min(int(stop), self.engine.n_frames)
+        if stop <= start:
+            return None
+        source = getattr(self.engine, "source", None)
+        if source is not None:
+            return source.read(start, stop - start)
+        clip = self.engine.clip
+        return None if clip is None else clip.buffer.data[start:stop]
+
+    def analysis_region(self) -> TimeRange:
+        """What the spectral view shows: the selection, else the whole clip."""
+        selection = self.engine.selection
+        if selection is not None and not selection.is_empty:
+            return selection
+        return TimeRange(0, self.engine.n_frames)
+
+    def analyze_spectrum(self) -> None:
+        """Re-run the spectrogram over the current analysis region."""
+        self._analysis_timer.stop()
+        region = self.analysis_region()
+        audio = self.audio_range(region.start, region.end)
+        if audio is None:
+            self.spectrum_panel.clear()
+            return
+        self.spectrum_panel.analyze(
+            audio,
+            sample_rate=self.engine.sample_rate,
+            offset_s=region.start / max(self.engine.sample_rate, 1),
+            channels_last=True,
+        )
+
+    def measure_loudness(self) -> None:
+        """Start a BS.1770 measurement of the whole clip on a worker thread.
+
+        A ten-minute file takes over a second to K-weight and gate, which is
+        far too long to spend inside a slot. The result is collected by
+        :meth:`_on_tick`.
+        """
+        self._loudness_job = None
+        self.loudness = None
+        audio = self.audio_range(0, self.engine.n_frames)
+        rate = self.engine.sample_rate
+        if audio is None or rate <= 0:
+            self.status_loudness.setText("Loudness: —")
+            return
+        self.status_loudness.setText("Loudness: measuring…")
+        meter = LoudnessMeter(rate)
+        self._loudness_job = self._loudness_pool.submit(
+            meter.analyze, audio, channels_last=True
+        )
+
+    def _collect_loudness(self) -> None:
+        job = self._loudness_job
+        if job is None or not job.done():
+            return
+        self._loudness_job = None
+        try:
+            self.loudness = job.result()
+        except Exception as exc:  # noqa: BLE001 - a failed measurement is not fatal
+            self.status_loudness.setText("Loudness: unavailable")
+            self.status_loudness.setToolTip(str(exc))
+            return
+        report = self.loudness
+        self.status_loudness.setText(
+            f"{format_lufs(report.integrated_lufs)}  ·  {report.true_peak_dbtp:.1f} dBTP"
+        )
+        self.status_loudness.setToolTip(
+            f"Integrated {format_lufs(report.integrated_lufs)} (ITU-R BS.1770)\n"
+            f"Short-term max {format_lufs(report.short_term_max_lufs)}\n"
+            f"Momentary max {format_lufs(report.momentary_max_lufs)}\n"
+            f"Loudness range {report.loudness_range_lu:.1f} LU\n"
+            f"True peak {report.true_peak_dbtp:.2f} dBTP  ·  "
+            f"sample peak {report.sample_peak_dbfs:.2f} dBFS"
+        )
+
+    # -------------------------------------------------------------- layout
+
+    def set_view_mode(self, mode: str) -> None:
+        """Switch between ``"waveform"``, ``"spectrum"`` and ``"split"``."""
+        if mode not in ("waveform", "spectrum", "split"):
+            raise ValueError(f"unknown view mode {mode!r}")
+        self._view_mode = mode
+        self.editor_widget.setVisible(mode != "spectrum")
+        self.spectrum_dock.setVisible(mode != "waveform")
+        action = {
+            "waveform": self.action_view_waveform,
+            "spectrum": self.action_view_spectrum,
+            "split": self.action_view_split,
+        }[mode]
+        if not action.isChecked():
+            action.setChecked(True)
+        if mode != "waveform" and not self.spectrum_panel.has_data:
+            self.analyze_spectrum()
+
+    @property
+    def view_mode(self) -> str:
+        return getattr(self, "_view_mode", "split")
+
     # -------------------------------------------------------------- reactive
 
     def _update_for_clip(self) -> None:
         clip = self.engine.clip
         self.track_panel.set_clip(clip, self.engine.pyramid)
-        has_clip = clip is not None
+        has_clip = self.engine.has_clip
 
         self.transport_bar.set_enabled_for_clip(has_clip)
         self.transport_bar.set_duration(self.engine.duration)
@@ -318,9 +534,12 @@ class MainWindow(QMainWindow):
                 f"{format_timecode(clip.duration)}  ·  {clip.buffer.n_frames:,} frames"
             )
         self.status_selection.setText("Selection: —")
+        self.analyze_spectrum()
+        self.measure_loudness()
 
     def _on_tick(self) -> None:
         """Poll the engine 30×/s: the audio threads never touch Qt objects."""
+        self._collect_loudness()
         if not self.engine.has_clip:
             return
         position = self.engine.position
@@ -383,6 +602,9 @@ class MainWindow(QMainWindow):
 
     def _on_selection_changed(self, selection: TimeRange | None) -> None:
         self.engine.set_selection(selection)
+        # Coalesce: a drag emits a selection per mouse move, and each one would
+        # otherwise start a transform over the range.
+        self._analysis_timer.start()
         if selection is None or selection.is_empty:
             self.transport_bar.set_selection_text("—")
             self.status_selection.setText("Selection: —")
@@ -392,6 +614,18 @@ class MainWindow(QMainWindow):
         text = f"{format_timecode(start)} → {format_timecode(end)}"
         self.transport_bar.set_selection_text(format_timecode(end - start))
         self.status_selection.setText(f"Selection: {text} ({selection.length:,} frames)")
+
+    def _on_spectrum_seek(self, time_s: float) -> None:
+        self._on_seek(int(round(time_s * max(self.engine.sample_rate, 1))))
+
+    def _on_spectrum_readout(self, text: str) -> None:
+        if text:
+            self.statusBar().showMessage(text)
+        else:
+            self.statusBar().clearMessage()
+
+    def _on_chain_changed(self) -> None:
+        self.status_fx.setText(self.effect_rack.summary())
 
     def _scale_amplitude(self, factor: float) -> None:
         waveform = self.track_panel.waveform
@@ -426,5 +660,32 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802 - Qt override
         self._refresh_timer.stop()
+        self._analysis_timer.stop()
         self.engine.shutdown()
+        self._loudness_pool.shutdown(wait=False, cancel_futures=True)
         super().closeEvent(event)
+
+
+def attach_preview(engine: AudioEngine, chain=None) -> EffectPreview:
+    """Insert a live effect rack between ``engine`` and its output device.
+
+    The engine hands its render callback to whatever backend it holds, so
+    wrapping the backend is all it takes — no transport code changes and no
+    second audio path to keep in sync. An engine that is already previewing
+    keeps its wrapper and is simply pointed at the new chain.
+    """
+    existing = engine.output
+    if isinstance(existing, EffectPreview):
+        if chain is not None:
+            existing.chain = chain
+        return existing
+
+    preview = EffectPreview(existing, chain)
+    setter = getattr(engine, "set_output", None)
+    if callable(setter):
+        setter(preview)
+    else:
+        # AudioEngine takes its backend at construction and exposes no setter;
+        # this is the one place that knows about the attribute behind it.
+        engine._output = preview  # noqa: SLF001
+    return preview

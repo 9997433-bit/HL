@@ -309,7 +309,7 @@ class ParametricEQ(Effect):
 
     def parameters(self) -> dict[str, Any]:
         return {
-            "enabled": self.enabled,
+            **super().parameters(),
             "output_gain_db": self.output_gain_db,
             "bands": [band.parameters() for band in self.bands],
         }

@@ -324,24 +324,33 @@ def bench_render(runs: int) -> list[Result]:
     widget.set_spectrogram(spectrum)
     widget.set_db_range(-100.0, 0.0)
 
+    def cold(width: int, height: int) -> None:
+        """A first paint: the pooled pixel grid has to be built from the STFT."""
+        widget._invalidate(data_changed=True)  # noqa: SLF001 - drop the render caches
+        widget.render_image(width, height)
+
     results = []
     for width, height in ((640, 360), (1280, 720), (1920, 1080)):
-        median, best, stdev = timeit(
-            lambda w=width, h=height: widget.render_image(w, h), runs=max(5, runs)
-        )
-        results.append(
-            Result(
-                group="Spectrogram render (60 s source, mono)",
-                name=f"{width}x{height}",
-                audio_seconds=60.0,
-                median_s=median,
-                best_s=best,
-                stdev_s=stdev,
-                runs=max(5, runs),
-                detail=f"{1.0 / median:.0f} fps" if median > 0 else "",
-                extra={"fps": 1.0 / median if median > 0 else 0.0},
+        # Two very different costs share one entry point, and only reporting
+        # the warm one would claim a frame rate the app never sees on new audio.
+        for label, call in (
+            ("first paint", lambda w=width, h=height: cold(w, h)),
+            ("palette change", lambda w=width, h=height: widget.render_image(w, h)),
+        ):
+            median, best, stdev = timeit(call, runs=max(5, runs))
+            results.append(
+                Result(
+                    group="Spectrogram render (60 s source, mono)",
+                    name=f"{width}x{height} {label}",
+                    audio_seconds=60.0,
+                    median_s=median,
+                    best_s=best,
+                    stdev_s=stdev,
+                    runs=max(5, runs),
+                    detail=f"{1.0 / median:.0f} fps" if median > 0 else "",
+                    extra={"fps": 1.0 / median if median > 0 else 0.0},
+                )
             )
-        )
     del app
     return results
 
