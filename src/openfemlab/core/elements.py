@@ -1,4 +1,4 @@
-"""Element library: scalar springs, 2-node bars/trusses, a planar beam, QUAD4 and TET4.
+"""Element library: springs, 2-node bars/trusses, a planar beam, QUAD4, TET4 and HEX8.
 
 Every element exposes the same contract used by :mod:`openfemlab.core.assembly`:
 
@@ -26,8 +26,10 @@ __all__ = [
     "BeamElement2D",
     "Quad4Element",
     "Tet4Element",
+    "Hex8Element",
     "PLANE_STATES",
     "gauss_legendre_2d",
+    "gauss_legendre_3d",
     "plane_constitutive_matrix",
     "solid_constitutive_matrix",
 ]
@@ -367,6 +369,13 @@ PLANE_STATES: tuple[str, ...] = ("stress", "strain")
 _QUAD4_NATURAL = np.array([[-1.0, -1.0], [1.0, -1.0], [1.0, 1.0], [-1.0, 1.0]], dtype=float)
 
 
+def _gauss_legendre_1d(order: int) -> tuple[np.ndarray, np.ndarray]:
+    """Validated 1D Gauss-Legendre nodes and weights on ``[-1, 1]``."""
+    if not 1 <= int(order) <= 4:
+        raise ElementError(f"integration order must lie in [1, 4], got {order}")
+    return np.polynomial.legendre.leggauss(int(order))
+
+
 def gauss_legendre_2d(order: int = 2) -> tuple[np.ndarray, np.ndarray]:
     """Tensor-product Gauss-Legendre rule on ``[-1, 1]^2``.
 
@@ -374,12 +383,25 @@ def gauss_legendre_2d(order: int = 2) -> tuple[np.ndarray, np.ndarray]:
     rule of ``order`` points per direction integrates polynomials of degree
     ``2*order - 1`` per direction exactly.
     """
-    if not 1 <= int(order) <= 4:
-        raise ElementError(f"integration order must lie in [1, 4], got {order}")
-    nodes, weights = np.polynomial.legendre.leggauss(int(order))
+    nodes, weights = _gauss_legendre_1d(order)
     xi, eta = np.meshgrid(nodes, nodes, indexing="ij")
     wxi, weta = np.meshgrid(weights, weights, indexing="ij")
     return np.column_stack((xi.ravel(), eta.ravel())), (wxi * weta).ravel()
+
+
+def gauss_legendre_3d(order: int = 2) -> tuple[np.ndarray, np.ndarray]:
+    """Tensor-product Gauss-Legendre rule on ``[-1, 1]^3``.
+
+    Returns ``(points, weights)`` with ``points`` of shape ``(order**3, 3)``,
+    the three-dimensional counterpart of :func:`gauss_legendre_2d`.
+    """
+    nodes, weights = _gauss_legendre_1d(order)
+    xi, eta, zeta = np.meshgrid(nodes, nodes, nodes, indexing="ij")
+    wxi, weta, wzeta = np.meshgrid(weights, weights, weights, indexing="ij")
+    return (
+        np.column_stack((xi.ravel(), eta.ravel(), zeta.ravel())),
+        (wxi * weta * wzeta).ravel(),
+    )
 
 
 def plane_constitutive_matrix(material: Material, plane: str = "stress") -> np.ndarray:
@@ -788,3 +810,235 @@ class Tet4Element(Element):
     def stress(self, coords: np.ndarray, displacements: np.ndarray) -> np.ndarray:
         """Stress ``[sxx, syy, szz, sxy, syz, szx]``, constant over the element."""
         return self.constitutive_matrix @ self.strain(coords, displacements)
+
+
+#: Natural coordinates of the HEX8 corner nodes: the ``zeta = -1`` face
+#: counter-clockwise from ``(-1, -1)``, then the ``zeta = +1`` face the same way.
+#: This is the CHEXA / VTK / meshio corner ordering.
+_HEX8_NATURAL = np.array(
+    [
+        [-1.0, -1.0, -1.0],
+        [1.0, -1.0, -1.0],
+        [1.0, 1.0, -1.0],
+        [-1.0, 1.0, -1.0],
+        [-1.0, -1.0, 1.0],
+        [1.0, -1.0, 1.0],
+        [1.0, 1.0, 1.0],
+        [-1.0, 1.0, 1.0],
+    ],
+    dtype=float,
+)
+
+
+class Hex8Element(Element):
+    """8-node isoparametric trilinear brick (DOFs ``UX``, ``UY``, ``UZ``).
+
+    The solid counterpart of :class:`Quad4Element`: nodes are given as the
+    ``zeta = -1`` face counter-clockwise seen from ``+zeta``, then the
+    ``zeta = +1`` face in the same order, and the element is mapped from the
+    reference cube by
+
+    ``N_i(xi, eta, zeta) = (1 + xi xi_i) (1 + eta eta_i) (1 + zeta zeta_i) / 8``.
+
+    With ``B`` the strain-displacement operator and ``D`` the 3D elasticity
+    matrix (:func:`solid_constitutive_matrix`),
+
+    ``K = int B^T D B dV``  and  ``M = rho int N^T N dV``
+
+    are evaluated by a tensor-product Gauss rule (2x2x2 by default). Full
+    integration leaves exactly six zero-energy modes -- the spatial rigid-body
+    motions -- so the brick has no hourglass modes; ``integration_order=1``
+    reproduces the classical rank deficiency (12 spurious modes) and exists for
+    comparison studies only.
+
+    The trilinear field reproduces any constant strain state exactly (it passes
+    the patch test on distorted geometry) but, like QUAD4, carries bending
+    through parasitic shear, so it locks on coarse, high-aspect-ratio bending
+    meshes and stiffens further as ``nu`` approaches ``0.5``. It is still far
+    softer than the constant-strain :class:`Tet4Element` at equal DOF count.
+
+    The quadrature is exact for the volume and for the row sums of the mass
+    matrix on any hexahedron (both integrands stay within the 2-point rule's
+    degree), hence for the total and lumped mass; the off-diagonal consistent
+    mass terms are exact for a parallelepiped and quadrature-approximated on a
+    distorted element, which ``integration_order=3`` removes.
+
+    Parameters
+    ----------
+    material:
+        Isotropic linear elastic material; ``density`` may be zero.
+    lumped_mass:
+        Diagonalize the consistent mass matrix by row summing, which preserves
+        the total translational mass for any element shape.
+    integration_order:
+        Gauss points per direction.
+    """
+
+    expected_nodes = 8
+
+    def __init__(
+        self,
+        node_ids: Sequence[Hashable],
+        material: Material,
+        *,
+        lumped_mass: bool = False,
+        integration_order: int = 2,
+        eid: Hashable | None = None,
+    ) -> None:
+        super().__init__(node_ids, eid=eid)
+        self.material = material
+        self.lumped_mass = bool(lumped_mass)
+        self.integration_order = int(integration_order)
+        self._points, self._weights = gauss_legendre_3d(self.integration_order)
+
+    def required_dofs(self, available: tuple[DOF, ...]) -> tuple[DOF, ...]:
+        return TRANSLATIONAL_DOFS
+
+    # ------------------------------------------------------------- kinematics
+
+    @staticmethod
+    def shape_functions(xi: float, eta: float, zeta: float) -> np.ndarray:
+        """Trilinear shape functions ``N`` at a natural point, shape ``(8,)``."""
+        signs = _HEX8_NATURAL
+        return 0.125 * (
+            (1.0 + signs[:, 0] * xi)
+            * (1.0 + signs[:, 1] * eta)
+            * (1.0 + signs[:, 2] * zeta)
+        )
+
+    @staticmethod
+    def shape_function_derivatives(xi: float, eta: float, zeta: float) -> np.ndarray:
+        """``dN/d(xi, eta, zeta)`` at a natural point, shape ``(3, 8)``."""
+        signs = _HEX8_NATURAL
+        factors = 1.0 + signs * np.array([xi, eta, zeta], dtype=float)
+        return 0.125 * np.array(
+            [
+                signs[:, 0] * factors[:, 1] * factors[:, 2],
+                signs[:, 1] * factors[:, 0] * factors[:, 2],
+                signs[:, 2] * factors[:, 0] * factors[:, 1],
+            ],
+            dtype=float,
+        )
+
+    def _solid_coords(self, coords: np.ndarray) -> np.ndarray:
+        """The ``(8, 3)`` nodal coordinates."""
+        points = np.asarray(coords, dtype=float).reshape(8, -1)
+        if points.shape[1] != 3:
+            raise ElementError(
+                f"Hex8Element {self.node_ids} needs three coordinates per node, "
+                f"got {points.shape[1]}"
+            )
+        return points
+
+    def jacobian(
+        self, coords: np.ndarray, xi: float, eta: float, zeta: float
+    ) -> tuple[np.ndarray, float]:
+        """``(dN/dx, det J)`` at a natural point; ``dN/dx`` has shape ``(3, 8)``."""
+        points = self._solid_coords(coords)
+        natural = self.shape_function_derivatives(xi, eta, zeta)
+        jac = natural @ points
+        det = float(np.linalg.det(jac))
+        if det <= 0.0:
+            raise ElementError(
+                f"Hex8Element {self.node_ids} has a non-positive Jacobian ({det:g}) at "
+                f"(xi, eta, zeta) = ({xi:g}, {eta:g}, {zeta:g}); the element is "
+                "degenerate, inverted or its nodes are not in the face-by-face "
+                "counter-clockwise order"
+            )
+        return np.linalg.solve(jac, natural), det
+
+    def strain_displacement_matrix(
+        self, coords: np.ndarray, xi: float, eta: float, zeta: float
+    ) -> tuple[np.ndarray, float]:
+        """``(B, det J)`` with ``B`` of shape ``(6, 24)`` in node-major DOF order."""
+        gradient, det = self.jacobian(coords, xi, eta, zeta)
+        b = np.zeros((6, 24), dtype=float)
+        b[0, 0::3] = gradient[0]
+        b[1, 1::3] = gradient[1]
+        b[2, 2::3] = gradient[2]
+        b[3, 0::3] = gradient[1]
+        b[3, 1::3] = gradient[0]
+        b[4, 1::3] = gradient[2]
+        b[4, 2::3] = gradient[1]
+        b[5, 0::3] = gradient[2]
+        b[5, 2::3] = gradient[0]
+        return b, det
+
+    # --------------------------------------------------------------- physics
+
+    @property
+    def constitutive_matrix(self) -> np.ndarray:
+        """3D elasticity matrix ``D`` for the element's material."""
+        return solid_constitutive_matrix(self.material)
+
+    def volume(self, coords: np.ndarray) -> float:
+        """Element volume, integrated with the element's own quadrature rule."""
+        return float(
+            sum(
+                weight * self.jacobian(coords, *point)[1]
+                for point, weight in zip(self._points, self._weights, strict=True)
+            )
+        )
+
+    def stiffness_matrix(self, coords: np.ndarray) -> np.ndarray:
+        D = self.constitutive_matrix
+        k = np.zeros((24, 24), dtype=float)
+        for point, weight in zip(self._points, self._weights, strict=True):
+            b, det = self.strain_displacement_matrix(coords, *point)
+            k += (weight * det) * (b.T @ D @ b)
+        return k
+
+    def consistent_mass_matrix(self, coords: np.ndarray) -> np.ndarray:
+        """``rho int N^T N dV`` regardless of the ``lumped_mass`` setting."""
+        density = float(self.material.density)
+        m = np.zeros((24, 24), dtype=float)
+        if density == 0.0:
+            return m
+        for point, weight in zip(self._points, self._weights, strict=True):
+            shape = self.shape_functions(*point)
+            _, det = self.jacobian(coords, *point)
+            block = np.outer(shape, shape) * (weight * det * density)
+            for axis in range(3):
+                m[axis::3, axis::3] += block
+        return m
+
+    def mass_matrix(self, coords: np.ndarray) -> np.ndarray:
+        consistent = self.consistent_mass_matrix(coords)
+        if not self.lumped_mass:
+            return consistent
+        return np.diag(consistent.sum(axis=1))
+
+    def total_mass(self, coords: np.ndarray) -> float:
+        return float(self.material.density) * self.volume(coords)
+
+    # ------------------------------------------------------------ recovery
+
+    def strain(
+        self,
+        coords: np.ndarray,
+        displacements: np.ndarray,
+        xi: float = 0.0,
+        eta: float = 0.0,
+        zeta: float = 0.0,
+    ) -> np.ndarray:
+        """Strain ``[exx, eyy, ezz, gxy, gyz, gzx]`` at a natural point.
+
+        The centroid ``(0, 0, 0)`` is the default because it is the
+        superconvergent point of the trilinear brick.
+        """
+        values = np.asarray(displacements, dtype=float).reshape(-1)
+        if values.size != 24:
+            raise ElementError(f"expected 24 nodal displacements, got {values.size}")
+        b, _ = self.strain_displacement_matrix(coords, xi, eta, zeta)
+        return b @ values
+
+    def stress(
+        self,
+        coords: np.ndarray,
+        displacements: np.ndarray,
+        xi: float = 0.0,
+        eta: float = 0.0,
+        zeta: float = 0.0,
+    ) -> np.ndarray:
+        """Stress ``[sxx, syy, szz, sxy, syz, szx]`` at a natural point."""
+        return self.constitutive_matrix @ self.strain(coords, displacements, xi, eta, zeta)
