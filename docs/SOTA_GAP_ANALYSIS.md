@@ -48,8 +48,8 @@ update); **P1** = core parity feature missing; **P2** = enhancement / scale / po
 | Dense + sparse shift-invert Lanczos eigensolver, auto backend choice | Present | `solver/modal.py` |
 | Massless-DOF static (Guyan) condensation with exact recovery | Present | `solver/modal.py::_MasslessCondensation` |
 | Rigid-body mode handling, mass/max normalization, deterministic signs | Present | `solver/modal.py` |
-| Participation factors, effective masses, orthogonality check | Present | `solver/modal.py::ModalResult` |
-| Second, redundant eigensolver entry point | **Duplicate** | `modal/eigen.py::solve_modes` |
+| Participation factors, effective masses, orthogonality check | Present | `core/results.py::ModalResult` |
+| Second eigensolver entry point, now a wrapper over `ModalSolver` | Present | `modal/eigen.py::solve_modes` |
 | Damping models (Rayleigh/modal/structural), complex modes | **Absent** | — |
 | Harmonic/transient response, FRF synthesis, mode superposition | **Absent** | — |
 | Static analysis, stress recovery | Absent | — |
@@ -116,7 +116,7 @@ at audit time the suite did **not** collect cleanly (Appendix A).
 
 | ID | Sev | Area | Gap | Target round |
 |---|---|---|---|---|
-| GAP-01 | P0 | Integration | Split-brain Round 1 architectures; seam symbols renamed mid-flight; duplicate `ModalResult`/eigensolver; io targets a model the solver doesn't use; suite doesn't collect | R2 (first task) |
+| GAP-01 | P0 | Integration | Split-brain Round 1 architectures; seam symbols renamed mid-flight; duplicate `ModalResult`/eigensolver; io targets a model the solver doesn't use; suite doesn't collect | R2 (first task) — result contract unified, see §5.1 |
 | GAP-02 | P0 | Elements | 1D-only element library; no shells/solids/3D beam despite declared `ElementType`s | R2 |
 | GAP-03 | P0 | IO | No UNV/UFF, Nastran BDF/OP2, or meshio import/export — cannot touch an industrial model or real test data | R2 |
 | GAP-04 | P0 | Dynamics | No damping, complex modes, harmonic/transient response, or FRF synthesis | R2 |
@@ -148,6 +148,15 @@ every downstream module builds on a moving foundation; correlation and updating 
 trusted end-to-end until one canonical model/result contract is enforced and the duplicate
 solver path is deleted or made a thin wrapper. This must be the first Round 2 task, gated
 by a green `import openfemlab` + full-suite CI check.
+
+**Status (end of Round 1).** The result half is closed. `core.model` vs `core.neutral`
+resolved the `Model` collision (A05), `modal.eigen.solve_modes` became a wrapper over
+`ModalSolver` (A08), and the duplicate `ModalResult` in `solver.modal` has now been removed:
+`core.results.ModalResult` is the only result type, accepting the spectrum as frequencies
+[Hz] or eigenvalues [ω²] and carrying the solver provenance that backs modal masses and
+participation factors. `tests/test_result_contract.py` pins the merge. What remains under
+this ID is the `Model` half — `io` still reads `NeutralModel`, which the solver cannot
+assemble — and the CI gate.
 
 ### 2. GAP-03 — No industrial model & test-data exchange (P0)
 FEMtools' defining trait is solver independence *in practice*: it reads Nastran, Ansys,

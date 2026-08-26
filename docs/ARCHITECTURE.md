@@ -255,11 +255,15 @@ above in ways that are deliberate or scheduled for consolidation:
    shift-invert auto-selection, static condensation, participation factors)
    arrived in Round 1 with analytic validation, ahead of the §10 schedule.
 3. **Two eigen entry points exist** — `solver.modal.ModalSolver` (internal
-   model in, rich result out) and `modal.eigen.solve_modes` (raw `K, M,
-   DofMap` in, neutral `ModalResult` out, for imported matrices). **Round 2
-   must consolidate**: `ModalSolver` should delegate its eigen kernel to
-   `modal.eigen`, and the two `ModalResult` classes (`solver.modal` vs
-   `core.results`) must merge into the neutral contract.
+   model in) and `modal.eigen.solve_modes` (raw `K, M, DofMap` in, for
+   imported matrices) — but they now share one kernel and one result type:
+   `solve_modes` is a thin wrapper over `ModalSolver`, and the duplicate
+   `ModalResult` in `solver.modal` is gone, so `core.results.ModalResult` is
+   the single contract every producer returns. It takes the spectrum as
+   frequencies [Hz] or eigenvalues [ω²] and carries the optional solver
+   provenance (assembled system, normalization, condensed DOF count) that
+   backs modal masses and participation factors. `with_dof_map()` labels a
+   solver result for `io`/`correlation` without rebuilding it.
 4. **Element placement.** Element formulations currently live in
    `core.elements` (bound to the internal model) rather than `solver` as §3
    drew. Acceptable for Round 1; revisit only if a second matrix producer
