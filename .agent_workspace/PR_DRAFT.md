@@ -1,13 +1,13 @@
 # PR Draft — OpenFEMLab Round 1
 
 Ready to file. Base: `main`. Head: `cursor/femtools-industrial-7aa3`.
-Verified at `f0c65c2`: full suite **498 passed**, `ruff check .` clean
+Verified at `2bbd695`: full suite **595 passed**, `ruff check .` clean
 (Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1).
 
 ## Title
 
 ```
-OpenFEMLab: solver-independent CAE platform — modal analysis, correlation, model updating, damped dynamics (498 tests)
+OpenFEMLab: solver-independent CAE platform — modal analysis, correlation, model updating, damped dynamics (595 tests)
 ```
 
 ## Body
@@ -23,11 +23,13 @@ synthesis, and optimization hooks — all behind one CLI and a schema-versioned 
 ## What's included
 
 - **Core FEM & modal solver** (`core/`, `solver/modal.py`, `mesh/`): node-major DOF
-  model with SPCs and lumped masses; spring/truss/planar-beam elements; one-pass
-  preallocated COO→CSR assembly; one `ModalSolver` façade with dense and sparse
-  shift-invert backends, static condensation of massless DOFs, mass normalization,
-  participation/effective masses, and a shift-invert LU cache. Validated against
-  closed-form spectra to 1e-9 relative (worst continuum case 0.2 %).
+  model with SPCs and lumped masses; spring/truss/planar-beam elements plus QUAD4
+  plane-stress/plane-strain support; one-pass preallocated COO→CSR assembly; one
+  `ModalSolver` façade with dense and sparse shift-invert backends, static condensation
+  of massless DOFs, mass normalization, participation/effective masses, and a shift-invert
+  LU cache. Validated against closed-form spectra to 1e-9 relative (worst continuum case
+  0.2 %). R2-T02 remains **partial**: TET4, HEX8, the 3D beam, shell facets, and the
+  corresponding solid/shell BDF cards are still open.
 - **Damped dynamics** (`solver/dynamics.py`): Rayleigh, modal, and structural damping
   models; complex modes with modal phase collinearity; modal, complex-modal, and direct
   FRF synthesis; harmonic response; residual flexibility; FRAC/FDAC FRF correlation
@@ -56,7 +58,7 @@ synthesis, and optimization hooks — all behind one CLI and a schema-versioned 
 - **CLI** (`cli/`): `openfemlab modal | correlate | update` over JSON/YAML model
   specs; machine-readable JSON on stdout, diagnostics on stderr, CI acceptance gates
   via exit codes; covered end to end including subprocess runs.
-- **QA stack**: 498 tests including a machine-readable registry of 35 quantified
+- **QA stack**: 595 tests including a machine-readable registry of 35 quantified
   acceptance criteria wired to tagged acceptance tests, boundary/probe suites,
   performance-regression gates, and benchmarks; GitHub Actions CI on Python
   3.10–3.13; `ruff check` clean.
@@ -66,13 +68,12 @@ synthesis, and optimization hooks — all behind one CLI and a schema-versioned 
 
 ## Verification
 
-- `python -m pytest` — **498 passed** at `f0c65c2` in 29.42 s on Python 3.12.3 /
+- `python -m pytest` — **595 passed** at `2bbd695` in 64.15 s on Python 3.12.3 /
   NumPy 2.5.2 / SciPy 1.18.1.
 - `ruff check .` — clean.
-- Per-suite breakdown (sums to 498): dynamics 82, updating 57, correlation 52,
-  modal solver 44, workflow 38, acceptance registry + gates 107, CLI 22+1,
-  core 18, result contract 17, optimization 23, IO (native/UFF/Nastran) 24,
-  boundary/performance/e2e/scaffold 13.
+- The current suite includes 61 QUAD4 tests and 25 reduction/expansion tests in addition
+  to the established dynamics, updating, correlation, workflow, optimization, IO, CLI,
+  acceptance, boundary, performance, and end-to-end coverage.
 - End-to-end: model → modal → correlate → update → re-solve converges 22.86 % → 0 %
   frequency error at MAC 1.0; the README CLI session reproduces exit codes 0/3/0/0.
 - Performance (single BLAS thread, medians): 100-DOF five-iteration updating loop
@@ -102,7 +103,8 @@ openness, and automation:
 
 - `.agent_workspace/` holds orchestration records (progress log, Round 2 plan);
   it is documentation, not runtime code.
-- Known scope limits are registered, not hidden: no continuum elements yet, no
-  MPE from measured FRFs, no pretest/TAM reduction, Bayesian MAP updating pending —
-  tracked in `docs/SOTA_GAP_ANALYSIS.md` and `.agent_workspace/ROUND2_PLAN.md`.
+- Known scope limits are registered, not hidden: QUAD4 is only the first, partial
+  continuum slice; TET4/HEX8/3D beam work, MPE from measured FRFs, pretest planning,
+  and Bayesian MAP updating remain pending — tracked in `docs/SOTA_GAP_ANALYSIS.md`
+  and `.agent_workspace/ROUND2_PLAN.md`.
 ```
