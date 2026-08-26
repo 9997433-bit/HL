@@ -1,0 +1,160 @@
+# THIRD PARTY NOTICES · 第三方组件与素材声明
+
+本文件列出「洪恩式教育双 App」（`apps/literacy-app` 快乐识字、`apps/math-app` MathQuest）
+及本仓库共享资源所使用的全部第三方代码、数据与素材，以及各自的许可证义务。
+
+- 适用范围：本仓库源代码、`npm run build:all` 产出的
+  `dist/hongen-literacy-app.zip` 与 `dist/hongen-math-app.zip`，以及任何据此部署的静态站点。
+- 版本以根目录 `package-lock.json` 锁定为准；下表版本为本文件更新时的实测安装版本。
+- 再分发本项目（源码或构建产物）时，请将本文件一并分发。打包脚本
+  `scripts/build-all.sh` 会自动把本文件放入两个 zip。
+- 更新任何依赖、笔顺数据或素材后，须同步更新本文件并重跑
+  `bash scripts/verify-resources.sh`（合规项 C-2，见
+  `.agent_workspace/sota-acceptance-criteria.md`）。
+
+---
+
+## 一、随构建产物分发的运行时依赖
+
+以下库的代码会被 Vite 打进 `dist/assets/*.js`，随两个 zip 分发。
+
+| 组件 | 版本 | 许可证 | 版权 | 使用方 |
+|---|---|---|---|---|
+| [Vue](https://github.com/vuejs/core) | 3.5.x | MIT | Copyright (c) 2018-present, Yuxi (Evan) You | 双 App |
+| [Vue Router](https://github.com/vuejs/router) | 4.x | MIT | Copyright (c) 2019-present Eduardo San Martin Morote | 双 App |
+| [Pinia](https://github.com/vuejs/pinia) | 2.x | MIT | Copyright (c) 2019-present Eduardo San Martin Morote | 双 App |
+| [GSAP](https://github.com/greensock/GSAP) | 3.x | [GSAP Standard License](https://gsap.com/standard-license) | Copyright (c) 2008-2026, GreenSock, Inc. | 双 App |
+| [Hanzi Writer](https://github.com/chanind/hanzi-writer) | 3.7.x | MIT | Copyright (c) 2014 David Chanin | 识字 App |
+
+MIT 许可证全文见本文件「附录 A」，对上表全部 MIT 组件适用（版权行各自替换）。
+
+**GSAP 说明**：GSAP 不是 MIT 许可证。自 3.13 起 GSAP 依
+[GSAP Standard License](https://gsap.com/standard-license) 免费提供（含商业使用），
+但该许可证禁止将 GSAP 用于构建与 GSAP 竞争的动画工具，并有其他条款。
+本项目仅将其作为应用内动画库使用，符合该许可证；升级 GSAP 版本时应复核许可证是否变更。
+
+## 二、随构建产物分发的第三方数据
+
+### Hanzi Writer Data（汉字笔顺数据）— Arphic Public License
+
+- 上游：[chanind/hanzi-writer-data](https://github.com/chanind/hanzi-writer-data)（npm `hanzi-writer-data` 2.0.x），
+  数据源自 [skishore/makemeahanzi](https://github.com/skishore/makemeahanzi)，
+  底层字形版权归 Arphic Technology Co., Ltd.（文鼎科技）。
+- 许可证：**Arphic Public License（APL）**。注意 MIT 只覆盖 Hanzi Writer 的代码，
+  不覆盖笔顺数据；两者不可混淆。
+- 本仓库的分发位置：
+  - `apps/literacy-app/public/hanzi-data/`：由 `scripts/gen-hanzi-data.mjs`
+    从 npm 包裁剪出的 200+ 字离线笔顺 JSON（仅保留 `strokes`/`medians` 字段，属 APL 意义上的
+    修改/衍生数据），随识字 App 的 dist 与 zip 分发，并被 Service Worker 预缓存。
+  - `shared/assets/hanzi-writer-data/`：3 个离线样本（`人.json`、`日.json`、`山.json`）。
+- **义务**：APL 要求再分发（含修改后的数据）时随附许可证全文。本仓库在上述两个目录中
+  各放置一份 `ARPHICPL.TXT`；`gen-hanzi-data.mjs` 每次重新生成数据时会自动复制该文件，
+  请勿从发行包中删除。
+- 运行时回退：本地缺字时识字 App 会从
+  `https://cdn.jsdelivr.net/npm/hanzi-writer-data@2/` 拉取单字 JSON（同为 APL 数据）。
+  课程字表全部离线内置，正常使用不触发该请求。
+
+## 三、仓库内第三方素材（当前未打入 App 产物）
+
+### OpenMoji 图标 — CC BY-SA 4.0
+
+- 上游：[hfg-gmuend/openmoji](https://github.com/hfg-gmuend/openmoji)
+- 位置：`shared/assets/openmoji/`（`apple.svg`、`target.svg`、`open-book.svg`、
+  `numbers.svg`、`abacus.svg`、`star.svg`，为上游 color/svg 的未修改副本，仅重命名）。
+- 许可证：素材为 [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)
+  （全文见 `shared/assets/openmoji/LICENSE.txt`）；OpenMoji 辅助代码为 LGPL-3.0（本仓库未使用其代码）。
+- **署名（分发或在界面中使用这些图标时必须保留）**：
+
+  > All emojis designed by [OpenMoji](https://openmoji.org/) – the open-source emoji
+  > and icon project. License:
+  > [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
+
+- 若修改这些 SVG 形成衍生图标，衍生素材必须继续采用 CC BY-SA 4.0 并注明修改。
+- 现状：两 App 界面图标均为 emoji 文本与自绘 SVG，OpenMoji 文件尚未被任何 App 引用，
+  因此当前 zip 中不含这些文件；一旦引用，需把上述署名放入 App 的关于/家长页面。
+
+### Noto Sans SC 字体 — SIL OFL 1.1（仅许可证文本，未内置字体）
+
+- 上游：[google/fonts/ofl/notosanssc](https://github.com/google/fonts/tree/main/ofl/notosanssc)
+- 位置：`shared/assets/fonts/OFL-NotoSansSC.txt`（SIL Open Font License 1.1 全文）。
+- 现状：两 App 均使用系统字体栈，**未内置任何字体二进制**，运行时也不请求 Google Fonts。
+  若未来内置 Noto Sans SC（含子集化产物），必须把 OFL 文本随字体一起分发，
+  且不得单独出售字体、不得擅用 Reserved Font Name。
+
+## 四、本项目原创内容（非第三方，列出以厘清边界）
+
+- `shared/assets/audio/*.wav`：正弦波合成占位音效；`shared/assets/lottie/celebration.json`：
+  自制 Lottie 动画。均为本项目生成，不含外部录音或图形。
+- `shared/data/common-hanzi.json`、`math-problems.json`、`idioms.json`：本项目整理的
+  教学数据，声明为 CC0-1.0。
+- 两 App 的课程数据（`src/data/*.js`）、音效（Web Audio 现场合成）、朗读
+  （浏览器 Web Speech API）均不含第三方素材，运行时零第三方域名请求
+  （唯一例外见「二、运行时回退」）。
+
+## 五、开发 / 构建 / 测试依赖（不随产物分发）
+
+以下工具仅在开发与 CI 中运行，其代码不会进入 dist 或 zip，列出以便审计：
+
+| 组件 | 版本 | 许可证 | 用途 |
+|---|---|---|---|
+| [Vite](https://github.com/vitejs/vite) | 5.x | MIT | 构建 |
+| [@vitejs/plugin-vue](https://github.com/vitejs/vite-plugin-vue) | 5.x | MIT | 构建 |
+| [hanzi-writer-data](https://github.com/chanind/hanzi-writer-data) | 2.0.x | APL | 笔顺数据源（裁剪产物随包分发，见第二节） |
+| [puppeteer-core](https://github.com/puppeteer/puppeteer) | 25.x | Apache-2.0 | smoke / 离线 / 验收测试 |
+| [axe-core](https://github.com/dequelabs/axe-core) | 4.13.x | MPL-2.0 | 无障碍扫描 |
+
+## 六、许可证义务速查
+
+| 许可证 | 义务要点 | 本仓库的落实 |
+|---|---|---|
+| MIT | 保留版权与许可声明 | 本文件附录 A + 各包 LICENSE 保留在 node_modules / 本文件中 |
+| APL | 再分发附许可证全文；标明修改 | 两处 `ARPHICPL.TXT` 随数据分发；裁剪方式在第二节与生成脚本头注释中说明 |
+| CC BY-SA 4.0 | 署名；衍生同许可 | 署名文本见第三节；`LICENSE.txt` 在素材目录内 |
+| OFL 1.1 | 字体随附许可证；不得单独出售 | 未内置字体；许可证文本已预置 |
+| GSAP Standard | 不得用于竞争性动画工具等 | 仅作应用内动画库使用 |
+
+---
+
+## 附录 A：MIT License 全文
+
+以下文本适用于第一、五节中标注 MIT 的全部组件，版权行以各组件为准：
+
+```text
+MIT License
+
+Copyright (c) <holder>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+## 附录 B：其余许可证全文位置
+
+| 许可证 | 全文位置 |
+|---|---|
+| Arphic Public License | `apps/literacy-app/public/hanzi-data/ARPHICPL.TXT`、`shared/assets/hanzi-writer-data/ARPHICPL.TXT` |
+| CC BY-SA 4.0 | `shared/assets/openmoji/LICENSE.txt`，或 <https://creativecommons.org/licenses/by-sa/4.0/legalcode> |
+| SIL OFL 1.1 | `shared/assets/fonts/OFL-NotoSansSC.txt` |
+| GSAP Standard License | <https://gsap.com/standard-license>（随版本变化，升级时核对） |
+| Apache-2.0（仅开发依赖） | <https://www.apache.org/licenses/LICENSE-2.0> |
+| MPL-2.0（仅开发依赖） | <https://www.mozilla.org/MPL/2.0/> |
+
+---
+
+*最近核对：2026-08-26（Round 3）。核对方式：`package-lock.json` 安装版本 +
+各包 LICENSE 文件 + 上游仓库许可证页。本文件是工程合规清单，不构成法律意见。*

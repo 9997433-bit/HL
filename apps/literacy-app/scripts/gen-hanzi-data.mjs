@@ -71,6 +71,25 @@ function resolveDataDir() {
   }
 }
 
+/**
+ * 笔顺数据受 Arphic Public License 约束，再分发（含裁剪后的衍生数据）必须随附
+ * 许可证全文，因此每次重建输出目录都要把 ARPHICPL.TXT 一起放进去。
+ * 优先取上游包内的副本，包里缺失时退回仓库 shared/assets 的存档。
+ */
+function copyArphicLicense(dataDir) {
+  const candidates = [
+    path.join(dataDir, 'ARPHICPL.TXT'),
+    path.resolve(appDir, '..', '..', 'shared', 'assets', 'hanzi-writer-data', 'ARPHICPL.TXT'),
+  ]
+  const src = candidates.find((p) => fs.existsSync(p))
+  if (!src) {
+    console.error('[hanzi-data] 找不到 ARPHICPL.TXT，笔顺数据不得在缺失许可证的情况下分发。')
+    process.exitCode = 1
+    return
+  }
+  fs.copyFileSync(src, path.join(outDir, 'ARPHICPL.TXT'))
+}
+
 function main() {
   const required = requiredChars()
   const extra = extraChars()
@@ -110,6 +129,8 @@ function main() {
   // 索引文件让运行时可以先判断「本地有没有」，避免无谓的 404。
   // 刻意不写生成时间：这些文件是入库的，带时间戳会让每次构建都把工作区弄脏。
   fs.writeFileSync(path.join(outDir, 'index.json'), JSON.stringify({ chars: written }))
+
+  copyArphicLicense(dataDir)
 
   const kb = (bytes / 1024).toFixed(0)
   console.log(
