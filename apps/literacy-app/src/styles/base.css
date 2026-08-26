@@ -1,3 +1,6 @@
+/* 引入顺序固定：共享令牌 → 共享组件层 → App 本地覆盖 */
+@import '@shared/styles/design-tokens.css';
+@import '@shared/styles/components.css';
 @import './theme.css';
 
 *,
@@ -19,10 +22,9 @@ html {
 
 body {
   margin: 0;
-  font-family: 'PingFang SC', 'Hiragino Sans GB', 'Noto Sans SC', 'Microsoft YaHei',
-    'Heiti SC', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-family: var(--font-round);
   font-size: calc(16px * var(--font-scale));
-  line-height: 1.6;
+  line-height: var(--lh-base);
   color: var(--text);
   background: var(--bg-page-solid);
   transition: background-color var(--dur-mid) ease, color var(--dur-mid) ease;
@@ -71,27 +73,16 @@ svg {
 }
 
 :focus-visible {
-  outline: 3px solid var(--brand);
-  outline-offset: 3px;
-  border-radius: 8px;
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+  border-radius: var(--radius-xs);
 }
 
 /* --------------------------------------------------------------------------
    通用组件类
+   .btn / .card 及其变体来自 shared/styles/components.css，此处只放识字 App
+   自己的排版与布局工具类。
    -------------------------------------------------------------------------- */
-
-.card {
-  background: var(--surface);
-  border: 1px solid var(--surface-border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
-  padding: var(--gap-lg);
-  backdrop-filter: blur(6px);
-}
-
-.card--flat {
-  box-shadow: var(--shadow-sm);
-}
 
 .section-title {
   display: flex;
@@ -110,71 +101,6 @@ svg {
 
 .muted {
   color: var(--text-soft);
-}
-
-/* 大按钮：儿童手指友好 */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: var(--tap-min);
-  padding: 0 26px;
-  border-radius: var(--radius-pill);
-  font-weight: 800;
-  font-size: 1.05rem;
-  color: var(--text-strong);
-  background: var(--surface-strong);
-  box-shadow: var(--shadow-sm), var(--shadow-press);
-  transition: transform var(--dur-fast) var(--ease-pop), box-shadow var(--dur-fast) ease,
-    filter var(--dur-fast) ease;
-  user-select: none;
-}
-
-.btn:hover {
-  filter: brightness(1.03);
-}
-
-.btn:active {
-  transform: translateY(3px);
-  box-shadow: var(--shadow-sm);
-}
-
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  transform: none;
-}
-
-.btn--primary {
-  background: linear-gradient(180deg, var(--brand) 0%, var(--brand-strong) 100%);
-  color: var(--text-invert);
-}
-
-.btn--accent {
-  background: linear-gradient(180deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 70%, #000 10%) 100%);
-  color: var(--text-invert);
-}
-
-.btn--ghost {
-  background: var(--surface);
-  border: 2px solid var(--surface-border);
-  box-shadow: var(--shadow-sm);
-}
-
-.btn--lg {
-  min-height: 68px;
-  font-size: 1.2rem;
-  padding: 0 34px;
-}
-
-.btn--block {
-  width: 100%;
-}
-
-.btn--icon {
-  min-width: var(--tap-min);
-  padding: 0 16px;
 }
 
 .pill {

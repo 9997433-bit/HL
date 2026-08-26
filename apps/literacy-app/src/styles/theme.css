@@ -1,193 +1,24 @@
 /* ==========================================================================
-   主题变量层
-   - data-theme="sunny"  明亮童趣模式（默认）
-   - data-theme="care"   护眼模式：降低蓝光与对比度，纸质暖色调
-   - data-theme="night"  夜间模式：睡前故事时间使用
-   字号通过 data-font-scale 控制，家长面板可调。
+   识字 App 主题局部层
+   ==========================================================================
+   调色板、圆角、阴影、间距、动效、data-font-scale 与 data-motion 降级
+   已全部由 shared/styles/design-tokens.css 提供（sunny / care / night 三主题
+   逐值一致），本文件只保留识字 App 独有、尚未进入共享令牌的变量。
+
+   data-theme 由 stores/progress.js 的 applyAppearance() 写到 <html> 上。
    ========================================================================== */
 
-:root {
-  /* 品牌色（不随主题变化的强调色种子） */
-  --seed-mango: #ffb84d;
-  --seed-coral: #ff8a80;
-  --seed-mint: #4ecdc4;
-  --seed-sky: #6cb6ff;
-  --seed-grape: #b39ddb;
-  --seed-leaf: #8bc34a;
-
-  /* 圆角与阴影 */
-  --radius-sm: 12px;
-  --radius-md: 20px;
-  --radius-lg: 28px;
-  --radius-xl: 36px;
-  --radius-pill: 999px;
-
-  --shadow-sm: 0 2px 8px rgba(90, 70, 40, 0.08);
-  --shadow-md: 0 8px 24px rgba(90, 70, 40, 0.12);
-  --shadow-lg: 0 16px 40px rgba(90, 70, 40, 0.16);
-  --shadow-press: 0 3px 0 rgba(0, 0, 0, 0.12);
-
-  /* 间距节奏 */
-  --gap-xs: 6px;
-  --gap-sm: 10px;
-  --gap-md: 16px;
-  --gap-lg: 24px;
-  --gap-xl: 36px;
-
-  /* 儿童友好的最小可点击尺寸 */
-  --tap-min: 56px;
-
-  --font-scale: 1;
-  --dur-fast: 160ms;
-  --dur-mid: 280ms;
-  --dur-slow: 520ms;
-  --ease-pop: cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-/* ---------- 明亮童趣模式 ---------- */
+/* --art-tint：绘本/成语插画自带色掺进主题底色的比例。
+   护眼与夜间要压住大面积高饱和色块，所以逐主题下调。 */
 :root,
 :root[data-theme='sunny'] {
-  --bg-page: linear-gradient(165deg, #fff4d6 0%, #ffe6ef 42%, #e2f4ff 100%);
-  --bg-page-solid: #fff6e2;
-  --bg-blob-a: rgba(255, 184, 77, 0.4);
-  --bg-blob-b: rgba(108, 182, 255, 0.32);
-  --bg-blob-c: rgba(139, 195, 74, 0.28);
-
-  --surface: rgba(255, 255, 255, 0.92);
-  --surface-strong: #ffffff;
-  --surface-sunken: #fff6e6;
-  --surface-border: rgba(255, 255, 255, 0.75);
-
-  --text-strong: #3d2f1f;
-  --text: #5a4632;
-  --text-soft: #8a7963;
-  --text-invert: #ffffff;
-
-  --brand: #ff9f1c;
-  --brand-strong: #f57c00;
-  --brand-soft: #fff0d4;
-
-  --accent: #4ecdc4;
-  --accent-soft: #d9f6f3;
-  --danger: #ef5350;
-  --success: #66bb6a;
-  --star: #ffc93c;
-
-  --grid-line: rgba(239, 83, 80, 0.28);
-  --stroke-ink: #3d2f1f;
-  --stroke-hint: #e6ded2;
-
   --art-tint: 78%;
 }
 
-/* ---------- 护眼模式 ---------- */
 :root[data-theme='care'] {
-  --bg-page: linear-gradient(165deg, #f3ecd8 0%, #e9e3cd 55%, #e2e6d3 100%);
-  --bg-page-solid: #f0e9d6;
-  --bg-blob-a: rgba(203, 186, 138, 0.34);
-  --bg-blob-b: rgba(160, 186, 160, 0.26);
-  --bg-blob-c: rgba(198, 176, 150, 0.24);
-
-  --surface: rgba(250, 246, 234, 0.94);
-  --surface-strong: #faf6ea;
-  --surface-sunken: #efe8d4;
-  --surface-border: rgba(190, 176, 140, 0.4);
-
-  --text-strong: #3f3a2c;
-  --text: #55503f;
-  --text-soft: #7d7663;
-  --text-invert: #fbf8ef;
-
-  --brand: #c98a3c;
-  --brand-strong: #a96f28;
-  --brand-soft: #f0e3c9;
-
-  --accent: #5f9e93;
-  --accent-soft: #dfeae5;
-  --danger: #c1615b;
-  --success: #6d9a63;
-  --star: #d8ab48;
-
-  --grid-line: rgba(160, 120, 100, 0.3);
-  --stroke-ink: #3f3a2c;
-  --stroke-hint: #ded5bd;
-
-  /* 护眼模式饱和度上限 70%：内容自带的插画色只掺进来一小半 */
   --art-tint: 34%;
-
-  --shadow-sm: 0 2px 6px rgba(90, 80, 50, 0.07);
-  --shadow-md: 0 6px 18px rgba(90, 80, 50, 0.1);
-  --shadow-lg: 0 12px 30px rgba(90, 80, 50, 0.12);
 }
 
-/* ---------- 夜间模式 ---------- */
 :root[data-theme='night'] {
-  --bg-page: linear-gradient(165deg, #23283b 0%, #2b2340 55%, #1e2a35 100%);
-  --bg-page-solid: #23283b;
-  --bg-blob-a: rgba(120, 108, 200, 0.3);
-  --bg-blob-b: rgba(80, 140, 180, 0.26);
-  --bg-blob-c: rgba(150, 110, 150, 0.22);
-
-  --surface: rgba(52, 57, 79, 0.9);
-  --surface-strong: #3a4059;
-  --surface-sunken: #2d3247;
-  --surface-border: rgba(255, 255, 255, 0.12);
-
-  --text-strong: #f4f1ea;
-  --text: #ddd8ce;
-  --text-soft: #a7a2b4;
-  --text-invert: #23283b;
-
-  --brand: #ffb84d;
-  --brand-strong: #ffa726;
-  --brand-soft: rgba(255, 184, 77, 0.16);
-
-  --accent: #6fd6cd;
-  --accent-soft: rgba(111, 214, 205, 0.16);
-  --danger: #ef7b74;
-  --success: #7fc98a;
-  --star: #ffd45e;
-
-  --grid-line: rgba(255, 184, 77, 0.28);
-  --stroke-ink: #f4f1ea;
-  --stroke-hint: rgba(255, 255, 255, 0.16);
-
-  /* 夜间不许出现大面积亮色块，插画色只留一点点色相提示 */
   --art-tint: 22%;
-
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.36);
-  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.44);
-}
-
-:root[data-font-scale='small'] {
-  --font-scale: 0.9;
-}
-:root[data-font-scale='normal'] {
-  --font-scale: 1;
-}
-:root[data-font-scale='large'] {
-  --font-scale: 1.14;
-}
-:root[data-font-scale='huge'] {
-  --font-scale: 1.28;
-}
-
-/* 关闭动画（家长面板可切换，也尊重系统设置） */
-:root[data-motion='reduced'] *,
-:root[data-motion='reduced'] *::before,
-:root[data-motion='reduced'] *::after {
-  animation-duration: 0.001ms !important;
-  animation-iteration-count: 1 !important;
-  transition-duration: 0.001ms !important;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  :root:not([data-motion='full']) *,
-  :root:not([data-motion='full']) *::before,
-  :root:not([data-motion='full']) *::after {
-    animation-duration: 0.001ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.001ms !important;
-  }
 }
