@@ -30,7 +30,9 @@ synthesis, and optimization hooks — all behind one CLI and a schema-versioned 
   preallocated COO→CSR assembly; one `ModalSolver` façade with dense and sparse
   shift-invert backends, static condensation of massless DOFs, mass normalization,
   participation/effective masses, and a shift-invert LU cache. Validated against
-  closed-form spectra to 1e-9 relative (worst continuum case 0.2 %).
+  closed-form spectra to 1e-9 relative (worst continuum case 0.2 %). R2-T02 remains
+  **partial**: TET4, HEX8, the 3D beam, shell facets, and the corresponding solid/shell
+  BDF cards are still open.
 - **Damped dynamics** (`solver/dynamics.py`): Rayleigh, modal, and structural damping
   models; complex modes with modal phase collinearity; modal, complex-modal, and direct
   FRF synthesis; harmonic response; residual flexibility; FRAC/FDAC FRF correlation
@@ -108,8 +110,8 @@ openness, and automation:
 
 - `.agent_workspace/` holds orchestration records (progress log, Round 2 plan);
   it is documentation, not runtime code.
-- Known scope limits are registered, not hidden: QUAD4 is the only continuum element
-  (TET4/HEX8/3-D beam pending), no MPE from measured FRFs, no pretest planning,
-  Bayesian MAP updating pending — tracked in `docs/SOTA_GAP_ANALYSIS.md` and
-  `.agent_workspace/ROUND2_PLAN.md`.
+- Known scope limits are registered, not hidden: QUAD4 is only the first, partial
+  continuum slice; TET4/HEX8/3D beam work, MPE from measured FRFs, pretest planning,
+  and Bayesian MAP updating remain pending — tracked in `docs/SOTA_GAP_ANALYSIS.md`
+  and `.agent_workspace/ROUND2_PLAN.md`.
 ```

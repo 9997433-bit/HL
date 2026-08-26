@@ -49,6 +49,8 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | R2-T02 | claude-opus-5-thinking-high-fast | GAP-02 QUAD4 plane-stress/plane-strain element, patch test & modal suite (backfill for A19) | partial — QUAD4 slice landed; TET4/HEX8/3D beam open |
 | A37 | claude-opus-5-thinking-high-fast | Merge the QUAD4 branch onto the trunk and re-verify the suite (backfill for R2-T02) | complete |
 | A35 | claude-fable-5-thinking-xhigh | AC-DYN registration (backfill for A28): found R2-T01 had landed it mid-run; dropped the duplicate, verified the head | complete |
+| A45 | gpt-5.6-sol-xhigh-fast | Current-tip 595-test/Ruff verification and PR-draft refresh (backfill for A37) | complete |
+| A47 | gpt-5.6-sol-xhigh-fast | Reconcile A23's 41-vs-40 criteria audit count and pin the registry inventory (backfill for A35) | complete |
 | A40 | claude-opus-5-thinking-high-fast | Side-branch merge sweep (scipy backend harvest; QUAD4 raced with A37), full-suite verification & PR-draft refresh (backfill for A38) | complete |
 
 ## Reference: FEMtools Core Capabilities
@@ -1059,8 +1061,8 @@ new dynamics/element/IO criteria at least `implemented`, GAP-01 stays closed.
   `PYTHONPATH` pinned to the private worktree): full suite **534 passed** (67 s),
   `pytest -m acceptance` **106 passed**, `ruff check .` clean. Registry now holds
   **40 criteria, 20 implemented / 20 specified**, with all five AC-DYN `implemented`
-  (A23's audit counted 41 at the previous tip; the registry itself says 40 — worth a
-  one-line reconciliation next audit).
+  (A23's 41 was an arithmetic slip; A47 reconciled it to 40 and pinned the
+  9+8+9+5+4+5 module inventory in the criteria document and registry tests).
 - Working-tree hazard, still live: `/workspace` was mid-rebase on
   `cursor/optimization-sizing-hook-254c` with unresolved conflicts when this run
   started, and the branch tip advanced five times during the run (three of them while
@@ -1400,6 +1402,19 @@ A27. The A24 backlog above is otherwise the live plan.
   isolated checkout: **595 passed, 0 failed** in 38.19 s on Python 3.12.3 / NumPy 2.5.2 /
   SciPy 1.18.1. Repository-wide `python -m ruff check .` also passed with no findings.
 
+#### A45 — current-tip verification and PR-draft refresh (backfill for A37)
+- Verification recorded **2026-08-26 07:57:23 UTC** after fetching and resetting to
+  remote tip `2bbd695`. From a clean isolated worktree with `PYTHONPATH` pinned to its
+  `src`, full `python -m pytest` completed with **595 passed, 0 failed** in 64.15 s on
+  Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1; repository-wide
+  `python -m ruff check .` passed with no findings.
+- The isolated rerun was necessary because concurrent uncommitted acceptance-test edits
+  appeared in the shared `/workspace` checkout during its first run. Those edits are not
+  part of `2bbd695` and were excluded from the recorded result.
+- Refreshed `PR_DRAFT.md` to the 595-test current tip and made the R2-T02 status explicit:
+  **QUAD4 plane stress/strain is landed, but the task remains partial** while TET4, HEX8,
+  the 3D beam, shell facets, and corresponding solid/shell BDF cards remain open.
+
 #### A40 — side-branch merge sweep & verification (backfill for A38)
 - **Swept every side branch for work not yet on the integration branch** and merged the
   two that still carried unique commits. `cursor/optimization-sizing-hook-254c` needed
@@ -1415,8 +1430,8 @@ A27. The A24 backlog above is otherwise the live plan.
   dispatch-level twin of the working-tree hazard below.
 - **`cursor/optimization-scipy-backend-f421` harvested** as `6cf0f49` — the one branch in
   the sweep nobody else had taken, and *not* redundant with A27's backend: it had been
-  rebased onto trunk tip `b1b0ab8` and carries two real fixes on top of it. `kkt_residual` now receives only the constraints active at
-  `x` — a multiplier on a strictly satisfied constraint violates complementary slackness
+  rebased onto trunk tip `b1b0ab8` and carries two real fixes on top of it.
+  `kkt_residual` now receives only the constraints active at `x` — a multiplier on a strictly satisfied constraint violates complementary slackness
   and can certify a non-stationary point as converged — and `trust-constr` gets an
   explicit zero constraint Hessian, because scipy's per-constraint BFGS default
   degenerates on the linear mass-budget constraint that dominates sizing work (the
@@ -1610,7 +1625,7 @@ NumPy 2.5.2 / SciPy 1.18.1). Concurs with the closure: the exit bar is met and b
 carry-over packages are landed and green, so COMPLETE stands.
 
 One bookkeeping caveat carried to Round 2: per AC §1.2 the P0 registry rows AC-UPD-007
-and AC-WORK-001/002/004/005 are still `specified` (20 of 41 criteria `implemented`
+and AC-WORK-001/002/004/005 are still `specified` (20 of 40 criteria `implemented`
 after the A27/AC-DYN batches, none `verified`), even though `tests/test_workflow.py`
 demonstrates the AC-WORK gates numerically — tagging them is already scheduled with
 R2-T06 and the next acceptance batches. The first PR body draft (`17d03ba`) was folded
@@ -1672,9 +1687,27 @@ objective; a fourth case repeats it through the finite-difference/MAC-residual p
 result does not rest on the analytical Jacobian.
 
 Verified at `33473fe` on Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1: full suite
-**550 passed**, `ruff check .` clean (ruff 0.16.4). Run from a private clone (`/tmp/a31c`)
-rather than a worktree — the first attempt used a worktree under `/tmp` and lost committed
-test edits to a concurrent reset, the working-tree hazard A28/A32 already report.
+**550 passed**, `ruff check .` clean (ruff 0.16.4). Re-verified after the concurrent
+criterion-inventory commit `c8e3ce2` landed underneath this record: **611 passed**, ruff
+clean. Run from a private clone (`/tmp/a31c`) rather than a worktree — the first attempt
+used a worktree under `/tmp` and lost committed test edits to a concurrent reset, the
+working-tree hazard A28/A32 already report.
 
 Remaining P0 rows still `specified`: AC-MODAL-007/009, AC-CORR-005/007/008,
 AC-UPD-004/005/007, AC-WORK-001/002/004/005.
+
+#### A47 — reconcile A23's criteria count (backfill for A35)
+
+- Audited the criteria document against the machine registry: both define the same
+  **40 distinct IDs**, split M1..M6 as **9 + 8 + 9 + 5 + 4 + 5**. The two suffixed M3
+  rows (`AC-UPD-006a` and `AC-UPD-006b`) are separate criteria under one dense base
+  number. No criterion is missing from either source; A23's **41** was arithmetic, not
+  a lost registry row.
+- Commit `c8e3ce2` records that inventory in `docs/ACCEPTANCE_CRITERIA.md` and pins the
+  per-family counts in `test_criteria_registry.py`. It also fixes real documentation
+  drift left by the M6 insertion: the enforcement contract moved from section 7 to
+  section 8, and the blocking-criterion check now correctly describes M1..M6.
+- Full committed suite verified in the clean `/tmp/a47` worktree at `c8e3ce2`, with
+  `PYTHONPATH=/tmp/a47/src`: **611 passed** in 122.32 s. The shared checkout contained
+  an unrelated untracked `tests/acceptance/test_workflow.py`; it was preserved and
+  excluded by verifying the exact committed tree rather than deleting concurrent work.
