@@ -1,8 +1,8 @@
 # PR Draft — OpenFEMLab Round 1
 
 Ready to file. Base: `main`. Head: `cursor/femtools-industrial-7aa3`.
-Verified at the post-HEX8-merge tip: full suite **1033 passed**, `ruff check .` clean
-(Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1).
+Verified at commit `adf5cdc` (post-HEX8 merge): full suite **1033 passed in 91.15 s**,
+`ruff check .` clean (Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1).
 Source references: [README](../README.md), [Chinese user guide](../docs/USER_GUIDE_zh.md),
 and [orchestrator report](ORCHESTRATOR_REPORT.md).
 
@@ -88,8 +88,8 @@ synthesis, and optimization hooks — all behind one CLI and a schema-versioned 
 
 ## Verification
 
-- `PYTHONPATH=src python -m pytest` — **1033 passed** at the post-HEX8-merge tip on
-  Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1.
+- `PYTHONPATH=src python -m pytest` — **1033 passed in 91.15 s** at commit `adf5cdc`
+  on Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1.
 - `ruff check .` — clean.
 - Per-suite breakdown (sums to 1033): acceptance registry + gates 327, dynamics 82,
   HEX8 76, TET4 66, QUAD4 61, updating 57, correlation 52, modal solver 44, workflow 38,

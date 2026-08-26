@@ -2,7 +2,7 @@
 
 **报告人：** A77（顶替已完成的 A74）· **日期：** 2026-08-26
 **分支：** `cursor/femtools-industrial-7aa3` · **Pull Request：** [PR #5](https://github.com/9997433-bit/hl/pull/5)（Draft，base `main`）
-**已验证快照：** 提交 `ff484e4` —— 全量 `pytest` **1,033 通过 / 0 失败**（35.32 s，独立克隆验证），`ruff check .` 干净（Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1）。
+**已验证快照：** 提交 `adf5cdc` —— 全量 `pytest` **1,033 通过 / 0 失败**（91.15 s），`ruff check .` 干净（Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1）。
 
 ---
 
@@ -73,7 +73,7 @@ OpenFEMLab 是一个受 FEMtools 启发、但完全开源（MIT）、求解器�
 
 ## 五、质量与验证：1,033 个测试
 
-- 全量套件 **1,033 通过 / 0 失败**，于提交 `ff484e4` 在隔离克隆中验证（35.32 s）；`ruff check .` 干净。
+- 全量套件 **1,033 通过 / 0 失败**，于提交 `adf5cdc` 验证（91.15 s）；`ruff check .` 干净。
 - 44 条量化验收准则由机器可读注册表钉住，注册表一致性本身也是测试——新准则必须与规格文档、实现测试在同一变更中落地，否则套件失败。
 - 端到端演示：模型 → 模态 → 相关 → 修正 → 复算，频率误差 22.86% → 0%，MAC 1.0；README 的 CLI 会话可复现退出码 0/3/0/0。
 - GitHub Actions CI 覆盖 Python 3.10–3.13。
