@@ -57,10 +57,10 @@ def test_simulated_huge_file_is_rejected_before_payload_read(
     tmp_path: Path,
 ) -> None:
     path = tmp_path / "declared-huge.wav"
-    path.write_bytes(_pcm_wav(declared_frames=2_000_000))
+    path.write_bytes(_pcm_wav(declared_frames=2_000_000_000))
 
     with pytest.raises(AudioProbeError, match="safety limit"):
-        load_wav(path, max_frames=1_000_000)
+        load_wav(path, max_frames=100_000_000)
 
 
 def test_corrupt_header_is_rejected(tmp_path: Path) -> None:
@@ -71,7 +71,7 @@ def test_corrupt_header_is_rejected(tmp_path: Path) -> None:
         load_wav(path)
 
 
-@pytest.mark.parametrize("sample_rate", [1, 1_000_000])
+@pytest.mark.parametrize("sample_rate", [0, 1, 1_000_000])
 def test_extreme_sample_rate_metadata_is_rejected(
     tmp_path: Path, sample_rate: int
 ) -> None:
