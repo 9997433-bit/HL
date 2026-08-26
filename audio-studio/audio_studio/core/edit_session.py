@@ -35,6 +35,7 @@ import numpy as np
 from ..dsp.spectral_edit import ATTENUATION_DB as SPECTRAL_ATTENUATION_DB
 from ..dsp.spectral_edit import DEFAULT_FFT_SIZE as SPECTRAL_FFT_SIZE
 from ..dsp.spectral_edit import SpectralBand, apply_spectral_gain
+from .sample_source import SampleSource
 from .types import SAMPLE_DTYPE, AudioBuffer, TimeRange, db_to_amplitude
 
 #: Frames per storage chunk. Small enough that a localised edit rewrites little,
@@ -369,6 +370,314 @@ class AudioDocument:
             )
         rewritten = AudioDocument.from_array(processed, self._sample_rate, copy=False)
         return self.replace(clipped, rewritten)
+
+
+# --------------------------------------------------------- streaming storage
+
+
+@dataclass(frozen=True, slots=True)
+class BaseSegment:
+    """A half-open view onto frames that remain in the streaming source."""
+
+    source_start: int
+    length: int
+
+    def __post_init__(self) -> None:
+        if self.source_start < 0 or self.length < 0:
+            raise ValueError(f"base segment bounds must be non-negative, got {self!r}")
+
+    @property
+    def source_end(self) -> int:
+        return self.source_start + self.length
+
+    def sub(self, offset: int, length: int) -> BaseSegment:
+        offset = max(0, min(int(offset), self.length))
+        length = max(0, min(int(length), self.length - offset))
+        return BaseSegment(self.source_start + offset, length)
+
+
+StreamingSegment = BaseSegment | Segment
+
+
+class StreamingAudioDocument:
+    """Immutable sparse edit graph over a random-access streaming source.
+
+    Base segments are only frame ranges; they do not contain PCM.  A command
+    that changes sample values replaces the selected ranges with ordinary
+    immutable :class:`Segment` chunks.  Timeline edits such as cut and paste
+    merely splice those two kinds of segment, so document size is proportional
+    to the number of edits rather than to the source file's duration.
+    """
+
+    __slots__ = ("_n_frames", "_offsets", "_segments", "_source")
+
+    def __init__(
+        self,
+        source: SampleSource,
+        segments: Iterable[StreamingSegment],
+    ) -> None:
+        kept: list[StreamingSegment] = []
+        offsets: list[int] = []
+        total = 0
+        for segment in segments:
+            if segment.length == 0:
+                continue
+            if isinstance(segment, Segment) and segment.chunk.n_channels != source.n_channels:
+                raise ValueError(
+                    f"overlay has {segment.chunk.n_channels} channels, "
+                    f"source has {source.n_channels}"
+                )
+            offsets.append(total)
+            kept.append(segment)
+            total += segment.length
+        self._source = source
+        self._segments = tuple(kept)
+        self._offsets = tuple(offsets)
+        self._n_frames = total
+
+    @classmethod
+    def from_source(cls, source: SampleSource) -> StreamingAudioDocument:
+        segments: tuple[StreamingSegment, ...] = (
+            (BaseSegment(0, source.n_frames),) if source.n_frames else ()
+        )
+        return cls(source, segments)
+
+    @classmethod
+    def from_array(
+        cls,
+        source: SampleSource,
+        data: np.ndarray,
+        *,
+        chunk_frames: int = DEFAULT_CHUNK_FRAMES,
+        copy: bool = True,
+    ) -> StreamingAudioDocument:
+        document = AudioDocument.from_array(
+            data, source.sample_rate, chunk_frames=chunk_frames, copy=copy
+        )
+        if document.n_channels != source.n_channels:
+            raise EditError(
+                f"cannot insert {document.n_channels}-channel audio into a "
+                f"{source.n_channels}-channel document"
+            )
+        return cls(source, document.segments)
+
+    @property
+    def source(self) -> SampleSource:
+        return self._source
+
+    @property
+    def segments(self) -> tuple[StreamingSegment, ...]:
+        return self._segments
+
+    @property
+    def n_frames(self) -> int:
+        return self._n_frames
+
+    @property
+    def n_channels(self) -> int:
+        return self._source.n_channels
+
+    @property
+    def sample_rate(self) -> int:
+        return self._source.sample_rate
+
+    @property
+    def duration(self) -> float:
+        return self._n_frames / self.sample_rate
+
+    @property
+    def n_segments(self) -> int:
+        return len(self._segments)
+
+    @property
+    def overlay_segments(self) -> tuple[Segment, ...]:
+        return tuple(segment for segment in self._segments if isinstance(segment, Segment))
+
+    @property
+    def overlay_chunk_count(self) -> int:
+        return len({id(segment.chunk) for segment in self.overlay_segments})
+
+    def stored_frames(self) -> int:
+        """Frames materialised in unique overlay chunks."""
+        chunks = {id(segment.chunk): segment.chunk.n_frames for segment in self.overlay_segments}
+        return sum(chunks.values())
+
+    def __len__(self) -> int:
+        return self._n_frames
+
+    def _locate(self, frame: int) -> int:
+        if frame >= self._n_frames:
+            return len(self._segments)
+        return bisect_right(self._offsets, frame) - 1
+
+    def read(self, start: int, n_frames: int) -> np.ndarray:
+        start = max(0, min(int(start), self._n_frames))
+        count = max(0, min(int(n_frames), self._n_frames - start))
+        out = np.empty((count, self.n_channels), dtype=SAMPLE_DTYPE)
+        self._gather(out, start, count)
+        return out
+
+    def read_into(self, out: np.ndarray, start: int) -> int:
+        if out.ndim != 2 or out.shape[1] != self.n_channels:
+            raise ValueError(f"out must be (frames, {self.n_channels}), got {out.shape}")
+        wanted = int(out.shape[0])
+        start = max(0, min(int(start), self._n_frames))
+        count = min(wanted, self._n_frames - start)
+        self._gather(out, start, count)
+        if count < wanted:
+            out[count:] = 0.0
+        return count
+
+    def _gather(self, out: np.ndarray, start: int, count: int) -> None:
+        if count <= 0:
+            return
+        index = self._locate(start)
+        written = 0
+        while written < count and index < len(self._segments):
+            segment = self._segments[index]
+            offset = start + written - self._offsets[index]
+            take = min(count - written, segment.length - offset)
+            target = out[written : written + take]
+            if isinstance(segment, BaseSegment):
+                # StreamingSampleSource zero-fills a short/error read, preserving
+                # the never-raise feeder contract while overlays remain audible.
+                self._source.read_into(target, segment.source_start + offset)
+            else:
+                source = segment.start + offset
+                target[:] = segment.chunk.data[source : source + take]
+            written += take
+            index += 1
+
+    def to_array(self) -> np.ndarray:
+        return self.read(0, self._n_frames)
+
+    def to_buffer(self) -> AudioBuffer:
+        return AudioBuffer(self.to_array(), self.sample_rate)
+
+    def _rebuild(self, segments: Iterable[StreamingSegment]) -> StreamingAudioDocument:
+        return StreamingAudioDocument(self._source, self._coalesce(segments))
+
+    @staticmethod
+    def _coalesce(segments: Iterable[StreamingSegment]) -> tuple[StreamingSegment, ...]:
+        """Join adjacent views without ever copying their sample data."""
+        merged: list[StreamingSegment] = []
+        for segment in segments:
+            if segment.length == 0:
+                continue
+            previous = merged[-1] if merged else None
+            if (
+                isinstance(previous, BaseSegment)
+                and isinstance(segment, BaseSegment)
+                and previous.source_end == segment.source_start
+            ):
+                merged[-1] = BaseSegment(previous.source_start, previous.length + segment.length)
+            elif (
+                isinstance(previous, Segment)
+                and isinstance(segment, Segment)
+                and previous.chunk is segment.chunk
+                and previous.end == segment.start
+            ):
+                merged[-1] = Segment(
+                    previous.chunk, previous.start, previous.length + segment.length
+                )
+            else:
+                merged.append(segment)
+        return tuple(merged)
+
+    def _cut_at(self, frame: int) -> tuple[list[StreamingSegment], list[StreamingSegment]]:
+        frame = max(0, min(int(frame), self._n_frames))
+        head: list[StreamingSegment] = []
+        tail: list[StreamingSegment] = []
+        for index, segment in enumerate(self._segments):
+            offset = self._offsets[index]
+            if offset + segment.length <= frame:
+                head.append(segment)
+            elif offset >= frame:
+                tail.append(segment)
+            else:
+                boundary = frame - offset
+                head.append(segment.sub(0, boundary))
+                tail.append(segment.sub(boundary, segment.length - boundary))
+        return head, tail
+
+    def slice(self, rng: TimeRange) -> StreamingAudioDocument:
+        clipped = rng.clamped(self._n_frames)
+        if clipped.is_empty:
+            return self._rebuild(())
+        _, tail = self._cut_at(clipped.start)
+        middle = StreamingAudioDocument(self._source, tail)
+        head, _ = middle._cut_at(clipped.length)
+        return self._rebuild(head)
+
+    def delete(self, rng: TimeRange) -> StreamingAudioDocument:
+        clipped = rng.clamped(self._n_frames)
+        if clipped.is_empty:
+            return self
+        head, _ = self._cut_at(clipped.start)
+        _, tail = self._cut_at(clipped.end)
+        return self._rebuild([*head, *tail])
+
+    def _segments_from(
+        self, other: AudioDocument | StreamingAudioDocument
+    ) -> tuple[StreamingSegment, ...]:
+        if isinstance(other, StreamingAudioDocument):
+            if other.source is self._source:
+                return other.segments
+            # A clipboard from another streaming source cannot retain a handle
+            # the destination session does not own, so materialise only it.
+            other = AudioDocument.from_array(other.to_array(), other.sample_rate, copy=False)
+        if other.n_channels != self.n_channels:
+            raise EditError(
+                f"cannot insert {other.n_channels}-channel audio into a "
+                f"{self.n_channels}-channel document"
+            )
+        if other.sample_rate != self.sample_rate:
+            raise EditError(
+                f"cannot insert {other.sample_rate} Hz audio into a {self.sample_rate} Hz document"
+            )
+        return other.segments
+
+    def insert(
+        self, at: int, other: AudioDocument | StreamingAudioDocument
+    ) -> StreamingAudioDocument:
+        if other.n_frames == 0:
+            return self
+        head, tail = self._cut_at(at)
+        return self._rebuild([*head, *self._segments_from(other), *tail])
+
+    def replace(
+        self, rng: TimeRange, other: AudioDocument | StreamingAudioDocument
+    ) -> StreamingAudioDocument:
+        clipped = rng.clamped(self._n_frames)
+        return self.delete(clipped).insert(clipped.start, other)
+
+    def concat(self, other: AudioDocument | StreamingAudioDocument) -> StreamingAudioDocument:
+        return self.insert(self._n_frames, other)
+
+    def map_range(
+        self, rng: TimeRange, fn: Callable[[np.ndarray], np.ndarray]
+    ) -> StreamingAudioDocument:
+        """Materialise and replace only the samples touched by ``rng``."""
+        clipped = rng.clamped(self._n_frames)
+        if clipped.is_empty:
+            return self
+        processed = np.asarray(fn(self.read(clipped.start, clipped.length)), dtype=SAMPLE_DTYPE)
+        if processed.ndim == 1:
+            processed = processed[:, np.newaxis]
+        if processed.shape != (clipped.length, self.n_channels):
+            raise EditError(
+                f"in-place edit must preserve the shape "
+                f"{(clipped.length, self.n_channels)}, got {processed.shape}"
+            )
+        rewritten = StreamingAudioDocument.from_array(self._source, processed, copy=False)
+        return self.replace(clipped, rewritten)
+
+    def __repr__(self) -> str:
+        return (
+            f"StreamingAudioDocument({self._n_frames} frames, {self.n_channels}ch @ "
+            f"{self.sample_rate} Hz, {len(self._segments)} segments, "
+            f"{self.overlay_chunk_count} overlay chunks)"
+        )
 
 
 # ---------------------------------------------------------------- commands
@@ -833,6 +1142,11 @@ class EditSession:
     ) -> EditSession:
         return cls(AudioDocument.from_array(data, sample_rate), undo_limit=undo_limit)
 
+    @classmethod
+    def from_streaming(cls, source: SampleSource, *, undo_limit: int = 200) -> StreamingEditSession:
+        """Create an out-of-core session whose unchanged samples stay on disk."""
+        return StreamingEditSession(source, undo_limit=undo_limit)
+
     # ----------------------------------------------------------- properties
 
     @property
@@ -1060,7 +1374,7 @@ class EditSession:
         return self.execute(TrimCommand(self._require_range(rng)))
 
     def _as_document(self, payload: AudioDocument | AudioBuffer | np.ndarray) -> AudioDocument:
-        if isinstance(payload, AudioDocument):
+        if isinstance(payload, (AudioDocument, StreamingAudioDocument)):
             return payload
         if isinstance(payload, AudioBuffer):
             return AudioDocument.from_buffer(payload)
@@ -1074,11 +1388,74 @@ class EditSession:
         )
 
 
+class StreamingEditSession(EditSession):
+    """Editable sparse overlay over a :class:`StreamingSampleSource`.
+
+    The session owns the source handle.  Closing it releases the file, while
+    every edit and undo revision only changes immutable timeline metadata plus
+    chunks for ranges whose sample values were actually rewritten.
+    """
+
+    __slots__ = ("_source",)
+
+    def __init__(self, source: SampleSource, *, undo_limit: int = 200) -> None:
+        self._source = source
+        super().__init__(
+            StreamingAudioDocument.from_source(source),
+            undo_limit=undo_limit,
+        )
+
+    @property
+    def base_source(self) -> SampleSource:
+        return self._source
+
+    @property
+    def document(self) -> StreamingAudioDocument:
+        document = self._document
+        assert isinstance(document, StreamingAudioDocument)
+        return document
+
+    @property
+    def overlay_segments(self) -> tuple[Segment, ...]:
+        return self.document.overlay_segments
+
+    @property
+    def overlay_chunk_count(self) -> int:
+        return self.document.overlay_chunk_count
+
+    @property
+    def materialized_frames(self) -> int:
+        return self.document.stored_frames()
+
+    @property
+    def exact(self) -> bool:
+        return False
+
+    @property
+    def is_streaming(self) -> bool:
+        return True
+
+    @property
+    def last_error(self) -> Exception | None:
+        return getattr(self._source, "last_error", None)
+
+    def close(self) -> None:
+        self._source.close()
+
+    def __repr__(self) -> str:
+        return (
+            f"StreamingEditSession({self.n_frames} frames, {self.n_channels}ch @ "
+            f"{self.sample_rate} Hz, {self.overlay_chunk_count} overlay chunks, "
+            f"rev {self.revision})"
+        )
+
+
 __all__ = [
     "DEFAULT_CHUNK_FRAMES",
     "FADE_SHAPES",
     "SPECTRAL_ATTENUATION_DB",
     "AudioDocument",
+    "BaseSegment",
     "Chunk",
     "CutCommand",
     "DeleteCommand",
@@ -1094,6 +1471,8 @@ __all__ = [
     "SilenceCommand",
     "SpectralBand",
     "SpectralEditCommand",
+    "StreamingAudioDocument",
+    "StreamingEditSession",
     "TrimCommand",
     "UndoEntry",
     "UndoStack",

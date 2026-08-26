@@ -173,7 +173,10 @@ class AudioEngine:
     @property
     def is_streaming(self) -> bool:
         """True when frames are being decoded from disk rather than held in RAM."""
-        return isinstance(self._source, StreamingSampleSource)
+        source = self._source
+        return isinstance(source, StreamingSampleSource) or bool(
+            getattr(source, "is_streaming", False)
+        )
 
     @property
     def n_frames(self) -> int:
@@ -635,9 +638,7 @@ class AudioEngine:
 
         self._gain_remaining -= ramped
         self._gain = (
-            self._gain_target
-            if not self._gain_remaining
-            else self._gain + self._gain_step * ramped
+            self._gain_target if not self._gain_remaining else self._gain + self._gain_step * ramped
         )
         if ramped < n and self._gain != 1.0:
             out[ramped:] *= SAMPLE_DTYPE(self._gain)

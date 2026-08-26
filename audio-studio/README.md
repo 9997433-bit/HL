@@ -230,6 +230,11 @@ binary artifacts must not include it. See
   edited document straight off the undo stack without flattening it first;
   revision publication is atomic, so a reader sees either the old or the new
   complete document, never half an edit.
+- Over-budget RF64/W64 files use a streaming edit session: unchanged timeline
+  segments remain references to the file, while gain/fade/silence and other
+  sample-changing operations materialise only the selected ranges as sparse
+  overlay chunks. Cut and paste splice those references without decoding the
+  base, and undo swaps immutable sparse revisions.
 - The source file is never modified in place; export writes a new file.
 
 **Waveform display** (`audio_studio.ui.waveform_view.WaveformView`)
@@ -347,12 +352,13 @@ their size as a first-class concern rather than an accident:
   ~48 minutes of stereo 48 kHz) with an error that points at streaming
   playback instead of an opaque `MemoryError` minutes later.
 - **The editor streams what it cannot slurp.** *File ▸ Open* on an over-budget
-  file opens it for **read-only streamed playback**: the transport pulls
-  blocks straight off disk through `StreamingSampleSource`, nothing is decoded
-  whole, and the edit actions stay disabled. Whole-file analysis (loudness,
-  full-clip spectrogram) is skipped under the same budget; selection-sized
-  analysis still works. In-memory editing of such files is future work — the
-  copy-on-write `EditSession` currently requires the samples in RAM.
+  file opens a `StreamingEditSession`: transport and unchanged edit ranges pull
+  blocks from `StreamingSampleSource`, while cut, paste, gain and the other
+  selection edits use sparse in-memory overlays. Undo never writes the base
+  file. Whole-file analysis (loudness, full-clip spectrogram) is skipped under
+  the same budget; selection-sized analysis still works. A current `.pk`
+  sidecar supplies the full overview, and sample-level zoom reads only a
+  bounded detail window around the playhead.
 - **Export round-trips.** `save_audio("bounce.rf64", …)` writes RF64 (and
   `.w64` writes Wave64) whenever the local libsndfile supports it, so a
   long-form bounce is not silently truncated at 4 GB.
@@ -466,14 +472,13 @@ above this package.
   compliance from the current alpha.
 - Loop playback restarts from the region start without a crossfade, and the
   reported position is briefly clamped across the wrap.
-- Long files stream from disk for playback and their peak pyramid survives in a
-  `.pk` sidecar between sessions, but the edit history and the pyramid itself
-  are held in memory while a clip is open, and a pyramid restored for a streamed
-  file only resolves down to its finest cached level (256 frames per bin) until
-  the samples are read. RF64/W64 containers are detected, streamed and exported
-  (see *Large files* above), but out-of-core *editing* is still missing: a file
-  past the memory budget opens as read-only streamed playback, without a
-  waveform overview unless a `.pk` sidecar already exists.
+- Long files stream from disk and use sparse in-memory edit overlays. Their peak
+  pyramid survives in a `.pk` sidecar between sessions; without a current
+  sidecar only the bounded detail window is available. A restored overview
+  resolves down to its finest cached level (256 frames per bin), then
+  sample-level zoom reads the edited source around the playhead. Streaming
+  edits can still consume substantial memory when the selected region itself
+  is large, and saving an edit project flattens its audio.
 
 ## Release notes — v0.1.0-alpha
 

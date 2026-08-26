@@ -6,6 +6,8 @@ track so a multi-track session view can stack instances of it later.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
@@ -22,7 +24,8 @@ from PySide6.QtWidgets import (
 from ..core.loader import LoadedAudio
 from ..core.markers import MarkerList
 from ..core.peaks import PeakPyramid
-from ..core.types import TimeRange
+from ..core.sample_source import SampleSource
+from ..core.types import AudioFormat, TimeRange
 from .theme import PALETTE, Palette
 from .time_ruler import TimeRuler
 from .waveform_view import WaveformView
@@ -91,6 +94,12 @@ class TrackHeader(QWidget):
         self.title.setText(clip.name)
         self.title.setToolTip(str(clip.path))
         self.format_label.setText(clip.audio_format.describe().replace(" · ", "\n"))
+
+    def set_stream(self, path: str | Path, audio_format: AudioFormat) -> None:
+        path = Path(path)
+        self.title.setText(path.name)
+        self.title.setToolTip(str(path))
+        self.format_label.setText(audio_format.describe().replace(" · ", "\n"))
 
 
 class TrackPanel(QWidget):
@@ -167,6 +176,25 @@ class TrackPanel(QWidget):
             samples = clip.buffer.data
         self.ruler.set_sample_rate(sample_rate)
         self.waveform.set_clip(pyramid, sample_rate, samples)
+        self._on_view_changed(self.waveform.view_start, self.waveform.view_frames)
+
+    def set_stream(
+        self,
+        path: str | Path,
+        audio_format: AudioFormat,
+        n_frames: int,
+        pyramid: PeakPyramid | None,
+        source: SampleSource,
+    ) -> None:
+        """Attach cached overview peaks and bounded on-demand detail reads."""
+        self.header.set_stream(path, audio_format)
+        self.ruler.set_sample_rate(source.sample_rate)
+        self.waveform.set_clip(
+            pyramid,
+            source.sample_rate,
+            sample_source=source,
+            n_frames=n_frames,
+        )
         self._on_view_changed(self.waveform.view_start, self.waveform.view_frames)
 
     def set_playhead(self, frame: float, *, follow: bool = False) -> None:
