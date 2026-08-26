@@ -1,25 +1,66 @@
 """Minimal dependency-free reader for ASCII Nastran bulk-data files.
 
-The supported subset is intentionally small: ``GRID``, ``CROD``, and
-``MAT1`` cards in free-field or small fixed-field form.  Unsupported cards
-are skipped.  ``GRID`` coordinates must use the basic coordinate system
-because coordinate-system cards are outside this subset.
+The supported subset is one connectivity card per element block the solver
+formulates, plus the grid, material and property cards those need: ``GRID``,
+``CROD``, ``CBAR``, ``CQUAD4``, ``CTETRA``, ``CHEXA``, ``MAT1``, ``PSHELL``
+and ``PSOLID``.  Cards may be written in free field or in small fixed field
+and may run onto continuation lines; unsupported cards are skipped, together
+with their continuations.  ``GRID`` coordinates must use the basic coordinate
+system because coordinate-system cards are outside this subset.
+
+Only the linear form of each connectivity card is read.  A ``CTETRA`` or
+``CHEXA`` carrying mid-side grid points is rejected rather than silently
+truncated to its corner nodes, because dropping them would change the mesh.
 """
 
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator
 from os import PathLike
 from pathlib import Path
 from typing import TextIO
 
 import numpy as np
 
-from openfemlab.core.neutral import ElementType, NeutralMaterial, NeutralModel
+from openfemlab.core.neutral import (
+    ElementType,
+    NeutralMaterial,
+    NeutralModel,
+    NeutralProperty,
+)
 
 from ._common import FormatError
 
-_SUPPORTED_CARDS = frozenset({"GRID", "CROD", "MAT1"})
+#: Connectivity cards, each mapped to the block it fills and the number of
+#: grid points read from it.  Nastran numbers the grids of all four of these
+#: the way :mod:`openfemlab.core.elements` expects -- a ``CQUAD4`` runs
+#: counter-clockwise, a ``CTETRA`` puts its first three counter-clockwise seen
+#: from the fourth, and a ``CHEXA`` gives one face then the opposite face in
+#: the same order -- so connectivity passes through unpermuted.
+_ELEMENT_CARDS: dict[str, tuple[ElementType, int]] = {
+    "CROD": (ElementType.ROD2, 2),
+    "CBAR": (ElementType.BEAM2, 2),
+    "CQUAD4": (ElementType.QUAD4, 4),
+    "CTETRA": (ElementType.TET4, 4),
+    "CHEXA": (ElementType.HEX8, 8),
+}
+
+#: Cards whose grid list is the whole card, so a further grid field means a
+#: higher-order element this reader cannot represent.  ``CBAR`` continues into
+#: an orientation vector and ``CQUAD4`` into ``THETA``/``ZOFFS``, so neither
+#: can be checked this way.
+_HAS_FIXED_GRID_COUNT = frozenset({"CTETRA", "CHEXA"})
+
+_PROPERTY_CARDS = frozenset({"PSHELL", "PSOLID"})
+_SUPPORTED_CARDS = frozenset({"GRID", "MAT1"}) | set(_ELEMENT_CARDS) | _PROPERTY_CARDS
+
+#: Block order of the emitted connectivity, so two files that declare the same
+#: elements in a different order still produce identical models.
+_BLOCK_ORDER: tuple[ElementType, ...] = tuple(
+    dict.fromkeys(element_type for element_type, _ in _ELEMENT_CARDS.values())
+)
+
 _IMPLICIT_EXPONENT = re.compile(
     r"([+-]?(?:(?:\d+(?:\.\d*)?)|(?:\.\d+)))([+-]\d+)"
 )
@@ -28,27 +69,25 @@ _IMPLICIT_EXPONENT = re.compile(
 def read_bdf(source: str | PathLike[str] | TextIO) -> NeutralModel:
     """Read a minimal ASCII BDF model into a :class:`NeutralModel`.
 
-    ``CROD`` property ids are retained in ``element_property_ids``.  The
-    corresponding property definitions are intentionally absent because a
-    rod's material and section are defined by ``PROD``, which is outside this
-    reader's minimal card subset.
+    ``PSHELL`` and ``PSOLID`` land in ``properties``, the shell carrying its
+    thickness as ``t`` so :func:`~openfemlab.io.neutral_convert.to_model` binds
+    a ``CQUAD4`` at the thickness the file states.  The property ids of the
+    other cards are still retained in ``element_property_ids``, but their
+    definitions are absent: a rod's section comes from ``PROD`` and a bar's
+    from ``PBAR``, both outside this reader's subset, so a ``CROD`` or ``CBAR``
+    mesh needs ``section=`` when it is converted.
     """
 
     text, source_name = _read_text(source)
     nodes: dict[int, tuple[float, float, float]] = {}
-    rods: list[tuple[int, int]] = []
-    rod_ids: list[int] = []
-    rod_property_ids: list[int] = []
+    connectivity: dict[ElementType, list[tuple[int, ...]]] = {}
+    property_ids: dict[ElementType, list[int]] = {}
+    element_ids: dict[ElementType, list[int]] = {}
+    element_cards: dict[int, str] = {}
     materials: dict[int, NeutralMaterial] = {}
+    properties: dict[int, NeutralProperty] = {}
 
-    for line_number, raw_line in enumerate(text.splitlines(), start=1):
-        line = raw_line.split("$", maxsplit=1)[0].rstrip()
-        if not line.strip():
-            continue
-
-        fields = _card_fields(line)
-        if not fields:
-            continue
+    for line_number, fields in _iter_cards(text):
         card = fields[0].upper()
         if card == "ENDDATA":
             break
@@ -66,13 +105,26 @@ def read_bdf(source: str | PathLike[str] | TextIO) -> NeutralModel:
                 if node_id in nodes:
                     raise FormatError(f"duplicate GRID id {node_id}")
                 nodes[node_id] = coordinates
-            elif card == "CROD":
-                element_id, property_id, node_pair = _parse_crod(fields)
-                if element_id in rod_ids:
-                    raise FormatError(f"duplicate CROD id {element_id}")
-                rod_ids.append(element_id)
-                rod_property_ids.append(property_id)
-                rods.append(node_pair)
+            elif card in _ELEMENT_CARDS:
+                element_type, node_count = _ELEMENT_CARDS[card]
+                element_id, property_id, element_nodes = _parse_element(
+                    card, fields, node_count
+                )
+                previous = element_cards.get(element_id)
+                if previous is not None:
+                    raise FormatError(
+                        f"duplicate element id {element_id}, already defined by a "
+                        f"{previous} card"
+                    )
+                element_cards[element_id] = card
+                connectivity.setdefault(element_type, []).append(element_nodes)
+                property_ids.setdefault(element_type, []).append(property_id)
+                element_ids.setdefault(element_type, []).append(element_id)
+            elif card in _PROPERTY_CARDS:
+                property_ = _parse_pshell(fields) if card == "PSHELL" else _parse_psolid(fields)
+                if property_.id in properties:
+                    raise FormatError(f"duplicate property id {property_.id}")
+                properties[property_.id] = property_
             else:
                 material = _parse_mat1(fields)
                 if material.id in materials:
@@ -83,24 +135,34 @@ def read_bdf(source: str | PathLike[str] | TextIO) -> NeutralModel:
                 f"invalid BDF {card} card on line {line_number}: {exc}"
             ) from exc
 
-    unknown_nodes = sorted({node_id for rod in rods for node_id in rod} - nodes.keys())
+    referenced = {
+        node_id for rows in connectivity.values() for row in rows for node_id in row
+    }
+    unknown_nodes = sorted(referenced - nodes.keys())
     if unknown_nodes:
         joined = ", ".join(str(node_id) for node_id in unknown_nodes)
-        raise FormatError(f"CROD connectivity references unknown GRID ids: {joined}")
+        raise FormatError(f"element connectivity references unknown GRID ids: {joined}")
 
     node_ids = np.fromiter(nodes, dtype=np.int64, count=len(nodes))
     node_coordinates = np.asarray(list(nodes.values()), dtype=np.float64).reshape((-1, 3))
     elements: dict[ElementType, np.ndarray] = {}
     element_property_ids: dict[ElementType, np.ndarray] = {}
-    if rods:
-        elements[ElementType.ROD2] = np.asarray(rods, dtype=np.int64).reshape((-1, 2))
-        element_property_ids[ElementType.ROD2] = np.asarray(
-            rod_property_ids, dtype=np.int64
+    for element_type in _BLOCK_ORDER:
+        rows = connectivity.get(element_type)
+        if not rows:
+            continue
+        elements[element_type] = np.asarray(rows, dtype=np.int64).reshape(
+            (len(rows), len(rows[0]))
+        )
+        element_property_ids[element_type] = np.asarray(
+            property_ids[element_type], dtype=np.int64
         )
 
     meta: dict[str, object] = {
         "format": "nastran-bdf",
-        "element_ids": {ElementType.ROD2.value: rod_ids},
+        "element_ids": {
+            element_type.value: element_ids[element_type] for element_type in elements
+        },
     }
     if source_name is not None:
         meta["source"] = source_name
@@ -110,6 +172,7 @@ def read_bdf(source: str | PathLike[str] | TextIO) -> NeutralModel:
         elements=elements,
         element_property_ids=element_property_ids,
         materials=materials,
+        properties=properties,
         meta=meta,
     )
 
@@ -132,19 +195,92 @@ def _read_text(source: str | PathLike[str] | TextIO) -> tuple[str, str | None]:
     return value, str(name) if name is not None else None
 
 
+def _iter_cards(text: str) -> Iterator[tuple[int, list[str]]]:
+    """Yield ``(line_number, fields)`` per logical card, continuations merged.
+
+    A continuation line -- one blank in field 1, or opening with ``+`` or a
+    leading comma -- appends its data fields to the card above it, which is how
+    a ``CHEXA`` reaches its eighth grid point.  One that follows no card at all
+    is dropped, as is one that follows a card this reader skips.  The reported
+    line number is always that of the card's first line.
+    """
+
+    pending: list[str] | None = None
+    pending_line = 0
+    for line_number, raw_line in enumerate(text.splitlines(), start=1):
+        line = raw_line.split("$", maxsplit=1)[0].rstrip()
+        if not line.strip():
+            continue
+        if _is_continuation(line):
+            if pending is not None:
+                pending.extend(_continuation_fields(line))
+            continue
+        if pending is not None:
+            yield pending_line, pending
+            pending = None
+        fields = _card_fields(line)
+        if fields:
+            pending, pending_line = fields, line_number
+    if pending is not None:
+        yield pending_line, pending
+
+
+def _is_continuation(line: str) -> bool:
+    if line[:1] in ("+", ","):
+        return True
+    return not line[:8].strip()
+
+
 def _card_fields(line: str) -> list[str]:
     if "," in line:
-        return [field.strip() for field in line.split(",")]
+        return _drop_continuation_marker([field.strip() for field in line.split(",")])
 
     card_field = line[:8].strip()
     if not card_field:
         return []
-    if any(character.isspace() for character in card_field):
-        return line.split()
-    return [
-        card_field,
-        *(line[start : start + 8].strip() for start in range(8, len(line), 8)),
-    ]
+    columns = (
+        None
+        if any(character.isspace() for character in card_field)
+        else _fixed_field_columns(line)
+    )
+    if columns is None:
+        return _drop_continuation_marker(line.split())
+    return [card_field, *columns]
+
+
+def _continuation_fields(line: str) -> list[str]:
+    if "," in line:
+        return _drop_continuation_marker([field.strip() for field in line.split(",")][1:])
+
+    columns = _fixed_field_columns(line)
+    if columns is not None:
+        return columns
+    return _drop_continuation_marker(line.split()[1:] if line[:1] == "+" else line.split())
+
+
+def _fixed_field_columns(line: str) -> list[str] | None:
+    """Data fields of columns 9-72, or ``None`` when the line is not aligned.
+
+    Column 73 onwards holds the continuation marker rather than data, so it is
+    never returned.  A chunk containing whitespace between two tokens means the
+    line is not on the eight-column grid at all and has to be split on
+    whitespace instead.
+    """
+
+    columns = [line[start : start + 8].strip() for start in range(8, min(len(line), 72), 8)]
+    if any(any(character.isspace() for character in column) for column in columns):
+        return None
+    return columns
+
+
+def _drop_continuation_marker(fields: list[str]) -> list[str]:
+    """Strip trailing blanks and a field-10 continuation marker from a card."""
+
+    while fields and not fields[-1]:
+        fields.pop()
+    if fields and fields[-1].startswith("+"):
+        fields.pop()
+    return fields
 
 
 def _parse_grid(fields: list[str]) -> tuple[int, tuple[float, float, float]]:
@@ -162,14 +298,58 @@ def _parse_grid(fields: list[str]) -> tuple[int, tuple[float, float, float]]:
     return node_id, coordinates
 
 
-def _parse_crod(fields: list[str]) -> tuple[int, int, tuple[int, int]]:
-    element_id = _positive_integer(_required(fields, 1, "EID"), "CROD EID")
-    property_id = _positive_integer(_required(fields, 2, "PID"), "CROD PID")
-    first_node = _positive_integer(_required(fields, 3, "G1"), "CROD G1")
-    second_node = _positive_integer(_required(fields, 4, "G2"), "CROD G2")
-    if first_node == second_node:
-        raise FormatError(f"CROD {element_id} must reference two distinct GRID ids")
-    return element_id, property_id, (first_node, second_node)
+def _parse_element(
+    card: str, fields: list[str], node_count: int
+) -> tuple[int, int, tuple[int, ...]]:
+    """``(EID, PID, grids)`` of one connectivity card.
+
+    Fields past the grid list are ignored, which is what makes a ``CBAR``'s
+    orientation vector and a ``CQUAD4``'s ``THETA`` harmless here.
+    """
+
+    element_id = _positive_integer(_required(fields, 1, "EID"), f"{card} EID")
+    property_id = _positive_integer(_required(fields, 2, "PID"), f"{card} PID")
+    element_nodes = tuple(
+        _positive_integer(
+            _required(fields, 3 + offset, f"G{offset + 1}"), f"{card} G{offset + 1}"
+        )
+        for offset in range(node_count)
+    )
+    if len(set(element_nodes)) != node_count:
+        raise FormatError(f"{card} {element_id} must reference {node_count} distinct GRID ids")
+    if card in _HAS_FIXED_GRID_COUNT and _field(fields, 3 + node_count):
+        raise FormatError(
+            f"{card} {element_id} has more than {node_count} grid points; only the "
+            f"{node_count}-node form is supported"
+        )
+    return element_id, property_id, element_nodes
+
+
+def _parse_pshell(fields: list[str]) -> NeutralProperty:
+    property_id = _positive_integer(_required(fields, 1, "PID"), "PSHELL PID")
+    material_id = _positive_integer(_required(fields, 2, "MID1"), "PSHELL MID1")
+    thickness = _float(_required(fields, 3, "T"), "PSHELL T")
+    if thickness <= 0.0:
+        raise FormatError("PSHELL T must be positive")
+    return NeutralProperty(
+        id=property_id,
+        material_id=material_id,
+        values={"t": thickness},
+        name="PSHELL",
+    )
+
+
+def _parse_psolid(fields: list[str]) -> NeutralProperty:
+    """A solid property, which carries only the material the elements use.
+
+    ``CORDM``, ``IN``, ``STRESS``, ``ISOP`` and ``FCTN`` describe integration
+    and output choices that this reader's isotropic, fully integrated solids do
+    not take from the file, so they are read past.
+    """
+
+    property_id = _positive_integer(_required(fields, 1, "PID"), "PSOLID PID")
+    material_id = _positive_integer(_required(fields, 2, "MID"), "PSOLID MID")
+    return NeutralProperty(id=property_id, material_id=material_id, name="PSOLID")
 
 
 def _parse_mat1(fields: list[str]) -> NeutralMaterial:

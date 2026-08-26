@@ -88,7 +88,7 @@ synthesis, and optimization hooks — all behind one CLI and a schema-versioned 
   diagnostics on stderr, CI acceptance gates via exit codes; covered end to end
   including subprocess runs.
 - **QA stack**: 1331 tests including a machine-readable registry of 44 quantified
-  acceptance criteria: 14 `verified`, 30 `implemented`, and 0 `specified`, with
+  acceptance criteria: **44 `verified`**, 0 `implemented`, and 0 `specified`, with
   **34/34 P0** and **10/10 P1** rows covered — plus boundary/probe suites,
   performance-regression gates, and benchmarks; GitHub Actions CI on Python
   3.10–3.13; `ruff check` clean.
@@ -170,14 +170,13 @@ openness, and automation:
   (`ELEM`) registers the continuum criteria, and `io/neutral_convert.to_model` binds an
   imported ROD2/BEAM2/QUAD4/TET4/HEX8 block into those formulations, so an imported
   industrial mesh can now be re-analyzed internally. The task stays **partial** on
-  purpose: the AC-ELEM case table does not yet cover the shell, `to_model` still binds an
-  imported `QUAD4` block to the *membrane* element rather than the shell, and the
-  `CQUAD4`/`CTETRA`/`CHEXA`/`CBAR`/`PSHELL`/`PSOLID` cards are open.
-- The acceptance registry is closed at **44/44 covered** (30 `implemented` +
-  14 `verified`, spanning all 34 P0 and 10 P1 rows);
+  purpose: the AC-ELEM case table does not yet cover the shell, and the
+  `CQUAD4`/`CTETRA`/`CHEXA`/`CBAR`/`PSHELL`/`PSOLID` cards are open (`quad4_as="shell"`
+  binds imported quads to the shell element since A129).
+- The acceptance registry is closed at **44/44 `verified`** (all 34 P0 and 10 P1 rows);
   MPE from measured FRFs and pretest planning remain pending outside this registry
   closure and are tracked in `docs/SOTA_GAP_ANALYSIS.md` and
   `.agent_workspace/ROUND2_PLAN.md`.
-- R2-T09 now enforces the promotion gate in CI and has advanced 9 criteria to
-  `verified`; the remaining 35 stay `implemented`.
+- R2-T09 is **complete for Round 2 sign-off**: CI gates plus `promote_verified.py`
+  (A72, A109, A121) advanced every row to `verified`.
 ```

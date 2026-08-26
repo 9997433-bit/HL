@@ -2,7 +2,7 @@
 
 **报告人：** A115（补录）· **日期：** 2026-08-26
 **分支：** `cursor/femtools-industrial-7aa3` · **Pull Request：** [PR #5](https://github.com/9997433-bit/hl/pull/5)（Draft，base `main`）
-**已验证快照：** 提交 `571c864` —— 全量 `pytest` **1331 通过 / 0 失败**，`ruff check .` 干净（Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1）。
+**已验证快照：** 提交 `9690cc6` —— 全量 `pytest` **1331 通过 / 0 失败**，`ruff check .` 干净；验收注册表 **44/44 verified**（A121 批量晋升）。
 
 ---
 

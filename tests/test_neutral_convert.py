@@ -21,6 +21,7 @@ from openfemlab.core.elements import (
     BeamElement3D,
     Hex8Element,
     Quad4Element,
+    ShellQuad4Element,
     Tet4Element,
     TrussElement,
 )
@@ -107,6 +108,11 @@ class TestInferDofs:
         model = neutral(ElementType.QUAD4, UNIT_SQUARE, [[1, 2, 3, 4]], values={"t": 0.01})
 
         assert infer_dofs(model) == (DOF.UX, DOF.UY)
+
+    def test_quad_only_mesh_gets_six_dofs_when_bound_as_shell(self) -> None:
+        model = neutral(ElementType.QUAD4, UNIT_SQUARE, [[1, 2, 3, 4]], values={"t": 0.01})
+
+        assert infer_dofs(model, quad4_as="shell") == tuple(DOF)
 
     @pytest.mark.parametrize(
         "element_type, connectivity",
@@ -306,6 +312,33 @@ class TestQuadConversion:
         for corners in ((1, 2, 3, 4), (2, 5, 6, 3)):
             reference.add_element(Quad4Element(corners, CORE_STEEL, thickness=0.01))
         np.testing.assert_allclose(stiffness(converted), stiffness(reference))
+
+
+class TestShellQuadConversion:
+    def single_quad(self, **kwargs) -> NeutralModel:
+        return neutral(ElementType.QUAD4, UNIT_SQUARE, [[1, 2, 3, 4]], **kwargs)
+
+    def test_quad4_as_shell_binds_the_shell_element(self) -> None:
+        model = to_model(self.single_quad(values={"t": 0.01}), quad4_as="shell")
+
+        assert model.dofs == tuple(DOF)
+        assert all(isinstance(element, ShellQuad4Element) for element in model.elements)
+
+    def test_the_converted_shell_matches_the_hand_built_one(self) -> None:
+        source = self.single_quad(values={"t": 0.01})
+
+        converted = to_model(source, quad4_as="shell")
+
+        reference = Model(dofs=tuple(DOF))
+        for index, point in enumerate(source.nodes, start=1):
+            reference.add_node(index, point)
+        reference.add_element(ShellQuad4Element((1, 2, 3, 4), CORE_STEEL, thickness=0.01))
+        np.testing.assert_allclose(stiffness(converted), stiffness(reference), rtol=0.0, atol=0.0)
+
+    def test_membrane_binding_is_still_the_default(self) -> None:
+        model = to_model(self.single_quad(values={"t": 0.01}))
+
+        assert all(isinstance(element, Quad4Element) for element in model.elements)
 
 
 class TestSolidConversion:

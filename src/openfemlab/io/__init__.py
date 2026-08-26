@@ -8,7 +8,9 @@ Foreign formats arrive through dedicated readers: :func:`read_bdf` for the
 Nastran bulk-data subset, :func:`read_uff` for UFF/UNV test data, and the
 :mod:`~openfemlab.io.meshio_bridge` adapter for everything ``meshio`` can
 open.  The meshio functions re-exported here import the optional package
-lazily, so this module stays importable without the ``[io]`` extra.
+lazily, so this module stays importable without the ``[io]`` extra.  UFF is
+the one foreign format that also travels outwards: :func:`write_uff` emits the
+mode-shape and FRF datasets :func:`read_uff` accepts.
 
 Every one of those readers returns a :class:`~openfemlab.core.neutral.NeutralModel`;
 :func:`neutral_to_model` converts it into the internal
@@ -57,9 +59,11 @@ from .uff import (
     UFFDataset,
     UFFFunction,
     UFFMode,
+    format_uff,
     read_uff,
     read_uff_functions,
     read_uff_modes,
+    write_uff,
 )
 
 # Familiar persistence aliases for script-oriented workflows.
@@ -136,4 +140,6 @@ __all__ = [
     "read_uff",
     "read_uff_functions",
     "read_uff_modes",
+    "write_uff",
+    "format_uff",
 ]

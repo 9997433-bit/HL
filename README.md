@@ -57,8 +57,9 @@ change before the first stable release.
   specifications.
 - Read support for ASCII UFF/UNV dataset 55 mode shapes and dataset 58
   functions/FRFs.
-- A dependency-free Nastran BDF reader for the supported `GRID`, `CROD`, and
-  `MAT1` subset in free-field and small fixed-field form.
+- A dependency-free Nastran BDF reader for the supported `GRID`, `CROD`,
+  `CBAR`, `CQUAD4`, `CTETRA`, `CHEXA`, `MAT1`, `PSHELL` and `PSOLID` subset in
+  free-field and small fixed-field form, continuation lines included.
 - A `meshio` bridge (optional `[io]` extra) converting mesh files to and from
   the neutral model for the `vertex`/`line`/`triangle`/`quad`/`tetra`/
   `hexahedron` cell types.
@@ -92,6 +93,15 @@ from openfemlab.io import read_meshio, write_meshio
 
 model = read_meshio("bracket.msh")
 write_meshio(model, "bracket.vtu")
+```
+
+[`examples/04_imported_shell_modal.py`](examples/04_imported_shell_modal.py)
+shows the complete analysis path for a QUAD4 plate:
+`read_meshio` → `neutral_to_model(quad4_as="shell")` → `ModalSolver`. Run it
+after installing the `[io]` extra:
+
+```bash
+python examples/04_imported_shell_modal.py
 ```
 
 ## Quickstart

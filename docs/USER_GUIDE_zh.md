@@ -220,12 +220,19 @@ meshio 的零基点索引会转换为中性模型的节点 ID。`node_ids`、`el
 `line` 无法区分杆、梁和弹簧，`BEAM2` / `SPRING2` 不会被含糊地导出，而是抛出
 `FormatError`。
 
-当前 R2-T05 只完成了**几何与连接关系桥接**。一般网格文件不含 OpenFEMLab 所需的完整
-材料和截面定义，因此导入结果的 `materials` / `properties` 为空，尚不能直接传给
-`ModalSolver`；在自动 `NeutralModel → Model` 转换落地前，调用方需自行补充材料、截面、
-约束并构造分析模型。UNV 2411/2412 几何读取也仍在后续范围内。`meshio` 采用懒加载，
-未安装附加依赖时只有文件读写/导出入口会抛出带安装提示的 `MissingDependencyError`，
-核心包与 `from_meshio` 的鸭子类型转换仍可使用。
+一般网格文件不含完整的材料、厚度与约束，因此转换时需补充这些分析属性。对于 QUAD4
+板网格，调用 `neutral_to_model(neutral, material=..., thickness=...,
+quad4_as="shell")` 即可绑定六自由度 `ShellQuad4Element`；再对边界节点调用
+`model.fix_nodes(...)`，便可交给 `ModalSolver`。完整的
+`read_meshio → neutral_to_model → 模态求解` 示例见
+[`examples/04_imported_shell_modal.py`](../examples/04_imported_shell_modal.py)，运行：
+
+```bash
+python examples/04_imported_shell_modal.py
+```
+
+`meshio` 采用懒加载，未安装附加依赖时只有文件读写/导出入口会抛出带安装提示的
+`MissingDependencyError`，核心包与 `from_meshio` 的鸭子类型转换仍可使用。
 
 ## 7. 模态分析：`openfemlab modal`
 
@@ -394,4 +401,5 @@ openfemlab correlate run/cantilever.updated.yaml run/measured.yaml \
 - [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) —— 模块边界与数据流
 - [`docs/MODULE_SPEC.md`](MODULE_SPEC.md) —— 各模块的行为规格
 - [`docs/SOTA_GAP_ANALYSIS.md`](SOTA_GAP_ANALYSIS.md) —— 与 FEMtools 及 2026 SOTA 的差距分析
-- `examples/01_cantilever_modal.py`、`examples/02_model_updating_workflow.py` —— 可运行示例
+- `examples/01_cantilever_modal.py`、`examples/02_model_updating_workflow.py`、
+  `examples/04_imported_shell_modal.py` —— 可运行示例

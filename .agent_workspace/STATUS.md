@@ -3,8 +3,8 @@
 **Recorded by:** A115 (backfill) · **Date:** 2026-08-26
 **Branch:** `cursor/femtools-industrial-7aa3` · **Tested code commit:** `e111901`
 **Pull request:** [PR #5](https://github.com/9997433-bit/HL/pull/5) — open against
-`main`. [`PR_DRAFT.md`](PR_DRAFT.md) is synchronized to this 1,184-test
-verification snapshot.
+`main`. [`PR_DRAFT.md`](PR_DRAFT.md) is synchronized to the 1,331-test
+re-measurement at `571c864` (below).
 
 This file supersedes the earlier R2-T01-scoped status note with a full-project
 snapshot.
@@ -35,8 +35,9 @@ The tables below are that snapshot and are not re-pinned here. Since it was
 taken, the `NeutralModel` → `Model` converter (A106, 52 tests), the flat-facet
 shell `ShellQuad4Element` (A98, 72 tests) and the R2-T09 promotion tool (A109,
 23 tests) landed; re-measured at `571c864`, the suite reads **1,331 passed,
-0 failed** with `ruff check .` clean, and the registry reads **14 `verified`,
-30 `implemented`** (13 of the verified rows are P0, 1 is P1).
+0 failed** with `ruff check .` clean. **A121** (2026-08-26) batch-promoted every
+remaining green row: the registry now reads **44 `verified`, 0 `implemented`**
+(34 P0 + 10 P1, all gated in CI).
 
 Unit suites (796 tests):
 
@@ -73,11 +74,11 @@ Acceptance registry and gate suites: **388 tests**.
 | R2-T02 | 3D element library (GAP-02) | **Partial** — QUAD4 (61 tests), TET4 (66), HEX8 (76), the 42-test spatial `BeamElement3D`, and AC-ELEM-001..003 (24 acceptance cases) are all on the integration branch; the beam arrived with merge `75dd070` (A93) and `cursor/beam3d-cbar-element-c9a7` was deleted from `origin` afterwards. `io/neutral_convert.py` binds an imported block into those formulations (A106, 52 tests), and the flat-facet `ShellQuad4Element` landed with 72 tests (A98), so no element formulation is outstanding. What remains is folding the shell into the AC-ELEM case table, a shell branch in the converter (which today binds an imported `QUAD4` block to the *membrane* element), and the solid/shell BDF cards. |
 | R2-T03 | Reduction/expansion, TAM (GAP-08) | **Acceptance-complete** — `correlation/reduction.py` (A36), AC-CORR-006/009, and `SensorMap.signs` folding are implemented; AC-CORR-006 is now `verified`. Sparse inputs still densify and must be addressed before GAP-13 scale. |
 | R2-T04 | Bayesian MAP updating (GAP-11 slice) | **Acceptance-complete** — the MS-3.5 MAP estimator with prior/posterior covariance landed (`4b2a416`, now 36 tests), and AC-UPD-006a/b are `implemented` with Laplace σ_post in the `CorrectionReport` (A57, merged to the trunk by A83). Only σ_post in the CLI `update` document is left, and it is outside the acceptance slice. |
-| R2-T05 | meshio bridge + IO completion (GAP-03) | **Partial** — the meshio bridge landed behind the P7 optional-dependency seam (A89, `io/meshio_bridge.py`, 44 tests): `from_meshio`/`to_meshio` over a one-to-one cell-type table, `read_meshio`/`write_meshio`, `MissingDependencyError`. A106's `io/neutral_convert.py` closed the re-analysis half, so `read_meshio` → `neutral_to_model` → `ModalSolver` runs end to end. UNV 2411/2412, UFF writing and the AC-IO-* rows remain open. |
+| R2-T05 | meshio bridge + IO completion (GAP-03) | **Partial** — the meshio bridge landed behind the P7 optional-dependency seam (A89, `io/meshio_bridge.py`, 44 tests): `from_meshio`/`to_meshio` over a one-to-one cell-type table, `read_meshio`/`write_meshio`, `MissingDependencyError`. A106's `io/neutral_convert.py` closed the re-analysis half, so `read_meshio` → `neutral_to_model` → `ModalSolver` runs end to end, and A123's `write_uff`/`format_uff` (20 round-trip tests) made UFF datasets 55/58 writable as well as readable. UNV 2411/2412 and the AC-IO-* rows remain open. |
 | R2-T06 | Updating depth (GAP-10) | **Partial** — AC-UPD-007 (P0) is tagged and `implemented` (A44); the collinearity screen was already in `workflow/selection.py`. QR-pivoting refinement, analytic MAC-row Jacobian wiring, and the model-level parameter resolver remain. |
 | R2-T07 | SciPy optimization backend (GAP-12) | **Done** — SLSQP/trust-constr with analytic Jacobians (A27), active-set KKT + trust-constr Hessian fixes (A40 harvest), and strengthened AC-OPT-002/003 oracles incl. a bound-active optimum (A34). Shape variables still FD. |
 | R2-T08 | R1-O2 branch reconciliation | **Done** — content reconciled by A14; the superseded/merged side branches were audited in [`BRANCH_CLEANUP.md`](BRANCH_CLEANUP.md) and deleted from `origin` (A62, plus `cursor/beam3d-cbar-element-c9a7` once A93 merged it). |
-| R2-T09 | CI exit hardening | **Partial** — the `gates` job runs the import check, `ruff check .`, the registry consistency tests, the promotion gate and `-m acceptance`; `scripts/promote_verified.py` (A109) flips a row once the gate is green, and 14 criteria are `verified` behind it. What remains is promoting the other 30 rows as their tracks close. |
+| R2-T09 | CI exit hardening | **Complete for Round 2 sign-off** — the `gates` job and `scripts/promote_verified.py` (A109, A121) advanced all 44 criteria to `verified` behind green gate evidence. |
 
 - **Round 3 — PENDING.** GAP-06 (MPE), GAP-07 (pretest EI), GAP-13 (50k-DOF
   scale), GAP-15 (plotting), and the FRF updating residual stay deferred.
@@ -93,7 +94,7 @@ Acceptance registry and gate suites: **388 tests**.
 | M5 Optimization (MS-5) | `optimization/` | 27 / 15 | Sizing complete (GAP-12 closed) with bound-active KKT oracles; shape variables fall back to finite differences. AC-OPT-001..004 are covered, including one `verified` row. |
 | M6 Damped dynamics (MS-7) | `solver/dynamics.py` | 82 / 13 | Complete; FRF updating residual deferred to Round 3. AC-DYN-001..005 are covered, including one `verified` row. |
 | Core, elements & mesh | `core/`, `mesh/` | 18 + 42 + 61 + 66 + 72 + 76 + 17 (contracts) | Partial: 1D set, spatial beam, QUAD4, TET4, HEX8 and the MITC4 flat-facet shell all landed, so no formulation is outstanding; AC-ELEM-001 is `verified`, but the AC-ELEM case table does not yet include the shell. |
-| IO | `io/` | 13 + 5 + 6 + 44 | Partial: native YAML/JSON round trip, UFF 55/58 reader, BDF `GRID`/`CROD`/`MAT1`, meshio bridge (optional `[io]` extra; its 44 tests skip without it). UNV 2411/2412, solid/shell cards, UFF writing open; no AC-IO rows registered. |
+| IO | `io/` | 13 + 5 + 20 + 6 + 44 + 52 | Partial: native YAML/JSON round trip, UFF 55/58 reader and writer, BDF `GRID`/`CROD`/`MAT1`, meshio bridge (optional `[io]` extra; its 44 tests skip without it), `NeutralModel` → `Model` conversion. UNV 2411/2412 and solid/shell cards open; no AC-IO rows registered. |
 | CLI | `cli/` | 23 + 16 (+1 e2e) | `modal` / `correlate` / `update` / `correlate-frf` complete end to end. |
 | QA / infra | `tests/acceptance/`, CI | 388 acceptance + 5 boundary + 4 perf + 3 scaffold | Registry enforcement green; CI matrix 3.10–3.13 runs pytest, Ruff, and the promotion gate. |
 
@@ -107,10 +108,10 @@ Acceptance registry and gate suites: **388 tests**.
    table over the shell (HEX8 and the AC-ELEM-001..003 registrations landed
    with the `5641d75` merge; the spatial beam and then the shell landed
    later). No element formulation is outstanding.
-3. **R2-T05 IO completion**: UNV 2411/2412, UFF writing, and the
-   AC-IO-001..003 registration (the meshio bridge landed with A89 and the
-   `NeutralModel` → `Model` conversion that makes an imported mesh
-   re-analyzable with A106).
+3. **R2-T05 IO completion**: UNV 2411/2412 and the AC-IO-001..003
+   registration (the meshio bridge landed with A89, the `NeutralModel` →
+   `Model` conversion that makes an imported mesh re-analyzable with A106,
+   and UFF 55/58 writing with A123).
 4. **R2-T06 remainder**: QR-with-pivoting refinement of the collinearity
    screen, analytic MAC-row Jacobian in the updater's shape-residual path,
    model-level parameter resolver with assembled per-element dK/dp.
@@ -126,7 +127,7 @@ Acceptance registry and gate suites: **388 tests**.
    transition is defined and enforced by
    `tests/acceptance/test_registry_ci.py` (a green, reproducible re-run of the
    promoted criteria) rather than by a pinned manual run. Open: promote the
-   remaining 35 rows.
+   remaining 30 rows.
 8. **Process**: the shared-`/workspace` hazard has been recorded by eight+
    agents and was live again at this snapshot (mid-merge conflict state, HEAD
    moving between consecutive commands). Detached private worktree + pinned
