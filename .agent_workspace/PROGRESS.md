@@ -43,6 +43,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A30 | claude-fable-5-thinking-xhigh | Round 1 close-out: independent full-suite verification & PR-draft completion (backfill for A14) | complete |
 | A27 | claude-opus-5-thinking-high-fast | R2-T07 scipy optimization backend & AC-OPT gates (backfill for A25) | complete |
 | A39 | gpt-5.6-sol-xhigh-fast | R2-T07 post-integration verification & PR-draft refresh (backfill for A27) | complete |
+| A36 | claude-opus-5-thinking-high-fast | R2-T03 start: `correlation/reduction.py` (Guyan/IRS/SEREP, TAM mass, expansion) + 2-DOF suite (backfill for A32) | complete |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
@@ -948,7 +949,9 @@ Core backlog (prioritized, from `docs/SOTA_GAP_ANALYSIS.md` §4/§6 + Round 1 co
 2. **R2-T02 3D continuum elements** (GAP-02, P0) — QUAD4/TET4/HEX8 + 3D beam with patch
    /convergence gates (AC-MODAL-001/003/004/007 extended, new AC-ELEM-*).
 3. **R2-T03 SEREP/TAM reduction & expansion** (GAP-08) — Guyan/IRS/SEREP, TAM
-   pseudo-orthogonality, shape expansion; closes Round-2 gate AC-CORR-006.
+   pseudo-orthogonality, shape expansion; closes Round-2 gate AC-CORR-006. *Engine
+   landed by A36 (`correlation/reduction.py`, 25 tests); the AC-CORR-006 acceptance test
+   and the AC-CORR-009 registration are what remain — see the A36 entry below.*
 4. **R2-T04 Bayesian MAP updating** (GAP-11 slice, MS-3.5) — Gaussian-prior MAP step +
    posterior covariance; closes Round-2 gates AC-UPD-006a/b.
 5. **R2-T05 meshio bridge & IO completion** (GAP-03 remainder) — optional-dependency
@@ -1194,6 +1197,59 @@ A27. The A24 backlog above is otherwise the live plan.
   `ScipyBackend` now implements SLSQP and trust-constr with analytic Jacobians, hard bounds,
   iteration/KKT audit fields, and standardized constraint mapping. **GAP-12 is closed for
   sizing optimization.**
+
+#### A36 — R2-T03 started: reduction / expansion module (backfill for A32)
+- Opened `src/openfemlab/correlation/reduction.py`, the GAP-08 / MS-2.1 bridge the plan
+  ranks as the top Round-2 sign-off blocker. One `ReductionBasis` dataclass carries the
+  transformation `u_full = T u_master` plus the master rows it was built for, and knows
+  three operations every consumer needs: `reduce_matrix` (`TᵀAT`, symmetrized),
+  `reduce_shapes` (pick the sensor rows), and `expand` (`T Φ_master`). Three constructors
+  fill it: `guyan_reduction` (static condensation, `T_s = [I; −K_ss⁻¹K_sm]`),
+  `irs_reduction` (`T_s + S M T_s M_r⁻¹K_r`), and `serep_basis`
+  (`T = Φ_full (Φ_sensor)⁺`). `expand_shapes` is the MS-2.1 one-liner
+  `Φ_test^full = Φ_fe (T Φ_fe)⁺ Φ_test`; `tam_mass` returns `TᵀMT`, which feeds the
+  existing `correlation.mac.orthogonality` / weighted-MAC machinery unchanged — no second
+  metric kernel was written (GAP-01 rule).
+- **No new numeric kernel forked from the solver either.** `solver/modal.py::_MasslessCondensation`
+  stays the eigensolver's private path; the new module is the general-master-set version
+  of the same algebra and is verified against the property that motivated the private one
+  (a massless slave DOF condenses exactly). Merging the two is a follow-up, not a
+  duplicate: the solver's variant partitions by zero mass and is wired into the
+  eigenproblem's recovery step, while this one takes an arbitrary sensor set.
+- `tests/test_reduction.py`, **25 tests**, built on the 2-DOF chain of
+  `tests/modal_reference.py` with DOF 0 as the only sensor — the smallest model where
+  reduction is a genuine approximation. Every numeric assertion is a closed form, not a
+  recorded value: the Guyan basis `[1, k0/(k0+k1)]ᵀ`, the reduced stiffness as the
+  series spring `k0k1/(k0+k1)`, exactness at `m1 = 0`, and the Rayleigh bracket
+  `λ_1 < λ_guyan < λ_2` when the slave carries mass (λ_guyan = 400 against λ_1 = 325.5,
+  λ_2 = 1474.5 — a 23 % error on one sensor, which is the honest size of the effect the
+  gate exists to catch). IRS cuts that error and collapses back onto Guyan without slave
+  inertia. Two longer-chain cases carry the shape of the pending gates: 3 modes of an
+  8-DOF chain seen by 4 sensors expand back with **MAC ≥ 0.999** (AC-CORR-006), and the
+  SEREP TAM gives pseudo-orthogonality with diag ≥ 0.99 / off-diag ≤ 0.10 (the proposed
+  AC-CORR-009).
+- Verified from a private worktree at `/tmp/a36` with `PYTHONPATH` pinned to it, on
+  Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1: full suite **523 passed** (66 s; 498 before
+  this change), `ruff check src tests` clean. Landed as `7d4bd7b` (module) and `1bbc4d3`
+  (tests) after rebasing twice onto a moving remote tip.
+- **What R2-T03 still owes**, in the order the plan wants it:
+  1. The AC-CORR-006 gate itself. The physics is covered by
+     `test_expansion_of_an_underinstrumented_chain_keeps_mac_above_the_gate`, but the
+     criterion also demands *pairing computed in reduced space equals pairing computed in
+     expanded space*, and it must live in `tests/acceptance/test_correlation.py` tagged
+     `@criterion("AC-CORR-006")` before the registry may leave `specified`. Until that
+     lands the criterion still reads `specified` and P1 sign-off is still blocked.
+  2. AC-CORR-009 (TAM pseudo-orthogonality) is *not* registered. Registering it means
+     editing `docs/ACCEPTANCE_CRITERIA.md`, `docs/MODULE_SPEC.md` and the registry in one
+     commit — the spec-first rule — which is why this change deliberately touched no
+     document: a half-registered ID fails `test_registry_matches_acceptance_criteria_doc`.
+  3. `SensorMap` wiring. The module takes master rows as plain indices, which is exactly
+     `SensorMap.rows`, but it ignores `SensorMap.signs`; a caller with flipped
+     accelerometers must apply `SensorMap.reduce` first. A `from_sensor_map` constructor
+     that folds the signs into `T` is the clean fix.
+  4. Sparse inputs are accepted but densified (`_dense`), fine at Round-2 fixture scale
+     and wrong at GAP-13 scale. Craig-Bampton CMS and geometry-based sensor mapping stay
+     out of scope per the plan.
 
 ### Round 3 — SOTA Polish & Final Acceptance
 **Status:** PENDING
