@@ -15,15 +15,15 @@ review; no GitHub pull request (open or closed) is associated with any of the th
 Verification used the fetched remote tips, not potentially stale local branch pointers:
 
 ```text
-git merge-base --is-ancestor origin/<branch> HEAD
+git merge-base --is-ancestor origin/<branch> 8604807
 r1o2-correlation-updating: no (expected; reconciled rather than merged)
 merge-quad4-backfill:       yes
 dynamics-damping-frf:       yes
 
-git rev-list --left-right --count HEAD...origin/<branch>
-r1o2-correlation-updating: 200  3
-merge-quad4-backfill:        4  0
-dynamics-damping-frf:      133  0
+git rev-list --left-right --count 8604807...origin/<branch>
+r1o2-correlation-updating: 203  3
+merge-quad4-backfill:        7  0
+dynamics-damping-frf:      136  0
 ```
 
 The full committed trunk suite passed at that snapshot: **876 passed, 0 failed** in
