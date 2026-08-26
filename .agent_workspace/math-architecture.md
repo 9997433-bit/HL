@@ -246,4 +246,12 @@ Web直达        ✗     ✗     ✗         部分     ✓✓  (纯Web,零安�
 **已识别风险:**
 - 七巧板吸附判定精度(Round 2 先做技术 spike);
 - Tone.js AudioContext 需用户手势解锁(骨架已按"首次点击初始化"处理);
-- 9×9 数独生成耗时(骨架实测 <50ms,可接受;必要时 Web Worker)。
+- 9×9 数独生成耗时(骨架实测:9×9 生成 3ms,唯一解校验通过;无需 Worker)。
+
+**⚠️ Round 1 并行骨架待归并(Round 2 首要清理项):**
+Round 1 两个子代理并行产出了两套实现,均已入库。当前**生效入口链**为本文档描述的结构
+(`main.js → router → views/HomeView + modules/*`,引擎在 `src/core/`);
+另一套(`src/views/{Arithmetic,Counting,Geometry,Logic,Sudoku}View.vue`、`src/utils/{sudoku,sudoku4,sound,random}.js`、
+`src/data/{modules,wordProblems,achievements,shapes}.js`、`src/components/{TopBar,StarField,MascotBot,…}.vue`、`src/composables/*`)
+未被路由引用,不影响构建。Round 2 应择优合并:UI 组件(StarField/MascotBot/AchievementToast)可并入 `components/`,
+玩法逻辑统一收敛到 `core/` 引擎协议,删除重复的 sudoku/sound/wordProblems 实现,`src/assets/styles/` 与 `src/styles/` 二选一。
