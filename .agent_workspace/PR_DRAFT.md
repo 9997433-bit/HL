@@ -1,15 +1,15 @@
 # PR Draft — OpenFEMLab Round 1
 
 Ready to file. Base: `main`. Head: `cursor/femtools-industrial-7aa3`.
-Verified at the post-HEX8-merge tip: full suite **1033 passed**, `ruff check .` clean
-(Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1).
+Verified at commit `069b097`: full suite **1089 passed in 96.21 s**,
+`ruff check .` clean (Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1).
 Source references: [README](../README.md), [Chinese user guide](../docs/USER_GUIDE_zh.md),
 and [orchestrator report](ORCHESTRATOR_REPORT.md).
 
 ## Title
 
 ```
-OpenFEMLab: solver-independent CAE platform — modal analysis, correlation, model updating, damped dynamics, 3D elements (1033 tests)
+OpenFEMLab: solver-independent CAE platform — modal analysis, correlation, model updating, damped dynamics, 3D elements (1089 tests)
 ```
 
 ## Body
@@ -25,7 +25,8 @@ synthesis, and optimization hooks — all behind one CLI and a schema-versioned 
 ## What's included
 
 - **Core FEM & modal solver** (`core/`, `solver/modal.py`, `mesh/`): node-major DOF
-  model with SPCs and lumped masses; spring/truss/planar-beam elements plus the QUAD4
+  model with SPCs and lumped masses; spring/truss/planar-beam elements, the spatial
+  Euler–Bernoulli `BeamElement3D`, plus the QUAD4
   isoparametric plane-stress/plane-strain continuum element (2×2 Gauss stiffness,
   consistent mass, `mesh.simple.quad_plate_mesh` generator) that passes the constant-strain
   patch test exactly and matches an equivalent bar spectrum to 2.4e-13, the TET4
@@ -37,9 +38,8 @@ synthesis, and optimization hooks — all behind one CLI and a schema-versioned 
   `ModalSolver` façade with dense and sparse shift-invert backends, static condensation of
   massless DOFs, mass normalization, participation/effective masses, and a shift-invert LU
   cache. Validated against closed-form spectra to 1e-9 relative (worst continuum case
-  0.2 %). R2-T02 remains **partial**: the 3D beam, shell facets, and the corresponding
-  solid/shell BDF cards are still open, and TET4's bending lock is pinned by test rather
-  than fixed.
+  0.2 %). R2-T02 remains **partial**: shell facets and the corresponding solid/shell BDF
+  cards are still open, and TET4's bending lock is pinned by test rather than fixed.
 - **Damped dynamics** (`solver/dynamics.py`): Rayleigh, modal, and structural damping
   models; complex modes with modal phase collinearity; modal, complex-modal, and direct
   FRF synthesis; harmonic response; residual flexibility; FRAC/FDAC FRF correlation
@@ -76,10 +76,10 @@ synthesis, and optimization hooks — all behind one CLI and a schema-versioned 
   JSON/YAML model specs and UFF-58 measured FRFs; machine-readable JSON on stdout,
   diagnostics on stderr, CI acceptance gates via exit codes; covered end to end
   including subprocess runs.
-- **QA stack**: 1033 tests including a machine-readable registry of 44 quantified
-  acceptance criteria wired to tagged acceptance tests — every **P0** row is
-  `implemented` — plus boundary/probe suites, performance-regression gates, and
-  benchmarks; GitHub Actions CI on Python 3.10–3.13; `ruff check` clean.
+- **QA stack**: 1089 tests including a machine-readable registry of 44 quantified
+  acceptance criteria: 41 `implemented`, 3 `specified`, and 0 `verified`, with all
+  **34/34 P0** rows implemented — plus boundary/probe suites, performance-regression
+  gates, and benchmarks; GitHub Actions CI on Python 3.10–3.13; `ruff check` clean.
 - **Docs**: [`README`](README.md) with a reproducible CLI walkthrough,
   [`中文用户指南`](docs/USER_GUIDE_zh.md), `ARCHITECTURE.md`, `MODULE_SPEC.md` (MS-0..8),
   `ACCEPTANCE_CRITERIA.md` (44 criteria), `SOTA_GAP_ANALYSIS.md` (GAP-01..15),
@@ -88,14 +88,18 @@ synthesis, and optimization hooks — all behind one CLI and a schema-versioned 
 
 ## Verification
 
-- `PYTHONPATH=src python -m pytest` — **1033 passed** at the post-HEX8-merge tip on
-  Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1.
+- `PYTHONPATH=src python -m pytest` — **1089 passed in 96.21 s** at commit `069b097`
+  on Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1.
 - `ruff check .` — clean.
-- Per-suite breakdown (sums to 1033): acceptance registry + gates 327, dynamics 82,
-  HEX8 76, TET4 66, QUAD4 61, updating 57, correlation 52, modal solver 44, workflow 38,
-  Bayesian updating 35, reduction/expansion 32, optimization 27, FRF correlation 25,
-  IO (native/UFF/Nastran) 24, CLI 22+16+1 (incl. `correlate-frf`), core 18,
-  result contract 17, boundary/performance/e2e/scaffold 13.
+- A91 independently re-ran the completed A78 milestone at `05e1b51`:
+  **1035 passed in 55.22 s**, `ruff check .` clean; its 44-row registry was
+  39 `implemented` / 5 `specified`, with **P0 34/34 implemented**.
+- Per-suite breakdown (sums to 1089): acceptance registry + gates 337, dynamics 82,
+  HEX8 76, TET4 66, QUAD4 61, updating 57, correlation 52, modal solver 44,
+  `BeamElement3D` 42, workflow 41, Bayesian updating 36, reduction/expansion 32,
+  optimization 27, FRF correlation 25, IO (native/UFF/Nastran) 24,
+  CLI 22+16+1 (incl. `correlate-frf`), core 18, result contract 17,
+  boundary/performance/e2e/scaffold 13.
 - The three continuum elements are held to one shared standard: AC-ELEM-001..003 are
   parametrized over QUAD4, TET4 and HEX8 alike, so the patch test (defects 1.5e-16 /
   2.8e-16 / 2.8e-16), the exact zero-energy mode count, and quadratic h-convergence
@@ -124,7 +128,7 @@ openness, and automation:
 |---|---|---|---|
 | Solver-independent data model | mature, many interfaces | same idea; UNV 55/58 + Nastran-lite now, meshio planned | parity (breadth later) |
 | Modal analysis | internal + external solvers | SciPy dense + shift-invert Lanczos, sparse throughout, LU cache | parity |
-| Element library | full industrial set | QUAD4 / TET4 / HEX8 continuum + 1D spring/truss/beam, each gated on the same patch, zero-energy-mode and h-convergence criteria; 3D beam and shell facet open | gap (narrowing) |
+| Element library | full industrial set | QUAD4 / TET4 / HEX8 continuum + spring/truss/planar beam + spatial `BeamElement3D`; shell facet remains open | gap (narrowing) |
 | Dynamic response / FRF | mature | Rayleigh/modal/hysteretic damping, complex modes, receptance/mobility/accelerance synthesis, FRAC/FDAC | parity |
 | Correlation (MAC/COMAC/orthogonality) | yes | plus globally optimal Hungarian pairing | **exceed** |
 | Sensitivity-based updating | weighted LSQ, manual tuning | LM with adaptive damping, Tikhonov, bounds by construction, analytic MAC sensitivities, Bayesian MAP with a Laplace posterior | **exceed** |
@@ -143,18 +147,18 @@ openness, and automation:
   responses with machine-readable FRAC/FDAC gates.
 - `.agent_workspace/` holds orchestration records (progress log, Round 2 plan);
   it is documentation, not runtime code.
-- **R2-T02 has its three continuum slices.** QUAD4, TET4 and HEX8 are all in, and
-  module **M7** (`ELEM`) registers the criteria they are judged by. The task stays
-  **partial** on purpose: the 3D two-node beam, the flat-facet shell with drilling DOFs,
-  the `CQUAD4`/`CTETRA`/`CHEXA`/`CBAR`/`PSHELL`/`PSOLID` cards, and the
+- **R2-T02 has its three continuum slices and spatial beam.** QUAD4, TET4, HEX8, and
+  `BeamElement3D` are all in, and module **M7** (`ELEM`) registers the continuum
+  criteria. The task stays **partial** on purpose: the flat-facet shell with drilling
+  DOFs, the `CQUAD4`/`CTETRA`/`CHEXA`/`CBAR`/`PSHELL`/`PSOLID` cards, and the
   `NeutralModel → Model` conversion that turns an imported block into bound elements are
   still open, which is what keeps an imported industrial mesh from being re-analyzed
   internally.
-- Known scope limits are registered, not hidden: the Bayesian MAP estimator is
-  implemented but its AC-UPD-006a/b rows are not yet tagged; MPE from measured FRFs and
-  pretest planning remain pending — all tracked in `docs/SOTA_GAP_ANALYSIS.md`
-  and `.agent_workspace/ROUND2_PLAN.md`.
+- Known scope limits are registered, not hidden: AC-MODAL-008, AC-UPD-008, and
+  AC-WORK-003 are the three remaining `specified` P1 rows; MPE from measured FRFs and
+  pretest planning remain pending — all tracked in `docs/SOTA_GAP_ANALYSIS.md` and
+  `.agent_workspace/ROUND2_PLAN.md`.
 - No criterion is `verified` yet, and that is a CI fact rather than a testing gap: the
   registry reserves `verified` for a row that has passed in CI, and R2-T09 has not stood
-  the job up. All 39 `implemented` rows pass locally.
+  the job up. All 41 `implemented` rows pass locally.
 ```

@@ -1,4 +1,4 @@
-"""Element library: springs, 2-node bars/trusses, a planar beam, QUAD4, TET4 and HEX8.
+"""Element library: springs, bars/trusses, planar and spatial beams, QUAD4, TET4, HEX8.
 
 Every element exposes the same contract used by :mod:`openfemlab.core.assembly`:
 
@@ -24,6 +24,7 @@ __all__ = [
     "TrussElement",
     "BarElement",
     "BeamElement2D",
+    "BeamElement3D",
     "Quad4Element",
     "Tet4Element",
     "Hex8Element",
@@ -360,6 +361,223 @@ class BeamElement2D(Element):
     def mass_matrix(self, coords: np.ndarray) -> np.ndarray:
         length, transform = self._transformation(coords)
         return transform.T @ self.local_mass_matrix(length) @ transform
+
+
+def _bending_stiffness_block(rigidity: float, length: float) -> np.ndarray:
+    """Euler-Bernoulli bending stiffness for ``(v1, theta1, v2, theta2)``."""
+    b1 = 12.0 * rigidity / length**3
+    b2 = 6.0 * rigidity / length**2
+    b3 = 4.0 * rigidity / length
+    b4 = 2.0 * rigidity / length
+    return np.array(
+        [
+            [b1, b2, -b1, b2],
+            [b2, b3, -b2, b4],
+            [-b1, -b2, b1, -b2],
+            [b2, b4, -b2, b3],
+        ],
+        dtype=float,
+    )
+
+
+def _bending_mass_block(total_mass: float, length: float) -> np.ndarray:
+    """Consistent bending mass for ``(v1, theta1, v2, theta2)``, rotary inertia neglected."""
+    L = length
+    return (total_mass / 420.0) * np.array(
+        [
+            [156.0, 22.0 * L, 54.0, -13.0 * L],
+            [22.0 * L, 4.0 * L**2, 13.0 * L, -3.0 * L**2],
+            [54.0, 13.0 * L, 156.0, -22.0 * L],
+            [-13.0 * L, -3.0 * L**2, -22.0 * L, 4.0 * L**2],
+        ],
+        dtype=float,
+    )
+
+
+#: Local DOF positions of the two bending planes in the 12-DOF beam ordering.
+_BEAM3D_XY_PLANE = [1, 5, 7, 11]
+_BEAM3D_XZ_PLANE = [2, 4, 8, 10]
+
+#: Bending in the local x-z plane uses ``dw/dx = -theta_y``, so the rotational
+#: rows and columns of the x-y blocks flip sign.
+_BEAM3D_PLANE_SIGNS = np.diag([1.0, -1.0, 1.0, -1.0])
+
+#: Candidate orientation references when the caller supplies none.
+_BEAM3D_DEFAULT_REFERENCES = (
+    np.array([0.0, 1.0, 0.0]),
+    np.array([0.0, 0.0, 1.0]),
+)
+
+
+class BeamElement3D(Element):
+    """2-node spatial Euler-Bernoulli beam, the CBAR-like frame member.
+
+    Six DOFs per node (``UX``, ``UY``, ``UZ``, ``RX``, ``RY``, ``RZ``) carry
+    axial extension, St Venant torsion and uncoupled bending in the two
+    principal planes::
+
+        k_local = diag_blocks(EA/L, GJ/L, bending(E Iz), bending(E Iy))
+
+    with ``bending(EI)`` the classical 4x4 Hermitian block. Bending in the local
+    x-y plane (deflection along local ``y``) is governed by
+    :attr:`~openfemlab.core.model.Section.inertia_z`, bending in the local x-z
+    plane by ``inertia_y``, and torsion by ``torsion_constant`` times the
+    material shear modulus; all three must be positive.
+
+    The local frame follows the Nastran CBAR convention: local ``x`` runs from
+    the first to the second node and the *orientation vector* ``v`` fixes the
+    roll by placing local ``y`` in the ``x``-``v`` plane, on the ``v`` side::
+
+        e_x = (x2 - x1) / L      e_z = e_x x v / |e_x x v|      e_y = e_z x e_x
+
+    ``orientation=None`` picks whichever of global ``Y`` and ``Z`` is least
+    aligned with the member, so a beam along global ``X`` reproduces the planar
+    :class:`BeamElement2D` frame (local ``y`` = global ``Y``). An explicit
+    orientation parallel to the member is rejected rather than silently
+    replaced.
+
+    The consistent mass matrix adds the torsional rotary inertia
+    ``rho (Iy + Iz) L`` on the twist DOFs -- without it the mass matrix is
+    singular in torsion -- but neglects bending rotary inertia and shear
+    deformation, consistent with the Euler-Bernoulli assumption. Warping,
+    shear-centre offsets and rigid end offsets are not modelled, so the element
+    matches CBAR only for members whose shear centre coincides with the
+    centroid. ``lumped_mass`` row-lumps translation and twist and leaves the
+    bending rotations massless, as :class:`BeamElement2D` does.
+    """
+
+    expected_nodes = 2
+
+    #: An orientation vector this close to the member axis (in sine) is rejected.
+    parallel_tolerance = 1e-8
+
+    def __init__(
+        self,
+        node_ids: Sequence[Hashable],
+        material: Material,
+        section: Section,
+        *,
+        orientation: Sequence[float] | None = None,
+        lumped_mass: bool = False,
+        eid: Hashable | None = None,
+    ) -> None:
+        super().__init__(node_ids, eid=eid)
+        for label in ("inertia_z", "inertia_y", "torsion_constant"):
+            if getattr(section, label) <= 0.0:
+                raise ElementError(f"BeamElement3D requires a positive section.{label}")
+        self.material = material
+        self.section = section
+        self.orientation = None if orientation is None else self._unit_vector(orientation)
+        self.lumped_mass = bool(lumped_mass)
+
+    def _unit_vector(self, value: Sequence[float]) -> np.ndarray:
+        vector = np.asarray(value, dtype=float).reshape(-1)
+        if vector.size != 3:
+            raise ElementError(
+                f"BeamElement3D orientation needs three components, got {vector.size}"
+            )
+        norm = float(np.linalg.norm(vector))
+        if norm == 0.0:
+            raise ElementError("BeamElement3D orientation vector must be non-zero")
+        return vector / norm
+
+    def required_dofs(self, available: tuple[DOF, ...]) -> tuple[DOF, ...]:
+        return (DOF.UX, DOF.UY, DOF.UZ, DOF.RX, DOF.RY, DOF.RZ)
+
+    # ------------------------------------------------------------- geometry
+
+    def length(self, coords: np.ndarray) -> float:
+        return _axial_geometry(coords, (0, 1, 2), self)[0]
+
+    def _reference_vector(self, axis: np.ndarray) -> np.ndarray:
+        if self.orientation is not None:
+            return self.orientation
+        return min(_BEAM3D_DEFAULT_REFERENCES, key=lambda v: abs(float(axis @ v)))
+
+    def local_axes(self, coords: np.ndarray) -> np.ndarray:
+        """Rows ``[e_x, e_y, e_z]`` of the local frame, expressed in global axes."""
+        _, e_x = _axial_geometry(coords, (0, 1, 2), self)
+        e_z = np.cross(e_x, self._reference_vector(e_x))
+        norm = float(np.linalg.norm(e_z))
+        if norm <= self.parallel_tolerance:
+            raise ElementError(
+                f"BeamElement3D {self.node_ids} has an orientation vector parallel to the "
+                "member axis; pick a vector spanning the local x-y plane"
+            )
+        e_z = e_z / norm
+        return np.array([e_x, np.cross(e_z, e_x), e_z], dtype=float)
+
+    def transformation_matrix(self, coords: np.ndarray) -> np.ndarray:
+        """Global-to-local rotation of the 12 element DOFs."""
+        rotation = self.local_axes(coords)
+        transform = np.zeros((12, 12), dtype=float)
+        for block in range(4):
+            offset = 3 * block
+            transform[offset : offset + 3, offset : offset + 3] = rotation
+        return transform
+
+    # --------------------------------------------------------------- physics
+
+    def total_mass(self, coords: np.ndarray) -> float:
+        return self.material.density * self.section.area * self.length(coords)
+
+    def local_stiffness_matrix(self, length: float) -> np.ndarray:
+        """The 12x12 stiffness in local axes for a member of ``length``."""
+        E, G = self.material.E, self.material.shear_modulus
+        axial = E * self.section.area / length
+        torsion = G * self.section.torsion_constant / length
+        k = np.zeros((12, 12), dtype=float)
+        k[np.ix_([0, 6], [0, 6])] = axial * np.array([[1.0, -1.0], [-1.0, 1.0]])
+        k[np.ix_([3, 9], [3, 9])] = torsion * np.array([[1.0, -1.0], [-1.0, 1.0]])
+        xy = _bending_stiffness_block(E * self.section.inertia_z, length)
+        k[np.ix_(_BEAM3D_XY_PLANE, _BEAM3D_XY_PLANE)] = xy
+        xz = _bending_stiffness_block(E * self.section.inertia_y, length)
+        k[np.ix_(_BEAM3D_XZ_PLANE, _BEAM3D_XZ_PLANE)] = (
+            _BEAM3D_PLANE_SIGNS @ xz @ _BEAM3D_PLANE_SIGNS
+        )
+        return k
+
+    def local_mass_matrix(self, length: float) -> np.ndarray:
+        """The 12x12 mass in local axes for a member of ``length``."""
+        total = self.material.density * self.section.area * length
+        if total == 0.0:
+            return np.zeros((12, 12), dtype=float)
+        polar = self.material.density * (self.section.inertia_y + self.section.inertia_z) * length
+        if self.lumped_mass:
+            half, twist = 0.5 * total, 0.5 * polar
+            return np.diag([half, half, half, twist, 0.0, 0.0] * 2)
+        m = np.zeros((12, 12), dtype=float)
+        m[np.ix_([0, 6], [0, 6])] = (total / 6.0) * np.array([[2.0, 1.0], [1.0, 2.0]])
+        m[np.ix_([3, 9], [3, 9])] = (polar / 6.0) * np.array([[2.0, 1.0], [1.0, 2.0]])
+        bending = _bending_mass_block(total, length)
+        m[np.ix_(_BEAM3D_XY_PLANE, _BEAM3D_XY_PLANE)] = bending
+        m[np.ix_(_BEAM3D_XZ_PLANE, _BEAM3D_XZ_PLANE)] = (
+            _BEAM3D_PLANE_SIGNS @ bending @ _BEAM3D_PLANE_SIGNS
+        )
+        return m
+
+    def stiffness_matrix(self, coords: np.ndarray) -> np.ndarray:
+        transform = self.transformation_matrix(coords)
+        return transform.T @ self.local_stiffness_matrix(self.length(coords)) @ transform
+
+    def mass_matrix(self, coords: np.ndarray) -> np.ndarray:
+        transform = self.transformation_matrix(coords)
+        return transform.T @ self.local_mass_matrix(self.length(coords)) @ transform
+
+    # ------------------------------------------------------------- recovery
+
+    def end_forces(self, coords: np.ndarray, displacements: np.ndarray) -> np.ndarray:
+        """Local end forces ``[N, Vy, Vz, T, My, Mz]`` per node, node-major.
+
+        Sign convention: the entries are the forces the *nodes* apply to the
+        element, so a member in tension reports a negative axial force at its
+        first node and a positive one at its second.
+        """
+        values = np.asarray(displacements, dtype=float).reshape(-1)
+        if values.size != 12:
+            raise ElementError(f"expected 12 nodal displacements, got {values.size}")
+        transform = self.transformation_matrix(coords)
+        return self.local_stiffness_matrix(self.length(coords)) @ (transform @ values)
 
 
 #: Two-dimensional idealizations supported by :class:`Quad4Element`.

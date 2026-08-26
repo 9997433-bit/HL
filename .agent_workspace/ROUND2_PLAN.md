@@ -29,7 +29,7 @@ stands up the CI job.
 | Task | Status |
 |---|---|
 | R2-T01 dynamics/FRF | **COMPLETE** — engine (`acda625`), AC-DYN-001..005 `implemented`, report `frf` block at schema 1.1 (A41), `openfemlab correlate-frf` CLI (A54). No open work. |
-| R2-T02 3D elements | **PARTIAL** — QUAD4 (A37), TET4 (A46) and HEX8 (A59, merged by A79) are all on the integration branch with mesh generators and 203 tests, and AC-ELEM-001..003 are registered as module M7 over all three (+24 acceptance cases). Open: 3D beam, flat-facet shell, `NeutralModel` → `Model` conversion, solid/shell BDF cards. |
+| R2-T02 3D elements | **PARTIAL** — QUAD4 (A37), TET4 (A46) and HEX8 (A59, merged by A79) are all on the integration branch with mesh generators and 203 tests, AC-ELEM-001..003 are registered as module M7 over all three (+24 acceptance cases), and the spatial beam `BeamElement3D` landed with 42 tests (A82). Open: flat-facet shell, `NeutralModel` → `Model` conversion, solid/shell BDF cards (`CBAR` included). |
 | R2-T03 reduction/expansion | **PARTIAL** — engine (A36, `correlation/reduction.py`) and the AC-CORR-006 gate `implemented` (A43). Open: AC-CORR-009 registration, `SensorMap.signs` wiring, sparse inputs, `verified` flip. |
 | R2-T04 Bayesian MAP | **PARTIAL** — estimator (A49, `updating/bayesian.py`, 35 tests). Open: AC-UPD-006a/b tagging + registry flip, σ_post in the CLI/report output. |
 | R2-T05 meshio & IO | **NOT STARTED** — the only core track with no commit. |
@@ -53,9 +53,9 @@ the gap register at audit time:
 | GAP-10 updating depth | P1, absent | **Partial.** Dotted-path parameter targeting in the CLI spec layer (A07), affine `ScalingModel` dK/dθ (A04), vectorized Fox–Kapoor + MAC sensitivities (A04/A10). Remaining: model-level resolver, assembled per-element dK/dp, analytic MAC-row Jacobian wiring → R2-T06. The MS-3.6 collinearity screen is done: `workflow/selection.py` plus the AC-UPD-007 acceptance tests (A44). |
 | GAP-09 node mapping | P1, absent | **Partial.** Label-based DOF alignment (`correlation/align.py`, `workflow/sensors.py`). Remaining: geometry-based nearest-node mapping → folded into R2-T05/T06 scope notes. |
 | GAP-04/05 dynamics & FRF | P0/P1, absent | **Closed by R2-T01.** `cursor/dynamics-damping-frf-9500` merged at `acda625`; AC-DYN-001..005 registered and `implemented`. GAP-05's FRF *updating residual* stays deferred to Round 3 as planned below. |
-| GAP-02 3D elements | P0, absent | **Partial.** QUAD4 plane stress/strain landed with `mesh.simple.quad_plate_mesh` and 61 tests (R2-T02 first slice, merged from `cursor/quad4-plane-stress-element-b99c`); TET4 landed with `mesh.simple.tet_block_mesh` and 66 tests (A46); HEX8 landed with `mesh.simple.hex_block_mesh`, 76 tests and the AC-ELEM-001..003 registration over all three elements (A59). Remaining: 3D beam, the flat-facet shell, the solid/shell BDF cards → R2-T02 remainder. |
+| GAP-02 3D elements | P0, absent | **Partial.** QUAD4 plane stress/strain landed with `mesh.simple.quad_plate_mesh` and 61 tests (R2-T02 first slice, merged from `cursor/quad4-plane-stress-element-b99c`); TET4 landed with `mesh.simple.tet_block_mesh` and 66 tests (A46); HEX8 landed with `mesh.simple.hex_block_mesh`, 76 tests and the AC-ELEM-001..003 registration over all three elements (A59); the CBAR-like `BeamElement3D` landed with `MeshBuilder.add_beam3d` and 42 tests (A82). Remaining: the flat-facet shell, the solid/shell BDF cards → R2-T02 remainder. |
 | GAP-08 reduction/expansion | P1, absent | **Partial.** `correlation/reduction.py` landed (A36): Guyan/IRS/SEREP bases, `expand_shapes`, `tam_mass`, 25 tests; the AC-CORR-006 gate is `implemented` via the 19-case acceptance batch (A43). Remaining: AC-CORR-009 registration, `SensorMap.signs` wiring, the `verified` flip → R2-T03 remainder. |
-| GAP-11 Bayesian/UQ | P1, absent | **Partial.** The MS-3.5 MAP estimator landed in `updating/bayesian.py` with Gaussian prior, noise covariance and Laplace posterior σ_post (A49, 35 tests). Remaining: AC-UPD-006a/b tagging + registry flip, σ_post in the CLI/report output. Sampling (TMCMC/MC/DOE) stays Round 3 → R2-T04. |
+| GAP-11 Bayesian/UQ | P1, absent | **Closed for MAP by R2-T04.** The MS-3.5 estimator landed in `updating/bayesian.py` with Gaussian prior, noise covariance and Laplace posterior σ_post (A49, 35 tests); AC-UPD-006a/b are registered and `implemented`, and the `CorrectionReport` σ_post column now carries the posterior (A57). Remaining: σ_post in the CLI `update` document. Sampling (TMCMC/MC/DOE) stays Round 3 → R2-T04. |
 | GAP-12 optimization backend | P2, stub | **Closed for sizing by R2-T07.** `ScipyBackend.solve` runs SLSQP/trust-constr with analytic Jacobians, hard bounds and active-set KKT residuals; AC-OPT-001..004 are implemented. `cursor/optimization-scipy-backend-f421` was harvested by A40 (active-set multipliers, zero trust-constr constraint Hessian). Shape variables still fall back to finite differences. |
 | R1-O2 parallel implementation | — | Reconciliation of `cursor/r1o2-correlation-updating-e393` in progress on `cursor/reconcile-r1o2-correlation-updating-64c5` → R2-T08 harvests the diff. |
 
@@ -126,14 +126,14 @@ consistency tests fail.
 - **Dependencies:** none on other R2 tasks (existing 1D elements suffice for the fixture
   set). FRAC/FDAC builds on `correlation/report.py`.
 
-### R2-T02 — 3D continuum element library (QUAD4 / TET4 / HEX8)
+### R2-T02 — 3D element library (QUAD4 / TET4 / HEX8 / spatial beam)
 
 - **Priority:** 2 (P0) · **Gap:** [GAP-02](../docs/SOTA_GAP_ANALYSIS.md) (§4)
 - **Why second:** every `ElementType` beyond 1D is declared but has no formulation, so no
   imported industrial mesh can be *re-analyzed* internally — it can only be correlated.
   This blocks the value of both the BDF reader (A18) and the meshio bridge (R2-T05).
-- **Status: PARTIAL** — the three continuum slices are **done**, and the element
-  criteria are registered.
+- **Status: PARTIAL** — the three continuum slices and the spatial beam are **done**,
+  and the element criteria are registered.
   *QUAD4* (merged from `cursor/quad4-plane-stress-element-b99c` by A37; suite **559
   passed**, Ruff clean after the merge): bilinear isoparametric, plane stress/strain,
   1–4 point Gauss rule, consistent + row-sum lumped mass, strain/stress recovery in
@@ -158,18 +158,34 @@ consistency tests fail.
   quadrature-exact on a distorted brick, and the bending comparison that motivates the
   element: +8.0 % against Euler–Bernoulli at 2475 DOF where TET4 on the same grid is
   +25 %.
+  *Spatial beam* (A82, `cursor/beam3d-cbar-element-c9a7`; suite **1089 passed** at the
+  merged tip, Ruff clean): `BeamElement3D`, the CBAR-like two-node frame member with six DOFs per node —
+  axial extension, St Venant torsion and uncoupled bending in the two principal planes,
+  built from the same Hermitian 4x4 blocks the planar beam uses, so the
+  `(u, v, theta_z)` sub-block of both local matrices reproduces `BeamElement2D` to
+  1e-14 and there is no second beam kernel (GAP-01 rule). The local frame follows the
+  Nastran CBAR orientation-vector convention, with `MeshBuilder.add_beam3d` as the mesh
+  seam and 42 tests in `tests/test_beam3d.py` — closed-form cantilever statics exact to
+  1e-12 in both bending planes (a cubic element is exact for an end load) plus axial and
+  torsional compliance, the cantilever bending spectrum in both planes and the fixed-free
+  shaft torsion formula to 5e-3, planar-beam frequencies recovered to 1e-8 by the spatial
+  model, rotation invariance of the assembled spectrum, and six free-free rigid-body
+  modes. Torsional rotary inertia `rho (Iy + Iz) L` is carried (the twist DOFs would be
+  massless otherwise); bending rotary inertia, shear deformation, warping and
+  shear-centre offsets are documented limitations.
   **The AC-ELEM-* rows are now registered** (see the acceptance-links bullet below), so
-  what remains open is the 3D beam, the shell facet and the solid/shell BDF cards; the
-  task does **not** close. See the R2-T02, A37, A46 and A59 entries in
-  [`PROGRESS.md`](PROGRESS.md).
+  what remains open is the shell facet, the solid/shell BDF cards and the neutral-model
+  conversion; the task does **not** close. See the R2-T02, A37, A46, A59 and A82 entries
+  in [`PROGRESS.md`](PROGRESS.md).
 - **Scope:**
   - ~~QUAD4 (plane stress/strain first; shell via flat facet + drilling treatment
     documented as a limitation)~~ **landed**; the flat-facet shell with drilling DOFs is
     *not* covered and stays open. ~~TET4~~ **landed** as the constant-strain tetrahedron
     with consistent + row-sum lumped mass. ~~HEX8 (with standard hourglass/locking
     notes)~~ **landed** as the trilinear brick, hourglass count and shear locking both
-    pinned by tests. Remaining formulation in `core/elements.py`: a 3D two-node beam
-    (extends the planar Euler–Bernoulli one) to make frame models importable.
+    pinned by tests. ~~a 3D two-node beam (extends the planar Euler–Bernoulli one) to
+    make frame models importable~~ **landed** as `BeamElement3D`. No formulation is
+    outstanding in `core/elements.py` except the flat-facet shell.
   - `mesh/simple.py` generators for structured quad/hex blocks (needed for convergence
     fixtures) and neutral-model → assembly wiring for the new blocks — the structured
     **quad**, **tet** (Kuhn-subdivided box) and **hex** generators are all landed; what
@@ -193,7 +209,11 @@ consistency tests fail.
   the pinned inventory moved **40 → 43**. `tests/acceptance/test_elements.py` gates every
   criterion on **all three** formulations through one parametrized case table, so the
   QUAD4 and TET4 evidence is claimed by the registry rather than left implicit in the
-  developer suites.
+  developer suites. The spatial beam is **not** in that case table: AC-ELEM-001's
+  constant-strain patch test has no beam analogue and AC-ELEM-003's continuum bar oracle
+  is not the right convergence target for a cubic element, so only AC-ELEM-002
+  (rigid-body invariance, which `tests/test_beam3d.py` checks in global axes) is a
+  candidate — folding it in is a follow-up that needs no new criterion ID.
 - **Dependencies:** none. Unblocks R2-T05's re-analysis path and future GAP-13 scale
   work (real 3D meshes are what push past 1k DOF).
 
@@ -243,7 +263,17 @@ consistency tests fail.
 
 ### R2-T04 — Bayesian MAP updating with posterior covariance
 
-- **Status: PARTIAL — the estimator is on the trunk (A49).**
+- **Status: acceptance-complete — AC-UPD-006a/b are `implemented` (A57).**
+  `tests/acceptance/test_updating.py` carries eight tagged tests on the M3 suite's own
+  ten-DOF chain, run as the AC-UPD-003 `stiffness` twin, and both registry rows left
+  `specified` in the same change. `CorrectionWorkflow` now accepts `prior` /
+  `noise_covariance`; either switches S4 to `BayesianUpdater` and fills the report's
+  reserved σ_post column with the Laplace posterior instead of the least-squares
+  stand-in. Suite **888 passed**, `ruff check .` clean. Both criteria still need a CI
+  run to reach `verified`, which is the R2 sign-off condition. **Left open:** σ_post in
+  the CLI `update` document (needs a prior/noise block in the update spec schema), and
+  whether the prior should also be expressible in *physical* rather than design space.
+- **Estimator history (A49).**
   `src/openfemlab/updating/bayesian.py` carries `GaussianPrior` (scalar /
   per-parameter / full `C_p`, `from_std`, `uninformative`, optional prior mean),
   `map_step`, `posterior_covariance`, a `PosteriorEstimate` reporting per-parameter
@@ -256,11 +286,6 @@ consistency tests fail.
   limit as `C_p⁻¹ → 0` (rel. diff ≤ 1e-8 at scale 1e-12, and end to end against
   `update_model`) and posterior contraction with a tight prior holding θ* inside
   3σ_prior of θ₀. Suite **709 passed**, `ruff check .` clean.
-  **Remaining to close the task:** tag AC-UPD-006a/b in
-  `tests/acceptance/test_updating.py` and flip both registry rows
-  `specified → implemented`; surface σ_post through the CLI `update` document and the
-  `CorrectionReport` σ_post column (AC-WORK-005 reserves it); decide whether the prior
-  should also be expressible in *physical* space rather than only design space.
 - **Priority:** 4 (P1 — **blocks Round-2 sign-off** via AC-UPD-006a/b) ·
   **Gaps:** [GAP-11](../docs/SOTA_GAP_ANALYSIS.md) (R2 slice), MS-3.5
 - **Why fourth:** the second gate-blocker, and the main opportunity to *exceed* FEMtools
@@ -372,15 +397,16 @@ Round 2 is done when, on the integration branch in CI:
    `acda625`, AC-DYN-001..005 registered and `implemented`, report `frf` block (A41)
    and `correlate-frf` CLI (A54) landed. The live top three are now T02, T03 and
    T04.
-2. **R2-T02 — 3D continuum elements** (GAP-02, P0): QUAD4/TET4/HEX8 (+ 3D beam) so
+2. **R2-T02 — 3D elements** (GAP-02, P0): QUAD4/TET4/HEX8 plus the spatial beam so
    imported industrial meshes can be re-analyzed, unblocking the meshio bridge
-   (R2-T05). All three continuum elements are landed and AC-ELEM-001..003 are
-   registered; the 3D beam, the shell facet and the solid/shell BDF cards remain, and
-   R2-T05 is now unblocked for solid meshes.
-3. **R2-T03 — SEREP/TAM reduction & expansion** (GAP-08): the top Round-2 sign-off
-   blocker via AC-CORR-006, with R2-T04 Bayesian MAP (AC-UPD-006a/b) as the tied
-   gate-blocker immediately behind it. Both engines are on the trunk
-   (`correlation/reduction.py` A36, `updating/bayesian.py` A49), and R2-T03's
-   AC-CORR-006 gate is already `implemented` (A43), leaving AC-CORR-009 registration
-   and the `verified` flip; R2-T04 still owes the AC-UPD-006a/b acceptance tagging
-   and σ_post in the CLI/report output.
+   (R2-T05). All three continuum elements are landed, AC-ELEM-001..003 are registered,
+   and the CBAR-like `BeamElement3D` closed the frame slice (A82); the shell facet and
+   the solid/shell BDF cards remain, and R2-T05 is now unblocked for solid *and* frame
+   meshes.
+3. **R2-T03 — SEREP/TAM reduction & expansion** (GAP-08) and **R2-T04 Bayesian MAP**
+   were the tied Round-2 sign-off blockers, via AC-CORR-006 and AC-UPD-006a/b. Both
+   engines are on the trunk (`correlation/reduction.py` A36, `updating/bayesian.py`
+   A49); AC-CORR-006 (A43), AC-CORR-009 (A58) and AC-UPD-006a/b (A57) are all
+   registered and `implemented`, so what stands between them and the gate is a CI
+   run that moves them to `verified`. R2-T04 still owes σ_post in the CLI `update`
+   document.

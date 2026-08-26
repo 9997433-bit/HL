@@ -12,6 +12,7 @@ __all__ = [
     "MatrixDefinitenessError",
     "UpdatingDivergenceError",
     "OptimizationError",
+    "MissingDependencyError",
 ]
 
 
@@ -157,3 +158,13 @@ class UpdatingDivergenceError(OpenFEMLabError):
 
 class OptimizationError(OpenFEMLabError):
     """Ill-posed optimization statement or a failed optimization run."""
+
+
+class MissingDependencyError(OpenFEMLabError, ImportError):
+    """An optional dependency behind an adapter seam is not installed.
+
+    Architecture P7 keeps ``meshio`` and ``rich`` out of the hard dependency
+    set, so the seams that use them must fail with an install hint rather than
+    a bare ``ModuleNotFoundError``. Inheriting from :class:`ImportError` keeps
+    the existing ``except ImportError`` call sites working.
+    """

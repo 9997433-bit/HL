@@ -42,6 +42,9 @@ dev = [
     "pytest-cov>=5.0",
     "ruff>=0.6",
     "mypy>=1.10",
+    # Optional at runtime, required to exercise the meshio bridge tests, which
+    # skip themselves when it is absent.
+    "meshio>=5.3",
 ]
 all = ["openfemlab[io,cli]"]
 
