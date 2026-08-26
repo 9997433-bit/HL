@@ -33,7 +33,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | R1-F2 | claude-fable-5-thinking-xhigh | Module spec & acceptance criteria | pending |
 | R1-O1 | claude-opus-5-thinking-high-fast | Core FEM + modal solver | pending |
 | R1-O2 | claude-opus-5-thinking-high-fast | Model updating & correlation | pending |
-| R1-G1 | gpt-5.6-sol-xhigh-fast | Project scaffold & benchmarks | implemented; verification pending |
+| R1-G1 | gpt-5.6-sol-xhigh-fast | Project scaffold & benchmarks | complete |
 | R1-G2 | gpt-5.6-sol-xhigh-fast | Boundary tests & mock probes | implemented; validation pending |
 
 #### R1-G1 — Project Scaffold & Benchmarks
@@ -41,6 +41,9 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 - Added sparse modal benchmarks for 10/100/1000-DOF spring chains.
 - Added a five-iteration sensitivity-based model-updating benchmark.
 - Added a cantilever modal-analysis example and scaffold smoke tests.
+- Verified on Python 3.12: 8 tests passed; R1-G1 files pass Ruff.
+- Modal median baselines: 10 DOF 0.669 ms; 100 DOF 1.180 ms; 1000 DOF 1.815 ms.
+- Updating baseline: 35.640 ms median for five iterations at 100 DOF (RMS 5.848e-3 to 1.583e-5).
 
 ### Round 2 — Targeted Refactor & Deep Optimization
 **Status:** PENDING
