@@ -35,7 +35,10 @@ def test_slo_probe_returns_finite_measurements(slo_report: dict, slo_id: str) ->
 def test_proxy_thresholds_when_explicitly_enforced(slo_report: dict) -> None:
     """Set SLO_ENFORCE=1 on a controlled reference host to make proxies gating."""
     if os.environ.get("SLO_ENFORCE") != "1":
-        pytest.skip("proxy thresholds are observational unless SLO_ENFORCE=1")
+        assert all(
+            isinstance(item["threshold_pass"], bool) for item in slo_report["results"]
+        )
+        return
     failures = [
         f"{item['slo_id']}: {item['measured']}"
         for item in slo_report["results"]
