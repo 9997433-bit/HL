@@ -134,3 +134,37 @@ git rev-list --left-right --count a3e6375...origin/cursor/r2-t09-verified-promot
 `cursor/r2-t09-verified-promotion-c554` was deleted locally and from `origin` on
 2026-08-26. A subsequent `git ls-remote --heads origin` confirmed that the remote
 ref is absent.
+
+## A104 backfill — the shell facet branch retired
+
+The R2-T02 shell slice needed no merge of its own: A98 merged the integration tip into
+`cursor/shell-quad4-facet-1c70` and pushed the result, so the branch tip `9ad7a6b` sits
+on the trunk's **first-parent** line rather than arriving through a side merge. Verified
+against integration tip `571c864`:
+
+```text
+git merge-base --is-ancestor origin/cursor/shell-quad4-facet-1c70 571c864
+yes
+
+git rev-list --left-right --count 571c864...origin/cursor/shell-quad4-facet-1c70
+3  0
+```
+
+The full suite at `571c864` was **1331 passed, 0 failed, 0 skipped** in 27.06 s with
+`ruff check .` clean (Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1); the shell module
+itself contributes 72 of those. `cursor/shell-quad4-facet-1c70` was deleted locally and
+from `origin` on 2026-08-26, and `git ls-remote --heads origin` confirmed the remote ref
+is absent.
+
+| Branch | Deleted remote tip | Relationship to trunk | Deletion status |
+|---|---|---|---|
+| `cursor/shell-quad4-facet-1c70` | `9ad7a6b` | First-parent ancestor of trunk with zero branch-only commits. `ShellQuad4Element`, the `shell_plate_mesh` / `MeshBuilder.add_shell_quad4` seams and the 72-case `tests/test_shell_quad4.py` are all integrated. | **Deleted from `origin` as fully merged.** |
+
+> [!NOTE]
+> `cursor/merge-shell-quad4-facet-6224` was opened in parallel to land the same shell
+> code while A98's branch was still in flight, so its merge commit `48666ea` duplicates
+> what trunk already reached through `9ad7a6b`. It is **not** retired here: it has since
+> grown branch-only documentation commits (the module-spec and user-guide description of
+> the facet, and a plan/progress record) that trunk does not carry. Whoever owns it
+> should land those docs rather than the duplicate merge, and only then audit it for
+> deletion.

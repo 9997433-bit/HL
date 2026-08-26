@@ -36,7 +36,7 @@ gate landed, so the split is now **44 criteria — 9 `verified`, 32 `implemented
 | Task | Status |
 |---|---|
 | R2-T01 dynamics/FRF | **COMPLETE** — engine (`acda625`), AC-DYN-001..005 `implemented`, report `frf` block at schema 1.1 (A41), `openfemlab correlate-frf` CLI (A54). No open work. |
-| R2-T02 3D elements | **PARTIAL** — QUAD4 (A37), TET4 (A46) and HEX8 (A59, merged by A79) are all on the integration branch with mesh generators and 203 tests, AC-ELEM-001..003 are registered as module M7 over all three (+24 acceptance cases) with AC-ELEM-001 **`verified`** through the R2-T09 gate (A72), the spatial beam `BeamElement3D` (A82, 42 tests) was merged onto the integration branch at `75dd070` (A93), and the flat-facet shell `ShellQuad4Element` landed with 72 tests (A98) — **no element formulation is outstanding in `core/elements.py`**. The `NeutralModel` → `Model` conversion shared with R2-T05 landed as `io/neutral_convert.py` (A106, 52 tests), so an imported rod/beam/quad/tet/hex block is now re-analyzable. Open: solid/shell BDF cards (`CBAR` included), a shell branch in the converter (which today lands `ElementType.QUAD4` on the *membrane* element), and folding the shell into the AC-ELEM case table. |
+| R2-T02 3D elements | **PARTIAL** — QUAD4 (A37), TET4 (A46) and HEX8 (A59, merged by A79) are all on the integration branch with mesh generators and 203 tests, AC-ELEM-001..003 are registered as module M7 over all three (+24 acceptance cases) with AC-ELEM-001 **`verified`** through the R2-T09 gate (A72), the spatial beam `BeamElement3D` (A82, 42 tests) was merged onto the integration branch at `75dd070` (A93), and the flat-facet shell `ShellQuad4Element` landed with 72 tests (A98, integrated at `9ad7a6b` and reverified by A104 at tip `571c864`: **1331 passed, 0 failed**, Ruff clean) — **no element formulation is outstanding in `core/elements.py`**. The `NeutralModel` → `Model` conversion shared with R2-T05 landed as `io/neutral_convert.py` (A106, 52 tests), so an imported rod/beam/quad/tet/hex block is now re-analyzable. Open: solid/shell BDF cards (`CBAR` included), a shell branch in the converter (which today lands `ElementType.QUAD4` on the *membrane* element), and folding the shell into the AC-ELEM case table. |
 | R2-T03 reduction/expansion | **ACCEPTANCE-COMPLETE** — engine (A36, `correlation/reduction.py`) with the AC-CORR-006 gate `implemented` (A43) and **`verified`** through the R2-T09 gate (A72), and AC-CORR-009 plus the `SensorMap.signs` wiring landed (A58). Open: sparse inputs. |
 | R2-T04 Bayesian MAP | **ACCEPTANCE-COMPLETE** — estimator (A49, `updating/bayesian.py`, 36 tests) plus the AC-UPD-006a/b tagging, the registry flip and the Laplace σ_post in the `CorrectionReport` (A57, on the trunk since the `ac-upd-006-registration-6615` merge). Open: σ_post in the CLI `update` document, which is outside the acceptance slice. |
 | R2-T05 meshio & IO | **PARTIAL** — the meshio bridge landed (A89, `io/meshio_bridge.py`, 44 tests): `from_meshio`/`to_meshio` over a one-to-one cell-type table, `read_meshio`/`write_meshio`, and the P7 optional-dependency seam with `MissingDependencyError`; `io/neutral_convert.py` then turns the imported `NeutralModel` into a solver-ready `Model` (A106, 52 tests), so `read_meshio` → `neutral_to_model` → `ModalSolver` runs end to end. Open: AC-IO-001..003 registration, UNV 2411/2412, UFF writing. |
@@ -182,8 +182,11 @@ consistency tests fail.
   modes. Torsional rotary inertia `rho (Iy + Iz) L` is carried (the twist DOFs would be
   massless otherwise); bending rotary inertia, shear deformation, warping and
   shear-centre offsets are documented limitations.
-  *Shell facet* (A98, `cursor/shell-quad4-facet-1c70`; suite **1308 passed** at the
-  merged tip, Ruff clean):
+  *Shell facet* (A98, `cursor/shell-quad4-facet-1c70`; the branch reached the trunk's
+  first-parent line at `9ad7a6b`, so its 72 tests are integrated rather than pending —
+  reverified by A104 at integration tip `571c864` as **1331 passed, 0 failed** in
+  27.06 s with `ruff check .` clean on Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1, and
+  the branch is retired in [`BRANCH_CLEANUP.md`](BRANCH_CLEANUP.md)):
   `ShellQuad4Element`, the flat facet with six DOFs per node. Membrane action is the
   existing plane-stress `Quad4Element` evaluated on the projected in-plane
   coordinates — the global membrane sub-block reproduces `Quad4Element` to 2.4e-16 and
