@@ -1,0 +1,82 @@
+# PR Draft — OpenFEMLab Round 1
+
+Ready to file. Base: `main`. Head: `cursor/femtools-industrial-7aa3`.
+Verified at `9c674d5`: full suite **430 passed**, `ruff check .` clean
+(Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1).
+
+## Title
+
+```
+OpenFEMLab: solver-independent CAE platform — modal analysis, correlation, model updating, damped dynamics (430 tests)
+```
+
+## Body
+
+```markdown
+## Summary
+
+First integrated release of **OpenFEMLab**, an open-source, solver-independent CAE
+platform inspired by FEMtools: modal analysis, FE–test correlation, sensitivity-based
+model updating, a productized simulation-correction workflow, damped dynamics with FRF
+synthesis, and optimization hooks — all behind one CLI and a schema-versioned IO layer.
+
+## What's included
+
+- **Core FEM & modal solver** (`core/`, `solver/modal.py`, `mesh/`): node-major DOF
+  model with SPCs and lumped masses; spring/truss/planar-beam elements; one-pass
+  preallocated COO→CSR assembly; one `ModalSolver` façade with dense and sparse
+  shift-invert backends, static condensation of massless DOFs, mass normalization,
+  participation/effective masses, and a shift-invert LU cache. Validated against
+  closed-form spectra to 1e-9 relative (worst continuum case 0.2 %).
+- **Damped dynamics** (`solver/dynamics.py`): Rayleigh, modal, and structural damping
+  models; complex modes with modal phase collinearity; modal, complex-modal, and direct
+  FRF synthesis; harmonic response; residual flexibility; FRAC/FDAC FRF correlation
+  metrics. 82 tests.
+- **Correlation** (`correlation/`): MAC / autoMAC / mass-weighted MAC, MSF,
+  pseudo-orthogonality, COMAC; sensor/DOF alignment with orientation signs; Hungarian
+  or greedy mode pairing with MAC threshold, frequency window, and frequency penalty;
+  schema-versioned JSON `CorrelationReport`.
+- **Model updating** (`updating/`): analytic Fox–Kapoor eigenvalue, eigenvector, and
+  MAC sensitivities (vectorized, sparse-aware, FD-verified to ≤ 1e-6); affine
+  `ScalingModel` (one eigensolve per iteration); Levenberg–Marquardt / Gauss–Newton
+  updater with Tikhonov regularization, bounds, and per-iteration MAC re-pairing.
+  Twin experiments recover grouped stiffness/mass factors to machine precision.
+- **Correction workflow** (`workflow/`): the six-stage S1 BASELINE → S6 VALIDATION
+  state machine with machine-readable gate failures, MS-3.6 collinearity screening,
+  held-out validation targets that catch overfitting, σ_post parameter uncertainty,
+  and a reproducible schema-versioned `CorrectionReport` (rerun-identical to 1e-12).
+- **Optimization** (`optimization/`): design variables, modal/mass/frequency response
+  functions, analytic gradients, `OptimizationProblem`, sizing compilation from a
+  `ModelUpdater`, and a SciPy SLSQP/trust-constr backend with KKT diagnostics.
+- **IO** (`io/`): schema-versioned native YAML/JSON round trip for models, modal
+  results, and test data; ASCII UFF/UNV dataset 55/58 reader; minimal Nastran BDF
+  reader (GRID/CROD/MAT1 → neutral model).
+- **CLI** (`cli/`): `openfemlab modal | correlate | update` over JSON/YAML model
+  specs; machine-readable JSON on stdout, diagnostics on stderr, CI acceptance gates
+  via exit codes; covered end to end including subprocess runs.
+- **QA stack**: 430 tests including a machine-readable registry of 35 quantified
+  acceptance criteria wired to tagged acceptance tests, boundary/probe suites,
+  performance-regression gates, and benchmarks; GitHub Actions CI on Python
+  3.10–3.13; `ruff check` clean.
+- **Docs**: `ARCHITECTURE.md`, `MODULE_SPEC.md` (MS-0..6), `ACCEPTANCE_CRITERIA.md`
+  (35 criteria), `SOTA_GAP_ANALYSIS.md` (GAP-01..15), `OPTIMIZATION.md`, README with
+  reproducible CLI walkthrough, runnable `examples/`.
+
+## Verification
+
+- `python -m pytest` — **430 passed** at `9c674d5`.
+- `ruff check .` — clean.
+- End-to-end: model → modal → correlate → update → re-solve converges 22.86 % → 0 %
+  frequency error at MAC 1.0; the README CLI session reproduces exit codes 0/3/0/0.
+- Performance (single BLAS thread, medians): 100-DOF five-iteration updating loop
+  35.3 → 7.9 ms (4.47x); 240-DOF eigenvalue sensitivity 1.83 → 0.68 ms (2.70x);
+  2,000-DOF sparse assembly 26.3 → 19.3 ms (1.36x), gated by regression probes.
+
+## Notes for reviewers
+
+- `.agent_workspace/` holds orchestration records (progress log, Round 2 plan);
+  it is documentation, not runtime code.
+- Known scope limits are registered, not hidden: no continuum elements yet, no
+  MPE from measured FRFs, no pretest/TAM reduction, Bayesian MAP updating pending —
+  tracked in `docs/SOTA_GAP_ANALYSIS.md` and `.agent_workspace/ROUND2_PLAN.md`.
+```

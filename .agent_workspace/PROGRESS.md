@@ -36,6 +36,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A26 | claude-opus-5-thinking-high-fast | MS-4 workflow landing verification & Round 2 kickoff (backfill for A17) | complete |
 | A02 | claude-fable-5-thinking-xhigh | M5 optimization design & stubs: size/shape hooks, gradient interface, `docs/OPTIMIZATION.md` (backfill for A05) | complete |
 | A28 | claude-opus-5-thinking-high-fast | Dynamics/optimization branch integration onto the trunk (backfill for A15) | complete |
+| A32 | claude-fable-5-thinking-xhigh | Round 1 closure: 430-test/Ruff verification, PR draft, progress reconciliation (backfill for A29) | complete |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
@@ -50,7 +51,10 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 ## Round Status
 
 ### Round 1 — Initial Build & Baseline Exploration
-**Status:** CONCLUDED — see Round Conclusions below (192/192 tests pass at `bae4b77`)  
+**Status:** COMPLETE — concluded at `bae4b77` (192 tests, see Round Conclusions below);
+both carry-over packages have since landed and the dynamics/optimization work is merged
+(`acda625`), bringing the suite to **430 passed** with `ruff check` clean (final
+addendum below).  
 **Dispatched:** 6 subagents (2×fable, 2×opus-fast, 2×gpt-sol), plus backfill agents A01–A20
 
 | Agent | Model | Focus | Status |
@@ -987,6 +991,7 @@ new dynamics/element/IO criteria at least `implemented`, GAP-01 stays closed.
   something the offending agent can see.
 
 **Round 2 entry state.** Both packages Round 1 left uncommitted are now in and green:
+<<<<<<< HEAD
 `workflow/` via A13/A26, and the `optimization/` build-out (`variables`, `responses`,
 `gradients`, `problem`, `sizing`, `backends`) via the A28 merge below. No Round-1
 carry-over remains, and what R2-T07 still owes is narrower than the plan states — the
@@ -1167,3 +1172,24 @@ from the shared working tree and are the only pieces of declared Round 1 scope n
 committed with tests. Everything else in the "Remaining defects / open items" list above is
 Round 2/3 scope by design, not Round 1 debt. Once those two packages land green, the round
 closes on content as well as on the exit bar.
+
+#### Addendum — Round 1 COMPLETE (A32, backfill for A29)
+
+The two packages the A15 addendum listed as the last uncommitted Round 1 scope are both
+landed and green on this branch. A13's MS-4 `workflow/` package was verified in by A26 at
+`5bc6a6d`; the `optimization/` build-out (`variables`, `responses`, `gradients`,
+`problem`, `sizing`, scipy `backends`, 16 tests) arrived together with the damped-dynamics
+track when `acda625` merged `cursor/dynamics-damping-frf-9500` —
+`solver/dynamics.py` now carries Rayleigh/modal/structural damping, complex modes with
+modal phase collinearity, modal/complex-modal/direct FRF synthesis, harmonic response,
+residual flexibility, and FRAC/FDAC (82 tests, the largest suite in the repository).
+`docs/OPTIMIZATION.md` (`9c674d5`) is the design reference the package points at.
+
+Verified at `9c674d5` on Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1, from a private
+detached worktree (`/tmp/a32`, `PYTHONPATH` pinned to its `src` per the A14 method note —
+the shared `/workspace` checkout had been switched onto `cursor/quad4-plane-stress-element-b99c`
+by a concurrent agent mid-run, the fifth occurrence of the working-tree hazard counting
+the lost-ref variant A28 reports): full
+suite **430 passed** (4.9 s), `ruff check .` clean. **Round 1 is closed on content as
+well as on the exit bar.** The ready-to-file PR for `main` (title + body) is in
+`.agent_workspace/PR_DRAFT.md`.
