@@ -20,6 +20,8 @@ command -v npm >/dev/null 2>&1 ||
 
 NODE_VERSION="$(node --version | sed 's/^v//')"
 IFS=. read -r NODE_MAJOR NODE_MINOR _ <<<"$NODE_VERSION"
+NODE_MAJOR=$((10#$NODE_MAJOR))
+NODE_MINOR=$((10#$NODE_MINOR))
 if ! (( (NODE_MAJOR == MIN_NODE_MAJOR && NODE_MINOR >= MIN_NODE_20_MINOR) ||
         (NODE_MAJOR >= 22 && NODE_MAJOR < MAX_NODE_MAJOR &&
          (NODE_MAJOR != 22 || NODE_MINOR >= MIN_NODE_22_MINOR)) )); then

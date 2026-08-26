@@ -48,3 +48,15 @@ ZIP 根目录直接包含 `index.html` 和静态资源，可解压到任意静�
 3. 两个基础测试脚本均通过。
 4. 双 App 构建脚本生成指定名称的有效 ZIP。
 5. 后续轮次至少保持上述命令与产物路径稳定。
+
+## Round 1 实测结果
+
+2026-08-26 在上述探针环境执行：
+
+- `bash scripts/setup.sh`：通过，两个 workspace 依赖安装成功。
+- `npm test`：通过；识字 App 检查到 162 个生产构建文件，数学 App 检查到
+  21 个生产构建文件。
+- `npm run build:all`：通过；两个 ZIP 均非空并通过 Zip 完整性检查。
+- 本次产物大小：识字 App 277,377 bytes，数学 App 145,661 bytes。文件名和位置是
+  稳定接口，大小会随内容与压缩时间戳变化。
+- `npm audit --omit=dev --audit-level=high`：通过，生产依赖报告 0 个漏洞。
