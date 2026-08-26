@@ -385,6 +385,98 @@ await interact('成语：走完小剧场', '/#/idioms/szdt', async (page) => {
   return `推进 ${n} 步，剧场走到结尾=${shown}`
 })
 
+await interact('听音识字：换皮到地鼠草地', '/#/listen', async (page) => {
+  const picked = await clickText(page, '地鼠草地')
+  await clickText(page, '开始')
+  const scene = await page.evaluate(() => ({
+    board: !!document.querySelector('.board--mole'),
+    moles: document.querySelectorAll('.opt--mole').length,
+    fish: document.querySelectorAll('.opt--fish').length
+  }))
+  if (!picked) throw new Error('找不到「地鼠草地」换皮按钮')
+  if (!scene.board || scene.moles !== 4) {
+    throw new Error(`换皮没生效：board--mole=${scene.board}，地鼠 ${scene.moles} 只`)
+  }
+  if (scene.fish) throw new Error('换皮后还残留着钓鱼池的皮')
+  return `选中地鼠草地=${picked}，渲染 ${scene.moles} 只地鼠`
+})
+
+await interact('绘本：逐句朗读高亮 + 点字发音', '/#/books/b1', async (page) => {
+  await clickText(page, '读给我听')
+  await new Promise((r) => setTimeout(r, 600))
+
+  const lit = await page.evaluate(() => {
+    const marked = [...document.querySelectorAll('.glyph.is-reading')]
+    const all = document.querySelectorAll('.glyph').length
+    return { marked: marked.length, all, text: marked.map((n) => n.innerText).join('') }
+  })
+  if (!lit.marked) throw new Error('点了「读给我听」但没有任何字被高亮')
+  if (lit.marked >= lit.all) throw new Error('整页都高亮了，说明没有逐句只是整页刷色')
+
+  // 点一个字：应当停下逐句朗读，并弹出这个字的拼音释义
+  const tapped = await page.evaluate(() => {
+    const g = [...document.querySelectorAll('.glyph')].find(
+      (n) => !n.classList.contains('glyph--punct')
+    )
+    if (!g) return null
+    g.click()
+    return g.innerText.trim()
+  })
+  await new Promise((r) => setTimeout(r, 350))
+  const peek = await page.evaluate(() => {
+    const box = document.querySelector('.peek')
+    return box ? box.innerText.replace(/\s+/g, ' ').trim() : ''
+  })
+  if (!peek.includes(tapped)) throw new Error(`点「${tapped}」没有弹出发音卡片`)
+
+  return `高亮 ${lit.marked}/${lit.all} 字（「${lit.text}」），点「${tapped}」弹出：${peek}`
+})
+
+await interact('成语头图：跟着 data-theme 换色', '/#/idioms/szdt', async (page) => {
+  const read = () =>
+    page.evaluate(() => {
+      const hero = document.querySelector('.hero')
+      return hero ? getComputedStyle(hero).backgroundImage : ''
+    })
+  const sunny = await read()
+  await page.evaluate(() => {
+    document.documentElement.dataset.theme = 'night'
+  })
+  await new Promise((r) => setTimeout(r, 350))
+  const night = await read()
+
+  if (!sunny || sunny === 'none') throw new Error('头图没有渐变背景')
+  if (sunny === night) throw new Error('切到夜间主题后头图配色没变，说明还是写死的调色板')
+  return '明亮 / 夜间两套主题下头图背景各不相同'
+})
+
+// 用 b3：前面的绘本用例已经把 b1 读完了，而「第一次读完」才发庆祝
+await interact('庆祝动画：可以立刻跳过', '/#/books/b3', async (page) => {
+  for (let i = 0; i < 8; i++) {
+    if (await clickText(page, '下一页')) continue
+    if (await clickText(page, '读完啦')) break
+    break
+  }
+  await new Promise((r) => setTimeout(r, 400))
+
+  const before = await page.evaluate(() => ({
+    open: !!document.querySelector('.cel'),
+    skip: !!document.querySelector('.cel__skip')
+  }))
+  if (!before.open) throw new Error('读完整本没有弹出庆祝层')
+  if (!before.skip) throw new Error('庆祝层没有跳过按钮')
+
+  await page.evaluate(() => document.querySelector('.cel__skip').click())
+  await new Promise((r) => setTimeout(r, 250))
+  const gone = await page.evaluate(() => !document.querySelector('.cel'))
+  if (!gone) throw new Error('点了跳过但庆祝层还在')
+
+  // 跳过后状态要和播完一样：奖励的星星已经进账，读完页正常显示
+  const settled = await page.evaluate(() => document.body.innerText.includes('读完啦'))
+  if (!settled) throw new Error('跳过庆祝后没有回到读完页')
+  return '庆祝层弹出 → 点跳过 → 立即回到读完页'
+})
+
 await interact('家长中心：过验证并切主题', '/#/parent', async (page) => {
   const solved = await page.evaluate(() => {
     const label = document.body.innerText.match(/(\d+)\s*\+\s*(\d+)/)

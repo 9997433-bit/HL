@@ -9,6 +9,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import gsap from 'gsap'
 import StarBurst from '@/components/StarBurst.vue'
+import VoiceNotice from '@/components/VoiceNotice.vue'
 import { IDIOMS, getIdiom } from '@/data/idioms.js'
 import { useProgressStore } from '@/stores/progress.js'
 import { useSettingsStore } from '@/stores/settings.js'
@@ -40,10 +41,13 @@ const next = computed(() =>
 const record = computed(() => progress.idioms[props.id] || null)
 const allRevealed = computed(() => !!idiom.value && revealed.value >= idiom.value.story.length)
 
-const gradient = computed(() =>
-  idiom.value
-    ? `linear-gradient(135deg, ${idiom.value.palette[0]} 0%, ${idiom.value.palette[1]} 100%)`
-    : 'none'
+/**
+ * 头图只把成语自带的两个插画色交给 CSS，真正的配比由主题决定：
+ * 明亮主题几乎原色，护眼主题掺一小半，夜间主题只留一点色相。
+ * 这样换 data-theme 时头图跟着走，不会在夜间模式里糊上一块刺眼的浅黄。
+ */
+const heroTint = computed(() =>
+  idiom.value ? { '--art-a': idiom.value.palette[0], '--art-b': idiom.value.palette[1] } : {}
 )
 
 function say(text, rate) {
@@ -124,7 +128,7 @@ watch(() => props.id, enter)
     <StarBurst ref="burstRef" />
 
     <!-- 成语本体 -->
-    <section class="hero card" :style="{ backgroundImage: gradient }">
+    <section class="hero card" :style="heroTint">
       <span class="hero__emoji" aria-hidden="true">{{ idiom.emoji }}</span>
       <button class="hero__word" type="button" @click="readWhole">
         <span class="hero__pinyin">{{ idiom.pinyin }}</span>
@@ -137,6 +141,8 @@ watch(() => props.id, enter)
         <span v-else-if="record?.seen" class="pill">🌱 学过了</span>
       </div>
     </section>
+
+    <VoiceNotice fallback="小剧场的字都写在屏幕上，家长可以照着读。" />
 
     <!-- 逐字拆解 -->
     <section class="card stack">
@@ -247,8 +253,13 @@ watch(() => props.id, enter)
   align-items: center;
   gap: var(--gap-sm);
   text-align: center;
-  background-size: cover;
-  border: none;
+  border: 2px solid var(--surface-border);
+  background-image: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--art-a, var(--brand)) var(--art-tint), var(--surface-strong)) 0%,
+    color-mix(in srgb, var(--art-b, var(--accent)) var(--art-tint), var(--surface-strong)) 100%
+  );
+  transition: background-image var(--dur-mid) ease, border-color var(--dur-mid) ease;
 }
 
 .hero__emoji {
@@ -275,7 +286,7 @@ watch(() => props.id, enter)
 .hero__pinyin {
   font-size: 0.95rem;
   font-weight: 700;
-  color: #5a4632;
+  color: var(--text);
   letter-spacing: 0.12em;
 }
 
@@ -284,20 +295,20 @@ watch(() => props.id, enter)
   font-weight: 800;
   line-height: 1.2;
   letter-spacing: 0.14em;
-  color: #3d2f1f;
+  color: var(--text-strong);
   font-family: 'Kaiti SC', 'STKaiti', 'KaiTi', 'PingFang SC', serif;
 }
 
 .hero__hint {
   font-size: 0.75rem;
-  color: rgba(61, 47, 31, 0.65);
+  color: var(--text-soft);
 }
 
 .hero__meaning {
   max-width: 34ch;
   font-size: 1rem;
   line-height: 1.75;
-  color: #3d2f1f;
+  color: var(--text-strong);
 }
 
 .hero__pills {
@@ -306,8 +317,8 @@ watch(() => props.id, enter)
 }
 
 .hero .pill {
-  background: rgba(255, 255, 255, 0.72);
-  color: #3d2f1f;
+  background: color-mix(in srgb, var(--surface-strong) 76%, transparent);
+  color: var(--text-strong);
 }
 
 /* ------------------------------------------------------------ 逐字拆解 */

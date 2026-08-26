@@ -76,6 +76,8 @@
   --grid-line: rgba(239, 83, 80, 0.28);
   --stroke-ink: #3d2f1f;
   --stroke-hint: #e6ded2;
+
+  --art-tint: 78%;
 }
 
 /* ---------- 护眼模式 ---------- */
@@ -109,6 +111,9 @@
   --grid-line: rgba(160, 120, 100, 0.3);
   --stroke-ink: #3f3a2c;
   --stroke-hint: #ded5bd;
+
+  /* 护眼模式饱和度上限 70%：内容自带的插画色只掺进来一小半 */
+  --art-tint: 34%;
 
   --shadow-sm: 0 2px 6px rgba(90, 80, 50, 0.07);
   --shadow-md: 0 6px 18px rgba(90, 80, 50, 0.1);
@@ -146,6 +151,9 @@
   --grid-line: rgba(255, 184, 77, 0.28);
   --stroke-ink: #f4f1ea;
   --stroke-hint: rgba(255, 255, 255, 0.16);
+
+  /* 夜间不许出现大面积亮色块，插画色只留一点点色相提示 */
+  --art-tint: 22%;
 
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.36);

@@ -83,6 +83,19 @@ export const speechSupported = !!synth
 let cachedVoice = null
 let voicesReady = false
 
+/** 嗓音列表是异步到位的，界面要在它变化时重画提示。 */
+const voiceListeners = new Set()
+
+function notifyVoiceListeners() {
+  for (const fn of voiceListeners) {
+    try {
+      fn(voiceStatus())
+    } catch {
+      /* 某个订阅者抛错不该拖垮其他订阅者 */
+    }
+  }
+}
+
 /** 挑一个中文嗓音；不同系统上可用嗓音差别很大，按优先级降级。 */
 function pickVoice() {
   if (!synth) return null
@@ -111,6 +124,7 @@ if (synth) {
   // Chrome 首次调用 getVoices() 往往返回空数组，要等这个事件。
   synth.addEventListener?.('voiceschanged', () => {
     cachedVoice = pickVoice()
+    notifyVoiceListeners()
   })
 }
 
@@ -119,6 +133,38 @@ export function hasChineseVoice() {
   if (!synth) return false
   if (!voicesReady) cachedVoice = pickVoice()
   return !!cachedVoice
+}
+
+/**
+ * 朗读能力的四种状态，界面据此决定提示什么：
+ *   unsupported 浏览器根本没有 SpeechSynthesis
+ *   pending     还没拿到嗓音列表，先别下结论（Chrome 冷启动常见）
+ *   missing     有朗读能力，但系统里一个中文嗓音都没装
+ *   ready       能正常读中文
+ */
+export function voiceStatus() {
+  if (!synth) return 'unsupported'
+  if (!voicesReady) {
+    cachedVoice = pickVoice()
+    if (!voicesReady) return 'pending'
+  }
+  return cachedVoice ? 'ready' : 'missing'
+}
+
+/** 订阅嗓音状态变化，返回退订函数。 */
+export function onVoicesChanged(fn) {
+  voiceListeners.add(fn)
+  return () => voiceListeners.delete(fn)
+}
+
+/** 家长面板要显示的技术详情：到底用的哪个嗓音、系统里一共有几个。 */
+export function voiceInfo() {
+  return {
+    status: voiceStatus(),
+    name: cachedVoice?.name ?? '',
+    lang: cachedVoice?.lang ?? '',
+    total: synth?.getVoices?.().length ?? 0
+  }
 }
 
 export function cancelSpeech() {

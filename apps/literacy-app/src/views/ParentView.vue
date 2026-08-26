@@ -7,9 +7,35 @@ import { CHARACTERS, UNITS } from '@/data/characters.js'
 import { BOOKS } from '@/data/books.js'
 import { IDIOMS } from '@/data/idioms.js'
 import { sfx } from '@/utils/sfx.js'
+import { speak, voiceInfo } from '@/utils/audio.js'
+import { useVoiceStatus } from '@/composables/useVoiceStatus.js'
 
 const progress = useProgressStore()
 const settings = useSettingsStore()
+
+/* -------- 朗读自检：孩子那边只看到一句温和的提示，技术详情放在这里 -------- */
+const { status: voiceState } = useVoiceStatus()
+
+const voiceDetail = computed(() => {
+  const info = voiceInfo()
+  switch (voiceState.value) {
+    case 'ready':
+      return `正在用「${info.name || info.lang}」朗读，系统共 ${info.total} 个嗓音。`
+    case 'missing':
+      return `系统里有 ${info.total} 个嗓音，但没有中文的。装一个中文语音包后刷新即可，孩子端已经自动改成「看字 + 家长读」的提示。`
+    case 'unsupported':
+      return '这个浏览器没有 SpeechSynthesis 接口，朗读功能整体不可用。换 Chrome / Edge / Safari 试试。'
+    default:
+      return '正在等系统返回嗓音列表…'
+  }
+})
+
+const voiceOk = computed(() => voiceState.value === 'ready')
+
+function testVoice() {
+  sfx.tap()
+  speak('小朋友你好，我们一起读书吧', { rate: settings.speechRate })
+}
 
 /* ---------------- 家长验证：一道两位数加法，挡住小朋友即可 ---------------- */
 const unlocked = ref(false)
@@ -368,6 +394,17 @@ function resetSettings() {
             :value="settings.speechRate"
             @input="settings.update({ speechRate: Number($event.target.value) })"
           />
+        </div>
+
+        <div class="field">
+          <span class="field__label">朗读嗓音自检</span>
+          <p class="voice" :class="{ 'voice--bad': !voiceOk }" role="status" aria-live="polite">
+            <span aria-hidden="true">{{ voiceOk ? '✅' : '⚠️' }}</span>
+            {{ voiceDetail }}
+          </p>
+          <button class="btn btn--ghost btn--sm" type="button" @click="testVoice">
+            🔊 试听一句
+          </button>
         </div>
 
         <div class="field">
@@ -782,6 +819,26 @@ function resetSettings() {
   width: 100%;
   accent-color: var(--brand);
   height: 34px;
+}
+
+.voice {
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--success) 12%, var(--surface-sunken));
+  font-size: 0.85rem;
+  line-height: 1.75;
+  color: var(--text);
+}
+
+.voice--bad {
+  background: color-mix(in srgb, var(--brand) 16%, var(--surface-sunken));
+}
+
+.btn--sm {
+  align-self: flex-start;
+  min-height: 44px;
+  padding: 0 18px;
+  font-size: 0.88rem;
 }
 
 .opts {

@@ -25,7 +25,7 @@
 | Round | 状态 | 说明 |
 |-------|------|------|
 | Round 1 | ✅ 完成 | 双 App 构建通过；zip 已打包 |
-| Round 2 | 🔄 进行中 | 靶向重构与深度优化 |
+| Round 2 | ⏳ 待开始 | 靶向重构与深度优化 |
 | Round 3 | ⏳ 待开始 | SOTA打磨与最终验收 |
 
 ## 并发规则（已更新）
@@ -42,11 +42,6 @@
 - [x] fable·UI/UX: `ui-ux-design-spec.md`、`sota-acceptance-criteria.md`
 - [x] gpt-sol·资源/探针: 100字/85题/42成语；`verify-resources.sh` / `benchmark.sh` / `stress-test.js`
 - [x] opus-fast·双 App MVP + 打包: `dist/hongen-literacy-app.zip`（271KB）、`dist/hongen-math-app.zip`（143KB）
-
-## Round 2 子代理任务（10个，进行中）
-- fable×3: 归并审计、SOTA差距复审、Round2验收规划
-- opus-fast×4: 识字FSRS+扩字、识字玩法深化、数学代码归并、数学QuizShell
-- gpt-sol×3: 验收自动化、Service Worker离线、FSRS单测+E2E扩展
 
 ## Round 2 首要清理项
 - **math-app**：`modules/*` 视图（路由生效） vs 未引用的 `core/engine/*`、`src/views/*`；数独/应用题/生成器各存两套，需收敛；Tone.js 包体可换轻量 WebAudio。
