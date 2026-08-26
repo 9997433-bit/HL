@@ -13,6 +13,7 @@ import numpy as np
 
 from ..core.elements import (
     BeamElement2D,
+    BeamElement3D,
     Hex8Element,
     Quad4Element,
     SpringElement,
@@ -93,6 +94,9 @@ class MeshBuilder:
 
     def add_beam(self, node_a, node_b, material: Material, section: Section, **kwargs):
         return self.model.add_element(BeamElement2D((node_a, node_b), material, section, **kwargs))
+
+    def add_beam3d(self, node_a, node_b, material: Material, section: Section, **kwargs):
+        return self.model.add_element(BeamElement3D((node_a, node_b), material, section, **kwargs))
 
     def add_quad4(self, node_ids: Sequence[Hashable], material: Material, **kwargs):
         return self.model.add_element(Quad4Element(node_ids, material, **kwargs))
