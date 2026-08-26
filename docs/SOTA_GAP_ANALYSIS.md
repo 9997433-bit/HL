@@ -168,6 +168,13 @@ Minimum viable parity: UFF/UNV datasets 55 (modes), 58 (FRFs), 2411/2412 (nodes/
 a Nastran BDF subset (GRID/CBAR/CQUAD4/CTETRA/PSHELL/PSOLID/MAT1/EIGRL), and a `meshio`
 bridge behind an optional-dependency seam (per P7).
 
+*Round-3 extension — the binary door is half open:* `openfemlab.io.op2` now lists an OP2's
+data blocks and reads its real normal modes into a `ModalResult` (spec MS-9.6, Phases 1-2
+over the `op2_framing` record layer), so a solver run's modes reach correlation without a
+UFF export step. Geometry (Phase 3) and the `CORD` transforms (Phase 4) remain open, and
+nothing is exported from the `openfemlab.io` namespace until the reader has been held
+against real MSC and NX output rather than the fixtures `tests/_op2.py` writes.
+
 ### 3. GAP-04 + GAP-05 — No damping, forced response, or FRF chain (P0/P1)
 Everything downstream of undamped real modes is missing: damping models, complex modes,
 harmonic response, FRF synthesis, FRF correlation (FRAC/FDAC), and FRF-based updating

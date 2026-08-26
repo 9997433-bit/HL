@@ -937,8 +937,9 @@ The native format is one versioned document schema emitted in either encoding;
   `properties` come back empty and only the property *ids* survive, from cell
   data when the file has it.
 - Every reader in this table is text. The one binary format worth adding,
-  Nastran OP2, is scoped but unimplemented in MS-9.6 and deliberately absent
-  from the package namespace until it reads a file.
+  Nastran OP2, reads its framing and its normal modes in MS-9.6 but is
+  deliberately absent from the package namespace until it has been held
+  against real solver output.
 
 ### MS-9.4 Neutral → internal conversion
 
@@ -1000,26 +1001,37 @@ def neutral_to_model(neutral, *, dofs=None, name=None, material=None, section=No
 def infer_dofs(model: NeutralModel) -> tuple[DOF, ...]
 ```
 
-### MS-9.6 Nastran OP2 — extension, not implemented
+### MS-9.6 Nastran OP2 — extension, Phases 1-2 implemented
 
 Round-3 extension of GAP-03, scoped by the A139 spike. OP2 is the binary
 companion of the bulk data MS-9.3 already reads, and the only industrial format
 that carries the analysed model *and* its normal-mode solution in one file —
-the pair M3 correlation and M4 updating want from an external solver. The seam
-exists as `openfemlab.io.op2` with the format knowledge and the API below;
-every entry point raises `NotImplementedError`.
+the pair M3 correlation and M4 updating want from an external solver. The
+reader lives in `openfemlab.io.op2` over the record layer
+`openfemlab.io.op2_framing`.
 
-| Entry point | Phase | Returns |
-|---|---|---|
-| `list_op2_tables(source)` | 1 | the file's data blocks, in file order |
-| `read_op2_modes(source)` | 2 | `ModalResult` from `LAMA` + `OUGV1` |
-| `read_op2(source)` | 3 | `NeutralModel` from `GEOM1`/`GEOM2`/`EPT`/`MPT` |
+| Entry point | Phase | Status | Returns |
+|---|---|---|---|
+| `list_op2_tables(source)` | 1 | implemented | the file's data blocks, in file order |
+| `read_op2_modes(source)` | 2 | implemented | `ModalResult` from `LAMA` + `BOUGV1`/`OUGV1`/`OUG1` |
+| `read_op2(source)` | 3 | `NotImplementedError` | `NeutralModel` from `GEOM1`/`GEOM2`/`EPT`/`MPT` |
 
 - **Nothing is re-exported from `openfemlab.io`.** A name in that namespace
-  advertises a working reader; these stay reachable only as
-  `openfemlab.io.op2.read_op2` until they read a file. This is the one place
-  MS-9.5's "every reader is a package-level name" rule is deliberately broken,
-  and the break ends when Phase 2 lands.
+  advertises a *supported* reader; these stay reachable only as
+  `openfemlab.io.op2.read_op2_modes`. This is the one place MS-9.5's "every
+  reader is a package-level name" rule is deliberately broken, and the break
+  ends not when the code works but when the corpus test below has run over
+  real solver output — until then the implemented phases are validated against
+  this repository's own reading of the format and nothing else.
+- **`read_op2_modes` returns real normal modes in SORT1 or nothing.** It pairs
+  the `LAMA` eigenvalue table with the first eigenvector table the file carries
+  (`BOUGV1` first, since it is already in the basic frame), orders the modes by
+  the `IDENT` mode number, builds the `DofMap` from the file's grid labels, and
+  records the generalized masses and the tables it saw in `meta`. Complex
+  eigenvectors (analysis code 9), SORT2, a non-eigenvector table code, a
+  format code that is not real, a `num_wide` that is not the 8 words of a real
+  grid entry, scalar and extra points, several modal subcases in one file, and
+  a mode without a `LAMA` row all raise `FormatError` naming what was found.
 - **The subset is the same one every other reader targets**: geometry into a
   `NeutralModel` and modes into a `ModalResult`, with the file's grid labels
   surviving into the `DofMap` (MS-9.1). Element stresses and forces
@@ -1029,11 +1041,13 @@ every entry point raises `NotImplementedError`.
 - **Phasing is by risk, not by table.** Phase 1 is the Fortran record framing
   alone (word size and byte order from the opening byte count, the key
   continuation walk, block names and trailers), which reads no engineering data
-  and is therefore the only layer that can be tested exhaustively offline.
-  Phases 2 and 3 build on it; Phase 4 adds the `CORD` coordinate-system cards
-  that Phases 2 and 3 must **raise** on, since `GRID` carries `CP`/`CD` frames
-  and OP2 eigenvectors are written in `CD` — the line `read_bdf` already draws
-  for `GRID` and `read_unv` draws for dataset 2420.
+  and is therefore the only layer that can be tested exhaustively offline —
+  `op2_framing.py` is that layer and nothing else. Phases 2 and 3 build on it;
+  Phase 4 adds the `CORD` coordinate-system cards that Phases 2 and 3 must
+  **raise** on, since `GRID` carries `CP`/`CD` frames and OP2 eigenvectors are
+  written in `CD` — the line `read_bdf` already draws for `GRID` and `read_unv`
+  draws for dataset 2420. Phase 2 draws it by reading the `GRID` records of
+  `GEOM1` for their frames alone and refusing a file where any is non-zero.
 - **Record keys are stable, record contents are not.** `GEOM2` records are
   addressed by a three-integer key (`CQUAD4` is `(2958, 51, 177)`), but MSC
   writes 15 words per `CQUAD4` entry where NX writes 14. Every unpack must
@@ -1041,11 +1055,12 @@ every entry point raises `NotImplementedError`.
   and key when it does not divide, rather than reading past an entry.
 - **The blocker is fixtures, not parsing.** An OP2 cannot be produced without a
   Nastran licence, so CI cannot generate one the way it generates UFF and BDF
-  text. The plan is a test-only writer that emits the documented framing from a
-  known model — which validates the layouts against *our reading of the spec* —
-  paired with an opt-in corpus test over real MSC and NX output, skipped when
-  the corpus path is unset. The reader stays experimental until the corpus test
-  has run; **no partial binary parser lands without both.**
+  text. The way out is `tests/_op2.py`, a test-only writer that emits the
+  documented framing from a known model in both word sizes, both byte orders
+  and both `PARAM,POST` forms — which validates the layouts against *our
+  reading of the spec* — paired with an opt-in corpus test over real MSC and NX
+  output, skipped when the corpus path is unset. That second half is the one
+  still missing, and it is what keeps the reader experimental and unexported.
 - **`pyNastran` (BSD-3) belongs on the dev side, not behind the MS-9.3 optional
   seam.** It would cover all of this today, but OP2 is the format an
   FE-correlation platform is judged on, and the Phase 1-2 subset is small over
