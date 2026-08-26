@@ -29,7 +29,7 @@ the gap register at audit time:
 | GAP-10 updating depth | P1, absent | **Partial.** Dotted-path parameter targeting in the CLI spec layer (A07), affine `ScalingModel` dK/dθ (A04), vectorized Fox–Kapoor + MAC sensitivities (A04/A10). Remaining: model-level resolver, assembled per-element dK/dp, analytic MAC-row Jacobian wiring → R2-T06. The MS-3.6 collinearity screen is done: `workflow/selection.py` plus the AC-UPD-007 acceptance tests (A44). |
 | GAP-09 node mapping | P1, absent | **Partial.** Label-based DOF alignment (`correlation/align.py`, `workflow/sensors.py`). Remaining: geometry-based nearest-node mapping → folded into R2-T05/T06 scope notes. |
 | GAP-04/05 dynamics & FRF | P0/P1, absent | **Closed by R2-T01.** `cursor/dynamics-damping-frf-9500` merged at `acda625`; AC-DYN-001..005 registered and `implemented`. GAP-05's FRF *updating residual* stays deferred to Round 3 as planned below. |
-| GAP-02 3D elements | P0, absent | **Partial.** QUAD4 plane stress/strain landed with `mesh.simple.quad_plate_mesh` and 61 tests (R2-T02 first slice, merged from `cursor/quad4-plane-stress-element-b99c`). Remaining: TET4, HEX8, 3D beam, the solid/shell BDF cards → R2-T02 remainder. |
+| GAP-02 3D elements | P0, absent | **Partial.** QUAD4 plane stress/strain landed with `mesh.simple.quad_plate_mesh` and 61 tests (R2-T02 first slice, merged from `cursor/quad4-plane-stress-element-b99c`); TET4 landed with `mesh.simple.tet_block_mesh` and 66 tests (A46). Remaining: HEX8, 3D beam, the solid/shell BDF cards → R2-T02 remainder. |
 | GAP-08 reduction/expansion | P1, absent | Open (R2 slice: Guyan/SEREP/TAM + expansion) → R2-T03. |
 | GAP-11 Bayesian/UQ | P1, absent | **Partial.** The MS-3.5 MAP estimator landed in `updating/bayesian.py` with Gaussian prior, noise covariance and Laplace posterior σ_post (A49, 35 tests). Remaining: AC-UPD-006a/b tagging + registry flip, σ_post in the CLI/report output. Sampling (TMCMC/MC/DOE) stays Round 3 → R2-T04. |
 | GAP-12 optimization backend | P2, stub | **Closed for sizing by R2-T07.** `ScipyBackend.solve` runs SLSQP/trust-constr with analytic Jacobians, hard bounds and active-set KKT residuals; AC-OPT-001..004 are implemented. `cursor/optimization-scipy-backend-f421` was harvested by A40 (active-set multipliers, zero trust-constr constraint Hessian). Shape variables still fall back to finite differences. |
@@ -103,28 +103,35 @@ consistency tests fail.
 - **Why second:** every `ElementType` beyond 1D is declared but has no formulation, so no
   imported industrial mesh can be *re-analyzed* internally — it can only be correlated.
   This blocks the value of both the BDF reader (A18) and the meshio bridge (R2-T05).
-- **Status: PARTIAL** — the first slice is **done and on the trunk** (merged from
-  `cursor/quad4-plane-stress-element-b99c` by A37; suite **559 passed**, Ruff clean after
-  the merge). `Quad4Element` (bilinear isoparametric, plane stress/strain, 1–4 point Gauss
-  rule, consistent + row-sum lumped mass, strain/stress recovery) is in
-  `core/elements.py`, `quad_plate_mesh` / `MeshBuilder.add_quad4` are in `mesh/simple.py`,
-  and `tests/test_quad4.py` carries 61 tests — MacNeal-Harder patch exact to machine
-  precision, exactly three zero-energy modes under full integration, axial spectrum
-  matching an equivalent bar mesh to 2.4e-13, quadratic h-convergence. TET4, HEX8, the 3D
-  beam, the shell facet, the solid/shell BDF cards and the AC-ELEM-* rows remain open, so
-  the task does **not** close. See the R2-T02 and A37 entries in
-  [`PROGRESS.md`](PROGRESS.md).
+- **Status: PARTIAL** — two of the four element slices are **done and on the trunk**.
+  *QUAD4* (merged from `cursor/quad4-plane-stress-element-b99c` by A37; suite **559
+  passed**, Ruff clean after the merge): bilinear isoparametric, plane stress/strain,
+  1–4 point Gauss rule, consistent + row-sum lumped mass, strain/stress recovery in
+  `core/elements.py`, with `quad_plate_mesh` / `MeshBuilder.add_quad4` in `mesh/simple.py`
+  and 61 tests in `tests/test_quad4.py` — MacNeal-Harder patch exact to machine precision,
+  exactly three zero-energy modes under full integration, axial spectrum matching an
+  equivalent bar mesh to 2.4e-13, quadratic h-convergence.
+  *TET4* (A46, `cursor/tet4-solid-element-08d1`; suite **781 passed** at the merged tip
+  `e4bd20c`, Ruff clean):
+  `Tet4Element` constant-strain tetrahedron plus `solid_constitutive_matrix`,
+  `tet_block_mesh` / `MeshBuilder.add_tet4`, and 66 tests in `tests/test_tet4.py` —
+  a 162-element distorted 3D patch exact to 2.8e-16, exactly six zero-energy modes,
+  quadratic axial h-convergence from above, and the element's bending locking pinned as
+  a known limitation. HEX8, the 3D beam, the shell facet, the solid/shell BDF cards and
+  the AC-ELEM-* rows remain open, so the task does **not** close. See the R2-T02, A37 and
+  A46 entries in [`PROGRESS.md`](PROGRESS.md).
 - **Scope:**
   - ~~QUAD4 (plane stress/strain first; shell via flat facet + drilling treatment
     documented as a limitation)~~ **landed**; the flat-facet shell with drilling DOFs is
-    *not* covered and stays open. Remaining isoparametric formulations with consistent +
-    lumped mass in `core/elements.py`: TET4, HEX8 (with standard hourglass/locking
-    notes), plus a 3D two-node beam (extends the planar Euler–Bernoulli one) to make
-    frame models importable.
+    *not* covered and stays open. ~~TET4~~ **landed** as the constant-strain tetrahedron
+    with consistent + row-sum lumped mass. Remaining formulations in `core/elements.py`:
+    HEX8 (with standard hourglass/locking notes) and a 3D two-node beam (extends the
+    planar Euler–Bernoulli one) to make frame models importable.
   - `mesh/simple.py` generators for structured quad/hex blocks (needed for convergence
     fixtures) and neutral-model → assembly wiring for the new blocks — the structured
-    **quad** generator is landed; hex remains, as does the `NeutralModel` → `Model`
-    conversion that turns an imported block into bound elements.
+    **quad** and **tet** (Kuhn-subdivided box) generators are landed; the hex block
+    remains, as does the `NeutralModel` → `Model` conversion that turns an imported
+    block into bound elements.
   - Nastran card coverage follows the element set: `CQUAD4`/`CTETRA`/`CHEXA`/`CBAR`,
     `PSHELL`/`PSOLID` in `io/nastran.py` (remaining GAP-03 scope, coordinated with
     R2-T05).
@@ -137,10 +144,13 @@ consistency tests fail.
   (`oracle`); AC-ELEM-002 rigid-body-motion invariance / zero strain energy
   (`property`); AC-ELEM-003 quadratic h-convergence on the plate/solid oracle
   (`property`, mirrors the existing beam convergence check). **None of the three is
-  registered yet.** `tests/test_quad4.py` already produces the evidence for all three on
-  QUAD4 but carries no `@criterion` tags, so the registry stays consistent; the rows and
-  the tags should land together with the TET4/HEX8 slice, in the same change as the
-  `ACCEPTANCE_CRITERIA.md` and `MODULE_SPEC.md` edits the spec-first rule requires.
+  registered yet.** `tests/test_quad4.py` and `tests/test_tet4.py` already produce the
+  evidence for all three on both elements but carry no `@criterion` tags, so the registry
+  stays consistent; the rows and the tags should land together with the HEX8 slice, in
+  the same change as the `ACCEPTANCE_CRITERIA.md` and `MODULE_SPEC.md` edits the
+  spec-first rule requires. Registering them earlier would have to move the pinned
+  40-criterion inventory in `test_criteria_registry.py` and `ACCEPTANCE_CRITERIA.md`
+  §1.4, which is why the TET4 slice deliberately left it alone.
 - **Dependencies:** none. Unblocks R2-T05's re-analysis path and future GAP-13 scale
   work (real 3D meshes are what push past 1k DOF).
 
@@ -301,7 +311,7 @@ Round 2 is done when, on the integration branch in CI:
    T04.
 2. **R2-T02 — 3D continuum elements** (GAP-02, P0): QUAD4/TET4/HEX8 (+ 3D beam) so
    imported industrial meshes can be re-analyzed, unblocking the meshio bridge
-   (R2-T05). QUAD4 is landed; TET4, HEX8 and the 3D beam remain.
+   (R2-T05). QUAD4 and TET4 are landed; HEX8 and the 3D beam remain.
 3. **R2-T03 — SEREP/TAM reduction & expansion** (GAP-08): the top Round-2 sign-off
    blocker via AC-CORR-006, with R2-T04 Bayesian MAP (AC-UPD-006a/b) as the tied
    gate-blocker immediately behind it. Both now have their engines on the trunk
