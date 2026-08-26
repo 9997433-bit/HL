@@ -72,10 +72,13 @@ synthesis, and optimization hooks — all behind one CLI and a schema-versioned 
 - **IO** (`io/`): schema-versioned native YAML/JSON round trip for models, modal
   results, and test data; ASCII UFF/UNV dataset 55/58 reader; minimal Nastran BDF
   reader (GRID/CROD/MAT1 → neutral model); and a meshio bridge behind the optional
-  `[io]` extra that converts `meshio.Mesh` ↔ `NeutralModel` over an explicit
-  cell-type table, imports meshio lazily so `openfemlab.io` stays importable
-  without the extra, and records unmapped cell types in
-  `meta["skipped_cell_types"]` instead of failing.
+  `[io]` extra that reads and writes Gmsh, Abaqus, VTK, and the other formats
+  supported by meshio. The public `read_meshio` / `write_meshio` entry points
+  convert mesh files to and from `NeutralModel` for `vertex`, `line`, `triangle`,
+  `quad`, `tetra`, and `hexahedron` cells. For example, `read_meshio("bracket.msh")`
+  imports a model and `write_meshio(model, "bracket.vtu")` exports it. The adapter
+  imports meshio lazily so `openfemlab.io` stays importable without the extra and
+  records unmapped cell types in `meta["skipped_cell_types"]` instead of failing.
 - **CLI** (`cli/`): `openfemlab modal | correlate | correlate-frf | update` over
   JSON/YAML model specs and UFF-58 measured FRFs; machine-readable JSON on stdout,
   diagnostics on stderr, CI acceptance gates via exit codes; covered end to end
