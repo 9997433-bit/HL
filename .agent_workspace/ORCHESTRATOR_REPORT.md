@@ -9,7 +9,7 @@
 ## 一、执行摘要
 
 OpenFEMLab 是一个受 FEMtools 启发、但完全开源（MIT）、求解器无关的 CAE 平台。
-截至本报告，**Round 1 已完成收官，Round 2 九项任务已全部启动；R2-T05 从待启动推进为部分完成**。平台已交付从建模、模态分析、试验相关性、灵敏度/贝叶斯模型修正、阻尼动力学与 FRF 综合，到优化与命令行工作流的完整链路，由 **1331 个测试**与 GitHub Actions CI（Python 3.10–3.13）守护。44 条量化验收准则现已 **44/44 覆盖**（30 `implemented`、14 `verified`、0 `specified`）；R2-T04 贝叶斯 MAP 保持验收完成。R2-T02 的最后一项列式——平板壳面元 `ShellQuad4Element`——已经合入，单元库不再有列式缺口；`NeutralModel → Model` 转换也已落地，"导入工业网格 → 内部再分析"因此打通。R2-T05 的 meshio ↔ `NeutralModel` 双向桥已经落地，但 UNV 2411/2412、AC-IO-001..003 注册与 UFF 写出仍待完成。成果已通过 [PR #5](https://github.com/9997433-bit/hl/pull/5) 汇入评审流程。
+截至本报告，**Round 1 已完成收官，Round 2 九项任务已全部启动；R2-T05 从待启动推进为部分完成**。平台已交付从建模、模态分析、试验相关性、灵敏度/贝叶斯模型修正、阻尼动力学与 FRF 综合，到优化与命令行工作流的完整链路，由 **1331 个测试**与 GitHub Actions CI（Python 3.10–3.13）守护。44 条量化验收准则现已 **44/44 覆盖**（30 `implemented`、14 `verified`、0 `specified`）；R2-T04 贝叶斯 MAP 保持验收完成。R2-T02 的最后一项列式——平板壳面元 `ShellQuad4Element`——已经合入，单元库不再有列式缺口；`NeutralModel → Model` 转换也已落地，"导入工业网格 → 内部再分析"因此打通。R2-T05 的 meshio ↔ `NeutralModel` 双向桥已经落地，AC-IO-001..003 也已注册为模块 **M8**（`MS-9`，A120，验收准则总量 44 → 47），UNV 2411/2412 与 UFF 写出仍待完成。成果已通过 [PR #5](https://github.com/9997433-bit/hl/pull/5) 汇入评审流程。
 
 对标 FEMtools 的一句话结论：**在算法深度、开放性与自动化上超越，在 GUI 与商用格式广度上有意让步**（后者已登记为 Round 2/3 计划项，不是隐藏缺陷）。
 
@@ -64,7 +64,7 @@ OpenFEMLab 是一个受 FEMtools 启发、但完全开源（MIT）、求解器�
 | R2-T02 | 3D 单元库 | **部分**——QUAD4（61）、TET4（66）、HEX8（76）、**空间梁 BeamElement3D（42）** 与 **平板壳面元 ShellQuad4Element（72，MITC4 板 + 钻转罚项，A98）** 均已上主干，`NeutralModel → Model` 转换（A106，52）亦已落地，AC-ELEM-001..003 覆盖连续体三件套，其中 AC-ELEM-001 已 `verified`；**单元列式再无缺口**。余量：把 AC-ELEM-* 参数化到壳面元；让 `to_model` 把导入的 `QUAD4` 块绑到壳而非膜单元；`CQUAD4`/`CTETRA`/`CHEXA`/`CBAR`/`PSHELL`/`PSOLID` BDF 卡 |
 | R2-T03 | SEREP/Guyan/IRS 缩减 + TAM + 振型扩展 | **基本完成**——引擎落地，AC-CORR-006 已 `verified`、AC-CORR-009 已 `implemented`，`SensorMap.signs` 已接入缩减基（A58）；余量：缩减模块对稀疏输入的稠密化（GAP-13 规模前需改） |
 | R2-T04 | 贝叶斯 MAP 修正（MS-3.5） | **验收完成**——估计器落地（36 个测试），AC-UPD-006a/b 已注册并 `implemented`（10 自由度孪生上的八用例验收门），`CorrectionReport` σ_post 列已接入；验收范围外余量：CLI `update` 文档输出 σ_post |
-| R2-T05 | meshio 桥 + UNV 2411/2412 | **部分**——`from_meshio`/`to_meshio` 与 `read_meshio`/`write_meshio` 已落地（44 个测试）；节点/单元标签和 `property_ids`/`gmsh:physical`/`medit:ref` 属性标签可往返，未知单元带诊断跳过，缺少 `[io]` 附加依赖时抛出带安装提示的 `MissingDependencyError`。余量：AC-IO-001..003、UNV 2411/2412、UFF 写出及 `NeutralModel → Model` 再分析 |
+| R2-T05 | meshio 桥 + UNV 2411/2412 | **部分**——`from_meshio`/`to_meshio` 与 `read_meshio`/`write_meshio` 已落地（44 个测试）；节点/单元标签和 `property_ids`/`gmsh:physical`/`medit:ref` 属性标签可往返，未知单元带诊断跳过，缺少 `[io]` 附加依赖时抛出带安装提示的 `MissingDependencyError`。AC-IO-001..003 已注册为模块 M8（A120），`NeutralModel → Model` 再分析已由 A106 打通。余量：UNV 2411/2412、UFF 写出 |
 | R2-T06 | 修正深度（共线性筛查等） | **P0 部分完成**（MS-3.6 筛查 + AC-UPD-007 已 `implemented`）；P1 余量（QR 选主元精化、解析 MAC 行 Jacobian 接线、模型级参数解析器）开放 |
 | R2-T07 | SciPy 优化后端 | **完成**（GAP-12 对尺寸优化关闭，AC-OPT-001..004 实现，含边界激活 KKT 判据） |
 | R2-T08 | R1-O2 平行实现和解 | **完成**——有用行为经和解合入主干；被取代的远程分支已审计并删除（见 `BRANCH_CLEANUP.md`） |
@@ -90,7 +90,7 @@ OpenFEMLab 是一个受 FEMtools 启发、但完全开源（MIT）、求解器�
 1. **收官 Round 2**：
    - 继续其余 30 条注册表 `implemented → verified` 翻转（以钉住提交的 CI 通过作为晋升凭据），满足退出门槛；
    - 把 AC-ELEM-* 参数化到壳面元、让 `to_model` 支持壳块，再补 `CQUAD4`/`CTETRA`/`CHEXA`/`CBAR`/`PSHELL`/`PSOLID` BDF 卡（R2-T02 余量）；顺带的廉价项：空间梁加入 AC-ELEM-002 刚体不变性用例表（无需新准则 ID）；
-   - 完成 R2-T05 余量：注册 AC-IO-001..003，增加 UNV 2411/2412 几何读取与 UFF 写出，并以 `NeutralModel → Model` 转换打通"导入工业网格 → 内部再分析"演示；
+   - 完成 R2-T05 余量：增加 UNV 2411/2412 几何读取与 UFF 写出，并晋升 A120 注册的 AC-IO-001..003 三行（注册与"导入工业网格 → 内部再分析"演示均已落地）；
    - CLI `update` 文档输出 σ_post（R2-T04 验收范围外余量）。
 2. **推进 PR #5 评审**：刷新标题/正文至 1331 测试规模，Draft 转正式，评审后合入 `main`。
 3. **Round 3（SOTA 打磨）**：FRF 模态参数识别 MPE（GAP-06）、预试验传感器布置（GAP-07）、5 万自由度规模化（GAP-13，含缩减模块去稠密化）、绘图/可视化（GAP-15）、FRF 修正残差、TMCMC 贝叶斯采样、Craig–Bampton CMS。

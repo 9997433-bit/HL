@@ -36,7 +36,7 @@ the imported-shell modal example (A128), and the A121 closure above.
 | R2-T02 3D elements | **PARTIAL** — all formulations in `core/elements.py`; `neutral_convert` with `quad4_as="shell"` (A129); Nastran BDF reads CQUAD4/CTETRA/CHEXA/CBAR + PSHELL/PSOLID (A119). Open: fold shell into AC-ELEM case table. |
 | R2-T03 reduction/expansion | **ACCEPTANCE-COMPLETE** — engine (A36), AC-CORR-006/009 **`verified`**. Open: sparse inputs. |
 | R2-T04 Bayesian MAP | **ACCEPTANCE-COMPLETE** — estimator (A49), AC-UPD-006a/b **`verified`**, σ_post in `CorrectionReport` and CLI `update` (A122). |
-| R2-T05 meshio & IO | **PARTIAL** — meshio bridge (A89), `neutral_convert` (A106), import example (A128), UFF read/write (A123), UNV 2411/2412 `read_unv` (A125). Open: AC-IO-001..003 registration. |
+| R2-T05 meshio & IO | **ACCEPTANCE-COMPLETE for registration** — meshio bridge (A89), `neutral_convert` (A106), UFF read/write (A123), UNV 2411/2412 (A125), AC-IO-001..003 as module M8 (A120). Open: promote the three M8 rows to `verified`. |
 | R2-T06 updating depth | P0 slice closed (AC-UPD-007 **`verified`**); P1 depth (MAC-row Jacobian, model-level resolver) open. |
 | R2-T07 optimization | **COMPLETE for sizing** — AC-OPT-001..004 **`verified`**. Shape variables still FD. |
 | R2-T08 R1-O2 reconciliation | **COMPLETE** |
@@ -52,7 +52,7 @@ the gap register at audit time:
 | Gap | Audit status | Status entering Round 2 |
 |---|---|---|
 | GAP-01 integration split-brain | P0, suite not collecting | **Largely closed.** `ModalResult` unified (commit `508813e`), `modal/eigen.py` is a thin adapter over `solver/modal.py` (A08), full suite green at **192 passed** (A22). Residual: enforce the "seams land atomically with consumers" rule and keep CI green. |
-| GAP-03 industrial IO | P0, absent | **Partial.** UFF datasets 55/58 reader (A12), minimal Nastran BDF `GRID`/`CROD`/`MAT1` (A18), and the meshio bridge behind the P7 optional-dependency seam (A89, `io/meshio_bridge.py`, 44 tests) — every format meshio reads now enters the platform as a `NeutralModel`, and `io/neutral_convert.py` (A106, 52 tests) converts that into the internal `Model` so the imported mesh can be re-analyzed rather than only correlated. UFF datasets 55/58 are now written as well as read (A123, `write_uff`/`format_uff`, 20 round-trip tests). Remaining: UNV 2411/2412, broader BDF cards, AC-IO-001..003 registration, OP2. |
+| GAP-03 industrial IO | P0, absent | **Partial.** Native/meshio/BDF/UNV/UFF interchange is gated by AC-IO-001..003 (A120, module M8). Remaining: OP2, promote M8 criteria. |
 | GAP-14 CLI stubs | P2, stubbed | **Closed for R2.** `modal`/`correlate`/`update` landed with model-spec format, gates, JSON/YAML documents on clean stdout (A07/A16/A22). |
 | GAP-10 updating depth | P1, absent | **Partial.** Dotted-path parameter targeting in the CLI spec layer (A07), affine `ScalingModel` dK/dθ (A04), vectorized Fox–Kapoor + MAC sensitivities (A04/A10). Remaining: model-level resolver, assembled per-element dK/dp, analytic MAC-row Jacobian wiring → R2-T06. The MS-3.6 collinearity screen is done: `workflow/selection.py` plus the AC-UPD-007 acceptance tests (A44). |
 | GAP-09 node mapping | P1, absent | **Partial.** Label-based DOF alignment (`correlation/align.py`, `workflow/sensors.py`). Remaining: geometry-based nearest-node mapping → folded into R2-T05/T06 scope notes. |
@@ -387,9 +387,10 @@ consistency tests fail.
   for the geometry-only files meshio returns. `read_meshio` → `neutral_to_model` →
   `ModalSolver` is therefore a working path for rod, beam, quad, tet and hex blocks.
   UFF writing landed with A123: `write_uff`/`format_uff` emit datasets 55 and 58 in the
-  records `read_uff` accepts, with 20 round-trip tests.
-  **Remaining to close the task:** register AC-IO-001..003 (spec-first, three files in
-  one commit) and UNV 2411/2412 in `io/uff.py`.
+  records `read_uff` accepts, with 20 round-trip tests. UNV 2411/2412 reading landed
+  with A125 (`read_unv`, 50 tests). The acceptance rows landed with A120 as module **M8**
+  (`MS-9`), which moves the pinned inventory to 47. **Remaining to close the task:**
+  promoting the three M8 rows once a gate run with the `[io]` extra is green.
 - **Scope:**
   - ~~`io/meshio_bridge.py`: bidirectional `meshio.Mesh` ↔ `NeutralModel` conversion
     (points → node arrays, cell blocks → `ElementType` blocks with an explicit,
@@ -402,18 +403,23 @@ consistency tests fail.
   - UNV 2411/2412 (nodes/elements) in `io/uff.py` so a *complete* UFF test model —
     geometry + modes (55) + FRFs (58) — round-trips; this also gives correlation a real
     test-geometry source for the GAP-09 nearest-node mapping.
-- **Acceptance links:** no AC rows exist for IO — register (proposed): AC-IO-001
-  meshio round-trip `NeutralModel → meshio → NeutralModel` preserves nodes, blocks,
-  ids (`contract`, exact) — the engine and a developer-suite test exist (A89), so this
-  needs the three-file registration commit and moves the pinned 44-criterion inventory;
-  AC-IO-002 imported Gmsh/Abaqus fixture assembles and solves
-  through the modal pipeline with AC-MODAL-003/006 holding (`contract`, needs R2-T02
-  for 3D cells); AC-IO-003 UNV 2411/2412 + 55 fixture feeds
-  `correlate_modal_data` end to end (`contract`).
-- **Dependencies:** R2-T02 for solid/shell re-analysis (the bridge landed first,
-  restricted to already-supported element types, as planned). AC-IO-002's remaining
-  dependency was the `NeutralModel` → `Model` conversion, which A106 closed; what the
-  criterion still needs is a committed Gmsh/Abaqus fixture and the registration commit.
+- **Acceptance links:** registered by A120 as module **M8** over
+  `tests/acceptance/test_io.py` (30 cases), ordered as the path a file travels rather
+  than as the three proposals below: **AC-IO-001** (P0, `contract`, MS-9.2) the native
+  JSON/YAML round trip, bitwise and with the two encodings proven to be one document;
+  **AC-IO-002** (P1, `contract`, MS-9.3) the meshio round trip, in memory and on disk in
+  every format that carries data arrays, plus the two edges of the skip/raise policy;
+  **AC-IO-003** (P0, `contract`, MS-9.4) `read_meshio` → `neutral_to_model` →
+  `assemble_system` over rod/quad/tet/hex, gated against the hand-built model bit for bit
+  and against the continuum bar oracle. The originally proposed wording — a meshio
+  round trip, a Gmsh/Abaqus fixture solving through the modal pipeline, and a UNV
+  2411/2412 + 55 fixture feeding `correlate_modal_data` — was superseded: the first two
+  fold into AC-IO-002/003, and the third had to wait for a reader that does not exist
+  yet, which would have left a `specified` row blocking the dense-numbering rule.
+- **Dependencies:** all cleared. R2-T02 supplied the solid/shell formulations and A106
+  the `NeutralModel` → `Model` conversion AC-IO-003 needed; no committed binary fixture
+  was required in the end, because the suite writes its meshes with meshio into
+  `tmp_path` from the `mesh.simple` generators.
 
 ---
 
@@ -464,9 +470,8 @@ Round 2 is done when, on the integration branch in CI:
    AC-UPD-006a/b (Bayesian), AC-CORR-009, AC-MODAL-008, AC-WORK-003,
    AC-UPD-008, AC-OPT-004, AC-DYN-005 and AC-ELEM-003 — remain `implemented`.
 3. The newly registered dynamics / element / IO criteria (T01/T02/T05 proposals above)
-   are at least `implemented` — done on the integration branch for AC-DYN-001..005 (T01)
-   and, since the A79 merge, AC-ELEM-001..003 (T02); the AC-IO-* rows of T05 are still
-   unregistered.
+   are at least `implemented` — **met**: AC-DYN-001..005 (T01) and AC-ELEM-001..003
+   (T02) are `verified`, and AC-IO-001..003 (T05) landed `implemented` with A120.
 4. A measured FRF (UFF-58) can be compared against a synthesized FRF from a damped model
    via FRAC/FDAC through the CLI, and a meshio- or BDF-imported 3D mesh can be
    re-analyzed internally — the two headline workflow demos for the round. **The FRF

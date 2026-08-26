@@ -81,9 +81,8 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A126 | claude-fable-5-thinking-xhigh | Reconcile ROUND2_PLAN §0 / STATUS / PR_DRAFT to 1331-test / 14-verified snapshot (extended to 44 verified by A121 merge) | complete — §0 re-pinned at `8065205`, 44/44 verified |
 | A119 | claude-opus-5-thinking-high-fast | R2-T02/R2-T05: Nastran BDF CQUAD4/CTETRA/CHEXA/CBAR + PSHELL/PSOLID (+30 tests) | complete — 1365 passed at `9704232`, Ruff clean |
 | A121 | gpt-5.6-sol-xhigh-fast | R2-T09 batch promotion: run every remaining implemented criterion through `promote_verified.py --run --apply` | complete — all 30 promoted; registry 44 `verified` / 0 `implemented` |
-| A123 | claude-opus-5-thinking-high-fast | R2-T05: UFF datasets 55/58 writer `write_uff`/`format_uff` (+20 tests) | complete — 1385 passed, Ruff clean |
-| A125 | claude-opus-5-thinking-high-fast | R2-T05: UNV 2411/2412 geometry reader `read_unv` (+50 tests) | complete — merged on integration branch |
 | A122 | claude-opus-5-thinking-high-fast | MS-3.5 on CLI: `prior:`/`noise:` and σ_post in `openfemlab update` (+34 tests) | complete — merged on integration branch |
+| A120 | claude-opus-5-thinking-high-fast | R2-T05: register AC-IO-001..003 as module M8 (+30 tests) | complete — registry 47 rows (44 verified / 3 implemented M8) |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
@@ -3516,6 +3515,86 @@ private worktree at `/tmp/a119` with `PYTHONPATH` pinned to its own `src` — th
 A114 logged was live again, the inherited `PYTHONPATH` pointing at `/tmp/a114`. 30 of
 those tests are the new `tests/test_nastran.py`, which leaves the existing
 `tests/test_nastran_io.py` to hold the `GRID`/`CROD`/`MAT1` core it already covered.
+
+#### A120 — AC-IO-001..003: the io layer gets acceptance criteria (module M8)
+
+R2-T05 has carried "AC-IO-001..003 registration" as an open item since A89 landed the
+meshio bridge, and it was the last thing standing between the io work and a gated claim.
+Every other module's criteria start from matrices that are already inside the process;
+these three are what make "an externally meshed structure can be analyzed here" testable
+at all. Registered spec-first in one change, because the registry consistency tests fail
+on any partial one.
+
+**A new module family.** `IO` maps to **M8**, so the platform's module list runs M1..M8
+and the pinned inventory moves 44 → **47**. `docs/MODULE_SPEC.md` gains section 9,
+`MS-9` (the eighth module takes `MS-9` for the same reason the sixth took `MS-7`: `MS-6`
+is the inter-module contracts section): MS-9.1 the interchange/internal split and why a
+reader returns a `NeutralModel` and never a `Model`, MS-9.2 the native schema and its
+round-trip contract, MS-9.3 the foreign readers with the one-to-one meshio cell table and
+the P7 optional-dependency seam, MS-9.4 the neutral → internal conversion, MS-9.5 the
+public API. `ACCEPTANCE_CRITERIA.md` gains section 9 with the three rows and their gates;
+the enforcement contract renumbers to section 10.
+
+**The criteria are the path a file travels**, not three views of one function:
+
+- **AC-IO-001** (P0, `contract`, MS-9.2) — a `NeutralModel` with two blocks and both
+  tables, a `ModalResult`, and a `TestData` with *complex* shapes each survive the JSON
+  and the YAML round trip with every array **bitwise** equal, the two encodings of one
+  object parse to the same mapping, each document carries `format` / `schema_version` /
+  `object_type`, and a non-finite float is refused at write time rather than emitted in a
+  spelling the two encodings disagree on.
+- **AC-IO-002** (P1, `contract`, MS-9.3) — a three-block model with non-contiguous node
+  labels round trips in memory and on disk through every format that carries data arrays
+  (VTU, VTK, and Gmsh, which needs entity information before it will write more than one
+  cell type and so is exercised on a single block), coordinates bitwise and node ids,
+  connectivity *in those ids*, property ids and element ids exactly. The gate also pins
+  the two edges of the policy: `BEAM2` has no meshio cell type and raises rather than
+  collapsing onto `line`, and an unmapped *cell* type is skipped with a warning and a
+  `meta["skipped_cell_types"]` record.
+- **AC-IO-003** (P0, `contract`, MS-9.4) — for `ROD2`, `QUAD4`, `TET4` and `HEX8`, a mesh
+  written by **meshio itself** (no OpenFEMLab data arrays, so the labels and property ids
+  are the reader's own) goes `read_meshio` → `neutral_to_model` → `assemble_system` and
+  produces `K`, `M`, the DOF partition and `total_mass` **identical** to the assembly of
+  the model `mesh.simple` builds from the same nodes and elements — measured, not
+  asserted loosely: `np.testing.assert_array_equal` on the dense matrices passes.
+
+**Why the reference is the hand-built model.** Comparing against a stored matrix would
+measure the code against a previous run of itself. Comparing against the model a user
+would have written by hand measures what the conversion *adds*, which should be nothing,
+and the file is genuinely third-party on the write side. That leaves one hole — both
+models could be wrong together — so the last test closes it against physics: the imported
+hex bar, restrained to its axial direction, reaches the continuum first frequency
+`c/(4L)` to **0.16 %** against a 1 % gate.
+
+**The promotion-span rule needed a decision.** `test_verified_criteria_span_every_module`
+asserted that every module in `VALID_MODULES` has a `verified` row. Adding M8 with three
+brand-new `implemented` rows would have turned it red, and quietly relaxing it would have
+made the rule satisfiable by silence. Instead the registry carries an explicit
+`MODULES_AWAITING_PROMOTION = ("M8",)`, and the same test *also* fails when a module on
+that list already has a verified row — so the exemption expires by itself the moment
+AC-IO-001 is promoted, rather than sitting there as a permanent hole. It is written up as
+rule 8 in section 10.
+
+**Reconciliation with a trunk that moved underneath.** Between the first commit and the
+merge, the trunk took A121's batch promotion (all 44 M1..M7 rows to `verified`), A119's
+wider BDF card set and A129's `quad4_as="shell"` converter branch. The one conflict was
+the AC-ELEM-003 status literal, resolved to the trunk's `verified`. Two staleness items
+came with it and are fixed here rather than left: `ACCEPTANCE_CRITERIA.md` section 10
+still said "Fourteen of them are `verified`" after the batch promotion had made it 44,
+and the freshly written MS-9.3/MS-9.4/MS-9.5 had to name the cards `read_bdf` now reads
+and the shell binding `neutral_to_model` now offers.
+
+**Verification.** **1395 passed, 0 failed** and `ruff check .` clean at `181ee7b`
+(1365 on the trunk plus exactly the 30 cases of the new suite), on Python 3.12.3 in the
+private worktree `/tmp/a120` with `PYTHONPATH` pinned to its own `src`. The registry
+gate `tests/acceptance/test_registry_ci.py` re-runs all 44 promoted criteria twice under
+different hash seeds and stays green with M8 present. The shared `/workspace` checkout
+was on another agent's branch with uncommitted changes when this run started and was left
+untouched.
+
+**Open for R2-T05.** Promoting the three M8 rows. AC-IO-002 and AC-IO-003 take a skip
+without the `[io]` extra, and a skip blocks promotion, so the promoting run has to be one
+with meshio installed — which CI's `[dev]` extra already guarantees.
 
 #### A123 — UFF writing: datasets 55 and 58
 
