@@ -1,30 +1,71 @@
 <script setup>
-/**
- * 家长中心：学习报告 + 使用设置 + 数据管理。
- *
- * 所有数字都来自本机 localStorage，页面上不做任何网络请求，
- * 「导出 / 导入」走的是文件下载与文件读取，方便换设备时手动搬家。
- */
-import { computed, onMounted, ref } from 'vue'
-import gsap from 'gsap'
+import { computed, ref } from 'vue'
 import ProgressRing from '@/components/ProgressRing.vue'
-import { UNITS } from '@/data/characters.js'
+import { FONT_SCALES, THEMES, useSettingsStore } from '@/stores/settings.js'
+import { MASTERY_THRESHOLD, useProgressStore } from '@/stores/progress.js'
+import { CHARACTERS, UNITS } from '@/data/characters.js'
 import { BOOKS } from '@/data/books.js'
 import { IDIOMS } from '@/data/idioms.js'
-import { RADICALS } from '@/data/radicals.js'
-import { useProgressStore } from '@/stores/progress.js'
-import { FONT_SCALES, THEMES, useSettingsStore } from '@/stores/settings.js'
 import { sfx } from '@/utils/sfx.js'
 
 const progress = useProgressStore()
 const settings = useSettingsStore()
 
-const chartRef = ref(null)
-const fileRef = ref(null)
-const notice = ref('')
-const confirmingReset = ref(false)
+/* ---------------- 家长验证：一道两位数加法，挡住小朋友即可 ---------------- */
+const unlocked = ref(false)
+const answer = ref('')
+const gateError = ref('')
+const quiz = ref(makeQuiz())
 
-const nameDraft = ref(settings.childName)
+function makeQuiz() {
+  const a = 11 + Math.floor(Math.random() * 78)
+  const b = 11 + Math.floor(Math.random() * 78)
+  return { a, b, sum: a + b }
+}
+
+function submitGate() {
+  if (Number(answer.value) === quiz.value.sum) {
+    unlocked.value = true
+    gateError.value = ''
+  } else {
+    gateError.value = '答案不对，再算一次～'
+    answer.value = ''
+    quiz.value = makeQuiz()
+  }
+}
+
+/* ---------------- 学习报告 ---------------- */
+const week = computed(() => progress.last7Days)
+const maxMinutes = computed(() =>
+  Math.max(5, ...week.value.map((d) => Math.round(d.seconds / 60)))
+)
+
+const totalMinutes = computed(() =>
+  Math.round(Object.values(progress.daily).reduce((n, d) => n + (d.seconds || 0), 0) / 60)
+)
+
+const unitRows = computed(() =>
+  UNITS.map((u) => ({ ...u, ...progress.unitProgress(u.id) }))
+)
+
+/** 错得最多的字，给家长做针对性辅导用。 */
+const weakChars = computed(() =>
+  Object.entries(progress.chars)
+    .map(([char, v]) => ({ char, ...v }))
+    .filter((c) => (c.wrong || 0) > 0)
+    .sort((a, b) => b.wrong - a.wrong || a.correct - b.correct)
+    .slice(0, 12)
+)
+
+const accuracy = computed(() => {
+  const c = Object.values(progress.chars).reduce((n, v) => n + (v.correct || 0), 0)
+  const w = Object.values(progress.chars).reduce((n, v) => n + (v.wrong || 0), 0)
+  return c + w ? Math.round((c / (c + w)) * 100) : 0
+})
+
+/* ---------------- 数据管理 ---------------- */
+const importError = ref('')
+const notice = ref('')
 
 function flash(msg) {
   notice.value = msg
@@ -33,56 +74,7 @@ function flash(msg) {
   }, 3000)
 }
 
-/* ------------------------------------------------------------------ 报告 */
-
-const minutesToday = computed(() => Math.round(progress.todayStats.seconds / 60))
-
-const summary = computed(() => [
-  { emoji: '🈶', label: '认识的字', value: progress.learnedCount, unit: `/ ${progress.totalChars}` },
-  { emoji: '🏆', label: '已掌握', value: progress.masteredCount, unit: '字' },
-  { emoji: '⭐', label: '收集的星星', value: progress.stars, unit: '颗' },
-  { emoji: '🔥', label: '连续学习', value: progress.streakDays, unit: '天' },
-  { emoji: '⏱️', label: '今天用时', value: minutesToday.value, unit: '分钟' },
-  { emoji: '🎧', label: '听音答对', value: progress.game.correct, unit: `/ ${progress.game.rounds || 0}` }
-])
-
-const days = computed(() => progress.recentDays)
-
-/** 柱状图高度按当日分钟数归一化，至少留 4% 让「有来过」也看得见。 */
-const maxMinutes = computed(() => Math.max(10, ...days.value.map((d) => d.minutes)))
-
-function barHeight(d) {
-  if (!d.minutes && !d.chars) return 0
-  return Math.max(4, Math.round((d.minutes / maxMinutes.value) * 100))
-}
-
-const units = computed(() =>
-  UNITS.map((u) => ({ ...u, stat: progress.unitProgress(u.id) }))
-)
-
-const contentStats = computed(() => [
-  { emoji: '📖', label: '绘本读完', done: progress.booksFinished, total: BOOKS.length },
-  { emoji: '🎭', label: '成语学过', done: progress.idiomsSeen, total: IDIOMS.length },
-  { emoji: '🧩', label: '偏旁看过', done: progress.radicalsSeen, total: RADICALS.length }
-])
-
-const reviewChars = computed(() => progress.reviewQueue.slice(0, 12))
-
-/* ------------------------------------------------------------------ 设置 */
-
-function patch(key, value) {
-  sfx.tap()
-  settings.update({ [key]: value })
-}
-
-function saveName() {
-  settings.update({ childName: nameDraft.value.trim().slice(0, 12) })
-  flash('名字已保存 ✅')
-}
-
-/* -------------------------------------------------------------- 数据管理 */
-
-function download() {
+function exportData() {
   sfx.tap()
   const blob = new Blob([progress.exportJson()], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
@@ -91,383 +83,434 @@ function download() {
   a.download = `识字进度-${new Date().toISOString().slice(0, 10)}.json`
   a.click()
   URL.revokeObjectURL(url)
-  flash('进度已导出到下载文件夹 📦')
+  flash('进度已导出为 JSON 文件')
 }
 
-async function onFile(event) {
+async function importData(event) {
   const file = event.target.files?.[0]
   if (!file) return
-  const text = await file.text()
-  event.target.value = ''
-  if (progress.importJson(text)) {
-    sfx.levelUp()
-    flash('进度导入成功 🎉')
-  } else {
-    sfx.wrong()
-    flash('这个文件读不懂，请选择本应用导出的 JSON ❌')
+  importError.value = ''
+  try {
+    progress.importJson(await file.text())
+    flash('进度已导入')
+  } catch (err) {
+    importError.value = `导入失败：${err.message}`
+  } finally {
+    event.target.value = ''
   }
 }
 
-function askReset() {
-  sfx.tap()
-  confirmingReset.value = true
-}
-
-function doReset() {
+function resetAll() {
+  if (!window.confirm('确定要清空所有学习记录吗？此操作无法撤销。')) return
   progress.resetAll()
-  settings.reset()
-  nameDraft.value = ''
-  confirmingReset.value = false
-  flash('已清空全部学习数据')
+  flash('学习记录已清空')
 }
 
-onMounted(() => {
-  if (settings.reduceMotion) return
-  const bars = chartRef.value?.querySelectorAll('.chart__fill')
-  if (!bars?.length) return
-  gsap.from(bars, {
-    scaleY: 0,
-    transformOrigin: 'bottom center',
-    duration: 0.5,
-    ease: 'back.out(1.5)',
-    stagger: 0.03
-  })
-})
+function resetSettings() {
+  settings.reset()
+  flash('显示设置已恢复默认')
+}
 </script>
 
 <template>
   <div class="page">
-    <section class="card card--flat intro">
-      <div class="intro__text">
-        <h2 class="section-title">
-          <span class="section-title__emoji" aria-hidden="true">👨‍👩‍👧</span>
-          家长中心
-        </h2>
-        <p class="muted">
-          这里是给大人看的。所有数据只存在这台设备的浏览器里，不会上传到任何服务器。
-        </p>
-      </div>
-      <ProgressRing
-        :value="progress.overallPercent / 100"
-        :size="86"
-        :thickness="9"
-        sublabel="总进度"
-      />
+    <!-- 家长验证 -->
+    <section v-if="!unlocked" class="gate card">
+      <div class="gate__emoji" aria-hidden="true">🔐</div>
+      <h2 class="gate__title">家长中心</h2>
+      <p class="gate__desc muted">为了防止小朋友误改设置，请先回答一道算术题。</p>
+      <form class="gate__form" @submit.prevent="submitGate">
+        <label class="gate__q" for="gate-answer">
+          {{ quiz.a }} + {{ quiz.b }} = ?
+        </label>
+        <input
+          id="gate-answer"
+          v-model="answer"
+          class="gate__input"
+          type="number"
+          inputmode="numeric"
+          autocomplete="off"
+          placeholder="输入答案"
+        />
+        <button class="btn btn--primary btn--lg btn--block" type="submit">进入 →</button>
+      </form>
+      <p v-if="gateError" class="gate__err">{{ gateError }}</p>
     </section>
 
-    <p v-if="notice" class="notice">{{ notice }}</p>
+    <template v-else>
+      <p v-if="notice" class="notice">{{ notice }}</p>
 
-    <!-- 关键指标 -->
-    <section class="stack">
-      <h3 class="section-title">
-        <span class="section-title__emoji" aria-hidden="true">📊</span>
-        学习概览
-      </h3>
-      <div class="cards">
-        <div v-for="s in summary" :key="s.label" class="stat card">
-          <span class="stat__emoji" aria-hidden="true">{{ s.emoji }}</span>
-          <strong class="stat__value">{{ s.value }}</strong>
-          <span class="stat__unit muted">{{ s.unit }}</span>
-          <span class="stat__label">{{ s.label }}</span>
+      <!-- 总览 -->
+      <section class="card overview">
+        <ProgressRing :percent="progress.overallPercent" :size="98" :stroke="10" label="识字进度" />
+        <div class="overview__grid">
+          <div><strong>{{ progress.learnedCount }}</strong><small>学过的字</small></div>
+          <div><strong>{{ progress.masteredCount }}</strong><small>已掌握</small></div>
+          <div><strong>{{ accuracy }}%</strong><small>作答正确率</small></div>
+          <div><strong>{{ totalMinutes }}</strong><small>累计分钟</small></div>
+          <div><strong>{{ progress.streakDays || 1 }}</strong><small>连续天数</small></div>
+          <div><strong>{{ progress.stars }}</strong><small>获得星星</small></div>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <!-- 近两周曲线 -->
-    <section class="card stack">
-      <h3 class="section-title">
-        <span class="section-title__emoji" aria-hidden="true">📈</span>
-        最近 14 天
-      </h3>
-      <div ref="chartRef" class="chart">
-        <div v-for="d in days" :key="d.key" class="chart__col">
-          <span class="chart__track">
-            <span
-              class="chart__fill"
-              :class="{ 'is-empty': !barHeight(d) }"
-              :style="{ height: `${barHeight(d)}%` }"
-              :title="`${d.label}：${d.minutes} 分钟，${d.chars} 个新字`"
-            />
-          </span>
-          <small class="chart__day">{{ d.label.slice(-2) }}</small>
-        </div>
-      </div>
-      <p class="muted chart__foot">柱子高度代表当天的学习时长，鼠标停在上面能看到明细。</p>
-    </section>
-
-    <!-- 单元掌握度 -->
-    <section class="card stack">
-      <h3 class="section-title">
-        <span class="section-title__emoji" aria-hidden="true">🗂️</span>
-        各单元掌握度
-      </h3>
-      <ul class="units">
-        <li v-for="u in units" :key="u.id" class="unit">
-          <span class="unit__emoji" aria-hidden="true">{{ u.emoji }}</span>
-          <span class="unit__body">
-            <strong>{{ u.name }}</strong>
-            <span class="unit__bar">
-              <span class="unit__fill" :style="{ width: `${u.stat.percent}%`, background: u.color }" />
+      <!-- 近 7 天 -->
+      <section class="card stack">
+        <h3 class="section-title">
+          <span class="section-title__emoji" aria-hidden="true">📊</span>
+          最近 7 天
+        </h3>
+        <div class="chart">
+          <div v-for="d in week" :key="d.key" class="chart__col">
+            <span class="chart__value">{{ Math.round(d.seconds / 60) || '' }}</span>
+            <span class="chart__track">
+              <span
+                class="chart__bar"
+                :style="{ height: `${Math.max(3, (Math.round(d.seconds / 60) / maxMinutes) * 100)}%` }"
+              />
             </span>
-          </span>
-          <span class="pill">{{ u.stat.done }} / {{ u.stat.total }}</span>
-        </li>
-      </ul>
+            <span class="chart__label">{{ d.label }}</span>
+            <small class="chart__chars">{{ d.newChars ? `+${d.newChars}字` : '—' }}</small>
+          </div>
+        </div>
+        <p class="muted chart__note">柱子高度是每天的学习分钟数，下面是当天新学的字数。</p>
+      </section>
 
-      <div class="content-stats">
-        <span v-for="c in contentStats" :key="c.label" class="pill pill--accent">
-          {{ c.emoji }} {{ c.label }} {{ c.done }} / {{ c.total }}
-        </span>
-      </div>
-    </section>
+      <!-- 单元掌握情况 -->
+      <section class="card stack">
+        <h3 class="section-title">
+          <span class="section-title__emoji" aria-hidden="true">📚</span>
+          各单元进度
+        </h3>
+        <ul class="units">
+          <li v-for="u in unitRows" :key="u.id" class="unitrow">
+            <span class="unitrow__emoji" aria-hidden="true">{{ u.emoji }}</span>
+            <span class="unitrow__name">{{ u.name }}</span>
+            <span class="unitrow__bar">
+              <span class="unitrow__fill" :style="{ width: `${u.percent}%`, background: u.color }" />
+            </span>
+            <span class="unitrow__num">{{ u.done }}/{{ u.total }}</span>
+          </li>
+        </ul>
+        <div class="row">
+          <span class="pill">📖 绘本 {{ progress.booksFinished }}/{{ BOOKS.length }}</span>
+          <span class="pill">🎭 成语 {{ progress.idiomsSeen }}/{{ IDIOMS.length }}</span>
+          <span class="pill">🎧 游戏 {{ progress.game.plays }} 题 · 正确率 {{ progress.gameAccuracy }}%</span>
+        </div>
+      </section>
 
-    <!-- 复习建议 -->
-    <section v-if="reviewChars.length" class="card stack">
-      <h3 class="section-title">
-        <span class="section-title__emoji" aria-hidden="true">🔁</span>
-        建议今天复习
-      </h3>
-      <p class="muted">这些字学过但还不牢固，陪孩子再读一遍效果最好。</p>
-      <div class="review">
-        <RouterLink
-          v-for="ch in reviewChars"
-          :key="ch"
-          class="review__chip"
-          :to="`/learn/${encodeURIComponent(ch)}`"
-          @click="sfx.tap()"
-        >
-          {{ ch }}
-        </RouterLink>
-      </div>
-    </section>
+      <!-- 需要加强 -->
+      <section class="card stack">
+        <h3 class="section-title">
+          <span class="section-title__emoji" aria-hidden="true">🎯</span>
+          建议加强的字
+        </h3>
+        <p v-if="!weakChars.length" class="muted">
+          还没有出现答错的字。一个字答对 {{ MASTERY_THRESHOLD }} 次就算掌握。
+        </p>
+        <div v-else class="weak">
+          <RouterLink
+            v-for="c in weakChars"
+            :key="c.char"
+            class="weak__item"
+            :to="`/learn/${encodeURIComponent(c.char)}`"
+          >
+            <span class="weak__char">{{ c.char }}</span>
+            <small>对 {{ c.correct }} · 错 {{ c.wrong }}</small>
+          </RouterLink>
+        </div>
+      </section>
 
-    <!-- 设置 -->
-    <section class="card stack">
-      <h3 class="section-title">
-        <span class="section-title__emoji" aria-hidden="true">⚙️</span>
-        使用设置
-      </h3>
+      <!-- 使用设置 -->
+      <section class="card stack">
+        <h3 class="section-title">
+          <span class="section-title__emoji" aria-hidden="true">⚙️</span>
+          使用设置
+        </h3>
 
-      <div class="field">
-        <label class="field__label" for="child-name">孩子的名字</label>
-        <div class="field__row">
+        <div class="field">
+          <label class="field__label" for="child-name">孩子的名字</label>
           <input
             id="child-name"
-            v-model="nameDraft"
-            class="input"
+            class="field__input"
             type="text"
-            maxlength="12"
-            placeholder="小朋友"
-            @blur="saveName"
+            maxlength="8"
+            placeholder="例如：多多"
+            :value="settings.childName"
+            @input="settings.update({ childName: $event.target.value })"
           />
-          <button class="btn btn--ghost" type="button" @click="saveName">保存</button>
         </div>
-      </div>
 
-      <div class="field">
-        <span class="field__label">主题</span>
-        <div class="options">
-          <button
-            v-for="t in THEMES"
-            :key="t.id"
-            class="option"
-            :class="{ 'is-on': settings.theme === t.id }"
-            type="button"
-            @click="(sfx.tap(), settings.setTheme(t.id))"
-          >
-            <span class="option__emoji" aria-hidden="true">{{ t.emoji }}</span>
-            <strong>{{ t.name }}</strong>
-            <small class="muted">{{ t.desc }}</small>
-          </button>
+        <div class="field">
+          <span class="field__label">主题（护眼模式会降低蓝光与对比度）</span>
+          <div class="opts">
+            <button
+              v-for="t in THEMES"
+              :key="t.id"
+              class="opt"
+              :class="{ 'is-on': settings.theme === t.id }"
+              type="button"
+              @click="settings.setTheme(t.id)"
+            >
+              <span class="opt__emoji" aria-hidden="true">{{ t.emoji }}</span>
+              <strong>{{ t.name }}</strong>
+              <small>{{ t.desc }}</small>
+            </button>
+          </div>
         </div>
-      </div>
 
-      <div class="field">
-        <span class="field__label">字号</span>
-        <div class="options options--inline">
-          <button
-            v-for="f in FONT_SCALES"
-            :key="f.id"
-            class="option option--sm"
-            :class="{ 'is-on': settings.fontScale === f.id }"
-            type="button"
-            @click="patch('fontScale', f.id)"
-          >
-            {{ f.name }}
-          </button>
+        <div class="field">
+          <span class="field__label">字号</span>
+          <div class="segmented">
+            <button
+              v-for="f in FONT_SCALES"
+              :key="f.id"
+              class="segmented__item"
+              :class="{ 'is-on': settings.fontScale === f.id }"
+              type="button"
+              @click="settings.update({ fontScale: f.id })"
+            >
+              {{ f.name }}
+            </button>
+          </div>
         </div>
-      </div>
 
-      <div class="field">
-        <label class="field__label" for="rate">
-          朗读语速 <span class="muted">（{{ settings.speechRate.toFixed(2) }}×）</span>
-        </label>
-        <input
-          id="rate"
-          class="range"
-          type="range"
-          min="0.5"
-          max="1.2"
-          step="0.05"
-          :value="settings.speechRate"
-          @input="settings.update({ speechRate: Number($event.target.value) })"
-        />
-      </div>
-
-      <div class="field">
-        <label class="field__label" for="limit">
-          每日建议时长
-          <span class="muted">（{{ settings.dailyLimitMinutes ? `${settings.dailyLimitMinutes} 分钟` : '不限制' }}）</span>
-        </label>
-        <input
-          id="limit"
-          class="range"
-          type="range"
-          min="0"
-          max="60"
-          step="5"
-          :value="settings.dailyLimitMinutes"
-          @input="settings.update({ dailyLimitMinutes: Number($event.target.value) })"
-        />
-      </div>
-
-      <ul class="switches">
-        <li v-for="s in [
-          { key: 'soundOn', label: '音效', desc: '答题与点击的提示音' },
-          { key: 'speechOn', label: '朗读', desc: '用系统语音读出汉字和句子' },
-          { key: 'showPinyin', label: '显示拼音', desc: '关掉可以练习脱离拼音认字' },
-          { key: 'reduceMotion', label: '减少动画', desc: '孩子容易分心时可以关掉动效' },
-          { key: 'breakReminder', label: '休息提醒', desc: '达到建议时长后弹出护眼提示' }
-        ]" :key="s.key" class="switch">
-          <span class="switch__text">
-            <strong>{{ s.label }}</strong>
-            <small class="muted">{{ s.desc }}</small>
-          </span>
-          <button
-            class="toggle"
-            :class="{ 'is-on': settings[s.key] }"
-            type="button"
-            role="switch"
-            :aria-checked="settings[s.key]"
-            :aria-label="s.label"
-            @click="patch(s.key, !settings[s.key])"
-          >
-            <span class="toggle__knob" />
-          </button>
-        </li>
-      </ul>
-    </section>
-
-    <!-- 数据管理 -->
-    <section class="card stack">
-      <h3 class="section-title">
-        <span class="section-title__emoji" aria-hidden="true">💾</span>
-        数据管理
-      </h3>
-      <p class="muted">
-        换新设备时，先在旧设备导出 JSON，再到新设备导入，学习进度就搬过去了。
-      </p>
-      <div class="danger-row">
-        <button class="btn btn--ghost" type="button" @click="download">📦 导出进度</button>
-        <button class="btn btn--ghost" type="button" @click="(sfx.tap(), fileRef?.click())">
-          📥 导入进度
-        </button>
-        <input ref="fileRef" class="sr-only" type="file" accept="application/json,.json" @change="onFile" />
-        <button v-if="!confirmingReset" class="btn btn--ghost danger" type="button" @click="askReset">
-          🗑️ 清空数据
-        </button>
-      </div>
-
-      <div v-if="confirmingReset" class="confirm">
-        <p><strong>确定要清空吗？</strong>所有已学的字、星星和绘本记录都会消失，且无法恢复。</p>
-        <div class="danger-row">
-          <button class="btn btn--ghost" type="button" @click="confirmingReset = false">再想想</button>
-          <button class="btn danger-solid" type="button" @click="doReset">确定清空</button>
+        <div class="field">
+          <label class="field__label" for="rate">
+            朗读语速：{{ settings.speechRate.toFixed(2) }} 倍
+          </label>
+          <input
+            id="rate"
+            class="field__range"
+            type="range"
+            min="0.5"
+            max="1.2"
+            step="0.05"
+            :value="settings.speechRate"
+            @input="settings.update({ speechRate: Number($event.target.value) })"
+          />
         </div>
-      </div>
-    </section>
 
-    <p class="muted foot">
-      快乐识字 · 开源项目，无广告、无订阅、无数据上传 🌱
-    </p>
+        <div class="field">
+          <label class="field__label" for="limit">
+            每日建议时长：{{ settings.dailyLimitMinutes ? `${settings.dailyLimitMinutes} 分钟` : '不限制' }}
+          </label>
+          <input
+            id="limit"
+            class="field__range"
+            type="range"
+            min="0"
+            max="60"
+            step="5"
+            :value="settings.dailyLimitMinutes"
+            @input="settings.update({ dailyLimitMinutes: Number($event.target.value) })"
+          />
+        </div>
+
+        <ul class="toggles">
+          <li>
+            <label>
+              <input
+                type="checkbox"
+                :checked="settings.breakReminder"
+                @change="settings.update({ breakReminder: $event.target.checked })"
+              />
+              <span><strong>到点提醒休息</strong><small>达到每日时长后弹出护眼提示</small></span>
+            </label>
+          </li>
+          <li>
+            <label>
+              <input
+                type="checkbox"
+                :checked="settings.soundOn"
+                @change="settings.update({ soundOn: $event.target.checked })"
+              />
+              <span><strong>音效</strong><small>答对答错的提示音</small></span>
+            </label>
+          </li>
+          <li>
+            <label>
+              <input
+                type="checkbox"
+                :checked="settings.speechOn"
+                @change="settings.update({ speechOn: $event.target.checked })"
+              />
+              <span><strong>自动朗读</strong><small>翻页和换幕时自动读出内容</small></span>
+            </label>
+          </li>
+          <li>
+            <label>
+              <input
+                type="checkbox"
+                :checked="settings.showPinyin"
+                @change="settings.update({ showPinyin: $event.target.checked })"
+              />
+              <span><strong>显示拼音</strong><small>关掉可以练习脱离拼音认字</small></span>
+            </label>
+          </li>
+          <li>
+            <label>
+              <input
+                type="checkbox"
+                :checked="settings.reduceMotion"
+                @change="settings.update({ reduceMotion: $event.target.checked })"
+              />
+              <span><strong>减少动画</strong><small>对动效敏感的孩子建议开启</small></span>
+            </label>
+          </li>
+        </ul>
+      </section>
+
+      <!-- 数据 -->
+      <section class="card stack">
+        <h3 class="section-title">
+          <span class="section-title__emoji" aria-hidden="true">💾</span>
+          数据管理
+        </h3>
+        <p class="muted">
+          学习数据只保存在这台设备的浏览器里（localStorage），不会上传到任何服务器。
+          换设备时可以导出后再导入。
+        </p>
+        <div class="row">
+          <button class="btn btn--ghost" type="button" @click="exportData">⬇️ 导出进度</button>
+          <label class="btn btn--ghost">
+            ⬆️ 导入进度
+            <input class="sr-only" type="file" accept="application/json,.json" @change="importData" />
+          </label>
+          <button class="btn btn--ghost" type="button" @click="resetSettings">♻️ 恢复默认设置</button>
+          <button class="btn btn--danger" type="button" @click="resetAll">🗑️ 清空学习记录</button>
+        </div>
+        <p v-if="importError" class="gate__err">{{ importError }}</p>
+      </section>
+
+      <section class="card stack">
+        <h3 class="section-title">
+          <span class="section-title__emoji" aria-hidden="true">🌱</span>
+          给家长的小建议
+        </h3>
+        <ul class="tips">
+          <li>每天 10–20 分钟即可，短而频繁比一次学很久更有效。</li>
+          <li>先「看笔顺」再「我来写」，让孩子用手指跟着描，记忆更深。</li>
+          <li>绘本只用学过的字，鼓励孩子自己读出声，读完请给一句具体的表扬。</li>
+          <li>屏幕时间结束后，可以让孩子在纸上把当天的字再写一遍。</li>
+        </ul>
+      </section>
+    </template>
   </div>
 </template>
 
 <style scoped>
-.intro {
-  display: flex;
-  align-items: center;
-  gap: var(--gap-md);
-}
-
-.intro__text {
-  flex: 1;
+.gate {
+  width: min(420px, 100%);
+  margin: var(--gap-xl) auto 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-}
-
-.intro__text .muted {
-  font-size: 0.88rem;
-}
-
-.notice {
-  align-self: center;
-  padding: 10px 22px;
-  border-radius: var(--radius-pill);
-  background: var(--success);
-  color: #fff;
-  font-weight: 800;
-  box-shadow: var(--shadow-md);
-  animation: pop-in var(--dur-mid) var(--ease-pop);
-}
-
-/* ---------------------------------------------------------- 概览卡片 */
-.cards {
-  display: grid;
+  align-items: center;
   gap: var(--gap-sm);
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  text-align: center;
 }
 
-.stat {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  grid-template-rows: auto auto;
-  align-items: baseline;
-  gap: 0 10px;
-  padding: var(--gap-md);
-}
-
-.stat__emoji {
-  grid-row: 1 / 3;
-  align-self: center;
-  font-size: 1.8rem;
+.gate__emoji {
+  font-size: 3rem;
   line-height: 1;
 }
 
-.stat__value {
-  font-size: 1.6rem;
+.gate__title {
+  font-size: 1.4rem;
   font-weight: 800;
   color: var(--text-strong);
 }
 
-.stat__unit {
-  font-size: 0.75rem;
-  margin-left: -6px;
+.gate__desc {
+  font-size: 0.88rem;
 }
 
-.stat__label {
-  grid-column: 2;
-  font-size: 0.82rem;
+.gate__form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+  margin-top: var(--gap-sm);
+}
+
+.gate__q {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--text-strong);
+}
+
+.gate__input,
+.field__input {
+  width: 100%;
+  min-height: 52px;
+  padding: 0 16px;
+  border-radius: var(--radius-md);
+  border: 2px solid var(--surface-border);
+  background: var(--surface-strong);
+  font-size: 1.05rem;
+  text-align: center;
+}
+
+.field__input {
+  text-align: left;
+}
+
+.gate__err {
+  color: var(--danger);
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.notice {
+  align-self: center;
+  padding: 9px 20px;
+  border-radius: var(--radius-pill);
+  background: var(--success);
+  color: #fff;
+  font-weight: 700;
+  box-shadow: var(--shadow-sm);
+}
+
+.overview {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-lg);
+  flex-wrap: wrap;
+}
+
+.overview__grid {
+  flex: 1;
+  min-width: 220px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--gap-sm);
+}
+
+.overview__grid div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 6px;
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+}
+
+.overview__grid strong {
+  font-size: 1.35rem;
+  color: var(--text-strong);
+  line-height: 1.2;
+}
+
+.overview__grid small {
+  font-size: 0.7rem;
   color: var(--text-soft);
 }
 
-/* ---------------------------------------------------------- 柱状图 */
+/* 图表 */
 .chart {
   display: flex;
+  gap: 6px;
   align-items: flex-end;
-  gap: 4px;
-  height: 140px;
+  height: 168px;
 }
 
 .chart__col {
@@ -475,117 +518,127 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 5px;
+  gap: 3px;
   height: 100%;
+}
+
+.chart__value {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: var(--text-soft);
+  min-height: 1em;
 }
 
 .chart__track {
   flex: 1;
   width: 100%;
+  max-width: 34px;
   display: flex;
   align-items: flex-end;
-  border-radius: var(--radius-sm);
+  border-radius: 8px;
   background: var(--surface-sunken);
   overflow: hidden;
 }
 
-.chart__fill {
+.chart__bar {
   width: 100%;
-  border-radius: var(--radius-sm);
+  border-radius: 8px;
   background: linear-gradient(180deg, var(--brand) 0%, var(--brand-strong) 100%);
+  transition: height var(--dur-slow) var(--ease-pop);
 }
 
-.chart__fill.is-empty {
-  background: transparent;
-}
-
-.chart__day {
-  font-size: 0.65rem;
+.chart__label {
+  font-size: 0.7rem;
   color: var(--text-soft);
-  white-space: nowrap;
 }
 
-.chart__foot {
-  font-size: 0.78rem;
+.chart__chars {
+  font-size: 0.64rem;
+  color: var(--accent);
+  font-weight: 700;
 }
 
-/* ---------------------------------------------------------- 单元 */
+.chart__note {
+  font-size: 0.76rem;
+}
+
+/* 单元 */
 .units {
   display: flex;
   flex-direction: column;
-  gap: var(--gap-sm);
+  gap: 10px;
 }
 
-.unit {
+.unitrow {
   display: flex;
   align-items: center;
-  gap: var(--gap-sm);
+  gap: 10px;
 }
 
-.unit__emoji {
-  font-size: 1.4rem;
-  line-height: 1;
+.unitrow__emoji {
+  font-size: 1.2rem;
 }
 
-.unit__body {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-
-.unit__body strong {
-  font-size: 0.92rem;
+.unitrow__name {
+  width: 92px;
+  font-weight: 700;
+  font-size: 0.9rem;
   color: var(--text-strong);
 }
 
-.unit__bar {
-  height: 9px;
+.unitrow__bar {
+  flex: 1;
+  height: 10px;
   border-radius: 5px;
   background: var(--stroke-hint);
   overflow: hidden;
 }
 
-.unit__fill {
+.unitrow__fill {
   display: block;
   height: 100%;
   border-radius: 5px;
   transition: width var(--dur-slow) var(--ease-pop);
 }
 
-.content-stats {
+.unitrow__num {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-soft);
+  min-width: 44px;
+  text-align: right;
+}
+
+/* 需加强 */
+.weak {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
 
-/* ---------------------------------------------------------- 复习 */
-.review {
+.weak__item {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.review__chip {
-  display: grid;
-  place-items: center;
-  width: 54px;
-  height: 54px;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 10px;
   border-radius: var(--radius-md);
   background: var(--surface-sunken);
-  border: 2px solid var(--surface-border);
-  font-size: 1.5rem;
-  font-family: 'Kaiti SC', 'STKaiti', 'KaiTi', serif;
+  min-width: 72px;
+}
+
+.weak__char {
+  font-size: 1.6rem;
+  font-weight: 700;
   color: var(--text-strong);
-  transition: transform var(--dur-fast) var(--ease-pop);
+  font-family: 'Kaiti SC', 'STKaiti', 'KaiTi', serif;
 }
 
-.review__chip:active {
-  transform: scale(0.94);
+.weak__item small {
+  font-size: 0.66rem;
+  color: var(--text-soft);
 }
 
-/* ---------------------------------------------------------- 设置 */
+/* 设置项 */
 .field {
   display: flex;
   flex-direction: column;
@@ -593,175 +646,147 @@ onMounted(() => {
 }
 
 .field__label {
+  font-size: 0.9rem;
   font-weight: 700;
   color: var(--text-strong);
-  font-size: 0.92rem;
 }
 
-.field__row {
-  display: flex;
-  gap: var(--gap-sm);
-}
-
-.input {
-  flex: 1;
-  min-height: var(--tap-min);
-  padding: 0 18px;
-  border-radius: var(--radius-pill);
-  background: var(--surface-sunken);
-  border: 2px solid var(--surface-border);
-}
-
-.range {
+.field__range {
   width: 100%;
   accent-color: var(--brand);
-  height: 32px;
+  height: 34px;
 }
 
-.options {
+.opts {
   display: grid;
-  gap: var(--gap-sm);
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
 }
 
-.options--inline {
-  grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
-}
-
-.option {
+.opt {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 2px;
-  padding: 12px 16px;
+  gap: 1px;
+  padding: 12px 14px;
   border-radius: var(--radius-md);
   background: var(--surface-sunken);
   border: 2px solid transparent;
   text-align: left;
-  transition: transform var(--dur-fast) var(--ease-pop), border-color var(--dur-fast) ease;
+  transition: border-color var(--dur-fast) ease, transform var(--dur-fast) var(--ease-pop);
 }
 
-.option--sm {
-  align-items: center;
-  padding: 12px 10px;
-  font-weight: 700;
-}
-
-.option:active {
+.opt:active {
   transform: scale(0.97);
 }
 
-.option.is-on {
+.opt.is-on {
   border-color: var(--brand);
   background: var(--brand-soft);
 }
 
-.option__emoji {
+.opt__emoji {
   font-size: 1.3rem;
-  line-height: 1;
 }
 
-.option small {
-  font-size: 0.75rem;
+.opt strong {
+  color: var(--text-strong);
 }
 
-.switches {
+.opt small {
+  font-size: 0.72rem;
+  color: var(--text-soft);
+}
+
+.segmented {
+  display: flex;
+  gap: 6px;
+  padding: 5px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+}
+
+.segmented__item {
+  flex: 1;
+  min-height: 44px;
+  border-radius: var(--radius-pill);
+  font-weight: 700;
+  color: var(--text);
+  transition: background var(--dur-fast) ease, color var(--dur-fast) ease;
+}
+
+.segmented__item.is-on {
+  background: var(--brand);
+  color: var(--text-invert);
+}
+
+.toggles {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 6px;
 }
 
-.switch {
+.toggles label {
   display: flex;
   align-items: center;
-  gap: var(--gap-md);
-  padding: 10px 0;
-  border-bottom: 1px solid var(--surface-border);
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+  cursor: pointer;
 }
 
-.switch:last-child {
-  border-bottom: none;
+.toggles input {
+  width: 24px;
+  height: 24px;
+  accent-color: var(--brand);
+  flex: none;
 }
 
-.switch__text {
-  flex: 1;
+.toggles span {
   display: flex;
   flex-direction: column;
-  min-width: 0;
 }
 
-.switch__text small {
-  font-size: 0.76rem;
+.toggles strong {
+  color: var(--text-strong);
+  font-size: 0.95rem;
 }
 
-.toggle {
-  flex: none;
-  width: 58px;
-  height: 34px;
-  padding: 3px;
-  border-radius: var(--radius-pill);
-  background: var(--stroke-hint);
-  transition: background var(--dur-fast) ease;
+.toggles small {
+  font-size: 0.75rem;
+  color: var(--text-soft);
 }
 
-.toggle.is-on {
-  background: var(--success);
-}
-
-.toggle__knob {
-  display: block;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: var(--shadow-sm);
-  transition: transform var(--dur-fast) var(--ease-pop);
-}
-
-.toggle.is-on .toggle__knob {
-  transform: translateX(24px);
-}
-
-/* ---------------------------------------------------------- 危险区 */
-.danger-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--gap-sm);
-}
-
-.danger {
-  color: var(--danger);
-  border-color: color-mix(in srgb, var(--danger) 40%, transparent);
-}
-
-.danger-solid {
+.btn--danger {
   background: var(--danger);
   color: #fff;
 }
 
-.confirm {
-  padding: var(--gap-md);
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--danger) 12%, transparent);
+.tips {
   display: flex;
   flex-direction: column;
-  gap: var(--gap-sm);
-  font-size: 0.9rem;
+  gap: 8px;
+  color: var(--text);
+  font-size: 0.92rem;
+  line-height: 1.7;
 }
 
-.foot {
-  text-align: center;
-  font-size: 0.8rem;
+.tips li {
+  padding-left: 22px;
+  position: relative;
 }
 
-@media (max-width: 560px) {
-  .intro {
-    flex-direction: column-reverse;
-    align-items: stretch;
-    text-align: center;
-  }
-  .intro .ring {
-    align-self: center;
+.tips li::before {
+  content: '🌟';
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+@media (max-width: 520px) {
+  .overview__grid {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 </style>

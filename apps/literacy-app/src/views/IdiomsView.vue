@@ -1,152 +1,198 @@
 <script setup>
-import { computed } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+/**
+ * 成语书架。详情在 IdiomDetailView，这里只负责挑选与进度展示。
+ */
+import { computed, onMounted, ref } from 'vue'
+import gsap from 'gsap'
 import { IDIOMS } from '@/data/idioms.js'
 import { useProgressStore } from '@/stores/progress.js'
+import { useSettingsStore } from '@/stores/settings.js'
 import { sfx } from '@/utils/sfx.js'
 
-const route = useRoute()
-const router = useRouter()
 const progress = useProgressStore()
+const settings = useSettingsStore()
 
-const active = computed(() => IDIOMS.find((i) => i.id === route.params.id) ?? null)
+const shelfRef = ref(null)
 
 const list = computed(() =>
-  IDIOMS.map((i) => ({
-    ...i,
-    seen: Boolean(progress.idioms[i.id]?.read)
-  }))
+  IDIOMS.map((i) => {
+    const record = progress.idioms[i.id]
+    return {
+      ...i,
+      seen: Boolean(record?.seen),
+      quizRight: record?.quizRight ?? 0
+    }
+  })
 )
 
-function open(id) {
-  sfx.tap()
-  progress.markIdiomRead(id)
-  router.push(`/idioms/${id}`)
-}
+/** 优先推荐还没看过的；全看完了就推荐还没答对过小测的。 */
+const suggestion = computed(
+  () => list.value.find((i) => !i.seen) ?? list.value.find((i) => !i.quizRight) ?? null
+)
 
-function back() {
-  sfx.tap()
-  router.push('/idioms')
-}
-
-function pickQuiz(idx, idiom) {
-  if (idx === idiom.quiz.answer) {
-    sfx.success()
-    progress.recordIdiomQuiz(idiom.id, true)
-  } else {
-    sfx.wrong()
-  }
-}
+onMounted(() => {
+  if (settings.reduceMotion) return
+  const cards = shelfRef.value?.querySelectorAll('.idiom')
+  if (!cards?.length) return
+  gsap.from(cards, {
+    opacity: 0,
+    y: 24,
+    scale: 0.93,
+    duration: 0.4,
+    ease: 'back.out(1.6)',
+    stagger: 0.05
+  })
+})
 </script>
 
 <template>
   <div class="page">
-    <template v-if="!active">
-      <section class="card card--flat intro">
-        <h2 class="section-title"><span aria-hidden="true">🏮</span> 成语启蒙</h2>
-        <p class="muted">听三段小故事，看懂一个成语。</p>
-        <span class="pill">已读 {{ progress.idiomsSeen }} / {{ IDIOMS.length }}</span>
-      </section>
-      <div class="grid">
-        <button
-          v-for="i in list"
-          :key="i.id"
-          class="card idiom-card"
-          :style="{ background: `linear-gradient(135deg, ${i.palette[0]}, ${i.palette[1]})` }"
-          @click="open(i.id)"
+    <section class="card card--flat intro">
+      <div class="intro__text">
+        <h2 class="section-title">
+          <span class="section-title__emoji" aria-hidden="true">🏮</span>
+          成语启蒙
+        </h2>
+        <p class="muted">
+          每条成语都配一个三格小故事。听完故事再做一道情景题，孩子就真的懂了。
+        </p>
+        <RouterLink
+          v-if="suggestion"
+          class="btn btn--primary intro__cta"
+          :to="`/idioms/${suggestion.id}`"
+          @click="sfx.tap()"
         >
-          <span class="emoji">{{ i.emoji }}</span>
-          <strong>{{ i.word }}</strong>
-          <small>{{ i.pinyin }}</small>
-          <span v-if="i.seen" class="badge">✓</span>
-        </button>
+          {{ suggestion.seen ? '再挑战' : '开始学' }}「{{ suggestion.word }}」 →
+        </RouterLink>
       </div>
-    </template>
+      <span class="pill">学过 {{ progress.idiomsSeen }} / {{ IDIOMS.length }}</span>
+    </section>
 
-    <template v-else>
-      <button class="back" @click="back">← 返回列表</button>
-      <article class="card detail">
-        <header>
-          <span class="big">{{ active.emoji }}</span>
-          <h1>{{ active.word }}</h1>
-          <p class="muted">{{ active.pinyin }}</p>
-        </header>
-        <p class="meaning">{{ active.meaning }}</p>
-        <section class="story">
-          <h3>小故事</h3>
-          <div v-for="(s, n) in active.story" :key="n" class="beat">
-            <span>{{ s.emoji }}</span>
-            <p>{{ s.text }}</p>
-          </div>
-        </section>
-        <section v-if="active.quiz" class="quiz">
-          <h3>想一想</h3>
-          <p>{{ active.quiz.q }}</p>
-          <button
-            v-for="(opt, idx) in active.quiz.options"
-            :key="opt"
-            class="choice"
-            @click="pickQuiz(idx, active)"
-          >
-            {{ opt }}
-          </button>
-          <p class="tip muted">{{ active.quiz.tip }}</p>
-        </section>
-      </article>
-    </template>
+    <section ref="shelfRef" class="shelf">
+      <RouterLink
+        v-for="i in list"
+        :key="i.id"
+        class="idiom"
+        :to="`/idioms/${i.id}`"
+        :style="{ '--c1': i.palette[0], '--c2': i.palette[1] }"
+        @click="sfx.tap()"
+      >
+        <span class="idiom__emoji" aria-hidden="true">{{ i.emoji }}</span>
+        <strong class="idiom__word">{{ i.word }}</strong>
+        <span class="idiom__pinyin">{{ i.pinyin }}</span>
+        <span class="idiom__meaning">{{ i.meaning }}</span>
+        <span v-if="i.quizRight" class="idiom__badge" title="小测答对过">🏅</span>
+        <span v-else-if="i.seen" class="idiom__badge" title="已经学过">✓</span>
+      </RouterLink>
+    </section>
   </div>
 </template>
 
 <style scoped>
-.intro { margin-bottom: 16px; }
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 12px;
+.intro {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-md);
 }
-.idiom-card {
-  position: relative;
-  border: none;
-  cursor: pointer;
-  padding: 16px;
-  text-align: center;
+
+.intro__text {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  color: #333;
+  gap: 8px;
+  min-width: 0;
 }
-.emoji { font-size: 32px; }
-.badge {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  background: #fff8;
-  border-radius: 999px;
-  padding: 2px 8px;
+
+.intro__text .muted {
+  font-size: 0.88rem;
 }
-.back {
-  margin-bottom: 12px;
-  background: none;
-  border: none;
-  color: var(--ink-muted);
-  cursor: pointer;
+
+.intro__cta {
+  align-self: flex-start;
+  margin-top: 4px;
 }
-.detail { padding: 20px; }
-.big { font-size: 48px; }
-.story .beat {
+
+.shelf {
+  display: grid;
+  gap: var(--gap-md);
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+}
+
+.idiom {
+  position: relative;
   display: flex;
-  gap: 10px;
-  margin: 10px 0;
-  align-items: flex-start;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: var(--gap-lg) var(--gap-md);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg, var(--c1) 0%, var(--c2) 100%);
+  box-shadow: var(--shadow-md);
+  text-align: center;
+  color: #3d2f1f;
+  transition: transform var(--dur-fast) var(--ease-pop), box-shadow var(--dur-fast) ease;
 }
-.quiz .choice {
-  display: block;
-  width: 100%;
-  margin: 8px 0;
-  padding: 12px;
-  border-radius: 12px;
-  border: 2px solid var(--stroke-soft);
-  background: #fff;
-  cursor: pointer;
+
+.idiom:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+}
+
+.idiom:active {
+  transform: translateY(0) scale(0.97);
+}
+
+.idiom__emoji {
+  font-size: 2.4rem;
+  line-height: 1;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.12));
+}
+
+.idiom__word {
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  font-family: 'Kaiti SC', 'STKaiti', 'KaiTi', 'PingFang SC', serif;
+}
+
+.idiom__pinyin {
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  color: rgba(61, 47, 31, 0.72);
+}
+
+.idiom__meaning {
+  margin-top: 4px;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  color: rgba(61, 47, 31, 0.85);
+}
+
+.idiom__badge {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  display: grid;
+  place-items: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 7px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.78);
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+@media (max-width: 560px) {
+  .intro {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .intro .pill {
+    align-self: flex-start;
+  }
+  .intro__cta {
+    align-self: stretch;
+  }
 }
 </style>

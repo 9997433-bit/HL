@@ -1,5 +1,13 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 
+/**
+ * 用 hash 模式：打包出来的 dist 可以直接双击 index.html 打开，
+ * 也能丢到任何静态目录（含子路径）下，不需要服务器改写规则。
+ *
+ * 「列表 / 详情」一律拆成两条路由，详情页通过 props 接收参数，
+ * 这样组件不必自己去读 route.params，也方便单独测试。
+ */
+
 const routes = [
   {
     path: '/',
@@ -8,18 +16,19 @@ const routes = [
     meta: { title: '识字乐园', emoji: '🏡' }
   },
   {
-    path: '/learn/:char?',
+    path: '/learn',
     name: 'learn',
     component: () => import('@/views/LearnView.vue'),
     meta: { title: '学汉字', emoji: '✏️' }
   },
   {
-    path: '/learn/detail/:char',
+    path: '/learn/:char',
     name: 'char',
     component: () => import('@/views/CharDetailView.vue'),
     props: true,
     meta: { title: '写一写', emoji: '✍️' }
   },
+  { path: '/learn/detail/:char', redirect: (to) => `/learn/${to.params.char}` },
   {
     path: '/listen',
     name: 'listen-game',
@@ -34,16 +43,30 @@ const routes = [
     meta: { title: '偏旁部首', emoji: '🧩' }
   },
   {
-    path: '/books/:id?',
+    path: '/books',
     name: 'books',
     component: () => import('@/views/BooksView.vue'),
     meta: { title: '分级绘本', emoji: '📚' }
   },
   {
-    path: '/idioms/:id?',
+    path: '/books/:id',
+    name: 'book',
+    component: () => import('@/views/BookReadView.vue'),
+    props: true,
+    meta: { title: '读绘本', emoji: '📖' }
+  },
+  {
+    path: '/idioms',
     name: 'idioms',
     component: () => import('@/views/IdiomsView.vue'),
     meta: { title: '成语故事', emoji: '🏮' }
+  },
+  {
+    path: '/idioms/:id',
+    name: 'idiom',
+    component: () => import('@/views/IdiomDetailView.vue'),
+    props: true,
+    meta: { title: '成语小剧场', emoji: '🎭' }
   },
   {
     path: '/parent',

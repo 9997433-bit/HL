@@ -18,6 +18,8 @@ import { setSoundEnabled, setSpeechEnabled } from '@/utils/audio.js'
 
 const STORAGE_KEY = 'happy-literacy:v1'
 
+export const MASTERY_THRESHOLD = 3
+
 /** 掌握度四级，界面文案与颜色都从这里取。 */
 export const MASTERY = [
   { level: 0, label: '没学过', short: '新', color: 'var(--stroke-hint)' },

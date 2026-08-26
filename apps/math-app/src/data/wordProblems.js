@@ -1,248 +1,327 @@
 /**
- * 生活场景应用题题库。
- * level 1 = 一步计算，level 2 = 两步计算 / 需要中间量。
+ * 生活行星应用题母题库。
+ * 每个母题都是一个生成器：调用 make() 会随机出一道数值不同、结构相同的新题，
+ * 因此 16 个母题可以覆盖上百道不重复的练习。
  */
+import { randInt, sample } from '@/utils/random'
+
+const NAMES = ['小星', '乐乐', '朵朵', '阿光', '妮妮', '小舟', '大熊', '果果']
+
+const pair = () => {
+  const a = sample(NAMES)
+  let b = sample(NAMES)
+  while (b === a) b = sample(NAMES)
+  return [a, b]
+}
+
 export const WORD_PROBLEMS = [
   {
-    id: 'wp-01',
+    id: 'add-join',
+    tag: '合并',
+    steps: 1,
     emoji: '🍎',
-    scene: ['🍎', '🍎', '🍎', '🍎', '🍎', '🍎', '🍎'],
-    tags: ['加法', '购物'],
-    level: 1,
-    text: '妈妈买了 4 个苹果，爸爸又买回 3 个苹果。现在家里一共有多少个苹果？',
-    answer: 7,
-    unit: '个',
-    equation: '4 + 3 = 7',
-    steps: ['妈妈买的：4 个', '爸爸买的：3 个', '合起来用加法：4 + 3 = 7'],
+    scene: '果园',
+    make() {
+      const [a] = pair()
+      const x = randInt(3, 12)
+      const y = randInt(2, 10)
+      return {
+        text: `${a}上午摘了 ${x} 个苹果，下午又摘了 ${y} 个。${a}一共摘了多少个苹果？`,
+        equation: `${x} + ${y} = ?`,
+        answer: x + y,
+        unit: '个',
+        hint: '「一共」就是把两次的数量加起来。',
+        visual: { icon: '🍎', groups: [x, y] },
+      }
+    },
   },
   {
-    id: 'wp-02',
-    emoji: '🍬',
-    scene: ['🍬', '🍬', '🍬', '🍬', '🍬'],
-    tags: ['减法', '分享'],
-    level: 1,
-    text: '小星有 9 颗糖，分给好朋友 4 颗。小星还剩下多少颗糖？',
-    answer: 5,
-    unit: '颗',
-    equation: '9 − 4 = 5',
-    steps: ['原来有：9 颗', '送出去：4 颗', '剩下用减法：9 − 4 = 5'],
-  },
-  {
-    id: 'wp-03',
-    emoji: '🚌',
-    scene: ['🧍', '🧍', '🧍', '🧍', '🧍', '🧍', '🧍', '🧍'],
-    tags: ['加减混合', '出行'],
-    level: 2,
-    text: '公交车上原来有 12 人。到站后下去 5 人，又上来 3 人。现在车上有多少人？',
-    answer: 10,
-    unit: '人',
-    equation: '12 − 5 + 3 = 10',
-    steps: ['先算下车后：12 − 5 = 7', '再算上车后：7 + 3 = 10'],
-  },
-  {
-    id: 'wp-04',
-    emoji: '📚',
-    scene: ['📕', '📗', '📘', '📙'],
-    tags: ['减法', '比较'],
-    level: 1,
-    text: '书架上有 15 本图画书和 8 本故事书。图画书比故事书多多少本？',
-    answer: 7,
-    unit: '本',
-    equation: '15 − 8 = 7',
-    steps: ['求「多多少」用减法', '15 − 8 = 7'],
-  },
-  {
-    id: 'wp-05',
-    emoji: '🥚',
-    scene: ['🥚', '🥚', '🥚', '🥚', '🥚', '🥚'],
-    tags: ['乘法思想', '分组'],
-    level: 2,
-    text: '一个盒子能装 4 个鸡蛋，妈妈装满了 3 个盒子。一共装了多少个鸡蛋？',
-    answer: 12,
-    unit: '个',
-    equation: '4 + 4 + 4 = 12',
-    steps: ['每盒 4 个，一共 3 盒', '连加：4 + 4 + 4 = 12'],
-  },
-  {
-    id: 'wp-06',
-    emoji: '💰',
-    scene: ['🪙', '🪙', '🪙', '🪙', '🪙'],
-    tags: ['减法', '钱'],
-    level: 2,
-    text: '小星有 20 元零花钱，买了一本 8 元的笔记本和一支 5 元的铅笔。还剩多少元？',
-    answer: 7,
-    unit: '元',
-    equation: '20 − 8 − 5 = 7',
-    steps: ['先算一共花了：8 + 5 = 13', '再算剩下：20 − 13 = 7'],
-  },
-  {
-    id: 'wp-07',
-    emoji: '🐟',
-    scene: ['🐟', '🐟', '🐟', '🐟', '🐟', '🐟', '🐟', '🐟'],
-    tags: ['加法', '动物'],
-    level: 1,
-    text: '鱼缸里有 6 条红鱼和 7 条黑鱼。鱼缸里一共有多少条鱼？',
-    answer: 13,
-    unit: '条',
-    equation: '6 + 7 = 13',
-    steps: ['红鱼 6 条 + 黑鱼 7 条', '6 + 7 = 13'],
-  },
-  {
-    id: 'wp-08',
-    emoji: '🌳',
-    scene: ['🌳', '🌳', '🌳', '🌳'],
-    tags: ['两步', '校园'],
-    level: 2,
-    text: '同学们上午种了 9 棵树，下午种的比上午少 3 棵。这一天一共种了多少棵树？',
-    answer: 15,
-    unit: '棵',
-    equation: '9 + (9 − 3) = 15',
-    steps: ['先算下午：9 − 3 = 6', '再算全天：9 + 6 = 15'],
-  },
-  {
-    id: 'wp-09',
-    emoji: '🎈',
-    scene: ['🎈', '🎈', '🎈', '🎈', '🎈', '🎈'],
-    tags: ['减法', '派对'],
-    level: 1,
-    text: '生日会上有 14 个气球，飞走了 6 个。还剩下几个气球？',
-    answer: 8,
-    unit: '个',
-    equation: '14 − 6 = 8',
-    steps: ['飞走了要减掉', '14 − 6 = 8'],
-  },
-  {
-    id: 'wp-10',
-    emoji: '🕒',
-    scene: ['🕐', '🕑', '🕒'],
-    tags: ['时间'],
-    level: 2,
-    text: '小星 3 时开始写作业，写了 40 分钟后休息 15 分钟。他休息结束时是几时几分？（答案填分钟数，如 3 时 55 分填 55）',
-    answer: 55,
-    unit: '分',
-    equation: '40 + 15 = 55',
-    steps: ['写作业 40 分钟', '再休息 15 分钟', '40 + 15 = 55，所以是 3 时 55 分'],
-  },
-  {
-    id: 'wp-11',
-    emoji: '🚀',
-    scene: ['🚀', '🚀', '🚀'],
-    tags: ['两步', '太空'],
-    level: 2,
-    text: '基地里有 18 艘飞船，先飞走 7 艘执行任务，后来又回来 4 艘。现在基地里有多少艘飞船？',
-    answer: 15,
-    unit: '艘',
-    equation: '18 − 7 + 4 = 15',
-    steps: ['飞走后：18 − 7 = 11', '回来后：11 + 4 = 15'],
-  },
-  {
-    id: 'wp-12',
+    id: 'sub-left',
+    tag: '剩余',
+    steps: 1,
     emoji: '🍪',
-    scene: ['🍪', '🍪', '🍪', '🍪'],
-    tags: ['平均分'],
-    level: 2,
-    text: '12 块饼干平均分给 4 个小朋友，每个小朋友能分到几块？',
-    answer: 3,
-    unit: '块',
-    equation: '12 ÷ 4 = 3',
-    steps: ['平均分就是每人一样多', '4 个人各拿 1 块要 4 块，12 里面有 3 个 4', '所以每人 3 块'],
+    scene: '厨房',
+    make() {
+      const total = randInt(8, 20)
+      const eaten = randInt(2, total - 2)
+      const [a] = pair()
+      return {
+        text: `盘子里原来有 ${total} 块饼干，${a}吃掉了 ${eaten} 块。盘子里还剩多少块？`,
+        equation: `${total} − ${eaten} = ?`,
+        answer: total - eaten,
+        unit: '块',
+        hint: '「还剩」要用减法：原来的减去吃掉的。',
+        visual: { icon: '🍪', groups: [total], strike: eaten },
+      }
+    },
   },
   {
-    id: 'wp-13',
-    emoji: '🚲',
-    scene: ['🚲', '🚲', '🚲'],
-    tags: ['加法', '数数'],
-    level: 2,
-    text: '停车棚里有 3 辆自行车，每辆有 2 个轮子。一共有多少个轮子？',
-    answer: 6,
-    unit: '个',
-    equation: '2 + 2 + 2 = 6',
-    steps: ['每辆 2 个轮子', '3 辆连加：2 + 2 + 2 = 6'],
+    id: 'compare-more',
+    tag: '比多少',
+    steps: 1,
+    emoji: '🐟',
+    scene: '池塘',
+    make() {
+      const [a, b] = pair()
+      const x = randInt(5, 18)
+      const y = randInt(1, x - 1)
+      return {
+        text: `${a}钓到 ${x} 条鱼，${b}钓到 ${y} 条鱼。${a}比${b}多钓了几条鱼？`,
+        equation: `${x} − ${y} = ?`,
+        answer: x - y,
+        unit: '条',
+        hint: '「多几条」就是用多的减去少的。',
+        visual: { icon: '🐟', groups: [x, y] },
+      }
+    },
   },
   {
-    id: 'wp-14',
+    id: 'compare-total',
+    tag: '比多少',
+    steps: 2,
+    emoji: '🎈',
+    scene: '游乐场',
+    make() {
+      const [a, b] = pair()
+      const x = randInt(3, 12)
+      const more = randInt(2, 8)
+      return {
+        text: `${a}有 ${x} 个气球，${b}比${a}多 ${more} 个。他们两人一共有多少个气球？`,
+        equation: `${x} + (${x} + ${more}) = ?`,
+        answer: x + (x + more),
+        unit: '个',
+        hint: `先算出${b}有多少个（${x} + ${more}），再把两人的加起来。`,
+        visual: { icon: '🎈', groups: [x, x + more] },
+      }
+    },
+  },
+  {
+    id: 'two-step-buy',
+    tag: '两步',
+    steps: 2,
+    emoji: '🛒',
+    scene: '超市',
+    make() {
+      const start = randInt(15, 40)
+      const buy = randInt(3, 10)
+      const back = randInt(2, 8)
+      return {
+        text: `妈妈带了 ${start} 元去买菜，先花了 ${buy} 元买青菜，又花了 ${back} 元买鸡蛋。妈妈还剩多少元？`,
+        equation: `${start} − ${buy} − ${back} = ?`,
+        answer: start - buy - back,
+        unit: '元',
+        hint: '花了两次钱，就要减两次。',
+      }
+    },
+  },
+  {
+    id: 'bus',
+    tag: '两步',
+    steps: 2,
+    emoji: '🚌',
+    scene: '公交车',
+    make() {
+      const start = randInt(10, 30)
+      const off = randInt(2, 8)
+      const on = randInt(2, 9)
+      return {
+        text: `公交车上原来有 ${start} 人，到站时下去了 ${off} 人，又上来了 ${on} 人。现在车上有多少人？`,
+        equation: `${start} − ${off} + ${on} = ?`,
+        answer: start - off + on,
+        unit: '人',
+        hint: '下车是减，上车是加，按顺序一步一步算。',
+      }
+    },
+  },
+  {
+    id: 'share',
+    tag: '平均分',
+    steps: 1,
+    emoji: '🍬',
+    scene: '分糖果',
+    make() {
+      const each = randInt(2, 6)
+      const kids = randInt(2, 5)
+      return {
+        text: `有 ${each * kids} 颗糖，平均分给 ${kids} 个小朋友，每人能分到几颗？`,
+        equation: `${each * kids} ÷ ${kids} = ?`,
+        answer: each,
+        unit: '颗',
+        hint: `试试看：如果每人 ${each - 1} 颗够不够分完？平均分就是每人一样多。`,
+        visual: { icon: '🍬', groups: Array.from({ length: kids }, () => each) },
+      }
+    },
+  },
+  {
+    id: 'groups',
+    tag: '几个几',
+    steps: 1,
+    emoji: '🥚',
+    scene: '农场',
+    make() {
+      const boxes = randInt(2, 6)
+      const per = randInt(2, 8)
+      return {
+        text: `一盒鸡蛋有 ${per} 个，${boxes} 盒一共有多少个鸡蛋？`,
+        equation: `${per} × ${boxes} = ?`,
+        answer: per * boxes,
+        unit: '个',
+        hint: `就是 ${boxes} 个 ${per} 相加：${Array.from({ length: boxes }, () => per).join(' + ')}。`,
+        visual: { icon: '🥚', groups: Array.from({ length: boxes }, () => per) },
+      }
+    },
+  },
+  {
+    id: 'time',
+    tag: '时间',
+    steps: 1,
+    emoji: '🕐',
+    scene: '一天的安排',
+    make() {
+      const start = randInt(1, 8)
+      const last = randInt(1, 4)
+      return {
+        text: `下午 ${start} 点开始上兴趣班，上了 ${last} 个小时。结束时是下午几点？`,
+        equation: `${start} + ${last} = ?`,
+        answer: start + last,
+        unit: '点',
+        hint: '在钟面上从开始时间往后数小时数。',
+      }
+    },
+  },
+  {
+    id: 'money-change',
+    tag: '钱',
+    steps: 2,
+    emoji: '💰',
+    scene: '文具店',
+    make() {
+      const price = randInt(3, 9)
+      const count = randInt(2, 5)
+      const paid = price * count + randInt(1, 15)
+      return {
+        text: `一支铅笔 ${price} 元，买 ${count} 支要付多少钱？付了 ${paid} 元，应该找回多少元？（请回答找回的钱）`,
+        equation: `${paid} − ${price} × ${count} = ?`,
+        answer: paid - price * count,
+        unit: '元',
+        hint: `先算 ${count} 支铅笔一共 ${price * count} 元，再用付的钱减去它。`,
+      }
+    },
+  },
+  {
+    id: 'length',
+    tag: '长度',
+    steps: 1,
     emoji: '📏',
-    scene: ['📏'],
-    tags: ['长度', '比较'],
-    level: 2,
-    text: '一根绳子长 25 厘米，剪掉 9 厘米后又接上 6 厘米。现在绳子有多长？',
-    answer: 22,
-    unit: '厘米',
-    equation: '25 − 9 + 6 = 22',
-    steps: ['剪掉后：25 − 9 = 16', '接上后：16 + 6 = 22'],
+    scene: '手工课',
+    make() {
+      const total = randInt(20, 90)
+      const cut = randInt(5, total - 5)
+      return {
+        text: `一根彩带长 ${total} 厘米，剪下 ${cut} 厘米做蝴蝶结。彩带还剩多少厘米？`,
+        equation: `${total} − ${cut} = ?`,
+        answer: total - cut,
+        unit: '厘米',
+        hint: '剪掉的部分要从总长里减掉。',
+      }
+    },
   },
   {
-    id: 'wp-15',
-    emoji: '🐔',
-    scene: ['🐔', '🐔', '🐰', '🐰'],
-    tags: ['两步', '农场'],
-    level: 2,
-    text: '农场里有 8 只鸡，鸭子比鸡多 5 只。鸡和鸭子一共有多少只？',
-    answer: 21,
-    unit: '只',
-    equation: '8 + (8 + 5) = 21',
-    steps: ['先算鸭子：8 + 5 = 13', '再算总数：8 + 13 = 21'],
+    id: 'ordinal',
+    tag: '排队',
+    steps: 2,
+    emoji: '🧍',
+    scene: '排队',
+    make() {
+      const front = randInt(2, 9)
+      const back = randInt(2, 9)
+      return {
+        text: `小星排队买冰淇淋，他前面有 ${front} 个人，后面有 ${back} 个人。这一队一共有多少人？`,
+        equation: `${front} + 1 + ${back} = ?`,
+        answer: front + 1 + back,
+        unit: '人',
+        hint: '别忘了把小星自己也算进去哦！',
+      }
+    },
   },
   {
-    id: 'wp-16',
-    emoji: '🎒',
-    scene: ['🎒', '✏️', '📐'],
-    tags: ['钱', '两步'],
-    level: 2,
-    text: '一个书包 45 元，一个文具盒 18 元。买这两样东西，付 100 元应找回多少元？',
-    answer: 37,
-    unit: '元',
-    equation: '100 − (45 + 18) = 37',
-    steps: ['先算总价：45 + 18 = 63', '再算找零：100 − 63 = 37'],
+    id: 'garden',
+    tag: '两步',
+    steps: 2,
+    emoji: '🌻',
+    scene: '花园',
+    make() {
+      const rows = randInt(2, 5)
+      const per = randInt(3, 8)
+      const wither = randInt(1, 6)
+      return {
+        text: `花园里种了 ${rows} 排向日葵，每排 ${per} 棵，后来枯萎了 ${wither} 棵。现在还有多少棵？`,
+        equation: `${per} × ${rows} − ${wither} = ?`,
+        answer: per * rows - wither,
+        unit: '棵',
+        hint: `先算一共种了 ${per * rows} 棵，再减掉枯萎的。`,
+      }
+    },
   },
   {
-    id: 'wp-17',
-    emoji: '🌟',
-    scene: ['🌟', '🌟', '🌟', '🌟', '🌟'],
-    tags: ['加法', '进位'],
-    level: 2,
-    text: '小星昨天收集了 27 颗星星，今天又收集了 35 颗。他一共收集了多少颗星星？',
-    answer: 62,
-    unit: '颗',
-    equation: '27 + 35 = 62',
-    steps: ['个位：7 + 5 = 12，写 2 进 1', '十位：2 + 3 + 1 = 6', '结果是 62'],
+    id: 'books',
+    tag: '两步',
+    steps: 2,
+    emoji: '📚',
+    scene: '图书角',
+    make() {
+      const total = randInt(20, 60)
+      const day1 = randInt(3, 12)
+      const day2 = randInt(3, 12)
+      return {
+        text: `一本故事书有 ${total} 页，${'小舟'}第一天看了 ${day1} 页，第二天看了 ${day2} 页。还剩多少页没看？`,
+        equation: `${total} − ${day1} − ${day2} = ?`,
+        answer: total - day1 - day2,
+        unit: '页',
+        hint: `两天一共看了 ${day1 + day2} 页，用总页数减掉它。`,
+      }
+    },
   },
   {
-    id: 'wp-18',
-    emoji: '🍉',
-    scene: ['🍉', '🍉'],
-    tags: ['减法', '退位'],
-    level: 2,
-    text: '水果店上午有 52 个西瓜，卖出 28 个。还剩多少个西瓜？',
-    answer: 24,
-    unit: '个',
-    equation: '52 − 28 = 24',
-    steps: ['个位不够减，向十位借 1', '12 − 8 = 4，十位 4 − 2 = 2', '结果是 24'],
+    id: 'stickers',
+    tag: '比多少',
+    steps: 1,
+    emoji: '✨',
+    scene: '贴纸交换',
+    make() {
+      const [a, b] = pair()
+      const x = randInt(6, 20)
+      const less = randInt(2, 5)
+      return {
+        text: `${a}有 ${x} 张贴纸，${b}比${a}少 ${less} 张。${b}有多少张贴纸？`,
+        equation: `${x} − ${less} = ?`,
+        answer: x - less,
+        unit: '张',
+        hint: '「比…少」要用减法。',
+        visual: { icon: '✨', groups: [x, x - less] },
+      }
+    },
   },
   {
-    id: 'wp-19',
-    emoji: '🧃',
-    scene: ['🧃', '🧃', '🧃', '🧃', '🧃', '🧃'],
-    tags: ['分组', '两步'],
-    level: 2,
-    text: '一箱果汁有 6 盒，老师买了 2 箱，已经喝掉 5 盒。还剩多少盒？',
-    answer: 7,
-    unit: '盒',
-    equation: '6 + 6 − 5 = 7',
-    steps: ['2 箱一共：6 + 6 = 12', '喝掉 5 盒：12 − 5 = 7'],
-  },
-  {
-    id: 'wp-20',
-    emoji: '🎫',
-    scene: ['🎫', '🎫', '🎫'],
-    tags: ['比较', '两步'],
-    level: 2,
-    text: '小星有 16 张卡片，比小月多 4 张。他们两人一共有多少张卡片？',
-    answer: 28,
-    unit: '张',
-    equation: '16 + (16 − 4) = 28',
-    steps: ['先算小月：16 − 4 = 12', '再算总数：16 + 12 = 28'],
+    id: 'zoo',
+    tag: '合并',
+    steps: 2,
+    emoji: '🦒',
+    scene: '动物园',
+    make() {
+      const a = randInt(3, 10)
+      const b = randInt(3, 10)
+      const c = randInt(2, 8)
+      return {
+        text: `动物园里有 ${a} 只长颈鹿、${b} 只斑马和 ${c} 只大象。这三种动物一共有多少只？`,
+        equation: `${a} + ${b} + ${c} = ?`,
+        answer: a + b + c,
+        unit: '只',
+        hint: '三个数依次相加，可以先算前两个。',
+        visual: { icon: '🦒', groups: [a, b, c] },
+      }
+    },
   },
 ]
 
-export const WORD_PROBLEM_TAGS = [...new Set(WORD_PROBLEMS.flatMap((p) => p.tags))]
+export const WORD_PROBLEM_COUNT = WORD_PROBLEMS.length
