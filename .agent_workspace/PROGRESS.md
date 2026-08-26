@@ -1446,12 +1446,13 @@ A27. The A24 backlog above is otherwise the live plan.
   superseded rather than merged.
 - **Verified** from a private worktree at `/tmp/a40` with `PYTHONPATH` pinned to it,
   Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1: **595 passed** at the QUAD4 merge, **601**
-  with the harvest at `6cf0f49`, and **617 passed, 0 failed** (63.9 s) at `28b93f0` after
-  merging the trunk tip back in (A31's P0 acceptance batch arrived meanwhile).
-  `ruff check .` clean at all three. `PR_DRAFT.md` refreshed off the stale 498 baseline —
-  count, title, per-suite breakdown (sums to 617), the QUAD4 and reduction/expansion
-  capabilities, 40 registered criteria, and the scope note that used to claim no
-  continuum elements exist.
+  with the harvest at `6cf0f49`, **617** after merging the trunk tip back in (A31's P0
+  acceptance batch), and **642 passed, 0 failed** (82.4 s) at `3014d25` once the FRF
+  correlation block landed on the trunk. `ruff check .` clean at every step.
+  `PR_DRAFT.md` refreshed off the stale 498 baseline — count, title, per-suite breakdown
+  (sums to 642), the QUAD4, reduction/expansion and FRF-block capabilities, 40 registered
+  criteria, and the scope note that used to claim no continuum elements exist. The trunk
+  moved four times during the sweep; the count is only stable for as long as that holds.
 - **Working-tree hazard, sixth occurrence.** `/workspace` was on another agent's branch
   with an uncommitted FRF-correlation draft (`correlation/frf.py`, untracked) and gained
   three commits *during* this task's first merge attempt, which is how that merge ended up
