@@ -23,16 +23,24 @@ The reduced mass matrix ``M_r = Tᵀ M T`` is the TAM mass: feeding it to
 :func:`~openfemlab.correlation.mac.mac`) gives pseudo-orthogonality and the
 mass-weighted MAC on the sensor set.
 
+The master set is given either as explicit row indices or as anything carrying
+``rows`` and ``signs`` — :class:`~openfemlab.workflow.sensors.SensorMap` is the
+intended source. Passing the map rather than its ``rows`` puts the basis in
+*channel* coordinates: an accelerometer mounted against the model axis reads
+``q_i = s_i u[row_i]``, so ``T`` is post-scaled by ``diag(1/s)`` and reducing a
+shape applies ``s``, which is exactly what ``SensorMap.reduce`` returns.
+Everything built from the basis — the TAM mass, expanded shapes — is then
+consistent with measured data as the rig delivers it, signs included.
+
 Round-2 scope note (R2-T03): Craig-Bampton CMS and geometry-based sensor mapping
-stay out; the master DOF set is given as explicit row indices, which is what
-:class:`~openfemlab.workflow.sensors.SensorMap` already carries in ``rows``.
+stay out.
 """
 
 from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Protocol
 
 import numpy as np
 import numpy.typing as npt
@@ -50,6 +58,17 @@ __all__ = [
 ]
 
 
+class SensorRows(Protocol):
+    """The part of :class:`~openfemlab.workflow.sensors.SensorMap` used here."""
+
+    rows: tuple[int, ...]
+    signs: tuple[float, ...]
+
+
+#: Master DOFs as plain rows, or as a sensor map that also carries orientations.
+Masters = Sequence[int] | npt.NDArray[np.intp] | SensorRows
+
+
 def _dense(matrix: Any, name: str) -> npt.NDArray[np.float64]:
     """Densify a possibly sparse square matrix and check it is square."""
     dense = matrix.toarray() if hasattr(matrix, "toarray") else np.asarray(matrix, dtype=float)
@@ -57,6 +76,40 @@ def _dense(matrix: Any, name: str) -> npt.NDArray[np.float64]:
     if dense.ndim != 2 or dense.shape[0] != dense.shape[1]:
         raise ValueError(f"{name} must be a square matrix, got shape {dense.shape}")
     return dense
+
+
+def _rows_and_signs(master: Masters):
+    """Split a master specification into row indices and channel signs.
+
+    A sensor map contributes both; a plain index sequence has no orientation
+    information, so the signs come back as ``None`` and the basis stays in
+    master-DOF coordinates.
+    """
+    rows = getattr(master, "rows", None)
+    if rows is None:
+        return master, None
+    signs = np.asarray(getattr(master, "signs", None) or (), dtype=float).ravel()
+    if signs.size == 0:
+        return rows, None
+    if signs.size != len(tuple(rows)):
+        raise ValueError("signs must have one entry per master DOF")
+    if np.any(signs == 0.0):
+        raise ValueError("sensor signs must be nonzero")
+    return rows, signs
+
+
+def _oriented(
+    transformation: npt.NDArray[np.float64],
+    master: npt.NDArray[np.intp],
+    signs: npt.NDArray[np.float64] | None,
+    kind: str,
+) -> ReductionBasis:
+    """Wrap a master-coordinate ``T`` as a basis, in channel coordinates if signed."""
+    if signs is not None:
+        transformation = transformation / signs[None, :]
+    return ReductionBasis(
+        transformation=transformation, master=master, kind=kind, signs=signs
+    )
 
 
 def _master_slave(ndof: int, master: Sequence[int] | npt.NDArray[np.intp]):
@@ -87,11 +140,16 @@ class ReductionBasis:
     kind:
         ``"guyan"``, ``"irs"`` or ``"serep"`` — recorded for reports and so a
         consumer can tell an exact-in-band basis from an approximate one.
+    signs:
+        Channel orientation per master DOF when the basis was built from a
+        sensor map, else ``None``. When present the reduced coordinates are
+        measured channels rather than raw model DOFs.
     """
 
     transformation: npt.NDArray[np.float64]
     master: npt.NDArray[np.intp]
     kind: str
+    signs: npt.NDArray[np.float64] | None = None
 
     @property
     def n_full(self) -> int:
@@ -102,9 +160,10 @@ class ReductionBasis:
         return int(self.transformation.shape[1])
 
     def __repr__(self) -> str:
+        oriented = "" if self.signs is None else ", oriented"
         return (
             f"ReductionBasis(kind={self.kind!r}, n_full={self.n_full}, "
-            f"n_master={self.n_master})"
+            f"n_master={self.n_master}{oriented})"
         )
 
     def reduce_matrix(self, matrix: Any) -> npt.NDArray[np.float64]:
@@ -116,11 +175,16 @@ class ReductionBasis:
         return 0.5 * (reduced + reduced.T)
 
     def reduce_shapes(self, shapes: Any) -> npt.NDArray[Any]:
-        """Pick the master rows out of full-space shapes ``(n, k)``."""
+        """Pick the master rows out of full-space shapes ``(n, k)``.
+
+        With channel signs the picked rows are oriented as the sensors read
+        them, so the result is directly comparable to measured shapes.
+        """
         full = as_columns(shapes, "shapes")
         if full.shape[0] != self.n_full:
             raise ValueError(f"shapes have {full.shape[0]} rows but the basis spans {self.n_full}")
-        return full[self.master, :]
+        picked = full[self.master, :]
+        return picked if self.signs is None else picked * self.signs[:, None]
 
     def expand(self, shapes: Any) -> npt.NDArray[Any]:
         """Expand master-space shapes ``(m, k)`` to the full space: ``T Φ_m``."""
@@ -157,7 +221,7 @@ def _static_transformation(
 
 def guyan_reduction(
     stiffness: Any,
-    master: Sequence[int] | npt.NDArray[np.intp],
+    master: Masters,
 ) -> ReductionBasis:
     """Static (Guyan) condensation onto ``master`` DOFs.
 
@@ -173,18 +237,17 @@ def guyan_reduction(
         When ``K_ss`` is singular.
     """
     K = _dense(stiffness, "stiffness")
-    master_rows, slave_rows = _master_slave(K.shape[0], master)
-    return ReductionBasis(
-        transformation=_static_transformation(K, master_rows, slave_rows),
-        master=master_rows,
-        kind="guyan",
+    rows, signs = _rows_and_signs(master)
+    master_rows, slave_rows = _master_slave(K.shape[0], rows)
+    return _oriented(
+        _static_transformation(K, master_rows, slave_rows), master_rows, signs, "guyan"
     )
 
 
 def irs_reduction(
     stiffness: Any,
     mass: Any,
-    master: Sequence[int] | npt.NDArray[np.intp],
+    master: Masters,
 ) -> ReductionBasis:
     """Improved Reduced System basis: Guyan plus one inertia correction.
 
@@ -197,7 +260,8 @@ def irs_reduction(
     M = _dense(mass, "mass")
     if M.shape != K.shape:
         raise ValueError(f"mass {M.shape} and stiffness {K.shape} must have the same shape")
-    master_rows, slave_rows = _master_slave(K.shape[0], master)
+    rows, signs = _rows_and_signs(master)
+    master_rows, slave_rows = _master_slave(K.shape[0], rows)
     T_s = _static_transformation(K, master_rows, slave_rows)
 
     K_r = T_s.T @ K @ T_s
@@ -211,12 +275,12 @@ def irs_reduction(
         raise SolverError(
             "cannot form the IRS correction: the Guyan-reduced mass matrix is singular"
         ) from exc
-    return ReductionBasis(transformation=T_s + correction, master=master_rows, kind="irs")
+    return _oriented(T_s + correction, master_rows, signs, "irs")
 
 
 def serep_basis(
     shapes: Any,
-    master: Sequence[int] | npt.NDArray[np.intp],
+    master: Masters,
     *,
     rcond: float | None = None,
 ) -> ReductionBasis:
@@ -235,7 +299,8 @@ def serep_basis(
     shapes:
         ``(n, k)`` full-space mode shapes, e.g. ``ModalResult.shapes``.
     master:
-        Full-space rows the sensors observe.
+        Full-space rows the sensors observe, or a sensor map carrying those
+        rows and their orientation signs.
     rcond:
         Cutoff passed to :func:`numpy.linalg.pinv`; the default follows NumPy.
 
@@ -248,7 +313,8 @@ def serep_basis(
     full = as_columns(shapes, "shapes")
     if np.iscomplexobj(full):
         raise ValueError("SEREP expects real mode shapes; use the real modal basis")
-    master_rows, _ = _master_slave(full.shape[0], master)
+    rows, signs = _rows_and_signs(master)
+    master_rows, _ = _master_slave(full.shape[0], rows)
     sensor_block = full[master_rows, :]
     if master_rows.size < full.shape[1]:
         raise SolverError(
@@ -265,16 +331,12 @@ def serep_basis(
         pseudo_inverse = np.linalg.pinv(sensor_block)
     else:
         pseudo_inverse = np.linalg.pinv(sensor_block, rcond=rcond)
-    return ReductionBasis(
-        transformation=full @ pseudo_inverse,
-        master=master_rows,
-        kind="serep",
-    )
+    return _oriented(full @ pseudo_inverse, master_rows, signs, "serep")
 
 
 def expand_shapes(
     fe_shapes: Any,
-    master: Sequence[int] | npt.NDArray[np.intp],
+    master: Masters,
     measured_shapes: Any,
     *,
     rcond: float | None = None,
@@ -282,8 +344,10 @@ def expand_shapes(
     """Expand measured shapes from sensor DOFs to the full FE space (SEREP).
 
     ``Φ_test^full = Φ_fe (T Φ_fe)⁺ Φ_test`` — the MS-2.1 expansion. The measured
-    rows must be ordered like ``master``; a :class:`~openfemlab.workflow.sensors.SensorMap`
-    provides exactly that ordering through its ``rows``.
+    rows must be ordered like ``master``; passing the
+    :class:`~openfemlab.workflow.sensors.SensorMap` itself supplies that
+    ordering *and* undoes the channel orientations, so shapes measured against
+    the model axis expand to the same full-space result as unflipped ones.
     """
     basis = serep_basis(fe_shapes, master, rcond=rcond)
     return np.asarray(basis.expand(measured_shapes), dtype=float)
@@ -296,6 +360,8 @@ def tam_mass(basis: ReductionBasis, mass: Any) -> npt.NDArray[np.float64]:
     (:func:`~openfemlab.correlation.mac.orthogonality`) and the mass-weighted MAC
     of MS-2.2 on the sensor set. For a mass-normalized FE mode set reduced with a
     SEREP basis built from those same modes, ``Φ_masterᵀ M_TAM Φ_master`` is the
-    identity — the exactness property the TAM check relies on.
+    identity — the exactness property the AC-CORR-009 pseudo-orthogonality gate
+    relies on. A Guyan or IRS TAM only approximates it, by an amount that
+    depends on where the sensors sit.
     """
     return basis.reduce_matrix(mass)

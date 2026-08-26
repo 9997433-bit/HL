@@ -124,6 +124,7 @@ default branch). The registry file is the single source of truth for status.
 | AC-CORR-006 | P1 | Reduction/expansion (SEREP) consistency | reduced vs expanded pairing identical; MAC ≥ 0.999 | MS-2.1 |
 | AC-CORR-007 | P0 | MAC range and complex-shape support | values in [0, 1]; Hermitian identity holds | MS-2.2 |
 | AC-CORR-008 | P0 | CorrelationReport JSON round-trip | serialize→parse→equal (arrays ≤ 1e-15) | MS-2.6 |
+| AC-CORR-009 | P1 | TAM pseudo-orthogonality | \|POC\| diag ≥ 0.99, off-diag ≤ 0.10 | MS-2.1, MS-2.2 |
 
 ### Details
 
@@ -156,6 +157,15 @@ default branch). The registry file is the single source of truth for status.
   arrays to ≤ 1e-15; the artifact carries `schema_version` (currently `"1.1"`,
   bumped when the `frf` block was added) and emits every schema key, `frf`
   included, whether or not the corresponding analysis ran.
+- **AC-CORR-009** (`twin`) — Noise-free synthetic test modes read at the
+  sensor DOFs and normalized through the TAM mass `M_TAM = Tᵀ M T` (MS-2.1)
+  satisfy the MS-2.2 pseudo-orthogonality gate against the analysis modes on
+  the same DOF set: `|POC| = |Φ_eᵀ M_TAM Φ_a|` has every paired diagonal entry
+  ≥ 0.99 and every off-diagonal entry ≤ 0.10. The SEREP TAM meets it exactly
+  (off-diagonal 0 to solver precision, because `T Φ_sensor = Φ`); a Guyan TAM
+  on the *same* sensor set is the discriminating case and fails it, so the
+  criterion gates test-analysis-model and instrumentation adequacy rather than
+  restating the normalization.
 
 ---
 
@@ -328,7 +338,7 @@ frequency-domain counterparts of the M2 gates AC-CORR-001/002.
 registry (one entry per criterion: ID, title, module, spec anchor, priority,
 verification method, planned test reference, status).
 
-The current inventory is **40 criteria**: M1 = 9, M2 = 8, M3 = 9,
+The current inventory is **41 criteria**: M1 = 9, M2 = 9, M3 = 9,
 M4 = 5, M5 = 4, and M6 = 5. The two suffixed M3 rows
 (`AC-UPD-006a` / `AC-UPD-006b`) are distinct criteria under one dense base
 number.
