@@ -968,7 +968,7 @@ Core backlog (prioritized, from `docs/SOTA_GAP_ANALYSIS.md` §4/§6 + Round 1 co
 3. **R2-T03 SEREP/TAM reduction & expansion** (GAP-08) — Guyan/IRS/SEREP, TAM
    pseudo-orthogonality, shape expansion; closes Round-2 gate AC-CORR-006. *Engine
    landed by A36 (`correlation/reduction.py`, 25 tests) and **AC-CORR-006 is now
-   `implemented`** — A43 added the 18-case acceptance gate and flipped the registry in
+   `implemented`** — A43 added the 19-case acceptance gate and flipped the registry in
    the same commit. Remaining: registering AC-CORR-009 (TAM pseudo-orthogonality, the
    engine and its test already exist), the `SensorMap.signs` wiring, and moving
    AC-CORR-006 from `implemented` to `verified` once CI has run it. See the A36 and A43
@@ -1624,12 +1624,23 @@ A27. The A24 backlog above is otherwise the live plan.
   sees the 5 measured rows. The conservative side is the expanded one — useful to know for
   anyone tempted to treat expansion as cosmetic. Also pinned by a test, so the equality the
   criterion asserts is never read as unconditional.
-- **Verified 2026-08-26 08:05 UTC** from a private worktree at `/tmp/a43` with both
-  `PYTHONPATH` entries pinned to it (`/tmp/a43:/tmp/a43/src`) — necessary because the
-  venv's editable install resolves `openfemlab` to the shared `/workspace/src`, which
-  another agent was concurrently resetting. Full suite **655 passed, 0 failed** on
-  Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1 (636 before this change); repository-wide
-  `python -m ruff check .` clean. Rebased once onto a moving tip (`1db2f03`).
+- **Verified 2026-08-26 08:14 UTC** from a private worktree with both `PYTHONPATH` entries
+  pinned to it (`<worktree>:<worktree>/src`) — necessary because the venv's editable
+  install resolves `openfemlab` to the shared `/workspace/src`. Full suite **672 passed,
+  0 failed** in 70.8 s on Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1; the same tip with
+  `-k "not ac_corr_006"` gives **653 passed**, so this change is +19 and touches nothing
+  else. Repository-wide `python -m ruff check .` clean. Rebased three times onto a tip
+  that moved under the work each time.
+- **Working-tree hazard, seventh and eighth occurrence — and the first one that cost a
+  branch ref.** `/workspace` was reset out from under the first attempt exactly as A40
+  describes, so the work moved to a private worktree at `/tmp/a43`. That path was then
+  *also* reset by another agent, and because the branch was checked out there, the reset
+  moved the **branch ref**, not just a detached HEAD: two commits were left unreferenced
+  and recoverable only from the worktree reflog. Two lessons for anyone following: a
+  private worktree needs a path no other agent will guess (`/tmp/a<id>` is exactly the
+  pattern everyone uses), and checking a branch out into it converts someone else's
+  `reset --hard` from a nuisance into lost work — a detached worktree plus
+  `git push origin HEAD:<branch>` would have been safe.
 - **Still open on R2-T03**, unchanged by this commit: AC-CORR-009 (TAM
   pseudo-orthogonality) is still unregistered although both the engine and
   `test_tam_pseudo_orthogonality_separates_modes_of_a_longer_chain` exist — registering it
