@@ -42,7 +42,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 
 | Agent | Model | Focus | Status |
 |-------|-------|-------|--------|
-| R1-F1 | claude-fable-5-thinking-xhigh | Global architecture & SOTA audit | pending |
+| R1-F1 | claude-fable-5-thinking-xhigh | Global architecture & SOTA audit | done |
 | R1-F2 | claude-fable-5-thinking-xhigh | Module spec & acceptance criteria | complete |
 | R1-O1 | claude-opus-5-thinking-high-fast | Core FEM + modal solver | complete |
 | R1-O2 | claude-opus-5-thinking-high-fast | Model updating & correlation | complete (branch `cursor/r1o2-correlation-updating-e393`) |
@@ -264,6 +264,13 @@ orchestrator to diff against the landed implementation in Round 2.
   min MAC > 0.999 and < 0.01% error; an 8-DOF model with only 4 measured DOFs, 3 measured
   modes and noisy targets (0.2% frequency, 1% shape) recovers all three group factors within
   5% and removes > 90% of the cost. All new files pass the project Ruff configuration.
+
+#### A11 — Repository-wide Ruff Cleanup
+- Cleared all reported Ruff failures across `openfemlab` and its tests: modernized
+  imports and annotations, wrapped overlong lines, removed an unused test import, renamed
+  an ambiguous inertia variable, and made every `zip` policy explicit.
+- Used `strict=False` for existing `zip` calls so unequal inputs retain their prior
+  truncation behavior.
 
 ### Round 2 — Targeted Refactor & Deep Optimization
 **Status:** PENDING
