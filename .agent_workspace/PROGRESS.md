@@ -45,9 +45,29 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | R1-F1 | claude-fable-5-thinking-xhigh | Global architecture & SOTA audit | pending |
 | R1-F2 | claude-fable-5-thinking-xhigh | Module spec & acceptance criteria | complete |
 | R1-O1 | claude-opus-5-thinking-high-fast | Core FEM + modal solver | complete |
-| R1-O2 | claude-opus-5-thinking-high-fast | Model updating & correlation | pending |
+| R1-O2 | claude-opus-5-thinking-high-fast | Model updating & correlation | complete (branch `cursor/r1o2-correlation-updating-e393`) |
 | R1-G1 | gpt-5.6-sol-xhigh-fast | Project scaffold & benchmarks | complete |
 | R1-G2 | gpt-5.6-sol-xhigh-fast | Boundary tests & mock probes | complete |
+
+#### R1-F1 — Global Architecture & SOTA Audit
+- Added `docs/ARCHITECTURE.md`: layered module diagram (io -> core/mesh -> solver/modal
+  -> correlation/updating/optimization -> cli), data-flow diagrams for the modal,
+  correlation, and updating pipelines, core data contracts, tech-stack policy, and a
+  FEMtools SOTA gap table (we concede GUI/format breadth; exceed on Hungarian mode
+  pairing, auto-regularized updating, Bayesian hooks, Python scripting, reproducibility).
+- Contributed the shared L1 contracts now committed in core: `DofMap`/`DofType`
+  (`core/dofs.py`), `ModalResult`/`TestData` (`core/results.py`), and the neutral
+  interchange model relocated by R1-O1 to `core/neutral.py`.
+- Added `modal/eigen.py` (neutral eigsh shift-invert kernel for imported K/M),
+  `optimization/` problem stub, and the `openfemlab` CLI (`cli/main.py`, argparse+rich
+  with plain fallback; wired to `[project.scripts]`).
+- Reconciled `pyproject.toml` (setuptools src-layout, numpy/scipy/pyyaml hard deps,
+  `io`/`cli`/`dev` extras, console script) and restored the R1-O1 status cell lost in a
+  concurrent PROGRESS edit.
+- Flagged for Round 2 (see ARCHITECTURE.md §11): consolidate the two eigen entry points
+  (`solver.modal.ModalSolver` vs `modal.eigen.solve_modes`) and merge the duplicate
+  `ModalResult` classes into the neutral contract; UNV 55/58/2411/2412 io is the top
+  io priority.
 
 #### R1-G1 — Project Scaffold & Benchmarks
 - Added Python packaging metadata, runtime/dev dependencies, Make targets, and push CI.
@@ -124,10 +144,12 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 - Added `docs/ACCEPTANCE_CRITERIA.md`: 35 quantified criteria
   (MODAL 9, CORR 8, UPD 9, WORK 5, OPT 4) with P0/P1 round gates, tolerances,
   and verification methods (oracle/property/twin/contract/regression).
-- Added `tests/acceptance/test_criteria_registry.py`: machine-readable criterion
-  registry with 13 consistency tests (ID format/uniqueness, dense numbering,
-  cross-references against both docs, controlled vocabularies, P0 coverage).
-- Verified on Python 3.12: 13/13 registry tests pass; new files pass Ruff.
+- Added `tests/acceptance/test_criteria_registry.py`: machine-readable registry
+  of all 35 criteria with consistency tests (ID format/uniqueness, dense
+  numbering, cross-references against both docs, vocabularies, P0 coverage);
+  final registry body merged with the parallel R1-F2 rewrite (10 tests).
+- Verified on Python 3.12: 10/10 registry tests pass on the committed state;
+  new files pass Ruff.
 
 #### R1-F2 — Module Spec & Acceptance Criteria
 - Added `docs/MODULE_SPEC.md`: binding specs for M1 modal analysis
@@ -198,6 +220,50 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 - Verified the portable modal adapter directly, and `pytest --collect-only -q` collected
   all 156 current tests without errors. The focused E2E + IO + modal regression run passed
   all 58 tests.
+
+#### R1-O2 — FE-Test Correlation & Sensitivity-Based Updating
+**Delivered on branch `cursor/r1o2-correlation-updating-e393`, not on the integration branch.**
+While R1-O2 was implementing, A08 and others landed their own `correlation/` and `updating/`
+packages at the same paths on `cursor/femtools-industrial-7aa3` (R1-O2's `correlation/mac.py`
+was overwritten in the shared working tree mid-run). Rather than start an overwrite war,
+R1-O2 finished in an isolated worktree and pushed a self-contained branch for the
+orchestrator to diff against the landed implementation in Round 2.
+
+- `correlation/mac.py`: MAC / cross-MAC / auto-MAC over real or complex shapes with optional
+  per-DOF weighting (pretest sensor weighting, mass weighting), modal scale factor, signed
+  frequency-error metrics (`FrequencyDifference`, `frequency_error_matrix`), and automatic
+  mode pairing — greedy or Hungarian (`scipy.optimize.linear_sum_assignment`, greedy
+  fallback) — with MAC-threshold and frequency-window acceptance so uncorrelated modes are
+  reported unpaired instead of forced into a pair.
+- `correlation/metrics.py`: `CorrelationSummary` (mean/min/max MAC, mean/max/rms frequency
+  error, worst off-diagonal MAC as a mode-swap indicator, `is_correlated` acceptance gate,
+  printable pair table), COMAC, and the normalised frequency residual.
+- `updating/parameters.py`: bounded `UpdatableParameter` scaling factors (stiffness, mass,
+  damping, generic) carrying element/group targets, FD step, fixed flag and an optional
+  logarithmic design-space transform that guarantees positive properties; `ParameterSet`
+  handles ordering, free/fixed splitting, bound projection and design-space mapping.
+- `updating/sensitivity.py`: analytical Fox–Kapoor eigenvalue sensitivity
+  `dλ_i/dp = φ_i^T (dK/dp − λ_i dM/dp) φ_i / (φ_i^T M φ_i)`, eigenvalue→frequency conversion,
+  a generic finite-difference Jacobian, and a solver-independent modal sensitivity that
+  re-pairs perturbed modes to the baseline by MAC so mode switching cannot corrupt the matrix.
+  `as_modal_data` adapts tuples, mappings, arrays and any solver result object exposing
+  frequencies/mode shapes, so the updater drives `solver.modal.ModalSolver` unmodified.
+- `updating/updater.py`: iterative updater minimising `r = [w_f (f_fe − f_test)/f_test,
+  w_s (1 − sqrt(MAC))]` (or per-DOF MSF-scaled shape differences) through damped normal
+  equations `(J^T J + λ diag(J^T J) + β I) Δx = −(J^T r + β (x − x0))`, Levenberg–Marquardt
+  with adaptive damping or Gauss–Newton, Tikhonov regularisation towards the starting model,
+  bound projection, per-iteration MAC re-pairing, convergence history and correlation
+  summaries before/after.
+- Tests (`tests/test_correlation.py` 29, `tests/test_updating.py` 33, plus the standalone
+  `tests/modal_reference.py` spring-mass chain): **61 passed, 1 skipped in 0.42 s** on
+  Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1; the skip is the core-solver integration test,
+  which was verified separately against `solver.modal.ModalSolver` (recovers a 1.44 stiffness
+  factor to 1e-4). Key results: analytical vs finite-difference sensitivities agree to 1e-6
+  relative; a 2-DOF model recovers stiffness factors 1.25 / 0.80 to 1e-4; a 6-DOF model with
+  two stiffness groups and a tip mass goes from mean MAC < 0.99 and 5%+ frequency error to
+  min MAC > 0.999 and < 0.01% error; an 8-DOF model with only 4 measured DOFs, 3 measured
+  modes and noisy targets (0.2% frequency, 1% shape) recovers all three group factors within
+  5% and removes > 90% of the cost. All new files pass the project Ruff configuration.
 
 ### Round 2 — Targeted Refactor & Deep Optimization
 **Status:** PENDING
