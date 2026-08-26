@@ -377,18 +377,22 @@ class TestEffectRackPanel:
         panel = EffectRackPanel(EffectChain())
         assert panel.eq is None and panel.trim is None
         assert panel.dehum is None and panel.declick is None
+        assert panel.noise_reduce is None
         assert panel.summary() == "FX empty"
         panel.reset()
         panel.eq_low.set_value(3.0)  # no crash without an EQ to write to
         panel.hum_q.set_value(20.0)
         panel.declick_sensitivity.set_value(80.0)
+        panel.noise_reduction.set_value(12.0)
 
     def test_repair_starts_switched_off(self, rack: EffectRackPanel) -> None:
         """A new session must not be quietly rewriting samples."""
         assert not rack.dehum.enabled
         assert not rack.declick.enabled
+        assert not rack.noise_reduce.enabled
         assert "De-Hum" not in rack.summary()
         assert "De-Click" not in rack.summary()
+        assert "Noise Reduction" not in rack.summary()
 
     def test_the_dehum_controls_reach_the_effect(self, rack: EffectRackPanel) -> None:
         rack.dehum_enabled.setChecked(True)
@@ -415,15 +419,37 @@ class TestEffectRackPanel:
         assert rack.declick.enabled
         assert rack.declick.sensitivity == pytest.approx(0.8)
 
+    def test_the_noise_reduction_controls_reach_the_effect(
+        self, rack: EffectRackPanel
+    ) -> None:
+        rack.noise_reduce_enabled.setChecked(True)
+        rack.noise_reduction.set_value(18.0)
+        rack.noise_learn_ms.set_value(500.0)
+
+        assert rack.noise_reduce.enabled
+        assert rack.noise_reduce.reduction_db == pytest.approx(18.0)
+        assert rack.noise_reduce.noise_ms == pytest.approx(500.0)
+        assert "Noise Reduction" in rack.summary()
+
+    def test_noise_reduction_sits_after_the_other_repair_slots(
+        self, rack: EffectRackPanel
+    ) -> None:
+        """Hum and ticks first: hiss is what is left once they are gone."""
+        order = [type(effect).__name__ for effect in rack.chain]
+        assert order.index("NoiseReduceEffect") == order.index("DeClickEffect") + 1
+
     def test_reset_switches_repair_back_off(self, rack: EffectRackPanel) -> None:
         rack.dehum_enabled.setChecked(True)
         rack.declick_enabled.setChecked(True)
+        rack.noise_reduce_enabled.setChecked(True)
 
         rack.reset()
 
         assert not rack.dehum.enabled and not rack.declick.enabled
+        assert not rack.noise_reduce.enabled
         assert rack.dehum_enabled.isChecked() is False
         assert rack.declick_enabled.isChecked() is False
+        assert rack.noise_reduce_enabled.isChecked() is False
 
     def test_the_panel_reads_repair_state_back_from_a_chain(self, rack: EffectRackPanel) -> None:
         other = default_preview_chain()
