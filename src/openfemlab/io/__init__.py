@@ -3,11 +3,15 @@
 The native schema is versioned and available in both JSON and YAML.  Generic
 ``read_data`` also reads repository fixtures without constructing arbitrary
 Python objects (YAML uses :func:`yaml.safe_load`).
+
+Foreign formats arrive through dedicated readers: :func:`read_bdf` for the
+Nastran bulk-data subset, :func:`read_uff` for UFF/UNV test data, and the
+:mod:`~openfemlab.io.meshio_bridge` adapter for everything ``meshio`` can
+open.  The meshio functions re-exported here import the optional package
+lazily, so this module stays importable without the ``[io]`` extra.
 """
 
 from __future__ import annotations
-
-from typing import Any
 
 from ._common import (
     SUPPORTED_EXTENSIONS,
@@ -36,6 +40,7 @@ from ._native import (
     write_model,
     write_test_data,
 )
+from .meshio_bridge import from_meshio, read_meshio, to_meshio, write_meshio
 from .nastran import read_bdf, read_nastran
 from .uff import (
     UFFDataset,
@@ -68,17 +73,6 @@ def read_json(source):
 
     return read_data(source, format="json")
 
-
-def from_meshio(mesh: Any) -> Any:
-    """Convert a ``meshio.Mesh`` to a model (planned optional adapter)."""
-
-    try:
-        import meshio  # noqa: F401
-    except ImportError as exc:  # pragma: no cover - optional dependency
-        raise ImportError(
-            "meshio is required for this reader: pip install openfemlab[io]"
-        ) from exc
-    raise NotImplementedError("meshio bridge is not implemented yet")
 
 __all__ = [
     "SCHEMA_VERSION",
@@ -115,6 +109,9 @@ __all__ = [
     "dof_map_from_dict",
     "dof_map_from_labels",
     "from_meshio",
+    "to_meshio",
+    "read_meshio",
+    "write_meshio",
     "read_bdf",
     "read_nastran",
     "UFFDataset",

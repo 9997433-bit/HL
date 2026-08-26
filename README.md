@@ -59,6 +59,9 @@ change before the first stable release.
   functions/FRFs.
 - A dependency-free Nastran BDF reader for the supported `GRID`, `CROD`, and
   `MAT1` subset in free-field and small fixed-field form.
+- A `meshio` bridge (optional `[io]` extra) converting mesh files to and from
+  the neutral model for the `vertex`/`line`/`triangle`/`quad`/`tetra`/
+  `hexahedron` cell types.
 
 ## Installation
 
@@ -74,7 +77,9 @@ For contributor tools, rich CLI output, and the benchmark scripts:
 python -m pip install -e ".[dev,cli]"
 ```
 
-The optional `io` extra installs `meshio` for future format adapters:
+The optional `io` extra installs `meshio`, which the
+`openfemlab.io.meshio_bridge` adapter uses to import Gmsh, Abaqus, VTK and the
+other formats meshio reads:
 
 ```bash
 python -m pip install -e ".[io]"
