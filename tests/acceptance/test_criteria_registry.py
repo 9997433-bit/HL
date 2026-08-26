@@ -92,11 +92,11 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
     _c("AC-MODAL-006", "Residual convergence guarantee",
        "P0", "contract", "MS-1.2", _MODAL_SUITE, "implemented"),
     _c("AC-MODAL-007", "Effective modal mass completeness",
-       "P0", "oracle", "MS-1.4", _MODAL_SUITE),
+       "P0", "oracle", "MS-1.4", _MODAL_SUITE, "implemented"),
     _c("AC-MODAL-008", "Frequency-window extraction + missed-mode guard",
        "P1", "oracle", "MS-1.2", _MODAL_SUITE),
     _c("AC-MODAL-009", "Input validation & typed failures",
-       "P0", "contract", "MS-1.1", _MODAL_SUITE),
+       "P0", "contract", "MS-1.1", _MODAL_SUITE, "implemented"),
     # --- M2 Correlation (MS-2) ----------------------------------------------
     _c("AC-CORR-001", "Weighted MAC self-identity",
        "P0", "property", "MS-2.2", _CORR_SUITE, "implemented"),

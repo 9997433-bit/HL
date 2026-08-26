@@ -28,7 +28,12 @@ import scipy.sparse.linalg as spla
 
 from ..core.assembly import AssembledSystem, assemble_system
 from ..core.results import NORMALIZATIONS, RIGID_BODY_TOL, ModalResult
-from ..exceptions import SolverConvergenceError, SolverError
+from ..exceptions import (
+    MatrixDefinitenessError,
+    MatrixSymmetryError,
+    SolverConvergenceError,
+    SolverError,
+)
 
 __all__ = [
     "ModalSolver",
@@ -36,12 +41,16 @@ __all__ = [
     "NORMALIZATIONS",
     "RIGID_BODY_TOL",
     "RESIDUAL_TOL",
+    "SYMMETRY_TOL",
     "eigenpair_residuals",
     "residual_floor",
 ]
 
 #: Default MS-1.2 relative-residual tolerance every returned eigenpair must meet.
 RESIDUAL_TOL = 1e-8
+
+#: MS-1.1 symmetry tolerance: ``‖A - Aᵀ‖_max <= SYMMETRY_TOL * ‖A‖_max``.
+SYMMETRY_TOL = 1e-10
 
 #: Relative gap below which two mode components count as tied for the MS-1.3
 #: sign rule, so a near-symmetric mode gets the same sign from every backend.
@@ -126,6 +135,7 @@ class ModalSolver:
         tol: float = 0.0,
         maxiter: int | None = None,
         residual_tol: float | None = RESIDUAL_TOL,
+        definiteness_tol: float | None = RIGID_BODY_TOL,
         seed: int | None = 0,
         cache_factorization: bool = True,
     ) -> ModalResult:
@@ -164,6 +174,11 @@ class ModalSolver:
             ``‖K phi - lambda M phi‖ / ‖K phi‖ <= residual_tol``, else
             :class:`~openfemlab.exceptions.SolverConvergenceError` is raised
             carrying the residuals. ``None`` skips the check.
+        definiteness_tol:
+            MS-1.1 noise floor below which a negative eigenvalue is reported as
+            :class:`~openfemlab.exceptions.MatrixDefinitenessError` instead of
+            being clipped to a rigid-body mode. ``None`` downgrades it to a
+            ``RuntimeWarning`` so an unstable spectrum can be inspected.
         seed:
             Seeds the Lanczos starting vector, which ARPACK would otherwise
             draw at random — making repeated sparse runs differ in the last
@@ -206,7 +221,7 @@ class ModalSolver:
         else:
             values, vectors = self._solve_dense(K_r, M_r, requested)
 
-        values, vectors = _sort_and_clip(values, vectors, K_r, M_r)
+        values, vectors = _sort_and_clip(values, vectors, K_r, M_r, definiteness_tol)
         if residual_tol is not None:
             _verify_residuals(K_r, M_r, values, vectors, residual_tol)
 
@@ -245,6 +260,11 @@ class ModalSolver:
             return cached
 
         K_ff, M_ff = self.system.reduced()
+        _check_finite(K_ff, "K")
+        _check_finite(M_ff, "M")
+        _check_symmetry(K_ff, "K")
+        _check_symmetry(M_ff, "M")
+        _check_mass_definiteness(M_ff)
         K_ff = _symmetrize(K_ff)
         M_ff = _symmetrize(M_ff)
         _, transform = _condense_massless(K_ff, M_ff, enabled=condense_massless)
@@ -267,9 +287,11 @@ class ModalSolver:
         M_d = M.toarray() if sp.issparse(M) else np.asarray(M, dtype=float)
         try:
             values, vectors = sla.eigh(K_d, M_d)
-        except np.linalg.LinAlgError as exc:  # pragma: no cover - LAPACK dependent
-            raise SolverError(
-                "dense eigensolver failed; the mass matrix is probably not positive definite"
+        except np.linalg.LinAlgError as exc:
+            raise MatrixDefinitenessError(
+                "the dense eigensolver could not factorize the mass matrix; it is not "
+                "positive definite",
+                matrix="M",
             ) from exc
         return values[:num_modes], vectors[:, :num_modes]
 
@@ -343,6 +365,69 @@ def _symmetrize(matrix):
         return ((matrix + matrix.T) * 0.5).tocsr()
     matrix = np.asarray(matrix, dtype=float)
     return 0.5 * (matrix + matrix.T)
+
+
+def _max_abs(matrix) -> float:
+    if sp.issparse(matrix):
+        return float(abs(matrix).max()) if matrix.nnz else 0.0
+    array = np.asarray(matrix, dtype=float)
+    return float(np.max(np.abs(array))) if array.size else 0.0
+
+
+def _check_finite(matrix, name: str) -> None:
+    """Reject NaN/inf before LAPACK turns them into a plausible-looking result."""
+    data = matrix.data if sp.issparse(matrix) else np.asarray(matrix, dtype=float)
+    if not np.all(np.isfinite(data)):
+        raise SolverError(
+            f"{name} contains non-finite entries (NaN or inf); the eigenproblem is undefined"
+        )
+
+
+def symmetry_defect(matrix) -> float:
+    """``‖A - Aᵀ‖_max / ‖A‖_max`` — the MS-1.1 asymmetry measure.
+
+    Zero for an empty or all-zero matrix, so a fully constrained partition does
+    not trip the validation on a division by zero.
+    """
+    scale = _max_abs(matrix)
+    if scale == 0.0:
+        return 0.0
+    return _max_abs(matrix - matrix.T) / scale
+
+
+def _check_symmetry(matrix, name: str, tolerance: float = SYMMETRY_TOL) -> None:
+    """MS-1.1: symmetry is validated before it is enforced by averaging."""
+    defect = symmetry_defect(matrix)
+    if defect > tolerance:
+        raise MatrixSymmetryError(
+            f"{name} is not symmetric: ‖{name} - {name}ᵀ‖_max is {defect:.3e} of "
+            f"‖{name}‖_max, above the {tolerance:.0e} tolerance of MS-1.1; the "
+            "symmetric eigenproblem does not describe this matrix",
+            matrix=name,
+            defect=defect,
+            tolerance=tolerance,
+        )
+
+
+def _check_mass_definiteness(M) -> None:
+    """Reject a mass matrix that cannot be positive semi-definite.
+
+    A negative diagonal entry rules out PSD outright and costs O(n) to find, so
+    it is caught here with a message that names the DOF. The remaining
+    indefinite cases surface as a failed factorization or a non-positive
+    generalized mass further down, both of which raise the same error type.
+    """
+    diagonal = np.asarray(M.diagonal(), dtype=float)
+    if diagonal.size == 0:
+        return
+    worst = int(np.argmin(diagonal))
+    if diagonal[worst] < 0.0:
+        raise MatrixDefinitenessError(
+            f"the mass matrix is not positive semi-definite: free DOF {worst} has "
+            f"mass {diagonal[worst]:.6g}",
+            matrix="M",
+            value=float(diagonal[worst]),
+        )
 
 
 def _default_shift(K, M) -> float:
@@ -430,7 +515,7 @@ def _rigid_body_threshold(values: np.ndarray, K, M) -> float:
     return RIGID_BODY_TOL * max(scale, 1e-9 * abs(_stiffness_to_inertia_scale(K, M)))
 
 
-def _sort_and_clip(values: np.ndarray, vectors: np.ndarray, K, M):
+def _sort_and_clip(values: np.ndarray, vectors: np.ndarray, K, M, definiteness_tol):
     """Ascending eigenpairs with the rigid-body eigenvalues set to exactly zero.
 
     An eigenvalue that is numerically zero comes out of LAPACK/ARPACK as a
@@ -438,22 +523,40 @@ def _sort_and_clip(values: np.ndarray, vectors: np.ndarray, K, M):
     alone would report a rigid-body mode at some meaningless ``1e-9 Hz``.
     MS-1.2 asks for ``f = 0`` on those modes, which is also what makes the
     reported spectrum agree with ``ModalResult.is_rigid``.
+
+    An eigenvalue *below* that floor is a different matter: ``omega^2 < 0`` is
+    an imaginary frequency, so MS-1.1 has it raise
+    :class:`~openfemlab.exceptions.MatrixDefinitenessError` rather than be
+    clipped away. ``definiteness_tol=None`` downgrades that to a warning for
+    callers who want to inspect the unstable spectrum itself.
     """
     values = np.asarray(values, dtype=float)
     order = np.argsort(values)
     values = values[order]
     vectors = np.asarray(vectors, dtype=float)[:, order]
     if values.size:
-        scale = float(np.max(np.abs(values)))
-        threshold = -1e-6 * max(scale, 1.0)
-        if np.any(values < threshold):
-            warnings.warn(
-                "negative eigenvalues encountered: the stiffness matrix is not positive "
-                "semi-definite (unstable model or wrong material data)",
-                RuntimeWarning,
-                stacklevel=3,
+        floor = _rigid_body_threshold(values, K, M)
+        if definiteness_tol is None:
+            if values[0] < -1e-6 * max(float(np.max(np.abs(values))), 1.0):
+                warnings.warn(
+                    "negative eigenvalues encountered: the stiffness matrix is not positive "
+                    "semi-definite (unstable model or wrong material data)",
+                    RuntimeWarning,
+                    stacklevel=3,
+                )
+        elif values[0] < -abs(definiteness_tol) * max(
+            float(np.max(np.abs(values))), abs(_stiffness_to_inertia_scale(K, M)) * 1e-9
+        ):
+            raise MatrixDefinitenessError(
+                f"eigenvalue {values[0]:.6g} is negative beyond the rigid-body noise "
+                "floor: the stiffness matrix is not positive semi-definite (unstable "
+                "model or wrong material data); pass definiteness_tol=None to inspect "
+                "the spectrum anyway",
+                matrix="K",
+                value=float(values[0]),
+                tolerance=float(definiteness_tol),
             )
-        values = np.where(values <= _rigid_body_threshold(values, K, M), 0.0, values)
+        values = np.where(values <= floor, 0.0, values)
     return values, vectors
 
 
@@ -537,8 +640,14 @@ def _mass_normalize(vectors: np.ndarray, M, normalization: str) -> np.ndarray:
         peaks[peaks == 0.0] = 1.0
         return vectors / peaks
     generalized = np.einsum("ij,ij->j", vectors, M @ vectors)
-    if np.any(generalized <= 0.0):
-        raise SolverError("non-positive generalized mass; the mass matrix is not positive definite")
+    worst = float(np.min(generalized)) if generalized.size else 1.0
+    if worst <= 0.0:
+        raise MatrixDefinitenessError(
+            f"mode {int(np.argmin(generalized)) + 1} has generalized mass {worst:.6g}; "
+            "the mass matrix is not positive definite",
+            matrix="M",
+            value=worst,
+        )
     return vectors / np.sqrt(generalized)
 
 

@@ -90,6 +90,8 @@ _EXPORTS: dict[str, str] = {
     "ElementError": "openfemlab.exceptions",
     "SolverError": "openfemlab.exceptions",
     "SolverConvergenceError": "openfemlab.exceptions",
+    "MatrixSymmetryError": "openfemlab.exceptions",
+    "MatrixDefinitenessError": "openfemlab.exceptions",
     "OptimizationError": "openfemlab.exceptions",
 }
 
@@ -138,6 +140,8 @@ if TYPE_CHECKING:  # pragma: no cover
     from .correlation import mac_value as mac_value
     from .correlation import pair_modes as pair_modes
     from .exceptions import ElementError as ElementError
+    from .exceptions import MatrixDefinitenessError as MatrixDefinitenessError
+    from .exceptions import MatrixSymmetryError as MatrixSymmetryError
     from .exceptions import ModelError as ModelError
     from .exceptions import OpenFEMLabError as OpenFEMLabError
     from .exceptions import OptimizationError as OptimizationError
