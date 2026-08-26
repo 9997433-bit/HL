@@ -130,7 +130,7 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
     _c("AC-UPD-006b", "Posterior contraction (tight prior)",
        "P1", "property", "MS-3.5", _UPD_SUITE),
     _c("AC-UPD-007", "Collinear parameter detection & freeze",
-       "P0", "twin", "MS-3.6", _UPD_SUITE),
+       "P0", "twin", "MS-3.6", _UPD_SUITE, "implemented"),
     _c("AC-UPD-008", "Mode switching handled by re-pairing",
        "P1", "twin", "MS-3.2", _UPD_SUITE),
     # --- M4 Simulation correction workflow (MS-4) -----------------------------

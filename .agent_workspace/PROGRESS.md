@@ -53,6 +53,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A47 | gpt-5.6-sol-xhigh-fast | Reconcile A23's 41-vs-40 criteria audit count and pin the registry inventory (backfill for A35) | complete |
 | A41 | claude-opus-5-thinking-high-fast | FRF block in the `CorrelationReport` schema, `schema_version` 1.1 (backfill for R2-T01) | complete |
 | A40 | claude-opus-5-thinking-high-fast | Side-branch merge sweep (scipy backend harvest; QUAD4 raced with A37), full-suite verification & PR-draft refresh (backfill for A38) | complete |
+| A44 | claude-opus-5-thinking-high-fast | Tag AC-WORK-001/002/004/005 and AC-UPD-007; new `tests/acceptance/test_workflow.py` (backfill for A23) | complete |
 | A46 | claude-opus-5-thinking-high-fast | R2-T02 continued: TET4 constant-strain tetrahedron, Kuhn tet-block mesh, 3D patch suite (backfill for A42) | complete |
 
 ## Reference: FEMtools Core Capabilities
@@ -1821,7 +1822,55 @@ clean. That is the trunk's 636 at `1db2f03` plus the 66 new ones. The trunk move
 the slice was merged onto that tip and re-run: **737 passed**, Ruff still clean. The only
 conflict was the Active Pool table, where both sides appended rows; all three were kept.
 
-**Working-tree hazard, seventh occurrence.** A concurrent agent ran `git reset --hard` on
-`/workspace` mid-edit and discarded the first pass of this element wholesale. The work was
-redone in a private clone. Every entry since A28 has now reported this; the shared
-checkout should be treated as read-only scratch and nothing but a fetch target.
+**Working-tree hazard, again.** A concurrent agent ran `git reset --hard` on `/workspace`
+mid-edit and discarded the first pass of this element wholesale. The work was redone in a
+private clone at `/tmp/a46`. Every entry since A28 has now hit this; the shared checkout
+should be treated as read-only scratch and nothing but a fetch target.
+
+#### A44 — AC-WORK and AC-UPD-007 tagging (backfill for A23)
+
+Closes the bookkeeping caveat A23 carried into Round 2: five **P0** criteria that the
+engine had satisfied numerically since A13 were still `specified` because no tagged
+acceptance test claimed them.
+
+- Added `tests/acceptance/test_workflow.py`, the M4 suite the registry has always named
+  and never had (11 tests). It builds its own twin from the shared `ten_dof_chain`
+  parameterization rather than reusing `tests/test_workflow.py`, so the criterion is
+  checked independently of the developer suite that motivated it.
+  **AC-WORK-001** wraps the AC-UPD-003 detuning in S1–S6 and asserts every paired mode
+  clears MAC 0.95 and |Δf| 1 % from a baseline at min MAC 0.913 / 4.53 %, with the
+  recovered factors within 1e-3 of `(1.20, 0.80, 1.15)`; **AC-WORK-002** compares two
+  seeded runs field by field to 1e-12 and byte-compares the JSON with wall times
+  dropped; **AC-WORK-004** drives both the S2 pairing gate and the S6 validation gate
+  and checks the typed `{stage, reason}` halt leaves S3–S6 `SKIPPED` and nothing marked
+  PASS; **AC-WORK-005** walks the report schema (`schema_version "1.0"`, both
+  correlation blocks, iteration history, parameter table with σ_post, gates,
+  environment, per-stage wall time) and its JSON round trip through memory and disk.
+- Extended `tests/acceptance/test_updating.py` with **AC-UPD-007** (3 tests) over
+  `workflow/selection.py`: the screen alone on a rank-deficient matrix, then the twin
+  where `k1_twin` scales exactly the `k1` spring group. S3 detects the pair at cosine
+  1.0000, freezes `k1_twin` with `reason="collinear"` and `collinear_with="k1"`, and the
+  run still lands the survivors within 1e-14 of the truth at min MAC 1.0 and max |Δf|
+  1.9e-13 % — the AC-UPD-003 gates, whose constants the new tests reuse rather than
+  restate.
+- Registry: the five criteria move `specified → implemented`. The inventory is now
+  **28 implemented / 12 specified of 40**; the remaining P0 rows are AC-MODAL-007/009,
+  AC-CORR-005/007/008 and AC-UPD-004/005, all engines-exist/tests-missing cases.
+- Atomic doc update in the same landing: `docs/SOTA_GAP_ANALYSIS.md` no longer lists the
+  MS-3.6 subset selection as absent under GAP-10 or the session report schema as absent
+  under GAP-14, and `ROUND2_PLAN.md` stops calling AC-UPD-007 the last unimplemented P0
+  (R2-T06's remainder is P1 depth work).
+- Verified on Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1 from the private `/tmp/a44merge`
+  worktree with `PYTHONPATH` pinned to its own `src`: **674 passed** in 50 s,
+  `ruff check .` clean, after merging the A40 sweep that landed underneath this record.
+- Third report of the shared-checkout hazard, and the sharpest one yet. A concurrent
+  agent reset `/workspace` onto `cursor/femtools-industrial-7aa3` mid-run and the
+  tracked-file edits were lost, so the work was redone from private worktrees. The
+  integration tip then moved four times during the landing: the AC-UPD-002/003 batch that
+  arrived in parallel was merged into the M3 suite by hand rather than overwritten, and
+  the A40 sweep picked up the still-untracked `tests/acceptance/test_workflow.py` from the
+  shared checkout and committed it verbatim at `529739e`. The AC-WORK half of this task
+  therefore reached the branch under A40's commit; the file merged without conflict
+  because it is the same bytes. Nothing was duplicated or reverted, but the shared
+  checkout is now demonstrably a place where one agent's uncommitted work becomes
+  another's commit — private worktrees are not optional.
