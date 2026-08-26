@@ -7,6 +7,7 @@ import argparse
 import json
 import subprocess
 import sys
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -94,7 +95,8 @@ def _compliance_measurements() -> dict[str, Any]:
 
 def build_report(work_dir: Path) -> dict[str, Any]:
     pytest_result = _run_pytest()
-    slo = run_slo_suite(work_dir / "slo-work", quick=False)
+    with tempfile.TemporaryDirectory(prefix="slo-round2-", dir=work_dir) as temporary:
+        slo = run_slo_suite(Path(temporary), quick=False)
     compliance = _compliance_measurements()
     compliance_passed = all(
         case["status"] == "pass"
