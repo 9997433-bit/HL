@@ -133,8 +133,6 @@ function onSolved() {
   flyStar(boardEl.value)
 }
 
-const lastStars = ref(0)
-
 watch(complete, (v) => {
   if (v && !solved.value) onSolved()
 })
