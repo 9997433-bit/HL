@@ -29,21 +29,22 @@ for import_root in (REPOSITORY_ROOT, AUDIO_STUDIO_ROOT):
     if str(import_root) not in sys.path:
         sys.path.insert(0, str(import_root))
 
-from audio_studio.core.edit_session import AudioDocument, EditSession  # noqa: E402
-from audio_studio.core.loader import load_audio, save_audio  # noqa: E402
-from audio_studio.core.types import TimeRange  # noqa: E402
-from audio_studio.dsp.effects.eq import EQBand, FilterType, ParametricEQ  # noqa: E402
-from audio_studio.dsp.loudness import LoudnessMeter  # noqa: E402
-from audio_studio.ui.colormaps import COLORMAP_NAMES  # noqa: E402
-from audio_studio.ui.main_window import UI_REFRESH_MS  # noqa: E402
-from audio_studio.ui.theme import PALETTE  # noqa: E402
-from tools.ebu_vectors import (  # noqa: E402
+from audio_studio.core.edit_session import AudioDocument, EditSession
+from audio_studio.core.loader import load_audio, save_audio
+from audio_studio.core.types import TimeRange
+from audio_studio.dsp.effects.eq import EQBand, FilterType, ParametricEQ
+from audio_studio.dsp.loudness import LoudnessMeter
+from audio_studio.ui.colormaps import COLORMAP_NAMES
+from audio_studio.ui.main_window import UI_REFRESH_MS
+from audio_studio.ui.theme import PALETTE
+
+from tools.ebu_vectors import (
     SAMPLE_RATE,
     TECH_3341_VECTORS,
     TECH_3342_VECTORS,
     synthesize_segments,
 )
-from tools.golden_audio import assert_bit_exact_wav  # noqa: E402
+from tools.golden_audio import assert_bit_exact_wav
 
 Verifier = Callable[[Path], None]
 

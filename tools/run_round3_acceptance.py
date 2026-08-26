@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Run the Round 3 SOTA acceptance suite and emit a machine-readable report."""
 
 from __future__ import annotations
@@ -33,6 +32,8 @@ def _git_revision() -> str:
 def _binding_guard() -> dict:
     matches: list[str] = []
     for path in sorted((REPOSITORY_ROOT / "audio-studio").rglob("*.py")):
+        if ".venv" in path.parts:
+            continue
         if "PyQt6" in path.read_text(encoding="utf-8"):
             matches.append(str(path.relative_to(REPOSITORY_ROOT)))
     return {
