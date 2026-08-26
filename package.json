@@ -14,7 +14,8 @@
     "test": "npm run test:literacy && npm run test:math",
     "test:acceptance": "bash scripts/acceptance.sh",
     "test:literacy": "bash scripts/test-literacy.sh",
-    "test:math": "bash scripts/test-math.sh"
+    "test:math": "bash scripts/test-math.sh",
+    "test:offline": "bash scripts/offline-smoke.sh"
   },
   "engines": {
     "node": "^20.19.0 || >=22.12.0 <25",
