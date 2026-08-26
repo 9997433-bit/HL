@@ -17,6 +17,12 @@ from typing import Any
 import numpy as np
 
 from ..correlation.report import CorrelationReport, correlation_report
+from ..updating.bayesian import (
+    BayesianUpdater,
+    BayesianUpdatingResult,
+    CovarianceSpec,
+    GaussianPrior,
+)
 from ..updating.parameters import Parameter, ParameterSet, UpdatableParameter
 from ..updating.sensitivity import ModalData, as_modal_data, modal_sensitivity
 from ..updating.updater import ModelUpdater, UpdatingOptions, UpdatingResult
@@ -61,12 +67,23 @@ class _SensorModel:
 
 
 def _posterior_sigma(result: UpdatingResult) -> dict[str, float]:
-    """Linearized least-squares standard deviations of the updated parameters.
+    """Per-parameter posterior standard deviations for the report's σ_post column.
 
-    ``C_post ≈ σ² (JᵀJ)⁻¹`` with ``σ²`` estimated from the final residual.  It
-    is the Gauss-Newton counterpart of the MS-3.5 posterior covariance, so a
-    deterministic run still reports parameter uncertainty.
+    A MAP run — S4 driven by
+    :class:`~openfemlab.updating.bayesian.BayesianUpdater` — already carries the
+    MS-3.5 Laplace posterior ``(Jᵀ C_ε⁻¹ J + C_p⁻¹)⁻¹`` evaluated at the
+    solution, and that is what gets reported.  A deterministic run has neither
+    ``C_ε`` nor ``C_p``, so it falls back to the least-squares counterpart
+    ``C_post ≈ σ² (JᵀJ)⁻¹`` with ``σ²`` estimated from the final residual: a
+    weaker statement, but it keeps the column populated.
     """
+    if isinstance(result, BayesianUpdatingResult) and result.posterior is not None:
+        posterior = result.posterior
+        return {
+            name: float(value)
+            for name, value in zip(posterior.names, posterior.std, strict=False)
+        }
+
     sensitivity = result.sensitivity
     if sensitivity is None or sensitivity.matrix.size == 0:
         return {}
@@ -108,6 +125,16 @@ class CorrectionWorkflow:
     updating_options:
         Numerical settings forwarded to
         :class:`~openfemlab.updating.updater.ModelUpdater`.
+    prior:
+        Gaussian prior over the free design variables (MS-3.5).  Given, S4 runs
+        the MAP estimator instead of plain Gauss-Newton/LM and the report's
+        ``sigma_post`` column carries the Laplace posterior rather than the
+        least-squares estimate.
+    noise_covariance:
+        Measurement-noise covariance ``C_ε`` over the assembled residual, in
+        the residual's own (relative-frequency and MAC) units.  Also switches
+        S4 to the MAP estimator; without it the posterior is scaled by an
+        implicit unit residual variance.
     strict:
         Raise :class:`~openfemlab.workflow.stages.StageGateError` on a failed
         gate instead of returning a report marked ``FAIL``.
@@ -124,6 +151,8 @@ class CorrectionWorkflow:
         holdout: HoldoutSpec | None = None,
         channel_weights: Sequence[float] | np.ndarray | None = None,
         updating_options: UpdatingOptions | None = None,
+        prior: GaussianPrior | CovarianceSpec = None,
+        noise_covariance: CovarianceSpec = None,
         collinearity_threshold: float = 0.99,
         low_sensitivity_ratio: float = 1.0e-3,
         max_condition: float = 1.0e6,
@@ -146,6 +175,8 @@ class CorrectionWorkflow:
             None if channel_weights is None else np.asarray(channel_weights, dtype=float)
         )
         self.updating_options = updating_options
+        self.prior = prior
+        self.noise_covariance = noise_covariance
         self.collinearity_threshold = collinearity_threshold
         self.low_sensitivity_ratio = low_sensitivity_ratio
         self.max_condition = max_condition
@@ -402,14 +433,27 @@ class CorrectionWorkflow:
             mac_threshold=self.gates.pairing_mac_min
         )
         try:
-            updater = ModelUpdater(
-                self.model,
-                self.parameters,
-                fit.frequencies,
-                fit.mode_shapes,
-                dof_weights=self._weights(exclude_channels=True),
-                options=options,
-            )
+            updater: ModelUpdater
+            if self.prior is None and self.noise_covariance is None:
+                updater = ModelUpdater(
+                    self.model,
+                    self.parameters,
+                    fit.frequencies,
+                    fit.mode_shapes,
+                    dof_weights=self._weights(exclude_channels=True),
+                    options=options,
+                )
+            else:
+                updater = BayesianUpdater(
+                    self.model,
+                    self.parameters,
+                    fit.frequencies,
+                    fit.mode_shapes,
+                    prior=self.prior,
+                    noise_covariance=self.noise_covariance,
+                    dof_weights=self._weights(exclude_channels=True),
+                    options=options,
+                )
             result = updater.run()
         except Exception as exc:  # noqa: BLE001 - reported as a stage failure
             raise self._fail(

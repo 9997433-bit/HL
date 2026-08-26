@@ -331,6 +331,29 @@ def test_a_tight_prior_keeps_the_solution_within_three_sigma(model: ScalingModel
     assert abs(result.parameters["k0"] - TRUTH["k0"]) > 3.0 * sigma
 
 
+def test_a_tight_off_centre_prior_pulls_the_run_to_its_mean(model: ScalingModel) -> None:
+    """An explicit prior mean has to move the *run*, not just the linear step.
+
+    The starting point is no longer the cheapest place to sit, so the loop's
+    initial cost must already carry the prior term; measuring it without one
+    makes every trial step look more expensive than standing still, and the
+    prior mean is silently ignored.
+    """
+    sigma = 0.01
+    mean = np.array([0.90, 1.10])
+    result = update_model_bayesian(
+        model,
+        parameters(),
+        target_frequencies(model),
+        prior=GaussianPrior.from_std(sigma, mean=mean),
+    )
+    recovered = np.array([result.parameters[name] for name in ("k0", "k1")])
+
+    assert result.history and any(record.accepted for record in result.history)
+    assert result.final_cost < result.initial_cost
+    assert np.all(np.abs(recovered - mean) <= 3.0 * sigma)
+
+
 def test_tighter_priors_shrink_the_posterior_monotonically(model: ScalingModel) -> None:
     widths = []
     for sigma in (1.0, 0.1, 0.01):
