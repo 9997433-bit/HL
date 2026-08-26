@@ -1,8 +1,11 @@
 """Contract tests for the optimization hook (spec MS-5, AC-OPT-001..004).
 
-The Round 1 deliverable is the *design*: the lowering pipeline, the gradient
-interface and the mode tracking are real and tested here; the only stub is
-``ScipyBackend.solve`` (Round 2, GAP-12), whose stub-ness is itself pinned.
+Covers the lowering pipeline, the gradient interface, mode tracking and the
+scipy backend.  The quantitative gates live in
+``tests/acceptance/test_optimization.py``; what is pinned here is the
+behaviour those gates rest on — one modal solve per design point, the
+standardized constraint form, and the backend's refusal to differentiate
+anything itself.
 """
 
 from __future__ import annotations
@@ -18,6 +21,7 @@ from openfemlab.optimization import (
     OptimizationProblem,
     ShapeVariable,
     TotalMass,
+    VectorConstraint,
     available_backends,
     check_gradient,
     compile_sizing_problem,
@@ -249,14 +253,64 @@ class TestProblemAndBackends:
         with pytest.raises(OptimizationError):
             get_backend("nelder-mead")
 
-    def test_scipy_backend_is_the_round_2_stub(self):
-        with pytest.raises(NotImplementedError, match="GAP-12"):
-            minimize_sizing(
-                chain_model(),
-                sizing_parameters(),
-                TotalMass(),
-                [frequency_floor(0, f_min=0.05)],
-            )
+    def test_backend_refuses_to_differentiate_the_problem_itself(self):
+        """MS-5.2: no hidden numerical jacobians — each one is a modal solve."""
+        problem = OptimizationProblem(
+            objective=lambda x: float(x[0] ** 2),
+            x0=np.array([0.5]),
+            bounds=(np.array([0.0]), np.array([1.0])),
+        )
+        with pytest.raises(OptimizationError, match="no gradient callback"):
+            problem.solve("slsqp")
+
+        with_constraint = OptimizationProblem(
+            objective=lambda x: float(x[0]),
+            x0=np.array([0.5]),
+            bounds=(np.array([0.0]), np.array([1.0])),
+            gradient=lambda x: np.ones(1),
+            constraints=[VectorConstraint(lambda x: float(x[0]) - 0.25)],  # no jac
+        )
+        with pytest.raises(OptimizationError, match="no jacobian"):
+            with_constraint.solve("slsqp")
+
+    def test_minimize_sizing_drives_an_unconstrained_objective_to_its_bound(self):
+        """Mass falls to the lower bound of the only mass-carrying variable."""
+        result = minimize_sizing(chain_model(), sizing_parameters(), TotalMass())
+        assert result.converged, result.message
+        # m = 2 + pm with pm in [0.1, 3.0]; the stiffnesses do not carry mass.
+        assert np.isclose(result.variables["pm"], 0.1, atol=1e-6)
+        assert np.isclose(result.objective, 2.1, atol=1e-6)
+        assert result.n_modal_solves > 0
+
+    def test_report_carries_the_ms_5_2_termination_fields(self):
+        result = minimize_sizing(
+            chain_model(),
+            sizing_parameters(),
+            TotalMass(),
+            [frequency_floor(0, f_min=0.05)],
+        )
+        assert result.converged
+        assert set(result.variables) == {"k1", "k2", "pm"}
+        assert set(result.constraint_values) == {"f1 >= 0.05"}
+        assert result.n_iterations > 0
+        assert result.n_evaluations > 0
+        assert np.isfinite(result.stationarity)
+        assert "converged" in result.report()
+
+    def test_history_records_the_initial_design_then_each_accepted_step(self):
+        result = minimize_sizing(chain_model(), sizing_parameters(), TotalMass())
+        assert [it.iteration for it in result.history] == list(range(len(result.history)))
+        assert np.allclose(result.history[0].x, DesignSpace(sizing=sizing_parameters()).x0())
+        assert np.allclose(result.history[-1].x, result.x, atol=1e-6)
+
+    def test_duplicate_constraint_names_stay_distinct_in_the_report(self):
+        result = minimize_sizing(
+            chain_model(),
+            sizing_parameters(),
+            TotalMass(),
+            [frequency_floor(0, f_min=0.05), frequency_floor(0, f_min=0.05)],
+        )
+        assert list(result.constraint_values) == ["f1 >= 0.05", "f1 >= 0.05#2"]
 
 
 # ---------------------------------------------------------------------------
