@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Measure the current SciPy sample-rate converter against mastering gates."""
 
 from __future__ import annotations
@@ -6,9 +5,11 @@ from __future__ import annotations
 import argparse
 import json
 import math
+from collections.abc import Sequence
 from datetime import UTC, datetime
+from itertools import pairwise
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 import numpy as np
 import scipy
@@ -37,7 +38,7 @@ def _log_sweep(
     amplitude: float = 0.9,
 ) -> np.ndarray:
     """Return a logarithmic sine sweep with phase defined in continuous time."""
-    frame_count = int(round(sample_rate * duration_seconds))
+    frame_count = round(sample_rate * duration_seconds)
     time = np.arange(frame_count, dtype=np.float64) / sample_rate
     log_ratio = math.log(end_hz / start_hz)
     phase = (
@@ -53,7 +54,7 @@ def _log_sweep(
 
 def _trim_edges(samples: np.ndarray, sample_rate: int) -> np.ndarray:
     """Discard converter start/end transients while retaining short probes."""
-    trim = min(int(round(0.05 * sample_rate)), samples.size // 10)
+    trim = min(round(0.05 * sample_rate), samples.size // 10)
     return samples[trim:-trim] if trim else samples
 
 
@@ -67,10 +68,10 @@ def _passband_deviation_db(duration_seconds: float) -> float:
 
     # Compare local RMS levels along the sweep. The direct target-rate sweep is
     # the continuous-time reference and cancels the chirp's changing crest/RMS.
-    edge = min(int(round(0.05 * TARGET_RATE)), usable // 10)
+    edge = min(round(0.05 * TARGET_RATE), usable // 10)
     starts = np.linspace(edge, usable - edge, 33, dtype=int)
     gains_db: list[float] = []
-    for start, end in zip(starts[:-1], starts[1:]):
+    for start, end in pairwise(starts):
         actual_rms = math.sqrt(float(np.mean(np.square(converted[start:end]))))
         reference_rms = math.sqrt(float(np.mean(np.square(reference[start:end]))))
         gains_db.append(_dbfs(actual_rms / reference_rms))
@@ -98,7 +99,7 @@ def _stopband_mirror_dbfs(duration_seconds: float) -> float:
 def _thd_plus_n_dbfs(duration_seconds: float) -> float:
     duration_seconds = max(duration_seconds, 0.25)
     source_time = np.arange(
-        int(round(SOURCE_RATE * duration_seconds)),
+        round(SOURCE_RATE * duration_seconds),
         dtype=np.float64,
     ) / SOURCE_RATE
     source = 0.9 * np.sin(2.0 * np.pi * 1_000.0 * source_time)
