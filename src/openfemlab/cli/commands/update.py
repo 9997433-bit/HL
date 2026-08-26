@@ -10,7 +10,7 @@ from typing import Any
 import numpy as np
 
 from ..analysis import dof_map_of, solve_spec
-from ..console import Column, Reporter, format_number, format_percent
+from ..console import Column, Reporter, format_fixed, format_number, format_percent
 from ..spec import SpecError, build_model, load_spec, lookup, scaled
 
 NAME = "update"
@@ -146,6 +146,7 @@ def run(args: argparse.Namespace, reporter: Reporter) -> int:
         target_frequencies=target_frequencies,
         updated_spec=updated_spec,
         num_modes=num_modes,
+        shape_correlation=target_shapes is not None,
     )
 
     if args.format == "table":
@@ -286,6 +287,7 @@ def build_report(
     target_frequencies: np.ndarray,
     updated_spec: Mapping[str, Any],
     num_modes: int,
+    shape_correlation: bool,
 ) -> dict[str, Any]:
     """Assemble the JSON-ready summary of one updating run."""
     parameters = []
@@ -311,7 +313,11 @@ def build_report(
             "frequencies_hz": target_frequencies.tolist(),
             "modes": int(target_frequencies.size),
         },
-        "analysis": {"num_modes": num_modes, "evaluations": updater.n_evaluations},
+        "analysis": {
+            "num_modes": num_modes,
+            "evaluations": updater.n_evaluations,
+            "shape_correlation": shape_correlation,
+        },
         "converged": bool(result.converged),
         "message": result.message,
         "iterations": int(result.iterations),
@@ -382,50 +388,56 @@ def render(report: dict[str, Any], reporter: Reporter) -> None:
     )
 
     initial, final = report["correlation"]["initial"], report["correlation"]["final"]
+    indicators = [
+        (
+            "max |df| [%]",
+            format_number(initial["max_abs_freq_error_pct"], 4),
+            format_number(final["max_abs_freq_error_pct"], 4),
+        )
+    ]
+    if report["analysis"]["shape_correlation"]:
+        # Without measured shapes the MAC columns of the summary stay zero,
+        # which would read as a correlation failure rather than as "not used".
+        indicators = [
+            ("mean MAC", format_fixed(initial["mean_mac"]), format_fixed(final["mean_mac"])),
+            ("min MAC", format_fixed(initial["min_mac"]), format_fixed(final["min_mac"])),
+            *indicators,
+        ]
     reporter.table(
         (Column("indicator", justify="left"), Column("before"), Column("after")),
-        [
-            (
-                "mean MAC",
-                format_number(initial["mean_mac"], 4),
-                format_number(final["mean_mac"], 4),
-            ),
-            ("min MAC", format_number(initial["min_mac"], 4), format_number(final["min_mac"], 4)),
-            (
-                "max |df| [%]",
-                format_number(initial["max_abs_freq_error_pct"], 4),
-                format_number(final["max_abs_freq_error_pct"], 4),
-            ),
-        ],
+        indicators,
         title="Correlation",
     )
 
     history = report["history"]
-    if history:
-        reporter.table(
+    if not history:
+        return
+    with_mac = report["analysis"]["shape_correlation"]
+    columns = [Column("iter"), Column("cost")]
+    if with_mac:
+        columns.append(Column("mean MAC"))
+    columns += [
+        Column("max |df| [%]"),
+        Column("damping"),
+        Column("step"),
+        Column("accepted", justify="center"),
+    ]
+    reporter.table(
+        columns,
+        [
             (
-                Column("iter"),
-                Column("cost"),
-                Column("mean MAC"),
-                Column("max |df| [%]"),
-                Column("damping"),
-                Column("step"),
-                Column("accepted", justify="center"),
-            ),
-            [
-                (
-                    str(record["iteration"]),
-                    format_number(record["cost"], 4),
-                    format_number(record["mean_mac"], 4),
-                    format_number(record["max_abs_freq_error_pct"], 4),
-                    format_number(record["damping"], 3),
-                    format_number(record["step_norm"], 3),
-                    "yes" if record["accepted"] else "no",
-                )
-                for record in history
-            ],
-            title="Iteration history",
-        )
+                str(record["iteration"]),
+                format_number(record["cost"], 4),
+                *([format_fixed(record["mean_mac"])] if with_mac else []),
+                format_number(record["max_abs_freq_error_pct"], 4),
+                format_number(record["damping"], 3),
+                format_number(record["step_norm"], 3),
+                "yes" if record["accepted"] else "no",
+            )
+            for record in history
+        ],
+        title="Iteration history",
+    )
 
 
 def _correlation(summary) -> dict[str, Any]:

@@ -9,7 +9,7 @@ from typing import Any
 import numpy as np
 
 from ..analysis import as_modal_result, solve_spec
-from ..console import Column, Reporter, format_number, format_percent
+from ..console import Column, Reporter, format_fixed, format_number, format_percent
 from ..spec import SpecError
 
 NAME = "correlate"
@@ -206,7 +206,7 @@ def render(report: dict[str, Any], reporter: Reporter, *, show_matrix: bool = Fa
             str(pair["fe_index"] + 1),
             format_number(pair["fe_frequency"]),
             format_percent(pair["frequency_error_pct"]),
-            format_number(pair["mac"], 4),
+            format_fixed(pair["mac"]),
         )
         for pair in report["pairs"]
     ]
@@ -218,12 +218,12 @@ def render(report: dict[str, Any], reporter: Reporter, *, show_matrix: bool = Fa
     reporter.fields(
         {
             "paired modes": summary["n_paired"],
-            "mean / min MAC": f"{format_number(summary['mean_mac'], 4)} / "
-            f"{format_number(summary['min_mac'], 4)}",
+            "mean / min MAC": f"{format_fixed(summary['mean_mac'])} / "
+            f"{format_fixed(summary['min_mac'])}",
             "mean |df| [%]": format_number(summary["mean_abs_freq_error_pct"], 4),
             "max |df| [%]": format_number(summary["max_abs_freq_error_pct"], 4),
             "rms df [%]": format_number(summary["rms_freq_error_pct"], 4),
-            "worst off-diagonal MAC": format_number(summary["max_off_diagonal_mac"], 4),
+            "worst off-diagonal MAC": format_fixed(summary["max_off_diagonal_mac"]),
         },
         title="Summary",
     )
@@ -238,7 +238,7 @@ def render(report: dict[str, Any], reporter: Reporter, *, show_matrix: bool = Fa
         worst = int(np.argmin(comac))
         labels = report.get("dof_labels")
         name = labels[worst] if labels else f"dof {worst}"
-        reporter.note(f"worst COMAC DOF: {name} ({format_number(comac[worst], 4)})")
+        reporter.note(f"worst COMAC DOF: {name} ({format_fixed(comac[worst])})")
 
     if show_matrix and report.get("mac_matrix") is not None:
         macs = np.asarray(report["mac_matrix"], dtype=float)
@@ -246,7 +246,7 @@ def render(report: dict[str, Any], reporter: Reporter, *, show_matrix: bool = Fa
             Column(str(j + 1)) for j in range(macs.shape[1])
         )
         matrix_rows = [
-            (str(i + 1), *(format_number(value, 3) for value in macs[i, :]))
+            (str(i + 1), *(format_fixed(value, 3) for value in macs[i, :]))
             for i in range(macs.shape[0])
         ]
         reporter.table(matrix_columns, matrix_rows, title="MAC matrix")
@@ -259,8 +259,8 @@ def _acceptance(correlation, args: argparse.Namespace, reporter: Reporter) -> in
     if args.require_mac is not None:
         if summary.n_paired == 0 or summary.min_mac < args.require_mac:
             failures.append(
-                f"lowest paired MAC {format_number(summary.min_mac, 4)} is below the "
-                f"required {format_number(args.require_mac, 4)}"
+                f"lowest paired MAC {format_fixed(summary.min_mac)} is below the "
+                f"required {format_fixed(args.require_mac)}"
             )
     if args.require_frequency is not None:
         if summary.n_paired == 0 or summary.max_abs_freq_error_pct > args.require_frequency:
