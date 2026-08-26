@@ -1,13 +1,13 @@
 # PR Draft — OpenFEMLab Round 1
 
 Ready to file. Base: `main`. Head: `cursor/femtools-industrial-7aa3`.
-Verified at `936edc5`: full suite **841 passed**, `ruff check .` clean
+Verified at `0928f95`: full suite **876 passed**, `ruff check .` clean
 (Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1).
 
 ## Title
 
 ```
-OpenFEMLab: solver-independent CAE platform — modal analysis, correlation, model updating, damped dynamics (841 tests)
+OpenFEMLab: solver-independent CAE platform — modal analysis, correlation, model updating, damped dynamics (876 tests)
 ```
 
 ## Body
@@ -70,7 +70,7 @@ synthesis, and optimization hooks — all behind one CLI and a schema-versioned 
 - **CLI** (`cli/`): `openfemlab modal | correlate | update` over JSON/YAML model
   specs; machine-readable JSON on stdout, diagnostics on stderr, CI acceptance gates
   via exit codes; covered end to end including subprocess runs.
-- **QA stack**: 841 tests including a machine-readable registry of 40 quantified
+- **QA stack**: 876 tests including a machine-readable registry of 40 quantified
   acceptance criteria wired to tagged acceptance tests, boundary/probe suites,
   performance-regression gates, and benchmarks; GitHub Actions CI on Python
   3.10–3.13; `ruff check` clean.
@@ -80,10 +80,10 @@ synthesis, and optimization hooks — all behind one CLI and a schema-versioned 
 
 ## Verification
 
-- `python -m pytest` — **841 passed** at `936edc5` in 26.18 s on Python 3.12.3 /
+- `python -m pytest` — **876 passed** at `0928f95` on Python 3.12.3 /
   NumPy 2.5.2 / SciPy 1.18.1.
 - `ruff check .` — clean.
-- Per-suite breakdown (sums to 841): acceptance registry + gates 218, dynamics 82, TET4 66,
+- Per-suite breakdown (sums to 876): acceptance registry + gates 253, dynamics 82, TET4 66,
   QUAD4 61, updating 57, correlation 52, modal solver 44, workflow 38, Bayesian updating 35,
   optimization 27, FRF correlation 25, reduction/expansion 25, IO (native/UFF/Nastran) 24,
   CLI 22+1+16 (incl. `correlate-frf`), core 18, result contract 17,

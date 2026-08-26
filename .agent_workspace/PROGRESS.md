@@ -1651,12 +1651,14 @@ A27. The A24 backlog above is otherwise the live plan.
   union was kept. `PROGRESS.md` took both new sections.
 - **Verified** from a private clone at `/tmp/a52` with `PYTHONPATH=/tmp/a52/src`, Python
   3.12.3 / NumPy 2.5.2 / SciPy 1.18.1: **676 passed, 0 failed** at the gate merge itself,
-  and finally **841 passed, 0 failed** at `ad22057`, the pushed tip, after the integration
-  branch moved five times underneath this task — A44's AC-WORK/AC-UPD-007 tagging, then
+  and finally **876 passed, 0 failed** at `0928f95`, the pushed tip, after the integration
+  branch moved six times underneath this task — A44's AC-WORK/AC-UPD-007 tagging, then
   A46's TET4 slice and A49's Bayesian MAP estimator, then A43's dataset-58 sharing and the
-  `correlate-frf` CLI command, then the MS-1.1 modal input validation and AC-MODAL-007/009.
-  `ruff check .` clean at every step; the 15 AC-OPT gates pass on the merged tree.
-- `PR_DRAFT.md` was re-pinned at 841 with the per-suite breakdown re-derived from
+  `correlate-frf` CLI command, then the MS-1.1 modal input validation with AC-MODAL-007/009,
+  then a further AC-CORR batch. `ruff check .` clean at every step; the 15 AC-OPT gates pass
+  on the merged tree. The count is a moving target on a trunk this active: treat it as
+  correct for the named commit, not as a standing figure.
+- `PR_DRAFT.md` was re-pinned at 876 with the per-suite breakdown re-derived from
   `--collect-only` rather than adjusted arithmetically, and three claims it had outgrown
   were corrected rather than left standing behind a fresh count: TET4 is landed (so
   R2-T02's open list is HEX8, the 3D beam and shell facets, with TET4's bending lock
