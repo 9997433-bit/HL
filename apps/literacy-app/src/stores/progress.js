@@ -24,9 +24,9 @@ export const MASTERY_THRESHOLD = 3
 /** 掌握度四级，界面文案与颜色都从这里取。 */
 export const MASTERY = [
   { level: 0, label: '没学过', short: '新', color: 'var(--stroke-hint)' },
-  { level: 1, label: '认识了', short: '认', color: 'var(--seed-sky)' },
-  { level: 2, label: '会写了', short: '写', color: 'var(--seed-mint)' },
-  { level: 3, label: '真掌握', short: '棒', color: 'var(--seed-mango)' }
+  { level: 1, label: '认识了', short: '认', color: 'var(--sky-400)' },
+  { level: 2, label: '会写了', short: '写', color: 'var(--mint-400)' },
+  { level: 3, label: '真掌握', short: '棒', color: 'var(--mango-400)' }
 ]
 
 /** 升到下一级需要的经验，随等级线性增长。 */

@@ -589,10 +589,10 @@ function setLimit(value) {
   width: 100%;
   min-height: 52px;
   padding: 0 16px;
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-sm);
   border: 1px solid rgba(255, 255, 255, 0.24);
   background: rgba(255, 255, 255, 0.08);
-  color: var(--ink);
+  color: var(--text-strong);
   font-family: inherit;
   font-size: 18px;
   text-align: center;
@@ -600,11 +600,11 @@ function setLimit(value) {
 }
 
 .gate-input:focus {
-  border-color: var(--cyan);
+  border-color: var(--brand);
 }
 
 .err {
-  color: #ffb3bd;
+  color: var(--danger);
   font-weight: 800;
   font-size: 14px;
 }
@@ -617,7 +617,7 @@ function setLimit(value) {
   border-radius: 999px;
   background: rgba(85, 230, 165, 0.18);
   border: 1px solid rgba(85, 230, 165, 0.5);
-  color: #d6fff0;
+  color: var(--success);
   font-weight: 800;
   font-size: 14px;
 }
@@ -649,7 +649,7 @@ function setLimit(value) {
   align-items: center;
   gap: 2px;
   padding: 12px 6px;
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
@@ -675,19 +675,19 @@ function setLimit(value) {
   display: block;
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, var(--cyan), var(--violet));
+  background: linear-gradient(90deg, var(--brand), var(--accent));
   transition: width 0.5s ease;
 }
 
 .bar-fill.warm {
-  background: linear-gradient(90deg, var(--gold), var(--orange));
+  background: linear-gradient(90deg, var(--star), var(--neon-orange));
 }
 
 /* ---- 时长 ---- */
 
 .usage {
   padding: 12px 16px;
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.12);
   font-size: 14px;
@@ -741,7 +741,7 @@ function setLimit(value) {
 .chart-bar {
   width: 100%;
   border-radius: 8px;
-  background: linear-gradient(180deg, var(--cyan), var(--violet));
+  background: linear-gradient(180deg, var(--brand), var(--accent));
   transition: height 0.5s ease;
 }
 
@@ -752,7 +752,7 @@ function setLimit(value) {
 .chart-sub {
   font-size: 11px;
   font-weight: 800;
-  color: var(--gold);
+  color: var(--star);
 }
 
 .field {
@@ -769,7 +769,7 @@ function setLimit(value) {
 .range {
   width: 100%;
   height: 34px;
-  accent-color: var(--cyan);
+  accent-color: var(--brand);
 }
 
 .toggles {
@@ -783,7 +783,7 @@ function setLimit(value) {
   align-items: center;
   gap: 12px;
   padding: 12px 14px;
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
   cursor: pointer;
@@ -793,7 +793,7 @@ function setLimit(value) {
   width: 22px;
   height: 22px;
   flex: none;
-  accent-color: var(--cyan);
+  accent-color: var(--brand);
 }
 
 .toggles span {
@@ -825,14 +825,14 @@ function setLimit(value) {
   gap: 2px;
   padding: 12px 14px;
   text-align: left;
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.12);
   transition: border-color 0.14s ease, background 0.14s ease;
 }
 
 .band.on {
-  border-color: var(--cyan);
+  border-color: var(--brand);
   background: rgba(94, 231, 255, 0.14);
 }
 
@@ -872,13 +872,13 @@ function setLimit(value) {
 
 .radar-shape {
   fill: rgba(94, 231, 255, 0.28);
-  stroke: var(--cyan);
+  stroke: var(--brand);
   stroke-width: 2;
   stroke-linejoin: round;
 }
 
 .radar-text {
-  fill: #f2f5ff;
+  fill: var(--text-strong);
   font-size: 10px;
   font-weight: 700;
 }
@@ -942,7 +942,7 @@ function setLimit(value) {
   flex-direction: column;
   gap: 2px;
   padding: 10px 14px;
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.12);
 }
@@ -999,7 +999,7 @@ function setLimit(value) {
 
 .danger {
   border-color: rgba(255, 107, 125, 0.6);
-  color: #ffd3d9;
+  color: var(--danger);
 }
 
 .tips {

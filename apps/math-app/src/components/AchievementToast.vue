@@ -89,7 +89,7 @@ onBeforeUnmount(() => clearTimeout(timer))
   padding: 14px 22px 14px 14px;
   border-radius: 22px;
   background: linear-gradient(135deg, rgba(255, 206, 77, 0.96), rgba(255, 122, 198, 0.94));
-  color: #2b1400;
+  color: var(--text-invert);
   box-shadow: 0 18px 44px rgba(0, 0, 0, 0.45);
   max-width: min(92vw, 420px);
 }

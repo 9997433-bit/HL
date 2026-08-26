@@ -129,7 +129,7 @@ onMounted(() => {
   background: linear-gradient(135deg, var(--c1) 0%, var(--c2) 100%);
   box-shadow: var(--shadow-md);
   text-align: center;
-  color: #3d2f1f;
+  color: var(--text-strong);
   transition: transform var(--dur-fast) var(--ease-pop), box-shadow var(--dur-fast) ease;
 }
 

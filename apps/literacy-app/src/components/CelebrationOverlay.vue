@@ -34,12 +34,12 @@ const props = defineProps({
 const emit = defineEmits(['done'])
 
 const CONFETTI_COLORS = [
-  'var(--seed-mango)',
-  'var(--seed-coral)',
-  'var(--seed-mint)',
-  'var(--seed-sky)',
-  'var(--seed-grape)',
-  'var(--seed-leaf)'
+  'var(--mango-400)',
+  'var(--coral-400)',
+  'var(--mint-400)',
+  'var(--sky-400)',
+  'var(--grape-400)',
+  'var(--leaf-400)'
 ]
 
 /** 主体动画预算（ms）：卡片弹入 + 星星三连，合计不超过规范给的 1.2s。 */

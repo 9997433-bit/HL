@@ -91,10 +91,10 @@ const weakChars = computed(() =>
  * 记忆最弱的排在最前面，家长一眼就能看出今天该陪孩子复习哪几个字。
  */
 const HEAT_BANDS = [
-  { min: 0.85, label: '记得很牢', color: 'var(--seed-leaf)' },
-  { min: 0.6, label: '还算清楚', color: 'var(--seed-mint)' },
-  { min: 0.35, label: '有点模糊', color: 'var(--seed-mango)' },
-  { min: 0, label: '快忘了', color: 'var(--seed-coral)' }
+  { min: 0.85, label: '记得很牢', color: 'var(--leaf-400)' },
+  { min: 0.6, label: '还算清楚', color: 'var(--mint-400)' },
+  { min: 0.35, label: '有点模糊', color: 'var(--mango-400)' },
+  { min: 0, label: '快忘了', color: 'var(--coral-400)' }
 ]
 
 const bandOf = (r) => HEAT_BANDS.find((b) => r >= b.min) ?? HEAT_BANDS[HEAT_BANDS.length - 1]
@@ -585,7 +585,7 @@ function resetSettings() {
   padding: 9px 20px;
   border-radius: var(--radius-pill);
   background: var(--success);
-  color: #fff;
+  color: var(--text-invert);
   font-weight: 700;
   box-shadow: var(--shadow-sm);
 }
@@ -947,7 +947,7 @@ function resetSettings() {
 
 .btn--danger {
   background: var(--danger);
-  color: #fff;
+  color: var(--text-invert);
 }
 
 .tips {

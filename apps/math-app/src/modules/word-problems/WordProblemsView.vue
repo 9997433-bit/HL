@@ -170,14 +170,14 @@ function setTier(id) {
   border-radius: 999px;
   font-size: 13px;
   font-weight: 800;
-  color: var(--ink-soft);
+  color: var(--text);
   transition: all 0.16s ease;
   white-space: nowrap;
 }
 
 .seg-btn.on {
-  background: linear-gradient(135deg, var(--orange), var(--gold));
-  color: #3a2400;
+  background: linear-gradient(135deg, var(--neon-orange), var(--star));
+  color: var(--text-invert);
   box-shadow: 0 6px 16px rgba(255, 159, 69, 0.32);
 }
 
@@ -186,7 +186,7 @@ function setTier(id) {
   flex-direction: column;
   gap: 12px;
   padding: 20px;
-  border-radius: var(--radius-m);
+  border-radius: var(--radius-md);
   background:
     radial-gradient(80% 100% at 0% 0%, rgba(255, 159, 69, 0.14), transparent 60%),
     rgba(6, 9, 30, 0.45);
@@ -232,7 +232,7 @@ function setTier(id) {
   gap: 3px;
   flex-wrap: wrap;
   padding: 8px 12px;
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.05);
   border: 1px dashed rgba(255, 255, 255, 0.18);
   max-width: 100%;
@@ -253,17 +253,17 @@ function setTier(id) {
   margin-left: 6px;
   font-style: normal;
   font-weight: 900;
-  color: var(--gold);
+  color: var(--star);
 }
 
 .eq {
   align-self: flex-start;
   padding: 8px 18px;
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-sm);
   background: rgba(94, 231, 255, 0.12);
   border: 1px solid rgba(94, 231, 255, 0.4);
   font-size: 22px;
   font-weight: 900;
-  color: var(--cyan);
+  color: var(--brand);
 }
 </style>

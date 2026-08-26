@@ -81,10 +81,10 @@ function rest() {
   gap: 12px;
   padding: 28px 24px;
   text-align: center;
-  border-radius: var(--radius-l);
-  background: linear-gradient(160deg, #252e6c, #101540);
+  border-radius: var(--radius-xl);
+  background: linear-gradient(160deg, var(--surface-strong), var(--surface-sunken));
   border: 1px solid rgba(140, 158, 255, 0.4);
-  box-shadow: var(--shadow-card);
+  box-shadow: var(--shadow-lg);
 }
 
 .emoji {
@@ -100,7 +100,7 @@ function rest() {
 .text {
   font-size: 15px;
   line-height: 1.7;
-  color: var(--ink-soft);
+  color: var(--text);
 }
 
 .actions {

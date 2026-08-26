@@ -13,6 +13,7 @@
     "build:all": "bash scripts/build-all.sh",
     "test": "npm run test:literacy && npm run test:math",
     "fetch:openmoji": "node scripts/fetch-openmoji.mjs",
+    "check:tokens": "node scripts/check-tokens.mjs",
     "check:tokens:wiring": "node scripts/check-tokens.mjs --wiring-only",
     "check:round4": "node scripts/check-round4.mjs",
     "test:a11y": "node scripts/axe-states.mjs",

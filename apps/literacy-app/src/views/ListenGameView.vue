@@ -714,7 +714,11 @@ onBeforeUnmount(() => {
   gap: 4px;
   padding: 18px 34px;
   border-radius: var(--radius-xl);
-  background: linear-gradient(180deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 65%, #000 12%) 100%);
+  background: linear-gradient(
+    180deg,
+    var(--accent) 0%,
+    color-mix(in srgb, var(--accent) 65%, var(--text-strong) 12%) 100%
+  );
   color: var(--text-invert);
   box-shadow: var(--shadow-md);
   transition: transform var(--dur-fast) var(--ease-pop);
@@ -864,10 +868,10 @@ onBeforeUnmount(() => {
 .board--fish {
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--seed-sky) 26%, var(--surface-sunken)) 0%,
-    color-mix(in srgb, var(--seed-mint) 34%, var(--surface-sunken)) 100%
+    color-mix(in srgb, var(--sky-400) 26%, var(--surface-sunken)) 0%,
+    color-mix(in srgb, var(--mint-400) 34%, var(--surface-sunken)) 100%
   );
-  box-shadow: inset 0 8px 20px color-mix(in srgb, var(--seed-sky) 24%, transparent);
+  box-shadow: inset 0 8px 20px color-mix(in srgb, var(--sky-400) 24%, transparent);
 }
 
 .opt--fish {
@@ -875,8 +879,8 @@ onBeforeUnmount(() => {
   border-radius: 62% 38% 42% 58% / 54% 50% 50% 46%;
   background: linear-gradient(
     150deg,
-    color-mix(in srgb, var(--seed-mango) 70%, var(--surface-strong)) 0%,
-    color-mix(in srgb, var(--seed-coral) 55%, var(--surface-strong)) 100%
+    color-mix(in srgb, var(--mango-400) 70%, var(--surface-strong)) 0%,
+    color-mix(in srgb, var(--coral-400) 55%, var(--surface-strong)) 100%
   );
   border-color: color-mix(in srgb, var(--surface-strong) 70%, transparent);
 }
@@ -918,8 +922,8 @@ onBeforeUnmount(() => {
 .board--mole {
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--seed-leaf) 22%, var(--surface-sunken)) 0%,
-    color-mix(in srgb, var(--seed-leaf) 40%, var(--surface-sunken)) 100%
+    color-mix(in srgb, var(--leaf-400) 22%, var(--surface-sunken)) 0%,
+    color-mix(in srgb, var(--leaf-400) 40%, var(--surface-sunken)) 100%
   );
   row-gap: var(--gap-lg);
 }
@@ -928,8 +932,8 @@ onBeforeUnmount(() => {
   border-radius: 50% 50% 42% 42%;
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--seed-mango) 58%, var(--surface-strong)) 0%,
-    color-mix(in srgb, var(--seed-coral) 34%, var(--surface-strong)) 100%
+    color-mix(in srgb, var(--mango-400) 58%, var(--surface-strong)) 0%,
+    color-mix(in srgb, var(--coral-400) 34%, var(--surface-strong)) 100%
   );
   border-color: color-mix(in srgb, var(--surface-strong) 60%, transparent);
 }
