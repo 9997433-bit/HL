@@ -278,7 +278,7 @@ await interact('FSRS：到期卡进入复习队列，未到期卡不进入', `/#
   return `持久化卡=${seeded.count}，到期“日”可见且可打开，未来“月”已排除`
 })
 
-await interact('200 字字表：分页渲染且所有字可达', '/#/learn', async (page) => {
+await interact('500 字字表：分页渲染且所有字可达', '/#/learn', async (page) => {
   const snapshot = () =>
     page.evaluate(() => {
       const text = document.body.innerText
@@ -298,7 +298,7 @@ await interact('200 字字表：分页渲染且所有字可达', '/#/learn', asy
     })
 
   const first = await snapshot()
-  if (first.total < 200) throw new Error(`字库规模只有 ${first.total}，Round 3 要求至少 200 字`)
+  if (first.total < 500) throw new Error(`字库规模只有 ${first.total}，Round 4 要求至少 500 字`)
   if (!first.chars.length) throw new Error('字表首屏没有渲染单字卡')
   if (first.chars.length >= first.total) {
     throw new Error(`首屏一次挂载 ${first.chars.length}/${first.total} 张卡片，未启用分页`)
