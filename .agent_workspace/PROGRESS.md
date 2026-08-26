@@ -35,6 +35,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A14 | claude-opus-5-thinking-high-fast | R1-O2 correlation/updating branch reconciliation (backfill) | complete |
 | A26 | claude-opus-5-thinking-high-fast | MS-4 workflow landing verification & Round 2 kickoff (backfill for A17) | complete |
 | A02 | claude-fable-5-thinking-xhigh | M5 optimization design & stubs: size/shape hooks, gradient interface, `docs/OPTIMIZATION.md` (backfill for A05) | complete |
+| A28 | claude-opus-5-thinking-high-fast | Dynamics/optimization branch integration onto the trunk (backfill for A15) | complete |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
@@ -922,12 +923,16 @@ integrate rather than fork.
 
 ### Round 2 — Targeted Refactor & Deep Optimization
 **Status:** KICKED OFF — backlog planned in `.agent_workspace/ROUND2_PLAN.md` (A24); the
-MS-4 workflow carried over from Round 1 is landed and verified at `5bc6a6d` (A26)
+MS-4 workflow carried over from Round 1 is landed and verified at `5bc6a6d` (A26), and the
+damped-dynamics and optimization tracks are merged in at `acda625` (A19 implementation,
+A28 integration)
 
 Core backlog (prioritized, from `docs/SOTA_GAP_ANALYSIS.md` §4/§6 + Round 1 conclusion):
 1. **R2-T01 Dynamics/FRF chain** (GAP-04/05, P0) — damping models, harmonic response,
-   FRF synthesis, FRAC/FDAC; integrate the in-flight `cursor/dynamics-damping-frf-9500`
-   work; new AC-DYN-* criteria registered spec-first.
+   FRF synthesis, FRAC/FDAC. The engine is landed: `cursor/dynamics-damping-frf-9500`
+   was merged into the trunk at `acda625`. What remains is the AC-DYN-* criteria
+   registered spec-first against that API, plus the measured-vs-synthesized FRF demo
+   named in the Round 2 exit bar.
 2. **R2-T02 3D continuum elements** (GAP-02, P0) — QUAD4/TET4/HEX8 + 3D beam with patch
    /convergence gates (AC-MODAL-001/003/004/007 extended, new AC-ELEM-*).
 3. **R2-T03 SEREP/TAM reduction & expansion** (GAP-08) — Guyan/IRS/SEREP, TAM
@@ -938,8 +943,9 @@ Core backlog (prioritized, from `docs/SOTA_GAP_ANALYSIS.md` §4/§6 + Round 1 co
    meshio ↔ NeutralModel bridge, UNV 2411/2412.
 
 Supporting: R2-T06 updating depth (incl. the still-unimplemented **P0** AC-UPD-007
-collinearity screen), R2-T07 scipy optimization backend (GAP-12), R2-T08 R1-O2 branch
-reconciliation, R2-T09 CI exit hardening. Exit bar: all P0+P1 criteria `verified`,
+collinearity screen), R2-T07 scipy optimization backend (GAP-12 — the surrounding M5
+package landed at `acda625`, so this is now only `ScipyBackend.solve`), R2-T08 R1-O2
+branch reconciliation, R2-T09 CI exit hardening. Exit bar: all P0+P1 criteria `verified`,
 new dynamics/element/IO criteria at least `implemented`, GAP-01 stays closed.
 
 #### A26 — Round 1 carry-over cleared: MS-4 workflow landed (backfill for A17)
@@ -980,10 +986,77 @@ new dynamics/element/IO criteria at least `implemented`, GAP-01 stays closed.
   rule mandatory rather than advisory, since `git clean`/branch-switch collateral is not
   something the offending agent can see.
 
-**Round 2 entry state.** Of the two packages Round 1 left uncommitted, `workflow/` is now
-in and green; the `optimization/` build-out (`variables`, `responses`, `gradients`,
-`problem`, `sizing`, `backends`) is still in-flight in the shared tree and is the last
-Round-1 carry-over, tracked as R2-T07. The A24 backlog above is otherwise the live plan.
+**Round 2 entry state.** Both packages Round 1 left uncommitted are now in and green:
+`workflow/` via A13/A26, and the `optimization/` build-out (`variables`, `responses`,
+`gradients`, `problem`, `sizing`, `backends`) via the A28 merge below. No Round-1
+carry-over remains, and what R2-T07 still owes is narrower than the plan states — the
+package is landed and tested, and only `ScipyBackend.solve` is a stub. The A24 backlog
+above is otherwise the live plan.
+
+#### A28 — Dynamics & Optimization Branch Integration (backfill for A15)
+- Merged `cursor/dynamics-damping-frf-9500` into the integration branch at `acda625`,
+  landing the two tracks Round 1 and A24 had both flagged as in-flight: A19's GAP-04/05
+  damped-dynamics chain (`solver/dynamics.py`, `tests/test_dynamics.py`, 82 tests) and
+  A02's MS-5 optimization build-out
+  (`optimization/{variables,responses,gradients,problem,sizing,backends}.py`,
+  `tests/test_optimization.py`, 16 tests), which had been swept into A19's commits from
+  the shared tree. The A02, A19 and A29 entries describe the delivered engines; this
+  entry records the integration.
+- **No conflicts to resolve.** A19 had rebased onto `0409b3e` before pushing, so the merge
+  base was current and git took every hunk cleanly, including the `openfemlab/__init__.py`
+  export table and the PROGRESS line both sides touched. Verified afterwards that the
+  merge is content-complete rather than merely conflict-free: `openfemlab.solver` exports
+  the dynamics API, and `OptimizationProblem`, `OptimizationResult`, `minimize_sizing` and
+  `OptimizationError` all resolve from the package root.
+- **A second merge** (`57ba8c2`) brought the A29 and A19 progress records themselves onto
+  the trunk. Both were written after the rebase and lived only on the side branch, which
+  is exactly the "nothing stranded on a side branch" rule A29 states.
+- **The failure mode this backfill actually guarded against.** In the shared `/workspace`
+  clone the branch pointer `cursor/dynamics-damping-frf-9500` had been reset onto the
+  trunk after A19 pushed, so merging that local ref reported "Already up to date" and
+  would have silently landed nothing. The five commits were located through the branch
+  reflog (`490970a` and its parents), then confirmed still present on
+  `origin/cursor/dynamics-damping-frf-9500` — the ref that was actually merged. This is
+  the fourth occurrence of the shared-tree hazard A13/A15/A21/A26 report and the worst
+  variant so far: a lost *ref* rather than a lost working tree, because it fails silently
+  instead of breaking an import. All of this agent's work was done in a private worktree
+  at `/tmp/a28` with `PYTHONPATH` pinned to it, since the venv's editable install points
+  at `/workspace/src` and would otherwise test a sibling agent's tree.
+- Verified at `acda625` on Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1: full suite
+  **332 → 430 passed** (5 s), `ruff check .` clean. Every pre-existing suite is unchanged;
+  the 98 new tests are the two merged files.
+- **Independent integration checks** — not a re-run of A19's suite, but the merged packages
+  driven through the trunk's own `ModalSolver`, `mesh.simple.spring_mass_chain` and
+  `updating.ScalingModel`, which is the part a merge can break. Damped SDOF poles match
+  `s = −ζω₀ ± iω₀√(1−ζ²)` to **7.4e-16** relative and ζ to **6.1e-16**. A 10-DOF chain
+  under Rayleigh damping reports proportionality index **exactly 0.0**. Over 400 frequency
+  lines from 1–120 Hz, real-mode superposition and complex-mode residue superposition
+  reproduce the direct inversion of `Z(ω) = K − ω²M + iωC` to **2.1e-13** and **1.3e-10**
+  relative, with drive-point **FRAC = 1.000000000000000** on both routes. On the 2-DOF
+  sizing reference the analytic Fox-Kapoor route matches central differences to
+  **1.4e-10** (mass objective) and **2.1e-10** (normalized frequency constraint) against
+  the 1e-6 AC-OPT-001 gate, at **7** eigensolves for both checks together — the
+  evaluator's one-solve-per-design-point cache behaving as specified.
+- Opened `docs/OPTIMIZATION.md` (`9c674d5`). `optimization/__init__.py`, `backends.py`
+  and the `ScipyBackend.solve` `NotImplementedError` message all cite it by name — the
+  last of those is user-facing — but the merge landed code referencing a file that
+  existed on no branch and in no reachable commit, so the two API levels, the design
+  space and lowering pipeline, both gradient routes and the "section 7" scipy mapping the
+  stub message promises were written up from the shipped code. A02 then extended it
+  (`ea65d7b`) with the module layout, the public API block and the AC-OPT mapping.
+- Open for the orchestrator, in priority order:
+  1. `ScipyBackend.solve` is the one remaining stub, so `minimize_sizing` raises
+     `NotImplementedError` and AC-OPT-002/003 cannot be claimed. This is R2-T07/GAP-12,
+     now unblocked: the lowering, both gradient routes, mode tracking and the result
+     contract are all in and tested.
+  2. No `AC-DYN-*` criteria exist yet, so 82 passing dynamics tests move nothing in the
+     registry. R2-T01's spec-first rule (criteria doc + module spec + registry in one
+     commit) should now be applied to the landed API rather than to a planned one.
+  3. `frac`/`fdac` are reachable only as `openfemlab.solver.dynamics.frac`: the curated
+     `openfemlab.solver.__all__` and the package root export the synthesis API but not the
+     FRF correlation metrics. A19 flags the same seam from the other side (they belong in
+     `correlation/` if it grows an FRF section); worth settling before the R2-T01 CLI demo
+     depends on it.
 
 ### Round 3 — SOTA Polish & Final Acceptance
 **Status:** PENDING
