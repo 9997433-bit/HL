@@ -855,12 +855,19 @@ class MultitrackView(QWidget):
         self.zoom_to_fit()
 
     def _on_session_changed(self, _session: MultitrackSession) -> None:
-        """Model callback: the arrangement moved under us."""
+        """Model callback: the arrangement moved under us.
+
+        Adding a bus rebuilds only the bus row: the lanes keep their cached
+        waveform pixmaps, and their send selectors pick the new target up from
+        :meth:`refresh` like any other model change.
+        """
         session = self._session
-        if self._strips_are_stale(session) or self._bus_strips_are_stale(session):
+        if self._strips_are_stale(session):
             self.rebuild()
-        else:
-            self.refresh()
+            return
+        if self._bus_strips_are_stale(session):
+            self._rebuild_buses()
+        self.refresh()
 
     def _strips_are_stale(self, session: MultitrackSession | None) -> bool:
         tracks = session.tracks if session is not None else ()
