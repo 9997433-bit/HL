@@ -20,17 +20,19 @@ from earlier entries.
   figure — A62 measured it at `8604807`, A67 at `e1a4cc8`, A55 at `0928f95`,
   and this run at `d696bcb`.
 - [x] **The current PR head is green too.** The branch on GitHub moved past the
-  876 snapshot while this checklist was being prepared; at the fetched head
-  `9052f95`: **921 passed, 0 failed** in 51.66 s. The +45 delta is the
-  acceptance batches that landed in between — AC-UPD-004/005 (A50),
+  876 snapshot while this checklist was being prepared; re-verified twice as
+  it moved: **921 passed** at `9052f95` (the AC-UPD-004/005 batch (A50),
   AC-CORR-009 with the `SensorMap.signs` reduction wiring (A58), and the
-  MS-3.4 divergence guard with typed stop reasons in `updating/updater.py`.
-- [x] No skips, xfails-as-passes, or flaky reruns observed in either run.
+  MS-3.4 divergence guard with typed stop reasons), then **1033 passed,
+  0 failed** in 102.08 s at the `5641d75` HEX8 merge tip — the trilinear
+  brick landed with `tests/test_hex8.py` (76 tests) and the AC-ELEM-001..003
+  acceptance slice while this file was first being pushed.
+- [x] No skips, xfails-as-passes, or flaky reruns observed in any run.
 
 ## 2. Lint
 
-- [x] `ruff check .` — **clean at both verification points** (`d696bcb` and
-  the PR head `9052f95`).
+- [x] `ruff check .` — **clean at all three verification points** (`d696bcb`,
+  `9052f95`, and the `5641d75` HEX8 merge tip).
 - [ ] *Reviewer note:* CI (`ci.yml`, Python 3.10–3.13 matrix) runs the suite
   but has **no ruff step** yet — lint is currently enforced by hand. Tracked
   as the R2-T09 remainder.
@@ -66,7 +68,7 @@ the A50/A58 landings):
 | Task | Status | Open items handed to review context |
 |---|---|---|
 | R2-T01 dynamics/FRF | **Done** | — (engine, AC-DYN-001..005, schema-1.1 FRF report block, `correlate-frf` CLI all landed) |
-| R2-T02 3D elements | **Partial** | HEX8 (in flight on `cursor/hex8-solid-element-d0b7`), 3D beam, shell facet, solid/shell BDF cards, AC-ELEM-001..003 registration |
+| R2-T02 3D elements | **Partial** | HEX8 merged at `5641d75` (76 tests) with AC-ELEM-001..003 registered and implemented; remaining: 3D beam, shell facet, solid/shell BDF cards |
 | R2-T03 reduction/TAM | **Done at gate level** | AC-CORR-006 and AC-CORR-009 registered and implemented; `SensorMap.signs` folded into the bases (A58). Residual: reduction densifies sparse inputs (a GAP-13-scale concern, not a correctness one) |
 | R2-T04 Bayesian MAP | **Partial** | Estimator + posterior landed (35 tests); **AC-UPD-006a/b still `specified`** — the P1 gate-blockers; σ_post surfacing in the CLI `update` document |
 | R2-T05 meshio/IO | **Not started** | meshio bridge, UNV 2411/2412, UFF writing, AC-IO-001..003 registration |
@@ -77,10 +79,11 @@ the A50/A58 landings):
 
 ## 6. Acceptance-criteria registry (measured at the PR head)
 
-- [x] **41 criteria: 35 `implemented`, 6 `specified`, 0 `verified`.**
-  By priority: P0 31 implemented / **1 specified (AC-CORR-008** — report JSON
-  round-trip — the only remaining P0); P1 4 implemented / 5 specified
-  (AC-MODAL-008, AC-UPD-006a, AC-UPD-006b, AC-UPD-008, AC-WORK-003).
+- [x] **44 criteria: 39 `implemented`, 5 `specified`, 0 `verified`**
+  (re-measured at the `5641d75` HEX8 merge tip). **Every P0 criterion is now
+  implemented** (34/34 — AC-CORR-008 and the three AC-ELEM rows closed in the
+  same window). The five remaining `specified` rows are all P1: AC-MODAL-008,
+  AC-UPD-006a, AC-UPD-006b, AC-UPD-008, AC-WORK-003.
 - [ ] The Round-2 exit bar requires every P0+P1 criterion `verified`; the
   promotion step (a CI run at a pinned tip) is R2-T09 scope and has not been
   defined yet. Reviewers should read `implemented` as "tagged acceptance test
@@ -101,7 +104,8 @@ the A50/A58 landings):
 
 ## Bottom line
 
-Suite green at both the 876-test snapshot and the 921-test PR head, ruff clean
-at both, Round 1 closed, Round 2 gate-blockers (AC-UPD-006a/b) and the T02/T05
-remainders are known, tracked, and disclosed. The only pre-review action left
-is refreshing the PR #5 title/body from `PR_DRAFT.md`.
+Suite green at the 876-test snapshot, the 921-test intermediate head, and the
+1033-test HEX8 merge tip; ruff clean at all three; every P0 criterion
+implemented; Round 1 closed; the Round 2 gate-blockers (AC-UPD-006a/b, all P1)
+and the T02/T05 remainders are known, tracked, and disclosed. The only
+pre-review action left is refreshing the PR #5 title/body from `PR_DRAFT.md`.
