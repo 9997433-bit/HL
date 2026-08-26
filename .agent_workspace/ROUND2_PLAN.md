@@ -35,8 +35,8 @@ the imported-shell modal example (A128), and the A121 closure above.
 | R2-T01 dynamics/FRF | **COMPLETE** — engine (`acda625`), AC-DYN-001..005 **`verified`**, report `frf` block at schema 1.1 (A41), `openfemlab correlate-frf` CLI (A54). |
 | R2-T02 3D elements | **PARTIAL** — all formulations in `core/elements.py`; `neutral_convert` with `quad4_as="shell"` (A129); Nastran BDF reads CQUAD4/CTETRA/CHEXA/CBAR + PSHELL/PSOLID (A119). Open: fold shell into AC-ELEM case table. |
 | R2-T03 reduction/expansion | **ACCEPTANCE-COMPLETE** — engine (A36), AC-CORR-006/009 **`verified`**. Open: sparse inputs. |
-| R2-T04 Bayesian MAP | **ACCEPTANCE-COMPLETE** — estimator (A49), AC-UPD-006a/b **`verified`**, σ_post in `CorrectionReport`. Open: σ_post in CLI `update` document. |
-| R2-T05 meshio & IO | **PARTIAL** — meshio bridge (A89), `neutral_convert` (A106), end-to-end import example (A128), `write_uff`/`format_uff` for datasets 55/58 (A123). Open: AC-IO-001..003 registration, UNV 2411/2412. |
+| R2-T04 Bayesian MAP | **ACCEPTANCE-COMPLETE** — estimator (A49), AC-UPD-006a/b **`verified`**, σ_post in `CorrectionReport` and CLI `update` (A122). |
+| R2-T05 meshio & IO | **PARTIAL** — meshio bridge (A89), `neutral_convert` (A106), import example (A128), UFF read/write (A123), UNV 2411/2412 `read_unv` (A125). Open: AC-IO-001..003 registration. |
 | R2-T06 updating depth | P0 slice closed (AC-UPD-007 **`verified`**); P1 depth (MAC-row Jacobian, model-level resolver) open. |
 | R2-T07 optimization | **COMPLETE for sizing** — AC-OPT-001..004 **`verified`**. Shape variables still FD. |
 | R2-T08 R1-O2 reconciliation | **COMPLETE** |
