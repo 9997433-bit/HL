@@ -1,5 +1,6 @@
 /**
- * 成就定义。每个成就通过 test(stats) 判定是否达成，stats 由 progress store 提供。
+ * 成就定义。test(stats) 由 progress store 传入统计快照判定是否达成。
+ * stats = { stars, totalAnswered, totalCorrect, bestStreak, modules, counters }
  */
 export const ACHIEVEMENTS = [
   {
@@ -75,30 +76,33 @@ export const ACHIEVEMENTS = [
   {
     id: 'sudoku-first',
     name: '初入空间站',
-    desc: '完成 1 个 4×4 数独',
-    emoji: '🧩',
+    desc: '完成 1 个数独',
+    emoji: '🎯',
     test: (s) => (s.counters.sudokuSolved ?? 0) >= 1,
   },
   {
     id: 'sudoku-five',
     name: '数独站长',
-    desc: '完成 5 个 4×4 数独',
+    desc: '完成 5 个数独',
     emoji: '🏗️',
     test: (s) => (s.counters.sudokuSolved ?? 0) >= 5,
   },
   {
     id: 'word-master',
     name: '生活解题家',
-    desc: '应用题答对 10 题',
+    desc: '生活行星答对 10 题',
     emoji: '🌍',
     test: (s) => (s.modules.word?.correct ?? 0) >= 10,
   },
   {
     id: 'explorer',
     name: '全星系探索者',
-    desc: '在全部 6 个星球都练习过',
+    desc: '在全部 6 个玩法星球都练习过',
     emoji: '🗺️',
-    test: (s) => Object.values(s.modules).filter((m) => m.answered > 0).length >= 6,
+    test: (s) =>
+      ['counting', 'arithmetic', 'geometry', 'logic', 'sudoku', 'word'].every(
+        (id) => (s.modules[id]?.answered ?? 0) > 0,
+      ),
   },
   {
     id: 'perfect-run',

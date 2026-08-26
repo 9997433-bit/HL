@@ -6,8 +6,10 @@ import * as Tone from 'tone'
 
 let synth = null
 let ready = false
+let enabled = true
 
 async function ensureAudio() {
+  if (!enabled) return false
   if (ready) return true
   try {
     await Tone.start()
@@ -30,6 +32,10 @@ function playNotes(notes, gap = 0.09, dur = '16n') {
 }
 
 export const sound = {
+  /** 设置页的音效总开关 */
+  setEnabled(value) {
+    enabled = !!value
+  },
   /** 界面点击:短促单音 */
   async click() {
     if (await ensureAudio()) playNotes(['C5'], 0, '32n')
