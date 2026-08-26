@@ -6,6 +6,12 @@
 
 > 架构决策与竞品审计详见仓库根目录 `.agent_workspace/literacy-architecture.md`。
 
+**版本状态（Round 3 · SOTA 终验进行中）**：Round 2 实测基线为 106 字 / 12 单元、
+FSRS 复习队列接线、记忆热力图、离线 Service Worker、smoke 17 路由 + 12 交互全绿。
+Round 3 攻坚项：字库扩至 200 字、axe serious 清零、描红键盘替代与 aria-live 播报、
+设计令牌迁移、Lighthouse ≥ 90 终验。字表以 `src/data/characters.js` 为唯一事实来源，
+终验实测见 `.agent_workspace/GLOBAL-SUMMARY-REPORT.md`。
+
 ## 快速开始
 
 ```bash
@@ -17,7 +23,8 @@ npm run preview
 
 `npm run gen:hanzi` 从 `hanzi-writer-data`(devDependency)裁剪课程字表所需的
 笔顺 JSON 到 `public/hanzi-data/`,运行时优先读本地、缺字才回退 jsDelivr CDN,
-保证断网时核心字表仍能播放笔顺动画。
+保证断网时核心字表仍能播放笔顺动画。笔顺数据受 Arphic Public License 约束,
+生成脚本会把 `ARPHICPL.TXT` 一并写入该目录随包分发,不要删除。
 
 ## 离线使用
 
@@ -27,8 +34,9 @@ Service Worker 不支持 `file://`，不能通过直接双击 `dist/index.html` 
 
 ## 字表与复习曲线
 
-字表 106 字、12 个单元(`src/data/characters.js`),字表页一次只挂一个单元,
-底部按单元翻页,避免上百张卡片同时进 DOM。
+字表按单元组织在 `src/data/characters.js`(Round 2 基线 106 字 / 12 单元,
+Round 3 扩容至 200 字,规模由 `check:data` 与 `gen:hanzi` 双重守护),
+字表页一次只挂一个单元,底部按单元翻页,避免上百张卡片同时进 DOM。
 
 复习不看「答对几次」,而是由 `src/utils/srs.js` 的 FSRS-lite 记忆卡决定:
 描红和答题都会更新记忆卡的稳定性与难度,首页的「该复习 N 字」、
@@ -107,12 +115,11 @@ CI 上跑不了时可以只跑 `check:data`。
 字条目 schema(节选): `char / pinyin / unit / words[] / sentence / etymology / distractors[]`,
 其中 `distractors` 为形近字,供听音识字与测验自动出题。
 
-## 记忆曲线
+## 许可与合规
 
-Round 1 采用「掌握阈值 + 冷却复习队列」;`src/utils/srs.js` 已内置 FSRS-lite
-纯函数(`createCard / schedule / dueCards / retention`)作为 Round 2 升级契约,
-接线后支持按字粒度的间隔重复调度与家长端记忆强度热力图。
-
-## License
-
-MIT(数据集来源及其许可见架构文档 §6)。
+- 应用代码:MIT。
+- 依赖与数据的完整第三方声明见仓库根目录
+  [`THIRD_PARTY_NOTICES.md`](../../THIRD_PARTY_NOTICES.md)(随发行 zip 分发)。
+- 特别注意:`hanzi-writer` 代码是 MIT,但 `public/hanzi-data/` 里的笔顺数据源自
+  `hanzi-writer-data`,受 **Arphic Public License** 约束——再分发必须随附同目录的
+  `ARPHICPL.TXT`,两者不可混淆。
