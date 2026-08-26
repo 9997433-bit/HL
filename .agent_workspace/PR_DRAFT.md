@@ -1,7 +1,7 @@
 # PR Draft — OpenFEMLab Round 1
 
 Ready to file. Base: `main`. Head: `cursor/femtools-industrial-7aa3`.
-Verified at commit `069b097`: full suite **1089 passed in 96.21 s**,
+Verified at commit `e3ef8f8`: full suite **1133 passed in 74.87 s**,
 `ruff check .` clean (Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1).
 Source references: [README](../README.md), [Chinese user guide](../docs/USER_GUIDE_zh.md),
 and [orchestrator report](ORCHESTRATOR_REPORT.md).
@@ -9,7 +9,7 @@ and [orchestrator report](ORCHESTRATOR_REPORT.md).
 ## Title
 
 ```
-OpenFEMLab: solver-independent CAE platform — modal analysis, correlation, model updating, damped dynamics, 3D elements (1089 tests)
+OpenFEMLab: solver-independent CAE platform — modal analysis, correlation, model updating, damped dynamics, 3D elements (1133 tests)
 ```
 
 ## Body
@@ -71,12 +71,16 @@ synthesis, and optimization hooks — all behind one CLI and a schema-versioned 
   constraints *and* the active bound directions together. GAP-12 is closed for sizing.
 - **IO** (`io/`): schema-versioned native YAML/JSON round trip for models, modal
   results, and test data; ASCII UFF/UNV dataset 55/58 reader; minimal Nastran BDF
-  reader (GRID/CROD/MAT1 → neutral model).
+  reader (GRID/CROD/MAT1 → neutral model); and a meshio bridge behind the optional
+  `[io]` extra that converts `meshio.Mesh` ↔ `NeutralModel` over an explicit
+  cell-type table, imports meshio lazily so `openfemlab.io` stays importable
+  without the extra, and records unmapped cell types in
+  `meta["skipped_cell_types"]` instead of failing.
 - **CLI** (`cli/`): `openfemlab modal | correlate | correlate-frf | update` over
   JSON/YAML model specs and UFF-58 measured FRFs; machine-readable JSON on stdout,
   diagnostics on stderr, CI acceptance gates via exit codes; covered end to end
   including subprocess runs.
-- **QA stack**: 1089 tests including a machine-readable registry of 44 quantified
+- **QA stack**: 1133 tests including a machine-readable registry of 44 quantified
   acceptance criteria: 41 `implemented`, 3 `specified`, and 0 `verified`, with all
   **34/34 P0** rows implemented — plus boundary/probe suites, performance-regression
   gates, and benchmarks; GitHub Actions CI on Python 3.10–3.13; `ruff check` clean.
@@ -88,18 +92,18 @@ synthesis, and optimization hooks — all behind one CLI and a schema-versioned 
 
 ## Verification
 
-- `PYTHONPATH=src python -m pytest` — **1089 passed in 96.21 s** at commit `069b097`
-  on Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1.
+- `PYTHONPATH=src python -m pytest` — **1133 passed in 74.87 s** at commit `e3ef8f8`
+  on Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1, from a detached private worktree.
 - `ruff check .` — clean.
-- A91 independently re-ran the completed A78 milestone at `05e1b51`:
-  **1035 passed in 55.22 s**, `ruff check .` clean; its 44-row registry was
-  39 `implemented` / 5 `specified`, with **P0 34/34 implemented**.
-- Per-suite breakdown (sums to 1089): acceptance registry + gates 337, dynamics 82,
-  HEX8 76, TET4 66, QUAD4 61, updating 57, correlation 52, modal solver 44,
-  `BeamElement3D` 42, workflow 41, Bayesian updating 36, reduction/expansion 32,
-  optimization 27, FRF correlation 25, IO (native/UFF/Nastran) 24,
-  CLI 22+16+1 (incl. `correlate-frf`), core 18, result contract 17,
-  boundary/performance/e2e/scaffold 13.
+- A93 re-ran the suite one commit earlier, at the merge that brought the spatial
+  beam onto the integration branch (`75dd070`): **1089 passed in 56.82 s**,
+  `ruff check .` clean. The 44 tests between the two tips are the meshio bridge.
+- Per-suite breakdown (sums to 1133): acceptance registry + gates 337, dynamics 82,
+  HEX8 76, TET4 66, QUAD4 61, updating 57, correlation 52, meshio bridge 44,
+  modal solver 44, `BeamElement3D` 42, workflow 41, Bayesian updating 36,
+  reduction/expansion 32, optimization 27, FRF correlation 25,
+  IO (native/UFF/Nastran) 24, CLI 22+16+1 (incl. `correlate-frf`), core 18,
+  result contract 17, boundary/performance/e2e/scaffold 13.
 - The three continuum elements are held to one shared standard: AC-ELEM-001..003 are
   parametrized over QUAD4, TET4 and HEX8 alike, so the patch test (defects 1.5e-16 /
   2.8e-16 / 2.8e-16), the exact zero-energy mode count, and quadratic h-convergence
@@ -126,7 +130,7 @@ openness, and automation:
 
 | Capability | FEMtools | OpenFEMLab (this PR) | Verdict |
 |---|---|---|---|
-| Solver-independent data model | mature, many interfaces | same idea; UNV 55/58 + Nastran-lite now, meshio planned | parity (breadth later) |
+| Solver-independent data model | mature, many interfaces | same idea; UNV 55/58, Nastran-lite, and the meshio bridge | parity (breadth later) |
 | Modal analysis | internal + external solvers | SciPy dense + shift-invert Lanczos, sparse throughout, LU cache | parity |
 | Element library | full industrial set | QUAD4 / TET4 / HEX8 continuum + spring/truss/planar beam + spatial `BeamElement3D`; shell facet remains open | gap (narrowing) |
 | Dynamic response / FRF | mature | Rayleigh/modal/hysteretic damping, complex modes, receptance/mobility/accelerance synthesis, FRAC/FDAC | parity |
@@ -138,7 +142,7 @@ openness, and automation:
 | Cost / auditability | commercial licenses, closed numerics | MIT, every algorithm inspectable | **exceed** |
 | Reduction & expansion (TAM) | mature | Guyan/IRS/SEREP bases, TAM mass, SEREP expansion | parity |
 | GUI, pretest planning, MPE from FRFs | mature | not in v1 (MPE targeted Round 2+, GAP-06/07) | gap (accepted) |
-| Format breadth (Ansys/Abaqus native) | yes | partial (planned via meshio) | gap (accepted) |
+| Format breadth (Ansys/Abaqus native) | yes | partial — meshio bridge landed behind the `[io]` extra; no native OP2/ODB | gap (narrowing) |
 
 ## Notes for reviewers
 
