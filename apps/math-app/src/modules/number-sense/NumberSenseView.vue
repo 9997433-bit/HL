@@ -359,6 +359,14 @@ onBeforeUnmount(() => {
 
 <template>
   <main class="page stack">
+    <section v-if="!compareOnly" class="card tool-entry">
+      <div>
+        <strong>🟣 分与合教具</strong>
+        <span class="muted">亲手移动 10 颗弹珠，练习 <code>compose-ten</code></span>
+      </div>
+      <RouterLink class="btn btn--primary btn--sm" to="/compose-ten">开始分弹珠 →</RouterLink>
+    </section>
+
     <section class="card bar-panel">
       <SessionBar
         :index="index"
@@ -576,6 +584,25 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.tool-entry {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 13px 16px;
+  border-color: rgba(155, 140, 255, 0.38);
+}
+
+.tool-entry > div {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tool-entry code {
+  color: var(--star);
+}
+
 .bar-panel {
   padding: 14px 18px;
 }
