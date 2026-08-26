@@ -1,15 +1,13 @@
 # PR Draft — OpenFEMLab Round 1
 
 Ready to file. Base: `main`. Head: `cursor/femtools-industrial-7aa3`.
-Verified at `9109e17`: full suite **611 passed**, `ruff check .` clean
-Verified at `3014d25`: full suite **642 passed**, `ruff check .` clean
+Verified at `d6c70b1`: full suite **617 passed**, `ruff check .` clean
 (Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1).
 
 ## Title
 
 ```
-OpenFEMLab: solver-independent CAE platform — modal analysis, correlation, model updating, damped dynamics (611 tests)
-OpenFEMLab: solver-independent CAE platform — modal analysis, correlation, model updating, damped dynamics (642 tests)
+OpenFEMLab: solver-independent CAE platform — modal analysis, correlation, model updating, damped dynamics (617 tests)
 ```
 
 ## Body
@@ -66,8 +64,7 @@ synthesis, and optimization hooks — all behind one CLI and a schema-versioned 
 - **CLI** (`cli/`): `openfemlab modal | correlate | update` over JSON/YAML model
   specs; machine-readable JSON on stdout, diagnostics on stderr, CI acceptance gates
   via exit codes; covered end to end including subprocess runs.
-- **QA stack**: 611 tests including a machine-readable registry of 35 quantified
-- **QA stack**: 642 tests including a machine-readable registry of 40 quantified
+- **QA stack**: 617 tests including a machine-readable registry of 40 quantified
   acceptance criteria wired to tagged acceptance tests, boundary/probe suites,
   performance-regression gates, and benchmarks; GitHub Actions CI on Python
   3.10–3.13; `ruff check` clean.
@@ -77,14 +74,13 @@ synthesis, and optimization hooks — all behind one CLI and a schema-versioned 
 
 ## Verification
 
-- `python -m pytest` — **611 passed** at `9109e17` in 19.21 s on Python 3.12.3 /
-- `python -m pytest` — **642 passed** at `3014d25` in 82.41 s on Python 3.12.3 /
+- `PYTHONPATH=src python -m pytest` — **617 passed** at `d6c70b1` in 88.42 s on Python 3.12.3 /
   NumPy 2.5.2 / SciPy 1.18.1.
 - `ruff check .` — clean.
-- Per-suite breakdown (sums to 642): dynamics 82, QUAD4 61, updating 57, correlation 52,
-  modal solver 44, workflow 38, optimization 27, FRF correlation 25, reduction/expansion
-  25, CLI 22+1, core 18, result contract 17, IO (native/UFF/Nastran) 24, acceptance
-  registry + gates 136, boundary/performance/e2e/scaffold 13.
+- Per-suite breakdown (sums to 617): dynamics 82, QUAD4 61, updating 57, correlation 52,
+  modal solver 44, workflow 38, optimization 27, reduction/expansion 25, CLI 22+1,
+  core 18, result contract 17, IO (native/UFF/Nastran) 24, acceptance registry + gates
+  136, boundary/performance/e2e/scaffold 13.
 - End-to-end: model → modal → correlate → update → re-solve converges 22.86 % → 0 %
   frequency error at MAC 1.0; the README CLI session reproduces exit codes 0/3/0/0.
 - Performance (single BLAS thread, medians): 100-DOF five-iteration updating loop
