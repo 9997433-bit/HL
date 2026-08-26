@@ -1,7 +1,7 @@
 # OpenFEMLab — Status Snapshot
 
-**Recorded by:** A80 (backfill for completed A76) · **Date:** 2026-08-26
-**Branch:** `cursor/femtools-industrial-7aa3` · **Tested code commit:** `9052f95`
+**Recorded by:** A69 (backfill for completed A55) · **Date:** 2026-08-26
+**Branch:** `cursor/femtools-industrial-7aa3` · **Tested code commit:** `1e99970`
 **Pull request:** [PR #5](https://github.com/9997433-bit/HL/pull/5) — open against
 `main`. [`PR_DRAFT.md`](PR_DRAFT.md) remains pinned at the earlier 876-test
 snapshot and therefore trails the verification recorded here.
@@ -13,18 +13,20 @@ snapshot.
 
 ## 1. Verification snapshot (independent, this run)
 
-Run from `/workspace` after a fetch and hard reset to
-`origin/cursor/femtools-industrial-7aa3`. The branch advanced through a
-documentation-only commit while verification ran; the tested code tip was
-`9052f95`.
+Run from a detached private clone at `/tmp/a69` with `PYTHONPATH` pinned to its
+`src`, so the shared `/workspace` checkout (mid-rebase for other agents at
+snapshot time) was never relied on. The tested code tip was `1e99970`.
 
-- `pytest -q` — **921 passed, 0 failed** in 39.20 s; a collection-only pass
-  independently confirmed 921 tests.
+- `pytest -q` — **933 passed, 0 failed**; re-verified at `1e99970` after the
+  AC-CORR-008 round-trip batch landed (A69). The previous snapshot read 921 at
+  `9052f95`, one commit earlier.
 - `ruff check .` — clean, no findings.
-- Acceptance-criteria registry — **40 criteria: 34 `implemented`,
-  6 `specified`, 0 `verified`**. By priority: P0 31 implemented / 1 specified;
-  P1 3 implemented / 5 specified.
-- The count increased by 45 from the prior 876-test snapshot.
+- Acceptance-criteria registry — **41 criteria: 36 `implemented`,
+  5 `specified`, 0 `verified`**. By priority: **P0 32 implemented / 0
+  specified** — every P0 criterion now carries a tagged acceptance test —
+  P1 4 implemented / 5 specified.
+- The count rose from the 876-test snapshot as the AC-UPD-004/005 batch, the
+  AC-CORR-009 registration and the AC-CORR-008 round-trip batch landed.
 
 Unit suites (630 tests):
 
@@ -75,7 +77,7 @@ optimization 15, dynamics 13, registry consistency 12, workflow 11.
 | Module | Package | Tests (unit / acceptance) | State |
 |---|---|---|---|
 | M1 Modal analysis (MS-1) | `solver/modal.py` (+ `modal/eigen.py` adapter) | 44 / 98 | Complete for Round-2 scope, incl. typed input validation (MS-1.1). AC-MODAL-001..007 and 009 implemented; only 008 (P1 frequency window) `specified`. |
-| M2 Correlation (MS-2) | `correlation/` (mac, metrics, pairing, align, reduction, frf, report) | 52 + 25 + 25 / 81 | Engine complete incl. Guyan/IRS/SEREP + TAM and the schema-1.1 FRF block. AC-CORR-005/006/007 implemented; 008 (report round-trip) `specified`; AC-CORR-009 unregistered. |
+| M2 Correlation (MS-2) | `correlation/` (mac, metrics, pairing, align, reduction, frf, report) | 52 + 25 + 25 / 81 | Engine complete incl. Guyan/IRS/SEREP + TAM and the schema-1.1 FRF block; the report now parses back from its own JSON. AC-CORR-001..009 all implemented. |
 | M3 Model updating (MS-3) | `updating/` | 57 + 35 / 47 | LM/GN with analytic Fox–Kapoor + MAC sensitivities complete; Bayesian MAP estimator landed. AC-UPD-004/005 (P0) are implemented; 006a/006b/008 (P1) remain `specified`. |
 | M4 Correction workflow (MS-4) | `workflow/` | 38 / 11 | Complete (S1–S6, gates, collinearity screen, σ_post, reproducible report). AC-WORK-001/002/004/005 and AC-UPD-007 implemented; AC-WORK-003 `specified`. |
 | M5 Optimization (MS-5) | `optimization/` | 27 / 15 | Sizing complete (GAP-12 closed) with bound-active KKT oracles; shape variables fall back to finite differences. AC-OPT-001..004 implemented. |
@@ -87,11 +89,11 @@ optimization 15, dynamics 13, registry consistency 12, workflow 11.
 
 ## 4. Open gaps (priority order)
 
-1. **Registry closure.** 6 of 40 criteria remain `specified` and nothing has
-   been advanced to `verified`; the Round-2 exit bar requires every P0+P1
-   criterion `verified`. Remaining P0: AC-CORR-008 (report JSON round-trip).
-   Remaining P1: AC-MODAL-008, AC-UPD-006a/006b/008, AC-WORK-003.
-   Several gate behaviour that already exists and is unit-tested — these are
+1. **Registry closure.** Every P0 criterion is `implemented`; 5 of 41 remain
+   `specified` and nothing has been advanced to `verified`, which the Round-2
+   exit bar requires for every P0+P1 criterion. Remaining, all P1:
+   AC-MODAL-008, AC-UPD-006a/006b/008, AC-WORK-003. Several cover gate
+   behaviour that already exists and is unit-tested — these are
    acceptance-test-and-tagging tasks, not feature work.
 2. **R2-T04 acceptance wiring** (P1 gate-blockers): the MAP estimator is in;
    AC-UPD-006a (weak-prior → GN limit) and AC-UPD-006b (posterior contraction)
@@ -105,10 +107,10 @@ optimization 15, dynamics 13, registry consistency 12, workflow 11.
 5. **R2-T06 remainder**: QR-with-pivoting refinement of the collinearity
    screen, analytic MAC-row Jacobian in the updater's shape-residual path,
    model-level parameter resolver with assembled per-element dK/dp.
-6. **R2-T03 residue**: AC-CORR-009 (TAM pseudo-orthogonality) registration —
-   engine and test exist, the three-file spec-first commit does not;
-   `ReductionBasis.from_sensor_map` to fold `SensorMap.signs` into `T`;
-   reduction module densifies sparse inputs (fine now, wrong at GAP-13 scale).
+6. **R2-T03 residue**: AC-CORR-009 (TAM pseudo-orthogonality) is registered and
+   `SensorMap.signs` is folded into the reduction bases (A58); what is left is
+   that the reduction module densifies sparse inputs — fine now, wrong at
+   GAP-13 scale.
 7. **CI hardening (R2-T09)**: add `ruff check` to `ci.yml`; define the
    `implemented → verified` promotion (a CI run at a pinned tip) and apply it.
 8. **Process**: the shared-`/workspace` hazard has been recorded by eight+
