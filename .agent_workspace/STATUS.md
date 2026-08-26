@@ -58,8 +58,8 @@ Acceptance registry and gate suites: **337 tests**.
 |---|---|---|
 | R2-T01 | Dynamics/FRF chain (GAP-04/05) | **Done, including the exit-bar demo** — engine, AC-DYN-001..005, FRF report block (schema 1.1, A41), and the `openfemlab correlate-frf` CLI command (A54, 16 tests). |
 | R2-T02 | 3D continuum elements (GAP-02) | **Partial** — QUAD4 (61 tests), TET4 (66), HEX8 (76), the 42-test spatial `BeamElement3D`, and AC-ELEM-001..003 (24 acceptance cases) landed. The shell facet and solid/shell BDF cards remain. |
-| R2-T03 | Reduction/expansion, TAM (GAP-08) | **Mostly done** — `correlation/reduction.py` (A36), AC-CORR-006/009, and `SensorMap.signs` folding are implemented. Sparse inputs still densify and must be addressed before GAP-13 scale. |
-| R2-T04 | Bayesian MAP updating (GAP-11 slice) | **Mostly done** — the MS-3.5 MAP estimator with prior/posterior covariance landed (`4b2a416`, now 36 tests), and AC-UPD-006a/b are `implemented` with Laplace σ_post in the `CorrectionReport`. σ_post in the CLI `update` document remains. |
+| R2-T03 | Reduction/expansion, TAM (GAP-08) | **Acceptance-complete** — `correlation/reduction.py` (A36), AC-CORR-006/009, and `SensorMap.signs` folding are implemented. Sparse inputs still densify and must be addressed before GAP-13 scale; on the gate itself only the `verified` flip is left. |
+| R2-T04 | Bayesian MAP updating (GAP-11 slice) | **Acceptance-complete** — the MS-3.5 MAP estimator with prior/posterior covariance landed (`4b2a416`, now 36 tests), and AC-UPD-006a/b are `implemented` with Laplace σ_post in the `CorrectionReport` (A57, merged to the trunk by A83). Only σ_post in the CLI `update` document is left, and it is outside the acceptance slice. |
 | R2-T05 | meshio bridge + IO completion (GAP-03) | **Not started** — UNV 2411/2412, meshio, UFF writing, AC-IO-* rows all open. |
 | R2-T06 | Updating depth (GAP-10) | **Partial** — AC-UPD-007 (P0) is tagged and `implemented` (A44); the collinearity screen was already in `workflow/selection.py`. QR-pivoting refinement, analytic MAC-row Jacobian wiring, and the model-level parameter resolver remain. |
 | R2-T07 | SciPy optimization backend (GAP-12) | **Done** — SLSQP/trust-constr with analytic Jacobians (A27), active-set KKT + trust-constr Hessian fixes (A40 harvest), and strengthened AC-OPT-002/003 oracles incl. a bound-active optimum (A34). Shape variables still FD. |
@@ -107,7 +107,7 @@ Acceptance registry and gate suites: **337 tests**.
    GAP-13 scale.
 6. **R2-T04 residue**: σ_post in the CLI `update` document — a prior/noise
    block in the update spec schema, a column in the rendered table and the
-   JSON payload. The `CorrectionReport` half is done.
+   JSON payload. The acceptance gate and the `CorrectionReport` half are done.
 7. **CI hardening (R2-T09)**: add `ruff check` to `ci.yml`; define the
    `implemented → verified` promotion (a CI run at a pinned tip) and apply it.
 8. **Process**: the shared-`/workspace` hazard has been recorded by eight+
