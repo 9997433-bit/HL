@@ -3,8 +3,8 @@
 **Recorded by:** A115 (backfill) · **Date:** 2026-08-26
 **Branch:** `cursor/femtools-industrial-7aa3` · **Tested code commit:** `e111901`
 **Pull request:** [PR #5](https://github.com/9997433-bit/HL/pull/5) — open against
-`main`. [`PR_DRAFT.md`](PR_DRAFT.md) is synchronized to this 1,184-test
-verification snapshot.
+`main`. [`PR_DRAFT.md`](PR_DRAFT.md) is synchronized to the 1,331-test
+re-measurement at `571c864` (below).
 
 This file supersedes the earlier R2-T01-scoped status note with a full-project
 snapshot.
@@ -127,7 +127,7 @@ Acceptance registry and gate suites: **388 tests**.
    transition is defined and enforced by
    `tests/acceptance/test_registry_ci.py` (a green, reproducible re-run of the
    promoted criteria) rather than by a pinned manual run. Open: promote the
-   remaining 35 rows.
+   remaining 30 rows.
 8. **Process**: the shared-`/workspace` hazard has been recorded by eight+
    agents and was live again at this snapshot (mid-merge conflict state, HEAD
    moving between consecutive commands). Detached private worktree + pinned

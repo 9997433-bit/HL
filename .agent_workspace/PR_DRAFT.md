@@ -178,6 +178,7 @@ openness, and automation:
   MPE from measured FRFs and pretest planning remain pending outside this registry
   closure and are tracked in `docs/SOTA_GAP_ANALYSIS.md` and
   `.agent_workspace/ROUND2_PLAN.md`.
-- R2-T09 now enforces the promotion gate in CI and has advanced 9 criteria to
-  `verified`; the remaining 35 stay `implemented`.
+- R2-T09 now enforces the promotion gate in CI and has advanced 14 criteria to
+  `verified` (`scripts/promote_verified.py` makes the flip a gate run); the
+  remaining 30 stay `implemented`.
 ```
