@@ -44,7 +44,7 @@ export const BOOKS = [
     pages: [
       { emoji: '🐄', text: '山上有小牛，山下有小羊。', p: 'shān shàng yǒu xiǎo niú, shān xià yǒu xiǎo yáng.' },
       { emoji: '🗣️', text: '小牛说：我会上山。', p: 'xiǎo niú shuō: wǒ huì shàng shān.' },
-      { emoji: '🐑', text: '小羊说：我也会，我来了！', p: 'xiǎo yáng shuō: wǒ yě huì, wǒ lái le!' },
+      { emoji: '🐑', text: '小羊说：我也会，我也来！', p: 'xiǎo yáng shuō: wǒ yě huì, wǒ yě lái!' },
       { emoji: '🌼', text: '小牛小羊上山去，山上有花，花下有水。', p: 'xiǎo niú xiǎo yáng shàng shān qù, shān shàng yǒu huā, huā xià yǒu shuǐ.' },
       { emoji: '👀', text: '小牛看小羊，小羊看小牛。', p: 'xiǎo niú kàn xiǎo yáng, xiǎo yáng kàn xiǎo niú.' },
       { emoji: '🎉', text: '天上有日。小牛小羊说：好，好！', p: 'tiān shàng yǒu rì. xiǎo niú xiǎo yáng shuō: hǎo, hǎo!' }

@@ -10,7 +10,10 @@
     "dev": "vite",
     "prebuild": "npm run gen:hanzi",
     "build": "vite build",
-    "preview": "vite preview --port 4173"
+    "preview": "vite preview --port 4173",
+    "check:data": "node scripts/check-data.mjs",
+    "smoke": "node scripts/smoke.mjs",
+    "test": "npm run check:data && npm run build && npm run smoke"
   },
   "dependencies": {
     "gsap": "^3.12.5",
