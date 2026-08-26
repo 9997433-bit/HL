@@ -36,7 +36,9 @@ _EXPORTS: dict[str, str] = {
     "BarElement": "openfemlab.core.elements",
     "BeamElement2D": "openfemlab.core.elements",
     "Quad4Element": "openfemlab.core.elements",
+    "Tet4Element": "openfemlab.core.elements",
     "plane_constitutive_matrix": "openfemlab.core.elements",
+    "solid_constitutive_matrix": "openfemlab.core.elements",
     # assembly
     "AssembledSystem": "openfemlab.core.assembly",
     "assemble_system": "openfemlab.core.assembly",
@@ -64,11 +66,14 @@ _EXPORTS: dict[str, str] = {
     "pair_modes": "openfemlab.correlation",
     "correlation_summary": "openfemlab.correlation",
     # updating
+    "BayesianUpdater": "openfemlab.updating",
+    "GaussianPrior": "openfemlab.updating",
     "ModelUpdater": "openfemlab.updating",
     "ParameterSet": "openfemlab.updating",
     "ScalingModel": "openfemlab.updating",
     "UpdatableParameter": "openfemlab.updating",
     "update_model": "openfemlab.updating",
+    "update_model_bayesian": "openfemlab.updating",
     # correction workflow
     "CorrectionReport": "openfemlab.workflow",
     "HoldoutSpec": "openfemlab.workflow",
@@ -119,8 +124,10 @@ if TYPE_CHECKING:  # pragma: no cover
     from .core.elements import Element as Element
     from .core.elements import Quad4Element as Quad4Element
     from .core.elements import SpringElement as SpringElement
+    from .core.elements import Tet4Element as Tet4Element
     from .core.elements import TrussElement as TrussElement
     from .core.elements import plane_constitutive_matrix as plane_constitutive_matrix
+    from .core.elements import solid_constitutive_matrix as solid_constitutive_matrix
     from .core.model import DOF as DOF
     from .core.model import Material as Material
     from .core.model import Model as Model
@@ -153,11 +160,14 @@ if TYPE_CHECKING:  # pragma: no cover
     from .solver.dynamics import modal_frf as modal_frf
     from .solver.modal import ModalResult as ModalResult
     from .solver.modal import ModalSolver as ModalSolver
+    from .updating import BayesianUpdater as BayesianUpdater
+    from .updating import GaussianPrior as GaussianPrior
     from .updating import ModelUpdater as ModelUpdater
     from .updating import ParameterSet as ParameterSet
     from .updating import ScalingModel as ScalingModel
     from .updating import UpdatableParameter as UpdatableParameter
     from .updating import update_model as update_model
+    from .updating import update_model_bayesian as update_model_bayesian
     from .workflow import CorrectionReport as CorrectionReport
     from .workflow import HoldoutSpec as HoldoutSpec
     from .workflow import SensorMap as SensorMap

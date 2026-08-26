@@ -1,4 +1,4 @@
-"""Element library: scalar springs, 2-node bars/trusses, a planar beam and QUAD4.
+"""Element library: scalar springs, 2-node bars/trusses, a planar beam, QUAD4 and TET4.
 
 Every element exposes the same contract used by :mod:`openfemlab.core.assembly`:
 
@@ -25,9 +25,11 @@ __all__ = [
     "BarElement",
     "BeamElement2D",
     "Quad4Element",
+    "Tet4Element",
     "PLANE_STATES",
     "gauss_legendre_2d",
     "plane_constitutive_matrix",
+    "solid_constitutive_matrix",
 ]
 
 
@@ -606,3 +608,183 @@ class Quad4Element(Element):
     ) -> np.ndarray:
         """Stress ``[sxx, syy, sxy]`` at a natural point from the 8 nodal displacements."""
         return self.constitutive_matrix @ self.strain(coords, displacements, xi, eta)
+
+
+#: ``dN/d(xi, eta, zeta)`` of the TET4 shape functions -- constant, shape ``(3, 4)``.
+_TET4_NATURAL_GRADIENT = np.array(
+    [
+        [-1.0, 1.0, 0.0, 0.0],
+        [-1.0, 0.0, 1.0, 0.0],
+        [-1.0, 0.0, 0.0, 1.0],
+    ],
+    dtype=float,
+)
+
+#: ``int N_i N_j dV / V`` over a tetrahedron: ``1/10`` on the diagonal, ``1/20`` elsewhere.
+_TET4_MASS_PATTERN = (np.ones((4, 4), dtype=float) + np.eye(4)) / 20.0
+
+
+def solid_constitutive_matrix(material: Material) -> np.ndarray:
+    """Isotropic 3D elasticity matrix in Voigt notation.
+
+    Relates ``[sxx, syy, szz, sxy, syz, szx]`` to the engineering strains
+    ``[exx, eyy, ezz, gxy, gyz, gzx]`` through the Lame constants
+    ``lambda = E nu / ((1 + nu) (1 - 2 nu))`` and ``mu = E / (2 (1 + nu))``::
+
+        D = [[l + 2m,      l,      l,  0,  0,  0],
+             [     l, l + 2m,      l,  0,  0,  0],
+             [     l,      l, l + 2m,  0,  0,  0],
+             [     0,      0,      0,  m,  0,  0],
+             [     0,      0,      0,  0,  m,  0],
+             [     0,      0,      0,  0,  0,  m]]
+
+    :class:`~openfemlab.core.model.Material` keeps ``nu`` strictly below ``0.5``,
+    so ``lambda`` stays finite; near-incompressible materials are representable
+    but make constant-strain elements lock.
+    """
+    E, nu = float(material.E), float(material.nu)
+    lam = E * nu / ((1.0 + nu) * (1.0 - 2.0 * nu))
+    mu = E / (2.0 * (1.0 + nu))
+    d = np.zeros((6, 6), dtype=float)
+    d[:3, :3] = lam
+    d[np.diag_indices(3)] += 2.0 * mu
+    d[3:, 3:] = mu * np.eye(3)
+    return d
+
+
+class Tet4Element(Element):
+    """4-node linear tetrahedron -- the constant-strain solid (DOFs ``UX``, ``UY``, ``UZ``).
+
+    The displacement field is linear in the volume coordinates,
+
+    ``N = [1 - xi - eta - zeta, xi, eta, zeta]``,
+
+    so ``B`` is constant over the element and one integration point is exact::
+
+        K = V B^T D B      M = rho V / 20 * (1 + I) (x) I_3
+
+    with ``V`` the signed volume and ``D`` from :func:`solid_constitutive_matrix`.
+    The consistent mass follows from ``int N_i N_j dV = V (1 + delta_ij) / 20``;
+    ``lumped_mass`` row-sums it to ``rho V / 4`` per node.
+
+    Nodes are ordered so that the first three run counter-clockwise seen from the
+    fourth, which makes the volume positive; any other ordering is rejected
+    rather than silently sign-flipped.
+
+    Being a constant-strain element it passes the patch test exactly but is the
+    stiffest practical solid: bending is carried by a single constant strain per
+    element, so it converges slowly and locks as ``nu`` approaches ``0.5``. Use
+    it to fill geometry a structured mesher cannot, and refine.
+    """
+
+    expected_nodes = 4
+
+    def __init__(
+        self,
+        node_ids: Sequence[Hashable],
+        material: Material,
+        *,
+        lumped_mass: bool = False,
+        eid: Hashable | None = None,
+    ) -> None:
+        super().__init__(node_ids, eid=eid)
+        self.material = material
+        self.lumped_mass = bool(lumped_mass)
+
+    def required_dofs(self, available: tuple[DOF, ...]) -> tuple[DOF, ...]:
+        return TRANSLATIONAL_DOFS
+
+    # ------------------------------------------------------------- kinematics
+
+    @staticmethod
+    def shape_functions(xi: float, eta: float, zeta: float) -> np.ndarray:
+        """Volume-coordinate shape functions ``N`` at a natural point, shape ``(4,)``."""
+        return np.array([1.0 - xi - eta - zeta, xi, eta, zeta], dtype=float)
+
+    @staticmethod
+    def shape_function_derivatives() -> np.ndarray:
+        """``dN/d(xi, eta, zeta)``, shape ``(3, 4)``; constant over the element."""
+        return _TET4_NATURAL_GRADIENT.copy()
+
+    def _solid_coords(self, coords: np.ndarray) -> np.ndarray:
+        """The ``(4, 3)`` nodal coordinates."""
+        points = np.asarray(coords, dtype=float).reshape(4, -1)
+        if points.shape[1] != 3:
+            raise ElementError(
+                f"Tet4Element {self.node_ids} needs three coordinates per node, "
+                f"got {points.shape[1]}"
+            )
+        return points
+
+    def jacobian(self, coords: np.ndarray) -> tuple[np.ndarray, float]:
+        """``(dN/dx, det J)`` with ``dN/dx`` of shape ``(3, 4)``; ``det J = 6 V``."""
+        points = self._solid_coords(coords)
+        jac = _TET4_NATURAL_GRADIENT @ points
+        det = float(np.linalg.det(jac))
+        if det <= 0.0:
+            raise ElementError(
+                f"Tet4Element {self.node_ids} has a non-positive Jacobian ({det:g}); the "
+                "element is degenerate, inverted or its first three nodes do not run "
+                "counter-clockwise seen from the fourth"
+            )
+        return np.linalg.solve(jac, _TET4_NATURAL_GRADIENT), det
+
+    def strain_displacement_matrix(self, coords: np.ndarray) -> tuple[np.ndarray, float]:
+        """``(B, det J)`` with ``B`` of shape ``(6, 12)`` in node-major DOF order."""
+        gradient, det = self.jacobian(coords)
+        b = np.zeros((6, 12), dtype=float)
+        b[0, 0::3] = gradient[0]
+        b[1, 1::3] = gradient[1]
+        b[2, 2::3] = gradient[2]
+        b[3, 0::3] = gradient[1]
+        b[3, 1::3] = gradient[0]
+        b[4, 1::3] = gradient[2]
+        b[4, 2::3] = gradient[1]
+        b[5, 0::3] = gradient[2]
+        b[5, 2::3] = gradient[0]
+        return b, det
+
+    # --------------------------------------------------------------- physics
+
+    @property
+    def constitutive_matrix(self) -> np.ndarray:
+        """3D elasticity matrix ``D`` for the element's material."""
+        return solid_constitutive_matrix(self.material)
+
+    def volume(self, coords: np.ndarray) -> float:
+        """Volume ``det J / 6``, positive for a correctly ordered element."""
+        return self.jacobian(coords)[1] / 6.0
+
+    def stiffness_matrix(self, coords: np.ndarray) -> np.ndarray:
+        b, det = self.strain_displacement_matrix(coords)
+        return (det / 6.0) * (b.T @ self.constitutive_matrix @ b)
+
+    def consistent_mass_matrix(self, coords: np.ndarray) -> np.ndarray:
+        """``rho int N^T N dV`` regardless of the ``lumped_mass`` setting."""
+        density = float(self.material.density)
+        if density == 0.0:
+            return np.zeros((12, 12), dtype=float)
+        return np.kron(_TET4_MASS_PATTERN, np.eye(3)) * (density * self.volume(coords))
+
+    def mass_matrix(self, coords: np.ndarray) -> np.ndarray:
+        consistent = self.consistent_mass_matrix(coords)
+        if not self.lumped_mass:
+            return consistent
+        return np.diag(consistent.sum(axis=1))
+
+    def total_mass(self, coords: np.ndarray) -> float:
+        return float(self.material.density) * self.volume(coords)
+
+    # ------------------------------------------------------------ recovery
+
+    def strain(self, coords: np.ndarray, displacements: np.ndarray) -> np.ndarray:
+        """Strain ``[exx, eyy, ezz, gxy, gyz, gzx]``, constant over the element."""
+        values = np.asarray(displacements, dtype=float).reshape(-1)
+        if values.size != 12:
+            raise ElementError(f"expected 12 nodal displacements, got {values.size}")
+        b, _ = self.strain_displacement_matrix(coords)
+        return b @ values
+
+    def stress(self, coords: np.ndarray, displacements: np.ndarray) -> np.ndarray:
+        """Stress ``[sxx, syy, szz, sxy, syz, szx]``, constant over the element."""
+        return self.constitutive_matrix @ self.strain(coords, displacements)
