@@ -29,7 +29,7 @@ the gap register at audit time:
 | GAP-10 updating depth | P1, absent | **Partial.** Dotted-path parameter targeting in the CLI spec layer (A07), affine `ScalingModel` dK/dθ (A04), vectorized Fox–Kapoor + MAC sensitivities (A04/A10). Remaining: model-level resolver, assembled per-element dK/dp, analytic MAC-row Jacobian wiring, MS-3.6 collinearity screen (**AC-UPD-007 is P0 and unimplemented**) → R2-T06. |
 | GAP-09 node mapping | P1, absent | **Partial.** Label-based DOF alignment (`correlation/align.py`, `workflow/sensors.py`). Remaining: geometry-based nearest-node mapping → folded into R2-T05/T06 scope notes. |
 | GAP-04/05 dynamics & FRF | P0/P1, absent | **Closed by R2-T01.** `cursor/dynamics-damping-frf-9500` merged at `acda625`; AC-DYN-001..005 registered and `implemented`. GAP-05's FRF *updating residual* stays deferred to Round 3 as planned below. |
-| GAP-02 3D elements | P0, absent | **Partial.** QUAD4 plane stress/strain landed with `mesh.simple.quad_plate_mesh` and 61 tests (R2-T02 first slice, merged from `cursor/quad4-plane-stress-element-b99c` by A40). Remaining: TET4, HEX8, 3D beam, the solid/shell BDF cards → R2-T02 remainder. |
+| GAP-02 3D elements | P0, absent | **Partial.** QUAD4 plane stress/strain landed with `mesh.simple.quad_plate_mesh` and 61 tests (R2-T02 first slice, merged from `cursor/quad4-plane-stress-element-b99c`). Remaining: TET4, HEX8, 3D beam, the solid/shell BDF cards → R2-T02 remainder. |
 | GAP-08 reduction/expansion | P1, absent | Open (R2 slice: Guyan/SEREP/TAM + expansion) → R2-T03. |
 | GAP-11 Bayesian/UQ | P1, absent | Open (R2 slice: MS-3.5 MAP + posterior covariance) → R2-T04. |
 | GAP-12 optimization backend | P2, stub | **Closed for sizing by R2-T07.** `ScipyBackend.solve` runs SLSQP/trust-constr with analytic Jacobians, hard bounds and active-set KKT residuals; AC-OPT-001..004 are implemented. `cursor/optimization-scipy-backend-f421` was harvested by A40 (active-set multipliers, zero trust-constr constraint Hessian). Shape variables still fall back to finite differences. |
@@ -100,13 +100,17 @@ consistency tests fail.
 - **Why second:** every `ElementType` beyond 1D is declared but has no formulation, so no
   imported industrial mesh can be *re-analyzed* internally — it can only be correlated.
   This blocks the value of both the BDF reader (A18) and the meshio bridge (R2-T05).
-- **Status:** first slice **done**. `Quad4Element` (bilinear isoparametric, plane
-  stress/strain, 1–4 point Gauss rule, consistent + row-sum lumped mass, strain/stress
-  recovery) is in `core/elements.py`, `quad_plate_mesh` / `MeshBuilder.add_quad4` are in
-  `mesh/simple.py`, and `tests/test_quad4.py` carries 61 tests — MacNeal-Harder patch
-  exact to machine precision, exactly three zero-energy modes under full integration,
-  axial spectrum matching an equivalent bar mesh to 2.4e-13, quadratic h-convergence.
-  See the R2-T02 entry in [`PROGRESS.md`](PROGRESS.md).
+- **Status: PARTIAL** — the first slice is **done and on the trunk** (merged from
+  `cursor/quad4-plane-stress-element-b99c` by A37; suite **559 passed**, Ruff clean after
+  the merge). `Quad4Element` (bilinear isoparametric, plane stress/strain, 1–4 point Gauss
+  rule, consistent + row-sum lumped mass, strain/stress recovery) is in
+  `core/elements.py`, `quad_plate_mesh` / `MeshBuilder.add_quad4` are in `mesh/simple.py`,
+  and `tests/test_quad4.py` carries 61 tests — MacNeal-Harder patch exact to machine
+  precision, exactly three zero-energy modes under full integration, axial spectrum
+  matching an equivalent bar mesh to 2.4e-13, quadratic h-convergence. TET4, HEX8, the 3D
+  beam, the shell facet, the solid/shell BDF cards and the AC-ELEM-* rows remain open, so
+  the task does **not** close. See the R2-T02 and A37 entries in
+  [`PROGRESS.md`](PROGRESS.md).
 - **Scope:**
   - ~~QUAD4 (plane stress/strain first; shell via flat facet + drilling treatment
     documented as a limitation)~~ **landed**; the flat-facet shell with drilling DOFs is

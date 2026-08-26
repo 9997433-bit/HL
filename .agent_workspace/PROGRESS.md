@@ -45,8 +45,11 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A39 | gpt-5.6-sol-xhigh-fast | R2-T07 post-integration verification & PR-draft refresh (backfill for A27) | complete |
 | A36 | claude-opus-5-thinking-high-fast | R2-T03 start: `correlation/reduction.py` (Guyan/IRS/SEREP, TAM mass, expansion) + 2-DOF suite (backfill for A32) | complete |
 | A23 | claude-fable-5-thinking-xhigh | Round 1 sign-off audit: independent multi-tip verification & first PR body draft (backfill for A20) | complete |
-| R2-T02 | claude-opus-5-thinking-high-fast | GAP-02 QUAD4 plane-stress/plane-strain element, patch test & modal suite (backfill for A19) | complete |
-| A40 | claude-opus-5-thinking-high-fast | Side-branch merge sweep (QUAD4, sizing hook), full-suite verification & PR-draft refresh (backfill for A38) | complete |
+| A42 | gpt-5.6-sol-xhigh-fast | 498-test baseline timestamp & current-tip CI verification (backfill for A39) | complete |
+| R2-T02 | claude-opus-5-thinking-high-fast | GAP-02 QUAD4 plane-stress/plane-strain element, patch test & modal suite (backfill for A19) | partial — QUAD4 slice landed; TET4/HEX8/3D beam open |
+| A37 | claude-opus-5-thinking-high-fast | Merge the QUAD4 branch onto the trunk and re-verify the suite (backfill for R2-T02) | complete |
+| A35 | claude-fable-5-thinking-xhigh | AC-DYN registration (backfill for A28): found R2-T01 had landed it mid-run; dropped the duplicate, verified the head | complete |
+| A40 | claude-opus-5-thinking-high-fast | Side-branch merge sweep (scipy backend harvest; QUAD4 raced with A37), full-suite verification & PR-draft refresh (backfill for A38) | complete |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
@@ -939,7 +942,8 @@ integrate rather than fork.
 **Status:** IN PROGRESS — backlog planned in `.agent_workspace/ROUND2_PLAN.md` (A24); the
 MS-4 workflow carried over from Round 1 is landed and verified at `5bc6a6d` (A26), the
 damped-dynamics and optimization tracks are merged in at `acda625` (A19 implementation,
-A28 integration), and **R2-T01 is DONE** — AC-DYN-001..005 registered and implemented
+A28 integration), **R2-T01 is DONE** — AC-DYN-001..005 registered and implemented — and
+**R2-T02 is PARTIAL**, its QUAD4 slice merged onto the trunk by A37
 
 Core backlog (prioritized, from `docs/SOTA_GAP_ANALYSIS.md` §4/§6 + Round 1 conclusion):
 1. ~~**R2-T01 Dynamics/FRF chain** (GAP-04/05, P0) — damping models, harmonic response,
@@ -950,11 +954,11 @@ Core backlog (prioritized, from `docs/SOTA_GAP_ANALYSIS.md` §4/§6 + Round 1 co
    Handed on to the exit-bar work: the measured-vs-synthesized FRF demo through the CLI,
    and an FRF block in the `CorrelationReport` schema.
 2. **R2-T02 3D continuum elements** (GAP-02, P0) — QUAD4/TET4/HEX8 + 3D beam with patch
-   /convergence gates (AC-MODAL-001/003/004/007 extended, new AC-ELEM-*). **QUAD4 is
-   landed** on the integration branch (merged from `cursor/quad4-plane-stress-element-b99c`
-   by A40; see the R2-T02 entry below);
-   TET4, HEX8, the 3D beam, the `CQUAD4`/`CTETRA`/`CHEXA`/`PSHELL`/`PSOLID` BDF cards and
-   the AC-ELEM-* registry rows are the remaining slice.
+   /convergence gates (AC-MODAL-001/003/004/007 extended, new AC-ELEM-*). **PARTIAL:
+   QUAD4 is landed on the trunk**, merged from `cursor/quad4-plane-stress-element-b99c`
+   by A37 (see the R2-T02 and A37 entries below); TET4, HEX8, the 3D beam, the
+   `CQUAD4`/`CTETRA`/`CHEXA`/`PSHELL`/`PSOLID` BDF cards and the AC-ELEM-* registry rows
+   are the remaining slice.
 3. **R2-T03 SEREP/TAM reduction & expansion** (GAP-08) — Guyan/IRS/SEREP, TAM
    pseudo-orthogonality, shape expansion; closes Round-2 gate AC-CORR-006. *Engine
    landed by A36 (`correlation/reduction.py`, 25 tests); the AC-CORR-006 acceptance test
@@ -1033,6 +1037,36 @@ new dynamics/element/IO criteria at least `implemented`, GAP-01 stays closed.
   pushed from there. A13, A15, A21 and A26 all report the same failure mode; the
   private-worktree rule should be mandatory, not advisory.
 
+#### A35 — AC-DYN registration backfill: duplicate dropped, head verified (backfill for A28)
+- Dispatched to register AC-DYN-* criteria (FRF match, damping ratios, FRAC) and wire the
+  first three to `tests/test_dynamics.py` — the item A28 left open ("no AC-DYN-* criteria
+  exist yet"). Built the full registration in a private worktree (`/tmp/a35`, base
+  `b9d26f0`): `DYN` family → M6 with spec anchors MS-7.1..7.4, criteria doc §7, and
+  `@criterion` tags on six existing `tests/test_dynamics.py` cases; 430 passed, Ruff
+  clean at that base.
+- The pre-push fetch showed R2-T01's `a5766f5` had landed the same registration four
+  minutes into this run — same five IDs, different definitions and numbering, bound to a
+  new dedicated suite `tests/acceptance/test_dynamics.py` (13 tests, oracle gates the
+  unit suite doesn't state). Rebasing would have re-registered rival definitions of
+  already-landed IDs, so the duplicate commit (`b51546a`) was **dropped unpushed** and
+  the landed set adopted — the GAP-01 "one implementation" rule applied to criteria.
+- Deliberately did **not** add the tasked `@criterion` tags to `tests/test_dynamics.py`:
+  the registry binds AC-DYN-001..005 to the acceptance suite, and a tag in a suite the
+  registry does not name is exactly the drift the section-8 enforcement rules exist to
+  reject. The unit suite stays the engine's regression net; the acceptance suite carries
+  the criteria.
+- Independent verification at head `3fcc6a6` (Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1,
+  `PYTHONPATH` pinned to the private worktree): full suite **534 passed** (67 s),
+  `pytest -m acceptance` **106 passed**, `ruff check .` clean. Registry now holds
+  **40 criteria, 20 implemented / 20 specified**, with all five AC-DYN `implemented`
+  (A23's audit counted 41 at the previous tip; the registry itself says 40 — worth a
+  one-line reconciliation next audit).
+- Working-tree hazard, still live: `/workspace` was mid-rebase on
+  `cursor/optimization-sizing-hook-254c` with unresolved conflicts when this run
+  started, and the branch tip advanced five times during the run (three of them while
+  this entry was being verified). Concurs with R2-T01: private worktree + fetch-before-
+  push should be mandatory.
+
 #### A26 — Round 1 carry-over cleared: MS-4 workflow landed (backfill for A17)
 - Round 1 closed with the MS-4 `workflow/` package listed as its single largest piece of
   uncommitted debt ("Remaining defects / open items", and Round 2 priority 1). That debt is
@@ -1071,7 +1105,7 @@ new dynamics/element/IO criteria at least `implemented`, GAP-01 stays closed.
   rule mandatory rather than advisory, since `git clean`/branch-switch collateral is not
   something the offending agent can see.
 
-#### R2-T02 — QUAD4 plane-stress/plane-strain element (first slice of GAP-02)
+#### R2-T02 — QUAD4 plane-stress/plane-strain element (first slice of GAP-02; PARTIAL)
 - **The first continuum element on the branch.** `ElementType.QUAD4` has been declared in
   `core/neutral.py` since Round 1 with no formulation behind it, so an imported shell mesh
   could be correlated but never re-analyzed. `core/elements.py` now carries
@@ -1145,6 +1179,38 @@ new dynamics/element/IO criteria at least `implemented`, GAP-01 stays closed.
 `gradients`, `problem`, `sizing`, `backends`) via the A28 merge below. No Round-1
 carry-over remains, and R2-T07's remaining debt — `ScipyBackend.solve` — was cleared by
 A27. The A24 backlog above is otherwise the live plan.
+
+#### A37 — QUAD4 branch merged onto the trunk (backfill for R2-T02)
+- Merged `cursor/quad4-plane-stress-element-b99c` into the integration branch. The branch
+  had been cut from `b9d26f0` and the trunk had moved on by the R2-T01 dynamics close-out,
+  the AC-DYN/AC-MODAL/AC-OPT acceptance batches and the A27 optimization backend, so the
+  merge was replayed against the current trunk rather than fast-forwarded.
+- **Conflicts and how they were resolved.** Both were documentation-only:
+  - `PROGRESS.md` Active Pool — the two sides appended different rows to the same table
+    line. Both kept; the R2-T02 row is recorded as **partial** rather than complete, since
+    the branch delivers only the QUAD4 slice of GAP-02.
+  - `ROUND2_PLAN.md` §1 gap table — the trunk had rewritten the GAP-04/05 row to
+    "Closed by R2-T01" while the branch rewrote the adjacent GAP-02 row to "Partial".
+    Both rewrites kept.
+  - `src/openfemlab/__init__.py` auto-merged: the trunk's `SolverConvergenceError` export
+    and the branch's `Quad4Element` / `plane_constitutive_matrix` / `fdac` / `frac`
+    exports land side by side. Verified by resolving all 54 names in `__all__` through
+    the lazy `__getattr__`, so the PEP 562 table and the `TYPE_CHECKING` aliases agree.
+- No source conflicts: the branch only adds to `core/elements.py`, `core/__init__.py` and
+  `mesh/simple.py`, none of which the trunk touched in the interval.
+- **Verification after the merge** (Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1, `PYTHONPATH`
+  pinned at the worktree `src` so the venv's editable install cannot shadow it): full
+  suite **559 passed**, `ruff check .` clean. That is the trunk's 498 plus the branch's
+  61 QUAD4 tests, comfortably past the 491 the R2-T02 record measured in isolation.
+  The trunk moved again while this was being verified (A39's PR-draft refresh and A36's
+  R2-T03 reduction/expansion start), so it was merged back in and re-run: **595 passed**,
+  Ruff still clean. Only the Active Pool table conflicted the second time.
+- **Working-tree hazard, sixth occurrence.** A concurrent agent ran
+  `git reset --hard origin/cursor/femtools-industrial-7aa3` on the shared `/workspace`
+  clone twice during this run, discarding a completed and verified merge commit both
+  times. The merge was redone in a private worktree at `/tmp/a37wt`, which git protects
+  because a branch checked out in one worktree cannot be checked out in another. The
+  private-worktree rule R2-T02 asked to make mandatory should be treated as such.
 
 #### A28 — Dynamics & Optimization Branch Integration (backfill for A15)
 - Merged `cursor/dynamics-damping-frf-9500` into the integration branch at `acda625`,
@@ -1327,22 +1393,29 @@ A27. The A24 backlog above is otherwise the live plan.
      and wrong at GAP-13 scale. Craig-Bampton CMS and geometry-based sensor mapping stay
      out of scope per the plan.
 
+#### A42 — 498-test baseline timestamp and current-tip verification (backfill for A39)
+- Verification recorded **2026-08-26 07:53:53 UTC**. A39's **498 passed, 0 failed**
+  result remains the post-R2-T07 baseline at `f0c65c2`. After resetting to the current
+  remote tip `8f65f64`, A42 independently ran the CI command with imports pinned to the
+  isolated checkout: **595 passed, 0 failed** in 38.19 s on Python 3.12.3 / NumPy 2.5.2 /
+  SciPy 1.18.1. Repository-wide `python -m ruff check .` also passed with no findings.
+
 #### A40 — side-branch merge sweep & verification (backfill for A38)
 - **Swept every side branch for work not yet on the integration branch** and merged the
   two that still carried unique commits. `cursor/optimization-sizing-hook-254c` needed
   nothing — it is an ancestor of the trunk (zero unique commits), so the sizing hook was
   already landed. Same for `cursor/dynamics-damping-frf-9500` and
   `cursor/dynamics-optimization-integration-75b6`.
-- **QUAD4 (R2-T02) merged** as `b34f072` from `cursor/quad4-plane-stress-element-b99c`
-  (`1322234` element + `869c79c` docs). Code merged clean; the only conflicts were the
-  agent table in this file and the GAP-02/GAP-04 rows of `ROUND2_PLAN.md`, where the
-  branch had been cut before R2-T01 landed and still described dynamics as in flight —
-  resolved in favour of the trunk's newer status plus the branch's QUAD4 row. Suite went
-  523 → **595 passed** (+61 QUAD4, +11 acceptance/reduction tests pushed to the trunk
-  by A36/A23 while this task ran).
-- **`cursor/optimization-scipy-backend-f421` harvested** as `6cf0f49`, which was *not*
-  redundant with A27's backend: it had been rebased onto trunk tip `b1b0ab8` and carries
-  two real fixes on top of it. `kkt_residual` now receives only the constraints active at
+- **QUAD4 (R2-T02) — merged here as `b34f072`, but A37 landed the same merge on the trunk
+  concurrently**, so the trunk merge in this task's history is a no-op re-merge of an
+  identical tree rather than the delivery. Recorded because the conflict resolution was
+  independent and agreed: the branch was cut before R2-T01 landed and still described
+  dynamics as in flight, so its `ROUND2_PLAN.md` GAP-04/05 row had to lose to the trunk's
+  newer status while its GAP-02 row was kept. Two agents merging one side branch is the
+  dispatch-level twin of the working-tree hazard below.
+- **`cursor/optimization-scipy-backend-f421` harvested** as `6cf0f49` — the one branch in
+  the sweep nobody else had taken, and *not* redundant with A27's backend: it had been
+  rebased onto trunk tip `b1b0ab8` and carries two real fixes on top of it. `kkt_residual` now receives only the constraints active at
   `x` — a multiplier on a strictly satisfied constraint violates complementary slackness
   and can certify a non-stationary point as converged — and `trust-constr` gets an
   explicit zero constraint Hessian, because scipy's per-constraint BFGS default
@@ -1356,12 +1429,12 @@ A27. The A24 backlog above is otherwise the live plan.
   ancestors and A14 already reconciled their content; merging them now would resurrect a
   parallel correlation/updating implementation. Left for the orchestrator to close as
   superseded rather than merged.
-- **Verified** at `6cf0f49` from a private worktree at `/tmp/a40` with `PYTHONPATH` pinned
-  to it, Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1: full suite **601 passed, 0 failed**
-  (64.6 s), `ruff check .` clean. `PR_DRAFT.md` refreshed off the stale 498 baseline —
-  count, title, per-suite breakdown (sums to 601), the QUAD4 and reduction/expansion
-  capabilities, 40 registered criteria, and the scope note that used to claim no
-  continuum elements exist.
+- **Verified** from a private worktree at `/tmp/a40` with `PYTHONPATH` pinned to it,
+  Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1: **595 passed** at the QUAD4 merge, then
+  **601 passed, 0 failed** (64.6 s) at `6cf0f49` with the harvest, `ruff check .` clean
+  at both. `PR_DRAFT.md` refreshed off the stale 498 baseline — count, title, per-suite
+  breakdown (sums to 601), the QUAD4 and reduction/expansion capabilities, 40 registered
+  criteria, and the scope note that used to claim no continuum elements exist.
 - **Working-tree hazard, sixth occurrence.** `/workspace` was on another agent's branch
   with an uncommitted FRF-correlation draft (`correlation/frf.py`, untracked) and gained
   three commits *during* this task's first merge attempt, which is how that merge ended up
@@ -1541,3 +1614,65 @@ demonstrates the AC-WORK gates numerically — tagging them is already scheduled
 R2-T06 and the next acceptance batches. The first PR body draft (`17d03ba`) was folded
 into the closure lineage and superseded by the A30/A32 polish now in
 `.agent_workspace/PR_DRAFT.md`; both record the same platform state.
+
+#### Round 2 — P0 acceptance batch 2 (A31, backfill for A21)
+
+Seven P0 criteria moved from `specified` to `implemented`, taking the registry to
+**22 of 40** covered (20 P0, 2 P1; none `verified` yet). Landed as four commits on
+`cursor/femtools-industrial-7aa3`, tip `33473fe`.
+
+**AC-MODAL-004..006** (`3570fd2` solver, `3f4cad6` reproducibility, `69ae903` tests).
+The acceptance tests exposed three real gaps in `solver/modal.py` rather than merely
+recording existing behaviour:
+
+- *Rigid bodies.* Free-free chains now report exactly `f = 0` (and infinite period) for
+  as many modes as the nullity of `K`, with the clip driven by a rigid-body threshold
+  instead of leaking a tiny positive eigenvalue. Verified against the closed-form
+  free-free spectrum and, independently, against an inertia-relief constrained run.
+- *Determinism.* ARPACK seeds its Lanczos start vector randomly, so repeated sparse
+  solves were not bitwise identical. `ModalSolver.solve` grew a `seed` argument
+  (default 0) that builds the start vector deterministically. Separately, the MS-1.3
+  sign convention broke on near-degenerate peaks: strict `argmax` let the dense and
+  Lanczos backends pick different "largest" components on symmetric modes. Both
+  `solver/modal.py` and the `updating/scaling_model.py` fallback now treat components
+  within `1e-8` of the peak as tied and break the tie on the lowest DOF index, which is
+  what the spec text already said.
+- *Residuals.* Every returned eigenpair is gated on
+  `‖K phi - lambda M phi‖ / ‖K phi‖`, and a breach raises the new
+  `SolverConvergenceError` carrying the offending residuals and the tolerance. A flat
+  `1e-8` is not reachable for the cantilever beam — its spectrum is wide enough that
+  round-off dominates — so the gate is `max(tolerance, floor)` with an arithmetic floor
+  derived from the matrix norms. One test asserts the general gate; a second pins the
+  cantilever as the *only* case where the floor binds, so the escape hatch cannot widen
+  unnoticed.
+
+**AC-CORR-003..004** (`b1b0ab8`). A pairing twin permutes, sign-flips, drops and pollutes
+a known mode set and requires both the greedy and the Hungarian method to recover the
+ground-truth permutation, with sub-threshold candidates reported unpaired. For COMAC the
+tests confirm localisation of a gain-error sensor (directly and through the pairing) and
+then document a blind spot worth knowing: a reversed-polarity channel scores a *perfect*
+COMAC at the faulty DOF, so `argmin` points at a healthy sensor instead, and a polarity
+error on a subset of modes does not localise either. COMAC diagnoses magnitude faults,
+not sign faults.
+
+**AC-UPD-002..003** (`33473fe`). Fox-Kapoor eigenvector derivatives match central
+differences to ~1e-8 over the complete basis at two operating points, well inside the
+1e-5 gate, and their truncation error is a strictly decreasing sequence that reaches zero
+at full rank. Getting there needed one correction to the obvious method: when aligning the
+perturbed shapes, only the *sign* of the modal scale factor may be transferred, because
+rescaling by the full MSF divides out the `-1/2 phi^T dM/dp phi` normalisation term and
+breaks every mass-parameter derivative (stiffness ones survive, since their self term is
+zero). A test pins that asymmetry so the shortcut is not reintroduced. The twin
+experiments detune two or three factors by ±20 % — stiffness only, mixed stiffness/mass,
+and a two-factor case — check the starting model genuinely fails both MS-4.2 gates, and
+require recovery to 1e-3 in the infinity norm within ten iterations with a non-increasing
+objective; a fourth case repeats it through the finite-difference/MAC-residual path so the
+result does not rest on the analytical Jacobian.
+
+Verified at `33473fe` on Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1: full suite
+**550 passed**, `ruff check .` clean (ruff 0.16.4). Run from a private clone (`/tmp/a31c`)
+rather than a worktree — the first attempt used a worktree under `/tmp` and lost committed
+test edits to a concurrent reset, the working-tree hazard A28/A32 already report.
+
+Remaining P0 rows still `specified`: AC-MODAL-007/009, AC-CORR-005/007/008,
+AC-UPD-004/005/007, AC-WORK-001/002/004/005.
