@@ -22,6 +22,10 @@ preview insert and the loudness meter all already speak ``SampleSource``, so a
 32-track mix reaches the device through exactly the same path a single clip
 does.
 
+Tracks reach the master either directly or through one :class:`Bus`, which is
+as deep as the routing goes: a bus never sends to another bus, so the mixer
+resolves the whole graph in two passes and a cycle cannot be expressed.
+
 Two properties of the summing path are load-bearing and are covered by tests:
 
 * a track at unity gain and centre pan performs **no arithmetic at all** on its
@@ -56,6 +60,7 @@ SessionListener = Callable[["MultitrackSession"], None]
 
 _track_counter = itertools.count(1)
 _clip_counter = itertools.count(1)
+_bus_counter = itertools.count(1)
 
 
 def gain_to_amplitude(gain_db: float) -> float:
@@ -78,6 +83,15 @@ def pan_gains(pan: float) -> tuple[float, float]:
     """
     position = float(min(max(pan, -1.0), 1.0))
     return min(1.0, 1.0 - position), min(1.0, 1.0 + position)
+
+
+def _bus_id_of(target: object) -> str | None:
+    """Normalise a routing target — a :class:`Bus`, a bus id or ``None`` — to an id."""
+    bus_id = getattr(target, "bus_id", target)
+    if bus_id is None:
+        return None
+    text = str(bus_id).strip()
+    return text or None
 
 
 def conform_channels(block: np.ndarray, channels: int) -> np.ndarray:
@@ -355,7 +369,17 @@ class Track:
     it without a lock and know it is looking at one coherent arrangement.
     """
 
-    __slots__ = ("_clips", "_gain_db", "_mute", "_name", "_notify", "_pan", "_solo", "_track_id")
+    __slots__ = (
+        "_clips",
+        "_gain_db",
+        "_mute",
+        "_name",
+        "_notify",
+        "_pan",
+        "_send_to_bus",
+        "_solo",
+        "_track_id",
+    )
 
     def __init__(
         self,
@@ -367,6 +391,7 @@ class Track:
         pan: float = 0.0,
         mute: bool = False,
         solo: bool = False,
+        send_to_bus: str | None = None,
     ) -> None:
         self._track_id = track_id or f"trk_{next(_track_counter):02d}"
         self._name = name or self._track_id
@@ -375,6 +400,7 @@ class Track:
         self._pan = float(min(max(pan, -1.0), 1.0))
         self._mute = bool(mute)
         self._solo = bool(solo)
+        self._send_to_bus = _bus_id_of(send_to_bus)
         self._notify: Callable[[], None] | None = None
 
     # -- identity ----------------------------------------------------------
@@ -448,6 +474,25 @@ class Track:
         flag = bool(value)
         if flag != self._solo:
             self._solo = flag
+            self._touch()
+
+    # -- routing -----------------------------------------------------------
+
+    @property
+    def send_to_bus(self) -> str | None:
+        """Id of the bus this lane feeds, or ``None`` for straight to master.
+
+        Only the id is held, not the bus itself, so a routing target that has
+        been deleted — or one restored from a project before its buses were
+        rebuilt — degrades to "goes to master" instead of dangling.
+        """
+        return self._send_to_bus
+
+    @send_to_bus.setter
+    def send_to_bus(self, value: str | Bus | None) -> None:
+        bus_id = _bus_id_of(value)
+        if bus_id != self._send_to_bus:
+            self._send_to_bus = bus_id
             self._touch()
 
     # -- clips -------------------------------------------------------------
@@ -571,18 +616,18 @@ class Track:
 # -------------------------------------------------------------------- bus
 
 
-class MasterBus:
-    """Terminal summing point: every audible track lands here.
+class SummingPoint:
+    """A named fader and mute that a group of signals is summed through.
 
-    Kept as a class rather than two attributes on the session because it is the
-    seat the master effect rack, the master meter and (later) submix buses
-    plug into — the mixer already calls :meth:`apply` at exactly the right
-    point in the signal path.
+    Both the master and the submix buses are this plus an identity, and the
+    mixer only ever asks them for :meth:`apply`, so adding a bus level to the
+    signal path did not need a second implementation of "scale or silence a
+    block".
     """
 
     __slots__ = ("_gain_db", "_mute", "_name", "_notify")
 
-    def __init__(self, name: str = "Master", *, gain_db: float = 0.0, mute: bool = False) -> None:
+    def __init__(self, name: str = "", *, gain_db: float = 0.0, mute: bool = False) -> None:
         self._name = name
         self._gain_db = float(gain_db)
         self._mute = bool(mute)
@@ -591,6 +636,13 @@ class MasterBus:
     @property
     def name(self) -> str:
         return self._name
+
+    @name.setter
+    def name(self, value: str) -> None:
+        text = str(value)
+        if text != self._name:
+            self._name = text
+            self._touch()
 
     @property
     def gain_db(self) -> float:
@@ -618,8 +670,13 @@ class MasterBus:
             self._mute = flag
             self._touch()
 
+    @property
+    def silent(self) -> bool:
+        """True when nothing routed here can reach the mix."""
+        return self._mute or self.amplitude == 0.0
+
     def apply(self, block: np.ndarray) -> np.ndarray:
-        """Scale the summed mix in place by the master fader."""
+        """Scale a summed block in place by this fader."""
         if self._mute:
             block[:] = 0.0
             return block
@@ -637,7 +694,59 @@ class MasterBus:
 
     def __repr__(self) -> str:
         state = ", muted" if self._mute else ""
-        return f"MasterBus({self._name!r}, {self._gain_db:+.1f} dB{state})"
+        return f"{type(self).__name__}({self._name!r}, {self._gain_db:+.1f} dB{state})"
+
+
+class MasterBus(SummingPoint):
+    """Terminal summing point: every audible track and bus lands here.
+
+    Kept as a class rather than two attributes on the session because it is the
+    seat the master effect rack, the master meter and the submix buses plug
+    into — the mixer already calls :meth:`apply` at exactly the right point in
+    the signal path.
+    """
+
+    __slots__ = ()
+
+    def __init__(self, name: str = "Master", *, gain_db: float = 0.0, mute: bool = False) -> None:
+        super().__init__(name, gain_db=gain_db, mute=mute)
+
+
+class Bus(SummingPoint):
+    """A submix the tracks routed to it are summed through before the master.
+
+    The routing model is deliberately one level deep: a track sends to at most
+    one bus, and a bus always lands on the master. There are no bus-to-bus
+    sends, which means the signal path can never contain a cycle and the mixer
+    needs no graph traversal — one pass over the tracks fills the submix
+    buffers, one pass over the buses folds them into the master sum.
+    """
+
+    __slots__ = ("_bus_id",)
+
+    def __init__(
+        self,
+        bus_id: str = "",
+        name: str = "",
+        *,
+        gain_db: float = 0.0,
+        mute: bool = False,
+    ) -> None:
+        self._bus_id = bus_id or f"bus_{next(_bus_counter):02d}"
+        super().__init__(name or self._bus_id, gain_db=gain_db, mute=mute)
+
+    @property
+    def bus_id(self) -> str:
+        return self._bus_id
+
+    #: Alias for :attr:`bus_id`, matching the ``id`` field in the project schema.
+    @property
+    def id(self) -> str:  # noqa: A003 - the schema calls this field "id"
+        return self._bus_id
+
+    def __repr__(self) -> str:
+        state = ", muted" if self.mute else ""
+        return f"Bus({self._bus_id!r}, {self.name!r}, {self.gain_db:+.1f} dB{state})"
 
 
 # ------------------------------------------------------------------ mixer
@@ -647,10 +756,15 @@ class SessionMixer(BaseSampleSource):
     """Renders a :class:`MultitrackSession` as a plain sample source.
 
     Summing order is: each audible track's clips accumulate into a per-track
-    buffer, the track fader and pan scale it, the result is added to the master
-    bus buffer, and the master fader scales the sum. Nothing about this needs
-    the transport, so the same object serves live playback, offline mixdown and
-    the loudness meter.
+    buffer, the track fader and pan scale it, the result is added to the buffer
+    of the bus it is sent to (or straight to the master sum when it is not sent
+    anywhere), each bus fader scales its submix into the master sum, and the
+    master fader scales the total. Nothing about this needs the transport, so
+    the same object serves live playback, offline mixdown and the loudness
+    meter.
+
+    A session with no buses takes the direct path, so the one-track null test
+    still passes through zero extra arithmetic.
     """
 
     __slots__ = ("_session",)
@@ -681,13 +795,32 @@ class SessionMixer(BaseSampleSource):
             bool(getattr(clip.source, "exact", True)) for clip in self._session.clips
         )
 
+    def _sum_into(self, out: np.ndarray, start: int) -> None:
+        """Accumulate every audible track into ``out``, via its bus if it has one."""
+        session = self._session
+        grouped: dict[str, list[Track]] = {}
+        for track in session.audible_tracks():
+            bus = session.bus_of(track)
+            if bus is None:
+                track.mix_into(out, start)
+            else:
+                grouped.setdefault(bus.bus_id, []).append(track)
+
+        for bus_id, tracks in grouped.items():
+            bus = session.bus(bus_id)
+            if bus is None or bus.silent:
+                continue
+            submix = np.zeros_like(out)
+            for track in tracks:
+                track.mix_into(submix, start)
+            out += bus.apply(submix)
+
     def read(self, start: int, n_frames: int) -> np.ndarray:
         start, count = self._clamp(start, n_frames)
         if count == 0:
             return self._empty()
         out = np.zeros((count, self._session.n_channels), dtype=SAMPLE_DTYPE)
-        for track in self._session.audible_tracks():
-            track.mix_into(out, start)
+        self._sum_into(out, start)
         return self._session.master.apply(out)
 
     def read_into(self, out: np.ndarray, start: int) -> int:
@@ -704,8 +837,7 @@ class SessionMixer(BaseSampleSource):
             return 0
         view = out[:count]
         try:
-            for track in self._session.audible_tracks():
-                track.mix_into(view, start)
+            self._sum_into(view, start)
             self._session.master.apply(view)
         except Exception as exc:  # noqa: BLE001 - the feeder must keep running
             self._last_error = exc
@@ -722,6 +854,27 @@ class SessionMixer(BaseSampleSource):
             for track in self._session.tracks
         }
 
+    def render_buses(self, start: int, n_frames: int) -> dict[str, np.ndarray]:
+        """Post-bus-fader submixes, keyed by bus id — the basis for bus meters.
+
+        This is what each bus actually contributes to the master, so muted and
+        solo-dimmed lanes are left out. A bus nobody is routed to renders as
+        silence rather than being omitted, so a meter bank built from these
+        keys keeps its shape as tracks are rerouted underneath it.
+        """
+        session = self._session
+        start, count = self._clamp(start, n_frames)
+        channels = session.n_channels
+        audible = set(session.audible_tracks())
+        stems: dict[str, np.ndarray] = {}
+        for bus in session.buses:
+            submix = np.zeros((count, channels), dtype=SAMPLE_DTYPE)
+            for track in session.tracks_for_bus(bus):
+                if track in audible:
+                    track.mix_into(submix, start)
+            stems[bus.bus_id] = bus.apply(submix)
+        return stems
+
     def mixdown(self, rng: TimeRange | None = None) -> AudioBuffer:
         """Render the whole session (or one range) into memory."""
         span = TimeRange(0, self.n_frames) if rng is None else rng.clamped(self.n_frames)
@@ -735,7 +888,7 @@ class SessionMixer(BaseSampleSource):
 
 
 class MultitrackSession:
-    """The non-destructive arrangement: tracks, their clips and a master bus.
+    """The non-destructive arrangement: tracks, their clips, buses and a master.
 
     Every structural change bumps :attr:`revision` and notifies listeners, which
     is how the multitrack view knows to drop its cached waveform strips without
@@ -743,6 +896,7 @@ class MultitrackSession:
     """
 
     __slots__ = (
+        "_buses",
         "_channels",
         "_lock",
         "_listeners",
@@ -770,6 +924,7 @@ class MultitrackSession:
         self._channels = int(n_channels)
         self._name = name
         self._tracks: list[Track] = []
+        self._buses: list[Bus] = []
         self._master = MasterBus()
         self._master._bind(self._touch)  # noqa: SLF001 - the session owns its bus
         self._mixer = SessionMixer(self)
@@ -877,6 +1032,71 @@ class MultitrackSession:
     def __len__(self) -> int:
         return len(self._tracks)
 
+    # -- buses -------------------------------------------------------------
+
+    @property
+    def buses(self) -> tuple[Bus, ...]:
+        return tuple(self._buses)
+
+    @property
+    def n_buses(self) -> int:
+        return len(self._buses)
+
+    def add_bus(self, bus: Bus | str | None = None, **kwargs: object) -> Bus:
+        """Append a submix bus; ``add_bus("Drums")`` builds one from a name."""
+        if not isinstance(bus, Bus):
+            bus = Bus(name=bus or "", **kwargs)  # type: ignore[arg-type]
+        with self._lock:
+            if any(existing.bus_id == bus.bus_id for existing in self._buses):
+                raise ValueError(f"duplicate bus id {bus.bus_id!r}")
+            bus._bind(self._touch)  # noqa: SLF001 - the session owns its buses
+            self._buses.append(bus)
+            self._touch()
+        return bus
+
+    def remove_bus(self, bus: Bus | str) -> bool:
+        """Delete a bus, returning every track that fed it to the master."""
+        bus_id = bus if isinstance(bus, str) else bus.bus_id
+        with self._lock:
+            for index, existing in enumerate(self._buses):
+                if existing.bus_id == bus_id:
+                    existing._bind(None)  # noqa: SLF001 - detach on removal
+                    del self._buses[index]
+                    for track in self._tracks:
+                        if track.send_to_bus == bus_id:
+                            track.send_to_bus = None
+                    self._touch()
+                    return True
+        return False
+
+    def bus(self, bus_id: str) -> Bus | None:
+        return next((item for item in self._buses if item.bus_id == bus_id), None)
+
+    def bus_of(self, track: Track | str) -> Bus | None:
+        """The bus a track feeds, or ``None`` when it goes straight to master.
+
+        A send pointing at a bus that no longer exists reads as ``None`` here
+        rather than raising, so deleting a bus can never silence a lane.
+        """
+        lane = self.track(track) if isinstance(track, str) else track
+        if lane is None or lane.send_to_bus is None:
+            return None
+        return self.bus(lane.send_to_bus)
+
+    def tracks_for_bus(self, bus: Bus | str) -> tuple[Track, ...]:
+        bus_id = bus if isinstance(bus, str) else bus.bus_id
+        return tuple(track for track in self._tracks if track.send_to_bus == bus_id)
+
+    def route_track(self, track: Track | str, bus: Bus | str | None) -> None:
+        """Send ``track`` to ``bus``, or to the master when ``bus`` is ``None``."""
+        lane = self.track(track) if isinstance(track, str) else track
+        if lane is None or lane not in self._tracks:
+            raise KeyError(f"no such track: {track!r}")
+        bus_id = _bus_id_of(bus)
+        if bus_id is not None and self.bus(bus_id) is None:
+            raise KeyError(f"no such bus: {bus!r}")
+        lane.send_to_bus = bus_id
+
     # -- clips -------------------------------------------------------------
 
     def add_clip(
@@ -968,6 +1188,9 @@ class MultitrackSession:
     def render_tracks(self, start: int, n_frames: int) -> dict[str, np.ndarray]:
         return self._mixer.render_tracks(start, n_frames)
 
+    def render_buses(self, start: int, n_frames: int) -> dict[str, np.ndarray]:
+        return self._mixer.render_buses(start, n_frames)
+
     def mixdown(self, rng: TimeRange | None = None) -> AudioBuffer:
         return self._mixer.mixdown(rng)
 
@@ -997,8 +1220,9 @@ class MultitrackSession:
             listener(self)
 
     def __repr__(self) -> str:
+        buses = f"{len(self._buses)} buses, " if self._buses else ""
         return (
-            f"MultitrackSession({self._name!r}, {len(self._tracks)} tracks, "
+            f"MultitrackSession({self._name!r}, {len(self._tracks)} tracks, {buses}"
             f"{self.n_frames} frames, {self._channels}ch @ {self._sample_rate} Hz, "
             f"rev {self._revision})"
         )
@@ -1007,10 +1231,12 @@ class MultitrackSession:
 __all__ = [
     "MAX_GAIN_DB",
     "SILENCE_DB",
+    "Bus",
     "Clip",
     "MasterBus",
     "MultitrackSession",
     "SessionMixer",
+    "SummingPoint",
     "Track",
     "conform_channels",
     "gain_to_amplitude",

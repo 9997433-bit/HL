@@ -42,7 +42,7 @@ from .sample_source import (
     StreamingSampleSource,
     open_source,
 )
-from .session import Clip, MasterBus, MultitrackSession, SessionMixer, Track
+from .session import Bus, Clip, MasterBus, MultitrackSession, SessionMixer, Track
 from .sounddevice_output import SoundDeviceOutput
 from .sources import LoopSource, RegionSource
 from .types import (
@@ -64,6 +64,7 @@ __all__ = [
     "AudioFormat",
     "AudioLoadError",
     "AudioOutput",
+    "Bus",
     "Chunk",
     "Clip",
     "CutCommand",

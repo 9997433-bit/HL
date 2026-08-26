@@ -7,6 +7,11 @@ with all the others. That shared timeline is the whole point — a clip that
 looks aligned here is aligned, because the pixel it starts on is computed from
 the same ``view_start``/``view_frames`` pair for every strip on screen.
 
+Under the lanes sit the submix buses, one strip each, and the master. A track's
+header carries the send that decides which of those it lands on; the routing
+itself is the model's business, so the strip only reads and writes
+:attr:`~audio_studio.core.session.Track.send_to_bus`.
+
 Nothing here owns audio. The strips read
 :class:`~audio_studio.core.session.MultitrackSession` and write back to it
 through the same property setters a script would use, and the session's
@@ -22,6 +27,7 @@ import numpy as np
 from PySide6.QtCore import QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QMouseEvent, QPainter, QPaintEvent, QPen, QPixmap
 from PySide6.QtWidgets import (
+    QComboBox,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -35,7 +41,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..core.peaks import PeakPyramid
-from ..core.session import MAX_GAIN_DB, Clip, MultitrackSession, Track
+from ..core.session import MAX_GAIN_DB, Bus, Clip, MultitrackSession, Track
 from ..core.types import format_timecode
 from .theme import PALETTE, Palette
 from .time_ruler import TimeRuler
@@ -50,6 +56,12 @@ LANE_HEIGHT: int = 76
 #: Quietest fader position the strip exposes. The model floors at -96 dB, but a
 #: slider that spends half its travel below audibility is a bad control.
 MIN_STRIP_DB: float = -60.0
+
+#: Height of one bus strip in the bus row under the tracks.
+BUS_STRIP_HEIGHT: int = 28
+
+#: Combo entry, and its user data, for a track that goes straight to the master.
+MASTER_SEND_LABEL: str = "→ Mst"
 
 #: Frames above which a clip is drawn as a plain block instead of a waveform.
 #: Summarising a source costs one full read; past this length that read belongs
@@ -293,7 +305,7 @@ class ClipLane(QWidget):
 
 
 class TrackHeaderStrip(QWidget):
-    """Track head: name, mute/solo, fader and pan for one lane."""
+    """Track head: name, mute/solo, bus send, fader and pan for one lane."""
 
     changed = Signal()
 
@@ -301,12 +313,15 @@ class TrackHeaderStrip(QWidget):
         self,
         track: Track,
         *,
+        session: MultitrackSession | None = None,
         palette: Palette = PALETTE,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self._palette = palette
         self._track = track
+        self._session = session
+        self._bus_options: tuple[tuple[str, str | None], ...] = ()
         self._syncing = False
 
         self.setFixedWidth(HEADER_WIDTH)
@@ -329,6 +344,13 @@ class TrackHeaderStrip(QWidget):
         self.solo_button.setFixedSize(24, 20)
         self.solo_button.setToolTip("Solo: mute every track that is not soloed")
 
+        # Hidden until the session has somewhere to send to, so an arrangement
+        # that never uses buses keeps the header it had before they existed.
+        self.send_combo = QComboBox()
+        self.send_combo.setFixedSize(62, 20)
+        self.send_combo.setToolTip("Send this track to a bus, or straight to the master")
+        self.send_combo.setVisible(False)
+
         self.gain_slider = QSlider(Qt.Orientation.Horizontal)
         self.gain_slider.setRange(int(MIN_STRIP_DB), int(MAX_GAIN_DB))
         self.gain_slider.setFixedWidth(84)
@@ -349,6 +371,7 @@ class TrackHeaderStrip(QWidget):
         top.setContentsMargins(0, 0, 0, 0)
         top.setSpacing(4)
         top.addWidget(self.title, 1)
+        top.addWidget(self.send_combo)
         top.addWidget(self.mute_button)
         top.addWidget(self.solo_button)
 
@@ -373,6 +396,7 @@ class TrackHeaderStrip(QWidget):
 
         self.mute_button.toggled.connect(self._on_mute)
         self.solo_button.toggled.connect(self._on_solo)
+        self.send_combo.currentIndexChanged.connect(self._on_send)
         self.gain_slider.valueChanged.connect(self._on_gain)
         self.pan_slider.valueChanged.connect(self._on_pan)
 
@@ -381,6 +405,10 @@ class TrackHeaderStrip(QWidget):
     @property
     def track(self) -> Track:
         return self._track
+
+    def set_session(self, session: MultitrackSession | None) -> None:
+        self._session = session
+        self.refresh()
 
     def refresh(self) -> None:
         """Pull the model's current state back into the widgets.
@@ -396,9 +424,27 @@ class TrackHeaderStrip(QWidget):
             self.solo_button.setChecked(self._track.solo)
             self.gain_slider.setValue(int(round(self._track.gain_db)))
             self.pan_slider.setValue(int(round(self._track.pan * 100)))
+            self._refresh_sends()
         finally:
             self._syncing = False
         self._update_labels()
+
+    def _refresh_sends(self) -> None:
+        """Rebuild the send list when the session's buses have changed."""
+        buses = self._session.buses if self._session is not None else ()
+        options: tuple[tuple[str, str | None], ...] = ((MASTER_SEND_LABEL, None),) + tuple(
+            (bus.name, bus.bus_id) for bus in buses
+        )
+        if options != self._bus_options:
+            self._bus_options = options
+            self.send_combo.clear()
+            for label, bus_id in options:
+                self.send_combo.addItem(label, bus_id)
+        self.send_combo.setVisible(bool(buses))
+
+        target = self._track.send_to_bus
+        index = self.send_combo.findData(target)
+        self.send_combo.setCurrentIndex(max(index, 0))
 
     def _update_labels(self) -> None:
         self.gain_label.setText(f"{self._track.gain_db:+.1f} dB")
@@ -419,6 +465,12 @@ class TrackHeaderStrip(QWidget):
         if self._syncing:
             return
         self._track.solo = checked
+        self.changed.emit()
+
+    def _on_send(self, index: int) -> None:
+        if self._syncing or index < 0:
+            return
+        self._track.send_to_bus = self.send_combo.itemData(index)
         self.changed.emit()
 
     def _on_gain(self, value: int) -> None:
@@ -453,7 +505,7 @@ class TrackStrip(QWidget):
     ) -> None:
         super().__init__(parent)
         self._track = track
-        self.header = TrackHeaderStrip(track, palette=palette)
+        self.header = TrackHeaderStrip(track, session=session, palette=palette)
         self.lane = ClipLane(track, color=color, palette=palette)
         self.lane.set_track(
             track, sample_rate=session.sample_rate if session is not None else 44_100
@@ -485,10 +537,112 @@ class TrackStrip(QWidget):
         self.lane.set_revision(revision)
 
 
+class BusStrip(QWidget):
+    """One submix bus: name, mute, fader and the tracks feeding it.
+
+    Buses live between the track strips and the master strip, in the order the
+    session holds them, which is also the order they are summed in — though
+    since a bus can only reach the master, that order is cosmetic.
+    """
+
+    changed = Signal()
+    removeRequested = Signal(str)
+
+    def __init__(
+        self,
+        bus: Bus,
+        *,
+        session: MultitrackSession | None = None,
+        palette: Palette = PALETTE,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self._bus = bus
+        self._session = session
+        self._syncing = False
+        self.setFixedHeight(BUS_STRIP_HEIGHT)
+        self.setAutoFillBackground(True)
+        self.setStyleSheet(
+            f"background-color: {palette.surface}; border-top: 1px solid {palette.border};"
+        )
+
+        self.title = QLabel(bus.name)
+        self.title.setObjectName("TrackTitle")
+        self.title.setFixedWidth(HEADER_WIDTH - 100)
+        self.title.setToolTip(bus.bus_id)
+
+        self.mute_button = QPushButton("M")
+        self.mute_button.setCheckable(True)
+        self.mute_button.setFixedSize(24, 20)
+        self.mute_button.setToolTip("Mute this bus and everything routed to it")
+
+        self.remove_button = QPushButton("✕")
+        self.remove_button.setFixedSize(20, 20)
+        self.remove_button.setToolTip("Delete this bus; its tracks return to the master")
+
+        self.gain_slider = QSlider(Qt.Orientation.Horizontal)
+        self.gain_slider.setRange(int(MIN_STRIP_DB), int(MAX_GAIN_DB))
+        self.gain_slider.setFixedWidth(120)
+        self.gain_slider.setToolTip("Bus gain")
+        self.gain_label = QLabel("0.0 dB")
+        self.gain_label.setObjectName("SecondaryTimecode")
+        self.gain_label.setFixedWidth(56)
+
+        self.summary = QLabel("—")
+        self.summary.setObjectName("SecondaryTimecode")
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(8, 2, 8, 2)
+        layout.setSpacing(6)
+        layout.addWidget(self.title)
+        layout.addWidget(self.remove_button)
+        layout.addWidget(self.mute_button)
+        layout.addWidget(self.gain_slider)
+        layout.addWidget(self.gain_label)
+        layout.addWidget(self.summary, 1)
+
+        self.mute_button.toggled.connect(self._on_mute)
+        self.gain_slider.valueChanged.connect(self._on_gain)
+        self.remove_button.clicked.connect(lambda: self.removeRequested.emit(self._bus.bus_id))
+        self.refresh()
+
+    @property
+    def bus(self) -> Bus:
+        return self._bus
+
+    def refresh(self) -> None:
+        self._syncing = True
+        try:
+            self.title.setText(self._bus.name)
+            self.mute_button.setChecked(self._bus.mute)
+            self.gain_slider.setValue(int(round(self._bus.gain_db)))
+        finally:
+            self._syncing = False
+        self.gain_label.setText(f"{self._bus.gain_db:+.1f} dB")
+        feeding = (
+            len(self._session.tracks_for_bus(self._bus)) if self._session is not None else 0
+        )
+        self.summary.setText(f"{feeding} track{'' if feeding == 1 else 's'} → master")
+
+    def _on_mute(self, checked: bool) -> None:
+        if self._syncing:
+            return
+        self._bus.mute = checked
+        self.changed.emit()
+
+    def _on_gain(self, value: int) -> None:
+        if self._syncing:
+            return
+        self._bus.gain_db = float(value)
+        self.gain_label.setText(f"{self._bus.gain_db:+.1f} dB")
+        self.changed.emit()
+
+
 class MasterStrip(QWidget):
     """The master bus fader, pinned under the tracks."""
 
     changed = Signal()
+    addBusRequested = Signal()
 
     def __init__(
         self,
@@ -525,6 +679,10 @@ class MasterStrip(QWidget):
         self.summary = QLabel("—")
         self.summary.setObjectName("SecondaryTimecode")
 
+        self.add_bus_button = QPushButton("+ Bus")
+        self.add_bus_button.setFixedSize(52, 20)
+        self.add_bus_button.setToolTip("Add a submix bus tracks can be sent to")
+
         layout = QHBoxLayout(self)
         layout.setContentsMargins(8, 4, 8, 4)
         layout.setSpacing(6)
@@ -533,9 +691,11 @@ class MasterStrip(QWidget):
         layout.addWidget(self.gain_slider)
         layout.addWidget(self.gain_label)
         layout.addWidget(self.summary, 1)
+        layout.addWidget(self.add_bus_button)
 
         self.mute_button.toggled.connect(self._on_mute)
         self.gain_slider.valueChanged.connect(self._on_gain)
+        self.add_bus_button.clicked.connect(self.addBusRequested)
         self.refresh()
 
     def set_session(self, session: MultitrackSession | None) -> None:
@@ -558,6 +718,7 @@ class MasterStrip(QWidget):
         soloed = sum(1 for track in session.tracks if track.solo)
         self.summary.setText(
             f"{session.n_tracks} tracks  ·  {format_timecode(session.duration)}"
+            + (f"  ·  {session.n_buses} buses" if session.n_buses else "")
             + (f"  ·  {soloed} soloed" if soloed else "")
         )
 
@@ -576,7 +737,7 @@ class MasterStrip(QWidget):
 
 
 class MultitrackView(QWidget):
-    """The multitrack workspace: ruler, stacked track strips and a master strip."""
+    """The multitrack workspace: ruler, track strips, bus strips and the master."""
 
     seekRequested = Signal(int)
     sessionChanged = Signal()
@@ -592,6 +753,7 @@ class MultitrackView(QWidget):
         self._palette = palette
         self._session: MultitrackSession | None = None
         self._strips: list[TrackStrip] = []
+        self._bus_strips: list[BusStrip] = []
         self._view_start = 0
         self._view_frames = 0
         self._playhead = 0
@@ -612,6 +774,12 @@ class MultitrackView(QWidget):
         self._strip_layout.setSpacing(1)
         self._strip_layout.addWidget(self.placeholder)
         self._strip_layout.addStretch(1)
+
+        self._bus_host = QWidget()
+        self._bus_layout = QVBoxLayout(self._bus_host)
+        self._bus_layout.setContentsMargins(0, 0, 0, 0)
+        self._bus_layout.setSpacing(0)
+        self._bus_host.setVisible(False)
 
         self._scroll_area = QScrollArea()
         self._scroll_area.setWidgetResizable(True)
@@ -645,12 +813,14 @@ class MultitrackView(QWidget):
         layout.addLayout(ruler_row)
         layout.addWidget(self._scroll_area, 1)
         layout.addLayout(scroll_row)
+        layout.addWidget(self._bus_host)
         layout.addWidget(self.master_strip)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         self.ruler.seekRequested.connect(self.seekRequested)
         self.scrollbar.valueChanged.connect(self._on_scroll)
         self.master_strip.changed.connect(self._on_model_edited)
+        self.master_strip.addBusRequested.connect(self.add_bus)
 
         self.set_session(session)
 
@@ -663,6 +833,10 @@ class MultitrackView(QWidget):
     @property
     def strips(self) -> tuple[TrackStrip, ...]:
         return tuple(self._strips)
+
+    @property
+    def bus_strips(self) -> tuple[BusStrip, ...]:
+        return tuple(self._bus_strips)
 
     @property
     def n_frames(self) -> int:
@@ -682,16 +856,28 @@ class MultitrackView(QWidget):
 
     def _on_session_changed(self, _session: MultitrackSession) -> None:
         """Model callback: the arrangement moved under us."""
-        if len(self._strips) != (self._session.n_tracks if self._session else 0) or any(
-            strip.track is not track
-            for strip, track in zip(self._strips, self._session.tracks, strict=False)
-        ):
+        session = self._session
+        if self._strips_are_stale(session) or self._bus_strips_are_stale(session):
             self.rebuild()
         else:
             self.refresh()
 
+    def _strips_are_stale(self, session: MultitrackSession | None) -> bool:
+        tracks = session.tracks if session is not None else ()
+        return len(self._strips) != len(tracks) or any(
+            strip.track is not track
+            for strip, track in zip(self._strips, tracks, strict=False)
+        )
+
+    def _bus_strips_are_stale(self, session: MultitrackSession | None) -> bool:
+        buses = session.buses if session is not None else ()
+        return len(self._bus_strips) != len(buses) or any(
+            strip.bus is not bus
+            for strip, bus in zip(self._bus_strips, buses, strict=False)
+        )
+
     def rebuild(self) -> None:
-        """Discard the strips and build one per track."""
+        """Discard the strips and build one per track and one per bus."""
         for strip in self._strips:
             self._strip_layout.removeWidget(strip)
             strip.setParent(None)
@@ -714,15 +900,51 @@ class MultitrackView(QWidget):
             self._strip_layout.insertWidget(self._strip_layout.count() - 1, strip)
             self._strips.append(strip)
 
+        self._rebuild_buses()
         self._apply_view()
         self.refresh()
+
+    def _rebuild_buses(self) -> None:
+        for strip in self._bus_strips:
+            self._bus_layout.removeWidget(strip)
+            strip.setParent(None)
+            strip.deleteLater()
+        self._bus_strips.clear()
+
+        session = self._session
+        buses = session.buses if session is not None else ()
+        for bus in buses:
+            strip = BusStrip(bus, session=session, palette=self._palette)
+            strip.changed.connect(self._on_model_edited)
+            strip.removeRequested.connect(self.remove_bus)
+            self._bus_layout.addWidget(strip)
+            self._bus_strips.append(strip)
+        self._bus_host.setVisible(bool(buses))
 
     def refresh(self) -> None:
         """Re-read the model into the existing strips."""
         revision = self._session.revision if self._session is not None else 0
         for strip in self._strips:
             strip.refresh(revision)
+        for bus_strip in self._bus_strips:
+            bus_strip.refresh()
         self.master_strip.refresh()
+
+    # ------------------------------------------------------------------ buses
+
+    def add_bus(self, name: str = "") -> Bus | None:
+        """Create a submix bus; the session's notification rebuilds the strips."""
+        session = self._session
+        if session is None:
+            return None
+        bus = session.add_bus(name or f"Bus {session.n_buses + 1}")
+        self.sessionChanged.emit()
+        return bus
+
+    def remove_bus(self, bus: Bus | str) -> None:
+        session = self._session
+        if session is not None and session.remove_bus(bus):
+            self.sessionChanged.emit()
 
     def _on_model_edited(self) -> None:
         self.refresh()
@@ -799,11 +1021,14 @@ class MultitrackView(QWidget):
 
 
 __all__ = [
+    "BUS_STRIP_HEIGHT",
     "CLIP_COLORS",
     "HEADER_WIDTH",
     "LANE_HEIGHT",
+    "MASTER_SEND_LABEL",
     "MAX_SUMMARY_FRAMES",
     "MIN_STRIP_DB",
+    "BusStrip",
     "ClipLane",
     "MasterStrip",
     "MultitrackView",
