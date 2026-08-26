@@ -220,7 +220,15 @@ function setOp(id) {
 </script>
 
 <template>
-  <main class="page">
+  <main class="page stack">
+    <section class="card tool-entry">
+      <div>
+        <strong>🧮 竖式工坊</strong>
+        <span class="muted">逐位练习进位与借位，错误会按原因归类</span>
+      </div>
+      <RouterLink class="btn btn--primary btn--sm" to="/column-arithmetic">进入专题 →</RouterLink>
+    </section>
+
     <QuizShell
       v-model:inputMode="inputMode"
       :module-id="MODULE_ID"
@@ -327,6 +335,21 @@ function setOp(id) {
 </template>
 
 <style scoped>
+.tool-entry {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 13px 16px;
+  border-color: rgba(255, 206, 77, 0.38);
+}
+
+.tool-entry > div {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .seg {
   display: flex;
   gap: 4px;

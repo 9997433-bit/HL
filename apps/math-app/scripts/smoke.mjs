@@ -52,8 +52,12 @@ const ROUTES = [
   ['今日冒险', '/#/daily'],
   ['数量星云', '/#/number-sense'],
   ['比大小擂台', '/#/compare'],
+  ['10 的分与合', '/#/compose-ten'],
   ['算术恒星', '/#/arithmetic'],
+  ['竖式工坊', '/#/column-arithmetic'],
   ['形状卫星', '/#/geometry'],
+  ['七巧板实验室', '/#/tangram'],
+  ['数形演示中心', '/#/visual-demos'],
   ['规律环带', '/#/logic'],
   ['数独空间站', '/#/sudoku'],
   ['生活行星', '/#/word-problems'],
@@ -240,6 +244,98 @@ async function playChoiceModule(page, rounds) {
   const after = await starCount(page)
   return { answered, before, after }
 }
+
+await interact('数形演示：8 类 + 跳过到算式', '/#/visual-demos', async (page) => {
+  await page.waitForSelector('[data-demo-id]')
+  const before = await page.evaluate(() => ({
+    count: document.querySelectorAll('[data-demo-select]').length,
+    stage: document.querySelector('[data-demo-id]')?.dataset.demoStage ?? '',
+  }))
+  if (before.count < 7) throw new Error(`数形演示只有 ${before.count} 类`)
+  if (before.stage !== 'object') throw new Error(`演示首段应是实物，实际 ${before.stage}`)
+  await page.click('[data-demo-skip]')
+  await sleep(250)
+  const after = await page.evaluate(() => ({
+    stage: document.querySelector('[data-demo-id]')?.dataset.demoStage ?? '',
+    text: document.querySelector('.equation-panel')?.innerText ?? '',
+  }))
+  if (after.stage !== 'equation') throw new Error(`跳过后没有到算式段：${after.stage}`)
+  if (!/=|½|^\s*\d+\s*$/.test(after.text)) throw new Error(`算式段没有算式：${after.text}`)
+  return `${before.count} 类，${before.stage} → ${after.stage}`
+})
+
+await interact('七巧板：Canvas + 7 块选择与旋转', '/#/tangram', async (page) => {
+  await page.waitForSelector('canvas[data-piece-count="7"]')
+  const before = await page.evaluate(() => ({
+    canvas: !!document.querySelector('.tangram-canvas'),
+    pieces: document.querySelectorAll('[data-piece-select]').length,
+    solved: document.querySelector('[data-tangram-solved]')?.innerText.trim() ?? '',
+  }))
+  if (!before.canvas || before.pieces !== 7) {
+    throw new Error(`七巧板应有 Canvas / 7 块，实际 canvas=${before.canvas} pieces=${before.pieces}`)
+  }
+  await page.click('[data-piece-select="large-a"]')
+  await page.click('[data-tangram-rotate]')
+  await sleep(200)
+  const selected = await page.evaluate(
+    () => document.querySelector('[data-piece-select="large-a"]')?.getAttribute('aria-pressed'),
+  )
+  if (selected !== 'true') throw new Error('点选拼板后没有进入选中态')
+  return `Canvas 就绪，拼板 ${before.pieces} 块，初始归位 ${before.solved}`
+})
+
+await interact('分与合：移动弹珠并写入 compose-ten', '/#/compose-ten', async (page) => {
+  await page.waitForSelector('[data-compose-check]')
+  for (let guard = 0; guard < 10; guard++) {
+    const state = await page.evaluate(() => ({
+      known: Number(document.querySelector('[data-known]')?.dataset.known),
+      left: Number(document.querySelector('[data-compose-left]')?.innerText),
+    }))
+    if (state.left === state.known) break
+    const selector = state.left < state.known ? '[data-bead-side="right"]' : '[data-bead-side="left"]'
+    await page.click(selector)
+    await sleep(80)
+  }
+  await page.click('[data-compose-check]')
+  await sleep(350)
+  const result = await page.evaluate(() => {
+    const state = JSON.parse(localStorage.getItem('mathquest/progress') || '{}')
+    return {
+      mastery: state.mastery?.['compose-ten'],
+      next: !!document.querySelector('[data-compose-next]'),
+      equation: document.querySelector('.equation')?.innerText.replace(/\s+/g, ' ').trim(),
+    }
+  })
+  if (!result.next) throw new Error('正确分好 10 后没有进入完成态')
+  if (!(result.mastery > 0)) throw new Error('compose-ten 掌握度没有写入进度')
+  return `${result.equation}，compose-ten=${result.mastery}`
+})
+
+await interact('竖式：进位错因 + 两步完成', '/#/column-arithmetic', async (page) => {
+  await page.waitForSelector('[data-column-step-option]')
+  await page.evaluate(() => {
+    const wrong = [...document.querySelectorAll('[data-column-step-option]')].find(
+      (button) => button.dataset.correct !== 'true',
+    )
+    wrong?.click()
+  })
+  await sleep(250)
+  const errorCount = await page.evaluate(() => {
+    const state = JSON.parse(localStorage.getItem('mathquest/progress') || '{}')
+    return state.errorTagCounts?.carry ?? 0
+  })
+  if (errorCount < 1) throw new Error('故意漏进位后没有记录 carry 错因')
+  await page.click('[data-column-step-option][data-correct="true"]')
+  await sleep(180)
+  await page.click('[data-column-answer-option][data-correct="true"]')
+  await sleep(300)
+  const done = await page.evaluate(() => ({
+    next: !!document.querySelector('[data-column-next]'),
+    text: document.querySelector('.message')?.innerText ?? '',
+  }))
+  if (!done.next || !/算对/.test(done.text)) throw new Error(`竖式没有完成：${done.text}`)
+  return `carry 错因 ${errorCount} 次；两步完成`
+})
 
 for (const [label, path] of [
   ['数量星云', '/#/number-sense'],

@@ -135,6 +135,38 @@ onMounted(() => {
       <MascotBot mood="idle" :size="128" class="hero-bot" />
     </section>
 
+    <section class="tool-deck" aria-labelledby="tool-deck-title">
+      <div class="tool-deck-head">
+        <div>
+          <h3 id="tool-deck-title" class="panel-title">动手学数学</h3>
+          <p class="muted">演示、拼摆和逐位计算，把抽象知识变成看得见的操作。</p>
+        </div>
+        <span class="chip">Round 5 新教具</span>
+      </div>
+      <div class="tool-grid">
+        <RouterLink class="tool-card card demo" to="/visual-demos">
+          <span class="tool-icon">🎞️</span>
+          <strong>数形演示</strong>
+          <small>实物 → 图形 → 算式</small>
+        </RouterLink>
+        <RouterLink class="tool-card card compose" to="/compose-ten">
+          <span class="tool-icon">🔵</span>
+          <strong>10 的分与合</strong>
+          <small>移动十颗弹珠</small>
+        </RouterLink>
+        <RouterLink class="tool-card card tangram" to="/tangram">
+          <span class="tool-icon">🧩</span>
+          <strong>七巧板</strong>
+          <small>Canvas 火箭拼图</small>
+        </RouterLink>
+        <RouterLink class="tool-card card column" to="/column-arithmetic">
+          <span class="tool-icon">🧮</span>
+          <strong>竖式工坊</strong>
+          <small>进位 / 借位错因专练</small>
+        </RouterLink>
+      </div>
+    </section>
+
     <section class="stats-strip">
       <div v-for="t in totals" :key="t.label" class="stat-pill">
         <span class="stat-icon"><OpenMojiIcon :emoji="t.icon" :size="22" /></span>
@@ -295,6 +327,78 @@ onMounted(() => {
 
 .daily-track .small {
   margin-left: 6px;
+}
+
+.tool-deck {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tool-deck-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.tool-deck-head p {
+  margin-top: 3px;
+  font-size: 13px;
+}
+
+.tool-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.tool-card {
+  min-height: 132px;
+  padding: 15px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 4px;
+  border-color: color-mix(in srgb, var(--tool-color) 42%, transparent);
+  background:
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--tool-color) 22%, transparent), transparent 56%),
+    linear-gradient(160deg, var(--surface), color-mix(in srgb, var(--cosmos-1) 92%, transparent));
+  transition: transform 0.16s ease, border-color 0.16s ease;
+}
+
+.tool-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--tool-color);
+}
+
+.tool-card.demo {
+  --tool-color: var(--brand);
+}
+
+.tool-card.compose {
+  --tool-color: var(--neon-violet);
+}
+
+.tool-card.tangram {
+  --tool-color: var(--neon-pink);
+}
+
+.tool-card.column {
+  --tool-color: var(--star);
+}
+
+.tool-icon {
+  font-size: 29px;
+}
+
+.tool-card strong {
+  font-size: 15px;
+}
+
+.tool-card small {
+  color: var(--text-soft);
 }
 
 .stats-strip {
@@ -604,6 +708,10 @@ onMounted(() => {
     height: 54px;
     font-size: 24px;
   }
+
+  .tool-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 @media (max-width: 560px) {
@@ -613,6 +721,10 @@ onMounted(() => {
 
   .map {
     display: none;
+  }
+
+  .tool-deck-head {
+    align-items: flex-start;
   }
 }
 </style>

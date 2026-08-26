@@ -271,6 +271,7 @@ onMounted(startRound)
         </button>
       </div>
       <div class="spacer" />
+      <RouterLink class="btn btn--primary btn--sm" to="/tangram">🧩 七巧板</RouterLink>
       <span class="chip">共 {{ pool.length }} 种图形</span>
     </section>
 

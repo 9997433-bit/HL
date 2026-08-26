@@ -31,6 +31,7 @@ import {
 import { ERROR_TAGS } from '../src/data/errorTags.js'
 import { CUES, noteToFreq } from '../src/utils/sound.js'
 import { updateMastery, MASTERY_THRESHOLD } from '../src/utils/mastery.js'
+import { VISUAL_DEMOS } from '../src/data/visualDemos.js'
 import {
   createAdaptiveEngine,
   nextDifficulty,
@@ -88,6 +89,22 @@ console.log(
 
 for (const tierId of ['one', 'two', 'multi']) {
   if (problemsOfTier(tierId).length === 0) fail(`难度档「${tierId}」一道母题都没有`)
+}
+
+/* 数形演示注册表：每类必须完整走完「实物 → 图形 → 算式」三段。 */
+{
+  const demoIds = new Set()
+  if (VISUAL_DEMOS.length < 7) fail(`数形演示只有 ${VISUAL_DEMOS.length} 类，少于要求的 7 类`)
+  for (const demo of VISUAL_DEMOS) {
+    if (!demo.id || demoIds.has(demo.id)) fail(`数形演示 id 缺失或重复：${demo.id}`)
+    demoIds.add(demo.id)
+    if (!demo.object?.label || !demo.object?.emoji) fail(`数形演示 ${demo.id} 缺少实物段`)
+    if (!demo.visual?.label || !demo.visual?.groups?.length) fail(`数形演示 ${demo.id} 缺少图形段`)
+    if (!demo.equation) fail(`数形演示 ${demo.id} 缺少算式段`)
+    if (demo.narration?.length !== 3) fail(`数形演示 ${demo.id} 应有 3 段旁白`)
+    if (!isKnownSkill(demo.skill)) fail(`数形演示 ${demo.id} 技能点「${demo.skill}」不在图谱里`)
+  }
+  console.log(`数形演示 ${VISUAL_DEMOS.length} 类：实物 / 图形 / 算式 / 三段旁白齐全`)
 }
 
 /* 技能点映射 */
