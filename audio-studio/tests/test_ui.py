@@ -42,6 +42,7 @@ def window(loaded_clip: LoadedAudio) -> MainWindow:
     main = MainWindow(engine)
     main.resize(1200, 700)
     engine.set_clip(loaded_clip)
+    main._bind_edit_session(loaded_clip)  # noqa: SLF001 - mirrors open_file()
     main._update_for_clip()  # noqa: SLF001 - normally triggered by open_file()
     yield main
     main.close()
@@ -538,5 +539,37 @@ def test_opening_a_real_file_through_the_window(wav_path: Path) -> None:
         assert main.engine.has_clip
         assert main.track_panel.waveform.n_frames == main.engine.n_frames
         assert main.recent_menu.isEnabled()
+        assert main._edit_session is not None
     finally:
         main.close()
+
+
+class TestEditSessionUi:
+    def test_cut_shortens_the_document_and_undo_restores_it(self, window: MainWindow) -> None:
+        before = window.engine.n_frames
+        window.track_panel.waveform.set_selection(TimeRange(100, 500))
+
+        window.edit_cut()
+
+        assert window.engine.n_frames == before - 400
+        assert window.action_undo.isEnabled()
+        window.edit_undo()
+        assert window.engine.n_frames == before
+
+    def test_copy_and_paste_extends_the_document(self, window: MainWindow) -> None:
+        before = window.engine.n_frames
+        window.track_panel.waveform.set_selection(TimeRange(0, 200))
+        window.edit_copy()
+        assert window.action_paste.isEnabled()
+        window.track_panel.waveform.clear_selection()
+        window.engine.set_selection(None)
+
+        window.engine.seek(1_000)
+        window.edit_paste()
+
+        assert window.engine.n_frames == before + 200
+
+    def test_a_modified_clip_shows_an_asterisk_in_the_title(self, window: MainWindow) -> None:
+        window.track_panel.waveform.set_selection(TimeRange(0, 100))
+        window.edit_delete()
+        assert "*" in window.windowTitle()

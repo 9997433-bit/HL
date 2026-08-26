@@ -50,6 +50,7 @@ from PySide6.QtWidgets import (
 
 from .. import __app_name__, __version__
 from ..core.engine import AudioEngine
+from ..core.edit_session import EditError, EditSession
 from ..core.loader import (
     SUPPORTED_EXTENSIONS,
     AudioLoadError,
@@ -58,6 +59,7 @@ from ..core.loader import (
     file_dialog_filter,
     save_audio,
 )
+from ..core.peaks import PeakPyramid
 from ..core.sample_source import MemorySampleSource
 from ..core.session import MultitrackSession, Track
 from ..core.types import TimeRange, TransportState, format_timecode
@@ -108,6 +110,7 @@ class MainWindow(QMainWindow):
         # The clip the waveform editor owns. Held separately because the engine
         # forgets it while the transport is pointed at the session mixer.
         self._editor_clip: LoadedAudio | None = None
+        self._edit_session: EditSession | None = None
 
         self._loudness_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="loudness")
         self._loudness_job: Future[LoudnessReport] | None = None
@@ -222,6 +225,39 @@ class MainWindow(QMainWindow):
             "&Deselect", self.track_panel.waveform.clear_selection, "Ctrl+Shift+A"
         )
 
+        self.action_undo = action(
+            "&Undo", self.edit_undo, QKeySequence.StandardKey.Undo,
+            tip="Undo the last edit",
+        )
+        self.action_redo = action(
+            "&Redo", self.edit_redo, QKeySequence.StandardKey.Redo,
+            tip="Redo the last undone edit",
+        )
+        self.action_cut = action(
+            "Cu&t", self.edit_cut, QKeySequence.StandardKey.Cut,
+            tip="Cut the selection to the clipboard",
+        )
+        self.action_copy = action(
+            "&Copy", self.edit_copy, QKeySequence.StandardKey.Copy,
+            tip="Copy the selection to the clipboard",
+        )
+        self.action_paste = action(
+            "&Paste", self.edit_paste, QKeySequence.StandardKey.Paste,
+            tip="Paste the clipboard at the playhead",
+        )
+        self.action_delete = action(
+            "&Delete", self.edit_delete, QKeySequence.StandardKey.Delete,
+            tip="Delete the selected range",
+        )
+        self.action_silence = action(
+            "&Silence", self.edit_silence, "Ctrl+Shift+S",
+            tip="Replace the selection with digital silence",
+        )
+        self.action_trim = action(
+            "Trim to &Selection", self.edit_trim, "Ctrl+T",
+            tip="Keep only the selected range",
+        )
+
         self.action_zoom_in = action("Zoom &In", self.track_panel.waveform.zoom_in, "Ctrl+=")
         self.action_zoom_out = action("Zoom &Out", self.track_panel.waveform.zoom_out, "Ctrl+-")
         self.action_zoom_fit = action(
@@ -304,6 +340,17 @@ class MainWindow(QMainWindow):
         file_menu.addAction(self.action_quit)
 
         edit_menu = bar.addMenu("&Edit")
+        edit_menu.addAction(self.action_undo)
+        edit_menu.addAction(self.action_redo)
+        edit_menu.addSeparator()
+        edit_menu.addAction(self.action_cut)
+        edit_menu.addAction(self.action_copy)
+        edit_menu.addAction(self.action_paste)
+        edit_menu.addAction(self.action_delete)
+        edit_menu.addSeparator()
+        edit_menu.addAction(self.action_silence)
+        edit_menu.addAction(self.action_trim)
+        edit_menu.addSeparator()
         edit_menu.addAction(self.action_select_all)
         edit_menu.addAction(self.action_deselect)
 
@@ -353,6 +400,12 @@ class MainWindow(QMainWindow):
         toolbar.addSeparator()
         toolbar.addAction(self.action_select_all)
         toolbar.addAction(self.action_deselect)
+        toolbar.addSeparator()
+        toolbar.addAction(self.action_undo)
+        toolbar.addAction(self.action_redo)
+        toolbar.addAction(self.action_cut)
+        toolbar.addAction(self.action_copy)
+        toolbar.addAction(self.action_paste)
         self.addToolBar(toolbar)
 
     def _build_statusbar(self) -> None:
@@ -409,13 +462,16 @@ class MainWindow(QMainWindow):
         except AudioLoadError as exc:
             QMessageBox.critical(self, "Cannot open file", str(exc))
             return False
+        self._bind_edit_session(clip)
         self._remember_recent(clip.path)
         self._update_for_clip()
         self.statusBar().showMessage(f"Loaded {clip.name}", 4000)
         return True
 
     def close_clip(self) -> None:
+        self._clear_edit_session()
         self.engine.close_clip()
+        self._editor_clip = None
         self._update_for_clip()
 
     def export_dialog(self) -> None:
@@ -429,12 +485,18 @@ class MainWindow(QMainWindow):
         )
         if not path:
             return
-        buffer = clip.buffer.slice(selection) if selection else clip.buffer
+        if self._edit_session is not None and not self.is_playing_session:
+            buffer = self._edit_session.to_buffer(selection)
+        else:
+            buffer = clip.buffer.slice(selection) if selection else clip.buffer
         try:
             written = save_audio(path, buffer)
         except AudioLoadError as exc:
             QMessageBox.critical(self, "Export failed", str(exc))
             return
+        if self._edit_session is not None and selection is None:
+            self._edit_session.undo_stack.set_clean()
+            self._update_window_title()
         self.statusBar().showMessage(f"Exported {written.name}", 4000)
 
     def _remember_recent(self, path: Path) -> None:
@@ -451,6 +513,203 @@ class MainWindow(QMainWindow):
             act.setStatusTip(str(entry))
             act.triggered.connect(lambda _checked=False, p=entry: self.open_file(p))
             self.recent_menu.addAction(act)
+
+    # ----------------------------------------------------------- editing
+
+    def _clear_edit_session(self) -> None:
+        if self._edit_session is None:
+            return
+        self._edit_session.remove_listener(self._on_edit_session_changed)
+        self._edit_session = None
+
+    def _bind_edit_session(self, clip: LoadedAudio) -> None:
+        """Wrap the loaded clip in an :class:`EditSession` wired to the transport."""
+        self._clear_edit_session()
+        session = EditSession.from_buffer(clip.buffer)
+        session.add_listener(self._on_edit_session_changed)
+        self._edit_session = session
+        self._editor_clip = clip
+        self._install_editor_source(clip)
+
+    def _install_editor_source(self, clip: LoadedAudio) -> None:
+        session = self._edit_session
+        if session is None:
+            self.engine.set_clip(clip)
+            return
+        pyramid, samples = self._waveform_cache(session)
+        self.engine.set_source(
+            session,
+            clip=clip,
+            audio_format=clip.audio_format,
+            pyramid=pyramid,
+            owns_source=False,
+        )
+        session.undo_stack.set_clean()
+
+    def _restore_editor_source(self) -> None:
+        clip = self._editor_clip
+        if clip is None:
+            self.engine.set_source(None)
+            return
+        if self._edit_session is not None:
+            self._install_editor_source(clip)
+        else:
+            self.engine.set_clip(clip)
+
+    @staticmethod
+    def _waveform_cache(session: EditSession) -> tuple[PeakPyramid | None, np.ndarray | None]:
+        n_frames = session.n_frames
+        if n_frames <= 0:
+            return None, None
+        samples = session.read(0, n_frames)
+        return PeakPyramid(samples), samples
+
+    def _on_edit_session_changed(self, _session: EditSession) -> None:
+        if self._workspace != "waveform" or self.is_playing_session:
+            self._update_edit_actions()
+            return
+        clip = self._editor_clip
+        if clip is None:
+            return
+        pyramid, samples = self._waveform_cache(_session)
+        self.engine.update_pyramid(pyramid)
+        self.track_panel.set_clip(clip, pyramid, samples=samples)
+        self.transport_bar.set_duration(self.engine.duration)
+
+        selection = self.engine.selection
+        if selection is not None:
+            clipped = selection.clamped(self.engine.n_frames)
+            if clipped != selection:
+                self.engine.set_selection(clipped if not clipped.is_empty else None)
+                self.track_panel.set_selection(self.engine.selection)
+
+        position = min(self.engine.position, max(self.engine.n_frames - 1, 0))
+        if position != self.engine.position:
+            self.engine.seek(position)
+
+        self._update_edit_actions()
+        self._update_window_title()
+        self._update_status_format()
+        self._analysis_timer.start()
+
+    def _update_edit_actions(self) -> None:
+        session = self._edit_session
+        editing = (
+            session is not None
+            and self._workspace == "waveform"
+            and not self.is_playing_session
+            and self.engine.has_clip
+        )
+        selection = self.engine.selection
+        has_selection = selection is not None and not selection.is_empty
+        has_clipboard = (
+            editing
+            and session is not None
+            and session.clipboard is not None
+            and session.clipboard.n_frames > 0
+        )
+
+        self.action_undo.setEnabled(editing and session.can_undo)
+        self.action_redo.setEnabled(editing and session.can_redo)
+        undo_label = session.undo_stack.undo_label if session else None
+        redo_label = session.undo_stack.redo_label if session else None
+        self.action_undo.setText(f"&Undo {undo_label}" if undo_label else "&Undo")
+        self.action_redo.setText(f"&Redo {redo_label}" if redo_label else "&Redo")
+
+        for act in (
+            self.action_cut,
+            self.action_copy,
+            self.action_delete,
+            self.action_silence,
+            self.action_trim,
+        ):
+            act.setEnabled(editing and has_selection)
+        self.action_paste.setEnabled(editing and has_clipboard)
+
+    def _update_window_title(self) -> None:
+        clip = self.editor_clip
+        if clip is None:
+            self.setWindowTitle(__app_name__)
+            return
+        modified = self._edit_session is not None and self._edit_session.is_modified
+        prefix = f"{clip.name}*" if modified else clip.name
+        self.setWindowTitle(f"{prefix} — {__app_name__}")
+
+    def _selected_range(self) -> TimeRange:
+        selection = self.engine.selection
+        if selection is None or selection.is_empty:
+            raise EditError("make a selection first")
+        return selection
+
+    def _run_edit(self, operation: str, callback) -> None:
+        if self._edit_session is None or self._workspace != "waveform":
+            return
+        try:
+            callback()
+        except EditError as exc:
+            QMessageBox.warning(self, operation, str(exc))
+
+    def edit_undo(self) -> None:
+        def _undo() -> None:
+            assert self._edit_session is not None
+            if not self._edit_session.undo():
+                raise EditError("nothing to undo")
+
+        self._run_edit("Undo", _undo)
+
+    def edit_redo(self) -> None:
+        def _redo() -> None:
+            assert self._edit_session is not None
+            if not self._edit_session.redo():
+                raise EditError("nothing to redo")
+
+        self._run_edit("Redo", _redo)
+
+    def edit_cut(self) -> None:
+        def _cut() -> None:
+            assert self._edit_session is not None
+            self._edit_session.cut(self._selected_range())
+
+        self._run_edit("Cut", _cut)
+
+    def edit_copy(self) -> None:
+        def _copy() -> None:
+            assert self._edit_session is not None
+            self._edit_session.copy(self._selected_range())
+            self._update_edit_actions()
+
+        self._run_edit("Copy", _copy)
+
+    def edit_paste(self) -> None:
+        def _paste() -> None:
+            assert self._edit_session is not None
+            at = int(self.engine.position)
+            selection = self.engine.selection
+            replacing = selection if selection is not None and not selection.is_empty else None
+            self._edit_session.paste(at, replacing=replacing)
+
+        self._run_edit("Paste", _paste)
+
+    def edit_delete(self) -> None:
+        def _delete() -> None:
+            assert self._edit_session is not None
+            self._edit_session.delete(self._selected_range())
+
+        self._run_edit("Delete", _delete)
+
+    def edit_silence(self) -> None:
+        def _silence() -> None:
+            assert self._edit_session is not None
+            self._edit_session.silence(self._selected_range())
+
+        self._run_edit("Silence", _silence)
+
+    def edit_trim(self) -> None:
+        def _trim() -> None:
+            assert self._edit_session is not None
+            self._edit_session.trim(self._selected_range())
+
+        self._run_edit("Trim", _trim)
 
     # ---------------------------------------------------------- analysis
 
@@ -593,7 +852,19 @@ class MainWindow(QMainWindow):
         if multitrack:
             self.multitrack_view.zoom_to_fit()
             self.multitrack_view.set_playhead(self.engine.position)
+        else:
+            self._refresh_editor_waveform()
+        self._update_edit_actions()
         self._update_status_format()
+
+    def _refresh_editor_waveform(self) -> None:
+        clip = self._editor_clip
+        session = self._edit_session
+        if clip is None or session is None:
+            return
+        pyramid, samples = self._waveform_cache(session)
+        self.engine.update_pyramid(pyramid)
+        self.track_panel.set_clip(clip, pyramid, samples=samples)
 
     def _on_multitrack_toggled(self) -> None:
         self.set_workspace("multitrack" if self.action_multitrack.isChecked() else "waveform")
@@ -603,7 +874,10 @@ class MainWindow(QMainWindow):
         clip = self.editor_clip
         if clip is None:
             return None
-        buffer = clip.buffer
+        if self._edit_session is not None:
+            buffer = self._edit_session.to_buffer()
+        else:
+            buffer = clip.buffer
         if self.session.n_tracks == 0 or not self.session.clips:
             # An empty session has no opinion about format yet, so it adopts
             # the first clip's rather than refusing it.
@@ -644,7 +918,7 @@ class MainWindow(QMainWindow):
             self._editor_clip = self.engine.clip
             self.engine.set_source(self.session.mixer)
         else:
-            self.engine.set_clip(self._editor_clip)
+            self._restore_editor_source()
 
         has_audio = self.engine.has_clip
         self.transport_bar.set_enabled_for_clip(has_audio)
@@ -663,7 +937,11 @@ class MainWindow(QMainWindow):
         if not self.is_playing_session:
             self._editor_clip = self.engine.clip
         clip = self.editor_clip
-        self.track_panel.set_clip(self.engine.clip, self.engine.pyramid)
+        if self._edit_session is not None and clip is not None:
+            _, samples = self._waveform_cache(self._edit_session)
+            self.track_panel.set_clip(clip, self.engine.pyramid, samples=samples)
+        else:
+            self.track_panel.set_clip(self.engine.clip, self.engine.pyramid)
         has_clip = self.engine.has_clip
 
         self.transport_bar.set_enabled_for_clip(has_clip)
@@ -673,11 +951,24 @@ class MainWindow(QMainWindow):
         self.level_meter.set_channels(max(self.engine.n_channels, 1))
         self.level_meter.reset()
 
-        for act in (self.action_close, self.action_export, self.action_select_all):
+        for act in (
+            self.action_close,
+            self.action_export,
+            self.action_select_all,
+            self.action_undo,
+            self.action_redo,
+            self.action_cut,
+            self.action_copy,
+            self.action_paste,
+            self.action_delete,
+            self.action_silence,
+            self.action_trim,
+        ):
             act.setEnabled(has_clip)
         self.action_add_track.setEnabled(clip is not None)
 
-        self.setWindowTitle(__app_name__ if clip is None else f"{clip.name} — {__app_name__}")
+        self._update_edit_actions()
+        self._update_window_title()
         self._route_transport()
         self._update_status_format()
         self.status_selection.setText("Selection: —")

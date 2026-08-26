@@ -6,6 +6,7 @@ track so a multi-track session view can stack instances of it later.
 
 from __future__ import annotations
 
+import numpy as np
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QFrame,
@@ -152,10 +153,17 @@ class TrackPanel(QWidget):
 
         self._syncing = False
 
-    def set_clip(self, clip: LoadedAudio | None, pyramid: PeakPyramid | None) -> None:
+    def set_clip(
+        self,
+        clip: LoadedAudio | None,
+        pyramid: PeakPyramid | None,
+        *,
+        samples: np.ndarray | None = None,
+    ) -> None:
         self.header.set_clip(clip)
         sample_rate = clip.buffer.sample_rate if clip else 44100
-        samples = clip.buffer.data if clip else None
+        if samples is None and clip is not None:
+            samples = clip.buffer.data
         self.ruler.set_sample_rate(sample_rate)
         self.waveform.set_clip(pyramid, sample_rate, samples)
         self._on_view_changed(self.waveform.view_start, self.waveform.view_frames)

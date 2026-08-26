@@ -200,9 +200,9 @@ tests live one directory above this package.
 
 - Single visible track/clip. `TrackPanel` is reusable, but there is no finished
   multitrack mixer, clip timeline, bus/send routing or automation workflow.
-- The `EditSession` command/undo core is implemented and fully tested, but the
-  main window does not yet expose the complete destructive editing workflow or
-  project save and recovery.
+- Waveform editing is wired through `EditSession`: cut, copy, paste, delete,
+  silence, trim and unlimited undo/redo from the Edit menu and toolbar. Project
+  save and recovery are not implemented yet — export the edited clip to disk.
 - No recording path, no repair suite (de-click, de-hum, noise reduction), no
   spectral selection editing, no production VST3/AU host or plugin delay
   compensation, no batch processing, and no project files or markers yet — see

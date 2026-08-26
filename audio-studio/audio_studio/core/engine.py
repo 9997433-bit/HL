@@ -222,6 +222,11 @@ class AudioEngine:
     def close_clip(self) -> None:
         self.set_source(None)
 
+    def update_pyramid(self, pyramid: PeakPyramid | None) -> None:
+        """Refresh the waveform envelope cache without rewinding transport."""
+        with self._lock:
+            self._pyramid = pyramid
+
     # ------------------------------------------------------------- transport
 
     @property
