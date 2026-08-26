@@ -72,7 +72,7 @@ Acceptance registry and gate suites: **388 tests**.
 |---|---|---|
 | R2-T01 | Dynamics/FRF chain (GAP-04/05) | **Done, including the exit-bar demo** — engine, AC-DYN-001..005, FRF report block (schema 1.1, A41), and the `openfemlab correlate-frf` CLI command (A54, 16 tests). |
 | R2-T02 | 3D element library (GAP-02) | **Done** — QUAD4 (61 tests), TET4 (66), HEX8 (76), the 42-test spatial `BeamElement3D` and the flat-facet `ShellQuad4Element` (A98, 72 tests) are all on the integration branch; the beam arrived with merge `75dd070` (A93) and `cursor/beam3d-cbar-element-c9a7` was deleted from `origin` afterwards. `io/neutral_convert.py` binds an imported block into those formulations (A106, 52 tests) and reaches the shell through `quad4_as="shell"` (A129). The three items that kept this partial all closed: the solid/shell BDF cards (A119), the converter's shell branch (A129), and the AC-ELEM case table over the shell (A124) — AC-ELEM-001..003 now run **33 acceptance cases** across QUAD4/TET4/HEX8/SHELL4, 9 of them the shell's. |
-| R2-T03 | Reduction/expansion, TAM (GAP-08) | **Acceptance-complete** — `correlation/reduction.py` (A36), AC-CORR-006/009, and `SensorMap.signs` folding are implemented; AC-CORR-006 is now `verified`. Sparse inputs still densify and must be addressed before GAP-13 scale. |
+| R2-T03 | Reduction/expansion, TAM (GAP-08) | **Acceptance-complete** — `correlation/reduction.py` (A36), AC-CORR-006/009, and `SensorMap.signs` folding are implemented; AC-CORR-006 is now `verified`. Sparse inputs no longer densify: the Guyan/IRS paths keep CSR/CSC and factorize `K_ss` with SuperLU, leaving only `(n, m)`/`(n, k)` dense factors (A131). |
 | R2-T04 | Bayesian MAP updating (GAP-11 slice) | **Acceptance-complete** — the MS-3.5 MAP estimator with prior/posterior covariance landed (`4b2a416`, now 36 tests), and AC-UPD-006a/b are `implemented` with Laplace σ_post in the `CorrectionReport` (A57, merged to the trunk by A83). Only σ_post in the CLI `update` document is left, and it is outside the acceptance slice. |
 | R2-T05 | meshio bridge + IO completion (GAP-03) | **Done** — meshio bridge (A89), `neutral_convert` (A106), UFF read/write (A123), UNV 2411/2412 (A125), module **M8** with AC-IO-001..003 **`verified`** (A120 + sign-off promotion). `read_meshio` → `neutral_to_model` → `ModalSolver` is gated end to end. OP2 and other industrial formats deferred to Round 3. |
 | R2-T06 | Updating depth (GAP-10) | **Partial** — AC-UPD-007 (P0) is tagged and `implemented` (A44); the collinearity screen was already in `workflow/selection.py`. QR-pivoting refinement, analytic MAC-row Jacobian wiring, and the model-level parameter resolver remain. |
@@ -107,8 +107,10 @@ non-blocking polish:
 1. **R2-T06 remainder** (Round 3 / P1): QR-with-pivoting refinement of the
    collinearity screen, analytic MAC-row Jacobian in the updater's shape-residual
    path, model-level parameter resolver with assembled per-element dK/dp.
-2. **R2-T03 residue**: the reduction module densifies sparse inputs — fine now,
-   wrong at GAP-13 (50k-DOF) scale.
+2. **R2-T03 residue — closed (A131)**: the reduction module keeps sparse inputs
+   sparse. What is left for the GAP-13 50k-DOF budget is elsewhere: the
+   eigensolver's 400-DOF dense threshold, no LOBPCG/AMG path, and benchmarks
+   that stop at 1k DOF.
 3. **GAP-03 extension**: native OP2 and other industrial formats beyond the
    meshio/BDF/UNV/UFF interchange closed in Round 2.
 4. **Round 3 backlog** (see `ROUND2_SIGNOFF.md`): GAP-06 (MPE), GAP-07
