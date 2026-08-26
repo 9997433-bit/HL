@@ -1569,3 +1569,65 @@ demonstrates the AC-WORK gates numerically — tagging them is already scheduled
 R2-T06 and the next acceptance batches. The first PR body draft (`17d03ba`) was folded
 into the closure lineage and superseded by the A30/A32 polish now in
 `.agent_workspace/PR_DRAFT.md`; both record the same platform state.
+
+#### Round 2 — P0 acceptance batch 2 (A31, backfill for A21)
+
+Seven P0 criteria moved from `specified` to `implemented`, taking the registry to
+**22 of 40** covered (20 P0, 2 P1; none `verified` yet). Landed as four commits on
+`cursor/femtools-industrial-7aa3`, tip `33473fe`.
+
+**AC-MODAL-004..006** (`3570fd2` solver, `3f4cad6` reproducibility, `69ae903` tests).
+The acceptance tests exposed three real gaps in `solver/modal.py` rather than merely
+recording existing behaviour:
+
+- *Rigid bodies.* Free-free chains now report exactly `f = 0` (and infinite period) for
+  as many modes as the nullity of `K`, with the clip driven by a rigid-body threshold
+  instead of leaking a tiny positive eigenvalue. Verified against the closed-form
+  free-free spectrum and, independently, against an inertia-relief constrained run.
+- *Determinism.* ARPACK seeds its Lanczos start vector randomly, so repeated sparse
+  solves were not bitwise identical. `ModalSolver.solve` grew a `seed` argument
+  (default 0) that builds the start vector deterministically. Separately, the MS-1.3
+  sign convention broke on near-degenerate peaks: strict `argmax` let the dense and
+  Lanczos backends pick different "largest" components on symmetric modes. Both
+  `solver/modal.py` and the `updating/scaling_model.py` fallback now treat components
+  within `1e-8` of the peak as tied and break the tie on the lowest DOF index, which is
+  what the spec text already said.
+- *Residuals.* Every returned eigenpair is gated on
+  `‖K phi - lambda M phi‖ / ‖K phi‖`, and a breach raises the new
+  `SolverConvergenceError` carrying the offending residuals and the tolerance. A flat
+  `1e-8` is not reachable for the cantilever beam — its spectrum is wide enough that
+  round-off dominates — so the gate is `max(tolerance, floor)` with an arithmetic floor
+  derived from the matrix norms. One test asserts the general gate; a second pins the
+  cantilever as the *only* case where the floor binds, so the escape hatch cannot widen
+  unnoticed.
+
+**AC-CORR-003..004** (`b1b0ab8`). A pairing twin permutes, sign-flips, drops and pollutes
+a known mode set and requires both the greedy and the Hungarian method to recover the
+ground-truth permutation, with sub-threshold candidates reported unpaired. For COMAC the
+tests confirm localisation of a gain-error sensor (directly and through the pairing) and
+then document a blind spot worth knowing: a reversed-polarity channel scores a *perfect*
+COMAC at the faulty DOF, so `argmin` points at a healthy sensor instead, and a polarity
+error on a subset of modes does not localise either. COMAC diagnoses magnitude faults,
+not sign faults.
+
+**AC-UPD-002..003** (`33473fe`). Fox-Kapoor eigenvector derivatives match central
+differences to ~1e-8 over the complete basis at two operating points, well inside the
+1e-5 gate, and their truncation error is a strictly decreasing sequence that reaches zero
+at full rank. Getting there needed one correction to the obvious method: when aligning the
+perturbed shapes, only the *sign* of the modal scale factor may be transferred, because
+rescaling by the full MSF divides out the `-1/2 phi^T dM/dp phi` normalisation term and
+breaks every mass-parameter derivative (stiffness ones survive, since their self term is
+zero). A test pins that asymmetry so the shortcut is not reintroduced. The twin
+experiments detune two or three factors by ±20 % — stiffness only, mixed stiffness/mass,
+and a two-factor case — check the starting model genuinely fails both MS-4.2 gates, and
+require recovery to 1e-3 in the infinity norm within ten iterations with a non-increasing
+objective; a fourth case repeats it through the finite-difference/MAC-residual path so the
+result does not rest on the analytical Jacobian.
+
+Verified at `33473fe` on Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1: full suite
+**550 passed**, `ruff check .` clean (ruff 0.16.4). Run from a private clone (`/tmp/a31c`)
+rather than a worktree — the first attempt used a worktree under `/tmp` and lost committed
+test edits to a concurrent reset, the working-tree hazard A28/A32 already report.
+
+Remaining P0 rows still `specified`: AC-MODAL-007/009, AC-CORR-005/007/008,
+AC-UPD-004/005/007, AC-WORK-001/002/004/005.
