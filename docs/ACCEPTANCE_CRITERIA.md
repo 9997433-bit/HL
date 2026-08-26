@@ -81,6 +81,20 @@ The gate selection is available to any run through
 `pytest --criterion AC-<MODULE>-NNN [--criterion-report PATH]`
 (`tests/conftest.py`).
 
+Performing a promotion is a tool run rather than an edit:
+
+```
+python scripts/promote_verified.py --run --apply AC-DYN-001 AC-DYN-002
+```
+
+`scripts/promote_verified.py` runs that same gate selection (or reads the
+report of a run that already happened, `--report PATH`), and rewrites the
+status literal of a row only when the run exited zero and every one of the
+criterion's collected tests passed in the suite the registry names. A skip, a
+partial result, evidence from another suite, or a row still `specified` blocks
+the promotion and leaves the registry untouched; without `--apply` the tool
+only prints the plan.
+
 ---
 
 ## 2. M1 — Modal Analysis (spec MS-1)
@@ -410,10 +424,14 @@ M4 = 5, M5 = 4, M6 = 5, and M7 = 3. The two suffixed M3 rows
 (`AC-UPD-006a` / `AC-UPD-006b`) are distinct criteria under one dense base
 number.
 
-Nine of them are `verified` under the section 1.5 gate: one criterion per
-module, so the promotion exercises every module of the platform
-(AC-MODAL-003, AC-CORR-001, AC-CORR-002, AC-UPD-001, AC-WORK-002, AC-OPT-003,
-AC-DYN-004, AC-ELEM-001), plus the P1 Round-2 sign-off blocker AC-CORR-006.
+Fourteen of them are `verified` under the section 1.5 gate. The first wave took
+one criterion per module, so the promotion exercises every module of the
+platform (AC-MODAL-003, AC-CORR-001, AC-CORR-002, AC-UPD-001, AC-WORK-002,
+AC-OPT-003, AC-DYN-004, AC-ELEM-001), plus the P1 Round-2 sign-off blocker
+AC-CORR-006. The second wave closed the P0 rows of the two modules whose
+Round-2 tasks are complete — M6 damped dynamics (AC-DYN-001, AC-DYN-002,
+AC-DYN-003) and M5 optimization (AC-OPT-001, AC-OPT-002) — so every P0
+criterion of M5 and M6 now rests on the gate.
 
 The registry tests enforce:
 
