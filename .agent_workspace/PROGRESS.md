@@ -78,6 +78,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A114 | claude-opus-5-thinking-high-fast | Confirm the A104/A98 shell merge landed and close the user-facing documentation gap it left (backfill) | complete — merge already on the trunk; `MODULE_SPEC.md` / `USER_GUIDE_zh.md` now cover the shell, 1331 passed at `571c864`, Ruff clean |
 | A129 | parent orchestrator | R2-T02: `neutral_convert` shell branch via `quad4_as="shell"` binding `QUAD4` → `ShellQuad4Element` (+4 tests) | complete — 1335 passed, Ruff clean |
 | A128 | gpt-5.6-sol-xhigh-fast | Example: `read_meshio` → `neutral_to_model(quad4_as="shell")` → modal on plate VTK; README + 中文指南 | complete — example runs 6 modes, 1335 passed |
+| A126 | claude-fable-5-thinking-xhigh | Reconcile ROUND2_PLAN §0 / STATUS / PR_DRAFT to 1331-test / 14-verified snapshot (extended to 44 verified by A121 merge) | complete — §0 re-pinned at `8065205`, 44/44 verified |
 | A121 | gpt-5.6-sol-xhigh-fast | R2-T09 batch promotion: run every remaining implemented criterion through `promote_verified.py --run --apply` | complete — all 30 promoted; registry 44 `verified` / 0 `implemented` |
 
 ## Reference: FEMtools Core Capabilities
