@@ -23,6 +23,13 @@ The reduced mass matrix ``M_r = Tᵀ M T`` is the TAM mass: feeding it to
 :func:`~openfemlab.correlation.mac.mac`) gives pseudo-orthogonality and the
 mass-weighted MAC on the sensor set.
 
+Sparsity (GAP-13): a SciPy sparse ``K`` or ``M`` is never densified. The only
+dense objects the condensation paths build are ``(n, m)`` — the transformation
+itself and the ``K_sm`` right-hand side — because the static coupling block
+``-K_ss⁻¹ K_sm`` is structurally dense whatever ``K`` looks like. The remaining
+densify points are explicit and local: the mode set handed to SEREP (``(n, k)``,
+and :func:`numpy.linalg.pinv` has no sparse form) and those ``(n, m)`` factors.
+
 The master set is given either as explicit row indices or as anything carrying
 ``rows`` and ``signs`` — :class:`~openfemlab.workflow.sensors.SensorMap` is the
 intended source. Passing the map rather than its ``rows`` puts the basis in
@@ -69,13 +76,71 @@ class SensorRows(Protocol):
 Masters = Sequence[int] | npt.NDArray[np.intp] | SensorRows
 
 
-def _dense(matrix: Any, name: str) -> npt.NDArray[np.float64]:
-    """Densify a possibly sparse square matrix and check it is square."""
-    dense = matrix.toarray() if hasattr(matrix, "toarray") else np.asarray(matrix, dtype=float)
-    dense = np.asarray(dense, dtype=float)
-    if dense.ndim != 2 or dense.shape[0] != dense.shape[1]:
-        raise ValueError(f"{name} must be a square matrix, got shape {dense.shape}")
-    return dense
+def _is_sparse(matrix: Any) -> bool:
+    """SciPy sparse duck-test, so this module stays importable without SciPy."""
+    return hasattr(matrix, "toarray") and hasattr(matrix, "tocsc")
+
+
+def _square(matrix: Any, name: str) -> Any:
+    """Check a system matrix is square, leaving a sparse one sparse.
+
+    Formats that cannot be sliced (COO, DIA, ...) are converted to CSR rather
+    than densified, so the choice of assembly format never costs ``n²`` floats.
+    """
+    if _is_sparse(matrix):
+        square = matrix if getattr(matrix, "format", None) in {"csr", "csc"} else matrix.tocsr()
+    else:
+        square = np.asarray(matrix, dtype=float)
+    if square.ndim != 2 or square.shape[0] != square.shape[1]:
+        raise ValueError(f"{name} must be a square matrix, got shape {square.shape}")
+    return square
+
+
+def _block(matrix: Any, rows: npt.NDArray[np.intp], cols: npt.NDArray[np.intp]) -> Any:
+    """The ``matrix[rows, cols]`` sub-block, still sparse if the input was."""
+    if _is_sparse(matrix):
+        return matrix[rows, :][:, cols]
+    return matrix[np.ix_(rows, cols)]
+
+
+def _columns(shapes: Any, name: str = "shapes") -> npt.NDArray[Any]:
+    """:func:`~openfemlab.correlation.mac.as_columns` with a sparse mode set allowed.
+
+    Densifying here is deliberate: a mode set is ``(n, k)`` with ``k ≪ n``, and
+    every consumer below (``pinv``, the column algebra) is dense-only.
+    """
+    return as_columns(shapes.toarray() if _is_sparse(shapes) else shapes, name)
+
+
+_SINGULAR_SLAVE = (
+    "cannot condense onto the master DOFs: the slave stiffness sub-matrix "
+    "is singular (the slave partition contains a mechanism)"
+)
+
+
+def _slave_solve(K_ss: Any):
+    """Factorize ``K_ss`` once and return ``B -> K_ss⁻¹ B``.
+
+    Never forms the inverse, and takes the SuperLU route for sparse input so the
+    slave block is factorized in place rather than expanded to ``(n_s, n_s)``.
+    """
+    if _is_sparse(K_ss):
+        from scipy.sparse.linalg import splu
+
+        try:
+            return splu(K_ss.tocsc()).solve
+        except (RuntimeError, ValueError) as exc:
+            raise SolverError(_SINGULAR_SLAVE) from exc
+
+    dense = np.asarray(K_ss, dtype=float)
+
+    def solve(rhs: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
+        try:
+            return np.linalg.solve(dense, rhs)
+        except np.linalg.LinAlgError as exc:
+            raise SolverError(_SINGULAR_SLAVE) from exc
+
+    return solve
 
 
 def _rows_and_signs(master: Masters):
@@ -168,10 +233,10 @@ class ReductionBasis:
 
     def reduce_matrix(self, matrix: Any) -> npt.NDArray[np.float64]:
         """Project a full-space system matrix: ``Tᵀ A T``, symmetrized."""
-        A = _dense(matrix, "matrix")
+        A = _square(matrix, "matrix")
         if A.shape[0] != self.n_full:
             raise ValueError(f"matrix has {A.shape[0]} rows but the basis spans {self.n_full}")
-        reduced = self.transformation.T @ A @ self.transformation
+        reduced = self.transformation.T @ np.asarray(A @ self.transformation)
         return 0.5 * (reduced + reduced.T)
 
     def reduce_shapes(self, shapes: Any) -> npt.NDArray[Any]:
@@ -180,7 +245,7 @@ class ReductionBasis:
         With channel signs the picked rows are oriented as the sensors read
         them, so the result is directly comparable to measured shapes.
         """
-        full = as_columns(shapes, "shapes")
+        full = _columns(shapes)
         if full.shape[0] != self.n_full:
             raise ValueError(f"shapes have {full.shape[0]} rows but the basis spans {self.n_full}")
         picked = full[self.master, :]
@@ -188,7 +253,7 @@ class ReductionBasis:
 
     def expand(self, shapes: Any) -> npt.NDArray[Any]:
         """Expand master-space shapes ``(m, k)`` to the full space: ``T Φ_m``."""
-        reduced = as_columns(shapes, "shapes")
+        reduced = _columns(shapes)
         if reduced.shape[0] != self.n_master:
             raise ValueError(
                 f"shapes have {reduced.shape[0]} rows but the basis has "
@@ -198,25 +263,26 @@ class ReductionBasis:
 
 
 def _static_transformation(
-    K: npt.NDArray[np.float64],
+    K: Any,
     master: npt.NDArray[np.intp],
     slave: npt.NDArray[np.intp],
-) -> npt.NDArray[np.float64]:
-    """``T_s`` with identity on the masters and ``-K_ss⁻¹ K_sm`` on the slaves."""
+):
+    """``T_s`` with identity on the masters and ``-K_ss⁻¹ K_sm`` on the slaves.
+
+    Returns the transformation together with the ``K_ss`` solve, so the IRS
+    correction can reuse the factorization instead of inverting the block again.
+    ``K_sm`` is densified to ``(n_s, m)`` for the solve; that is the widest
+    dense object the condensation ever needs.
+    """
     n = K.shape[0]
     T = np.zeros((n, master.size))
     T[master, np.arange(master.size)] = 1.0
-    if slave.size:
-        K_ss = K[np.ix_(slave, slave)]
-        K_sm = K[np.ix_(slave, master)]
-        try:
-            T[slave, :] = -np.linalg.solve(K_ss, K_sm)
-        except np.linalg.LinAlgError as exc:
-            raise SolverError(
-                "cannot condense onto the master DOFs: the slave stiffness sub-matrix "
-                "is singular (the slave partition contains a mechanism)"
-            ) from exc
-    return T
+    if not slave.size:
+        return T, None
+    solve_slave = _slave_solve(_block(K, slave, slave))
+    K_sm = _block(K, slave, master)
+    T[slave, :] = -solve_slave(K_sm.toarray() if _is_sparse(K_sm) else K_sm)
+    return T, solve_slave
 
 
 def guyan_reduction(
@@ -236,12 +302,11 @@ def guyan_reduction(
     SolverError
         When ``K_ss`` is singular.
     """
-    K = _dense(stiffness, "stiffness")
+    K = _square(stiffness, "stiffness")
     rows, signs = _rows_and_signs(master)
     master_rows, slave_rows = _master_slave(K.shape[0], rows)
-    return _oriented(
-        _static_transformation(K, master_rows, slave_rows), master_rows, signs, "guyan"
-    )
+    T_s, _ = _static_transformation(K, master_rows, slave_rows)
+    return _oriented(T_s, master_rows, signs, "guyan")
 
 
 def irs_reduction(
@@ -255,26 +320,30 @@ def irs_reduction(
     stiffness (zero elsewhere) and ``K_r``/``M_r`` the Guyan-reduced matrices.
     The correction is first order in ``ω²``, so the reduced eigenvalues sit
     between the Guyan estimate and the exact ones.
+
+    ``S`` is never assembled: being zero outside the slave block, applying it is
+    a ``K_ss`` solve on the slave rows of the ``(n, m)`` product to its right.
     """
-    K = _dense(stiffness, "stiffness")
-    M = _dense(mass, "mass")
+    K = _square(stiffness, "stiffness")
+    M = _square(mass, "mass")
     if M.shape != K.shape:
         raise ValueError(f"mass {M.shape} and stiffness {K.shape} must have the same shape")
     rows, signs = _rows_and_signs(master)
     master_rows, slave_rows = _master_slave(K.shape[0], rows)
-    T_s = _static_transformation(K, master_rows, slave_rows)
+    T_s, solve_slave = _static_transformation(K, master_rows, slave_rows)
 
-    K_r = T_s.T @ K @ T_s
-    M_r = T_s.T @ M @ T_s
-    S = np.zeros_like(K)
-    if slave_rows.size:
-        S[np.ix_(slave_rows, slave_rows)] = np.linalg.inv(K[np.ix_(slave_rows, slave_rows)])
+    M_T = np.asarray(M @ T_s)
+    K_r = T_s.T @ np.asarray(K @ T_s)
+    M_r = T_s.T @ M_T
     try:
-        correction = S @ M @ T_s @ np.linalg.solve(M_r, K_r)
+        loaded = M_T @ np.linalg.solve(M_r, K_r)
     except np.linalg.LinAlgError as exc:
         raise SolverError(
             "cannot form the IRS correction: the Guyan-reduced mass matrix is singular"
         ) from exc
+    correction = np.zeros_like(T_s)
+    if slave_rows.size:
+        correction[slave_rows, :] = solve_slave(loaded[slave_rows, :])
     return _oriented(T_s + correction, master_rows, signs, "irs")
 
 
@@ -297,7 +366,10 @@ def serep_basis(
     Parameters
     ----------
     shapes:
-        ``(n, k)`` full-space mode shapes, e.g. ``ModalResult.shapes``.
+        ``(n, k)`` full-space mode shapes, e.g. ``ModalResult.shapes``. A sparse
+        mode set is accepted and densified here — the documented densify point
+        of this path, since the pseudo-inverse has no sparse form and ``(n, k)``
+        is within budget where an ``(n, n)`` system matrix would not be.
     master:
         Full-space rows the sensors observe, or a sensor map carrying those
         rows and their orientation signs.
@@ -310,7 +382,7 @@ def serep_basis(
         When the master partition is rank deficient, i.e. the sensor set cannot
         distinguish the requested modes.
     """
-    full = as_columns(shapes, "shapes")
+    full = _columns(shapes)
     if np.iscomplexobj(full):
         raise ValueError("SEREP expects real mode shapes; use the real modal basis")
     rows, signs = _rows_and_signs(master)
