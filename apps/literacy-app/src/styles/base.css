@@ -1,5 +1,4 @@
-/* 引入顺序固定：共享令牌 → 共享组件层 → App 本地覆盖 */
-@import '@shared/styles/design-tokens.css';
+@import '@shared/styles/design-tokens.css'; /* 顺序固定：令牌 → 共享组件层 → App 本地 */
 @import '@shared/styles/components.css';
 @import './theme.css';
 

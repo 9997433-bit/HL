@@ -1,11 +1,8 @@
-/* MathQuest 深空主题 — 设计变量体系 */
-
-/* 引入顺序固定：共享令牌 → 共享组件层 → App 本地覆盖。
-   主题由 index.html 的 <html data-theme="cosmos"> 静态选中，避免首帧闪白。 */
-@import '@shared/styles/design-tokens.css';
+@import '@shared/styles/design-tokens.css'; /* 顺序固定：令牌 → 共享组件层 → App 本地 */
 @import '@shared/styles/components.css';
 
-/* 下面这批变量与令牌 §11 兼容别名同值，等 Phase 2 语义化换名后整块删除。 */
+/* MathQuest 深空主题 — 主题由 index.html 的 <html data-theme="cosmos"> 静态选中，
+   避免首帧闪白。下面这批变量与令牌 §11 兼容别名同值，Phase 2 语义化换名后整块删除。 */
 :root {
   /* 骨架期变量(ModuleCard / ModulePlaceholder 仍在使用) */
   --bg-deep: #0b1030;
