@@ -127,7 +127,7 @@ and an updating configuration:
 python examples/02_model_updating_workflow.py --output-dir run
 ```
 
-Use those files for the three principal commands:
+Use those files for the four principal commands:
 
 ```bash
 # Solve and save a portable modal result.
@@ -140,6 +140,11 @@ openfemlab correlate run/cantilever.yaml run/measured.yaml \
   --require-mac 0.95 --require-frequency 2.0 \
   --output run/correlation.json
 
+# Correlate a measured FRF against one synthesized from the damped model.
+openfemlab correlate-frf measured.unv run/cantilever.yaml \
+  --rayleigh 0.02 0.004 --require-frac 0.9 \
+  --output run/frf-correlation.json
+
 # Update bounded model parameters and save both model and run report.
 openfemlab update run/updating.yaml \
   --output run/cantilever.updated.yaml \
@@ -149,6 +154,14 @@ openfemlab update run/updating.yaml \
 openfemlab correlate run/cantilever.updated.yaml run/measured.yaml \
   --partial-dofs --require-mac 0.95 --require-frequency 1.0
 ```
+
+`correlate-frf` takes the measurement as a UFF/UNV dataset-58 file — one record
+per response channel, as a test campaign delivers it — or as the equivalent
+JSON/YAML document (`frequencies_hz`, an `excitation` DOF, and one `channels`
+entry per response DOF with its `real`/`imag` ordinate). It synthesizes the same
+channels on the measured frequency line and reports FRAC per channel plus the
+FDAC matrix; the damping may also live in the model spec as a `damping:` block
+(`ratio`, `ratios`, or `alpha`/`beta`) instead of on the command line.
 
 Global `--quiet`, `--no-color`, and `--traceback` options support scripts and
 diagnostics.
