@@ -425,6 +425,14 @@ orchestrator to diff against the landed implementation in Round 2.
 - Verified the regression in isolation and the complete suite: **167 passed**. The touched
   CLI module and regression test pass Ruff.
 
+#### A20 — Project README
+- Replaced the placeholder README with an OpenFEMLab overview and an alpha-status notice.
+- Documented modal analysis, FE/test correlation, sensitivity-based updating, the six-stage
+  correction workflow, and native/UFF/Nastran IO, including the supported format subsets.
+- Added installation and Python quickstart instructions, reproducible CLI examples for
+  modal/correlate/update, contributor test and lint commands, and single-threaded modal and
+  updating benchmark commands.
+
 #### A10 — Sparse Assembly, Factorization Cache & Vectorized Sensitivity
 - Reworked `core/assembly.py` around preallocated COO buffers and a single shared topology
   traversal for `K` and `M`; coordinates, global DOF maps, rows, and columns are no longer
