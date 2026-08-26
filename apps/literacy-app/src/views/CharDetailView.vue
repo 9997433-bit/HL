@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import HanziStrokeBox from '@/components/HanziStrokeBox.vue'
 import StarBurst from '@/components/StarBurst.vue'
 import { CHARACTERS, getCharacter } from '@/data/characters.js'
-import { getRadical } from '@/data/radicals.js'
+import { RADICAL_MAP, getRadical } from '@/data/radicals.js'
 import { useProgressStore } from '@/stores/progress.js'
 import { useSettingsStore } from '@/stores/settings.js'
 import { speak } from '@/utils/speech.js'
@@ -22,6 +22,15 @@ const toast = ref('')
 const decoded = computed(() => decodeURIComponent(props.char))
 const item = computed(() => getCharacter(decoded.value))
 const radical = computed(() => (item.value ? getRadical(item.value.radical) : null))
+
+/**
+ * 只有 RADICALS 里的 14 个重点部首有讲解页。
+ * 其余是 radicals.js 的兜底条目（横、大字头…），链过去只会落到第一个部首上，
+ * 所以这类部首只展示不跳转。
+ */
+const radicalLink = computed(() =>
+  radical.value && RADICAL_MAP.has(radical.value.id) ? `/radicals/${radical.value.id}` : null
+)
 
 const index = computed(() => CHARACTERS.findIndex((c) => c.char === decoded.value))
 const prev = computed(() => (index.value > 0 ? CHARACTERS[index.value - 1] : null))
@@ -97,13 +106,22 @@ watch(decoded, () => {
           <span v-else-if="record" class="pill pill--accent">🌱 学过 {{ record.views }} 次</span>
         </div>
         <p class="hero__meaning">{{ item.meaning }}</p>
-        <RouterLink v-if="radical" class="hero__radical" to="/radicals" @click="sfx.tap()">
+        <RouterLink
+          v-if="radicalLink"
+          class="hero__radical"
+          :to="radicalLink"
+          @click="sfx.tap()"
+        >
           <span class="hero__radical-glyph">{{ radical.glyph }}</span>
           <span>
             部首「{{ radical.name }}」
             <small class="muted">去看看 →</small>
           </span>
         </RouterLink>
+        <div v-else-if="radical" class="hero__radical hero__radical--plain">
+          <span class="hero__radical-glyph">{{ radical.glyph }}</span>
+          <span>部首「{{ radical.name }}」</span>
+        </div>
       </div>
 
       <HanziStrokeBox
@@ -249,6 +267,12 @@ watch(decoded, () => {
   background: var(--accent-soft);
   font-weight: 700;
   color: var(--text-strong);
+}
+
+/* 没有讲解页的兜底部首：同样的信息，但不做成可点的样子 */
+.hero__radical--plain {
+  background: var(--surface-sunken);
+  color: var(--text);
 }
 
 .hero__radical-glyph {

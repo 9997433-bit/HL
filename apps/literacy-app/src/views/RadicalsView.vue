@@ -1,5 +1,13 @@
 <script setup>
-import { computed, ref } from 'vue'
+/**
+ * 偏旁部首页：左右滑动的部首条 + 当前部首详情。
+ *
+ * 当前部首由地址栏决定（/radicals/shui），不是组件内部状态——
+ * 单字页的「去看看部首」就是靠这个链接跳过来的，
+ * 内部 ref 会让那条链接永远停在第一个部首上。
+ */
+import { computed, nextTick, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { RADICALS } from '@/data/radicals.js'
 import { CHARACTER_MAP } from '@/data/characters.js'
 import { useProgressStore } from '@/stores/progress.js'
@@ -9,16 +17,38 @@ import { sfx } from '@/utils/sfx.js'
 
 const progress = useProgressStore()
 const settings = useSettingsStore()
+const route = useRoute()
+const router = useRouter()
 
-const openId = ref(RADICALS[0].id)
+const pickerEl = ref(null)
 
-const active = computed(() => RADICALS.find((r) => r.id === openId.value) || RADICALS[0])
+/** 地址里的 id 认不出来时退回第一个，不要让页面空掉。 */
+const active = computed(
+  () => RADICALS.find((r) => r.id === route.params.id) || RADICALS[0]
+)
+
+const openId = computed(() => active.value.id)
 
 function select(r) {
+  if (r.id === openId.value) return
   sfx.tap()
-  openId.value = r.id
-  progress.viewRadical(r.id)
+  router.push(`/radicals/${r.id}`)
 }
+
+/** 从别的页面直接跳进来时，把选中的部首滚到可视区内。 */
+function revealActive() {
+  const el = pickerEl.value?.querySelector('.is-on')
+  el?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
+}
+
+watch(
+  openId,
+  (id) => {
+    progress.viewRadical(id)
+    nextTick(revealActive)
+  },
+  { immediate: true }
+)
 
 function say(text) {
   sfx.tap()
@@ -29,8 +59,6 @@ function say(text) {
 function isLearnable(char) {
   return CHARACTER_MAP.has(char)
 }
-
-progress.viewRadical(active.value.id)
 </script>
 
 <template>
@@ -49,7 +77,7 @@ progress.viewRadical(active.value.id)
     </section>
 
     <!-- 部首选择条 -->
-    <section class="picker" role="tablist" aria-label="选择偏旁">
+    <section ref="pickerEl" class="picker" role="tablist" aria-label="选择偏旁">
       <button
         v-for="r in RADICALS"
         :key="r.id"
