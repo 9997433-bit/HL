@@ -1,51 +1,129 @@
 {
   "caveats": [
     "Cloud results are headless proxies, not audio-device or UI SLO certification.",
-    "EBU values validate the independent oracle; no production loudness meter exists.",
+    "EBU values are measured twice: by the independent oracle and by the product meter. A vector only one of them passes is a defect.",
     "Tech 3342 uses its normative \u00b11 LU tolerance."
   ],
   "compliance": {
     "oracle": "tools.ebu_r128 (independent test oracle)",
-    "product_compliance_claimed": false,
-    "product_meter_status": "not-available",
+    "product_compliance_claimed": true,
+    "product_meter_status": "audio_studio.dsp.loudness.LoudnessMeter",
     "tech_3341": [
       {
         "case_id": "3341-1",
-        "error_lu": -0.036574,
         "expected_lufs": -23.0,
-        "measured_lufs": -23.036574,
-        "status": "pass",
+        "oracle_error_lu": 0.006703,
+        "oracle_lu": -22.993297,
+        "oracle_status": "pass",
+        "product_error_lu": 0.006703,
+        "product_lu": -22.993297,
+        "product_status": "pass",
         "tolerance_lu": 0.1
       },
       {
         "case_id": "3341-2",
-        "error_lu": -0.036574,
         "expected_lufs": -33.0,
-        "measured_lufs": -33.036574,
-        "status": "pass",
+        "oracle_error_lu": 0.006703,
+        "oracle_lu": -32.993297,
+        "oracle_status": "pass",
+        "product_error_lu": 0.006703,
+        "product_lu": -32.993297,
+        "product_status": "pass",
         "tolerance_lu": 0.1
       },
       {
         "case_id": "3341-3",
-        "error_lu": -0.057146,
         "expected_lufs": -23.0,
-        "measured_lufs": -23.057146,
-        "status": "pass",
+        "oracle_error_lu": -0.013869,
+        "oracle_lu": -23.013869,
+        "oracle_status": "pass",
+        "product_error_lu": -0.013869,
+        "product_lu": -23.013869,
+        "product_status": "pass",
+        "tolerance_lu": 0.1
+      },
+      {
+        "case_id": "3341-4",
+        "expected_lufs": -23.0,
+        "oracle_error_lu": -0.013869,
+        "oracle_lu": -23.013869,
+        "oracle_status": "pass",
+        "product_error_lu": -0.013869,
+        "product_lu": -23.013869,
+        "product_status": "pass",
+        "tolerance_lu": 0.1
+      },
+      {
+        "case_id": "3341-5",
+        "expected_lufs": -22.997,
+        "oracle_error_lu": 0.018343,
+        "oracle_lu": -22.978657,
+        "oracle_status": "pass",
+        "product_error_lu": 0.018343,
+        "product_lu": -22.978657,
+        "product_status": "pass",
+        "tolerance_lu": 0.1
+      },
+      {
+        "case_id": "3341-6",
+        "expected_lufs": -23.0,
+        "oracle_error_lu": -0.057958,
+        "oracle_lu": -23.057958,
+        "oracle_status": "pass",
+        "product_error_lu": -0.057958,
+        "product_lu": -23.057958,
+        "product_status": "pass",
+        "tolerance_lu": 0.1
+      },
+      {
+        "case_id": "3341-7",
+        "expected_lufs": -23.0,
+        "oracle_error_lu": -0.025968,
+        "oracle_lu": -23.025968,
+        "oracle_status": "pass",
+        "product_error_lu": -0.025968,
+        "product_lu": -23.025968,
+        "product_status": "pass",
         "tolerance_lu": 0.1
       }
     ],
     "tech_3342": [
       {
         "case_id": "3342-1",
-        "error_lu": 0.0,
         "expected_lra_lu": 10.0,
-        "measured_lra_lu": 10.0,
-        "status": "pass",
+        "oracle_error_lu": 0.0,
+        "oracle_lu": 10.0,
+        "oracle_status": "pass",
+        "product_error_lu": 0.0,
+        "product_lu": 10.0,
+        "product_status": "pass",
+        "tolerance_lu": 1.0
+      },
+      {
+        "case_id": "3342-2",
+        "expected_lra_lu": 5.0,
+        "oracle_error_lu": 0.0,
+        "oracle_lu": 5.0,
+        "oracle_status": "pass",
+        "product_error_lu": 0.0,
+        "product_lu": 5.0,
+        "product_status": "pass",
+        "tolerance_lu": 1.0
+      },
+      {
+        "case_id": "3342-3",
+        "expected_lra_lu": 20.0,
+        "oracle_error_lu": -0.0,
+        "oracle_lu": 20.0,
+        "oracle_status": "pass",
+        "product_error_lu": -0.0,
+        "product_lu": 20.0,
+        "product_status": "pass",
         "tolerance_lu": 1.0
       }
     ]
   },
-  "generated_at_utc": "2026-08-26T08:00:07.781246+00:00",
+  "generated_at_utc": "2026-08-26T09:12:05.747269+00:00",
   "golden": {
     "comparison": "WAV fmt fields and SHA-256 of encoded sample payload",
     "formats": [
@@ -57,7 +135,7 @@
   },
   "pytest": {
     "command": [
-      "/usr/bin/python3",
+      "/workspace/.venv/bin/python",
       "-m",
       "pytest",
       "-q",
@@ -68,7 +146,7 @@
     "return_code": 0,
     "status": "pass",
     "stderr": "",
-    "stdout": ".....................                                                    [100%]\n21 passed in 1.06s\n"
+    "stdout": "..................................................................       [100%]\n66 passed in 6.18s\n"
   },
   "round": 2,
   "schema_version": 1,
@@ -88,11 +166,11 @@
         "measured": {
           "buffer_frames": 128,
           "callback_read_timing": {
-            "maximum_ms": 0.006237,
-            "median_ms": 0.001202,
-            "minimum_ms": 0.001085,
-            "p95_ms": 0.001309,
-            "p99_ms": 0.002029
+            "maximum_ms": 0.014834,
+            "median_ms": 0.001124,
+            "minimum_ms": 0.001041,
+            "p95_ms": 0.001206,
+            "p99_ms": 0.00131
           },
           "nominal_output_latency_ms": 2.666667,
           "simulated_callbacks": 2000,
@@ -114,12 +192,12 @@
         "limitation": "Measures the current ring-buffer path, not device wake-up jitter or a full graph.",
         "measured": {
           "block_period_ms": 2.666667,
-          "maximum_ms": 0.020676,
-          "median_ms": 0.002262,
-          "minimum_ms": 0.00213,
-          "p95_ms": 0.002376,
-          "p99_block_utilization_percent": 0.093,
-          "p99_ms": 0.002485
+          "maximum_ms": 0.009441,
+          "median_ms": 0.001963,
+          "minimum_ms": 0.001851,
+          "p95_ms": 0.002068,
+          "p99_block_utilization_percent": 0.08,
+          "p99_ms": 0.002132
         },
         "slo_id": "T2",
         "status": "pass",
@@ -138,12 +216,12 @@
           "block_frames": 128,
           "checksum": 1.53390178,
           "effects_per_track": 4,
-          "maximum_ms": 1.300868,
-          "median_ms": 1.233328,
-          "minimum_ms": 1.203931,
-          "p95_ms": 1.281157,
-          "p99_ms": 1.296926,
-          "single_core_block_utilization_percent": 48.635,
+          "maximum_ms": 1.254813,
+          "median_ms": 1.202361,
+          "minimum_ms": 1.179745,
+          "p95_ms": 1.254066,
+          "p99_ms": 1.254664,
+          "single_core_block_utilization_percent": 47.05,
           "tracks": 32
         },
         "slo_id": "T1",
@@ -160,12 +238,12 @@
         "limitation": "Two-second synthetic clip; formal SLO uses a representative 10-minute programme.",
         "measured": {
           "audio_seconds": 2.0,
-          "maximum_ms": 2.628518,
-          "median_ms": 2.523337,
-          "minimum_ms": 2.508311,
-          "p95_ms": 2.612706,
-          "p99_ms": 2.625356,
-          "realtime_factor": 792.601
+          "maximum_ms": 2.486054,
+          "median_ms": 2.464844,
+          "minimum_ms": 2.446083,
+          "p95_ms": 2.482548,
+          "p99_ms": 2.485353,
+          "realtime_factor": 811.41
         },
         "slo_id": "T3",
         "status": "pass",
@@ -180,14 +258,14 @@
         "formal_slo_verified": false,
         "limitation": "Measures STFT computation, not Qt painting, scrolling, or display refresh cadence.",
         "measured": {
-          "audio_realtime_factor": 958.899,
+          "audio_realtime_factor": 982.153,
           "audio_seconds": 10.0,
-          "frames_per_wall_second": 44588.782,
-          "maximum_ms": 10.550166,
-          "median_ms": 10.428632,
-          "minimum_ms": 10.290175,
-          "p95_ms": 10.537232,
-          "p99_ms": 10.547579,
+          "frames_per_wall_second": 45670.097,
+          "maximum_ms": 10.833315,
+          "median_ms": 10.181717,
+          "minimum_ms": 10.123015,
+          "p95_ms": 10.737443,
+          "p99_ms": 10.814141,
           "stft_frames": 465
         },
         "slo_id": "U2/U3",
@@ -206,11 +284,11 @@
         "measured": {
           "fixture_duration_seconds": 60,
           "fixture_size_bytes": 11520044,
-          "maximum_ms": 10.304996,
-          "median_ms": 8.356842,
-          "minimum_ms": 7.86505,
-          "p95_ms": 9.983501,
-          "p99_ms": 10.240697
+          "maximum_ms": 12.25453,
+          "median_ms": 10.571583,
+          "minimum_ms": 10.309056,
+          "p95_ms": 11.925897,
+          "p99_ms": 12.188803
         },
         "slo_id": "U1",
         "status": "pass",
