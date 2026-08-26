@@ -19,13 +19,17 @@
 ```json
 {
   "scripts": {
-    "check:tokens": "bash scripts/check-tokens.sh",
+    "check:tokens": "node scripts/check-tokens.mjs",
+    "check:tokens:wiring": "node scripts/check-tokens.mjs --wiring-only",
     "test:a11y": "node scripts/a11y-scan.mjs",
     "test:offline": "node scripts/offline-check.mjs",
     "accept:round2": "bash scripts/accept-round2.sh"
   }
 }
 ```
+
+  ✅ `check:tokens` / `check:tokens:wiring` 已于 Round 3 落成（`scripts/check-tokens.mjs`，
+  规格与验收标准见 §11 与 `.agent_workspace/round3-tokens-checklist.md`）。
 
   `accept-round2.sh` 按本计划第 1–7 步顺序串联，任一步非零退出即中止并打印失败步骤号。
 
@@ -76,7 +80,7 @@
 | 项 | 内容 |
 |---|---|
 | 目的 | C-4；绑定 `design-tokens-migration.md` Phase 0–3 收口；成语 hero 卡跟随主题（遗留缺陷 6） |
-| 自动化 | 🔧 `npm run check:tokens`（三段：a. 旧令牌名归零 b. `.vue` 硬编码色值 literacy=0 / math≤10 c. 两入口 CSS 首行引入 design-tokens）；🔧 四主题截屏：puppeteer-core 对关键 6 页 × sunny/care/night/cosmos 输出 `.agent_workspace/shots-round2/` |
+| 自动化 | ✅ `npm run check:tokens`（`scripts/check-tokens.mjs`，三段：C. 接线（两入口 CSS 令牌 → 组件层顺序引入 + `@shared` 别名 + math `data-theme="cosmos"`）→ A. 旧令牌名归零 + §11 别名删除 → B. `.vue` 硬编码色值 literacy=0 / math≤10；Phase 0 阶段可先跑 `npm run check:tokens:wiring` 只验 C 段，详见 §11）；🔧 四主题截屏：puppeteer-core 对关键 6 页 × sunny/care/night/cosmos 输出 `.agent_workspace/shots-round2/` |
 | 通过判据 | check:tokens 全 PASS；截屏无坍塌/白字压白底；主题切换 ≤ 300ms 不闪白；成语 hero 卡在 care/night 下正确换肤 |
 | 人工走查 | 对照 ui-ux-design-spec §3.4 抽查 8 组前景/背景对比度（含 M-A8：`--ice-100` 对 `--cosmos-1`） |
 | 产出 | 日志 §5：check:tokens 输出、截屏索引、对比度抽查表 |
@@ -135,3 +139,47 @@
 | 5 | 本文档 + `design-tokens-migration.md` 执行者（Phase 0–3） |
 | 6 | 验收自动化子代理（benchmark 接 Lighthouse、a11y-scan） |
 | 7 | Service Worker 离线子代理、验收自动化子代理（offline-check） |
+
+---
+
+## 11. Round 3 章节 — 令牌迁移收口验收与 check:tokens 门禁
+
+> 增补：Round 3 v1.0（2026-08-26）
+> 背景：Round 2 收口时 `design-tokens-migration.md` Phase 0–3 **均未执行**（两 App 未引入
+> design-tokens.css），第 5 步自动化缺门禁脚本。本章将迁移收口列为 Round 3 第 5 步的
+> P0 阻断项，并绑定已落成的 `scripts/check-tokens.mjs`。
+> 配套细则与逐相勾选清单：`.agent_workspace/round3-tokens-checklist.md`
+
+### 11.1 check:tokens 脚本规格（已落成 ✅）
+
+| 项 | 规格 |
+|---|---|
+| 实现 | `scripts/check-tokens.mjs`（纯 Node ≥20，零依赖，不调用外部进程） |
+| 入口 | `npm run check:tokens`（全量档）；`npm run check:tokens:wiring`（仅 C 段接线档，等价 `--wiring-only`） |
+| C 段 接线 | ① `shared/styles/design-tokens.css`、`components.css` 存在且令牌源含语义层（`--bg-page`）与 cosmos 主题块；② 两入口 CSS（literacy `src/styles/base.css`、math `src/styles/main.css`）**首个生效语句**（跳过注释/`@charset`）`@import` design-tokens.css，第二条 `@import` components.css（顺序：令牌 → 共享组件 → App 本地）；③ `@import` 路径可解析（支持 `@shared/` 别名与相对路径）；④ 两 `vite.config.js` 含 `@shared` 别名；⑤ math `index.html` 静态挂 `data-theme="cosmos"`（literacy 由 store 动态写，不检静态） |
+| A 段 旧名归零 | 扫描 `apps/*/src/**`（.vue/.css/.js/.mjs/.html）+ 两 `index.html`：`var(--旧名)` 与 `var(--旧名, fallback)` 全部归零（旧名清单 = 迁移文档 §5.a：`--seed-* --space-0..3 --ink/-soft/-dim --cyan --violet --pink --gold --green --red --orange --radius-s/m/l --shadow-card --bg-deep --bg-card --text-main --text-dim --star-gold --radius-card --font-kid`，正则带闭合限定不误伤 `--ink-900` 等令牌合法名）；且 design-tokens.css **§11 兼容别名节已删除**（文件内无旧名定义） |
+| B 段 硬编码色值 | `.vue` 内十六进制色值（`#[0-9a-fA-F]{3,8}`）：literacy = 0、math ≤ 10；行内含 `token-ok` 注释标记的白名单行豁免（标记必须附理由，如 SVG 内嵌插画固有色） |
+| 退出码 | 0 = 所检各段全 PASS；1 = 任一项 FAIL（打印 `[FAIL]` 明细，每段最多 20 行） |
+| 不并入 `npm test` | 迁移收口前必红；由 Round 3 验收流程显式调用，收口后可考虑并入 |
+
+### 11.2 分相门禁绑定（执行顺序 = 迁移文档 §7）
+
+| 相 | 合入门禁（必须绿） | 备注 |
+|---|---|---|
+| Phase 0 接线 | `npm run check:tokens:wiring` + `npm test` | C 段 7 项接线检查全过；截屏与迁移前 0 差异 |
+| Phase 1 literacy 删重 | `npm run check:tokens:wiring` + `npm --prefix apps/literacy-app run test` | 三主题截屏仅允许 `--gap-sm` +2px 位移 |
+| Phase 2 math 语义化 | `npm run check:tokens:wiring` + `npm --prefix apps/math-app run test` | cosmos 截屏仅允许 panel 圆角 32→36px；M-A8 对比度抽查 |
+| Phase 3 删别名 + 收口 | **`npm run check:tokens`（全量）** + `npm test && npm run build:all` | Round 3 第 5 步 P0 阻断项；A/B/C 三段全 PASS |
+
+### 11.3 Round 3 通过判据与基线
+
+- **通过判据（P0）**：`npm run check:tokens` 退出码 0；四主题截屏无坍塌/白字压白底；
+  主题切换 ≤ 300ms 不闪白（沿用第 5 步人工走查）。
+- **B 段口径**：math 预算 ≤ 10 的保留位仅限装饰性 SVG 插画固有色，逐条以 `token-ok` 标记
+  说明；无标记的超预算即 FAIL。
+- **现状基线（2026-08-26 实测，脚本输出）**：C 段 7 项接线全挂（Phase 0 未做）；旧令牌名
+  literacy 45 处 / math 141 处（含 fallback 形态，较迁移文档正则多检出 15 处）；§11 别名节
+  仍在；`.vue` 硬编码色值 literacy 14 处 / math 52 处（白名单 0）。全量档当前 FAIL 12 项，
+  属预期红：迁移执行子代理按 §11.2 分相清零。
+- **留档**：Round 3 执行结果写入 `.agent_workspace/acceptance-log-round3.md`（沿用 §9 模板），
+  §5 小节粘贴 check:tokens 完整输出与白名单豁免清单。
