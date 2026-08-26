@@ -43,6 +43,10 @@ __all__ = [
 #: Default MS-1.2 relative-residual tolerance every returned eigenpair must meet.
 RESIDUAL_TOL = 1e-8
 
+#: Relative gap below which two mode components count as tied for the MS-1.3
+#: sign rule, so a near-symmetric mode gets the same sign from every backend.
+SIGN_TIE_TOL = 1e-8
+
 #: Safety margin over the round-off floor of :func:`residual_floor`; the
 #: backward-error bound of a dense LAPACK solve carries a problem-size constant,
 #: so the floor is only meaningful up to a factor of this order.
@@ -122,6 +126,7 @@ class ModalSolver:
         tol: float = 0.0,
         maxiter: int | None = None,
         residual_tol: float | None = RESIDUAL_TOL,
+        seed: int | None = 0,
         cache_factorization: bool = True,
     ) -> ModalResult:
         """Extract the ``num_modes`` lowest normal modes.
@@ -159,6 +164,11 @@ class ModalSolver:
             ``‖K phi - lambda M phi‖ / ‖K phi‖ <= residual_tol``, else
             :class:`~openfemlab.exceptions.SolverConvergenceError` is raised
             carrying the residuals. ``None`` skips the check.
+        seed:
+            Seeds the Lanczos starting vector, which ARPACK would otherwise
+            draw at random — making repeated sparse runs differ in the last
+            bits (MS-1.3 and AC-MODAL-005 require bitwise reproducibility).
+            ``None`` restores ARPACK's random start.
         cache_factorization:
             Reuse the sparse ``K - shift M`` LU factorization on subsequent
             solves by this solver. Disable when benchmarking cold solves. Call
@@ -190,6 +200,7 @@ class ModalSolver:
                 shift=shift,
                 tol=tol,
                 maxiter=maxiter,
+                seed=seed,
                 cache_factorization=cache_factorization,
             )
         else:
@@ -271,6 +282,7 @@ class ModalSolver:
         shift: float | None,
         tol: float,
         maxiter: int | None,
+        seed: int | None,
         cache_factorization: bool,
     ):
         sigma = _default_shift(K, M) if shift is None else float(shift)
@@ -297,6 +309,7 @@ class ModalSolver:
                 OPinv=inverse,
                 tol=tol,
                 maxiter=maxiter,
+                v0=None if seed is None else _start_vector(K.shape[0], seed),
             )
         except spla.ArpackNoConvergence as exc:
             partial_values = np.atleast_1d(np.asarray(exc.eigenvalues, dtype=float).ravel())
@@ -318,6 +331,11 @@ class ModalSolver:
 
 
 # --------------------------------------------------------------------- helpers
+
+
+def _start_vector(size: int, seed: int) -> np.ndarray:
+    """Reproducible Lanczos start vector; ARPACK draws a random one otherwise."""
+    return np.random.default_rng(seed).standard_normal(size)
 
 
 def _symmetrize(matrix):
@@ -525,10 +543,20 @@ def _mass_normalize(vectors: np.ndarray, M, normalization: str) -> np.ndarray:
 
 
 def _fix_signs(vectors: np.ndarray) -> np.ndarray:
-    """Deterministic sign convention: the largest-magnitude component is positive."""
+    """MS-1.3 sign convention: largest-magnitude component positive.
+
+    Ties go to the lowest DOF index, and "tied" has to mean *nearly* tied: a
+    mode with two peaks of equal magnitude and opposite sign (any antisymmetric
+    mode of a symmetric structure) never has them bitwise equal, so picking the
+    strict argmax lets two backends disagree on the sign of the whole mode over
+    a difference in the last few bits.
+    """
     if vectors.size == 0:
         return vectors
-    dominant = np.argmax(np.abs(vectors), axis=0)
+    magnitudes = np.abs(vectors)
+    peaks = np.max(magnitudes, axis=0)
+    tied = magnitudes >= peaks * (1.0 - SIGN_TIE_TOL)
+    dominant = np.argmax(tied, axis=0)  # first True, i.e. the lowest DOF index
     signs = np.sign(vectors[dominant, np.arange(vectors.shape[1])])
     signs[signs == 0.0] = 1.0
     return vectors * signs

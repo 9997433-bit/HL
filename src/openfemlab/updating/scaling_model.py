@@ -56,10 +56,17 @@ def _dense(matrix: Any) -> np.ndarray:
 
 
 def _fix_signs(vectors: np.ndarray) -> np.ndarray:
-    """Largest-magnitude component positive: a deterministic sign convention."""
+    """Largest-magnitude component positive, ties to the lowest DOF index.
+
+    The same MS-1.3 convention (and the same near-tie tolerance) as
+    :mod:`openfemlab.solver.modal`, restated here because the fallback path
+    must not depend on the core solver stack.
+    """
     if vectors.size == 0:
         return vectors
-    dominant = np.argmax(np.abs(vectors), axis=0)
+    magnitudes = np.abs(vectors)
+    tied = magnitudes >= np.max(magnitudes, axis=0) * (1.0 - 1e-8)
+    dominant = np.argmax(tied, axis=0)
     signs = np.sign(vectors[dominant, np.arange(vectors.shape[1])])
     signs[signs == 0.0] = 1.0
     return vectors * signs
