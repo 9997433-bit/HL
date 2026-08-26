@@ -38,6 +38,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A28 | claude-opus-5-thinking-high-fast | Dynamics/optimization branch integration onto the trunk (backfill for A15) | complete |
 | A32 | claude-fable-5-thinking-xhigh | Round 1 closure: 430-test/Ruff verification, PR draft, progress reconciliation (backfill for A29) | complete |
 | A30 | claude-fable-5-thinking-xhigh | Round 1 close-out: independent full-suite verification & PR-draft completion (backfill for A14) | complete |
+| A27 | claude-opus-5-thinking-high-fast | R2-T07 scipy optimization backend & AC-OPT gates (backfill for A25) | complete |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
@@ -949,8 +950,9 @@ Core backlog (prioritized, from `docs/SOTA_GAP_ANALYSIS.md` §4/§6 + Round 1 co
 
 Supporting: R2-T06 updating depth (incl. the still-unimplemented **P0** AC-UPD-007
 collinearity screen), R2-T07 scipy optimization backend (GAP-12 — the surrounding M5
-package landed at `acda625`, so this is now only `ScipyBackend.solve`), R2-T08 R1-O2
-branch reconciliation, R2-T09 CI exit hardening. Exit bar: all P0+P1 criteria `verified`,
+package landed at `acda625` and `ScipyBackend.solve` is now wired too, so this is
+**done**, A27), R2-T08 R1-O2 branch reconciliation, R2-T09 CI exit hardening.
+Exit bar: all P0+P1 criteria `verified`,
 new dynamics/element/IO criteria at least `implemented`, GAP-01 stays closed.
 
 #### A26 — Round 1 carry-over cleared: MS-4 workflow landed (backfill for A17)
@@ -994,9 +996,8 @@ new dynamics/element/IO criteria at least `implemented`, GAP-01 stays closed.
 **Round 2 entry state.** Both packages Round 1 left uncommitted are now in and green:
 `workflow/` via A13/A26, and the `optimization/` build-out (`variables`, `responses`,
 `gradients`, `problem`, `sizing`, `backends`) via the A28 merge below. No Round-1
-carry-over remains, and what R2-T07 still owes is narrower than the plan states — the
-package is landed and tested, and only `ScipyBackend.solve` is a stub. The A24 backlog
-above is otherwise the live plan.
+carry-over remains, and R2-T07's remaining debt — `ScipyBackend.solve` — was cleared by
+A27. The A24 backlog above is otherwise the live plan.
 
 #### A28 — Dynamics & Optimization Branch Integration (backfill for A15)
 - Merged `cursor/dynamics-damping-frf-9500` into the integration branch at `acda625`,
@@ -1062,6 +1063,58 @@ above is otherwise the live plan.
      FRF correlation metrics. A19 flags the same seam from the other side (they belong in
      `correlation/` if it grows an FRF section); worth settling before the R2-T01 CLI demo
      depends on it.
+
+#### A27 — R2-T07 scipy optimization backend & the AC-OPT gates (backfill for A25)
+- **Cleared the one stub A28 left open.** `9d77b80`/`db36a32` landed the optimization
+  package with a deliberate hole: `ScipyBackend.solve` raised `NotImplementedError`, so
+  `minimize_sizing` could lower a problem but never solve one and all four AC-OPT criteria
+  were unmet. The backend is now wired exactly as `docs/OPTIMIZATION.md` §7 specified it —
+  `Bounds(keep_feasible=True)`, negated inequalities for SLSQP against
+  `NonlinearConstraint(g, -inf, 0)` for trust-constr, `jac` always supplied — and GAP-12 is
+  closed for sizing.
+- **`jac` is not an optimization, it is the contract.** Letting scipy fall back to 2-point
+  differencing would spend one hidden eigensolve per variable per iteration on top of the
+  analytic Fox-Kapoor gradients the package already computes for free, so a problem with no
+  gradient callback now raises `OptimizationError` rather than silently costing 4x.
+- **Bounds audit made non-tautological.** Points are projected onto the box before they
+  reach the model, but `OptimizationIterate.x` stores the *raw* point the backend reported,
+  so `in_bounds` audits AC-OPT-003 instead of restating the projection. The acceptance test
+  additionally spies on the compiled callbacks and asserts that no point the model is asked
+  to evaluate leaves the box.
+- **One stationarity measure for both methods.** SLSQP reports a final gradient norm and
+  trust-constr an `optimality`; neither is comparable to the other. `kkt_residual` instead
+  solves the NNLS fit of the multipliers of the active inequalities and active bounds and
+  reports `‖df/dx + Σ λ_k dg_k/dx + μ_bounds‖` relative to the gradient scale, so a run's
+  first-order optimality reads the same whichever backend produced it.
+- **Reference problem with a closed-form oracle.** A grounded spring-mass chain where
+  `t_j` scales the stiffness *and* the structural mass of link `j` over a fixed
+  non-structural mass `m_0`. Without `m_0` a uniform scaling leaves every frequency
+  unchanged and mass minimization stops fighting the frequency floor; with it the optimum
+  is on the constraint boundary. Scaling every link together gives
+  `λ_i(t) = t μ_i/(t m_s + m_0)`, so `f_1 ≥ f_min` binds at
+  `t* = ω² m_0/(μ_1 − ω² m_s)` — an oracle, not a previous run of the code.
+- **Results.** 3-mass chain, `f_min = 0.065 Hz`, `t*` = 2.667380 (mass 9.502139).
+  SLSQP converges in **7 iterations / 8 eigensolves** to `t` = 2.667380
+  (**9.2e-11** relative), `|g| = 0` and stationarity **0.000e+00**; trust-constr agrees to
+  4.9e-6 relative in 16 iterations / 11 eigensolves. Sizing the three links independently
+  reaches mass **3.977** against the uniform design's 9.502 at the same floor, with the
+  constraint active and stationarity 6.9e-06, and no feasible sample out of 80 random
+  draws beats it. AC-OPT-001: analytic vs central FD worst relative error **1.03e-09**
+  (mass objective) and **2.42e-10** (normalized frequency constraint) over three seeded
+  feasible points — three orders inside the 1e-6 gate.
+- Added `tests/acceptance/test_optimization.py`, the suite the registry has named since the
+  criteria were written, and flipped AC-OPT-001..004 from `specified` to `implemented`;
+  the registry's own status-honesty test enforces the tagging. Extended
+  `tests/test_optimization.py` over the wired backend, replacing the test that pinned the
+  stub's stub-ness.
+- Verified on Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1: full suite **445 passed** (22 s),
+  `ruff check src tests` clean.
+- Open for the orchestrator: shape variables still route through finite differences (no
+  geometric `dK/da`), `problem_from_updater` is wired and gradient-checked but nothing
+  drives `ModelUpdater` through it yet, and DOE/surrogates remain Round 3. Ran in a private
+  worktree at `/tmp/a27` — the shared `/workspace` checkout was on another agent's branch
+  with uncommitted optimization drafts when this task started, and A28's ref-level variant
+  of the same hazard is recorded above.
 
 ### Round 3 — SOTA Polish & Final Acceptance
 **Status:** PENDING
