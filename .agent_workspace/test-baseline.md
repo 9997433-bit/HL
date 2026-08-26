@@ -6,12 +6,13 @@
 
 | 组件 | 最低要求 | 本轮探针 |
 | --- | --- | --- |
-| Node.js | `>=20.11 <25`（建议使用 Node.js 22 LTS） | `v22.14.0` |
+| Node.js | `^20.19.0` 或 `>=22.12.0 <25`（建议使用 Node.js 22 LTS） | `v22.14.0` |
 | npm | `>=10` | `10.9.7` |
 | 操作系统 | Linux / macOS；Windows 使用 WSL 或 Git Bash | Linux `6.12.94+` x86_64 |
 | 压缩工具 | Zip 3.0+；无 Zip 时可用 Python 3.8+ 后备 | Zip 3.0、Python 3.12.3 |
 
-Node.js 与 npm 的版本约束也记录在根目录 `package.json#engines` 中。首次检出后运行：
+Node.js 约束与 Vite 7 的运行时要求一致；Node.js 21 不在支持范围。Node.js 与
+npm 的版本约束也记录在根目录 `package.json#engines` 中。首次检出后运行：
 
 ```bash
 bash scripts/setup.sh

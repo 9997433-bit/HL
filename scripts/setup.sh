@@ -3,7 +3,8 @@ set -Eeuo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MIN_NODE_MAJOR=20
-MIN_NODE_MINOR=11
+MIN_NODE_20_MINOR=19
+MIN_NODE_22_MINOR=12
 MAX_NODE_MAJOR=25
 MIN_NPM_MAJOR=10
 
@@ -13,16 +14,16 @@ fail() {
 }
 
 command -v node >/dev/null 2>&1 ||
-  fail "未找到 Node.js；请先安装 Node.js >=20.11 且 <25。"
+  fail "未找到 Node.js；请安装 Node.js ^20.19 或 >=22.12 且 <25。"
 command -v npm >/dev/null 2>&1 ||
   fail "未找到 npm；请先安装 npm >=10。"
 
 NODE_VERSION="$(node --version | sed 's/^v//')"
 IFS=. read -r NODE_MAJOR NODE_MINOR _ <<<"$NODE_VERSION"
-if (( NODE_MAJOR < MIN_NODE_MAJOR ||
-      NODE_MAJOR >= MAX_NODE_MAJOR ||
-      (NODE_MAJOR == MIN_NODE_MAJOR && NODE_MINOR < MIN_NODE_MINOR) )); then
-  fail "Node.js v${NODE_VERSION} 不受支持；要求 >=20.11 且 <25。"
+if ! (( (NODE_MAJOR == MIN_NODE_MAJOR && NODE_MINOR >= MIN_NODE_20_MINOR) ||
+        (NODE_MAJOR >= 22 && NODE_MAJOR < MAX_NODE_MAJOR &&
+         (NODE_MAJOR != 22 || NODE_MINOR >= MIN_NODE_22_MINOR)) )); then
+  fail "Node.js v${NODE_VERSION} 不受支持；要求 ^20.19 或 >=22.12 且 <25。"
 fi
 
 NPM_VERSION="$(npm --version)"
