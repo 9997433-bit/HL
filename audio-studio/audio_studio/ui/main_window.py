@@ -53,6 +53,7 @@ from PySide6.QtWidgets import (
 from .. import __app_name__, __version__
 from ..core.edit_session import SPECTRAL_ATTENUATION_DB, EditError, EditSession
 from ..core.engine import AudioEngine
+from ..core.large_file import DEFAULT_MEMORY_BUDGET_BYTES, should_stream
 from ..core.loader import (
     SUPPORTED_EXTENSIONS,
     AudioLoadError,
@@ -632,9 +633,17 @@ class MainWindow(QMainWindow):
             self.open_file(path)
 
     def open_file(self, path: str | Path) -> bool:
-        """Load ``path`` into the editor; returns False and reports on failure."""
+        """Load ``path`` into the editor; returns False and reports on failure.
+
+        A file whose decoded form would blow the in-memory editing budget —
+        an RF64/W64 capture is the archetype — is opened for streamed,
+        read-only playback instead of being decoded whole into an
+        :class:`EditSession`.
+        """
         if not self._confirm_discard_unsaved(action="opening another file"):
             return False
+        if should_stream(path, budget_bytes=DEFAULT_MEMORY_BUDGET_BYTES):
+            return self._open_file_streaming(path)
         try:
             clip = self.engine.load(path)
         except AudioLoadError as exc:
@@ -646,6 +655,36 @@ class MainWindow(QMainWindow):
         self._remember_recent(clip.path)
         self._update_for_clip()
         self.statusBar().showMessage(f"Loaded {clip.name}", 4000)
+        return True
+
+    def _open_file_streaming(self, path: str | Path) -> bool:
+        """Open ``path`` for read-only streamed playback, never decoding it whole.
+
+        No :class:`EditSession` is created — editing needs the samples in
+        memory, which is exactly what the memory budget refused — so the edit
+        actions stay disabled and the transport pulls straight from a
+        :class:`~audio_studio.core.sample_source.StreamingSampleSource`. The
+        waveform overview is also skipped: building it would read every frame,
+        which defeats the point of streaming (a ``.pk`` sidecar, when one
+        exists, is picked up by the engine without that pass).
+        """
+        try:
+            source = self.engine.open_stream(path)
+        except AudioLoadError as exc:
+            QMessageBox.critical(self, "Cannot open file", str(exc))
+            return False
+        self._project_path = None
+        self._project_dirty = False
+        self._clear_edit_session()
+        self.set_markers(MarkerList())
+        self._editor_clip = None
+        self._remember_recent(source.path)
+        self._update_for_clip()
+        self.statusBar().showMessage(
+            f"Streaming {source.path.name} — too large to edit in memory, "
+            "playback is read-only",
+            6000,
+        )
         return True
 
     def close_clip(self) -> None:
@@ -1275,10 +1314,18 @@ class MainWindow(QMainWindow):
         """Interleaved frames ``[start, stop)`` of the loaded audio, or ``None``.
 
         Reads through the engine's sample source when there is one, so a clip
-        streamed off disk analyses the same way as one held in memory.
+        streamed off disk analyses the same way as one held in memory — unless
+        materialising the range would blow the memory budget the streaming
+        open existed to protect, in which case the analysis is skipped.
         """
         start, stop = max(0, int(start)), min(int(stop), self.engine.n_frames)
         if stop <= start:
+            return None
+        if (
+            self.engine.is_streaming
+            and (stop - start) * max(self.engine.n_channels, 1) * 4
+            > DEFAULT_MEMORY_BUDGET_BYTES
+        ):
             return None
         source = getattr(self.engine, "source", None)
         if source is not None:
@@ -1558,6 +1605,14 @@ class MainWindow(QMainWindow):
             return
         clip = self.editor_clip
         if clip is None:
+            if self.engine.is_streaming and self.engine.audio_format is not None:
+                fmt = self.engine.audio_format
+                self.status_format.setText(
+                    f"Streaming (read-only)  ·  {fmt.describe()}  ·  "
+                    f"{format_timecode(self.engine.duration)}  ·  "
+                    f"{self.engine.n_frames:,} frames"
+                )
+                return
             self.status_format.setText("No file")
             return
         self.status_format.setText(

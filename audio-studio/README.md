@@ -325,6 +325,38 @@ AUDIO_STUDIO_PEAK_CACHE_KEY=content           python -m audio_studio  # fingerpr
 an optional `peaks` key in the media entry; a bundle written without one (or by
 an older build) simply rebuilds the overview on load.
 
+### Large files (RF64 / W64)
+
+Plain RIFF/WAV stores chunk sizes in 32 bits, so a recording cannot cross 4 GB
+without switching container. Audio Studio reads and writes the two containers
+that lift the limit — **RF64** (EBU Tech 3306; `BW64` broadcast headers are
+recognised too) and **Sony Wave64** (`.w64`) — through libsndfile, and treats
+their size as a first-class concern rather than an accident:
+
+- **Detection is explicit.** `core.large_file.is_large_container()` sniffs the
+  header magic (`RF64`/`BW64`/the Wave64 GUID) without touching a decoder, and
+  `probe()` pins the container name from the same bytes when a libsndfile
+  build labels a 64-bit WAV variant generically.
+- **Frame counts are 64-bit safe.** An RF64 capture can exceed 2³¹ frames.
+  `probe_frames()` and `StreamingSampleSource.n_frames` report plain Python
+  `int`s (arbitrary precision), so no offset computation downstream can wrap.
+- **A memory budget guards full decodes.** Decoding a file into the editor
+  costs `frames × channels × 4` bytes of float32 before undo history is even
+  counted. `core.large_file.check_memory_budget()` estimates that from the
+  header alone and refuses files past the budget (500 MB by default,
+  ~48 minutes of stereo 48 kHz) with an error that points at streaming
+  playback instead of an opaque `MemoryError` minutes later.
+- **The editor streams what it cannot slurp.** *File ▸ Open* on an over-budget
+  file opens it for **read-only streamed playback**: the transport pulls
+  blocks straight off disk through `StreamingSampleSource`, nothing is decoded
+  whole, and the edit actions stay disabled. Whole-file analysis (loudness,
+  full-clip spectrogram) is skipped under the same budget; selection-sized
+  analysis still works. In-memory editing of such files is future work — the
+  copy-on-write `EditSession` currently requires the samples in RAM.
+- **Export round-trips.** `save_audio("bounce.rf64", …)` writes RF64 (and
+  `.w64` writes Wave64) whenever the local libsndfile supports it, so a
+  long-form bounce is not silently truncated at 4 GB.
+
 ### Keyboard
 
 | Shortcut | Action |
@@ -438,8 +470,10 @@ above this package.
   `.pk` sidecar between sessions, but the edit history and the pyramid itself
   are held in memory while a clip is open, and a pyramid restored for a streamed
   file only resolves down to its finest cached level (256 frames per bin) until
-  the samples are read. RF64/>4 GB out-of-core workflows are not yet complete
-  end to end.
+  the samples are read. RF64/W64 containers are detected, streamed and exported
+  (see *Large files* above), but out-of-core *editing* is still missing: a file
+  past the memory budget opens as read-only streamed playback, without a
+  waveform overview unless a `.pk` sidecar already exists.
 
 ## Release notes — v0.1.0-alpha
 

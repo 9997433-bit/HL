@@ -22,6 +22,7 @@ from __future__ import annotations
 import numpy as np
 
 from .edit_session import EditSession
+from .large_file import is_large_container, should_stream
 from .sample_source import (
     BaseSampleSource,
     MemorySampleSource,
@@ -35,6 +36,10 @@ from .types import SAMPLE_DTYPE, TimeRange
 ArraySource = MemorySampleSource
 
 #: A file read a block at a time through libsndfile. ``exact`` is ``False``.
+#: This is also the home of RF64/W64 material: those containers exist because
+#: their audio does not fit a 32-bit RIFF, so ``n_frames`` is an int64-safe
+#: Python ``int`` and :func:`~.large_file.should_stream` routes such files
+#: here rather than through a full decode.
 FileStreamSource = StreamingSampleSource
 
 #: An edit document, which satisfies the protocol directly.
@@ -235,5 +240,7 @@ __all__ = [
     "RegionSource",
     "SampleSource",
     "StreamingSampleSource",
+    "is_large_container",
     "open_source",
+    "should_stream",
 ]

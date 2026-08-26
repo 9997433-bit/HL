@@ -3,6 +3,11 @@
 libsndfile (via :mod:`soundfile`) covers WAV/FLAC/OGG everywhere and MP3 from
 libsndfile 1.1 onwards. When the local libsndfile predates MP3 support we shell
 out to ``ffmpeg`` so that the advertised format list stays honest.
+
+The >4 GB containers — RF64 (EBU Tech 3306) and Sony Wave64 — decode through
+the same path; their frame counts can exceed 2**31, so everything here reports
+counts as plain Python ``int`` (see :func:`probe_frames`) and the policy for
+files too large to decode whole lives in :mod:`.large_file`.
 """
 
 from __future__ import annotations
@@ -32,9 +37,24 @@ SUPPORTED_EXTENSIONS: tuple[str, ...] = (
     ".aif",
     ".aifc",
     ".w64",
+    ".rf64",
     ".caf",
     ".au",
 )
+
+#: Extension → libsndfile major-format token, where the two differ or where the
+#: mapping deserves to be explicit. RF64 and W64 are listed even though the
+#: uppercased extension happens to coincide: they are the >4 GB containers and
+#: their presence in :func:`supported_formats` must not hinge on a string
+#: accident.
+_EXT_TO_FORMAT_TOKEN = {
+    ".wave": "WAV",
+    ".aif": "AIFF",
+    ".aifc": "AIFF",
+    ".oga": "OGG",
+    ".w64": "W64",
+    ".rf64": "RF64",
+}
 
 _EXT_TO_SUBTYPE_DEFAULT = {
     ".wav": "PCM_24",
@@ -87,9 +107,7 @@ def supported_formats() -> dict[str, bool]:
     has_ffmpeg = _ffmpeg_binary() is not None
     result: dict[str, bool] = {}
     for ext in SUPPORTED_EXTENSIONS:
-        token = {".wave": "WAV", ".aif": "AIFF", ".aifc": "AIFF", ".oga": "OGG"}.get(
-            ext, ext.lstrip(".").upper()
-        )
+        token = _EXT_TO_FORMAT_TOKEN.get(ext, ext.lstrip(".").upper())
         result[ext] = token in native or has_ffmpeg
     return result
 
@@ -99,7 +117,7 @@ def file_dialog_filter() -> str:
     patterns = " ".join(f"*{ext}" for ext in SUPPORTED_EXTENSIONS)
     return (
         f"Audio files ({patterns});;"
-        "WAV (*.wav *.wave);;FLAC (*.flac);;MP3 (*.mp3);;"
+        "WAV (*.wav *.wave);;RF64/W64 (*.rf64 *.w64);;FLAC (*.flac);;MP3 (*.mp3);;"
         "Ogg (*.ogg *.oga *.opus);;AIFF (*.aiff *.aif);;All files (*)"
     )
 
@@ -111,12 +129,39 @@ def probe(path: str | Path) -> AudioFormat:
         info = sf.info(str(path))
     except Exception as exc:  # noqa: BLE001 - normalised into AudioLoadError
         raise AudioLoadError(f"Cannot read audio metadata from {path}: {exc}") from exc
+    container = str(info.format or path.suffix.lstrip(".").upper())
+    # libsndfile builds differ in how they label the 64-bit WAV variants (an
+    # RF64 opened by an older build may report plain "WAV"), so the container
+    # is pinned from the header magic rather than trusted when they disagree.
+    if container not in ("RF64", "BW64", "W64"):
+        from .large_file import sniff_container
+
+        sniffed = sniff_container(path)
+        if sniffed is not None:
+            container = sniffed
     return AudioFormat(
         sample_rate=int(info.samplerate),
         channels=int(info.channels),
         subtype=str(info.subtype or "UNKNOWN"),
-        container=str(info.format or path.suffix.lstrip(".").upper()),
+        container=container,
     )
+
+
+def probe_frames(path: str | Path) -> int:
+    """Total frames in ``path`` as an arbitrary-precision Python ``int``.
+
+    Kept separate from :func:`probe` because
+    :class:`~audio_studio.core.types.AudioFormat` describes *how* the audio is
+    encoded, not how much of it there is. RF64/W64 containers may hold more
+    than 2**31 frames; ``soundfile`` reports the count as a 64-bit value and
+    the conversion to a Python ``int`` here cannot overflow past even that.
+    """
+    path = Path(path)
+    try:
+        info = sf.info(str(path))
+    except Exception as exc:  # noqa: BLE001 - normalised into AudioLoadError
+        raise AudioLoadError(f"Cannot read audio metadata from {path}: {exc}") from exc
+    return int(info.frames)
 
 
 def load_audio(path: str | Path, *, target_sample_rate: int | None = None) -> LoadedAudio:
