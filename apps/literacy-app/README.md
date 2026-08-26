@@ -44,6 +44,25 @@ Round 3 扩容至 200 字,规模由 `check:data` 与 `gen:hanzi` 双重守护),
 家长中心的记忆强度热力图按每个字此刻的保持率着色,点格子直接去复习。
 老存档没有记忆卡时,会按已有掌握度反推一张初始卡,升级不清零进度。
 
+## 无障碍
+
+设计令牌统一来自仓库根目录的 `shared/styles/design-tokens.css`（由 `src/styles/base.css`
+第一行引入），`src/styles/theme.css` 只留识字 App 自己的 `--art-tint`。三套主题
+（sunny / care / night）的正文与三级灰都按各自最亮的底色算过对比度，全部 ≥ 4.5:1。
+
+两处只靠颜色和动画表达的环节补了读屏通道：
+
+- **答题与庆祝**：听音识字每一关的关卡号、对错、正确答案、结算星数，以及庆祝浮层的
+  标题/星数/「可以跳过」，都写进常驻的 `aria-live="polite"` 区域；视觉上的短提示
+  标了 `aria-hidden`，避免读屏念两遍。
+- **描红**：描红本身要在田字格里拖拽，键盘和开关设备做不到。进入描红后田字格可聚焦，
+  按空格 / 回车 / → 或点「写下一笔」由程序补一笔，写满全部笔画同样算完成、照常升级
+  掌握度；按 Esc 或点「跳过描红」随时退出。
+
+`node scripts/axe-states.mjs`（仓库根目录，也可 `npm run test:a11y`）会用三套主题
+把每条路由和「描红练习中 / 答题反馈 / 庆祝浮层」这三个交互态各扫一遍，
+critical 与 serious 都必须为 0；`npm run test:acceptance` 已经接上这一步。
+
 ## 功能模块与路由
 
 | 模块 | 路由 | 视图 |
@@ -79,7 +98,7 @@ src/
 ├── data/                    # characters / books / idioms / radicals — 全部数据驱动
 ├── components/              # HanziStrokeBox · ProgressRing · AppHeader · BottomNav · BreakReminder
 ├── views/                   # 各路由页面
-└── styles/                  # base.css · theme.css(儿童向设计令牌/护眼模式)
+└── styles/                  # base.css(引入共享设计令牌+通用组件类) · theme.css(仅识字独有的 --art-tint)
 ```
 
 ## 自检与测试
@@ -102,8 +121,10 @@ npm test             # test:srs + check:data + build + smoke
 `smoke` 用无头 Chrome 依次打开 17 条路由,收集控制台报错与未捕获异常,
 并检查:组件是否挂载、页面有没有漏出 `NaN`/`undefined`、
 **详情页是否被重定向回列表**(内容改 id 之后最容易出现的回归)。
-之后再跑 6 项交互:听音识字答题、绘本翻到读完、成语小剧场走到结尾、
-家长验证与主题切换(含刷新后是否保持)、进度存档累加、笔顺 SVG 是否画出来。
+之后再跑一组交互:听音识字答题、绘本翻到读完、成语小剧场走到结尾、
+家长验证与主题切换(含刷新后是否保持)、进度存档累加、笔顺 SVG 是否画出来,
+以及三条无障碍硬断言——只用键盘写完「日」并记进「会写了」、Esc 能跳过描红、
+答题与庆祝都有 aria-live 播报、共享设计令牌确实生效。
 
 `smoke` 依赖仓库根目录的 `puppeteer-core` 与系统里的 Chrome,
 CI 上跑不了时可以只跑 `check:data`。
