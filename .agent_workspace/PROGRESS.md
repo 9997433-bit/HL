@@ -1816,7 +1816,10 @@ belongs with the HEX8 slice that completes the element family, not squeezed in b
 
 Verified in a private clone at `/tmp/a46` with `PYTHONPATH=/tmp/a46/src`, on Python
 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1: **702 tests collected, 702 passed**, `ruff check .`
-clean. That is the trunk's 636 at `1db2f03` plus the 66 new ones.
+clean. That is the trunk's 636 at `1db2f03` plus the 66 new ones. The trunk moved to
+`0bed333` (A40's merge sweep and A41's FRF report block) while this was being verified, so
+the slice was merged onto that tip and re-run: **737 passed**, Ruff still clean. The only
+conflict was the Active Pool table, where both sides appended rows; all three were kept.
 
 **Working-tree hazard, seventh occurrence.** A concurrent agent ran `git reset --hard` on
 `/workspace` mid-edit and discarded the first pass of this element wholesale. The work was
