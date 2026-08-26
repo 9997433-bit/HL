@@ -75,6 +75,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A56 | claude-opus-5-thinking-high-fast | Close the acceptance registry: MS-1.2 frequency windows plus the last three unwritten criteria, AC-MODAL-008/UPD-008/WORK-003 (backfill for A44) | complete — registry 44/44 `implemented`, 1168 passed, Ruff clean |
 | A106 | claude-opus-5-thinking-high-fast | R2-T02/R2-T05 shared item: `io/neutral_convert.py`, the `NeutralModel` → `Model` conversion for rod/beam/quad/tet/hex (backfill for completed A105) | complete — 52 tests, 1236 passed at `f0cd39a`, Ruff clean |
 | A109 | claude-opus-5-thinking-high-fast | R2-T09 continued: `scripts/promote_verified.py` and the tests that flip five criteria to `verified` on a gate run (backfill for completed A107) | complete — registry 14 `verified` / 30 `implemented`, 1259 passed, Ruff clean |
+| A114 | claude-opus-5-thinking-high-fast | Confirm the A104/A98 shell merge landed and close the user-facing documentation gap it left (backfill) | complete — merge already on the trunk; `MODULE_SPEC.md` / `USER_GUIDE_zh.md` now cover the shell, 1331 passed at `571c864`, Ruff clean |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
@@ -3372,3 +3373,54 @@ that: the status flip is now the *output* of the gate run.
 - **Open for R2-T09** — 30 rows are still `implemented`, and each is now one tool run
   away from promotion as its track closes; the remaining exit item is nothing more than
   running it.
+
+#### A114 — Shell-merge confirmation and the user-facing documentation it was missing
+
+The task was to merge `cursor/shell-quad4-facet-1c70` if it still held unique commits.
+It did when this run started and no longer did by the time the merge was ready: A98
+merged the shell onto the integration branch mid-run, so the merge this run produced was
+discarded rather than pushed as a duplicate. What survived is the gap that merge left.
+
+**The gap.** A98's entry above records the shell in `PROGRESS.md` and `ROUND2_PLAN.md`,
+which are orchestration records. The two documents a *user* reads had no mention of the
+element at all: `docs/MODULE_SPEC.md` MS-8 listed six formulations and not the seventh,
+and `docs/USER_GUIDE_zh.md` documented `BeamElement3D` as the Python-API element beyond
+the model spec with nothing after it. An element whose whole point is making an imported
+shell mesh analysable was undiscoverable outside the source.
+
+**MS-8 now carries the shell** as a formulation-table row and a subsection: the
+geometry-derived facet frame and the node-block rotation it shares with `BeamElement3D`;
+the three uncoupled parts, including the fact that the membrane is the plane-stress
+`Quad4Element` reused rather than a second bilinear kernel; and the four consequences a
+user has to know before trusting a result — flatness is enforced with a typed error
+rather than assumed, the drilling stiffness is a decoupled penalty that costs a coplanar
+assembly nothing and a fold a small mesh-dependent artificial stiffness, drilling and
+(by default) bending rotations are massless so a damped or direct solve must constrain
+them, and membrane–bending coupling within a facet is absent so curvature lives only in
+the faceting. MS-8.5 gains the API including `local_frame` / `local_coords` /
+`transformation_matrix`, and the mesh-generator bullet names `shell_plate_mesh` and the
+node numbering it shares with `quad_plate_mesh`.
+
+**The Chinese guide** gains the matching section with a runnable `shell_plate_mesh`
+example, checked by running it: a 12×6 steel cantilever plate (1.0 × 0.5 m, 2 mm) gives
+a first bending frequency of 1.717 Hz against the 1.752 Hz thin-strip closed form, the
+~2 % a plate's anticlastic restraint should produce. The dotted-path paragraph that had
+drifted below the Python-API extras moved back beside the model-spec discussion it
+explains.
+
+**Stale claims corrected.** `STATUS.md`, `PR_DRAFT.md` and `ORCHESTRATOR_REPORT.md` all
+still said the shell facet was open, and all three still carried the 1184-test /
+9-verified figures. They now read 1331 tests and 14 `verified` / 30 `implemented`
+— both re-measured at `571c864`, not copied — and describe the remaining R2-T02 work
+as it actually stands: folding the shell into the AC-ELEM case table, giving
+`neutral_convert` a shell branch, and the solid/shell BDF cards.
+
+**Verification.** **1331 passed, 0 failed** and `ruff check .` clean at `571c864` in a
+private worktree with `PYTHONPATH` pinned to its own `src`.
+
+**Process.** Two hazards, both already in this log and both live again. The shared
+`/workspace` checkout was switched to another agent's branch between two of this run's
+commands, which is why the work moved to `/tmp/a114`. And the environment handed this
+run a `PYTHONPATH` pointing at `/tmp/a98` — *another agent's worktree* — so an unpinned
+`pytest` imported the wrong `openfemlab` and failed on an import error that had nothing
+to do with the checkout under test. Pin `PYTHONPATH`; do not merely inherit it.

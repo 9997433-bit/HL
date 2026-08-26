@@ -1,7 +1,7 @@
 # PR Draft — OpenFEMLab Round 1
 
 Ready to file. Base: `main`. Head: `cursor/femtools-industrial-7aa3`.
-Verified at commit `e111901`: full suite **1184 passed in 52.32 s**,
+Verified at commit `571c864`: full suite **1331 passed**,
 `ruff check .` clean (Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1).
 Source references: [README](../README.md), [Chinese user guide](../docs/USER_GUIDE_zh.md),
 and [orchestrator report](ORCHESTRATOR_REPORT.md).
@@ -9,7 +9,7 @@ and [orchestrator report](ORCHESTRATOR_REPORT.md).
 ## Title
 
 ```
-OpenFEMLab: solver-independent CAE platform — modal analysis, correlation, model updating, damped dynamics, 3D elements (1184 tests)
+OpenFEMLab: solver-independent CAE platform — modal analysis, correlation, model updating, damped dynamics, 3D elements (1331 tests)
 ```
 
 ## Body
@@ -34,12 +34,16 @@ synthesis, and optimization hooks — all behind one CLI and a schema-versioned 
   which passes the 3D patch test on distorted geometry to 2.8e-16, and the HEX8 trilinear
   brick (`gauss_legendre_3d` tensor quadrature, `mesh.simple.hex_block_mesh` sharing its
   node numbering with `tet_block_mesh` so the two are element-for-element comparable
-  discretizations of the same box); one-pass preallocated COO→CSR assembly; one
+  discretizations of the same box), and the flat-facet `ShellQuad4Element` shell
+  (six DOFs per node: the plane-stress membrane reused verbatim, a MITC4 Mindlin plate,
+  and a drilling penalty, with `mesh.simple.shell_plate_mesh` numbering its nodes like
+  `quad_plate_mesh`); one-pass preallocated COO→CSR assembly; one
   `ModalSolver` façade with dense and sparse shift-invert backends, static condensation of
   massless DOFs, mass normalization, participation/effective masses, and a shift-invert LU
   cache. Validated against closed-form spectra to 1e-9 relative (worst continuum case
-  0.2 %). R2-T02 remains **partial**: shell facets and the corresponding solid/shell BDF
-  cards are still open, and TET4's bending lock is pinned by test rather than fixed.
+  0.2 %). R2-T02 remains **partial**: no formulation is outstanding, but the solid/shell
+  BDF cards are still open, the AC-ELEM case table does not yet include the shell, and
+  TET4's bending lock is pinned by test rather than fixed.
 - **Damped dynamics** (`solver/dynamics.py`): Rayleigh, modal, and structural damping
   models; complex modes with modal phase collinearity; modal, complex-modal, and direct
   FRF synthesis; harmonic response; residual flexibility; FRAC/FDAC FRF correlation
@@ -83,8 +87,8 @@ synthesis, and optimization hooks — all behind one CLI and a schema-versioned 
   JSON/YAML model specs and UFF-58 measured FRFs; machine-readable JSON on stdout,
   diagnostics on stderr, CI acceptance gates via exit codes; covered end to end
   including subprocess runs.
-- **QA stack**: 1184 tests including a machine-readable registry of 44 quantified
-  acceptance criteria: 9 `verified`, 35 `implemented`, and 0 `specified`, with
+- **QA stack**: 1331 tests including a machine-readable registry of 44 quantified
+  acceptance criteria: 14 `verified`, 30 `implemented`, and 0 `specified`, with
   **34/34 P0** and **10/10 P1** rows covered — plus boundary/probe suites,
   performance-regression gates, and benchmarks; GitHub Actions CI on Python
   3.10–3.13; `ruff check` clean.
@@ -96,22 +100,25 @@ synthesis, and optimization hooks — all behind one CLI and a schema-versioned 
 
 ## Verification
 
-- `PYTHONPATH=src python -m pytest` — **1184 passed in 52.32 s** at commit `e111901`
+- `PYTHONPATH=src python -m pytest` — **1331 passed** at commit `571c864`
   on Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1, from a detached private worktree.
 - `ruff check .` — clean.
-- The 16 tests added since the 1168-test registry-closure snapshot exercise the
-  R2-T09 verified-criterion promotion gate.
-- Per-suite breakdown (sums to 1184): acceptance registry + gates 388, dynamics 82,
-  HEX8 76, TET4 66, QUAD4 61, updating 57, correlation 52, meshio bridge 44,
+- The 147 tests added since the 1184-test snapshot at `e111901` are the flat-facet
+  shell (72), the `NeutralModel` → `Model` converter (52) and the R2-T09 promotion
+  tool (23).
+- Per-suite breakdown (sums to 1331): acceptance registry + gates 388, dynamics 82,
+  HEX8 76, shell facet 72, TET4 66, QUAD4 61, updating 57, correlation 52,
+  neutral-model conversion 52, meshio bridge 44,
   modal solver 44, `BeamElement3D` 42, workflow 41, Bayesian updating 36,
-  reduction/expansion 32, optimization 27, FRF correlation 25,
+  reduction/expansion 32, optimization 27, FRF correlation 25, promotion tool 23,
   IO (native/UFF/Nastran) 24, CLI 22+16+1 (incl. `correlate-frf`), core 18,
   result contract 17, boundary/performance/e2e/scaffold 13.
 - The three continuum elements are held to one shared standard: AC-ELEM-001..003 are
   parametrized over QUAD4, TET4 and HEX8 alike, so the patch test (defects 1.5e-16 /
   2.8e-16 / 2.8e-16), the exact zero-energy mode count, and quadratic h-convergence
   (observed orders 4.005 / 4.095 / 4.005 per halving) describe the element library rather
-  than whichever element landed most recently.
+  than whichever element landed most recently. The shell carries its own 72-test suite
+  but is not yet in that parametrization.
 - HEX8 is the concrete argument for hexes over tets: against the Euler–Bernoulli
   cantilever it is +8.0 % at 2475 DOF where TET4 on the *same* grid is still +25 %. Its
   shear locking at one element through the thickness (+89 %) is asserted too, so the
@@ -135,7 +142,7 @@ openness, and automation:
 |---|---|---|---|
 | Solver-independent data model | mature, many interfaces | same idea; UNV 55/58, Nastran-lite, and the meshio bridge | parity (breadth later) |
 | Modal analysis | internal + external solvers | SciPy dense + shift-invert Lanczos, sparse throughout, LU cache | parity |
-| Element library | full industrial set | QUAD4 / TET4 / HEX8 continuum + spring/truss/planar beam + spatial `BeamElement3D`; shell facet remains open | gap (narrowing) |
+| Element library | full industrial set | QUAD4 / TET4 / HEX8 continuum + spring/truss/planar beam + spatial `BeamElement3D` + the MITC4 flat-facet shell; no formulation outstanding, breadth (TRI3, quadratic elements, composites) still short | gap (narrowing) |
 | Dynamic response / FRF | mature | Rayleigh/modal/hysteretic damping, complex modes, receptance/mobility/accelerance synthesis, FRAC/FDAC | parity |
 | Correlation (MAC/COMAC/orthogonality) | yes | plus globally optimal Hungarian pairing | **exceed** |
 | Sensitivity-based updating | weighted LSQ, manual tuning | LM with adaptive damping, Tikhonov, bounds by construction, analytic MAC sensitivities, Bayesian MAP with a Laplace posterior | **exceed** |
@@ -158,15 +165,16 @@ openness, and automation:
   this acceptance slice.
 - `.agent_workspace/` holds orchestration records (progress log, Round 2 plan);
   it is documentation, not runtime code.
-- **R2-T02 has its three continuum slices and spatial beam.** QUAD4, TET4, HEX8, and
-  `BeamElement3D` are all in, and module **M7** (`ELEM`) registers the continuum
-  criteria. The task stays **partial** on purpose: the flat-facet shell with drilling
-  DOFs, the `CQUAD4`/`CTETRA`/`CHEXA`/`CBAR`/`PSHELL`/`PSOLID` cards, and the
-  `NeutralModel → Model` conversion that turns an imported block into bound elements are
-  still open, which is what keeps an imported industrial mesh from being re-analyzed
-  internally.
-- The acceptance registry is closed at **44/44 covered** (35 `implemented` +
-  9 `verified`, spanning all 34 P0 and 10 P1 rows);
+- **R2-T02 has every formulation it set out to build.** QUAD4, TET4, HEX8,
+  `BeamElement3D` and the flat-facet `ShellQuad4Element` are all in, module **M7**
+  (`ELEM`) registers the continuum criteria, and `io/neutral_convert.to_model` binds an
+  imported ROD2/BEAM2/QUAD4/TET4/HEX8 block into those formulations, so an imported
+  industrial mesh can now be re-analyzed internally. The task stays **partial** on
+  purpose: the AC-ELEM case table does not yet cover the shell, `to_model` still binds an
+  imported `QUAD4` block to the *membrane* element rather than the shell, and the
+  `CQUAD4`/`CTETRA`/`CHEXA`/`CBAR`/`PSHELL`/`PSOLID` cards are open.
+- The acceptance registry is closed at **44/44 covered** (30 `implemented` +
+  14 `verified`, spanning all 34 P0 and 10 P1 rows);
   MPE from measured FRFs and pretest planning remain pending outside this registry
   closure and are tracked in `docs/SOTA_GAP_ANALYSIS.md` and
   `.agent_workspace/ROUND2_PLAN.md`.
