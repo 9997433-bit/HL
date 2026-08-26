@@ -1,0 +1,23 @@
+{
+  "name": "math-app",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "MathQuest 数学星球大冒险 — 开源儿童数学 Web 应用:数与量启蒙 / 加减乘除 / 几何空间 / 逻辑推理 / 数独 / 应用题 / 进度系统",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview --port 4174"
+  },
+  "dependencies": {
+    "gsap": "^3.12.5",
+    "pinia": "^2.2.6",
+    "tone": "^15.0.4",
+    "vue": "^3.5.13",
+    "vue-router": "^4.4.5"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.1",
+    "vite": "^5.4.11"
+  }
+}

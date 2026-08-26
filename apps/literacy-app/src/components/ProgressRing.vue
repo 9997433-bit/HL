@@ -1,0 +1,120 @@
+<script setup>
+/**
+ * 环形进度条。数值变化时用 GSAP 补间 stroke-dashoffset，
+ * 比直接跳变更容易让孩子注意到「我又前进了一点」。
+ */
+import { computed, onMounted, ref, watch } from 'vue'
+import { gsap } from 'gsap'
+
+const props = defineProps({
+  /** 0 ~ 1 */
+  value: { type: Number, default: 0 },
+  size: { type: Number, default: 72 },
+  thickness: { type: Number, default: 8 },
+  color: { type: String, default: 'var(--brand)' },
+  trackColor: { type: String, default: 'var(--stroke-hint)' },
+  /** 圆环中心显示的内容，留空则用插槽 */
+  label: { type: String, default: '' },
+  sublabel: { type: String, default: '' }
+})
+
+const radius = computed(() => (props.size - props.thickness) / 2)
+const circumference = computed(() => 2 * Math.PI * radius.value)
+
+/** 供动画补间的中间值。 */
+const shown = ref(0)
+const offset = computed(() => circumference.value * (1 - Math.min(1, Math.max(0, shown.value))))
+
+const tween = { v: 0 }
+
+function animateTo(target) {
+  gsap.to(tween, {
+    v: Math.min(1, Math.max(0, target)),
+    duration: 0.7,
+    ease: 'power2.out',
+    onUpdate: () => {
+      shown.value = tween.v
+    }
+  })
+}
+
+onMounted(() => animateTo(props.value))
+watch(() => props.value, animateTo)
+
+const percent = computed(() => Math.round(shown.value * 100))
+</script>
+
+<template>
+  <div class="ring" :style="{ width: `${size}px`, height: `${size}px` }">
+    <svg :width="size" :height="size" :viewBox="`0 0 ${size} ${size}`" aria-hidden="true">
+      <circle
+        :cx="size / 2"
+        :cy="size / 2"
+        :r="radius"
+        fill="none"
+        :stroke="trackColor"
+        :stroke-width="thickness"
+      />
+      <circle
+        class="ring__bar"
+        :cx="size / 2"
+        :cy="size / 2"
+        :r="radius"
+        fill="none"
+        :stroke="color"
+        :stroke-width="thickness"
+        stroke-linecap="round"
+        :stroke-dasharray="circumference"
+        :stroke-dashoffset="offset"
+        :transform="`rotate(-90 ${size / 2} ${size / 2})`"
+      />
+    </svg>
+
+    <div class="ring__center">
+      <slot>
+        <strong class="ring__label">{{ label || `${percent}%` }}</strong>
+        <small v-if="sublabel" class="ring__sub">{{ sublabel }}</small>
+      </slot>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.ring {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+}
+
+.ring svg {
+  position: absolute;
+  inset: 0;
+}
+
+.ring__bar {
+  transition: stroke var(--dur-mid) ease;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.12));
+}
+
+.ring__center {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.1;
+  text-align: center;
+}
+
+.ring__label {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--text-strong);
+}
+
+.ring__sub {
+  font-size: 0.65rem;
+  color: var(--text-soft);
+}
+</style>
