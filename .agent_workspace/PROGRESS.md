@@ -34,7 +34,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | R1-O1 | claude-opus-5-thinking-high-fast | Core FEM + modal solver | pending |
 | R1-O2 | claude-opus-5-thinking-high-fast | Model updating & correlation | pending |
 | R1-G1 | gpt-5.6-sol-xhigh-fast | Project scaffold & benchmarks | complete |
-| R1-G2 | gpt-5.6-sol-xhigh-fast | Boundary tests & mock probes | implemented; validation pending |
+| R1-G2 | gpt-5.6-sol-xhigh-fast | Boundary tests & mock probes | complete |
 
 #### R1-G1 — Project Scaffold & Benchmarks
 - Added Python packaging metadata, runtime/dev dependencies, Make targets, and push CI.
@@ -44,6 +44,15 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 - Verified on Python 3.12: 8 tests passed; R1-G1 files pass Ruff.
 - Modal median baselines: 10 DOF 0.669 ms; 100 DOF 1.180 ms; 1000 DOF 1.815 ms.
 - Updating baseline: 35.640 ms median for five iterations at 100 DOF (RMS 5.848e-3 to 1.583e-5).
+
+#### R1-G2 — Boundary Tests & Mock Probes
+- Added analytic 2-DOF and 10-DOF chain fixtures plus synthetic FE/test modal data.
+- Added environment/BLAS, repeated-eigensolve, and finite-difference sensitivity probes.
+- Added zero-mass, rigid-mode, repeated-root, and missing-DOF boundary coverage.
+- Verified NumPy 2.5.2, SciPy 1.18.1, and OpenBLAS 0.3.34; all environment checks passed.
+- Repeated 50 eigen solves with zero eigenpair drift (normalized residual 6.58e-17).
+- Sensitivity finite differences matched analytic derivatives within 1.69e-9 relative error.
+- Verified on Python 3.12: 5 boundary tests passed; aggregate install validation passed.
 
 ### Round 2 — Targeted Refactor & Deep Optimization
 **Status:** PENDING

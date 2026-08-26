@@ -9,6 +9,7 @@ import io
 import json
 import platform
 import re
+import warnings
 from typing import Any, Sequence
 
 
@@ -65,8 +66,10 @@ def run_probe(
         return report
 
     config_buffer = io.StringIO()
-    with contextlib.redirect_stdout(config_buffer):
-        np.show_config()
+    with warnings.catch_warnings(record=True) as config_warnings:
+        warnings.simplefilter("always")
+        with contextlib.redirect_stdout(config_buffer):
+            np.show_config()
     blas_config = config_buffer.getvalue().strip()
 
     product = np.array([[1.0, 2.0], [3.0, 4.0]]) @ np.array([2.0, -1.0])
@@ -85,6 +88,7 @@ def run_probe(
             "blas": {
                 "vendor": _blas_vendor(blas_config),
                 "configuration": blas_config,
+                "warnings": [str(warning.message) for warning in config_warnings],
             },
             "checks": checks,
             "status": "pass" if all(checks.values()) else "fail",
