@@ -2,56 +2,57 @@
 
 Implemented here
 ----------------
-- **AC-OPT-002** (oracle, MS-5.2) — the reference sizing problem converges to
-  its closed-form optimum: objective within 1e-4 relative, active constraint
+- **AC-OPT-001** (oracle, MS-5.1) — mass-objective and frequency-constraint
+  gradients from the sensitivity kernel match central differences to relative
+  error 1e-6 at three seeded feasible design points.
+- **AC-OPT-002** (oracle, MS-5.2) — two sizing problems whose optima are known
+  in closed form are recovered: objective within 1e-4 relative, active
   ``|g| <= 1e-6``.
-- **AC-OPT-003** (contract, MS-5.2) — no design point outside the box ever
-  reaches the model, and every recorded iterate satisfies the bounds to 1e-12,
-  including a run whose optimum sits *on* a bound.
+- **AC-OPT-003** (contract, MS-5.2) — every recorded iterate satisfies the box
+  to 1e-12, *and* no objective or constraint evaluation is requested outside
+  it: the reference model records every parameter point it is asked for.
+- **AC-OPT-004** (twin, MS-5.2) — across a mode crossing the constraint stays
+  attached to the physical branch (MAC >= 0.9 against the previous iterate)
+  and the active-constraint report names it consistently.
 
-The reference problem
----------------------
-A fixed-free two-mass chain whose two spring groups are the design variables,
-sized against a frequency floor.  Each group carries mass as well as stiffness
-(``eps`` per unit of ``k``), which is what makes the statement a sizing problem
-rather than a free lunch: without the coupling, "minimize mass subject to
-``f_1 >= f_min``" would be solved by shrinking every variable to its lower
-bound::
+Reference problems
+------------------
+Both AC-OPT-002 problems are solved analytically rather than against a stored
+run, and each is the smallest system that makes its constraint bind.
 
-    K(k) = [[k1 + k2, -k2], [-k2, k2]]      M(k) = (1 + eps S) I,  S = k1 + k2
+*Sized oscillator* — the scenario the criteria document describes (minimize
+total mass subject to ``f_1 >= f_min``, optimum on the constraint boundary).
+The size variable ``t`` scales the spring **and** the structural mass it
+carries, which is what makes the floor bind: with a mass-only
+parameterization, mass appears solely in the denominator of ``lambda = k/m``,
+so shedding mass would raise ``f_1`` for free and the floor could never be
+active.  With ``K = t k`` and ``M = m_0 + t mu``,
 
-Its optimum is known in closed form, which is what makes this an *oracle*
-rather than a regression test:
+    lambda(t) = t k / (m_0 + t mu)   =>   t* = lambda_min m_0 / (k - lambda_min mu)
 
-1. ``det(K - mu I) = mu^2 - (k1 + 2 k2) mu + k1 k2``, and because ``M`` is a
-   multiple of the identity the generalized eigenvalues are ``lambda =
-   mu / (1 + eps S)``.
-2. Total mass ``e^T M e = 2 (1 + eps S)`` is increasing in ``S``, so minimizing
-   mass is minimizing ``S``.
-3. At fixed ``S`` the fundamental ``mu_1`` is largest for the split
-   ``(k1, k2) = (3S/5, 2S/5)``: substituting gives ``mu^2 - 1.4 S mu + 0.24
-   S^2 = 0``, whose roots are ``S/5`` and ``6S/5``, so ``mu_1 = S/5``.
-4. The frequency floor therefore first becomes reachable at
-   ``S* = lambda* / (1/5 - eps lambda*)``, and only at the maximizing split —
-   so the optimum is the single point ``k* = (3 S*/5, 2 S*/5)`` with mass
-   ``2 (1 + eps S*)``, sitting exactly on the constraint boundary.
+and the optimal mass is ``m_0 k / (k - lambda_min mu)``.
 
-With ``eps = 1/10`` and ``lambda* = 1`` the numbers are exact:
-``S* = 10``, ``k* = (6, 4)``, ``mass* = 4``.
+*Payload placement* — a coupled two-mass system carrying a required payload,
+split between the two mounting points to maximize the fundamental frequency.
+For ``K = [[2, -1], [-1, 2]]`` the mode ``phi = (1, 1)`` equalizes
+``dlambda_1/dm_j = -lambda_1 phi_j^2``, so the stationary split is the even
+one: ``m_1 = m_2 = m_req / 2`` with ``lambda_1 = 2 / m_req``.  The mass floor
+is active because a lighter structure would be stiffer still.
 """
 
 from __future__ import annotations
 
-from typing import Any
-
 import numpy as np
 import pytest
-from scipy.optimize import brentq
 
+from openfemlab.correlation import mac_value
 from openfemlab.optimization import (
+    Constraint,
+    NaturalFrequency,
     Objective,
-    OptimizationResult,
     TotalMass,
+    check_gradient,
+    compile_sizing_problem,
     frequency_floor,
     minimize_sizing,
 )
@@ -61,260 +62,342 @@ from ._support import criterion, spring_chain_parts
 
 TWO_PI = 2.0 * np.pi
 
-#: Gates of AC-OPT-002 and AC-OPT-003.
-OBJECTIVE_RTOL = 1.0e-4
-ACTIVE_TOL = 1.0e-6
-BOUND_TOL = 1.0e-12
+#: Gates of section 6.
+GRADIENT_RTOL = 1e-6
+OBJECTIVE_RTOL = 1e-4
+ACTIVE_TOL = 1e-6
+BOUND_TOL = 1e-12
+TRACKING_MAC = 0.9
 
-#: Mass carried per unit of stiffness — the sizing coupling.
-MASS_COUPLING = 0.1
-
-#: Frequency floor, as the eigenvalue ``lambda* = (2 pi f_min)^2``.
-LAMBDA_TARGET = 1.0
-F_MIN = np.sqrt(LAMBDA_TARGET) / TWO_PI
-
-#: Closed-form optimum (see the module docstring).
-S_STAR = LAMBDA_TARGET / (0.2 - MASS_COUPLING * LAMBDA_TARGET)
-K_STAR = np.array([0.6 * S_STAR, 0.4 * S_STAR])
-MASS_STAR = 2.0 * (1.0 + MASS_COUPLING * S_STAR)
-
-#: The methods of ``ScipyBackend`` with the iteration budget each needs here.
-#: trust-constr spends an order of magnitude more steps than SLSQP on the same
-#: problem: it drives ``gtol`` (a KKT measure) rather than SLSQP's ``ftol``.
-BACKENDS = {"slsqp": 100, "trust-constr": 200}
+#: Backends required to agree on the reference optima.  SLSQP is the MS-5.2
+#: default and the one the quantitative gates are read from; trust-constr is
+#: an interior-point method, so it approaches an active constraint from inside
+#: and settles a barrier width short of |g| = 0.
+BACKENDS = ("slsqp", "trust-constr")
 
 
-def reference_model() -> ScalingModel:
-    """The sizing model of the module docstring."""
-    stiffness_parts, _ = spring_chain_parts(2, ((1,), (2,)), ())
-    coupled_mass = MASS_COUPLING * np.eye(2)
-    return ScalingModel(
-        stiffness_parts=stiffness_parts,
-        mass_parts={name: coupled_mass for name in stiffness_parts},
-        base_mass=np.eye(2),
+def _zero_hessian(n: int):
+    """Exact objective Hessian of a linear (minimum-mass) objective."""
+    return lambda x: np.zeros((n, n))
+
+
+def _recording(model: ScalingModel) -> ScalingModel:
+    """Wrap a model so every parameter point it is asked to solve is recorded."""
+    model.requested = []  # type: ignore[attr-defined]
+    inner_eigen, inner_assemble = model.eigen, model.assemble
+
+    def eigen(values):
+        model.requested.append(dict(values))  # type: ignore[attr-defined]
+        return inner_eigen(values)
+
+    def assemble(values):
+        model.requested.append(dict(values))  # type: ignore[attr-defined]
+        return inner_assemble(values)
+
+    model.eigen = eigen  # type: ignore[method-assign]
+    model.assemble = assemble  # type: ignore[method-assign]
+    return model
+
+
+# ---------------------------------------------------------------------------
+# AC-OPT-001 — analytic gradients vs central finite differences
+# ---------------------------------------------------------------------------
+
+
+def _grouped_chain() -> tuple[ScalingModel, list[UpdatableParameter]]:
+    """Fixed-free 4-mass chain, two stiffness groups and two mass groups."""
+    stiffness_parts, mass_parts = spring_chain_parts(
+        4, stiffness_groups=((1, 2), (3, 4)), mass_groups=((1, 2), (3, 4))
     )
-
-
-def reference_parameters(
-    start: tuple[float, float] = (8.0, 8.0),
-    lower: tuple[float, float] = (0.5, 0.5),
-    upper: tuple[float, float] = (20.0, 20.0),
-) -> list[UpdatableParameter]:
-    return [
-        UpdatableParameter(name, value=value, lower=lo, upper=hi)
-        for name, value, lo, hi in zip(
-            ("k1", "k2"), start, lower, upper, strict=True
-        )
+    model = ScalingModel(stiffness_parts, mass_parts)
+    params = [
+        UpdatableParameter(name, value=1.0, lower=0.4, upper=2.5)
+        for name in ("k1", "k2")
+    ] + [
+        UpdatableParameter(name, value=1.0, lower=0.4, upper=2.5, kind="mass")
+        for name in ("m1", "m2")
     ]
+    return model, params
 
 
-def fundamental_eigenvalue(k1: float, k2: float) -> float:
-    """``lambda_1`` of the reference chain, independent of the code under test."""
-    stiffness = np.array([[k1 + k2, -k2], [-k2, k2]])
-    mass = 1.0 + MASS_COUPLING * (k1 + k2)
-    return float(np.linalg.eigvalsh(stiffness / mass)[0])
-
-
-def total_mass(k1: float, k2: float) -> float:
-    return 2.0 * (1.0 + MASS_COUPLING * (k1 + k2))
-
-
-class RecordingModel:
-    """Reference model that logs every design point it is asked to evaluate.
-
-    Forwards the whole :class:`~openfemlab.optimization.gradients.
-    MatrixDerivativeProvider` surface, so wrapping does not push the evaluator
-    off its analytic gradient route.
-    """
-
-    def __init__(self) -> None:
-        self.inner = reference_model()
-        self.parameter_names = self.inner.parameter_names
-        self.points: list[dict[str, float]] = []
-
-    def eigen(self, values: Any) -> Any:
-        self.points.append(dict(values))
-        return self.inner.eigen(values)
-
-    def assemble(self, values: Any) -> Any:
-        self.points.append(dict(values))
-        return self.inner.assemble(values)
-
-    def derivatives(self, names: Any = None) -> Any:
-        return self.inner.derivatives(names)
-
-    def __call__(self, values: Any) -> Any:
-        self.points.append(dict(values))
-        return self.inner(values)
-
-
-def solve_reference(
-    backend: str,
-    model: Any = None,
-    params: list[UpdatableParameter] | None = None,
-) -> OptimizationResult:
-    """Minimize total mass subject to the frequency floor."""
-    return minimize_sizing(
-        reference_model() if model is None else model,
-        reference_parameters() if params is None else params,
+@criterion("AC-OPT-001")
+def test_analytic_gradients_match_central_differences():
+    """Mass and frequency gradients agree with central FD at seeded points."""
+    model, params = _grouped_chain()
+    problem, evaluator = compile_sizing_problem(
+        model,
+        params,
         Objective(TotalMass()),
-        [frequency_floor(0, f_min=F_MIN)],
-        backend=backend,
-        max_iter=BACKENDS[backend],
+        [frequency_floor(0, f_min=0.05), Constraint(NaturalFrequency(1), 0.30, "<=")],
     )
+    assert evaluator.analytic, "the analytic Fox-Kapoor route must be taken here"
 
-
-# ---------------------------------------------------------------------------
-# AC-OPT-002 — reference problem reaches the known optimum
-# ---------------------------------------------------------------------------
-
-
-@criterion("AC-OPT-002")
-def test_ac_opt_002_closed_form_optimum_is_the_constrained_minimum():
-    """Guard the oracle before gating against it.
-
-    The closed form is only an oracle if it really is the constrained minimum:
-    it must sit exactly on the frequency floor, and every neighbouring design
-    must be either heavier or infeasible.
-    """
-    assert np.allclose(K_STAR, [6.0, 4.0])
-    assert fundamental_eigenvalue(*K_STAR) == pytest.approx(LAMBDA_TARGET, abs=1e-14)
-    assert total_mass(*K_STAR) == pytest.approx(MASS_STAR, abs=1e-14)
-
-    angles = np.linspace(0.0, 2.0 * np.pi, 24, endpoint=False)
-    for radius in (1e-3, 1e-2, 1e-1):
-        for angle in angles:
-            k = K_STAR + radius * np.array([np.cos(angle), np.sin(angle)])
-            cheaper = total_mass(*k) < MASS_STAR - 1e-15
-            feasible = fundamental_eigenvalue(*k) >= LAMBDA_TARGET
-            assert not (cheaper and feasible), (
-                f"design {k} is both feasible and lighter than the claimed optimum"
-            )
-
-
-@criterion("AC-OPT-002")
-@pytest.mark.filterwarnings("ignore:delta_grad == 0.0:UserWarning")
-@pytest.mark.parametrize("backend", sorted(BACKENDS))
-def test_ac_opt_002_reference_problem_reaches_the_known_optimum(backend):
-    """Objective within 1e-4 relative of the closed form, constraint active."""
-    result = solve_reference(backend)
-
-    assert result.converged, result.message
-    relative_error = abs(result.objective - MASS_STAR) / MASS_STAR
-    assert relative_error <= OBJECTIVE_RTOL, (
-        f"{backend}: objective {result.objective:.9f} vs {MASS_STAR:.9f} "
-        f"({relative_error:.2e} relative)"
-    )
-
-    (name,) = result.constraint_values
-    assert abs(result.constraint_values[name]) <= ACTIVE_TOL
-    assert result.active_set == [name]
-    # The design itself, not only the objective: a wrong point on the same mass
-    # contour would pass the objective gate.
-    assert result.x == pytest.approx(K_STAR, abs=1e-4)
-
-
-@criterion("AC-OPT-002")
-@pytest.mark.filterwarnings("ignore:delta_grad == 0.0:UserWarning")
-@pytest.mark.parametrize("backend", sorted(BACKENDS))
-def test_ac_opt_002_termination_report_is_consistent(backend):
-    """The report describes the point it returned: KKT, mass, cost counters."""
-    result = solve_reference(backend)
-
-    assert result.objective == pytest.approx(total_mass(*result.x), rel=1e-12)
-    assert result.variables == pytest.approx(dict(zip(["k1", "k2"], result.x)))
-    # First-order optimality of the returned point, on the same scale as the
-    # objective gradient (0.2 per variable here).
-    assert result.stationarity <= 1e-6
-    # One eigensolve per design point, counted where the evaluator can see it.
-    assert 0 < result.n_modal_solves <= result.n_evaluations + len(result.history)
-
-
-# ---------------------------------------------------------------------------
-# AC-OPT-003 — box bounds never violated
-# ---------------------------------------------------------------------------
-
-
-@criterion("AC-OPT-003")
-@pytest.mark.filterwarnings("ignore:delta_grad == 0.0:UserWarning")
-@pytest.mark.parametrize("backend", sorted(BACKENDS))
-def test_ac_opt_003_no_design_point_outside_the_box_reaches_the_model(backend):
-    """Every point the model is asked about lies in the box within 1e-12."""
-    model = RecordingModel()
-    params = reference_parameters()
-    bounds = {p.name: (p.lower, p.upper) for p in params}
-
-    result = solve_reference(backend, model=model, params=params)
-
-    assert model.points, "the run evaluated nothing"
-    outside = [
-        point
-        for point in model.points
-        for name, value in point.items()
-        if not bounds[name][0] - BOUND_TOL <= value <= bounds[name][1] + BOUND_TOL
+    rng = np.random.default_rng(5)
+    lower, upper = problem.bounds
+    callbacks = [(problem.objective, problem.gradient, "objective")] + [
+        (c.fun, c.jac, c.name) for c in problem.constraints
     ]
-    assert not outside, f"{backend}: {len(outside)} evaluations outside the box"
+    worst = 0.0
+    for _ in range(3):
+        x = lower + (upper - lower) * rng.uniform(0.15, 0.85, size=lower.size)
+        for fun, jac, label in callbacks:
+            report = check_gradient(fun, jac, x, tolerance=GRADIENT_RTOL)
+            assert report.passed, f"{label}: {report}"
+            worst = max(worst, report.max_relative_error)
+    assert worst <= GRADIENT_RTOL
+
+
+# ---------------------------------------------------------------------------
+# AC-OPT-002 — reference problems reach their known optima
+# ---------------------------------------------------------------------------
+
+#: Sized oscillator: K = t*STIFFNESS, M = BASE_MASS + t*SIZED_MASS.
+STIFFNESS = 1.0
+BASE_MASS = 1.0
+SIZED_MASS = 0.5
+LAMBDA_MIN = 0.5
+
+#: Payload placement: required total mass on the coupled two-mass system.
+COUPLED_K = np.array([[2.0, -1.0], [-1.0, 2.0]])
+REQUIRED_MASS = 2.0
+
+
+def _sized_oscillator() -> tuple[ScalingModel, list[UpdatableParameter]]:
+    model = ScalingModel(
+        stiffness_parts={"t": np.array([[STIFFNESS]])},
+        mass_parts={"t": np.array([[SIZED_MASS]])},
+        base_mass=np.array([[BASE_MASS]]),
+    )
+    return model, [UpdatableParameter("t", value=2.0, lower=0.1, upper=5.0)]
+
+
+def _payload_placement() -> tuple[ScalingModel, list[UpdatableParameter]]:
+    model = ScalingModel(
+        mass_parts={"m1": np.diag([1.0, 0.0]), "m2": np.diag([0.0, 1.0])},
+        base_stiffness=COUPLED_K,
+    )
+    params = [
+        UpdatableParameter("m1", value=1.6, lower=0.2, upper=5.0, kind="mass"),
+        UpdatableParameter("m2", value=1.4, lower=0.2, upper=5.0, kind="mass"),
+    ]
+    return model, params
+
+
+@criterion("AC-OPT-002")
+@pytest.mark.parametrize("backend", BACKENDS)
+def test_sized_oscillator_reaches_the_closed_form_optimum(backend):
+    """Minimum mass under a frequency floor: t* = lam m0 / (k - lam mu)."""
+    expected_t = LAMBDA_MIN * BASE_MASS / (STIFFNESS - LAMBDA_MIN * SIZED_MASS)
+    expected_mass = BASE_MASS * STIFFNESS / (STIFFNESS - LAMBDA_MIN * SIZED_MASS)
+
+    model, params = _sized_oscillator()
+    problem, _ = compile_sizing_problem(
+        model,
+        params,
+        Objective(TotalMass()),
+        [frequency_floor(0, f_min=np.sqrt(LAMBDA_MIN) / TWO_PI)],
+        # Total mass is exactly linear in the size variable, so its Hessian is
+        # exactly zero; telling trust-constr that beats approximating it.
+        options={"hess": _zero_hessian(1)},
+    )
+    result = problem.solve(backend, tol=1e-12, max_iter=300)
     assert result.converged, result.message
+    assert abs(result.objective - expected_mass) / expected_mass <= OBJECTIVE_RTOL
+    assert result.variables["t"] == pytest.approx(expected_t, rel=OBJECTIVE_RTOL)
+    # The floor binds: a lighter design would be too soft.
+    assert result.max_violation <= ACTIVE_TOL
+    if backend == "slsqp":
+        assert abs(result.max_violation) <= ACTIVE_TOL
+        assert result.active_set == ["f1 >= 0.11254"]
+
+
+@criterion("AC-OPT-002")
+@pytest.mark.parametrize("backend", BACKENDS)
+def test_payload_placement_reaches_the_closed_form_optimum(backend):
+    """Maximum f_1 under a required payload: the even split m_j = m_req / 2."""
+    expected_split = REQUIRED_MASS / 2.0
+    expected_frequency = np.sqrt(2.0 / REQUIRED_MASS) / TWO_PI
+
+    model, params = _payload_placement()
+    result = minimize_sizing(
+        model,
+        params,
+        Objective(NaturalFrequency(0), scale=-1.0),
+        [Constraint(TotalMass(), bound=REQUIRED_MASS, kind=">=")],
+        backend=backend,
+        tol=1e-12,
+        max_iter=400,
+    )
+    assert result.converged, result.message
+    frequency = -result.objective
+    assert abs(frequency - expected_frequency) / expected_frequency <= OBJECTIVE_RTOL
+    for name in ("m1", "m2"):
+        assert result.variables[name] == pytest.approx(expected_split, rel=1e-3)
+    assert result.max_violation <= ACTIVE_TOL
+    if backend == "slsqp":
+        assert abs(result.max_violation) <= ACTIVE_TOL
+        assert result.active_set == ["total_mass >= 2"]
+
+
+@criterion("AC-OPT-002")
+def test_the_optimum_is_reached_without_one_modal_solve_per_gradient():
+    """The analytic route is what makes the reference runs cheap (MS-5.2)."""
+    model, params = _sized_oscillator()
+    result = minimize_sizing(
+        model,
+        params,
+        Objective(TotalMass()),
+        [frequency_floor(0, f_min=np.sqrt(LAMBDA_MIN) / TWO_PI)],
+        tol=1e-12,
+    )
+    # One solve per design point, not one per variable and side.
+    assert result.n_modal_solves <= len(result.history) + 2
+
+
+# ---------------------------------------------------------------------------
+# AC-OPT-003 — box bounds are never violated
+# ---------------------------------------------------------------------------
 
 
 @criterion("AC-OPT-003")
-@pytest.mark.filterwarnings("ignore:delta_grad == 0.0:UserWarning")
-@pytest.mark.parametrize("backend", sorted(BACKENDS))
-def test_ac_opt_003_every_recorded_iterate_satisfies_the_bounds(backend):
-    """The iterate history is the auditable record the criterion asks for."""
-    result = solve_reference(backend)
-    lower, upper = np.array([0.5, 0.5]), np.array([20.0, 20.0])
+@pytest.mark.parametrize("backend", BACKENDS)
+def test_every_iterate_and_every_evaluation_stays_inside_the_box(backend):
+    """No iterate and no *evaluation* leaves the box, including at a bound.
 
-    assert len(result.history) >= 2, "history must cover the path, not the answer"
-    assert [row.iteration for row in result.history] == list(range(len(result.history)))
-    for row in result.history:
-        assert row.in_bounds, f"iterate {row.iteration} left the box: {row.x}"
-        assert np.all(row.x >= lower - BOUND_TOL)
-        assert np.all(row.x <= upper + BOUND_TOL)
-    assert result.history[0].x == pytest.approx([8.0, 8.0])
-    assert result.history[-1].objective < result.history[0].objective
-
-
-@criterion("AC-OPT-003")
-@pytest.mark.filterwarnings("ignore:delta_grad == 0.0:UserWarning")
-@pytest.mark.parametrize("backend", sorted(BACKENDS))
-def test_ac_opt_003_bound_active_optimum_stops_on_the_bound(backend):
-    """A bound tighter than the free optimum is respected, not overshot.
-
-    Raising the lower bound of ``k2`` above its free optimum (4) moves the
-    solution onto that bound, so the run has to work along the boundary rather
-    than approach it from well inside — the case where off-by-round-off bound
-    handling shows up.  The oracle is the smallest ``k1`` that still meets the
-    floor at ``k2 = 5``, bracketed below the interior maximum of
-    ``lambda_1(., 5)``.
-
-    The two methods reach it differently, so the gate is the criterion's 1e-4
-    on the objective rather than machine precision: SLSQP is an active-set
-    method and lands on the bound exactly, while trust-constr is a barrier
-    method and stops a barrier parameter inside it (about 2e-4 here).  What
-    both must satisfy exactly is the direction of the error — neither may end
-    up, or evaluate, below the bound.
+    The floor is set beyond what the upper bound can deliver, so the run is
+    driven hard against the box and terminates infeasible — the case where a
+    backend is most likely to overshoot.
     """
-    floor = 5.0
-    k1_star = brentq(
-        lambda k1: fundamental_eigenvalue(k1, floor) - LAMBDA_TARGET,
-        0.5,
-        1.5 * floor,
-        xtol=1e-15,
-        rtol=8.9e-16,
+    model, params = _sized_oscillator()
+    # t* = 2/3 is interior; narrow the box and push the floor past what it allows.
+    params[0].upper = 1.0
+    params[0].value = 0.5
+    problem, evaluator = compile_sizing_problem(
+        _recording(model),
+        params,
+        Objective(TotalMass()),
+        # lambda = t k / (m0 + t mu) at t = 1 is 1/1.5 = 0.667 < 1.5
+        [frequency_floor(0, f_min=np.sqrt(1.5) / TWO_PI)],
+        options={"hess": _zero_hessian(1)},
     )
-    model = RecordingModel()
-    params = reference_parameters(start=(9.0, 9.0), lower=(0.5, floor))
+    result = problem.solve(backend, tol=1e-10, max_iter=200)
 
-    result = solve_reference(backend, model=model, params=params)
+    lower, upper = problem.bounds
+    assert result.history, "the backend must record its iterates"
+    for iterate in result.history:
+        assert np.all(iterate.x >= lower - BOUND_TOL)
+        assert np.all(iterate.x <= upper + BOUND_TOL)
+        assert iterate.in_bounds, f"iterate {iterate.iteration} was proposed outside the box"
+
+    # Nothing was *solved* outside the box either.
+    assert model.requested, "the recording wrapper saw no evaluation"
+    for values in model.requested:
+        assert 0.1 - BOUND_TOL <= values["t"] <= 1.0 + BOUND_TOL
+    assert np.all(result.x >= lower - BOUND_TOL) and np.all(result.x <= upper + BOUND_TOL)
+    assert evaluator.n_modal_solves == len({v["t"] for v in model.requested})
+
+
+@criterion("AC-OPT-003")
+def test_a_run_started_on_a_bound_stays_on_the_feasible_side():
+    model, params = _payload_placement()
+    params[0].value = params[0].lower  # start pinned to the lower bound
+    problem, _ = compile_sizing_problem(
+        model,
+        params,
+        Objective(NaturalFrequency(0), scale=-1.0),
+        [Constraint(TotalMass(), bound=REQUIRED_MASS, kind=">=")],
+    )
+    result = problem.solve("slsqp", tol=1e-12, max_iter=200)
+    lower, upper = problem.bounds
+    assert all(iterate.in_bounds for iterate in result.history)
+    assert np.all(result.x >= lower - BOUND_TOL) and np.all(result.x <= upper + BOUND_TOL)
+
+
+# ---------------------------------------------------------------------------
+# AC-OPT-004 — mode tracking across a crossing
+# ---------------------------------------------------------------------------
+
+#: Two uncoupled oscillators; only the first is sized, so the branches cross
+#: as its stiffness grows past the fixed one.
+CROSSING_SIZED_MASS = 0.05
+CROSSING_BASE_MASS = 1.0
+CROSSING_FIXED_K = 4.0
+CROSSING_TARGET_LAMBDA = 5.0
+
+
+def _crossing_problem():
+    model = ScalingModel(
+        stiffness_parts={"k1": np.diag([1.0, 0.0]), "k2": np.diag([0.0, 1.0])},
+        mass_parts={"k1": np.diag([CROSSING_SIZED_MASS, 0.0])},
+        base_mass=CROSSING_BASE_MASS * np.eye(2),
+    )
+    params = [
+        UpdatableParameter("k1", value=1.0, lower=0.5, upper=20.0),
+        UpdatableParameter("k2", value=CROSSING_FIXED_K, lower=0.5, upper=20.0, fixed=True),
+    ]
+    return compile_sizing_problem(
+        model,
+        params,
+        Objective(TotalMass()),
+        [frequency_floor(0, f_min=np.sqrt(CROSSING_TARGET_LAMBDA) / TWO_PI)],
+    )
+
+
+@criterion("AC-OPT-004")
+def test_the_constraint_follows_the_physical_branch_across_a_crossing():
+    """The sized branch starts below the fixed one and ends above it.
+
+    Without tracking the constraint would slide onto the fixed oscillator at
+    the crossing, which cannot move, and the run would stop early at the wrong
+    design.  The closed form of the tracked problem is
+    ``k1* = lambda m0 / (1 - lambda mu)``.
+    """
+    expected_k1 = (
+        CROSSING_TARGET_LAMBDA
+        * CROSSING_BASE_MASS
+        / (1.0 - CROSSING_TARGET_LAMBDA * CROSSING_SIZED_MASS)
+    )
+    expected_mass = 2.0 * CROSSING_BASE_MASS + CROSSING_SIZED_MASS * expected_k1
+    crossing_k1 = CROSSING_FIXED_K / (1.0 - CROSSING_FIXED_K * CROSSING_SIZED_MASS)
+
+    problem, evaluator = _crossing_problem()
+    result = problem.solve("slsqp", tol=1e-12, max_iter=200)
 
     assert result.converged, result.message
-    assert result.objective == pytest.approx(
-        total_mass(k1_star, floor), rel=OBJECTIVE_RTOL
+    assert result.x[0] == pytest.approx(expected_k1, rel=OBJECTIVE_RTOL)
+    assert result.objective == pytest.approx(expected_mass, rel=OBJECTIVE_RTOL)
+    # The path really did cross: it starts below and ends above the crossing.
+    assert problem.x0[0] < crossing_k1 < result.x[0]
+
+    # The constraint is active on the tracked branch...
+    assert result.active_set == [problem.constraints[0].name]
+    assert abs(result.max_violation) <= ACTIVE_TOL
+    solution = evaluator.state(result.x)
+    assert solution.tracked_frequency(0) == pytest.approx(
+        np.sqrt(CROSSING_TARGET_LAMBDA) / TWO_PI, rel=OBJECTIVE_RTOL
     )
-    assert result.x == pytest.approx([k1_star, floor], abs=1e-3)
-    assert result.x[1] >= floor - BOUND_TOL
-    assert min(point["k2"] for point in model.points) >= floor - BOUND_TOL
-    assert all(row.in_bounds for row in result.history)
-    # Optimality with a bound multiplier in play, not only with the constraint.
-    assert result.stationarity <= 1e-6
+    # ...and tracking is load-bearing: by raw eigen order, mode 0 at the
+    # solution is the *fixed* oscillator, a different frequency entirely.
+    assert solution.tracking[0] == 1
+    assert solution.modal.frequencies[0] == pytest.approx(
+        np.sqrt(CROSSING_FIXED_K) / TWO_PI, rel=1e-9
+    )
+
+
+@criterion("AC-OPT-004")
+def test_tracked_shape_keeps_mac_above_the_gate_between_iterates():
+    """MAC >= 0.9 against the previous iterate, all along the design path."""
+    problem, evaluator = _crossing_problem()
+    result = problem.solve("slsqp", tol=1e-12, max_iter=200)
+
+    def tracked_shape(x):
+        state = evaluator.state(x)
+        return np.asarray(state.modal.mode_shapes)[:, int(state.tracking[0])]
+
+    designs = [iterate.x for iterate in result.history]
+    assert len(designs) >= 2
+    worst = min(
+        mac_value(tracked_shape(previous), tracked_shape(current))
+        for previous, current in zip(designs[:-1], designs[1:], strict=True)
+    )
+    assert worst >= TRACKING_MAC, f"tracked mode drifted: worst MAC {worst:.4f}"

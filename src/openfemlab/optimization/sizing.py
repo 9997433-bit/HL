@@ -12,7 +12,7 @@ The lowering pipeline::
     OptimizationProblem                  plain bound-constrained NLP
         |  problem.solve(backend)
         v
-    OptimizationResult                   (backend wiring lands in Round 2)
+    OptimizationResult                   termination report (MS-5.2)
 
 The *model* contract is the one :class:`~openfemlab.updating.updater.
 ModelUpdater` already uses — a callable mapping ``{parameter name: value}`` to

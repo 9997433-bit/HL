@@ -127,7 +127,7 @@ at audit time the suite did **not** collect cleanly (Appendix A).
 | GAP-09 | P1 | Correlation | No geometry alignment / automated test-sensor ↔ FE-node mapping | R2 |
 | GAP-10 | P1 | Updating | No parameter target resolver, no assembled dK/dp providers, no mass/shape-difference residuals, no robust estimation, no subset selection/collinearity diagnostics (AC-UPD-007) | R2 |
 | GAP-11 | P1 | UQ | No Bayesian updating (AC-UPD-006), Monte Carlo, DOE, or response surfaces | R3 |
-| GAP-12 | P2 | Optimization | `OptimizationProblem.solve` is `NotImplementedError`; AC-OPT-* unmet | R2/R3 |
+| GAP-12 | P2 | Optimization | **Closed (R2).** `ScipyBackend.solve` wires SLSQP/trust-constr onto the lowered problem; AC-OPT-001..004 `implemented` in `tests/acceptance/test_optimization.py`. Remaining: no equality constraints, no multistart, geometric `dK/da` for shape variables | R3 |
 | GAP-13 | P2 | Scale | Dense threshold 400 DOF; benchmarks stop at 1k DOF vs AC-PERF-001's 50k budget; no LOBPCG/AMG path; no reanalysis acceleration in updating loops | R3 |
 | GAP-14 | P2 | Workflow | CLI `modal`/`correlate`/`update` stubbed; no session report schema (AC-WORK-002) | R2/R3 |
 | GAP-15 | P2 | Visualization | No mode-shape/MAC plotting helpers (deferred by design for v1) | R3+ |
@@ -197,8 +197,8 @@ opportunity to *exceed* FEMtools rather than chase it).
 - **Round 2 (make the core workflow real):** GAP-01 unification first (single Model/Result
   contract, one eigensolver façade, green CI); then GAP-03 (UFF + BDF subset), GAP-04
   (damping + FRF synthesis), GAP-10 (parameter resolver + assembled dK/dp), GAP-09
-  (node mapping), GAP-02 (QUAD4/TET4/HEX8 minimum set), GAP-12 (scipy backend), GAP-14
-  (CLI wiring).
+  (node mapping), GAP-02 (QUAD4/TET4/HEX8 minimum set), ~~GAP-12 (scipy backend)~~ (closed),
+  GAP-14 (CLI wiring).
 - **Round 3 (parity completion + differentiation):** GAP-06 (LSCF + stabilization), GAP-07
   (EI pretest), GAP-08 (SEREP/TAM + expansion), GAP-05 (FRAC/FRF updating), GAP-11
   (Bayesian layer), GAP-13 (50k-DOF budget, LOBPCG), GAP-15 (plot helpers).

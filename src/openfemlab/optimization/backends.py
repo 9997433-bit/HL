@@ -154,6 +154,12 @@ class ScipyBackend:
         Termination tolerance, iteration cap, and the seed forwarded to any
         stochastic multistart wrapper (the search itself is single-start and
         deterministic, so ``seed`` only records provenance today).
+    options:
+        Extra scipy ``options`` entries, merged last so they win. Under
+        trust-constr a ``"hess"`` entry is lifted out and passed to
+        :func:`~scipy.optimize.minimize` as the objective Hessian — the escape
+        hatch for a linear objective, where the exact Hessian is zero and the
+        quasi-Newton approximation has nothing to learn.
     """
 
     method: str = "slsqp"
@@ -230,6 +236,7 @@ class ScipyBackend:
         bounds = Bounds(lower, upper, keep_feasible=True)
         record(problem.x0)
 
+        extra: dict[str, Any] = {}
         if self.method == "slsqp":
             # SLSQP states g(x) >= 0, the problem states g(x) <= 0.
             constraints: Any = [
@@ -265,6 +272,15 @@ class ScipyBackend:
             # terminating.
             options = {"maxiter": self.max_iter, "gtol": self.tol, **self.options}
 
+        # trust-constr needs a Lagrangian Hessian and we have no second
+        # derivatives, so it approximates the objective's by quasi-Newton.  A
+        # minimum-mass objective is linear, and scipy says so out loud
+        # ("delta_grad == 0.0"); the remedy is the exact zero Hessian, which
+        # only the caller can assert.  SLSQP is first order and ignores it.
+        hess = options.pop("hess", None)
+        if hess is not None and self.method != "slsqp":
+            extra["hess"] = hess
+
         raw = minimize(
             objective,
             problem.x0,
@@ -274,6 +290,7 @@ class ScipyBackend:
             constraints=constraints,
             options=options,
             callback=record,
+            **extra,
         )
 
         x = problem.clip(raw.x)
