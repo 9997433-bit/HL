@@ -426,6 +426,14 @@ binary artifacts must not include it. See
   and time/space effects have basic controls in the live rack.
 - Offline cubic reconstruction for hard-clipped peaks, alongside predictive
   de-clicking and mains-hum detection/removal.
+- Repair suite (`audio_studio.dsp.repair`): de-hum, de-click, de-clip and
+  spectral noise reduction, all as ordinary rack effects. The noise reducer
+  learns a per-bin profile of the noise floor — from a dragged selection, or
+  from the head of the clip — and applies a decision-directed Wiener gain
+  floored at the requested reduction, so hiss drops by 24 dB by default while
+  the programme comes through at its own level. It streams, at one analysis
+  window of latency; `reduce_noise()` shifts that delay back out so a rendered
+  buffer lines up with the original sample for sample.
 - ITU-R BS.1770 K-weighted integrated loudness and EBU-style loudness range.
 - Cached spectrogram reduction/colorization and candidate-window true-peak
   evaluation keep common redraw and normalization paths bounded.
@@ -654,7 +662,11 @@ above this package.
   rectangle. There is no healing brush, lasso or paintbrush selection, no
   spectral copy/paste, and the mask is rectangular in time as well as in
   frequency.
-- No complete repair suite (noise reduction remains). VST3 hosting is a
+- Repair covers hum, clicks, clipping and stationary broadband noise. Noise
+  reduction assumes the noise floor does not move: it will not follow a
+  fan that changes speed, and there is no capture-noise-print command in the
+  menus yet — the rack learns from the head of the clip, and a selection has
+  to be handed to `NoiseReduceEffect.learn_from()` from Python. VST3 hosting is a
   three-slot rack behind the optional `plugins` extra (View ▸ VST3 Plugins),
   with a filesystem-only bundle scanner: no AU format, no plugin delay
   compensation, no plugin editor windows, and projects remember plugin paths but
