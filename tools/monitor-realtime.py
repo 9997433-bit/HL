@@ -114,7 +114,9 @@ def load_recorded_durations(path: Path) -> tuple[list[float], int | None]:
                 raise ValueError("underrun_count must be a non-negative integer")
             underrun_count = raw_underruns
     else:
-        raise ValueError("duration input must be a JSON list or object")
+        raise ValueError(  # noqa: TRY004
+            "duration input must be a JSON list or object"
+        )
 
     if not isinstance(raw_durations, list) or not raw_durations:
         raise ValueError("durations_ms must be a non-empty JSON list")

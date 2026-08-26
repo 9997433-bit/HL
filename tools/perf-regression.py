@@ -71,7 +71,7 @@ def load_report(path: Path) -> dict[str, Any]:
     except json.JSONDecodeError as error:
         raise ValueError(f"{path} is not valid JSON: {error}") from error
     if not isinstance(report, dict):
-        raise ValueError(f"{path} must contain a JSON object")
+        raise ValueError(f"{path} must contain a JSON object")  # noqa: TRY004
     if report.get("schema_version") != 1:
         raise ValueError(f"{path} has unsupported schema_version")
     return report
@@ -85,7 +85,9 @@ def nested_number(report: dict[str, Any], dotted_path: str) -> float:
             raise ValueError(f"missing benchmark metric: {dotted_path}")
         value = value[component]
     if not isinstance(value, int | float) or isinstance(value, bool):
-        raise ValueError(f"benchmark metric is not numeric: {dotted_path}")
+        raise ValueError(  # noqa: TRY004
+            f"benchmark metric is not numeric: {dotted_path}"
+        )
     return float(value)
 
 
