@@ -24,6 +24,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A01 | claude-fable-5-thinking-xhigh | Module spec & acceptance criteria (docs + registry) | complete |
 | A03 | claude-fable-5-thinking-xhigh | SOTA gap audit & Round 1 conclusion (backfill) | complete |
 | A04 | claude-opus-5-thinking-high-fast | Updating sensitivity kernel, updater wiring & test suite | complete |
+| A07 | claude-opus-5-thinking-high-fast | Rich CLI (modal/correlate/update), model spec format & workflow example | complete |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
@@ -461,6 +462,69 @@ orchestrator to diff against the landed implementation in Round 2.
 - Added focused guards for one-pass assembly, LU reuse/bypass/invalidation, sparse derivative
   matrices, and complex vectorized MAC derivatives. Focused core/modal/updating/performance
   suite: **94 passed**; touched files pass Ruff.
+
+#### A07 — Rich CLI: `modal`, `correlate`, `update`
+- Built out `src/openfemlab/cli/` behind the `openfemlab` console script already declared in
+  `[project.scripts]`: `main.py` (registry + global `--quiet`/`--no-color`/`--traceback`),
+  `console.py`, `spec.py`, `analysis.py` and a `commands/` package with one module per
+  command. Added `cli/__main__.py` so `python -m openfemlab.cli` works where the script is
+  not on PATH.
+- `spec.py` defines the CLI's project file, the piece the platform was missing: the neutral
+  interchange model cannot carry supports or concentrated masses, so a modal run cannot be
+  reproduced from a `NeutralModel` alone. A spec is a JSON/YAML mapping with a `mesh` block
+  (`bar`, `beam`, `chain`, `truss` over `mesh.simple`, or `custom` for explicit
+  nodes/elements), named `materials`/`sections` tables, plus `supports`, `point_masses` and
+  `rotary_inertias`. `lookup`/`scaled` address individual numbers by dotted path
+  (`materials.steel.E`, `mesh.elements.2.stiffness`), which is what lets updating parameters
+  point at a document rather than at Python objects.
+- `console.py` renders rich tables when the `[cli]` extra is installed and aligned plain text
+  otherwise. Notes and warnings go to stderr whenever a command emits JSON or YAML, so
+  `--format json` output stays pipeable — this fixes the interleaving A18 observed.
+- `commands/modal.py`: frequencies, angular frequencies, periods, modal masses, participation
+  factors, effective and cumulative mass fractions, rigid-body flags, condensation and
+  orthogonality diagnostics. The participation direction defaults to the most excited
+  translational axis (defaulting to the first DOF reports a ~1e-31 effective mass for a
+  bending model). `-o` writes the full native `ModalResult` including shapes and DOF map.
+- `commands/correlate.py`: the FE side accepts either a stored modal result or a model spec,
+  which is then solved on the fly. All numerics delegate to
+  `correlation.correlate_modal_data` — no MAC, pairing or COMAC code lives in the CLI.
+  Exposes `--pairing greedy|optimal|frequency`, `--mac-threshold`, `--frequency-tolerance`,
+  `--freq-penalty`, `--partial-dofs`, `--matrix`, and the CI gates `--require-mac` /
+  `--require-frequency` (exit 3).
+- `commands/update.py`: a config naming a model spec, dotted-path parameters with bounds and
+  kind, a measured target (`target.file` or inline frequencies) and any `UpdatingOptions`
+  field. Each evaluation rescales the spec from its nominal values and re-solves, so the run
+  is idempotent; the updated spec is written back in the same format and feeds straight into
+  `openfemlab modal`. Shape residuals align FE and test DOFs through
+  `correlation.align_dof_maps`. `--strict` exits 4 when the loop does not converge.
+- Added `examples/02_model_updating_workflow.py`: writes the model spec, synthesises a modal
+  test (5 UY accelerometers on a 21-node cantilever, truth `E×0.88`, `A×1.05`), correlates,
+  updates, correlates again, and emits the equivalent shell session plus a ready-to-run
+  `updating.yaml`.
+- **Results on that workflow.** As designed: `f₁ = 8.35517 Hz` against the analytic
+  8.3552 Hz; all 4 modes paired with min MAC 1.000000 and a uniform **+9.233 %** frequency
+  bias. After updating: cost **1.705e-2 → 2.573e-20** (100 %) in **4 iterations / 21 model
+  evaluations**, max |Δf| **9.233 % → 1.33e-8 %**. Bending frequencies only constrain `E/A`,
+  and the recovered ratio 0.9122/1.0884 = **0.8381** matches the truth 0.88/1.05 = 0.8381 to
+  4 decimals — the suite records that identifiability limit instead of asserting the
+  individual factors.
+- Added `tests/test_cli.py` (19 tests): spec building and error paths, dotted-path scaling
+  leaving the source document untouched, the analytic cantilever frequency through the
+  command, JSON reports, the written modal result reloading through `openfemlab.io`, the
+  default participation direction, correlation against a spec and against a stored result,
+  both acceptance-gate exit codes, the full update-then-recorrelate loop, and unknown
+  option/target diagnostics.
+- **Import-conflict status.** At start `openfemlab.io` could not import (`_native.py` still
+  wanted `ElementType`/`Property` from `core.model` after the `core.neutral` rename) and
+  `correlation`/`updating` were mid-rewrite. A05/A08/A06/A04 landed those fixes while this
+  agent was writing; verified afterwards that `core`, `mesh`, `solver`, `modal`,
+  `correlation`, `updating`, `io`, `optimization` and `cli` all import cleanly, and adopted
+  the landed `correlate_modal_data`/`align_dof_maps` instead of keeping the CLI-local pairing
+  written against the earlier API.
+- Verified on Python 3.12: full suite **192 passed**; the README CLI session
+  (modal → correlate → update → recorrelate) reproduces exit codes 0 / 3 / 0 / 0. `ruff check`
+  clean on `src/openfemlab/cli`, `examples/02_model_updating_workflow.py` and
+  `tests/test_cli.py`.
 
 ### Round 2 — Targeted Refactor & Deep Optimization
 **Status:** PENDING
