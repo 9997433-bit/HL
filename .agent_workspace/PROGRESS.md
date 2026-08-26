@@ -28,6 +28,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A07 | claude-opus-5-thinking-high-fast | Rich CLI (modal/correlate/update), model spec format & workflow example | complete |
 | A25 | gpt-5.6-sol-xhigh-fast | CLI subprocess coverage over example 02 fixtures | complete |
 | A15 | claude-opus-5-thinking-high-fast | GAP-01 `ModalResult` contract unification (backfill for R1-F1) | complete |
+| A13 | claude-opus-5-thinking-high-fast | M4 correction workflow state machine & `CorrectionReport` (backfill for A01) | complete |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
@@ -587,6 +588,52 @@ orchestrator to diff against the landed implementation in Round 2.
   and was then committed on top of; it was recovered by cherry-picking through a detached
   worktree at `/tmp/gap01`, which is also where the rest of this task ran. Agents editing the
   shared tree should hold a private worktree, as A14/R1-O2 already do.
+
+#### A13 — M4 Simulation-Correction Workflow (backfill for A01)
+- Added `src/openfemlab/workflow/`, the MS-4 state machine that turns the M1/M2/M3 engines
+  into the productized loop: `S1 BASELINE → S2 PAIRING → S3 DIAGNOSIS → S4 UPDATING →
+  S5 REANALYSIS → S6 VALIDATION`, driven by `run_correction(model, test, sensor_map,
+  params, *, gates, holdout, seed)` / `CorrectionWorkflow`.
+- Every stage carries its gate and every gate failure is machine-readable: the pipeline
+  stops with a `StageGateError`-shaped `{stage, reason, message, details}` block
+  (`baseline_solve_failed`, `insufficient_modes`, `insufficient_pairs`,
+  `no_identifiable_parameters`, `no_fitted_targets`, `updating_diverged`, `gate_failed`),
+  the stages behind it are recorded `SKIPPED`, and the report is marked `FAIL` — a partial
+  run can never read as a pass (AC-WORK-004). `strict=True` raises instead of returning.
+- `workflow/selection.py` implements the MS-3.6 pre-updating diagnosis on the initial
+  relative sensitivity matrix: columns are ranked by norm, then frozen for zero
+  observability (`‖S_j‖ < 1e-3·max‖S‖`), for collinearity (column cosine > 0.99) or for
+  pushing the retained subset past `κ = 1e6`. Nothing is ever frozen silently — each
+  parameter carries its reason, partner and cosine into the report.
+- `workflow/gates.py` holds the MS-4.2 limits (MAC ≥ 0.95, |Δf| ≤ 1 %, ≥ 3 pairs, bounds,
+  and a *warning*-severity plausibility check at ±50 %) plus `HoldoutSpec`: reserved modes
+  (explicit, or the N highest-frequency paired ones) are dropped from the S4 residuals and
+  reserved channels are zero-weighted in the MAC, then both are evaluated at S6 against
+  MAC ≥ 0.9 and "no worse than baseline".
+- `workflow/report.py` is the schema-versioned (`1.0`) `CorrectionReport`: stage log,
+  baseline/final `CorrelationReport`s, held-out block, iteration history, parameter table
+  (initial/final/bounds/change/selected/freeze reason/σ_post), gate results, settings,
+  environment (package versions + seed) and per-stage wall time — `to_dict()`, `to_json()`,
+  `save()` and a printable `report()`. Wall times sit behind `include_timing`, so
+  `to_dict(include_timing=False)` is exactly the content two runs must reproduce.
+- σ_post comes from the linearized least-squares covariance `C ≈ σ²(JᵀJ)⁻¹` of the final
+  Gauss-Newton Jacobian, so a deterministic run still reports parameter uncertainty
+  without the Bayesian path.
+- Added `tests/test_workflow.py` (38 tests) over a grouped 8-DOF spring/mass chain twin.
+  Key results: a model detuned to θ = (1.30, 0.80, 1.10) is recovered to 1e-4 relative with
+  min MAC 1.0 and max |Δf| 0 % from a 4.13 % / 0.89-MAC baseline (AC-WORK-001); two runs
+  with the same seed agree on every reported number to 1e-12 (AC-WORK-002); a duplicated
+  parameter is detected at cosine 1.0000 and frozen with the run still converging
+  (MS-3.6/AC-UPD-007); and an overfitting run — eight parameters fitted to four targets
+  carrying 3 % frequency noise — passes *every* in-sample gate (min MAC 0.9985, max |Δf|
+  0.75 %) while the reserved mode degrades from 0.0096 % to 0.7522 %, so only the held-out
+  gate catches it (AC-WORK-003).
+- Verified on Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1: full suite **250 passed** (10 s);
+  `ruff check` clean on every new file.
+- Hit the same working-tree hazard A15 reports: a concurrent agent switched `/workspace`
+  onto `cursor/dynamics-damping-frf-9500` and reset over the package commit mid-run, so
+  both commits were recovered by cherry-picking into a detached worktree at `/tmp/a13wt`.
+  `workflow/sensors.py` had already been swept into another agent's `e031b5a` before that.
 
 ### Round 2 — Targeted Refactor & Deep Optimization
 **Status:** PENDING
