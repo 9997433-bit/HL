@@ -176,20 +176,27 @@ function setInShip(item, value) {
 
 /* ---------------- 判题 ---------------- */
 
+/** 映射到 curriculum 技能点，让自适应掌握度引擎能收到反馈。 */
+function skillOf(q) {
+  if (q.type === 'seq') return 'count-to-10'
+  return q.target <= 5 ? 'count-to-5' : 'count-to-10'
+}
+
 function award(isRight, anchor) {
   marks.value[index.value] = isRight ? 'ok' : 'no'
+  const skill = skillOf(current.value)
   if (isRight) {
     correctCount.value += 1
     const stars = current.value.target >= 11 ? 2 : 1
     starsEarned.value += stars
-    progress.recordAnswer(MODULE_ID, true, { stars, xp: 10 + current.value.target })
+    progress.recordAnswer(MODULE_ID, true, { skill, stars, xp: 10 + current.value.target })
     fxCorrect(anchor)
     burst(anchor, { count: 18 })
     flyStar(anchor)
     mood.value = 'cheer'
     message.value = sample(['太棒了，数得真准！', '完全正确，继续保持！', '货舱装载完毕 ✅'])
   } else {
-    progress.recordAnswer(MODULE_ID, false)
+    progress.recordAnswer(MODULE_ID, false, { skill })
     fxWrong(anchor)
     mood.value = 'sad'
     message.value = `正确答案是 ${current.value.target}，我们再数一次好吗？`

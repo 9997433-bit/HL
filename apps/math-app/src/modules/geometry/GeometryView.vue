@@ -150,19 +150,21 @@ function grade(value, anchor) {
   const right = value === q.answer
   marks.value[index.value] = right ? 'ok' : 'no'
   chosen.value = value
+  // 映射到 curriculum 技能点，让自适应掌握度引擎能收到反馈
+  const skill = q.target.dim === '3d' ? 'shape-3d' : 'shape-2d'
 
   if (right) {
     const stars = q.target.dim === '3d' ? 2 : 1
     correctCount.value += 1
     starsEarned.value += stars
-    progress.recordAnswer(MODULE_ID, true, { stars, xp: 12 })
+    progress.recordAnswer(MODULE_ID, true, { skill, stars, xp: 12 })
     fxCorrect(anchor)
     burst(anchor, { count: 18 })
     flyStar(anchor)
     mood.value = 'cheer'
     message.value = sample(['找到啦！', '眼力真好 👀', '完全正确 ✅'])
   } else {
-    progress.recordAnswer(MODULE_ID, false)
+    progress.recordAnswer(MODULE_ID, false, { skill })
     fxWrong(anchor)
     mood.value = 'sad'
     message.value = `这是「${q.target.name}」。${q.fact}`

@@ -250,7 +250,7 @@ export const useProgressStore = defineStore('progress', () => {
     return { score }
   }
 
-  function resetStreak() {
+  function resetCombo() {
     combo.value = 0
   }
 
@@ -315,7 +315,9 @@ export const useProgressStore = defineStore('progress', () => {
     bumpCounter,
     recordAnswer,
     finishSession,
-    resetStreak,
+    resetCombo,
+    // 兼容早期调用点的别名
+    resetStreak: resetCombo,
     takeUnlock,
     resetAll,
     exportReport,

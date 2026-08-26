@@ -126,7 +126,7 @@ function place(n) {
 
   if (solution.value[i] !== n) {
     mistakes.value += 1
-    progress.recordAnswer(MODULE_ID, false)
+    progress.recordAnswer(MODULE_ID, false, { skill: 'sudoku-4' })
     fxWrong(cellEl)
     mood.value = 'sad'
     message.value = '这个数字在这一行、列或宫里重复啦，再想想～'
@@ -173,7 +173,7 @@ function checkSolved(anchor) {
   const penalty = Math.min(base - 1, hintsUsed.value + Math.floor(mistakes.value / 2))
   const stars = Math.max(1, base - penalty)
 
-  progress.recordAnswer(MODULE_ID, true, { stars, xp: 20 + base * 4 })
+  progress.recordAnswer(MODULE_ID, true, { skill: 'sudoku-4', stars, xp: 20 + base * 4 })
   progress.bumpCounter('sudokuSolved')
   progress.finishSession(MODULE_ID, {
     correct: 1,

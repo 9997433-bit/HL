@@ -17,6 +17,7 @@ const pair = () => {
 export const WORD_PROBLEMS = [
   {
     id: 'add-join',
+    skill: 'wp-combine',
     tag: '合并',
     steps: 1,
     emoji: '🍎',
@@ -37,6 +38,7 @@ export const WORD_PROBLEMS = [
   },
   {
     id: 'sub-left',
+    skill: 'wp-remain',
     tag: '剩余',
     steps: 1,
     emoji: '🍪',
@@ -57,6 +59,7 @@ export const WORD_PROBLEMS = [
   },
   {
     id: 'compare-more',
+    skill: 'wp-diff',
     tag: '比多少',
     steps: 1,
     emoji: '🐟',
@@ -77,6 +80,7 @@ export const WORD_PROBLEMS = [
   },
   {
     id: 'compare-total',
+    skill: 'wp-combine',
     tag: '比多少',
     steps: 2,
     emoji: '🎈',
@@ -97,6 +101,7 @@ export const WORD_PROBLEMS = [
   },
   {
     id: 'two-step-buy',
+    skill: 'wp-remain',
     tag: '两步',
     steps: 2,
     emoji: '🛒',
@@ -116,6 +121,7 @@ export const WORD_PROBLEMS = [
   },
   {
     id: 'bus',
+    skill: 'wp-remain',
     tag: '两步',
     steps: 2,
     emoji: '🚌',
@@ -135,6 +141,7 @@ export const WORD_PROBLEMS = [
   },
   {
     id: 'share',
+    skill: 'wp-times',
     tag: '平均分',
     steps: 1,
     emoji: '🍬',
@@ -154,6 +161,7 @@ export const WORD_PROBLEMS = [
   },
   {
     id: 'groups',
+    skill: 'wp-times',
     tag: '几个几',
     steps: 1,
     emoji: '🥚',
@@ -173,6 +181,7 @@ export const WORD_PROBLEMS = [
   },
   {
     id: 'time',
+    skill: 'wp-combine',
     tag: '时间',
     steps: 1,
     emoji: '🕐',
@@ -191,6 +200,7 @@ export const WORD_PROBLEMS = [
   },
   {
     id: 'money-change',
+    skill: 'wp-times',
     tag: '钱',
     steps: 2,
     emoji: '💰',
@@ -210,6 +220,7 @@ export const WORD_PROBLEMS = [
   },
   {
     id: 'length',
+    skill: 'wp-remain',
     tag: '长度',
     steps: 1,
     emoji: '📏',
@@ -228,6 +239,7 @@ export const WORD_PROBLEMS = [
   },
   {
     id: 'ordinal',
+    skill: 'wp-combine',
     tag: '排队',
     steps: 2,
     emoji: '🧍',
@@ -246,6 +258,7 @@ export const WORD_PROBLEMS = [
   },
   {
     id: 'garden',
+    skill: 'wp-times',
     tag: '两步',
     steps: 2,
     emoji: '🌻',
@@ -265,6 +278,7 @@ export const WORD_PROBLEMS = [
   },
   {
     id: 'books',
+    skill: 'wp-remain',
     tag: '两步',
     steps: 2,
     emoji: '📚',
@@ -284,6 +298,7 @@ export const WORD_PROBLEMS = [
   },
   {
     id: 'stickers',
+    skill: 'wp-diff',
     tag: '比多少',
     steps: 1,
     emoji: '✨',
@@ -304,6 +319,7 @@ export const WORD_PROBLEMS = [
   },
   {
     id: 'zoo',
+    skill: 'wp-combine',
     tag: '合并',
     steps: 2,
     emoji: '🦒',

@@ -208,7 +208,7 @@ onMounted(() => {
             <span class="v">{{ progress.accuracy }}%</span><span class="k dim">正确率</span>
           </div>
           <div class="stat">
-            <span class="v">{{ progress.state.bestCombo }}</span><span class="k dim">最佳连击</span>
+            <span class="v">{{ progress.state.bestStreak }}</span><span class="k dim">最佳连击</span>
           </div>
           <div class="stat">
             <span class="v">{{ progress.state.dailyStreak }}</span><span class="k dim">连续打卡</span>

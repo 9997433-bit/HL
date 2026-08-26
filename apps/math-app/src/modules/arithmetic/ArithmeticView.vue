@@ -118,10 +118,33 @@ const numberLine = computed(() => {
 
 /* ---------- 判题 ---------- */
 
+/** 映射到 curriculum 技能点，让自适应掌握度引擎能收到反馈。 */
+function skillOf(q) {
+  if (level.value === 100) return 'add-within-100'
+  if (level.value === 20) return q.kind === 'add' ? 'add-carry-20' : 'sub-borrow-20'
+  return q.kind === 'add' ? 'add-within-10' : 'sub-within-10'
+}
+
+/**
+ * 错因归类：个位相加过 10 却答错多半是忘进位，个位不够减则是忘退位。
+ * 家长报告里按这些标签统计薄弱点。
+ */
+function errorTagsOf(q, answered) {
+  const tags = []
+  const onesA = q.a % 10
+  const onesB = q.b % 10
+  if (q.kind === 'add' && onesA + onesB >= 10) tags.push('carry')
+  if (q.kind === 'sub' && onesA < onesB) tags.push('borrow')
+  if (Math.abs(answered - q.answer) === 10) tags.push('off-by-ten')
+  else if (Math.abs(answered - q.answer) === 1) tags.push('off-by-one')
+  return tags
+}
+
 function grade(value, anchor) {
   const q = current.value
   const right = value === q.answer
   marks.value[index.value] = right ? 'ok' : 'no'
+  const skill = skillOf(q)
 
   if (right) {
     const elapsed = Date.now() - questionStart.value
@@ -131,6 +154,7 @@ function grade(value, anchor) {
     correctCount.value += 1
     starsEarned.value += stars
     progress.recordAnswer(MODULE_ID, true, {
+      skill,
       stars,
       xp: isHard.value ? 18 : 10,
       tag: isHard.value ? 'arithmetic-hard' : undefined,
@@ -143,7 +167,7 @@ function grade(value, anchor) {
       ? `又快又准！+${stars} ⭐`
       : sample(['答对啦！', '算得很好 👏', '完全正确 ✅'])
   } else {
-    progress.recordAnswer(MODULE_ID, false)
+    progress.recordAnswer(MODULE_ID, false, { skill, errorTags: errorTagsOf(q, value) })
     fxWrong(anchor)
     mood.value = 'sad'
     message.value = `${q.a} ${q.sign} ${q.b} = ${q.answer}，记住这一题哦。`

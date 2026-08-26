@@ -48,6 +48,7 @@ function buildQuestion(template) {
   return {
     ...made,
     id: template.id,
+    skill: template.skill,
     tag: template.tag,
     emoji: template.emoji,
     scene: template.scene,
@@ -84,14 +85,21 @@ function grade(value, anchor) {
     const stars = Math.max(1, base - hintLevel.value)
     correctCount.value += 1
     starsEarned.value += stars
-    progress.recordAnswer(MODULE_ID, true, { stars, xp: q.steps === 2 ? 20 : 14 })
+    progress.recordAnswer(MODULE_ID, true, {
+      skill: q.skill,
+      stars,
+      xp: q.steps === 2 ? 20 : 14,
+    })
     fxCorrect(anchor)
     burst(anchor, { count: 20 })
     flyStar(anchor)
     mood.value = 'cheer'
     message.value = `${q.equation.replace('?', q.answer)} —— 解题成功！`
   } else {
-    progress.recordAnswer(MODULE_ID, false)
+    progress.recordAnswer(MODULE_ID, false, {
+      skill: q.skill,
+      errorTags: q.steps === 2 ? ['two-step'] : ['one-step'],
+    })
     fxWrong(anchor)
     mood.value = 'sad'
     message.value = `正确算式是 ${q.equation.replace('?', q.answer)}，答案 ${q.answer} ${q.unit}。`
