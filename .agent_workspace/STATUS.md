@@ -110,7 +110,11 @@ non-blocking polish:
    sparse. What is left for the GAP-13 50k-DOF budget is elsewhere: the
    eigensolver's 400-DOF dense threshold, no LOBPCG/AMG path, and benchmarks
    that stop at 1k DOF.
-3. **GAP-03 extension**: native OP2 and other industrial formats beyond the
+3. **GAP-03 extension — half closed**: `openfemlab.io.op2` reads the OP2
+   framing and its real normal modes (MS-9.6 Phases 1-2, over
+   `io/op2_framing.py`). Open: geometry (Phase 3), the `CORD` transforms
+   (Phase 4), the opt-in corpus test over real MSC/NX output that has to run
+   before the entry points may be exported, and industrial formats beyond the
    meshio/BDF/UNV/UFF interchange closed in Round 2.
 4. **Round 3 backlog** (see `ROUND2_SIGNOFF.md`): GAP-06 (MPE), GAP-07
    (pretest EI), GAP-13 (large-scale sparse), GAP-15 (plotting), FRF updating

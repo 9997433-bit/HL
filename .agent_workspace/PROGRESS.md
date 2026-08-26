@@ -101,7 +101,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A136 | claude-opus-5-thinking-high-fast | R2-T06: analytic MAC-row Jacobian in updater shape path | complete — merged `8272dd9`, +4 updating tests |
 | A137 | gpt-5.6-sol-xhigh-fast | End-user quickstart: examples/05 + README「5 分钟上手」 | complete — merged at `669440d`, MAC 1.0 / df 0% after update |
 | A138 | gpt-5.6-sol-xhigh-fast | PR #5 → main merge readiness checklist + CI green verify | complete — `MERGE_READINESS.md` merged; CI green on `459a3d2` |
-| A139 | claude-opus-5-thinking-high-fast | GAP-03 OP2 reader spike (research + io/op2 stub) | complete — merged MS-9.6 + op2 seam, +10 tests / 10 skipped |
+| A139 | claude-opus-5-thinking-high-fast | GAP-03 OP2 reader spike (research + io/op2 stub) | complete — merged MS-9.6 + op2 seam; Phases 1-2 (framing + normal modes) now implemented, 32 op2 tests / 3 skipped |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
