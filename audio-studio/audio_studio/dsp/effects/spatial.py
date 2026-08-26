@@ -332,7 +332,9 @@ class FDNReverbEffect(Effect):
             count = min(shortest, audio.shape[1] - offset)
             reads = np.empty((audio.shape[0], 4, count), dtype=np.float64)
             indices: list[np.ndarray] = []
-            for line, (buffer, length) in enumerate(zip(self._buffers, lengths)):
+            for line, (buffer, length) in enumerate(
+                zip(self._buffers, lengths, strict=True)
+            ):
                 line_indices = (
                     np.arange(count, dtype=np.int64) + self._positions[line]
                 ) % length
@@ -356,7 +358,9 @@ class FDNReverbEffect(Effect):
                 * 0.5
             )
             writes = injection + feedback * damped
-            for line, (buffer, length) in enumerate(zip(self._buffers, lengths)):
+            for line, (buffer, length) in enumerate(
+                zip(self._buffers, lengths, strict=True)
+            ):
                 buffer[:, indices[line]] = writes[:, line, :]
                 self._positions[line] = (self._positions[line] + count) % length
 
