@@ -2822,4 +2822,4 @@ push.
 nothing can leave `implemented` until R2-T09 defines and runs the promotion (a CI run
 at a pinned tip). That is now the only structural blocker on the P0 set; the five P1
 tagging tasks are independent of it and can go in parallel.
-A90 backfill verification: **1047 passed, 0 failed**; `ruff check .` clean.
+A90 backfill verification: **1089 passed, 0 failed**; `ruff check .` clean.
