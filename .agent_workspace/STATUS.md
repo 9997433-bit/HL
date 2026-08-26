@@ -88,7 +88,7 @@ optimization 15, dynamics 13, registry consistency 12, workflow 11.
 
 ## 4. Open gaps (priority order)
 
-1. **Registry closure.** 4 of 40 criteria remain `specified` and nothing has
+1. **Registry closure.** 4 of 41 criteria remain `specified` and nothing has
    been advanced to `verified`; the Round-2 exit bar requires every P0+P1
    criterion `verified`. Remaining P0: AC-CORR-008 (report JSON round-trip).
    Remaining P1: AC-MODAL-008, AC-UPD-008, AC-WORK-003. All four gate
@@ -125,7 +125,8 @@ deleted from `origin` (R2-T08 fully closed), and `PR_DRAFT.md` was refreshed to
 the verified 876 count.
 
 Resolved since (sections 2–4 above track it, section 1 stays pinned at A55's
-commit): A50 registered AC-UPD-004/005 and AC-CORR-005/007, and A57 registered
-AC-UPD-006a/b and wired the Laplace σ_post into the `CorrectionReport`. Together
-they take the registry to **36 `implemented` / 4 `specified`** (P0: 31 / 1;
-P1: 5 / 3) and the suite to **912 passed**.
+commit): A50 registered AC-UPD-004/005 and AC-CORR-005/007, A57 registered
+AC-UPD-006a/b and wired the Laplace σ_post into the `CorrectionReport`, and
+AC-CORR-009 was added as the registry's 41st row. Together they take the
+registry to **37 `implemented` / 4 `specified`** and the suite to
+**933 passed**.
