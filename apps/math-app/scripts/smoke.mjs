@@ -257,10 +257,10 @@ await interact('数形演示：8 类 + 跳过到算式', '/#/visual-demos', asyn
   await sleep(250)
   const after = await page.evaluate(() => ({
     stage: document.querySelector('[data-demo-id]')?.dataset.demoStage ?? '',
-    text: document.querySelector('.equation-panel')?.innerText ?? '',
+    text: document.querySelector('.equation-panel .equation')?.innerText.trim() ?? '',
   }))
   if (after.stage !== 'equation') throw new Error(`跳过后没有到算式段：${after.stage}`)
-  if (!/=|½|^\s*\d+\s*$/.test(after.text)) throw new Error(`算式段没有算式：${after.text}`)
+  if (!/=|½|^\d+$/.test(after.text)) throw new Error(`算式段没有算式：${after.text}`)
   return `${before.count} 类，${before.stage} → ${after.stage}`
 })
 
