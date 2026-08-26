@@ -14,6 +14,7 @@ __all__ = [
     "UpdatingDivergenceError",
     "OptimizationError",
     "MPEError",
+    "PretestError",
     "MissingDependencyError",
 ]
 
@@ -182,6 +183,16 @@ class MPEError(OpenFEMLabError):
     line cannot support, a non-receptance input the caller declined to
     convert, or a stabilization diagram with no fully stable alignment to
     pick from.
+    """
+
+
+class PretestError(OpenFEMLabError):
+    """A sensor-placement request that cannot yield an observable test (MS-11).
+
+    Raised when fewer sensors than target modes are requested, or when the
+    candidate mode partition is rank deficient — MS-11.2 refuses to return a
+    placement on which the target modes cannot be distinguished, rather than
+    handing a silently unobservable channel set to the M2/M4 chain.
     """
 
 
