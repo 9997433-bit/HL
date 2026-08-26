@@ -179,9 +179,11 @@ class EngineTelemetry:
         published = self._published_index
         reader = self._reader_index
 
-        candidate = 0
-        if candidate == published or candidate == reader:
-            candidate = 1
-        if candidate == published or candidate == reader:
-            candidate = 2
-        self._writer_index = candidate
+        # When producer and consumer point at different slots, their indices
+        # subtract from 0 + 1 + 2 to identify the sole free slot.  When they
+        # point at the same slot, either other slot is safe.
+        self._writer_index = (
+            (published + 1) % self._SLOT_COUNT
+            if published == reader
+            else self._SLOT_COUNT - published - reader
+        )
