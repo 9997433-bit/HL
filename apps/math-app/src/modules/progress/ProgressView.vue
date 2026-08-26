@@ -8,7 +8,7 @@ import { MODULES, MODULE_MAP } from '@/data/modules.js'
 import { useProgressStore } from '@/stores/progress.js'
 import { useSettingsStore } from '@/stores/settings.js'
 import { useFeedback } from '@/composables/useFeedback'
-import { sound } from '@/core/audio/sound.js'
+import { sound } from '@/utils/sound'
 
 const AVATARS = ['🧑‍🚀', '👩‍🚀', '🤖', '👽', '🐱', '🦊', '🐼', '🦖']
 

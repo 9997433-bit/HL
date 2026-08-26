@@ -7,8 +7,8 @@
  */
 import { computed, reactive, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
-import { updateMastery, MASTERY_THRESHOLD } from '@/core/engine/adaptive.js'
-import { SKILLS } from '@/data/curriculum.js'
+import { updateMastery, MASTERY_THRESHOLD } from '@/utils/mastery.js'
+import { isKnownSkill, SKILLS } from '@/data/curriculum.js'
 import { CURRICULUM_ID, MODULES } from '@/data/modules.js'
 import { ACHIEVEMENTS, ACHIEVEMENT_MAP } from '@/data/achievements.js'
 
@@ -190,13 +190,21 @@ export const useProgressStore = defineStore('progress', () => {
    * 记录一次作答。支持两种调用方式：
    *   recordAnswer('geometry', true, { stars: 1, xp: 10, skill: 'shape-2d' })
    *   recordAnswer({ module: 'arithmetic', skill: 'add-carry-20', meta: { errorTags: ['carry'] } }, false)
+   *
+   * skill 必须是 curriculum 里存在的技能点：技能雷达、地图进度环、掌握数统计
+   * 都只认图谱里的 id，写错的 id 会变成一条谁也看不到的掌握度记录，
+   * 表现为「明明练了，进度环却不动」。这里直接拦下并在开发期报出来。
    */
   function recordAnswer(target, isCorrect, opts = {}) {
     const isQuestion = typeof target === 'object' && target !== null
     const moduleId = isQuestion ? (target.module ?? opts.module) : target
-    const skillId = isQuestion ? target.skill : opts.skill
+    const rawSkillId = isQuestion ? target.skill : opts.skill
     const errorTags = isQuestion ? (target.meta?.errorTags ?? []) : (opts.errorTags ?? [])
 
+    const skillId = rawSkillId && isKnownSkill(rawSkillId) ? rawSkillId : null
+    if (rawSkillId && !skillId && import.meta.env?.DEV) {
+      console.warn(`[progress] 技能点「${rawSkillId}」不在 curriculum 里，本次掌握度未记录`)
+    }
     if (skillId) state.mastery[skillId] = updateMastery(state.mastery[skillId], isCorrect)
 
     const stat = state.modules[moduleId] ?? (state.modules[moduleId] = emptyModuleStat())

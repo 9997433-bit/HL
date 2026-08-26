@@ -17,7 +17,7 @@ import {
   nextHint,
   specOf,
 } from '@/core/engine/sudoku.js'
-import { sound } from '@/core/audio/sound.js'
+import { sound } from '@/utils/sound'
 
 const MODULE_ID = 'sudoku'
 

@@ -5,7 +5,7 @@ import TopBar from '@/components/TopBar.vue'
 import AchievementToast from '@/components/AchievementToast.vue'
 import { useSettingsStore } from '@/stores/settings.js'
 import { useProgressStore } from '@/stores/progress.js'
-import { sound } from '@/core/audio/sound.js'
+import { sound } from '@/utils/sound'
 
 const settings = useSettingsStore()
 const progress = useProgressStore()

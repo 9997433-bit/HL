@@ -9,8 +9,9 @@ import ShapeGlyph from '@/components/ShapeGlyph.vue'
 import { useProgressStore } from '@/stores/progress.js'
 import { useFeedback } from '@/composables/useFeedback'
 import { REAL_OBJECTS, SHAPES, SHAPES_2D, SHAPES_3D } from '@/data/shapes'
+import { geometrySkill } from '@/data/skill-mapping.js'
 import { numericOptions, pick, sample, shuffle } from '@/utils/random'
-import { sound } from '@/core/audio/sound.js'
+import { sound } from '@/utils/sound'
 
 const ROUND_SIZE = 10
 const MODULE_ID = 'geometry'
@@ -151,7 +152,7 @@ function grade(value, anchor) {
   marks.value[index.value] = right ? 'ok' : 'no'
   chosen.value = value
   // 映射到 curriculum 技能点，让自适应掌握度引擎能收到反馈
-  const skill = q.target.dim === '3d' ? 'shape-3d' : 'shape-2d'
+  const skill = geometrySkill(q.target)
 
   if (right) {
     const stars = q.target.dim === '3d' ? 2 : 1

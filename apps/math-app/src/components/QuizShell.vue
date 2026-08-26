@@ -28,7 +28,7 @@ import { useProgressStore } from '@/stores/progress.js'
 import { useFeedback } from '@/composables/useFeedback'
 import { errorTagInfo } from '@/data/errorTags.js'
 import { sample } from '@/utils/random'
-import { sound } from '@/core/audio/sound.js'
+import { sound } from '@/utils/sound'
 
 const props = defineProps({
   moduleId: { type: String, required: true },

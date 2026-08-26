@@ -13,7 +13,7 @@ import {
   problemsOfTier,
 } from '@/data/wordProblems'
 import { numericOptions, shuffle } from '@/utils/random'
-import { sound } from '@/core/audio/sound.js'
+import { sound } from '@/utils/sound'
 
 const ROUND_SIZE = 8
 const MODULE_ID = 'word'

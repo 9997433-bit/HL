@@ -8,7 +8,8 @@ import RoundSummary from '@/components/RoundSummary.vue'
 import { useProgressStore } from '@/stores/progress.js'
 import { useFeedback } from '@/composables/useFeedback'
 import { numericOptions, randInt, sample } from '@/utils/random'
-import { sound } from '@/core/audio/sound.js'
+import { sound } from '@/utils/sound'
+import { countingSkill } from '@/data/skill-mapping.js'
 
 const ROUND_SIZE = 8
 const MODULE_ID = 'counting'
@@ -201,15 +202,9 @@ function encourage() {
 }
 
 
-/** 映射到 curriculum 技能点，让自适应掌握度引擎能收到反馈。 */
-function skillOf(q) {
-  if (q.type === 'seq') return 'count-to-10'
-  return q.target <= 5 ? 'count-to-5' : 'count-to-10'
-}
-
 function award(isRight, anchor) {
   marks.value[index.value] = isRight ? 'ok' : 'no'
-  const skill = skillOf(current.value)
+  const skill = countingSkill(current.value)
   if (isRight) {
     correctCount.value += 1
     const stars = current.value.target >= 11 ? 2 : 1

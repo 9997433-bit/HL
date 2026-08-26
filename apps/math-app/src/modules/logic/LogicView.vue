@@ -8,8 +8,9 @@ import RoundSummary from '@/components/RoundSummary.vue'
 import ShapeGlyph from '@/components/ShapeGlyph.vue'
 import { useProgressStore } from '@/stores/progress.js'
 import { useFeedback } from '@/composables/useFeedback'
+import { logicSkill } from '@/data/skill-mapping.js'
 import { numericOptions, pick, randInt, sample, shuffle } from '@/utils/random'
-import { sound } from '@/core/audio/sound.js'
+import { sound } from '@/utils/sound'
 
 const ROUND_SIZE = 10
 const MODULE_ID = 'logic'
@@ -211,24 +212,12 @@ const message = ref('先看看前面几个，再猜问号里是什么。')
 
 const current = computed(() => questions.value[index.value] ?? null)
 
-/**
- * 循环型题目练的是「简单规律」，数列与数量递增练的是归纳推理，
- * 分开上报让掌握度更能反映真实薄弱环节。
- */
-const SKILL_BY_TYPE = {
-  emoji: 'pattern-abab',
-  shape: 'pattern-abab',
-  rotate: 'pattern-abab',
-  number: 'deduction',
-  group: 'deduction',
-}
-
 function grade(value, anchor) {
   const q = current.value
   const right = value === q.answer
   marks.value[index.value] = right ? 'ok' : 'no'
   chosen.value = value
-  const skill = SKILL_BY_TYPE[q.type] ?? 'pattern-abab'
+  const skill = logicSkill(q.type)
 
   if (right) {
     const stars = showHint.value ? 1 : 2

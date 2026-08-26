@@ -8,7 +8,8 @@ import { useRouter } from 'vue-router'
 import QuizShell from '@/components/QuizShell.vue'
 import { useProgressStore } from '@/stores/progress.js'
 import { numericOptions, randInt, sample } from '@/utils/random'
-import { sound } from '@/core/audio/sound.js'
+import { arithmeticSkill } from '@/data/skill-mapping.js'
+import { sound } from '@/utils/sound'
 
 const ROUND_SIZE = 10
 const MODULE_ID = 'arithmetic'
@@ -85,13 +86,6 @@ function hintsFor(q) {
   return out
 }
 
-/** 映射到 curriculum 技能点，让自适应掌握度引擎能收到反馈。 */
-function skillOf(q) {
-  if (level.value === 100) return 'add-within-100'
-  if (level.value === 20) return q.kind === 'add' ? 'add-carry-20' : 'sub-borrow-20'
-  return q.kind === 'add' ? 'add-within-10' : 'sub-within-10'
-}
-
 /**
  * 错因归类：个位相加过 10 却答错多半是忘进位，个位不够减则是忘退位；
  * 答出「另一种运算」的结果说明是把加减看反了。家长报告按这些标签统计薄弱点。
@@ -116,7 +110,7 @@ function buildQuestion() {
   return {
     ...q,
     id: `${q.a}${q.sign}${q.b}`,
-    skill: skillOf(q),
+    skill: arithmeticSkill({ level: level.value, kind: q.kind }),
     options: numericOptions(q.answer, {
       count: 4,
       spread: level.value === 100 ? 9 : 3,
@@ -126,7 +120,6 @@ function buildQuestion() {
     hints: hintsFor(q),
     xp: isHard.value ? 18 : 10,
     tag: isHard.value ? 'arithmetic-hard' : undefined,
-    // 连击越长，单题星星越多：3 连击 +1，5 连击 +2
     stars: ({ combo }) => base + (combo >= 5 ? 2 : combo >= 3 ? 1 : 0),
     errorTags: errorTagsOf,
   }
