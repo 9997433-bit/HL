@@ -27,6 +27,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A17 | claude-fable-5-thinking-xhigh | Round 1 conclusion brief & full-suite verification (backfill) | complete |
 | A07 | claude-opus-5-thinking-high-fast | Rich CLI (modal/correlate/update), model spec format & workflow example | complete |
 | A25 | gpt-5.6-sol-xhigh-fast | CLI subprocess coverage over example 02 fixtures | complete |
+| A15 | claude-opus-5-thinking-high-fast | GAP-01 `ModalResult` contract unification (backfill for R1-F1) | complete |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
@@ -538,6 +539,55 @@ orchestrator to diff against the landed implementation in Round 2.
   clean on `src/openfemlab/cli`, `examples/02_model_updating_workflow.py` and
   `tests/test_cli.py`.
 
+#### A15 — GAP-01 `ModalResult` Contract Unification (backfill for R1-F1)
+- **Closed the last half of the GAP-01 split-brain.** `solver/modal.py` still defined its own
+  `ModalResult` (`eigenvalues` / `mode_shapes` / `free_dofs` / `system` /
+  `num_condensed_dofs`, plus the generalized quantities) while `core/results.py` defined an
+  incompatible one (`frequencies` / `shapes` / `dof_map` / `meta`). Nothing typed as one
+  worked with the other, so every producer→consumer hop went through a hand-written adapter
+  (`cli/analysis.as_modal_result`, `modal/eigen.solve_modes`), and a solver result silently
+  lost its eigenvalues, normalization and assembled system on the way to `io`.
+- `core.results.ModalResult` is now the single contract, and it is a superset rather than a
+  compromise. It takes the spectrum as **either** `frequencies` [Hz] **or** `eigenvalues`
+  [ω²] and the shapes under **either** `shapes` or `mode_shapes` — exactly one of each pair,
+  the other derived — and carries the optional solver provenance (`free_dofs`,
+  `normalization`, `system`, `num_condensed_dofs`) that backs `modal_masses`,
+  `modal_stiffnesses`, `orthogonality_error()`, `participation_factors()`,
+  `effective_masses()`, `rigid_body_modes`, `periods` and `summary()`. Storing the
+  eigenvalues as given keeps the fixture spectra bit-comparable (the previous
+  λ → f → λ round trip would have introduced ~1e-16 relative drift into assertions held at
+  1e-12).
+- `dof_map` became optional, because modes of bare `(K, M)` matrices genuinely have no nodal
+  interpretation — `ModalSolver.from_matrices` labels DOFs `dof0..dofN`, which no `DofMap`
+  can parse. `ModalResult.with_dof_map(dof_map, meta=...)` attaches one later without
+  recomputing or dropping anything, so a solver result reaches `io` and `correlation` as
+  itself. `io.write_modal_result` now raises `FormatError` naming `with_dof_map()` instead of
+  failing with `AttributeError: 'NoneType'`.
+- `solver/modal.py` re-exports `ModalResult`, `NORMALIZATIONS` and `RIGID_BODY_TOL` (137
+  lines of duplicate class deleted); both adapters collapsed into single `with_dof_map()`
+  calls; `cli/analysis.py` no longer needs its `SolverModalResult` alias.
+- Added `tests/test_result_contract.py` (17 tests) as the regression that pins the merge:
+  `core.results`, `solver.modal` and `openfemlab.solver` must expose the *same class object*;
+  `result.shapes is result.mode_shapes` and `n_modes == num_modes`; the frequency↔eigenvalue
+  pair round-trips in both directions to 1e-15; an ambiguous or missing spectrum/shape
+  argument is rejected; the generalized quantities still hold (unit modal masses, φᵀKφ =
+  λ·mⱼ, orthogonality error < 1e-9, effective masses summing to the model mass); a
+  system-less result explains why it cannot expand; and a solver result travels through
+  `with_dof_map()` into `write_modal_result`/`read_modal_result` and into
+  `correlate_modal_data` (min MAC 1.0) without being rebuilt.
+- Updated `docs/ARCHITECTURE.md` §11.3 and the `docs/SOTA_GAP_ANALYSIS.md` GAP-01 entry,
+  which both still listed the duplication as an open Round 2 item; the capability table row
+  for participation factors now points at `core/results.py`.
+- Verified on Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1: full suite **212 passed** (5.4 s), up
+  from the 166 collected when this agent started and the 192 of the A17 conclusion; both
+  `examples/` scripts and the CLI session still run. `ruff check` clean on every touched
+  file.
+- **Working-tree hazard, again.** Mid-run a concurrent agent switched the shared `/workspace`
+  checkout onto `cursor/dynamics-damping-frf-9500`, so the unification commit landed there
+  and was then committed on top of; it was recovered by cherry-picking through a detached
+  worktree at `/tmp/gap01`, which is also where the rest of this task ran. Agents editing the
+  shared tree should hold a private worktree, as A14/R1-O2 already do.
+
 ### Round 2 — Targeted Refactor & Deep Optimization
 **Status:** PENDING
 
@@ -636,3 +686,17 @@ in-flight CLI test emitting a progress line before its JSON (191 passed / 1 fail
 **Round 1 exit bar: MET.** Module content, spec coverage, and integration health are all
 green — `import openfemlab` is clean, the full committed suite collects and passes end
 to end (**192 passed**), and repo-wide Ruff is clean on committed files.
+
+#### Addendum — Round 1 nearing completion (A15, commit `490dc4c`)
+
+The conclusion above credited GAP-01 as resolved while `solver/modal.py` still carried a
+second `ModalResult`; that duplicate is now deleted and `core.results.ModalResult` is the
+only result contract, pinned by `tests/test_result_contract.py`. Full suite at this commit:
+**212 passed** (Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1).
+
+What is left before Round 1 can be declared closed is unchanged in kind and small in number:
+the MS-4 `workflow/` correction package and the `optimization/` build-out are still landing
+from the shared working tree and are the only pieces of declared Round 1 scope not yet
+committed with tests. Everything else in the "Remaining defects / open items" list above is
+Round 2/3 scope by design, not Round 1 debt. Once those two packages land green, the round
+closes on content as well as on the exit bar.
