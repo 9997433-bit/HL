@@ -255,11 +255,14 @@ def minimize_sizing(
     standardized inequality ``constraints``, reusing the modal solver (M1),
     the Fox-Kapoor sensitivity kernel (M3) and MAC mode tracking (M2).
 
-    Round 1 performs the full lowering and then dispatches to the backend,
-    whose ``solve`` is the single remaining stub (Round 2, GAP-12).
+    The eigensolve count is the dominant cost of a run, and only the evaluator
+    knows it, so it is attached to the report here rather than in the backend
+    (which by design sees nothing but vectors and callables).
     """
-    problem, _ = compile_sizing_problem(model, params, objective, constraints)
-    return problem.solve(backend, tol=tol, max_iter=max_iter, seed=seed)
+    problem, evaluator = compile_sizing_problem(model, params, objective, constraints)
+    result = problem.solve(backend, tol=tol, max_iter=max_iter, seed=seed)
+    result.n_modal_solves = evaluator.n_modal_solves
+    return result
 
 
 def problem_from_updater(updater: ModelUpdater) -> OptimizationProblem:

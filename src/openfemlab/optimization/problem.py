@@ -114,8 +114,8 @@ class OptimizationProblem:
     def solve(self, backend: str = "slsqp", **options: object) -> OptimizationResult:
         """Run a registered backend on this problem.
 
-        Round 1 registers the scipy backend as a documented stub; the wired
-        implementation lands with Round 2 (GAP-12).
+        ``options`` override the ones carried by the problem, and are forwarded
+        to the backend factory (``tol``, ``max_iter``, ``seed``, ...).
         """
         from .backends import get_backend
 
@@ -124,7 +124,23 @@ class OptimizationProblem:
 
 @dataclass
 class OptimizationIterate:
-    """One accepted iterate of an optimization run (backend callback record)."""
+    """One accepted iterate of an optimization run (backend callback record).
+
+    Attributes
+    ----------
+    iteration:
+        0 for the initial design, then one per accepted backend step.
+    x:
+        The design actually evaluated — already projected onto the box, since
+        that is the point the model saw.
+    objective, max_violation:
+        Objective value and the largest standardized ``g_k(x)`` there.
+    in_bounds:
+        Whether the *backend's proposal* was already inside the box before
+        clipping. This is what makes the AC-OPT-003 audit meaningful: ``x``
+        alone is feasible by construction, so a clipped excursion would
+        otherwise leave no trace.
+    """
 
     iteration: int
     x: Vector
