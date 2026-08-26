@@ -61,6 +61,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A62 | gpt-5.6-sol-xhigh-fast | Superseded-branch closure record and current-trunk verification (backfill for A40) | complete |
 | A55 | claude-fable-5-thinking-xhigh | Status snapshot: `.agent_workspace/STATUS.md` — 876-test verification, Round 1/2 state, module table, open gaps (backfill for A51) | complete |
 | A61 | claude-fable-5-thinking-xhigh | Round 2 mid-point brief, plan status snapshot & 876-test tip verification (backfill for A53) | complete |
+| A50 | claude-opus-5-thinking-high-fast | Remaining P0 acceptance batch: AC-MODAL-007/009, AC-CORR-005/007, AC-UPD-004/005, AC-WORK-001/002/004/005 + MS-1.1 solver validation and MS-3.4 stop reasons/divergence guard (backfill for A31) | complete |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
@@ -2307,3 +2308,89 @@ English, aimed at the FEMtools-adjacent audience the platform targets.
   `/tmp/a64`, and the base tip indeed moved twice (`8604807` → `e47426e` → the A67
   record) between the first fetch and the landing — re-synced by rebase both times,
   nothing lost.
+
+#### A50 — the remaining P0 acceptance batch (backfill for A31)
+
+Eleven P0 criteria closed across four modules, plus the two pieces of product code
+they turned out to require. AC-CORR-008 is now the only P0 row left `specified`;
+the registry stands at **39 implemented of 40**.
+
+**M1 modal — AC-MODAL-007, AC-MODAL-009.** AC-MODAL-007 checks that a complete
+basis accounts for all participating mass: the effective modal masses of the full
+spectrum sum back to the rigid-body mass in each direction, and a basis truncated
+at half its modes provably falls short of it, so the test cannot pass by summing
+nothing. AC-MODAL-009 needed the solver to *have* typed failures first —
+`ModalSolver.solve` previously trusted its inputs, so an asymmetric or indefinite
+matrix produced modes at an imaginary frequency instead of an error. It now
+screens non-finite entries, relative symmetry defect above 1e-10, and mass
+definiteness before factorising, raising the new `MatrixSymmetryError` /
+`MatrixDefinitenessError` with the offending matrix, the measured defect and the
+tolerance attached. The acceptance test also AST-scans the whole `solver` package
+for bare `assert` statements, which are stripped under `python -O` and would make
+the guarantee conditional on the interpreter flags.
+
+Opening the definiteness gate (`definiteness_tol=None`) is not by itself enough to
+inspect an unstable spectrum: clipping a negative eigenvalue to zero leaves an
+eigenpair that fails the residual check, so `residual_tol=None` has to come with
+it. The test records that pairing rather than papering over it.
+
+**M2 correlation — AC-CORR-005, AC-CORR-007.** AC-CORR-005 pins the frequency-error
+sign convention `100 (f_fe − f_test) / f_test` as an oracle: a stiffer or lighter
+model reports a positive error, a softer or heavier one negative, and the three
+reporting paths that surface the number (`relative_frequency_error`,
+`ModePair.frequency_error_pct`, and the `CorrelationSummary`) are checked to agree
+to the last bit rather than merely to a tolerance. AC-CORR-007 is the property
+half: over randomised draws every MAC entry lies in [0, 1] for real *and* complex
+shapes, the complex kernel is Hermitian, and a zero-norm shape is rejected instead
+of silently clipped to a MAC of 0 or 1.
+
+**M3 updating — AC-UPD-004, AC-UPD-005.** These two needed the loop to report more
+than a boolean. `UpdatingResult` now carries `stop_reason` from the closed
+`STOP_REASONS` vocabulary (`step_tol`, `cost_tol`, `gates_met`, `gradient_tol`,
+`max_iter`, `no_step`) with `converged` derived from it, `UpdatingOptions` grows
+the optional MS-3.4 correlation gates that end a run as soon as the paired modes
+satisfy them, and the divergence guard aborts with `UpdatingDivergenceError` once
+the objective has risen on `divergence_patience` consecutive accepted steps.
+`UpdatingDivergenceError` moved from `workflow.stages` to the shared `exceptions`
+module — `updating` cannot import from `workflow`, which sits above it — and now
+carries the cost history and the iteration it fired on; `workflow.stages`
+re-exports it, so its public name is unchanged.
+
+AC-UPD-004 then pins all of that: non-increasing objective over the accepted steps
+on every AC-UPD-003 twin, and every token in the vocabulary reachable by some run
+of that same twin. The twin is exactly solvable, so its gradient collapses to
+round-off before either tolerance can fire — the step and cost cases have to
+switch the gradient test off to reach the criterion they are about, which is
+recorded in the parameter table rather than hidden. The divergence half uses the
+wrong-signed Jacobian MS-3.4 asks for: with the line search off, three accepted
+uphill steps abort; with it on, the identical Jacobian cannot take a single step
+and the run stops at `no_step` with the initial model untouched. That contrast is
+what makes the abort a property of the run rather than of the model.
+
+AC-UPD-005 runs four parameters against two frequencies with an exactly collinear
+pair, deliberately bypassing the AC-UPD-007 screen — the point is what the bare
+loop does when nobody removed the degeneracy. Under both LM and Gauss-Newton it
+completes, keeps every *recorded* iterate inside the bounds (not just the last
+one), and never raises the objective. Two residuals cannot pin four parameters, so
+the test claims no parameter recovery at all — not even of the sum the duplicate
+collapses to, since three effective factors still outnumber the two frequencies —
+and pins the thing that is actually guaranteed instead: the null-space direction,
+the difference between the collinear pair, stays at zero from the first step to
+the last while the fit is reached.
+
+**M4 workflow — AC-WORK-001/002/004/005.** `tests/acceptance/test_workflow.py`
+covers the S1–S6 correction pipeline end to end: the detuned twin passes both MS-4.2
+gates (AC-WORK-001), a rerun reproduces every reported number bit for bit
+(AC-WORK-002), too few mode pairs halts at S2 with a typed `(stage, reason)` rather
+than a traceback (AC-WORK-004), and the report carries its versioned schema with
+every required block present (AC-WORK-005).
+
+**Verification.** `900 passed, 0 failed` and `ruff check src tests` clean, from an
+isolated clone with `PYTHONPATH` pinned to its own `src`.
+
+**One process note worth recording.** Mid-run another agent ran `git reset --hard`
+inside `/tmp/a50`, the private clone this work was staged in, and destroyed the
+uncommitted AC-UPD-004/005 tree — the shared-checkout hazard the earlier entries
+describe for `/workspace`, but one directory further out. The work was rebuilt in a
+uniquely named directory and pushed immediately after each commit. Private
+worktrees are only private if their names are unlikely to collide.
