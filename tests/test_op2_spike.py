@@ -254,6 +254,26 @@ def test_phase1_rejects_a_file_that_is_not_an_op2(content):
         list_op2_tables(io.BytesIO(content))
 
 
+def test_phase1_joins_the_continuation_blocks_of_a_long_record():
+    """A logical record is one record however many blocks Nastran split it into.
+
+    Real files split a record every 4096 bytes into further ``[key, payload]``
+    pairs; the fixture splits every 8 words, which reaches the same path with
+    a readable file.
+    """
+
+    modes = chain_modes()
+    whole = _op2.modes_file(modes, grids=basic_grids())
+    split = _op2.modes_file(modes, grids=basic_grids(), max_record_words=8)
+
+    assert len(split) > len(whole)
+    assert list_op2_tables(io.BytesIO(split)) == ["GEOM1", "LAMA", "OUGV1"]
+
+    result = read_op2_modes(io.BytesIO(split))
+    assert result.frequencies == pytest.approx([12.5, 41.25])
+    assert result.shapes == pytest.approx(read_op2_modes(io.BytesIO(whole)).shapes)
+
+
 def test_phase1_rejects_a_record_whose_byte_counts_disagree():
     """A record that closes with a different count than it opened with is junk."""
 

@@ -243,7 +243,7 @@ def modes_file(
 
     file_options = {
         key: eigenvector_options.pop(key)
-        for key in ("word_size", "byte_order", "post", "version", "date")
+        for key in ("word_size", "byte_order", "post", "version", "date", "max_record_words")
         if key in eigenvector_options
     }
     blocks: list[DataBlock] = []
@@ -268,6 +268,7 @@ def write_op2(
     post: int = -1,
     version: str = "NX12.0",
     date: tuple[int, int, int] = (8, 26, 26),
+    max_record_words: int | None = None,
 ) -> bytes:
     """Serialize data blocks as an OP2 file.
 
@@ -280,6 +281,11 @@ def write_op2(
         ``"<"`` or ``">"``.
     post:
         ``-1`` writes the date and version header, ``-2`` writes none.
+    max_record_words:
+        Split records longer than this into continuation ``[key, payload]``
+        pairs, the way Nastran splits a logical record every 4096 bytes.  The
+        default writes each record whole; a small value is how a test reaches
+        the continuation path without a 4-kilobyte fixture.
     """
 
     if word_size not in (4, 8):
@@ -300,13 +306,17 @@ def write_op2(
         raise ValueError(f"an OP2 is written by PARAM,POST,-1 or -2, not {post}")
 
     for block in blocks:
-        out += _write_block(block, word_size, byte_order, date)
+        out += _write_block(block, word_size, byte_order, date, max_record_words)
     out += _marker(0, word_size, byte_order)  # the trailing marker that ends a file
     return bytes(out)
 
 
 def _write_block(
-    block: DataBlock, word_size: int, byte_order: str, date: tuple[int, int, int]
+    block: DataBlock,
+    word_size: int,
+    byte_order: str,
+    date: tuple[int, int, int],
+    max_record_words: int | None = None,
 ) -> bytes:
     out = bytearray()
     out += _keyed(characters(block.name, words=2), word_size, byte_order)
@@ -324,7 +334,7 @@ def _write_block(
     index = -2
     for record in records:
         out += _marker_group(index, word_size, byte_order)
-        out += _keyed(record, word_size, byte_order)
+        out += _keyed(record, word_size, byte_order, max_record_words)
         index -= 1
     out += _marker_group(index, word_size, byte_order)
     out += _marker(0, word_size, byte_order)
@@ -341,12 +351,28 @@ def _marker(value: int, word_size: int, byte_order: str) -> bytes:
     return _block(integers(value), word_size, byte_order)
 
 
-def _keyed(words: Sequence[Token], word_size: int, byte_order: str) -> bytes:
-    """A key giving the word count, then the payload it announces."""
+def _keyed(
+    words: Sequence[Token],
+    word_size: int,
+    byte_order: str,
+    max_record_words: int | None = None,
+) -> bytes:
+    """A key giving the word count, then the payload it announces.
+
+    A payload longer than ``max_record_words`` is continued in further
+    ``[key, payload]`` pairs, which is one logical record all the same.
+    """
 
     payload = pack_words(words, word_size, byte_order)
-    key = len(payload) // word_size
-    return _marker(key, word_size, byte_order) + _raw(payload, byte_order)
+    if not payload:
+        raise ValueError("a keyed record holds at least one word")
+    limit = word_size * (max_record_words or len(payload))
+    out = bytearray()
+    for start in range(0, len(payload), limit):
+        chunk = payload[start : start + limit]
+        out += _marker(len(chunk) // word_size, word_size, byte_order)
+        out += _raw(chunk, byte_order)
+    return bytes(out)
 
 
 def _block(words: Sequence[Token], word_size: int, byte_order: str) -> bytes:

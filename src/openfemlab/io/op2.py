@@ -157,9 +157,10 @@ the MSC DMAP documentation.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from os import PathLike
 from pathlib import Path
-from typing import BinaryIO
+from typing import BinaryIO, NamedTuple
 
 import numpy as np
 
@@ -310,8 +311,8 @@ def read_op2_modes(source: str | PathLike[str] | BinaryIO) -> ModalResult:
     source_name = _source_name(source)
     names = [block.name for block in blocks]
 
-    eigenvalues = _first_block(blocks, ("LAMA",))
-    if eigenvalues is None:
+    eigenvalue_table = _first_block(blocks, ("LAMA",))
+    if eigenvalue_table is None:
         raise FormatError(
             f"{_where(source_name)} has no LAMA eigenvalue table, so it holds no normal "
             f"modes; its data blocks are {', '.join(names) or '(none)'}"
@@ -325,7 +326,7 @@ def read_op2_modes(source: str | PathLike[str] | BinaryIO) -> ModalResult:
 
     _reject_non_basic_frames(blocks, op2_format, source_name)
 
-    table = _read_lama(eigenvalues, op2_format, source_name)
+    table = _read_lama(eigenvalue_table, op2_format, source_name)
     grids, shapes_by_mode, subcases = _read_eigenvectors(
         displacements, op2_format, source_name
     )
@@ -345,9 +346,11 @@ def read_op2_modes(source: str | PathLike[str] | BinaryIO) -> ModalResult:
             "LAMA eigenvalue table does not, so their frequencies are unknown"
         )
 
-    frequencies = np.array([table[number][2] for number in mode_numbers], dtype=np.float64)
+    frequencies = np.array(
+        [table[number].frequency_hz for number in mode_numbers], dtype=np.float64
+    )
     generalized_masses = np.array(
-        [table[number][3] for number in mode_numbers], dtype=np.float64
+        [table[number].generalized_mass for number in mode_numbers], dtype=np.float64
     )
     shapes = np.column_stack([shapes_by_mode[number] for number in mode_numbers])
     dof_map = DofMap.regular(grids, _MODE_DOFS)
@@ -360,7 +363,9 @@ def read_op2_modes(source: str | PathLike[str] | BinaryIO) -> ModalResult:
         "byte_order": op2_format.byte_order,
         "mode_numbers": tuple(mode_numbers),
         "generalized_masses": generalized_masses.tolist(),
-        "generalized_stiffnesses": [table[number][4] for number in mode_numbers],
+        "generalized_stiffnesses": [
+            table[number].generalized_stiffness for number in mode_numbers
+        ],
     }
     if op2_format.version:
         meta["solver_version"] = op2_format.version
@@ -425,7 +430,9 @@ def _first_block(blocks: list[OP2Block], names: tuple[str, ...]) -> OP2Block | N
     return None
 
 
-def _iter_subtables(block: OP2Block, op2_format: OP2Format):
+def _iter_subtables(
+    block: OP2Block, op2_format: OP2Format
+) -> Iterator[tuple[bytes, bytes]]:
     """Yield the ``(IDENT, data)`` record pairs of a result block.
 
     A result block interleaves a 146-word ``IDENT`` describing one case with
@@ -443,12 +450,22 @@ def _iter_subtables(block: OP2Block, op2_format: OP2Format):
             ident = None
 
 
+class _Eigenvalue(NamedTuple):
+    """One row of the ``LAMA`` table, in the order the record writes it."""
+
+    extraction_order: int
+    eigenvalue: float
+    frequency_hz: float
+    generalized_mass: float
+    generalized_stiffness: float
+
+
 def _read_lama(
     block: OP2Block, op2_format: OP2Format, source_name: str | None
-) -> dict[int, tuple[int, float, float, float, float]]:
-    """``LAMA`` as ``mode number → (order, eigenvalue, Hz, mass, stiffness)``."""
+) -> dict[int, _Eigenvalue]:
+    """The ``LAMA`` table as ``mode number → row``."""
 
-    table: dict[int, tuple[int, float, float, float, float]] = {}
+    table: dict[int, _Eigenvalue] = {}
     for _ident, data in _iter_subtables(block, op2_format):
         nwords = op2_format.nwords(data)
         if nwords % _LAMA_ENTRY_WORDS:
@@ -459,12 +476,12 @@ def _read_lama(
         integers = op2_format.ints(data).reshape(-1, _LAMA_ENTRY_WORDS)
         reals = op2_format.floats(data).reshape(-1, _LAMA_ENTRY_WORDS)
         for row in range(integers.shape[0]):
-            table[int(integers[row, 0])] = (
-                int(integers[row, 1]),
-                float(reals[row, 2]),
-                float(reals[row, 4]),
-                float(reals[row, 5]),
-                float(reals[row, 6]),
+            table[int(integers[row, 0])] = _Eigenvalue(
+                extraction_order=int(integers[row, 1]),
+                eigenvalue=float(reals[row, 2]),
+                frequency_hz=float(reals[row, 4]),
+                generalized_mass=float(reals[row, 5]),
+                generalized_stiffness=float(reals[row, 6]),
             )
     if not table:
         raise FormatError(f"{_where(source_name)}: the LAMA table holds no eigenvalues")
