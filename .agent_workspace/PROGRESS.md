@@ -44,5 +44,5 @@
 - [x] opus-fast·双 App MVP + 打包: `dist/hongen-literacy-app.zip`（271KB）、`dist/hongen-math-app.zip`（143KB）
 
 ## Round 2 首要清理项
-- **math-app**：`modules/*+core/*`（路由生效） vs `src/views/*`（未引用）；择优合并 UI 后删重复引擎。
+- **math-app**：`modules/*` 视图（路由生效） vs 未引用的 `core/engine/*`、`src/views/*`；数独/应用题/生成器各存两套，需收敛；Tone.js 包体可换轻量 WebAudio。
 - **literacy-app**：`HomeView/LearnView/...`（路由生效） vs `HomeMap/Books/Idioms/...`（未引用）；同上归并。
