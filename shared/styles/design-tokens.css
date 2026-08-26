@@ -88,15 +88,17 @@
   --neon-red: #ff6b7d;
   --neon-orange: #ff9f45;
 
-  /* 暖墨 — 暖色主题文字三级 */
+  /* 暖墨 — 暖色主题文字三级
+     三级灰（--*-500）会被主题层映射成 --text-soft，落在 0.7rem 的拼音、
+     说明文字上，所以取值以「在本主题最亮的底色上 ≥ 4.5:1」为下限。 */
   --warmink-900: #3d2f1f;
   --warmink-700: #5a4632;
-  --warmink-500: #8a7963;
+  --warmink-500: #76654e;
 
   /* 星幕 — 深色主题文字三级 */
   --ice-100: #f2f5ff;
   --ice-300: #b9c2ee;
-  --ice-500: #7b86c4;
+  --ice-500: #94a0d8;
 
   /* 纸面 — 暖色底 */
   --paper-warm: #fff6e2;
@@ -297,7 +299,8 @@
 
   --text-strong: #3f3a2c;
   --text: #55503f;
-  --text-soft: #7d7663;
+  /* 4.65:1 —— 底色按 care 最亮的 --brand-soft(#f0e3c9) 算，选中的部首名就落在那上面 */
+  --text-soft: #6a6351;
   --text-invert: #fbf8ef;
 
   --brand: #c98a3c;
@@ -342,7 +345,7 @@
 
   --text-strong: #f4f1ea;
   --text: #ddd8ce;
-  --text-soft: #a7a2b4;
+  --text-soft: #c3bfcc;
   --text-invert: #23283b;
 
   --brand: var(--mango-400);

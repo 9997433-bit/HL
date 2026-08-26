@@ -83,6 +83,21 @@ const locked = ref(false)
 const missedChars = ref([])
 const celebrating = ref(false)
 
+/**
+ * 读屏播报。
+ *
+ * 屏幕上的反馈是「颜色 + 一句短提示 + 动画」，这三样读屏用户一样都拿不到，
+ * 所以每一步都在这里写一句完整的话：第几关、答对没有、正确答案是哪个字。
+ * 短提示（feedback）留在视觉层，播报走这条独立的 sr-only 通道，避免同一句
+ * 话被读两遍。
+ */
+const announcement = ref('')
+
+function announce(text) {
+  // 同一句话再写一次不会触发播报，加个零宽空格让读屏把重复的提示也念出来
+  announcement.value = announcement.value === text ? `${text}\u200b` : text
+}
+
 const speechOk = isSpeechSupported()
 
 const skinId = computed(() => SKINS.some((s) => s.id === settings.listenSkin) ? settings.listenSkin : 'fish')
@@ -127,6 +142,7 @@ function nextRound() {
   options.value = shuffle([pick, ...distractors])
 
   round.value += 1
+  announce(`第 ${round.value} 关，共 ${ROUNDS} 关。${skin.value.sceneHint}，${OPTIONS} 个字里选一个。`)
   playPrompt()
   animateIn()
 }
@@ -269,11 +285,19 @@ function choose(opt) {
     sfx.correct()
     burstRef.value?.burst()
     animateRight(opt.char)
+    announce(
+      `答对了，是「${opt.char}」，读作 ${opt.pinyin}。` +
+        `已经答对 ${score.value} 题，共 ${ROUNDS} 关。`
+    )
   } else {
     streak.value = 0
     sfx.wrong()
     missedChars.value.push(target.value.char)
     animateWrong(opt.char)
+    announce(
+      `选的是「${opt.char}」，${opt.pinyin}；正确答案是「${target.value.char}」，` +
+        `读作 ${target.value.pinyin}。${skin.value.wrongHint}。`
+    )
   }
 
   progress.recordAnswer(target.value.char, correct)
@@ -288,12 +312,17 @@ function choose(opt) {
 function finish() {
   killBoardAnimations()
   phase.value = 'done'
+  announce(
+    `这一局结束，答对 ${score.value} / ${ROUNDS} 题，正确率 ${accuracy.value}%，` +
+      `拿到 ${earnedStars.value} 颗星，最高连对 ${bestStreak.value} 次。`
+  )
   if (score.value >= ROUNDS * 0.6) celebrating.value = true
   else sfx.tap()
 }
 
 function start() {
   sfx.tap()
+  announce('游戏开始。')
   celebrating.value = false
   phase.value = 'playing'
   round.value = 0
@@ -345,6 +374,8 @@ onBeforeUnmount(() => {
 <template>
   <div class="page game">
     <StarBurst ref="burstRef" />
+
+    <p class="sr-only" role="status" aria-live="polite" aria-atomic="true">{{ announcement }}</p>
 
     <!-- 开始页 -->
     <section v-if="phase === 'intro'" class="card intro">
@@ -442,7 +473,8 @@ onBeforeUnmount(() => {
         </button>
       </section>
 
-      <p class="feedback" role="status" aria-live="polite">{{ feedback }}</p>
+      <!-- 视觉短提示；完整播报交给上面的 sr-only 区域，避免读屏念两遍 -->
+      <p class="feedback" aria-hidden="true">{{ feedback }}</p>
     </template>
 
     <!-- 结算 -->

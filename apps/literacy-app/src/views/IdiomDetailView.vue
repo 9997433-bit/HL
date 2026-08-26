@@ -30,6 +30,9 @@ const revealed = ref(1)
 const picked = ref(null)
 const solved = ref(false)
 
+/** 情景小测的对错只靠边框色和一行小字表达，读屏要单独说一遍。 */
+const announcement = ref('')
+
 const idiom = computed(() => getIdiom(props.id))
 
 const index = computed(() => IDIOMS.findIndex((i) => i.id === props.id))
@@ -91,8 +94,10 @@ function choose(i) {
     solved.value = true
     sfx.correct()
     burstRef.value?.burst()
+    announcement.value = `答对啦！${idiom.value.quiz.tip}`
   } else {
     sfx.wrong()
+    announcement.value = `选的「${idiom.value.quiz.options[i]}」不对，再想想，换一个试试看。`
   }
 }
 
@@ -107,6 +112,7 @@ function reset() {
   revealed.value = 1
   picked.value = null
   solved.value = false
+  announcement.value = ''
   stopSpeaking()
 }
 
@@ -214,8 +220,11 @@ watch(() => props.id, enter)
           </button>
         </li>
       </ul>
-      <p v-if="solved" class="quiz__tip">🎉 答对啦！{{ idiom.quiz.tip }}</p>
-      <p v-else-if="picked !== null" class="quiz__tip quiz__tip--miss">再想想，换一个试试看～</p>
+      <p class="sr-only" role="status" aria-live="polite" aria-atomic="true">{{ announcement }}</p>
+      <p v-if="solved" class="quiz__tip" aria-hidden="true">🎉 答对啦！{{ idiom.quiz.tip }}</p>
+      <p v-else-if="picked !== null" class="quiz__tip quiz__tip--miss" aria-hidden="true">
+        再想想，换一个试试看～
+      </p>
     </section>
 
     <!-- 翻页 -->
