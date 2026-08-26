@@ -136,6 +136,18 @@ workflow.
 For a detailed Chinese introduction and workflow reference, see the
 [`中文用户指南`](docs/USER_GUIDE_zh.md).
 
+## 5 分钟上手
+
+用一个两自由度弹簧-质量模型依次完成模态分析、FE/试验相关和模型修正：
+
+```bash
+PYTHONPATH=src python examples/05_five_minute_workflow.py
+```
+
+[`examples/05_five_minute_workflow.py`](examples/05_five_minute_workflow.py)
+先把刚度降低 19% 的模型结果当作合成实测数据，再从名义模型出发，通过频率与 MAC
+相关定位偏差并修正刚度缩放因子。脚本最后重新相关，直接显示修正前后的最大频率误差。
+
 ## Command-line interface
 
 The CLI consumes JSON or YAML specifications and can emit tables, JSON, or
