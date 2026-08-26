@@ -94,6 +94,15 @@ model = read_meshio("bracket.msh")
 write_meshio(model, "bracket.vtu")
 ```
 
+[`examples/04_imported_shell_modal.py`](examples/04_imported_shell_modal.py)
+shows the complete analysis path for a QUAD4 plate:
+`read_meshio` → `neutral_to_model(quad4_as="shell")` → `ModalSolver`. Run it
+after installing the `[io]` extra:
+
+```bash
+python examples/04_imported_shell_modal.py
+```
+
 ## Quickstart
 
 Build a steel cantilever and extract its first five modes:
