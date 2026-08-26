@@ -45,6 +45,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A39 | gpt-5.6-sol-xhigh-fast | R2-T07 post-integration verification & PR-draft refresh (backfill for A27) | complete |
 | A36 | claude-opus-5-thinking-high-fast | R2-T03 start: `correlation/reduction.py` (Guyan/IRS/SEREP, TAM mass, expansion) + 2-DOF suite (backfill for A32) | complete |
 | A23 | claude-fable-5-thinking-xhigh | Round 1 sign-off audit: independent multi-tip verification & first PR body draft (backfill for A20) | complete |
+| A42 | gpt-5.6-sol-xhigh-fast | 498-test baseline timestamp & current-tip CI verification (backfill for A39) | complete |
 | R2-T02 | claude-opus-5-thinking-high-fast | GAP-02 QUAD4 plane-stress/plane-strain element, patch test & modal suite (backfill for A19) | partial — QUAD4 slice landed; TET4/HEX8/3D beam open |
 | A37 | claude-opus-5-thinking-high-fast | Merge the QUAD4 branch onto the trunk and re-verify the suite (backfill for R2-T02) | complete |
 
@@ -1359,6 +1360,13 @@ A27. The A24 backlog above is otherwise the live plan.
   4. Sparse inputs are accepted but densified (`_dense`), fine at Round-2 fixture scale
      and wrong at GAP-13 scale. Craig-Bampton CMS and geometry-based sensor mapping stay
      out of scope per the plan.
+
+#### A42 — 498-test baseline timestamp and current-tip verification (backfill for A39)
+- Verification recorded **2026-08-26 07:50:51 UTC**. A39's **498 passed, 0 failed**
+  result remains the post-R2-T07 baseline at `f0c65c2`. After resetting to the current
+  remote tip `b1b0ab8`, A42 independently ran the CI command with imports pinned to the
+  isolated checkout: **534 passed, 0 failed** in 19.98 s on Python 3.12.3 / NumPy 2.5.2 /
+  SciPy 1.18.1. Repository-wide `python -m ruff check .` also passed with no findings.
 
 ### Round 3 — SOTA Polish & Final Acceptance
 **Status:** PENDING
