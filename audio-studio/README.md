@@ -352,9 +352,12 @@ above this package.
   compliance from the current alpha.
 - Loop playback restarts from the region start without a crossfade, and the
   reported position is briefly clamped across the wrap.
-- Long files stream from disk for playback, but the edit history and peak
-  pyramid are held in memory; RF64/>4 GB out-of-core workflows are not yet
-  complete end to end.
+- Long files stream from disk for playback and their peak pyramid survives in a
+  `.pk` sidecar between sessions, but the edit history and the pyramid itself
+  are held in memory while a clip is open, and a pyramid restored for a streamed
+  file only resolves down to its finest cached level (256 frames per bin) until
+  the samples are read. RF64/>4 GB out-of-core workflows are not yet complete
+  end to end.
 
 ## Release notes — v0.1.0-alpha
 

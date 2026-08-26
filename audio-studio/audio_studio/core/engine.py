@@ -33,6 +33,7 @@ import numpy as np
 from .loader import LoadedAudio, load_audio, resample
 from .output import DEFAULT_BLOCK_SIZE, AudioOutput, OutputDeviceError, create_output
 from .peaks import PeakPyramid
+from .peaks_cache import cached_pyramid
 from .ring_buffer import RingBuffer
 from .sample_source import MemorySampleSource, SampleSource, StreamingSampleSource
 from .types import (
@@ -147,23 +148,42 @@ class AudioEngine:
         rate = self.sample_rate
         return self.n_frames / rate if rate else 0.0
 
-    def load(self, path: str | Path) -> LoadedAudio:
-        """Decode ``path`` into memory and arm the transport at its start."""
+    def load(self, path: str | Path, *, peak_cache: bool | None = None) -> LoadedAudio:
+        """Decode ``path`` into memory and arm the transport at its start.
+
+        The waveform overview comes from the file's ``.pk`` sidecar when one is
+        current; ``peak_cache`` overrides the ``AUDIO_STUDIO_PEAK_CACHE``
+        environment switch for this call.
+        """
         clip = load_audio(path)
-        self.set_clip(clip)
+        self.set_clip(
+            clip,
+            pyramid=cached_pyramid(clip.path, clip.buffer.data, enabled=peak_cache),
+        )
         return clip
 
     def open_stream(
-        self, path: str | Path, *, build_pyramid: bool = False
+        self,
+        path: str | Path,
+        *,
+        build_pyramid: bool = False,
+        peak_cache: bool | None = None,
     ) -> StreamingSampleSource:
         """Play ``path`` straight off disk instead of decoding it up front.
 
         Nothing but the file header is read, so an hour-long session opens
-        instantly. ``build_pyramid`` streams the file once more to build the
-        waveform overview, which is what a UI wants but a batch job does not.
+        instantly. ``build_pyramid`` produces the waveform overview, which is
+        what a UI wants but a batch job does not; a current ``.pk`` sidecar
+        supplies it without the extra pass over the file.
         """
         source = StreamingSampleSource(path)
-        pyramid = PeakPyramid(source.read(0, source.n_frames)) if build_pyramid else None
+        pyramid = None
+        if build_pyramid:
+            pyramid = cached_pyramid(
+                source.path,
+                lambda: source.read(0, source.n_frames),
+                enabled=peak_cache,
+            )
         self.set_source(
             source,
             audio_format=source.audio_format(),
@@ -172,8 +192,12 @@ class AudioEngine:
         )
         return source
 
-    def set_clip(self, clip: LoadedAudio | None) -> None:
-        """Install an already-decoded clip (used by tests and by DSP results)."""
+    def set_clip(self, clip: LoadedAudio | None, *, pyramid: PeakPyramid | None = None) -> None:
+        """Install an already-decoded clip (used by tests and by DSP results).
+
+        ``pyramid`` is built from the clip when it is not supplied. Callers that
+        know the clip still matches its file on disk pass a cached one instead.
+        """
         if clip is None:
             self.set_source(None)
             return
@@ -181,7 +205,7 @@ class AudioEngine:
             MemorySampleSource(clip.buffer),
             clip=clip,
             audio_format=clip.audio_format,
-            pyramid=PeakPyramid(clip.buffer.data),
+            pyramid=pyramid if pyramid is not None else PeakPyramid(clip.buffer.data),
         )
 
     def set_source(
