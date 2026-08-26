@@ -402,6 +402,8 @@ orchestrator to diff against the landed implementation in Round 2.
   numerics have one owner in `openfemlab.correlation`.
 - Added a CLI seam regression that replaces the public correlation entry point and verifies
   the `correlate` command forwards all alignment and pairing settings to that kernel.
+- Verified the regression in isolation and the complete suite: **167 passed**. The touched
+  CLI module and regression test pass Ruff.
 
 ### Round 2 — Targeted Refactor & Deep Optimization
 **Status:** PENDING
