@@ -37,6 +37,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A02 | claude-fable-5-thinking-xhigh | M5 optimization design & stubs: size/shape hooks, gradient interface, `docs/OPTIMIZATION.md` (backfill for A05) | complete |
 | A28 | claude-opus-5-thinking-high-fast | Dynamics/optimization branch integration onto the trunk (backfill for A15) | complete |
 | A32 | claude-fable-5-thinking-xhigh | Round 1 closure: 430-test/Ruff verification, PR draft, progress reconciliation (backfill for A29) | complete |
+| A30 | claude-fable-5-thinking-xhigh | Round 1 close-out: independent full-suite verification & PR-draft completion (backfill for A14) | complete |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
@@ -1192,3 +1193,24 @@ the lost-ref variant A28 reports): full
 suite **430 passed** (4.9 s), `ruff check .` clean. **Round 1 is closed on content as
 well as on the exit bar.** The ready-to-file PR for `main` (title + body) is in
 `.agent_workspace/PR_DRAFT.md`.
+
+#### Addendum — independent close-out verification (A30, backfill for A14)
+
+A30 ran the same close-out independently and the two agents' numbers agree, so the
+Round 1 declaration rests on two separate measurements rather than one: full suite
+**332 passed** at `5bc6a6d` (9.98 s) before the dynamics/optimization merge, and
+**430 passed** (4.6 s) with `ruff check .` clean (ruff 0.16.4) on the merged tip
+`9c674d5`, both on Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1 from the `/tmp/a23`
+worktree with `PYTHONPATH` pinned per the A14 method note. Per-file collection sums
+to exactly 430 (dynamics 82, updating 57, correlation 52, modal 44, workflow 38,
+acceptance 46, CLI 22+1, core 18, result contract 17, optimization 16, IO 24,
+boundary/perf/e2e/scaffold 13).
+
+A30 completed the A32 PR draft rather than replacing it: added the per-suite test
+breakdown and the `docs/ARCHITECTURE.md` §7 FEMtools comparison table to the PR body,
+and corrected one overstated claim — `ScipyBackend.solve` is a pinned Round 2 stub
+(its own test asserts `NotImplementedError` naming GAP-12), so the optimization bullet
+now says the backend seam and KKT result fields exist while the `minimize` wiring is
+Round 2 scope. Two docs-only close-out commits raced this one onto the branch tip
+(`516184b`, `b9d26f0`); this record was rebuilt on top of them instead of fighting the
+rebase, so nothing from the concurrent closure was overwritten.

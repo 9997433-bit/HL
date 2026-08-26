@@ -46,8 +46,10 @@ synthesis, and optimization hooks — all behind one CLI and a schema-versioned 
   held-out validation targets that catch overfitting, σ_post parameter uncertainty,
   and a reproducible schema-versioned `CorrectionReport` (rerun-identical to 1e-12).
 - **Optimization** (`optimization/`): design variables, modal/mass/frequency response
-  functions, analytic gradients, `OptimizationProblem`, sizing compilation from a
-  `ModelUpdater`, and a SciPy SLSQP/trust-constr backend with KKT diagnostics.
+  functions, analytic gradients with MAC mode tracking, `OptimizationProblem`, sizing
+  compilation reusing the updater's model contract, and the SciPy SLSQP/trust-constr
+  backend seam with KKT result fields — the `minimize` wiring itself is pinned as a
+  Round 2 stub (GAP-12) by its own test.
 - **IO** (`io/`): schema-versioned native YAML/JSON round trip for models, modal
   results, and test data; ASCII UFF/UNV dataset 55/58 reader; minimal Nastran BDF
   reader (GRID/CROD/MAT1 → neutral model).
@@ -64,13 +66,38 @@ synthesis, and optimization hooks — all behind one CLI and a schema-versioned 
 
 ## Verification
 
-- `python -m pytest` — **430 passed** at `9c674d5`.
+- `python -m pytest` — **430 passed** at `9c674d5` (independently re-verified by a
+  second agent on the same tip: 430 passed in 4.6 s, `ruff check .` clean, on
+  Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1 / ruff 0.16.4).
 - `ruff check .` — clean.
+- Per-suite breakdown (sums to 430): dynamics 82, updating 57, correlation 52,
+  modal solver 44, workflow 38, acceptance registry + P0 gates 46, CLI 22+1,
+  core 18, result contract 17, optimization 16, IO (native/UFF/Nastran) 24,
+  boundary/performance/e2e/scaffold 13.
 - End-to-end: model → modal → correlate → update → re-solve converges 22.86 % → 0 %
   frequency error at MAC 1.0; the README CLI session reproduces exit codes 0/3/0/0.
 - Performance (single BLAS thread, medians): 100-DOF five-iteration updating loop
   35.3 → 7.9 ms (4.47x); 240-DOF eigenvalue sensitivity 1.83 → 0.68 ms (2.70x);
   2,000-DOF sparse assembly 26.3 → 19.3 ms (1.36x), gated by regression probes.
+
+## FEMtools comparison
+
+Per `docs/ARCHITECTURE.md` §7 — concede GUI and format breadth, win on algorithms,
+openness, and automation:
+
+| Capability | FEMtools | OpenFEMLab (this PR) | Verdict |
+|---|---|---|---|
+| Solver-independent data model | mature, many interfaces | same idea; UNV 55/58 + Nastran-lite now, meshio planned | parity (breadth later) |
+| Modal analysis | internal + external solvers | SciPy dense + shift-invert Lanczos, sparse throughout, LU cache | parity |
+| Dynamic response / FRF | mature | Rayleigh/modal/hysteretic damping, complex modes, receptance/mobility/accelerance synthesis, FRAC/FDAC | parity |
+| Correlation (MAC/COMAC/orthogonality) | yes | plus globally optimal Hungarian pairing | **exceed** |
+| Sensitivity-based updating | weighted LSQ, manual tuning | LM with adaptive damping, Tikhonov, bounds by construction, analytic MAC sensitivities | **exceed** |
+| Validation workflow | GUI-driven | seeded, schema-versioned six-stage pipeline with held-out gates and machine-readable failures | **exceed** |
+| Scripting | proprietary BASIC-like | full Python + SciPy ecosystem, CI-native CLI | **exceed** |
+| Reproducibility | binary project files | plain-text models, journaled runs in git, headless reruns | **exceed** |
+| Cost / auditability | commercial licenses, closed numerics | MIT, every algorithm inspectable | **exceed** |
+| GUI, pretest planning, MPE from FRFs | mature | not in v1 (MPE targeted Round 2+, GAP-06/07/08) | gap (accepted) |
+| Format breadth (Ansys/Abaqus native) | yes | partial (planned via meshio) | gap (accepted) |
 
 ## Notes for reviewers
 
