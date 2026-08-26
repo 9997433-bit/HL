@@ -663,9 +663,12 @@ number.
 Fourteen of them were `verified` after the first two promotion waves (A109,
 A121). The third wave — promoted at Round 2 sign-off — closed module **M8**
 (AC-IO-001..003), putting every Round-1/2 row on the CI gate. Round 3 opened
-modules **M9** (section 10) and **M10** (section 11) spec-first, so the
-inventory reads **47 `verified`, 0 `implemented`, 10 `specified`**; M9 and M10
-are carried in `MODULES_AWAITING_PROMOTION` until their first promotion.
+modules **M9** (section 10) and **M10** (section 11) spec-first. M10's P0/P1
+gates (AC-PRETEST-001..004) are **`verified`**; AC-PRETEST-005 remains
+**`implemented`** (P2, outside the blocking gate). The five M9 rows
+(AC-MPE-001..005) are still **`specified`**, and M9 stays in
+`MODULES_AWAITING_PROMOTION`. The inventory reads **51 `verified`, 1
+`implemented`, 5 `specified`**.
 
 The registry tests enforce:
 

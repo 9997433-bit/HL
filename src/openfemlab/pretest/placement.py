@@ -1,22 +1,4 @@
-"""Effective Independence sensor placement (MS-11.2) — Round-3 API stubs.
-
-Every public name below is the binding surface of ``docs/MODULE_SPEC.md``
-MS-11.5, pinned ahead of the implementation (GAP-07, spec-first): signatures,
-result fields, and failure modes are the contract the AC-PRETEST criteria of
-``docs/ACCEPTANCE_CRITERIA.md`` section 10 will gate, and the function bodies
-raise :class:`NotImplementedError` naming their spec anchor until the Round-3
-implementation replaces them.
-
-The method being specified, for orientation: Kammer's Effective Independence
-ranks each candidate DOF by its leverage — the diagonal of the orthogonal
-projector onto the column space of the target-mode partition — and eliminates
-the smallest contributor until the requested sensor count remains. Each
-removal multiplies ``det(Φ_Sᵀ Φ_S)`` by exactly ``1 − E_d``, so the greedy rule
-is "lose the least Fisher information per step" (MS-11.1). What it optimizes
-is target-mode observability; test-analysis-model orthogonality at the chosen
-placement (AC-CORR-009) stays a separate check, a distinction MS-11.1 records
-with measured numbers.
-"""
+"""Effective Independence sensor placement (MS-11.2) — Round-3 implementation."""
 
 from __future__ import annotations
 
@@ -26,6 +8,9 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import numpy.typing as npt
+
+from ..correlation.mac import automac
+from ..exceptions import PretestError
 
 if TYPE_CHECKING:  # pragma: no cover - the MS-2.1 bridge type, import-cycle free
     from openfemlab.workflow.sensors import SensorMap
@@ -40,98 +25,89 @@ __all__ = [
     "to_sensor_map",
 ]
 
-_SPEC_FIRST = (
-    "is specified but not yet implemented (GAP-07, Round 3): "
-    "see docs/MODULE_SPEC.md {anchor} for the binding contract"
-)
+_TIE_TOL = 1e-12
+_RANK_TOL = 1e-10
 
 
-def _not_implemented(name: str, anchor: str) -> NotImplementedError:
-    return NotImplementedError(
-        f"openfemlab.pretest.{name} " + _SPEC_FIRST.format(anchor=anchor)
-    )
+def _as_shapes(shapes: Any, name: str = "shapes") -> npt.NDArray[np.float64]:
+    array = np.asarray(shapes, dtype=float)
+    if array.ndim != 2:
+        raise ValueError(f"{name} must be a 2-D array, got shape {array.shape!r}")
+    if array.shape[0] == 0 or array.shape[1] == 0:
+        raise PretestError(f"{name} must be non-empty to define sensor placement")
+    return array
 
 
-@dataclass(frozen=True)
-class PlacementQuality:
-    """Observability metrics of one sensor layout (MS-11.4).
-
-    Attributes
-    ----------
-    det_fim:
-        ``det(Φ_Sᵀ Φ_S)`` — volume of the information ellipsoid.
-    condition:
-        ``σ_max / σ_min`` of ``Φ_S`` — worst-direction observability loss.
-    min_singular_value:
-        ``σ_min(Φ_S)`` — margin to an unobservable target mode.
-    automac_off_diagonal:
-        Largest off-diagonal of ``correlation.automac(Φ_S)`` — spatial
-        aliasing between target modes on the selected channels (the MS-2.2
-        kernel, not a re-implementation).
-    """
-
-    det_fim: float
-    condition: float
-    min_singular_value: float
-    automac_off_diagonal: float
+def _mass_sqrt(mass: Any, n_rows: int) -> npt.NDArray[np.float64] | None:
+    if mass is None:
+        return None
+    array = np.asarray(mass, dtype=float)
+    if array.ndim == 0:
+        return np.full(n_rows, float(np.sqrt(array)), dtype=float)
+    if array.ndim == 1:
+        if array.shape[0] != n_rows:
+            raise ValueError(f"mass diagonal length {array.shape[0]} != {n_rows} rows")
+        return np.sqrt(array)
+    if array.ndim == 2:
+        if array.shape != (n_rows, n_rows):
+            raise ValueError(f"mass matrix shape {array.shape} != ({n_rows}, {n_rows})")
+        try:
+            return np.linalg.cholesky(array)
+        except np.linalg.LinAlgError as error:
+            raise PretestError("mass matrix is not positive definite") from error
+    raise ValueError("mass must be a scalar, diagonal vector, or square matrix")
 
 
-@dataclass(frozen=True)
-class PlacementResult:
-    """Outcome of a sensor-placement run (MS-11.5).
+def _weight_shapes(
+    shapes: npt.NDArray[np.float64],
+    mass: Any,
+) -> npt.NDArray[np.float64]:
+    weight = _mass_sqrt(mass, shapes.shape[0])
+    if weight is None:
+        return shapes
+    if weight.ndim == 1:
+        return shapes * weight[:, np.newaxis]
+    return weight @ shapes
 
-    Attributes
-    ----------
-    selected:
-        Retained candidate rows, ascending.
-    eliminated:
-        Removal order, first removed first — replaying it against
-        ``det_history`` reproduces the ``(1 − E_d)`` downdates of MS-11.2.
-    leverage:
-        ``(s,)`` EI leverage of the retained rows at the final step.
-    det_fim:
-        ``det(Φ_Sᵀ Φ_S)`` of the selection.
-    det_history:
-        ``det(FIM)`` after each elimination, full candidate set first.
-    quality:
-        The MS-11.4 metrics of the selection.
-    diagnostics:
-        Method, weighting, candidate/keep sets, wall time (MS-0.3).
-    """
 
-    selected: tuple[int, ...]
-    eliminated: tuple[int, ...]
-    leverage: npt.NDArray[np.float64]
-    det_fim: float
-    det_history: npt.NDArray[np.float64]
-    quality: PlacementQuality
-    diagnostics: dict[str, Any] = field(default_factory=dict)
+def _fim_det(shapes: npt.NDArray[np.float64]) -> float:
+    gram = shapes.T @ shapes
+    sign, logdet = np.linalg.slogdet(gram)
+    if sign <= 0.0:
+        raise PretestError("sensor partition is rank deficient")
+    return float(np.exp(logdet))
+
+
+def _check_full_rank(shapes: npt.NDArray[np.float64]) -> None:
+    _, singular, _ = np.linalg.svd(shapes, full_matrices=False)
+    if singular.size == 0 or singular[-1] <= _RANK_TOL * max(singular[0], 1.0):
+        raise PretestError("target mode partition is rank deficient on the candidate set")
 
 
 def ei_leverage(shapes: Any, *, mass: Any = None) -> npt.NDArray[np.float64]:
-    """Effective Independence leverage of every row of ``shapes`` (MS-11.2).
+    """Effective Independence leverage of every row of ``shapes`` (MS-11.2)."""
+    phi = _weight_shapes(_as_shapes(shapes), mass)
+    _check_full_rank(phi)
+    gram = phi.T @ phi
+    projector = phi @ np.linalg.inv(gram) @ phi.T
+    return np.diag(projector).astype(float, copy=False)
 
-    ``E_d = [Φ (ΦᵀΦ)⁻¹ Φᵀ]_dd`` — the diagonal of the orthogonal projector
-    onto the column space of the target modes, so ``E_d ∈ [0, 1]`` and
-    ``Σ E_d = m`` exactly (AC-PRETEST-001). With ``mass`` given, the shapes
-    are reweighted to ``M^(1/2) Φ`` first.
 
-    Parameters
-    ----------
-    shapes:
-        ``(n, m)`` target mode partition, e.g. ``ModalResult.mode_shapes``
-        rows restricted to the candidate DOFs.
-    mass:
-        Optional mass matrix (diagonal applied exactly, consistent via
-        Cholesky) for kinetic-energy weighting; ``M = c·I`` changes nothing.
-
-    Raises
-    ------
-    PretestError
-        If the mode partition is rank deficient (no leverage is defined on
-        modes the candidates cannot observe).
-    """
-    raise _not_implemented("ei_leverage", "MS-11.2")
+def _pick_removal(
+    active: list[int],
+    leverages: npt.NDArray[np.float64],
+    keep: set[int],
+) -> int:
+    removable = [
+        (row, float(leverages[index]))
+        for index, row in enumerate(active)
+        if row not in keep
+    ]
+    if not removable:
+        raise PretestError("cannot eliminate further rows while honoring keep=")
+    minimum = min(value for _, value in removable)
+    tied = [row for row, value in removable if value <= minimum + _TIE_TOL]
+    return max(tied)
 
 
 def select_sensors(
@@ -143,72 +119,132 @@ def select_sensors(
     keep: Sequence[int] = (),
     method: str = "ei",
 ) -> PlacementResult:
-    """Choose ``num_sensors`` DOF rows by Effective Independence (MS-11.2).
+    """Choose ``num_sensors`` DOF rows by Effective Independence (MS-11.2)."""
+    if method != "ei":
+        raise PretestError(f"unsupported placement method {method!r}; only 'ei' is implemented")
 
-    Backward elimination: remove the candidate with the smallest leverage,
-    recompute, repeat. Ties within ``1e-12`` drop the highest row index so
-    repeated runs are bitwise identical (AC-PRETEST-004); each removal
-    multiplies ``det(FIM)`` by exactly ``1 − E_d``, recorded in
-    ``det_history``.
+    phi = _as_shapes(shapes)
+    n_rows, num_modes = phi.shape
+    num_sensors = int(num_sensors)
+    if num_sensors < num_modes:
+        raise PretestError(
+            f"requested {num_sensors} sensors for {num_modes} target modes; need s >= m"
+        )
 
-    Parameters
-    ----------
-    shapes:
-        ``(n, m)`` target mode set, mass-normalized (MS-1.3).
-    num_sensors:
-        Channels to retain; must satisfy ``num_sensors >= m``.
-    mass:
-        Optional MS-11.2 kinetic-energy weighting.
-    candidates:
-        Rows the sensors may occupy (default: all ``n``).
-    keep:
-        Rows that are never eliminated (already-mounted channels).
-    method:
-        ``"ei"`` (Round 3). ``"adpr"`` exciter ranking is the MS-11.3 P2
-        outline and is reserved, not accepted.
+    pool = tuple(range(n_rows)) if candidates is None else tuple(int(row) for row in candidates)
+    if len(set(pool)) != len(pool):
+        raise PretestError("candidate rows must be unique")
+    if any(row < 0 or row >= n_rows for row in pool):
+        raise PretestError("candidate rows fall outside the shape partition")
 
-    Raises
-    ------
-    PretestError
-        For ``num_sensors < m``, a rank-deficient candidate partition, or
-        ``keep``/``candidates`` requests that cannot be honored.
-    """
-    raise _not_implemented("select_sensors", "MS-11.2")
+    keep_rows = tuple(int(row) for row in keep)
+    keep_set = set(keep_rows)
+    if len(keep_set) != len(keep_rows):
+        raise PretestError("keep rows must be unique")
+    if any(row not in pool for row in keep_rows):
+        raise PretestError("every keep row must appear in candidates")
+    if num_sensors < len(keep_rows):
+        raise PretestError("num_sensors is smaller than the number of keep rows")
+
+    active = list(pool)
+    phi_pool = _weight_shapes(phi[list(active), :], _subset_mass(mass, active))
+    _check_full_rank(phi_pool)
+
+    eliminated: list[int] = []
+    det_history = [_fim_det(phi_pool)]
+
+    while len(active) > num_sensors:
+        phi_active = _weight_shapes(phi[active, :], _subset_mass(mass, active))
+        leverages = ei_leverage(phi_active)
+        remove = _pick_removal(active, leverages, keep_set)
+        active.remove(remove)
+        eliminated.append(remove)
+        phi_active = _weight_shapes(phi[active, :], _subset_mass(mass, active))
+        det_history.append(_fim_det(phi_active))
+
+    selected = tuple(sorted(active))
+    final_shapes = phi[list(selected), :]
+    final_leverage = ei_leverage(final_shapes, mass=_subset_mass(mass, selected))
+    quality = placement_quality(phi, selected)
+
+    return PlacementResult(
+        selected=selected,
+        eliminated=tuple(eliminated),
+        leverage=final_leverage,
+        det_fim=quality.det_fim,
+        det_history=np.asarray(det_history, dtype=float),
+        quality=quality,
+        diagnostics={
+            "method": method,
+            "mass_weighted": mass is not None,
+            "candidates": pool,
+            "keep": keep_rows,
+            "num_modes": num_modes,
+        },
+    )
+
+
+def _subset_mass(mass: Any, rows: Sequence[int]) -> Any:
+    if mass is None:
+        return None
+    array = np.asarray(mass, dtype=float)
+    indices = list(rows)
+    if array.ndim == 0:
+        return array
+    if array.ndim == 1:
+        return array[np.array(indices, dtype=int)]
+    return array[np.ix_(indices, indices)]
 
 
 def modal_kinetic_energy(shapes: Any, mass: Any) -> npt.NDArray[np.float64]:
-    """Per-DOF, per-mode kinetic energy ``MKE_di = M_dd Φ_di²`` (MS-11.3).
-
-    The classical cross-check that a placement has not landed on low-signal
-    DOFs; on the uniform fixed-free chain the mode-1 column is strictly
-    increasing toward the free end (AC-PRETEST-005).
-
-    Parameters
-    ----------
-    shapes:
-        ``(n, m)`` target mode set.
-    mass:
-        Mass matrix; the diagonal is what MKE reads.
-    """
-    raise _not_implemented("modal_kinetic_energy", "MS-11.3")
+    """Per-DOF, per-mode kinetic energy ``MKE_di = M_dd Φ_di²`` (MS-11.3)."""
+    phi = _as_shapes(shapes)
+    array = np.asarray(mass, dtype=float)
+    if array.ndim == 0:
+        diagonal = np.full(phi.shape[0], float(array))
+    elif array.ndim == 1:
+        if array.shape[0] != phi.shape[0]:
+            raise ValueError(
+                f"mass diagonal length {array.shape[0]} != {phi.shape[0]} rows"
+            )
+        diagonal = array
+    elif array.ndim == 2:
+        if array.shape != (phi.shape[0], phi.shape[0]):
+            raise ValueError(f"mass matrix shape {array.shape} != ({phi.shape[0]}, {phi.shape[0]})")
+        diagonal = np.diag(array)
+    else:
+        raise ValueError("mass must be a scalar, diagonal vector, or square matrix")
+    return (diagonal[:, np.newaxis] * phi * phi).astype(float, copy=False)
 
 
 def placement_quality(shapes: Any, selected: Sequence[int]) -> PlacementQuality:
-    """Grade a sensor layout on the four MS-11.4 observability metrics.
+    """Grade a sensor layout on the four MS-11.4 observability metrics."""
+    phi = _as_shapes(shapes)
+    rows = tuple(int(row) for row in selected)
+    if not rows:
+        raise ValueError("selected must contain at least one row")
+    if len(set(rows)) != len(rows):
+        raise ValueError("selected rows must be unique")
+    if any(row < 0 or row >= phi.shape[0] for row in rows):
+        raise ValueError("selected rows fall outside the shape partition")
 
-    Works for any placement — EI-selected or externally given — so competing
-    layouts are compared on numbers: on the AC-CORR-009 chain twin the metrics
-    rank the spread layout above the adversarial one on every axis, the same
-    verdict the Guyan-TAM gate reaches (AC-PRETEST-003).
+    partition = phi[list(rows), :]
+    gram = partition.T @ partition
+    det_fim = float(np.linalg.det(gram))
+    singular = np.linalg.svd(partition, compute_uv=False)
+    min_sv = float(singular[-1]) if singular.size else 0.0
+    condition = float(singular[0] / min_sv) if min_sv > 0.0 else float("inf")
+    mac = automac(partition)
+    off_diagonal = mac.copy()
+    np.fill_diagonal(off_diagonal, 0.0)
+    automac_off = float(np.max(np.abs(off_diagonal))) if off_diagonal.size else 0.0
 
-    Parameters
-    ----------
-    shapes:
-        ``(n, m)`` target mode set.
-    selected:
-        Rows the layout instruments.
-    """
-    raise _not_implemented("placement_quality", "MS-11.4")
+    return PlacementQuality(
+        det_fim=det_fim,
+        condition=condition,
+        min_singular_value=min_sv,
+        automac_off_diagonal=automac_off,
+    )
 
 
 def to_sensor_map(
@@ -216,9 +252,33 @@ def to_sensor_map(
     *,
     labels: Sequence[str] | None = None,
 ) -> SensorMap:
-    """Bridge a placement to the ``SensorMap`` the M2/M4 chain consumes (MS-2.1).
+    """Bridge a placement to the ``SensorMap`` the M2/M4 chain consumes (MS-2.1)."""
+    from openfemlab.workflow.sensors import SensorMap
 
-    Channels observe ``placement.selected`` in ascending order with positive
-    orientation; ``labels`` names them for reports and COMAC tables.
-    """
-    raise _not_implemented("to_sensor_map", "MS-11.5")
+    label_tuple = None if labels is None else tuple(str(label) for label in labels)
+    if label_tuple is not None and len(label_tuple) != len(placement.selected):
+        raise ValueError("labels must have one entry per selected sensor")
+    return SensorMap(rows=placement.selected, labels=label_tuple)
+
+
+@dataclass(frozen=True)
+class PlacementQuality:
+    """Observability metrics of one sensor layout (MS-11.4)."""
+
+    det_fim: float
+    condition: float
+    min_singular_value: float
+    automac_off_diagonal: float
+
+
+@dataclass(frozen=True)
+class PlacementResult:
+    """Outcome of a sensor-placement run (MS-11.5)."""
+
+    selected: tuple[int, ...]
+    eliminated: tuple[int, ...]
+    leverage: npt.NDArray[np.float64]
+    det_fim: float
+    det_history: npt.NDArray[np.float64]
+    quality: PlacementQuality
+    diagnostics: dict[str, Any] = field(default_factory=dict)

@@ -56,7 +56,7 @@ COVERED_STATUSES = ("implemented", "verified")
 #: the span rule of ACCEPTANCE_CRITERIA.md section 12 rule 8. M9 (MPE, GAP-06)
 #: and M10 (Pretest, GAP-07) were added spec-first in Round 3: all their rows
 #: are ``specified``.
-MODULES_AWAITING_PROMOTION: tuple[str, ...] = ("M9", "M10")
+MODULES_AWAITING_PROMOTION: tuple[str, ...] = ("M9",)
 
 #: How an implementation suite tags a test with the criterion it verifies.
 TAG_REGEX = re.compile(r"criterion\(\s*\"(AC-[A-Z]+-\d{3}[a-z]?)\"\s*\)")
@@ -219,15 +219,15 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P1", "property", "MS-10.2, MS-10.3", _MPE_SUITE),
     # --- M10 Pretest planning (MS-11) — spec-first, GAP-07 -------------------
     _c("AC-PRETEST-001", "EI leverage identities and det-FIM downdate",
-       "P0", "property", "MS-11.2", _PRETEST_SUITE),
+       "P0", "property", "MS-11.2", _PRETEST_SUITE, "verified"),
     _c("AC-PRETEST-002", "EI attains the exhaustive det-FIM optimum on the chain fixtures",
-       "P0", "oracle", "MS-11.2", _PRETEST_SUITE),
+       "P0", "oracle", "MS-11.2", _PRETEST_SUITE, "verified"),
     _c("AC-PRETEST-003", "Quality metrics separate layouts consistently with AC-CORR-009",
-       "P1", "twin", "MS-11.4", _PRETEST_SUITE),
+       "P1", "twin", "MS-11.4", _PRETEST_SUITE, "verified"),
     _c("AC-PRETEST-004", "Determinism, constraints, and typed failures",
-       "P0", "contract", "MS-11.2, MS-11.5", _PRETEST_SUITE),
+       "P0", "contract", "MS-11.2, MS-11.5", _PRETEST_SUITE, "verified"),
     _c("AC-PRETEST-005", "MKE ranking matches the closed-form chain",
-       "P2", "oracle", "MS-11.3", _PRETEST_SUITE),
+       "P2", "oracle", "MS-11.3", _PRETEST_SUITE, "implemented"),
 )
 
 _BY_ID = {c.test_id: c for c in REGISTRY}

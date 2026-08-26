@@ -10,9 +10,8 @@ target mode set of an M1 solve:
 
 The module is **specified ahead of its implementation** (GAP-07, spec-first):
 ``docs/MODULE_SPEC.md`` MS-11 is the binding contract, the AC-PRETEST rows of
-``docs/ACCEPTANCE_CRITERIA.md`` section 11 are all ``specified``, and every
-function below raises :class:`NotImplementedError` naming its spec anchor.
-Importing this package is cheap and safe; calling into it is not yet possible.
+``docs/ACCEPTANCE_CRITERIA.md`` section 11 gate the implementation, and
+``method="adpr"`` remains reserved for the MS-11.3 P2 outline.
 """
 
 from ..exceptions import PretestError
