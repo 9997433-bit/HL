@@ -49,7 +49,9 @@ const base = `http://127.0.0.1:${server.address().port}`
 
 const ROUTES = [
   ['学习地图', '/#/'],
+  ['今日冒险', '/#/daily'],
   ['数量星云', '/#/number-sense'],
+  ['比大小擂台', '/#/compare'],
   ['算术恒星', '/#/arithmetic'],
   ['形状卫星', '/#/geometry'],
   ['规律环带', '/#/logic'],
@@ -252,6 +254,109 @@ for (const [label, path] of [
     return `作答 ${r.answered} 次，星星 ${r.before} → ${r.after}`
   })
 }
+
+await interact('学习地图：今日冒险入口 + 推荐星球呼吸高亮', '/#/', async (page) => {
+  const info = await page.evaluate(() => {
+    const cta = document.querySelector('[data-daily-cta]')
+    const planet = document.querySelector('.planet.is-next')
+    const body = planet?.querySelector('.planet-body')
+    return {
+      cta: cta?.innerText.trim() ?? '',
+      card: !!document.querySelector('.mod-card.is-next'),
+      pips: document.querySelectorAll('.daily-pip').length,
+      animation: body ? getComputedStyle(body).animationName : '',
+    }
+  })
+  if (!info.cta) throw new Error('首页 hero 里没有今日冒险入口')
+  if (!/今日冒险/.test(info.cta)) throw new Error(`今日冒险 CTA 文案不对：${info.cta}`)
+  // 做完当天 5 题后进度点会收起，只有未完成时才该出现
+  if (!/已完成/.test(info.cta) && info.pips !== 5) {
+    throw new Error(`今日冒险进度点应有 5 个，实际 ${info.pips}`)
+  }
+  if (!info.card) throw new Error('模块卡片里没有标出推荐下一站')
+  if (!/breathe/.test(info.animation)) {
+    throw new Error(`推荐星球缺少呼吸高亮动画，animation-name=${info.animation || '(无)'}`)
+  }
+
+  await page.evaluate(() => document.querySelector('[data-daily-cta]').click())
+  await sleep(600)
+  const landed = await page.evaluate(() => location.hash)
+  if (landed !== '#/daily') throw new Error(`点击今日冒险跳到了 ${landed}`)
+  return `CTA「${info.cta}」，进度点 ${info.pips} 个，呼吸动画 ${info.animation}`
+})
+
+await interact('今日冒险：5 题 · 刷新不换题 · 完成打卡', '/#/daily', async (page) => {
+  const readPrompt = () =>
+    page.evaluate(() => document.querySelector('.quiz-prompt')?.innerText.replace(/\s+/g, ' ').trim() ?? '')
+
+  const before = await readPrompt()
+  if (!before) throw new Error('今日冒险没有渲染题目')
+
+  // 同一天的题只由日期决定，刷新（重新生成）必须还是同一道
+  await page.reload({ waitUntil: 'networkidle2' })
+  await sleep(700)
+  const after = await readPrompt()
+  if (before !== after) throw new Error(`刷新后换题了：「${before}」→「${after}」`)
+
+  const total = await page.evaluate(() => {
+    const m = document.body.innerText.match(/今日\s*(\d+)\s*\/\s*(\d+)/)
+    return m ? Number(m[2]) : 0
+  })
+  if (total !== 5) throw new Error(`今日冒险应是 5 题，页面显示 ${total}`)
+
+  let answered = 0
+  for (let i = 0; i < 6; i++) {
+    if (!(await answerOnce(page))) break
+    answered++
+  }
+  await sleep(1200)
+
+  const quest = await page.evaluate(
+    () => JSON.parse(localStorage.getItem('mathquest/progress') || '{}').dailyQuest ?? {},
+  )
+  if (answered < 5) throw new Error(`只答了 ${answered} 题就没有可点的选项了`)
+  if (!quest.completedAt) throw new Error(`答完 5 题却没有打卡：${JSON.stringify(quest)}`)
+  if (quest.done !== 5) throw new Error(`打卡记录里的题数是 ${quest.done}，应为 5`)
+  if (quest.streak < 1) throw new Error('完成今日冒险后连续天数仍为 0')
+
+  await page.goto(base + '/#/', { waitUntil: 'networkidle2' })
+  await sleep(500)
+  const cta = await page.evaluate(
+    () => document.querySelector('[data-daily-cta]')?.innerText.trim() ?? '',
+  )
+  if (!/已完成/.test(cta)) throw new Error(`打卡后首页 CTA 没有变成已完成：${cta}`)
+  return `刷新不换题「${before}」，答 ${answered} 题后打卡 done=${quest.done} 连续 ${quest.streak} 天`
+})
+
+await interact('比大小擂台：> < = 三个符号', '/#/compare', async (page) => {
+  await page.waitForSelector('.opt.sym', { timeout: 8000 })
+  const info = await page.evaluate(() => ({
+    symbols: [...document.querySelectorAll('.opt.sym')].map((b) => b.innerText.trim()),
+    numbers: [...document.querySelectorAll('.cmp-num')].map((e) => Number(e.innerText)),
+    slot: document.querySelector('.cmp-slot')?.innerText.trim() ?? '',
+  }))
+  if (info.symbols.join('') !== '<=>') throw new Error(`选项应为 < = >，实际 ${info.symbols.join('')}`)
+  if (info.numbers.length !== 2 || info.numbers.some((n) => !Number.isInteger(n))) {
+    throw new Error(`比大小题应展示两个整数，实际 ${JSON.stringify(info.numbers)}`)
+  }
+  if (info.slot !== '?') throw new Error(`未作答时中间应是问号，实际「${info.slot}」`)
+
+  const [left, right] = info.numbers
+  const expected = left > right ? '>' : left < right ? '<' : '='
+  await page.evaluate((symbol) => {
+    const el = [...document.querySelectorAll('.opt.sym')].find((b) => b.innerText.trim() === symbol)
+    el.click()
+  }, expected)
+  await sleep(600)
+  const filled = await page.evaluate(() => document.querySelector('.cmp-slot')?.innerText.trim() ?? '')
+  if (filled !== expected) throw new Error(`答对后中间应显示 ${expected}，实际「${filled}」`)
+
+  const graded = await page.evaluate(
+    () => document.querySelectorAll('.session-bar .dot.ok').length,
+  )
+  if (graded < 1) throw new Error('答对了但进度条上没有记一题')
+  return `${left} ${expected} ${right} 判定正确，本轮已判 ${graded} 题`
+})
 
 await interact('算术恒星：数字键盘输入', '/#/arithmetic', async (page) => {
   // 点完切换按钮要等一拍再查 DOM，同一个 evaluate 里 Vue 还没重渲染出键盘
