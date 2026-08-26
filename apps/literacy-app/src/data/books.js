@@ -6,7 +6,7 @@
  * 这样以后加新绘本时不会不小心用到孩子还没学过的字。
  */
 
-import { CHARACTER_INDEX_MAP } from './character-index.js'
+import { CHARACTER_MAP } from './characters.js'
 
 const PUNCTUATION = new Set([
   '，', '。', '！', '？', '：', '、', '；', '「', '」', '《', '》', '…', '—', ' ', '\n'

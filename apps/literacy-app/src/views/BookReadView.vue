@@ -18,7 +18,7 @@ import gsap from 'gsap'
 import StarBurst from '@/components/StarBurst.vue'
 import VoiceNotice from '@/components/VoiceNotice.vue'
 import { charsInBook, getBook } from '@/data/books.js'
-import { CHARACTER_MAP } from '@/data/characters.js'
+import { CHARACTER_MAP, getLoadedCharacter, loadCharacter } from '@/data/characters.js'
 import { useProgressStore } from '@/stores/progress.js'
 import { useSettingsStore } from '@/stores/settings.js'
 import { speak, stopSpeaking } from '@/utils/speech.js'
@@ -34,6 +34,11 @@ const book = computed(() => getBook(props.id))
 const pageIndex = ref(0)
 const finished = ref(false)
 const selected = ref(null)
+/** 被点开那个字的释义，跟着单元详情包异步到位。 */
+const meaning = ref('')
+watch(selected, (g) => {
+  if (!g) meaning.value = ''
+})
 const stageRef = ref(null)
 const burstRef = ref(null)
 
@@ -179,7 +184,15 @@ function tapChar(g) {
   sfx.tap()
   stopRead()
   selected.value = selected.value?.i === g.i ? null : g
-  if (selected.value) speak(g.ch, { rate: settings.speechRate })
+  if (!selected.value) return
+  speak(g.ch, { rate: settings.speechRate })
+  // 释义在单元详情包里，点到哪个字才去取哪一包。
+  if (g.known) {
+    loadCharacter(g.ch).then((full) => {
+      if (selected.value?.i === g.i) meaning.value = full?.meaning ?? ''
+    })
+    meaning.value = getLoadedCharacter(g.ch)?.meaning ?? ''
+  }
 }
 
 function restart() {
@@ -296,7 +309,7 @@ onBeforeUnmount(stopRead)
               <span class="peek__char">{{ selected.ch }}</span>
               <span class="peek__info">
                 <strong v-if="selected.known">{{ CHARACTER_MAP.get(selected.ch).pinyin }}</strong>
-                <small v-if="selected.known">{{ CHARACTER_MAP.get(selected.ch).meaning }}</small>
+                <small v-if="selected.known">{{ meaning }}</small>
                 <small v-else>这个字还没在课程里，先听听读音吧</small>
               </span>
               <RouterLink

@@ -49,12 +49,13 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
+        /**
+         * 每个单元的课文单独成块（chars-u7.js 这样），文件名一眼能看出是哪一单元，
+         * 也保证主包里只有字表索引，不会把 500 个字的释义例句一次性背上。
+         */
         manualChunks(id) {
-          // characters.js imports this tiny catalogue too; keep the catalogue
-          // with the shell instead of letting Rollup pull it into the rich-data
-          // chunk and preload that chunk on the home page.
-          if (id.endsWith('/src/data/character-index.js')) return 'character-index'
-          if (id.endsWith('/src/data/characters.js')) return 'characters'
+          const unit = id.match(/src[\\/]data[\\/]chars[\\/](u\d+)\.js$/)
+          return unit ? `chars-${unit[1]}` : null
         }
       }
     }

@@ -19,7 +19,7 @@ import gsap from 'gsap'
 import HanziStrokeBox from '@/components/HanziStrokeBox.vue'
 import StarBurst from '@/components/StarBurst.vue'
 import VoiceNotice from '@/components/VoiceNotice.vue'
-import { CHARACTERS, getCharacter } from '@/data/characters.js'
+import { CHARACTERS, getCharacter, getLoadedCharacter, loadCharacter } from '@/data/characters.js'
 import { RADICAL_MAP, getRadical } from '@/data/radicals.js'
 import { useProgressStore } from '@/stores/progress.js'
 import { useSettingsStore } from '@/stores/settings.js'
@@ -82,7 +82,25 @@ const missingSteps = computed(() =>
 )
 
 const decoded = computed(() => decodeURIComponent(props.char))
-const item = computed(() => getCharacter(decoded.value))
+
+/**
+ * 拼音、笔画这些随字表索引一起进主包，打开页面就能画；
+ * 释义、组词、例句在单元详情包里，要等 import() 回来。
+ * 先用索引把页面搭起来，课文到了再补上，避免为了一个字白等一个网络往返。
+ */
+const loaded = ref(getLoadedCharacter(decoded.value))
+const item = computed(() => loaded.value ?? getCharacter(decoded.value))
+
+watch(
+  decoded,
+  (char) => {
+    loaded.value = getLoadedCharacter(char)
+    loadCharacter(char).then((full) => {
+      if (decoded.value === char) loaded.value = full
+    })
+  },
+  { immediate: true }
+)
 const radical = computed(() => (item.value ? getRadical(item.value.radical) : null))
 
 /**
@@ -515,7 +533,7 @@ onBeforeUnmount(clearTimers)
           <span v-if="mastered" class="pill pill--accent">🏆 已掌握</span>
           <span v-else-if="record" class="pill pill--accent">🌱 学过 {{ record.views }} 次</span>
         </div>
-        <p class="hero__meaning">{{ item.meaning }}</p>
+        <p class="hero__meaning">{{ item.meaning ?? '正在把这个字的故事翻出来…' }}</p>
         <RouterLink
           v-if="radicalLink"
           class="hero__radical"
@@ -703,7 +721,7 @@ onBeforeUnmount(clearTimers)
     <VoiceNotice fallback="拼音就在字的上面，家长可以照着拼音读给孩子听。" />
 
     <!-- 组词 -->
-    <section class="card stack">
+    <section v-if="item.words" class="card stack">
       <h3 class="section-title">
         <span class="section-title__emoji" aria-hidden="true">🧺</span>
         跟它组个词
@@ -720,7 +738,7 @@ onBeforeUnmount(clearTimers)
     </section>
 
     <!-- 例句 -->
-    <section class="card stack">
+    <section v-if="item.sentence" class="card stack">
       <h3 class="section-title">
         <span class="section-title__emoji" aria-hidden="true">💬</span>
         读一句话
