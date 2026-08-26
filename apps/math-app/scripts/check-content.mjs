@@ -20,7 +20,14 @@ import {
   solve,
   specOf,
 } from '../src/core/engine/sudoku.js'
-import { numericOptions } from '../src/utils/random.js'
+import { createRng, numericOptions, parseQuestionId, questionId } from '../src/utils/random.js'
+import { COMPARE_SYMBOLS, compareQuestion, compareSymbol } from '../src/data/compare.js'
+import {
+  buildDailyQuestion,
+  buildDailyQuestions,
+  DAILY_SIZE,
+  DAILY_TEMPLATE_IDS,
+} from '../src/data/daily.js'
 import { ERROR_TAGS } from '../src/data/errorTags.js'
 import { CUES, noteToFreq } from '../src/utils/sound.js'
 
@@ -88,6 +95,9 @@ for (const tpl of WORD_PROBLEMS) {
 for (const type of ['drag', 'count', 'seq']) {
   for (let target = 1; target <= 20; target++) produced.add(countingSkill({ type, target }))
 }
+for (const target of COMPARE_SYMBOLS) {
+  for (let max = 1; max <= 20; max++) produced.add(countingSkill({ type: 'compare', target, max }))
+}
 for (const level of [10, 20, 100]) {
   for (const kind of ['add', 'sub']) produced.add(arithmeticSkill({ level, kind }))
 }
@@ -153,6 +163,112 @@ for (let i = 0; i < TRIES; i++) {
 }
 if (optOk !== TRIES) fail(`numericOptions ${TRIES - optOk} 次不合规`)
 console.log(`选项生成器 ${TRIES} 次：合规 ${optOk}`)
+
+/* ---------------------------------------------------------------- 可复现 */
+
+/* 随机流本身：同种子逐位一致，异种子不同流 */
+{
+  const a = Array.from({ length: 64 }, createRng('seed-a'))
+  const b = Array.from({ length: 64 }, createRng('seed-a'))
+  const c = Array.from({ length: 64 }, createRng('seed-b'))
+  if (a.join() !== b.join()) fail('同一个 seed 的两条随机流结果不一致')
+  if (a.join() === c.join()) fail('不同 seed 的随机流结果完全相同')
+  if (a.some((n) => !(n >= 0 && n < 1))) fail('mulberry32 产出越界，应落在 [0,1)')
+  const die = createRng(7)
+  const rolls = Array.from({ length: 600 }, () => die.int(1, 6))
+  if (rolls.some((n) => n < 1 || n > 6 || !Number.isInteger(n))) fail('rng.int 越界')
+  if (new Set(rolls).size !== 6) fail(`rng.int(1,6) 只掷出了 ${new Set(rolls).size} 种点数`)
+}
+
+/* 题目 id：`${templateId}:${seed}`，拆回来还得是原样 */
+if (questionId('daily-add', '2026-01-01#1') !== 'daily-add:2026-01-01#1') {
+  fail('questionId 的拼接格式不是 `${templateId}:${seed}`')
+}
+{
+  const parsed = parseQuestionId(questionId('daily-add', '2026-01-01#1'))
+  if (parsed.templateId !== 'daily-add' || parsed.seed !== '2026-01-01#1') {
+    fail(`parseQuestionId 拆不回原值：${JSON.stringify(parsed)}`)
+  }
+}
+
+/* 比大小：符号判定与题目复现 */
+{
+  let compareOk = 0
+  for (let i = 0; i < 3000; i++) {
+    const seed = `compare-${i}`
+    const q = compareQuestion(seed, { ceiling: 20 })
+    const again = compareQuestion(seed, { ceiling: 20 })
+    if (q.id !== `compare:${seed}`) fail(`比大小题 id 不对：${q.id}`)
+    if (JSON.stringify(q) !== JSON.stringify(again)) fail(`比大小题 ${seed} 两次生成不一致`)
+    if (q.target !== compareSymbol(q.left, q.right)) {
+      fail(`比大小题判错：${q.left} ${q.target} ${q.right}`)
+    }
+    if (q.options.join() !== COMPARE_SYMBOLS.join()) fail('比大小题的选项不是 < = > 三个符号')
+    if (q.left < 1 || q.left > 20 || q.right < 1 || q.right > 20) {
+      fail(`比大小题数值越界：${q.left} / ${q.right}`)
+    }
+    if (!isKnownSkill(q.skill)) fail(`比大小题记到了图谱外的技能点「${q.skill}」`)
+    compareOk++
+  }
+  const symbols = new Set(
+    Array.from({ length: 400 }, (_, i) => compareQuestion(`spread-${i}`).target),
+  )
+  if (symbols.size !== 3) fail(`比大小题只出现了 ${[...symbols].join('')}，三种符号没出全`)
+  console.log(`比大小题 ${compareOk} 道：判定正确、可按 seed 复现，> < = 三种符号齐全`)
+}
+
+/* 每日冒险：同一天永远是同一套题，题目 id 里带着可复现的 seed */
+{
+  const DAYS = 400
+  const start = Date.UTC(2026, 0, 1)
+  let checked = 0
+  for (let d = 0; d < DAYS; d++) {
+    const dateKey = new Date(start + d * 864e5).toISOString().slice(0, 10)
+    const first = buildDailyQuestions(dateKey)
+    const second = buildDailyQuestions(dateKey)
+
+    if (first.length !== DAILY_SIZE) fail(`${dateKey} 的每日冒险有 ${first.length} 题，应为 ${DAILY_SIZE}`)
+    if (JSON.stringify(first) !== JSON.stringify(second)) {
+      fail(`${dateKey} 的每日冒险两次生成不一致，同一天换了题`)
+    }
+
+    first.forEach((q, slot) => {
+      const seed = `${dateKey}#${slot}`
+      if (q.id !== `${DAILY_TEMPLATE_IDS[slot]}:${seed}`) {
+        fail(`${dateKey} 第 ${slot} 题 id 应为 ${DAILY_TEMPLATE_IDS[slot]}:${seed}，实际 ${q.id}`)
+      }
+      // 只凭题目 id 里的 seed 就要能把这道题原样重建出来
+      const rebuilt = buildDailyQuestion(slot, parseQuestionId(q.id).seed.split('#')[0])
+      if (JSON.stringify(rebuilt) !== JSON.stringify(q)) fail(`${q.id} 无法凭 id 复现`)
+
+      if (q.answer === undefined || q.answer === null) fail(`${q.id} 没有答案`)
+      if (!Array.isArray(q.options) || q.options.length < 3) fail(`${q.id} 选项不足`)
+      if (new Set(q.options).size !== q.options.length) fail(`${q.id} 选项有重复`)
+      if (!q.options.includes(q.answer)) fail(`${q.id} 选项里没有正确答案 ${q.answer}`)
+      if (typeof q.answer === 'number' && (!Number.isInteger(q.answer) || q.answer < 0)) {
+        fail(`${q.id} 的答案不是自然数：${q.answer}`)
+      }
+      if (/NaN|undefined/.test(q.prompt)) fail(`${q.id} 题干渲染异常：${q.prompt}`)
+      if (!q.hints?.length || q.hints.some((h) => /NaN|undefined|-\d/.test(h))) {
+        fail(`${q.id} 的提示文案异常：${q.hints?.join(' / ')}`)
+      }
+      if (!isKnownSkill(q.skill)) fail(`${q.id} 记到了图谱外的技能点「${q.skill}」`)
+      checked++
+    })
+
+    const ids = new Set(first.map((q) => q.id))
+    if (ids.size !== first.length) fail(`${dateKey} 的每日冒险出现重复题目 id`)
+  }
+
+  // 换一天必须换题，否则「每日」就没有意义
+  const monday = buildDailyQuestions('2026-03-02').map((q) => q.prompt).join('|')
+  const tuesday = buildDailyQuestions('2026-03-03').map((q) => q.prompt).join('|')
+  if (monday === tuesday) fail('相邻两天的每日冒险题目完全相同')
+  console.log(
+    `每日冒险 ${DAYS} 天共 ${checked} 道：同日可复现、跨日不重样，` +
+      `题型顺序 ${DAILY_TEMPLATE_IDS.join(' → ')}`,
+  )
+}
 
 for (const [id, info] of Object.entries(ERROR_TAGS)) {
   if (!info.label || !info.tip) fail(`错因标签 ${id} 缺少文案`)
