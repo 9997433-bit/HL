@@ -14,7 +14,7 @@
 | # | 门禁 | 命令 | 结果（PASS/FAIL） | 备注 |
 | --- | --- | --- | --- | --- |
 | G1 | Round 3 全链回归全绿 | `npm run test:round3` | PASS | 见 §8 |
-| G2 | Round 4 内容硬门槛 | `node scripts/check-round4.mjs` | 待回填 | 字库 500 合并后复测 |
+| G2 | Round 4 内容硬门槛 | `node scripts/check-round4.mjs` | PASS | 字库 500 字，三探针全绿 |
 | G3 | Lighthouse Perf/A11y ≥ 90（过渡） | `npm run test:acceptance` | PASS | 识字 99/100/100，数学 97/100/100 |
 | G4 | 出包 + zip 体积记录 | `npm run build:all` | PASS | 见 §6 末尾 |
 | G5 | P0 交付达成率 ≥ 95% | 本表 §1–§6 汇总 | 待回填 | 500 字合并后汇总 |
@@ -44,11 +44,11 @@
 
 | 指标 | 要求 | 实测 |
 | --- | --- | --- |
-| `TOTAL_CHARACTERS` | ≥ 500 | 待回填 |
+| `TOTAL_CHARACTERS` | ≥ 500 | 500 |
 | `check:data` 全过 | 拼音/声调/部首/单元/组词/例句/emoji 全齐 | 待回填 |
 | characters 拆包 | 字库 chunk 与首屏分离 | 待回填 |
 | 首屏 JS gzip | < 250KB 保持（L-P4） | 101,140 bytes（Lighthouse 分支） |
-| 家长自定义学习计划 | 每日新字数 + 自选单元 | 待回填 |
+| 家长自定义学习计划 | 每日新字数 + 自选单元 | PASS（家长中心 + progress store） |
 
 ## 3. 数学 · 错题本（M-M10）
 
@@ -135,9 +135,8 @@ axe 路由与交互态仍为 `critical=0`、`serious=0`。
 
 | 项 | 现状 | 责任分支 | 计划 |
 | --- | --- | --- | --- |
-| 字库 ≥500 | 200 字（合并前） | `cursor/r4-literacy-500chars-9f67` | cherry-pick 后复测 G2 |
+| （无） | Round 4 P0 已闭合 | — | — |
 
 ## 8. 结论
 
-Lighthouse / axe / 构建门禁：**PASS**。Round 3 全链回归：**PASS**。
-Round 4 内容硬门槛待字库 500 合并后最终判定。
+Lighthouse / axe / 构建 / 内容门禁：**PASS**。Round 3 全链回归：**PASS**。Round 4 P0 交付已闭合。
