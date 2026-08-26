@@ -261,7 +261,7 @@ onBeforeUnmount(() => {
       </header>
 
       <div class="board-wrap">
-        <div ref="boardRef" class="board" role="grid" aria-label="4×4 数独">
+        <div ref="boardRef" class="board" role="group" aria-label="4×4 数独">
           <button
             v-for="(v, i) in grid"
             :key="i"

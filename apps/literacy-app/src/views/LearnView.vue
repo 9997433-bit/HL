@@ -82,15 +82,14 @@ const randomChar = computed(() => {
       />
     </section>
 
-    <div class="toolbar" role="tablist" aria-label="筛选汉字">
+    <div class="toolbar" aria-label="筛选汉字">
       <button
         v-for="f in FILTERS"
         :key="f.id"
         class="chip"
         :class="{ 'is-on': filter === f.id }"
         type="button"
-        role="tab"
-        :aria-selected="filter === f.id"
+        :aria-pressed="filter === f.id"
         @click="pickFilter(f.id)"
       >
         <span aria-hidden="true">{{ f.emoji }}</span> {{ f.label }}
