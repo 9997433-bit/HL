@@ -76,6 +76,15 @@ function defaultState() {
       restReminderMin: 20,
       /** 每天目标学字数，家长面板可调。 */
       dailyGoal: 5,
+      /**
+       * 学习计划（家长面板设置）：
+       *  - dailyNewLimit 每天最多学几个新字，0 表示不设上限；
+       *  - planUnits     只学这几个单元，空数组表示按课程顺序学全部。
+       * 计划只影响「今天学什么」的推荐，不会锁住孩子已经学过的字，
+       * 也不会拦住到期的复习——复习是记忆曲线说了算的。
+       */
+      dailyNewLimit: 8,
+      planUnits: [],
       /** 听音识字的场景皮肤：card / fish / mole。 */
       listenSkin: 'fish'
     },
@@ -315,11 +324,45 @@ export const useProgressStore = defineStore('progress', () => {
     return list.reduce((n, c) => n + c.retention, 0) / list.length
   })
 
-  /** 下一个还没学的字，首页「继续学习」按钮用。 */
-  const nextChar = computed(
-    () =>
-      CHARACTERS.find((c) => (state.chars[c.char]?.level ?? 0) === 0) ?? CHARACTERS[0]
+  /* ------------------------------------------------------------ 学习计划 */
+
+  /** 计划覆盖的单元；家长没选就是全部单元。 */
+  const planUnitIds = computed(() => {
+    const picked = (state.settings.planUnits ?? []).filter((id) => UNITS.some((u) => u.id === id))
+    return picked.length ? picked : UNITS.map((u) => u.id)
+  })
+
+  const isWholeCourse = computed(() => planUnitIds.value.length === UNITS.length)
+
+  const planChars = computed(() => CHARACTERS.filter((c) => planUnitIds.value.includes(c.unit)))
+
+  const planProgress = computed(() => {
+    const total = planChars.value.length
+    const learned = planChars.value.filter((c) => (state.chars[c.char]?.level ?? 0) >= 1).length
+    return { total, learned, percent: total ? Math.round((learned / total) * 100) : 0 }
+  })
+
+  /** 0 表示家长没设上限。 */
+  const dailyNewLimit = computed(() => state.settings.dailyNewLimit ?? 0)
+
+  const newCharsToday = computed(() => today.value.chars?.length ?? 0)
+
+  /** 今天还能学几个新字；没设上限时是 null，界面据此显示「不限」。 */
+  const newCharsLeft = computed(() =>
+    dailyNewLimit.value > 0 ? Math.max(0, dailyNewLimit.value - newCharsToday.value) : null
   )
+
+  const dailyLimitReached = computed(() => newCharsLeft.value === 0)
+
+  /**
+   * 下一个还没学的字，首页「继续学习」按钮用。
+   * 先在计划单元里找，计划里的字都学完了再回到整份字表，
+   * 免得家长把计划缩到一个单元之后按钮直接变成死的。
+   */
+  const nextChar = computed(() => {
+    const unlearned = (c) => (state.chars[c.char]?.level ?? 0) === 0
+    return planChars.value.find(unlearned) ?? CHARACTERS.find(unlearned) ?? CHARACTERS[0]
+  })
 
   /* ---------------------------------------------------------------- 徽章 */
 
@@ -826,6 +869,15 @@ export const useProgressStore = defineStore('progress', () => {
     memoryCards,
     averageRetention,
     nextChar,
+
+    planUnitIds,
+    isWholeCourse,
+    planChars,
+    planProgress,
+    dailyNewLimit,
+    newCharsToday,
+    newCharsLeft,
+    dailyLimitReached,
 
     badges,
     badgeStats,

@@ -98,6 +98,9 @@ const stations = computed(() => [
           <span class="pill">🎖️ 徽章 {{ progress.badgeCount }}/{{ progress.totalBadges }}</span>
           <span v-if="progress.dueCount" class="pill">🔁 该复习 {{ progress.dueCount }} 字</span>
           <span class="pill">⏱️ 今天 {{ Math.round(progress.todayStats.seconds / 60) }} 分钟</span>
+          <span v-if="progress.newCharsLeft !== null" class="pill">
+            📅 今天新字 {{ progress.newCharsToday }}/{{ progress.dailyNewLimit }}
+          </span>
         </div>
         <RouterLink
           v-if="nextChar"

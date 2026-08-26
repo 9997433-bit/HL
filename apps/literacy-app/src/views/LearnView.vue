@@ -79,8 +79,26 @@ function pickFilter(id) {
 }
 
 const randomChar = computed(() => {
-  const pool = CHARACTERS.filter((c) => progress.unlockedUnits[c.unit])
-  return pool[Math.floor(Math.random() * pool.length)] || CHARACTERS[0]
+  const unlocked = (c) => progress.unlockedUnits[c.unit]
+  // 家长设了计划就先在计划单元里抽，抽不到再退回整份字表。
+  const pool = progress.planChars.filter(unlocked)
+  const fallback = CHARACTERS.filter(unlocked)
+  const list = pool.length ? pool : fallback
+  return list[Math.floor(Math.random() * list.length)] || CHARACTERS[0]
+})
+
+/** 家长面板里的学习计划，在这里只是一句提示，不拦着孩子往下翻。 */
+const planNote = computed(() => {
+  const parts = []
+  if (!progress.isWholeCourse) {
+    parts.push(`家长设了学习计划：这一阶段先学 ${progress.planUnitIds.length} 个单元、${progress.planProgress.total} 个字。`)
+  }
+  if (progress.dailyLimitReached) {
+    parts.push(`今天的 ${progress.dailyNewLimit} 个新字已经学完啦，接着复习或者去读绘本吧。`)
+  } else if (progress.newCharsLeft !== null) {
+    parts.push(`今天还可以学 ${progress.newCharsLeft} 个新字。`)
+  }
+  return parts.join('')
 })
 </script>
 
@@ -96,6 +114,7 @@ const randomChar = computed(() => {
           共 {{ progress.totalChars }} 个常用字，分成 {{ UNITS.length }} 个单元。
           学完一个单元的 60%，下一个单元就会解锁。
         </p>
+        <p v-if="planNote" class="muted intro__plan">📅 {{ planNote }}</p>
       </div>
       <ProgressRing
         :value="progress.overallProgress"
@@ -196,6 +215,11 @@ const randomChar = computed(() => {
 
 .intro__text .muted {
   font-size: 0.88rem;
+}
+
+.intro__plan {
+  font-weight: 700;
+  color: var(--text-strong);
 }
 
 .toolbar {
