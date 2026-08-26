@@ -63,8 +63,8 @@ class MarkerPanel(QWidget):
         self.tree.setRootIsDecorated(False)
         self.tree.setUniformRowHeights(True)
         self.tree.setSelectionMode(QTreeWidget.SelectionMode.SingleSelection)
-        self.tree.setColumnWidth(0, 170)
-        self.tree.setColumnWidth(1, 90)
+        self.tree.setColumnWidth(0, 118)
+        self.tree.setColumnWidth(1, 78)
 
         self.add_marker_button = QPushButton("Marker")
         self.add_marker_button.setToolTip("Add a marker at the playhead (M)")
