@@ -1,0 +1,243 @@
+"""File decoding and encoding.
+
+libsndfile (via :mod:`soundfile`) covers WAV/FLAC/OGG everywhere and MP3 from
+libsndfile 1.1 onwards. When the local libsndfile predates MP3 support we shell
+out to ``ffmpeg`` so that the advertised format list stays honest.
+"""
+
+from __future__ import annotations
+
+import shutil
+import subprocess
+import sys
+from dataclasses import dataclass
+from functools import lru_cache
+from pathlib import Path
+
+import numpy as np
+import soundfile as sf
+
+from .types import SAMPLE_DTYPE, AudioBuffer, AudioFormat
+
+#: Extensions offered in the file dialog and accepted by :func:`load_audio`.
+SUPPORTED_EXTENSIONS: tuple[str, ...] = (
+    ".wav",
+    ".wave",
+    ".flac",
+    ".mp3",
+    ".ogg",
+    ".oga",
+    ".opus",
+    ".aiff",
+    ".aif",
+    ".aifc",
+    ".w64",
+    ".caf",
+    ".au",
+)
+
+_EXT_TO_SUBTYPE_DEFAULT = {
+    ".wav": "PCM_24",
+    ".wave": "PCM_24",
+    ".flac": "PCM_24",
+    ".aiff": "PCM_24",
+    ".aif": "PCM_24",
+    ".ogg": "VORBIS",
+    ".oga": "VORBIS",
+}
+
+
+class AudioLoadError(RuntimeError):
+    """Raised when a file cannot be decoded by any available backend."""
+
+
+@dataclass(slots=True)
+class LoadedAudio:
+    """A decoded file together with the metadata needed by the UI."""
+
+    buffer: AudioBuffer
+    audio_format: AudioFormat
+    path: Path
+
+    @property
+    def name(self) -> str:
+        return self.path.name
+
+    @property
+    def duration(self) -> float:
+        return self.buffer.duration
+
+
+@lru_cache(maxsize=1)
+def _libsndfile_formats() -> frozenset[str]:
+    try:
+        return frozenset(fmt.upper() for fmt in sf.available_formats())
+    except Exception:  # pragma: no cover - defensive, libsndfile always answers
+        return frozenset()
+
+
+@lru_cache(maxsize=1)
+def _ffmpeg_binary() -> str | None:
+    return shutil.which("ffmpeg")
+
+
+def supported_formats() -> dict[str, bool]:
+    """Map each advertised extension to whether a decoder is actually present."""
+    native = _libsndfile_formats()
+    has_ffmpeg = _ffmpeg_binary() is not None
+    result: dict[str, bool] = {}
+    for ext in SUPPORTED_EXTENSIONS:
+        token = {".wave": "WAV", ".aif": "AIFF", ".aifc": "AIFF", ".oga": "OGG"}.get(
+            ext, ext.lstrip(".").upper()
+        )
+        result[ext] = token in native or has_ffmpeg
+    return result
+
+
+def file_dialog_filter() -> str:
+    """Qt file-dialog filter string covering every supported container."""
+    patterns = " ".join(f"*{ext}" for ext in SUPPORTED_EXTENSIONS)
+    return (
+        f"Audio files ({patterns});;"
+        "WAV (*.wav *.wave);;FLAC (*.flac);;MP3 (*.mp3);;"
+        "Ogg (*.ogg *.oga *.opus);;AIFF (*.aiff *.aif);;All files (*)"
+    )
+
+
+def probe(path: str | Path) -> AudioFormat:
+    """Read container metadata without decoding the samples."""
+    path = Path(path)
+    try:
+        info = sf.info(str(path))
+    except Exception as exc:  # noqa: BLE001 - normalised into AudioLoadError
+        raise AudioLoadError(f"Cannot read audio metadata from {path}: {exc}") from exc
+    return AudioFormat(
+        sample_rate=int(info.samplerate),
+        channels=int(info.channels),
+        subtype=str(info.subtype or "UNKNOWN"),
+        container=str(info.format or path.suffix.lstrip(".").upper()),
+    )
+
+
+def load_audio(path: str | Path, *, target_sample_rate: int | None = None) -> LoadedAudio:
+    """Decode ``path`` into a float32 :class:`AudioBuffer`.
+
+    ``target_sample_rate`` resamples the result, which the engine uses when a
+    file's rate does not match the open output device.
+    """
+    path = Path(path)
+    if not path.exists():
+        raise AudioLoadError(f"File not found: {path}")
+
+    try:
+        data, sample_rate = sf.read(str(path), dtype="float32", always_2d=True)
+        audio_format = probe(path)
+    except Exception as native_exc:  # noqa: BLE001 - fall back before giving up
+        data, sample_rate, audio_format = _decode_with_ffmpeg(path, native_exc)
+
+    buffer = AudioBuffer(np.ascontiguousarray(data, dtype=SAMPLE_DTYPE), int(sample_rate))
+    if target_sample_rate and target_sample_rate != buffer.sample_rate:
+        buffer = resample(buffer, target_sample_rate)
+    return LoadedAudio(buffer=buffer, audio_format=audio_format, path=path)
+
+
+def _decode_with_ffmpeg(
+    path: Path, native_exc: Exception
+) -> tuple[np.ndarray, int, AudioFormat]:
+    """Decode via ffmpeg to raw float32 when libsndfile cannot handle the codec."""
+    ffmpeg = _ffmpeg_binary()
+    if ffmpeg is None:
+        raise AudioLoadError(
+            f"Cannot decode {path.name}: libsndfile refused it ({native_exc}) and "
+            "ffmpeg is not installed."
+        ) from native_exc
+
+    probe_bin = shutil.which("ffprobe")
+    sample_rate, channels = 44100, 2
+    if probe_bin:
+        try:
+            out = subprocess.run(
+                [
+                    probe_bin, "-v", "error", "-select_streams", "a:0",
+                    "-show_entries", "stream=sample_rate,channels",
+                    "-of", "csv=p=0", str(path),
+                ],
+                capture_output=True, text=True, check=True, timeout=30,
+            ).stdout.strip()
+            first = out.splitlines()[0]
+            fields = [f for f in first.split(",") if f]
+            sample_rate, channels = int(fields[0]), int(fields[1])
+        except Exception:  # noqa: BLE001 - keep the defaults and let ffmpeg decide
+            pass
+
+    try:
+        raw = subprocess.run(
+            [
+                ffmpeg, "-v", "error", "-i", str(path),
+                "-f", "f32le", "-acodec", "pcm_f32le",
+                "-ar", str(sample_rate), "-ac", str(channels), "-",
+            ],
+            capture_output=True, check=True, timeout=600,
+        ).stdout
+    except subprocess.CalledProcessError as exc:
+        detail = exc.stderr.decode("utf-8", "replace").strip() if exc.stderr else ""
+        raise AudioLoadError(f"ffmpeg failed to decode {path.name}: {detail}") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise AudioLoadError(f"ffmpeg timed out decoding {path.name}") from exc
+
+    data = np.frombuffer(raw, dtype="<f4")
+    usable = (data.size // channels) * channels
+    data = data[:usable].reshape(-1, channels)
+    audio_format = AudioFormat(
+        sample_rate=sample_rate,
+        channels=channels,
+        subtype="FLOAT",
+        container=path.suffix.lstrip(".").upper() or "UNKNOWN",
+    )
+    return data, sample_rate, audio_format
+
+
+def resample(buffer: AudioBuffer, target_sample_rate: int) -> AudioBuffer:
+    """Polyphase sample-rate conversion preserving the channel layout."""
+    if target_sample_rate <= 0:
+        raise ValueError(f"target_sample_rate must be positive, got {target_sample_rate}")
+    if buffer.sample_rate == target_sample_rate or buffer.n_frames == 0:
+        return AudioBuffer(buffer.data, target_sample_rate)
+
+    from math import gcd
+
+    from scipy.signal import resample_poly
+
+    divisor = gcd(int(buffer.sample_rate), int(target_sample_rate))
+    up = target_sample_rate // divisor
+    down = buffer.sample_rate // divisor
+    converted = resample_poly(buffer.data, up, down, axis=0)
+    return AudioBuffer(np.ascontiguousarray(converted, dtype=SAMPLE_DTYPE), target_sample_rate)
+
+
+def save_audio(
+    path: str | Path,
+    buffer: AudioBuffer,
+    *,
+    subtype: str | None = None,
+) -> Path:
+    """Encode ``buffer`` to ``path``; the container follows the extension."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    chosen = subtype or _EXT_TO_SUBTYPE_DEFAULT.get(path.suffix.lower(), "PCM_24")
+    try:
+        sf.write(str(path), buffer.data, buffer.sample_rate, subtype=chosen)
+    except Exception as exc:  # noqa: BLE001 - normalised into AudioLoadError
+        raise AudioLoadError(f"Cannot write {path}: {exc}") from exc
+    return path
+
+
+def describe_backends() -> str:
+    """One-line summary of the decoding capabilities, shown in the About box."""
+    native = ", ".join(sorted(_libsndfile_formats())) or "none"
+    ffmpeg = _ffmpeg_binary() or "not installed"
+    return (
+        f"libsndfile {sf.__libsndfile_version__} [{native}]\n"
+        f"ffmpeg fallback: {ffmpeg}\n"
+        f"python {sys.version.split()[0]}"
+    )

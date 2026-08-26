@@ -1,0 +1,66 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "audio-studio"
+version = "0.1.0"
+description = "Professional audio editing and analysis workstation (Adobe Audition class MVP)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Audio Studio Team" }]
+keywords = ["audio", "dsp", "daw", "waveform", "spectrum", "editor"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: X11 Applications :: Qt",
+    "Intended Audience :: End Users/Desktop",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Sound/Audio :: Editors",
+]
+
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "soundfile>=0.12.1",
+    "PyQt6>=6.5",
+]
+
+[project.optional-dependencies]
+audio = ["PyAudio>=0.2.13"]
+dev = [
+    "pytest>=7.4",
+    "pytest-qt>=4.2",
+    "mypy>=1.8",
+    "ruff>=0.3",
+]
+
+[project.scripts]
+audio-studio = "audio_studio.app:main"
+
+[project.gui-scripts]
+audio-studio-gui = "audio_studio.app:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["audio_studio*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "C4", "SIM"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_unused_ignores = true
+disallow_untyped_defs = true
+ignore_missing_imports = true

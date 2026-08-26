@@ -1,0 +1,10 @@
+# Runtime dependencies for Audio Studio.
+numpy>=1.24
+scipy>=1.10
+soundfile>=0.12.1
+PyQt6>=6.5
+
+# Real-time output device backend. Optional: the engine falls back to an
+# internal simulated clock when no hardware backend is importable, which keeps
+# the GUI and the test suite usable on headless machines.
+PyAudio>=0.2.13
