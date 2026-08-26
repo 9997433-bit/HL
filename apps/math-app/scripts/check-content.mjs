@@ -5,7 +5,7 @@
  * 用法：node --import ./scripts/register-alias.mjs scripts/check-content.mjs
  */
 import { WORD_PROBLEMS } from '../src/data/wordProblems.js'
-import { generatePuzzle, solve, conflictsOf } from '../src/utils/sudoku4.js'
+import { BOARD_SPECS, generatePuzzle, solve, conflictsOf } from '../src/utils/sudoku.js'
 import { numericOptions } from '../src/utils/random.js'
 import { CUES, noteToFreq } from '../src/utils/sound.js'
 
@@ -46,20 +46,33 @@ for (const tpl of WORD_PROBLEMS) {
 console.log(`  场景 ${scenes.size} 种，一步 ${oneStep} 个 / 两步 ${twoStep} 个，每个母题各生成 2000 道`)
 
 /* ------------------------------------------------ 数独 */
-const ROUNDS = 200
-let solvedSame = 0
-let clean = 0
-let clueMin = 99
-for (let i = 0; i < ROUNDS; i++) {
-  const { puzzle, solution } = generatePuzzle()
-  const s = solve(puzzle)
-  if (s && s.join() === solution.join()) solvedSame++
-  else fail(`第 ${i} 局数独解不唯一或无解`)
-  if (puzzle.every((v, idx) => !v || conflictsOf(puzzle, idx).length === 0)) clean++
-  else fail(`第 ${i} 局数独题面自带冲突`)
-  clueMin = Math.min(clueMin, puzzle.filter(Boolean).length)
+// solve() 走的是随机化回溯：题面若有第二个解，随机顺序迟早会先撞上它，
+// 因此「解出来的盘和挖洞前的完整解一模一样」既验了有解，也验了唯一解。
+// 4×4 是目前上线的档位，6×6 / 9×9 先把引擎守住，等对应界面接上来。
+const SUDOKU_ROUNDS = { 4: 200, 6: 60, 9: 20 }
+// 界面上「简单 / 普通 / 挑战」三档给定数，一并验证极端挖洞下仍然唯一解
+const CLUE_LEVELS = { 4: [9, 7, 5], 6: [null], 9: [null] }
+
+for (const [sizeKey, rounds] of Object.entries(SUDOKU_ROUNDS)) {
+  const size = Number(sizeKey)
+  const total = BOARD_SPECS[size].size ** 2
+  let solvedSame = 0
+  let clean = 0
+  let clueMin = total
+  for (let i = 0; i < rounds; i++) {
+    const clues = CLUE_LEVELS[size][i % CLUE_LEVELS[size].length]
+    const { puzzle, solution } = generatePuzzle(clues === null ? { size } : { size, clues })
+    const s = solve(puzzle)
+    if (s && s.join() === solution.join()) solvedSame++
+    else fail(`${size}×${size} 第 ${i} 局数独解不唯一或无解`)
+    if (puzzle.every((v, idx) => !v || conflictsOf(puzzle, idx).length === 0)) clean++
+    else fail(`${size}×${size} 第 ${i} 局数独题面自带冲突`)
+    clueMin = Math.min(clueMin, puzzle.filter(Boolean).length)
+  }
+  console.log(
+    `数独 ${size}×${size} ${rounds} 局：唯一解 ${solvedSame}，题面无冲突 ${clean}，最少给定数 ${clueMin}/${total}`,
+  )
 }
-console.log(`数独 ${ROUNDS} 局：唯一解 ${solvedSame}，题面无冲突 ${clean}，最少给定数 ${clueMin}`)
 
 /* ------------------------------------------------ 选项生成器 */
 let optOk = 0

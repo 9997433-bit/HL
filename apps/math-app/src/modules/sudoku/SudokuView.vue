@@ -5,10 +5,11 @@ import gsap from 'gsap'
 import MascotBot from '@/components/MascotBot.vue'
 import { useProgressStore } from '@/stores/progress.js'
 import { useFeedback } from '@/composables/useFeedback'
-import { conflictsOf, generatePuzzle, nextHint } from '@/utils/sudoku4'
+import { conflictsOf, generatePuzzle, nextHint } from '@/utils/sudoku'
 import { sound } from '@/utils/sound'
 
 const MODULE_ID = 'sudoku'
+const BOARD_SIZE = 4
 const DIFFICULTIES = [
   { id: 'easy', label: '简单', clues: 9, emoji: '🌱', stars: 3 },
   { id: 'normal', label: '普通', clues: 7, emoji: '🔥', stars: 4 },
@@ -81,7 +82,10 @@ function stopTimer() {
 }
 
 function newGame() {
-  const { puzzle: p, solution: s } = generatePuzzle(config.value.clues)
+  const { puzzle: p, solution: s } = generatePuzzle({
+    size: BOARD_SIZE,
+    clues: config.value.clues,
+  })
   puzzle.value = p
   solution.value = s
   grid.value = [...p]

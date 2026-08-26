@@ -1,19 +1,12 @@
 /**
  * 课程技能图谱 — L1(3-4岁) L2(4-6岁) L3(6-8岁) L4(8-10岁) L5(10-12岁)。
  * 每个技能点:{ id, module, level, name, deps, generator, params }
- * deps 构成 DAG,由 adaptive.isUnlocked 判定解锁。
+ * deps 构成 DAG,由 mastery.isUnlocked 判定解锁。
  * Round 1 提供代表性骨架节点,Round 2 按人教版课标扩展至全量。
+ *
+ * 这里的 module 是「学科模块 id」；玩法侧的星球 id 见 data/modules.js，
+ * 两者由 modules.js 的 CURRICULUM_ID 建立映射，星球元数据只在那一处定义。
  */
-
-export const MODULES = [
-  { id: 'number-sense', name: '数字星球', subtitle: '数与量启蒙', icon: '🔢', color: '#ff7043' },
-  { id: 'arithmetic', name: '计算星球', subtitle: '加减乘除', icon: '➕', color: '#42a5f5' },
-  { id: 'geometry', name: '图形星球', subtitle: '几何空间', icon: '🔷', color: '#ab47bc' },
-  { id: 'logic', name: '逻辑星球', subtitle: '逻辑推理', icon: '🧩', color: '#26a69a' },
-  { id: 'sudoku', name: '数独星球', subtitle: '数独专项', icon: '🎯', color: '#ffca28' },
-  { id: 'word-problems', name: '故事星球', subtitle: '应用题', icon: '📖', color: '#ec407a' },
-  { id: 'progress', name: '星图中心', subtitle: '我的进度', icon: '🌌', color: '#7e57c2' }
-]
 
 export const SKILLS = [
   // ── M1 数与量启蒙 ──

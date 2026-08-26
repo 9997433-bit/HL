@@ -7,7 +7,7 @@
  */
 import { computed, reactive, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
-import { updateMastery, MASTERY_THRESHOLD } from '@/core/engine/adaptive.js'
+import { updateMastery, MASTERY_THRESHOLD } from '@/utils/mastery.js'
 import { SKILLS } from '@/data/curriculum.js'
 import { CURRICULUM_ID, MODULES } from '@/data/modules.js'
 import { ACHIEVEMENTS, ACHIEVEMENT_MAP } from '@/data/achievements.js'
