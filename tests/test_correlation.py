@@ -17,20 +17,27 @@ import yaml
 
 from openfemlab.correlation import (
     align_by_labels,
+    auto_mac,
     automac,
     comac,
+    correlate,
     correlate_modal_data,
     correlation_report,
     correlation_summary,
     frequency_difference,
+    frequency_error_matrix,
     mac,
+    mac_matrix,
     mac_value,
     modal_scale_factor,
+    normalized_frequency_residual,
+    off_diagonal_mac,
     orthogonality,
     pair_modes,
     relative_frequency_error,
     selection_matrix,
 )
+from tests.modal_reference import two_dof_chain, uniform_chain
 
 FIXTURES = Path(__file__).parent / "fixtures"
 MODE_FIXTURE = FIXTURES / "test_modes.yaml"
@@ -539,6 +546,194 @@ def test_noisy_measurements_stay_above_the_acceptance_gate(aligned, fixture_data
     assert report.pairing.as_tuples() == [(0, 0), (1, 1), (2, 2)]
     assert report.min_mac > MATCHED_MAC_GATE
     assert report.summary.max_off_diagonal_mac < 0.5
+
+
+# ---------------------------------------------------------------------------
+# Spring-mass chain cases (reconciled from the R1-O2 correlation branch)
+#
+# The fixture cases above pin the documented reference numbers; these drive the
+# same API from the analytic chain in ``tests.modal_reference``, so correlation
+# stays covered independently of the fixture files and of the FE core.
+# ---------------------------------------------------------------------------
+
+
+def test_mac_matrix_alias_matches_the_pairwise_mac_value() -> None:
+    rng = np.random.default_rng(7)
+    a = rng.normal(size=(6, 3))
+    b = rng.normal(size=(6, 4))
+
+    matrix = mac_matrix(a, b)
+
+    assert matrix.shape == (3, 4)
+    for i in range(3):
+        for j in range(4):
+            assert matrix[i, j] == pytest.approx(mac_value(a[:, i], b[:, j]))
+
+
+def test_mac_matrix_alias_rejects_different_dof_counts() -> None:
+    with pytest.raises(ValueError, match="DOF mismatch"):
+        mac_matrix(np.ones((4, 2)), np.ones((5, 2)))
+
+
+def test_auto_mac_alias_separates_the_modes_of_a_two_dof_chain() -> None:
+    modes = two_dof_chain().modes()
+
+    matrix = auto_mac(modes.mode_shapes)
+
+    assert np.allclose(np.diag(matrix), 1.0)
+    # Mass-normalised modes of a non-uniform chain are not Euclidean
+    # orthogonal, but they must remain clearly distinguishable.
+    assert matrix[0, 1] < 0.2
+
+
+def test_dof_weights_can_mask_out_a_polluted_sensor() -> None:
+    phi_test = np.array([1.0, 0.6, 0.2])
+    phi_fe = np.array([1.0, 0.6, -5.0])
+
+    assert mac_value(phi_test, phi_fe) < 0.2
+    assert mac_value(phi_test, phi_fe, np.array([1.0, 1.0, 0.0])) == pytest.approx(1.0)
+
+
+def test_frequency_difference_rejects_unequal_lengths() -> None:
+    with pytest.raises(ValueError):
+        frequency_difference([1.0, 2.0], [1.0])
+
+
+def test_frequency_error_matrix_is_relative_to_the_test_frequency() -> None:
+    matrix = frequency_error_matrix([10.0, 20.0], [11.0, 22.0])
+
+    assert matrix[0, 0] == pytest.approx(10.0)
+    assert matrix[1, 1] == pytest.approx(10.0)
+    assert matrix[0, 1] == pytest.approx(120.0)
+
+
+def test_frequency_only_pairing_picks_the_closest_frequency_not_the_order() -> None:
+    pairing = pair_modes(test_frequencies=[10.0, 25.0], fe_frequencies=[24.0, 10.4])
+
+    assert pairing.as_tuples() == [(0, 1), (1, 0)]
+    assert pairing.method == "frequency"
+    assert np.isnan(pairing.mac_values).all()
+
+
+def test_frequency_tolerance_can_leave_every_mode_unpaired() -> None:
+    modes = uniform_chain(2).modes()
+
+    pairing = pair_modes(
+        test_shapes=modes.mode_shapes,
+        fe_shapes=modes.mode_shapes,
+        test_frequencies=modes.frequencies,
+        fe_frequencies=modes.frequencies * 1.5,
+        frequency_tolerance_pct=10.0,
+    )
+
+    assert len(pairing) == 0
+    assert pairing.unpaired_test == [0, 1]
+    assert pairing.unpaired_fe == [0, 1]
+
+
+def test_optimal_and_greedy_pairing_agree_on_a_cleanly_separated_case() -> None:
+    modes = uniform_chain(6).modes()
+    fe_shapes = modes.mode_shapes[:, [1, 0, 3, 2, 5, 4]]
+
+    greedy = pair_modes(test_shapes=modes.mode_shapes, fe_shapes=fe_shapes, method="greedy")
+    optimal = pair_modes(test_shapes=modes.mode_shapes, fe_shapes=fe_shapes, method="optimal")
+
+    assert greedy.as_tuples() == optimal.as_tuples()
+
+
+def test_unknown_pairing_method_is_rejected() -> None:
+    with pytest.raises(ValueError, match="unknown pairing method"):
+        pair_modes(test_frequencies=[1.0], fe_frequencies=[1.0], method="magic")
+
+
+def test_pairing_table_lists_every_pair() -> None:
+    modes = two_dof_chain().modes()
+
+    table = pair_modes(
+        test_shapes=modes.mode_shapes,
+        fe_shapes=modes.mode_shapes,
+        test_frequencies=modes.frequencies,
+        fe_frequencies=modes.frequencies,
+    ).table()
+
+    assert table.count("\n") == 3  # header, rule and two pairs
+    assert "MAC" in table
+
+
+def test_correlate_reports_a_perfect_correlation() -> None:
+    modes = two_dof_chain().modes()
+
+    summary = correlate(
+        modes.frequencies, modes.frequencies, modes.mode_shapes, modes.mode_shapes
+    )
+
+    assert summary.n_paired == 2
+    assert summary.mean_mac == pytest.approx(1.0)
+    assert summary.max_abs_freq_error_pct == pytest.approx(0.0)
+    assert summary.is_correlated()
+
+
+def test_summary_error_statistics_expose_a_stiff_model() -> None:
+    chain = two_dof_chain()
+    test = chain.modes()
+    fe = chain.modes(stiffness_scales=[1.3, 0.8])
+
+    summary = correlation_summary(
+        test_frequencies=test.frequencies,
+        fe_frequencies=fe.frequencies,
+        test_shapes=test.mode_shapes,
+        fe_shapes=fe.mode_shapes,
+    )
+
+    expected = 100.0 * (fe.frequencies - test.frequencies) / test.frequencies
+    assert summary.n_paired == 2
+    assert summary.mean_mac < 0.999
+    assert not summary.is_correlated(mac_threshold=0.999, freq_tolerance_pct=1.0)
+    assert summary.mean_signed_freq_error_pct == pytest.approx(np.mean(expected))
+    assert summary.rms_freq_error_pct == pytest.approx(np.sqrt(np.mean(expected**2)))
+
+
+def test_summary_is_serializable_to_a_flat_dict() -> None:
+    modes = two_dof_chain().modes()
+
+    data = correlate(
+        modes.frequencies, modes.frequencies, modes.mode_shapes, modes.mode_shapes
+    ).as_dict()
+
+    assert data["n_paired"] == 2
+    assert set(data) >= {"mean_mac", "max_abs_freq_error_pct", "max_off_diagonal_mac"}
+
+
+def test_off_diagonal_mac_flags_a_duplicated_fe_mode() -> None:
+    modes = uniform_chain(4).modes()
+    fe_shapes = modes.mode_shapes.copy()
+    fe_shapes[:, 2] = modes.mode_shapes[:, 1]
+
+    pairing = pair_modes(test_shapes=modes.mode_shapes, fe_shapes=fe_shapes)
+
+    assert off_diagonal_mac(pairing.mac_matrix, pairing) > 0.9
+
+
+def test_normalized_frequency_residual_follows_the_pairing() -> None:
+    pairing = pair_modes(test_frequencies=[10.0, 20.0], fe_frequencies=[22.0, 10.5])
+
+    residual = normalized_frequency_residual([10.0, 20.0], [22.0, 10.5], pairing)
+
+    assert residual == pytest.approx([0.05, 0.10])
+
+
+def test_correlation_from_a_measured_dof_subset() -> None:
+    chain = uniform_chain(6)
+    measured = [0, 2, 4]
+    test = chain.modes(n_modes=3, dofs=measured)
+    fe = chain.modes(n_modes=3, stiffness_scales=np.full(6, 1.1), dofs=measured)
+
+    summary = correlate(test.frequencies, fe.frequencies, test.mode_shapes, fe.mode_shapes)
+
+    assert summary.n_paired == 3
+    # A uniform stiffness scaling leaves the mode shapes untouched.
+    assert summary.min_mac == pytest.approx(1.0)
+    assert summary.max_abs_freq_error_pct == pytest.approx(100.0 * (np.sqrt(1.1) - 1.0), rel=1e-6)
 
 
 # ---------------------------------------------------------------------------

@@ -15,20 +15,30 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from openfemlab.correlation import mac_value, pair_modes
+from openfemlab.correlation import correlate, mac_value, pair_modes
 from openfemlab.updating import (
+    ModalData,
     ModelUpdater,
     Parameter,
     ParameterSet,
     ParameterType,
     ScalingModel,
     UpdatableParameter,
+    as_modal_data,
     eigenvalue_sensitivity,
     eigenvalue_to_frequency_sensitivity,
+    finite_difference_jacobian,
     modal_sensitivity,
     mode_shape_sensitivity,
+    relative_sensitivity,
     track_modes,
     update_model,
+)
+from tests.modal_reference import (
+    SpringMassChain,
+    make_model_function,
+    two_dof_chain,
+    uniform_chain,
 )
 
 N_DOF = 10
@@ -591,3 +601,466 @@ def test_scaling_model_matches_the_internal_modal_solver() -> None:
     np.testing.assert_allclose(solved.frequencies, reference.frequencies, rtol=1e-9)
     for i in range(reference.n_modes):
         assert mac_value(reference.mode_shapes[:, i], solved.mode_shapes[:, i]) > 1.0 - 1e-9
+
+
+# ---------------------------------------------------------------------------
+# Callable-model cases (reconciled from the R1-O2 updating branch)
+#
+# Everything above drives the affine ``ScalingModel``.  A real updating run
+# usually wraps an external solver in a plain ``{name: value} -> modal data``
+# callable instead, so the cases below exercise that entry point, the parameter
+# bookkeeping behind it, and the residual/regularisation options it exposes.
+# ---------------------------------------------------------------------------
+
+TWO_PI = 2.0 * np.pi
+
+
+def two_dof_problem(truth=(1.25, 0.80), n_modes=2):
+    """2-DOF chain: synthetic test data generated from a perturbed truth model."""
+    chain = two_dof_chain()
+    model = make_model_function(
+        chain, n_modes=n_modes, stiffness_groups={"k1": [0], "k2": [1]}
+    )
+    target = model({"k1": truth[0], "k2": truth[1]})
+    parameters = [
+        UpdatableParameter("k1", value=1.0, lower=0.4, upper=2.5),
+        UpdatableParameter("k2", value=1.0, lower=0.4, upper=2.5),
+    ]
+    return chain, model, target, parameters
+
+
+# ------------------------------------------------------------ parameter model
+
+
+def test_parameter_defaults_are_a_unit_scaling_factor() -> None:
+    parameter = UpdatableParameter("k_web")
+
+    assert parameter.value == 1.0
+    assert parameter.initial == 1.0
+    assert parameter.kind is ParameterType.STIFFNESS
+    assert parameter.change_pct == 0.0
+
+
+def test_parameter_clips_to_its_bounds() -> None:
+    parameter = UpdatableParameter("k", value=1.0, lower=0.8, upper=1.2)
+
+    assert parameter.set_value(5.0) == 1.2
+    assert parameter.set_value(0.0) == 0.8
+    assert parameter.change_pct == pytest.approx(-20.0)
+
+    parameter.reset()
+    assert parameter.value == 1.0
+
+
+def test_parameter_rejects_inconsistent_definitions() -> None:
+    with pytest.raises(ValueError):
+        UpdatableParameter("k", value=3.0, lower=0.5, upper=2.0)
+    with pytest.raises(ValueError):
+        UpdatableParameter("k", lower=2.0, upper=0.5)
+    with pytest.raises(ValueError):
+        UpdatableParameter("", value=1.0)
+    with pytest.raises(ValueError):
+        UpdatableParameter("k", step=0.0)
+
+
+def test_log_scaled_parameter_round_trips_through_design_space() -> None:
+    parameter = UpdatableParameter("m", value=1.4, lower=0.1, upper=10.0, log_scaled=True)
+
+    design = parameter.to_design()
+
+    assert design == pytest.approx(np.log(1.4))
+    assert parameter.from_design(design) == pytest.approx(1.4)
+    assert parameter.design_bounds == pytest.approx((np.log(0.1), np.log(10.0)))
+
+
+def test_log_scaled_parameter_needs_a_positive_lower_bound() -> None:
+    with pytest.raises(ValueError):
+        UpdatableParameter("k", value=1.0, lower=0.0, upper=2.0, log_scaled=True)
+
+
+def test_parameter_set_indexing_and_bookkeeping() -> None:
+    parameters = ParameterSet(
+        [
+            UpdatableParameter("k1", value=1.1, targets=(1, 2)),
+            UpdatableParameter("m1", value=0.9, kind=ParameterType.MASS, fixed=True),
+        ]
+    )
+
+    assert parameters.names == ["k1", "m1"]
+    assert parameters.free_names == ["k1"]
+    assert parameters["m1"].kind is ParameterType.MASS
+    assert parameters[0].targets == (1, 2)
+    assert "k1" in parameters and len(parameters) == 2
+    assert parameters.as_dict() == {"k1": 1.1, "m1": 0.9}
+    assert [p.name for p in parameters.of_kind("mass")] == ["m1"]
+    with pytest.raises(KeyError):
+        parameters["nope"]
+
+
+def test_parameter_set_rejects_duplicate_names() -> None:
+    with pytest.raises(ValueError):
+        ParameterSet([UpdatableParameter("k"), UpdatableParameter("k")])
+
+
+def test_design_space_updates_only_touch_free_parameters() -> None:
+    parameters = ParameterSet(
+        [
+            UpdatableParameter("k1", value=1.0, lower=0.5, upper=1.5),
+            UpdatableParameter("k2", value=1.0, fixed=True),
+        ]
+    )
+
+    assert parameters.design_values() == pytest.approx([1.0])
+
+    values = parameters.apply_design([9.0])  # clipped to the upper bound
+
+    assert values == {"k1": 1.5, "k2": 1.0}
+    assert parameters.copy().as_dict() == values
+    assert "k1" in parameters.table()
+
+
+# ----------------------------------------------------------------- modal data
+
+
+def test_as_modal_data_accepts_the_common_solver_return_types() -> None:
+    frequencies = np.array([1.0, 2.0])
+    shapes = np.eye(2)
+
+    class SolverResult:
+        natural_frequencies = frequencies
+        eigenvectors = shapes
+
+    assert as_modal_data(ModalData(frequencies, shapes)).n_modes == 2
+    assert as_modal_data((frequencies, shapes)).mode_shapes.shape == (2, 2)
+    assert as_modal_data({"frequencies": frequencies}).n_modes == 2
+    assert as_modal_data([1.0, 2.0, 3.0]).n_modes == 3
+    assert as_modal_data(SolverResult()).mode_shapes.shape == (2, 2)
+    with pytest.raises(TypeError):
+        as_modal_data(object())
+
+
+def test_modal_data_eigenvalues_follow_the_frequencies() -> None:
+    data = ModalData(np.array([1.0, 4.0]))
+
+    assert data.eigenvalues == pytest.approx((TWO_PI * np.array([1.0, 4.0])) ** 2)
+
+
+def test_modal_data_rejects_a_mismatched_shape_matrix() -> None:
+    with pytest.raises(ValueError):
+        ModalData(np.array([1.0, 2.0]), np.ones((4, 3)))
+
+
+# ---------------------------------------------------------------- sensitivity
+
+
+def test_eigenvalue_sensitivity_needs_the_mass_matrix_for_unnormalized_modes() -> None:
+    chain = two_dof_chain()
+    modes = chain.modes()
+    _, mass = chain.matrices()
+    rescaled = modes.mode_shapes * np.array([3.0, -2.0])
+
+    reference = eigenvalue_sensitivity(
+        modes.mode_shapes, modes.eigenvalues, chain.spring_matrices()
+    )
+    with_mass = eigenvalue_sensitivity(
+        rescaled, modes.eigenvalues, chain.spring_matrices(), mass_matrix=mass
+    )
+
+    assert with_mass == pytest.approx(reference, rel=1e-10)
+
+
+def test_frequency_sensitivity_matches_a_direct_finite_difference() -> None:
+    chain = two_dof_chain()
+    modes = chain.modes()
+    analytical = eigenvalue_to_frequency_sensitivity(
+        eigenvalue_sensitivity(modes.mode_shapes, modes.eigenvalues, chain.spring_matrices()),
+        modes.frequencies,
+    )
+
+    numerical = modal_sensitivity(
+        lambda scales: chain.modes(stiffness_scales=scales),
+        np.ones(2),
+        parameter_names=["k1", "k2"],
+        steps=1e-6,
+    )
+
+    assert analytical == pytest.approx(numerical.matrix, rel=1e-6)
+    assert numerical.response_labels == ["f1", "f2"]
+
+
+def test_relative_frequency_sensitivity_of_a_uniform_stiffness_scaling_is_one_half() -> None:
+    chain = uniform_chain(4)
+
+    sensitivity = modal_sensitivity(
+        lambda scale: chain.modes(stiffness_scales=np.full(4, scale[0])),
+        [1.0],
+        parameter_names=["k"],
+        steps=1e-6,
+    )
+
+    # f ~ sqrt(k), so d(ln f)/d(ln k) = 1/2 for every mode.
+    assert sensitivity.relative().ravel() == pytest.approx(np.full(4, 0.5), rel=1e-5)
+    assert relative_sensitivity(
+        sensitivity.matrix, [1.0], sensitivity.response_values
+    ) == pytest.approx(sensitivity.relative())
+
+
+def test_modal_sensitivity_tracks_modes_across_a_reordering_solver() -> None:
+    chain = SpringMassChain(masses=[1.0, 1.0], stiffnesses=[1000.0, 1000.0])
+
+    def response(scale):
+        data = chain.modes(stiffness_scales=[scale[0], 1.0])
+        # Hand the output back reversed to emulate a solver that does not
+        # preserve the mode ordering between calls.
+        return ModalData(data.frequencies[::-1], data.mode_shapes[:, ::-1])
+
+    sensitivity = modal_sensitivity(response, [1.0], steps=1e-5)
+
+    assert sensitivity.matrix.shape == (2, 1)
+    assert np.all(sensitivity.matrix > 0.0)
+
+
+def test_finite_difference_schemes_agree_on_a_smooth_response() -> None:
+    chain = two_dof_chain()
+
+    def frequencies(scales):
+        return chain.modes(stiffness_scales=scales).frequencies
+
+    central = finite_difference_jacobian(frequencies, np.ones(2), steps=1e-6)
+    forward = finite_difference_jacobian(frequencies, np.ones(2), steps=1e-7, scheme="forward")
+
+    assert central == pytest.approx(forward, rel=1e-4)
+    with pytest.raises(ValueError):
+        finite_difference_jacobian(frequencies, np.ones(2), scheme="banana")
+
+
+# ------------------------------------------------------- callable-model runs
+
+
+def test_updating_recovers_the_perturbed_stiffness_of_a_two_dof_model() -> None:
+    _, model, target, parameters = two_dof_problem(truth=(1.25, 0.80))
+
+    result = ModelUpdater(model, parameters, target.frequencies, target.mode_shapes).run()
+
+    assert result.converged
+    assert result.parameters["k1"] == pytest.approx(1.25, rel=1e-4)
+    assert result.parameters["k2"] == pytest.approx(0.80, rel=1e-4)
+    assert result.final_correlation.max_abs_freq_error_pct < 1e-3
+    assert result.final_correlation.mean_mac > 0.9999
+    assert result.final_cost < 1e-12
+
+
+def test_updating_improves_both_the_mac_and_the_frequency_error() -> None:
+    chain = uniform_chain(6)
+    model = make_model_function(
+        chain,
+        n_modes=4,
+        stiffness_groups={"k_lower": [0, 1, 2], "k_upper": [3, 4, 5]},
+        mass_groups={"m_tip": [5]},
+    )
+    truth = {"k_lower": 1.30, "k_upper": 0.75, "m_tip": 1.20}
+    target = model(truth)
+    nominal = model({"k_lower": 1.0, "k_upper": 1.0, "m_tip": 1.0})
+    parameters = [
+        UpdatableParameter("k_lower", lower=0.5, upper=2.0),
+        UpdatableParameter("k_upper", lower=0.5, upper=2.0),
+        UpdatableParameter("m_tip", lower=0.5, upper=2.0, kind=ParameterType.MASS),
+    ]
+
+    before = correlate(
+        target.frequencies, nominal.frequencies, target.mode_shapes, nominal.mode_shapes
+    )
+    result = update_model(model, parameters, target.frequencies, target.mode_shapes)
+
+    assert before.mean_mac < 0.99
+    assert before.max_abs_freq_error_pct > 5.0
+    assert result.final_correlation.mean_mac > before.mean_mac
+    assert result.final_correlation.min_mac > 0.999
+    assert result.final_correlation.max_abs_freq_error_pct < 0.01
+    for name, value in truth.items():
+        assert result.parameters[name] == pytest.approx(value, rel=1e-3)
+
+
+def test_updating_with_a_measured_dof_subset_and_noisy_targets() -> None:
+    chain = uniform_chain(8)
+    model = make_model_function(
+        chain,
+        n_modes=3,
+        stiffness_groups={"k_root": [0, 1], "k_mid": [2, 3, 4], "k_tip": [5, 6, 7]},
+        dofs=[1, 3, 5, 7],
+    )
+    truth = {"k_root": 1.20, "k_mid": 0.85, "k_tip": 1.10}
+    clean = model(truth)
+
+    rng = np.random.default_rng(11)
+    noisy = ModalData(
+        clean.frequencies * (1.0 + 0.002 * rng.standard_normal(clean.frequencies.size)),
+        clean.mode_shapes + 0.01 * rng.standard_normal(clean.mode_shapes.shape),
+    )
+    parameters = [
+        UpdatableParameter(name, lower=0.5, upper=2.0, log_scaled=True) for name in truth
+    ]
+
+    result = update_model(model, parameters, noisy.frequencies, noisy.mode_shapes)
+
+    assert result.cost_reduction > 0.9
+    assert result.final_correlation.max_abs_freq_error_pct < 0.5
+    for name, value in truth.items():
+        assert result.parameters[name] == pytest.approx(value, rel=0.05)
+
+
+def test_frequency_only_updating_works_without_measured_mode_shapes() -> None:
+    _, model, target, parameters = two_dof_problem(truth=(1.15, 0.90))
+
+    result = update_model(model, parameters, target.frequencies, shape_weight=0.0)
+
+    assert result.parameters["k1"] == pytest.approx(1.15, rel=1e-4)
+    assert result.parameters["k2"] == pytest.approx(0.90, rel=1e-4)
+    assert result.final_correlation.max_abs_freq_error_pct < 1e-3
+
+
+def test_the_shape_difference_residual_also_converges() -> None:
+    """``shape_residual="difference"`` drives MSF-scaled per-DOF differences."""
+    _, model, target, parameters = two_dof_problem(truth=(1.10, 0.95))
+
+    result = update_model(
+        model,
+        parameters,
+        target.frequencies,
+        target.mode_shapes,
+        shape_residual="difference",
+    )
+
+    assert result.parameters["k1"] == pytest.approx(1.10, rel=1e-3)
+    assert result.final_correlation.min_mac > 0.9999
+
+
+def test_regularization_pulls_the_solution_towards_the_initial_model() -> None:
+    """Also guards the parameter isolation the Tikhonov term depends on.
+
+    Both runs are handed the same parameter objects, so an updater that wrote
+    its solution back into them would silently make ``x0`` the first run's
+    answer and the regularisation a no-op.
+    """
+    _, model, target, parameters = two_dof_problem(truth=(1.40, 0.70))
+
+    free = update_model(model, parameters, target.frequencies, target.mode_shapes)
+    regularized = update_model(
+        model, parameters, target.frequencies, target.mode_shapes, regularization=1.0
+    )
+
+    def distance(result):
+        return sum(abs(value - 1.0) for value in result.parameters.values())
+
+    assert distance(regularized) < distance(free)
+
+
+def test_the_updater_leaves_the_callers_parameter_objects_untouched() -> None:
+    _, model, target, parameters = two_dof_problem(truth=(1.30, 0.75))
+
+    first = update_model(model, parameters, target.frequencies, target.mode_shapes)
+
+    assert [p.value for p in parameters] == [1.0, 1.0]
+
+    second = update_model(model, parameters, target.frequencies, target.mode_shapes)
+
+    assert second.parameters == first.parameters
+    assert second.initial_cost == pytest.approx(first.initial_cost)
+
+
+def test_parameter_bounds_are_never_violated() -> None:
+    _, model, target, _ = two_dof_problem(truth=(1.60, 0.60))
+    tight = [
+        UpdatableParameter("k1", value=1.0, lower=0.95, upper=1.05),
+        UpdatableParameter("k2", value=1.0, lower=0.95, upper=1.05),
+    ]
+
+    result = update_model(model, tight, target.frequencies, target.mode_shapes)
+
+    assert 0.95 <= result.parameters["k1"] <= 1.05
+    assert 0.95 <= result.parameters["k2"] <= 1.05
+    # Even a run that cannot reach the truth must not make the fit worse.
+    assert result.final_cost <= result.initial_cost
+
+
+def test_hungarian_mode_pairing_updates_as_well_as_the_greedy_pass() -> None:
+    """``mode_pairing="optimal"`` re-pairs globally instead of greedily."""
+    _, model, target, parameters = two_dof_problem(truth=(1.35, 0.72))
+
+    greedy = update_model(model, parameters, target.frequencies, target.mode_shapes)
+    optimal = update_model(
+        model, parameters, target.frequencies, target.mode_shapes, mode_pairing="optimal"
+    )
+
+    assert optimal.parameters["k1"] == pytest.approx(greedy.parameters["k1"], rel=1e-6)
+    assert optimal.final_correlation.min_mac > 0.9999
+    with pytest.raises(ValueError, match="unknown mode pairing strategy"):
+        update_model(model, parameters, target.frequencies, mode_pairing="clairvoyant")
+
+
+def test_history_records_a_monotonically_improving_cost() -> None:
+    _, model, target, parameters = two_dof_problem(truth=(1.35, 0.78))
+
+    result = update_model(model, parameters, target.frequencies, target.mode_shapes)
+
+    costs = [record.cost for record in result.history]
+    assert costs == sorted(costs, reverse=True)
+    assert result.history[-1].mean_mac >= result.history[0].mean_mac
+    assert result.history[-1].parameters == result.parameters
+    assert result.sensitivity is not None
+    assert result.sensitivity.matrix.shape[1] == 2
+
+
+def test_updater_rejects_an_unknown_method() -> None:
+    _, model, target, parameters = two_dof_problem()
+
+    with pytest.raises(ValueError, match="unknown updating method"):
+        ModelUpdater(model, parameters, target.frequencies, method="newton")
+
+
+def test_the_analytical_sensitivity_path_uses_fewer_model_evaluations() -> None:
+    chain = two_dof_chain()
+    _, model, target, parameters = two_dof_problem(truth=(1.20, 0.85))
+
+    def analytical(values, data):
+        modes = chain.modes(stiffness_scales=np.array([values["k1"], values["k2"]]))
+        return eigenvalue_to_frequency_sensitivity(
+            eigenvalue_sensitivity(modes.mode_shapes, modes.eigenvalues, chain.spring_matrices()),
+            modes.frequencies,
+        )
+
+    finite = ModelUpdater(model, parameters, target.frequencies, shape_weight=0.0)
+    by_differences = finite.run()
+    exact = ModelUpdater(
+        model,
+        parameters,
+        target.frequencies,
+        shape_weight=0.0,
+        sensitivity_function=analytical,
+    )
+    by_fox_kapoor = exact.run()
+
+    assert exact.n_evaluations < finite.n_evaluations
+    assert by_fox_kapoor.parameters["k1"] == pytest.approx(
+        by_differences.parameters["k1"], rel=1e-6
+    )
+
+
+def test_updating_drives_the_internal_modal_solver_through_a_callable() -> None:
+    solver_module = pytest.importorskip("openfemlab.solver.modal")
+    chain = uniform_chain(4)
+
+    def model(values):
+        K, M = chain.matrices(stiffness_scales=np.full(4, values["k_all"]))
+        return solver_module.ModalSolver.from_matrices(K, M).solve(num_modes=3)
+
+    target = model({"k_all": 1.44})
+
+    result = update_model(
+        model,
+        [UpdatableParameter("k_all", lower=0.5, upper=2.0)],
+        target.frequencies,
+        target.mode_shapes,
+    )
+
+    assert result.parameters["k_all"] == pytest.approx(1.44, rel=1e-4)
