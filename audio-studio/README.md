@@ -363,12 +363,17 @@ above this package.
 - No complete repair suite (noise reduction remains), production VST3/AU host
   or plugin delay compensation yet — see the roadmap in the release sign-off.
   Batch processing is covered by the `audio_studio.batch` CLI above.
-- Not a low-latency monitor: the default device block is 1024 frames
-  (~21 ms at 48 kHz), and while the drawn playhead is interpolated between
-  callbacks, the audio it tracks is still quantised to that block.
-  `SoundDeviceOutput` is the step towards fixing this, but it currently opens
-  the host API's shared mode only — WASAPI exclusive mode, ASIO and per-host
-  latency hints are not wired up, and the ASIO SDK is not shipped.
+- The default device block is now 256 frames (~5.3 ms at 48 kHz);
+  `SoundDeviceOutput` and `PyAudioOutput` retry with 512 and then 1024 frames
+  when the device rejects it. This lowers callback latency but is not certified
+  low-latency monitoring: shared-mode host buffering still applies, WASAPI
+  exclusive mode, ASIO and per-host latency hints are not wired up, and the
+  ASIO SDK is not shipped.
+- On the first playback, the engine collects cyclic garbage and freezes the
+  existing GC-tracked object graph until shutdown to keep old objects out of
+  playback-time collections. Set `AUDIO_STUDIO_RT_GC=0` to disable this
+  discipline; it reduces one source of jitter but does not make CPython a
+  hard-real-time runtime.
 - Under/overruns are counted per stream (`SoundDeviceOutput.xruns`,
   `.underflows`, `.overflows`) but nothing surfaces them in the UI yet, and
   `PyAudioOutput` cannot report them at all. Recording still runs on PyAudio
@@ -376,8 +381,9 @@ above this package.
 - The effect-rack preview chain runs on the feeder thread, so a heavy chain no
   longer starves the device callback — but it is processed a ring buffer ahead
   of what you hear, so a parameter or bypass change lands after the queued
-  blocks drain (~340 ms at the default block and ring depth). A backend opened
-  outside the transport still processes in the render callback.
+  blocks drain (~85 ms at the default block and ring depth, or longer after
+  device fallback). A backend opened outside the transport still processes in
+  the render callback.
 - The SPSC ring is lock-free at the Python level but still executes under
   CPython/GIL scheduling; physical-device p99 timing and a long soak are not
   certified by headless tests.

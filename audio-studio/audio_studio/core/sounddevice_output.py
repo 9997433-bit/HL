@@ -19,7 +19,12 @@ from typing import Any
 
 import numpy as np
 
-from .output import AudioOutput, OutputDeviceError, _quiet_native_stderr
+from .output import (
+    AudioOutput,
+    OutputDeviceError,
+    _block_size_candidates,
+    _quiet_native_stderr,
+)
 
 __all__ = ["SoundDeviceOutput"]
 
@@ -81,19 +86,31 @@ class SoundDeviceOutput(AudioOutput):
 
         self._underflows = 0
         self._overflows = 0
+        requested = self._block_size
+        last_error: Exception | None = None
         try:
             with _quiet_native_stderr():
-                self._stream = sd.OutputStream(
-                    samplerate=self._sample_rate,
-                    channels=self._channels,
-                    dtype="float32",
-                    blocksize=self._block_size,
-                    device=self._device,
-                    callback=self._sounddevice_callback,
-                )
+                for block_size in _block_size_candidates(requested):
+                    self._block_size = block_size
+                    try:
+                        self._stream = sd.OutputStream(
+                            samplerate=self._sample_rate,
+                            channels=self._channels,
+                            dtype="float32",
+                            blocksize=block_size,
+                            device=self._device,
+                            callback=self._sounddevice_callback,
+                        )
+                    except Exception as exc:  # noqa: BLE001 - try the next safe size
+                        last_error = exc
+                        self._teardown()
+                        continue
+                    return
         except Exception as exc:  # noqa: BLE001
-            self._teardown()
-            raise OutputDeviceError(f"Cannot open output stream: {exc}") from exc
+            last_error = exc
+        self._block_size = requested
+        assert last_error is not None
+        raise OutputDeviceError(f"Cannot open output stream: {last_error}") from last_error
 
     def _sounddevice_callback(
         self, outdata: np.ndarray, frames: int, _time_info: Any, status: Any

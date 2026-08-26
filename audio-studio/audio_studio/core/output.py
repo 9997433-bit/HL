@@ -23,7 +23,19 @@ from .types import SAMPLE_DTYPE
 #: ``callback(n_frames) -> (n_frames, channels) float32``.
 RenderCallback = Callable[[int], np.ndarray]
 
-DEFAULT_BLOCK_SIZE: int = 1024
+#: About 5.3 ms of audio at 48 kHz.
+DEFAULT_BLOCK_SIZE: int = 256
+
+#: Hardware backends try the low-latency default first, then progressively
+#: larger buffers when a device or host API rejects it.
+_BLOCK_SIZE_FALLBACKS: tuple[int, ...] = (512, 1024)
+
+
+def _block_size_candidates(requested: int) -> tuple[int, ...]:
+    """Return the hardware negotiation ladder for a requested block size."""
+    if requested != DEFAULT_BLOCK_SIZE:
+        return (requested,)
+    return (requested, *_BLOCK_SIZE_FALLBACKS)
 
 
 class OutputDeviceError(RuntimeError):
@@ -245,23 +257,35 @@ class PyAudioOutput(AudioOutput):
         except Exception as exc:  # noqa: BLE001
             raise OutputDeviceError(f"PyAudio is unavailable: {exc}") from exc
 
+        requested = self._block_size
+        last_error: Exception | None = None
         try:
             with _quiet_native_stderr():
                 instance = pyaudio.PyAudio()
                 self._pyaudio = instance
-                self._stream = instance.open(
-                    format=pyaudio.paFloat32,
-                    channels=self._channels,
-                    rate=self._sample_rate,
-                    output=True,
-                    output_device_index=self._device_index,
-                    frames_per_buffer=self._block_size,
-                    stream_callback=self._pyaudio_callback,
-                    start=False,
-                )
+                for block_size in _block_size_candidates(requested):
+                    self._block_size = block_size
+                    try:
+                        self._stream = instance.open(
+                            format=pyaudio.paFloat32,
+                            channels=self._channels,
+                            rate=self._sample_rate,
+                            output=True,
+                            output_device_index=self._device_index,
+                            frames_per_buffer=block_size,
+                            stream_callback=self._pyaudio_callback,
+                            start=False,
+                        )
+                    except Exception as exc:  # noqa: BLE001 - try the next safe size
+                        last_error = exc
+                        continue
+                    return
         except Exception as exc:  # noqa: BLE001
-            self._teardown()
-            raise OutputDeviceError(f"Cannot open output stream: {exc}") from exc
+            last_error = exc
+        self._block_size = requested
+        self._teardown()
+        assert last_error is not None
+        raise OutputDeviceError(f"Cannot open output stream: {last_error}") from last_error
 
     def _pyaudio_callback(
         self, _in_data: bytes | None, frame_count: int, _time_info: dict, _status: int
