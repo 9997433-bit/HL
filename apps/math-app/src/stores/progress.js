@@ -14,8 +14,17 @@ import { ACHIEVEMENTS, ACHIEVEMENT_MAP } from '@/data/achievements.js'
 
 const STORAGE_KEY = 'mathquest/progress'
 
+/** 家长页导出文件的身份标记，导入时用来挡掉别的 App 的备份。 */
+const BACKUP_APP = 'mathquest'
+const BACKUP_VERSION = 1
+
+/** 每日明细只留最近 30 天，够画 7 天曲线也不会把 localStorage 撑爆。 */
+const DAILY_KEEP_DAYS = 30
+
 /** 升级所需经验随等级递增：level n -> n × 40。 */
 const xpForLevel = (level) => level * 40
+
+const dateKey = (date = new Date()) => date.toISOString().slice(0, 10)
 
 const emptyModuleStat = () => ({
   answered: 0,
@@ -25,6 +34,8 @@ const emptyModuleStat = () => ({
   bestScore: 0,
   lastPlayed: null,
 })
+
+const emptyDay = () => ({ seconds: 0, answered: 0, correct: 0, stars: 0 })
 
 function defaultState() {
   return {
@@ -45,28 +56,63 @@ function defaultState() {
     achievements: {},
     settings: { sound: true, animations: true },
     history: [],
+    /** 'YYYY-MM-DD' -> { seconds, answered, correct, stars }，家长页时长曲线的数据源 */
+    daily: {},
+  }
+}
+
+/** 把任意来源的「id -> 数值」字典洗成有限数，脏数据不会变成界面上的 NaN。 */
+function numberMap(raw, max = Number.POSITIVE_INFINITY) {
+  const out = {}
+  for (const [key, value] of Object.entries(raw ?? {})) {
+    const n = Number(value)
+    if (Number.isFinite(n)) out[key] = Math.min(max, Math.max(0, n))
+  }
+  return out
+}
+
+function mergeDaily(raw) {
+  const out = {}
+  for (const [key, value] of Object.entries(raw ?? {})) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) continue
+    out[key] = { ...emptyDay(), ...numberMap(value) }
+  }
+  return out
+}
+
+/**
+ * 合并一份外部快照（localStorage 或家长页导入的备份）到默认结构上。
+ * 缺字段回落默认值、脏字段丢弃，保证 store 永远是完整形状。
+ */
+function mergeState(saved) {
+  const base = defaultState()
+  if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return base
+
+  const modules = { ...base.modules }
+  for (const [id, stat] of Object.entries(saved.modules ?? {})) {
+    modules[id] = { ...emptyModuleStat(), ...(stat && typeof stat === 'object' ? stat : {}) }
+  }
+
+  return {
+    ...base,
+    ...saved,
+    mastery: numberMap(saved.mastery, 1),
+    errorTagCounts: numberMap(saved.errorTagCounts),
+    modules,
+    counters: { ...base.counters, ...numberMap(saved.counters) },
+    achievements: { ...(saved.achievements || {}) },
+    settings: { ...base.settings, ...(saved.settings || {}) },
+    history: Array.isArray(saved.history) ? saved.history.slice(0, 40) : [],
+    daily: mergeDaily(saved.daily),
   }
 }
 
 function loadState() {
-  const base = defaultState()
-  if (typeof localStorage === 'undefined') return base
+  if (typeof localStorage === 'undefined') return defaultState()
   try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null')
-    if (!saved) return base
-    return {
-      ...base,
-      ...saved,
-      mastery: { ...(saved.mastery || {}) },
-      errorTagCounts: { ...(saved.errorTagCounts || {}) },
-      modules: { ...base.modules, ...(saved.modules || {}) },
-      counters: { ...base.counters, ...(saved.counters || {}) },
-      achievements: { ...(saved.achievements || {}) },
-      settings: { ...base.settings, ...(saved.settings || {}) },
-      history: Array.isArray(saved.history) ? saved.history : [],
-    }
+    return mergeState(JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'))
   } catch {
-    return base
+    return defaultState()
   }
 }
 
@@ -101,6 +147,31 @@ export const useProgressStore = defineStore('progress', () => {
   const lockedAchievements = computed(() => ACHIEVEMENTS.filter((a) => !state.achievements[a.id]))
 
   const moduleStat = (moduleId) => state.modules[moduleId] ?? emptyModuleStat()
+
+  // ---------- 使用时长 ----------
+
+  const todaySeconds = computed(() => state.daily[dateKey()]?.seconds ?? 0)
+  const todayMinutes = computed(() => Math.floor(todaySeconds.value / 60))
+  const totalMinutes = computed(() =>
+    Math.round(Object.values(state.daily).reduce((sum, d) => sum + (d.seconds || 0), 0) / 60),
+  )
+
+  const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六']
+
+  /** 最近 7 天（含今天）的时长与答题量，缺的日子补 0，家长页直接画柱子。 */
+  const last7Days = computed(() =>
+    Array.from({ length: 7 }, (_, i) => {
+      const date = new Date(Date.now() - (6 - i) * 864e5)
+      const key = dateKey(date)
+      const day = state.daily[key] ?? emptyDay()
+      return {
+        key,
+        label: `周${WEEKDAYS[date.getUTCDay()]}`,
+        minutes: Math.round(day.seconds / 60),
+        ...day,
+      }
+    }),
+  )
 
   /**
    * 模块掌握度 0..1。技能图谱上有该模块的技能点时取平均掌握度，
@@ -165,6 +236,19 @@ export const useProgressStore = defineStore('progress', () => {
     }
   }
 
+  /** 取今天的明细桶，顺手清掉 30 天以前的记录。 */
+  function dayBucket() {
+    const key = dateKey()
+    if (!state.daily[key]) {
+      state.daily[key] = emptyDay()
+      const keys = Object.keys(state.daily).sort()
+      for (const stale of keys.slice(0, Math.max(0, keys.length - DAILY_KEEP_DAYS))) {
+        delete state.daily[stale]
+      }
+    }
+    return state.daily[key]
+  }
+
   function touchStreak() {
     const today = new Date().toISOString().slice(0, 10)
     if (state.lastPlayedDate === today) return
@@ -179,6 +263,16 @@ export const useProgressStore = defineStore('progress', () => {
     if (count <= 0) return
     state.stars += count
     checkAchievements()
+  }
+
+  /**
+   * 累计一段在线时长（秒）。App 每 15 秒在页面可见时报一次，
+   * 家长页的「今日时长 / 最近 7 天」和防沉迷提醒都读这份数据。
+   */
+  function recordUsage(seconds) {
+    const delta = Number(seconds)
+    if (!Number.isFinite(delta) || delta <= 0) return
+    dayBucket().seconds += Math.round(delta)
   }
 
   function bumpCounter(name, delta = 1) {
@@ -212,15 +306,20 @@ export const useProgressStore = defineStore('progress', () => {
     stat.lastPlayed = Date.now()
     state.totalAnswered += 1
 
+    const day = dayBucket()
+    day.answered += 1
+
     if (isCorrect) {
       stat.correct += 1
       state.totalCorrect += 1
+      day.correct += 1
       combo.value += 1
       state.bestStreak = Math.max(state.bestStreak, combo.value)
 
       const gained = opts.stars ?? 1
       stat.stars += gained
       state.stars += gained
+      day.stars += gained
       addXp(opts.xp ?? 10)
 
       if (opts.tag === 'arithmetic-hard') state.counters.arithmeticHardCorrect += 1
@@ -274,6 +373,67 @@ export const useProgressStore = defineStore('progress', () => {
     persist()
   }
 
+  /**
+   * 家长页整档备份：导出的就是 store 的完整状态，导入后能原样还原。
+   * exportReport() 只导出摘要，换设备时要用这个。
+   */
+  function exportJson() {
+    return JSON.stringify(
+      {
+        app: BACKUP_APP,
+        version: BACKUP_VERSION,
+        exportedAt: new Date().toISOString(),
+        progress: JSON.parse(JSON.stringify(state)),
+      },
+      null,
+      2,
+    )
+  }
+
+  const NUMERIC_FIELDS = [
+    'stars',
+    'xp',
+    'level',
+    'totalAnswered',
+    'totalCorrect',
+    'bestStreak',
+    'dailyStreak',
+  ]
+
+  /**
+   * 导入一份 exportJson() 的备份，整档覆盖当前进度。
+   * 也接受直接是 state 形状的老文件；认不出来的文件抛错，
+   * 绝不能把「导错文件」变成「进度被清空」。
+   */
+  function importJson(text) {
+    let parsed
+    try {
+      parsed = JSON.parse(text)
+    } catch {
+      throw new Error('这不是一个有效的 JSON 文件')
+    }
+    if (parsed?.app && parsed.app !== BACKUP_APP) {
+      throw new Error(`这是「${parsed.app}」的备份，不是星际数学冒险的`)
+    }
+    const payload = parsed?.progress ?? parsed
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      throw new Error('文件里没有找到进度数据')
+    }
+    if (!NUMERIC_FIELDS.some((field) => Number.isFinite(Number(payload[field])))) {
+      throw new Error('文件里没有可识别的进度字段')
+    }
+
+    Object.assign(state, mergeState(payload))
+    pendingUnlocks.value = []
+    combo.value = 0
+    persist()
+    return {
+      answered: state.totalAnswered,
+      stars: state.stars,
+      skills: Object.keys(state.mastery).length,
+    }
+  }
+
   /** 家长页 JSON 导出 */
   function exportReport() {
     return JSON.stringify(
@@ -319,6 +479,12 @@ export const useProgressStore = defineStore('progress', () => {
     lockedAchievements,
     isModuleUnlocked,
     moduleStat,
+    // 使用时长
+    todaySeconds,
+    todayMinutes,
+    totalMinutes,
+    last7Days,
+    recordUsage,
     addStars,
     bumpCounter,
     recordAnswer,
@@ -328,6 +494,8 @@ export const useProgressStore = defineStore('progress', () => {
     resetStreak: resetCombo,
     takeUnlock,
     resetAll,
+    exportJson,
+    importJson,
     exportReport,
     persist,
   }
