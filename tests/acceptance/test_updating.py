@@ -33,6 +33,12 @@ Implemented here
   by the pre-updating collinearity screen at pairwise cosine > 0.99, one of the
   pair is frozen with a reported reason, and updating still recovers the
   survivor to the AC-UPD-003 gates.
+- **AC-UPD-008** (twin, MS-3.2) — on a twin whose two lowest modes swap places
+  between the starting point and the truth, per-iteration MAC pairing keeps
+  every residual attached to the mode it physically belongs to and recovers the
+  parameters; freezing the pairing to the mode order converges onto the wrong
+  ones with a zero frequency residual, which is what makes the re-pairing
+  load-bearing.
 
 The model is the ``ten_dof_chain`` fixture split into three stiffness groups
 and two mass groups. The split is affine, so the group matrices *are* the
@@ -1103,3 +1109,135 @@ def test_ac_upd_005_the_unidentifiable_direction_is_left_where_it_started():
     # The identifiable combination did move: the run fitted, it did not idle.
     assert recovered["k1"] + recovered["k1_twin"] > 2.0
     assert result.final_correlation.max_abs_freq_error_pct <= FREQUENCY_GATE_PERCENT
+
+
+# ------------------------------------------------- AC-UPD-008 mode switching
+
+#: A four-DOF model whose first two modes belong to independent substructures,
+#: so a parameter change moves one past the other and the mode *order* stops
+#: matching the mode *identity*. The spectator modes above them stay put, which
+#: is what makes a wrong pairing visible as a frequency error rather than as
+#: general noise.
+CROSSING_SPECTATORS = (9.0, 16.0)
+CROSSING_TRUTH = {"ka": 3.0, "kb": 0.5}
+CROSSING_BOUNDS = (0.1, 10.0)
+
+#: The pairing must be exact on this twin: the shapes are unit vectors, so a
+#: correct pair has MAC 1 and any other pair has MAC 0.
+CROSSING_MAC_TOLERANCE = 1e-12
+
+
+def _crossing_model() -> ScalingModel:
+    stiffness_parts = {
+        "ka": np.diag([1.0, 0.0, 0.0, 0.0]),
+        "kb": np.diag([0.0, 4.0, 0.0, 0.0]),
+    }
+    return ScalingModel(
+        stiffness_parts,
+        base_stiffness=np.diag([0.0, 0.0, *CROSSING_SPECTATORS]),
+        base_mass=np.eye(4),
+        num_modes=4,
+        use_solver=False,
+    )
+
+
+def _crossing_parameters() -> ParameterSet:
+    lower, upper = CROSSING_BOUNDS
+    return ParameterSet(
+        [
+            UpdatableParameter(name, 1.0, lower, upper, kind="stiffness")
+            for name in ("ka", "kb")
+        ]
+    )
+
+
+def _crossing_updater(pairing: str = "mac") -> ModelUpdater:
+    model = _crossing_model()
+    target = model.modal_data(CROSSING_TRUTH)
+    return ModelUpdater(
+        model,
+        _crossing_parameters(),
+        target.frequencies,
+        target.mode_shapes,
+        mode_pairing=pairing,
+        shape_weight=0.0,
+        max_iterations=MAX_UPDATING_ITERATIONS,
+        sensitivity_function=model.sensitivity_function(["ka", "kb"]),
+    )
+
+
+@criterion("AC-UPD-008")
+def test_ac_upd_008_the_twin_really_crosses_two_modes():
+    """Guard: the two lowest modes swap places between the start and the truth."""
+    model = _crossing_model()
+    start = model.modal_data({"ka": 1.0, "kb": 1.0})
+    truth = model.modal_data(CROSSING_TRUTH)
+
+    # Mode "a" is the one living on DOF 0; at the start it is the lowest mode
+    # and at the truth it is the second, so the order reverses on the way.
+    assert int(np.argmax(np.abs(start.mode_shapes[0, :]))) == 0
+    assert int(np.argmax(np.abs(truth.mode_shapes[0, :]))) == 1
+    assert start.frequencies[0] < start.frequencies[1]
+    assert truth.frequencies[0] < truth.frequencies[1]
+
+
+@criterion("AC-UPD-008")
+def test_ac_upd_008_re_pairing_recovers_the_true_parameters_through_the_crossing():
+    """Per-iteration MAC pairing keeps the residuals on the physical modes."""
+    updater = _crossing_updater("mac")
+
+    result = updater.run()
+
+    assert result.converged, result.message
+    for name, expected in CROSSING_TRUTH.items():
+        assert result.parameters[name] == pytest.approx(expected, abs=RECOVERY_TOLERANCE)
+    assert result.final_correlation.max_abs_freq_error_pct <= FREQUENCY_GATE_PERCENT
+    assert result.final_correlation.min_mac >= MAC_GATE
+
+
+@criterion("AC-UPD-008")
+def test_ac_upd_008_every_iterate_is_paired_to_the_physically_correct_mode():
+    """Ground-truth MAC tracking over the recorded trajectory, not just its end.
+
+    The pairing is recomputed from the parameters each accepted step recorded,
+    so this reads the actual path the run took — including the iterates on the
+    far side of the crossing, where the pairing is no longer the identity.
+    """
+    updater = _crossing_updater("mac")
+    result = updater.run()
+    target_shapes = updater.target.mode_shapes
+    trajectory = [{"ka": 1.0, "kb": 1.0}, *(record.parameters for record in result.history)]
+
+    orderings = set()
+    for values in trajectory:
+        data = updater.model(values)
+        pairs = updater.pair(data)
+        assert len(pairs) == target_shapes.shape[1]
+        for test_index, fe_index in pairs:
+            overlap = abs(float(target_shapes[:, test_index] @ data.mode_shapes[:, fe_index]))
+            assert overlap == pytest.approx(1.0, abs=CROSSING_MAC_TOLERANCE), (
+                f"target mode {test_index} was paired to model mode {fe_index}"
+            )
+        orderings.add(tuple(fe for _, fe in pairs))
+
+    assert len(orderings) > 1, "the trajectory never crossed, so nothing was re-paired"
+
+
+@criterion("AC-UPD-008")
+def test_ac_upd_008_freezing_the_pairing_to_the_mode_order_gets_it_wrong():
+    """Why the re-pairing is load-bearing rather than a detail of the loop.
+
+    With ``mode_pairing="order"`` the residual keeps target mode 0 attached to
+    model mode 0 across the crossing. The run still converges, and it drives
+    its frequency residual to zero — onto the parameters that put the right
+    frequencies on the *wrong* modes. Only the shape correlation exposes it,
+    which is why the criterion asks for ground-truth MAC tracking rather than
+    for a converged run.
+    """
+    result = _crossing_updater("order").run()
+
+    assert result.converged
+    recovered = np.array([result.parameters[name] for name in CROSSING_TRUTH])
+    expected = np.array(list(CROSSING_TRUTH.values()))
+    assert np.max(np.abs(recovered - expected)) > RECOVERY_TOLERANCE
+    assert result.final_correlation.min_mac < MAC_GATE

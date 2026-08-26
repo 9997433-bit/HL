@@ -10,6 +10,7 @@ __all__ = [
     "SolverConvergenceError",
     "MatrixSymmetryError",
     "MatrixDefinitenessError",
+    "MissedModesWarning",
     "UpdatingDivergenceError",
     "OptimizationError",
     "MissingDependencyError",
@@ -125,6 +126,18 @@ class MatrixDefinitenessError(SolverError):
         self.matrix = str(matrix)
         self.value = float(value)
         self.tolerance = float(tolerance)
+
+
+class MissedModesWarning(UserWarning):
+    """A frequency window returned fewer modes than the MS-1.2 count says it holds.
+
+    Not an error: the modes that were extracted are still correct eigenpairs,
+    and a caller sweeping a band may well want them. But a window presented as
+    complete when it is not is how a missed mode reaches a correlation report,
+    so the gap is announced rather than left to be noticed downstream.
+    Solving with ``strict=True`` turns it into
+    :class:`SolverError` instead.
+    """
 
 
 class UpdatingDivergenceError(OpenFEMLabError):
