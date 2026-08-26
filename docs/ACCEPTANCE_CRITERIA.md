@@ -20,7 +20,7 @@ AC-<MODULE>-<NNN>[<suffix>]
 ```
 
 - `<MODULE>` ∈ `MODAL` (M1), `CORR` (M2), `UPD` (M3), `WORK` (M4), `OPT` (M5),
-  `DYN` (M6), `ELEM` (M7).
+  `DYN` (M6), `ELEM` (M7), `IO` (M8).
 - `<NNN>`: three-digit number, dense per module (no gaps).
 - `<suffix>`: optional single lowercase letter for closely coupled
   sub-criteria that share a number (e.g. `AC-UPD-006a` / `AC-UPD-006b`).
@@ -50,9 +50,13 @@ Canonical fixtures live in `tests/fixtures/` (`two_dof_analytic.yaml`,
 spring–mass chains and Euler–Bernoulli cantilever beams (closed-form
 frequencies). The M7 gates add the structured element meshes of
 `openfemlab.mesh.simple` (`quad_plate_mesh`, `tet_block_mesh`,
-`hex_block_mesh`) with deterministically displaced interior nodes. All
-randomized inputs use seeded `numpy.random.Generator` instances; a criterion is
-only "verified" if its test is deterministic.
+`hex_block_mesh`) with deterministically displaced interior nodes. The M8 gates
+add files written into `tmp_path` during the run — a native JSON/YAML document
+and, for the mesh formats, a meshio file whose contents come from those same
+generators — rather than committed binaries, so no gate depends on a fixture
+whose provenance cannot be read off the test. All randomized inputs use seeded
+`numpy.random.Generator` instances; a criterion is only "verified" if its test
+is deterministic.
 
 ### 1.5 Status lifecycle
 
@@ -413,14 +417,69 @@ not on a representative one.
 
 ---
 
-## 9. Registry and enforcement
+## 9. M8 — Model Interchange (spec MS-9)
+
+Added in Round 2 by R2-T05 (gap GAP-03) once the meshio bridge and the
+`NeutralModel` → `Model` conversion were both on the trunk. The module is the
+platform's only door: every other module's gates start from matrices, and these
+three are what make the claim "an externally meshed structure can be analyzed
+here" testable. They are ordered as the path a file travels — the native schema
+that all readers write into (AC-IO-001), the foreign-format bridge that fills it
+(AC-IO-002), and the conversion that turns it into something the M1 solver can
+run (AC-IO-003).
+
+| ID | Pri | Criterion (summary) | Quantitative gate | Spec |
+|----|-----|--------------------|-------------------|------|
+| AC-IO-001 | P0 | Native document survives the JSON/YAML round trip | arrays bitwise equal; both encodings parse to one document | MS-9.2 |
+| AC-IO-002 | P1 | meshio file round trip preserves the neutral model | nodes bitwise; blocks, property ids and labels exact | MS-9.3 |
+| AC-IO-003 | P0 | Imported mesh assembles as the hand-built model | `K`, `M`, DOF partition and mass identical; f₁ within 1 % of the bar oracle | MS-9.4 |
+
+### Details
+
+- **AC-IO-001** (`contract`) — A `NeutralModel` carrying two element blocks,
+  material and property tables and a `DofMap`, a `ModalResult`, and a
+  `TestData` with *complex* shapes, damping and geometry are each written and
+  read back in both encodings. Then: every array compares bitwise equal (the
+  writer emits full float repr precision, and complex arrays travel as an
+  explicit real/imaginary pair), every table and `meta` entry compares equal,
+  the JSON and YAML files of one object parse to the *same* mapping, and each
+  document carries `format`, `schema_version` and its `object_type`. A
+  non-finite float is rejected at write time rather than emitted in a spelling
+  the two encodings disagree on.
+- **AC-IO-002** (`contract`) — A neutral model with `rod2`, `quad4` and `hex8`
+  blocks, non-contiguous node labels and per-element property and element ids
+  round trips through `to_meshio` → `from_meshio` in memory and through
+  `write_meshio` → `read_meshio` on disk in every format that carries data
+  arrays (VTU, VTK, and Gmsh for a single-block model): coordinates bitwise,
+  and node ids, per-block connectivity *in those ids*, property ids and element
+  ids exactly. A format with no data arrays (Abaqus `.inp`) preserves geometry
+  and topology positionally and renumbers the labels from 1, which the gate
+  asserts so the degradation stays documented. An `ElementType` outside the
+  one-to-one table raises `FormatError` instead of collapsing onto a cell type
+  that would read back as a different element, and an unmapped *cell* type is
+  skipped with a warning and a `meta["skipped_cell_types"]` record.
+- **AC-IO-003** (`contract`) — For each formulation the converter binds
+  (`ROD2`, `QUAD4`, `TET4`, `HEX8`), a mesh written by meshio itself — no
+  OpenFEMLab data arrays, so the labels and property ids are the reader's own —
+  is read with `read_meshio`, converted with `neutral_to_model`, constrained and
+  assembled. Then `K`, `M`, the free/constrained DOF partition and
+  `total_mass` are **identical** to the assembly of the model
+  `openfemlab.mesh.simple` builds from the same nodes and elements, and the
+  modal frequencies agree to 1e-12 relative. The imported bar, restrained to
+  its axial direction, reaches the continuum first frequency `c/(4L)`,
+  `c = √(E/ρ)`, within 1 %, so the path produces a physically right model and
+  not merely a self-consistent one.
+
+---
+
+## 10. Registry and enforcement
 
 `tests/acceptance/test_criteria_registry.py` holds the machine-readable
 registry (one entry per criterion: ID, title, module, spec anchor, priority,
 verification method, planned test reference, status).
 
-The current inventory is **44 criteria**: M1 = 9, M2 = 9, M3 = 9,
-M4 = 5, M5 = 4, M6 = 5, and M7 = 3. The two suffixed M3 rows
+The current inventory is **47 criteria**: M1 = 9, M2 = 9, M3 = 9,
+M4 = 5, M5 = 4, M6 = 5, M7 = 3, and M8 = 3. The two suffixed M3 rows
 (`AC-UPD-006a` / `AC-UPD-006b`) are distinct criteria under one dense base
 number.
 
@@ -432,6 +491,12 @@ AC-CORR-006. The second wave closed the P0 rows of the two modules whose
 Round-2 tasks are complete — M6 damped dynamics (AC-DYN-001, AC-DYN-002,
 AC-DYN-003) and M5 optimization (AC-OPT-001, AC-OPT-002) — so every P0
 criterion of M5 and M6 now rests on the gate.
+
+M8 is the one module with no promoted row: its three criteria were registered
+after the second wave and are `implemented`. The span rule below would
+otherwise read as satisfied by silence, so the registry names M8 explicitly in
+`MODULES_AWAITING_PROMOTION` and fails if that list still claims a module whose
+first criterion has since been promoted — the exemption expires by itself.
 
 The registry tests enforce:
 
@@ -448,6 +513,9 @@ The registry tests enforce:
 7. Promotion honesty: `verified` is reserved for blocking (P0/P1) criteria,
    requires the green, reproducible gate run of section 1.5, and requires the
    CI `gates` job that runs it to exist.
+8. Promotion span: every module carries a `verified` criterion except the ones
+   `MODULES_AWAITING_PROMOTION` names, and a module on that list may not
+   already have one.
 
 Adding, renaming, or retiring a criterion is done by editing the registry and
 this document in the same change; the registry test fails otherwise.

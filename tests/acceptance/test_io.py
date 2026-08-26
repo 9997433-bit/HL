@@ -1,0 +1,551 @@
+"""M8 model-interchange acceptance suite (``docs/ACCEPTANCE_CRITERIA.md`` section 9).
+
+Implemented here
+----------------
+- **AC-IO-001** (contract, MS-9.2) — every native object survives the JSON and
+  the YAML round trip with its arrays bitwise intact, and the two encodings of
+  one object are the same document rather than two schemas.
+- **AC-IO-002** (contract, MS-9.3) — a neutral model written through the meshio
+  bridge and read back keeps its coordinates, blocks, labels and property ids
+  in every format that carries data arrays; the format that carries none
+  degrades in the documented way instead of silently.
+- **AC-IO-003** (contract, MS-9.4) — a mesh file written by meshio itself
+  becomes a solver-ready model: ``read_meshio`` → ``neutral_to_model`` →
+  ``assemble_system`` reproduces, to the bit, the assembly of the model
+  ``openfemlab.mesh.simple`` builds from the same nodes and elements.
+
+The reference of AC-IO-003 is that hand-built model rather than a stored
+matrix, so the gate measures what the conversion *adds* — nothing — instead of
+comparing the code against a previous run of itself. The continuum bar
+frequency ``c/(4L)``, ``c = sqrt(E/rho)``, is the independent oracle on top of
+it: identical matrices would be worthless if both models were wrong.
+
+``meshio`` is the optional ``[io]`` extra. AC-IO-001 does not need it, so the
+skip is taken inside the tests that do rather than for the whole module.
+"""
+
+from __future__ import annotations
+
+import math
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
+
+import numpy as np
+import pytest
+
+from openfemlab.core.assembly import assemble_system
+from openfemlab.core.dofs import DofMap, DofType
+from openfemlab.core.model import DOF, TRANSLATIONAL_DOFS, Material, Model, Section
+from openfemlab.core.neutral import ElementType, NeutralMaterial, NeutralModel, NeutralProperty
+from openfemlab.core.results import ModalResult
+from openfemlab.core.results import TestData as ModalTestData  # 'Test*' would be collected
+from openfemlab.io import (
+    SCHEMA_VERSION,
+    FormatError,
+    from_meshio,
+    neutral_to_model,
+    read,
+    read_data,
+    read_meshio,
+    read_modal_result,
+    read_model,
+    read_test_data,
+    to_meshio,
+    write,
+    write_meshio,
+    write_modal_result,
+    write_model,
+    write_test_data,
+)
+from openfemlab.mesh.simple import bar_mesh, hex_block_mesh, quad_plate_mesh, tet_block_mesh
+from openfemlab.solver.modal import ModalSolver
+
+from ._support import criterion
+
+#: Gate of AC-IO-003 on the modal spectrum. The matrices come back bitwise
+#: identical, so this only leaves room for the eigensolver itself.
+SPECTRUM_TOLERANCE = 1e-12
+
+#: Gate of AC-IO-003 against the continuum bar; the discretizations below land
+#: at ~0.16 %.
+ORACLE_TOLERANCE = 1e-2
+
+#: Import-path material: ``nu = 0`` decouples the lateral directions, which is
+#: what makes the 1D bar the exact oracle for a 2D or 3D mesh (as in MS-8.4).
+BAR_MATERIAL = Material(E=2.1e11, density=7850.0, nu=0.0)
+BAR_LENGTH = 1.0
+BAR_SECTION = Section(area=1e-2)
+
+
+def require_meshio() -> Any:
+    """Import ``meshio`` or skip; AC-IO-002/003 exercise the ``[io]`` extra."""
+    return pytest.importorskip("meshio", reason="requires the optional [io] extra")
+
+
+def assert_identical(actual: Any, expected: Any, what: str) -> None:
+    """Bitwise array equality — the round-trip gates admit no tolerance."""
+    np.testing.assert_array_equal(np.asarray(actual), np.asarray(expected), err_msg=what)
+
+
+# ---------------------------------------------------------------------------
+# AC-IO-001 — the native JSON/YAML schema
+# ---------------------------------------------------------------------------
+
+
+def sample_neutral_model() -> NeutralModel:
+    """Two blocks, both tables, a DOF map and nested metadata."""
+    return NeutralModel(
+        nodes=np.array(
+            [[0.0, 0.0, 0.0], [1.5, 0.0, 0.0], [1.5, 0.75, 0.0], [0.0, 0.75, 0.0]]
+        ),
+        node_ids=np.array([11, 12, 13, 14]),
+        elements={
+            ElementType.ROD2: np.array([[11, 12], [12, 13]]),
+            ElementType.QUAD4: np.array([[11, 12, 13, 14]]),
+        },
+        element_property_ids={
+            ElementType.ROD2: np.array([7, 7]),
+            ElementType.QUAD4: np.array([8]),
+        },
+        materials={
+            2: NeutralMaterial(id=2, E=2.1e11, nu=0.3, rho=7850.0, name="steel"),
+            3: NeutralMaterial(id=3, E=7.0e10, nu=0.33, rho=2700.0, name="aluminium"),
+        },
+        properties={
+            7: NeutralProperty(id=7, material_id=2, values={"A": 3.7e-4}, name="rod"),
+            8: NeutralProperty(id=8, material_id=3, values={"t": 2.5e-3}, name="skin"),
+        },
+        dof_map=DofMap.regular(np.array([11, 12, 13, 14]), (DofType.UX, DofType.UY)),
+        meta={"units": "SI", "source": "acceptance", "tags": ["mixed", "round-trip"]},
+    )
+
+
+def sample_modal_result() -> ModalResult:
+    """Irrational frequencies, so a truncating writer cannot pass by luck."""
+    return ModalResult(
+        frequencies=np.array([math.pi, 10.0 * math.e, 123.456789012345]),
+        shapes=np.array(
+            [
+                [1.0, 0.5, -0.25],
+                [-1.0 / 3.0, 2.0 / 7.0, 1.0],
+                [0.125, -1.0, 1.0 / 9.0],
+                [1.0e-12, 3.5, -2.5],
+            ]
+        ),
+        dof_map=DofMap.regular(np.array([21, 22]), (DofType.UX, DofType.RZ)),
+        meta={"solver": "external", "normalization": "mass"},
+    )
+
+
+def sample_test_data() -> ModalTestData:
+    """Complex shapes: JSON has no complex type, so the schema must carry one."""
+    return ModalTestData(
+        frequencies=np.array([9.75, 41.5]),
+        shapes=np.array(
+            [[1.0 + 0.25j, -0.5], [0.5 - 1.0 / 3.0j, 2.0j], [0.0, 1.0 / 7.0 + 1.0j]]
+        ),
+        dof_map=DofMap([31, 32, 33], [DofType.UX, DofType.UY, DofType.UZ]),
+        damping=np.array([0.012, 0.0035]),
+        geometry=np.array([[0.0, 0.0, 0.0], [0.4, 0.0, 0.0], [0.8, 0.1, 0.0]]),
+        meta={"campaign": "roving hammer"},
+    )
+
+
+def assert_model_restored(restored: NeutralModel, original: NeutralModel) -> None:
+    assert_identical(restored.nodes, original.nodes, "nodes")
+    assert_identical(restored.node_ids, original.node_ids, "node ids")
+    assert set(restored.elements) == set(original.elements)
+    for element_type, block in original.elements.items():
+        name = element_type.value
+        assert_identical(restored.elements[element_type], block, f"{name} connectivity")
+        assert_identical(
+            restored.element_property_ids[element_type],
+            original.element_property_ids[element_type],
+            f"{name} property ids",
+        )
+    assert restored.materials == original.materials
+    assert restored.properties == original.properties
+    assert restored.meta == original.meta
+    assert_dof_map_restored(restored.dof_map, original.dof_map)
+
+
+def assert_dof_map_restored(restored: DofMap, original: DofMap) -> None:
+    assert_identical(restored.node_ids, original.node_ids, "dof map node ids")
+    assert_identical(restored.dof_types, original.dof_types, "dof map dof types")
+
+
+def assert_modal_result_restored(restored: ModalResult, original: ModalResult) -> None:
+    assert_identical(restored.frequencies, original.frequencies, "frequencies")
+    assert_identical(restored.shapes, original.shapes, "mode shapes")
+    assert restored.meta == original.meta
+    assert_dof_map_restored(restored.dof_map, original.dof_map)
+
+
+def assert_test_data_restored(restored: ModalTestData, original: ModalTestData) -> None:
+    assert_identical(restored.frequencies, original.frequencies, "frequencies")
+    assert_identical(restored.shapes, original.shapes, "mode shapes")
+    assert_identical(restored.damping, original.damping, "damping ratios")
+    assert_identical(restored.geometry, original.geometry, "sensor geometry")
+    assert restored.meta == original.meta
+    assert_dof_map_restored(restored.dof_map, original.dof_map)
+
+
+#: ``object_type`` → builder, writer, reader, comparison. The keys are the
+#: ``object_type`` values the schema emits, which the header test relies on.
+NATIVE_CASES: dict[str, tuple[Callable[[], Any], Callable[..., None], Callable[..., Any], Any]] = {
+    "model": (sample_neutral_model, write_model, read_model, assert_model_restored),
+    "modal_result": (
+        sample_modal_result,
+        write_modal_result,
+        read_modal_result,
+        assert_modal_result_restored,
+    ),
+    "test_data": (sample_test_data, write_test_data, read_test_data, assert_test_data_restored),
+}
+
+
+@criterion("AC-IO-001")
+@pytest.mark.parametrize("encoding", ["json", "yaml"])
+@pytest.mark.parametrize("object_type", sorted(NATIVE_CASES))
+def test_native_object_survives_the_round_trip(
+    tmp_path: Path, object_type: str, encoding: str
+) -> None:
+    build, writer, reader, compare = NATIVE_CASES[object_type]
+    original = build()
+    path = tmp_path / f"{object_type}.{encoding}"
+
+    writer(original, path)
+    compare(reader(path), original)
+
+    # The untyped entry point recognizes the document by its own header.
+    assert type(read(path)) is type(original)
+
+
+@criterion("AC-IO-001")
+@pytest.mark.parametrize("object_type", sorted(NATIVE_CASES))
+def test_json_and_yaml_are_two_encodings_of_one_document(
+    tmp_path: Path, object_type: str
+) -> None:
+    build, writer, _, _ = NATIVE_CASES[object_type]
+    original = build()
+
+    writer(original, tmp_path / "document.json")
+    writer(original, tmp_path / "document.yaml")
+
+    assert read_data(tmp_path / "document.json") == read_data(tmp_path / "document.yaml")
+
+
+@criterion("AC-IO-001")
+@pytest.mark.parametrize("object_type", sorted(NATIVE_CASES))
+def test_native_document_carries_the_schema_header(tmp_path: Path, object_type: str) -> None:
+    build, writer, _, _ = NATIVE_CASES[object_type]
+    path = tmp_path / "document.json"
+
+    writer(build(), path)
+
+    document = read_data(path)
+    assert document["format"] == "openfemlab"
+    assert document["schema_version"] == SCHEMA_VERSION
+    assert document["object_type"] == object_type
+
+
+@criterion("AC-IO-001")
+@pytest.mark.parametrize("value", [float("nan"), float("inf")])
+def test_non_finite_values_are_rejected_rather_than_written(tmp_path: Path, value: float) -> None:
+    """JSON and YAML spell these differently, so the schema admits neither."""
+    path = tmp_path / "broken.json"
+
+    with pytest.raises(FormatError, match="non-finite"):
+        write({"object_type": "raw", "reading": value}, path)
+
+    assert not path.exists(), "a rejected document must not leave a partial file behind"
+
+
+# ---------------------------------------------------------------------------
+# AC-IO-002 — the meshio bridge
+# ---------------------------------------------------------------------------
+
+
+def mixed_neutral_model() -> NeutralModel:
+    """Three blocks, non-contiguous node labels, explicit property and element ids."""
+    return NeutralModel(
+        nodes=np.array(
+            [
+                [0.0, 0.0, 0.0],
+                [1.0, 0.0, 0.0],
+                [1.0, 1.0, 0.0],
+                [0.0, 1.0, 0.0],
+                [0.0, 0.0, 1.0],
+                [1.0, 0.0, 1.0],
+                [1.0, 1.0, 1.0],
+                [0.0, 1.0, 1.0],
+                [2.5, 0.0, 0.0],
+                [2.5, 1.0, 0.0],
+            ]
+        ),
+        node_ids=np.array([101, 102, 103, 104, 105, 106, 107, 108, 109, 110]),
+        elements={
+            ElementType.ROD2: np.array([[109, 110]]),
+            ElementType.QUAD4: np.array([[101, 102, 103, 104], [102, 109, 110, 103]]),
+            ElementType.HEX8: np.array([[101, 102, 103, 104, 105, 106, 107, 108]]),
+        },
+        element_property_ids={
+            ElementType.ROD2: np.array([6]),
+            ElementType.QUAD4: np.array([3, 4]),
+            ElementType.HEX8: np.array([5]),
+        },
+        meta={"element_ids": {"rod2": [31], "quad4": [11, 12], "hex8": [21]}},
+    )
+
+
+def single_block_neutral_model() -> NeutralModel:
+    """Two tetrahedra — what a format that cannot mix cell types can hold."""
+    return NeutralModel(
+        nodes=np.array(
+            [
+                [0.0, 0.0, 0.0],
+                [1.0, 0.0, 0.0],
+                [1.0, 1.0, 0.0],
+                [0.0, 1.0, 0.0],
+                [0.5, 0.5, 1.0],
+            ]
+        ),
+        node_ids=np.array([7, 8, 9, 10, 11]),
+        elements={ElementType.TET4: np.array([[7, 8, 9, 11], [8, 9, 10, 11]])},
+        element_property_ids={ElementType.TET4: np.array([2, 3])},
+        meta={"element_ids": {"tet4": [41, 42]}},
+    )
+
+
+#: Mesh formats that carry point and cell data, so the labels survive. Gmsh
+#: needs entity information before it will write more than one cell type, so
+#: it is exercised on the single-block model rather than dropped.
+MESH_FILE_CASES: dict[str, tuple[str, str | None, Callable[[], NeutralModel]]] = {
+    "vtu": ("mesh.vtu", None, mixed_neutral_model),
+    "vtk": ("mesh.vtk", None, mixed_neutral_model),
+    "gmsh": ("mesh.msh", "gmsh", single_block_neutral_model),
+}
+
+
+def assert_neutral_models_match(restored: NeutralModel, original: NeutralModel) -> None:
+    """Everything the bridge promises to carry: geometry, topology and labels."""
+    assert_identical(restored.nodes, original.nodes, "coordinates")
+    assert_identical(restored.node_ids, original.node_ids, "node ids")
+    assert set(restored.elements) == set(original.elements)
+    for element_type, block in original.elements.items():
+        name = element_type.value
+        assert_identical(restored.elements[element_type], block, f"{name} connectivity")
+        assert_identical(
+            restored.element_property_ids[element_type],
+            original.element_property_ids[element_type],
+            f"{name} property ids",
+        )
+        assert restored.meta["element_ids"][name] == original.meta["element_ids"][name]
+
+
+@criterion("AC-IO-002")
+def test_neutral_model_survives_the_in_memory_meshio_round_trip() -> None:
+    require_meshio()
+    original = mixed_neutral_model()
+
+    assert_neutral_models_match(from_meshio(to_meshio(original)), original)
+
+
+@criterion("AC-IO-002")
+@pytest.mark.parametrize("format_name", sorted(MESH_FILE_CASES))
+def test_neutral_model_survives_the_meshio_file_round_trip(
+    tmp_path: Path, format_name: str
+) -> None:
+    require_meshio()
+    filename, file_format, build = MESH_FILE_CASES[format_name]
+    original = build()
+    path = tmp_path / filename
+
+    write_meshio(original, path, file_format=file_format)
+    restored = read_meshio(path, file_format=file_format)
+
+    assert_neutral_models_match(restored, original)
+
+
+@criterion("AC-IO-002")
+def test_format_without_data_arrays_keeps_geometry_and_renumbers_labels(tmp_path: Path) -> None:
+    """Abaqus ``.inp`` carries no data arrays; the loss is documented, not silent."""
+    require_meshio()
+    original = single_block_neutral_model()
+    path = tmp_path / "mesh.inp"
+
+    write_meshio(original, path, file_format="abaqus")
+    restored = read_meshio(path, file_format="abaqus")
+
+    assert_identical(restored.nodes, original.nodes, "coordinates")
+    assert_identical(
+        restored.node_ids, np.arange(1, original.nodes.shape[0] + 1), "renumbered node ids"
+    )
+    position = {int(node_id): index for index, node_id in enumerate(original.node_ids)}
+    relabelled = np.array(
+        [[position[int(node_id)] + 1 for node_id in row] for row in original.elements[
+            ElementType.TET4
+        ]]
+    )
+    assert_identical(restored.elements[ElementType.TET4], relabelled, "topology by position")
+    assert_identical(
+        restored.element_property_ids[ElementType.TET4],
+        np.ones(relabelled.shape[0], dtype=np.int64),
+        "default property ids",
+    )
+
+
+@criterion("AC-IO-002")
+def test_element_type_without_a_cell_type_is_rejected() -> None:
+    """``beam2`` and ``line`` are not interchangeable, so the export refuses."""
+    require_meshio()
+    model = NeutralModel(
+        nodes=np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]]),
+        node_ids=np.array([1, 2]),
+        elements={ElementType.BEAM2: np.array([[1, 2]])},
+    )
+
+    with pytest.raises(FormatError, match="no meshio cell type"):
+        to_meshio(model)
+
+
+@criterion("AC-IO-002")
+def test_unmapped_cell_types_are_skipped_with_a_diagnostic() -> None:
+    """The partial-import policy, exercised without the extra: ``from_meshio``
+    accepts anything exposing ``points`` and ``cells``."""
+    mesh = SimpleNamespace(
+        points=np.zeros((6, 3)),
+        cells=[
+            ("triangle", np.array([[0, 1, 2]])),
+            ("wedge", np.array([[0, 1, 2, 3, 4, 5]])),
+        ],
+    )
+
+    with pytest.warns(UserWarning, match="skipped unsupported meshio cell types"):
+        restored = from_meshio(mesh)
+
+    assert set(restored.elements) == {ElementType.TRI3}
+    assert restored.meta["skipped_cell_types"] == {"wedge": 1}
+
+
+# ---------------------------------------------------------------------------
+# AC-IO-003 — read_meshio -> neutral_to_model -> assemble
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ImportCase:
+    """One element family of the import path and the reference it is judged by."""
+
+    cell_type: str
+    reference: Callable[[], Model]
+    #: Fallbacks a geometry-only mesh file cannot supply.
+    convert: dict[str, Any] = field(default_factory=dict)
+    #: Directions the family carries no stiffness in — a truss chain has none
+    #: transversally — suppressed on both models so the comparison is solvable.
+    suppressed: tuple[DOF, ...] = ()
+
+
+IMPORT_CASES: dict[str, ImportCase] = {
+    "rod2": ImportCase(
+        cell_type="line",
+        reference=lambda: bar_mesh(
+            BAR_LENGTH, 8, BAR_MATERIAL, BAR_SECTION, dofs=TRANSLATIONAL_DOFS
+        ),
+        convert={"section": BAR_SECTION},
+        suppressed=(DOF.UY, DOF.UZ),
+    ),
+    "quad4": ImportCase(
+        cell_type="quad",
+        reference=lambda: quad_plate_mesh(BAR_LENGTH, 0.1, 8, 1, BAR_MATERIAL),
+    ),
+    "tet4": ImportCase(
+        cell_type="tetra",
+        reference=lambda: tet_block_mesh(BAR_LENGTH, 0.1, 0.1, 6, 1, 1, BAR_MATERIAL),
+    ),
+    "hex8": ImportCase(
+        cell_type="hexahedron",
+        reference=lambda: hex_block_mesh(BAR_LENGTH, 0.1, 0.1, 8, 1, 1, BAR_MATERIAL),
+    ),
+}
+
+
+def write_mesh_file(model: Model, cell_type: str, path: Path) -> Path:
+    """Write ``model``'s geometry with meshio itself.
+
+    The file carries points and cells and nothing else: no ``node_ids``,
+    ``element_ids`` or ``property_ids`` array this project would recognize, so
+    the labels the reader hands back are entirely its own.
+    """
+    meshio = require_meshio()
+    position = {node_id: index for index, node_id in enumerate(model.node_ids)}
+    cells = np.array(
+        [[position[node_id] for node_id in element.node_ids] for element in model.elements],
+        dtype=np.int64,
+    )
+    meshio.write(path, meshio.Mesh(points=model.coordinates, cells=[(cell_type, cells)]))
+    return path
+
+
+def import_model(case: ImportCase, path: Path) -> Model:
+    """``read_meshio`` → ``neutral_to_model``, clamped like the reference mesh."""
+    imported = neutral_to_model(read_meshio(path), material=BAR_MATERIAL, **case.convert)
+    for node_id, coords in zip(imported.node_ids, imported.coordinates, strict=True):
+        if abs(float(coords[0])) < 1e-12:
+            imported.fix(node_id)
+    return imported
+
+
+def prepared_pair(case: ImportCase, tmp_path: Path) -> tuple[Model, Model]:
+    """The hand-built reference and its imported twin, constrained alike."""
+    reference = case.reference()
+    imported = import_model(case, write_mesh_file(reference, case.cell_type, tmp_path / "mesh.vtu"))
+    for model in (reference, imported):
+        if case.suppressed:
+            model.fix_dof_globally(case.suppressed)
+    return reference, imported
+
+
+@criterion("AC-IO-003")
+@pytest.mark.parametrize("family", sorted(IMPORT_CASES))
+def test_imported_mesh_assembles_as_the_hand_built_model(tmp_path: Path, family: str) -> None:
+    reference, imported = prepared_pair(IMPORT_CASES[family], tmp_path)
+
+    expected = assemble_system(reference)
+    actual = assemble_system(imported)
+
+    assert imported.dofs == reference.dofs
+    assert_identical(actual.K.toarray(), expected.K.toarray(), "stiffness matrix")
+    assert_identical(actual.M.toarray(), expected.M.toarray(), "mass matrix")
+    assert_identical(actual.free_dofs, expected.free_dofs, "free DOFs")
+    assert_identical(actual.constrained_dofs, expected.constrained_dofs, "constrained DOFs")
+    assert actual.total_mass == expected.total_mass
+
+
+@criterion("AC-IO-003")
+@pytest.mark.parametrize("family", sorted(IMPORT_CASES))
+def test_imported_model_solves_to_the_reference_spectrum(tmp_path: Path, family: str) -> None:
+    reference, imported = prepared_pair(IMPORT_CASES[family], tmp_path)
+
+    expected = ModalSolver(reference).solve(3).frequencies
+    actual = ModalSolver(imported).solve(3).frequencies
+
+    assert np.all(expected > 0.0)
+    np.testing.assert_allclose(actual, expected, rtol=SPECTRUM_TOLERANCE, atol=0.0)
+
+
+@criterion("AC-IO-003")
+def test_imported_bar_reaches_the_continuum_axial_frequency(tmp_path: Path) -> None:
+    """The independent half of the gate: the imported model is also *right*."""
+    case = IMPORT_CASES["hex8"]
+    path = write_mesh_file(case.reference(), case.cell_type, tmp_path / "bar.vtu")
+    imported = import_model(case, path)
+    imported.fix_dof_globally([DOF.UY, DOF.UZ])
+
+    first = float(ModalSolver(imported).solve(1).frequencies[0])
+
+    oracle = math.sqrt(BAR_MATERIAL.E / BAR_MATERIAL.density) / (4.0 * BAR_LENGTH)
+    assert abs(first - oracle) / oracle <= ORACLE_TOLERANCE

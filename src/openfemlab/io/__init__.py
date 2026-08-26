@@ -5,7 +5,8 @@ The native schema is versioned and available in both JSON and YAML.  Generic
 Python objects (YAML uses :func:`yaml.safe_load`).
 
 Foreign formats arrive through dedicated readers: :func:`read_bdf` for the
-Nastran bulk-data subset, :func:`read_uff` for UFF/UNV test data, and the
+Nastran bulk-data subset, :func:`read_uff` for UFF/UNV test data,
+:func:`read_unv` for UNV geometry (datasets 2411/2412), and the
 :mod:`~openfemlab.io.meshio_bridge` adapter for everything ``meshio`` can
 open.  The meshio functions re-exported here import the optional package
 lazily, so this module stays importable without the ``[io]`` extra.  UFF is
@@ -64,6 +65,12 @@ from .uff import (
     read_uff_functions,
     read_uff_modes,
     write_uff,
+)
+from .unv import (
+    FE_DESCRIPTOR_TO_ELEMENT,
+    UNV_ELEMENT_DATASET,
+    UNV_NODE_DATASET,
+    read_unv,
 )
 
 # Familiar persistence aliases for script-oriented workflows.
@@ -142,4 +149,8 @@ __all__ = [
     "read_uff_modes",
     "write_uff",
     "format_uff",
+    "FE_DESCRIPTOR_TO_ELEMENT",
+    "UNV_ELEMENT_DATASET",
+    "UNV_NODE_DATASET",
+    "read_unv",
 ]

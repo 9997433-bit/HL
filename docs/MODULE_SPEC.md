@@ -520,6 +520,7 @@ M4 run_correction orchestrates S1..S6 ◀─────────────
 M5 minimize_sizing reuses M1 solves + M3 sensitivity kernel + M2 mode tracking
 M6 damped dynamics extends M1 modes to FRFs; FRAC/FDAC feed M2 correlation
 M7 elements assemble the K, M every module above consumes
+M8 io reads a file into a NeutralModel and converts it into the M7 elements
 ```
 
 - Mass-normalized, sign-fixed modes (MS-1.3) are the invariant every consumer
@@ -798,4 +799,151 @@ def plane_constitutive_matrix(material, plane: str = "stress") -> np.ndarray
 def solid_constitutive_matrix(material) -> np.ndarray
 def gauss_legendre_2d(order: int = 2) -> tuple[np.ndarray, np.ndarray]
 def gauss_legendre_3d(order: int = 2) -> tuple[np.ndarray, np.ndarray]
+```
+
+---
+
+## 9. Module M8 — Model Interchange (`openfemlab.io`) (MS-9)
+
+Round-2 module (R2-T05) owning every boundary between a file on disk and the
+objects the modules above consume. Numbering note — the seventh module took
+`MS-8` because `MS-6` is the inter-module contracts section, so the eighth
+takes `MS-9`.
+
+### MS-9.1 The two model representations
+
+`docs/ARCHITECTURE.md` §L1 splits the flat interchange description of a
+structure from the internal solver model, and this module owns the boundary
+between them:
+
+| Representation | Type | Carries |
+|---|---|---|
+| interchange | `core.neutral.NeutralModel` | node ids and coordinates, connectivity blocks keyed by `ElementType`, per-element property ids, material/property tables, optional `DofMap`, `meta` |
+| internal | `core.model.Model` | active DOF signature, nodes, bound `Element` instances (MS-8.1), constraints |
+
+- Every reader returns a `NeutralModel`, never a `Model`. A reader reports what
+  the file says; choosing a formulation for a connectivity block is a separate
+  decision, taken in MS-9.4.
+- Connectivity is stored as **node ids**, not row indices, so the labels a
+  format uses survive the trip and DOFs can be addressed by them afterwards.
+- Unit conversion (MS-0.2) happens here and nowhere else.
+
+### MS-9.2 Native schema (JSON and YAML)
+
+The native format is one versioned document schema emitted in either encoding;
+`format`/`schema_version`/`object_type` head every document, and
+`schema_version` is bumped whenever the payload keys change.
+
+| `object_type` | Object | Payload |
+|---|---|---|
+| `model` | `NeutralModel` | `node_ids`, `nodes`, `elements`, `element_property_ids`, `materials`, `properties`, optional `dof_map`, `meta` |
+| `modal_result` | `ModalResult` | `frequencies_hz`, `mode_shapes`, `mode_shape_layout`, `dof_map`, `meta` |
+| `test_data` | `TestData` | the above plus optional `damping` and `geometry` |
+
+- **Round-trip exactness.** Writing an object and reading it back returns an
+  equal object, arrays included: floats are emitted at full repr precision and
+  complex arrays as an explicit `{"real": ..., "imag": ...}` pair, so a complex
+  mode shape survives a format that has no complex type (AC-IO-001).
+- **JSON and YAML are the same document**, not two schemas: the two encodings
+  of one object parse to the same mapping, and either extension may be read.
+  Non-finite floats are rejected rather than written, because their JSON and
+  YAML spellings differ.
+- Reading uses non-object-constructing loaders (`yaml.safe_load`), so an
+  untrusted document cannot instantiate arbitrary Python.
+- `mode_shape_layout` names the storage order explicitly (`dofs_by_mode` is the
+  MS-1.3 contract) so a transposed fixture is converted rather than guessed at.
+- Malformed input raises `FormatError` naming the offending field (MS-0.3);
+  no reader falls back to a silent default.
+
+### MS-9.3 Foreign formats and the optional-dependency seam
+
+| Reader | Format | Notes |
+|---|---|---|
+| `read_uff` / `read_uff_modes` / `read_uff_functions` | UFF/UNV datasets 55, 58 | test modes and FRFs |
+| `read_bdf` (`read_nastran`) | Nastran bulk data subset | `GRID`, `CROD`, `MAT1`, ... |
+| `read_meshio` / `write_meshio` | everything `meshio` opens | optional `[io]` extra |
+
+- **The bridge is a table, not a heuristic.** `CELL_TYPE_TO_ELEMENT` maps
+  meshio cell types onto `ElementType` one-to-one, so a model exported with
+  `to_meshio` reads back as the same blocks (AC-IO-002). `beam2` and `spring2`
+  have no entry by construction: meshio's `line` cell carries nothing that
+  would distinguish them from `rod2`, and `to_meshio` raises `FormatError`
+  rather than collapsing them onto a cell type that would read back wrong.
+- **Unknown cell types are skipped, not fatal**, with a warning and a
+  `meta["skipped_cell_types"]` record — the same partial-import policy the
+  Nastran reader applies to unknown cards.
+- **Labels travel in data arrays.** `to_meshio` writes node ids as
+  `point_data["node_ids"]`, element ids as `cell_data["element_ids"]` and
+  property ids as `cell_data["property_ids"]`, which is what makes the round
+  trip label-exact in a format that carries data arrays (VTU, VTK, Gmsh). A
+  format that carries none of them (Abaqus `.inp`) still preserves geometry and
+  topology, and the labels are renumbered from 1 — a documented degradation,
+  not a silent one.
+- **`meshio` is never imported at module import time** (ARCHITECTURE P7): only
+  `read_meshio`, `write_meshio` and `to_meshio` need it, and each raises
+  `MissingDependencyError` with an install hint when it is absent.
+  `from_meshio` needs nothing beyond NumPy and accepts any object exposing
+  meshio's `points`/`cells` attributes.
+- A mesh file has geometry but no material data, so `materials` and
+  `properties` come back empty and only the property *ids* survive, from cell
+  data when the file has it.
+
+### MS-9.4 Neutral → internal conversion
+
+`neutral_to_model` is what makes an imported mesh *re-analyzable* rather than
+only correlatable: it binds each connectivity block to the MS-8.2 formulation
+of that element type and returns a `Model` the M1 solver accepts.
+
+| Block | Element | Nodal DOFs |
+|---|---|---|
+| `ROD2` | `TrussElement` | `UX, UY, UZ` |
+| `BEAM2` | `BeamElement3D`, or `BeamElement2D` in a planar model | `UX..RZ` |
+| `QUAD4` | `Quad4Element` | `UX, UY` |
+| `TET4` | `Tet4Element` | `UX, UY, UZ` |
+| `HEX8` | `Hex8Element` | `UX, UY, UZ` |
+
+- **The DOF signature is inferred** as the union of the blocks present, so a
+  quad-only mesh comes back planar and anything containing a `BEAM2` gets all
+  six DOFs; `dofs=` overrides it.
+- **Material and section resolve through the neutral tables** by property id;
+  the `material=` / `section=` / `thickness=` arguments are the fallback for
+  the geometry-only case a mesh file produces, and a property that *is* defined
+  wins over them field by field.
+- **Equivalence.** The converted model assembles the same `K`, `M`, DOF
+  partition and total mass as the model a user would have built by hand from
+  the same nodes and elements — the conversion adds no interpretation
+  (AC-IO-003). Node ids survive, so DOFs stay addressable by the file's labels.
+- Blocks with no formulation (`TRI3`, `MASS1`, `SPRING2`) are rejected with a
+  `FormatError` naming the block unless `skip_unsupported=True` drops them with
+  a warning.
+- Boundary conditions and point masses are not part of the interchange
+  contract, so the returned model is **unconstrained**: apply `Model.fix`
+  before a modal solve.
+
+### MS-9.5 Public API
+
+```python
+SCHEMA_VERSION: str
+SUPPORTED_FORMATS = ("json", "yaml")
+
+def read(source, *, format=None) -> NeutralModel | ModalResult | TestData | Any
+def write(value, destination, *, format=None) -> None
+def read_model(source, *, format=None) -> NeutralModel
+def write_model(model, destination, *, format=None) -> None
+def read_modal_result(source, *, format=None, section=None) -> ModalResult
+def read_test_data(source, *, format=None, section=None) -> TestData
+
+def read_meshio(source, *, file_format=None, default_property_id=1) -> NeutralModel
+def write_meshio(model, destination, *, file_format=None) -> None
+def from_meshio(mesh, *, node_ids=None, default_property_id=1, source=None) -> NeutralModel
+def to_meshio(model: NeutralModel) -> "meshio.Mesh"
+
+def read_bdf(source) -> NeutralModel
+def read_uff(source) -> UFFDataset
+
+def neutral_to_model(neutral, *, dofs=None, name=None, material=None, section=None,
+                     thickness=None, plane="stress", lumped_mass=False,
+                     beam_orientation=None, integration_order=2,
+                     skip_unsupported=False) -> Model
+def infer_dofs(model: NeutralModel) -> tuple[DOF, ...]
 ```

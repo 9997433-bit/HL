@@ -8,7 +8,8 @@ modal workflow:
 
 On read, other datasets are ignored so that files containing geometry or
 provenance records can still be opened. Binary dataset 58 (``58b``) is not
-supported in either direction.
+supported in either direction. Geometry datasets 2411/2412 are read by
+:mod:`openfemlab.io.unv` via :func:`~openfemlab.io.read_unv`.
 
 :func:`write_uff` emits the same records the reader accepts, so
 ``read_uff(write_uff(...))`` returns the dataset it was given. Header records
