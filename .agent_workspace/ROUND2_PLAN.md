@@ -43,7 +43,7 @@ gate landed, so the split is now **44 criteria — 9 `verified`, 32 `implemented
 | R2-T06 updating depth | P0 slice closed (AC-UPD-007, A44); P1 depth (MAC-row Jacobian wiring, model-level resolver, per-element dK/dp) open. |
 | R2-T07 optimization | **COMPLETE for sizing** — A27 backend + A40 harvest; AC-OPT-001..004 `implemented`. Shape variables still FD. |
 | R2-T08 R1-O2 reconciliation | **COMPLETE** — content reconciled by A14; the superseded side branches were audited in [`BRANCH_CLEANUP.md`](BRANCH_CLEANUP.md) and deleted from `origin` (A62, and `cursor/beam3d-cbar-element-c9a7` by A93). |
-| R2-T09 exit hardening | **PARTIAL** — the promotion machinery landed (A72): a CI `gates` job plus `tests/acceptance/test_registry_ci.py` re-run the `verified` criteria as a gate, and **9 criteria are now `verified`** (one per module — AC-MODAL-003, AC-CORR-001, AC-CORR-002, AC-UPD-001, AC-WORK-002, AC-OPT-003, AC-DYN-004, AC-ELEM-001 — plus the P1 blocker AC-CORR-006). Open: promoting the remaining 32 `implemented` rows and the 3 `specified` ones. |
+| R2-T09 exit hardening | **PARTIAL** — CI runs the full suite and `ruff check .` on every push and pull request, and the promotion machinery landed (A72): a `gates` job plus `tests/acceptance/test_registry_ci.py` re-run the `verified` criteria as a gate, with **9 criteria now `verified`** (one per module — AC-MODAL-003, AC-CORR-001, AC-CORR-002, AC-UPD-001, AC-WORK-002, AC-OPT-003, AC-DYN-004, AC-ELEM-001 — plus the P1 blocker AC-CORR-006). Open: promoting the remaining 32 `implemented` rows and the 3 `specified` ones. |
 
 ---
 
