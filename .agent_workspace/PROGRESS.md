@@ -44,6 +44,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A27 | claude-opus-5-thinking-high-fast | R2-T07 scipy optimization backend & AC-OPT gates (backfill for A25) | complete |
 | A39 | gpt-5.6-sol-xhigh-fast | R2-T07 post-integration verification & PR-draft refresh (backfill for A27) | complete |
 | A36 | claude-opus-5-thinking-high-fast | R2-T03 start: `correlation/reduction.py` (Guyan/IRS/SEREP, TAM mass, expansion) + 2-DOF suite (backfill for A32) | complete |
+| A23 | claude-fable-5-thinking-xhigh | Round 1 sign-off audit: independent multi-tip verification & first PR body draft (backfill for A20) | complete |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
@@ -1402,3 +1403,22 @@ now says the backend seam and KKT result fields exist while the `minimize` wirin
 Round 2 scope. Two docs-only close-out commits raced this one onto the branch tip
 (`516184b`, `b9d26f0`); this record was rebuilt on top of them instead of fighting the
 rebase, so nothing from the concurrent closure was overwritten.
+
+#### Addendum — Independent sign-off audit (A23, backfill for A20)
+
+Ran in parallel with the A30/A32 closure, from a private worktree with `PYTHONPATH`
+pinned to its own `src` (the shared environment pointed at a sibling worktree's sources).
+Independently re-verified the full suite green at five successive branch tips while the
+closure landed — `2bfad98` **195**, `36befc3` **250**, `5bc6a6d` **332**, the merged tip
+`3f4cad6` **430**, and, after the A27 optimization backend landed, **498 passed,
+0 failed** — with repo-wide `ruff check .` clean at every checkpoint (Python 3.12 /
+NumPy 2.5.2 / SciPy 1.18.1). Concurs with the closure: the exit bar is met and both A15
+carry-over packages are landed and green, so COMPLETE stands.
+
+One bookkeeping caveat carried to Round 2: per AC §1.2 the P0 registry rows AC-UPD-007
+and AC-WORK-001/002/004/005 are still `specified` (20 of 41 criteria `implemented`
+after the A27/AC-DYN batches, none `verified`), even though `tests/test_workflow.py`
+demonstrates the AC-WORK gates numerically — tagging them is already scheduled with
+R2-T06 and the next acceptance batches. The first PR body draft (`17d03ba`) was folded
+into the closure lineage and superseded by the A30/A32 polish now in
+`.agent_workspace/PR_DRAFT.md`; both record the same platform state.
