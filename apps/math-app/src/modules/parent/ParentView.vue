@@ -13,7 +13,7 @@ import { SKILLS } from '@/data/curriculum.js'
 import { ERROR_TAGS, errorTagInfo } from '@/data/errorTags.js'
 import { MASTERY_THRESHOLD } from '@/utils/mastery.js'
 import { useProgressStore } from '@/stores/progress.js'
-import { useSettingsStore } from '@/stores/settings.js'
+import { AGE_BANDS, useSettingsStore } from '@/stores/settings.js'
 import { sound } from '@/utils/sound'
 
 const progress = useProgressStore()
@@ -255,10 +255,10 @@ function setLimit(value) {
         <h2 class="panel-title">👨‍👩‍👧 {{ progress.state.pilotName }} 的学习报告</h2>
         <div class="cards">
           <div class="cell">
-            <strong>{{ progress.todayMinutes }}</strong><span class="muted">今日分钟</span>
+            <strong>{{ progress.todayMinutes }}</strong><span class="muted">今日学习时长(分)</span>
           </div>
           <div class="cell">
-            <strong>{{ progress.totalMinutes }}</strong><span class="muted">累计分钟</span>
+            <strong>{{ progress.totalMinutes }}</strong><span class="muted">累计学习时长(分)</span>
           </div>
           <div class="cell">
             <strong>{{ progress.state.totalAnswered }}</strong><span class="muted">累计题数</span>
@@ -357,7 +357,42 @@ function setLimit(value) {
               </span>
             </label>
           </li>
+          <li>
+            <label>
+              <input
+                type="checkbox"
+                :checked="settings.animations"
+                @change="settings.set('animations', $event.target.checked)"
+              />
+              <span>
+                <strong>动效</strong>
+                <small class="muted">星星飞舞与放大动画，对动画敏感的孩子建议关掉</small>
+              </span>
+            </label>
+          </li>
         </ul>
+      </section>
+
+      <!-- 难度档 -->
+      <section class="panel stack">
+        <h3 class="panel-title">🎚️ 难度与年龄档</h3>
+        <p class="muted note">
+          年龄档决定孩子进入各个玩法时的默认难度，玩的过程中他自己也能切档。
+        </p>
+        <div class="bands" role="group" aria-label="年龄档">
+          <button
+            v-for="band in AGE_BANDS"
+            :key="band.id"
+            class="band"
+            :class="{ on: settings.ageBand === band.id }"
+            type="button"
+            :aria-pressed="settings.ageBand === band.id"
+            @click="settings.set('ageBand', band.id)"
+          >
+            <strong>{{ band.name }}</strong>
+            <small class="muted">{{ band.desc }}</small>
+          </button>
+        </div>
       </section>
 
       <!-- 技能雷达 -->
@@ -771,6 +806,39 @@ function setLimit(value) {
 .toggles small {
   font-size: 12px;
   line-height: 1.5;
+}
+
+/* ---- 年龄档 ---- */
+
+.bands {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 8px;
+}
+
+.band {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  text-align: left;
+  border-radius: var(--radius-s);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  transition: border-color 0.14s ease, background 0.14s ease;
+}
+
+.band.on {
+  border-color: var(--cyan);
+  background: rgba(94, 231, 255, 0.14);
+}
+
+.band strong {
+  font-size: 15px;
+}
+
+.band small {
+  font-size: 12px;
 }
 
 /* ---- 雷达 ---- */

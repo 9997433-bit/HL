@@ -1,9 +1,6 @@
 import gsap from 'gsap'
 import { sfx } from '@/utils/sound'
-
-const prefersReducedMotion = () =>
-  typeof window !== 'undefined' &&
-  window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches === true
+import { reducedMotion as prefersReducedMotion } from '@/utils/motion'
 
 const unwrap = (target) => (target && target.$el) || target
 
