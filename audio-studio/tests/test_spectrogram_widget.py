@@ -9,6 +9,8 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from signals import SR, sine, tone_burst, white_noise  # noqa: E402
+
 from audio_studio.dsp import SpectralAnalyzer  # noqa: E402
 from audio_studio.ui.colormaps import (  # noqa: E402
     COLORMAP_NAMES,
@@ -17,7 +19,6 @@ from audio_studio.ui.colormaps import (  # noqa: E402
     get_colormap,
     make_gradient,
 )
-from signals import SR, sine, tone_burst, white_noise  # noqa: E402
 
 pytest.importorskip("PyQt6")
 
@@ -26,7 +27,6 @@ from PyQt6.QtGui import QImage  # noqa: E402
 from PyQt6.QtWidgets import QApplication  # noqa: E402
 
 from audio_studio.ui.spectrogram_widget import (  # noqa: E402
-    DisplayMode,
     FrequencyScale,
     SpectrogramWidget,
 )

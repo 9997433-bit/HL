@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from signals import SR, bin_centered_frequency, chirp, sine, stereo, white_noise
 
 from audio_studio.dsp import (
     RealtimeSpectrum,
@@ -13,7 +14,6 @@ from audio_studio.dsp import (
     WaterfallBuffer,
     WindowType,
 )
-from signals import SR, bin_centered_frequency, chirp, sine, stereo, white_noise
 
 
 @pytest.fixture
@@ -181,7 +181,9 @@ def test_peak_frequency_is_accurate_to_a_fraction_of_a_bin() -> None:
 def test_two_tones_are_resolved_at_the_advertised_resolution() -> None:
     config = SpectralConfig.for_frequency_resolution(SR, 25.0, window="hann")
     analyzer = SpectralAnalyzer(config.with_(dtype=np.float64, center=False))
-    audio = sine(1000.0, duration_s=2.0, amplitude=0.5) + sine(1000.0 + 60.0, duration_s=2.0, amplitude=0.5)
+    audio = sine(1000.0, duration_s=2.0, amplitude=0.5) + sine(
+        1060.0, duration_s=2.0, amplitude=0.5
+    )
 
     frame = analyzer.spectrogram(audio).mono()[5]
     lo, hi = np.searchsorted(analyzer.frequencies, (950.0, 1120.0))

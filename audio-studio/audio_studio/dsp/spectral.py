@@ -24,9 +24,9 @@ overlap.
 from __future__ import annotations
 
 import math
+from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass, field, replace
 from enum import Enum
-from typing import Iterable, Iterator, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -76,7 +76,7 @@ class SpectrumScaling(str, Enum):
     PSD = "psd"
 
     @classmethod
-    def coerce(cls, value: "SpectrumScaling | str") -> "SpectrumScaling":
+    def coerce(cls, value: SpectrumScaling | str) -> SpectrumScaling:
         if isinstance(value, cls):
             return value
         key = str(value).strip().lower()
@@ -143,8 +143,8 @@ class SpectralConfig:
 
     sample_rate: float = 48_000.0
     fft_size: int = 2048
-    hop_size: Optional[int] = None
-    window_size: Optional[int] = None
+    hop_size: int | None = None
+    window_size: int | None = None
     window: WindowType = WindowType.HANN
     scaling: SpectrumScaling = SpectrumScaling.AMPLITUDE
     reference: float = 1.0
@@ -253,7 +253,7 @@ class SpectralConfig:
         offset = 0.0 if self.center else self.window_size / 2.0
         return (np.arange(count, dtype=np.float64) * self.hop_size + offset) / self.sample_rate
 
-    def with_(self, **changes) -> "SpectralConfig":
+    def with_(self, **changes) -> SpectralConfig:
         """Return a copy with ``changes`` applied (``dataclasses.replace``)."""
         return replace(self, **changes)
 
@@ -269,7 +269,7 @@ class SpectralConfig:
         window: WindowType | str = WindowType.HANN,
         power_of_two: bool = True,
         **kwargs,
-    ) -> "SpectralConfig":
+    ) -> SpectralConfig:
         """Build a config that resolves tones ``resolution_hz`` apart.
 
         The window's equivalent noise bandwidth is taken into account, so a
@@ -302,7 +302,7 @@ class SpectralConfig:
         window: WindowType | str = WindowType.HANN,
         power_of_two: bool = True,
         **kwargs,
-    ) -> "SpectralConfig":
+    ) -> SpectralConfig:
         """Build a config whose window is at most ``resolution_s`` long.
 
         Time and frequency resolution trade off against each other; this is the
@@ -390,11 +390,11 @@ class Spectrogram:
             return np.sqrt(np.mean(np.square(self.values, dtype=np.float64), axis=0))
         return np.mean(self.values, axis=0)
 
-    def to_db(self, floor_db: Optional[float] = None) -> np.ndarray:
+    def to_db(self, floor_db: float | None = None) -> np.ndarray:
         """Full ``(n_channels, n_frames, n_bins)`` matrix in dB."""
         return _to_db(self.values, self.config, floor_db)
 
-    def db(self, channel: Optional[int] = None, floor_db: Optional[float] = None) -> np.ndarray:
+    def db(self, channel: int | None = None, floor_db: float | None = None) -> np.ndarray:
         """dB matrix for one channel, or the mono mix when ``channel`` is None."""
         values = self.mono() if channel is None else self.values[channel]
         return _to_db(values, self.config, floor_db)
@@ -437,7 +437,7 @@ class SpectrumBars:
     centers: np.ndarray
     edges: np.ndarray
     values_db: np.ndarray
-    peaks_db: Optional[np.ndarray] = None
+    peaks_db: np.ndarray | None = None
 
     @property
     def n_bands(self) -> int:
@@ -449,7 +449,7 @@ class SpectrumBars:
 # ---------------------------------------------------------------------------
 
 
-def _to_db(values: np.ndarray, config: SpectralConfig, floor_db: Optional[float]) -> np.ndarray:
+def _to_db(values: np.ndarray, config: SpectralConfig, floor_db: float | None) -> np.ndarray:
     floor = config.db_floor if floor_db is None else floor_db
     factor = config.scaling.db_factor
     ref = config.reference if factor == 20.0 else config.reference**2
@@ -507,16 +507,17 @@ class SpectralAnalyzer:
     Examples
     --------
     >>> import numpy as np
-    >>> sr = 48_000
+    >>> sr, fft_size = 48_000, 4096
+    >>> frequency = 85 * sr / fft_size              # exactly on bin 85
     >>> t = np.arange(sr) / sr
-    >>> tone = 0.5 * np.sin(2 * np.pi * 1000 * t)
-    >>> analyzer = SpectralAnalyzer(sample_rate=sr, fft_size=4096)
+    >>> tone = 0.5 * np.sin(2 * np.pi * frequency * t)
+    >>> analyzer = SpectralAnalyzer(sample_rate=sr, fft_size=fft_size, center=False)
     >>> spec = analyzer.spectrogram(tone)
     >>> round(float(np.max(spec.db())), 1)          # 0.5 amplitude -> -6 dBFS
     -6.0
     """
 
-    def __init__(self, config: Optional[SpectralConfig] = None, **overrides) -> None:
+    def __init__(self, config: SpectralConfig | None = None, **overrides) -> None:
         if config is None:
             config = SpectralConfig(**overrides)
         elif overrides:
@@ -535,7 +536,7 @@ class SpectralAnalyzer:
         self._config = config
         self._frequencies = config.frequencies()
 
-    def reconfigure(self, **changes) -> "SpectralAnalyzer":
+    def reconfigure(self, **changes) -> SpectralAnalyzer:
         """Apply ``changes`` to the config in place and return ``self``."""
         self.config = self._config.with_(**changes)
         return self
@@ -557,7 +558,7 @@ class SpectralAnalyzer:
     def stft(
         self,
         audio: np.ndarray,
-        channels_last: Optional[bool] = None,
+        channels_last: bool | None = None,
     ) -> np.ndarray:
         """Complex STFT of ``audio``.
 
@@ -637,7 +638,7 @@ class SpectralAnalyzer:
 
     # -- calibration ------------------------------------------------------
 
-    def scaling_factors(self, scaling: Optional[SpectrumScaling] = None) -> Tuple[float, float]:
+    def scaling_factors(self, scaling: SpectrumScaling | None = None) -> tuple[float, float]:
         """``(interior, edge)`` multipliers applied to ``|X|`` or ``|X|**2``.
 
         One-sided spectra fold negative frequencies onto their positive twins,
@@ -657,7 +658,7 @@ class SpectralAnalyzer:
     def spectrum_from_stft(
         self,
         stft: np.ndarray,
-        scaling: Optional[SpectrumScaling] = None,
+        scaling: SpectrumScaling | None = None,
     ) -> np.ndarray:
         """Convert complex STFT coefficients into a calibrated real spectrum."""
         cfg = self._config
@@ -672,7 +673,7 @@ class SpectralAnalyzer:
             values[..., -1] *= edge / interior
         return values
 
-    def to_db(self, values: np.ndarray, floor_db: Optional[float] = None) -> np.ndarray:
+    def to_db(self, values: np.ndarray, floor_db: float | None = None) -> np.ndarray:
         """Convert calibrated spectrum values to dB using the configured floor."""
         return _to_db(values, self._config, floor_db)
 
@@ -681,8 +682,8 @@ class SpectralAnalyzer:
     def spectrogram(
         self,
         audio: np.ndarray,
-        channels_last: Optional[bool] = None,
-        scaling: Optional[SpectrumScaling] = None,
+        channels_last: bool | None = None,
+        scaling: SpectrumScaling | None = None,
     ) -> Spectrogram:
         """Full calibrated spectrogram of ``audio``."""
         cfg = self._config
@@ -700,7 +701,7 @@ class SpectralAnalyzer:
     def spectrum(
         self,
         block: np.ndarray,
-        channels_last: Optional[bool] = None,
+        channels_last: bool | None = None,
         as_db: bool = True,
     ) -> np.ndarray:
         """Single-frame spectrum of exactly one block of samples.
@@ -730,7 +731,7 @@ class SpectralAnalyzer:
     def istft(
         self,
         stft: np.ndarray,
-        length: Optional[int] = None,
+        length: int | None = None,
     ) -> np.ndarray:
         """Weighted overlap-add inverse of :meth:`stft`.
 
@@ -782,7 +783,7 @@ class SpectralAnalyzer:
     def iter_frames(
         self,
         blocks: Iterable[np.ndarray],
-        channels_last: Optional[bool] = None,
+        channels_last: bool | None = None,
     ) -> Iterator[np.ndarray]:
         """Yield one complex STFT frame per hop from a stream of blocks.
 
@@ -792,7 +793,7 @@ class SpectralAnalyzer:
         ``window_size``.
         """
         cfg = self._config
-        pending: Optional[np.ndarray] = None
+        pending: np.ndarray | None = None
         window = cfg.window_info.samples.astype(cfg.dtype, copy=False)
 
         for block in blocks:
@@ -824,7 +825,7 @@ class RealtimeSpectrum:
 
     def __init__(
         self,
-        analyzer: Optional[SpectralAnalyzer] = None,
+        analyzer: SpectralAnalyzer | None = None,
         *,
         attack_ms: float = 10.0,
         release_ms: float = 300.0,
@@ -841,11 +842,11 @@ class RealtimeSpectrum:
         self.peak_hold_s = float(peak_hold_s)
         self.peak_decay_db_s = float(peak_decay_db_s)
 
-        self._pending: Optional[np.ndarray] = None
-        self._levels_db: Optional[np.ndarray] = None
-        self._peaks_db: Optional[np.ndarray] = None
-        self._hold_frames: Optional[np.ndarray] = None
-        self._band_plan: Optional[_BandPlan] = None
+        self._pending: np.ndarray | None = None
+        self._levels_db: np.ndarray | None = None
+        self._peaks_db: np.ndarray | None = None
+        self._hold_frames: np.ndarray | None = None
+        self._band_plan: _BandPlan | None = None
         self._frames_seen = 0
 
     # -- lifecycle --------------------------------------------------------
@@ -873,7 +874,7 @@ class RealtimeSpectrum:
 
     # -- feeding ----------------------------------------------------------
 
-    def push(self, block: np.ndarray, channels_last: Optional[bool] = None) -> int:
+    def push(self, block: np.ndarray, channels_last: bool | None = None) -> int:
         """Consume a block of audio; return how many frames were produced.
 
         Channels are summed in the power domain into a single display
@@ -950,7 +951,7 @@ class RealtimeSpectrum:
         self,
         n_bands: int = 31,
         f_min: float = 20.0,
-        f_max: Optional[float] = None,
+        f_max: float | None = None,
         include_peaks: bool = True,
     ) -> SpectrumBars:
         """Aggregate the current spectrum into ``n_bands`` log-spaced bands.
@@ -1068,7 +1069,7 @@ class WaterfallBuffer:
         for frame in frames_db:
             self.push(frame)
 
-    def image(self, rows: Optional[int] = None, newest_first: bool = False) -> np.ndarray:
+    def image(self, rows: int | None = None, newest_first: bool = False) -> np.ndarray:
         """Return ``(rows, n_bins)`` of history, oldest first by default.
 
         Slots never written are filled with ``fill_db`` so the array is always

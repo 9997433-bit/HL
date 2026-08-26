@@ -18,9 +18,9 @@ form used for FIR filter design would break the constant-overlap-add property.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
-from typing import Callable, Dict
 
 import numpy as np
 
@@ -45,7 +45,7 @@ class WindowType(str, Enum):
     BARTLETT = "bartlett"
 
     @classmethod
-    def coerce(cls, value: "WindowType | str") -> "WindowType":
+    def coerce(cls, value: WindowType | str) -> WindowType:
         """Accept either an enum member or its string name."""
         if isinstance(value, cls):
             return value
@@ -85,7 +85,7 @@ def _bartlett(length: int) -> np.ndarray:
     return 1.0 - np.abs((n - half) / half)
 
 
-_GENERATORS: Dict[WindowType, Callable[[int], np.ndarray]] = {
+_GENERATORS: dict[WindowType, Callable[[int], np.ndarray]] = {
     WindowType.RECTANGULAR: lambda n: np.ones(n, dtype=np.float64),
     WindowType.HANN: lambda n: _cosine_sum(n, (0.5, 0.5)),
     WindowType.HAMMING: lambda n: _cosine_sum(n, (0.54, 0.46)),
@@ -137,7 +137,7 @@ class WindowInfo:
         return self.enbw_bins * sample_rate / float(fft_size)
 
 
-_CACHE: Dict[tuple[WindowType, int], WindowInfo] = {}
+_CACHE: dict[tuple[WindowType, int], WindowInfo] = {}
 
 
 def window_info(window: WindowType | str, length: int) -> WindowInfo:

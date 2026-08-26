@@ -13,8 +13,6 @@ and :func:`as_interleaved` are provided to convert at the boundary.
 
 from __future__ import annotations
 
-from typing import Tuple
-
 import numpy as np
 
 __all__ = [
@@ -43,7 +41,7 @@ def as_planar(
     audio: np.ndarray,
     channels_last: bool | None = None,
     dtype: np.dtype | type | None = None,
-) -> Tuple[np.ndarray, bool]:
+) -> tuple[np.ndarray, bool]:
     """Normalise ``audio`` to a planar ``(n_channels, n_samples)`` array.
 
     Parameters

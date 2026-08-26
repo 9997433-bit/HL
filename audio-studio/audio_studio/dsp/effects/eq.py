@@ -13,9 +13,10 @@ direct-form high-order implementation would lose precision.
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any
 
 import numpy as np
 from scipy.signal import sosfilt, sosfreqz
@@ -39,7 +40,7 @@ class FilterType(str, Enum):
     ALL_PASS = "all_pass"
 
     @classmethod
-    def coerce(cls, value: "FilterType | str") -> "FilterType":
+    def coerce(cls, value: FilterType | str) -> FilterType:
         if isinstance(value, cls):
             return value
         key = str(value).strip().lower().replace("-", "_").replace(" ", "_")
@@ -120,7 +121,7 @@ class EQBand:
         """Normalised ``[b0, b1, b2, a0, a1, a2]`` coefficients (a0 == 1)."""
         return _design_biquad(self.type, self.frequency, self.gain_db, self.q, sample_rate)
 
-    def parameters(self) -> Dict[str, Any]:
+    def parameters(self) -> dict[str, Any]:
         return {
             "type": self.type.value,
             "frequency": self.frequency,
@@ -226,16 +227,16 @@ class ParametricEQ(Effect):
 
     def __init__(
         self,
-        bands: Optional[Sequence[EQBand]] = None,
+        bands: Sequence[EQBand] | None = None,
         output_gain_db: float = 0.0,
         enabled: bool = True,
     ) -> None:
         super().__init__(enabled=enabled)
-        self.bands: List[EQBand] = list(bands or [])
+        self.bands: list[EQBand] = list(bands or [])
         self.output_gain_db = float(output_gain_db)
-        self._zi: Optional[np.ndarray] = None
-        self._sos_cache: Optional[np.ndarray] = None
-        self._cache_key: Optional[tuple] = None
+        self._zi: np.ndarray | None = None
+        self._sos_cache: np.ndarray | None = None
+        self._cache_key: tuple | None = None
 
     # -- coefficients -----------------------------------------------------
 
@@ -288,7 +289,7 @@ class ParametricEQ(Effect):
         sample_rate: float,
         n_points: int = 512,
         f_min: float = 20.0,
-        f_max: Optional[float] = None,
+        f_max: float | None = None,
     ) -> tuple[np.ndarray, np.ndarray]:
         """``(frequencies, magnitude_db)`` on a log grid, ready to plot."""
         f_max = f_max if f_max is not None else sample_rate / 2.0
@@ -306,7 +307,7 @@ class ParametricEQ(Effect):
     def reset(self) -> None:
         self._zi = None
 
-    def parameters(self) -> Dict[str, Any]:
+    def parameters(self) -> dict[str, Any]:
         return {
             "enabled": self.enabled,
             "output_gain_db": self.output_gain_db,
@@ -323,7 +324,9 @@ class ParametricEQ(Effect):
             # one whose impulse response is the filter's actual impulse response.
             self._zi = np.zeros((sos.shape[0], n_channels, 2), dtype=np.float64)
 
-        filtered, self._zi = sosfilt(sos, audio.astype(np.float64, copy=False), axis=-1, zi=self._zi)
+        filtered, self._zi = sosfilt(
+            sos, audio.astype(np.float64, copy=False), axis=-1, zi=self._zi
+        )
         if self.output_gain_db != 0.0:
             filtered = filtered * db_to_linear(self.output_gain_db)
         return filtered.astype(audio.dtype, copy=False)
@@ -377,25 +380,25 @@ class ThreeBandEQ(ParametricEQ):
     def high(self) -> EQBand:
         return self.bands[2]
 
-    def set_low(self, frequency: Optional[float] = None, gain_db: Optional[float] = None,
-                q: Optional[float] = None) -> "ThreeBandEQ":
+    def set_low(self, frequency: float | None = None, gain_db: float | None = None,
+                q: float | None = None) -> ThreeBandEQ:
         return self._set(self.low, frequency, gain_db, q)
 
-    def set_mid(self, frequency: Optional[float] = None, gain_db: Optional[float] = None,
-                q: Optional[float] = None) -> "ThreeBandEQ":
+    def set_mid(self, frequency: float | None = None, gain_db: float | None = None,
+                q: float | None = None) -> ThreeBandEQ:
         return self._set(self.mid, frequency, gain_db, q)
 
-    def set_high(self, frequency: Optional[float] = None, gain_db: Optional[float] = None,
-                 q: Optional[float] = None) -> "ThreeBandEQ":
+    def set_high(self, frequency: float | None = None, gain_db: float | None = None,
+                 q: float | None = None) -> ThreeBandEQ:
         return self._set(self.high, frequency, gain_db, q)
 
     def _set(
         self,
         band: EQBand,
-        frequency: Optional[float],
-        gain_db: Optional[float],
-        q: Optional[float],
-    ) -> "ThreeBandEQ":
+        frequency: float | None,
+        gain_db: float | None,
+        q: float | None,
+    ) -> ThreeBandEQ:
         if frequency is not None:
             band.frequency = float(frequency)
         if gain_db is not None:

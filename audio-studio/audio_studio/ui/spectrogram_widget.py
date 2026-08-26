@@ -23,8 +23,8 @@ aliasing away.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from enum import Enum
-from typing import Optional, Sequence, Tuple
 
 import numpy as np
 from PyQt6.QtCore import QPoint, QRect, Qt, pyqtSignal
@@ -113,20 +113,20 @@ class SpectrogramWidget(QWidget):
 
     def __init__(
         self,
-        parent: Optional[QWidget] = None,
+        parent: QWidget | None = None,
         colormap: str = DEFAULT_COLORMAP,
-        db_range: Tuple[float, float] = (-100.0, 0.0),
+        db_range: tuple[float, float] = (-100.0, 0.0),
         frequency_scale: FrequencyScale | str = FrequencyScale.LOG,
         show_colorbar: bool = True,
     ) -> None:
         super().__init__(parent)
 
-        self._data: Optional[np.ndarray] = None  # (n_frames, n_bins) dB
+        self._data: np.ndarray | None = None  # (n_frames, n_bins) dB
         self._frequencies: np.ndarray = np.zeros(0)
         self._times: np.ndarray = np.zeros(0)
 
         self._mode = DisplayMode.STATIC
-        self._waterfall: Optional[WaterfallBuffer] = None
+        self._waterfall: WaterfallBuffer | None = None
         self._frame_interval_s = 0.0
 
         self._colormap = colormap if colormap in COLORMAP_NAMES else DEFAULT_COLORMAP
@@ -137,10 +137,10 @@ class SpectrogramWidget(QWidget):
         self._show_colorbar = bool(show_colorbar)
         self._show_grid = True
 
-        self._image: Optional[QImage] = None
-        self._image_buffer: Optional[np.ndarray] = None  # keeps QImage memory alive
+        self._image: QImage | None = None
+        self._image_buffer: np.ndarray | None = None  # keeps QImage memory alive
         self._image_dirty = True
-        self._cursor: Optional[QPoint] = None
+        self._cursor: QPoint | None = None
 
         self.setMouseTracking(True)
         self.setMinimumSize(240, 120)
@@ -152,9 +152,9 @@ class SpectrogramWidget(QWidget):
     def set_spectrogram(
         self,
         spectrogram: Spectrogram | np.ndarray,
-        frequencies: Optional[np.ndarray] = None,
-        times: Optional[np.ndarray] = None,
-        channel: Optional[int] = None,
+        frequencies: np.ndarray | None = None,
+        times: np.ndarray | None = None,
+        channel: int | None = None,
     ) -> None:
         """Display a complete spectrogram.
 
@@ -230,7 +230,7 @@ class SpectrogramWidget(QWidget):
         self._invalidate()
 
     @property
-    def db_range(self) -> Tuple[float, float]:
+    def db_range(self) -> tuple[float, float]:
         return (self._db_min, self._db_max)
 
     def set_db_range(self, db_min: float, db_max: float) -> None:
@@ -264,7 +264,7 @@ class SpectrogramWidget(QWidget):
         self._invalidate()
 
     @property
-    def frequency_range(self) -> Tuple[float, float]:
+    def frequency_range(self) -> tuple[float, float]:
         return (self._f_min, self._f_max)
 
     def set_frequency_range(self, f_min: float, f_max: float) -> None:
@@ -285,7 +285,7 @@ class SpectrogramWidget(QWidget):
 
     # -- rendering ---------------------------------------------------------
 
-    def render_image(self, width: int, height: int) -> Optional[QImage]:
+    def render_image(self, width: int, height: int) -> QImage | None:
         """Render just the heat map at an arbitrary size.
 
         Separated from :meth:`paintEvent` so the renderer can be exercised
@@ -337,7 +337,7 @@ class SpectrogramWidget(QWidget):
             bounds = (targets / max(f_max, 1e-9) * n_bins).astype(np.int64)
         return np.clip(bounds, 0, n_bins - 1)
 
-    def _current_matrix(self) -> Optional[np.ndarray]:
+    def _current_matrix(self) -> np.ndarray | None:
         if self._mode is DisplayMode.WATERFALL and self._waterfall is not None:
             if len(self._waterfall) == 0:
                 return None
@@ -421,7 +421,7 @@ class SpectrogramWidget(QWidget):
                 label,
             )
 
-    def _frequency_ticks(self) -> Sequence[Tuple[float, str]]:
+    def _frequency_ticks(self) -> Sequence[tuple[float, str]]:
         if self._frequency_scale is FrequencyScale.LOG:
             candidates = [
                 20, 50, 100, 200, 500, 1_000, 2_000, 5_000,
@@ -458,10 +458,13 @@ class SpectrogramWidget(QWidget):
         bar = QRect(plot.right() + 10, plot.top(), _COLORBAR_WIDTH, plot.height())
         lut = get_colormap(self._colormap)
         gradient = np.linspace(lut.shape[0] - 1, 0, bar.height()).astype(np.int32)
-        strip = np.ascontiguousarray(np.repeat(lut[gradient][:, np.newaxis, :], bar.width(), axis=1))
+        strip = np.ascontiguousarray(
+            np.repeat(lut[gradient][:, np.newaxis, :], bar.width(), axis=1)
+        )
         self._colorbar_buffer = strip  # keep alive for the QImage below
-        image = QImage(strip.data, bar.width(), bar.height(), 3 * bar.width(),
-                       QImage.Format.Format_RGB888)
+        image = QImage(
+            strip.data, bar.width(), bar.height(), 3 * bar.width(), QImage.Format.Format_RGB888
+        )
         painter.drawImage(bar.topLeft(), image)
 
         painter.setFont(self._axis_font())
@@ -517,7 +520,7 @@ class SpectrogramWidget(QWidget):
 
     # -- coordinate mapping -------------------------------------------------
 
-    def _time_span(self) -> Tuple[float, float]:
+    def _time_span(self) -> tuple[float, float]:
         if self._mode is DisplayMode.WATERFALL and self._waterfall is not None:
             span = self._waterfall.capacity * self._frame_interval_s
             return (-span, 0.0)
@@ -525,7 +528,7 @@ class SpectrogramWidget(QWidget):
             return (float(self._times[0]), float(self._times[-1]))
         return (0.0, 0.0)
 
-    def _frequency_to_y(self, frequency: float, plot: QRect) -> Optional[int]:
+    def _frequency_to_y(self, frequency: float, plot: QRect) -> int | None:
         f_min, f_max = max(self._f_min, 1e-9), self._f_max
         if not f_min < f_max or not f_min <= frequency <= f_max:
             return None
@@ -547,7 +550,7 @@ class SpectrogramWidget(QWidget):
         t0, t1 = self._time_span()
         return float(t0 + fraction * (t1 - t0))
 
-    def value_at(self, point: QPoint) -> Tuple[float, float, float]:
+    def value_at(self, point: QPoint) -> tuple[float, float, float]:
         """``(time_s, frequency_hz, level_db)`` under a widget-space point."""
         plot = self._plot_rect()
         time_s = self._x_to_time(point.x(), plot)

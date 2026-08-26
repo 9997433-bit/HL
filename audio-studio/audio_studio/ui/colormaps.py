@@ -13,15 +13,15 @@ taking a matplotlib dependency into the GUI.
 
 from __future__ import annotations
 
-from typing import Dict, List, Sequence, Tuple
+from collections.abc import Sequence
 
 import numpy as np
 
 __all__ = ["COLORMAP_NAMES", "DEFAULT_COLORMAP", "get_colormap", "colorize", "make_gradient"]
 
-ControlPoints = Sequence[Tuple[float, Tuple[int, int, int]]]
+ControlPoints = Sequence[tuple[float, tuple[int, int, int]]]
 
-_CONTROL_POINTS: Dict[str, ControlPoints] = {
+_CONTROL_POINTS: dict[str, ControlPoints] = {
     # Audition's spectral display: black through blue and magenta into a hot
     # orange/white top end. The default because it is what users comparing
     # against Audition expect to see.
@@ -95,9 +95,9 @@ _CONTROL_POINTS: Dict[str, ControlPoints] = {
 DEFAULT_COLORMAP = "audition"
 
 #: Every available palette name, in menu order.
-COLORMAP_NAMES: List[str] = list(_CONTROL_POINTS)
+COLORMAP_NAMES: list[str] = list(_CONTROL_POINTS)
 
-_LUT_CACHE: Dict[Tuple[str, int], np.ndarray] = {}
+_LUT_CACHE: dict[tuple[str, int], np.ndarray] = {}
 
 
 def make_gradient(control_points: ControlPoints, size: int = 256) -> np.ndarray:

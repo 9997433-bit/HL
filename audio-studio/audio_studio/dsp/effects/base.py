@@ -19,7 +19,7 @@ raise from :meth:`process_block`.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional
+from typing import Any
 
 import numpy as np
 
@@ -44,8 +44,8 @@ class Effect(ABC):
 
     def __init__(self, enabled: bool = True) -> None:
         self.enabled = bool(enabled)
-        self._prepared_sample_rate: Optional[float] = None
-        self._prepared_channels: Optional[int] = None
+        self._prepared_sample_rate: float | None = None
+        self._prepared_channels: int | None = None
 
     # -- subclass hooks ---------------------------------------------------
 
@@ -62,10 +62,10 @@ class Effect(ABC):
         self._prepared_sample_rate = float(sample_rate)
         self._prepared_channels = int(n_channels)
 
-    def reset(self) -> None:
+    def reset(self) -> None:  # noqa: B027 - stateless effects legitimately do nothing
         """Clear streaming state without changing parameters."""
 
-    def parameters(self) -> Dict[str, Any]:
+    def parameters(self) -> dict[str, Any]:
         """Serialisable parameter snapshot, for presets and undo history."""
         return {"enabled": self.enabled}
 
@@ -75,7 +75,7 @@ class Effect(ABC):
         self,
         audio: np.ndarray,
         sample_rate: float,
-        channels_last: Optional[bool] = None,
+        channels_last: bool | None = None,
     ) -> np.ndarray:
         """Process a complete buffer and return a new one.
 
@@ -98,7 +98,7 @@ class Effect(ABC):
         self,
         block: np.ndarray,
         sample_rate: float,
-        channels_last: Optional[bool] = None,
+        channels_last: bool | None = None,
     ) -> np.ndarray:
         """Process one block of a stream, carrying state across calls."""
         if self.is_offline_only:
@@ -138,7 +138,7 @@ class EffectChain(Effect):
 
     name = "Effect Chain"
 
-    def __init__(self, effects: Optional[list[Effect]] = None, enabled: bool = True) -> None:
+    def __init__(self, effects: list[Effect] | None = None, enabled: bool = True) -> None:
         super().__init__(enabled=enabled)
         self.effects: list[Effect] = list(effects or [])
 
@@ -146,13 +146,13 @@ class EffectChain(Effect):
     def is_offline_only(self) -> bool:  # type: ignore[override]
         return any(effect.is_offline_only for effect in self.effects if effect.enabled)
 
-    def add(self, effect: Effect) -> "EffectChain":
+    def add(self, effect: Effect) -> EffectChain:
         self.effects.append(effect)
         if self._prepared_sample_rate is not None and self._prepared_channels is not None:
             effect.prepare(self._prepared_sample_rate, self._prepared_channels)
         return self
 
-    def remove(self, effect: Effect) -> "EffectChain":
+    def remove(self, effect: Effect) -> EffectChain:
         self.effects.remove(effect)
         return self
 
@@ -165,7 +165,7 @@ class EffectChain(Effect):
         for effect in self.effects:
             effect.reset()
 
-    def parameters(self) -> Dict[str, Any]:
+    def parameters(self) -> dict[str, Any]:
         return {
             "enabled": self.enabled,
             "effects": [

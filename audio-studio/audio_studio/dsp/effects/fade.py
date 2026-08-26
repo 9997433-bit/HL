@@ -10,7 +10,7 @@ alternatives alongside the linear default.
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any
 
 import numpy as np
 
@@ -46,7 +46,7 @@ class FadeShape(str, Enum):
     EQUAL_POWER = "equal_power"
 
     @classmethod
-    def coerce(cls, value: "FadeShape | str") -> "FadeShape":
+    def coerce(cls, value: FadeShape | str) -> FadeShape:
         if isinstance(value, cls):
             return value
         key = str(value).strip().lower().replace("-", "_").replace(" ", "_")
@@ -136,7 +136,7 @@ def apply_fade(
     fade_out_s: float = 0.0,
     shape: FadeShape | str = FadeShape.LINEAR,
     curve: float = 0.0,
-    channels_last: Optional[bool] = None,
+    channels_last: bool | None = None,
 ) -> np.ndarray:
     """Convenience wrapper: build a :class:`FadeEffect` and run it once."""
     effect = FadeEffect(
@@ -182,7 +182,7 @@ class FadeEffect(Effect):
         if self.fade_in_s < 0 or self.fade_out_s < 0:
             raise ValueError("fade durations must be non-negative")
 
-    def parameters(self) -> Dict[str, Any]:
+    def parameters(self) -> dict[str, Any]:
         return {
             "enabled": self.enabled,
             "fade_in_s": self.fade_in_s,

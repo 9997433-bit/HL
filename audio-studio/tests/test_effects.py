@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from signals import SR, bin_centered_frequency, impulse, sine, stereo, white_noise
 
 from audio_studio.dsp import SpectralAnalyzer
 from audio_studio.dsp.effects import (
@@ -23,7 +24,6 @@ from audio_studio.dsp.effects import (
     measure_levels,
 )
 from audio_studio.dsp.util import linear_to_db, peak_level, rms_level
-from signals import SR, bin_centered_frequency, impulse, sine, stereo, white_noise
 
 
 def measured_gain_db(effect: Effect, frequency: float, sample_rate: int = SR) -> float:
@@ -364,7 +364,7 @@ class TestFades:
         assert midpoints[FadeShape.EXPONENTIAL] < 0.5  # stays quiet longer
         assert midpoints[FadeShape.EQUAL_POWER] > 0.5  # rises early
         assert midpoints[FadeShape.COSINE] == pytest.approx(0.5, abs=1e-3)
-        assert len(set(round(v, 4) for v in midpoints.values())) >= 4
+        assert len({round(v, 4) for v in midpoints.values()}) >= 4
 
     def test_equal_power_pair_holds_constant_power(self) -> None:
         """The property that makes this shape the right one for a crossfade."""

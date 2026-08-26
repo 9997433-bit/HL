@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any
 
 import numpy as np
 
@@ -44,7 +44,7 @@ class GainEffect(Effect):
         self.gain_db = float(gain_db)
         self.ramp_ms = float(ramp_ms)
         self.invert_polarity = bool(invert_polarity)
-        self._current: Optional[float] = None
+        self._current: float | None = None
 
     @property
     def gain_linear(self) -> float:
@@ -55,7 +55,7 @@ class GainEffect(Effect):
     def reset(self) -> None:
         self._current = None
 
-    def parameters(self) -> Dict[str, Any]:
+    def parameters(self) -> dict[str, Any]:
         return {
             "enabled": self.enabled,
             "gain_db": self.gain_db,
@@ -99,7 +99,7 @@ class NormalizeMode(str, Enum):
     RMS = "rms"
 
     @classmethod
-    def coerce(cls, value: "NormalizeMode | str") -> "NormalizeMode":
+    def coerce(cls, value: NormalizeMode | str) -> NormalizeMode:
         if isinstance(value, cls):
             return value
         key = str(value).strip().lower().replace("-", "_").replace(" ", "_")
@@ -126,7 +126,7 @@ class LevelReport:
         )
 
 
-def measure_levels(audio: np.ndarray, channels_last: Optional[bool] = None) -> LevelReport:
+def measure_levels(audio: np.ndarray, channels_last: bool | None = None) -> LevelReport:
     """Measure peak, true peak, RMS and crest factor of a buffer."""
     from ..util import as_planar
 
@@ -181,7 +181,7 @@ class NormalizeEffect(Effect):
         target_db: float = -1.0,
         mode: NormalizeMode | str = NormalizeMode.PEAK,
         per_channel: bool = False,
-        ceiling_db: Optional[float] = None,
+        ceiling_db: float | None = None,
         max_gain_db: float = 60.0,
         enabled: bool = True,
     ) -> None:
@@ -198,7 +198,7 @@ class NormalizeEffect(Effect):
         """Gain chosen by the most recent :meth:`process` call, per channel."""
         return self._last_gain_db
 
-    def parameters(self) -> Dict[str, Any]:
+    def parameters(self) -> dict[str, Any]:
         return {
             "enabled": self.enabled,
             "target_db": self.target_db,
