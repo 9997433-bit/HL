@@ -7,6 +7,7 @@ import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import QuizShell from '@/components/QuizShell.vue'
 import { useProgressStore } from '@/stores/progress.js'
+import { useSettingsStore } from '@/stores/settings.js'
 import { numericOptions, randInt, sample } from '@/utils/random'
 import { arithmeticSkill } from '@/data/skill-mapping.js'
 import { sound } from '@/utils/sound'
@@ -17,6 +18,10 @@ const SPEED_BONUS_MS = 6000
 
 const router = useRouter()
 const progress = useProgressStore()
+const settings = useSettingsStore()
+
+/** 家长中心选的年龄档决定进来时停在哪个档位，孩子仍然可以自己切。 */
+const LEVEL_BY_AGE_BAND = { L1: 10, L2: 10, L3: 20, L4: 100, L5: 100 }
 
 const LEVELS = [
   { id: 10, label: '10 以内', emoji: '🌱', desc: '入门：一位数加减' },
@@ -29,7 +34,7 @@ const OPS = [
   { id: 'mix', label: '混合 ±' },
 ]
 
-const level = ref(10)
+const level = ref(LEVEL_BY_AGE_BAND[settings.ageBand] ?? 10)
 const op = ref('mix')
 const inputMode = ref('choice')
 

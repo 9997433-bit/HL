@@ -7,6 +7,7 @@ import BreakReminder from '@/components/BreakReminder.vue'
 import { useSettingsStore } from '@/stores/settings.js'
 import { useProgressStore } from '@/stores/progress.js'
 import { sound } from '@/utils/sound'
+import { motion } from '@/utils/motion'
 
 /** 使用时长的采样间隔：15 秒够画分钟级曲线，又不会频繁写 localStorage。 */
 const USAGE_TICK_MS = 15_000
@@ -19,6 +20,13 @@ const rootClass = computed(() => ({ 'eye-care': settings.eyeCare }))
 watch(
   () => progress.state.settings.sound && settings.soundOn,
   (on) => sound.setEnabled(on),
+  { immediate: true },
+)
+
+// 动效同理：家长中心关掉后，GSAP 反馈动画整体降级
+watch(
+  () => progress.state.settings.animations && settings.animations,
+  (on) => motion.setEnabled(on),
   { immediate: true },
 )
 
