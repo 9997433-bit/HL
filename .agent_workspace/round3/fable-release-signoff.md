@@ -6,7 +6,7 @@
 | 作者 | fable 架构签收 & 发布路线图子代理（`claude-fable-5-thinking-xhigh`, bc-11509187） |
 | 日期 | 2026-08-26 |
 | 分支 | `agent/audio-analysis-software` |
-| 签收基线 commit | `6f93ab2`（Round 2 全量合并 + Round 3 派发日志） |
+| 签收基线 commit | `6f93ab2`（Round 2 全量合并 + Round 3 派发日志）；发布门槛状态复核至 `b90e0e9`（Round 3 gpt-sol CI 修复与许可清单合并后） |
 | 上游文档 | R1：`fable-architecture.md`（架构契约）、`fable-sota-audit.md`（G1–G10 + 验收 checklist）；R2：`fable-convergence-audit.md`（DEV-01–18 + 冻结 API）、`fable-sota-round2-review.md`（G-1–G-8 中期门槛 + 许可裁决）、`performance-mid-report.md`、`slo-compliance-report.json` |
 | 性质 | 签收裁决与发布规格。本文档不改动业务代码；随附的 README 更新见 §4 |
 
@@ -14,9 +14,9 @@
 
 ## 0. 执行摘要（签收裁决 TL;DR）
 
-1. **架构签收：有保留通过（qualified sign-off）。** Round 1 选定的方案 B（Python 3.10+/PySide6/NumPy-SciPy/libsndfile，原生逃生舱预留）经两轮实现验证成立：本机全量 **652 + 21 项测试全绿**，单轨波形编辑器的完整闭环（打开 → 流式/内存播放 → COW 可撤销编辑 → 实时效果预览 → 响度/频谱分析 → 导出）已经存在，且核心实时纪律（无锁 SPSC、feeder 解耦、零分配 `read_into` 读取面）落地。保留意见共三条，见 §1.5——最关键的一条是 **CI 在 HEAD 上仍为红**，因此本文档的一切质量声明上限是「本机复现」，不是「持续验证」。
+1. **架构签收：有保留通过（qualified sign-off）。** Round 1 选定的方案 B（Python 3.10+/PySide6/NumPy-SciPy/libsndfile，原生逃生舱预留）经两轮实现验证成立：本机全量 **652 + 21 项测试全绿**，单轨波形编辑器的闭环（打开 → 流式/内存播放 → COW 可撤销编辑 → 实时效果预览 → 响度/频谱分析 → 导出）已经存在——其中编辑闭环在 **API/命令层**成立并有测试覆盖，主窗口尚未暴露完整破坏性编辑菜单（保留意见 §1.5-④）。核心实时纪律（无锁 SPSC、feeder 解耦、零分配 `read_into` 读取面）落地。签收启动时 CI 在 HEAD 为红；签收过程中 Round 3 gpt-sol #5 的修复合并，**CI 三平台已转绿**（§1.1 证据更新）。
 2. **Rust 逃生舱：终审不触发。** 全部实测（p99 0.844 ms / 预算 1.333 ms，利用率 31.6%；32 轨 × 4 效果 proxy 单核 48.6%；underrun 0）低于触发阈值。监控门禁（`tools/monitor-realtime.py --fail-on-trigger`）保留在库，复评条件见 §1.4。
-3. **v0.1.0-alpha 可以发布，定位是「单轨波形编辑与分析工作站」而非多轨 DAW**；两个发布阻断项（CI 转绿、`THIRD_PARTY_LICENSES.md`）均已指派给 Round 3 在飞子代理，本文档把它们定义为 tag 前的一票否决门（§2.5）。
+3. **v0.1.0-alpha 可以发布，定位是「单轨波形编辑与分析工作站」而非多轨 DAW**；两个原发布阻断项（CI 转绿、`THIRD_PARTY_LICENSES.md`）已在本签收过程中由 Round 3 gpt-sol #5/#6 关闭（§2.5 门槛状态已更新）。
 4. **Post-MVP 路线图**（§3）：v0.2 多轨完善 + 实时纪律收尾（关闭 DEV-02/08/09/10/15/19），v0.3 VST3 宿主（pedalboard optional extra）+ 修复套件 + 录音 + 批处理，v1.0 对齐 Round 1 SOTA 审计的全量 P0 checklist。
 
 ---
@@ -31,7 +31,7 @@
 |---|---|---|
 | 全量测试 | `QT_QPA_PLATFORM=offscreen pytest -q tests audio-studio/tests` | **652 passed（6.09 s）**：audio-studio 套件 632 + 根套件 20 |
 | SLO/合规/golden | `pytest -q benchmarks/slo tests/compliance tests/golden` | **21 passed（1.48 s）** |
-| CI 真实状态 | `gh run list` / `gh run view 32948286756 --log-failed` | HEAD **failure**：ubuntu Test 与 GUI smoke 死于 `ImportError: libEGL.so.1`（workflow 未安装 Qt 系统库）；macOS Test 死于 `ModuleNotFoundError: No module named 'tools'`（根套件 rootdir/包安装问题）；performance-probes 独绿 |
+| CI 真实状态 | `gh run list` / `gh run view --log-failed` | 基线 `6f93ab2` 时 **failure**（run 32948286756：ubuntu Test 与 GUI smoke 死于 `ImportError: libEGL.so.1`——workflow 未装 Qt 系统库；macOS Test 死于 `ModuleNotFoundError: No module named 'tools'`）。**Round 3 gpt-sol #5 修复合并后转绿**：run 32949624137（commit `c908a7e`）**success** |
 | 栈收敛 | `rg "PyQt6"` 全仓（含 --no-ignore） | **0 命中**；`pyproject.toml` 依赖 `PySide6-Essentials>=6.6`（LGPL），G-2 否决门通过 |
 | GPL 依赖隔离 | 依赖声明审查 | 默认依赖树无 pedalboard / PyQt6 等 GPL 强传染组件（pedalboard 目前零引用，未来按裁决走 optional extra） |
 | 实时/性能 | `performance-mid-report.md` + `slo-compliance-report.json` 复核 | 见 §1.4；9 项 Round 1 基线对比全部 ±10% 稳定区间 |
@@ -73,12 +73,12 @@
 | DEV-14 | DSP/UI 未集成 | ✅ | 频谱/效果机架停靠面板 + `EffectPreview` + 后台响度扫描 + 状态栏全部落地 |
 | DEV-15 | 无参数平滑 | ⏳ v0.2 | 引擎音量仍阶跃生效（`GainEffect` 的离线 ramp 不覆盖实时路径）；zipper noise 风险在 1024 块下听感有限，块降下来之前必须先做 |
 | DEV-16 | 无 .hlproj/峰值磁盘缓存 | ⏳ v0.2 | 未开始；峰值金字塔仍每次 set_source 内存重建 |
-| DEV-17 | CI 不覆盖 audio-studio | ◐ → R3 在飞 | 三平台矩阵 + GUI smoke + 性能探针已建且覆盖两套测试，**但 HEAD 红**（§1.1 证据）。修复已指派 Round 3 gpt-sol #5，是发布否决门 |
-| DEV-18 | 无 THIRD_PARTY_LICENSES.md | ⏳ R3 在飞 | 仍缺失；已指派 Round 3 gpt-sol #6（按 R2 复审 §4.4 五项验收），是发布否决门 |
+| DEV-17 | CI 不覆盖 audio-studio | ✅ | 三平台矩阵 + GUI smoke + 性能探针覆盖两套测试；基线时 HEAD 红（ubuntu 缺 Qt 库、macOS `tools` 导入），Round 3 gpt-sol #5 修复合并后 **CI 转绿**（run 32949624137 success）。发布否决门①**已过** |
+| DEV-18 | 无 THIRD_PARTY_LICENSES.md | ✅ | Round 3 gpt-sol #6 已交付：根目录 `THIRD_PARTY_LICENSES.md` + `CHANGELOG.md` + README 许可段（LGPL 动态链接义务、pedalboard/ASIO 预防性条款）。发布否决门②**已过**；与 R2 复审 §4.4 五项的逐项符合性由 Round 3 fable #1（SOTA 终审）复核 |
 | **DEV-19（新）** | **EffectPreview 在设备渲染路径执行效果链** | ⏳ v0.2 | `EffectPreview` 包装 `AudioOutput`，链在设备回调线程逐块执行——与 R2 收敛注记「效果计算留在非 RT 线程（feeder 侧）」相悖。1024 块 + 轻量链下实测无 underrun，alpha 接受并在 README 限制中如实披露；v0.2 图编译器落地时移到 feeder/图执行侧 |
 | **DEV-20（新）** | **冻结名称经别名绑定；RegionSource/LoopSource 未实现** | ⚖️ + ⏳ v0.2 | `sources.py` 把冻结名（ArraySource/FileStreamSource/ChunkTableSource）绑定到实现同一对象（非包装，isinstance 跨拼写成立）——**裁决：接受**，别名即契约的落地形态。`RegionSource/LoopSource` 组合器未实现，选区/循环逻辑仍在 transport 内——功能等价、结构未分解，随 v0.2 图编译器自然落位（届时 transport 的 loop/region 逻辑迁出） |
 
-**结案统计：** 收敛 ✅ 6 项；裁决接受 ⚖️ 4 项（其中 2 项带 v0.2 尾巴）；遗留 ⏳ 10 项——全部有版本归属，无无主项。
+**结案统计：** 收敛 ✅ 8 项；裁决接受 ⚖️ 4 项（其中 2 项带 v0.2 尾巴）；遗留 ⏳ 8 项——全部有版本归属，无无主项。
 
 ### 1.4 Rust 逃生舱终审判定
 
@@ -92,11 +92,12 @@
 
 判定性质说明：全部数据来自共享 vCPU 无头环境的合成 proxy（按 R2 §5.2 纪律属 `advisory`），且非 10 分钟 wall-clock soak。因此这是「**无证据支持触发**」而非「**已证明永不需要**」。复评条件维持不变并随本文档结转 v1.0 验收：真实设备实链 p99 > 1.33 ms、或 soak underrun > 0.1%、或引入 free-threading 构建（SPSC 环的 GIL 原子性论证失效，届时该环是第一个必须原生化的组件）。`native/hlrt` 接口预留（`read_into(out)` ↔ `&mut [f32]` 镜像）保持有效。
 
-### 1.5 签收保留意见（三条，均已有归属）
+### 1.5 签收保留意见（四条，均已有归属）
 
-1. **CI 红 = 质量声明降级。** 652 项测试只在开发机复现过；ubuntu runner 缺 `libegl1` 等 Qt 系统库（R2 复审已诊断，workflow 至今未加安装步骤）、macOS runner 根套件 `tools` 包不可导入。修复在 Round 3 gpt-sol #5 范围内，**tag 前必须绿**。
+1. **CI 曾为红（已解除，留痕）。** 签收启动时 652 项测试只在开发机复现过：ubuntu runner 缺 `libegl1` 等 Qt 系统库、macOS runner 根套件 `tools` 包不可导入。Round 3 gpt-sol #5 修复合并后三平台转绿（run 32949624137 success），本条解除；留痕是因为「CI 绿」曾在 Round 1 简报中被不实声明过（R2 复审 §2.3），签收必须记录验证链。
 2. **SLO 全部是 headless proxy**（`formal_slos_verified: 0`）：L1/T1/T2/T3/U1/U2 的正式认证需要真实设备与真实 1 h 素材，v1.0 前完成；alpha 发布说明必须如实标注（§2.3 已含）。
 3. **产品侧响度计的合规向量覆盖不全**：`dsp/loudness.py` 自带 3341 部分用例测试（case 1/2 级别）且与 oracle 实现独立，但全量 3341 cases + TP 用例 + 3342 的产品侧断言未入 CI——Round 3 opus #4「BS.1770 产品合规」在飞，其合并物按 R2 门槛 G-3 验收。
+4. **编辑工作流未暴露到 UI。** `EditSession`（9 命令 + 撤销栈）在 `ui/` 下零引用：主窗口没有 Edit 菜单、编辑快捷键与 undo 桥接（R2 冻结面外的 `ui/undo_bridge.py` 未建）。编辑能力目前是「API 完备、测试覆盖、UI 不可达」——发布说明必须如实披露（§2.3-②），UI 暴露列 v0.2 首位工作包（§3）。
 
 ---
 
@@ -118,7 +119,7 @@
 - 传输：播放/暂停/继续/停止回卷、采样精确 seek、循环、选区限定播放；每通道峰值/RMS 计量。
 - 后端：PortAudio（PyAudio）硬件输出；无硬件时自动降级为模拟时钟（GUI 与测试全功能可用）。
 
-**编辑（可撤销，COW 无限历史）**
+**编辑（可撤销，COW 无限历史；当前为 API/命令层能力，见限制②）**
 - 剪切/复制/粘贴/删除/裁剪/静音选区/插入静音/增益/淡入淡出（多曲线）/反转；撤销 = 引用表切换 O(1)，历史共享存储；编辑期间源文件不被改写。
 
 **效果与实时预览**
@@ -138,16 +139,17 @@
 ### 2.3 已知限制（发布说明原文级）
 
 1. 单轨、单剪辑；无多轨会话、混音总线与自动化（v0.2）。
-2. 无录音路径（v0.3）。
-3. 无修复套件（DeClick/DeHum/DeClip/降噪）与频谱选区编辑（v0.3）。
-4. 无 VST3/AU 插件宿主；pedalboard 桥将以 optional extra 形式在 v0.3 提供（GPL 边界见许可裁决）。
-5. 无项目文件（`.hlproj`）、标记/区域、批处理、峰值磁盘缓存（v0.2/v0.3）。
-6. 非低延迟：默认块 1024（≈21 ms @48 kHz），无 WASAPI 独占/ASIO/CoreAudio 独占语义；播放头精度为块粒度。
-7. 效果预览链在设备回调路径上执行（轻量链实测无 underrun，重链可能触发丢块）；提交效果不受影响。
-8. SRC 质量未按 §4.3 定级，位深下变换无 TPDF 抖动——母带级导出请保持源采样率/浮点位深。
-9. 产品响度计已过部分 EBU 3341 用例；全量合规向量认证进行中，严格合规场景请用随附 oracle（`tools/ebu_r128.py`）复核。
-10. 性能 SLO 数据为无头 proxy 测量，非真实设备认证；循环回绕无交叉淡变。
-11. 大文件可流式播放，但编辑历史与峰值金字塔驻内存；4 GB RF64 全流程未验证。
+2. 编辑命令层（9 命令 + 撤销）已实现并有测试覆盖，但主窗口尚未暴露完整的破坏性编辑菜单/快捷键工作流——GUI 内可编辑面目前限于效果机架提交路径（v0.2 首位收口）。
+3. 无录音路径（v0.3）。
+4. 无修复套件（DeClick/DeHum/DeClip/降噪）与频谱选区编辑（v0.3）。
+5. 无 VST3/AU 插件宿主；pedalboard 桥将以 optional extra 形式在 v0.3 提供（GPL 边界见许可裁决）。
+6. 无项目文件（`.hlproj`）、标记/区域、批处理、峰值磁盘缓存（v0.2/v0.3）。
+7. 非低延迟：默认块 1024（≈21 ms @48 kHz），无 WASAPI 独占/ASIO/CoreAudio 独占语义；播放头精度为块粒度。
+8. 效果预览链在设备回调路径上执行（轻量链实测无 underrun，重链可能触发丢块）；提交效果不受影响。
+9. SRC 质量未按 §4.3 定级，位深下变换无 TPDF 抖动——母带级导出请保持源采样率/浮点位深。
+10. 产品响度计已过部分 EBU 3341 用例；全量合规向量认证进行中，严格合规场景请用随附 oracle（`tools/ebu_r128.py`）复核。
+11. 性能 SLO 数据为无头 proxy 测量，非真实设备认证；循环回绕无交叉淡变。
+12. 大文件可流式播放，但编辑历史与峰值金字塔驻内存；4 GB RF64 全流程未验证。
 
 ### 2.4 系统要求
 
@@ -164,14 +166,14 @@
 
 ### 2.5 发布门槛（tag `v0.1.0-alpha` 前的一票否决项）
 
-| # | 门 | 判据 | 归属 |
+| # | 门 | 判据 | 状态/归属 |
 |---|---|---|---|
-| ① | **CI 绿** | `Audio CI` 三平台矩阵 + GUI smoke + 性能探针全部 job 绿（ubuntu 补 Qt 系统库、macOS 修 `tools` 导入、windows 排障） | Round 3 gpt-sol #5（在飞） |
-| ② | **许可清单** | `THIRD_PARTY_LICENSES.md` 满足 R2 复审 §4.4 五项（含 LGPL 动态链接声明、pedalboard/ASIO 预防性条款、与依赖声明三方一致） | Round 3 gpt-sol #6（在飞） |
-| ③ | README/Release Notes 与实现一致 | 过时限制修正 + Release Notes 段落地 | 本子代理（随本文档交付，§4） |
-| ④ | 版本与 tag | pyproject `0.1.0` 确认；tag `v0.1.0-alpha` 由 orchestrator 在 ①② 绿后打 | orchestrator |
+| ① | **CI 绿** | `Audio CI` 三平台矩阵 + GUI smoke + 性能探针全部 job 绿 | ✅ **已过**（Round 3 gpt-sol #5；run 32949624137 success @ `c908a7e`） |
+| ② | **许可清单** | `THIRD_PARTY_LICENSES.md` 满足 R2 复审 §4.4 五项（含 LGPL 动态链接声明、pedalboard/ASIO 预防性条款、与依赖声明三方一致） | ✅ **已交付**（Round 3 gpt-sol #6；逐项符合性由 fable #1 终审复核） |
+| ③ | README/Release Notes 与实现一致 | 过时限制修正 + Release Notes 段落地 | ✅ 本子代理（随本文档交付，§4） |
+| ④ | 版本与 tag | pyproject `0.1.0` 确认；tag `v0.1.0-alpha` 由 orchestrator 在最新 HEAD CI 绿后打（后续合并每次重验） | orchestrator |
 
-**范围弹性条款：** Round 3 另有两路在飞实现（opus #3 多轨 Session MVP、opus #4 BS.1770 产品合规）。若在 tag 前合并且满足「CI 绿 + 全量测试绿 + 对应 R2 门槛（G-5 类比/G-3）通过」，则并入 v0.1.0-alpha 范围并同步更新 §2.2/§2.3（多轨从限制①中移除或改写为「多轨 MVP：能力边界……」）；若未合并或未达标，按本文档口径发布，不等待。**合并以验证为准，不以完成声明为准。**
+**范围弹性条款：** Round 3 另有两路在飞实现（opus #3 多轨 Session MVP——签收定稿时已开始向分支推送、opus #4 BS.1770 产品合规）。若在 tag 前合并且满足「CI 绿 + 全量测试绿 + 对应 R2 门槛（G-5 类比/G-3）通过」，则并入 v0.1.0-alpha 范围并同步更新 §2.2/§2.3（多轨从限制①中移除或改写为「多轨 MVP：能力边界……」）；若未合并或未达标，按本文档口径发布，不等待。**合并以验证为准，不以完成声明为准。**
 
 ---
 
@@ -183,6 +185,7 @@
 
 | 工作包 | 内容 | 关闭的偏差/差距 |
 |---|---|---|
+| 编辑工作流 UI 暴露 | 主窗口 Edit 菜单 + 编辑快捷键 + `ui/undo_bridge.py`（QUndoStack 镜像，命令本体留在 `EditSession`——R2 §3.3 纪律）；编辑后波形/峰值增量刷新 | §1.5-④、G-5 的 UI 半场 |
 | 多轨数据模型 | Session（Track/Clip/Envelope/Bus/Send/Master）+ 图编译器（拓扑排序、不可变 CompiledGraph 原子换入）+ 自动化 read；在 Round 3 多轨 MVP 合并物基础上按契约 §5.2 补全 | DEV-05、G2 后半 |
 | 播放源组合器 | `RegionSource/LoopSource` 落地，transport 的选区/循环逻辑迁出；循环点交叉淡变 | DEV-20 尾巴 |
 | 实时纪律收尾 | sounddevice 后端（含 xrun 上报）、块 256/128 协商、`gc.freeze/disable` 纪律、引擎参数平滑（10 ms 斜坡）、播放头流时钟插值、EffectPreview 迁至 feeder/图执行侧、计量三缓冲 + 内嵌 EngineTelemetry（R2 §5.1 规格） | DEV-02/08/09/10/15/19 |

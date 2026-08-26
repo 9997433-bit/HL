@@ -14,6 +14,9 @@ analyzer (not yet a multitrack DAW). Release scope, known limitations and the
 post-MVP roadmap (v0.2 multitrack → v0.3 VST3/repair → v1.0 SOTA alignment)
 are defined in
 [`.agent_workspace/round3/fable-release-signoff.md`](.agent_workspace/round3/fable-release-signoff.md).
+Release history lives in [`CHANGELOG.md`](CHANGELOG.md); the project is MIT
+with third-party obligations tracked in
+[`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md).
 
 Quick start:
 
