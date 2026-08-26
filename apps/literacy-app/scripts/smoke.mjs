@@ -12,6 +12,8 @@ import { extname, join, normalize } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import puppeteer from 'puppeteer-core'
 
+import { BOOKS } from '../src/data/books.js'
+
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const DIST = join(ROOT, 'dist')
 const CHROME = '/usr/local/bin/google-chrome'
@@ -56,11 +58,8 @@ const ROUTES = [
   ['偏旁部首', '/#/radicals'],
   ['偏旁详情', '/#/radicals/shui'],
   ['绘本书架', '/#/books'],
-  ['绘本 b1', '/#/books/b1'],
-  ['绘本 b2', '/#/books/b2'],
-  ['绘本 b3', '/#/books/b3'],
-  ['绘本 b4', '/#/books/b4'],
-  ['绘本 b5', '/#/books/b5'],
+  // 绘本从数据表生成：书目一多，漏测某一本比路由写错更容易发生。
+  ...BOOKS.map((b) => [`绘本 ${b.id} L${b.level}《${b.title}》`, `/#/books/${b.id}`]),
   ['成语列表', '/#/idioms'],
   ['成语 守株待兔', '/#/idioms/szdt'],
   ['成语 画蛇添足', '/#/idioms/hstz'],

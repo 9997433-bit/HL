@@ -107,13 +107,20 @@ check(
 )
 
 /* ----------------------------------------------------------------- 绘本 */
-check(BOOKS.length >= 5, `绘本 ${BOOKS.length} 本（要求 ≥ 5）`)
+check(BOOKS.length >= 30, `绘本 ${BOOKS.length} 本（要求 ≥ 30）`)
 
 const bookDupes = BOOKS.map((b) => b.id).filter((v, i, a) => a.indexOf(v) !== i)
 check(bookDupes.length === 0, `绘本 id 无重复${bookDupes.length ? `（${bookDupes.join(',')}）` : ''}`)
 
-const levels = [...new Set(BOOKS.map((b) => b.level))]
-check(levels.length >= 3, `绘本覆盖 ${levels.length} 个分级（要求 ≥ 3）`)
+const levels = [...new Set(BOOKS.map((b) => b.level))].sort((a, b) => a - b)
+check(levels.length >= 3, `绘本覆盖 ${levels.length} 个分级（要求 ≥ 3）：L${levels.join(' / L')}`)
+
+// 分级只有在每一级都读得到书的时候才有意义，空档会让书架上出现断层。
+const thinLevels = levels.filter((l) => BOOKS.filter((b) => b.level === l).length < 3)
+check(
+  thinLevels.length === 0,
+  `每个分级至少 3 本书${thinLevels.length ? `（偏少：L${thinLevels.join('、L')}）` : ''}`
+)
 
 const coverage = verifyBookCoverage()
 check(
@@ -123,11 +130,40 @@ check(
     : '绘本正文只用了字表内的汉字'
 )
 
-for (const b of BOOKS) {
-  check(b.pages.length >= 3, `《${b.title}》有 ${b.pages.length} 页`)
-  const noPinyin = b.pages.filter((p) => !p.p)
-  check(noPinyin.length === 0, `《${b.title}》每页都有拼音`)
-}
+const shortBooks = BOOKS.filter((b) => b.pages.length < 5)
+check(
+  shortBooks.length === 0,
+  `每本绘本至少 5 页${shortBooks.length ? `（${shortBooks.map((b) => `《${b.title}》${b.pages.length} 页`).join('、')}）` : ''}`
+)
+
+const noPinyin = BOOKS.filter((b) => b.pages.some((p) => !p.p))
+check(
+  noPinyin.length === 0,
+  `每页都配了拼音${noPinyin.length ? `（${noPinyin.map((b) => `《${b.title}》`).join('')}）` : ''}`
+)
+
+const badMeta = BOOKS.filter(
+  (b) => !b.title || !b.pinyin || !b.summary || !b.cover || !b.levelName || b.palette?.length !== 2
+)
+check(
+  badMeta.length === 0,
+  `每本绘本都有书名/拼音/简介/封面/分级名和两色封面渐变${badMeta.length ? `（${badMeta.map((b) => b.id).join('、')}）` : ''}`
+)
+
+const noEmoji = BOOKS.filter((b) => b.pages.some((p) => !p.emoji || !p.text))
+check(
+  noEmoji.length === 0,
+  `每页都有插图和正文${noEmoji.length ? `（${noEmoji.map((b) => `《${b.title}》`).join('')}）` : ''}`
+)
+
+// newChars 是「这本书的重点字」，会直接推给孩子去学，越界的话点开就是空详情页。
+const strayNewChars = BOOKS.flatMap((b) =>
+  (b.newChars ?? []).filter((c) => !CHARACTER_MAP.has(c)).map((c) => `${b.id}:${c}`)
+)
+check(
+  strayNewChars.length === 0,
+  `绘本的重点字都在字表里${strayNewChars.length ? `（${strayNewChars.join('、')}）` : ''}`
+)
 
 /* ----------------------------------------------------------------- 成语 */
 check(IDIOMS.length >= 20, `成语 ${IDIOMS.length} 个（要求 ≥ 20）`)
