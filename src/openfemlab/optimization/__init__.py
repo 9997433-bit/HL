@@ -25,8 +25,7 @@ Sizing variables are the same
 :class:`~openfemlab.updating.parameters.UpdatableParameter` objects the model
 updater uses, and :func:`problem_from_updater` lowers an updating run into the
 same vector problem — calibration and design optimization share one problem
-statement.  Design and staging: ``docs/OPTIMIZATION.md``.  The single Round 1
-stub is the scipy backend's ``solve`` (Round 2, GAP-12).
+statement.  Design and staging: ``docs/OPTIMIZATION.md``.
 """
 
 from __future__ import annotations

@@ -163,15 +163,41 @@ The `scipy.optimize.minimize` lowering:
 | `VectorConstraint` | `{"type": "ineq", "fun": -g, "jac": -dg}` (SLSQP) or `NonlinearConstraint(g, -inf, 0)` (trust-constr) |
 | `gradient` | `jac=`, always set — scipy's 2-point fallback is explicitly disabled |
 | iterate callback | one `OptimizationIterate` row plus the evaluator's modal-solve counter |
-| `result.status` / `message` | `OptimizationResult.converged` / `message` |
-| stationarity | trust-constr `optimality`, or SLSQP's final gradient norm |
+| `result.success` / `message` | `OptimizationResult.converged` / `message` |
+| stationarity | trust-constr `optimality`; for SLSQP, which reports none, a projected KKT residual computed here |
 
-**Status.** `ScipyBackend.solve` is the single stub in this package. The lowering
-above is specified but not wired; it is a Round 2 deliverable (GAP-12) gated by
-AC-OPT-002 (reference problem reaches the known optimum, objective within 1e-4
-relative, active `|g| ≤ 1e-6`) and AC-OPT-003. Everything else in the package —
-the design space, the lowering, both gradient routes, mode tracking, and the
-result contract — is implemented and tested.
+**Stationarity.** SLSQP exposes no optimality measure, and its raw gradient norm
+is not one: at a constrained optimum `∇f` is balanced by the active constraint
+gradients, not zero. So the backend reconstructs the first-order residual
+`∇f + Σ λ_k ∇g_k`, recovering the multipliers of the active set by *non-negative*
+least squares (`λ_k ≥ 0` is part of KKT — an unsigned solve could report a
+spuriously small residual), and projecting out components held at a bound where a
+bound multiplier legitimately absorbs them.
+
+**Hessians (trust-constr only).** trust-constr needs a Lagrangian Hessian and the
+package supplies no second derivatives. Constraint curvature is neglected — the
+usual SQP approximation, and a necessary one here: scipy's default is a
+per-constraint BFGS, which degenerates when the jacobian is constant, and the
+canonical sizing constraint (a mass budget) is exactly linear. On the 2-variable
+reference problem the default exhausts `maxiter` where a zero constraint Hessian
+converges in 17 iterations. Neglecting curvature costs step quality, not
+correctness: the gradients that drive the KKT test are exact. The objective's
+Hessian is still approximated by quasi-Newton unless the caller passes an exact
+one as `options={"hess": …}` — worth doing for a minimum-mass objective, which is
+linear.
+
+**Status.** Implemented and gated. Measured on the reference problems of
+`tests/acceptance/test_optimization.py` with SLSQP:
+
+| Problem | Optimum | Objective rel. err | Active `|g|` | Eigensolves |
+|---------|---------|--------------------|--------------|-------------|
+| Sized oscillator, min mass s.t. `f_1 ≥ f_min` | `t* = λ m₀/(k − λμ)` | 3.3e-16 | 4.4e-16 | 8 |
+| Payload placement, max `f_1` s.t. `m ≥ m_req` | even split `m_j = m_req/2` | 1.0e-12 | 2.0e-15 | 7 |
+
+trust-constr reaches the same optima within the 1e-4 objective gate, but as an
+interior-point method it stops a barrier width short of the boundary, so its
+`|g|` settles around 1e-5 at default tolerances rather than at zero. AC-OPT-002
+is therefore read from SLSQP, the MS-5.2 default.
 
 ## 8. Shared statement with updating
 
@@ -185,8 +211,15 @@ not need two problem statements.
 
 ## 9. Staging
 
-| Round | Scope |
-|-------|-------|
-| 1 | Design space, lowering, both gradient routes, mode tracking, response/result contracts, backend seam |
-| 2 | `ScipyBackend.solve` (GAP-12); AC-OPT-002/003 gates; drive `ModelUpdater` through the shared statement |
-| 3 | Geometric `dK/da` for shape variables; DOE sampling and response-surface surrogates for expensive objectives |
+| Round | Scope | State |
+|-------|-------|-------|
+| 1 | Design space, lowering, both gradient routes, mode tracking, response/result contracts, backend seam | done |
+| 2 | `ScipyBackend.solve` (GAP-12) and the AC-OPT-001..004 gates | done |
+| 2 | Drive `ModelUpdater` through the shared statement of section 8 | open |
+| 3 | Geometric `dK/da` for shape variables; DOE sampling and response-surface surrogates for expensive objectives | open |
+
+Still open in the module, beyond the staging above: no equality constraints
+(`Constraint` is `>=`/`<=` only), no multistart despite the `seed` parameter, and
+`translational_mass` treats every DOF as translational until
+`AssembledSystem.dof_types` is threaded through, so `TotalMass` is exact for
+chain and bar models but would count rotational rows on a continuum model.
