@@ -26,17 +26,22 @@ trunk's AC-CORR-008/009. Every **P0** row is now `implemented`; the three still
 `specified` are all P1 (AC-MODAL-008, AC-UPD-008, AC-WORK-003). Nothing can reach
 `verified` until R2-T09 stands up the CI job.
 
+Registry update (A72, R2-T09 first slice, code baseline `176ce3a`): the promotion
+gate landed, so the split is now **44 criteria — 9 `verified`, 32 `implemented`,
+3 `specified`** (69 tagged tests behind the promoted rows); suite **1149 passed**,
+`ruff check .` clean.
+
 | Task | Status |
 |---|---|
 | R2-T01 dynamics/FRF | **COMPLETE** — engine (`acda625`), AC-DYN-001..005 `implemented`, report `frf` block at schema 1.1 (A41), `openfemlab correlate-frf` CLI (A54). No open work. |
-| R2-T02 3D elements | **PARTIAL** — QUAD4 (A37), TET4 (A46) and HEX8 (A59, merged by A79) are all on the integration branch with mesh generators and 203 tests, AC-ELEM-001..003 are registered as module M7 over all three (+24 acceptance cases), and the spatial beam `BeamElement3D` landed with 42 tests (A82). Open: flat-facet shell, `NeutralModel` → `Model` conversion, solid/shell BDF cards (`CBAR` included). |
-| R2-T03 reduction/expansion | **ACCEPTANCE-COMPLETE** — engine (A36, `correlation/reduction.py`) with the AC-CORR-006 gate `implemented` (A43), and AC-CORR-009 plus the `SensorMap.signs` wiring landed (A58). Open: sparse inputs, `verified` flip. |
+| R2-T02 3D elements | **PARTIAL** — QUAD4 (A37), TET4 (A46) and HEX8 (A59, merged by A79) are all on the integration branch with mesh generators and 203 tests, AC-ELEM-001..003 are registered as module M7 over all three (+24 acceptance cases) with AC-ELEM-001 **`verified`** through the R2-T09 gate (A72), and the spatial beam `BeamElement3D` landed with 42 tests (A82). Open: flat-facet shell, `NeutralModel` → `Model` conversion, solid/shell BDF cards (`CBAR` included). |
+| R2-T03 reduction/expansion | **ACCEPTANCE-COMPLETE** — engine (A36, `correlation/reduction.py`) with the AC-CORR-006 gate `implemented` (A43) and **`verified`** through the R2-T09 gate (A72), and AC-CORR-009 plus the `SensorMap.signs` wiring landed (A58). Open: sparse inputs. |
 | R2-T04 Bayesian MAP | **ACCEPTANCE-COMPLETE** — estimator (A49, `updating/bayesian.py`, 36 tests) plus the AC-UPD-006a/b tagging, the registry flip and the Laplace σ_post in the `CorrectionReport` (A57, on the trunk since the `ac-upd-006-registration-6615` merge). Open: σ_post in the CLI `update` document, which is outside the acceptance slice. |
 | R2-T05 meshio & IO | **NOT STARTED** — the only core track with no commit. |
 | R2-T06 updating depth | P0 slice closed (AC-UPD-007, A44); P1 depth (MAC-row Jacobian wiring, model-level resolver, per-element dK/dp) open. |
 | R2-T07 optimization | **COMPLETE for sizing** — A27 backend + A40 harvest; AC-OPT-001..004 `implemented`. Shape variables still FD. |
 | R2-T08 R1-O2 reconciliation | Pending a close-as-superseded decision (A40/A14); no merge wanted. |
-| R2-T09 exit hardening | **NOT STARTED** — no CI job, so nothing can move `implemented → verified`. |
+| R2-T09 exit hardening | **PARTIAL** — the promotion machinery landed (A72): a CI `gates` job plus `tests/acceptance/test_registry_ci.py` re-run the `verified` criteria as a gate, and **9 criteria are now `verified`** (one per module — AC-MODAL-003, AC-CORR-001, AC-CORR-002, AC-UPD-001, AC-WORK-002, AC-OPT-003, AC-DYN-004, AC-ELEM-001 — plus the P1 blocker AC-CORR-006). Open: promoting the remaining 32 `implemented` rows and the 3 `specified` ones. |
 
 ---
 
@@ -229,11 +234,12 @@ consistency tests fail.
   19-case acceptance batch in `tests/acceptance/test_correlation.py` checks both
   halves (SEREP reconstruction MAC ≥ 0.999, reduced-space pairing = expanded-space
   pairing) on the 10-DOF chain and a 36-DOF cantilever twin, and additionally pins
-  where each half stops holding under noise. **Remaining to close the task:**
-  register AC-CORR-009 (engine and test exist; needs the spec-first three-file
-  commit and moves the pinned 40-criterion inventory), fold `SensorMap.signs`
-  into the basis (`from_sensor_map`), stop densifying sparse inputs, and move
-  AC-CORR-006 `implemented → verified` once CI runs it (R2-T09).
+  where each half stops holding under noise. AC-CORR-006 is now **`verified`**:
+  A72's R2-T09 gate re-runs its 19 tagged tests green and reproducibly on every
+  push. **Remaining to close the task:** register AC-CORR-009 (engine and test
+  exist; needs the spec-first three-file commit and moves the pinned
+  40-criterion inventory), fold `SensorMap.signs` into the basis
+  (`from_sensor_map`), and stop densifying sparse inputs.
 - **Priority:** 3 (P1 — **blocks Round-2 sign-off** via AC-CORR-006) ·
   **Gap:** [GAP-08](../docs/SOTA_GAP_ANALYSIS.md) (§5.5, R2 slice)
 - **Why third:** the highest-ranked *gate-blocking* criterion. Correlation currently
@@ -348,7 +354,7 @@ consistency tests fail.
 | R2-T06 | 6 | Updating depth completion: the MS-3.6 collinearity screen with norm-ranked subset selection is **done** ([AC-UPD-007](../docs/ACCEPTANCE_CRITERIA.md), P0, `twin`: duplicated parameter detected at cosine > 0.99, one frozen, recovery gates still met — `workflow/selection.py`, tagged by A44); wire the analytic MAC-row Jacobian into the updater's shape-residual path (A04 flagged this as a cheap win — FD fallback currently used whenever shapes are present); model-level parameter target resolver (`material.<id>.<attr>`) with assembled per-element dK/dp providers | [GAP-10](../docs/SOTA_GAP_ANALYSIS.md), AC-UPD-007, MS-3.1/3.3/3.6 | What is left is P1 depth work; the P0 slice closed with the AC-UPD-007 tagging. |
 | R2-T07 | 7 | Optimization backend: replace `optimization.solve` `NotImplementedError` with a scipy SLSQP/trust-constr backend using the sensitivity kernel for gradients and MAC-based mode tracking | [GAP-12](../docs/SOTA_GAP_ANALYSIS.md), [AC-OPT-001..003](../docs/ACCEPTANCE_CRITERIA.md) (P0), AC-OPT-004 (P1), MS-5 | Coordinate with the in-flight `optimization/{backends,gradients,problem,responses,variables}.py` on `cursor/dynamics-damping-frf-9500` — land that branch, don't fork. |
 | R2-T08 | 8 | R1-O2 reconciliation: diff `cursor/r1o2-correlation-updating-e393` against the landed correlation/updating packages; harvest superior pieces (per-DOF MSF-scaled shape residuals, log-space parameter transform, frequency-window pairing acceptance) and delete the rest | GAP-01 hygiene | Already in progress on `cursor/reconcile-r1o2-correlation-updating-64c5`; merge through the integration branch, not around it. |
-| R2-T09 | 9 | Round 2 exit hardening: CI job runs `import openfemlab` + full suite + Ruff + registry consistency on every push; registry statuses advanced `specified → implemented → verified` for every criterion a Round 2 task closes | Round 1 exit-bar carryover, AC §1.5 | The Round 1 bar ("suite must collect and pass before Round 2 refactors begin") is now met — 192 passed — and must not regress. |
+| R2-T09 | 9 | Round 2 exit hardening: CI job runs `import openfemlab` + full suite + Ruff + registry consistency on every push; registry statuses advanced `specified → implemented → verified` for every criterion a Round 2 task closes | Round 1 exit-bar carryover, AC §1.5 | **PARTIAL (A72).** The `gates` job in `.github/workflows/ci.yml` runs the import check, Ruff, the registry consistency tests, the gate suite and `-m acceptance`; `tests/acceptance/test_registry_ci.py` re-runs the `verified` criteria in two concurrent subprocesses (different hash seeds, single-threaded BLAS) and fails any promotion that is not green, not reproducible, or not evidenced in the suite the registry names; `tests/conftest.py` adds `--criterion` / `--criterion-report` so any run can execute one gate. Nine blocking criteria promoted (one per module plus AC-CORR-006), 69 tagged tests. Open: promote the rest as each track closes. |
 
 ---
 
@@ -372,12 +378,18 @@ consumers** — `SOTA_GAP_ANALYSIS.md` Appendix A):
 
 Round 2 is done when, on the integration branch in CI:
 
+0. *(machinery, A72 — done)* `verified` is a gated status, not a hand-written one:
+   the CI `gates` job and `tests/acceptance/test_registry_ci.py` re-run every
+   promoted criterion and revert-or-fail on a red, non-deterministic or
+   unevidenced claim (AC §1.5, enforcement rule 7). The nine-criterion first
+   slice — one per module plus AC-CORR-006 — is through it; items 1–2 below are
+   now a matter of promoting each remaining row as its track closes.
 1. Every **P0** criterion in the registry is `verified`, including
    [AC-UPD-007](../docs/ACCEPTANCE_CRITERIA.md) and AC-WORK-001/002/004/005, which
    reached `implemented` once the acceptance suites claimed them (A44).
-2. Every **P1** criterion is `verified` (AC §1.2: P1 blocks Round-2 sign-off) — in
-   particular AC-CORR-006 (SEREP), AC-UPD-006a/b (Bayesian), AC-MODAL-008,
-   AC-WORK-003, AC-UPD-008, AC-OPT-004.
+2. Every **P1** criterion is `verified` (AC §1.2: P1 blocks Round-2 sign-off) —
+   AC-CORR-006 (SEREP) is through as of A72; AC-UPD-006a/b (Bayesian),
+   AC-MODAL-008, AC-WORK-003, AC-UPD-008 and AC-OPT-004 remain.
 3. The newly registered dynamics / element / IO criteria (T01/T02/T05 proposals above)
    are at least `implemented` — done on the integration branch for AC-DYN-001..005 (T01)
    and, since the A79 merge, AC-ELEM-001..003 (T02); the AC-IO-* rows of T05 are still
@@ -409,6 +421,6 @@ Round 2 is done when, on the integration branch in CI:
    were the tied Round-2 sign-off blockers, via AC-CORR-006 and AC-UPD-006a/b. Both
    engines are on the trunk (`correlation/reduction.py` A36, `updating/bayesian.py`
    A49); AC-CORR-006 (A43), AC-CORR-009 (A58) and AC-UPD-006a/b (A57) are all
-   registered and `implemented`, so what stands between them and the gate is a CI
-   run that moves them to `verified`. R2-T04 still owes σ_post in the CLI `update`
-   document.
+   registered and `implemented`, and AC-CORR-006 is **`verified`** through the
+   R2-T09 gate (A72) — the same gate the other three flip through once someone
+   promotes them. R2-T04 still owes σ_post in the CLI `update` document.

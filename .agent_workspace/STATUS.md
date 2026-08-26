@@ -61,7 +61,7 @@ Acceptance registry and gate suites: **337 tests**.
 | R2-T06 | Updating depth (GAP-10) | **Partial** — AC-UPD-007 (P0) is tagged and `implemented` (A44); the collinearity screen was already in `workflow/selection.py`. QR-pivoting refinement, analytic MAC-row Jacobian wiring, and the model-level parameter resolver remain. |
 | R2-T07 | SciPy optimization backend (GAP-12) | **Done** — SLSQP/trust-constr with analytic Jacobians (A27), active-set KKT + trust-constr Hessian fixes (A40 harvest), and strengthened AC-OPT-002/003 oracles incl. a bound-active optimum (A34). Shape variables still FD. |
 | R2-T08 | R1-O2 branch reconciliation | **Done** — content reconciled by A14; the superseded/merged side branches were audited in [`BRANCH_CLEANUP.md`](BRANCH_CLEANUP.md) and deleted from `origin` (A62). |
-| R2-T09 | CI exit hardening | **Partial** — CI runs the full suite on Python 3.10–3.13, but has no `ruff check` step; registry consistency runs only implicitly via pytest, and no criterion has been advanced to `verified`. |
+| R2-T09 | CI exit hardening | **Partial** — superseded after this snapshot by A72: the new `gates` job runs the import check, `ruff check .`, the registry consistency tests, the promotion gate and `-m acceptance`, and 9 criteria are `verified` behind it. What remains is promoting the other rows as their tracks close. |
 
 - **Round 3 — PENDING.** GAP-06 (MPE), GAP-07 (pretest EI), GAP-13 (50k-DOF
   scale), GAP-15 (plotting), and the FRF updating residual stay deferred.
@@ -105,8 +105,12 @@ Acceptance registry and gate suites: **337 tests**.
 6. **R2-T04 residue**: σ_post in the CLI `update` document — a prior/noise
    block in the update spec schema, a column in the rendered table and the
    JSON payload. The acceptance gate and the `CorrectionReport` half are done.
-7. **CI hardening (R2-T09)**: add `ruff check` to `ci.yml`; define the
-   `implemented → verified` promotion (a CI run at a pinned tip) and apply it.
+7. **CI hardening (R2-T09)**: *closed after this snapshot by A72* — `ci.yml`
+   gained a `gates` job with `ruff check .`, and the `implemented → verified`
+   promotion is now defined and enforced by
+   `tests/acceptance/test_registry_ci.py` (a green, reproducible re-run of the
+   promoted criteria) rather than by a pinned manual run. Open: promote the
+   remaining rows.
 8. **Process**: the shared-`/workspace` hazard has been recorded by eight+
    agents and was live again at this snapshot (mid-merge conflict state, HEAD
    moving between consecutive commands). Detached private worktree + pinned

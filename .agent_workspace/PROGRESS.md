@@ -2872,3 +2872,60 @@ closes the bookkeeping.
   just before pushing one — re-run after every fetch, since on this branch the trunk
   moved four times during a single run. The shared `/workspace` checkout was
   unusable throughout: HEAD was moved out from under this run twice, once mid-merge.
+
+#### A72 — R2-T09 starts: gate-backed `verified` promotion (backfill for completed A61)
+
+The registry documented a three-step lifecycle but only ever used two of them: nothing
+re-ran a criterion as a gate, so `verified` was a status a human could type. R2-T09's
+first slice makes it an enforced claim and promotes the first batch of criteria.
+
+- **`tests/conftest.py` (new)** — marker *arguments* cannot be selected with `-m`, so
+  the gate needs its own selection: `--criterion AC-<MODULE>-NNN` (repeatable) keeps
+  only the tests tagged with those registry IDs and deselects the rest, and
+  `--criterion-report PATH` writes a JSON summary per criterion (tests / passed /
+  failed / skipped / errors and the node IDs that produced them). The reporter plugin
+  is registered only when the option is given, so ordinary runs carry no bookkeeping.
+- **`tests/acceptance/test_registry_ci.py` (new, 13 tests)** — the simulated CI run.
+  It derives its selection from `verified_ids()`, so the gate and the registry cannot
+  drift, and launches two pytest subprocesses concurrently, under different
+  `PYTHONHASHSEED` values and single-threaded BLAS. The promotion holds only when the
+  run is green with no failure, error *or* skip; when every promoted criterion
+  contributes at least one passing test whose node IDs land in the suite its registry
+  row names; when both seeds reproduce the outcome test for test (the §1.4 determinism
+  rule); and when the CI `gates` job still runs the import check, Ruff, registry
+  consistency, this gate and `-m acceptance`.
+- **Promotions (9, all P0/P1, 69 tagged tests)** — one gate per module so the slice
+  exercises the whole platform: AC-MODAL-003 (mass-orthonormality), AC-CORR-001 /
+  AC-CORR-002 (weighted MAC identity, scale invariance), AC-UPD-001 (eigenvalue
+  sensitivity vs central FD), AC-WORK-002 (deterministic reproducibility), AC-OPT-003
+  (box bounds), AC-DYN-004 (FRAC/FDAC identity), AC-ELEM-001 (patch test) — plus
+  **AC-CORR-006**, the P1 Round-2 sign-off blocker A43 left at `implemented`, which
+  closes that R2-T03 exit item. AC-ELEM-001 answers A59's note that AC-ELEM-001..003
+  "need a CI run, not another test": the run now exists, and the other two follow the
+  same way once someone flips them. Registry split is now **9 `verified` /
+  32 `implemented` / 3 `specified`** of 44.
+- **Registry and docs** — `test_criteria_registry.py` gained `verified_ids()`, the
+  `CI_WORKFLOW` / `CI_GATE_JOB` anchors and three consistency tests (no P2 promotion,
+  every module carries a verified criterion, the gate job exists);
+  `ACCEPTANCE_CRITERIA.md` §1.5 spells the promotion rule out and §9 adds it as
+  enforcement rule 7. `.github/workflows/ci.yml` gained the `gates` job.
+- **Negative checks** (both reverted afterwards): injecting one failing assertion into
+  an AC-CORR-001 test turned three gate tests red, and deleting the Ruff step from the
+  workflow failed the corresponding parametrization — the gate is load-bearing, not
+  decorative.
+- **Measured** — full suite **1149 passed** (the trunk's 1133 at `176ce3a` plus the 16
+  this slice adds), `ruff check .` clean, on Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1
+  from the private worktree `/tmp/a72` with `PYTHONPATH` pinned to its own `src`.
+  Pinning BLAS to one thread inside the gate cut the two concurrent runs from 17.4 s to
+  under 5 s (oversubscription, not test cost) and removes thread-count-dependent
+  reduction order as a source of nondeterminism.
+- **The shared-checkout hazard bit again, in its subtlest form.** An unpinned
+  `python -m pytest` in the private worktree still imported `openfemlab` from
+  `/workspace/src` — the editable install's `.pth` puts it on `sys.path` — so one
+  otherwise-green run reported four failures in `tests/test_workflow.py` that came from
+  another agent's mid-edit `/workspace`. Three consecutive pinned runs are clean. The
+  gate subprocess was never exposed to this: it pins `PYTHONPATH` to the repo root it
+  computes from its own file.
+- **Open for R2-T09** — the remaining 32 `implemented` rows still have to be promoted
+  as their tracks close, and the 3 `specified` ones need tests first; the gate itself
+  scales to them by construction (flip the status, the gate picks it up).
