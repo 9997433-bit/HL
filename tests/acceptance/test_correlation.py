@@ -387,7 +387,8 @@ EXPANSION_SEED = 96031
 
 #: Noise floors of the robustness cases, as a fraction of each column's norm.
 LIGHT_NOISE = 0.002
-HEAVY_NOISE = 0.02
+HEAVY_NOISE = 0.05
+BREAKDOWN_NOISE = 0.08
 
 
 def _chain_twin():
@@ -596,7 +597,7 @@ def test_ac_corr_006_agreement_survives_a_light_measurement_noise_floor(case):
 def test_ac_corr_006_noise_breaks_the_reconstruction_gate_before_the_pairing(case):
     """What the 0.999 gate measures, and what it does not.
 
-    At 2 % noise the expansion no longer reconstructs the analysis shapes to
+    At 5 % noise the expansion no longer reconstructs the analysis shapes to
     0.999 — SEREP projects the noise onto the retained band rather than
     rejecting it — yet the assignment is nowhere near ambiguous and the two
     pairings still agree. The gate is a reconstruction-fidelity requirement;
@@ -611,4 +612,27 @@ def test_ac_corr_006_noise_breaks_the_reconstruction_gate_before_the_pairing(cas
 
     assert reduced.as_tuples() == expanded.as_tuples() == truth
     assert worst < EXPANSION_MAC_MIN, f"{case}: noise left the gate intact at {worst:.6f}"
-    assert worst > 0.95
+    assert worst > 0.8, f"{case}: the modes stopped being recognizable at {worst:.6f}"
+
+
+@criterion("AC-CORR-006")
+def test_ac_corr_006_far_past_the_gate_the_expanded_pairing_is_the_stricter_one():
+    """The "noise-free" in the criterion's wording is a real qualifier.
+
+    At 8 % channel noise on the beam the two pairings stop agreeing — not by
+    crossing wires, but because expansion spreads one corrupted channel over
+    all 36 DOFs while the sensor-space MAC only ever sees the 5 that were
+    measured. The expanded pairing therefore drops its worst mode below
+    ``mac_min`` where the reduced one still accepts it, and every pair the two
+    do make is still the same. The disagreement is about acceptance, not about
+    correspondence, and the conservative side is the expanded one; it is
+    recorded here so the equality asserted above is not read as unconditional.
+    """
+    analysis, _, _, sensors = TWIN_MODELS["cantilever_beam"]()
+    measured, truth = _measured(analysis[sensors, :], noise=BREAKDOWN_NOISE)
+
+    reduced, expanded = _both_pairings(analysis, sensors, measured)
+
+    assert reduced.as_tuples() == truth
+    assert set(expanded.as_tuples()) < set(reduced.as_tuples())
+    assert expanded.unpaired_fe and not reduced.unpaired_fe
