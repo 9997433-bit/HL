@@ -29,6 +29,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A24 | claude-fable-5-thinking-xhigh | Round 2 plan: prioritized backlog with AC links (backfill for A22) | complete |
 | A25 | gpt-5.6-sol-xhigh-fast | CLI subprocess coverage over example 02 fixtures | complete |
 | A19 | claude-opus-5-thinking-high-fast | GAP-04/05 damped dynamics: damping, complex modes, FRF synthesis (backfill for A11) | complete |
+| A29 | gpt-5.6-sol-xhigh-fast | Rebase A13 workflow into dynamics/optimization integration branch | complete |
 | A15 | claude-opus-5-thinking-high-fast | GAP-01 `ModalResult` contract unification (backfill for R1-F1) | complete |
 | A13 | claude-opus-5-thinking-high-fast | M4 correction workflow state machine & `CorrectionReport` (backfill for A01) | complete |
 | A14 | claude-opus-5-thinking-high-fast | R1-O2 correlation/updating branch reconciliation (backfill) | complete |
@@ -783,6 +784,19 @@ into the integration branch, so nothing is left stranded on a side branch.**
   gap), then AC-UPD-002..005/007 and the M4/M5 suites — `tests/test_workflow.py` already
   demonstrates AC-WORK-001..004 numerically but is not tagged, so those criteria stay
   `specified` until an `tests/acceptance/test_workflow.py` claims them.
+
+#### A29 — A13/Dynamics Integration Backfill
+- Reconciled the feature branch with the completed A13 workflow and later A14/A21 updates,
+  preserving both A13's workflow record and A24's Round 2 plan during the progress-file
+  conflict, and pushed the resulting feature tip.
+- Rebased `cursor/dynamics-damping-frf-9500` onto that feature history. Git skipped the
+  already-landed workflow-test patch, so `tests/test_workflow.py` remains paired with the
+  complete `openfemlab.workflow` package instead of leaving tests without their consumer.
+- Preserved the workflow, damped-dynamics, and optimization package-root exports together.
+  The final branch includes the M4 workflow, reconciled updating stack, P0 acceptance batch,
+  structural sizing contracts, and GAP-04/05 damped dynamics/FRF implementation.
+- Verified the final integrated committed tree with full `pytest`: **430 passed, 0 failed**
+  (12.35 s, Python 3.12).
 
 ### Round 2 — Targeted Refactor & Deep Optimization
 **Status:** KICKED OFF — backlog planned in `.agent_workspace/ROUND2_PLAN.md` (A24); the
