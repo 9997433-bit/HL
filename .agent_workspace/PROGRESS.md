@@ -416,6 +416,13 @@ orchestrator to diff against the landed implementation in Round 2.
 - Remaining GAP-03 scope: UFF 2411/2412, broader BDF cards and coordinate systems, OP2,
   meshio conversion, UFF writing, binary 58b, and Nastran large-field/continuation cards.
 
+#### A22 — CLI JSON Output Regression Backfill
+- Confirmed the A18 failure is fixed by routing CLI notes and warnings to stderr whenever a
+  command emits JSON or YAML, leaving stdout as one parseable document.
+- The end-to-end CLI regression suite covers modal, correlate, and update document output,
+  including the previously failing identifiable-parameter update case.
+- Verified the complete suite on the integrated working tree: **192 passed**.
+
 #### A16 — CLI Correlation Kernel Reconciliation
 - Confirmed the pulled integration branch no longer contains duplicate `mac_matrix`,
   `pair_modes`, or `common_rows` implementations in `cli/analysis.py`; correlation
