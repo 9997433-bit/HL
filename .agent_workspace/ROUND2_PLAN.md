@@ -36,10 +36,10 @@ gate landed, so the split is now **44 criteria — 9 `verified`, 32 `implemented
 | Task | Status |
 |---|---|
 | R2-T01 dynamics/FRF | **COMPLETE** — engine (`acda625`), AC-DYN-001..005 `implemented`, report `frf` block at schema 1.1 (A41), `openfemlab correlate-frf` CLI (A54). No open work. |
-| R2-T02 3D elements | **PARTIAL** — QUAD4 (A37), TET4 (A46) and HEX8 (A59, merged by A79) are all on the integration branch with mesh generators and 203 tests, AC-ELEM-001..003 are registered as module M7 over all three (+24 acceptance cases) with AC-ELEM-001 **`verified`** through the R2-T09 gate (A72), the spatial beam `BeamElement3D` (A82, 42 tests) was merged onto the integration branch at `75dd070` (A93), and the **flat-facet shell `ShellQuad4Element` (A98, 72 tests) is on `cursor/shell-quad4-facet-1c70` awaiting merge**. Open: solid/shell BDF cards (`CBAR` included), routing an imported shell property through `io/neutral_convert.py` (which lands `ElementType.QUAD4` on the *membrane* element), and folding the shell into the AC-ELEM case table. |
+| R2-T02 3D elements | **PARTIAL** — QUAD4 (A37), TET4 (A46) and HEX8 (A59, merged by A79) are all on the integration branch with mesh generators and 203 tests, AC-ELEM-001..003 are registered as module M7 over all three (+24 acceptance cases) with AC-ELEM-001 **`verified`** through the R2-T09 gate (A72), the spatial beam `BeamElement3D` (A82, 42 tests) was merged onto the integration branch at `75dd070` (A93), and the flat-facet shell `ShellQuad4Element` landed with 72 tests (A98) — **no element formulation is outstanding in `core/elements.py`**. The `NeutralModel` → `Model` conversion shared with R2-T05 landed as `io/neutral_convert.py` (A106, 52 tests), so an imported rod/beam/quad/tet/hex block is now re-analyzable. Open: solid/shell BDF cards (`CBAR` included), a shell branch in the converter (which today lands `ElementType.QUAD4` on the *membrane* element), and folding the shell into the AC-ELEM case table. |
 | R2-T03 reduction/expansion | **ACCEPTANCE-COMPLETE** — engine (A36, `correlation/reduction.py`) with the AC-CORR-006 gate `implemented` (A43) and **`verified`** through the R2-T09 gate (A72), and AC-CORR-009 plus the `SensorMap.signs` wiring landed (A58). Open: sparse inputs. |
 | R2-T04 Bayesian MAP | **ACCEPTANCE-COMPLETE** — estimator (A49, `updating/bayesian.py`, 36 tests) plus the AC-UPD-006a/b tagging, the registry flip and the Laplace σ_post in the `CorrectionReport` (A57, on the trunk since the `ac-upd-006-registration-6615` merge). Open: σ_post in the CLI `update` document, which is outside the acceptance slice. |
-| R2-T05 meshio & IO | **PARTIAL** — the meshio bridge landed (A89, `io/meshio_bridge.py`, 44 tests): `from_meshio`/`to_meshio` over a one-to-one cell-type table, `read_meshio`/`write_meshio`, and the P7 optional-dependency seam with `MissingDependencyError`. Open: AC-IO-001..003 registration, UNV 2411/2412, `NeutralModel` → `Model` re-analysis of an imported mesh, UFF writing. |
+| R2-T05 meshio & IO | **PARTIAL** — the meshio bridge landed (A89, `io/meshio_bridge.py`, 44 tests): `from_meshio`/`to_meshio` over a one-to-one cell-type table, `read_meshio`/`write_meshio`, and the P7 optional-dependency seam with `MissingDependencyError`; `io/neutral_convert.py` then turns the imported `NeutralModel` into a solver-ready `Model` (A106, 52 tests), so `read_meshio` → `neutral_to_model` → `ModalSolver` runs end to end. Open: AC-IO-001..003 registration, UNV 2411/2412, UFF writing. |
 | R2-T06 updating depth | P0 slice closed (AC-UPD-007, A44); P1 depth (MAC-row Jacobian wiring, model-level resolver, per-element dK/dp) open. |
 | R2-T07 optimization | **COMPLETE for sizing** — A27 backend + A40 harvest; AC-OPT-001..004 `implemented`. Shape variables still FD. |
 | R2-T08 R1-O2 reconciliation | **COMPLETE** — content reconciled by A14; the superseded side branches were audited in [`BRANCH_CLEANUP.md`](BRANCH_CLEANUP.md) and deleted from `origin` (A62, and `cursor/beam3d-cbar-element-c9a7` by A93). |
@@ -55,12 +55,12 @@ the gap register at audit time:
 | Gap | Audit status | Status entering Round 2 |
 |---|---|---|
 | GAP-01 integration split-brain | P0, suite not collecting | **Largely closed.** `ModalResult` unified (commit `508813e`), `modal/eigen.py` is a thin adapter over `solver/modal.py` (A08), full suite green at **192 passed** (A22). Residual: enforce the "seams land atomically with consumers" rule and keep CI green. |
-| GAP-03 industrial IO | P0, absent | **Partial.** UFF datasets 55/58 reader (A12), minimal Nastran BDF `GRID`/`CROD`/`MAT1` (A18), and the meshio bridge behind the P7 optional-dependency seam (A89, `io/meshio_bridge.py`, 44 tests) — every format meshio reads now enters the platform as a `NeutralModel`. Remaining: UNV 2411/2412, broader BDF cards, AC-IO-001..003 registration, UFF writing, OP2. |
+| GAP-03 industrial IO | P0, absent | **Partial.** UFF datasets 55/58 reader (A12), minimal Nastran BDF `GRID`/`CROD`/`MAT1` (A18), and the meshio bridge behind the P7 optional-dependency seam (A89, `io/meshio_bridge.py`, 44 tests) — every format meshio reads now enters the platform as a `NeutralModel`, and `io/neutral_convert.py` (A106, 52 tests) converts that into the internal `Model` so the imported mesh can be re-analyzed rather than only correlated. Remaining: UNV 2411/2412, broader BDF cards, AC-IO-001..003 registration, UFF writing, OP2. |
 | GAP-14 CLI stubs | P2, stubbed | **Closed for R2.** `modal`/`correlate`/`update` landed with model-spec format, gates, JSON/YAML documents on clean stdout (A07/A16/A22). |
 | GAP-10 updating depth | P1, absent | **Partial.** Dotted-path parameter targeting in the CLI spec layer (A07), affine `ScalingModel` dK/dθ (A04), vectorized Fox–Kapoor + MAC sensitivities (A04/A10). Remaining: model-level resolver, assembled per-element dK/dp, analytic MAC-row Jacobian wiring → R2-T06. The MS-3.6 collinearity screen is done: `workflow/selection.py` plus the AC-UPD-007 acceptance tests (A44). |
 | GAP-09 node mapping | P1, absent | **Partial.** Label-based DOF alignment (`correlation/align.py`, `workflow/sensors.py`). Remaining: geometry-based nearest-node mapping → folded into R2-T05/T06 scope notes. |
 | GAP-04/05 dynamics & FRF | P0/P1, absent | **Closed by R2-T01.** `cursor/dynamics-damping-frf-9500` merged at `acda625`; AC-DYN-001..005 registered and `implemented`. GAP-05's FRF *updating residual* stays deferred to Round 3 as planned below. |
-| GAP-02 3D elements | P0, absent | **Partial.** QUAD4 plane stress/strain landed with `mesh.simple.quad_plate_mesh` and 61 tests (R2-T02 first slice, merged from `cursor/quad4-plane-stress-element-b99c`); TET4 landed with `mesh.simple.tet_block_mesh` and 66 tests (A46); HEX8 landed with `mesh.simple.hex_block_mesh`, 76 tests and the AC-ELEM-001..003 registration over all three elements (A59); the CBAR-like `BeamElement3D` landed with `MeshBuilder.add_beam3d` and 42 tests (A82); the flat-facet shell landed as `ShellQuad4Element` with `shell_plate_mesh` / `MeshBuilder.add_shell_quad4` and 72 tests (A98). Remaining: the solid/shell BDF cards → R2-T02 remainder. |
+| GAP-02 3D elements | P0, absent | **Partial.** QUAD4 plane stress/strain landed with `mesh.simple.quad_plate_mesh` and 61 tests (R2-T02 first slice, merged from `cursor/quad4-plane-stress-element-b99c`); TET4 landed with `mesh.simple.tet_block_mesh` and 66 tests (A46); HEX8 landed with `mesh.simple.hex_block_mesh`, 76 tests and the AC-ELEM-001..003 registration over all three elements (A59); the CBAR-like `BeamElement3D` landed with `MeshBuilder.add_beam3d` and 42 tests (A82); the flat-facet shell landed as `ShellQuad4Element` with `shell_plate_mesh` / `MeshBuilder.add_shell_quad4` and 72 tests (A98); and `io/neutral_convert.py` binds an imported `ROD2`/`BEAM2`/`QUAD4`/`TET4`/`HEX8` block into those formulations (A106). Remaining: the solid/shell BDF cards and a shell branch in the converter → R2-T02 remainder. |
 | GAP-08 reduction/expansion | P1, absent | **Partial.** `correlation/reduction.py` landed (A36): Guyan/IRS/SEREP bases, `expand_shapes`, `tam_mass`, 25 tests; the AC-CORR-006 gate is `implemented` via the 19-case acceptance batch (A43), and AC-CORR-009 plus the `SensorMap.signs` wiring landed with A58. Remaining: sparse inputs, the `verified` flip → R2-T03 remainder. |
 | GAP-11 Bayesian/UQ | P1, absent | **Closed for MAP by R2-T04, acceptance included.** The MS-3.5 estimator landed in `updating/bayesian.py` with Gaussian prior, noise covariance and Laplace posterior σ_post (A49, 36 tests); AC-UPD-006a/b are registered and `implemented` behind an eight-test gate on the ten-DOF twin, and the `CorrectionReport` σ_post column now carries the posterior (A57, merged to the trunk by A83). Remaining: σ_post in the CLI `update` document. Sampling (TMCMC/MC/DOE) stays Round 3 → R2-T04. |
 | GAP-12 optimization backend | P2, stub | **Closed for sizing by R2-T07.** `ScipyBackend.solve` runs SLSQP/trust-constr with analytic Jacobians, hard bounds and active-set KKT residuals; AC-OPT-001..004 are implemented. `cursor/optimization-scipy-backend-f421` was harvested by A40 (active-set multipliers, zero trust-constr constraint Hessian). Shape variables still fall back to finite differences. |
@@ -182,8 +182,8 @@ consistency tests fail.
   modes. Torsional rotary inertia `rho (Iy + Iz) L` is carried (the twist DOFs would be
   massless otherwise); bending rotary inertia, shear deformation, warping and
   shear-centre offsets are documented limitations.
-  *Shell facet* (A98, `cursor/shell-quad4-facet-1c70`; suite **1256 passed** on that
-  branch after merging the integration tip, Ruff clean):
+  *Shell facet* (A98, `cursor/shell-quad4-facet-1c70`; suite **1308 passed** at the
+  merged tip, Ruff clean):
   `ShellQuad4Element`, the flat facet with six DOFs per node. Membrane action is the
   existing plane-stress `Quad4Element` evaluated on the projected in-plane
   coordinates — the global membrane sub-block reproduces `Quad4Element` to 2.4e-16 and
@@ -225,9 +225,10 @@ consistency tests fail.
   - `mesh/simple.py` generators for structured quad/hex blocks (needed for convergence
     fixtures) and neutral-model → assembly wiring for the new blocks — the structured
     **quad**, **shell**, **tet** (Kuhn-subdivided box) and **hex** generators are all
-    landed, and `io/neutral_convert.py` turns an imported block into bound elements;
-    what remains is a shell branch in that converter, which today lands
-    `ElementType.QUAD4` on the two-DOF membrane element.
+    landed, and `io/neutral_convert.py`'s `neutral_to_model` turns an imported
+    `ROD2`/`BEAM2`/`QUAD4`/`TET4`/`HEX8` block into bound elements (A106); what remains
+    is a shell branch in that converter, which today lands `ElementType.QUAD4` on the
+    two-DOF membrane element.
   - Nastran card coverage follows the element set: `CQUAD4`/`CTETRA`/`CHEXA`/`CBAR`,
     `PSHELL`/`PSOLID` in `io/nastran.py` (remaining GAP-03 scope, coordinated with
     R2-T05).
@@ -380,9 +381,14 @@ consistency tests fail.
   and exporting one raises `FormatError` rather than silently changing the element type.
   `tests/test_meshio_bridge.py` (44 tests) skips as a module when meshio is missing; the
   `[dev]` extra now installs it so the bridge is exercised by default.
+  The re-analysis half landed with A106: `io/neutral_convert.py` converts a
+  `NeutralModel` into the internal `Model`, inferring the DOF signature from the blocks
+  present, resolving each element's material and section through the neutral property
+  tables, and taking caller-supplied `material=` / `section=` / `thickness=` fallbacks
+  for the geometry-only files meshio returns. `read_meshio` → `neutral_to_model` →
+  `ModalSolver` is therefore a working path for rod, beam, quad, tet and hex blocks.
   **Remaining to close the task:** register AC-IO-001..003 (spec-first, three files in
-  one commit), UNV 2411/2412 in `io/uff.py`, the `NeutralModel` → `Model` conversion that
-  makes an imported mesh re-analyzable (shared with R2-T02), and UFF writing.
+  one commit), UNV 2411/2412 in `io/uff.py`, and UFF writing.
 - **Scope:**
   - ~~`io/meshio_bridge.py`: bidirectional `meshio.Mesh` ↔ `NeutralModel` conversion
     (points → node arrays, cell blocks → `ElementType` blocks with an explicit,
@@ -404,8 +410,9 @@ consistency tests fail.
   for 3D cells); AC-IO-003 UNV 2411/2412 + 55 fixture feeds
   `correlate_modal_data` end to end (`contract`).
 - **Dependencies:** R2-T02 for solid/shell re-analysis (the bridge landed first,
-  restricted to already-supported element types, as planned). AC-IO-002 additionally
-  waits on the `NeutralModel` → `Model` conversion still open in R2-T02.
+  restricted to already-supported element types, as planned). AC-IO-002's remaining
+  dependency was the `NeutralModel` → `Model` conversion, which A106 closed; what the
+  criterion still needs is a committed Gmsh/Abaqus fixture and the registration commit.
 
 ---
 
@@ -463,9 +470,11 @@ Round 2 is done when, on the integration branch in CI:
    measured.unv chain.yaml --require-frac 0.9` reads the dataset-58 column, synthesizes
    the same channels from the spec's damping, and publishes the `FRFCorrelation` block
    through `schema_version` `1.1`, with FRAC = 1 against its own model in
-   `tests/test_cli_frf.py`. The imported-3D-mesh demo now has its *import* half —
-   `read_meshio` turns any meshio-supported file into a `NeutralModel` (A89) — and waits
-   only on the `NeutralModel` → `Model` conversion open in R2-T02.
+   `tests/test_cli_frf.py`. **The imported-3D-mesh demo now runs end to end in the
+   library**: `read_meshio` turns any meshio-supported file into a `NeutralModel` (A89)
+   and `neutral_to_model` binds its blocks into a solvable `Model` (A106), which
+   `tests/test_neutral_convert.py` exercises on an imported hexahedron. What is left is
+   a committed industrial fixture and a CLI surface over the pair.
 5. Full suite + Ruff + registry consistency green; no duplicate implementations of any
    numeric kernel (GAP-01 stays closed).
 
@@ -479,11 +488,12 @@ Round 2 is done when, on the integration branch in CI:
    shell facet so imported industrial meshes can be re-analyzed, unblocking the meshio
    bridge (R2-T05). All three continuum elements are landed, AC-ELEM-001..003 are
    registered, the CBAR-like `BeamElement3D` closed the frame slice (A82, merged at
-   `75dd070` by A93) and `ShellQuad4Element` closed the shell slice (A98, awaiting
-   merge from `cursor/shell-quad4-facet-1c70`); **no element formulation is outstanding
-   in `core/elements.py`**. What remains is plumbing — a shell branch in
-   `io/neutral_convert.py`, the solid/shell BDF cards, and folding the shell into the
-   AC-ELEM case table — and R2-T05 is now unblocked for solid, frame *and* shell meshes.
+   `75dd070` by A93) and `ShellQuad4Element` closed the shell slice (A98); **no element
+   formulation is outstanding in `core/elements.py`**. What remains is plumbing — a
+   shell branch in `io/neutral_convert.py`, the solid/shell BDF cards, and folding the
+   shell into the AC-ELEM case table. R2-T05 is unblocked for solid, frame *and* shell
+   meshes, and A106's `neutral_to_model` connected the two tracks: an imported block now
+   reaches the assembler.
 3. **R2-T03 — SEREP/TAM reduction & expansion** (GAP-08) and **R2-T04 Bayesian MAP**
    were the tied Round-2 sign-off blockers, via AC-CORR-006 and AC-UPD-006a/b. Both
    engines are on the trunk (`correlation/reduction.py` A36, `updating/bayesian.py`
