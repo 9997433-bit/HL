@@ -39,6 +39,7 @@ dev = [
 
 [project.scripts]
 audio-studio = "audio_studio.app:main"
+audio-studio-batch = "audio_studio.batch.cli:main"
 
 [project.gui-scripts]
 audio-studio-gui = "audio_studio.app:main"

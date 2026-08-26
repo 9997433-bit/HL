@@ -1,15 +1,20 @@
 """Save and load `.hlproj` directory projects (schema v1).
 
 A project bundles the waveform editor document, optional multitrack session,
-UI state and on-disk media copies so a session can be reopened on another
-machine without chasing the original source files.
+timeline markers, UI state and on-disk media copies so a session can be
+reopened on another machine without chasing the original source files.
+
+The schema stays at version 1 while it grows: readers treat every top-level key
+they do not recognise as absent, and every key added after the first release
+(``markers``, so far) is written only when it carries something, so a bundle
+saved by this build still opens in one that predates the addition.
 """
 
 from __future__ import annotations
 
 import json
 import shutil
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -19,6 +24,7 @@ import numpy as np
 from .. import __app_name__, __version__
 from ..core.edit_session import EditSession
 from ..core.loader import LoadedAudio, load_audio, save_audio
+from ..core.markers import MarkerList
 from ..core.sample_source import MemorySampleSource, SampleSource
 from ..core.session import MultitrackSession, Track
 from ..core.types import AudioBuffer, TimeRange
@@ -53,6 +59,7 @@ class ProjectSnapshot:
     workspace: str = "waveform"
     view_mode: str = "split"
     source_path: Path | None = None
+    markers: MarkerList = field(default_factory=MarkerList)
 
 
 def _time_range_to_json(rng: TimeRange | None) -> dict[str, int] | None:
@@ -105,6 +112,7 @@ class ProjectStore:
         view_mode: str,
         playhead: int,
         selection: TimeRange | None,
+        markers: MarkerList | None = None,
     ) -> None:
         self.root.mkdir(parents=True, exist_ok=True)
         self.media_dir.mkdir(parents=True, exist_ok=True)
@@ -124,6 +132,8 @@ class ProjectStore:
             "waveform": None,
             "multitrack": self._serialize_multitrack(multitrack),
         }
+        if markers is not None and not markers.is_empty:
+            payload["markers"] = markers.to_json()
 
         if edit_session is not None and editor_clip is not None:
             source_rel = "media/source.wav"
@@ -166,6 +176,11 @@ class ProjectStore:
                 selection=_time_range_from_json(raw_wave.get("selection")),
             )
 
+        try:
+            markers = MarkerList.from_json(payload.get("markers"))
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ProjectLoadError(f"invalid markers in {self.json_path}: {exc}") from exc
+
         ui = payload.get("ui") or {}
         return ProjectSnapshot(
             waveform=waveform,
@@ -173,6 +188,7 @@ class ProjectStore:
             workspace=str(ui.get("workspace", "waveform")),
             view_mode=str(ui.get("view_mode", "split")),
             source_path=self.root,
+            markers=markers,
         )
 
     def _serialize_multitrack(self, session: MultitrackSession) -> dict[str, Any]:
@@ -242,6 +258,7 @@ def save_project(
     view_mode: str,
     playhead: int,
     selection: TimeRange | None,
+    markers: MarkerList | None = None,
 ) -> Path:
     """Write a project bundle and return the normalized directory path."""
     root = path
@@ -255,6 +272,7 @@ def save_project(
         view_mode=view_mode,
         playhead=playhead,
         selection=selection,
+        markers=markers,
     )
     return root
 

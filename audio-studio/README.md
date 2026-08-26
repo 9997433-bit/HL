@@ -33,7 +33,7 @@ cd audio-studio
 python -m venv .venv && source .venv/bin/activate
 pip install -e .                 # application + null-audio backend
 pip install -e ".[dev]"          # add tests, lint, and type checking
-pip install -e ".[audio,dev]"    # also add optional PyAudio hardware output
+pip install -e ".[audio,dev]"    # also add optional PyAudio hardware input/output
 ```
 
 PortAudio needs its system library before `PyAudio` will build:
@@ -52,8 +52,8 @@ sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libdbus-1-3 \
 ```
 
 If PortAudio is unavailable the engine transparently falls back to a simulated
-output clock, so the application still starts and every control still works —
-you just will not hear anything.
+output clock and synthetic input, so the application still starts and every
+control still works — you just will not hear or capture a real device.
 
 ## Run
 
@@ -77,6 +77,26 @@ Headless smoke test:
 xvfb-run -a python -m audio_studio --null-audio --exit-after 5 track.wav
 ```
 
+## Batch processing
+
+`audio_studio.batch` processes whole folders offline, no GUI required:
+
+```bash
+python -m audio_studio.batch.cli --input "stems/*.wav" --output out/ --lufs -16
+audio-studio-batch --input "takes/**/*.flac" --output out/ \
+    --lufs -16 --true-peak -1.0 --fade-in 0.05 --fade-out 0.5 --format wav
+```
+
+Each matched file is decoded, run through the requested operations in order —
+`--gain-db`, then `--lufs` loudness normalisation (BS.1770 integrated, with an
+optional `--true-peak` ceiling), then `--fade-in`/`--fade-out` (`--fade-shape`
+picks the curve) — and re-encoded into `--output`, keeping its name.
+`--format` converts the container and `--subtype` overrides the encoding
+(e.g. `PCM_16`, `FLOAT`). Progress is printed to stdout one line per file; the
+exit code is 0 when every file rendered, 1 when any failed, 2 when nothing
+matched. The same pipeline is scriptable from Python via
+`audio_studio.batch.BatchJob` and `run_batch`.
+
 ## What the MVP does
 
 **Audio engine** (`audio_studio.core.engine.AudioEngine`)
@@ -97,6 +117,8 @@ xvfb-run -a python -m audio_studio --null-audio --exit-after 5 track.wav
 - Per-channel peak/RMS metering published from the render callback.
 - Pluggable output: `PyAudioOutput` (PortAudio) or `NullOutput` (simulated
   clock, plus a manually-pumped mode used by the tests).
+- Recording to WAV from mono or stereo `PyAudio` input, with a deterministic
+  silence/tone `NullRecorder` for headless systems and tests.
 
 **Editing core** (`audio_studio.core.edit_session.EditSession`)
 
@@ -129,14 +151,24 @@ xvfb-run -a python -m audio_studio --null-audio --exit-after 5 track.wav
 
 - Track lane with header (name, format summary, mute), a timeline ruler and a
   synchronised scrollbar.
-- Transport strip: skip-to-start, play/pause, stop, skip-to-end, loop, a large
-  timecode readout, selection length and an output gain slider.
+- Transport strip: record, skip-to-start, play/pause, stop, skip-to-end, loop,
+  a large timecode readout, selection length and an output gain slider.
 - Output level meter with peak hold, RMS shading and a latching clip indicator.
 - Menus and shortcuts, drag-and-drop file opening, a recent-files list, export
   of the whole clip or just the selection, and a status bar carrying format,
   duration, selection and active output backend.
 - Dockable spectrum and effects-rack panels, live wet/dry/bypass preview, and
   asynchronous integrated loudness/LRA analysis.
+
+**Markers and regions** (`audio_studio.core.markers.MarkerList`)
+
+- Drop a marker at the playhead or name the current selection as a region, then
+  walk the timeline marker to marker from the keyboard.
+- Both kinds are drawn as coloured flags over the waveform and listed in a
+  dockable panel where they can be renamed, removed or double-clicked to seek
+  (a region also restores its span as the selection).
+- Saved into the `.hlproj` bundle as an optional `markers` array, so a project
+  written with markers still opens in a build that predates them.
 
 **DSP and analysis** (`audio_studio.dsp`)
 
@@ -161,13 +193,16 @@ xvfb-run -a python -m audio_studio --null-audio --exit-after 5 track.wav
 | `Ctrl+=` / `Ctrl+-` / `Ctrl+0` | Zoom in / out / fit |
 | `Ctrl+Shift+0` | Zoom to selection |
 | `Ctrl+Up` / `Ctrl+Down` | Amplitude zoom |
+| `M` / `Shift+M` | Add a marker at the playhead / a region from the selection |
+| `Ctrl+Left` / `Ctrl+Right` | Go to the previous / next marker |
+| `F2` | Rename the marker selected in the Markers panel |
 | `Ctrl+Shift+S` | Export as… |
 
 ## Licensing and optional components
 
 The application is declared MIT. Its default dependency profile uses
 PySide6/Qt and libsndfile dynamically under their LGPL terms. PyAudio is an
-optional hardware-output extra; the null backend remains available without it.
+optional hardware-input/output extra; null backends remain available without it.
 FFmpeg is discovered as a separate executable and is never linked into the
 application.
 
@@ -206,10 +241,13 @@ tests live one directory above this package.
   bundles (File ▸ Save/Open Project); undo history is not persisted — the saved
   document is the flattened edit result. Export remains available for one-off
   audio files.
-- No recording path, no repair suite (de-click, de-hum, noise reduction), no
-  spectral selection editing, no production VST3/AU host or plugin delay
-  compensation, no batch processing, and no timeline markers yet — see
-  the roadmap in the release sign-off.
+- Recording is an MVP path: PyAudio input supports mono/stereo capture to WAV,
+  but there is no input-device/level control, live monitoring, punch recording,
+  or Broadcast Wave Format (BWF) metadata yet.
+- No complete repair suite (noise reduction remains), spectral selection
+  editing, production VST3/AU host or plugin delay compensation, or timeline
+  markers yet — see the roadmap in the release sign-off. Batch processing is
+  covered by the `audio_studio.batch` CLI above.
 - Not a low-latency monitor: the default device block is 1024 frames
   (~21 ms at 48 kHz) and there is no exclusive-mode backend handling; playhead
   accuracy is bounded by the block size.
@@ -247,7 +285,7 @@ yet a multitrack DAW.
   than audio-device certification.
 - **System requirements:** Python ≥ 3.10 (3.12 is the verified baseline);
   `numpy`, `scipy`, `soundfile`, `PySide6-Essentials`; optional `PyAudio`
-  (hardware output; falls back to a simulated clock without it) and `ffmpeg`
+  (hardware input/output; falls back to simulated devices without it) and `ffmpeg`
   (extended decode). On headless Linux install the Qt runtime libraries listed
   under *Install*.
 - **Release gates:** three-platform CI (with the GUI smoke job) is green and

@@ -23,6 +23,7 @@ dragging a selection re-analyses once rather than on every mouse move.
 
 from __future__ import annotations
 
+import tempfile
 from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
 
@@ -50,8 +51,8 @@ from PySide6.QtWidgets import (
 )
 
 from .. import __app_name__, __version__
-from ..core.engine import AudioEngine
 from ..core.edit_session import EditError, EditSession
+from ..core.engine import AudioEngine
 from ..core.loader import (
     SUPPORTED_EXTENSIONS,
     AudioLoadError,
@@ -60,7 +61,14 @@ from ..core.loader import (
     file_dialog_filter,
     save_audio,
 )
+from ..core.markers import Marker, MarkerList, Region
 from ..core.peaks import PeakPyramid
+from ..core.recorder import (
+    AudioRecorder,
+    NullRecorder,
+    RecorderDeviceError,
+    create_recorder,
+)
 from ..core.sample_source import MemorySampleSource
 from ..core.session import MultitrackSession, Track
 from ..core.types import TimeRange, TransportState, format_timecode
@@ -76,6 +84,7 @@ from ..project.store import (
 )
 from .effect_rack import EffectRackPanel, default_preview_chain
 from .level_meter import LevelMeter
+from .marker_panel import MarkerPanel
 from .multitrack_view import MultitrackView
 from .spectrum_panel import SpectrumPanel
 from .theme import PALETTE, stylesheet
@@ -95,12 +104,18 @@ MAX_RECENT_FILES: int = 8
 class MainWindow(QMainWindow):
     """Hosts the engine and wires it to the editing widgets."""
 
-    def __init__(self, engine: AudioEngine | None = None) -> None:
+    def __init__(
+        self,
+        engine: AudioEngine | None = None,
+        recorder: AudioRecorder | None = None,
+    ) -> None:
         super().__init__()
         self.effect_chain = default_preview_chain()
         self.engine = engine if engine is not None else AudioEngine()
+        self.recorder = recorder if recorder is not None else create_recorder()
         self.preview = attach_preview(self.engine, self.effect_chain)
         self._recent: list[Path] = []
+        self._recording_path: Path | None = None
 
         self.setWindowTitle(__app_name__)
         self.resize(1360, 780)
@@ -112,6 +127,11 @@ class MainWindow(QMainWindow):
         self.transport_bar = TransportBar()
         self.spectrum_panel = SpectrumPanel()
         self.effect_rack = EffectRackPanel(self.effect_chain)
+
+        # Markers annotate the waveform document, so they live with the window
+        # rather than the engine and are saved into the project bundle.
+        self.markers = MarkerList()
+        self.marker_panel = MarkerPanel()
 
         self.session = MultitrackSession()
         self.multitrack_view = MultitrackView(self.session)
@@ -200,6 +220,16 @@ class MainWindow(QMainWindow):
             Qt.DockWidgetArea.RightDockWidgetArea | Qt.DockWidgetArea.LeftDockWidgetArea
         )
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.effects_dock)
+
+        self.markers_dock = QDockWidget("Markers", self)
+        self.markers_dock.setObjectName("MarkersDock")
+        self.markers_dock.setWidget(self.marker_panel)
+        self.markers_dock.setAllowedAreas(
+            Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea
+        )
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.markers_dock)
+        self.markers_dock.hide()
+
         self.resizeDocks([self.spectrum_dock], [320], Qt.Orientation.Vertical)
 
     def _build_actions(self) -> None:
@@ -299,6 +329,35 @@ class MainWindow(QMainWindow):
         self.action_insert_silence = action(
             "Insert &Silence…", self.edit_insert_silence, "Ctrl+Shift+N",
             tip="Insert silence at the playhead",
+        )
+
+        self.action_add_marker = action(
+            "Add &Marker", self.add_marker_at_playhead, "M",
+            tip="Drop a marker at the playhead",
+        )
+        self.action_add_region = action(
+            "Add &Region from Selection", self.add_region_from_selection, "Shift+M",
+            tip="Name the selected range as a region",
+        )
+        self.action_next_marker = action(
+            "&Next Marker", self.go_to_next_marker, "Ctrl+Right",
+            tip="Move the playhead to the next marker",
+        )
+        self.action_prev_marker = action(
+            "&Previous Marker", self.go_to_previous_marker, "Ctrl+Left",
+            tip="Move the playhead to the previous marker",
+        )
+        self.action_rename_marker = action(
+            "Re&name Marker…", self.rename_selected_marker, "F2",
+            tip="Rename the marker selected in the Markers list",
+        )
+        self.action_remove_marker = action(
+            "&Remove Marker", self.remove_selected_marker,
+            tip="Delete the marker selected in the Markers list",
+        )
+        self.action_clear_markers = action(
+            "&Clear All Markers", self.clear_markers,
+            tip="Remove every marker and region from the document",
         )
 
         self.action_zoom_in = action("Zoom &In", self.track_panel.waveform.zoom_in, "Ctrl+=")
@@ -408,6 +467,20 @@ class MainWindow(QMainWindow):
         edit_menu.addAction(self.action_select_all)
         edit_menu.addAction(self.action_deselect)
 
+        markers_menu = bar.addMenu("&Markers")
+        markers_menu.addAction(self.action_add_marker)
+        markers_menu.addAction(self.action_add_region)
+        markers_menu.addSeparator()
+        markers_menu.addAction(self.action_prev_marker)
+        markers_menu.addAction(self.action_next_marker)
+        markers_menu.addSeparator()
+        markers_menu.addAction(self.action_rename_marker)
+        markers_menu.addAction(self.action_remove_marker)
+        markers_menu.addAction(self.action_clear_markers)
+        markers_menu.addSeparator()
+        markers_menu.addAction(self.markers_dock.toggleViewAction())
+        self.markers_menu = markers_menu
+
         view_menu = bar.addMenu("&View")
         view_menu.addAction(self.action_zoom_in)
         view_menu.addAction(self.action_zoom_out)
@@ -428,6 +501,7 @@ class MainWindow(QMainWindow):
         view_menu.addSeparator()
         view_menu.addAction(self.spectrum_dock.toggleViewAction())
         view_menu.addAction(self.effects_dock.toggleViewAction())
+        view_menu.addAction(self.markers_dock.toggleViewAction())
         view_menu.addAction(self.action_analyze)
 
         transport_menu = bar.addMenu("&Transport")
@@ -470,12 +544,14 @@ class MainWindow(QMainWindow):
             "ITU-R BS.1770 integrated loudness and true peak of the loaded clip"
         )
         self.status_fx = QLabel(self.effect_rack.summary())
+        self.status_recording = QLabel(f"Input: {self.recorder.name} · Ready")
         self.status_backend = QLabel(f"Output: {self.engine.output.name}")
         bar = self.statusBar()
         bar.addWidget(self.status_format, 1)
         bar.addPermanentWidget(self.status_loudness)
         bar.addPermanentWidget(self.status_fx)
         bar.addPermanentWidget(self.status_selection)
+        bar.addPermanentWidget(self.status_recording)
         bar.addPermanentWidget(self.status_backend)
 
     def _connect(self) -> None:
@@ -483,6 +559,7 @@ class MainWindow(QMainWindow):
         self.track_panel.selectionChanged.connect(self._on_selection_changed)
         self.track_panel.muteToggled.connect(self._on_mute)
 
+        self.transport_bar.recordRequested.connect(self._on_record)
         self.transport_bar.playPauseRequested.connect(self._on_play_pause)
         self.transport_bar.stopRequested.connect(self._on_stop)
         self.transport_bar.skipToStartRequested.connect(self._on_skip_start)
@@ -494,6 +571,14 @@ class MainWindow(QMainWindow):
         self.spectrum_panel.readoutChanged.connect(self._on_spectrum_readout)
         self.spectrum_panel.fftSizeChanged.connect(lambda _size: self.analyze_spectrum())
         self.effect_rack.chainChanged.connect(self._on_chain_changed)
+
+        self.marker_panel.selectionChanged.connect(self._update_marker_actions)
+        self.marker_panel.goToRequested.connect(self._on_seek)
+        self.marker_panel.regionActivated.connect(self._on_region_activated)
+        self.marker_panel.addMarkerRequested.connect(self.add_marker_at_playhead)
+        self.marker_panel.addRegionRequested.connect(self.add_region_from_selection)
+        self.marker_panel.renameRequested.connect(self.rename_marker)
+        self.marker_panel.removeRequested.connect(self.remove_marker)
 
         self.multitrack_view.seekRequested.connect(self._on_seek)
         self.multitrack_view.sessionChanged.connect(self._on_session_edited)
@@ -530,6 +615,7 @@ class MainWindow(QMainWindow):
         self._clear_edit_session()
         self.engine.close_clip()
         self._editor_clip = None
+        self.set_markers(MarkerList())
         self._update_for_clip()
 
     def export_dialog(self) -> None:
@@ -607,6 +693,7 @@ class MainWindow(QMainWindow):
 
         self.session = restore_multitrack(snapshot.multitrack, path)
         self.multitrack_view.set_session(self.session)
+        self.set_markers(snapshot.markers)
 
         if snapshot.waveform is not None:
             clip, session, playhead, selection = load_waveform_document(snapshot)
@@ -676,6 +763,7 @@ class MainWindow(QMainWindow):
             view_mode=self.view_mode,
             playhead=playhead,
             selection=selection,
+            markers=self.markers,
         )
 
     def _has_unsaved_changes(self) -> bool:
@@ -722,6 +810,8 @@ class MainWindow(QMainWindow):
     def _bind_edit_session(self, clip: LoadedAudio) -> None:
         """Wrap the loaded clip in an :class:`EditSession` wired to the transport."""
         self._clear_edit_session()
+        # Markers address frames in the outgoing document, so they go with it.
+        self.set_markers(MarkerList())
         session = EditSession.from_buffer(clip.buffer)
         session.add_listener(self._on_edit_session_changed)
         self._edit_session = session
@@ -978,6 +1068,126 @@ class MainWindow(QMainWindow):
 
         self._run_edit("Insert Silence", _insert)
 
+    # ----------------------------------------------------------- markers
+
+    def set_markers(self, markers: MarkerList) -> None:
+        """Replace the document's annotations and refresh everything showing them."""
+        self.markers = markers
+        self._refresh_markers()
+
+    def _refresh_markers(self) -> None:
+        self.track_panel.set_markers(self.markers)
+        self.marker_panel.set_markers(self.markers, max(self.engine.sample_rate, 1))
+        self._update_marker_actions()
+
+    def _update_marker_actions(self, _selected_id: str | None = None) -> None:
+        editing = self.engine.has_clip and self._workspace == "waveform"
+        selection = self.engine.selection
+        has_markers = bool(self.markers.markers)
+        selected = self.marker_panel.selected_id is not None
+
+        self.action_add_marker.setEnabled(editing)
+        self.action_add_region.setEnabled(
+            editing and selection is not None and not selection.is_empty
+        )
+        self.action_next_marker.setEnabled(has_markers)
+        self.action_prev_marker.setEnabled(has_markers)
+        self.action_rename_marker.setEnabled(selected)
+        self.action_remove_marker.setEnabled(selected)
+        self.action_clear_markers.setEnabled(not self.markers.is_empty)
+
+    def _after_markers_changed(self, message: str = "") -> None:
+        self._refresh_markers()
+        self._mark_project_dirty()
+        if message:
+            self.statusBar().showMessage(message, 4000)
+
+    def add_marker_at_playhead(self) -> Marker | None:
+        """Drop an auto-named marker where the playhead is."""
+        if not self.engine.has_clip:
+            return None
+        marker = self.markers.add_marker(int(self.engine.position))
+        self.markers_dock.show()
+        self._after_markers_changed(f"{marker.name} at {self._timecode(marker.frame)}")
+        self.marker_panel.select(marker.id)
+        return marker
+
+    def add_region_from_selection(self) -> Region | None:
+        """Name the selected range as a region."""
+        selection = self.engine.selection
+        if not self.engine.has_clip or selection is None or selection.is_empty:
+            self.statusBar().showMessage("Select a range first to make a region", 4000)
+            return None
+        region = self.markers.add_region(selection.start, selection.end)
+        self.markers_dock.show()
+        self._after_markers_changed(
+            f"{region.name} spans {self._timecode(region.start)}"
+            f" → {self._timecode(region.end)}"
+        )
+        self.marker_panel.select(region.id)
+        return region
+
+    def rename_marker(self, item_id: str) -> bool:
+        item = self.markers.get(item_id)
+        if item is None:
+            return False
+        name, ok = QInputDialog.getText(self, "Rename", "Name:", text=item.name)
+        if not ok or not name.strip():
+            return False
+        renamed = self.markers.rename(item_id, name.strip())
+        self._after_markers_changed(f"Renamed to {renamed.name}")
+        self.marker_panel.select(item_id)
+        return True
+
+    def rename_selected_marker(self) -> bool:
+        item_id = self.marker_panel.selected_id
+        return False if item_id is None else self.rename_marker(item_id)
+
+    def remove_marker(self, item_id: str) -> bool:
+        item = self.markers.get(item_id)
+        if item is None or not self.markers.remove(item_id):
+            return False
+        self._after_markers_changed(f"Removed {item.name}")
+        return True
+
+    def remove_selected_marker(self) -> bool:
+        item_id = self.marker_panel.selected_id
+        return False if item_id is None else self.remove_marker(item_id)
+
+    def clear_markers(self) -> None:
+        if self.markers.is_empty:
+            return
+        count = len(self.markers)
+        self.markers.clear()
+        self._after_markers_changed(f"Removed {count} markers and regions")
+
+    def go_to_next_marker(self) -> bool:
+        return self._go_to_marker(self.markers.next_marker(int(self.engine.position)))
+
+    def go_to_previous_marker(self) -> bool:
+        return self._go_to_marker(self.markers.previous_marker(int(self.engine.position)))
+
+    def _go_to_marker(self, marker: Marker | None) -> bool:
+        if marker is None:
+            self.statusBar().showMessage("No marker in that direction", 2500)
+            return False
+        self._on_seek(marker.frame)
+        self.marker_panel.select(marker.id)
+        self.statusBar().showMessage(
+            f"{marker.name} · {self._timecode(marker.frame)}", 3000
+        )
+        return True
+
+    def _on_region_activated(self, region: object) -> None:
+        """Restore a region's span as the editor selection."""
+        if not isinstance(region, Region):
+            return
+        clipped = region.range.clamped(self.engine.n_frames)
+        self.track_panel.set_selection(None if clipped.is_empty else clipped)
+
+    def _timecode(self, frame: int) -> str:
+        return format_timecode(frame / max(self.engine.sample_rate, 1))
+
     # ---------------------------------------------------------- analysis
 
     def audio_range(self, start: int, stop: int) -> np.ndarray | None:
@@ -1122,6 +1332,7 @@ class MainWindow(QMainWindow):
         else:
             self._refresh_editor_waveform()
         self._update_edit_actions()
+        self._update_marker_actions()
         self._update_status_format()
 
     def _refresh_editor_waveform(self) -> None:
@@ -1213,6 +1424,7 @@ class MainWindow(QMainWindow):
         has_clip = self.engine.has_clip
 
         self.transport_bar.set_enabled_for_clip(has_clip)
+        self._set_recording_ui(self.recorder.is_running)
         self.transport_bar.set_duration(self.engine.duration)
         self.transport_bar.set_position(0.0)
         self.transport_bar.set_selection_text("—")
@@ -1245,6 +1457,7 @@ class MainWindow(QMainWindow):
         self.action_add_track.setEnabled(clip is not None)
 
         self._update_edit_actions()
+        self._refresh_markers()
         self._update_window_title()
         self._route_transport()
         self._update_status_format()
@@ -1274,6 +1487,11 @@ class MainWindow(QMainWindow):
     def _on_tick(self) -> None:
         """Poll the engine 30×/s: the audio threads never touch Qt objects."""
         self._collect_loudness()
+        if self.recorder.is_running:
+            self.status_recording.setText(
+                f"● Recording · {self.recorder.frame_count:,} frames · "
+                f"{self.recorder.sample_rate / 1000:g} kHz"
+            )
         if not self.engine.has_clip:
             return
         position = self.engine.position
@@ -1297,16 +1515,110 @@ class MainWindow(QMainWindow):
         self.transport_bar.set_state(state)
 
     def _on_play_pause(self) -> None:
-        if not self.engine.has_clip:
+        if self.recorder.is_running or not self.engine.has_clip:
             return
         self.engine.toggle_play_pause()
         self.transport_bar.set_state(self.engine.state)
 
     def _on_stop(self) -> None:
+        if self.recorder.is_running:
+            self._finish_recording()
+            return
         self.engine.stop()
         self.transport_bar.set_state(self.engine.state)
         self.track_panel.set_playhead(self.engine.position)
         self.level_meter.reset()
+
+    def _on_record(self) -> None:
+        """Toggle recording and open the completed temporary WAV."""
+        if self.recorder.is_running:
+            self._finish_recording()
+        else:
+            self._start_recording()
+
+    def _start_recording(self) -> None:
+        self.engine.stop()
+        self.transport_bar.set_state(self.engine.state)
+        sample_rate = self.engine.sample_rate or 48000
+        channels = min(max(self.engine.n_channels, 1), 2)
+        with tempfile.NamedTemporaryFile(
+            prefix="audio-studio-recording-", suffix=".wav", delete=False
+        ) as pending:
+            target = Path(pending.name)
+
+        try:
+            self.recorder.open(
+                sample_rate,
+                channels,
+                block_size=1024,
+                target_path=target,
+            )
+            self.recorder.start()
+        except RecorderDeviceError as exc:
+            self.recorder.close()
+            self.recorder = NullRecorder()
+            try:
+                self.recorder.open(
+                    sample_rate,
+                    channels,
+                    block_size=1024,
+                    target_path=target,
+                )
+                self.recorder.start()
+            except Exception as fallback_exc:  # noqa: BLE001 - report both backend failures
+                target.unlink(missing_ok=True)
+                QMessageBox.critical(
+                    self,
+                    "Cannot record",
+                    f"Input device failed: {exc}\nSynthetic fallback failed: {fallback_exc}",
+                )
+                self._set_recording_ui(False)
+                return
+            self.statusBar().showMessage(
+                f"Input device unavailable ({exc}); recording synthetic silence", 5000
+            )
+
+        self._recording_path = target
+        self._set_recording_ui(True)
+
+    def _finish_recording(self) -> None:
+        target = self._recording_path
+        try:
+            captured = self.recorder.stop()
+        except (AudioLoadError, RecorderDeviceError, OSError) as exc:
+            QMessageBox.critical(self, "Recording failed", str(exc))
+            self._set_recording_ui(False)
+            return
+        self._set_recording_ui(False)
+        self._recording_path = None
+        if captured.n_frames == 0 or target is None:
+            if target is not None:
+                target.unlink(missing_ok=True)
+            self.statusBar().showMessage("No audio was captured", 4000)
+            return
+        if self.open_file(target):
+            self.statusBar().showMessage(
+                f"Recorded {format_timecode(captured.duration)} to {target.name}", 5000
+            )
+
+    def _set_recording_ui(self, recording: bool) -> None:
+        self.transport_bar.set_recording(recording)
+        transport_enabled = self.engine.has_clip and not recording
+        for action in (
+            self.action_play,
+            self.action_stop,
+            self.action_home,
+            self.action_end,
+            self.action_loop,
+            self.action_sel_only,
+        ):
+            action.setEnabled(transport_enabled)
+        if recording:
+            self.status_recording.setText(
+                f"● Recording · 0 frames · {self.recorder.sample_rate / 1000:g} kHz"
+            )
+        else:
+            self.status_recording.setText(f"Input: {self.recorder.name} · Ready")
 
     def _on_seek(self, frame: int) -> None:
         position = self.engine.seek(frame)
@@ -1340,6 +1652,7 @@ class MainWindow(QMainWindow):
 
     def _on_selection_changed(self, selection: TimeRange | None) -> None:
         self.engine.set_selection(selection)
+        self._update_marker_actions()
         # Coalesce: a drag emits a selection per mouse move, and each one would
         # otherwise start a transform over the range.
         self._analysis_timer.start()
@@ -1402,6 +1715,7 @@ class MainWindow(QMainWindow):
             return
         self._refresh_timer.stop()
         self._analysis_timer.stop()
+        self.recorder.close()
         self.engine.shutdown()
         self._loudness_pool.shutdown(wait=False, cancel_futures=True)
         super().closeEvent(event)

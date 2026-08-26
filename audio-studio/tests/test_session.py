@@ -1170,6 +1170,9 @@ def window(qapp: object, tmp_path):  # noqa: ANN001, ANN201 - Qt widget
     engine.set_clip(clip)
     main._update_for_clip()  # noqa: SLF001 - normally triggered by open_file()
     yield main
+    # A test that edits the session leaves the project dirty, and closing then
+    # raises a modal save prompt that never returns under the offscreen plugin.
+    main._mark_project_saved()  # noqa: SLF001
     main.close()
 
 

@@ -1,4 +1,4 @@
-"""Transport controls: play/pause/stop, skip, loop, timecode and output gain."""
+"""Transport controls: record, play/pause/stop, skip, loop, timecode and gain."""
 
 from __future__ import annotations
 
@@ -22,6 +22,7 @@ GLYPH_STOP = "■"
 GLYPH_START = "|◀"
 GLYPH_END = "▶|"
 GLYPH_LOOP = "⟲"
+GLYPH_RECORD = "●"
 
 
 def _button(text: str, tooltip: str, *, checkable: bool = False) -> QPushButton:
@@ -37,6 +38,7 @@ class TransportBar(QWidget):
     """Bottom transport strip. Emits intent only; the window owns the engine."""
 
     playPauseRequested = Signal()
+    recordRequested = Signal()
     stopRequested = Signal()
     skipToStartRequested = Signal()
     skipToEndRequested = Signal()
@@ -47,7 +49,11 @@ class TransportBar(QWidget):
         super().__init__(parent)
         self._duration = 0.0
         self._selection_text = "—"
+        self._has_clip = False
 
+        self.record_button = _button(GLYPH_RECORD, "Start recording", checkable=True)
+        self.record_button.setObjectName("RecordButton")
+        self.record_button.setStyleSheet("color: #ef5350;")
         self.play_button = _button(GLYPH_PLAY, "Play / Pause (Space)")
         self.stop_button = _button(GLYPH_STOP, "Stop (Esc)")
         self.start_button = _button(GLYPH_START, "Go to start (Home)")
@@ -90,6 +96,7 @@ class TransportBar(QWidget):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(8, 6, 8, 6)
         layout.setSpacing(6)
+        layout.addWidget(self.record_button)
         layout.addWidget(self.start_button)
         layout.addWidget(self.play_button)
         layout.addWidget(self.stop_button)
@@ -105,6 +112,7 @@ class TransportBar(QWidget):
         layout.addWidget(self.volume_label)
 
     def _connect(self) -> None:
+        self.record_button.clicked.connect(lambda _checked=False: self.recordRequested.emit())
         self.play_button.clicked.connect(self.playPauseRequested)
         self.stop_button.clicked.connect(self.stopRequested)
         self.start_button.clicked.connect(self.skipToStartRequested)
@@ -121,6 +129,20 @@ class TransportBar(QWidget):
         self.play_button.setText(GLYPH_PAUSE if playing else GLYPH_PLAY)
         self.play_button.setToolTip("Pause (Space)" if playing else "Play (Space)")
 
+    def set_recording(self, recording: bool) -> None:
+        """Reflect capture state and lock playback controls while recording."""
+        self.record_button.setChecked(recording)
+        self.record_button.setToolTip("Stop recording" if recording else "Start recording")
+        enabled = self._has_clip and not recording
+        for widget in (
+            self.play_button,
+            self.stop_button,
+            self.start_button,
+            self.end_button,
+            self.loop_button,
+        ):
+            widget.setEnabled(enabled)
+
     def set_position(self, seconds: float) -> None:
         self.position_label.setText(format_timecode(seconds))
 
@@ -133,11 +155,5 @@ class TransportBar(QWidget):
         self.selection_label.setText(f"Sel {text}")
 
     def set_enabled_for_clip(self, has_clip: bool) -> None:
-        for widget in (
-            self.play_button,
-            self.stop_button,
-            self.start_button,
-            self.end_button,
-            self.loop_button,
-        ):
-            widget.setEnabled(has_clip)
+        self._has_clip = has_clip
+        self.set_recording(self.record_button.isChecked())

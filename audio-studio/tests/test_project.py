@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import numpy as np
@@ -9,6 +10,7 @@ import pytest
 
 from audio_studio.core.edit_session import EditSession
 from audio_studio.core.loader import LoadedAudio, load_audio
+from audio_studio.core.markers import MarkerList
 from audio_studio.core.sample_source import MemorySampleSource
 from audio_studio.core.session import MultitrackSession, Track
 from audio_studio.core.types import TimeRange
@@ -107,6 +109,118 @@ def test_load_rejects_unknown_schema(tmp_path: Path) -> None:
     (root / "project.json").write_text('{"schema_version": 99}', encoding="utf-8")
     with pytest.raises(ProjectLoadError, match="unsupported schema_version"):
         load_project(root)
+
+
+class TestMarkerPersistence:
+    """Markers ride along with the waveform state, without moving the schema."""
+
+    @staticmethod
+    def _save(
+        root: Path, clip: LoadedAudio, markers: MarkerList | None
+    ) -> None:
+        save_project(
+            root,
+            edit_session=EditSession.from_buffer(clip.buffer),
+            editor_clip=clip,
+            multitrack=MultitrackSession(sample_rate=clip.buffer.sample_rate),
+            workspace="waveform",
+            view_mode="split",
+            playhead=0,
+            selection=None,
+            markers=markers,
+        )
+
+    def test_markers_and_regions_survive_a_round_trip(
+        self, loaded_clip: LoadedAudio, tmp_path: Path
+    ) -> None:
+        markers = MarkerList()
+        markers.add_marker(1_000, "Intro", color="#ff0000")
+        markers.add_marker(44_100, "Verse")
+        markers.add_region(2_000, 8_000, "Chorus")
+
+        root = tmp_path / "marked.hlproj"
+        self._save(root, loaded_clip, markers)
+        restored = load_project(root).markers
+
+        assert restored == markers
+        assert [m.name for m in restored.markers] == ["Intro", "Verse"]
+        assert restored.markers[0].color == "#ff0000"
+        assert restored.regions[0].range == TimeRange(2_000, 8_000)
+
+    def test_the_schema_version_does_not_move(
+        self, loaded_clip: LoadedAudio, tmp_path: Path
+    ) -> None:
+        markers = MarkerList()
+        markers.add_marker(10, "Cue")
+
+        root = tmp_path / "versioned.hlproj"
+        self._save(root, loaded_clip, markers)
+        payload = json.loads((root / "project.json").read_text(encoding="utf-8"))
+
+        assert payload["schema_version"] == 1
+        assert payload["markers"][0]["name"] == "Cue"
+
+    def test_a_project_without_markers_omits_the_key(
+        self, loaded_clip: LoadedAudio, tmp_path: Path
+    ) -> None:
+        """Nothing to say means nothing written, so older readers see no change."""
+        root = tmp_path / "bare.hlproj"
+        self._save(root, loaded_clip, MarkerList())
+        payload = json.loads((root / "project.json").read_text(encoding="utf-8"))
+
+        assert "markers" not in payload
+        assert load_project(root).markers.is_empty
+
+    def test_a_pre_marker_project_still_loads(
+        self, loaded_clip: LoadedAudio, tmp_path: Path
+    ) -> None:
+        """A bundle written before markers existed opens with an empty list."""
+        root = tmp_path / "legacy.hlproj"
+        self._save(root, loaded_clip, None)
+        payload = json.loads((root / "project.json").read_text(encoding="utf-8"))
+        assert "markers" not in payload
+
+        snapshot = load_project(root)
+        assert snapshot.markers.is_empty
+        assert snapshot.waveform is not None
+
+    def test_markers_load_beside_the_waveform_state(
+        self, loaded_clip: LoadedAudio, tmp_path: Path
+    ) -> None:
+        markers = MarkerList()
+        markers.add_region(0, 500, "Head")
+
+        root = tmp_path / "beside.hlproj"
+        save_project(
+            root,
+            edit_session=EditSession.from_buffer(loaded_clip.buffer),
+            editor_clip=loaded_clip,
+            multitrack=MultitrackSession(sample_rate=loaded_clip.buffer.sample_rate),
+            workspace="waveform",
+            view_mode="split",
+            playhead=1_234,
+            selection=TimeRange(10, 20),
+            markers=markers,
+        )
+
+        snapshot = load_project(root)
+        assert snapshot.waveform is not None
+        assert snapshot.waveform.playhead == 1_234
+        assert snapshot.waveform.selection == TimeRange(10, 20)
+        assert snapshot.markers.regions[0].name == "Head"
+
+    def test_a_corrupt_marker_entry_is_reported_as_a_load_error(
+        self, tmp_path: Path
+    ) -> None:
+        root = tmp_path / "broken.hlproj"
+        root.mkdir()
+        (root / "project.json").write_text(
+            json.dumps({"schema_version": 1, "markers": [{"nonsense": True}]}),
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ProjectLoadError, match="invalid markers"):
+            load_project(root)
 
 
 def test_document_media_is_readable_wav(loaded_clip: LoadedAudio, tmp_path: Path) -> None:

@@ -7,8 +7,8 @@ sample-connected polyline, matching what an editor is expected to show when you
 zoom all the way in.
 
 The static waveform is cached into a :class:`QPixmap` and only re-rendered when
-the clip, the visible range or the widget size changes; playhead and selection
-updates just blit the cache and draw the overlays on top.
+the clip, the visible range or the widget size changes; playhead, selection and
+marker updates just blit the cache and draw the overlays on top.
 """
 
 from __future__ import annotations
@@ -16,9 +16,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
-from PySide6.QtCore import QPoint, QRectF, Qt, Signal
+from PySide6.QtCore import QPoint, QRect, QRectF, Qt, Signal
 from PySide6.QtGui import (
     QColor,
+    QFontMetrics,
     QMouseEvent,
     QPainter,
     QPaintEvent,
@@ -30,6 +31,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import QSizePolicy, QWidget
 
+from ..core.markers import MarkerList
 from ..core.peaks import PeakPyramid
 from ..core.types import TimeRange
 from .theme import PALETTE, Palette
@@ -42,6 +44,12 @@ SAMPLE_MODE_PPS: float = 4.0
 
 #: Drag distance, in pixels, below which a press counts as a click, not a selection.
 SELECTION_DRAG_SLOP: int = 3
+
+#: Height of the strip along the top where marker and region flags are drawn.
+MARKER_FLAG_HEIGHT: int = 14
+
+#: Widest a flag label is allowed to get before it is elided.
+MARKER_LABEL_MAX_WIDTH: int = 140
 
 
 @dataclass(frozen=True, slots=True)
@@ -79,6 +87,7 @@ class WaveformView(QWidget):
         self._selection: TimeRange | None = None
         self._playhead = 0
         self._cursor_frame = 0
+        self._markers = MarkerList()
 
         self._drag_anchor: int | None = None
         self._drag_origin_x: int | None = None
@@ -265,6 +274,15 @@ class WaveformView(QWidget):
         self.update()
 
     @property
+    def markers(self) -> MarkerList:
+        return self._markers
+
+    def set_markers(self, markers: MarkerList | None) -> None:
+        """Show ``markers`` as flags along the top of the canvas."""
+        self._markers = markers if markers is not None else MarkerList()
+        self.update()
+
+    @property
     def cursor_frame(self) -> int:
         return self._cursor_frame
 
@@ -388,7 +406,9 @@ class WaveformView(QWidget):
             return
 
         painter.drawPixmap(0, 0, self._waveform_pixmap())
+        self._paint_regions(painter)
         self._paint_selection(painter)
+        self._paint_markers(painter)
         self._paint_cursor(painter)
         self._paint_playhead(painter)
         painter.end()
@@ -544,6 +564,79 @@ class WaveformView(QWidget):
         painter.setPen(QPen(self._palette.color("selection_edge"), 1))
         painter.drawLine(int(x0), 0, int(x0), self.height())
         painter.drawLine(int(x1), 0, int(x1), self.height())
+
+    def _flag_colour(self, value: str | None, fallback: str) -> QColor:
+        """A stored colour string, falling back to the palette when unusable."""
+        if value:
+            colour = QColor(value)
+            if colour.isValid():
+                return colour
+        return self._palette.color(fallback)
+
+    def _paint_regions(self, painter: QPainter) -> None:
+        for region in self._markers.regions:
+            x0 = self.frame_to_x(region.start)
+            x1 = self.frame_to_x(region.end)
+            if x1 < 0 or x0 > self.width():
+                continue
+            colour = self._flag_colour(region.color, "region")
+            wash = QColor(colour)
+            wash.setAlpha(30)
+            painter.fillRect(
+                QRectF(x0, 0.0, max(x1 - x0, 1.0), float(self.height())), wash
+            )
+            painter.setPen(QPen(colour, 1, Qt.PenStyle.DashLine))
+            painter.drawLine(int(x0), 0, int(x0), self.height())
+            painter.drawLine(int(x1), 0, int(x1), self.height())
+            self._paint_flag_label(painter, colour, region.name, int(x0) + 4, int(x1))
+
+    def _paint_markers(self, painter: QPainter) -> None:
+        markers = self._markers.markers
+        for index, marker in enumerate(markers):
+            x = int(self.frame_to_x(marker.frame))
+            if not (-1 <= x <= self.width() + 1):
+                continue
+            colour = self._flag_colour(marker.color, "marker")
+            painter.setPen(QPen(colour, 1))
+            painter.drawLine(x, MARKER_FLAG_HEIGHT, x, self.height())
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(colour)
+            painter.drawPolygon(
+                QPolygon(
+                    [
+                        QPoint(x, 0),
+                        QPoint(x + 11, 0),
+                        QPoint(x + 8, 5),
+                        QPoint(x + 11, 10),
+                        QPoint(x, 10),
+                    ]
+                )
+            )
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            neighbour = (
+                int(self.frame_to_x(markers[index + 1].frame)) - 2
+                if index + 1 < len(markers)
+                else self.width()
+            )
+            self._paint_flag_label(painter, colour, marker.name, x + 14, neighbour)
+
+    def _paint_flag_label(
+        self, painter: QPainter, colour: QColor, text: str, x: int, limit_x: int
+    ) -> None:
+        """Draw a flag caption from ``x``, elided so it cannot run into its neighbour."""
+        available = min(limit_x, self.width()) - x
+        if not text or available < 12:
+            return
+        metrics = QFontMetrics(painter.font())
+        elided = metrics.elidedText(
+            text, Qt.TextElideMode.ElideRight, min(available, MARKER_LABEL_MAX_WIDTH)
+        )
+        painter.setPen(QPen(colour, 1))
+        painter.drawText(
+            QRect(x, 0, available, MARKER_FLAG_HEIGHT),
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+            elided,
+        )
 
     def _paint_cursor(self, painter: QPainter) -> None:
         if self._selection is not None:
