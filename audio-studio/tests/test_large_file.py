@@ -230,7 +230,7 @@ def test_mocked_giant_files_are_flagged_for_streaming(
 
     estimate = estimated_decoded_bytes(wav_file)
     assert estimate == HUGE_FRAMES * 2 * 4  # frames * channels * float32
-    assert estimate > 2**38  # far beyond any budget
+    assert estimate > DEFAULT_MEMORY_BUDGET_BYTES  # 256 GiB: far past any budget
     assert should_stream(wav_file)
     with pytest.raises(MemoryBudgetError):
         check_memory_budget(wav_file)
