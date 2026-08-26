@@ -8,7 +8,10 @@ import numpy as np
 import pytest
 
 from openfemlab.core.dofs import DofMap, DofType
-from openfemlab.core.model import ElementType, Material, Model, Property
+from openfemlab.core.neutral import ElementType
+from openfemlab.core.neutral import NeutralMaterial as Material
+from openfemlab.core.neutral import NeutralModel as Model
+from openfemlab.core.neutral import NeutralProperty as Property
 from openfemlab.core.results import ModalResult
 from openfemlab.core.results import TestData as ModalTestData
 from openfemlab.io import (

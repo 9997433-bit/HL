@@ -10,7 +10,10 @@ from typing import Any, TextIO
 import numpy as np
 
 from openfemlab.core.dofs import DofMap, DofType
-from openfemlab.core.model import ElementType, Material, Model, Property
+from openfemlab.core.neutral import ElementType
+from openfemlab.core.neutral import NeutralMaterial as Material
+from openfemlab.core.neutral import NeutralModel as Model
+from openfemlab.core.neutral import NeutralProperty as Property
 from openfemlab.core.results import ModalResult, TestData
 
 from ._common import (
