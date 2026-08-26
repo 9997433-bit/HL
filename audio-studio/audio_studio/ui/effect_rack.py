@@ -595,7 +595,7 @@ class EffectRackPanel(QWidget):
             self.declick_sensitivity,
         ):
             slider._update_readout()  # noqa: SLF001 - sibling widget, signals were blocked
-        self._update_status()
+        self.update_status()
 
     def reset(self) -> None:
         """Flatten every control without replacing the chain object.
@@ -794,8 +794,13 @@ class EffectRackPanel(QWidget):
         self._changed()
 
     def _changed(self) -> None:
-        self._update_status()
+        self.update_status()
         self.chainChanged.emit()
 
-    def _update_status(self) -> None:
+    def update_status(self) -> None:
+        """Re-read the chain into the rack's own summary line.
+
+        Public because the chain is not the rack's alone: the plugin slot
+        inserts into it too, and its changes have to show up here.
+        """
         self.status.setText(self.summary())

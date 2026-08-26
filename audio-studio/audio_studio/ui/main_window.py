@@ -86,6 +86,7 @@ from .effect_rack import EffectRackPanel, default_preview_chain
 from .level_meter import LevelMeter
 from .marker_panel import MarkerPanel
 from .multitrack_view import MultitrackView
+from .plugin_panel import PluginPanel
 from .spectrum_panel import SpectralSelection, SpectrumPanel
 from .theme import PALETTE, stylesheet
 from .track_panel import TrackPanel
@@ -127,6 +128,9 @@ class MainWindow(QMainWindow):
         self.transport_bar = TransportBar()
         self.spectrum_panel = SpectrumPanel()
         self.effect_rack = EffectRackPanel(self.effect_chain)
+        # One external-plugin slot, inserted into the same preview chain the
+        # rack drives, so a VST3 is auditioned through the same path.
+        self.plugin_panel = PluginPanel(self.effect_chain)
 
         # Markers annotate the waveform document, so they live with the window
         # rather than the engine and are saved into the project bundle.
@@ -220,6 +224,19 @@ class MainWindow(QMainWindow):
             Qt.DockWidgetArea.RightDockWidgetArea | Qt.DockWidgetArea.LeftDockWidgetArea
         )
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.effects_dock)
+
+        # The plugin slot feeds the same chain as the rack, so it belongs on the
+        # same side of the window — tabbed behind it rather than competing for
+        # width with a panel most sessions never open.
+        self.plugin_dock = QDockWidget("VST3 Plugin", self)
+        self.plugin_dock.setObjectName("PluginDock")
+        self.plugin_dock.setWidget(self.plugin_panel)
+        self.plugin_dock.setAllowedAreas(
+            Qt.DockWidgetArea.RightDockWidgetArea | Qt.DockWidgetArea.LeftDockWidgetArea
+        )
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.plugin_dock)
+        self.tabifyDockWidget(self.effects_dock, self.plugin_dock)
+        self.effects_dock.raise_()
 
         self.markers_dock = QDockWidget("Markers", self)
         self.markers_dock.setObjectName("MarkersDock")
@@ -516,6 +533,7 @@ class MainWindow(QMainWindow):
         view_menu.addSeparator()
         view_menu.addAction(self.spectrum_dock.toggleViewAction())
         view_menu.addAction(self.effects_dock.toggleViewAction())
+        view_menu.addAction(self.plugin_dock.toggleViewAction())
         view_menu.addAction(self.markers_dock.toggleViewAction())
         view_menu.addAction(self.action_analyze)
 
@@ -589,6 +607,7 @@ class MainWindow(QMainWindow):
         self.spectrum_panel.attenuateRequested.connect(self.spectral_attenuate)
         self.spectrum_panel.deleteRequested.connect(self.spectral_delete)
         self.effect_rack.chainChanged.connect(self._on_chain_changed)
+        self.plugin_panel.pluginChanged.connect(self._on_chain_changed)
 
         self.marker_panel.selectionChanged.connect(self._update_marker_actions)
         self.marker_panel.goToRequested.connect(self._on_seek)
@@ -1763,6 +1782,9 @@ class MainWindow(QMainWindow):
             self.statusBar().clearMessage()
 
     def _on_chain_changed(self) -> None:
+        # The rack and the plugin slot insert into one chain, and the rack's
+        # summary names every member of it, so both paths re-read the same line.
+        self.effect_rack.update_status()
         self.status_fx.setText(self.effect_rack.summary())
 
     def _scale_amplitude(self, factor: float) -> None:
