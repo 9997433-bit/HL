@@ -104,6 +104,7 @@ Useful flags:
 | `--wasapi-exclusive` | Request WASAPI exclusive-mode output (Windows only, see above) |
 | `--offscreen` | Use Qt's offscreen platform plugin (headless smoke tests) |
 | `--exit-after N` | Quit after N seconds, for CI |
+| `--scale-factor F` | Scale the whole interface by F (1.0–2.0), see *Accessibility* |
 
 Headless smoke test:
 
@@ -487,24 +488,116 @@ their size as a first-class concern rather than an accident:
   `.w64` writes Wave64) whenever the local libsndfile supports it, so a
   long-form bounce is not silently truncated at 4 GB.
 
+## Accessibility
+
+The editor targets **WCAG 2.2 level AA** for everything it draws itself, and
+the three claims below are enforced by `tests/test_accessibility.py` rather
+than asserted in prose: contrast is recomputed from the live palette, the
+shortcut audit walks the real menu bar, and the scale factor is checked
+end to end in a fresh interpreter.
+
+### Display scaling and HiDPI
+
+Qt 6 picks up the desktop's own scaling, but rounds the device pixel ratio to
+a whole number by default, which throws away a 125% or 150% setting. Audio
+Studio switches the rounding policy to `PassThrough` before the
+`QApplication` exists, so fractional display scales arrive intact, and adds an
+explicit override for the cases where the desktop reports the wrong thing —
+a 4K laptop panel driving an unscaled X session, or simply wanting bigger
+type:
+
+```bash
+python -m audio_studio --scale-factor 1.5   # 1.0–2.0, refused outside that
+QT_SCALE_FACTOR=1.25 python -m audio_studio # the same knob, from the session
+```
+
+The flag writes `QT_SCALE_FACTOR`, which Qt reads once while the application
+object is constructed; passing it explicitly overrides an inherited value,
+and omitting it leaves whatever the desktop session set alone. Everything in
+the interface is laid out in logical pixels — no pixel geometry is hard-coded
+against a physical display — so the waveform, the meters and the spectral
+display scale with the chrome.
+
+### Colour and contrast
+
+`audio_studio.ui.theme` documents a measured contrast ratio for every colour
+pair the interface actually puts on screen, and `theme.failing_pairs()` audits
+a palette against the WCAG floors:
+
+- **4.5:1** for normal-size text (SC 1.4.3). The tightest pair shipped is body
+  text on a pressed or checked button at 4.99:1; the rest run from 5.16:1 to
+  13.38:1.
+- **3:1** for graphics and control boundaries (SC 1.4.11): waveform ink,
+  meter segments, markers, playhead, and the outline that identifies a
+  control. Interactive controls are outlined in a dedicated `control_border`
+  grey held above 3:1 against every fill it is drawn over, rather than in the
+  quieter `border` hairline used to separate chrome panels.
+- Keyboard focus is a 2 px accent ring instead of Qt's default dotted
+  outline, which is nearly invisible on a dark fill (SC 2.4.11 / 2.4.13).
+
+Two colours were changed to meet that budget: `text_dim` was lightened so
+secondary labels clear 4.5:1 on every surface they appear on, and the
+selection fill was split in two — a selected menu row is now full-strength
+accent with an inverted near-black label (6.77:1), while the darker
+`accent_dim` fills pressed and checked buttons *under* unchanged body text
+(4.99:1). Colour is never the only channel for state: recording, clipping and
+bypass each carry a glyph or a text label as well (SC 1.4.1).
+
+Known deviation: the chrome fills themselves (window → panel → control)
+differ by roughly 1.2:1. Depth is carried by luminance ordering, which is why
+controls get an explicit outline and a focus ring rather than being
+identified by their fill.
+
 ### Keyboard
+
+Every command in the menu bar has a shortcut and no sequence is bound twice —
+a test walks the menus and fails on either. **Help ▸ Keyboard Shortcuts**
+(`F1`) opens the full table, generated from the live actions so it cannot
+document a binding the build does not have.
 
 | Shortcut | Action |
 |---|---|
 | `Ctrl+O` / `Ctrl+W` | Open / close file |
-| `Space` | Play / pause |
-| `Esc` | Stop |
-| `Home` / `End` | Go to start / end of the playback region |
-| `L` | Toggle loop |
+| `Ctrl+S` / `Ctrl+Alt+S` | Save project / save project as… |
+| `Ctrl+Shift+O` | Open project |
+| `Ctrl+Shift+S` | Export as… |
+| `Ctrl+Q` | Exit |
+| `Ctrl+Z` / `Ctrl+Y` | Undo / redo (the platform's own Redo binding) |
+| `Ctrl+X` / `Ctrl+C` / `Ctrl+V` / `Del` | Cut / copy / paste / delete |
+| `Ctrl+Shift+M` / `Ctrl+T` | Silence / trim to selection |
+| `Ctrl+G` / `Ctrl+R` | Apply gain… / reverse |
+| `Ctrl+Shift+I` / `Ctrl+Shift+U` | Fade in / fade out |
+| `Ctrl+Shift+N` | Insert silence… |
 | `Ctrl+A` / `Ctrl+Shift+A` | Select all / deselect |
-| `Ctrl+=` / `Ctrl+-` / `Ctrl+0` | Zoom in / out / fit |
-| `Ctrl+Shift+0` | Zoom to selection |
-| `Ctrl+Up` / `Ctrl+Down` | Amplitude zoom |
 | `Ctrl+Alt+A` / `Ctrl+Alt+D` | Attenuate / delete the spectral selection |
 | `M` / `Shift+M` | Add a marker at the playhead / a region from the selection |
 | `Ctrl+Left` / `Ctrl+Right` | Go to the previous / next marker |
-| `F2` | Rename the marker selected in the Markers panel |
-| `Ctrl+Shift+S` | Export as… |
+| `F2` / `Ctrl+Shift+Del` | Rename / remove the selected marker |
+| `Ctrl+Alt+M` | Clear all markers and regions |
+| `Ctrl+=` / `Ctrl+-` / `Ctrl+0` | Zoom in / out / fit |
+| `Ctrl+Shift+0` | Zoom to selection |
+| `Ctrl+Up` / `Ctrl+Down` | Amplitude zoom |
+| `Alt+1` / `Alt+2` / `Alt+3` | Waveform / spectral / split layout |
+| `Alt+4` / `Ctrl+Shift+T` | Multitrack mode / add the clip as a track |
+| `Alt+=` / `Alt+-` | Multitrack zoom in / out |
+| `Ctrl+Alt+1`…`Ctrl+Alt+4` | Toggle the spectral, effects, plugin and marker docks |
+| `F5` | Re-run the spectral analysis |
+| `Space` / `Esc` | Play-pause / stop |
+| `Home` / `End` | Go to start / end of the playback region |
+| `L` / `Shift+L` | Toggle loop / play selection only |
+| `F1` / `Shift+F1` | Keyboard shortcuts / about |
+
+Menu bar titles carry Alt mnemonics (`Alt+F` for File, and so on), and every
+dialog is reachable and dismissable from the keyboard.
+
+### Not covered yet
+
+Screen-reader support is only what Qt provides by default: the shortcut sheet
+sets an accessible name and description, but the custom-painted widgets — the
+waveform, the spectrogram and the level meter — expose no accessible value or
+text alternative, so their content is unreadable to a screen reader. There is
+no high-contrast or light theme, no reduced-motion setting for the 30 Hz
+playhead, and no user-configurable font size beyond `--scale-factor`.
 
 ## Licensing and optional components
 
