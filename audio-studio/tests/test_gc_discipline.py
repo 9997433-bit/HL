@@ -14,7 +14,7 @@ from audio_studio.core.types import AudioBuffer
 
 def test_default_block_is_about_five_milliseconds_at_48khz() -> None:
     assert DEFAULT_BLOCK_SIZE == 256
-    assert DEFAULT_BLOCK_SIZE / 48_000 == pytest.approx(0.005333, abs=1e-6)
+    assert pytest.approx(0.005333, abs=1e-6) == DEFAULT_BLOCK_SIZE / 48_000
 
 
 def test_enter_collects_before_freezing(monkeypatch: pytest.MonkeyPatch) -> None:
