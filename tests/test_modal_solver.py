@@ -35,7 +35,15 @@ import pytest
 import scipy.sparse as sp
 import yaml
 
-from openfemlab import DOF, Material, ModalSolver, Model, Section, SolverError
+from openfemlab import (
+    DOF,
+    Material,
+    MatrixDefinitenessError,
+    ModalSolver,
+    Model,
+    Section,
+    SolverError,
+)
 from openfemlab.mesh.simple import bar_mesh, beam_mesh, spring_mass_chain, truss_from_arrays
 
 STEEL = Material(E=2.1e11, density=7850.0, nu=0.3, name="steel")
@@ -662,10 +670,11 @@ def test_massless_mechanism_is_reported():
         ModalSolver(detached).solve(num_modes=1)
 
 
-def test_negative_stiffness_matrix_warns():
+def test_negative_stiffness_matrix_is_rejected():
+    """MS-1.1: an eigenvalue below the rigid-body noise floor is not a 0 Hz mode."""
     K = np.array([[1.0, 0.0], [0.0, -1.0]])
     M = np.eye(2)
     solver = ModalSolver.from_matrices(K, M)
-    with pytest.warns(RuntimeWarning, match="negative eigenvalues"):
-        result = solver.solve(num_modes=2, normalization="none")
-    assert result.eigenvalues[0] == 0.0
+    with pytest.raises(MatrixDefinitenessError, match="not positive semi-definite") as excinfo:
+        solver.solve(num_modes=2, normalization="none")
+    assert excinfo.value.eigenvalue == pytest.approx(-1.0)
