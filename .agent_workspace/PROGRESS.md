@@ -15,7 +15,9 @@
 - 应用题母题185道、计算专题、数独/逻辑专项
 - 剧情化演绎、碎片化学习
 
-## 我们的超越策略
+## 全面超越洪恩
+- **主计划**：`.agent_workspace/SURPASS-HONGEN-MASTER-PLAN.md`（模块对标表 + Round 4–7 路线）
+- **当前差距**：内容体量约 10–20% 洪恩；工程 SOTA P0 约 60–70%；需 4 轮并发攻坚
 1. **完全开源** + 离线可用 + 无订阅墙
 2. **Web技术栈**：Vue3 + GSAP动画 + HanziWriter + Tone.js
 3. **开源资源**：hanzi-study、HanziWriter、makemeahanzi、OpenMoji、Lottie
@@ -26,7 +28,9 @@
 |-------|------|------|
 | Round 1 | ✅ 完成 | 双 App 构建通过；zip 已打包 |
 | Round 2 | ✅ 完成 | 10子代理合并；识字106字+FSRS；数学QuizShell+瘦身；离线SW |
-| Round 3 | 🔄 进行中 | SOTA打磨与最终验收 |
+| Round 3 | 🔄 收尾中 | SOTA 打磨；200字/家长中心/axe0/a11y/NOTICES/tokens/OpenMoji |
+| Round 4 | ⬜ 待启动 | **P0 清零 + 单字状态机 + 错题本 + 自适应 + 500字 + Perf≥95**（见 SURPASS-HONGEN-MASTER-PLAN.md） |
+| Round 5–7 | ⬜ 规划 | 内容体量对齐洪恩（1800字/130绘本/185母题）+ 拍照识字 + 终验 |
 
 ## 并发规则（已更新）
 **每轮固定 10 个子代理并发，缺了立马补。**
