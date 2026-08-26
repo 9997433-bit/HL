@@ -57,6 +57,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A43 | claude-opus-5-thinking-high-fast | R2-T03: AC-CORR-006 acceptance gate (reduced- vs expanded-space pairing) and its registration (backfill for A36) | complete |
 | A46 | claude-opus-5-thinking-high-fast | R2-T02 continued: TET4 constant-strain tetrahedron, Kuhn tet-block mesh, 3D patch suite (backfill for A42) | complete |
 | A54 | claude-opus-5-thinking-high-fast | `openfemlab correlate-frf`: the CLI surface over `correlation/frf.py`, closing the last R2-T01 exit item (backfill for A41) | complete |
+| A62 | gpt-5.6-sol-xhigh-fast | Superseded-branch closure record and current-trunk verification (backfill for A40) | in progress — cleanup record committed; full suite pending |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
