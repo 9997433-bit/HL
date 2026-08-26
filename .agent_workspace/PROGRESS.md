@@ -1597,12 +1597,18 @@ A27. The A24 backlog above is otherwise the live plan.
   acceptance file predates the trunk's `NaturalFrequency`/`Objective` imports, so the
   union was kept. `PROGRESS.md` took both new sections.
 - **Verified** from a private clone at `/tmp/a52` with `PYTHONPATH=/tmp/a52/src`, Python
-  3.12.3 / NumPy 2.5.2 / SciPy 1.18.1: **676 passed, 0 failed** at the gate merge, then
-  **679 passed, 0 failed** (102.7 s) at `c90e4fa` after merging the integration tip that
-  landed underneath (A44's AC-WORK/AC-UPD-007 tagging). `ruff check .` clean at both.
-  `PR_DRAFT.md` moved off the 671 baseline with the per-suite breakdown re-derived from
-  `--collect-only` rather than adjusted arithmetically; acceptance registry + gates is
-  now 173, not 165.
+  3.12.3 / NumPy 2.5.2 / SciPy 1.18.1: **676 passed, 0 failed** at the gate merge itself,
+  and finally **797 passed, 0 failed** (87.87 s) at `1acb89b`, the pushed tip, after the
+  integration branch moved three times underneath this task — A44's AC-WORK/AC-UPD-007
+  tagging, then A46's TET4 slice and A49's Bayesian MAP estimator, then A43's dataset-58
+  sharing and the `correlate-frf` CLI command. `ruff check .` clean at every step; the 15
+  AC-OPT gates pass on the merged tree.
+- `PR_DRAFT.md` was re-pinned at 797 with the per-suite breakdown re-derived from
+  `--collect-only` rather than adjusted arithmetically, and three claims it had outgrown
+  were corrected rather than left standing behind a fresh count: TET4 is landed (so
+  R2-T02's open list is HEX8, the 3D beam and shell facets, with TET4's bending lock
+  pinned by test rather than fixed), the Bayesian MAP path is implemented with its
+  AC-UPD-006a/b rows still untagged, and the CLI has a fourth command.
 - **Working-tree hazard, seventh occurrence — and this time it ate a commit.** The first
   merge was made in `/workspace` and verified green at 665, and was then destroyed by
   another agent's `git reset --hard` before it could be pushed; the reflog shows the
