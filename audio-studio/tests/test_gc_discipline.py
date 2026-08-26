@@ -57,12 +57,8 @@ def test_engine_enters_once_and_leaves_once_on_shutdown(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[str] = []
-    monkeypatch.setattr(
-        rt_discipline, "enter_realtime_mode", lambda: calls.append("enter")
-    )
-    monkeypatch.setattr(
-        rt_discipline, "leave_realtime_mode", lambda: calls.append("leave")
-    )
+    monkeypatch.setattr(rt_discipline, "enter_realtime_mode", lambda: calls.append("enter"))
+    monkeypatch.setattr(rt_discipline, "leave_realtime_mode", lambda: calls.append("leave"))
     source = MemorySampleSource(
         AudioBuffer(np.ones((4096, 1), dtype=np.float32), sample_rate=48_000)
     )
@@ -82,9 +78,7 @@ def test_shutdown_before_playback_does_not_unfreeze(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[str] = []
-    monkeypatch.setattr(
-        rt_discipline, "leave_realtime_mode", lambda: calls.append("leave")
-    )
+    monkeypatch.setattr(rt_discipline, "leave_realtime_mode", lambda: calls.append("leave"))
 
     AudioEngine(NullOutput(realtime=False)).shutdown()
 
