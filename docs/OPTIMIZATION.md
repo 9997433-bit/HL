@@ -216,6 +216,12 @@ is still quasi-Newton unless the caller passes an exact one as
 `options={"hess": …}`, which is worth doing for a minimum-mass objective,
 because that objective is linear and its exact Hessian is zero.
 
+The bound multipliers belong in that *same* fit, not in a projection applied
+after it. At the bound-active optimum of §8 the objective gradient `(0.2, 0.2)`
+is nowhere near the cone of the lone constraint gradient
+`(−3.8e-2, −6.2e-3)`: fitting the constraint multiplier alone leaves a residual
+of 0.166 at a solution that satisfies KKT exactly.
+
 **Status.** Wired and gated. AC-OPT-002 is verified against the closed-form
 optimum of §8 (objective within 1e-4 relative, active `|g| ≤ 1e-6`), AC-OPT-003
 over both the recorded iterates and the points the model is actually asked to
@@ -242,11 +248,33 @@ t* = ω² m_0 / (μ_1 − ω² m_s),        ω = 2π f_min
 
 where `μ_1` is the smallest eigenvalue of `K_1`.
 
+That oracle is one-dimensional, so it says nothing about the thing sizing
+optimization exists to do: *distribute* material between variables. The
+two-link variant closes that. With both links sized and each carrying `ε` of
+mass per unit of stiffness on a unit non-structural mass per node,
+`M(k) = (1 + ε S) I` with `S = k1 + k2`, so `λ = μ/(1 + ε S)` for the
+eigenvalues of `K(k) = [[k1+k2, −k2], [−k2, k2]]`, and minimizing mass is
+minimizing `S`. At fixed `S` the fundamental is largest for the split
+`(3S/5, 2S/5)` — the characteristic polynomial becomes `μ² − 1.4 S μ + 0.24 S²`,
+with roots `S/5` and `6S/5` — so the floor is first met at
+
+```
+S* = λ* / (1/5 − ε λ*)
+```
+
+and only at that split: the optimum is the single **asymmetric** point
+`(3S*/5, 2S*/5)`. With `ε = 1/10` and `λ* = 1` it is exactly `(6, 4)` at mass 4,
+which SLSQP recovers from a symmetric start to 1.1e-16 relative in 11
+eigensolves. Raising the `k2` lower bound above its free optimum moves the
+solution onto the bound, which is where the two methods separate: SLSQP is an
+active-set method and lands on it, trust-constr is a barrier method and stops
+about 2e-4 inside. Neither crosses it, and neither evaluates below it.
+
 | Criterion | Verified by |
 |---|---|
 | AC-OPT-001 | `check_gradient` on the compiled objective and constraint at three seeded feasible points |
-| AC-OPT-002 | the uniform chain solved to `t*` within 1e-4 relative with `\|g\| ≤ 1e-6`, plus a random-probe check that no feasible sample beats the three-variable optimum |
-| AC-OPT-003 | every recorded iterate *and* every point the model is asked to evaluate inside the box to 1e-12 |
+| AC-OPT-002 | the uniform chain solved to `t*` within 1e-4 relative with `\|g\| ≤ 1e-6`; the two-link chain to its asymmetric `(3S*/5, 2S*/5)`; plus a random-probe check that no feasible sample beats the three-variable optimum |
+| AC-OPT-003 | every recorded iterate *and* every point the model is asked to evaluate inside the box to 1e-12, including a run whose optimum is on a bound |
 | AC-OPT-004 | two uncoupled oscillators driven through a crossing: the tracked frequency follows its branch and consecutive tracked shapes keep MAC ≥ 0.9 |
 
 `tests/acceptance/test_optimization.py` holds the gates;
