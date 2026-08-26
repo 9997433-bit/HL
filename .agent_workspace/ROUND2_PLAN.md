@@ -16,26 +16,28 @@ A supporting backlog covers the remaining Round 2 items from
 
 ---
 
-## 0. Status snapshot — mid-round (A83, 2026-08-26, integration tip after the AC-UPD-006 and spatial-beam merges)
+## 0. Status snapshot — mid-round (A93, 2026-08-26, integration tip `e3ef8f8`)
 
-Verified at that tip from a private clone (`PYTHONPATH` pinned): full suite
-**1089 passed, 0 failed**, `ruff check .` clean, on Python 3.12.3 / NumPy 2.5.2 /
-SciPy 1.18.1. Registry: **44 criteria — 41 `implemented`, 3 `specified`, 0 `verified`**
-once the A59 element slice's three M7 rows and the AC-UPD-006a/b pair joined the
-trunk's AC-CORR-008/009. Every **P0** row is now `implemented`; the three still
+Verified at that tip from a detached private worktree (`PYTHONPATH` pinned): full suite
+**1133 passed, 0 failed** in 74.87 s, `ruff check .` clean, on Python 3.12.3 /
+NumPy 2.5.2 / SciPy 1.18.1. The same run at the spatial-beam merge one commit earlier
+(`75dd070`) gave **1089 passed**; the 44-test difference is the meshio bridge.
+Registry: **44 criteria — 41 `implemented`, 3 `specified`, 0 `verified`**, reached once
+the A59 element slice's three M7 rows and the AC-UPD-006a/b pair joined the trunk's
+AC-CORR-008/009. Every **P0** row is `implemented` (34/34); the three still
 `specified` are all P1 (AC-MODAL-008, AC-UPD-008, AC-WORK-003). Nothing can reach
 `verified` until R2-T09 stands up the CI job.
 
 | Task | Status |
 |---|---|
 | R2-T01 dynamics/FRF | **COMPLETE** — engine (`acda625`), AC-DYN-001..005 `implemented`, report `frf` block at schema 1.1 (A41), `openfemlab correlate-frf` CLI (A54). No open work. |
-| R2-T02 3D elements | **PARTIAL** — QUAD4 (A37), TET4 (A46) and HEX8 (A59, merged by A79) are all on the integration branch with mesh generators and 203 tests, AC-ELEM-001..003 are registered as module M7 over all three (+24 acceptance cases), and the spatial beam `BeamElement3D` landed with 42 tests (A82). Open: flat-facet shell, `NeutralModel` → `Model` conversion, solid/shell BDF cards (`CBAR` included). |
+| R2-T02 3D elements | **PARTIAL** — QUAD4 (A37), TET4 (A46) and HEX8 (A59, merged by A79) are all on the integration branch with mesh generators and 203 tests, AC-ELEM-001..003 are registered as module M7 over all three (+24 acceptance cases), and the spatial beam `BeamElement3D` (A82, 42 tests) was merged onto the integration branch at `75dd070` (A93). Open: flat-facet shell, `NeutralModel` → `Model` conversion, solid/shell BDF cards (`CBAR` included). |
 | R2-T03 reduction/expansion | **ACCEPTANCE-COMPLETE** — engine (A36, `correlation/reduction.py`) with the AC-CORR-006 gate `implemented` (A43), and AC-CORR-009 plus the `SensorMap.signs` wiring landed (A58). Open: sparse inputs, `verified` flip. |
 | R2-T04 Bayesian MAP | **ACCEPTANCE-COMPLETE** — estimator (A49, `updating/bayesian.py`, 36 tests) plus the AC-UPD-006a/b tagging, the registry flip and the Laplace σ_post in the `CorrectionReport` (A57, on the trunk since the `ac-upd-006-registration-6615` merge). Open: σ_post in the CLI `update` document, which is outside the acceptance slice. |
 | R2-T05 meshio & IO | **PARTIAL** — the meshio bridge landed (A89, `io/meshio_bridge.py`, 44 tests): `from_meshio`/`to_meshio` over a one-to-one cell-type table, `read_meshio`/`write_meshio`, and the P7 optional-dependency seam with `MissingDependencyError`. Open: AC-IO-001..003 registration, UNV 2411/2412, `NeutralModel` → `Model` re-analysis of an imported mesh, UFF writing. |
 | R2-T06 updating depth | P0 slice closed (AC-UPD-007, A44); P1 depth (MAC-row Jacobian wiring, model-level resolver, per-element dK/dp) open. |
 | R2-T07 optimization | **COMPLETE for sizing** — A27 backend + A40 harvest; AC-OPT-001..004 `implemented`. Shape variables still FD. |
-| R2-T08 R1-O2 reconciliation | Pending a close-as-superseded decision (A40/A14); no merge wanted. |
+| R2-T08 R1-O2 reconciliation | **COMPLETE** — content reconciled by A14; the superseded side branches were audited in [`BRANCH_CLEANUP.md`](BRANCH_CLEANUP.md) and deleted from `origin` (A62, and `cursor/beam3d-cbar-element-c9a7` by A93). |
 | R2-T09 exit hardening | **NOT STARTED** — no CI job, so nothing can move `implemented → verified`. |
 
 ---
@@ -158,8 +160,10 @@ consistency tests fail.
   quadrature-exact on a distorted brick, and the bending comparison that motivates the
   element: +8.0 % against Euler–Bernoulli at 2475 DOF where TET4 on the same grid is
   +25 %.
-  *Spatial beam* (A82, `cursor/beam3d-cbar-element-c9a7`; suite **1089 passed** at the
-  merged tip, Ruff clean): `BeamElement3D`, the CBAR-like two-node frame member with six DOFs per node —
+  *Spatial beam* (A82, merged onto the integration branch by A93 at `75dd070`, after
+  which `cursor/beam3d-cbar-element-c9a7` was deleted from `origin`; suite **1089
+  passed** at that merge, Ruff clean):
+  `BeamElement3D`, the CBAR-like two-node frame member with six DOFs per node —
   axial extension, St Venant torsion and uncoupled bending in the two principal planes,
   built from the same Hermitian 4x4 blocks the planar beam uses, so the
   `(u, v, theta_z)` sub-block of both local matrices reproduces `BeamElement2D` to
@@ -429,9 +433,9 @@ Round 2 is done when, on the integration branch in CI:
 2. **R2-T02 — 3D elements** (GAP-02, P0): QUAD4/TET4/HEX8 plus the spatial beam so
    imported industrial meshes can be re-analyzed, unblocking the meshio bridge
    (R2-T05). All three continuum elements are landed, AC-ELEM-001..003 are registered,
-   and the CBAR-like `BeamElement3D` closed the frame slice (A82); the shell facet and
-   the solid/shell BDF cards remain, and R2-T05 is now unblocked for solid *and* frame
-   meshes.
+   and the CBAR-like `BeamElement3D` closed the frame slice (A82, merged at `75dd070`
+   by A93); the shell facet and the solid/shell BDF cards remain, and R2-T05 is now
+   unblocked for solid *and* frame meshes.
 3. **R2-T03 — SEREP/TAM reduction & expansion** (GAP-08) and **R2-T04 Bayesian MAP**
    were the tied Round-2 sign-off blockers, via AC-CORR-006 and AC-UPD-006a/b. Both
    engines are on the trunk (`correlation/reduction.py` A36, `updating/bayesian.py`
