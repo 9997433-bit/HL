@@ -35,3 +35,6 @@
 - fable×3: 架构规划、SOTA审计、UI/UX设计规范
 - opus-fast×4: 识字核心、数学核心、识字视图完善、数学视图完善
 - gpt-sol×3: 开源资源探针、测试打包脚本、动画音效集成与性能基准
+
+## Round 1 交付记录
+- [x] fable·识字架构: `.agent_workspace/literacy-architecture.md`（竞品审计10项对齐+8项超越点、7模块契约、数据schema、开源资源清单、R2攻坚清单）；`apps/literacy-app/README.md`；`src/utils/srs.js` FSRS-lite 记忆曲线契约（纯函数，R2 接线替换现有阈值复习队列）。已与 opus-fast 落地代码对齐（hash路由/离线笔顺裁剪/WebAudio音效）。
