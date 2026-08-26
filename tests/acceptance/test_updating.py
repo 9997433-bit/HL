@@ -12,6 +12,14 @@ Implemented here
 - **AC-UPD-003** (twin, MS-3.4) — a model detuned by +/-20 % is recovered from
   noise-free measurements to 1e-3 in at most ten iterations, and the corrected
   model passes the MS-4.2 correlation gates.
+- **AC-UPD-006a** (property, MS-3.5) — the Bayesian MAP step reduces to the
+  unregularized Gauss-Newton step as ``C_p^-1 -> 0``: identically at zero prior
+  precision, to 1e-8 relative at precision scale 1e-12, and end to end where a
+  sigma = 1e6 prior reproduces the AC-UPD-003 answer.
+- **AC-UPD-006b** (property, MS-3.5) — the reported ``sigma_post`` never
+  exceeds ``sigma_prior``, shrinks monotonically as the prior narrows, and a
+  prior far tighter than the data holds ``theta*`` within 3 ``sigma_prior`` of
+  ``theta_0`` instead of at the truth AC-UPD-003 recovers.
 - **AC-UPD-007** (twin, MS-3.6) — a deliberately duplicated parameter is caught
   by the pre-updating collinearity screen at pairwise cosine > 0.99, one of the
   pair is frozen with a reported reason, and updating still recovers the
@@ -29,7 +37,16 @@ import numpy as np
 import pytest
 
 from openfemlab.correlation import modal_scale_factor
-from openfemlab.updating import ModelUpdater, ParameterSet, ScalingModel, UpdatableParameter
+from openfemlab.updating import (
+    BayesianUpdater,
+    BayesianUpdatingResult,
+    GaussianPrior,
+    ModelUpdater,
+    ParameterSet,
+    ScalingModel,
+    UpdatableParameter,
+    map_step,
+)
 from openfemlab.updating.sensitivity import eigenvalue_sensitivity, mode_shape_sensitivity
 from openfemlab.workflow import run_correction, select_parameters
 
@@ -50,6 +67,20 @@ RECOVERY_TOLERANCE = 1e-3
 MAX_UPDATING_ITERATIONS = 10
 FREQUENCY_GATE_PERCENT = 0.1
 MAC_GATE = 0.999
+
+#: Gates of AC-UPD-006a/b. The MAP twin is the AC-UPD-003 ``stiffness`` case,
+#: so the deterministic answer the weak-prior limit must reproduce is already
+#: pinned by the tests above.
+GAUSS_NEWTON_LIMIT = 1e-8
+PRIOR_PRECISION_SCALES = (1.0e-2, 1.0e-6, 1.0e-12)
+PRIOR_STANDARD_DEVIATIONS = (1.0, 0.1, 0.01)
+TIGHT_PRIOR_STD = 0.01
+CREDIBLE_SIGMAS = 3.0
+BAYES_CASE = "stiffness"
+
+#: An off-centre prior mean for AC-UPD-006a, so a vanishing MAP correction can
+#: only come from the vanishing precision and not from a prior that agrees.
+BAYES_PRIOR_MEAN = (0.70, 1.30, 0.90)
 
 #: Gate of AC-UPD-007; its recovery half reuses the AC-UPD-003 gates above.
 COLLINEARITY_COSINE = 0.99
@@ -487,6 +518,177 @@ def test_ac_upd_003_recovery_survives_shape_residuals_and_a_fd_jacobian():
     assert error <= RECOVERY_TOLERANCE
     assert result.final_correlation.min_mac >= MAC_GATE
     assert result.final_correlation.max_abs_freq_error_pct <= FREQUENCY_GATE_PERCENT
+
+
+# ------------------------------------- AC-UPD-006a/b Bayesian MAP (MS-3.5)
+
+
+def _bayes_free() -> tuple[str, ...]:
+    return TWINS[BAYES_CASE][0]
+
+
+def _map_linearization() -> tuple[np.ndarray, np.ndarray]:
+    """``(J, r)`` of the relative-frequency residual at the nominal model.
+
+    Assembled here rather than read back from a run: AC-UPD-006a compares two
+    estimators on one linearization, so the linearization must not be produced
+    by either of them.
+    """
+    free, truth = TWINS[BAYES_CASE]
+    model = _scaling_model()
+    measured = _twin_target(model, truth).frequencies
+    nominal = {name: 1.0 for name in model.parameter_names}
+    residual = (model.modal_data(nominal).frequencies - measured) / measured
+    jacobian = model.frequency_sensitivity(nominal, list(free)) / measured[:, None]
+    return jacobian, residual
+
+
+def _gauss_newton_step(jacobian: np.ndarray, residual: np.ndarray) -> np.ndarray:
+    return -np.linalg.solve(jacobian.T @ jacobian, jacobian.T @ residual)
+
+
+def _run_bayesian_twin(prior: GaussianPrior) -> BayesianUpdatingResult:
+    """``_run_twin(BAYES_CASE)`` with the MAP estimator swapped in.
+
+    Same model, same twin, same analytical Jacobian and iteration budget, so
+    the only difference against the deterministic run is the prior term.
+    """
+    free, truth = TWINS[BAYES_CASE]
+    model = _scaling_model()
+    target = _twin_target(model, truth)
+    updater = BayesianUpdater(
+        model,
+        _twin_parameters(free),
+        target.frequencies,
+        target.mode_shapes,
+        prior=prior,
+        max_iterations=MAX_UPDATING_ITERATIONS,
+        shape_weight=0.0,
+        sensitivity_function=model.sensitivity_function(list(free)),
+    )
+    return updater.run()
+
+
+@criterion("AC-UPD-006a")
+def test_ac_upd_006a_an_uninformative_prior_is_exactly_gauss_newton():
+    """At ``C_p^-1 = 0`` the limit is an identity, not an approximation."""
+    free = _bayes_free()
+    jacobian, residual = _map_linearization()
+    prior = GaussianPrior.uninformative(free)
+
+    step = map_step(
+        jacobian,
+        residual,
+        design_values=np.ones(len(free)),
+        prior_mean=np.array(BAYES_PRIOR_MEAN),
+        prior_precision=prior.precision(len(free)),
+    )
+
+    np.testing.assert_allclose(step, _gauss_newton_step(jacobian, residual), rtol=1e-12)
+
+
+@criterion("AC-UPD-006a")
+def test_ac_upd_006a_the_map_step_converges_to_the_gauss_newton_step():
+    """The MAP/GN gap falls with ``C_p^-1`` and clears 1e-8 at precision 1e-12."""
+    free = _bayes_free()
+    jacobian, residual = _map_linearization()
+    reference = _gauss_newton_step(jacobian, residual)
+    scale = np.linalg.norm(reference)
+
+    differences = [
+        float(
+            np.linalg.norm(
+                map_step(
+                    jacobian,
+                    residual,
+                    design_values=np.ones(len(free)),
+                    prior_mean=np.array(BAYES_PRIOR_MEAN),
+                    prior_precision=precision * np.eye(len(free)),
+                )
+                - reference
+            )
+            / scale
+        )
+        for precision in PRIOR_PRECISION_SCALES
+    ]
+
+    # The gate says nothing unless the strongest prior of the sweep bends the
+    # step in the first place.
+    assert differences[0] > 0.1
+    assert all(
+        later < earlier
+        for earlier, later in zip(differences, differences[1:], strict=False)
+    ), f"MAP/GN differences are not decreasing: {differences}"
+    assert differences[-1] <= GAUSS_NEWTON_LIMIT
+
+
+@criterion("AC-UPD-006a")
+def test_ac_upd_006a_a_vanishing_prior_leaves_the_deterministic_run_untouched():
+    """End to end: a sigma = 1e6 prior reproduces the AC-UPD-003 recovery."""
+    free = _bayes_free()
+    deterministic, _ = _run_twin(BAYES_CASE)
+    bayesian = _run_bayesian_twin(GaussianPrior.from_std(1.0e6))
+
+    assert bayesian.converged, bayesian.message
+    assert bayesian.iterations <= MAX_UPDATING_ITERATIONS
+    difference = max(
+        abs(bayesian.parameters[name] - deterministic.parameters[name]) for name in free
+    )
+    assert difference <= GAUSS_NEWTON_LIMIT, f"MAP drifted from Gauss-Newton by {difference:.3e}"
+    assert bayesian.final_correlation.max_abs_freq_error_pct <= FREQUENCY_GATE_PERCENT
+    assert bayesian.final_correlation.min_mac >= MAC_GATE
+
+
+@criterion("AC-UPD-006b")
+@pytest.mark.parametrize("sigma", PRIOR_STANDARD_DEVIATIONS)
+def test_ac_upd_006b_the_posterior_is_never_wider_than_the_prior(sigma):
+    """``sigma_post <= sigma_prior`` componentwise, and below the data-only width."""
+    free = _bayes_free()
+    prior = GaussianPrior.from_std(sigma)
+    result = _run_bayesian_twin(prior)
+    data_only = _run_bayesian_twin(GaussianPrior.uninformative(free))
+
+    posterior = result.posterior
+    assert posterior.names == list(free)
+    assert np.all(posterior.std <= prior.std(len(free)))
+    assert np.all(posterior.std <= data_only.posterior.std)
+    np.testing.assert_allclose(np.diag(posterior.correlation()), np.ones(len(free)), atol=1e-12)
+
+
+@criterion("AC-UPD-006b")
+def test_ac_upd_006b_tightening_the_prior_shrinks_the_posterior():
+    """Every narrowing of the prior strictly narrows every posterior marginal."""
+    widths = [
+        _run_bayesian_twin(GaussianPrior.from_std(sigma)).posterior.std
+        for sigma in PRIOR_STANDARD_DEVIATIONS
+    ]
+
+    assert all(
+        np.all(tighter < wider)
+        for wider, tighter in zip(widths, widths[1:], strict=False)
+    ), f"posterior widths do not contract with the prior: {widths}"
+
+
+@criterion("AC-UPD-006b")
+def test_ac_upd_006b_a_tight_prior_holds_the_solution_within_three_sigma():
+    """A prior far tighter than the data pins ``theta*`` to ``theta_0``."""
+    free, truth = TWINS[BAYES_CASE]
+    result = _run_bayesian_twin(GaussianPrior.from_std(TIGHT_PRIOR_STD))
+
+    start = np.ones(len(free))
+    theta = np.array([result.parameters[name] for name in free])
+    expected = np.array([truth[name] for name in free])
+    limit = CREDIBLE_SIGMAS * TIGHT_PRIOR_STD
+
+    assert result.converged, result.message
+    assert np.max(np.abs(theta - start)) <= limit
+    # The gate only means something because the data pull is real and refused:
+    # the truth AC-UPD-003 recovers on this very rig sits far outside the ball.
+    assert np.max(np.abs(expected - start)) > limit
+    assert np.max(np.abs(theta - expected)) > RECOVERY_TOLERANCE
+
+    lower, upper = result.posterior.interval(free[0], sigmas=CREDIBLE_SIGMAS)
+    assert lower < result.parameters[free[0]] < upper
 
 
 # --------------------------------------------- AC-UPD-007 collinearity screen
