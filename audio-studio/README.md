@@ -188,10 +188,10 @@ matched. The same pipeline is scriptable from Python via
 
 - Calibrated STFT/iSTFT, eight window functions, linear/log frequency display,
   waterfall data and color-blind-safe maps.
-- Gain, soft-knee lookahead compression, dBTP brickwall limiting,
-  peak/RMS/true-peak normalization, multiple fade curves, and RBJ parametric
-  EQ with stateful block processing. Compressor and limiter have basic
-  threshold/ratio and ceiling controls in the live rack.
+- Gain, noise gating, soft-knee lookahead compression, dBTP brickwall limiting,
+  feedback delay, FDN reverb, peak/RMS/true-peak normalization, multiple fade
+  curves, and RBJ parametric EQ with stateful block processing. Core dynamics
+  and time/space effects have basic controls in the live rack.
 - ITU-R BS.1770 K-weighted integrated loudness and EBU-style loudness range.
 - Cached spectrogram reduction/colorization and candidate-window true-peak
   evaluation keep common redraw and normalization paths bounded.
