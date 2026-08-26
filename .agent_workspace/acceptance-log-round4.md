@@ -65,4 +65,10 @@ Performance 从 85 提升到 99。
 | `dist/hongen-literacy-app.zip` | 600,056 bytes | `d2738b0eaad69e80c836e64c6b1d22c7ee3a3a2a81391361df83d6036a0695f6` |
 | `dist/hongen-math-app.zip` | 190,051 bytes | `94400eeaf3d23a1c5814e84e83b0ba549376065ef273f0595279a7b24dc68d5f` |
 
+## Round 3 全量回归
+
+最终执行 `npm run test:round3`，退出码为 0。该次全量复跑中的 Lighthouse
+Performance 为识字 98、数学 98，Accessibility 与 Best Practices 均为 100；
+axe 路由与交互态仍为 `critical=0`、`serious=0`。
+
 结论：Round 4 Lighthouse、axe、gzip 与发布包构建门禁全部通过。
