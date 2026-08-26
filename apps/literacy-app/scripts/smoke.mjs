@@ -53,6 +53,10 @@ const ROUTES = [
   ['单字详情 说', `/#/learn/${encodeURIComponent('说')}`],
   ['听音识字', '/#/listen'],
   ['听音识字(旧路径)', '/#/game/listen'],
+  ['小游戏大厅', '/#/games'],
+  ['字迷宫', '/#/games/maze'],
+  ['配对记忆', '/#/games/memory'],
+  ['找不同', '/#/games/spot'],
   ['偏旁部首', '/#/radicals'],
   ['偏旁详情', '/#/radicals/shui'],
   ['绘本书架', '/#/books'],
@@ -418,6 +422,264 @@ await interact('听音识字：换皮到地鼠草地', '/#/listen', async (page)
   }
   if (scene.fish) throw new Error('换皮后还残留着钓鱼池的皮')
   return `选中地鼠草地=${picked}，渲染 ${scene.moles} 只地鼠`
+})
+
+/* ---------------------------------------------- 交互：三款识字小游戏各走一局 */
+
+await interact('字迷宫：只用键盘走到目标字并踩中', '/#/games/maze', async (page) => {
+  if (!(await clickText(page, '进迷宫'))) throw new Error('字迷宫缺少「进迷宫」入口')
+  await page.waitForSelector('.maze__cell[data-player="true"]', { timeout: 8000 })
+
+  // 开局焦点要自己落到迷宫上，键盘用户不该先按一串 Tab 才能走第一步
+  const focused = await page.evaluate(
+    () => document.activeElement?.classList.contains('maze__stage') ?? false
+  )
+  if (!focused) throw new Error('进迷宫后焦点没有落到迷宫区，键盘走不了')
+
+  const readMaze = () =>
+    page.evaluate(() => {
+      const maze = document.querySelector('.maze')
+      if (!maze) return null
+      const cells = [...maze.querySelectorAll('.maze__cell')].map((node) => ({
+        x: Number(node.dataset.x),
+        y: Number(node.dataset.y),
+        wall: node.dataset.wall === 'true',
+        char: node.dataset.char ?? '',
+        player: node.dataset.player === 'true'
+      }))
+      const hud = document.body.innerText
+      return {
+        cols: Number(maze.dataset.cols),
+        rows: Number(maze.dataset.rows),
+        cells,
+        target: document.querySelector('.quest__char')?.textContent.trim() ?? '',
+        score: Number(hud.match(/⭐\s*(\d+)/)?.[1] ?? 0)
+      }
+    })
+
+  const board = await readMaze()
+  if (!board) throw new Error('迷宫没有渲染出来')
+  if (board.cells.length !== board.cols * board.rows) {
+    throw new Error(`迷宫格子数 ${board.cells.length} 与 ${board.cols}×${board.rows} 对不上`)
+  }
+  if (!board.cells.some((c) => c.wall)) throw new Error('迷宫里一堵墙都没有，等于没有迷宫')
+  if (!board.target) throw new Error('题面没有显示要找的字')
+
+  const me = board.cells.find((c) => c.player)
+  const goal = board.cells.find((c) => c.char === board.target)
+  if (!goal) throw new Error(`目标字「${board.target}」没有摆进迷宫`)
+
+  // 迷宫是完美迷宫（无环全连通），BFS 出来的就是唯一那条路
+  const key = (x, y) => `${x},${y}`
+  const open = new Map(board.cells.filter((c) => !c.wall).map((c) => [key(c.x, c.y), c]))
+  const prev = new Map([[key(me.x, me.y), null]])
+  const queue = [me]
+  while (queue.length) {
+    const cur = queue.shift()
+    if (cur.x === goal.x && cur.y === goal.y) break
+    for (const [dx, dy] of [
+      [0, -1],
+      [0, 1],
+      [-1, 0],
+      [1, 0]
+    ]) {
+      const next = open.get(key(cur.x + dx, cur.y + dy))
+      if (!next || prev.has(key(next.x, next.y))) continue
+      prev.set(key(next.x, next.y), cur)
+      queue.push(next)
+    }
+  }
+  if (!prev.has(key(goal.x, goal.y))) throw new Error('目标字所在的格子走不到，迷宫不连通')
+
+  const path = []
+  for (let node = goal; node; node = prev.get(key(node.x, node.y))) path.unshift(node)
+
+  const KEY_OF = { '0,-1': 'ArrowUp', '0,1': 'ArrowDown', '-1,0': 'ArrowLeft', '1,0': 'ArrowRight' }
+  for (let i = 1; i < path.length; i += 1) {
+    const step = KEY_OF[`${path[i].x - path[i - 1].x},${path[i].y - path[i - 1].y}`]
+    await page.keyboard.press(step)
+    await new Promise((r) => setTimeout(r, 90))
+  }
+
+  await page.waitForFunction(
+    () => Number(document.body.innerText.match(/⭐\s*(\d+)/)?.[1] ?? 0) >= 1,
+    { timeout: 6000 }
+  )
+  const said = await page.evaluate(
+    () => document.querySelector('.maze-game .sr-only[aria-live="polite"]')?.innerText ?? ''
+  )
+  if (!/踩中了|已经找到/.test(said)) throw new Error(`踩中目标字后没有播报：「${said}」`)
+
+  // 撞墙也要有反馈，否则读屏用户只会觉得按键失灵
+  await page.keyboard.press('ArrowUp')
+  await page.keyboard.press('ArrowLeft')
+  await new Promise((r) => setTimeout(r, 200))
+
+  return `迷宫 ${board.cols}×${board.rows}，键盘走 ${path.length - 1} 步踩中「${board.target}」`
+})
+
+await interact('配对记忆：翻牌配对直到全清', '/#/games/memory', async (page) => {
+  if (!(await clickText(page, '开始翻牌'))) throw new Error('配对记忆缺少「开始翻牌」入口')
+  await page.waitForSelector('.mcard', { timeout: 8000 })
+
+  const snapshot = () =>
+    page.evaluate(() =>
+      [...document.querySelectorAll('.mcard')].map((node) => ({
+        state: node.dataset.state ?? '',
+        face: node.dataset.face ?? '',
+        char: node.dataset.char ?? ''
+      }))
+    )
+
+  const opening = await snapshot()
+  if (!opening.length) throw new Error('牌桌上一张牌都没有')
+  if (opening.some((card) => card.char)) {
+    throw new Error('盖着的牌把汉字写进了 DOM，读屏会直接把答案念出来')
+  }
+
+  const flipCard = (index) =>
+    page.evaluate((i) => {
+      const node = document.querySelectorAll('.mcard')[i]
+      if (!node || node.disabled) return false
+      node.click()
+      return true
+    }, index)
+
+  /** 像人一样玩：翻开过的牌记在 known 里，凑齐一对就去收。 */
+  const known = new Map()
+  let flips = 0
+  for (let turn = 0; turn < 40; turn += 1) {
+    const cards = await snapshot()
+    if (!cards.length) break
+
+    cards.forEach((card, i) => {
+      if (card.char) known.set(i, `${card.char}|${card.face}`)
+    })
+    const down = cards
+      .map((card, i) => ({ ...card, i }))
+      .filter((card) => card.state === 'down')
+    if (!down.length) break
+
+    const remembered = down.filter((card) => known.has(card.i))
+    const pair = remembered.find((a) =>
+      remembered.some(
+        (b) =>
+          b.i !== a.i &&
+          known.get(b.i).split('|')[0] === known.get(a.i).split('|')[0] &&
+          known.get(b.i).split('|')[1] !== known.get(a.i).split('|')[1]
+      )
+    )
+
+    let first
+    let second
+    if (pair) {
+      first = pair.i
+      second = remembered.find(
+        (b) =>
+          b.i !== pair.i &&
+          known.get(b.i).split('|')[0] === known.get(pair.i).split('|')[0] &&
+          known.get(b.i).split('|')[1] !== known.get(pair.i).split('|')[1]
+      ).i
+    } else {
+      first = (down.find((card) => !known.has(card.i)) ?? down[0]).i
+    }
+
+    if (!(await flipCard(first))) break
+    flips += 1
+    await new Promise((r) => setTimeout(r, 260))
+
+    if (second === undefined) {
+      const afterFirst = await snapshot()
+      afterFirst.forEach((card, i) => {
+        if (card.char) known.set(i, `${card.char}|${card.face}`)
+      })
+      const face = known.get(first)
+      const partner = afterFirst
+        .map((card, i) => ({ ...card, i }))
+        .find(
+          (card) =>
+            card.i !== first &&
+            card.state === 'down' &&
+            known.has(card.i) &&
+            known.get(card.i).split('|')[0] === face?.split('|')[0] &&
+            known.get(card.i).split('|')[1] !== face?.split('|')[1]
+        )
+      second =
+        partner?.i ??
+        afterFirst
+          .map((card, i) => ({ ...card, i }))
+          .find((card) => card.i !== first && card.state === 'down' && !known.has(card.i))?.i
+    }
+    if (second === undefined) break
+
+    if (!(await flipCard(second))) break
+    flips += 1
+    await new Promise((r) => setTimeout(r, 300))
+
+    const settled = await snapshot()
+    settled.forEach((card, i) => {
+      if (card.char) known.set(i, `${card.char}|${card.face}`)
+    })
+    // 配错了要等它盖回去，锁着的时候点什么都没用
+    if (settled[first]?.state !== 'matched') await new Promise((r) => setTimeout(r, 950))
+  }
+
+  // 最后一对配上之后，结算页要过一小会儿才顶上来
+  await page
+    .waitForFunction(() => document.body.innerText.includes('全部配对完成'), { timeout: 4000 })
+    .catch(() => {})
+  const done = await page.evaluate(() => document.body.innerText.includes('全部配对完成'))
+  if (!done) throw new Error(`翻了 ${flips} 次还没配完，牌桌没有清空`)
+
+  return `翻 ${flips} 次清空牌桌，盖着的牌不泄露答案`
+})
+
+await interact('找不同：找出唯一不同的字，键盘连过 3 关', '/#/games/spot', async (page) => {
+  if (!(await clickText(page, '开始找'))) throw new Error('找不同缺少「开始找」入口')
+  await page.waitForSelector('.spot__cell', { timeout: 8000 })
+
+  let solved = 0
+  for (let r = 0; r < 3; r += 1) {
+    await page.waitForFunction(
+      () => document.querySelector('.spot')?.dataset.answered === 'false',
+      { timeout: 8000 }
+    )
+    const board = await page.evaluate(() => {
+      const cells = [...document.querySelectorAll('.spot__cell')]
+      const counts = {}
+      for (const node of cells) counts[node.dataset.char] = (counts[node.dataset.char] ?? 0) + 1
+      const odd = Object.keys(counts).find((char) => counts[char] === 1)
+      return {
+        total: cells.length,
+        kinds: Object.keys(counts).length,
+        odd,
+        index: cells.findIndex((node) => node.dataset.char === odd)
+      }
+    })
+    if (board.total < 9) throw new Error(`格子只有 ${board.total} 个，题面太小`)
+    if (board.kinds !== 2 || !board.odd) {
+      throw new Error(`一关里出现 ${board.kinds} 种字，「找不同」应当只有 1 个字与众不同`)
+    }
+
+    // 只用键盘作答：聚焦那个格子，回车提交
+    await page.evaluate((i) => document.querySelectorAll('.spot__cell')[i].focus(), board.index)
+    await page.keyboard.press('Enter')
+    await new Promise((r2) => setTimeout(r2, 450))
+
+    const said = await page.evaluate(
+      () => document.querySelector('.spot-game .sr-only[aria-live="polite"]')?.innerText ?? ''
+    )
+    if (!/答对了/.test(said)) throw new Error(`第 ${r + 1} 关按回车没有判对：「${said}」`)
+    solved += 1
+    await new Promise((r2) => setTimeout(r2, 900))
+  }
+
+  const score = await page.evaluate(() =>
+    Number(document.body.innerText.match(/⭐\s*(\d+)/)?.[1] ?? 0)
+  )
+  if (score < solved) throw new Error(`连过 ${solved} 关但计分只有 ${score}`)
+
+  return `键盘连过 ${solved} 关，计分 ${score}`
 })
 
 await interact('绘本：逐句朗读高亮 + 点字发音', '/#/books/b1', async (page) => {

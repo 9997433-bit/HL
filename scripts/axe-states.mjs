@@ -60,6 +60,45 @@ const CASES = [
   ['成语列表', '/#/idioms'],
   ['成语详情', '/#/idioms/szdt'],
   ['家长中心', '/#/parent'],
+  ['小游戏大厅', '/#/games'],
+  [
+    '字迷宫（走位中）',
+    '/#/games/maze',
+    async (page) => {
+      if (!(await clickText(page, '进迷宫'))) throw new Error('找不到「进迷宫」入口')
+      await page.waitForSelector('.maze__cell[data-player="true"]', { timeout: 8_000 })
+      await page.keyboard.press('ArrowRight')
+      await page.keyboard.press('ArrowDown')
+      await wait(300)
+    },
+  ],
+  [
+    '配对记忆（翻开一张）',
+    '/#/games/memory',
+    async (page) => {
+      if (!(await clickText(page, '开始翻牌'))) throw new Error('找不到「开始翻牌」入口')
+      await page.waitForSelector('.mcard', { timeout: 8_000 })
+      await page.evaluate(() => document.querySelector('.mcard')?.click())
+      await wait(400)
+    },
+  ],
+  [
+    // 找不同要扫「答错后」的样子：被排除的格子会变淡，正是对比度最容易翻车的地方
+    '找不同（答错反馈）',
+    '/#/games/spot',
+    async (page) => {
+      if (!(await clickText(page, '开始找'))) throw new Error('找不到「开始找」入口')
+      await page.waitForSelector('.spot__cell', { timeout: 8_000 })
+      await page.evaluate(() => {
+        const cells = [...document.querySelectorAll('.spot__cell')]
+        const counts = {}
+        for (const node of cells) counts[node.dataset.char] = (counts[node.dataset.char] ?? 0) + 1
+        const common = Object.keys(counts).find((char) => counts[char] > 1)
+        cells.find((node) => node.dataset.char === common)?.click()
+      })
+      await wait(400)
+    },
+  ],
   [
     '描红练习中',
     `/#/learn/${encodeURIComponent('日')}`,

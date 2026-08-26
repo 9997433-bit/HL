@@ -37,6 +37,30 @@ const routes = [
   },
   { path: '/game/listen', redirect: '/listen' },
   {
+    path: '/games',
+    name: 'games',
+    component: () => import('@/views/GamesView.vue'),
+    meta: { title: '小游戏', emoji: '🎲' }
+  },
+  {
+    path: '/games/maze',
+    name: 'game-maze',
+    component: () => import('@/views/MazeGameView.vue'),
+    meta: { title: '字迷宫', emoji: '🧭' }
+  },
+  {
+    path: '/games/memory',
+    name: 'game-memory',
+    component: () => import('@/views/MemoryGameView.vue'),
+    meta: { title: '配对记忆', emoji: '🃏' }
+  },
+  {
+    path: '/games/spot',
+    name: 'game-spot',
+    component: () => import('@/views/SpotGameView.vue'),
+    meta: { title: '找不同', emoji: '🔍' }
+  },
+  {
     path: '/radicals/:id?',
     name: 'radicals',
     component: () => import('@/views/RadicalsView.vue'),
