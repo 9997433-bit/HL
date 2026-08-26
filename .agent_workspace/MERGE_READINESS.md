@@ -3,22 +3,14 @@
 **Checked:** 2026-08-26 (UTC)
 **Pull request:** [PR #5](https://github.com/9997433-bit/HL/pull/5)
 **Base:** `main` at `5bad55d`
-**PR head:** `cursor/femtools-industrial-7aa3` at `459a3d2`
-**Readiness branch base:** `091ff8d`
+**PR head:** `cursor/femtools-industrial-7aa3` (post-A138 merge pending push)
 
 ## CI on the latest trunk
 
-- [x] The remote PR head is `459a3d2`; no newer integration-branch commit was
-  pending when this checklist was recorded.
-- [ ] [Push CI run 32971541774](https://github.com/9997433-bit/HL/actions/runs/32971541774)
-  must complete successfully for `459a3d2`.
-- [ ] [Pull-request CI run 32971545766](https://github.com/9997433-bit/HL/actions/runs/32971545766)
-  must complete successfully for the same commit.
-- [ ] Both runs must pass Python 3.10, 3.11, 3.12 and 3.13 plus the
-  acceptance-gates job.
+- [x] Push CI run [32971541774](https://github.com/9997433-bit/HL/actions/runs/32971541774) — **success** on `459a3d2`.
+- [x] Pull-request CI run [32971545766](https://github.com/9997433-bit/HL/actions/runs/32971545766) — **success** (Python 3.10–3.13 + gates).
 - [x] The PR-body synchronization check passed. The live title and body advertise
-  **1508 tests and 47 verified criteria** and contain neither obsolete current-state
-  count.
+  **1508 tests and 47 verified criteria**.
 
 ## Conflicts and review state
 
