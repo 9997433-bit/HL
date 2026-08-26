@@ -2,7 +2,8 @@
 
 **Author:** A130 · **Date:** 2026-08-26
 **Branch:** `cursor/femtools-industrial-7aa3` (Round 2 signed off at `104e9e1`;
-plan drafted against `a662cc3`)
+plan drafted against `a662cc3`, rebased onto `413310a` after the A135/A137/A138
+merges landed mid-draft)
 **Inputs:** [`docs/SOTA_GAP_ANALYSIS.md`](../docs/SOTA_GAP_ANALYSIS.md) (gap
 register §4, sequencing §6), [`ROUND2_SIGNOFF.md`](ROUND2_SIGNOFF.md) (deferred
 list), [`ROUND2_PLAN.md`](ROUND2_PLAN.md) (task history and format),
@@ -237,20 +238,21 @@ rebase — the IDs here are proposals, not reservations.
 ### R3-T07 — Plotting / visualization helpers (GAP-15)
 
 - **Priority:** 7 · **Gap:** [GAP-15](../docs/SOTA_GAP_ANALYSIS.md) (§4,
-  "deferred by design for v1") · **Dispatched:** A135 (minimal helpers,
-  matplotlib optional extra)
-- **Scope:**
-  - `viz/` package behind the P7 seam (`[viz]` extra carries matplotlib;
-    `MissingDependencyError` otherwise; Agg-safe, no display requirement).
-  - Minimal set: MAC matrix heatmap, mode-shape/deformed-mesh line plot for
-    1D/2D fixtures, FRF overlay (measured vs synthesized), and — once R3-T01
-    lands — the stabilization diagram over MPE's pole-classification data.
+  "deferred by design for v1") · **Dispatched:** A135 — **MVP merged**
+  (`a6e607b`, 1519 tests): `viz/plotting.py` carries `plot_mac_matrix` and
+  `plot_mode_shape` behind `require_matplotlib` and the `[plot]` extra, with
+  `tests/test_viz.py` skip-scoped when matplotlib is absent.
+- **Remaining scope:**
+  - FRF overlay (measured vs synthesized) and — once R3-T01 lands — the
+    stabilization diagram over MPE's pole-classification data, both in the
+    same `viz/plotting.py` (no second plotting seam).
   - Helpers return the `Figure` and take an `ax=` injection point; CLI wiring
     (`--plot` flags) is stretch, not a gate.
 - **Acceptance links (proposed):** AC-VIZ-001 (P2, `contract`) — each helper
   renders to a file under the Agg backend in `tmp_path`, is deterministic in
   structure (axes count, artist count), and the missing-dependency path raises
-  per P7. One row suffices; per-plot rows would be inventory noise.
+  per P7. One row suffices; per-plot rows would be inventory noise. The MVP
+  merged without a registry row, so this registration is still owed.
 - **Dependencies:** none hard; the stabilization plot consumes R3-T01's data
   contract, so that helper lands after A133's spec merges (plot against the
   spec's result shape, not a private one).
@@ -276,9 +278,10 @@ serialized** — module numbers, MS anchors, and the pinned inventory count are
 global, so two spec-first scaffolds cannot land in parallel without one
 rebasing.
 
-- **Wave 0 — docs (merge first, trivial):** this plan (A130, docs-only);
-  A138's PR-readiness checklist (docs-only); A137's quickstart examples
-  (docs + `examples/`, disjoint from everything).
+- **Wave 0 — docs (merge first, trivial):** this plan (A130, docs-only).
+  A138's PR-readiness checklist, A137's quickstart, and A135's plotting MVP
+  **already merged** (`5fe7192`, `44e931c`, `a6e607b`) while this plan was in
+  draft.
 - **Wave 0.5 — registry serialization queue (one at a time):**
   A133 (M9/MPE spec scaffold) → A134 (M10/PRE spec scaffold) → any `PERF`
   registration from the R3-T03 track → later `AC-UPD-009/010/011`,
@@ -286,11 +289,10 @@ rebasing.
   entry rebases its module slot and inventory count over the previous one.
 - **Wave 1 — parallel code tracks (disjoint files):**
   A131 (`correlation/reduction.py` sparse), A132 (`workflow/selection.py` QR
-  screen), A136 (`updating/updater.py` MAC-row Jacobian), A135 (`viz/` new
-  package), A139 (`io/op2.py` spike). A132 and A136 are adjacent in the
-  updating stack — textual overlap is low but their acceptance edits can
-  collide; merge A132 before A136 (A132 strengthens an existing gate and is
-  the smaller diff).
+  screen), A136 (`updating/updater.py` MAC-row Jacobian), A139 (`io/op2.py`
+  spike). A132 and A136 are adjacent in the updating stack — textual overlap
+  is low but their acceptance edits can collide; merge A132 before A136 (A132
+  strengthens an existing gate and is the smaller diff).
 - **Wave 2 — consumers:** MPE implementation (after A133's spec), pretest EI
   implementation (after A134's spec), LOBPCG + 50k benchmark (after A131),
   model-level resolver (R3-T04 slice 3, after A132/A136), stabilization plot
@@ -298,11 +300,11 @@ rebasing.
 - **Wave 3 — close-out:** R3-T05 FRF residual (after the updater seams
   settle), then R3-T08 promotion and sign-off.
 
-Recommended merge order for the currently dispatched pool, conflict-risk
-ranked: **A130 → A138 → A137 → A133 → A134 → A131 → A132 → A136 → A135 →
-A139**, with Wave-1 members reorderable freely among themselves *except* the
-A132-before-A136 pairing and the rule that whoever registers AC rows next
-queues behind A134.
+Recommended merge order for the still-open dispatched pool, conflict-risk
+ranked: **A130 → A133 → A134 → A131 → A132 → A136 → A139** (A135, A137, A138
+already landed), with Wave-1 members reorderable freely among themselves
+*except* the A132-before-A136 pairing and the rule that whoever registers AC
+rows next queues behind A134.
 
 ---
 
