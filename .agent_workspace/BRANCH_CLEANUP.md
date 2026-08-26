@@ -56,11 +56,11 @@ git rev-list --left-right --count 441f80a...226728b
 28  0
 ```
 
-The same audit retained `cursor/hex8-solid-element-d0b7` at `404522c`. Its tip is
-not an ancestor of `441f80a` (`62  4` from `git rev-list --left-right --count`),
-and its four branch-only commits include AC-MODAL-008 frequency-window extraction
-and the missed-mode guard. The integration snapshot still marks AC-MODAL-008 as
-`specified`, so deleting that branch is not yet safe.
+> [!WARNING]
+> `cursor/hex8-solid-element-d0b7` **MUST NOT be merged**. It is superseded by the
+> integrated `cursor/hex8-brick-ac-elem-d0b7` work and is contaminated with
+> unrelated AC-MODAL-008 commits. Its remote ref is retained only pending explicit
+> team agreement that deletion is safe; retention does not make it merge-eligible.
 
 The full committed trunk suite passed for the initial five-branch snapshot:
 **876 passed, 0 failed** in 29.26 seconds.
