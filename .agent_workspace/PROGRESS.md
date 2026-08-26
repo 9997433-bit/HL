@@ -86,7 +86,22 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A123 | claude-opus-5-thinking-high-fast | R2-T05: UFF datasets 55/58 writer `write_uff`/`format_uff` (+20 tests) | complete — 1385 passed, Ruff clean |
 | A124 | claude-opus-5-thinking-high-fast | R2-T02 last item: fold `ShellQuad4Element` into the AC-ELEM-001..003 case table (patch, zero-energy count, h-convergence) | complete — 9 shell cases across all three criteria, 1394 passed, Ruff clean |
 | A125 | claude-opus-5-thinking-high-fast | R2-T05: UNV 2411/2412 reader `read_unv` (+50 tests) | complete — merged on integration branch |
-| sign-off | parent orchestrator | Round 2 closure: promote AC-IO-001..003, doc reconcile, branch cleanup | complete — 1508 passed, 47/47 verified |
+| sign-off | parent orchestrator | Round 2 closure: promote AC-IO-001..003, doc reconcile, branch cleanup, PR sync workflow | complete — 1508 passed, 47/47 verified at `091ff8d` |
+
+### Round 3 kickoff — Active Pool (target 10, dispatched 2026-08-26)
+
+| Agent | Model | Focus | Status |
+|-------|-------|-------|--------|
+| A130 | claude-fable-5-thinking-xhigh | ROUND3_PLAN.md from SOTA_GAP §6 + SIGNOFF deferred items | dispatched |
+| A131 | claude-opus-5-thinking-high-fast | GAP-13: sparse-aware reduction (stop densifying in correlation/reduction.py) | dispatched |
+| A132 | claude-opus-5-thinking-high-fast | R2-T06: QR-with-pivoting collinearity screen refinement | dispatched |
+| A133 | claude-fable-5-thinking-xhigh | GAP-06 MPE: MODULE_SPEC + acceptance scaffold (spec-first) | dispatched |
+| A134 | claude-fable-5-thinking-xhigh | GAP-07 pretest EI: spec + stub API | dispatched |
+| A135 | gpt-5.6-sol-xhigh-fast | GAP-15: minimal plotting helpers (matplotlib optional extra) | dispatched |
+| A136 | claude-opus-5-thinking-high-fast | R2-T06: analytic MAC-row Jacobian in updater shape path | dispatched |
+| A137 | gpt-5.6-sol-xhigh-fast | End-user quickstart: examples/05 + README「5 分钟上手」 | dispatched |
+| A138 | gpt-5.6-sol-xhigh-fast | PR #5 → main merge readiness checklist + CI green verify | dispatched |
+| A139 | claude-opus-5-thinking-high-fast | GAP-03 OP2 reader spike (research + io/op2 stub) | dispatched |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
