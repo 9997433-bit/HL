@@ -1,9 +1,9 @@
 # Round 3 — SOTA 最终验收审计（fable / claude-fable-5-thinking-xhigh）
 
 - **审计角色：** Round 3 子代理 #1 — SOTA 最终验收审计（bc-63e6fdf0）
-- **审计冻结 commit：** `b90e0e9`（2026-08-26，含 Round 3 gpt-sol 两路产出：CI 修复 + 验收自动化、许可清单 + 发布文档）
+- **审计冻结 commit：** 主体取证于 `b90e0e9`（2026-08-26，含 Round 3 gpt-sol 两路产出：CI 修复 + 验收自动化、许可清单 + 发布文档）；成文期间子代理 #3 多轨产出合入（`edda345`），已按 §9 附录复验并并入判定。
 - **前置文档：** Round 1 `fable-sota-audit.md`（§7 Round 3 checklist，基线 `1408e58`）、Round 2 `fable-sota-round2-review.md`（§5 八条中期门槛，基线 `2bd94c0`）
-- **重要范围注记：** 冻结时刻 Round 3 子代理 #3（多轨 Session MVP，bc-da156ab0）与 #4（BS.1770 产品合规 & 修复套件，bc-c21cf033）**尚未合入**（PROGRESS.md 仍标 🔄）。本裁决只对已合入代码负责；两路在飞工作合入后须按 §7 的翻案条件重新点验，不自动继承本裁决。
+- **重要范围注记：** 截至 `edda345`，Round 3 子代理 #4（BS.1770 产品合规 & 修复套件，bc-c21cf033）**尚未合入**（PROGRESS.md 仍标 🔄）。本裁决只对已合入代码负责；在飞工作合入后须按 §7 的翻案条件重新点验，不自动继承本裁决。
 
 ---
 
@@ -11,7 +11,7 @@
 
 > ### 「Audition 级 SOTA」验收：**No-Go**
 >
-> 30 项 checklist 判定：**P0 通过 4 / 部分 6 / 未过 10；P1 通过 0 / 部分 1 / 未过 9**。
+> 30 项 checklist 判定：**P0 通过 4 / 部分 6 / 未过 10；P1 通过 0 / 部分 2 / 未过 8**（含 §9 附录对多轨合入的改判）。
 > Round 1 验收规则（P0 全过 + P1 至多 2 项降级）远未满足——**16 项 P0 未达全过线，其中 10 项硬性未过构成一票否决**（清单见 §5）。
 >
 > ### 「0.1.0-alpha 专业音频分析/编辑底座」发布：**Go（有条件）**
@@ -96,7 +96,7 @@ xfail 机制评价：**这是本项目三轮以来在"防止演示级冒充专�
 | B5 | P1 | 频谱选区衰减/DeClick/DeHum | **✗** | `dsp/spectral.py` 无 `attenuate_selection/delete_selection/declick/dehum`（xfail）；iSTFT 精确重建底座三轮就绪但修复算法始终未开工。在飞 #4 范围 |
 | B6 | P1 | VST3 宿主 3 插件 + PDC null test | **✗** | `audio_studio/plugins/` 不存在。法务障碍 Round 2 已清除（VST3 SDK→MIT），纯实现缺位，G7 三轮停在 ~5% |
 | B7 | P1 | 批处理 10 文件→−16LUFS→FLAC | **✗** | `core/batch.py` 不存在。注：其料件（产品响度计 + FLAC 导出）均已就绪，此项是低垂果实 |
-| B8 | P1 | 多轨 32 轨 + 包络 + 总线 | **✗** | `core/multitrack.py` 不存在；仅 SLO T1 合成混音 proxy（32×4 效果 48.6% 单核）。在飞 #3 范围 |
+| B8 | P1 | 多轨 32 轨 + 包络 + 总线 | **◐** | `edda345` 合入 `core/session.py`（1,018 行：Clip 引用式非破坏模型 + 逐 clip 音量包络 + Track 音量/声像/静音/独奏 + MasterBus + SessionMixer 求和）与 `MultitrackView`（接入 MainWindow），108 项测试含求和 null test/对齐/mute-solo ✓。**差距：** 32 轨实时回放零 dropout 证据与 `multitrack-report.json` 无；验收套件 B8 判据（按 `core/multitrack.py` 路径探测）未随实现重接，仍 xfail。详见 §9 |
 
 ### C. 实时与稳定（4 项：3×P0 + 1×P1）
 
@@ -131,7 +131,7 @@ xfail 机制评价：**这是本项目三轮以来在"防止演示级冒充专�
 | | ✓ 过 | ◐ 部分 | ✗ 未过 |
 |---|:---:|:---:|:---:|
 | **P0（20 项）** | 4（A3、B4、E1、E3） | 6（A1-LUFS、A2、A4、D2、D3、E2） | 10 |
-| **P1（10 项）** | 0 | 1（D4） | 9 |
+| **P1（10 项）** | 0 | 2（D4、B8@`edda345`） | 8 |
 
 **G1–G10 加权完成度（沿用 Round 1 权重）≈ 44%**（G10 验证基建 ~75%、G3 计量 ~55%、G2 编辑核心 ~40% 为三大拉动项；G5 SRC ~10%、G7 插件 ~5% 三轮未动）。距 Round 2 冻结点的 25% 有实质推进，但曲线形状不变：**分析/验证/合规强，编辑工作流/修复/插件/多轨弱**——最终交付物是「测量精确、工程可信的音频分析器 + 编辑内核」，尚不是音频工作站。
 
@@ -156,7 +156,7 @@ xfail 机制评价：**这是本项目三轮以来在"防止演示级冒充专�
 
 **部分达成、但按验收线仍拦截的 P0 共 6 项**：A1-LUFS / A2（向量覆盖不全）、A4（单参数组 + 响应函数级验证）、D2（无工作区持久化）、D3（编辑无键盘通路）、E2（无跨平台比对工件）。
 
-P1 侧 10 项中 9 项未过，远超「至多 2 项降级」额度——即使 P0 全绿，P1 亦独立构成 No-Go。
+P1 侧 10 项中 8 项未过（B8 经 §9 改判为部分），仍远超「至多 2 项降级」额度——即使 P0 全绿，P1 亦独立构成 No-Go。
 
 ---
 
@@ -176,7 +176,7 @@ P1 侧 10 项中 9 项未过，远超「至多 2 项降级」额度——即使 
 
 ---
 
-## 8. 证据复现命令
+## 8. 证据复现命令（附录 §9 前的主体取证基于 `b90e0e9`）
 
 ```bash
 # 环境（Ubuntu）：
@@ -205,4 +205,21 @@ ls THIRD_PARTY_LICENSES.md
 
 ---
 
-*— fable（claude-fable-5-thinking-xhigh），Round 3 SOTA 最终验收审计子代理（bc-63e6fdf0），2026-08-26。冻结 commit `b90e0e9`；仅新增本文档，未改动任何业务代码。裁决：Audition 级 SOTA **No-Go**（10 项 P0 硬否决）；0.1.0-alpha 底座定位 **Go（受 §6 四条件约束）**。*
+## 9. 附录：`edda345` 多轨合入的即时复验（成文期间落地）
+
+本报告主体取证冻结于 `b90e0e9` 后、推送前，子代理 #3（opus-fast，多轨 Session MVP）产出合入至 `edda345`（+3,521 行）。按最终验收职责即时复验：
+
+| 复验点 | 结果 |
+|--------|------|
+| 全量测试 | **775 passed, 23 xfailed, 1 xpassed（6.36s）**——新增 108 项 `test_session.py` 全绿，无回归 |
+| 交付实质 | `core/session.py`：Clip（引用式非破坏 + 逐 clip 增益/淡变/**音量包络**）、Track（音量/声像/静音/独奏）、MasterBus、SessionMixer（求和实现 `SampleSource` 接口，可直接喂引擎）；`core/sources.py` 补齐 **RegionSource/LoopSource**（Round 2 遗留的架构契约缺口就此关闭）；`MultitrackView`（812 行）接入 MainWindow View 菜单 |
+| 测试质量 | 含求和 null test（正负对消）、样本对齐、mute/solo 语义、包络插值——非演示级 |
+| 仍缺 | 32 轨**实时回放零 dropout** 证据（`multitrack-report.json`）；验收套件 B8 探测路径为 `core/multitrack.py`，与实际 `core/session.py` 不符，**xfail 未随实现重接**（同 §6 条件 2 的套件卫生问题）；无轨道级效果插入与子总线 |
+| 改判 | B8：✗ → **◐**；Round 2 遗留清单第 5 条（RegionSource/LoopSource）关闭 |
+| 对裁决影响 | **无**——B8 为 P1，P0 否决清单（§5）原样成立；P1 未过仍有 8 项。G2 编辑核心加权估值由 ~40% 上修至 ~50%,总加权 ≈ **46%** |
+
+子代理 #4（BS.1770 产品合规 & 修复套件）在本报告推送时仍未合入；其落地对应 A1-TP/A6/B5 三项，合入后按 §7 复核。
+
+---
+
+*— fable（claude-fable-5-thinking-xhigh），Round 3 SOTA 最终验收审计子代理（bc-63e6fdf0），2026-08-26。主体冻结 `b90e0e9`，附录复验至 `edda345`；仅新增本文档，未改动任何业务代码。裁决：Audition 级 SOTA **No-Go**（10 项 P0 硬否决）；0.1.0-alpha 底座定位 **Go（受 §6 四条件约束）**。*
