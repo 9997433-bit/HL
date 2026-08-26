@@ -112,6 +112,45 @@ class TestColormaps:
 # ---------------------------------------------------------------------------
 
 
+class TestPixelReduce:
+    """The pooling primitive both render caches are built on."""
+
+    @pytest.mark.parametrize("axis", [0, 1])
+    @pytest.mark.parametrize(
+        ("length", "cells"),
+        [(1000, 320), (320, 320), (50, 200), (7, 3), (1, 8), (999, 100)],
+    )
+    def test_matches_reduceat_element_for_element(
+        self, length: int, cells: int, axis: int
+    ) -> None:
+        from audio_studio.ui.spectrogram_widget import _pixel_reduce
+
+        rng = np.random.default_rng(length * 10 + cells)
+        shape = (length, 17) if axis == 0 else (17, length)
+        data = rng.uniform(-90.0, 0.0, size=shape).astype(np.float32)
+        bounds = np.clip((np.arange(cells) * length) // cells, 0, length - 1)
+
+        assert np.array_equal(
+            _pixel_reduce(data, bounds, axis=axis),
+            np.maximum.reduceat(data, bounds, axis=axis),
+        )
+
+    def test_empty_input_gives_an_empty_grid(self) -> None:
+        from audio_studio.ui.spectrogram_widget import _pixel_reduce
+
+        assert _pixel_reduce(np.zeros((0, 4)), np.arange(3), axis=0).shape == (3, 4)
+        assert _pixel_reduce(np.zeros((5, 4)), np.zeros(0, dtype=int), axis=0).shape == (0, 4)
+
+    def test_a_single_hot_cell_survives_being_pooled_away(self) -> None:
+        from audio_studio.ui.spectrogram_widget import _pixel_reduce
+
+        data = np.full((1000, 4), -90.0, dtype=np.float32)
+        data[517, 2] = 0.0
+        bounds = np.clip((np.arange(10) * 1000) // 10, 0, 999)
+
+        assert _pixel_reduce(data, bounds, axis=0)[5, 2] == 0.0
+
+
 class TestSpectrogramWidget:
     def test_renders_nothing_before_data_arrives(self, widget: SpectrogramWidget) -> None:
         assert widget.render_image(320, 180) is None
