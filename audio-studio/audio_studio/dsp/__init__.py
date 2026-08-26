@@ -1,13 +1,14 @@
-"""Digital signal processing layer: spectral analysis and audio effects.
+"""Digital signal processing layer: spectral analysis, effects and metering.
 
 Quick start::
 
-    from audio_studio.dsp import SpectralAnalyzer, ThreeBandEQ
+    from audio_studio.dsp import LoudnessMeter, SpectralAnalyzer, ThreeBandEQ
 
     analyzer = SpectralAnalyzer(sample_rate=48_000, fft_size=2048, window="hann")
     spectrogram = analyzer.spectrogram(audio)      # calibrated, dBFS-referenced
     eq = ThreeBandEQ(low_gain_db=3.0, mid_frequency=2_500.0, mid_gain_db=-4.0)
     processed = eq.process(audio, 48_000)
+    LoudnessMeter(48_000).integrated(processed)    # LUFS, ITU-R BS.1770
 
 All buffers are planar ``(n_channels, n_samples)`` float arrays; mono may be
 passed as plain 1-D. See :mod:`audio_studio.dsp.util` for the conversion
@@ -31,6 +32,15 @@ from .effects import (
     fade_envelope,
     measure_levels,
 )
+from .loudness import (
+    LoudnessMeter,
+    LoudnessReport,
+    channel_weights,
+    format_lufs,
+    integrated_loudness,
+    k_weighting_sos,
+)
+from .preview import EffectPreview
 from .spectral import (
     RealtimeSpectrum,
     SpectralAnalyzer,
@@ -84,6 +94,15 @@ __all__ = [
     "FadeShape",
     "fade_envelope",
     "apply_fade",
+    # live preview
+    "EffectPreview",
+    # loudness
+    "LoudnessMeter",
+    "LoudnessReport",
+    "channel_weights",
+    "format_lufs",
+    "integrated_loudness",
+    "k_weighting_sos",
     # utils
     "as_planar",
     "as_interleaved",
