@@ -239,7 +239,7 @@ def probe_audio() -> dict[str, Any]:
         sounddevice = importlib.import_module("sounddevice")
         bundled_portaudio_library = getattr(sounddevice, "_libname", None)
     except Exception:  # noqa: BLE001 - availability is reported by library probes.
-        pass
+        bundled_portaudio_library = None
     portaudio_library = system_portaudio_library or bundled_portaudio_library
     alsa_library = ctypes.util.find_library("asound") if system == "Linux" else None
     proc_asound = Path("/proc/asound")
