@@ -1,0 +1,232 @@
+{
+  "caveats": [
+    "Cloud results are headless proxies, not audio-device or UI SLO certification.",
+    "EBU values validate the independent oracle; no production loudness meter exists.",
+    "Tech 3342 uses its normative \u00b11 LU tolerance."
+  ],
+  "compliance": {
+    "oracle": "tools.ebu_r128 (independent test oracle)",
+    "product_compliance_claimed": false,
+    "product_meter_status": "not-available",
+    "tech_3341": [
+      {
+        "case_id": "3341-1",
+        "error_lu": -0.036574,
+        "expected_lufs": -23.0,
+        "measured_lufs": -23.036574,
+        "status": "pass",
+        "tolerance_lu": 0.1
+      },
+      {
+        "case_id": "3341-2",
+        "error_lu": -0.036574,
+        "expected_lufs": -33.0,
+        "measured_lufs": -33.036574,
+        "status": "pass",
+        "tolerance_lu": 0.1
+      },
+      {
+        "case_id": "3341-3",
+        "error_lu": -0.057146,
+        "expected_lufs": -23.0,
+        "measured_lufs": -23.057146,
+        "status": "pass",
+        "tolerance_lu": 0.1
+      }
+    ],
+    "tech_3342": [
+      {
+        "case_id": "3342-1",
+        "error_lu": 0.0,
+        "expected_lra_lu": 10.0,
+        "measured_lra_lu": 10.0,
+        "status": "pass",
+        "tolerance_lu": 1.0
+      }
+    ]
+  },
+  "generated_at_utc": "2026-08-26T08:00:07.781246+00:00",
+  "golden": {
+    "comparison": "WAV fmt fields and SHA-256 of encoded sample payload",
+    "formats": [
+      "PCM_16",
+      "PCM_24",
+      "FLOAT"
+    ],
+    "status": "covered-by-pytest"
+  },
+  "pytest": {
+    "command": [
+      "/usr/bin/python3",
+      "-m",
+      "pytest",
+      "-q",
+      "benchmarks/slo",
+      "tests/compliance",
+      "tests/golden"
+    ],
+    "return_code": 0,
+    "status": "pass",
+    "stderr": "",
+    "stdout": ".....................                                                    [100%]\n21 passed in 1.06s\n"
+  },
+  "round": 2,
+  "schema_version": 1,
+  "scope": "SLO and EBU/golden validation infrastructure",
+  "slo": {
+    "environment": {
+      "platform": "Linux-6.12.94+-x86_64-with-glibc2.39",
+      "processor": "x86_64",
+      "python": "3.12.3"
+    },
+    "quick": false,
+    "results": [
+      {
+        "evidence": "headless-proxy",
+        "formal_slo_verified": false,
+        "limitation": "In-memory SPSC queue; no audio device and shorter than the 10-minute SLO.",
+        "measured": {
+          "buffer_frames": 128,
+          "callback_read_timing": {
+            "maximum_ms": 0.006237,
+            "median_ms": 0.001202,
+            "minimum_ms": 0.001085,
+            "p95_ms": 0.001309,
+            "p99_ms": 0.002029
+          },
+          "nominal_output_latency_ms": 2.666667,
+          "simulated_callbacks": 2000,
+          "underrun_rate_percent": 0.0,
+          "underruns": 0
+        },
+        "slo_id": "L1",
+        "status": "pass",
+        "threshold": {
+          "buffer_frames_max": 128,
+          "underrun_rate_percent_max": 0.1
+        },
+        "threshold_pass": true,
+        "title": "128-frame output and underrun rate"
+      },
+      {
+        "evidence": "headless-proxy",
+        "formal_slo_verified": false,
+        "limitation": "Measures the current ring-buffer path, not device wake-up jitter or a full graph.",
+        "measured": {
+          "block_period_ms": 2.666667,
+          "maximum_ms": 0.020676,
+          "median_ms": 0.002262,
+          "minimum_ms": 0.00213,
+          "p95_ms": 0.002376,
+          "p99_block_utilization_percent": 0.093,
+          "p99_ms": 0.002485
+        },
+        "slo_id": "T2",
+        "status": "pass",
+        "threshold": {
+          "block_utilization_percent_max": 50.0,
+          "p99_ms_max": 1.333333
+        },
+        "threshold_pass": true,
+        "title": "Callback queue p99"
+      },
+      {
+        "evidence": "headless-proxy",
+        "formal_slo_verified": false,
+        "limitation": "Single Python worker proxy; fable T1 requires CPU telemetry on a 4-core host.",
+        "measured": {
+          "block_frames": 128,
+          "checksum": 1.53390178,
+          "effects_per_track": 4,
+          "maximum_ms": 1.300868,
+          "median_ms": 1.233328,
+          "minimum_ms": 1.203931,
+          "p95_ms": 1.281157,
+          "p99_ms": 1.296926,
+          "single_core_block_utilization_percent": 48.635,
+          "tracks": 32
+        },
+        "slo_id": "T1",
+        "status": "pass",
+        "threshold": {
+          "reference_cpu_percent_max": 60.0
+        },
+        "threshold_pass": true,
+        "title": "32 stereo tracks \u00d7 4 effects mix proxy"
+      },
+      {
+        "evidence": "headless-proxy",
+        "formal_slo_verified": false,
+        "limitation": "Two-second synthetic clip; formal SLO uses a representative 10-minute programme.",
+        "measured": {
+          "audio_seconds": 2.0,
+          "maximum_ms": 2.628518,
+          "median_ms": 2.523337,
+          "minimum_ms": 2.508311,
+          "p95_ms": 2.612706,
+          "p99_ms": 2.625356,
+          "realtime_factor": 792.601
+        },
+        "slo_id": "T3",
+        "status": "pass",
+        "threshold": {
+          "realtime_factor_min": 10.0
+        },
+        "threshold_pass": true,
+        "title": "Typical four-effect offline render"
+      },
+      {
+        "evidence": "headless-proxy",
+        "formal_slo_verified": false,
+        "limitation": "Measures STFT computation, not Qt painting, scrolling, or display refresh cadence.",
+        "measured": {
+          "audio_realtime_factor": 958.899,
+          "audio_seconds": 10.0,
+          "frames_per_wall_second": 44588.782,
+          "maximum_ms": 10.550166,
+          "median_ms": 10.428632,
+          "minimum_ms": 10.290175,
+          "p95_ms": 10.537232,
+          "p99_ms": 10.547579,
+          "stft_frames": 465
+        },
+        "slo_id": "U2/U3",
+        "status": "pass",
+        "threshold": {
+          "audio_realtime_factor_min": 10.0,
+          "frames_per_wall_second_min": 30.0
+        },
+        "threshold_pass": true,
+        "title": "10-second STFT 4096 throughput"
+      },
+      {
+        "evidence": "headless-proxy",
+        "formal_slo_verified": false,
+        "limitation": "One-minute decode only; the one-hour waveform-visible SLO remains unverified.",
+        "measured": {
+          "fixture_duration_seconds": 60,
+          "fixture_size_bytes": 11520044,
+          "maximum_ms": 10.304996,
+          "median_ms": 8.356842,
+          "minimum_ms": 7.86505,
+          "p95_ms": 9.983501,
+          "p99_ms": 10.240697
+        },
+        "slo_id": "U1",
+        "status": "pass",
+        "threshold": {
+          "visible_latency_ms_max": 2000.0
+        },
+        "threshold_pass": true,
+        "title": "WAV decode/load latency"
+      }
+    ],
+    "schema_version": 1,
+    "summary": {
+      "formal_slos_verified": 0,
+      "proxy_failed": 0,
+      "proxy_passed": 6
+    }
+  },
+  "validation_status": "pass"
+}
