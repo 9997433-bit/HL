@@ -43,6 +43,17 @@ _EXPORTS: dict[str, str] = {
     # solver
     "ModalSolver": "openfemlab.solver.modal",
     "ModalResult": "openfemlab.solver.modal",
+    # dynamics
+    "ComplexModalResult": "openfemlab.solver.dynamics",
+    "FrequencyResponse": "openfemlab.solver.dynamics",
+    "ModalDamping": "openfemlab.solver.dynamics",
+    "RayleighDamping": "openfemlab.solver.dynamics",
+    "StructuralDamping": "openfemlab.solver.dynamics",
+    "complex_modal_frf": "openfemlab.solver.dynamics",
+    "complex_modes": "openfemlab.solver.dynamics",
+    "direct_frf": "openfemlab.solver.dynamics",
+    "harmonic_response": "openfemlab.solver.dynamics",
+    "modal_frf": "openfemlab.solver.dynamics",
     # correlation
     "mac": "openfemlab.correlation",
     "mac_value": "openfemlab.correlation",
@@ -111,6 +122,16 @@ if TYPE_CHECKING:  # pragma: no cover
     from .exceptions import ModelError as ModelError
     from .exceptions import OpenFEMLabError as OpenFEMLabError
     from .exceptions import SolverError as SolverError
+    from .solver.dynamics import ComplexModalResult as ComplexModalResult
+    from .solver.dynamics import FrequencyResponse as FrequencyResponse
+    from .solver.dynamics import ModalDamping as ModalDamping
+    from .solver.dynamics import RayleighDamping as RayleighDamping
+    from .solver.dynamics import StructuralDamping as StructuralDamping
+    from .solver.dynamics import complex_modal_frf as complex_modal_frf
+    from .solver.dynamics import complex_modes as complex_modes
+    from .solver.dynamics import direct_frf as direct_frf
+    from .solver.dynamics import harmonic_response as harmonic_response
+    from .solver.dynamics import modal_frf as modal_frf
     from .solver.modal import ModalResult as ModalResult
     from .solver.modal import ModalSolver as ModalSolver
     from .updating import ModelUpdater as ModelUpdater
