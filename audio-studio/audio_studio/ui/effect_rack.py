@@ -10,8 +10,10 @@ Two controls sit above the individual effects, matching a mixer's insert slot:
 **Bypass** takes the whole rack out of the path, and **Mix** crossfades the
 processed signal against the untouched one.
 
-The restoration pair (**De-Hum**, **De-Click**) sits at the top of the chain,
-where repair belongs: correcting the recording before shaping it. Both start
+The restoration group (**De-Hum**, **De-Click**, **Noise Reduction**) sits at
+the top of the chain, where repair belongs: correcting the recording before
+shaping it, and in the order the faults are easiest to see — the steady tone
+first, then the ticks, then whatever hiss is left underneath. All three start
 switched off, so a new session's rack is inaudible. De-clicking needs the audio
 on both sides of a click and therefore only applies on render — the panel says
 so rather than leaving the user wondering why preview sounds unchanged.
@@ -46,7 +48,7 @@ from ..dsp.effects import (
     NoiseGateEffect,
     ThreeBandEQ,
 )
-from ..dsp.repair import DeClickEffect, DeHumEffect
+from ..dsp.repair import DeClickEffect, DeHumEffect, NoiseReduceEffect
 from .theme import PALETTE, Palette
 
 __all__ = ["EffectRackPanel", "default_preview_chain"]
@@ -72,7 +74,7 @@ LOUDNESS_CHOICES: tuple[tuple[str, str], ...] = (
 def default_preview_chain() -> EffectChain:
     """The rack a new session starts with: repair, then a 3-band EQ into a trim.
 
-    The EQ and trim are flat and the two repair effects are switched off, so
+    The EQ and trim are flat and the three repair effects are switched off, so
     the chain is inaudible until something is moved. Everything streams except
     the de-clicker and the loudness matcher, which need the whole signal; the
     chain skips those two during preview and they apply on render.
@@ -81,6 +83,7 @@ def default_preview_chain() -> EffectChain:
         [
             DeHumEffect(enabled=False),
             DeClickEffect(enabled=False),
+            NoiseReduceEffect(enabled=False),
             NoiseGateEffect(enabled=False),
             ThreeBandEQ(),
             CompressorEffect(enabled=False),
@@ -200,6 +203,7 @@ class EffectRackPanel(QWidget):
         layout.addWidget(self._build_master())
         layout.addWidget(self._build_dehum())
         layout.addWidget(self._build_declick())
+        layout.addWidget(self._build_noise_reduce())
         layout.addWidget(self._build_eq())
         layout.addWidget(self._build_compressor())
         layout.addWidget(self._build_trim())
@@ -281,6 +285,39 @@ class EffectRackPanel(QWidget):
         layout.setSpacing(4)
         layout.addWidget(self.declick_enabled)
         layout.addWidget(self.declick_sensitivity)
+        return box
+
+    def _build_noise_reduce(self) -> QWidget:
+        box = QGroupBox("Noise Reduction")
+        self.noise_reduce_enabled = QCheckBox("Enabled")
+        self.noise_reduce_enabled.setToolTip(
+            "Learns the noise floor from the head of the material and applies a "
+            "Wiener gain to every band. Streams, at one analysis window of delay"
+        )
+        self.noise_reduce_enabled.toggled.connect(
+            lambda on: self._set_enabled(self.noise_reduce, on)
+        )
+
+        self.noise_reduction = _DbSlider("Reduction", 0.0, 48.0, 24.0)
+        self.noise_reduction.setToolTip(
+            "How far a band holding nothing but noise is pushed down. Leaving a "
+            "floor under the noise sounds less processed than removing it"
+        )
+        self.noise_reduction.valueChanged.connect(self._on_noise_reduction)
+
+        self.noise_learn_ms = _DbSlider("Learn from head", 50.0, 2000.0, 300.0, suffix=" ms")
+        self.noise_learn_ms.setToolTip(
+            "How much of the start of the clip is taken to be noise alone. It "
+            "must be a pause: anything played during it is learned as noise"
+        )
+        self.noise_learn_ms.valueChanged.connect(self._on_noise_learn_ms)
+
+        layout = QVBoxLayout(box)
+        layout.setContentsMargins(8, 4, 8, 8)
+        layout.setSpacing(4)
+        layout.addWidget(self.noise_reduce_enabled)
+        layout.addWidget(self.noise_reduction)
+        layout.addWidget(self.noise_learn_ms)
         return box
 
     def _build_eq(self) -> QWidget:
@@ -504,6 +541,10 @@ class EffectRackPanel(QWidget):
     def declick(self) -> DeClickEffect | None:
         return next((e for e in self.chain if isinstance(e, DeClickEffect)), None)
 
+    @property
+    def noise_reduce(self) -> NoiseReduceEffect | None:
+        return next((e for e in self.chain if isinstance(e, NoiseReduceEffect)), None)
+
     def set_chain(self, chain: EffectChain) -> None:
         """Point the panel at a different chain and re-read its state."""
         self.chain = chain
@@ -529,6 +570,8 @@ class EffectRackPanel(QWidget):
                 self.reverb_mix.slider,
                 self.dehum_enabled, self.hum_frequency, self.hum_harmonics,
                 self.hum_q.slider, self.declick_enabled, self.declick_sensitivity.slider,
+                self.noise_reduce_enabled, self.noise_reduction.slider,
+                self.noise_learn_ms.slider,
             )
         ]
         try:
@@ -543,6 +586,11 @@ class EffectRackPanel(QWidget):
             if declick is not None:
                 self.declick_enabled.setChecked(declick.enabled)
                 self.declick_sensitivity.set_value(declick.sensitivity * 100.0)
+            noise_reduce = self.noise_reduce
+            if noise_reduce is not None:
+                self.noise_reduce_enabled.setChecked(noise_reduce.enabled)
+                self.noise_reduction.set_value(noise_reduce.reduction_db)
+                self.noise_learn_ms.set_value(noise_reduce.noise_ms)
             eq, trim = self.eq, self.trim
             if eq is not None:
                 self.eq_enabled.setChecked(eq.enabled)
@@ -592,7 +640,7 @@ class EffectRackPanel(QWidget):
             self.noise_gate_threshold, self.noise_gate_ratio, self.delay_time,
             self.delay_feedback, self.delay_mix, self.reverb_room_size,
             self.reverb_damping, self.reverb_mix, self.hum_q,
-            self.declick_sensitivity,
+            self.declick_sensitivity, self.noise_reduction, self.noise_learn_ms,
         ):
             slider._update_readout()  # noqa: SLF001 - sibling widget, signals were blocked
         self.update_status()
@@ -611,6 +659,9 @@ class EffectRackPanel(QWidget):
             dehum.enabled = False
         if declick is not None:
             declick.enabled = False
+        noise_reduce = self.noise_reduce
+        if noise_reduce is not None:
+            noise_reduce.enabled = False
         eq, trim = self.eq, self.trim
         if eq is not None:
             eq.enabled = True
@@ -701,6 +752,19 @@ class EffectRackPanel(QWidget):
         declick = self.declick
         if declick is not None:
             declick.sensitivity = percent / 100.0
+        self._changed()
+
+    def _on_noise_reduction(self, reduction_db: float) -> None:
+        noise_reduce = self.noise_reduce
+        if noise_reduce is not None:
+            noise_reduce.reduction_db = float(reduction_db)
+        self._changed()
+
+    def _on_noise_learn_ms(self, milliseconds: float) -> None:
+        noise_reduce = self.noise_reduce
+        if noise_reduce is not None:
+            noise_reduce.noise_ms = float(milliseconds)
+            noise_reduce.reset()  # the profile learned under the old span is stale
         self._changed()
 
     def _set_band(self, band: str, gain_db: float) -> None:
