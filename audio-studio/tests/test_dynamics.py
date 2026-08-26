@@ -21,7 +21,13 @@ def _stream(effect: Effect, audio: np.ndarray, sizes: tuple[int, ...]) -> np.nda
     size_index = 0
     while offset < audio.shape[-1]:
         size = sizes[size_index % len(sizes)]
-        output.append(effect.process_block(audio[..., offset : offset + size], SR))
+        output.append(
+            effect.process_block(
+                audio[..., offset : offset + size],
+                SR,
+                channels_last=False if audio.ndim == 2 else None,
+            )
+        )
         offset += size
         size_index += 1
     return np.concatenate(output, axis=-1)
