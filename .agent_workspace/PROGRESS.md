@@ -20,7 +20,7 @@
 |-------|--------|-----------|-------|
 | Round 1 | ✅ COMPLETE | 6× concurrent | [Round 1 结论简报](#round-1-结论简报) |
 | Round 2 | ✅ COMPLETE | 6× concurrent | [Round 2 结论简报](#round-2-结论简报) |
-| Round 3 | PENDING | — | SOTA polish & final acceptance |
+| Round 3 | IN_PROGRESS | 6× concurrent (2 fable☁️, 2 opus-fast, 2 gpt-sol) | SOTA polish & final acceptance |
 
 ---
 
