@@ -30,7 +30,6 @@ from .loader import save_audio
 from .output import DEFAULT_BLOCK_SIZE, _quiet_native_stderr
 from .types import SAMPLE_DTYPE, AudioBuffer
 
-
 _PCM_24_MAX = (1 << 23) - 1
 _PCM_24_MIN = -(1 << 23)
 _BEXT_FIXED_SIZE = 602
@@ -146,7 +145,7 @@ class _BroadcastWaveWriter:
         flush_interval: float,
     ) -> None:
         target.parent.mkdir(parents=True, exist_ok=True)
-        pending = tempfile.NamedTemporaryFile(
+        pending = tempfile.NamedTemporaryFile(  # noqa: SIM115 - closed by finalize/abandon
             mode="w+b",
             prefix=f".{target.name}.",
             suffix=".tmp",
