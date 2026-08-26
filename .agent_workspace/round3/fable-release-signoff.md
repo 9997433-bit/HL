@@ -237,4 +237,10 @@ ML 降噪/源分离、Dolby Atmos/ADM、视频预览、OMF/AAF、CLAP/LV2、MIDI
 
 ---
 
+## 附：定稿后补记（同日，分支推进至 `508bf5b` 后复核）
+
+1. **多轨 Session MVP 已合并**（opus #3，commit `edda345`）：§2.5 范围弹性条款生效——多轨能力按 fable #1 终审的补充定级（B8 重定为 partial）进入 v0.1.0-alpha 口径，§2.3 限制①相应从「无多轨会话」收窄为「多轨为 MVP 边界，混音工作流未完成」。
+2. **最终 HEAD 全量复验：767 passed / 23 xfailed / 1 xpassed（6.61 s）**——较签收基线新增 115 项（多轨 + 验收自动化套件）；唯一 xpass 是验收 checklist E3（其 xfail 标记仍假定许可清单缺失，实际已落地，属良性过期标记，归验收套件维护方收口）。
+3. **fable #1 SOTA 终审已出具**（`403e777`）：「Audition-class No-Go / alpha conditional Go」——与本签收 §2.1 的发布定位一致，两份文档互为印证。
+
 *— fable（claude-fable-5-thinking-xhigh），Round 3 架构签收 & 发布路线图子代理（bc-11509187），2026-08-26。签收证据均可按 §1.1 方法复现；本文档只对已验证事实签字，在飞工作以合并后验证为准。*
