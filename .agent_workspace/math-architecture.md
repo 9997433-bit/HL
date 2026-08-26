@@ -248,10 +248,25 @@ Web直达        ✗     ✗     ✗         部分     ✓✓  (纯Web,零安�
 - Tone.js AudioContext 需用户手势解锁(骨架已按"首次点击初始化"处理);
 - 9×9 数独生成耗时(骨架实测:9×9 生成 3ms,唯一解校验通过;无需 Worker)。
 
-**⚠️ Round 1 并行骨架待归并(Round 2 首要清理项):**
-Round 1 两个子代理并行产出了两套实现,均已入库。当前**生效入口链**为本文档描述的结构
-(`main.js → router → views/HomeView + modules/*`,引擎在 `src/core/`);
-另一套(`src/views/{Arithmetic,Counting,Geometry,Logic,Sudoku}View.vue`、`src/utils/{sudoku,sudoku4,sound,random}.js`、
-`src/data/{modules,wordProblems,achievements,shapes}.js`、`src/components/{TopBar,StarField,MascotBot,…}.vue`、`src/composables/*`)
-未被路由引用,不影响构建。Round 2 应择优合并:UI 组件(StarField/MascotBot/AchievementToast)可并入 `components/`,
-玩法逻辑统一收敛到 `core/` 引擎协议,删除重复的 sudoku/sound/wordProblems 实现,`src/assets/styles/` 与 `src/styles/` 二选一。
+**✅ Round 1 并行骨架已归并(Round 2 完成):**
+Round 1 两个子代理并行产出了两套实现,Round 2 已按「保留更好的那套」收敛完毕,
+仓库里不再有未被引用的源文件(依赖图从 `main.js` 出发可达全部 `src/**`)。归并结果与本文档
+第 2.2 节的分层图有出入,以实现为准:
+
+| 原骨架位置 | 现状 | 处置理由 |
+|------------|------|----------|
+| `core/engine/sudoku.js` | 并入 `utils/sudoku.js` | 保留通用档位实现,补上界面在用的 `conflictsOf` / `nextHint` 并推广到任意档位 |
+| `utils/sudoku4.js` | 删除 | 4×4 专用,能力是前者子集 |
+| `core/engine/generator.js` | 删除 | 干扰项做法弱于 `utils/random.js` 的 `numericOptions`(会给出不足 4 个选项) |
+| `core/engine/wordproblem.js` + `data/word-problems.js` | 删除 | 占位符 DSL 只有 4 个模板,不及 `data/wordProblems.js` 的 18 个参数化母题 |
+| `core/canvas/stage.js` | 删除 | 玩法全部用 DOM + GSAP 实现,StarField 自带 canvas 逻辑 |
+| `core/engine/adaptive.js` | 迁至 `utils/mastery.js` | 唯一被引用的引擎,随 `src/core/` 目录一起收进 `src/utils/` |
+| `curriculum.js` 的 `MODULES` | 删除 | 与 `data/modules.js` 重复,星球元数据只留后者 |
+| `views/*View.vue` | 删除,`HomeView` 迁至 `modules/home/` | 路由视图统一在 `modules/` 下,`src/views/` 目录取消 |
+| Tone.js 音效 | 改为原生 Web Audio(`utils/sound.js`) | 只用来合成五种反馈音,却占主包 232KB / gzip 60KB |
+
+**实际生效结构**:`main.js → router → modules/home/HomeView + modules/*`;
+框架无关的纯逻辑都在 `src/utils/`(sudoku / mastery / sound / random),`src/core/` 已不存在。
+出题目前由各玩法视图自己负责,「题目落到哪个技能点」由 `data/skill-mapping.js` 统一裁决,
+`recordAnswer` 会拒绝图谱之外的技能 id。第 2.3 节的「题目协议」尚未落地为共享数据结构,
+留待 QuizShell 通用答题壳时统一。
