@@ -56,6 +56,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A44 | claude-opus-5-thinking-high-fast | Tag AC-WORK-001/002/004/005 and AC-UPD-007; new `tests/acceptance/test_workflow.py` (backfill for A23) | complete |
 | A43 | claude-opus-5-thinking-high-fast | R2-T03: AC-CORR-006 acceptance gate (reduced- vs expanded-space pairing) and its registration (backfill for A36) | complete |
 | A46 | claude-opus-5-thinking-high-fast | R2-T02 continued: TET4 constant-strain tetrahedron, Kuhn tet-block mesh, 3D patch suite (backfill for A42) | complete |
+| A64 | claude-fable-5-thinking-xhigh | Chinese quickstart user guide `docs/USER_GUIDE_zh.md`: install, CLI, workflow, FEMtools mapping (backfill for A52) | complete |
 | A54 | claude-opus-5-thinking-high-fast | `openfemlab correlate-frf`: the CLI surface over `correlation/frf.py`, closing the last R2-T01 exit item (backfill for A41) | complete |
 | A62 | gpt-5.6-sol-xhigh-fast | Superseded-branch closure record and current-trunk verification (backfill for A40) | complete |
 | A55 | claude-fable-5-thinking-xhigh | Status snapshot: `.agent_workspace/STATUS.md` — 876-test verification, Round 1/2 state, module table, open gaps (backfill for A51) | complete |
@@ -2218,3 +2219,37 @@ the AC-UPD-006a/b registry rows stay `specified` because their tags belong in
 - The unpinned pytest invocation inherited `/workspace/src` and failed collection
   against that unrelated checkout. Pinning the branch-local source removed the
   cross-worktree import contamination; no product-code fix was required.
+
+#### A64 — Chinese quickstart user guide `docs/USER_GUIDE_zh.md` (backfill for A52)
+
+Documentation-only landing: the first end-user document in a language other than
+English, aimed at the FEMtools-adjacent audience the platform targets.
+
+- `docs/USER_GUIDE_zh.md` (new): a Simplified-Chinese quickstart covering the whole
+  README surface plus the file formats the README only points at. Sections: project
+  positioning with a FEMtools-module-to-OpenFEMLab-module mapping table (Framework →
+  API/CLI, Dynamics → `solver`, Pretest & Correlation → `correlation`, Model Updating →
+  `updating`, Optimization → `optimization`, MPE → not provided but UFF 55/58 readable);
+  installation (Python ≥ 3.10, `pip install -e .` and the `dev,cli` / `io` extras);
+  the five-minute Python cantilever quickstart; a CLI overview with the global flags
+  and the CI exit-code contract (0 / 1 / 3 `CORRELATION_FAILED` / 4 `NOT_CONVERGED`);
+  the model-spec document (all five `mesh.type` builders, named material/section
+  tables, supports/point masses/rotary inertias, the optional `damping` block, and the
+  dotted-path addressing `update` relies on); one section per analysis command with an
+  option table each; and the four-step end-to-end workflow over the
+  `examples/02_model_updating_workflow.py` fixtures, mirroring the README shell session.
+- Every documented default, choice list and format was pinned against the source rather
+  than the README: `modal` defaults (`-n 6`, `mass|max|none` normalization, direction
+  auto-pick), `correlate` pairing methods and `--require-*` gates, the `update`
+  configuration schema from `commands/update.py` (`parameters[].target` dotted paths,
+  bounds defaults 0.5/2.0, `kind` ∈ stiffness/mass/damping/generic per `ParameterType`),
+  and `correlate-frf` damping resolution order (CLI flag → spec block → 0.02 default)
+  with the JSON/YAML FRF document shape from `commands/correlate_frf.py`. The
+  `test_data` sample matches `io/_native.py`'s writer (`dofs_by_mode` layout,
+  `dof_map.node_ids`/`dof_types` by name).
+- No code changes, so the suite is untouched; the tree at the base tip `e47426e` was
+  already verified at **876 passed** by A62/A63's records.
+- Followed the shared-checkout rule: worked from the private detached worktree
+  `/tmp/a64`, and the base tip indeed moved twice (`8604807` → `e47426e` → the A67
+  record) between the first fetch and the landing — re-synced by rebase both times,
+  nothing lost.
