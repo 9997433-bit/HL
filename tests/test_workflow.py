@@ -16,7 +16,7 @@ import numpy as np
 import pytest
 
 from openfemlab.correlation.pairing import ModePair, ModePairing
-from openfemlab.updating import ScalingModel, UpdatableParameter
+from openfemlab.updating import GaussianPrior, ScalingModel, UpdatableParameter
 from openfemlab.updating.sensitivity import ModalData
 from openfemlab.workflow import (
     SCHEMA_VERSION,
@@ -192,6 +192,67 @@ def test_posterior_sigma_is_reported_per_updated_parameter(model, measured) -> N
         assert entry.sigma_post is not None
         # Noise-free targets are matched exactly, so the estimate collapses.
         assert entry.sigma_post < 1e-6
+
+
+# --------------------------------------------------- the MS-3.5 estimator in S4
+
+
+def test_a_noise_covariance_switches_sigma_post_to_the_laplace_posterior(
+    model, measured
+) -> None:
+    """``sigma_post`` becomes ``sqrt(diag((J^T C_e^-1 J)^-1))``, so it scales with C_e.
+
+    The deterministic column estimates the residual variance from the fit,
+    which on noise-free targets collapses to zero; handing S4 a measurement
+    covariance replaces that guess with the user's own error bar.
+    """
+    quiet = run_correction(model, measured, None, params(TRUTH), noise_covariance=1.0e-6)
+    noisy = run_correction(model, measured, None, params(TRUTH), noise_covariance=1.0e-4)
+
+    assert quiet.status == "PASS" and noisy.status == "PASS"
+    for name in TRUTH:
+        assert quiet.parameter(name).final == pytest.approx(TRUTH[name], rel=1e-4)
+        assert quiet.parameter(name).sigma_post > 1e-3
+        assert noisy.parameter(name).sigma_post == pytest.approx(
+            10.0 * quiet.parameter(name).sigma_post, rel=1e-6
+        )
+
+
+def test_a_prior_regularizes_s4_and_bounds_the_reported_sigma_post(model, measured) -> None:
+    """A prior turns S4 into the MAP estimator, so ``sigma_post <= sigma_prior``."""
+    sigma = 0.01
+    report = run_correction(
+        model, measured, None, params(TRUTH), prior=GaussianPrior.from_std(sigma)
+    )
+
+    for name in TRUTH:
+        entry = report.parameter(name)
+        assert entry.sigma_post <= sigma
+        # This prior is far tighter than the unit-variance data term, so it
+        # holds the correction at nominal and the run fails its gates. That is
+        # the honest outcome, not a defect: the prior said the model was right.
+        assert entry.final == pytest.approx(1.0, abs=3.0 * sigma)
+    assert report.status == "FAIL"
+    assert report.failed_stage is Stage.VALIDATION
+
+
+def test_a_prior_leaves_the_recovery_intact_when_the_data_outweighs_it(
+    model, measured
+) -> None:
+    """Weighed against a 0.1 % measurement error, the same prior is negligible."""
+    report = run_correction(
+        model,
+        measured,
+        None,
+        params(TRUTH),
+        prior=GaussianPrior.from_std(0.5),
+        noise_covariance=1.0e-6,
+    )
+
+    assert report.status == "PASS"
+    for name, expected in TRUTH.items():
+        assert report.parameter(name).final == pytest.approx(expected, rel=1e-4)
+        assert report.parameter(name).sigma_post <= 0.5
 
 
 # ------------------------------------------------------------------ the artifact
