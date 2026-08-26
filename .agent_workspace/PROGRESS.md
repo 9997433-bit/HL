@@ -3210,6 +3210,11 @@ already carries a patch test, a zero-energy-mode count and a quadratic convergen
 in developer form; folding it into `tests/acceptance/test_elements.py` needs a per-case
 oracle switch (the Navier plate rather than the continuum bar) and no new criterion ID.
 
+One follow-up the merge surfaced: `io/neutral_convert.py` landed on the trunk during this
+task and maps `ElementType.QUAD4` to the two-DOF membrane element, so an imported shell
+property has nowhere to go yet. Routing it to `ShellQuad4Element` is a converter change,
+not an element one.
+
 **Working-tree hazard, again.** The first implementation was written directly in the
 shared `/workspace` checkout and was destroyed mid-edit by another agent's hard reset:
 `HEAD` moved from `7368c92` to `dd356dc` and every uncommitted file reverted, with no

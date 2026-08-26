@@ -36,7 +36,7 @@ gate landed, so the split is now **44 criteria — 9 `verified`, 32 `implemented
 | Task | Status |
 |---|---|
 | R2-T01 dynamics/FRF | **COMPLETE** — engine (`acda625`), AC-DYN-001..005 `implemented`, report `frf` block at schema 1.1 (A41), `openfemlab correlate-frf` CLI (A54). No open work. |
-| R2-T02 3D elements | **PARTIAL** — QUAD4 (A37), TET4 (A46) and HEX8 (A59, merged by A79) are all on the integration branch with mesh generators and 203 tests, AC-ELEM-001..003 are registered as module M7 over all three (+24 acceptance cases) with AC-ELEM-001 **`verified`** through the R2-T09 gate (A72), the spatial beam `BeamElement3D` (A82, 42 tests) was merged onto the integration branch at `75dd070` (A93), and the **flat-facet shell `ShellQuad4Element` (A98, 72 tests) is on `cursor/shell-quad4-facet-1c70` awaiting merge**. Open: `NeutralModel` → `Model` conversion, solid/shell BDF cards (`CBAR` included), and folding the shell into the AC-ELEM case table. |
+| R2-T02 3D elements | **PARTIAL** — QUAD4 (A37), TET4 (A46) and HEX8 (A59, merged by A79) are all on the integration branch with mesh generators and 203 tests, AC-ELEM-001..003 are registered as module M7 over all three (+24 acceptance cases) with AC-ELEM-001 **`verified`** through the R2-T09 gate (A72), the spatial beam `BeamElement3D` (A82, 42 tests) was merged onto the integration branch at `75dd070` (A93), and the **flat-facet shell `ShellQuad4Element` (A98, 72 tests) is on `cursor/shell-quad4-facet-1c70` awaiting merge**. Open: solid/shell BDF cards (`CBAR` included), routing an imported shell property through `io/neutral_convert.py` (which lands `ElementType.QUAD4` on the *membrane* element), and folding the shell into the AC-ELEM case table. |
 | R2-T03 reduction/expansion | **ACCEPTANCE-COMPLETE** — engine (A36, `correlation/reduction.py`) with the AC-CORR-006 gate `implemented` (A43) and **`verified`** through the R2-T09 gate (A72), and AC-CORR-009 plus the `SensorMap.signs` wiring landed (A58). Open: sparse inputs. |
 | R2-T04 Bayesian MAP | **ACCEPTANCE-COMPLETE** — estimator (A49, `updating/bayesian.py`, 36 tests) plus the AC-UPD-006a/b tagging, the registry flip and the Laplace σ_post in the `CorrectionReport` (A57, on the trunk since the `ac-upd-006-registration-6615` merge). Open: σ_post in the CLI `update` document, which is outside the acceptance slice. |
 | R2-T05 meshio & IO | **PARTIAL** — the meshio bridge landed (A89, `io/meshio_bridge.py`, 44 tests): `from_meshio`/`to_meshio` over a one-to-one cell-type table, `read_meshio`/`write_meshio`, and the P7 optional-dependency seam with `MissingDependencyError`. Open: AC-IO-001..003 registration, UNV 2411/2412, `NeutralModel` → `Model` re-analysis of an imported mesh, UFF writing. |
@@ -210,9 +210,10 @@ consistency tests fail.
   inertia is off by default (`rotary_inertia=True` restores it, at the cost of a mass
   matrix ill conditioned enough to trip the modal residual guard on a thin plate).
   **The AC-ELEM-* rows are registered** (see the acceptance-links bullet below), so
-  what remains open is the solid/shell BDF cards, the neutral-model conversion and
-  folding the shell into the AC-ELEM case table; the task does **not** close. See the
-  R2-T02, A37, A46, A59, A82 and A98 entries in [`PROGRESS.md`](PROGRESS.md).
+  what remains open is the solid/shell BDF cards, the shell branch of the neutral-model
+  conversion and folding the shell into the AC-ELEM case table; the task does **not**
+  close. See the R2-T02, A37, A46, A59, A82 and A98 entries in
+  [`PROGRESS.md`](PROGRESS.md).
 - **Scope:**
   - ~~QUAD4 (plane stress/strain first; shell via flat facet + drilling treatment
     documented as a limitation)~~ **landed**, the flat facet included. ~~TET4~~
@@ -224,8 +225,9 @@ consistency tests fail.
   - `mesh/simple.py` generators for structured quad/hex blocks (needed for convergence
     fixtures) and neutral-model → assembly wiring for the new blocks — the structured
     **quad**, **shell**, **tet** (Kuhn-subdivided box) and **hex** generators are all
-    landed; what remains is the `NeutralModel` → `Model` conversion that turns an
-    imported block into bound elements.
+    landed, and `io/neutral_convert.py` turns an imported block into bound elements;
+    what remains is a shell branch in that converter, which today lands
+    `ElementType.QUAD4` on the two-DOF membrane element.
   - Nastran card coverage follows the element set: `CQUAD4`/`CTETRA`/`CHEXA`/`CBAR`,
     `PSHELL`/`PSOLID` in `io/nastran.py` (remaining GAP-03 scope, coordinated with
     R2-T05).
@@ -479,9 +481,9 @@ Round 2 is done when, on the integration branch in CI:
    registered, the CBAR-like `BeamElement3D` closed the frame slice (A82, merged at
    `75dd070` by A93) and `ShellQuad4Element` closed the shell slice (A98, awaiting
    merge from `cursor/shell-quad4-facet-1c70`); **no element formulation is outstanding
-   in `core/elements.py`**. What remains is plumbing — the `NeutralModel` → `Model`
-   conversion, the solid/shell BDF cards, and folding the shell into the AC-ELEM case
-   table — and R2-T05 is now unblocked for solid, frame *and* shell meshes.
+   in `core/elements.py`**. What remains is plumbing — a shell branch in
+   `io/neutral_convert.py`, the solid/shell BDF cards, and folding the shell into the
+   AC-ELEM case table — and R2-T05 is now unblocked for solid, frame *and* shell meshes.
 3. **R2-T03 — SEREP/TAM reduction & expansion** (GAP-08) and **R2-T04 Bayesian MAP**
    were the tied Round-2 sign-off blockers, via AC-CORR-006 and AC-UPD-006a/b. Both
    engines are on the trunk (`correlation/reduction.py` A36, `updating/bayesian.py`
