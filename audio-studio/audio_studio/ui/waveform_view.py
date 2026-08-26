@@ -85,7 +85,7 @@ class WaveformView(QWidget):
         self._amplitude_scale = 1.0
 
         self._selection: TimeRange | None = None
-        self._playhead = 0
+        self._playhead = 0.0
         self._cursor_frame = 0
         self._markers = MarkerList()
 
@@ -116,7 +116,7 @@ class WaveformView(QWidget):
         self._sample_rate = max(int(sample_rate), 1)
         self._n_frames = pyramid.n_frames if pyramid is not None else 0
         self._selection = None
-        self._playhead = 0
+        self._playhead = 0.0
         self._cursor_frame = 0
         self._invalidate_cache()
         self.zoom_to_fit()
@@ -262,15 +262,26 @@ class WaveformView(QWidget):
 
     @property
     def playhead(self) -> int:
+        return int(self._playhead)
+
+    @property
+    def playhead_exact(self) -> float:
+        """The playhead with its fractional part, as the transport reported it."""
         return self._playhead
 
-    def set_playhead(self, frame: int, *, follow: bool = False) -> None:
-        frame = int(max(0, min(frame, self._n_frames)))
+    def set_playhead(self, frame: float, *, follow: bool = False) -> None:
+        """Move the playhead to ``frame``, which may be fractional.
+
+        A fraction of a frame is far below a pixel at any useful zoom, but it
+        is what lets a 30 Hz repaint interpolate between device blocks instead
+        of stepping between them.
+        """
+        frame = float(max(0.0, min(float(frame), float(self._n_frames))))
         if frame == self._playhead:
             return
         self._playhead = frame
         if follow:
-            self.ensure_visible(frame)
+            self.ensure_visible(int(frame))
         self.update()
 
     @property

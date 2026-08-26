@@ -1494,7 +1494,10 @@ class MainWindow(QMainWindow):
             )
         if not self.engine.has_clip:
             return
-        position = self.engine.position
+        # The interpolated playhead: the transport can only move it once per
+        # device block, which is slower than this tick and gives a visibly
+        # stepped playhead. The engine fills in the fraction between blocks.
+        position = self.engine.position_interpolated
         playing = self.engine.is_playing
         if self._workspace == "multitrack":
             self.multitrack_view.set_playhead(position)

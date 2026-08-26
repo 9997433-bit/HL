@@ -135,6 +135,16 @@ def test_playhead_is_clamped_to_the_clip(waveform: WaveformView) -> None:
     assert waveform.playhead == 0
 
 
+def test_a_fractional_playhead_keeps_its_fraction(waveform: WaveformView) -> None:
+    """The transport interpolates between blocks; the view must not round it off."""
+    waveform.set_playhead(1_234.5)
+
+    assert waveform.playhead_exact == 1_234.5
+    assert waveform.playhead == 1_234
+    # Sub-frame motion still moves the drawn position.
+    assert waveform.frame_to_x(1_234.5) > waveform.frame_to_x(1_234.0)
+
+
 def test_waveform_renders_without_error_at_several_zoom_levels(
     waveform: WaveformView,
 ) -> None:

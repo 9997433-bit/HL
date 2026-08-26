@@ -169,9 +169,14 @@ class TrackPanel(QWidget):
         self.waveform.set_clip(pyramid, sample_rate, samples)
         self._on_view_changed(self.waveform.view_start, self.waveform.view_frames)
 
-    def set_playhead(self, frame: int, *, follow: bool = False) -> None:
+    def set_playhead(self, frame: float, *, follow: bool = False) -> None:
+        """Move the playhead; ``frame`` may be fractional.
+
+        The waveform keeps the fraction, which is what makes an interpolated
+        playhead glide; the ruler only draws a timecode and rounds it away.
+        """
         self.waveform.set_playhead(frame, follow=follow)
-        self.ruler.set_playhead(frame)
+        self.ruler.set_playhead(int(frame))
 
     def set_selection(self, selection: TimeRange | None) -> None:
         self.waveform.set_selection(selection)
