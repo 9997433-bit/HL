@@ -37,4 +37,12 @@
 - gpt-sol×3: 开源资源探针、测试打包脚本、动画音效集成与性能基准
 
 ## Round 1 交付记录
-- [x] fable·识字架构: `.agent_workspace/literacy-architecture.md`（竞品审计10项对齐+8项超越点、7模块契约、数据schema、开源资源清单、R2攻坚清单）；`apps/literacy-app/README.md`；`src/utils/srs.js` FSRS-lite 记忆曲线契约（纯函数，R2 接线替换现有阈值复习队列）。已与 opus-fast 落地代码对齐（hash路由/离线笔顺裁剪/WebAudio音效）。
+- [x] fable·识字架构: `.agent_workspace/literacy-architecture.md`（…）；`src/utils/srs.js` FSRS-lite 契约。
+- [x] fable·数学架构: `.agent_workspace/math-architecture.md`（参数化生成器降维、core 引擎层、题目协议全链路）；`apps/math-app/src/core/engine/*` 已冒烟通过。
+- [x] fable·UI/UX: `ui-ux-design-spec.md`、`sota-acceptance-criteria.md`
+- [x] gpt-sol·资源/探针: 100字/85题/42成语；`verify-resources.sh` / `benchmark.sh` / `stress-test.js`
+- [x] opus-fast·双 App MVP + 打包: `dist/hongen-literacy-app.zip`（271KB）、`dist/hongen-math-app.zip`（143KB）
+
+## Round 2 首要清理项
+- **math-app**：`modules/*+core/*`（路由生效） vs `src/views/*`（未引用）；择优合并 UI 后删重复引擎。
+- **literacy-app**：`HomeView/LearnView/...`（路由生效） vs `HomeMap/Books/Idioms/...`（未引用）；同上归并。
