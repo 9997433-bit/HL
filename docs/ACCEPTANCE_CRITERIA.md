@@ -661,10 +661,11 @@ number.
 Fourteen of them were `verified` after the first two promotion waves (A109,
 A121). The third wave — promoted at Round 2 sign-off — closed module **M8**
 (AC-IO-001..003), putting every Round-1/2 row on the CI gate. Round 3 opened
-modules **M9** (section 10) and **M10** (section 11) spec-first. The fourth
-wave closed module **M9** (AC-MPE-001..005) once its estimator landed, so the
-inventory reads **52 `verified`, 0 `implemented`, 5 `specified`**; only M10 is
-still carried in `MODULES_AWAITING_PROMOTION`.
+modules **M9** (section 10) and **M10** (section 11) spec-first. Round 3's
+fourth wave closed **M9** (AC-MPE-001..005) and **M10**'s P0/P1 gates
+(AC-PRETEST-001..004); AC-PRETEST-005 remains **`implemented`** (P2, outside
+the blocking gate). The inventory reads **56 `verified`, 1 `implemented`, 0
+`specified`** — every Round-1..3 blocking row is on the CI gate.
 
 The registry tests enforce:
 
