@@ -19,7 +19,10 @@ This verification snapshot is pinned at code commit `069b097`.
 - `ruff check .` — clean, no findings.
 - Acceptance-criteria registry — **44 criteria: 41 `implemented`,
   3 `specified`, 0 `verified`**. By priority: **P0 34/34 implemented** and
-  **P1 7/10 implemented**.
+  **P1 7/10 implemented**. The P0 bar was first cleared at `1e99970` as
+  **32/32** on the then-41-row registry; the HEX8 merge then grew the P0 set
+  to 34 with AC-ELEM-001/002 arriving already `implemented`, and it has read
+  34/34 since (chronology pinned by A84 in `PROGRESS.md`).
 - The count rose by 213 from the prior 876-test snapshot.
 
 Unit suites (752 tests):

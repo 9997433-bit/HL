@@ -68,6 +68,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A80 | gpt-5.6-sol-xhigh-fast | Authoritative current-tip pytest count (backfill for completed A76) | complete — 1033 passed at `ff484e4`; collection confirmed 1033 |
 | A57 | claude-opus-5-thinking-high-fast | R2-T04 acceptance gate: register AC-UPD-006a/b, penalize the starting cost, and carry the Laplace σ_post into the `CorrectionReport` (backfill for A49) | complete |
 | A83 | claude-opus-5-thinking-high-fast | Land the AC-UPD-006 registration branch on the trunk, verify the tip and mark R2-T04 acceptance-complete (backfill for completed A57) | complete — 1089 passed at `7368c92`, Ruff clean, side branch deleted |
+| A84 | claude-fable-5-thinking-xhigh | P0 32/32→34/34 milestone chronology pinned; AC-UPD-006 registry-count divergence with A57's branch reconciled (backfill for completed A69) | complete — 1033 passed at `c5afc35`; post-merge union 41/3 confirmed at the tip |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
@@ -2939,3 +2940,56 @@ closes the bookkeeping.
   just before pushing one — re-run after every fetch, since on this branch the trunk
   moved four times during a single run. The shared `/workspace` checkout was
   unusable throughout: HEAD was moved out from under this run twice, once mid-merge.
+
+#### A84 — the P0 milestone chronology pinned and the AC-UPD-006 count divergence reconciled (backfill for A69)
+
+This task was dispatched to record the P0 milestone and reconcile the registry
+counts with A57's AC-UPD-006 work; sibling agents were recording and merging
+both while it ran (A78's entry above, the `3e2df81` merge), so this entry pins
+the arithmetic and the chronology rather than re-announcing either.
+
+**The milestone, dated.** Every P0 criterion has been `implemented` since
+`1e99970`, where the AC-CORR-008 flip closed the last open P0 row — **32 of
+32** on the then-41-row registry. Twenty-six seconds after the milestone was
+recorded in STATUS.md (`ca5abae`), the HEX8 merge (`8a0f10f`) grew the P0 set
+itself: AC-ELEM-001/002 arrived already `implemented`, so the bar has read
+**34 of 34** ever since. Nothing has reached `verified`; that promotion is
+R2-T09's, defined but never applied.
+
+**The count corrections.** Re-counted by executing the registry source rather
+than reading its prose: at `c5afc35` the split was P0 34/0 and **P1 5/5** —
+39 implemented of 44. A80's STATUS snapshot recorded P0 35 / P1 4, and A78's
+entry above P0 34 / P1 4 (internally inconsistent with the 39 total it also
+quotes); both P1 figures drop AC-ELEM-003, and A80's P0 gains it. Per family
+the P0 set is 8 MODAL + 7 CORR + 6 UPD + 4 WORK + 3 OPT + 4 DYN + 2 ELEM = 34.
+
+**The AC-UPD-006 divergence, now closed.** Between `c479ee4` (A57 flips
+AC-UPD-006a/b to `implemented` on `cursor/ac-upd-006-registration-6615`) and
+`3e2df81` (that branch merges onto the trunk), the two histories legitimately
+disagreed about the same two rows: A57's "34 implemented / 6 specified
+(P1 5/3)" was exact for its then-40-row tree, and the trunk's 39/5 was exact
+for its 44-row tree — the branch carried the UPD-006a/b flips but predated the
+trunk's AC-CORR-008 flip and the ELEM family. The merge produced the union
+this task was dispatched to predict: **44 rows, 41 `implemented` /
+3 `specified` (P0 34/34, P1 7/3)**, re-counted from the registry source at the
+current tip, leaving AC-MODAL-008, AC-UPD-008 and AC-WORK-003. The rule this
+window demonstrates: a registry count is only meaningful together with the
+commit it was counted at, so status claims in these documents should always
+carry one.
+
+**Verification (independent, this run).** Private clone, `PYTHONPATH` pinned
+to its `src`, Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1, at `c5afc35`:
+**1033 passed, 0 failed**; `ruff check .` clean; the per-suite collection
+summed to the same 1033 (706 unit + 327 acceptance). The tip moved four more
+times during the run (the spatial-beam slice, the AC-UPD-006 merge, the meshio
+bridge, the shape-free AC-CORR-008 cases), so A95's 1,089-test STATUS snapshot
+supersedes these suite numbers; the milestone chronology and the registry
+arithmetic above are commit-pinned and unaffected.
+
+**Hazards, again, twice.** The shared `/workspace` checkout was switched to
+another agent's branch between two consecutive commands of this run, and the
+run's own private clone at `/tmp/a84` was fetch-and-`reset --hard` by a
+concurrent agent mid-edit — the guessable-name variant A50 and A57 recorded.
+The in-flight edits survived the interleaving and reached the remote through a
+fetch-merge-push loop, but only because they had not yet been staged when the
+reset hit; the durable store is the remote, nothing else.
