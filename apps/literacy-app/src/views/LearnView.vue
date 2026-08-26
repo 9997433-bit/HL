@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import CharCard from '@/components/CharCard.vue'
 import ProgressRing from '@/components/ProgressRing.vue'
 import { CHARACTERS, UNITS, charsOfUnit } from '@/data/characters.js'
@@ -50,9 +50,32 @@ const groups = computed(() =>
 
 const visibleCount = computed(() => groups.value.reduce((n, g) => n + g.chars.length, 0))
 
+/**
+ * 一次只挂一个单元。
+ * 字表已经过百，一屏铺开既滚不到底也拖慢低端平板；按单元翻页正好和课程节奏一致，
+ * 同时把同时存在的卡片数压在十张左右。
+ */
+const pages = computed(() => groups.value.filter((g) => g.chars.length))
+
+const pageIndex = ref(0)
+
+const currentPage = computed(() => pages.value[Math.min(pageIndex.value, pages.value.length - 1)])
+
+watch([filter, pages], () => {
+  if (pageIndex.value > pages.value.length - 1) pageIndex.value = Math.max(0, pages.value.length - 1)
+})
+
+function turnPage(delta) {
+  const next = pageIndex.value + delta
+  if (next < 0 || next > pages.value.length - 1) return
+  sfx.tap()
+  pageIndex.value = next
+}
+
 function pickFilter(id) {
   sfx.tap()
   filter.value = id
+  pageIndex.value = 0
 }
 
 const randomChar = computed(() => {
@@ -109,20 +132,47 @@ const randomChar = computed(() => {
       这个分类下还没有字，换一个筛选看看吧！
     </p>
 
-    <section v-for="g in groups" v-show="g.chars.length" :key="g.unit.id" class="unit stack">
+    <section v-if="currentPage" :key="currentPage.unit.id" class="unit stack">
       <header class="unit__head">
-        <span class="unit__emoji" aria-hidden="true">{{ g.unlocked ? g.unit.emoji : '🔒' }}</span>
+        <span class="unit__emoji" aria-hidden="true">
+          {{ currentPage.unlocked ? currentPage.unit.emoji : '🔒' }}
+        </span>
         <div class="unit__meta">
-          <h3 class="unit__name">{{ g.unit.name }}</h3>
+          <h3 class="unit__name">{{ currentPage.unit.name }}</h3>
           <p class="unit__desc muted">
-            {{ g.unlocked ? g.unit.desc : '学完上一个单元的 60% 后解锁' }}
+            {{ currentPage.unlocked ? currentPage.unit.desc : '学完上一个单元的 60% 后解锁' }}
           </p>
         </div>
-        <span class="unit__count pill">{{ g.stat.done }} / {{ g.total }}</span>
+        <span class="unit__count pill">{{ currentPage.stat.done }} / {{ currentPage.total }}</span>
       </header>
       <div class="grid-auto grid-chars">
-        <CharCard v-for="c in g.chars" :key="c.char" :item="c" :locked="!g.unlocked" />
+        <CharCard
+          v-for="c in currentPage.chars"
+          :key="c.char"
+          :item="c"
+          :locked="!currentPage.unlocked"
+        />
       </div>
+
+      <nav class="pager" aria-label="按单元翻页">
+        <button
+          class="btn btn--ghost"
+          type="button"
+          :disabled="pageIndex === 0"
+          @click="turnPage(-1)"
+        >
+          ← 上一页
+        </button>
+        <span class="pager__at">第 {{ pageIndex + 1 }} / {{ pages.length }} 单元</span>
+        <button
+          class="btn btn--ghost"
+          type="button"
+          :disabled="pageIndex >= pages.length - 1"
+          @click="turnPage(1)"
+        >
+          下一页 →
+        </button>
+      </nav>
     </section>
   </div>
 </template>
@@ -214,6 +264,23 @@ const randomChar = computed(() => {
 
 .unit__count {
   flex: none;
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-sm);
+}
+
+.pager__at {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-soft);
+}
+
+.pager .btn[disabled] {
+  opacity: 0.4;
 }
 
 .empty {
