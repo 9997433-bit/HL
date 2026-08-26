@@ -1,7 +1,8 @@
 # Round 4 · 洪恩模块对标审计（fresh code walk）
 
 > 审计人：Round 4 子代理 #2（fable）
-> 审计基线：分支 `cursor/r4-module-audit-9f67`（自 `origin/cursor/openmoji-integration-9f67`，HEAD `ffd4296`）
+> 审计基线：分支 `cursor/r4-module-audit-9f67`（自 `origin/cursor/openmoji-integration-9f67`）
+> 代码走读与 `npm test` 实跑均在 `ffd4296` 上完成；审计期间上游并行合入 `4398f68`（check-round4 stub）与 `49e48fd`（`npm run check:round4` 别名），本分支现基于 `49e48fd`，两笔提交均不改动被审计的功能代码，结论不受影响
 > 审计日期：2026-08-26 · Node 22.14.0
 > 方法：**逐文件重新走读源码**（非引用 Round 3 审计结论），每条状态都附代码证据路径；
 > 内容体量用 `node` 实际 import 数据文件统计，测试计数来自本机 `npm test` 实跑。
@@ -24,7 +25,7 @@
 
 冒烟合计：**识字 36 项 / 数学 27 项，共 63 项全过**。完整输出见本轮 CI 日志（本机留档 `/tmp/npm-test-baseline.log`）。
 
-另：仓库已存在 `scripts/check-round4.mjs`（R4 硬门槛 stub，要求字库 ≥500，当前基线 200 字 **预期红灯**，未接入 `npm test`）。
+另：仓库已存在 `scripts/check-round4.mjs`（R4 硬门槛 stub，要求字库 ≥500，当前基线 200 字 **预期红灯**）。`49e48fd` 已加 `npm run check:round4` 别名，但它**不在 `npm test` 链路里**，#5/#6/#7 交付时须把对应探针升级为硬门槛并纳入门禁。
 
 ---
 
