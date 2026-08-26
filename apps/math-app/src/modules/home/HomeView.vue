@@ -7,6 +7,7 @@ import { useProgressStore } from '@/stores/progress.js'
 import { useFeedback } from '@/composables/useFeedback'
 import MascotBot from '@/components/MascotBot.vue'
 import { sound } from '@/utils/sound'
+import OpenMojiIcon from '@shared/components/OpenMojiIcon.vue'
 
 const router = useRouter()
 const progress = useProgressStore()
@@ -102,7 +103,7 @@ onMounted(() => {
 
     <section class="stats-strip">
       <div v-for="t in totals" :key="t.label" class="stat-pill">
-        <span class="stat-icon">{{ t.icon }}</span>
+        <span class="stat-icon"><OpenMojiIcon :emoji="t.icon" :size="22" /></span>
         <span class="stat-value">{{ t.value }}</span>
         <span class="stat-label dim">{{ t.label }}</span>
       </div>
@@ -110,7 +111,7 @@ onMounted(() => {
 
     <section class="map card">
       <div class="map-head row">
-        <h3 class="panel-title">🗺️ 学习地图</h3>
+        <h3 class="panel-title"><OpenMojiIcon name="world-map" :size="20" /> 学习地图</h3>
         <span class="chip">收集星星解锁新星球</span>
       </div>
 
@@ -137,7 +138,7 @@ onMounted(() => {
           @click="open(p)"
         >
           <span class="planet-body">
-            <span class="planet-emoji">{{ p.unlocked ? p.emoji : '🔒' }}</span>
+            <OpenMojiIcon class="planet-emoji" :emoji="p.unlocked ? p.emoji : '🔒'" :size="36" />
             <span v-if="p.stat.answered > 0" class="planet-badge">{{ p.mastery }}%</span>
           </span>
           <span class="planet-label">
@@ -159,7 +160,7 @@ onMounted(() => {
         @click="open(p)"
       >
         <div class="mod-top row">
-          <span class="mod-emoji">{{ p.unlocked ? p.emoji : '🔒' }}</span>
+          <span class="mod-emoji"><OpenMojiIcon :emoji="p.unlocked ? p.emoji : '🔒'" :size="32" /></span>
           <div class="mod-titles">
             <strong class="mod-name">{{ p.name }}</strong>
             <span class="mod-sub dim">{{ p.subtitle }}</span>

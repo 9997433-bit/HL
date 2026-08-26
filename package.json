@@ -12,7 +12,7 @@
     "build": "bash scripts/build-all.sh",
     "build:all": "bash scripts/build-all.sh",
     "test": "npm run test:literacy && npm run test:math",
-    "check:tokens": "node scripts/check-tokens.mjs",
+    "fetch:openmoji": "node scripts/fetch-openmoji.mjs",
     "check:tokens:wiring": "node scripts/check-tokens.mjs --wiring-only",
     "test:a11y": "node scripts/axe-states.mjs",
     "test:acceptance": "bash scripts/acceptance.sh",

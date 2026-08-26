@@ -15,6 +15,7 @@ import { MASTERY_THRESHOLD } from '@/utils/mastery.js'
 import { useProgressStore } from '@/stores/progress.js'
 import { AGE_BANDS, useSettingsStore } from '@/stores/settings.js'
 import { sound } from '@/utils/sound'
+import OpenMojiAttribution from '@shared/components/OpenMojiAttribution.vue'
 
 const progress = useProgressStore()
 const settings = useSettingsStore()
@@ -537,6 +538,8 @@ function setLimit(value) {
         </ul>
         <RouterLink to="/progress" class="btn btn-ghost">🏆 查看孩子的成就墙</RouterLink>
       </section>
+
+      <OpenMojiAttribution />
     </template>
   </main>
 </template>

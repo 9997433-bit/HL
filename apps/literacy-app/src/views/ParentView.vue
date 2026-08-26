@@ -9,6 +9,7 @@ import { IDIOMS } from '@/data/idioms.js'
 import { sfx } from '@/utils/sfx.js'
 import { speak, voiceInfo } from '@/utils/audio.js'
 import { useVoiceStatus } from '@/composables/useVoiceStatus.js'
+import OpenMojiAttribution from '@shared/components/OpenMojiAttribution.vue'
 
 const progress = useProgressStore()
 const settings = useSettingsStore()
@@ -511,6 +512,8 @@ function resetSettings() {
           <li>屏幕时间结束后，可以让孩子在纸上把当天的字再写一遍。</li>
         </ul>
       </section>
+
+      <OpenMojiAttribution />
     </template>
   </div>
 </template>

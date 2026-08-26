@@ -8,15 +8,16 @@
  */
 import { useRoute } from 'vue-router'
 import { sfx } from '@/utils/audio.js'
+import OpenMojiIcon from '@shared/components/OpenMojiIcon.vue'
 
 const route = useRoute()
 
 const ITEMS = [
-  { to: '/', name: 'home', icon: '🏡', label: '乐园' },
-  { to: '/learn', name: 'learn', icon: '✏️', label: '学字' },
-  { to: '/listen', name: 'listen', icon: '👂', label: '听音' },
-  { to: '/books', name: 'books', icon: '📚', label: '绘本' },
-  { to: '/idioms', name: 'idioms', icon: '🏮', label: '成语' }
+  { to: '/', name: 'home', icon: 'house', label: '乐园' },
+  { to: '/learn', name: 'learn', icon: 'pencil', label: '学字' },
+  { to: '/listen', name: 'listen', icon: 'ear', label: '听音' },
+  { to: '/books', name: 'books', icon: 'books', label: '绘本' },
+  { to: '/idioms', name: 'idioms', icon: 'lantern', label: '成语' }
 ]
 
 const isActive = (item) => route.name === item.name
@@ -33,7 +34,7 @@ const isActive = (item) => route.name === item.name
       :aria-current="isActive(item) ? 'page' : undefined"
       @click="sfx.tap()"
     >
-      <span class="navbar__icon">{{ item.icon }}</span>
+      <OpenMojiIcon class="navbar__icon" :name="item.icon" :size="26" />
       <span class="navbar__label">{{ item.label }}</span>
     </RouterLink>
   </nav>

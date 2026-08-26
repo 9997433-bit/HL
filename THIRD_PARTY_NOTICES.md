@@ -70,8 +70,9 @@ MIT 许可证全文见本文件「附录 A」，对上表全部 MIT 组件适用
   > [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
 
 - 若修改这些 SVG 形成衍生图标，衍生素材必须继续采用 CC BY-SA 4.0 并注明修改。
-- 现状：两 App 界面图标均为 emoji 文本与自绘 SVG，OpenMoji 文件尚未被任何 App 引用，
-  因此当前 zip 中不含这些文件；一旦引用，需把上述署名放入 App 的关于/家长页面。
+- 现状：两 App 导航、首页地图、字卡状态角标与庆祝层等界面已引用 OpenMoji SVG
+  （通过 `@shared/components/OpenMojiIcon.vue` 打包进 dist）；署名见各 App 家长中心页脚。
+  其余数据文件里的 emoji 字段会在有对应 SVG 时自动替换，缺映射时仍回退为系统 emoji。
 
 ### Noto Sans SC 字体 — SIL OFL 1.1（仅许可证文本，未内置字体）
 

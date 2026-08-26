@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useProgressStore } from '@/stores/progress'
 import { sfx } from '@/utils/sound'
+import OpenMojiIcon from '@shared/components/OpenMojiIcon.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -21,7 +22,9 @@ function goBack() {
 <template>
   <header class="topbar">
     <button v-if="!isHome" class="round-btn" aria-label="返回学习地图" @click="goBack">←</button>
-    <div v-else class="logo" aria-hidden="true">🚀</div>
+    <div v-else class="logo" aria-hidden="true">
+      <OpenMojiIcon name="rocket" :size="28" />
+    </div>
 
     <div class="titles">
       <h1 class="title">{{ title }}</h1>
@@ -51,11 +54,13 @@ function goBack() {
     </div>
 
     <div class="stars" data-star-counter>
-      <span class="star-icon">⭐</span>
+      <OpenMojiIcon class="star-icon" name="star" :size="20" />
       <span class="star-num">{{ progress.state.stars }}</span>
     </div>
 
-    <RouterLink to="/achievements" class="round-btn trophy" aria-label="成就墙">🏆</RouterLink>
+    <RouterLink to="/achievements" class="round-btn trophy" aria-label="成就墙">
+      <OpenMojiIcon name="trophy" :size="22" />
+    </RouterLink>
   </header>
 </template>
 

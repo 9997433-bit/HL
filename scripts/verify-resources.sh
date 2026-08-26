@@ -172,7 +172,14 @@ for relative_path, needle in license_needles.items():
         except (OSError, UnicodeError) as exc:
             errors.append(f"cannot read {relative_path}: {exc}")
 
-icon_names = ("apple", "target", "open-book", "numbers", "abacus", "star")
+icon_names = (
+    "apple", "target", "open-book", "numbers", "abacus", "star",
+    "house", "pencil", "ear", "lantern", "trophy", "rocket", "locked",
+    "seedling", "sparkles", "fire", "speaker", "light-bulb", "party",
+    "headphones", "world-map", "books", "family", "puzzle-piece", "globe",
+    "sun", "ringed-planet", "satellite", "cyclone", "performing-arts",
+    "medal", "repeat", "japanese-beginner", "green-book", "microphone",
+)
 for name in icon_names:
     relative_path = f"shared/assets/openmoji/{name}.svg"
     path = root / relative_path

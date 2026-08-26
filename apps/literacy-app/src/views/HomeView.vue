@@ -8,6 +8,7 @@ import { BOOKS } from '@/data/books.js'
 import { IDIOMS } from '@/data/idioms.js'
 import { RADICALS } from '@/data/radicals.js'
 import { sfx } from '@/utils/sfx.js'
+import OpenMojiIcon from '@shared/components/OpenMojiIcon.vue'
 
 const progress = useProgressStore()
 const settings = useSettingsStore()
@@ -133,7 +134,7 @@ onMounted(() => {
     <!-- 学习地图 -->
     <section class="stack">
       <h3 class="section-title">
-        <span class="section-title__emoji" aria-hidden="true">🗺️</span>
+        <OpenMojiIcon class="section-title__emoji" name="world-map" :size="22" />
         学习地图
       </h3>
 
@@ -150,7 +151,7 @@ onMounted(() => {
           @click="(e) => (s.locked ? e.preventDefault() : sfx.tap())"
         >
           <span class="station__dot" aria-hidden="true">
-            <span class="station__emoji">{{ s.locked ? '🔒' : s.emoji }}</span>
+            <OpenMojiIcon class="station__emoji" :emoji="s.locked ? '🔒' : s.emoji" :size="34" />
             <span class="station__index">{{ i + 1 }}</span>
           </span>
           <span class="station__body">

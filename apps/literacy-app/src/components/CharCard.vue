@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { useProgressStore } from '@/stores/progress.js'
 import { useSettingsStore } from '@/stores/settings.js'
+import OpenMojiIcon from '@shared/components/OpenMojiIcon.vue'
 
 const props = defineProps({
   item: { type: Object, required: true },
@@ -21,10 +22,10 @@ const state = computed(() => {
 const badge = computed(
   () =>
     ({
-      locked: { emoji: '🔒', text: '未解锁' },
-      mastered: { emoji: '🏆', text: '已掌握' },
-      learned: { emoji: '🌱', text: '学过了' },
-      new: { emoji: '✨', text: '新字' }
+      locked: { icon: 'locked', text: '未解锁' },
+      mastered: { icon: 'trophy', text: '已掌握' },
+      learned: { icon: 'seedling', text: '学过了' },
+      new: { icon: 'sparkles', text: '新字' }
     })[state.value]
 )
 </script>
@@ -38,11 +39,11 @@ const badge = computed(
     :aria-disabled="locked || undefined"
   >
     <span class="cc__badge" :title="badge.text">
-      <span aria-hidden="true">{{ badge.emoji }}</span>
+      <OpenMojiIcon :name="badge.icon" :size="16" />
     </span>
     <span class="cc__char">{{ item.char }}</span>
     <span v-if="settings.showPinyin" class="cc__pinyin">{{ item.pinyin }}</span>
-    <span class="cc__emoji" aria-hidden="true">{{ item.emoji }}</span>
+    <OpenMojiIcon class="cc__emoji" :emoji="item.emoji" :size="18" />
     <span class="sr-only">{{ item.char }}，{{ item.pinyin }}，{{ badge.text }}</span>
   </component>
 </template>
