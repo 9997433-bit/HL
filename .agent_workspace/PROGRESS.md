@@ -29,7 +29,7 @@
 | Round 1 | ✅ 完成 | 双 App 构建通过；zip 已打包 |
 | Round 2 | ✅ 完成 | 10子代理合并；识字106字+FSRS；数学QuizShell+瘦身；离线SW |
 | Round 3 | 🔄 收尾中 | SOTA 打磨；200字/家长中心/axe0/a11y/NOTICES/tokens/OpenMoji |
-| Round 4 | ⬜ 待启动 | **P0 清零 + 单字状态机 + 错题本 + 自适应 + 500字 + Perf≥95**（见 SURPASS-HONGEN-MASTER-PLAN.md） |
+| Round 4 | 🔄 **进行中** | P0清零+状态机+错题本+自适应+500字+Perf（见 ROUND4-BRIEF.md） |
 | Round 5–7 | ⬜ 规划 | 内容体量对齐洪恩（1800字/130绘本/185母题）+ 拍照识字 + 终验 |
 
 ## 并发规则（已更新）
