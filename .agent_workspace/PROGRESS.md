@@ -25,8 +25,8 @@
 | Round | 状态 | 说明 |
 |-------|------|------|
 | Round 1 | ✅ 完成 | 双 App 构建通过；zip 已打包 |
-| Round 2 | ⏳ 待开始 | 靶向重构与深度优化 |
-| Round 3 | ⏳ 待开始 | SOTA打磨与最终验收 |
+| Round 2 | ✅ 完成 | 10子代理合并；识字106字+FSRS；数学QuizShell+瘦身；离线SW |
+| Round 3 | 🔄 进行中 | SOTA打磨与最终验收 |
 
 ## 并发规则（已更新）
 **每轮固定 10 个子代理并发，缺了立马补。**
@@ -42,6 +42,11 @@
 - [x] fable·UI/UX: `ui-ux-design-spec.md`、`sota-acceptance-criteria.md`
 - [x] gpt-sol·资源/探针: 100字/85题/42成语；`verify-resources.sh` / `benchmark.sh` / `stress-test.js`
 - [x] opus-fast·双 App MVP + 打包: `dist/hongen-literacy-app.zip`（271KB）、`dist/hongen-math-app.zip`（143KB）
+
+## Round 3 子代理任务（10个，进行中）
+- fable×3: 终验审计、令牌迁移验收、文档与 NOTICES 对齐
+- opus-fast×4: 识字200字+内容、识字a11y、数学家长面板、设计令牌落地
+- gpt-sol×3: axe serious清零、Lighthouse终验打包、全量E2E回归
 
 ## Round 2 首要清理项
 - **math-app**：`modules/*` 视图（路由生效） vs 未引用的 `core/engine/*`、`src/views/*`；数独/应用题/生成器各存两套，需收敛；Tone.js 包体可换轻量 WebAudio。
