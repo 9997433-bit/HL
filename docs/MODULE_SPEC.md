@@ -521,6 +521,7 @@ M5 minimize_sizing reuses M1 solves + M3 sensitivity kernel + M2 mode tracking
 M6 damped dynamics extends M1 modes to FRFs; FRAC/FDAC feed M2 correlation
 M7 elements assemble the K, M every module above consumes
 M8 io reads a file into a NeutralModel and converts it into the M7 elements
+M9 mpe fits measured FRFs (M8's dataset 58) into the TestData M2 consumes
 ```
 
 - Mass-normalized, sign-fixed modes (MS-1.3) are the invariant every consumer
@@ -963,4 +964,182 @@ def neutral_to_model(neutral, *, dofs=None, name=None, material=None, section=No
                      beam_orientation=None, integration_order=2,
                      skip_unsupported=False) -> Model
 def infer_dofs(model: NeutralModel) -> tuple[DOF, ...]
+```
+
+---
+
+## 10. Module M9 — Experimental Modal Parameter Extraction (`openfemlab.mpe`) (MS-10)
+
+Round-3 module (gap GAP-06). Numbering note — the eighth module took `MS-9`
+because `MS-6` is the inter-module contracts section, so the ninth takes
+`MS-10`.
+
+**Status: specification only (spec-first).** This section and the
+`AC-MPE-001..005` rows of `docs/ACCEPTANCE_CRITERIA.md` are binding, but
+nothing below is implemented: `openfemlab.mpe` currently holds typed
+placeholders that raise `NotImplementedError` naming their spec anchor, every
+M9 registry row is `specified`, and no gate is claimed. Importability is not
+capability.
+
+### MS-10.1 Problem statement
+
+Every module above ends at a synthesized FRF; MPE runs the arrow the other
+way. Given a measured FRF matrix over a frequency line — the MS-7.3
+`FrequencyResponse` contract, `data[f, j, k]` with `s` response channels and
+`e` references, typically read from a UFF dataset-58 file through MS-9.3 —
+estimate the experimental modal model
+
+```
+H_jk(iω) ≈ Σ_{r=1..n} [ ψ_jr L_kr / (iω − s_r)  +  ψ̄_jr L̄_kr / (iω − s̄_r) ]
+           + UR_jk − LR_jk / ω²
+```
+
+with poles `s_r = −ζ_r ω_r + i ω_r √(1 − ζ_r²)`, channel-space mode shapes
+`ψ_r`, reference participation factors `L_r`, and upper/lower residual terms
+`UR`/`LR` absorbing the static contribution of out-of-band modes.
+
+- Input is **receptance**; mobility/accelerance are converted through the
+  MS-7.3 views first (the conversion refuses 0 Hz, so those inputs require an
+  estimation band excluding DC).
+- Estimation is restricted to a caller-selected band `f ∈ [f_lo, f_hi]`;
+  poles are only reported inside it.
+- Deterministic (MS-0.2): the estimators are linear algebra over the measured
+  lines — no randomized starting values, so no seed argument is needed and
+  identical inputs must produce bitwise-identical results.
+- The output populates `TestData` — the M2 correlation input that GAP-06
+  notes nothing produces from measurements. Combined with the GAP-03 UFF-58
+  reader this closes the raw-measurement → correlation loop.
+
+### MS-10.2 LSCF / poly-reference curve fitter
+
+Right matrix-fraction description with a common denominator:
+
+```
+H(Ω_f) ≈ B(Ω_f) A(Ω_f)⁻¹ ,   B(Ω) = Σ_{k=0..n} β_k Ω^k ,   A(Ω) = Σ_{k=0..n} α_k Ω^k
+```
+
+- **Basis** `Ω_f = exp(iω_f Δt)` with `Δt = 1/(2 f_max)` — the discrete-time
+  (z-domain) basis of the LSCF family, chosen because a continuous-time power
+  basis is numerically unusable beyond low model orders.
+- **Poly-reference** (pLSCF, PolyMAX-class): `α_k ∈ R^{e×e}` so the
+  denominator carries the participation directions; the scalar-`α_k`
+  common-denominator LSCF is the single-reference degenerate case of the same
+  kernel, not a second implementation (GAP-01 rule).
+- **Estimator**: weighted linear least squares over the frequency lines;
+  the per-channel numerator coefficients are eliminated through the reduced
+  normal equations so only the denominator block is solved globally; the
+  constraint `α_n = I` removes the parameterization ambiguity.
+- **Poles**: eigenvalues of the block companion matrix of `A(Ω)`, mapped back
+  by `s_r = ln(z_r)/Δt`; participation factors from the associated
+  eigenvectors.
+- **Physicality filter** applied before anything is reported: discard poles
+  with negative damping (the stable/unstable mirror pairs the LS produces by
+  construction), poles outside the band, and poles with `ζ_r > ζ_max`
+  (default 0.2).
+- Requirements: on noise-free FRFs synthesized from a known modal model
+  (MS-7.3), recovered frequencies and damping ratios must match ground truth
+  (AC-MPE-001); under seeded measurement noise the estimates must degrade
+  gracefully, not catastrophically (AC-MPE-005).
+
+### MS-10.3 Stabilization diagram
+
+- The MS-10.2 fit is repeated over model orders `n ∈ {n_min, ..., n_max}`;
+  every pole at order `n` is compared against the nearest pole at `n − 1`.
+- **Classification** (tolerances configurable, defaults pinned here):
+  `new` → frequency-stable (`|Δf|/f ≤ 1 %`) → damping-stable additionally
+  (`|Δζ|/ζ ≤ 5 %`) → fully `stable` additionally (participation-vector MAC
+  ≥ 0.95, the MS-2.2 kernel on participation columns).
+- `StabilizationDiagram` is a serializable (JSON, schema-versioned) artifact
+  carrying the per-order pole lists with labels and the settings used, so a
+  notebook or GUI renders it without refitting.
+- **Pole selection**: explicit picks `(order, pole index)`, or automatic —
+  the lowest-order fully stable member of every alignment that stays fully
+  stable over ≥ `min_count` consecutive orders (default 3). Automated
+  clustering of alignments is a P2 extension.
+- Requirement: physical poles of a synthesized FRF form fully stable
+  alignments while computational (noise) poles must not, and the automatic
+  pick recovers exactly the ground-truth mode count (AC-MPE-003).
+
+### MS-10.4 Residues, shapes and resynthesis (LSFD)
+
+- With poles and participation frozen, the residues are a second **linear**
+  least-squares problem (LSFD): solve for `A_r`, `UR`, `LR` per response
+  channel over the band.
+- Rank-1 decomposition `A_r = ψ_r L_rᵀ`: with `L_r` known from the
+  poly-reference denominator, `ψ_r` follows directly per channel; the
+  single-reference path takes the dominant left singular vector.
+- **Scaling**: when the channel set contains a driving point, shapes are
+  reported in unity-modal-A scaling — consistent with the MS-7.2 residue
+  convention, which makes the resynthesized residue numerator exactly
+  `ψ_r ψ_rᵀ`. Without one, shapes are unit-max and the result carries
+  `meta["scaling"] = "arbitrary"` — a documented degradation, never a silent
+  one.
+- **Resynthesis quality** is the fit diagnostic every result carries: the
+  per-channel FRAC (MS-7.4) between the measured FRF and the FRF
+  resynthesized from the extracted model. Shape recovery is gated by
+  AC-MPE-002; the end-to-end measurement path by AC-MPE-004.
+
+### MS-10.5 Result contract
+
+- `MPEResult` (frozen dataclass): `frequencies_hz`, `damping_ratios`,
+  `poles`, `shapes` (`s×n` complex, channel space), `participation`
+  (`e×n` complex), residual terms, per-channel `frac`, and a `diagnostics`
+  dict (orders fitted, band, tolerances, weighting) per MS-0.3.
+- `to_test_data(dof_map)` returns a `TestData` with `damping` populated,
+  shapes on the sensor channels the `DofMap` names, and `meta` provenance
+  (method, model order, band, tolerances) — the bridge that lets M2/M3/M4
+  consume a measurement exactly as they consume a pre-extracted mode table.
+- Typed failures (MS-0.3): `MPEError` for an empty estimation band, a model
+  order the frequency line cannot support (fewer lines than unknowns), a
+  non-receptance input the caller declined to convert, or a stabilization
+  diagram with no fully stable alignment to pick from.
+- Determinism: identical FRF, band, orders and tolerances produce
+  bitwise-identical results (no seed — the estimators are direct solves).
+
+### MS-10.6 Public API
+
+```python
+@dataclass(frozen=True)
+class PoleEstimate:
+    frequency_hz: float
+    damping_ratio: float
+    pole: complex                       # s_r, continuous-time
+    order: int
+    participation: np.ndarray | None    # (e,) complex
+    label: str                          # "new" | "freq" | "damp" | "stable"
+
+@dataclass(frozen=True)
+class StabilizationDiagram:
+    orders: tuple[int, ...]
+    poles: tuple[tuple[PoleEstimate, ...], ...]   # one tuple per order
+    settings: dict
+    def select(self, *, min_count: int = 3) -> tuple[PoleEstimate, ...]
+
+@dataclass(frozen=True)
+class MPEResult:
+    frequencies_hz: np.ndarray
+    damping_ratios: np.ndarray
+    poles: np.ndarray                   # (n,) complex
+    shapes: np.ndarray                  # (s, n) complex, channel space
+    participation: np.ndarray           # (e, n) complex
+    frac: np.ndarray                    # (s,) resynthesis quality
+    diagnostics: dict
+    def to_test_data(self, dof_map: DofMap) -> TestData
+
+def fit_lscf(frf: FrequencyResponse, order: int, *,
+             band: tuple[float, float] | None = None,
+             weighting: str = "unity") -> tuple[PoleEstimate, ...]
+
+def stabilization_diagram(frf: FrequencyResponse, orders: Sequence[int], *,
+                          band: tuple[float, float] | None = None,
+                          freq_tol: float = 0.01, damp_tol: float = 0.05,
+                          mac_tol: float = 0.95) -> StabilizationDiagram
+
+def extract_shapes(frf: FrequencyResponse, poles: Sequence[PoleEstimate], *,
+                   band: tuple[float, float] | None = None,
+                   residuals: str = "both") -> MPEResult
+
+def extract_modes(frf: FrequencyResponse, orders: Sequence[int], *,
+                  band: tuple[float, float] | None = None,
+                  min_count: int = 3, **tolerances) -> MPEResult   # one-call driver
 ```

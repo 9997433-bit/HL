@@ -20,7 +20,7 @@ AC-<MODULE>-<NNN>[<suffix>]
 ```
 
 - `<MODULE>` ∈ `MODAL` (M1), `CORR` (M2), `UPD` (M3), `WORK` (M4), `OPT` (M5),
-  `DYN` (M6), `ELEM` (M7), `IO` (M8).
+  `DYN` (M6), `ELEM` (M7), `IO` (M8), `MPE` (M9).
 - `<NNN>`: three-digit number, dense per module (no gaps).
 - `<suffix>`: optional single lowercase letter for closely coupled
   sub-criteria that share a number (e.g. `AC-UPD-006a` / `AC-UPD-006b`).
@@ -523,21 +523,87 @@ run (AC-IO-003).
 
 ---
 
-## 10. Registry and enforcement
+## 10. M9 — Modal Parameter Extraction (spec MS-10)
+
+Specified in Round 3 (A133, gap GAP-06), **spec-first**: `openfemlab.mpe`
+holds typed placeholders only, every row below is `specified`, and no gate is
+claimed. The rows bind the future implementation — none may be promoted to
+`implemented` until `tests/acceptance/test_mpe.py` exists and carries the
+tagged tests, nor to `verified` outside the section-1.5 gate run. Until its
+first promotion, M9 sits in the registry's `MODULES_AWAITING_PROMOTION`, the
+rule-8 exemption for a module with no promoted row.
+
+The fixtures are the modules already on the trunk: FRFs synthesized by the M6
+chain (`modal_frf`, MS-7.3) from models with known modal parameters are the
+ground truth the estimators must recover, and the M8 dataset-58 reader is the
+door measured data enters through — so every gate below is a twin or oracle
+experiment against a modal model the test itself constructed.
+
+| ID | Pri | Criterion (summary) | Quantitative gate | Spec |
+|----|-----|--------------------|-------------------|------|
+| AC-MPE-001 | P0 | LSCF pole recovery on synthesized FRFs | noise-free: f rel. err ≤ 1e-6, ζ rel. err ≤ 1e-4; no spurious in-band pole survives the filter | MS-10.2 |
+| AC-MPE-002 | P0 | Shape/residue recovery (LSFD) | recovered shapes MAC ≥ 0.999 vs source modes; resynthesis FRAC ≥ 0.999 per channel | MS-10.4 |
+| AC-MPE-003 | P0 | Stabilization diagram separates physical from computational poles | physical alignments fully stable over ≥ 3 consecutive orders; no computational alignment fully stable; auto-pick count = ground truth | MS-10.3 |
+| AC-MPE-004 | P1 | Measurement path: UFF-58 → MPE → TestData → correlate | pipeline yields a `TestData` that pairs every mode at MAC ≥ 0.99 against the source model; `meta` carries provenance | MS-10.5 |
+| AC-MPE-005 | P1 | Noise robustness of the estimator | seeded 1 % noise: f within 0.1 %, ζ within 20 % rel., MAC ≥ 0.98; bitwise deterministic per seed | MS-10.2, MS-10.3 |
+
+### Details
+
+- **AC-MPE-001** (`oracle`) — FRFs are synthesized over a band containing
+  `n` well-separated modes of a known damped model (MS-7.3, proportional
+  damping so the ground-truth `f_r`, `ζ_r` are closed-form). Fitting at a
+  model order ≥ `n`, the physical poles recover every ground-truth frequency
+  to relative error ≤ 1e-6 and every damping ratio to relative error ≤ 1e-4,
+  and the MS-10.2 physicality filter leaves no spurious pole inside the band.
+- **AC-MPE-002** (`twin`) — With the AC-MPE-001 poles frozen, the LSFD step
+  recovers mode shapes whose MAC against the source model's channel-space
+  shapes is ≥ 0.999 per mode, and the FRF resynthesized from the extracted
+  model correlates with the input at FRAC ≥ 0.999 on every channel. With a
+  driving point present the unity-modal-A scaling reproduces the source
+  residues; without one the result is flagged `meta["scaling"] = "arbitrary"`.
+- **AC-MPE-003** (`property`) — Over orders `n_min..n_max` spanning the true
+  count, every physical pole forms an alignment classified fully `stable`
+  (frequency 1 %, damping 5 %, vector MAC 0.95) over at least 3 consecutive
+  orders, while no computational pole does; the automatic pick returns
+  exactly the ground-truth number of modes, and tightening any tolerance
+  never converts a `new` pole into a `stable` one (monotonicity of the
+  classification).
+- **AC-MPE-004** (`contract`) — A synthesized FRF set written as dataset-58
+  records (the AC-DYN-005 round trip) is read back with
+  `openfemlab.io.uff.read_uff_functions`, fitted, and bridged through
+  `MPEResult.to_test_data`; the resulting `TestData` feeds
+  `correlation.correlate` unchanged and pairs every mode against the source
+  model at MAC ≥ 0.99, with `damping` populated and `meta` naming method,
+  order, band and tolerances. An empty band or an order the line count
+  cannot support raises `MPEError`.
+- **AC-MPE-005** (`property`) — With seeded multiplicative noise (1 % RMS,
+  `numpy.random.Generator`) added to the synthesized FRFs, the estimator
+  stays within 0.1 % on frequencies and 20 % relative on damping ratios with
+  shape MAC ≥ 0.98, and two runs on the same seeded input are
+  bitwise-identical (the MS-10.1 determinism contract — the noise carries
+  the seed, the estimator has none).
+
+---
+
+## 11. Registry and enforcement
 
 `tests/acceptance/test_criteria_registry.py` holds the machine-readable
 registry (one entry per criterion: ID, title, module, spec anchor, priority,
 verification method, planned test reference, status).
 
-The current inventory is **47 criteria**: M1 = 9, M2 = 9, M3 = 9,
-M4 = 5, M5 = 4, M6 = 5, M7 = 3, and M8 = 3. The two suffixed M3 rows
+The current inventory is **52 criteria**: M1 = 9, M2 = 9, M3 = 9,
+M4 = 5, M5 = 4, M6 = 5, M7 = 3, M8 = 3, and M9 = 5. The two suffixed M3 rows
 (`AC-UPD-006a` / `AC-UPD-006b`) are distinct criteria under one dense base
 number.
 
 Fourteen of them were `verified` after the first two promotion waves (A109,
 A121). The third wave — promoted at Round 2 sign-off — closed module **M8**
-(AC-IO-001..003) so the inventory now reads **47 `verified`, 0 `implemented`,
-0 `specified`**: every P0 and P1 row rests on the CI gate.
+(AC-IO-001..003), putting every row then in the registry on the CI gate. The
+five M9 rows (AC-MPE-001..005) were added spec-first in Round 3 (A133,
+GAP-06) and are all `specified`: `tests/acceptance/test_mpe.py` does not
+exist yet, no gate is claimed, and M9 is carried by
+`MODULES_AWAITING_PROMOTION` until its first promotion. The inventory
+therefore reads **47 `verified`, 0 `implemented`, 5 `specified`**.
 
 The registry tests enforce:
 

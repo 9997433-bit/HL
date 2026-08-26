@@ -13,6 +13,7 @@ __all__ = [
     "MissedModesWarning",
     "UpdatingDivergenceError",
     "OptimizationError",
+    "MPEError",
     "MissingDependencyError",
 ]
 
@@ -171,6 +172,17 @@ class UpdatingDivergenceError(OpenFEMLabError):
 
 class OptimizationError(OpenFEMLabError):
     """Ill-posed optimization statement or a failed optimization run."""
+
+
+class MPEError(OpenFEMLabError):
+    """Modal parameter extraction cannot proceed (MS-10.5).
+
+    Reserved by the spec-first M9 module (GAP-06) for the typed failures of
+    ``openfemlab.mpe``: an empty estimation band, a model order the frequency
+    line cannot support, a non-receptance input the caller declined to
+    convert, or a stabilization diagram with no fully stable alignment to
+    pick from.
+    """
 
 
 class MissingDependencyError(OpenFEMLabError, ImportError):
