@@ -20,24 +20,10 @@
  * `verifyBookCoverage()` 会在开发模式下校验这一点。
  */
 
-export const UNITS = [
-  { id: 'u1', name: '我和数字', emoji: '🔢', color: 'var(--mango-400)', desc: '最先学会的十个字' },
-  { id: 'u2', name: '大自然', emoji: '🌿', color: 'var(--leaf-400)', desc: '日月山水，都在身边' },
-  { id: 'u3', name: '身体和动物', emoji: '🐑', color: 'var(--sky-400)', desc: '认识自己，认识小伙伴' },
-  { id: 'u4', name: '会说话', emoji: '💬', color: 'var(--grape-400)', desc: '把字连成句子' },
-  { id: 'u5', name: '数字大家庭', emoji: '🔟', color: 'var(--mint-400)', desc: '从四一直数到万' },
-  { id: 'u6', name: '天气和大地', emoji: '🌦️', color: 'var(--coral-400)', desc: '风雨云雪，脚下的土地' },
-  { id: 'u7', name: '我的家人', emoji: '👨‍👩‍👧', color: 'var(--mango-400)', desc: '一家人在一起' },
-  { id: 'u8', name: '上学啦', emoji: '🎒', color: 'var(--leaf-400)', desc: '学校里最常见的字' },
-  { id: 'u9', name: '小动物', emoji: '🐟', color: 'var(--sky-400)', desc: '水里游的，家里养的' },
-  { id: 'u10', name: '五颜六色', emoji: '🎨', color: 'var(--grape-400)', desc: '认识六种颜色' },
-  { id: 'u11', name: '四季和时间', emoji: '🍂', color: 'var(--mint-400)', desc: '春夏秋冬，早晚今明' },
-  { id: 'u12', name: '出发去玩', emoji: '🚗', color: 'var(--coral-400)', desc: '左右前后，出门啦' },
-  { id: 'u13', name: '动起来', emoji: '🏃', color: 'var(--mango-400)', desc: '走跑跳坐，身体的动作' },
-  { id: 'u14', name: '家里的东西', emoji: '🛋️', color: 'var(--leaf-400)', desc: '桌椅床灯，屋里都认得' },
-  { id: 'u15', name: '好吃的', emoji: '🍚', color: 'var(--sky-400)', desc: '米饭菜果，餐桌上的字' },
-  { id: 'u16', name: '常用小词', emoji: '🔤', color: 'var(--grape-400)', desc: '这那什么，说话离不开' }
-]
+import { UNITS } from './character-index.js'
+
+export { UNITS } from './character-index.js'
+
 
 export const CHARACTERS = [
   // ------------------------------ 单元一 ------------------------------

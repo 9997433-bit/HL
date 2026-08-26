@@ -6,7 +6,7 @@
  * 这样以后加新绘本时不会不小心用到孩子还没学过的字。
  */
 
-import { CHARACTER_MAP } from './characters.js'
+import { CHARACTER_INDEX_MAP } from './character-index.js'
 
 const PUNCTUATION = new Set([
   '，', '。', '！', '？', '：', '、', '；', '「', '」', '《', '》', '…', '—', ' ', '\n'
@@ -132,7 +132,7 @@ export function charsInBook(book) {
 export function verifyBookCoverage() {
   const problems = []
   for (const book of BOOKS) {
-    const missing = charsInBook(book).filter((ch) => !CHARACTER_MAP.has(ch))
+    const missing = charsInBook(book).filter((ch) => !CHARACTER_INDEX_MAP.has(ch))
     if (missing.length) problems.push({ book: book.title, missing })
   }
   return problems
