@@ -1,8 +1,8 @@
 # PR Draft — OpenFEMLab Round 1
 
 Ready to file. Base: `main`. Head: `cursor/femtools-industrial-7aa3`.
-Verified at `936edc5`: full suite **841 passed**, `ruff check .` clean
-(Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1).
+Verified at `d3498b4`: full suite **841 passed** in 8.47 s; prior `ruff check .`
+verification remains clean (Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1).
 
 ## Title
 
@@ -67,9 +67,10 @@ synthesis, and optimization hooks — all behind one CLI and a schema-versioned 
 - **IO** (`io/`): schema-versioned native YAML/JSON round trip for models, modal
   results, and test data; ASCII UFF/UNV dataset 55/58 reader; minimal Nastran BDF
   reader (GRID/CROD/MAT1 → neutral model).
-- **CLI** (`cli/`): `openfemlab modal | correlate | update` over JSON/YAML model
-  specs; machine-readable JSON on stdout, diagnostics on stderr, CI acceptance gates
-  via exit codes; covered end to end including subprocess runs.
+- **CLI** (`cli/`): `openfemlab modal | correlate | correlate-frf | update` over
+  JSON/YAML model specs and UFF-58 measured FRFs; machine-readable JSON on stdout,
+  diagnostics on stderr, CI acceptance gates via exit codes; covered end to end
+  including subprocess runs.
 - **QA stack**: 841 tests including a machine-readable registry of 40 quantified
   acceptance criteria wired to tagged acceptance tests, boundary/probe suites,
   performance-regression gates, and benchmarks; GitHub Actions CI on Python
@@ -80,7 +81,7 @@ synthesis, and optimization hooks — all behind one CLI and a schema-versioned 
 
 ## Verification
 
-- `python -m pytest` — **841 passed** at `936edc5` in 26.18 s on Python 3.12.3 /
+- `PYTHONPATH=src python -m pytest` — **841 passed** at `d3498b4` in 8.47 s on Python 3.12.3 /
   NumPy 2.5.2 / SciPy 1.18.1.
 - `ruff check .` — clean.
 - Per-suite breakdown (sums to 841): acceptance registry + gates 218, dynamics 82, TET4 66,
@@ -120,6 +121,9 @@ openness, and automation:
 
 ## Notes for reviewers
 
+- **R2-T01 is COMPLETE.** The `correlate-frf` CLI closes its final exit item:
+  measured UFF-58 or JSON/YAML FRFs can be correlated against synthesized damped-model
+  responses with machine-readable FRAC/FDAC gates.
 - `.agent_workspace/` holds orchestration records (progress log, Round 2 plan);
   it is documentation, not runtime code.
 - Known scope limits are registered, not hidden: QUAD4 and TET4 are the first two
