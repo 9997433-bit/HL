@@ -54,9 +54,9 @@ COVERED_STATUSES = ("implemented", "verified")
 
 #: Modules whose rows are all still awaiting their first promotion, exempt from
 #: the span rule of ACCEPTANCE_CRITERIA.md section 12 rule 8. M9 (MPE, GAP-06)
-#: and M10 (Pretest, GAP-07) were added spec-first in Round 3; M9 now carries
-#: an implemented suite and leaves the list at its first promotion.
-MODULES_AWAITING_PROMOTION: tuple[str, ...] = ("M9", "M10")
+#: and M10 (Pretest, GAP-07) were added spec-first in Round 3; M9 left the list
+#: when its five rows were promoted, so only M10 is still exempt.
+MODULES_AWAITING_PROMOTION: tuple[str, ...] = ("M10",)
 
 #: How an implementation suite tags a test with the criterion it verifies.
 TAG_REGEX = re.compile(r"criterion\(\s*\"(AC-[A-Z]+-\d{3}[a-z]?)\"\s*\)")
@@ -206,15 +206,15 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P0", "contract", "MS-9.4", _IO_SUITE, "verified"),
     # --- M9 Modal parameter extraction (MS-10), GAP-06 -----------------------
     _c("AC-MPE-001", "LSCF pole recovery on synthesized FRFs",
-       "P0", "oracle", "MS-10.2", _MPE_SUITE, "implemented"),
+       "P0", "oracle", "MS-10.2", _MPE_SUITE, "verified"),
     _c("AC-MPE-002", "Shape/residue recovery (LSFD)",
-       "P0", "twin", "MS-10.4", _MPE_SUITE, "implemented"),
+       "P0", "twin", "MS-10.4", _MPE_SUITE, "verified"),
     _c("AC-MPE-003", "Stabilization diagram separates physical from computational poles",
-       "P0", "property", "MS-10.3", _MPE_SUITE, "implemented"),
+       "P0", "property", "MS-10.3", _MPE_SUITE, "verified"),
     _c("AC-MPE-004", "Measurement path: UFF-58 -> MPE -> TestData -> correlate",
-       "P1", "contract", "MS-10.5", _MPE_SUITE, "implemented"),
+       "P1", "contract", "MS-10.5", _MPE_SUITE, "verified"),
     _c("AC-MPE-005", "Noise robustness of the estimator",
-       "P1", "property", "MS-10.2, MS-10.3", _MPE_SUITE, "implemented"),
+       "P1", "property", "MS-10.2, MS-10.3", _MPE_SUITE, "verified"),
     # --- M10 Pretest planning (MS-11) — spec-first, GAP-07 -------------------
     _c("AC-PRETEST-001", "EI leverage identities and det-FIM downdate",
        "P0", "property", "MS-11.2", _PRETEST_SUITE),

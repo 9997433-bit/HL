@@ -527,9 +527,9 @@ run (AC-IO-003).
 
 Specified in Round 3 (A133, gap GAP-06) ahead of its implementation, which
 landed in the same round: `openfemlab.mpe` implements the MS-10.6 surface and
-every row below is gated by `tests/acceptance/test_mpe.py`. M9 leaves the
-registry's `MODULES_AWAITING_PROMOTION` list — the rule-8 exemption for a
-module with no promoted row — at its first promotion.
+every row below is `verified` against `tests/acceptance/test_mpe.py`. That
+promotion took M9 off the registry's `MODULES_AWAITING_PROMOTION` list, the
+rule-8 exemption for a module with no promoted row.
 
 The fixtures are the modules already on the trunk: FRFs synthesized by the M6
 chain (`modal_frf`, MS-7.3) from models with known modal parameters are the
@@ -661,10 +661,10 @@ number.
 Fourteen of them were `verified` after the first two promotion waves (A109,
 A121). The third wave — promoted at Round 2 sign-off — closed module **M8**
 (AC-IO-001..003), putting every Round-1/2 row on the CI gate. Round 3 opened
-modules **M9** (section 10) and **M10** (section 11) spec-first and then
-implemented M9, so the inventory reads **47 `verified`, 5 `implemented`,
-5 `specified`**; M9 and M10 are carried in `MODULES_AWAITING_PROMOTION` until
-their first promotion.
+modules **M9** (section 10) and **M10** (section 11) spec-first. The fourth
+wave closed module **M9** (AC-MPE-001..005) once its estimator landed, so the
+inventory reads **52 `verified`, 0 `implemented`, 5 `specified`**; only M10 is
+still carried in `MODULES_AWAITING_PROMOTION`.
 
 The registry tests enforce:
 
