@@ -1627,13 +1627,14 @@ A27. The A24 backlog above is otherwise the live plan.
   sees the 5 measured rows. The conservative side is the expanded one — useful to know for
   anyone tempted to treat expansion as cosmetic. Also pinned by a test, so the equality the
   criterion asserts is never read as unconditional.
-- **Verified 2026-08-26 08:14 UTC** from a private worktree with both `PYTHONPATH` entries
-  pinned to it (`<worktree>:<worktree>/src`) — necessary because the venv's editable
-  install resolves `openfemlab` to the shared `/workspace/src`. Full suite **672 passed,
-  0 failed** in 70.8 s on Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1; the same tip with
-  `-k "not ac_corr_006"` gives **653 passed**, so this change is +19 and touches nothing
-  else. Repository-wide `python -m ruff check .` clean. Rebased three times onto a tip
-  that moved under the work each time.
+- **Verified 2026-08-26 08:19 UTC** at the pushed tip `9f8a1b6`, from a private worktree
+  with both `PYTHONPATH` entries pinned to it (`<worktree>:<worktree>/src`) — necessary
+  because the venv's editable install resolves `openfemlab` to the shared `/workspace/src`.
+  Full suite **680 passed, 0 failed** in 104.9 s on Python 3.12.3 / NumPy 2.5.2 /
+  SciPy 1.18.1; the same tip with `-k "not ac_corr_006"` gives **661 passed, 19
+  deselected**, so this change is exactly +19 and touches nothing else. Repository-wide
+  `python -m ruff check .` clean. Rebased five times onto a tip that moved under the work
+  each time; the absolute count is only meaningful next to the delta.
 - **Working-tree hazard, seventh and eighth occurrence — and the first one that cost a
   branch ref.** `/workspace` was reset out from under the first attempt exactly as A40
   describes, so the work moved to a private worktree at `/tmp/a43`. That path was then
