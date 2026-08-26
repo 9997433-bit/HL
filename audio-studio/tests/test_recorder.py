@@ -5,12 +5,15 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from audio_studio.core.engine import AudioEngine
 from audio_studio.core.loader import load_audio
+from audio_studio.core.output import NullOutput
 from audio_studio.core.recorder import (
     NullRecorder,
     RecorderDeviceError,
     create_recorder,
 )
+from audio_studio.ui.main_window import MainWindow
 
 
 def test_manual_null_recorder_accumulates_float32_frames() -> None:
@@ -113,3 +116,29 @@ def test_invalid_format_and_start_before_open_are_rejected() -> None:
 def test_factory_can_force_the_headless_backend() -> None:
     recorder = create_recorder(prefer_null=True)
     assert isinstance(recorder, NullRecorder)
+
+
+def test_main_window_toggles_recording_and_opens_the_result(qapp) -> None:
+    recorder = NullRecorder(realtime=False, tone_frequency=220.0)
+    main = MainWindow(
+        AudioEngine(NullOutput(realtime=False)),
+        recorder=recorder,
+    )
+    try:
+        main._on_record()  # noqa: SLF001 - exercise the transport slot
+
+        assert recorder.is_running
+        assert main.transport_bar.record_button.isChecked()
+        assert not main.transport_bar.play_button.isEnabled()
+        assert "Recording" in main.status_recording.text()
+
+        recorder.pump(64)
+        main._on_record()  # noqa: SLF001
+
+        assert not recorder.is_running
+        assert not main.transport_bar.record_button.isChecked()
+        assert main.engine.n_frames == 64
+        assert main.engine.sample_rate == 48000
+        assert main.transport_bar.play_button.isEnabled()
+    finally:
+        main.close()

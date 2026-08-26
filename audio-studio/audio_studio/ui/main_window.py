@@ -51,8 +51,8 @@ from PySide6.QtWidgets import (
 )
 
 from .. import __app_name__, __version__
-from ..core.engine import AudioEngine
 from ..core.edit_session import EditError, EditSession
+from ..core.engine import AudioEngine
 from ..core.loader import (
     SUPPORTED_EXTENSIONS,
     AudioLoadError,
