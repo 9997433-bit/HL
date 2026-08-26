@@ -322,11 +322,20 @@ into the integration branch, so nothing is left stranded on a side branch.**
 - Added guards for both reconciled behaviours: the updater must leave the caller's
   parameter objects at their initial values, and `mode_pairing="optimal"` must reach the
   greedy pass's solution.
+- **Follow-on in the M4 workflow.** A13's S1–S6 correction pipeline landed mid-run and
+  read the correction back by aliasing the `ParameterSet` it handed to `ModelUpdater`,
+  so restoring the copy left all 12 of its end-to-end cases failing at S5/S6. Fixed at
+  the consumer: `_stage_updating` now adopts `UpdatingResult.parameter_set`, which
+  carries the same bounds, initial values and fixed flags the gates report on. This is
+  the seam rule Round 1 already learned the hard way — the alias was load-bearing but
+  undeclared, and only a full-suite run after rebasing surfaced it.
 - Verified on Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1, rebased onto the integration tip:
   `tests/test_correlation.py` 52 passed (was 35) and `tests/test_updating.py` 57 (was 28),
   so 109 correlation + updating tests all green, and **+46 on the whole suite**
-  (258 passed against a 212-test tip at the time of the final rebase; the branch was
-  moving, so read the delta rather than the absolute). `ruff check src tests` passes.
+  (332 passed against a 286-test tip at the time of the final rebase; the branch was
+  moving, so read the delta rather than the absolute). `tests/test_workflow.py` 38/38
+  and `tests/test_cli.py` still pass on the reconciled updater.
+  `ruff check src tests` passes.
 - Method note for the orchestrator: this run worked in a detached `git worktree` because
   `/workspace` had concurrent uncommitted edits, and the base branch advanced four times
   during the run. Tests there need `PYTHONPATH` pointed at the worktree's `src`, since
