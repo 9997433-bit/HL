@@ -22,6 +22,12 @@ from .gain import (
     NormalizeMode,
     measure_levels,
 )
+from .loudness_effect import (
+    LOUDNESS_PRESETS,
+    LoudnessNormalizeEffect,
+    LoudnessPreset,
+    loudness_preset,
+)
 from .spatial import DelayEffect, FDNReverbEffect, NoiseGateEffect
 
 __all__ = [
@@ -42,6 +48,10 @@ __all__ = [
     "NormalizeEffect",
     "NormalizeMode",
     "measure_levels",
+    "LOUDNESS_PRESETS",
+    "LoudnessNormalizeEffect",
+    "LoudnessPreset",
+    "loudness_preset",
     "NoiseGateEffect",
     "DelayEffect",
     "FDNReverbEffect",

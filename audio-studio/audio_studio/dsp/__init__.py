@@ -72,6 +72,14 @@ from .spectral import (
     SpectrumScaling,
     WaterfallBuffer,
 )
+from .spectral_edit import (
+    ATTENUATION_DB,
+    SpectralBand,
+    apply_spectral_gain,
+    attenuate_band,
+    band_gain,
+    remove_band,
+)
 from .util import (
     amplitude_to_db,
     as_interleaved,
@@ -95,6 +103,13 @@ __all__ = [
     "SpectrumScaling",
     "RealtimeSpectrum",
     "WaterfallBuffer",
+    # spectral editing
+    "SpectralBand",
+    "ATTENUATION_DB",
+    "band_gain",
+    "apply_spectral_gain",
+    "attenuate_band",
+    "remove_band",
     # windows
     "WindowType",
     "WindowInfo",

@@ -3,15 +3,23 @@
 Run as a module or through the ``audio-studio-batch`` console script::
 
     python -m audio_studio.batch.cli --input "*.wav" --output out/ --lufs -16
+    audio-studio-batch --input "podcast/*.wav" --output out/ --preset streaming
     audio-studio-batch --input "takes/**/*.flac" --output out/ \\
         --gain-db -3 --fade-in 0.05 --fade-out 0.5 --format wav
 
-Operations run in a fixed order on each file: ``--gain-db`` first, then
-``--lufs`` loudness normalisation, then the fades — so the fade tails are the
-last thing shaped and the normalisation measures the gain-adjusted signal.
-Progress is printed to stdout, one line per file. The exit code is ``0`` when
-every file rendered, ``1`` when at least one failed and ``2`` when nothing
-matched the input pattern at all.
+Loudness can be asked for by number (``--lufs``, optionally ``--true-peak``)
+or by name: ``--preset broadcast`` is EBU R 128 (-23 LUFS, -1 dBTP) and
+``--preset streaming`` is the podcast/streaming hand-off (-16 LUFS, -1 dBTP).
+An explicit ``--lufs`` or ``--true-peak`` overrides the preset's value, so
+``--preset broadcast --true-peak -2`` keeps the -23 LUFS target with a lower
+ceiling.
+
+Operations run in a fixed order on each file: ``--gain-db`` first, then the
+loudness normalisation, then the fades — so the fade tails are the last thing
+shaped and the normalisation measures the gain-adjusted signal. Progress is
+printed to stdout, one line per file. The exit code is ``0`` when every file
+rendered, ``1`` when at least one failed and ``2`` when nothing matched the
+input pattern at all.
 """
 
 from __future__ import annotations
@@ -21,6 +29,7 @@ import sys
 from collections.abc import Sequence
 
 from ..dsp.effects.fade import FadeShape
+from ..dsp.effects.loudness_effect import LOUDNESS_PRESETS
 from .pipeline import ApplyGain, BatchJob, Fade, NormalizeLoudness, Operation, run_batch
 
 __all__ = ["build_parser", "main"]
@@ -52,6 +61,13 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="LUFS",
         help="normalise each file's BS.1770 integrated loudness to this target, "
         "e.g. -16",
+    )
+    parser.add_argument(
+        "--preset",
+        choices=sorted(LOUDNESS_PRESETS),
+        default=None,
+        help="named loudness target: broadcast is EBU R 128 (-23 LUFS, -1 dBTP), "
+        "streaming is -16 LUFS, -1 dBTP; --lufs / --true-peak override its values",
     )
     parser.add_argument(
         "--true-peak",
@@ -109,8 +125,17 @@ def _operations(args: argparse.Namespace) -> tuple[Operation, ...]:
     operations: list[Operation] = []
     if args.gain_db is not None:
         operations.append(ApplyGain(args.gain_db))
-    if args.lufs is not None:
-        operations.append(NormalizeLoudness(args.lufs, args.true_peak))
+
+    target_lufs, true_peak = args.lufs, args.true_peak
+    if args.preset is not None:
+        preset = LOUDNESS_PRESETS[args.preset]
+        if target_lufs is None:
+            target_lufs = preset.target_lufs
+        if true_peak is None:
+            true_peak = preset.max_true_peak_dbtp
+    if target_lufs is not None:
+        operations.append(NormalizeLoudness(target_lufs, true_peak))
+
     if args.fade_in > 0.0 or args.fade_out > 0.0:
         operations.append(Fade(args.fade_in, args.fade_out, args.fade_shape))
     return tuple(operations)

@@ -51,7 +51,7 @@ from PySide6.QtWidgets import (
 )
 
 from .. import __app_name__, __version__
-from ..core.edit_session import EditError, EditSession
+from ..core.edit_session import SPECTRAL_ATTENUATION_DB, EditError, EditSession
 from ..core.engine import AudioEngine
 from ..core.loader import (
     SUPPORTED_EXTENSIONS,
@@ -86,7 +86,7 @@ from .effect_rack import EffectRackPanel, default_preview_chain
 from .level_meter import LevelMeter
 from .marker_panel import MarkerPanel
 from .multitrack_view import MultitrackView
-from .spectrum_panel import SpectrumPanel
+from .spectrum_panel import SpectralSelection, SpectrumPanel
 from .theme import PALETTE, stylesheet
 from .track_panel import TrackPanel
 from .transport_bar import TransportBar
@@ -331,6 +331,18 @@ class MainWindow(QMainWindow):
             tip="Insert silence at the playhead",
         )
 
+        self.action_spectral_attenuate = action(
+            "&Attenuate Selection", self.spectral_attenuate, "Ctrl+Alt+A",
+            tip=(
+                f"Turn the band selected on the spectral display down by "
+                f"{abs(SPECTRAL_ATTENUATION_DB):.0f} dB"
+            ),
+        )
+        self.action_spectral_delete = action(
+            "&Delete Selection", self.spectral_delete, "Ctrl+Alt+D",
+            tip="Remove the band selected on the spectral display",
+        )
+
         self.action_add_marker = action(
             "Add &Marker", self.add_marker_at_playhead, "M",
             tip="Drop a marker at the playhead",
@@ -464,6 +476,9 @@ class MainWindow(QMainWindow):
         edit_menu.addAction(self.action_reverse)
         edit_menu.addAction(self.action_insert_silence)
         edit_menu.addSeparator()
+        edit_menu.addAction(self.action_spectral_attenuate)
+        edit_menu.addAction(self.action_spectral_delete)
+        edit_menu.addSeparator()
         edit_menu.addAction(self.action_select_all)
         edit_menu.addAction(self.action_deselect)
 
@@ -570,6 +585,9 @@ class MainWindow(QMainWindow):
         self.spectrum_panel.seekRequested.connect(self._on_spectrum_seek)
         self.spectrum_panel.readoutChanged.connect(self._on_spectrum_readout)
         self.spectrum_panel.fftSizeChanged.connect(lambda _size: self.analyze_spectrum())
+        self.spectrum_panel.selectionChanged.connect(self._on_spectral_selection)
+        self.spectrum_panel.attenuateRequested.connect(self.spectral_attenuate)
+        self.spectrum_panel.deleteRequested.connect(self.spectral_delete)
         self.effect_rack.chainChanged.connect(self._on_chain_changed)
 
         self.marker_panel.selectionChanged.connect(self._update_marker_actions)

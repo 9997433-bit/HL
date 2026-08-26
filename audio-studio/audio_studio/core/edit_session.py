@@ -22,6 +22,7 @@ flattening it first.
 
 from __future__ import annotations
 
+import math
 import threading
 from abc import ABC, abstractmethod
 from bisect import bisect_right
@@ -31,6 +32,9 @@ from typing import Final
 
 import numpy as np
 
+from ..dsp.spectral_edit import ATTENUATION_DB as SPECTRAL_ATTENUATION_DB
+from ..dsp.spectral_edit import DEFAULT_FFT_SIZE as SPECTRAL_FFT_SIZE
+from ..dsp.spectral_edit import SpectralBand, apply_spectral_gain
 from .types import SAMPLE_DTYPE, AudioBuffer, TimeRange, db_to_amplitude
 
 #: Frames per storage chunk. Small enough that a localised edit rewrites little,
@@ -588,6 +592,67 @@ class ReverseCommand(_RangeCommand):
         return block[::-1]
 
 
+class SpectralEditCommand(_RangeCommand):
+    """Gain one frequency band inside a range, leaving the rest of it alone.
+
+    The range is analysed with an STFT, the bins covering ``[low_hz, high_hz]``
+    are scaled, and the result is resynthesised by weighted overlap-add — the
+    offline form of the rectangle a user drags across the spectral display. A
+    ``gain_db`` of ``-inf`` removes the band outright; anything else ducks it.
+
+    Undo is the same verbatim restore every other in-place command gets: the
+    original samples are kept as a chunk-sharing slice, so a resynthesised
+    range costs nothing extra to reverse and is bit-identical afterwards.
+    """
+
+    label = "Spectral Edit"
+
+    def __init__(
+        self,
+        rng: TimeRange,
+        low_hz: float,
+        high_hz: float,
+        gain_db: float = SPECTRAL_ATTENUATION_DB,
+        *,
+        fft_size: int = SPECTRAL_FFT_SIZE,
+    ) -> None:
+        super().__init__(rng)
+        self._band = SpectralBand(low_hz, high_hz)
+        self._gain_db = float(gain_db)
+        self._fft_size = int(fft_size)
+        verb = "Remove" if self.removes else "Attenuate"
+        self.label = f"{verb} {self._band.describe()}"
+
+    @property
+    def band(self) -> SpectralBand:
+        return self._band
+
+    @property
+    def gain_db(self) -> float:
+        return self._gain_db
+
+    @property
+    def removes(self) -> bool:
+        """True when the band is zeroed rather than merely turned down."""
+        return self._gain_db == -math.inf
+
+    def apply(self, document: AudioDocument) -> AudioDocument:
+        if self._band.is_empty:
+            raise EditError(f"{self.label}: empty band {self._band!r}")
+        return super().apply(document)
+
+    def _process(self, block: np.ndarray, sample_rate: int) -> np.ndarray:
+        processed = apply_spectral_gain(
+            block,
+            sample_rate,
+            self._band,
+            self._gain_db,
+            fft_size=self._fft_size,
+            channels_last=True,
+        )
+        return processed.astype(SAMPLE_DTYPE, copy=False)
+
+
 class TrimCommand(EditCommand):
     """Discard everything outside a range (Audition's "trim to selection")."""
 
@@ -961,6 +1026,36 @@ class EditSession:
     def reverse(self, rng: TimeRange) -> AudioDocument:
         return self.execute(ReverseCommand(self._require_range(rng)))
 
+    def spectral_edit(
+        self,
+        rng: TimeRange,
+        low_hz: float,
+        high_hz: float,
+        gain_db: float = SPECTRAL_ATTENUATION_DB,
+        *,
+        fft_size: int = SPECTRAL_FFT_SIZE,
+    ) -> AudioDocument:
+        """Gain ``[low_hz, high_hz]`` inside ``rng`` through an STFT mask."""
+        return self.execute(
+            SpectralEditCommand(
+                self._require_range(rng), low_hz, high_hz, gain_db, fft_size=fft_size
+            )
+        )
+
+    def attenuate_band(
+        self,
+        rng: TimeRange,
+        low_hz: float,
+        high_hz: float,
+        gain_db: float = SPECTRAL_ATTENUATION_DB,
+    ) -> AudioDocument:
+        """Turn one band of the selection down, by -12 dB unless told otherwise."""
+        return self.spectral_edit(rng, low_hz, high_hz, gain_db)
+
+    def remove_band(self, rng: TimeRange, low_hz: float, high_hz: float) -> AudioDocument:
+        """Zero one band of the selection and resynthesise what is left."""
+        return self.spectral_edit(rng, low_hz, high_hz, -math.inf)
+
     def trim(self, rng: TimeRange) -> AudioDocument:
         return self.execute(TrimCommand(self._require_range(rng)))
 
@@ -982,6 +1077,7 @@ class EditSession:
 __all__ = [
     "DEFAULT_CHUNK_FRAMES",
     "FADE_SHAPES",
+    "SPECTRAL_ATTENUATION_DB",
     "AudioDocument",
     "Chunk",
     "CutCommand",
@@ -996,6 +1092,8 @@ __all__ = [
     "ReverseCommand",
     "Segment",
     "SilenceCommand",
+    "SpectralBand",
+    "SpectralEditCommand",
     "TrimCommand",
     "UndoEntry",
     "UndoStack",

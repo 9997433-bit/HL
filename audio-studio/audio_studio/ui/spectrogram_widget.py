@@ -30,6 +30,7 @@ hundred thousand pixels instead of a max-pool over millions of bins.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 from enum import Enum
 
 import numpy as np
@@ -50,7 +51,7 @@ from PySide6.QtWidgets import QSizePolicy, QWidget
 from ..dsp.spectral import Spectrogram, WaterfallBuffer
 from .colormaps import COLORMAP_NAMES, DEFAULT_COLORMAP, get_colormap
 
-__all__ = ["DisplayMode", "FrequencyScale", "SpectrogramWidget"]
+__all__ = ["DisplayMode", "FrequencyScale", "SpectralRegion", "SpectrogramWidget"]
 
 
 class DisplayMode(str, Enum):
@@ -77,6 +78,47 @@ _MARGIN_BOTTOM = 24
 _MARGIN_TOP = 6
 _MARGIN_RIGHT = 8
 _COLORBAR_WIDTH = 14
+
+#: Pixels a press has to travel on *both* axes before it counts as a box drag
+#: rather than a click. Requiring both keeps click-to-seek working when a hand
+#: slips sideways, and stops a flat drag from producing a zero-width band.
+REGION_DRAG_SLOP: int = 3
+
+
+@dataclass(frozen=True, slots=True)
+class SpectralRegion:
+    """A rectangle on the display: a time span crossed with a frequency band.
+
+    Times are in the same seconds the widget's time axis shows — relative to
+    the analysed excerpt, not to the file — and frequencies are in hertz. Both
+    pairs are stored low-first however the user dragged them.
+    """
+
+    start_s: float
+    end_s: float
+    low_hz: float
+    high_hz: float
+
+    def __post_init__(self) -> None:
+        start, end = sorted((float(self.start_s), float(self.end_s)))
+        low, high = sorted((float(self.low_hz), float(self.high_hz)))
+        object.__setattr__(self, "start_s", start)
+        object.__setattr__(self, "end_s", end)
+        object.__setattr__(self, "low_hz", low)
+        object.__setattr__(self, "high_hz", high)
+
+    @property
+    def duration_s(self) -> float:
+        return self.end_s - self.start_s
+
+    @property
+    def bandwidth_hz(self) -> float:
+        return self.high_hz - self.low_hz
+
+    @property
+    def is_empty(self) -> bool:
+        """True when the rectangle has collapsed on either axis."""
+        return self.duration_s <= 0.0 or self.bandwidth_hz <= 0.0
 
 
 def _pixel_reduce(data: np.ndarray, bounds: np.ndarray, axis: int) -> np.ndarray:
@@ -142,6 +184,10 @@ class SpectrogramWidget(QWidget):
     #: Emitted on click: ``(time_s, frequency_hz)``.
     positionClicked = Signal(float, float)
 
+    #: Emitted when the dragged rectangle changes: a :class:`SpectralRegion`,
+    #: or ``None`` when the selection is dropped.
+    regionChanged = Signal(object)
+
     def __init__(
         self,
         parent: QWidget | None = None,
@@ -172,6 +218,11 @@ class SpectrogramWidget(QWidget):
         self._image_buffer: np.ndarray | None = None  # keeps QImage memory alive
         self._image_dirty = True
         self._cursor: QPoint | None = None
+
+        self._region: SpectralRegion | None = None
+        self._drag_anchor: QPoint | None = None
+        self._drag_point: QPoint | None = None
+        self._dragging = False
 
         self._data_version = 0
         self._columns_key: tuple | None = None
@@ -215,6 +266,9 @@ class SpectrogramWidget(QWidget):
         self._frequencies = np.asarray(frequencies, dtype=np.float64)
         self._times = np.asarray(times, dtype=np.float64)
         self._clamp_frequency_range()
+        # A rectangle drawn over the previous analysis addresses samples that
+        # are no longer on screen, so it goes with them.
+        self.set_region(None)
         self._invalidate(data_changed=True)
 
     def start_waterfall(
@@ -232,6 +286,7 @@ class SpectrogramWidget(QWidget):
         self._mode = DisplayMode.WATERFALL
         self._data = None
         self._clamp_frequency_range()
+        self.set_region(None)
         self._invalidate(data_changed=True)
 
     def push_frame(self, frame_db: np.ndarray, repaint: bool = True) -> None:
@@ -253,7 +308,28 @@ class SpectrogramWidget(QWidget):
         self._data = None
         if self._waterfall is not None:
             self._waterfall.clear()
+        self.set_region(None)
         self._invalidate(data_changed=True)
+
+    # -- selection ---------------------------------------------------------
+
+    @property
+    def region(self) -> SpectralRegion | None:
+        """The committed time/frequency rectangle, or ``None``."""
+        return self._region
+
+    def set_region(self, region: SpectralRegion | None) -> None:
+        """Set (or drop) the selected rectangle, announcing a real change."""
+        if region is not None and region.is_empty:
+            region = None
+        if region == self._region:
+            return
+        self._region = region
+        self.regionChanged.emit(region)
+        self.update()
+
+    def clear_region(self) -> None:
+        self.set_region(None)
 
     # -- appearance --------------------------------------------------------
 
@@ -470,6 +546,7 @@ class SpectrogramWidget(QWidget):
         self._paint_time_axis(painter, plot)
         if self._show_colorbar:
             self._paint_colorbar(painter, plot)
+        self._paint_region(painter, plot)
         if self._cursor is not None and plot.contains(self._cursor):
             self._paint_cursor(painter, plot)
         painter.end()
@@ -553,6 +630,28 @@ class SpectrogramWidget(QWidget):
                 f"{value:.0f}",
             )
 
+    def _paint_region(self, painter: QPainter, plot: QRect) -> None:
+        """Draw the rubber band being dragged, or the rectangle it left behind."""
+        if self._drag_anchor is not None and self._drag_point is not None and self._dragging:
+            rect = QRect(self._drag_anchor, self._drag_point).normalized().intersected(plot)
+        elif self._region is not None:
+            rect = self._region_rect(self._region, plot)
+        else:
+            return
+        if rect.width() < 1 or rect.height() < 1:
+            return
+        painter.fillRect(rect, QColor(120, 190, 255, 46))
+        painter.setPen(QPen(QColor(160, 215, 255, 210), 1, Qt.PenStyle.DashLine))
+        painter.drawRect(rect.adjusted(0, 0, -1, -1))
+
+    def _region_rect(self, region: SpectralRegion, plot: QRect) -> QRect:
+        """Map a region back onto the plot in widget pixels."""
+        left = self._time_to_x(region.start_s, plot)
+        right = self._time_to_x(region.end_s, plot)
+        top = self._frequency_to_y_clamped(region.high_hz, plot)
+        bottom = self._frequency_to_y_clamped(region.low_hz, plot)
+        return QRect(QPoint(left, top), QPoint(right, bottom)).normalized()
+
     def _paint_cursor(self, painter: QPainter, plot: QRect) -> None:
         assert self._cursor is not None
         painter.setPen(QPen(QColor(255, 255, 255, 110), 1, Qt.PenStyle.DashLine))
@@ -572,6 +671,12 @@ class SpectrogramWidget(QWidget):
     def mouseMoveEvent(self, event: QMouseEvent) -> None:  # noqa: N802
         position = event.position().toPoint()
         plot = self._plot_rect()
+        if self._drag_anchor is not None:
+            self._drag_point = position
+            self._dragging = self._dragging or (
+                abs(position.x() - self._drag_anchor.x()) >= REGION_DRAG_SLOP
+                and abs(position.y() - self._drag_anchor.y()) >= REGION_DRAG_SLOP
+            )
         if plot.contains(position):
             self._cursor = position
             self.cursorMoved.emit(*self.value_at(position))
@@ -588,11 +693,42 @@ class SpectrogramWidget(QWidget):
         super().leaveEvent(event)
 
     def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802
+        """Arm a drag. Whether it was a click or a box is decided on release."""
         position = event.position().toPoint()
-        if self._plot_rect().contains(position):
-            time_s, frequency, _ = self.value_at(position)
-            self.positionClicked.emit(time_s, frequency)
+        if event.button() == Qt.MouseButton.LeftButton and self._plot_rect().contains(position):
+            self._drag_anchor = self._drag_point = position
+            self._dragging = False
         super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:  # noqa: N802
+        anchor, dragging = self._drag_anchor, self._dragging
+        self._drag_anchor = self._drag_point = None
+        self._dragging = False
+
+        if anchor is not None and event.button() == Qt.MouseButton.LeftButton:
+            position = event.position().toPoint()
+            if dragging:
+                self.set_region(self._region_between(anchor, position))
+            else:
+                # A bare click drops the selection and seeks, as it always has.
+                self.set_region(None)
+                time_s, frequency, _ = self.value_at(position)
+                self.positionClicked.emit(time_s, frequency)
+        self.update()
+        super().mouseReleaseEvent(event)
+
+    def _region_between(self, first: QPoint, second: QPoint) -> SpectralRegion | None:
+        """The rectangle spanned by two widget-space points, clipped to the plot."""
+        plot = self._plot_rect()
+        rect = QRect(first, second).normalized().intersected(plot)
+        if rect.width() < 1 or rect.height() < 1:
+            return None
+        return SpectralRegion(
+            self._x_to_time(rect.left(), plot),
+            self._x_to_time(rect.right(), plot),
+            self._y_to_frequency(rect.bottom(), plot),
+            self._y_to_frequency(rect.top(), plot),
+        )
 
     # -- coordinate mapping -------------------------------------------------
 
@@ -613,6 +749,23 @@ class SpectrogramWidget(QWidget):
         else:
             fraction = (frequency - f_min) / (f_max - f_min)
         return plot.bottom() - int(fraction * (plot.height() - 1))
+
+    def _frequency_to_y_clamped(self, frequency: float, plot: QRect) -> int:
+        """Like :meth:`_frequency_to_y`, but pinned to the plot instead of ``None``."""
+        f_min, f_max = max(self._f_min, 1e-9), self._f_max
+        if f_max <= f_min:
+            return plot.bottom()
+        clamped = min(max(float(frequency), f_min), f_max)
+        if self._frequency_scale is FrequencyScale.LOG:
+            fraction = np.log(clamped / f_min) / np.log(f_max / f_min)
+        else:
+            fraction = (clamped - f_min) / (f_max - f_min)
+        return plot.bottom() - int(fraction * (plot.height() - 1))
+
+    def _time_to_x(self, time_s: float, plot: QRect) -> int:
+        t0, t1 = self._time_span()
+        fraction = 0.0 if t1 <= t0 else (float(time_s) - t0) / (t1 - t0)
+        return plot.left() + int(round(min(max(fraction, 0.0), 1.0) * (plot.width() - 1)))
 
     def _y_to_frequency(self, y: int, plot: QRect) -> float:
         fraction = np.clip((plot.bottom() - y) / max(plot.height() - 1, 1), 0.0, 1.0)

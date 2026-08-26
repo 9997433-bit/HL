@@ -35,12 +35,14 @@ from PySide6.QtWidgets import (
 )
 
 from ..dsp.effects import (
+    LOUDNESS_PRESETS,
     CompressorEffect,
     DelayEffect,
     EffectChain,
     FDNReverbEffect,
     GainEffect,
     LimiterEffect,
+    LoudnessNormalizeEffect,
     NoiseGateEffect,
     ThreeBandEQ,
 )
@@ -60,13 +62,20 @@ HUM_CHOICES: tuple[tuple[str, float | str], ...] = (
     ("60 Hz", 60.0),
 )
 
+#: Delivery targets offered by the Loudness Match slot, as (label, preset key).
+LOUDNESS_CHOICES: tuple[tuple[str, str], ...] = (
+    ("Broadcast -23 LUFS (EBU R 128)", "broadcast"),
+    ("Streaming -16 LUFS", "streaming"),
+)
+
 
 def default_preview_chain() -> EffectChain:
     """The rack a new session starts with: repair, then a 3-band EQ into a trim.
 
     The EQ and trim are flat and the two repair effects are switched off, so
-    the chain is inaudible until something is moved. Everything but the
-    de-clicker streams, and the chain skips that one during preview.
+    the chain is inaudible until something is moved. Everything streams except
+    the de-clicker and the loudness matcher, which need the whole signal; the
+    chain skips those two during preview and they apply on render.
     """
     return EffectChain(
         [
@@ -79,6 +88,7 @@ def default_preview_chain() -> EffectChain:
             DelayEffect(enabled=False),
             FDNReverbEffect(enabled=False),
             LimiterEffect(enabled=False),
+            LoudnessNormalizeEffect(enabled=False),
         ]
     )
 
@@ -89,6 +99,14 @@ def _hum_choice_index(dehum: DeHumEffect) -> int:
         return 0
     for index, (_label, value) in enumerate(HUM_CHOICES):
         if isinstance(value, float) and abs(value - dehum.frequency) < 0.5:
+            return index
+    return 0
+
+
+def _loudness_choice_index(effect: LoudnessNormalizeEffect) -> int:
+    """Which entry of :data:`LOUDNESS_CHOICES` an effect's target corresponds to."""
+    for index, (_label, key) in enumerate(LOUDNESS_CHOICES):
+        if abs(LOUDNESS_PRESETS[key].target_lufs - effect.target_lufs) < 0.5:
             return index
     return 0
 
@@ -187,6 +205,7 @@ class EffectRackPanel(QWidget):
         layout.addWidget(self._build_trim())
         layout.addWidget(self._build_time_space())
         layout.addWidget(self._build_limiter())
+        layout.addWidget(self._build_loudness())
         layout.addWidget(self._build_footer())
         layout.addStretch(1)
         self.setMinimumWidth(240)
@@ -397,6 +416,34 @@ class EffectRackPanel(QWidget):
         layout.addWidget(self.limiter_ceiling)
         return box
 
+    def _build_loudness(self) -> QWidget:
+        box = QGroupBox("Loudness Match")
+        self.loudness_enabled = QCheckBox("Enabled (applies on render)")
+        self.loudness_enabled.setToolTip(
+            "Normalise the clip's BS.1770 integrated loudness to the selected "
+            "delivery target. Needs the whole signal, so it is skipped during "
+            "live preview and applied on render"
+        )
+        self.loudness_enabled.toggled.connect(
+            lambda on: self._set_enabled(self.loudness, on)
+        )
+
+        self.loudness_preset = QComboBox()
+        for label, _key in LOUDNESS_CHOICES:
+            self.loudness_preset.addItem(label)
+        self.loudness_preset.setToolTip(
+            "Delivery target: the integrated LUFS the render should measure, "
+            "with the gain capped so the true peak stays under the preset's ceiling"
+        )
+        self.loudness_preset.currentIndexChanged.connect(self._on_loudness_preset)
+
+        layout = QVBoxLayout(box)
+        layout.setContentsMargins(8, 4, 8, 8)
+        layout.setSpacing(4)
+        layout.addWidget(self.loudness_enabled)
+        layout.addWidget(self.loudness_preset)
+        return box
+
     def _build_footer(self) -> QWidget:
         footer = QWidget()
         self.status = QLabel()
@@ -444,6 +491,12 @@ class EffectRackPanel(QWidget):
         return next((e for e in self.chain if isinstance(e, FDNReverbEffect)), None)
 
     @property
+    def loudness(self) -> LoudnessNormalizeEffect | None:
+        return next(
+            (e for e in self.chain if isinstance(e, LoudnessNormalizeEffect)), None
+        )
+
+    @property
     def dehum(self) -> DeHumEffect | None:
         return next((e for e in self.chain if isinstance(e, DeHumEffect)), None)
 
@@ -467,6 +520,7 @@ class EffectRackPanel(QWidget):
                 self.compressor_enabled, self.compressor_threshold.slider,
                 self.compressor_ratio.slider, self.limiter_enabled,
                 self.limiter_ceiling.slider,
+                self.loudness_enabled, self.loudness_preset,
                 self.noise_gate_enabled, self.noise_gate_threshold.slider,
                 self.noise_gate_ratio.slider, self.delay_enabled,
                 self.delay_time.slider, self.delay_feedback.slider,
@@ -508,6 +562,10 @@ class EffectRackPanel(QWidget):
             if limiter is not None:
                 self.limiter_enabled.setChecked(limiter.enabled)
                 self.limiter_ceiling.set_value(limiter.ceiling_db)
+            loudness = self.loudness
+            if loudness is not None:
+                self.loudness_enabled.setChecked(loudness.enabled)
+                self.loudness_preset.setCurrentIndex(_loudness_choice_index(loudness))
             noise_gate = self.noise_gate
             if noise_gate is not None:
                 self.noise_gate_enabled.setChecked(noise_gate.enabled)
@@ -571,6 +629,10 @@ class EffectRackPanel(QWidget):
         if limiter is not None:
             limiter.enabled = False
             limiter.ceiling_db = -1.0
+        loudness = self.loudness
+        if loudness is not None:
+            loudness.enabled = False
+            loudness.apply_preset(LOUDNESS_CHOICES[0][1])
         noise_gate = self.noise_gate
         if noise_gate is not None:
             noise_gate.enabled = False
@@ -669,6 +731,12 @@ class EffectRackPanel(QWidget):
         limiter = self.limiter
         if limiter is not None:
             limiter.ceiling_db = float(ceiling_db)
+        self._changed()
+
+    def _on_loudness_preset(self, index: int) -> None:
+        loudness = self.loudness
+        if loudness is not None and 0 <= index < len(LOUDNESS_CHOICES):
+            loudness.apply_preset(LOUDNESS_CHOICES[index][1])
         self._changed()
 
     def _on_noise_gate_threshold(self, threshold_db: float) -> None:
