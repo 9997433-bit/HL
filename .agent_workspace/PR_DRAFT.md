@@ -3,8 +3,8 @@
 Ready to file. Base: `main`. Head: `cursor/femtools-industrial-7aa3`.
 Verified at `8604807`: full suite **876 passed**, `ruff check .` clean
 (Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1).
-See the [orchestrator report](ORCHESTRATOR_REPORT.md) for the full delivery
-status and verification record.
+Source references: [README](../README.md), [Chinese user guide](../docs/USER_GUIDE_zh.md),
+and [orchestrator report](ORCHESTRATOR_REPORT.md).
 
 ## Title
 
@@ -77,9 +77,11 @@ synthesis, and optimization hooks — all behind one CLI and a schema-versioned 
   acceptance criteria wired to tagged acceptance tests, boundary/probe suites,
   performance-regression gates, and benchmarks; GitHub Actions CI on Python
   3.10–3.13; `ruff check` clean.
-- **Docs**: `ARCHITECTURE.md`, `MODULE_SPEC.md` (MS-0..7), `ACCEPTANCE_CRITERIA.md`
-  (40 criteria), `SOTA_GAP_ANALYSIS.md` (GAP-01..15), `OPTIMIZATION.md`, README with
-  reproducible CLI walkthrough, runnable `examples/`.
+- **Docs**: [`README`](README.md) with a reproducible CLI walkthrough,
+  [`中文用户指南`](docs/USER_GUIDE_zh.md), `ARCHITECTURE.md`, `MODULE_SPEC.md` (MS-0..7),
+  `ACCEPTANCE_CRITERIA.md` (40 criteria), `SOTA_GAP_ANALYSIS.md` (GAP-01..15),
+  `OPTIMIZATION.md`, runnable `examples/`, and the
+  [orchestrator report](.agent_workspace/ORCHESTRATOR_REPORT.md).
 
 ## Verification
 
