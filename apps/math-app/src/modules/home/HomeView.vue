@@ -34,6 +34,21 @@ const nextPlanet = computed(
     planets.value[0],
 )
 
+/** 今日冒险：每天 5 题的打卡任务，进度直接读 store。 */
+const daily = computed(() => progress.dailyQuest)
+
+const dailyLabel = computed(() => {
+  const d = daily.value
+  if (d.completed) return `✅ 今日冒险已完成 · 连续 ${d.streak} 天`
+  if (d.done > 0) return `🗓️ 继续今日冒险 · ${d.done}/${d.total}`
+  return `🗓️ 今日冒险 · ${d.total} 题`
+})
+
+function openDaily() {
+  sound.click()
+  router.push('/daily')
+}
+
 const pathD = computed(() => {
   const pts = MODULES.map((m) => m.node)
   let d = `M ${pts[0].x} ${pts[0].y}`
@@ -91,11 +106,30 @@ onMounted(() => {
           点亮六颗数学星球：从数数、加减法，到图形、规律、数独与生活应用题。
         </p>
         <div class="hero-actions">
-          <button v-if="nextPlanet" class="btn btn--primary btn--lg" @click="open(nextPlanet)">
+          <button
+            class="btn btn--primary btn--lg daily-cta"
+            :class="{ done: daily.completed }"
+            data-daily-cta
+            @click="openDaily"
+          >
+            {{ dailyLabel }}
+          </button>
+          <button v-if="nextPlanet" class="btn btn--ghost btn--lg" @click="open(nextPlanet)">
             🚀 继续冒险 · {{ nextPlanet.name }}
           </button>
+          <RouterLink to="/compare" class="btn btn--ghost">⚖️ 比大小擂台</RouterLink>
           <RouterLink to="/progress" class="btn btn--ghost">🏆 我的成就</RouterLink>
           <RouterLink to="/parent" class="btn btn--ghost">👨‍👩‍👧 家长中心</RouterLink>
+        </div>
+        <div class="daily-track" v-if="!daily.completed">
+          <span
+            v-for="i in daily.total"
+            :key="i"
+            class="daily-pip"
+            :class="{ on: i <= daily.done }"
+            aria-hidden="true"
+          />
+          <span class="dim small">今天已完成 {{ daily.done }} / {{ daily.total }} 题</span>
         </div>
       </div>
       <MascotBot mood="idle" :size="128" class="hero-bot" />
@@ -126,7 +160,7 @@ onMounted(() => {
           :ref="(el) => (planetRefs[i] = el)"
           :data-id="p.id"
           class="planet"
-          :class="{ locked: !p.unlocked }"
+          :class="{ locked: !p.unlocked, 'is-next': p.id === nextPlanet?.id }"
           :style="{
             left: `${p.node.x}%`,
             top: `${p.node.y}%`,
@@ -134,7 +168,9 @@ onMounted(() => {
             '--pa': p.accent,
             animationDelay: `${i * 0.4}s`,
           }"
-          :aria-label="`${p.name}${p.unlocked ? '' : '（未解锁）'}`"
+          :aria-label="`${p.name}${p.unlocked ? '' : '（未解锁）'}${
+            p.id === nextPlanet?.id ? '（推荐下一站）' : ''
+          }`"
           @click="open(p)"
         >
           <span class="planet-body">
@@ -155,7 +191,7 @@ onMounted(() => {
         v-for="p in planets"
         :key="`card-${p.id}`"
         class="mod-card card"
-        :class="{ locked: !p.unlocked }"
+        :class="{ locked: !p.unlocked, 'is-next': p.id === nextPlanet?.id }"
         :style="{ '--pc': p.color, '--pa': p.accent }"
         @click="open(p)"
       >
@@ -165,6 +201,7 @@ onMounted(() => {
             <strong class="mod-name">{{ p.name }}</strong>
             <span class="mod-sub dim">{{ p.subtitle }}</span>
           </div>
+          <span v-if="p.id === nextPlanet?.id" class="chip next-chip">推荐下一站</span>
         </div>
         <p class="mod-blurb muted">{{ p.blurb }}</p>
         <div class="skills">
@@ -230,6 +267,34 @@ onMounted(() => {
 
 .hero-bot {
   flex: none;
+}
+
+.daily-cta.done {
+  filter: saturate(0.85);
+}
+
+.daily-track {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.daily-pip {
+  width: 26px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.daily-pip.on {
+  background: linear-gradient(90deg, var(--cyan), var(--violet));
+  border-color: transparent;
+}
+
+.daily-track .small {
+  margin-left: 6px;
 }
 
 .stats-strip {
@@ -339,6 +404,30 @@ onMounted(() => {
   filter: saturate(0.4);
 }
 
+/* 推荐下一站的星球「呼吸」：只动光晕，不动 transform，免得和 bob 打架 */
+.planet.is-next .planet-body {
+  animation: breathe 2.8s ease-in-out infinite;
+}
+
+.planet.is-next .planet-label strong {
+  color: var(--pc);
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 4px rgba(255, 255, 255, 0.08),
+      0 12px 28px rgba(0, 0, 0, 0.45);
+  }
+  50% {
+    box-shadow:
+      0 0 0 9px color-mix(in srgb, var(--pc) 40%, transparent),
+      0 0 32px 8px color-mix(in srgb, var(--pc) 45%, transparent),
+      0 12px 28px rgba(0, 0, 0, 0.45);
+  }
+}
+
 .planet-badge {
   position: absolute;
   right: -8px;
@@ -388,6 +477,28 @@ onMounted(() => {
 
 .mod-card.locked {
   opacity: 0.55;
+}
+
+.mod-card.is-next {
+  border-color: color-mix(in srgb, var(--pc) 55%, transparent);
+  animation: card-breathe 2.8s ease-in-out infinite;
+}
+
+@keyframes card-breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--pc) 0%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 26px 2px color-mix(in srgb, var(--pc) 32%, transparent);
+  }
+}
+
+.next-chip {
+  margin-left: auto;
+  flex: none;
+  color: var(--pc);
+  border-color: color-mix(in srgb, var(--pc) 55%, transparent);
 }
 
 .mod-emoji {
@@ -452,6 +563,19 @@ onMounted(() => {
   font-size: 12px;
 }
 
+/* 关掉动效时呼吸灯退化为常亮描边：推荐位不能因为不动就消失 */
+@media (prefers-reduced-motion: reduce) {
+  .planet.is-next .planet-body {
+    box-shadow:
+      0 0 0 6px color-mix(in srgb, var(--pc) 40%, transparent),
+      0 12px 28px rgba(0, 0, 0, 0.45);
+  }
+
+  .mod-card.is-next {
+    box-shadow: 0 0 18px 1px color-mix(in srgb, var(--pc) 28%, transparent);
+  }
+}
+
 @media (max-width: 860px) {
   .hero {
     flex-direction: column;
@@ -460,6 +584,11 @@ onMounted(() => {
 
   .hero-actions {
     justify-content: center;
+  }
+
+  .daily-track {
+    justify-content: center;
+    flex-wrap: wrap;
   }
 
   .map-canvas {
