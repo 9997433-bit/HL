@@ -6,7 +6,7 @@ import { MODULES } from '@/data/modules.js'
 import { useProgressStore } from '@/stores/progress.js'
 import { useFeedback } from '@/composables/useFeedback'
 import MascotBot from '@/components/MascotBot.vue'
-import { sound } from '@/core/audio/sound.js'
+import { sound } from '@/utils/sound'
 
 const router = useRouter()
 const progress = useProgressStore()

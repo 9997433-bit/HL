@@ -7,6 +7,7 @@
 import { WORD_PROBLEMS } from '../src/data/wordProblems.js'
 import { generatePuzzle, solve, conflictsOf } from '../src/utils/sudoku4.js'
 import { numericOptions } from '../src/utils/random.js'
+import { CUES, noteToFreq } from '../src/utils/sound.js'
 
 let failures = 0
 const fail = (msg) => {
@@ -77,6 +78,27 @@ for (let i = 0; i < TRIES; i++) {
 }
 if (optOk !== TRIES) fail(`numericOptions ${TRIES - optOk} 次不合规`)
 console.log(`选项生成器 ${TRIES} 次：合规 ${optOk}`)
+
+/* ------------------------------------------------ 音效谱面 */
+// Web Audio 合成器在 Node 里跑不起来，但音名解析是纯函数，
+// 打错一个音名会让那个音直接消失，这里把五段谱面都验一遍。
+if (Math.abs(noteToFreq('A4') - 440) > 1e-9) fail(`A4 应为 440Hz，实际 ${noteToFreq('A4')}`)
+if (Math.abs(noteToFreq('C5') - 523.2511) > 1e-3) fail(`C5 频率不对：${noteToFreq('C5')}`)
+if (!(noteToFreq('Eb4') < noteToFreq('E4'))) fail('Eb4 应低于 E4')
+if (noteToFreq('H4') !== null) fail('非法音名应返回 null')
+
+let noteCount = 0
+for (const [name, cue] of Object.entries(CUES)) {
+  if (!cue.notes.length) fail(`音效 ${name} 没有音符`)
+  if (!(cue.gap >= 0)) fail(`音效 ${name} 的间隔非法：${cue.gap}`)
+  for (const note of cue.notes) {
+    noteCount++
+    const f = noteToFreq(note)
+    if (f === null) fail(`音效 ${name} 里的音名无法解析：${note}`)
+    else if (!(f > 20 && f < 8000)) fail(`音效 ${name} 的 ${note} 超出可听范围：${f}Hz`)
+  }
+}
+console.log(`音效谱面 ${Object.keys(CUES).length} 段共 ${noteCount} 个音：音名全部可解析`)
 
 console.log(failures ? `\n${failures} 项不通过。` : '\n全部通过。')
 process.exit(failures ? 1 : 0)

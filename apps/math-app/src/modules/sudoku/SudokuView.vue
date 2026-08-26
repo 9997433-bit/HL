@@ -6,7 +6,7 @@ import MascotBot from '@/components/MascotBot.vue'
 import { useProgressStore } from '@/stores/progress.js'
 import { useFeedback } from '@/composables/useFeedback'
 import { conflictsOf, generatePuzzle, nextHint } from '@/utils/sudoku4'
-import { sound } from '@/core/audio/sound.js'
+import { sound } from '@/utils/sound'
 
 const MODULE_ID = 'sudoku'
 const DIFFICULTIES = [
