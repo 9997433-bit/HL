@@ -127,11 +127,11 @@ at audit time the suite did **not** collect cleanly (Appendix A).
 | GAP-07 | P1 | Pretest | No sensor/exciter placement (Effective Independence, kinetic energy), no test planning | R3 |
 | GAP-08 | P1 | Reduction/expansion | No Guyan/IRS/SEREP/Craig-Bampton, no TAM pseudo-orthogonality, no shape expansion to full FE DOFs | R2/R3 |
 | GAP-09 | P1 | Correlation | No geometry alignment / automated test-sensor ↔ FE-node mapping | R2 |
-| GAP-10 | P1 | Updating | No parameter target resolver, no assembled dK/dp providers, no mass/shape-difference residuals, no robust estimation, no subset selection/collinearity diagnostics (AC-UPD-007) | R2 |
+| GAP-10 | P1 | Updating | **Subset selection closed** — the MS-3.6 screen (`workflow/selection.py`) freezes unobservable and collinear parameters, AC-UPD-007 implemented. Open: parameter target resolver, assembled dK/dp providers, mass/shape-difference residuals, robust estimation | R2 |
 | GAP-11 | P1 | UQ | No Bayesian updating (AC-UPD-006), Monte Carlo, DOE, or response surfaces | R3 |
 | GAP-12 | P2 | Optimization | **Closed for sizing** — scipy backends wired with a KKT termination report, AC-OPT-001..004 verified (`docs/OPTIMIZATION.md`). Open: geometric `dK/da` for shape variables, topology optimization, DOE/surrogates | R3 |
 | GAP-13 | P2 | Scale | Dense threshold 400 DOF; benchmarks stop at 1k DOF vs AC-PERF-001's 50k budget; no LOBPCG/AMG path; no reanalysis acceleration in updating loops | R3 |
-| GAP-14 | P2 | Workflow | CLI `modal`/`correlate`/`update` stubbed; no session report schema (AC-WORK-002) | R2/R3 |
+| GAP-14 | P2 | Workflow | **Closed for R2** — `modal`/`correlate`/`update` land with model-spec input and JSON/YAML documents, and `CorrectionReport` carries the versioned session schema (AC-WORK-002/005 implemented) | R2/R3 |
 | GAP-15 | P2 | Visualization | No mode-shape/MAC plotting helpers (deferred by design for v1) | R3+ |
 
 ---

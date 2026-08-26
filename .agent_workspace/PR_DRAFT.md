@@ -1,7 +1,7 @@
 # PR Draft — OpenFEMLab Round 1
 
 Ready to file. Base: `main`. Head: `cursor/femtools-industrial-7aa3`.
-Verified at `c600530`: full suite **671 passed**, `ruff check .` clean
+Verified at `ec0e927`: full suite **671 passed**, `ruff check .` clean
 (Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1).
 
 ## Title
@@ -41,8 +41,9 @@ synthesis, and optimization hooks — all behind one CLI and a schema-versioned 
   pseudo-orthogonality, COMAC; sensor/DOF alignment with orientation signs; Hungarian
   or greedy mode pairing with MAC threshold, frequency window, and frequency penalty;
   Guyan / IRS / SEREP reduction bases with the TAM mass and SEREP mode-shape expansion
-  back into full FE space; FRAC/FDAC FRF correlation carried as the schema-1.1 `frf`
-  block of the schema-versioned JSON `CorrelationReport`.
+  back into full FE space; FRAC/FDAC FRF correlation carried as a serializable
+  schema-1.1 `frf` block—with per-channel FRAC summaries and an optional FDAC
+  matrix—in the JSON `CorrelationReport`.
 - **Model updating** (`updating/`): analytic Fox–Kapoor eigenvalue, eigenvector, and
   MAC sensitivities (vectorized, sparse-aware, FD-verified to ≤ 1e-6); affine
   `ScalingModel` (one eigensolve per iteration); Levenberg–Marquardt / Gauss–Newton
@@ -74,7 +75,7 @@ synthesis, and optimization hooks — all behind one CLI and a schema-versioned 
 
 ## Verification
 
-- `PYTHONPATH=src python -m pytest` — **671 passed** at `c600530` in 56.27 s on Python 3.12.3 /
+- `python -m pytest` — **671 passed** at `ec0e927` in 6.92 s on Python 3.12.3 /
   NumPy 2.5.2 / SciPy 1.18.1.
 - `ruff check .` — clean.
 - Per-suite breakdown (sums to 671): dynamics 82, QUAD4 61, updating 57, correlation 52,
