@@ -15,8 +15,8 @@ export const RADICALS = [
     hint: '由「人」字变来，写在字的左边就变瘦了。',
     meaning: '带单人旁的字，多半和「人」有关系。',
     strokes: 2,
-    chars: ['人', '会'],
-    more: ['你', '他', '们', '住']
+    chars: ['人', '会', '你', '他'],
+    more: ['们', '住', '伙', '伴']
   },
   {
     id: 'shui',
@@ -41,8 +41,8 @@ export const RADICALS = [
     hint: '一棵树，有树干也有树枝。',
     meaning: '带木字旁的字，大多和树木、木头有关。',
     strokes: 4,
-    chars: ['木', '来'],
-    more: ['林', '树', '桌', '果']
+    chars: ['木', '来', '树', '校'],
+    more: ['林', '桌', '果', '杯']
   },
   {
     id: 'kou',
@@ -54,7 +54,7 @@ export const RADICALS = [
     hint: '一个方方的小嘴巴。',
     meaning: '带口字旁的字，常和嘴巴、说话、吃东西有关。',
     strokes: 3,
-    chars: ['口'],
+    chars: ['口', '听', '右'],
     more: ['吃', '叫', '唱', '和']
   },
   {
@@ -67,8 +67,8 @@ export const RADICALS = [
     hint: '太阳从方框里探出头来。',
     meaning: '带日字旁的字，多和太阳、时间有关。',
     strokes: 4,
-    chars: ['日', '是'],
-    more: ['明', '早', '晚', '时']
+    chars: ['日', '是', '明', '早', '晚', '时', '春'],
+    more: ['昨', '星', '晒', '暖']
   },
   {
     id: 'cao',
@@ -80,8 +80,8 @@ export const RADICALS = [
     hint: '两棵小草并排长在字的头顶上。',
     meaning: '带草字头的字，几乎都是花草植物。',
     strokes: 3,
-    chars: ['花'],
-    more: ['草', '菜', '苗', '叶']
+    chars: ['花', '草', '蓝'],
+    more: ['菜', '苗', '叶', '茶']
   },
   {
     id: 'shou',
@@ -132,8 +132,8 @@ export const RADICALS = [
     hint: '像一个人跪坐着，双手交叉。',
     meaning: '带女字旁的字，常和女性、家人有关。',
     strokes: 3,
-    chars: ['好'],
-    more: ['妈', '姐', '妹', '她']
+    chars: ['好', '女', '她'],
+    more: ['妈', '姐', '妹', '奶']
   },
   {
     id: 'yan',
@@ -145,8 +145,8 @@ export const RADICALS = [
     hint: '由「言」字简化而来。',
     meaning: '带言字旁的字，基本都和说话有关。',
     strokes: 2,
-    chars: ['说'],
-    more: ['话', '读', '语', '谢']
+    chars: ['说', '读'],
+    more: ['话', '语', '谢', '请']
   },
   {
     id: 'tu',
@@ -158,8 +158,8 @@ export const RADICALS = [
     hint: '「土」写在左边，下面一横改成提。',
     meaning: '带提土旁的字，多和泥土、土地有关。',
     strokes: 3,
-    chars: ['土', '在', '去'],
-    more: ['地', '场', '坐', '城']
+    chars: ['土', '在', '去', '地'],
+    more: ['场', '坐', '城', '块']
   },
   {
     id: 'mubu',
@@ -186,6 +186,58 @@ export const RADICALS = [
     strokes: 3,
     chars: ['山'],
     more: ['岛', '峰', '岩', '崖']
+  },
+  {
+    id: 'mian',
+    glyph: '宀',
+    name: '宝盖头',
+    pinyin: 'bǎo gài tóu',
+    from: '家',
+    emoji: '🏠',
+    hint: '像一间小房子的屋顶，盖在字的头上。',
+    meaning: '带宝盖头的字，多和房子、屋里的事有关。',
+    strokes: 3,
+    chars: ['家', '字'],
+    more: ['安', '室', '客', '宝']
+  },
+  {
+    id: 'jiaosi',
+    glyph: '纟',
+    name: '绞丝旁',
+    pinyin: 'jiǎo sī páng',
+    from: '丝',
+    emoji: '🧵',
+    hint: '像两团绕在一起的丝线。',
+    meaning: '带绞丝旁的字，多和线、布、颜色有关。',
+    strokes: 3,
+    chars: ['红', '绿'],
+    more: ['线', '纸', '给', '细']
+  },
+  {
+    id: 'quan',
+    glyph: '犭',
+    name: '反犬旁',
+    pinyin: 'fǎn quǎn páng',
+    from: '犬',
+    emoji: '🐕',
+    hint: '由「犬」字变来，写在左边瘦瘦的。',
+    meaning: '带反犬旁的字，几乎都是有毛的小动物。',
+    strokes: 3,
+    chars: ['猫', '狗'],
+    more: ['猪', '狼', '猴', '狐']
+  },
+  {
+    id: 'yutou',
+    glyph: '雨',
+    name: '雨字头',
+    pinyin: 'yǔ zì tóu',
+    from: '雨',
+    emoji: '🌧️',
+    hint: '一片云下面掉着四滴小雨点。',
+    meaning: '带雨字头的字，都和天气有关。',
+    strokes: 8,
+    chars: ['雨', '雪'],
+    more: ['雷', '雾', '霜', '需']
   }
 ]
 
@@ -204,7 +256,37 @@ const FALLBACK = {
   yang: { id: 'yang', glyph: '羊', name: '羊字头', pinyin: 'yáng zì tóu' },
   niao: { id: 'niao', glyph: '鸟', name: '鸟字旁', pinyin: 'niǎo zì páng' },
   shu: { id: 'shu', glyph: '丨', name: '竖', pinyin: 'shù' },
-  bai: { id: 'bai', glyph: '白', name: '白字旁', pinyin: 'bái zì páng' }
+  bai: { id: 'bai', glyph: '白', name: '白字旁', pinyin: 'bái zì páng' },
+  wei: { id: 'wei', glyph: '囗', name: '方框儿', pinyin: 'fāng kuàng ér' },
+  erzi: { id: 'erzi', glyph: '二', name: '二字头', pinyin: 'èr zì tóu' },
+  tou: { id: 'tou', glyph: '亠', name: '点横头', pinyin: 'diǎn héng tóu' },
+  ba: { id: 'ba', glyph: '八', name: '八字旁', pinyin: 'bā zì páng' },
+  pie: { id: 'pie', glyph: '丿', name: '撇', pinyin: 'piě' },
+  shi: { id: 'shi', glyph: '十', name: '十字旁', pinyin: 'shí zì páng' },
+  shitou: { id: 'shitou', glyph: '石', name: '石字旁', pinyin: 'shí zì páng' },
+  feng: { id: 'feng', glyph: '风', name: '风字框', pinyin: 'fēng zì kuàng' },
+  fu: { id: 'fu', glyph: '父', name: '父字头', pinyin: 'fù zì tóu' },
+  muqin: { id: 'muqin', glyph: '母', name: '母字旁', pinyin: 'mǔ zì páng' },
+  zi: { id: 'zi', glyph: '子', name: '子字旁', pinyin: 'zǐ zì páng' },
+  zhua: { id: 'zhua', glyph: '爫', name: '爪字头', pinyin: 'zhuǎ zì tóu' },
+  lao: { id: 'lao', glyph: '耂', name: '老字头', pinyin: 'lǎo zì tóu' },
+  jin: { id: 'jin', glyph: '巾', name: '巾字旁', pinyin: 'jīn zì páng' },
+  sheng: { id: 'sheng', glyph: '生', name: '生字旁', pinyin: 'shēng zì páng' },
+  yizhe: { id: 'yizhe', glyph: '乙', name: '折', pinyin: 'zhé' },
+  mibao: { id: 'mibao', glyph: '冖', name: '秃宝盖', pinyin: 'tū bǎo gài' },
+  yu: { id: 'yu', glyph: '鱼', name: '鱼字旁', pinyin: 'yú zì páng' },
+  chong: { id: 'chong', glyph: '虫', name: '虫字旁', pinyin: 'chóng zì páng' },
+  ma: { id: 'ma', glyph: '马', name: '马字旁', pinyin: 'mǎ zì páng' },
+  huang: { id: 'huang', glyph: '黄', name: '黄字旁', pinyin: 'huáng zì páng' },
+  hei: { id: 'hei', glyph: '黑', name: '黑字旁', pinyin: 'hēi zì páng' },
+  zhiwen: { id: 'zhiwen', glyph: '夂', name: '折文旁', pinyin: 'zhé wén páng' },
+  he: { id: 'he', glyph: '禾', name: '禾木旁', pinyin: 'hé mù páng' },
+  renzitou: { id: 'renzitou', glyph: '人', name: '人字头', pinyin: 'rén zì tóu' },
+  gong: { id: 'gong', glyph: '工', name: '工字旁', pinyin: 'gōng zì páng' },
+  xi: { id: 'xi', glyph: '夕', name: '夕字旁', pinyin: 'xī zì páng' },
+  men: { id: 'men', glyph: '门', name: '门字框', pinyin: 'mén zì kuàng' },
+  che: { id: 'che', glyph: '车', name: '车字旁', pinyin: 'chē zì páng' },
+  zu: { id: 'zu', glyph: '足', name: '足字旁', pinyin: 'zú zì páng' }
 }
 
 export function getRadical(id) {
