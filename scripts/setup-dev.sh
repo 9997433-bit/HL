@@ -86,12 +86,25 @@ fi
 if ((USE_VENV)); then
   if [[ ! -x "${VENV_DIR}/bin/python" && ! -x "${VENV_DIR}/Scripts/python.exe" ]]; then
     printf 'Creating virtual environment at %s\n' "${VENV_DIR}"
-    "${PYTHON_BIN}" -m venv "${VENV_DIR}"
+    if ! "${PYTHON_BIN}" -m venv "${VENV_DIR}"; then
+      printf 'error: failed to create the virtual environment.\n' >&2
+      printf 'Debian/Ubuntu: sudo apt-get install python3-venv (or the matching python3.x-venv package).\n' >&2
+      printf 'Then rerun this script; it will repair a partially created environment.\n' >&2
+      exit 1
+    fi
   fi
   if [[ -x "${VENV_DIR}/Scripts/python.exe" ]]; then
     PYTHON_BIN="${VENV_DIR}/Scripts/python.exe"
   else
     PYTHON_BIN="${VENV_DIR}/bin/python"
+  fi
+  if ! "${PYTHON_BIN}" -m pip --version >/dev/null 2>&1; then
+    printf 'Repairing pip in the virtual environment\n'
+    if ! "${PYTHON_BIN}" -m ensurepip --upgrade; then
+      printf 'error: ensurepip is unavailable.\n' >&2
+      printf 'Debian/Ubuntu: sudo apt-get install python3-venv (or the matching python3.x-venv package), then rerun.\n' >&2
+      exit 1
+    fi
   fi
 fi
 
