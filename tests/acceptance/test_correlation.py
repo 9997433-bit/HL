@@ -12,6 +12,14 @@ Implemented here
   pairs a candidate below ``mac_min``.
 - **AC-CORR-004** (twin, MS-2.5) — COMAC puts its minimum on the one sensor DOF
   a synthetic fault was injected into.
+- **AC-CORR-005** (oracle, MS-2.4) — a model stiffened by 1 % against the test
+  article reports ``df = +0.4988 %`` on every pair, the closed-form
+  ``100 (sqrt(1.01) - 1)``; the MS-2.4 formula ``100 (f_a - f_e) / f_e`` is
+  pinned across every function that reports one.
+- **AC-CORR-007** (property, MS-2.2) — MAC entries stay in ``[0, 1]`` for random
+  real and complex mode sets, and the complex kernel is the Hermitian one:
+  ``MAC(phi, psi) = MAC(conj(phi), conj(psi))`` and a global phase rotation
+  leaves it unchanged.
 - **AC-CORR-006** (twin, MS-2.1) — SEREP expansion of noise-free sensor data
   reproduces the full-space analysis shapes with MAC >= 0.999, and the pairing
   computed on the sensor DOFs equals the pairing computed after expansion.
@@ -27,6 +35,8 @@ implementation calls it "fe", so ``ModePairing.unpaired_fe`` is the
 
 from __future__ import annotations
 
+import math
+
 import numpy as np
 import pytest
 
@@ -34,10 +44,16 @@ from openfemlab import ModalSolver
 from openfemlab.correlation import (
     automac,
     comac,
+    correlation_summary,
     expand_shapes,
+    frequency_difference,
+    frequency_error_matrix,
     guyan_reduction,
     mac,
+    mac_value,
+    normalized_frequency_residual,
     pair_modes,
+    relative_frequency_error,
     tam_mass,
 )
 from openfemlab.mesh.simple import beam_mesh
@@ -64,6 +80,18 @@ SCALING_DRAWS = 8
 
 #: Seed of the twin experiments of AC-CORR-003/004.
 TWIN_SEED = 5150
+
+#: AC-CORR-005: the stiffness factor between model and test article, and the
+#: frequency error it must produce. ``omega ~ sqrt(k)``, so 1 % of stiffness is
+#: 0.4988 % of frequency, not 1 % and not 0.5 %.
+STIFFNESS_FACTOR = 1.01
+FREQUENCY_ERROR_PCT = 100.0 * (math.sqrt(STIFFNESS_FACTOR) - 1.0)
+FREQUENCY_ERROR_RTOL = 1e-10
+
+#: AC-CORR-007 draws.
+RANGE_SEED = 771
+RANGE_DRAWS = 6
+COMPLEX_TOLERANCE = 1e-12
 
 
 def _fixture_modes(name: str):
@@ -636,3 +664,262 @@ def test_ac_corr_006_far_past_the_gate_the_expanded_pairing_is_the_stricter_one(
     assert reduced.as_tuples() == truth
     assert set(expanded.as_tuples()) < set(reduced.as_tuples())
     assert expanded.unpaired_fe and not reduced.unpaired_fe
+
+
+# ---------------------------------------------------------------- AC-CORR-005
+
+#: Modes compared in the frequency-error twin.
+FREQUENCY_MODES = 6
+
+
+def _scaled_chain(stiffness_factor: float = 1.0, mass_factor: float = 1.0):
+    """``(frequencies, shapes)`` of the fixture chain with scaled ``K``/``M``.
+
+    Scaling either matrix globally leaves every mode shape untouched and moves
+    the whole spectrum by a known factor, so the pairing is unambiguous and the
+    frequency error is a closed form rather than a fitted number.
+    """
+    K, M = fixture_matrices(load_fixture("ten_dof_chain"))
+    result = ModalSolver.from_matrices(stiffness_factor * K, mass_factor * M).solve(
+        num_modes=FREQUENCY_MODES, sparse=False
+    )
+    return result.frequencies, result.mode_shapes
+
+
+def _ms_2_4_formula(analysis, test) -> np.ndarray:
+    """``100 (f_a - f_e) / f_e`` written out, so the convention is in the test."""
+    return 100.0 * (np.asarray(analysis) - np.asarray(test)) / np.asarray(test)
+
+
+def _stiffened_pairing():
+    """The AC-CORR-005 twin: identical shapes, spectra a stiffness factor apart."""
+    test_frequencies, shapes = _scaled_chain()
+    analysis_frequencies, _ = _scaled_chain(stiffness_factor=STIFFNESS_FACTOR)
+    pairing = pair_modes(
+        test_shapes=shapes,
+        fe_shapes=shapes,
+        test_frequencies=test_frequencies,
+        fe_frequencies=analysis_frequencies,
+        mac_threshold=MAC_MIN,
+    )
+    return test_frequencies, analysis_frequencies, pairing
+
+
+@criterion("AC-CORR-005")
+def test_ac_corr_005_a_stiffer_model_reports_a_positive_frequency_error():
+    """A model 1 % stiffer than the test article is +0.4988 % on every pair."""
+    _, _, pairing = _stiffened_pairing()
+
+    assert pairing.as_tuples() == [(index, index) for index in range(FREQUENCY_MODES)]
+    errors = pairing.frequency_errors_pct
+    assert np.all(errors > 0.0), "a stiffer model must report a positive error"
+    np.testing.assert_allclose(errors, FREQUENCY_ERROR_PCT, rtol=FREQUENCY_ERROR_RTOL)
+
+
+@criterion("AC-CORR-005")
+@pytest.mark.parametrize(
+    ("label", "kwargs", "sign"),
+    [
+        ("stiffer", {"stiffness_factor": STIFFNESS_FACTOR}, +1.0),
+        ("softer", {"stiffness_factor": 1.0 / STIFFNESS_FACTOR}, -1.0),
+        ("lighter", {"mass_factor": 1.0 / STIFFNESS_FACTOR}, +1.0),
+        ("heavier", {"mass_factor": STIFFNESS_FACTOR}, -1.0),
+    ],
+)
+def test_ac_corr_005_the_sign_says_stiffer_or_lighter(label, kwargs, sign):
+    """MS-2.4's reading of the sign, on all four ways to move the spectrum.
+
+    "Positive means the model is stiffer *or lighter* than the test article", so
+    a 1 % mass reduction has to read exactly like a 1 % stiffness increase —
+    which is also why a frequency error on its own can never say which of the
+    two a model got wrong.
+    """
+    test_frequencies, _ = _scaled_chain()
+    analysis_frequencies, _ = _scaled_chain(**kwargs)
+
+    errors = _ms_2_4_formula(analysis_frequencies, test_frequencies)
+
+    assert np.all(np.sign(errors) == sign), f"{label}: {errors}"
+    np.testing.assert_allclose(np.abs(errors), abs(FREQUENCY_ERROR_PCT), rtol=1e-2)
+
+
+@criterion("AC-CORR-005")
+def test_ac_corr_005_every_reporting_path_uses_the_same_formula():
+    """One convention, six entry points: pair, metrics, matrix, residual, summary."""
+    test_frequencies, analysis_frequencies, pairing = _stiffened_pairing()
+    expected = _ms_2_4_formula(analysis_frequencies, test_frequencies)
+    summary = correlation_summary(pairing=pairing)
+
+    np.testing.assert_allclose(pairing.frequency_errors_pct, expected, rtol=1e-12)
+    np.testing.assert_allclose(
+        100.0 * relative_frequency_error(test_frequencies, analysis_frequencies),
+        expected,
+        rtol=1e-12,
+    )
+    np.testing.assert_allclose(
+        frequency_difference(test_frequencies, analysis_frequencies).percent,
+        expected,
+        rtol=1e-12,
+    )
+    np.testing.assert_allclose(
+        np.diag(frequency_error_matrix(test_frequencies, analysis_frequencies)),
+        expected,
+        rtol=1e-12,
+    )
+    np.testing.assert_allclose(
+        100.0 * normalized_frequency_residual(test_frequencies, analysis_frequencies, pairing),
+        expected,
+        rtol=1e-12,
+    )
+    assert summary.mean_signed_freq_error_pct == pytest.approx(
+        float(np.mean(expected)), rel=1e-12
+    )
+    assert summary.max_abs_freq_error_pct == pytest.approx(
+        float(np.max(np.abs(expected))), rel=1e-12
+    )
+
+
+@criterion("AC-CORR-005")
+def test_ac_corr_005_the_test_frequency_is_the_denominator():
+    """Swapping the roles is a different number, so the convention is load bearing.
+
+    ``100 (f_a - f_e) / f_e`` and ``100 (f_e - f_a) / f_a`` differ by more than
+    a sign: at this 0.5 % level the magnitudes are 0.0025 percentage points
+    apart, small enough to go unnoticed and large enough to matter against the
+    0.1 % gate the updating criteria use.
+    """
+    test_frequencies, analysis_frequencies, _ = _stiffened_pairing()
+
+    forward = _ms_2_4_formula(analysis_frequencies, test_frequencies)
+    reversed_roles = _ms_2_4_formula(test_frequencies, analysis_frequencies)
+
+    np.testing.assert_allclose(
+        forward,
+        100.0 * relative_frequency_error(test_frequencies, analysis_frequencies),
+        rtol=1e-12,
+    )
+    assert np.all(np.abs(forward) > np.abs(reversed_roles))
+    assert np.all(np.abs(forward + reversed_roles) > 1e-6)
+
+
+@criterion("AC-CORR-005")
+def test_ac_corr_005_a_rigid_body_reference_reports_infinity_not_a_nan():
+    """``f_e = 0`` has no relative error, and the formula has to say so out loud."""
+    errors = relative_frequency_error([0.0, 2.0], [1.0, 2.02])
+
+    assert errors[0] == np.inf
+    assert errors[1] == pytest.approx(0.01, rel=1e-12)
+    assert not np.any(np.isnan(errors))
+    assert relative_frequency_error([0.0], [0.0])[0] == 0.0
+
+
+# ---------------------------------------------------------------- AC-CORR-007
+
+
+def _random_shapes(rng: np.random.Generator, ndof: int, modes: int, complex_valued: bool):
+    shapes = rng.standard_normal((ndof, modes))
+    if complex_valued:
+        shapes = shapes + 1j * rng.standard_normal((ndof, modes))
+    return shapes
+
+
+@criterion("AC-CORR-007")
+@pytest.mark.parametrize("complex_valued", [False, True])
+@pytest.mark.parametrize("draw", range(RANGE_DRAWS))
+def test_ac_corr_007_every_mac_entry_lies_in_the_unit_interval(complex_valued, draw):
+    """Real or complex, weighted or not, the output is a real score in [0, 1]."""
+    rng = np.random.default_rng(RANGE_SEED + draw)
+    a = _random_shapes(rng, 12, 5, complex_valued)
+    b = _random_shapes(rng, 12, 7, complex_valued)
+    weights = rng.uniform(0.1, 10.0, 12)
+
+    for label, values in {
+        "unweighted": mac(a, b),
+        "weighted": mac(a, b, weights=weights),
+        "self": mac(a, a),
+    }.items():
+        assert np.isrealobj(values) and values.dtype == np.float64, label
+        assert np.all(values >= 0.0) and np.all(values <= 1.0), label
+        assert not np.any(np.isnan(values)), label
+
+    np.testing.assert_allclose(np.diag(mac(a, a)), 1.0, atol=UNIT_DIAGONAL_TOLERANCE)
+
+
+@criterion("AC-CORR-007")
+@pytest.mark.parametrize("draw", range(RANGE_DRAWS))
+def test_ac_corr_007_the_complex_kernel_is_hermitian(draw):
+    """``MAC(phi, psi) = MAC(conj(phi), conj(psi))`` — the MS-2.2 identity."""
+    rng = np.random.default_rng(RANGE_SEED + 100 + draw)
+    a = _random_shapes(rng, 10, 4, complex_valued=True)
+    b = _random_shapes(rng, 10, 4, complex_valued=True)
+
+    reference = mac(a, b)
+
+    np.testing.assert_allclose(mac(a.conj(), b.conj()), reference, atol=COMPLEX_TOLERANCE)
+    # Conjugating one side only is a different operation, so the identity above
+    # is a statement about the Hermitian transpose and not a tautology.
+    assert np.max(np.abs(mac(a.conj(), b) - reference)) > COMPLEX_TOLERANCE
+
+
+@criterion("AC-CORR-007")
+@pytest.mark.parametrize("draw", range(RANGE_DRAWS))
+def test_ac_corr_007_a_complex_shape_carries_no_usable_phase(draw):
+    """Multiplying either set by ``exp(i theta)`` leaves every entry put.
+
+    The complex counterpart of the real scaling invariance of AC-CORR-002: an
+    experimental shape arrives with an arbitrary global phase, so a metric that
+    moved with it could not compare two measurements of the same mode.
+    """
+    rng = np.random.default_rng(RANGE_SEED + 200 + draw)
+    a = _random_shapes(rng, 10, 4, complex_valued=True)
+    b = _random_shapes(rng, 10, 4, complex_valued=True)
+    reference = mac(a, b)
+
+    factors = rng.uniform(0.1, 10.0, 4) * np.exp(1j * rng.uniform(0.0, 2.0 * np.pi, 4))
+
+    np.testing.assert_allclose(mac(a * factors, b), reference, atol=COMPLEX_TOLERANCE)
+    np.testing.assert_allclose(mac(a, b * factors), reference, atol=COMPLEX_TOLERANCE)
+
+
+@criterion("AC-CORR-007")
+def test_ac_corr_007_a_real_shape_read_as_complex_gives_the_same_mac():
+    """The complex path is a generalization, not a second implementation."""
+    analysis, _ = _fixture_modes("ten_dof_chain")
+    test = _detuned_modes()
+
+    real = mac(analysis, test)
+    promoted = mac(analysis.astype(complex), test.astype(complex))
+
+    np.testing.assert_allclose(promoted, real, atol=COMPLEX_TOLERANCE)
+    assert np.isrealobj(promoted)
+
+
+@criterion("AC-CORR-007")
+def test_ac_corr_007_a_quadrature_component_lands_strictly_inside_the_range():
+    """A worked complex case, so the range gate is not met by trivial inputs.
+
+    Adding an out-of-phase component orthogonal to the reference costs exactly
+    the fraction of the energy that component carries, which puts the value in
+    the open interval rather than at either end.
+    """
+    analysis, _ = _fixture_modes("ten_dof_chain")
+    real_mode = analysis[:, 0]
+    quadrature = analysis[:, 3]
+    assert abs(float(real_mode @ quadrature)) < 1e-12, "the two modes must be orthogonal"
+
+    value = mac_value(real_mode, real_mode + 0.5j * quadrature)
+
+    energy = 1.0 / (1.0 + 0.25 * float(quadrature @ quadrature) / float(real_mode @ real_mode))
+    assert 0.0 < value < 1.0
+    assert value == pytest.approx(energy, rel=1e-12)
+
+
+@criterion("AC-CORR-007")
+def test_ac_corr_007_a_zero_norm_shape_is_rejected_rather_than_clipped():
+    """Clipping into [0, 1] must not turn a 0/0 into a plausible-looking score."""
+    analysis, _ = _fixture_modes("ten_dof_chain")
+    degenerate = analysis.copy()
+    degenerate[:, 0] = 0.0
+
+    with pytest.raises(ValueError, match="zero-norm"):
+        mac(degenerate, analysis)
