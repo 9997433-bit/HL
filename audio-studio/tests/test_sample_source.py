@@ -494,9 +494,9 @@ def test_render_into_matches_render_without_allocating(
     grew = sum(
         entry.size_diff
         for entry in after.compare_to(before, "filename")
-        if entry.traceback[0].filename.endswith(("ring_buffer.py", "engine.py"))
+        if entry.traceback[0].filename.endswith(("ring_buffer.py", "engine.py", "telemetry.py"))
     )
-    # Metering still builds a LevelReading per block; the audio path itself does not.
+    # The ring, gain path and meter telemetry all reuse preallocated storage.
     assert grew < 32_768, f"render_into allocated {grew} bytes over 50 callbacks"
 
 

@@ -7,6 +7,7 @@ peak-hold, so it behaves the same regardless of how often the UI polls it.
 from __future__ import annotations
 
 import time
+from collections.abc import Sequence
 
 from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import QLinearGradient, QMouseEvent, QPainter, QPaintEvent, QPen
@@ -72,7 +73,7 @@ class LevelMeter(QWidget):
         self.setFixedWidth(int(SCALE_WIDTH) + 14 * channels + 4)
         self.update()
 
-    def update_levels(self, peak: tuple[float, ...], rms: tuple[float, ...] = ()) -> None:
+    def update_levels(self, peak: Sequence[float], rms: Sequence[float] = ()) -> None:
         """Feed one metering block of linear per-channel amplitudes."""
         now = time.monotonic()
         elapsed = max(now - self._last_update, 0.0)

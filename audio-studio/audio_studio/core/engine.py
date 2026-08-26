@@ -46,11 +46,11 @@ from .peaks import PeakPyramid
 from .peaks_cache import cached_pyramid
 from .ring_buffer import RingBuffer
 from .sample_source import MemorySampleSource, SampleSource, StreamingSampleSource
+from .telemetry import EngineTelemetry, LevelSnapshot
 from .types import (
     SAMPLE_DTYPE,
     AudioBuffer,
     AudioFormat,
-    LevelReading,
     TimeRange,
     TransportState,
 )
@@ -111,7 +111,7 @@ class AudioEngine:
 
         self._volume = 1.0
         self._muted = False
-        self._levels = LevelReading()
+        self._telemetry = EngineTelemetry(block_size=self._block_size)
 
         # Gain smoothing. ``_gain`` is what the last frame was actually scaled
         # by; the device thread walks it towards ``_gain_target`` in
@@ -278,7 +278,10 @@ class AudioEngine:
             self._play_origin = 0
             self._exhausted = False
             self._generation += 1
-            self._levels = LevelReading()
+            self._telemetry.configure(
+                source.n_channels if source is not None else 0,
+                block_size=self._block_size,
+            )
             self._ring = None
             self._reset_render_clock()
         if owned and previous is not None and previous is not source:
@@ -353,7 +356,7 @@ class AudioEngine:
         with self._lock:
             if self._source is not None:
                 self._source_pos = self._play_origin
-            self._levels = LevelReading()
+            self._telemetry.clear()
 
     def seek(self, frame: int) -> int:
         """Move the playhead to ``frame``; returns the clamped position."""
@@ -493,9 +496,14 @@ class AudioEngine:
         self._muted = bool(value)
 
     @property
-    def levels(self) -> LevelReading:
+    def telemetry(self) -> EngineTelemetry:
+        """Lock-free render-thread telemetry consumed by the UI."""
+        return self._telemetry
+
+    @property
+    def levels(self) -> LevelSnapshot:
         """Most recent per-channel peak/RMS reading from the device thread."""
-        return self._levels
+        return self._telemetry.read_levels()
 
     @property
     def volume_ramp_ms(self) -> float:
@@ -659,13 +667,7 @@ class AudioEngine:
         return curve
 
     def _update_levels(self, block: np.ndarray) -> None:
-        if block.size == 0:
-            return
-        peak = np.max(np.abs(block), axis=0)
-        rms = np.sqrt(np.mean(np.square(block, dtype=np.float64), axis=0))
-        self._levels = LevelReading(
-            peak=tuple(float(v) for v in peak), rms=tuple(float(v) for v in rms)
-        )
+        self._telemetry.publish_block(block)
 
     def _prepare_stream(self) -> None:
         """Open the device for the source's format, resampling only if forced."""
@@ -823,7 +825,7 @@ class AudioEngine:
             region = self.playback_region
             self._source_pos = region.end
             self._play_origin = region.start
-            self._levels = LevelReading()
+            self._telemetry.clear()
         for listener in tuple(self._finished_listeners):
             with suppress(Exception):
                 listener()

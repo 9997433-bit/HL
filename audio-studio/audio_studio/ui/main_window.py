@@ -1568,7 +1568,7 @@ class MainWindow(QMainWindow):
             self.track_panel.set_playhead(position, follow=playing)
         self.transport_bar.set_position(position / max(self.engine.sample_rate, 1))
 
-        levels = self.engine.levels
+        levels = self.engine.telemetry.read_levels()
         if playing and not levels.is_empty:
             self.level_meter.update_levels(levels.peak, levels.rms)
         elif not self.level_meter.is_at_floor:
