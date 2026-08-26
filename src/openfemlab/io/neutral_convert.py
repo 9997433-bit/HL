@@ -18,6 +18,8 @@ Supported blocks are the ones the element library formulates:
 ``BEAM2``               :class:`~openfemlab.core.elements.BeamElement3D`
                         (or ``BeamElement2D`` in a planar model)     UX..RZ
 ``QUAD4``               :class:`~openfemlab.core.elements.Quad4Element`  UX UY
+                        (or :class:`~openfemlab.core.elements.ShellQuad4Element`
+                        when ``quad4_as="shell"``)                         UX..RZ
 ``TET4``                :class:`~openfemlab.core.elements.Tet4Element`   UX UY UZ
 ``HEX8``                :class:`~openfemlab.core.elements.Hex8Element`   UX UY UZ
 ======================  ==========================================  ============
@@ -39,7 +41,7 @@ from __future__ import annotations
 
 import warnings
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import numpy.typing as npt
@@ -50,6 +52,7 @@ from openfemlab.core.elements import (
     Element,
     Hex8Element,
     Quad4Element,
+    ShellQuad4Element,
     Tet4Element,
     TrussElement,
 )
@@ -59,9 +62,12 @@ from openfemlab.exceptions import OpenFEMLabError
 
 from ._common import FormatError
 
+Quad4Binding = Literal["membrane", "shell"]
+
 __all__ = [
     "ELEMENT_DOFS",
     "ELEMENT_NODE_COUNTS",
+    "Quad4Binding",
     "SUPPORTED_ELEMENT_TYPES",
     "infer_dofs",
     "material_from_neutral",
@@ -108,21 +114,24 @@ _SECTION_ALIASES: dict[str, tuple[str, ...]] = {
 _THICKNESS_ALIASES: tuple[str, ...] = ("t", "thickness")
 
 
-def infer_dofs(model: NeutralModel) -> tuple[DOF, ...]:
+def infer_dofs(model: NeutralModel, *, quad4_as: Quad4Binding = "membrane") -> tuple[DOF, ...]:
     """Smallest DOF signature that binds every supported block of ``model``.
 
     The union of :data:`ELEMENT_DOFS` over the non-empty blocks, in ascending
     :class:`~openfemlab.core.model.DOF` order: a quad-only mesh comes back
-    planar ``(UX, UY)``, a solid mesh translational, and anything containing a
-    ``BEAM2`` gets the full six DOFs.  A model with no supported element block
-    falls back to the three translations.
+    planar ``(UX, UY)`` unless ``quad4_as="shell"``, a solid mesh translational,
+    and anything containing a ``BEAM2`` gets the full six DOFs.  A model with no
+    supported element block falls back to the three translations.
     """
 
     required: set[DOF] = set()
     for element_type, block in model.elements.items():
         if np.asarray(block).size == 0:
             continue
-        required.update(ELEMENT_DOFS.get(element_type, ()))
+        if element_type is ElementType.QUAD4 and quad4_as == "shell":
+            required.update(_SPATIAL_BEAM_DOFS)
+        else:
+            required.update(ELEMENT_DOFS.get(element_type, ()))
     if not required:
         return TRANSLATIONAL_DOFS
     return tuple(sorted(required))
@@ -181,6 +190,7 @@ def to_model(
     lumped_mass: bool = False,
     beam_orientation: Sequence[float] | None = None,
     integration_order: int = 2,
+    quad4_as: Quad4Binding = "membrane",
     skip_unsupported: bool = False,
 ) -> Model:
     """Convert ``neutral`` into an internal :class:`Model` with bound elements.
@@ -200,6 +210,10 @@ def to_model(
     plane, lumped_mass, beam_orientation, integration_order:
         Passed through to the element constructors; the interchange contract
         has nowhere to record them.
+    quad4_as:
+        ``"membrane"`` binds ``QUAD4`` to the plane-stress
+        :class:`~openfemlab.core.elements.Quad4Element`; ``"shell"`` binds it
+        to the six-DOF :class:`~openfemlab.core.elements.ShellQuad4Element`.
     skip_unsupported:
         Drop blocks with no formulation (``TRI3``, ``MASS1``, ``SPRING2``) with
         a warning instead of raising.
@@ -213,7 +227,7 @@ def to_model(
     -- is reported as :class:`~openfemlab.io.FormatError`.
     """
 
-    signature = infer_dofs(neutral) if dofs is None else tuple(dofs)
+    signature = infer_dofs(neutral, quad4_as=quad4_as) if dofs is None else tuple(dofs)
     label = name if name is not None else str(_meta(neutral).get("name", "model"))
     try:
         model = Model(dofs=signature, name=label)
@@ -230,6 +244,7 @@ def to_model(
         lumped_mass=lumped_mass,
         beam_orientation=beam_orientation,
         integration_order=integration_order,
+        quad4_as=quad4_as,
     )
     cache: dict[tuple[ElementType, int], tuple[Material, Section | None, float]] = {}
     skipped: dict[str, int] = {}
@@ -285,6 +300,7 @@ class _Defaults:
         "lumped_mass",
         "material",
         "plane",
+        "quad4_as",
         "section",
         "thickness",
     )
@@ -299,6 +315,7 @@ class _Defaults:
         lumped_mass: bool,
         beam_orientation: Sequence[float] | None,
         integration_order: int,
+        quad4_as: Quad4Binding,
     ) -> None:
         self.material = material
         self.section = section
@@ -307,6 +324,7 @@ class _Defaults:
         self.lumped_mass = bool(lumped_mass)
         self.beam_orientation = beam_orientation
         self.integration_order = int(integration_order)
+        self.quad4_as = quad4_as
 
 
 def _add_nodes(model: Model, neutral: NeutralModel) -> None:
@@ -441,6 +459,15 @@ def _build_element(
                 defaults,
             )
         if element_type is ElementType.QUAD4:
+            if defaults.quad4_as == "shell":
+                return ShellQuad4Element(
+                    node_ids,
+                    material,
+                    thickness=thickness,
+                    lumped_mass=defaults.lumped_mass,
+                    integration_order=defaults.integration_order,
+                    eid=element_id,
+                )
             return Quad4Element(
                 node_ids,
                 material,
