@@ -798,6 +798,73 @@ into the integration branch, so nothing is left stranded on a side branch.**
 - Verified the final integrated committed tree with full `pytest`: **430 passed, 0 failed**
   (12.35 s, Python 3.12).
 
+#### A19 — GAP-04/05 Damped Dynamics: Damping, Complex Modes, FRF Synthesis
+Delivered on branch `cursor/dynamics-damping-frf-9500` — the branch R2-T01 is told to
+integrate rather than fork.
+
+- Added `solver/dynamics.py`, the chain from undamped normal modes to a measurable FRF —
+  the P0 gap A03 recorded as "everything downstream of undamped real modes is missing".
+- **Damping models.** `RayleighDamping` (`C = αM + βK`) with the exact two-anchor fit
+  (`from_frequencies`), a least-squares fit over any number of measured modes
+  (`from_modal_damping`), mass-/stiffness-only constructors, and the minimum of the ratio
+  curve (`√(αβ)` at `ω = √(α/β)`). `ModalDamping` carries explicit per-mode ratios;
+  `modal_damping_matrix` realizes them physically as `C = MΦ diag(2ζω/m) ΦᵀM`.
+  `StructuralDamping` gives the hysteretic `K(1+iη)` plus an equivalent viscous matrix once
+  a reference frequency is named. `proportionality_index`/`is_proportional` are the
+  Caughey-O'Kelly classical-damping test.
+- The models expose `modal_coefficients(ω) = 2ζω` alongside `damping_ratios(ω)`; for
+  Rayleigh that is `α + βω²`, so the FRF denominator stays finite at a rigid-body mode
+  where `ζ → ∞`.
+- **Complex modes.** `complex_modes` solves `(s²M + sC + K)φ = 0` through the *symmetric*
+  state-space linearization `A = [[C, M], [M, 0]]`, `B = [[K, 0], [0, −M]]`, keeping one
+  member of each conjugate pair and both members of an overdamped real pair.
+  `ComplexModalResult` reports undamped/damped frequencies, damping ratios, the quadratic
+  residual per mode, the modal phase collinearity (MPC), a best real approximation, and the
+  state-space constant `a_r = φᵀCφ + 2sφᵀMφ`, so residues stay correct under any
+  normalization (`"state"` → unit modal-A, `"max"`, `"none"`).
+- **FRF synthesis.** `modal_frf` (real-mode superposition, accepting a `ModalResult`, an
+  `(ω, Φ)` pair, or a `ComplexModalResult`), `complex_modal_frf` (residue superposition),
+  `direct_frf` (per-line inversion of `Z = (1+iη)K − ω²M + iωC`, dense or sparse LU above
+  400 DOFs), `harmonic_response` for constant or frequency-dependent loads, and
+  `residual_flexibility` for mode-truncation correction. `FrequencyResponse` carries the
+  `(nf, n_out, n_in)` matrix with receptance/mobility/accelerance conversion and
+  drive-point/row/column accessors.
+- **GAP-05 opener.** `frac` (Frequency Response Assurance Criterion) and `fdac` (Frequency
+  Domain Assurance Criterion matrix) are the platform's first FRF-domain correlation metrics.
+- **Results.** With every mode retained, real-mode superposition reproduces the direct
+  inversion to **2.1e-14** relative on a 6-DOF Rayleigh-damped chain, and complex-mode
+  residue superposition to **2.4e-12** on the *non-proportionally* damped version of the
+  same model (proportionality index 0.66, MPC 0.963–1.000, max quadratic residual 3.7e-13).
+  Under proportional damping the complex modes stay monophase (MPC = 1.000) and reproduce
+  the undamped spectrum to **8.0e-14** relative, with damping ratios matching the Rayleigh
+  curve to **7.2e-15** absolute. Truncating to 2 of 6 modes and adding the residual
+  flexibility restores the static response to **4.3e-16** relative and cuts the in-band
+  error **19.2×**. Closed-form checks pass exactly: SDOF poles `s = −ζω₀ ± iω₀√(1−ζ²)`,
+  receptance `1/(k − ω²m + iωc)`, resonant amplitude `1/(ω₀c)`, and the overdamped `ζ = 2`
+  case (two real poles with `s₁s₂ = k/m`, `s₁+s₂ = −c/m`) whose residue synthesis also
+  matches the direct solve to 1e-10.
+- Added `tests/test_dynamics.py` (**82 tests**, 0.3 s): damping fits and their failure
+  modes, classical/non-classical discrimination, complex modes against closed forms and
+  against the undamped solver, MPC properties, the three FRF paths against each other and
+  against analytic references, reciprocity, response-type algebra, truncation residuals,
+  harmonic response, the `FrequencyResponse` container, FRAC/FDAC, and a full
+  model → assembly → modes → damping → FRF integration case.
+- Verified on Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1: `tests/test_dynamics.py` 82 passed;
+  full repository suite on the integrated branch **430 passed**. `ruff check` clean on
+  `src/openfemlab/solver`, `src/openfemlab/__init__.py` and `tests/test_dynamics.py`.
+- **Known limitation, deliberately surfaced.** The state-space pencil is singular when a
+  retained DOF is massless, and unlike the undamped case there is no exact condensation once
+  `C` is present, so `complex_modes` raises with that instruction instead of returning
+  garbage (covered by a lumped-mass beam test). The undamped `ModalSolver` still condenses
+  automatically.
+- Hit the shared-working-tree hazard A13/A15 also report: concurrent checkouts reverted the
+  `__init__.py` export wiring and these progress notes twice mid-run, so the last steps were
+  finished in a detached worktree at `/tmp/a19wt`. All A19 commits are on the remote branch.
+- Open for the orchestrator: FRAC/FDAC currently live in `solver/dynamics.py` beside the FRF
+  types; if `correlation/` grows an FRF section they should be re-exported from there rather
+  than reimplemented. Remaining GAP-05 scope is an FRF residual inside `updating/updater.py`;
+  GAP-04 still lacks transient (time-domain) response.
+
 ### Round 2 — Targeted Refactor & Deep Optimization
 **Status:** KICKED OFF — backlog planned in `.agent_workspace/ROUND2_PLAN.md` (A24); the
 MS-4 workflow carried over from Round 1 is landed and verified at `5bc6a6d` (A26)
