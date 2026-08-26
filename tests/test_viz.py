@@ -2,26 +2,28 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 import pytest
 
-matplotlib = pytest.importorskip("matplotlib", reason="requires the optional [plot] extra")
-matplotlib.use("Agg")
-
-from matplotlib import pyplot as plt  # noqa: E402
-
-from openfemlab.core.elements import SpringElement  # noqa: E402
-from openfemlab.core.model import Model  # noqa: E402
-from openfemlab.core.results import ModalResult  # noqa: E402
-from openfemlab.exceptions import MissingDependencyError  # noqa: E402
-from openfemlab.viz import plot_mac_matrix, plot_mode_shape  # noqa: E402
-from openfemlab.viz import plotting  # noqa: E402
+from openfemlab.core.elements import SpringElement
+from openfemlab.core.model import Model
+from openfemlab.core.results import ModalResult
+from openfemlab.exceptions import MissingDependencyError
+from openfemlab.viz import plot_mac_matrix, plot_mode_shape, plotting
 
 
-@pytest.fixture(autouse=True)
-def _close_figures():
-    yield
-    plt.close("all")
+@pytest.fixture
+def pyplot() -> Any:
+    matplotlib = pytest.importorskip(
+        "matplotlib", reason="requires the optional [plot] extra"
+    )
+    matplotlib.use("Agg")
+    from matplotlib import pyplot
+
+    yield pyplot
+    pyplot.close("all")
 
 
 def _two_node_model() -> Model:
@@ -42,7 +44,7 @@ def test_matplotlib_dependency_is_guarded(monkeypatch: pytest.MonkeyPatch) -> No
         plotting.require_matplotlib()
 
 
-def test_plot_mac_matrix_returns_populated_axes() -> None:
+def test_plot_mac_matrix_returns_populated_axes(pyplot: Any) -> None:
     matrix = np.array([[1.0, 0.25], [0.4, 0.9]])
 
     ax = plot_mac_matrix(matrix, colorbar=False)
@@ -53,7 +55,7 @@ def test_plot_mac_matrix_returns_populated_axes() -> None:
     assert [tick.get_text() for tick in ax.get_yticklabels()] == ["1", "2"]
 
 
-def test_plot_mac_matrix_supports_labels_annotations_and_colorbar() -> None:
+def test_plot_mac_matrix_supports_labels_annotations_and_colorbar(pyplot: Any) -> None:
     ax = plot_mac_matrix(
         [[1.0, 0.1]],
         row_labels=["Test 1"],
@@ -84,7 +86,7 @@ def test_plot_mac_matrix_validates_label_lengths() -> None:
         plot_mac_matrix([[1.0, 0.5]], column_labels=["only one"])
 
 
-def test_plot_mode_shape_displaces_translational_dofs() -> None:
+def test_plot_mode_shape_displaces_translational_dofs(pyplot: Any) -> None:
     model = _two_node_model()
     shape = np.array([0.0, 0.0, 0.25, 0.5])
 
@@ -98,7 +100,7 @@ def test_plot_mode_shape_displaces_translational_dofs() -> None:
     assert ax.get_title() == "Mode 1"
 
 
-def test_plot_mode_shape_selects_mode_from_modal_result() -> None:
+def test_plot_mode_shape_selects_mode_from_modal_result(pyplot: Any) -> None:
     model = _two_node_model()
     result = ModalResult(
         frequencies=[2.0, 4.0],
@@ -118,8 +120,8 @@ def test_plot_mode_shape_selects_mode_from_modal_result() -> None:
     assert ax.get_title() == "Mode 2 — 4 Hz"
 
 
-def test_plot_mode_shape_accepts_existing_2d_axes() -> None:
-    _, ax = plt.subplots()
+def test_plot_mode_shape_accepts_existing_2d_axes(pyplot: Any) -> None:
+    _, ax = pyplot.subplots()
 
     returned = plot_mode_shape(_two_node_model(), np.zeros(4), ax=ax)
 
