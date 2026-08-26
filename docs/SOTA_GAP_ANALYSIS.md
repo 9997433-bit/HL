@@ -123,7 +123,7 @@ at audit time the suite did **not** collect cleanly (Appendix A).
 | GAP-03 | P0 | IO | No UNV/UFF, Nastran BDF/OP2, or meshio import/export — cannot touch an industrial model or real test data | R2 |
 | GAP-04 | P0 | Dynamics | No damping, complex modes, harmonic/transient response, or FRF synthesis | R2 |
 | GAP-05 | P1 | Correlation | No FRF correlation metrics (FRAC/FDAC) and no FRF residual in updating | R2/R3 |
-| GAP-06 | P1 | MPE | No modal parameter extraction (LSCE/LSCF/PolyMAX-class, stabilization diagram, SSI/OMA); `TestData` never populated from measurements | R3 |
+| GAP-06 | P1 | MPE | **Closed for the FRF domain** — `openfemlab.mpe` fits an LSCF/poly-reference model with a stabilization diagram and populates `TestData` from measurements, AC-MPE-001..005 verified (MS-10). Open: SSI-based OMA (output-only) | R3 |
 | GAP-07 | P1 | Pretest | No sensor/exciter placement (Effective Independence, kinetic energy), no test planning | R3 |
 | GAP-08 | P1 | Reduction/expansion | No Guyan/IRS/SEREP/Craig-Bampton, no TAM pseudo-orthogonality, no shape expansion to full FE DOFs | R2/R3 |
 | GAP-09 | P1 | Correlation | No geometry alignment / automated test-sensor ↔ FE-node mapping | R2 |
@@ -180,6 +180,12 @@ The `TestData` contract exists but nothing produces it from measurements. Parity
 least one FRF-domain curve fitter (LSCF/poly-reference, i.e. PolyMAX-class) with a
 stabilization diagram; modern SOTA adds SSI-based OMA. Combined with UFF-58 import
 (GAP-03), this closes the loop from raw measurement to correlation input.
+
+*Closed in Round 3 for the FRF domain:* `openfemlab.mpe` (spec MS-10) implements the
+poly-reference LSCF fitter, the stabilization diagram with an automatic pole pick, the
+LSFD residue step, and the `MPEResult.to_test_data` bridge, so a dataset-58 campaign now
+reaches `correlation.correlate` without a hand-built mode table. Output-only SSI/OMA
+remains open.
 
 ### 5. GAP-07 + GAP-08 — No pretest planning or reduction/expansion bridge (P1)
 There is no sensor/exciter placement (Effective Independence, modal kinetic energy), no
