@@ -82,45 +82,84 @@ class AssembledSystem:
         return float(sub.sum()) / ntrans
 
 
-def _accumulate(model, matrix_getter) -> sp.csr_matrix:
-    ndof = model.num_dofs
-    rows: list[np.ndarray] = []
-    cols: list[np.ndarray] = []
-    data: list[np.ndarray] = []
+def _assemble_elements(
+    model,
+    *,
+    stiffness: bool,
+    mass: bool,
+) -> tuple[sp.csr_matrix | None, sp.csr_matrix | None]:
+    """Assemble requested element matrices in one topology traversal.
 
-    for element in model.elements:
-        coords = model.node_coords(element.node_ids)
-        local = np.asarray(matrix_getter(element, coords), dtype=float)
+    The triplet buffers are allocated once from the bound element DOF counts.
+    When both matrices are requested, row/column indices, coordinates and global
+    DOF maps are shared by ``K`` and ``M``.  This avoids the list-of-small-arrays
+    and duplicate element traversal costs that dominate assembly for large meshes
+    of low-order elements.
+    """
+    elements = model.elements
+    counts = np.fromiter(
+        (element.num_dofs**2 for element in elements),
+        dtype=np.intp,
+        count=len(elements),
+    )
+    offsets = np.empty(len(elements) + 1, dtype=np.intp)
+    offsets[0] = 0
+    np.cumsum(counts, out=offsets[1:])
+
+    rows = np.empty(int(offsets[-1]), dtype=np.intp)
+    cols = np.empty_like(rows)
+    stiffness_data = np.empty(rows.size, dtype=float) if stiffness else None
+    mass_data = np.empty(rows.size, dtype=float) if mass else None
+
+    for index, element in enumerate(elements):
         dofs = element.global_dofs(model)
-        if local.shape != (dofs.size, dofs.size):
-            raise ModelError(
-                f"{type(element).__name__} {element.node_ids} returned a "
-                f"{local.shape} matrix but maps {dofs.size} DOFs"
-            )
-        if not local.any():
-            continue
-        rows.append(np.repeat(dofs, dofs.size))
-        cols.append(np.tile(dofs, dofs.size))
-        data.append(local.reshape(-1))
+        coords = model.node_coords(element.node_ids)
+        start, stop = int(offsets[index]), int(offsets[index + 1])
+        expected = (dofs.size, dofs.size)
+        rows[start:stop] = np.repeat(dofs, dofs.size)
+        cols[start:stop] = np.tile(dofs, dofs.size)
 
-    if rows:
-        matrix = sp.coo_matrix(
-            (np.concatenate(data), (np.concatenate(rows), np.concatenate(cols))),
-            shape=(ndof, ndof),
-        )
-    else:
-        matrix = sp.coo_matrix((ndof, ndof), dtype=float)
-    return matrix.tocsr()
+        if stiffness_data is not None:
+            local_stiffness = np.asarray(element.stiffness_matrix(coords), dtype=float)
+            if local_stiffness.shape != expected:
+                raise ModelError(
+                    f"{type(element).__name__} {element.node_ids} returned a "
+                    f"{local_stiffness.shape} stiffness matrix but maps {dofs.size} DOFs"
+                )
+            stiffness_data[start:stop] = local_stiffness.reshape(-1)
+
+        if mass_data is not None:
+            local_mass = np.asarray(element.mass_matrix(coords), dtype=float)
+            if local_mass.shape != expected:
+                raise ModelError(
+                    f"{type(element).__name__} {element.node_ids} returned a "
+                    f"{local_mass.shape} mass matrix but maps {dofs.size} DOFs"
+                )
+            mass_data[start:stop] = local_mass.reshape(-1)
+
+    shape = (model.num_dofs, model.num_dofs)
+
+    def to_csr(data: np.ndarray | None) -> sp.csr_matrix | None:
+        if data is None:
+            return None
+        matrix = sp.coo_matrix((data, (rows, cols)), shape=shape).tocsr()
+        matrix.eliminate_zeros()
+        return matrix
+
+    return to_csr(stiffness_data), to_csr(mass_data)
 
 
 def assemble_stiffness(model) -> sp.csr_matrix:
     """Assemble the global stiffness matrix ``K`` over all model DOFs."""
-    return _accumulate(model, lambda e, c: e.stiffness_matrix(c))
+    matrix, _ = _assemble_elements(model, stiffness=True, mass=False)
+    assert matrix is not None
+    return matrix
 
 
 def assemble_mass(model, *, include_point_masses: bool = True) -> sp.csr_matrix:
     """Assemble the global mass matrix ``M``, including concentrated masses."""
-    matrix = _accumulate(model, lambda e, c: e.mass_matrix(c))
+    _, matrix = _assemble_elements(model, stiffness=False, mass=True)
+    assert matrix is not None
     if include_point_masses:
         diagonal = model.point_mass_vector()
         if diagonal.any():
@@ -135,8 +174,12 @@ def assemble_system(model, *, include_point_masses: bool = True) -> AssembledSys
     if model.num_elements == 0 and not model.point_masses:
         raise ModelError("model has neither elements nor point masses")
 
-    K = assemble_stiffness(model)
-    M = assemble_mass(model, include_point_masses=include_point_masses)
+    K, M = _assemble_elements(model, stiffness=True, mass=True)
+    assert K is not None and M is not None
+    if include_point_masses:
+        diagonal = model.point_mass_vector()
+        if diagonal.any():
+            M = (M + sp.diags(diagonal, format="csr")).tocsr()
     K = ((K + K.T) * 0.5).tocsr()
     M = ((M + M.T) * 0.5).tocsr()
     K.eliminate_zeros()

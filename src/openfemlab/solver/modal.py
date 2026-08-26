@@ -190,6 +190,8 @@ class ModalSolver:
         self.system = system if system is not None else assemble_system(model)
         if self.system.num_free_dofs == 0:
             raise SolverError("the model has no free DOF: every equation is constrained")
+        self._prepared_problems: dict[bool, tuple[object, object, object | None, object]] = {}
+        self._factorizations: dict[tuple[int, int, float], object] = {}
 
     # ---------------------------------------------------------- construction
 
@@ -228,6 +230,7 @@ class ModalSolver:
         max_frequency: float | None = None,
         condense_massless: bool = True,
         tol: float = 0.0,
+        cache_factorization: bool = True,
     ) -> ModalResult:
         """Extract the ``num_modes`` lowest normal modes.
 
@@ -251,6 +254,10 @@ class ModalSolver:
         condense_massless:
             Statically condense DOFs with zero mass instead of failing on a
             singular mass matrix.
+        cache_factorization:
+            Reuse the sparse ``K - shift M`` LU factorization on subsequent
+            solves by this solver. Disable when benchmarking cold solves. Call
+            :meth:`clear_cache` after mutating matrices in-place.
         """
         if normalization not in NORMALIZATIONS:
             raise SolverError(
@@ -259,15 +266,7 @@ class ModalSolver:
         if num_modes < 1:
             raise SolverError(f"num_modes must be >= 1, got {num_modes}")
 
-        K_ff, M_ff = self.system.reduced()
-        K_ff = _symmetrize(K_ff)
-        M_ff = _symmetrize(M_ff)
-
-        massful, transform = _condense_massless(K_ff, M_ff, enabled=condense_massless)
-        if transform is None:
-            K_r, M_r = K_ff, M_ff
-        else:
-            K_r, M_r = transform.reduced_matrices()
+        K_r, M_r, transform, M_ff = self._prepare_problem(condense_massless)
 
         size = K_r.shape[0]
         if size == 0:
@@ -279,7 +278,14 @@ class ModalSolver:
             use_sparse = False  # ARPACK requires k < n - 1 to be reliable
 
         if use_sparse:
-            values, vectors = self._solve_sparse(K_r, M_r, requested, shift=shift, tol=tol)
+            values, vectors = self._solve_sparse(
+                K_r,
+                M_r,
+                requested,
+                shift=shift,
+                tol=tol,
+                cache_factorization=cache_factorization,
+            )
         else:
             values, vectors = self._solve_dense(K_r, M_r, requested)
 
@@ -304,6 +310,33 @@ class ModalSolver:
             num_condensed_dofs=0 if transform is None else int(transform.num_condensed),
         )
 
+    def clear_cache(self) -> None:
+        """Discard reduced matrices and sparse factorizations cached by this solver."""
+        self._prepared_problems.clear()
+        self._factorizations.clear()
+
+    @property
+    def factorization_cache_size(self) -> int:
+        """Number of reusable sparse shift-invert factorizations currently held."""
+        return len(self._factorizations)
+
+    def _prepare_problem(self, condense_massless: bool):
+        cached = self._prepared_problems.get(condense_massless)
+        if cached is not None:
+            return cached
+
+        K_ff, M_ff = self.system.reduced()
+        K_ff = _symmetrize(K_ff)
+        M_ff = _symmetrize(M_ff)
+        _, transform = _condense_massless(K_ff, M_ff, enabled=condense_massless)
+        if transform is None:
+            K_r, M_r = K_ff, M_ff
+        else:
+            K_r, M_r = transform.reduced_matrices()
+        prepared = (K_r, M_r, transform, M_ff)
+        self._prepared_problems[condense_massless] = prepared
+        return prepared
+
     # -------------------------------------------------------------- backends
 
     def _choose_sparse(self, size: int, num_modes: int) -> bool:
@@ -321,13 +354,40 @@ class ModalSolver:
             ) from exc
         return values[:num_modes], vectors[:, :num_modes]
 
-    @staticmethod
-    def _solve_sparse(K, M, num_modes: int, *, shift: float | None, tol: float):
-        K = sp.csc_matrix(K)
-        M = sp.csc_matrix(M)
+    def _solve_sparse(
+        self,
+        K,
+        M,
+        num_modes: int,
+        *,
+        shift: float | None,
+        tol: float,
+        cache_factorization: bool,
+    ):
         sigma = _default_shift(K, M) if shift is None else float(shift)
+        cache_key = (id(K), id(M), sigma)
         try:
-            values, vectors = spla.eigsh(K, k=num_modes, M=M, sigma=sigma, which="LM", tol=tol)
+            factorization = self._factorizations.get(cache_key) if cache_factorization else None
+            if factorization is None:
+                shifted = sp.csc_matrix(K - sigma * M)
+                factorization = spla.splu(shifted)
+                if cache_factorization:
+                    self._factorizations[cache_key] = factorization
+            inverse = spla.LinearOperator(
+                K.shape,
+                matvec=factorization.solve,
+                matmat=factorization.solve,
+                dtype=float,
+            )
+            values, vectors = spla.eigsh(
+                sp.csc_matrix(K),
+                k=num_modes,
+                M=sp.csc_matrix(M),
+                sigma=sigma,
+                which="LM",
+                OPinv=inverse,
+                tol=tol,
+            )
         except (spla.ArpackNoConvergence, RuntimeError, ValueError) as exc:
             raise SolverError(
                 f"sparse eigensolver failed for {num_modes} modes with sigma={sigma:g}; "

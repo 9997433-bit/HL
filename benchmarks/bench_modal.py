@@ -14,6 +14,8 @@ from rich.table import Table
 from scipy.sparse import csr_matrix, diags
 from scipy.sparse.linalg import eigsh
 
+from openfemlab.solver.modal import ModalSolver
+
 
 @dataclass(frozen=True)
 class ModalBenchmark:
@@ -23,6 +25,8 @@ class ModalBenchmark:
     modes: int
     minimum_seconds: float
     median_seconds: float
+    uncached_median_seconds: float
+    factorization_speedup: float
     first_frequency_hz: float
 
 
@@ -89,25 +93,37 @@ def benchmark_modal_sizes(
     for dof in sizes:
         stiffness_matrix, mass_matrix = build_spring_chain(dof)
         mode_count = min(modes, dof - 1)
-        modal_frequencies(stiffness_matrix, mass_matrix, modes=mode_count)
+        solver = ModalSolver.from_matrices(stiffness_matrix, mass_matrix)
+        solver.solve(num_modes=mode_count, sparse=True)
 
-        elapsed = []
+        uncached_elapsed = []
+        cached_elapsed = []
         frequencies = np.empty(mode_count)
         for _ in range(repeats):
             started = time.perf_counter()
-            frequencies = modal_frequencies(
-                stiffness_matrix,
-                mass_matrix,
-                modes=mode_count,
+            uncached = solver.solve(
+                num_modes=mode_count,
+                sparse=True,
+                cache_factorization=False,
             )
-            elapsed.append(time.perf_counter() - started)
+            uncached_elapsed.append(time.perf_counter() - started)
 
+            started = time.perf_counter()
+            cached = solver.solve(num_modes=mode_count, sparse=True)
+            cached_elapsed.append(time.perf_counter() - started)
+            frequencies = cached.frequencies
+            np.testing.assert_allclose(cached.eigenvalues, uncached.eigenvalues, rtol=1.0e-9)
+
+        uncached_median = statistics.median(uncached_elapsed)
+        cached_median = statistics.median(cached_elapsed)
         results.append(
             ModalBenchmark(
                 dof=dof,
                 modes=mode_count,
-                minimum_seconds=min(elapsed),
-                median_seconds=statistics.median(elapsed),
+                minimum_seconds=min(cached_elapsed),
+                median_seconds=cached_median,
+                uncached_median_seconds=uncached_median,
+                factorization_speedup=uncached_median / cached_median,
                 first_frequency_hz=float(frequencies[0]),
             )
         )
@@ -119,15 +135,17 @@ def render_results(results: Sequence[ModalBenchmark]) -> None:
     table = Table(title="Spring-chain modal solve")
     table.add_column("DOF", justify="right")
     table.add_column("Modes", justify="right")
-    table.add_column("Min (ms)", justify="right")
-    table.add_column("Median (ms)", justify="right")
+    table.add_column("Before (ms)", justify="right")
+    table.add_column("After (ms)", justify="right")
+    table.add_column("Speedup", justify="right")
     table.add_column("First mode (Hz)", justify="right")
     for result in results:
         table.add_row(
             str(result.dof),
             str(result.modes),
-            f"{result.minimum_seconds * 1_000:.3f}",
+            f"{result.uncached_median_seconds * 1_000:.3f}",
             f"{result.median_seconds * 1_000:.3f}",
+            f"{result.factorization_speedup:.2f}x",
             f"{result.first_frequency_hz:.6f}",
         )
     Console().print(table)

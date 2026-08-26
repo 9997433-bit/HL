@@ -13,6 +13,8 @@ from rich.table import Table
 from scipy.sparse import csr_matrix, diags
 from scipy.sparse.linalg import eigsh
 
+from openfemlab.updating.sensitivity import frequency_sensitivity
+
 
 @dataclass(frozen=True)
 class UpdateRun:
@@ -33,6 +35,9 @@ class UpdatingBenchmark:
     repeats: int
     minimum_seconds: float
     median_seconds: float
+    baseline_minimum_seconds: float
+    baseline_median_seconds: float
+    speedup: float
     initial_relative_rms: float
     final_relative_rms: float
 
@@ -88,6 +93,40 @@ def lowest_frequencies(
     return np.sqrt(np.clip(np.sort(eigenvalues), 0.0, None)) / (2.0 * np.pi)
 
 
+def lowest_modes(
+    stiffness_matrix: csr_matrix,
+    mass_matrix: csr_matrix,
+    *,
+    modes: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Extract sorted eigenvalues and mass-normalized eigenvectors."""
+    eigenvalues, mode_shapes = eigsh(
+        stiffness_matrix,
+        k=modes,
+        M=mass_matrix,
+        sigma=0.0,
+        which="LM",
+        tol=1.0e-9,
+    )
+    order = np.argsort(eigenvalues)
+    return np.clip(eigenvalues[order], 0.0, None), mode_shapes[:, order]
+
+
+def grouped_stiffness_derivatives(
+    incidence: csr_matrix,
+    parameter_count: int,
+    *,
+    base_stiffness: float = 1.0e6,
+) -> list[csr_matrix]:
+    """Exact ``dK/dp`` matrices for contiguous spring parameter groups."""
+    dof = incidence.shape[0]
+    groups = np.minimum(np.arange(dof) * parameter_count // dof, parameter_count - 1)
+    return [
+        (incidence.T @ diags(base_stiffness * (groups == group)) @ incidence).tocsr()
+        for group in range(parameter_count)
+    ]
+
+
 def relative_rms(computed: np.ndarray, target: np.ndarray) -> float:
     """Return RMS frequency error normalized by target values."""
     return float(np.sqrt(np.mean(np.square((computed - target) / target))))
@@ -101,6 +140,7 @@ def run_updating_loop(
     modes: int = 6,
     finite_difference_step: float = 1.0e-3,
     damping: float = 0.8,
+    sensitivity_method: str = "vectorized",
 ) -> UpdateRun:
     """Fit grouped chain stiffnesses to synthetic modal test data."""
     if iterations < 1:
@@ -109,6 +149,8 @@ def run_updating_loop(
         raise ValueError("modes must be between 1 and dof - 1")
     if not 1 <= parameter_count <= dof:
         raise ValueError("parameter_count must be between 1 and dof")
+    if sensitivity_method not in {"finite-difference", "vectorized"}:
+        raise ValueError("sensitivity_method must be 'finite-difference' or 'vectorized'")
 
     incidence = chain_incidence(dof)
     mass_matrix = diags(np.ones(dof), format="csr")
@@ -127,25 +169,42 @@ def run_updating_loop(
         modes=modes,
     )
     initial_error = relative_rms(initial_frequencies, target_frequencies)
+    derivatives = grouped_stiffness_derivatives(incidence, parameter_count)
 
     started = time.perf_counter()
     for _ in range(iterations):
-        current_frequencies = lowest_frequencies(
-            parameterized_stiffness(incidence, parameters),
-            mass_matrix,
-            modes=modes,
-        )
-        sensitivity = np.empty((modes, parameter_count))
-        for column in range(parameter_count):
-            perturbed = parameters.copy()
-            step = finite_difference_step * max(abs(parameters[column]), 1.0)
-            perturbed[column] += step
-            perturbed_frequencies = lowest_frequencies(
-                parameterized_stiffness(incidence, perturbed),
+        current_stiffness = parameterized_stiffness(incidence, parameters)
+        if sensitivity_method == "vectorized":
+            eigenvalues, mode_shapes = lowest_modes(
+                current_stiffness,
                 mass_matrix,
                 modes=modes,
             )
-            sensitivity[:, column] = (perturbed_frequencies - current_frequencies) / step
+            current_frequencies = np.sqrt(eigenvalues) / (2.0 * np.pi)
+            sensitivity = frequency_sensitivity(
+                mode_shapes,
+                eigenvalues,
+                derivatives,
+            )
+        else:
+            current_frequencies = lowest_frequencies(
+                current_stiffness,
+                mass_matrix,
+                modes=modes,
+            )
+            sensitivity = np.empty((modes, parameter_count))
+            for column in range(parameter_count):
+                perturbed = parameters.copy()
+                step = finite_difference_step * max(abs(parameters[column]), 1.0)
+                perturbed[column] += step
+                perturbed_frequencies = lowest_frequencies(
+                    parameterized_stiffness(incidence, perturbed),
+                    mass_matrix,
+                    modes=modes,
+                )
+                sensitivity[:, column] = (
+                    perturbed_frequencies - current_frequencies
+                ) / step
 
         correction, *_ = np.linalg.lstsq(
             sensitivity,
@@ -173,15 +232,29 @@ def benchmark_updating(*, repeats: int = 3, dof: int = 100) -> UpdatingBenchmark
     if repeats < 1:
         raise ValueError("repeats must be positive")
 
-    run_updating_loop(dof=dof)
-    runs = [run_updating_loop(dof=dof) for _ in range(repeats)]
+    run_updating_loop(dof=dof, sensitivity_method="finite-difference")
+    run_updating_loop(dof=dof, sensitivity_method="vectorized")
+    baseline_runs = [
+        run_updating_loop(dof=dof, sensitivity_method="finite-difference")
+        for _ in range(repeats)
+    ]
+    runs = [
+        run_updating_loop(dof=dof, sensitivity_method="vectorized")
+        for _ in range(repeats)
+    ]
+    baseline_elapsed = [run.elapsed_seconds for run in baseline_runs]
     elapsed = [run.elapsed_seconds for run in runs]
+    baseline_median = statistics.median(baseline_elapsed)
+    optimized_median = statistics.median(elapsed)
     return UpdatingBenchmark(
         dof=dof,
         iterations=5,
         repeats=repeats,
         minimum_seconds=min(elapsed),
-        median_seconds=statistics.median(elapsed),
+        median_seconds=optimized_median,
+        baseline_minimum_seconds=min(baseline_elapsed),
+        baseline_median_seconds=baseline_median,
+        speedup=baseline_median / optimized_median,
         initial_relative_rms=runs[-1].initial_relative_rms,
         final_relative_rms=runs[-1].final_relative_rms,
     )
@@ -193,16 +266,18 @@ def render_result(result: UpdatingBenchmark) -> None:
     table.add_column("DOF", justify="right")
     table.add_column("Iterations", justify="right")
     table.add_column("Repeats", justify="right")
-    table.add_column("Min (ms)", justify="right")
-    table.add_column("Median (ms)", justify="right")
+    table.add_column("Before (ms)", justify="right")
+    table.add_column("After (ms)", justify="right")
+    table.add_column("Speedup", justify="right")
     table.add_column("Initial RMS", justify="right")
     table.add_column("Final RMS", justify="right")
     table.add_row(
         str(result.dof),
         str(result.iterations),
         str(result.repeats),
-        f"{result.minimum_seconds * 1_000:.3f}",
+        f"{result.baseline_median_seconds * 1_000:.3f}",
         f"{result.median_seconds * 1_000:.3f}",
+        f"{result.speedup:.2f}x",
         f"{result.initial_relative_rms:.3e}",
         f"{result.final_relative_rms:.3e}",
     )
