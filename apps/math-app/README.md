@@ -12,6 +12,12 @@ npm run build          # 产物在 dist/,可直接静态托管
 npm run preview        # 本地预览构建产物
 ```
 
+## 离线使用
+
+生产构建会生成带版本号的 Service Worker 预缓存，覆盖 `index.html`、全部 Vite 资源和所有懒加载玩法。部署到 HTTPS 静态站点（本机可用 `localhost`）并至少联网打开一次；Service Worker 安装完成后即可断网刷新或重新打开。
+
+Service Worker 不支持 `file://`，不能通过直接双击 `dist/index.html` 安装离线缓存。可在仓库根目录运行 `npm run build && npm run test:offline`，验证关闭 HTTP 服务后仍能启动数独路由。
+
 ## 质量校验
 
 ```bash

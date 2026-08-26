@@ -11,13 +11,19 @@
 ```bash
 npm install
 npm run dev        # predev 会自动执行 gen:hanzi 裁剪离线笔顺数据
-npm run build      # 产物在 dist/,base 为 './',可静态托管或直接打开
+npm run build      # 产物在 dist/,base 为 './',可部署到任意子目录
 npm run preview
 ```
 
 `npm run gen:hanzi` 从 `hanzi-writer-data`(devDependency)裁剪课程字表所需的
 笔顺 JSON 到 `public/hanzi-data/`,运行时优先读本地、缺字才回退 jsDelivr CDN,
 保证断网时核心字表仍能播放笔顺动画。
+
+## 离线使用
+
+生产构建会生成带版本号的 Service Worker 预缓存，覆盖 `index.html`、所有 Vite 资源、懒加载路由和完整 `hanzi-data` 目录。部署到 HTTPS 静态站点（本机可用 `localhost`）并至少联网打开一次；Service Worker 安装完成后即可断网刷新或重新打开。
+
+Service Worker 不支持 `file://`，不能通过直接双击 `dist/index.html` 安装离线缓存。可在仓库根目录运行 `npm run build && npm run test:offline`，验证关闭 HTTP 服务后仍能启动详情页并读取笔顺数据。
 
 ## 功能模块与路由
 
@@ -32,7 +38,7 @@ npm run preview
 | 成语启蒙 | `/idioms` `/idioms/:id` | `IdiomsView` / `IdiomDetailView` |
 | 家长中心(报表/设置/进度导入导出) | `/parent` | `ParentView` |
 
-采用 hash 路由,打包后以 file:// 或任意子目录静态托管均可直接打开。
+采用 hash 路由,打包后可在任意子目录静态托管；离线缓存要求 HTTPS 或 `localhost`。
 
 ## 技术栈
 

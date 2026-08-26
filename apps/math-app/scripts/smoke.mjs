@@ -146,7 +146,7 @@ const starCount = (page) =>
 const CHOICE_SELECTOR = '.opt, .opt-card, .opt-btn, .rock, .shape-cell, .tile'
 
 /** 等到出现可点击的选项为止（答题反馈期间选项是禁用的）。 */
-async function waitForChoice(page, timeout = 5000) {
+async function waitForChoice(page, timeout = 12000) {
   const deadline = Date.now() + timeout
   while (Date.now() < deadline) {
     const ready = await page.evaluate(
@@ -187,6 +187,8 @@ async function answerOnce(page) {
  */
 async function loadCargo(page) {
   const need = await page.evaluate(() => {
+    // 只认真正有货物池的装货题：应用题里也会出现「把 N 个…」的句子
+    if (!document.querySelector('.pool .cargo')) return 0
     const m = document.body.innerText.match(/把\s*(\d+)\s*个/)
     return m ? Number(m[1]) : 0
   })
@@ -411,6 +413,119 @@ await interact('进度持久化：答题后刷新仍在', '/#/geometry', async (
   if (after !== before) throw new Error(`刷新后作答数从 ${before} 变成 ${after}`)
   if (starsAfter !== starsBefore) throw new Error(`刷新后星星从 ${starsBefore} 变成 ${starsAfter}`)
   return `刷新前后作答数都是 ${after}，星星都是 ${starsAfter}`
+})
+
+/* --------------------------------------------------- QuizShell 通用答题壳 */
+
+await interact('QuizShell：数字键选项 + 进度条推进', '/#/arithmetic', async (page) => {
+  await page.waitForSelector('.opt')
+  const read = () =>
+    page.evaluate(() => ({
+      judged: document.querySelectorAll('.session-bar .dot.ok, .session-bar .dot.no').length,
+      width: document.querySelector('.progress-fill')?.style.width ?? '',
+    }))
+
+  const before = await read()
+  if (!before.width) throw new Error('没有找到 QuizShell 的进度条')
+  await page.keyboard.press('1')
+  await sleep(600)
+  const after = await read()
+  if (after.judged !== before.judged + 1) {
+    throw new Error(`按数字键 1 没有作答：已判定 ${before.judged} → ${after.judged}`)
+  }
+  await sleep(1200)
+  const moved = await read()
+  if (parseInt(moved.width, 10) <= parseInt(before.width, 10)) {
+    throw new Error(`进度条没有推进：${before.width} → ${moved.width}`)
+  }
+  return `数字键作答 ${before.judged} → ${after.judged} 题，进度条 ${before.width} → ${moved.width}`
+})
+
+await interact('QuizShell：答错给出错因标签', '/#/arithmetic', async (page) => {
+  await page.waitForSelector('.opt')
+  // 先算出正确答案，才能故意点一个错的，随机点有可能刚好点对
+  const picked = await page.evaluate(() => {
+    const terms = [...document.querySelectorAll('.equation .term')].map((e) => Number(e.innerText))
+    const sign = document.querySelector('.equation .sign')?.innerText ?? '+'
+    const answer = sign === '+' ? terms[0] + terms[1] : terms[0] - terms[1]
+    const wrong = [...document.querySelectorAll('.opt')].find((b) => Number(b.innerText) !== answer)
+    if (!wrong) return null
+    const chosen = Number(wrong.innerText)
+    wrong.click()
+    return { answer, chosen }
+  })
+  if (!picked) throw new Error('这道题的选项里找不到错误项')
+  await sleep(500)
+  const tags = await page.evaluate(() =>
+    [...document.querySelectorAll('.why-chip')].map((e) => e.innerText.trim()),
+  )
+  if (!tags.length) {
+    throw new Error(`答错 ${picked.chosen}（正确 ${picked.answer}）却没有显示错因标签`)
+  }
+  const stored = await page.evaluate(
+    () => Object.keys(JSON.parse(localStorage.getItem('mathquest/progress') || '{}').errorTagCounts ?? {}).length,
+  )
+  if (!stored) throw new Error('错因标签没有写进 progress.errorTagCounts')
+  return `故意答错 ${picked.chosen}（正确 ${picked.answer}），错因「${tags.join('/')}」，已入库 ${stored} 类`
+})
+
+await interact('生活行星：母题规模与进阶档', '/#/word-problems', async (page) => {
+  const bank = await page.evaluate(() => {
+    const m = document.body.innerText.match(/母题\s*(\d+)\s*\/\s*(\d+)\s*道/)
+    return m ? Number(m[2]) : 0
+  })
+  if (bank < 25) throw new Error(`母题只有 ${bank} 类，少于要求的 25 类`)
+
+  const switched = await page.evaluate(() => {
+    const el = [...document.querySelectorAll('.seg-btn')].find((b) => b.innerText.includes('进阶'))
+    if (!el) return false
+    el.click()
+    return true
+  })
+  if (!switched) throw new Error('没有「进阶题」难度档')
+  await sleep(700)
+  const marked = await page.evaluate(
+    () => document.querySelector('.problem')?.innerText.includes('进阶') ?? false,
+  )
+  if (!marked) throw new Error('切到进阶档后题面上没有「进阶」标记')
+  return `母题 ${bank} 类，进阶档题面标记正常`
+})
+
+await interact('数独空间站：切换 9×9 档位', '/#/sudoku', async (page) => {
+  const switched = await page.evaluate(() => {
+    const el = [...document.querySelectorAll('.seg-btn')].find((b) => b.innerText.includes('9×9'))
+    if (!el) return false
+    el.click()
+    return true
+  })
+  if (!switched) throw new Error('没有 9×9 档位按钮')
+  await sleep(1200)
+
+  const info = await page.evaluate(() => ({
+    cells: document.querySelectorAll('.cell').length,
+    keys: document.querySelectorAll('.numkey:not(.erase)').length,
+    empty: [...document.querySelectorAll('.cell')].filter((c) => !c.innerText.trim()).length,
+  }))
+  if (info.cells !== 81) throw new Error(`9×9 棋盘应有 81 格，实际 ${info.cells}`)
+  if (info.keys !== 9) throw new Error(`9×9 应有 1–9 九个数字键，实际 ${info.keys}`)
+
+  await page.evaluate(() => {
+    const e = [...document.querySelectorAll('.cell')].find((c) => !c.innerText.trim())
+    if (e) e.click()
+  })
+  await sleep(250)
+  await page.evaluate(() => {
+    const k = [...document.querySelectorAll('.numkey:not(.erase)')].find((b) => !b.disabled)
+    if (k) k.click()
+  })
+  await sleep(350)
+  const emptyAfter = await page.evaluate(
+    () => [...document.querySelectorAll('.cell')].filter((c) => !c.innerText.trim()).length,
+  )
+  if (emptyAfter !== info.empty - 1) {
+    throw new Error(`9×9 填数没生效：空格 ${info.empty} → ${emptyAfter}`)
+  }
+  return `81 格 / 9 个数字键，空格 ${info.empty} → ${emptyAfter}`
 })
 
 await browser.close()
