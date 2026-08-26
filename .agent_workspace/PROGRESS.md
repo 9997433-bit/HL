@@ -19,7 +19,7 @@
 | Round | Status | Subagents | Brief |
 |-------|--------|-----------|-------|
 | Round 1 | ✅ COMPLETE | 6× concurrent (2 fable☁️, 2 opus-fast, 2 gpt-sol) | [见下方 Round 1 结论简报](#round-1-结论简报) |
-| Round 2 | PENDING | — | Targeted refactor & deep optimization |
+| Round 2 | IN_PROGRESS | 6× concurrent (2 fable☁️, 2 opus-fast, 2 gpt-sol) | Targeted refactor & deep optimization |
 | Round 3 | PENDING | — | SOTA polish & final acceptance |
 
 ### Round 1 Dispatch Log (2026-08-26)
