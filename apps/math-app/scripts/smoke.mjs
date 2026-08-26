@@ -717,6 +717,101 @@ await interact('QuizShell：答错给出错因标签', '/#/arithmetic', async (p
   return `故意答错 ${picked.chosen}（正确 ${picked.answer}），错因「${tags.join('/')}」，已入库 ${stored} 类`
 })
 
+await interact('错题本：答错入库 → 进度页重做出库', '/#/arithmetic', async (page) => {
+  // 前面几项是随机作答，攒下的错题会让这里的条数断言失准，先清干净
+  await page.evaluate(() => localStorage.clear())
+  await page.reload({ waitUntil: 'networkidle2' })
+  await sleep(700)
+  await page.waitForSelector('.opt')
+
+  const picked = await page.evaluate(() => {
+    const terms = [...document.querySelectorAll('.equation .term')].map((e) => Number(e.innerText))
+    const sign = document.querySelector('.equation .sign')?.innerText ?? '+'
+    const answer = sign === '+' ? terms[0] + terms[1] : terms[0] - terms[1]
+    const wrong = [...document.querySelectorAll('.opt')].find((b) => Number(b.innerText) !== answer)
+    if (!wrong) return null
+    wrong.click()
+    return { answer, chosen: Number(wrong.innerText) }
+  })
+  if (!picked) throw new Error('这道题的选项里找不到错误项')
+  await sleep(600)
+
+  const readBook = () =>
+    page.evaluate(
+      () => JSON.parse(localStorage.getItem('mathquest/progress') || '{}').wrongBook ?? {},
+    )
+
+  const book = await readBook()
+  const keys = Object.keys(book)
+  if (keys.length !== 1) throw new Error(`答错 1 题后错题本应有 1 条，实际 ${keys.length}`)
+  const entry = book[keys[0]]
+  if (entry.answer !== picked.answer) {
+    throw new Error(`错题本记下的答案是 ${entry.answer}，应为 ${picked.answer}`)
+  }
+  if (!entry.skill) throw new Error('错题本条目没有技能点')
+  if (!entry.errorTag) throw new Error('错题本条目没有错因标签')
+  if (entry.attempts !== 1) throw new Error(`首次入库 attempts 应为 1，实际 ${entry.attempts}`)
+
+  await page.goto(base + '/#/progress', { waitUntil: 'networkidle2' })
+  await sleep(800)
+  const listed = await page.evaluate(() => document.querySelectorAll('.wb-item').length)
+  if (listed !== 1) throw new Error(`进度页错题本应列出 1 条，实际 ${listed}`)
+
+  const openRetry = () =>
+    page.evaluate(() => {
+      const btn = document.querySelector('.wb-item .btn--primary')
+      if (!btn) return false
+      btn.click()
+      return true
+    })
+  if (!(await openRetry())) throw new Error('错题本没有重做入口')
+  await sleep(350)
+
+  // 先故意再错一次：条目要留下，attempts 继续累加
+  const missed = await page.evaluate((answer) => {
+    const opt = [...document.querySelectorAll('.wb-opt')].find(
+      (b) => Number(b.innerText) !== answer && !b.disabled,
+    )
+    if (!opt) return false
+    opt.click()
+    return true
+  }, picked.answer)
+  if (!missed) throw new Error('重做面板里没有可点的错误选项')
+  await sleep(400)
+  const afterMiss = await readBook()
+  if (Object.keys(afterMiss).length !== 1) throw new Error('重做答错不该把题移出错题本')
+  if (afterMiss[keys[0]].attempts !== 2) {
+    throw new Error(`重做答错后 attempts 应为 2，实际 ${afterMiss[keys[0]].attempts}`)
+  }
+
+  const hit = await page.evaluate((answer) => {
+    const opt = [...document.querySelectorAll('.wb-opt')].find(
+      (b) => Number(b.innerText) === answer && !b.disabled,
+    )
+    if (!opt) return false
+    opt.click()
+    return true
+  }, picked.answer)
+  if (!hit) throw new Error('重做面板里没有正确选项')
+  await sleep(500)
+
+  const afterHit = await readBook()
+  if (Object.keys(afterHit).length !== 0) throw new Error('重做答对后错题没有移出错题本')
+  const rows = await page.evaluate(() => ({
+    items: document.querySelectorAll('.wb-item').length,
+    text: document.body.innerText.includes('错题本是空的'),
+  }))
+  if (rows.items !== 0) throw new Error(`重做答对后列表仍有 ${rows.items} 条`)
+  if (!rows.text) throw new Error('错题本清空后没有显示空状态')
+
+  // 刷新后仍然是空的，说明出库也落了盘
+  await page.reload({ waitUntil: 'networkidle2' })
+  await sleep(600)
+  const persisted = Object.keys(await readBook()).length
+  if (persisted !== 0) throw new Error(`刷新后错题本又冒出 ${persisted} 条`)
+  return `答错 ${picked.chosen}（正确 ${picked.answer}）入库，重做再错 attempts=2，答对后出库并落盘`
+})
+
 await interact('生活行星：母题规模与进阶档', '/#/word-problems', async (page) => {
   const bank = await page.evaluate(() => {
     const m = document.body.innerText.match(/母题\s*(\d+)\s*\/\s*(\d+)\s*道/)
