@@ -1569,6 +1569,40 @@ A27. The A24 backlog above is otherwise the live plan.
   a task already closed on the trunk is what produced the duplication; a check of the trunk's
   gap table before dispatch would have caught it.
 
+#### A52 — `cursor/optimization-acceptance-gates-2414` merged onto the trunk (backfill for A34)
+- **A40's "subsumed" verdict was true when written and is no longer.** The sweep above
+  closed `cursor/optimization-acceptance-gates-2414` as carrying nothing but `932fccd`
+  plus a merge commit. A34 then pushed four more commits onto it — the two-link AC-OPT-002
+  oracle, the bound-active AC-OPT-003 case, the §7/§8 `OPTIMIZATION.md` notes, and its own
+  progress record — so the branch had unique content after all and was still unmerged at
+  `ec0e927`. Merged here.
+- **What the merge actually takes.** Only `tests/acceptance/test_optimization.py`,
+  `docs/OPTIMIZATION.md` and the A34 progress entry. Git reported conflicts across
+  `optimization/backends.py`, `optimization/problem.py` and `tests/test_optimization.py`
+  as well, but those are an artifact of a criss-cross history — the two branches have
+  **two** merge bases (`1db2f03` and `7f1a094`), so the ort strategy diffs against a
+  synthesized base. Against the real tip base the gates branch changes none of those three
+  files: A34 had already adopted the trunk's module wholesale, and the trunk has since
+  advanced past it via A40's harvest of `f421`. All three were resolved to the trunk side,
+  which is the no-op resolution, not a judgement call.
+- The one substantive resolution was an import block: the gates branch's copy of the
+  acceptance file predates the trunk's `NaturalFrequency`/`Objective` imports, so the
+  union was kept. `PROGRESS.md` took both new sections.
+- **Verified** from a private clone at `/tmp/a52` with `PYTHONPATH=/tmp/a52/src`, Python
+  3.12.3 / NumPy 2.5.2 / SciPy 1.18.1: **676 passed, 0 failed** at the gate merge, then
+  **679 passed, 0 failed** (102.7 s) at `c90e4fa` after merging the integration tip that
+  landed underneath (A44's AC-WORK/AC-UPD-007 tagging). `ruff check .` clean at both.
+  `PR_DRAFT.md` moved off the 671 baseline with the per-suite breakdown re-derived from
+  `--collect-only` rather than adjusted arithmetically; acceptance registry + gates is
+  now 173, not 165.
+- **Working-tree hazard, seventh occurrence — and this time it ate a commit.** The first
+  merge was made in `/workspace` and verified green at 665, and was then destroyed by
+  another agent's `git reset --hard` before it could be pushed; the reflog shows the
+  branch reset out from under this task three times inside a few minutes. Redone in a
+  private clone. The lesson is not new but the failure mode is sharper than the earlier
+  reports: `/workspace` loses *committed, unpushed* work, so committing is not a
+  safeguard there — only a private checkout is.
+
 ### Round 3 — SOTA Polish & Final Acceptance
 **Status:** PENDING
 

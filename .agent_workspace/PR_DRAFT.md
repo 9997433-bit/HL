@@ -1,13 +1,13 @@
 # PR Draft — OpenFEMLab Round 1
 
 Ready to file. Base: `main`. Head: `cursor/femtools-industrial-7aa3`.
-Verified at `ec0e927`: full suite **671 passed**, `ruff check .` clean
+Verified at `c90e4fa`: full suite **679 passed**, `ruff check .` clean
 (Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1).
 
 ## Title
 
 ```
-OpenFEMLab: solver-independent CAE platform — modal analysis, correlation, model updating, damped dynamics (671 tests)
+OpenFEMLab: solver-independent CAE platform — modal analysis, correlation, model updating, damped dynamics (679 tests)
 ```
 
 ## Body
@@ -57,15 +57,15 @@ synthesis, and optimization hooks — all behind one CLI and a schema-versioned 
   functions, analytic gradients with MAC mode tracking, `OptimizationProblem`, sizing
   compilation reusing the updater's model contract, and an implemented SciPy backend for
   SLSQP/trust-constr with hard bounds, analytic Jacobians, standardized inequalities,
-  iteration audits, and method-independent KKT residuals over the active set only.
-  GAP-12 is closed for sizing.
+  iteration audits, and method-independent KKT residuals fitted over the active
+  constraints *and* the active bound directions together. GAP-12 is closed for sizing.
 - **IO** (`io/`): schema-versioned native YAML/JSON round trip for models, modal
   results, and test data; ASCII UFF/UNV dataset 55/58 reader; minimal Nastran BDF
   reader (GRID/CROD/MAT1 → neutral model).
 - **CLI** (`cli/`): `openfemlab modal | correlate | update` over JSON/YAML model
   specs; machine-readable JSON on stdout, diagnostics on stderr, CI acceptance gates
   via exit codes; covered end to end including subprocess runs.
-- **QA stack**: 671 tests including a machine-readable registry of 40 quantified
+- **QA stack**: 679 tests including a machine-readable registry of 40 quantified
   acceptance criteria wired to tagged acceptance tests, boundary/probe suites,
   performance-regression gates, and benchmarks; GitHub Actions CI on Python
   3.10–3.13; `ruff check` clean.
@@ -75,13 +75,17 @@ synthesis, and optimization hooks — all behind one CLI and a schema-versioned 
 
 ## Verification
 
-- `python -m pytest` — **671 passed** at `ec0e927` in 6.92 s on Python 3.12.3 /
+- `python -m pytest` — **679 passed** at `c90e4fa` in 102.7 s on Python 3.12.3 /
   NumPy 2.5.2 / SciPy 1.18.1.
 - `ruff check .` — clean.
-- Per-suite breakdown (sums to 671): dynamics 82, QUAD4 61, updating 57, correlation 52,
+- Per-suite breakdown (sums to 679): dynamics 82, QUAD4 61, updating 57, correlation 52,
   modal solver 44, workflow 38, optimization 27, FRF correlation 25, reduction/expansion
   25, CLI 22+1, core 18, result contract 17, IO (native/UFF/Nastran) 24, acceptance
-  registry + gates 165, boundary/performance/e2e/scaffold 13.
+  registry + gates 173, boundary/performance/e2e/scaffold 13.
+- Sizing optimization is gated on a closed-form optimum that *distributes* material, not
+  just a scalar scaling: the two-link chain's asymmetric `(6, 4)` optimum is recovered
+  from a symmetric start to 1.1e-16 relative, and a companion bound-active run pins the
+  active-set/barrier split between SLSQP and trust-constr.
 - End-to-end: model → modal → correlate → update → re-solve converges 22.86 % → 0 %
   frequency error at MAC 1.0; the README CLI session reproduces exit codes 0/3/0/0.
 - Performance (single BLAS thread, medians): 100-DOF five-iteration updating loop
