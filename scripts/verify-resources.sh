@@ -140,6 +140,9 @@ required_docs = [
     "shared/assets/openmoji/LICENSE.txt",
     "shared/assets/hanzi-writer-data/ARPHICPL.TXT",
     "shared/assets/fonts/OFL-NotoSansSC.txt",
+    "THIRD_PARTY_NOTICES.md",
+    # APL 要求许可证随笔顺数据一起分发；这份副本会进入识字 App 的 dist 与 zip。
+    "apps/literacy-app/public/hanzi-data/ARPHICPL.TXT",
 ]
 for relative_path in required_docs:
     path = root / relative_path
@@ -148,8 +151,19 @@ for relative_path in required_docs:
 license_needles = {
     "shared/assets/openmoji/LICENSE.txt": "Attribution-ShareAlike 4.0 International",
     "shared/assets/hanzi-writer-data/ARPHICPL.TXT": "ARPHIC PUBLIC LICENSE",
+    "apps/literacy-app/public/hanzi-data/ARPHICPL.TXT": "ARPHIC PUBLIC LICENSE",
     "shared/assets/fonts/OFL-NotoSansSC.txt": "SIL OPEN FONT LICENSE Version 1.1",
 }
+
+# 验收项 C-2：THIRD_PARTY_NOTICES 至少覆盖四项署名。
+notices_path = root / "THIRD_PARTY_NOTICES.md"
+if notices_path.is_file():
+    try:
+        notices_text = notices_path.read_text(encoding="utf-8")
+        for needle in ("Hanzi Writer", "Arphic Public License", "OpenMoji", "SIL OFL", "GSAP"):
+            check(needle in notices_text, f"THIRD_PARTY_NOTICES.md lacks required attribution: {needle}")
+    except (OSError, UnicodeError) as exc:
+        errors.append(f"cannot read THIRD_PARTY_NOTICES.md: {exc}")
 for relative_path, needle in license_needles.items():
     path = root / relative_path
     if path.is_file():

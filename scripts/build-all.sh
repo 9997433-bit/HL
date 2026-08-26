@@ -59,6 +59,11 @@ build_app() {
   [[ -f "$build_dir/index.html" ]] ||
     fail "${label}构建未生成 dist/index.html。"
 
+  # 产物里打包了 MIT/GSAP/APL 组件，第三方声明必须随 zip 分发（合规项 C-2）。
+  [[ -f "$ROOT_DIR/THIRD_PARTY_NOTICES.md" ]] ||
+    fail "缺少 THIRD_PARTY_NOTICES.md，不能出包。"
+  cp "$ROOT_DIR/THIRD_PARTY_NOTICES.md" "$build_dir/THIRD_PARTY_NOTICES.md"
+
   printf '[%s] 打包 %s...\n' "$label" "$archive_name"
   create_archive "$build_dir" "$archive_path"
   [[ -s "$archive_path" ]] || fail "${label}压缩包为空。"
