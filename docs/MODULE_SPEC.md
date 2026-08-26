@@ -246,11 +246,19 @@ def pair_modes(freqs_a, phi_a, freqs_e, phi_e, *,
 def comac(phi_a, phi_e, pairing) -> np.ndarray                 # (s,)
 def correlate(modal_a: ModalResult, test: TestModeSet,
               sensor_map: SensorMap, **kw) -> CorrelationReport
+def frf_correlation(reference, comparison, *, excitation_dof=None,
+                    frequencies=None, channels=None,
+                    with_fdac=True) -> FRFCorrelation
 ```
 
 `CorrelationReport` is a serializable (JSON) artifact containing the MAC
-matrix, pairing table, frequency-error table, COMAC vector, and the settings
-used — it is the exchange currency between M2, M3 and M4.
+matrix, pairing table, frequency-error table, COMAC vector, the optional FRF
+block, and the settings used — it is the exchange currency between M2, M3 and
+M4. Its `schema_version` is **1.1**: 1.1 added the `frf` key, which is `null`
+whenever no FRF comparison was run, so the key set is independent of the
+analyses performed. `is_correlated(..., frac_threshold=...)` adds the MS-7.4
+frequency-domain gate to the MS-4.2 modal ones and refuses to run without a
+block.
 
 ---
 
@@ -587,6 +595,12 @@ Receptance is displacement per unit force; mobility is `iωH` and accelerance
 - Both are re-exported through `openfemlab.correlation` so FRF correlation
   reaches consumers through the M2 namespace without a second implementation
   (the GAP-01 rule). Degenerate (zero-norm) inputs return 0 rather than NaN.
+- `correlation.frf_correlation` drives the two kernels over a measured/
+  synthesized pair — resolving the shared frequency line, the exciter column
+  and the channel labels — and returns the `FRFCorrelation` block
+  (per-channel FRAC, the FDAC matrix, mean/min scalars) that `CorrelationReport`
+  publishes under its `frf` key from schema 1.1 on (MS-2.6). The FDAC matrix is
+  `O(n_frequencies²)` and can be suppressed with `with_fdac=False`.
 - Self-identity and scale invariance mirror AC-CORR-001/002 and are gated by
   AC-DYN-004.
 - Measured FRFs enter through the dataset-58 reader (`io/uff.py`); a
