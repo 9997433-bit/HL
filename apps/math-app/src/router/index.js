@@ -15,6 +15,14 @@ const routes = [
     meta: { title: '数量星云' },
   },
   {
+    // 比大小擂台：复用数量星云的玩法壳，只出 > < = 题
+    path: '/compare',
+    name: 'compare',
+    component: () => import('@/modules/number-sense/NumberSenseView.vue'),
+    props: { mode: 'compare' },
+    meta: { title: '比大小擂台' },
+  },
+  {
     path: '/arithmetic',
     name: 'arithmetic',
     component: () => import('@/modules/arithmetic/ArithmeticView.vue'),
