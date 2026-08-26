@@ -84,11 +84,12 @@ xvfb-run -a python -m audio_studio --null-audio --exit-after 5 track.wav
 - Decodes WAV, FLAC, MP3, Ogg/Vorbis, Opus, AIFF, W64, CAF and AU through
   libsndfile, with an `ffmpeg` fallback for codecs the local libsndfile lacks.
 - Everything is normalised to `float32` in `[-1, 1]`, shaped `(frames, channels)`.
+- Plays from a `SampleSource` — either an in-memory clip or a file streamed
+  from disk a block at a time — so long programmes no longer have to fit in
+  RAM to be played.
 - Ring-buffered playback: a feeder thread decouples the device callback from
-  the source through a lock-free SPSC queue, so the real-time thread only ever
-  performs a bounded copy into a caller-owned block.
-- Short clips use an in-memory source; long supported files can use a bounded
-  decoded-block cache and stream from disk.
+  the source through a lock-free SPSC ring (monotonic counters, zero-allocation
+  `read_into`), so the real-time thread only ever performs a bounded copy.
 - Play, pause, resume, stop-with-rewind, sample-accurate seek, looping, and
   selection-restricted playback.
 - The reported playhead subtracts what is still queued in the ring buffer, so
@@ -99,14 +100,17 @@ xvfb-run -a python -m audio_studio --null-audio --exit-after 5 track.wav
 
 **Editing core** (`audio_studio.core.edit_session.EditSession`)
 
-- Copy-on-write chunk table with immutable revisions and a configurable
-  undo/redo history.
-- Reversible cut, paste, delete, silence, gain, fade, reverse, trim and insert
-  operations; copy does not modify the source revision.
-- Implements the sample-source protocol, so playback can read an edited
-  revision without flattening it into one large array.
-- Thread-safe revision publication: a reader sees either the old complete
-  document or the new complete document.
+- Copy-on-write document: an immutable list of segment views onto immutable
+  chunks, so cutting ten seconds out of an hour rewrites a handful of records
+  and copies nothing.
+- Nine undoable commands — cut, copy, paste, delete, trim, silence, insert
+  silence, gain, fade and reverse — on an undo stack whose revisions share
+  almost all of their storage.
+- The session itself satisfies `SampleSource`, so the transport plays an
+  edited document straight off the undo stack without flattening it first;
+  revision publication is atomic, so a reader sees either the old or the new
+  complete document, never half an edit.
+- The source file is never modified in place; export writes a new file.
 
 **Waveform display** (`audio_studio.ui.waveform_view.WaveformView`)
 
@@ -196,19 +200,56 @@ tests live one directory above this package.
 
 - Single visible track/clip. `TrackPanel` is reusable, but there is no finished
   multitrack mixer, clip timeline, bus/send routing or automation workflow.
-- The `EditSession` command/undo core is implemented, but the main window does
-  not yet expose the complete destructive editing workflow or project save and
-  recovery.
-- No recording/input path, batch processor, production VST3/AU host, plugin
-  delay compensation, or installer-supported ASIO path.
-- Playhead accuracy is bounded by the device block size; it does not consult
-  PortAudio's stream time for sub-block precision.
+- The `EditSession` command/undo core is implemented and fully tested, but the
+  main window does not yet expose the complete destructive editing workflow or
+  project save and recovery.
+- No recording path, no repair suite (de-click, de-hum, noise reduction), no
+  spectral selection editing, no production VST3/AU host or plugin delay
+  compensation, no batch processing, and no project files or markers yet — see
+  the roadmap in the release sign-off.
+- Not a low-latency monitor: the default device block is 1024 frames
+  (~21 ms at 48 kHz) and there is no exclusive-mode backend handling; playhead
+  accuracy is bounded by the block size.
+- The effect-rack preview chain runs on the device render path. Light chains
+  are fine in practice; a heavy chain can starve the callback. Committed
+  (offline) effects are unaffected.
 - The SPSC ring is lock-free at the Python level but still executes under
   CPython/GIL scheduling; physical-device p99 timing and a long soak are not
   certified by headless tests.
+- Sample-rate conversion quality is unrated against the acceptance targets and
+  bit-depth reduction applies no TPDF dither yet — for mastering-grade exports
+  keep the source rate and float depth. Do not claim certified broadcast
+  compliance from the current alpha.
 - Loop playback restarts from the region start without a crossfade, and the
   reported position is briefly clamped across the wrap.
-- Streaming playback exists, but waveform/analysis/export paths are not yet a
-  complete RF64/>4 GB out-of-core workflow.
-- EBU/AES/SRC acceptance coverage is partial. Do not claim certified broadcast
-  compliance from the current alpha.
+- Long files stream from disk for playback, but the edit history and peak
+  pyramid are held in memory; RF64/>4 GB out-of-core workflows are not yet
+  complete end to end.
+
+## Release notes — v0.1.0-alpha
+
+The first tagged preview: a **single-track waveform editor and analyzer**, not
+yet a multitrack DAW.
+
+- **Highlights:** streaming or in-memory playback over a lock-free SPSC ring;
+  nine undoable copy-on-write edit commands with storage-sharing undo;
+  parametric EQ / gain / normalize / fade with a live preview rack;
+  calibrated spectral display; BS.1770-4 loudness and 4x true-peak metering;
+  bit-exact WAV null-test, EBU 3341/3342 compliance vectors and an SLO suite
+  shipped in-repo.
+- **Known limitations:** the section above is the authoritative list; loudness
+  compliance certification of the product meter against the full EBU vector
+  set is still in progress (an independent oracle, `tools/ebu_r128.py`, ships
+  alongside), and published performance numbers are headless proxies rather
+  than audio-device certification.
+- **System requirements:** Python ≥ 3.10 (3.12 is the verified baseline);
+  `numpy`, `scipy`, `soundfile`, `PySide6-Essentials`; optional `PyAudio`
+  (hardware output; falls back to a simulated clock without it) and `ffmpeg`
+  (extended decode). On headless Linux install the Qt runtime libraries listed
+  under *Install*.
+- **Release gates:** three-platform CI (with the GUI smoke job) is green and
+  `THIRD_PARTY_LICENSES.md` is in place; the orchestrator cuts the tag once
+  the remaining Round 3 merges (multitrack session MVP, BS.1770 product
+  compliance) are either verified in or explicitly deferred. Full scope, the
+  deviations register and the v0.2 → v1.0 roadmap:
+  [`.agent_workspace/round3/fable-release-signoff.md`](../.agent_workspace/round3/fable-release-signoff.md).
