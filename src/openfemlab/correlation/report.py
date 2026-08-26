@@ -7,6 +7,11 @@ optional FRF block of :mod:`~openfemlab.correlation.frf` into a
 schema-versioned, JSON-serializable :class:`CorrelationReport`: the exchange
 currency between the correlation, updating and workflow layers, and the
 artifact the CLI and CI publish.
+
+Serialization is a round trip, not an export: :meth:`CorrelationReport.to_json`
+and :meth:`CorrelationReport.from_json` are inverses (AC-CORR-008), so a
+published artifact can be read back into the same objects the analysis
+produced instead of only being looked at.
 """
 
 from __future__ import annotations
@@ -28,6 +33,7 @@ if TYPE_CHECKING:  # pragma: no cover - typing only, keeps correlation core-free
     from .align import HasShapesAndDofMap
 
 __all__ = [
+    "SCHEMA_KEYS",
     "SCHEMA_VERSION",
     "CorrelationReport",
     "correlate_modal_data",
@@ -38,6 +44,25 @@ __all__ = [
 #: comparison still serializes it as ``null``, so the key set does not depend
 #: on which analyses were run.
 SCHEMA_VERSION = "1.1"
+
+#: Every key :meth:`CorrelationReport.to_dict` writes. A consumer may rely on
+#: all of them being present: an analysis that did not run emits ``null``
+#: rather than dropping its block, and :meth:`CorrelationReport.from_dict`
+#: rejects a payload that is missing any of them.
+SCHEMA_KEYS = (
+    "schema_version",
+    "summary",
+    "pairs",
+    "unpaired_test",
+    "unpaired_fe",
+    "pairing_method",
+    "mac_matrix",
+    "comac",
+    "dof_labels",
+    "frf",
+    "settings",
+    "meta",
+)
 
 
 @dataclass
@@ -105,17 +130,7 @@ class CorrelationReport:
         return {
             "schema_version": self.schema_version,
             "summary": self.summary.as_dict(),
-            "pairs": [
-                {
-                    "test_index": pair.test_index,
-                    "fe_index": pair.fe_index,
-                    "mac": pair.mac,
-                    "test_frequency": pair.test_frequency,
-                    "fe_frequency": pair.fe_frequency,
-                    "frequency_error_pct": pair.frequency_error_pct,
-                }
-                for pair in self.pairing.pairs
-            ],
+            "pairs": [pair.as_dict() for pair in self.pairing.pairs],
             "unpaired_test": list(self.pairing.unpaired_test),
             "unpaired_fe": list(self.pairing.unpaired_fe),
             "pairing_method": self.pairing.method,
@@ -127,8 +142,56 @@ class CorrelationReport:
             "meta": dict(self.meta),
         }
 
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> CorrelationReport:
+        """Rebuild a report from :meth:`to_dict` (MS-2.6, AC-CORR-008).
+
+        This is the strict inverse of the serialization, not a lenient
+        importer: a payload missing a schema key, or written by a schema this
+        build does not know, is a corrupt artifact and is refused here rather
+        than silently turned into a report with an empty block.
+        """
+        missing = [key for key in SCHEMA_KEYS if key not in payload]
+        if missing:
+            raise ValueError(f"correlation report payload is missing keys: {missing}")
+        version = str(payload["schema_version"])
+        if version != SCHEMA_VERSION:
+            raise ValueError(
+                f"cannot read a schema {version!r} correlation report; "
+                f"this build writes and reads {SCHEMA_VERSION!r}"
+            )
+
+        pairing = ModePairing.from_dict(
+            {
+                "pairs": payload["pairs"],
+                "unpaired_test": payload["unpaired_test"],
+                "unpaired_fe": payload["unpaired_fe"],
+                "mac_matrix": payload["mac_matrix"],
+                "method": payload["pairing_method"],
+            }
+        )
+        comac = payload["comac"]
+        labels = payload["dof_labels"]
+        frf = payload["frf"]
+        return cls(
+            summary=CorrelationSummary.from_dict(payload["summary"], pairing),
+            pairing=pairing,
+            mac_matrix=pairing.mac_matrix,
+            comac=None if comac is None else np.asarray(comac, dtype=np.float64),
+            dof_labels=None if labels is None else tuple(str(label) for label in labels),
+            frf=None if frf is None else FRFCorrelation.from_dict(frf),
+            settings=dict(payload["settings"]),
+            meta=dict(payload["meta"]),
+            schema_version=version,
+        )
+
     def to_json(self, indent: int | None = 2) -> str:
         return json.dumps(self.to_dict(), indent=indent)
+
+    @classmethod
+    def from_json(cls, text: str) -> CorrelationReport:
+        """Rebuild a report from the text :meth:`to_json` produced."""
+        return cls.from_dict(json.loads(text))
 
     def report(self) -> str:
         lines = [self.summary.report()]

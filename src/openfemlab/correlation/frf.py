@@ -139,6 +139,21 @@ class FRFCorrelation:
             "meta": dict(self.meta),
         }
 
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> FRFCorrelation:
+        """Inverse of :meth:`as_dict`; the reported scalars are recomputed."""
+        channels = payload["channels"]
+        fdac = payload["fdac"]
+        return cls(
+            frequencies=np.asarray(payload["frequencies"], dtype=np.float64),
+            frac=np.asarray(payload["frac"], dtype=np.float64),
+            fdac=None if fdac is None else np.asarray(fdac, dtype=np.float64),
+            channels=None if channels is None else tuple(str(label) for label in channels),
+            response_type=str(payload["response_type"]),
+            excitation=payload["excitation"],
+            meta=dict(payload["meta"]),
+        )
+
     def report(self) -> str:
         index, value = self.worst_channel()
         lines = [

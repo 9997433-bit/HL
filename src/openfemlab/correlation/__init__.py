@@ -24,7 +24,8 @@ and measured :class:`~openfemlab.core.results.TestData`:
   updating run steers on.
 - :mod:`~openfemlab.correlation.report` — ``CorrelationReport``, the paired
   table (f_FE, f_test, Δf%, MAC) plus MAC matrix, COMAC and the optional FRF
-  block, serializable to JSON for the CLI and CI artifacts.
+  block, serializable to JSON for the CLI and CI artifacts and parsable back
+  with ``CorrelationReport.from_json``.
 
 The layer works on plain arrays, so results from any solver — internal or
 imported through :mod:`openfemlab.io` — correlate the same way::
@@ -71,6 +72,7 @@ from .reduction import (
     tam_mass,
 )
 from .report import (
+    SCHEMA_KEYS,
     SCHEMA_VERSION,
     CorrelationReport,
     correlate_modal_data,
@@ -123,6 +125,7 @@ __all__ = [
     "serep_basis",
     "tam_mass",
     # aggregated results
+    "SCHEMA_KEYS",
     "SCHEMA_VERSION",
     "CorrelationReport",
     "CorrelationSummary",

@@ -113,7 +113,7 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
     _c("AC-CORR-007", "MAC range and complex-shape support",
        "P0", "property", "MS-2.2", _CORR_SUITE, "implemented"),
     _c("AC-CORR-008", "CorrelationReport JSON round-trip",
-       "P0", "contract", "MS-2.6", _CORR_SUITE),
+       "P0", "contract", "MS-2.6", _CORR_SUITE, "implemented"),
     _c("AC-CORR-009", "TAM pseudo-orthogonality",
        "P1", "twin", "MS-2.1, MS-2.2", _CORR_SUITE, "implemented"),
     # --- M3 Model updating (MS-3) --------------------------------------------

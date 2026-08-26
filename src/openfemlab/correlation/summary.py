@@ -67,6 +67,35 @@ class CorrelationSummary:
             "max_off_diagonal_mac": self.max_off_diagonal_mac,
         }
 
+    @classmethod
+    def from_dict(
+        cls,
+        payload: dict[str, float | int],
+        pairing: ModePairing | None = None,
+    ) -> CorrelationSummary:
+        """Inverse of :meth:`as_dict`.
+
+        The per-mode arrays are deliberately absent from the payload — the
+        pairing table already carries them — so they are restored from
+        ``pairing`` when one is supplied and left empty otherwise.
+        """
+        return cls(
+            n_test_modes=int(payload["n_test_modes"]),
+            n_fe_modes=int(payload["n_fe_modes"]),
+            n_paired=int(payload["n_paired"]),
+            mean_mac=float(payload["mean_mac"]),
+            min_mac=float(payload["min_mac"]),
+            max_mac=float(payload["max_mac"]),
+            mean_abs_freq_error_pct=float(payload["mean_abs_freq_error_pct"]),
+            max_abs_freq_error_pct=float(payload["max_abs_freq_error_pct"]),
+            rms_freq_error_pct=float(payload["rms_freq_error_pct"]),
+            mean_signed_freq_error_pct=float(payload["mean_signed_freq_error_pct"]),
+            max_off_diagonal_mac=float(payload["max_off_diagonal_mac"]),
+            mac_values=np.empty(0) if pairing is None else pairing.mac_values,
+            freq_errors_pct=np.empty(0) if pairing is None else pairing.frequency_errors_pct,
+            pairing=pairing,
+        )
+
     def report(self) -> str:
         lines = [
             f"paired modes            : {self.n_paired} "
