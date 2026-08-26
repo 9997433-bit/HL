@@ -6,7 +6,7 @@
 
 Final consolidation before human review: what is verified, what the reviewer
 should know, and which items are deliberately still open. A100 synchronized the
-current-tip figures below to the detached-worktree verification at `e3ef8f8`
+current-tip figures below to the detached-worktree verification at `c92729a`
 with `PYTHONPATH=src` on Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1.
 
 ---
@@ -30,19 +30,16 @@ with `PYTHONPATH=src` on Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1.
   line (A57: AC-UPD-006a/b registration, Laplace σ_post in the
   `CorrectionReport`) that this run merged with the HEX8 line; on the merged
   tree: **1045 passed, 0 failed** in 56.37 s.
-- [x] **Latest check at the pushed tip** (`e3ef8f8`, including the 42-test
-  `BeamElement3D` and 44-test meshio bridge batches): **1133 passed, 0 failed**
-  in 74.87 s. A100 independently reconfirmed the same count in 28.29 s at the
-  code-equivalent `92e387d` tree.
+- [x] **Latest check at the pushed tip** (`c92729a`, including the 42-test
+  `BeamElement3D`, 44-test meshio bridge, and final 35 registry-closure tests):
+  **1168 passed, 0 failed** in 58.50 s.
 - [x] No skips, xfails-as-passes, or flaky reruns observed in any run.
 
 ## 2. Lint
 
 - [x] `ruff check .` — **clean at every verification point** (`d696bcb`,
-  `9052f95`, the `5641d75` HEX8 merge tip, the reconciled merge, and `e3ef8f8`).
-- [ ] *Reviewer note:* CI (`ci.yml`, Python 3.10–3.13 matrix) runs the suite
-  but has **no ruff step** yet — lint is currently enforced by hand. Tracked
-  as the R2-T09 remainder.
+  `9052f95`, the `5641d75` HEX8 merge tip, the reconciled merge, and `c92729a`).
+- [x] CI (`ci.yml`, Python 3.10–3.13 matrix) runs both pytest and Ruff.
 
 ## 3. PR #5 state
 
@@ -51,7 +48,7 @@ with `PYTHONPATH=src` on Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1.
   nothing verified here is off-branch.
 - [ ] **Title is stale** — it still says "430 tests". Refresh title and body
   from [`PR_DRAFT.md`](PR_DRAFT.md) before review; the draft is now pinned at
-  the latest 1133-test tip.
+  the latest 1168-test tip.
 - [x] Reviewer-facing docs are in place: `PR_DRAFT.md` (body + FEMtools
   comparison table), [`STATUS.md`](STATUS.md) (module table, registry census),
   [`BRANCH_CLEANUP.md`](BRANCH_CLEANUP.md) (side-branch audit; superseded
@@ -63,7 +60,7 @@ with `PYTHONPATH=src` on Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1.
   [`PROGRESS.md`](PROGRESS.md)).
 - [x] Both carry-over packages (`workflow/`, `optimization/`) landed; the
   dynamics/optimization integration merged at `acda625`, closing the round at
-  430 tests. The suite has since grown to 1133 with no Round 1 regressions.
+  430 tests. The suite has since grown to 1168 with no Round 1 regressions.
 - [x] No open Round 1 items remain.
 
 ## 5. Round 2 — IN PROGRESS
@@ -81,16 +78,13 @@ the A50/A58 landings):
 | R2-T06 updating depth | **Partial** | MS-3.4 divergence guard landed this window; remaining: QR-pivot refinement of the collinearity screen, analytic MAC-row Jacobian in the shape-residual path, model-level parameter resolver |
 | R2-T07 optimization | **Done** | Shape variables still fall back to finite differences (documented) |
 | R2-T08 branch reconciliation | **Done** | — (audited and cleaned, see `BRANCH_CLEANUP.md`) |
-| R2-T09 CI hardening | **Partial** | No ruff step in CI; no `implemented → verified` promotion mechanism defined or applied |
+| R2-T09 CI hardening | **Partial** | Pytest and Ruff run in CI; no `implemented → verified` promotion mechanism has been applied |
 
 ## 6. Acceptance-criteria registry (measured at the PR head)
 
-- [x] **44 criteria: 41 `implemented`, 3 `specified`, 0 `verified`**
-  (re-measured at `e3ef8f8`): all **34/34 P0** rows and **7/10 P1** rows are
-  `implemented`. **Every P0 criterion is implemented**, as are both former P1
-  gate-blockers AC-UPD-006a/b (A57).
-  The three remaining `specified` rows are all P1: AC-MODAL-008, AC-UPD-008,
-  AC-WORK-003 — acceptance-tagging tasks over behaviour that already exists.
+- [x] **44 criteria: 44 `implemented`, 0 `specified`, 0 `verified`**
+  (re-measured at `c92729a`): all **34/34 P0** and **10/10 P1** rows are
+  `implemented`.
 - [ ] The Round-2 exit bar requires every P0+P1 criterion `verified`; the
   promotion step (a CI run at a pinned tip) is R2-T09 scope and has not been
   defined yet. Reviewers should read `implemented` as "tagged acceptance test
@@ -111,9 +105,8 @@ the A50/A58 landings):
 
 ## Bottom line
 
-Suite green at the current `e3ef8f8` tip (**1133 passed**) and every P0
-criterion plus seven of ten P1 criteria implemented; the registry stands at
-**44 total: 41 implemented, 3 specified, 0 verified**. Round 1 is closed; the
-T02/T05 remainders and the three remaining P1 tagging tasks are known,
-tracked, and disclosed. The only pre-review action left is refreshing the
-PR #5 title/body from `PR_DRAFT.md`.
+Suite green at the current `c92729a` tip (**1168 passed**) with all P0 and P1
+criteria implemented; the registry stands at **44 total: 44 implemented,
+0 specified, 0 verified**. Round 1 is closed; the T02/T05 remainders and
+registry promotion are known, tracked, and disclosed. The only pre-review
+action left is refreshing the PR #5 title/body from `PR_DRAFT.md`.

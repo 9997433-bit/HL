@@ -3115,10 +3115,14 @@ fails on any bare token, and a non-finite value planted in `meta` is shown to ra
   the point that the reservation is what detects it: with nothing reserved the same fit
   meets every other S6 gate and reads as a success.
 
-**Verification.** `pytest` at the branch tip: **1168 passed, 0 failed** (a collection
-pass confirms the same 1168); `ruff check src tests` clean. The registry is
-`Counter({'implemented': 44})` — **no criterion is left at `specified`**, which is the
-40/40 the task asked for at the count the registry has actually reached.
+**Verification.** Landed on the integration branch through merge `8bc2ec4` and
+re-verified from a clean checkout of the pushed tip `4668ff6`: **1168 passed, 0
+failed**, a collection-only pass confirming the same 1168, `ruff check .` clean. The
+registry there is `Counter({'implemented': 44})` — P0 34/34, P1 10/10, **no criterion
+left at `specified`**, which is the 40/40 the task asked for at the count the registry
+has actually reached. Both of this run's remote branches are audited in
+`BRANCH_CLEANUP.md`: `cursor/ac-backfill-a56-r2-02bf` is fully merged, and the first
+attempt `cursor/ac-backfill-a56-02bf` is superseded and must not be merged.
 
 **Process.** This run's first attempt was based on `7faaf23` and finished against a
 trunk 60 commits further on, so nine of its twelve criteria had been implemented

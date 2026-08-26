@@ -81,3 +81,37 @@ The full committed trunk suite passed for the initial five-branch snapshot:
 
 After deletion, `git ls-remote --heads origin` returned no ref for any branch in
 this table.
+
+## A56 registry closure — two more branches to retire
+
+The A56 run produced two remote branches, only one of which should be merged. Both
+were audited at trunk `4668ff6`, the merge that closed the acceptance registry at
+44/44 (**1168 passed, 0 failed**, `ruff check .` clean, collection confirming the
+same 1168).
+
+| Branch | Remote tip | Relationship to trunk | Recommendation |
+|---|---|---|---|
+| `cursor/ac-backfill-a56-r2-02bf` | `89c93a5` | Ancestor of trunk with zero branch-only commits. Its MS-1.2 frequency-window feature, the AC-MODAL-008/UPD-008/WORK-003 suites and the non-finite JSON fix entered the integration history through merge `8bc2ec4`. | **Safe to delete as fully merged.** |
+| `cursor/ac-backfill-a56-02bf` | `03757fe` | Not an ancestor; four branch-only commits. This is the same run's first attempt, based on `7faaf23` and finished against a trunk 60 commits further on. Its `modal.py`, `test_modal.py` and `test_workflow.py` are byte-identical to trunk; its only other content is a second, independent AC-CORR-008 implementation superseded by `1e99970` plus the fix now on trunk. | **Do not merge; safe to delete as superseded.** |
+
+```text
+git merge-base --is-ancestor origin/cursor/ac-backfill-a56-r2-02bf \
+                             origin/cursor/femtools-industrial-7aa3
+yes
+git rev-list --left-right --count origin/cursor/femtools-industrial-7aa3...origin/cursor/ac-backfill-a56-r2-02bf
+36  0
+
+git merge-base --is-ancestor origin/cursor/ac-backfill-a56-02bf \
+                             origin/cursor/femtools-industrial-7aa3
+no
+git rev-list --left-right --count origin/cursor/femtools-industrial-7aa3...origin/cursor/ac-backfill-a56-02bf
+110  4
+```
+
+Neither branch was deleted by this run; both are recorded here for review.
+
+> [!NOTE]
+> The warning above about `cursor/hex8-solid-element-d0b7` being "contaminated with
+> unrelated AC-MODAL-008 commits" no longer describes work at risk of being lost.
+> AC-MODAL-008 was rebuilt against the reviewed trunk and landed in `8bc2ec4`, so
+> that branch holds nothing unique and the warning stands unchanged: do not merge it.
