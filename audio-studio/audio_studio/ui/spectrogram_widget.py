@@ -19,6 +19,12 @@ the dB matrix is reduced to the widget's pixel grid with a max-pooling
 ``reduceat`` before colourisation, so a 10-minute file paints as fast as a
 1-second one and narrow spectral lines survive the downsample instead of
 aliasing away.
+
+That reduction is also cached. It depends only on the data and the geometry —
+pixel size, frequency scale, frequency range — so changing the palette or the
+dB range repaints from the cached pixel grid and never touches the source
+matrix again. Dragging a contrast control is then a colour lookup over a few
+hundred thousand pixels instead of a max-pool over millions of bins.
 """
 
 from __future__ import annotations
@@ -142,6 +148,12 @@ class SpectrogramWidget(QWidget):
         self._image_dirty = True
         self._cursor: QPoint | None = None
 
+        self._data_version = 0
+        self._columns_key: tuple | None = None
+        self._columns: np.ndarray | None = None  # (width, n_bins) dB
+        self._reduce_key: tuple | None = None
+        self._reduced: np.ndarray | None = None  # (height, width) dB, display order
+
         self.setMouseTracking(True)
         self.setMinimumSize(240, 120)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
@@ -178,7 +190,7 @@ class SpectrogramWidget(QWidget):
         self._frequencies = np.asarray(frequencies, dtype=np.float64)
         self._times = np.asarray(times, dtype=np.float64)
         self._clamp_frequency_range()
-        self._invalidate()
+        self._invalidate(data_changed=True)
 
     def start_waterfall(
         self,
@@ -195,7 +207,7 @@ class SpectrogramWidget(QWidget):
         self._mode = DisplayMode.WATERFALL
         self._data = None
         self._clamp_frequency_range()
-        self._invalidate()
+        self._invalidate(data_changed=True)
 
     def push_frame(self, frame_db: np.ndarray, repaint: bool = True) -> None:
         """Append one live spectrum to the waterfall.
@@ -206,6 +218,7 @@ class SpectrogramWidget(QWidget):
         if self._waterfall is None:
             raise RuntimeError("call start_waterfall() before push_frame()")
         self._waterfall.push(np.asarray(frame_db, dtype=np.float32))
+        self._data_version += 1
         self._image_dirty = True
         if repaint:
             self.update()
@@ -215,7 +228,7 @@ class SpectrogramWidget(QWidget):
         self._data = None
         if self._waterfall is not None:
             self._waterfall.clear()
-        self._invalidate()
+        self._invalidate(data_changed=True)
 
     # -- appearance --------------------------------------------------------
 
@@ -291,32 +304,61 @@ class SpectrogramWidget(QWidget):
         Separated from :meth:`paintEvent` so the renderer can be exercised
         headlessly (and used for thumbnails and export) without a window.
         """
-        data = self._current_matrix()
-        if data is None or data.size == 0 or width < 1 or height < 1:
+        grid = self.reduced_matrix(width, height)
+        if grid is None:
             return None
 
+        lut = get_colormap(self._colormap)
+        span = self._db_max - self._db_min
+        scale = (lut.shape[0] - 1) / (span if span > 0 else 1.0)
+        indices = np.clip((grid - self._db_min) * scale, 0, lut.shape[0] - 1).astype(np.uint8)
+
+        rgb = lut[indices]  # (height, width, 3), contiguous because indices is
+        self._image_buffer = rgb
+        return QImage(rgb.data, width, height, 3 * width, QImage.Format.Format_RGB888)
+
+    def reduced_matrix(self, width: int, height: int) -> np.ndarray | None:
+        """dB max-pooled onto the pixel grid, ``(height, width)`` top row first.
+
+        Two caches back this, because the two axes go stale for different
+        reasons. The column reduction depends only on the data and the pixel
+        width, so a vertical resize or a frequency-axis zoom reuses it; the row
+        reduction on top of it depends on the height and the frequency mapping.
+        Neither depends on the palette or the dB range, which is what makes
+        those controls repaint at interactive rates on a long file.
+        """
+        columns = self._reduced_columns(width)
+        if columns is None or height < 1:
+            return None
+
+        key = (self._data_version, width, height, self._frequency_scale, self._f_min, self._f_max)
+        if self._reduced is not None and self._reduce_key == key:
+            return self._reduced
+
+        block = _pixel_reduce(columns, self._row_bounds(height, columns.shape[1]), axis=1)
+        # block is (width, height) with frequency ascending; the display wants
+        # (height, width) with frequency ascending *upwards*, hence the flip.
+        self._reduced = np.ascontiguousarray(block.transpose(1, 0)[::-1])
+        self._reduce_key = key
+        return self._reduced
+
+    def _reduced_columns(self, width: int) -> np.ndarray | None:
+        """``(width, n_bins)`` — the source matrix max-pooled along time only."""
+        data = self._current_matrix()
+        if data is None or data.size == 0 or width < 1:
+            return None
         n_frames, n_bins = data.shape
         if n_frames == 0 or n_bins == 0:
             return None
 
-        column_bounds = np.clip(
-            (np.arange(width) * n_frames) // max(width, 1), 0, n_frames - 1
-        )
-        row_bounds = self._row_bounds(height, n_bins)
+        key = (self._data_version, width)
+        if self._columns is not None and self._columns_key == key:
+            return self._columns
 
-        block = _pixel_reduce(data, column_bounds, axis=0)
-        block = _pixel_reduce(block, row_bounds, axis=1)
-
-        lut = get_colormap(self._colormap)
-        span = self._db_max - self._db_min
-        normalized = (block - self._db_min) / (span if span > 0 else 1.0)
-        indices = np.clip(normalized * (lut.shape[0] - 1), 0, lut.shape[0] - 1).astype(np.int32)
-
-        # block is (width, height) with frequency ascending; the image wants
-        # (height, width) with frequency ascending *upwards*, hence the flip.
-        rgb = np.ascontiguousarray(lut[indices].transpose(1, 0, 2)[::-1])
-        self._image_buffer = rgb
-        return QImage(rgb.data, width, height, 3 * width, QImage.Format.Format_RGB888)
+        bounds = np.clip((np.arange(width) * n_frames) // max(width, 1), 0, n_frames - 1)
+        self._columns = _pixel_reduce(data, bounds, axis=0)
+        self._columns_key = key
+        return self._columns
 
     def _row_bounds(self, height: int, n_bins: int) -> np.ndarray:
         """Start bin index for each output row, bottom row first."""
@@ -353,7 +395,16 @@ class SpectrogramWidget(QWidget):
             max(1, self.height() - _MARGIN_TOP - _MARGIN_BOTTOM),
         )
 
-    def _invalidate(self) -> None:
+    def _invalidate(self, data_changed: bool = False) -> None:
+        """Schedule a repaint; ``data_changed`` also drops the pixel-grid cache.
+
+        Geometry changes need no flag — the cache is keyed on the geometry, so
+        a new size or frequency range simply misses.
+        """
+        if data_changed:
+            self._data_version += 1
+            self._columns = self._reduced = None
+            self._columns_key = self._reduce_key = None
         self._image_dirty = True
         self.update()
 
