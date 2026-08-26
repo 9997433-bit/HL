@@ -2635,6 +2635,7 @@ drilling DOFs, the `CQUAD4`/`CTETRA`/`CHEXA`/`CBAR`/`PSHELL`/`PSOLID` cards in
 `io/nastran.py`, and the `NeutralModel → Model` conversion that turns an imported block
 into bound elements. AC-ELEM-001..003 need a CI run, not another test, to reach
 `verified`.
+
 #### A79 — merging the HEX8 brick slice into the integration branch (backfill for A59)
 
 A59 left two branches with the same `d0b7` suffix and only one of them mergeable. This
@@ -2685,3 +2686,62 @@ staged in a private clone under a name no other agent would pick, committed as s
 was coherent, and pushed through a fetch-merge-push retry loop rather than a single push.
 Two of those three upstream moves touched files this merge also touched and still merged
 cleanly; the loop is cheap insurance, not ceremony.
+
+#### A78 — milestone: every P0 acceptance criterion is `implemented` (backfill for A50)
+
+**The milestone.** With AC-CORR-008 closed, the registry at tip `c5afc35` reads
+**44 criteria: 39 `implemented`, 5 `specified`, 0 `verified`** — and by priority
+**P0 34 implemented / 0 specified**, P1 4 / 5. Every blocking criterion in
+`docs/ACCEPTANCE_CRITERIA.md` now has an executable, tagged test behind it. The five
+rows still `specified` are all P1 and all of the same cheap kind (the engine exists
+and is unit-tested; the acceptance tagging is not written): AC-MODAL-008,
+AC-UPD-006a/006b, AC-UPD-008, AC-WORK-003. This supersedes the A50 entry above, which
+recorded AC-CORR-008 as the last P0 row outstanding, and the P0 count in A61's
+mid-point brief; A79 reports the same census from the merge side.
+
+**AC-CORR-008 itself was closed by `1e99970`, not by this task.** That commit gave the
+artifact a parse side — `from_dict`/`from_json` across `ModePair`, `ModePairing`,
+`CorrelationSummary`, `FRFCorrelation` and `CorrelationReport`, plus `SCHEMA_KEYS`, the
+pinned key set `to_dict` emits — and registered the criterion with eleven tagged cases.
+That is the right shape for the criterion: MS-2.6 calls the report the exchange
+currency between M2, M3 and M4, and until then it could only be written. The parser is
+the strict inverse of the serializer: a payload missing a schema key, or carrying a
+`schema_version` this build does not know, is refused as corrupt rather than turned
+into a report with a silently empty block.
+
+**What this task added (`515aa2e`), two cases.** The batch exercises the parser only on
+reports built from mode shapes. A report paired on frequencies alone is the emptiest
+payload the schema can emit — `mac_matrix`, `comac` and `dof_labels` all `null` — and
+the only one that can contain a NaN, since `ModePair.mac` is unknown without shapes.
+The first case pins that the parse rebuilds the absent blocks as absent and keeps the
+NaN a NaN, rather than reading either as a zero, which would report a correlation of
+nothing with nothing; the restored summary, pairing and `report()` text are identical.
+The second records the cost: `json` writes that NaN as a bare token, so the file is
+**not RFC 8259** and a conforming reader (`JSON.parse`, `serde_json`) rejects it, as
+does `json` itself under `allow_nan=False`. Shape-based reports — what
+`openfemlab correlate` and `correlate-frf` publish — are conforming, so the exposure is
+bounded to the shape-free case rather than excused. Whether to spell an unknown MAC as
+`null` instead is a schema change (1.1 → 1.2 under the MS-6 rule) and was deliberately
+not started here.
+
+**Verification.** From a private detached worktree at `/tmp/a78` with `PYTHONPATH`
+pinned to its `src`, Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1: full suite
+**1035 passed, 0 failed** (86 s) at `c5afc35` plus these two cases, `ruff check .`
+clean. STATUS.md was already refreshed for the milestone by A69 (at `1e99970`,
+933 tests, before the HEX8 merge); its test count and criteria total now trail this
+tip and need one more pass.
+
+**Dispatch note, a new hazard alongside the shared-checkout one.** This task was
+dispatched to implement AC-CORR-008 and was three minutes behind a sibling agent that
+had already landed it — a complete duplicate suite was written, verified green and
+committed in a private worktree before the rebase onto the trunk surfaced the
+collision, and was then dropped in favour of the version already on the branch. The
+shared-checkout rule (work in a private worktree) is what made the collision
+recoverable, but it does not prevent it: `git fetch` and a look at the registry status
+of the target criterion belong at the *start* of a backfill task, not at its first
+push.
+
+**Open for the orchestrator.** The exit bar wants every P0+P1 criterion `verified`, and
+nothing can leave `implemented` until R2-T09 defines and runs the promotion (a CI run
+at a pinned tip). That is now the only structural blocker on the P0 set; the five P1
+tagging tasks are independent of it and can go in parallel.
