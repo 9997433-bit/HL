@@ -82,6 +82,8 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A119 | claude-opus-5-thinking-high-fast | R2-T02/R2-T05: Nastran BDF CQUAD4/CTETRA/CHEXA/CBAR + PSHELL/PSOLID (+30 tests) | complete — 1365 passed at `9704232`, Ruff clean |
 | A121 | gpt-5.6-sol-xhigh-fast | R2-T09 batch promotion: run every remaining implemented criterion through `promote_verified.py --run --apply` | complete — all 30 promoted; registry 44 `verified` / 0 `implemented` |
 | A123 | claude-opus-5-thinking-high-fast | R2-T05: UFF datasets 55/58 writer `write_uff`/`format_uff` (+20 tests) | complete — 1385 passed, Ruff clean |
+| A125 | claude-opus-5-thinking-high-fast | R2-T05: UNV 2411/2412 geometry reader `read_unv` (+50 tests) | complete — merged on integration branch |
+| A122 | claude-opus-5-thinking-high-fast | MS-3.5 on CLI: `prior:`/`noise:` and σ_post in `openfemlab update` (+34 tests) | complete — merged on integration branch |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
@@ -3520,3 +3522,13 @@ those tests are the new `tests/test_nastran.py`, which leaves the existing
 `write_uff`/`format_uff` in `io/uff.py` (+20 round-trip tests in
 `tests/test_uff_write.py`); `tests/_uff58.py` now builds dataset-58 fixtures via the
 library writer. **1385 passed, 0 failed**, Ruff clean on the merged integration branch.
+
+#### A125 — UNV 2411/2412 geometry reader
+
+`read_unv` in `io/unv.py` with `_uff_records` shared scan (+50 tests in
+`tests/test_unv_io.py`).
+
+#### A122 — CLI σ_post and prior/noise sections
+
+`openfemlab update` MAP path with `bayesian` JSON block (+34 tests in
+`tests/test_cli_update.py`); `posterior_sigma` moved to `updating.bayesian`.
