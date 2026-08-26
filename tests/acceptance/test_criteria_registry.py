@@ -12,7 +12,9 @@ Registry contract (ACCEPTANCE_CRITERIA.md sections 1 and 7):
   suffix marks closely coupled sub-criteria sharing a number.
 - ``priority`` in {P0, P1, P2} (P0 blocks Round-1, P1 blocks Round-2).
 - ``method`` in {oracle, property, twin, contract, regression}.
-- ``status`` lifecycle: specified -> implemented -> verified.
+- ``status`` lifecycle: specified -> implemented -> verified. A criterion may
+  only leave ``specified`` once the suite named by ``test_file`` carries a test
+  tagged ``@criterion("<ID>")`` (see ``tests/acceptance/_support.py``).
 - ``spec_ref`` anchors must exist in ``docs/MODULE_SPEC.md``.
 """
 
@@ -33,6 +35,12 @@ VALID_MODULES = ("M1", "M2", "M3", "M4", "M5")
 VALID_PRIORITIES = ("P0", "P1", "P2")
 VALID_METHODS = ("oracle", "property", "twin", "contract", "regression")
 VALID_STATUSES = ("specified", "implemented", "verified")
+
+#: Statuses that assert an executable test exists for the criterion.
+COVERED_STATUSES = ("implemented", "verified")
+
+#: How an implementation suite tags a test with the criterion it verifies.
+TAG_REGEX = re.compile(r"criterion\(\s*\"(AC-[A-Z]+-\d{3}[a-z]?)\"\s*\)")
 
 FAMILY_TO_MODULE = {
     "MODAL": "M1", "CORR": "M2", "UPD": "M3", "WORK": "M4", "OPT": "M5",
@@ -67,11 +75,11 @@ _OPT_SUITE = "tests/acceptance/test_optimization.py"
 REGISTRY: tuple[AcceptanceCriterion, ...] = (
     # --- M1 Modal analysis (MS-1) -------------------------------------------
     _c("AC-MODAL-001", "Analytic eigenvalue accuracy",
-       "P0", "oracle", "MS-1.1", _MODAL_SUITE),
+       "P0", "oracle", "MS-1.1", _MODAL_SUITE, "implemented"),
     _c("AC-MODAL-002", "Backend consistency (dense/lanczos/lobpcg)",
-       "P0", "property", "MS-1.2", _MODAL_SUITE),
+       "P0", "property", "MS-1.2", _MODAL_SUITE, "implemented"),
     _c("AC-MODAL-003", "Mass-orthonormality of returned modes",
-       "P0", "contract", "MS-1.3", _MODAL_SUITE),
+       "P0", "contract", "MS-1.3", _MODAL_SUITE, "implemented"),
     _c("AC-MODAL-004", "Rigid-body mode detection",
        "P0", "oracle", "MS-1.2", _MODAL_SUITE),
     _c("AC-MODAL-005", "Sign convention & determinism",
@@ -86,9 +94,9 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P0", "contract", "MS-1.1", _MODAL_SUITE),
     # --- M2 Correlation (MS-2) ----------------------------------------------
     _c("AC-CORR-001", "Weighted MAC self-identity",
-       "P0", "property", "MS-2.2", _CORR_SUITE),
+       "P0", "property", "MS-2.2", _CORR_SUITE, "implemented"),
     _c("AC-CORR-002", "MAC scaling/sign invariance",
-       "P0", "property", "MS-2.2", _CORR_SUITE),
+       "P0", "property", "MS-2.2", _CORR_SUITE, "implemented"),
     _c("AC-CORR-003", "Pairing recovers ground truth",
        "P0", "twin", "MS-2.3", _CORR_SUITE),
     _c("AC-CORR-004", "COMAC localizes bad DOF",
@@ -103,7 +111,7 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P0", "contract", "MS-2.6", _CORR_SUITE),
     # --- M3 Model updating (MS-3) --------------------------------------------
     _c("AC-UPD-001", "Eigenvalue sensitivity vs central FD",
-       "P0", "oracle", "MS-3.3", _UPD_SUITE),
+       "P0", "oracle", "MS-3.3", _UPD_SUITE, "implemented"),
     _c("AC-UPD-002", "Fox-Kapoor shape sensitivity vs central FD",
        "P0", "oracle", "MS-3.3", _UPD_SUITE),
     _c("AC-UPD-003", "Twin-experiment parameter recovery",
@@ -234,6 +242,49 @@ def test_module_spec_references_resolve():
     assert SPEC_DOC.is_file(), f"missing document: {SPEC_DOC}"
     dangling = sorted(_doc_ids(SPEC_DOC) - set(ids()))
     assert not dangling, f"MODULE_SPEC.md cites unknown criteria: {dangling}"
+
+
+def _suite_paths() -> list[Path]:
+    """Implementation suites in this package (the registry file excluded)."""
+    here = Path(__file__).resolve()
+    return sorted(p for p in here.parent.glob("test_*.py") if p != here)
+
+
+def _tagged_ids(path: Path) -> set[str]:
+    return set(TAG_REGEX.findall(path.read_text(encoding="utf-8")))
+
+
+def test_covered_criteria_have_a_tagged_test():
+    """``implemented``/``verified`` requires a tagged test in the named suite."""
+    missing = []
+    for c in REGISTRY:
+        if c.status not in COVERED_STATUSES:
+            continue
+        suite = REPO_ROOT / c.test_file
+        if not suite.is_file() or c.test_id not in _tagged_ids(suite):
+            missing.append((c.test_id, c.test_file))
+    assert not missing, f"criteria claiming coverage without a tagged test: {missing}"
+
+
+def test_tagged_tests_match_the_registry():
+    """Every tag resolves to a criterion that names that suite and is covered."""
+    problems = []
+    for suite in _suite_paths():
+        relative = suite.relative_to(REPO_ROOT).as_posix()
+        for test_id in sorted(_tagged_ids(suite)):
+            entry = _BY_ID.get(test_id)
+            if entry is None:
+                problems.append(f"{relative} tags unknown criterion {test_id}")
+            elif entry.test_file != relative:
+                problems.append(
+                    f"{relative} tags {test_id}, which the registry assigns to "
+                    f"{entry.test_file}"
+                )
+            elif entry.status not in COVERED_STATUSES:
+                problems.append(
+                    f"{test_id} has a test in {relative} but is still {entry.status!r}"
+                )
+    assert not problems, problems
 
 
 def test_module_spec_anchors_exist():

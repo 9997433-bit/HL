@@ -285,6 +285,15 @@ verification method, planned test reference, status) and enforces:
    in this document or in `docs/MODULE_SPEC.md` exists in the registry.
 4. Valid priority/status/method vocabularies and spec-anchor format.
 5. Minimum coverage: every module has at least one P0 criterion.
+6. Status honesty: a criterion may only carry `implemented`/`verified` when the
+   suite named by its `test_file` contains a test tagged
+   `@criterion("<ID>")`, and every tag in a suite resolves to a criterion that
+   names that suite.
 
 Adding, renaming, or retiring a criterion is done by editing the registry and
 this document in the same change; the registry test fails otherwise.
+
+Implementation suites tag their tests through
+`tests/acceptance/_support.py::criterion`, which also rejects unknown IDs at
+collection time, and are marked `acceptance` so a run can select them with
+`pytest -m acceptance`.
