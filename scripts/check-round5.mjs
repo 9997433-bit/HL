@@ -7,7 +7,11 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
+import { register } from 'node:module'
 import { fileURLToPath } from 'node:url'
+
+// App 源码里的 `@/` 走 Vite 别名，Node 直接 import 时得自己还原
+register('./alias-loader.mjs', import.meta.url)
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const fails = []
