@@ -6,10 +6,10 @@
 
 > 架构决策与竞品审计详见仓库根目录 `.agent_workspace/literacy-architecture.md`。
 
-**版本状态（Round 3 · SOTA 终验进行中）**：Round 2 实测基线为 106 字 / 12 单元、
-FSRS 复习队列接线、记忆热力图、离线 Service Worker、smoke 17 路由 + 12 交互全绿。
-Round 3 攻坚项：字库扩至 200 字、axe serious 清零、描红键盘替代与 aria-live 播报、
-设计令牌迁移、Lighthouse ≥ 90 终验。字表以 `src/data/characters.js` 为唯一事实来源，
+**版本状态（Round 4 进行中）**：Round 3 交付 200 字 / 16 单元、axe serious 清零、
+描红键盘替代与 aria-live 播报、设计令牌迁移。Round 4 把字库扩到 500 字 / 33 单元，
+课文按单元切包懒加载，并在家长中心加了学习计划（每日新字上限 + 单元选择）。
+字表以 `src/data/char-index.js` + `src/data/chars/` 为唯一事实来源，
 终验实测见 `.agent_workspace/GLOBAL-SUMMARY-REPORT.md`。
 
 ## 快速开始
@@ -34,9 +34,25 @@ Service Worker 不支持 `file://`，不能通过直接双击 `dist/index.html` 
 
 ## 字表与复习曲线
 
-字表按单元组织在 `src/data/characters.js`(Round 2 基线 106 字 / 12 单元,
-Round 3 扩容至 200 字,规模由 `check:data` 与 `gen:hanzi` 双重守护),
+字表 500 字 / 33 单元,分两层存放,规模由 `check:data` 与 `gen:hanzi` 双重守护:
+
+- `src/data/char-index.js` —— 每个字的拼音 / 声调 / 单元 / 部首 / 笔画 / 图标。
+  首页地图、字表卡片、复习队列、家长报表都只用这一层,它随主包加载。
+- `src/data/chars/uN.js` —— 每个单元的释义 / 组词 / 例句。
+  由 `src/data/characters.js` 里的 `loadUnitDetails()` / `loadCharacter()` 用
+  `import()` 按需拉取,Vite 的 `manualChunks` 把它们切成 `chars-uN` 独立块,
+  翻到哪个单元才下载哪一包。`npm run check:bundle` 会在 dist 上核对
+  「首屏没有同步加载课文包」,防止有人一行 import 把 500 个字的课文塞回主包。
+
 字表页一次只挂一个单元,底部按单元翻页,避免上百张卡片同时进 DOM。
+
+## 学习计划
+
+家长中心的「学习计划」写进 `settings.dailyNewLimit`(每天最多学几个新字,0 = 不限)
+与 `settings.planUnits`(这一阶段只学哪几个单元,空 = 按课程顺序学全部)。
+计划只影响「今天推荐学什么」:首页的「继续学」按钮、字表的随机字都先在计划单元里挑,
+首页和字表会显示今天还剩几个新字。它不锁已学过的字,也不拦到期复习——
+复习排期由 FSRS 记忆卡说了算。
 
 复习不看「答对几次」,而是由 `src/utils/srs.js` 的 FSRS-lite 记忆卡决定:
 描红和答题都会更新记忆卡的稳定性与难度,首页的「该复习 N 字」、

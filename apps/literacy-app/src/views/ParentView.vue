@@ -1012,9 +1012,15 @@ function resetSettings() {
   transition: background var(--dur-fast) ease, color var(--dur-fast) ease;
 }
 
+/*
+ * 选中态用「品牌色淡底 + 正文色」而不是「品牌色实底 + 白字」：
+ * 品牌色是暖橙，压白字在三套主题下都到不了 4.5:1。淡底加一圈实心描边，
+ * 既保住了「这一项被选中」的辨识度，对比度也不用再迁就主题。
+ */
 .segmented__item.is-on {
-  background: var(--brand);
-  color: var(--text-invert);
+  background: color-mix(in srgb, var(--brand) 26%, var(--surface));
+  color: var(--text-strong);
+  box-shadow: inset 0 0 0 2px var(--brand);
 }
 
 /* 学习计划 */
@@ -1040,9 +1046,9 @@ function resetSettings() {
 }
 
 .chip.is-on {
-  background: var(--brand);
-  border-color: transparent;
-  color: var(--text-invert);
+  background: color-mix(in srgb, var(--brand) 26%, var(--surface));
+  border-color: var(--brand);
+  color: var(--text-strong);
 }
 
 .plan {
@@ -1132,7 +1138,8 @@ function resetSettings() {
 }
 
 .btn--danger {
-  background: var(--danger);
+  /* 夜间主题的 --danger 偏亮，白字压在上面只有 2.7:1，压深一档才够 3:1。 */
+  background: color-mix(in srgb, var(--danger) 78%, #000);
   color: #fff;
 }
 

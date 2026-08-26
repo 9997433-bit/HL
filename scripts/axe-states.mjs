@@ -81,6 +81,32 @@ const CASES = [
     },
   ],
   [
+    // 家长中心的一多半控件（学习计划、朗读、数据管理）都在算术门之后，
+    // 不解锁就等于没扫到，这里专门走一遍解锁后的状态。
+    '家长中心（已解锁）',
+    '/#/parent',
+    async (page) => {
+      const solved = await page.evaluate(() => {
+        const label = document.body.innerText.match(/(\d+)\s*\+\s*(\d+)/)
+        const input = document.querySelector('input[type="number"]')
+        if (!label || !input) return false
+        const setter = Object.getOwnPropertyDescriptor(
+          window.HTMLInputElement.prototype,
+          'value',
+        ).set
+        setter.call(input, String(Number(label[1]) + Number(label[2])))
+        input.dispatchEvent(new Event('input', { bubbles: true }))
+        return true
+      })
+      if (!solved) throw new Error('家长中心没有出现算术验证')
+      await clickText(page, '进入')
+      await wait(400)
+      if (!(await page.evaluate(() => document.body.innerText.includes('学习计划')))) {
+        throw new Error('解锁后没有看到学习计划设置')
+      }
+    },
+  ],
+  [
     '庆祝浮层',
     '/#/books/b3',
     async (page) => {
