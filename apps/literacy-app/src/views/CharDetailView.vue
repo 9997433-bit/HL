@@ -24,7 +24,7 @@ const item = computed(() => getCharacter(decoded.value))
 const radical = computed(() => (item.value ? getRadical(item.value.radical) : null))
 
 /**
- * 只有 RADICALS 里的 14 个重点部首有讲解页。
+ * 只有 RADICALS 里的重点部首有讲解页。
  * 其余是 radicals.js 的兜底条目（横、大字头…），链过去只会落到第一个部首上，
  * 所以这类部首只展示不跳转。
  */
@@ -43,6 +43,8 @@ const mastered = computed(() => progress.isMastered(decoded.value))
 
 function say(text, rate) {
   sfx.tap()
+  // 听读音也是一种学习行为，记下来才能算「认识了」
+  if (item.value && text === item.value.char) progress.markHeard(text)
   speak(text, { rate: rate ?? settings.speechRate })
 }
 
@@ -62,6 +64,8 @@ function markKnown() {
 }
 
 function onQuizComplete({ mistakes }) {
+  // 写完一遍才算「会写」，掌握度要靠它才能从「认识了」升到「会写了」。
+  progress.markTraced(decoded.value)
   const { justMastered } = progress.recordAnswer(decoded.value, mistakes === 0)
   if (mistakes === 0) burstRef.value?.burst()
   if (justMastered) {

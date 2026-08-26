@@ -57,11 +57,43 @@ const weakChars = computed(() =>
     .slice(0, 12)
 )
 
-const accuracy = computed(() => {
-  const c = Object.values(progress.chars).reduce((n, v) => n + (v.correct || 0), 0)
-  const w = Object.values(progress.chars).reduce((n, v) => n + (v.wrong || 0), 0)
-  return c + w ? Math.round((c / (c + w)) * 100) : 0
-})
+/* ---------------- 记忆强度热力图 ---------------- */
+
+/**
+ * 一格一个学过的字，颜色深浅 = FSRS 估算的此刻记忆保持率。
+ * 记忆最弱的排在最前面，家长一眼就能看出今天该陪孩子复习哪几个字。
+ */
+const HEAT_BANDS = [
+  { min: 0.85, label: '记得很牢', color: 'var(--seed-leaf)' },
+  { min: 0.6, label: '还算清楚', color: 'var(--seed-mint)' },
+  { min: 0.35, label: '有点模糊', color: 'var(--seed-mango)' },
+  { min: 0, label: '快忘了', color: 'var(--seed-coral)' }
+]
+
+const bandOf = (r) => HEAT_BANDS.find((b) => r >= b.min) ?? HEAT_BANDS[HEAT_BANDS.length - 1]
+
+const heatCells = computed(() =>
+  progress.memoryCards.map((c) => {
+    const band = bandOf(c.retention)
+    return {
+      ...c,
+      color: band.color,
+      // 保持率低的格子太淡会看不见，给一个 0.25 的地板。
+      opacity: 0.25 + c.retention * 0.75,
+      title:
+        `${c.char}｜记忆强度 ${Math.round(c.retention * 100)}%` +
+        `｜稳定期 ${c.stability.toFixed(1)} 天｜练过 ${c.reps} 次` +
+        `｜${c.isDue ? '现在该复习' : `下次复习 ${new Date(c.due).toLocaleDateString('zh-CN')}`}`
+    }
+  })
+)
+
+const bandCounts = computed(() =>
+  HEAT_BANDS.map((b) => ({
+    ...b,
+    count: progress.memoryCards.filter((c) => bandOf(c.retention).label === b.label).length
+  }))
+)
 
 /* ---------------- 数据管理 ---------------- */
 const importError = ref('')
@@ -151,7 +183,7 @@ function resetSettings() {
         <div class="overview__grid">
           <div><strong>{{ progress.learnedCount }}</strong><small>学过的字</small></div>
           <div><strong>{{ progress.masteredCount }}</strong><small>已掌握</small></div>
-          <div><strong>{{ accuracy }}%</strong><small>作答正确率</small></div>
+          <div><strong>{{ progress.accuracy }}%</strong><small>作答正确率</small></div>
           <div><strong>{{ totalMinutes }}</strong><small>累计分钟</small></div>
           <div><strong>{{ progress.streakDays || 1 }}</strong><small>连续天数</small></div>
           <div><strong>{{ progress.stars }}</strong><small>获得星星</small></div>
@@ -201,6 +233,49 @@ function resetSettings() {
           <span class="pill">🎭 成语 {{ progress.idiomsSeen }}/{{ IDIOMS.length }}</span>
           <span class="pill">🎧 游戏 {{ progress.game.plays }} 题 · 正确率 {{ progress.gameAccuracy }}%</span>
         </div>
+      </section>
+
+      <!-- 记忆强度热力图 -->
+      <section class="card stack">
+        <h3 class="section-title">
+          <span class="section-title__emoji" aria-hidden="true">🔥</span>
+          记忆强度热力图
+        </h3>
+        <p class="muted heat__intro">
+          用开源的 FSRS 记忆曲线算法估算每个字此刻还记得多少。
+          颜色越浅说明快忘了，点一下就能带孩子去复习。
+        </p>
+
+        <p v-if="!heatCells.length" class="muted">
+          还没有学过的字。学过之后这里会显示每个字的记忆强度。
+        </p>
+
+        <template v-else>
+          <div class="heat">
+            <RouterLink
+              v-for="c in heatCells"
+              :key="c.char"
+              class="heat__cell"
+              :class="{ 'is-due': c.isDue }"
+              :style="{ background: c.color, opacity: c.opacity }"
+              :to="`/learn/${encodeURIComponent(c.char)}`"
+              :title="c.title"
+              :aria-label="c.title"
+            >
+              {{ c.char }}
+            </RouterLink>
+          </div>
+          <div class="row heat__legend">
+            <span v-for="b in bandCounts" :key="b.label" class="pill">
+              <span class="heat__dot" :style="{ background: b.color }" aria-hidden="true" />
+              {{ b.label }} {{ b.count }} 字
+            </span>
+            <span class="pill pill--accent">
+              🔁 现在该复习 {{ progress.dueCount }} 字 · 平均记忆强度
+              {{ Math.round(progress.averageRetention * 100) }}%
+            </span>
+          </div>
+        </template>
       </section>
 
       <!-- 需要加强 -->
@@ -612,6 +687,53 @@ function resetSettings() {
   color: var(--text-soft);
   min-width: 44px;
   text-align: right;
+}
+
+/* 热力图 */
+.heat__intro {
+  font-size: 0.82rem;
+}
+
+.heat {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+  gap: 6px;
+}
+
+.heat__cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  border-radius: var(--radius-sm, 10px);
+  border: 2px solid transparent;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-strong);
+  font-family: 'Kaiti SC', 'STKaiti', 'KaiTi', serif;
+  transition: transform var(--dur-fast) var(--ease-pop);
+}
+
+.heat__cell:active {
+  transform: scale(0.94);
+}
+
+.heat__cell.is-due {
+  border-color: var(--text-strong);
+}
+
+.heat__legend {
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.heat__dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 5px;
+  vertical-align: -1px;
 }
 
 /* 需加强 */
