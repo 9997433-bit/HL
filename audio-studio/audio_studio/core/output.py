@@ -300,19 +300,71 @@ class PyAudioOutput(AudioOutput):
                     getattr(obj, method)()
 
 
+#: Overrides the backend search order. ``pyaudio`` pins the legacy binding,
+#: ``sounddevice`` pins the new one, ``null`` skips hardware entirely.
+OUTPUT_BACKEND_ENV_VAR = "AUDIO_STUDIO_OUTPUT"
+
+_BACKEND_ALIASES: dict[str, tuple[str, ...]] = {
+    "pyaudio": ("pyaudio",),
+    "portaudio": ("pyaudio",),
+    "sounddevice": ("sounddevice",),
+    "sd": ("sounddevice",),
+    "null": (),
+    "none": (),
+    "": ("sounddevice", "pyaudio"),
+}
+
+#: Default preference: ``sounddevice`` first (bundled PortAudio, WASAPI on
+#: Windows, xrun reporting), then the legacy PyAudio binding.
+_DEFAULT_BACKEND_ORDER: tuple[str, ...] = ("sounddevice", "pyaudio")
+
+
+def _backend_class(name: str) -> type[AudioOutput] | None:
+    if name == "pyaudio":
+        return PyAudioOutput
+    if name == "sounddevice":
+        try:
+            from .sounddevice_output import SoundDeviceOutput
+        except Exception:  # noqa: BLE001 - treat an unimportable backend as absent
+            return None
+        return SoundDeviceOutput
+    return None
+
+
+def _backend_order() -> tuple[str, ...]:
+    requested = os.environ.get(OUTPUT_BACKEND_ENV_VAR, "").strip().lower()
+    return _BACKEND_ALIASES.get(requested, _DEFAULT_BACKEND_ORDER)
+
+
+def _open_probe(cls: type[AudioOutput]) -> AudioOutput | None:
+    """Return a fresh backend instance when a throwaway stream really opens."""
+    if not getattr(cls, "is_available", lambda: False)():
+        return None
+    probe = cls()
+    try:
+        probe.open(48000, 2, lambda n: np.zeros((n, 2), dtype=SAMPLE_DTYPE))
+    except OutputDeviceError:
+        return None
+    finally:
+        probe.close()
+    return cls()
+
+
 def create_output(*, prefer_null: bool = False) -> AudioOutput:
     """Return the best backend available on this machine.
 
-    Falls back to :class:`NullOutput` so the application always starts, even on
-    a container with no ALSA device.
+    The search order is ``sounddevice`` then ``pyaudio``, and
+    ``AUDIO_STUDIO_OUTPUT`` pins one of them (``pyaudio``, ``sounddevice`` or
+    ``null``). Falls back to :class:`NullOutput` so the application always
+    starts, even on a container with no ALSA device.
     """
-    if not prefer_null and PyAudioOutput.is_available():
-        probe = PyAudioOutput()
-        try:
-            probe.open(48000, 2, lambda n: np.zeros((n, 2), dtype=SAMPLE_DTYPE))
-        except OutputDeviceError:
-            probe.close()
-        else:
-            probe.close()
-            return PyAudioOutput()
+    if prefer_null:
+        return NullOutput()
+    for name in _backend_order():
+        cls = _backend_class(name)
+        if cls is None:
+            continue
+        backend = _open_probe(cls)
+        if backend is not None:
+            return backend
     return NullOutput()

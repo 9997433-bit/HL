@@ -43,6 +43,7 @@ from .sample_source import (
     open_source,
 )
 from .session import Clip, MasterBus, MultitrackSession, SessionMixer, Track
+from .sounddevice_output import SoundDeviceOutput
 from .sources import LoopSource, RegionSource
 from .types import (
     AudioBuffer,
@@ -96,6 +97,7 @@ __all__ = [
     "Segment",
     "SessionMixer",
     "SilenceCommand",
+    "SoundDeviceOutput",
     "StreamingSampleSource",
     "TimeRange",
     "Track",

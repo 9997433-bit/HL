@@ -7,7 +7,11 @@ soundfile>=0.12.1
 # this application never loads.
 PySide6-Essentials>=6.6
 
-# Real-time output device backend. Optional: the engine falls back to an
+# Real-time device backends. Both are optional: the engine falls back to an
 # internal simulated clock when no hardware backend is importable, which keeps
-# the GUI and the test suite usable on headless machines.
+# the GUI and the test suite usable on headless machines. sounddevice is the
+# preferred output path (its wheels bundle PortAudio and expose WASAPI on
+# Windows); PyAudio still backs recording and remains selectable through
+# AUDIO_STUDIO_OUTPUT=pyaudio.
+sounddevice>=0.4.6
 PyAudio>=0.2.13
