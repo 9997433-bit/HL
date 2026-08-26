@@ -45,6 +45,7 @@ from .sample_source import (
 from .session import Clip, MasterBus, MultitrackSession, SessionMixer, Track
 from .sounddevice_output import SoundDeviceOutput
 from .sources import LoopSource, RegionSource
+from .telemetry import EngineTelemetry, LevelSnapshot
 from .types import (
     AudioBuffer,
     AudioFormat,
@@ -71,11 +72,13 @@ __all__ = [
     "EditCommand",
     "EditError",
     "EditSession",
+    "EngineTelemetry",
     "Envelope",
     "FadeCommand",
     "GainCommand",
     "InsertSilenceCommand",
     "LevelReading",
+    "LevelSnapshot",
     "LoadedAudio",
     "LoopSource",
     "Marker",
