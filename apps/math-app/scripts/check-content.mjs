@@ -23,6 +23,14 @@ import {
 import { numericOptions } from '../src/utils/random.js'
 import { ERROR_TAGS } from '../src/data/errorTags.js'
 import { CUES, noteToFreq } from '../src/utils/sound.js'
+import { updateMastery, MASTERY_THRESHOLD } from '../src/utils/mastery.js'
+import {
+  createAdaptiveEngine,
+  nextDifficulty,
+  pickNextQuestion,
+  skillWeight,
+  weakestSkills,
+} from '../src/core/engine/adaptive.js'
 
 const MIN_TEMPLATES = 25
 
@@ -172,6 +180,136 @@ for (const [name, cue] of Object.entries(CUES)) {
   }
 }
 console.log(`音效谱面 ${Object.keys(CUES).length} 段共 ${noteCount} 个音：音名全部可解析`)
+
+/* 自适应引擎：用固定种子跑，结论必须每次都一样 */
+
+/** mulberry32：小、快、可复现，够做分布回归。 */
+function seeded(seed) {
+  let a = seed >>> 0
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0
+    let t = Math.imul(a ^ (a >>> 15), 1 | a)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+const weightAt = (m) => skillWeight('add-within-10', { mastery: { 'add-within-10': m } })
+const masteryLadder = [0, 0.2, 0.4, 0.6, 0.79]
+const ladderWeights = masteryLadder.map(weightAt)
+for (let i = 1; i < ladderWeights.length; i++) {
+  if (ladderWeights[i] >= ladderWeights[i - 1]) {
+    fail(`掌握度 ${masteryLadder[i]} 的权重没有低于 ${masteryLadder[i - 1]}`)
+  }
+}
+// 达标之后只留固定的复习权重，不再随掌握度继续掉
+if (weightAt(MASTERY_THRESHOLD) !== weightAt(1)) fail('达标区间的复习权重应当是常数')
+if (!(weightAt(MASTERY_THRESHOLD) < ladderWeights.at(-1))) fail('已达标技能权重没有低于弱项')
+const freshWeight = skillWeight('add-within-10', { mastery: {} })
+if (!(freshWeight < ladderWeights[0] && freshWeight > weightAt(1))) {
+  fail(`新技能权重 ${freshWeight} 应落在「全不会」和「已达标」之间`)
+}
+
+const owedWeight = skillWeight('add-within-10', {
+  mastery: { 'add-within-10': 0.5 },
+  wrongBook: { 'arithmetic:7+5': { skill: 'add-within-10', attempts: 3 } },
+})
+const plainWeight = skillWeight('add-within-10', { mastery: { 'add-within-10': 0.5 } })
+if (!(owedWeight > plainWeight)) fail('错题本欠账没有抬高技能权重')
+const cooledWeight = skillWeight('add-within-10', {
+  mastery: { 'add-within-10': 0.5 },
+  recent: ['add-within-10'],
+})
+if (!(cooledWeight < plainWeight)) fail('刚出过的技能没有降权')
+
+// 弱项 vs 已达标：4000 次加权抽样里弱项必须占压倒多数
+const pool = [
+  { id: 'weak', skill: 'sub-borrow-20' },
+  { id: 'strong', skill: 'add-within-10' },
+]
+const distMastery = { 'sub-borrow-20': 0.15, 'add-within-10': 0.95 }
+const rng = seeded(20260426)
+const hits = { weak: 0, strong: 0 }
+for (let i = 0; i < 4000; i++) {
+  const picked = pickNextQuestion(pool, { mastery: distMastery, rng })
+  hits[picked.question.id] += 1
+}
+if (hits.weak < hits.strong * 5) {
+  fail(`弱项只抽到 ${hits.weak} 次，达标技能 ${hits.strong} 次，弱项加权不明显`)
+}
+
+// 同样掌握度下，进过错题本的那道题要被优先重练
+const bookPool = [
+  { id: '7+5', skill: 'add-carry-20' },
+  { id: '6+4', skill: 'add-carry-20' },
+]
+const bookRng = seeded(777)
+const bookHits = { '7+5': 0, '6+4': 0 }
+for (let i = 0; i < 4000; i++) {
+  const picked = pickNextQuestion(bookPool, {
+    mastery: { 'add-carry-20': 0.5 },
+    wrongBook: { '7+5': { skill: 'add-carry-20', attempts: 3 } },
+    wrongKeyOf: (q) => q.id,
+    rng: bookRng,
+  })
+  bookHits[picked.question.id] += 1
+}
+if (bookHits['7+5'] <= bookHits['6+4'] * 1.5) {
+  fail(`错题 ${bookHits['7+5']} 次 vs 新题 ${bookHits['6+4']} 次，错题本加成太弱`)
+}
+
+// 空池子返回 null，非空池子永远给得出一道题
+if (pickNextQuestion([], {}) !== null) fail('空候选池应返回 null')
+if (!pickNextQuestion([{ id: 'x' }], { rng: () => 0.999 })) fail('非空候选池不该挑不出题')
+
+// 难度档：连对升、连错降，两头夹住
+const steps = [10, 20, 100]
+if (nextDifficulty(10, { streak: 3 }, { steps }) !== 20) fail('连对 3 题没有升档')
+if (nextDifficulty(10, { streak: 2 }, { steps }) !== 10) fail('连对 2 题就升档了')
+if (nextDifficulty(20, { missStreak: 2 }, { steps }) !== 10) fail('连错 2 题没有降档')
+if (nextDifficulty(100, { streak: 9 }, { steps }) !== 100) fail('最高档还能继续升')
+if (nextDifficulty(10, { missStreak: 9 }, { steps }) !== 10) fail('最低档还能继续降')
+if (nextDifficulty(10, { streak: 9 }, { steps: [] }) !== 10) fail('没有档位序列时不该换档')
+
+// 引擎：掌握度按 EMA 推进，升降档后 streak 归零
+const engine = createAdaptiveEngine({ steps, mastery: {}, rng: seeded(1) })
+let expected
+for (let i = 0; i < 3; i++) expected = updateMastery(expected, true)
+const up = [true, true, true].map((ok) => engine.record('add-within-10', ok)).at(-1)
+if (!up.changed || up.difficulty !== 20 || up.direction !== 'up') {
+  fail(`连对 3 题后应升到 20 档，实际 ${up.difficulty}（changed=${up.changed}）`)
+}
+if (up.streak !== 0) fail(`升档后连对数应清零，实际 ${up.streak}`)
+if (engine.state.mastery['add-within-10'] !== expected) {
+  fail(`引擎掌握度 ${engine.state.mastery['add-within-10']} 与 updateMastery 推进结果 ${expected} 不一致`)
+}
+const down = [false, false].map((ok) => engine.record('add-within-10', ok)).at(-1)
+if (!down.changed || down.difficulty !== 10 || down.direction !== 'down') {
+  fail(`连错 2 题后应降回 10 档，实际 ${down.difficulty}`)
+}
+
+// 同一种子跑两遍必须一模一样，否则回归测试没有意义
+const replay = (seed) => {
+  const e = createAdaptiveEngine({ steps, mastery: distMastery, rng: seeded(seed) })
+  return Array.from({ length: 50 }, () => e.pickNextQuestion(pool).question.id).join('')
+}
+if (replay(42) !== replay(42)) fail('同一随机种子两次调度结果不一致')
+
+const advice = weakestSkills(
+  [{ id: 'add-within-10' }, { id: 'sub-borrow-20' }, { id: 'mul-table' }],
+  {
+    mastery: { 'add-within-10': 0.9, 'sub-borrow-20': 0.2, 'mul-table': 0.6 },
+  },
+  2,
+)
+if (advice.length !== 2) fail(`建议列表应有 2 条，实际 ${advice.length}`)
+if (advice[0]?.id !== 'sub-borrow-20') fail(`最该补的应是最弱的技能，实际 ${advice[0]?.id}`)
+if (advice.some((s) => s.mastery >= MASTERY_THRESHOLD)) fail('已达标技能不该出现在补练建议里')
+
+console.log(
+  `自适应引擎：弱项抽中 ${hits.weak}/4000（达标 ${hits.strong}），` +
+    `错题优先 ${bookHits['7+5']}:${bookHits['6+4']}，升降档与 EMA 推进一致`,
+)
 
 console.log(failures ? `\n${failures} 项不通过。` : '\n全部通过。')
 process.exit(failures ? 1 : 0)
