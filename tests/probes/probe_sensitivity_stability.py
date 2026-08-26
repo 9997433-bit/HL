@@ -6,7 +6,8 @@ from __future__ import annotations
 import argparse
 import json
 import math
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 
 DEFAULT_STEPS = (1.0e-4, 1.0e-5, 1.0e-6)

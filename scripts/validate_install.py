@@ -5,23 +5,14 @@ from __future__ import annotations
 
 import argparse
 import json
-from pathlib import Path
 import subprocess
 import sys
-from typing import Any, Sequence
+from collections.abc import Sequence
+from pathlib import Path
+from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-
-from tests.probes.probe_eigen_stability import run_probe as run_eigen_probe
-from tests.probes.probe_environment import run_probe as run_environment_probe
-from tests.probes.probe_sensitivity_stability import (
-    run_probe as run_sensitivity_probe,
-)
-
-
 REQUIRED_FIXTURES = (
     "two_dof_analytic.yaml",
     "ten_dof_chain.yaml",
@@ -42,6 +33,47 @@ def _check_fixtures() -> dict[str, Any]:
         "status": "pass" if all(item["present"] for item in files.values()) else "fail",
         "files": files,
     }
+
+
+def _run_probe(script_name: str, arguments: Sequence[str] = ()) -> dict[str, Any]:
+    command = [
+        sys.executable,
+        str(ROOT / "tests" / "probes" / script_name),
+        "--json",
+        *arguments,
+    ]
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return {
+            "status": "fail",
+            "command": command,
+            "error": f"{type(exc).__name__}: {exc}",
+        }
+
+    try:
+        report: dict[str, Any] = json.loads(completed.stdout)
+    except json.JSONDecodeError as exc:
+        return {
+            "status": "fail",
+            "command": command,
+            "returncode": completed.returncode,
+            "error": f"probe returned invalid JSON: {exc}",
+            "stdout": completed.stdout.strip(),
+            "stderr": completed.stderr.strip(),
+        }
+    if completed.returncode != 0:
+        report["status"] = "fail"
+    if completed.stderr.strip():
+        report["stderr"] = completed.stderr.strip()
+    return report
 
 
 def _run_boundary_tests() -> dict[str, Any]:
@@ -78,9 +110,11 @@ def _run_boundary_tests() -> dict[str, Any]:
 
 def run_validation(repeats: int = 25, run_tests: bool = True) -> dict[str, Any]:
     probes = {
-        "environment": run_environment_probe(),
-        "eigen_stability": run_eigen_probe(repeats),
-        "sensitivity_stability": run_sensitivity_probe(),
+        "environment": _run_probe("probe_environment.py"),
+        "eigen_stability": _run_probe(
+            "probe_eigen_stability.py", ("--repeats", str(repeats))
+        ),
+        "sensitivity_stability": _run_probe("probe_sensitivity_stability.py"),
     }
     report: dict[str, Any] = {
         "fixtures": _check_fixtures(),

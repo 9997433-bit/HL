@@ -10,7 +10,8 @@ import json
 import platform
 import re
 import warnings
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 
 DEFAULT_MIN_NUMPY = "1.24"
