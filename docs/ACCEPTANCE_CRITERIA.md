@@ -377,18 +377,21 @@ frequency-domain counterparts of the M2 gates AC-CORR-001/002.
 ## 8. M7 — Element Library (spec MS-8)
 
 Added in Round 2 by R2-T02 (gap GAP-02) once the QUAD4, TET4 and HEX8
-formulations were all on the trunk. The module supplies the `K` and `M` every
-other module consumes, so its criteria are the preconditions of the M1 gates:
+formulations were all on the trunk, and widened to `ShellQuad4Element` when the
+flat facet followed. The module supplies the `K` and `M` every other module
+consumes, so its criteria are the preconditions of the M1 gates:
 AC-ELEM-002 is what makes the AC-MODAL-004 rigid-body count meaningful, and
 AC-ELEM-003 is the mesh-convergence half of AC-MODAL-001's "mesh-converged
 oracle" wording. Each criterion is checked on **every** formulation in MS-8.2,
-not on a representative one.
+not on a representative one: `tests/acceptance/test_elements.py` holds one
+`ELEMENT_CASES` row per family (QUAD4, TET4, HEX8, SHELL4) and every criterion
+is parameterized over it, so a new formulation is covered by adding a row.
 
 | ID | Pri | Criterion (summary) | Quantitative gate | Spec |
 |----|-----|--------------------|-------------------|------|
-| AC-ELEM-001 | P0 | Patch test exact to machine precision | distorted patch: interior rel. err ≤ 1e-12; element stress rel. err ≤ 1e-9 | MS-8.3 |
+| AC-ELEM-001 | P0 | Patch test exact to machine precision | distorted patch: interior rel. err ≤ 1e-12 (≤ 1e-10 for the shell facet, see below); element stress rel. err ≤ 1e-9 | MS-8.3 |
 | AC-ELEM-002 | P0 | Rigid-body invariance and zero-energy mode count | ‖Kd‖ and energy ≤ 1e-10 relative; nullity = 3 (planar) / 6 (spatial) exactly | MS-8.3 |
-| AC-ELEM-003 | P1 | Quadratic h-convergence on the continuum oracle | error ratio ≥ 3.6 per halving (observed order ∈ [1.8, 2.2]); finest ≤ 1e-3 | MS-8.4 |
+| AC-ELEM-003 | P1 | Quadratic h-convergence on the continuum oracle | error ratio ≥ 3.6 per halving (observed order ∈ [1.8, 2.2]); finest ≤ 1e-3 (≤ 6e-3 on the plate oracle) | MS-8.4 |
 
 ### Details
 
@@ -406,14 +409,62 @@ not on a representative one.
   strain energy ≤ 1e-10 relative, and zero recovered strain. The element
   stiffness has exactly that many zero eigenvalues — full integration leaves no
   hourglass mode — and an unsupported assembly returns exactly that many
-  zero frequencies with the first elastic mode well separated.
+  zero frequencies with the first elastic mode well separated. The nullity is
+  asserted as its two halves — every rigid-body eigenvalue below 1e-10 of the
+  largest, and eigenvalue number `nullity` above a formulation-dependent floor
+  of it — rather than as a count against one fixed cut, because where that cut
+  may sit is itself a property of the formulation (see the shell row below).
 - **AC-ELEM-003** (`property`) — With `ν = 0` the lateral directions decouple
   and a strip/block cantilever discretizes the continuum bar whose first axial
   frequency is `c/(4L)`, `c = √(E/ρ)`. Refining 4 → 8 → 16 elements, the
   frequency error is positive (a conforming displacement field with consistent
   mass converges from above), strictly decreasing, at least 3.6× smaller per
   halving with an observed order in [1.8, 2.2], and below 1e-3 at the finest
-  mesh.
+  mesh. A formulation that carries bending DOFs is refined a second time
+  against a plate oracle, because the bar reaches it only through its membrane.
+
+### The shell row
+
+`ShellQuad4Element` is the first formulation whose nodes carry rotations, and
+the three criteria say the following about it rather than anything weaker.
+
+- **The prescribed state is two states.** The shell patch carries a constant
+  membrane strain *and* a constant curvature at once — a facet that reproduced
+  only the first would still be an inadmissible plate — and the recovered
+  quantities are the membrane stress, the bending moment, and the transverse
+  shear that the exact state leaves at zero.
+- **The fixtures are not axis-aligned.** A facet reports its resultants in a
+  frame its own geometry fixes, so the patch and the single element are laid on
+  a plane sharing no axis with the global frame; every expected resultant is
+  rotated into the reporting facet's frame before it is compared. On a global
+  plane, every facet rotation would be an identity and none of the machinery
+  that makes the element a shell would be gated.
+- **The rigid-body set drops the drilling component.** Rotation about the facet
+  normal is not part of the shell's kinematics: the director does not turn with
+  it, and the drilling stiffness is a penalty on a fictitious DOF (MS-8.2). The
+  six motions carry the director rotation with its normal component projected
+  out, which is what an unsupported shell assembly moves along — and the
+  free-assembly half of AC-ELEM-002 confirms exactly six zero frequencies.
+- **Two gate numbers differ, and only for stated reasons.** The patch gate is
+  1e-10 rather than 1e-12: the facet couples a membrane going as `t`, a bending
+  rigidity going as `t³` and two penalties, which puts `cond(K)` of the patch at
+  ~1e7 against the continuum patches' ~1e4, so the measured defect is 2.6e-12
+  rather than the ~1e-16 the continuum rows reach — the gate keeps the same two
+  decades of headroom over the measurement. And the zero-energy floor is 1e-9 of
+  the largest eigenvalue rather than 1e-3: the facet's smallest elastic mode
+  *is* the drilling penalty, at 2e-8 of its largest, so a cut chosen for a
+  continuum element would swallow the mode that makes the facet non-singular and
+  report ten zero-energy modes instead of six.
+- **Bending convergence has its own oracle.** The AC-ELEM-003 bar row reaches
+  the facet only through its membrane, so a simply supported square plate is
+  refined 4 → 8 → 16 against the Reissner–Mindlin Navier spectrum,
+  `ω² = ω_Kirchhoff² / (1 + D k² / (κGt))`. Rotary inertia is absent from that
+  closed form and from the element's default mass matrix alike, so the two
+  describe the same theory and the whole error is the discretization error —
+  which is what lets a rate be measured. Measured: 7.3e-2 → 1.7e-2 → 4.3e-3, an
+  observed order of 2.06 and 2.01. The finest-mesh gate is 6e-3 rather than
+  1e-3 because the plate oracle's error constant is an order of magnitude above
+  the bar's; the rate gates are unchanged.
 
 ---
 

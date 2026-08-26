@@ -41,9 +41,10 @@ synthesis, and optimization hooks — all behind one CLI and a schema-versioned 
   `ModalSolver` façade with dense and sparse shift-invert backends, static condensation of
   massless DOFs, mass normalization, participation/effective masses, and a shift-invert LU
   cache. Validated against closed-form spectra to 1e-9 relative (worst continuum case
-  0.2 %). R2-T02 remains **partial**: no formulation is outstanding, but the solid/shell
-  BDF cards are still open, the AC-ELEM case table does not yet include the shell, and
-  TET4's bending lock is pinned by test rather than fixed.
+  0.2 %). R2-T02 is **complete**: no formulation is outstanding, the solid/shell BDF
+  cards read (A119), the converter reaches the shell through `quad4_as="shell"` (A129)
+  and AC-ELEM-001..003 carry a `SHELL4` row beside QUAD4/TET4/HEX8 (A124). TET4's
+  bending lock stays pinned by test rather than fixed, as documented.
 - **Damped dynamics** (`solver/dynamics.py`): Rayleigh, modal, and structural damping
   models; complex modes with modal phase collinearity; modal, complex-modal, and direct
   FRF synthesis; harmonic response; residual flexibility; FRAC/FDAC FRF correlation
@@ -165,14 +166,14 @@ openness, and automation:
   this acceptance slice.
 - `.agent_workspace/` holds orchestration records (progress log, Round 2 plan);
   it is documentation, not runtime code.
-- **R2-T02 has every formulation it set out to build.** QUAD4, TET4, HEX8,
-  `BeamElement3D` and the flat-facet `ShellQuad4Element` are all in, module **M7**
-  (`ELEM`) registers the continuum criteria, and `io/neutral_convert.to_model` binds an
-  imported ROD2/BEAM2/QUAD4/TET4/HEX8 block into those formulations, so an imported
-  industrial mesh can now be re-analyzed internally. The task stays **partial** on
-  purpose: the AC-ELEM case table does not yet cover the shell, and the
-  `CQUAD4`/`CTETRA`/`CHEXA`/`CBAR`/`PSHELL`/`PSOLID` cards are open (`quad4_as="shell"`
-  binds imported quads to the shell element since A129).
+- **R2-T02 is complete.** QUAD4, TET4, HEX8, `BeamElement3D` and the flat-facet
+  `ShellQuad4Element` are all in; module **M7** (`ELEM`) gates every one of them, since
+  AC-ELEM-001..003 are parameterized over a case table that carries a `SHELL4` row
+  beside the three continuum ones (A124, 9 shell cases); `io/neutral_convert.to_model`
+  binds an imported ROD2/BEAM2/QUAD4/TET4/HEX8 block into those formulations and reaches
+  the facet through `quad4_as="shell"` (A129); and the
+  `CQUAD4`/`CTETRA`/`CHEXA`/`CBAR`/`PSHELL`/`PSOLID` cards read (A119). An imported
+  industrial mesh — solid, frame or shell — can now be re-analyzed internally.
 - The acceptance registry is closed at **44/44 `verified`** (all 34 P0 and 10 P1 rows);
   MPE from measured FRFs and pretest planning remain pending outside this registry
   closure and are tracked in `docs/SOTA_GAP_ANALYSIS.md` and
