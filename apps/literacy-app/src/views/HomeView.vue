@@ -1,9 +1,7 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
-import gsap from 'gsap'
+import { computed } from 'vue'
 import ProgressRing from '@/components/ProgressRing.vue'
 import { useProgressStore } from '@/stores/progress.js'
-import { useSettingsStore } from '@/stores/settings.js'
 import { BOOKS } from '@/data/books.js'
 import { IDIOMS } from '@/data/idioms.js'
 import { RADICALS } from '@/data/radicals.js'
@@ -11,9 +9,6 @@ import { sfx } from '@/utils/sfx.js'
 import OpenMojiIcon from '@shared/components/OpenMojiIcon.vue'
 
 const progress = useProgressStore()
-const settings = useSettingsStore()
-
-const mapRef = ref(null)
 
 const nextChar = computed(() => progress.nextChar)
 
@@ -81,19 +76,6 @@ const stations = computed(() => [
   }
 ])
 
-onMounted(() => {
-  if (settings.reduceMotion) return
-  const nodes = mapRef.value?.querySelectorAll('.station')
-  if (!nodes?.length) return
-  gsap.from(nodes, {
-    opacity: 0,
-    y: 26,
-    scale: 0.94,
-    duration: 0.45,
-    ease: 'back.out(1.6)',
-    stagger: 0.07
-  })
-})
 </script>
 
 <template>
@@ -138,7 +120,7 @@ onMounted(() => {
         学习地图
       </h3>
 
-      <div ref="mapRef" class="map">
+      <div class="map">
         <span class="map__path" aria-hidden="true" />
         <RouterLink
           v-for="(s, i) in stations"
