@@ -23,6 +23,7 @@ dragging a selection re-analyses once rather than on every mouse move.
 
 from __future__ import annotations
 
+import tempfile
 from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
 
@@ -61,6 +62,12 @@ from ..core.loader import (
     save_audio,
 )
 from ..core.peaks import PeakPyramid
+from ..core.recorder import (
+    AudioRecorder,
+    NullRecorder,
+    RecorderDeviceError,
+    create_recorder,
+)
 from ..core.sample_source import MemorySampleSource
 from ..core.session import MultitrackSession, Track
 from ..core.types import TimeRange, TransportState, format_timecode
@@ -95,12 +102,18 @@ MAX_RECENT_FILES: int = 8
 class MainWindow(QMainWindow):
     """Hosts the engine and wires it to the editing widgets."""
 
-    def __init__(self, engine: AudioEngine | None = None) -> None:
+    def __init__(
+        self,
+        engine: AudioEngine | None = None,
+        recorder: AudioRecorder | None = None,
+    ) -> None:
         super().__init__()
         self.effect_chain = default_preview_chain()
         self.engine = engine if engine is not None else AudioEngine()
+        self.recorder = recorder if recorder is not None else create_recorder()
         self.preview = attach_preview(self.engine, self.effect_chain)
         self._recent: list[Path] = []
+        self._recording_path: Path | None = None
 
         self.setWindowTitle(__app_name__)
         self.resize(1360, 780)
@@ -470,12 +483,14 @@ class MainWindow(QMainWindow):
             "ITU-R BS.1770 integrated loudness and true peak of the loaded clip"
         )
         self.status_fx = QLabel(self.effect_rack.summary())
+        self.status_recording = QLabel(f"Input: {self.recorder.name} · Ready")
         self.status_backend = QLabel(f"Output: {self.engine.output.name}")
         bar = self.statusBar()
         bar.addWidget(self.status_format, 1)
         bar.addPermanentWidget(self.status_loudness)
         bar.addPermanentWidget(self.status_fx)
         bar.addPermanentWidget(self.status_selection)
+        bar.addPermanentWidget(self.status_recording)
         bar.addPermanentWidget(self.status_backend)
 
     def _connect(self) -> None:
@@ -483,6 +498,7 @@ class MainWindow(QMainWindow):
         self.track_panel.selectionChanged.connect(self._on_selection_changed)
         self.track_panel.muteToggled.connect(self._on_mute)
 
+        self.transport_bar.recordRequested.connect(self._on_record)
         self.transport_bar.playPauseRequested.connect(self._on_play_pause)
         self.transport_bar.stopRequested.connect(self._on_stop)
         self.transport_bar.skipToStartRequested.connect(self._on_skip_start)
@@ -1213,6 +1229,7 @@ class MainWindow(QMainWindow):
         has_clip = self.engine.has_clip
 
         self.transport_bar.set_enabled_for_clip(has_clip)
+        self._set_recording_ui(self.recorder.is_running)
         self.transport_bar.set_duration(self.engine.duration)
         self.transport_bar.set_position(0.0)
         self.transport_bar.set_selection_text("—")
@@ -1274,6 +1291,11 @@ class MainWindow(QMainWindow):
     def _on_tick(self) -> None:
         """Poll the engine 30×/s: the audio threads never touch Qt objects."""
         self._collect_loudness()
+        if self.recorder.is_running:
+            self.status_recording.setText(
+                f"● Recording · {self.recorder.frame_count:,} frames · "
+                f"{self.recorder.sample_rate / 1000:g} kHz"
+            )
         if not self.engine.has_clip:
             return
         position = self.engine.position
@@ -1297,16 +1319,110 @@ class MainWindow(QMainWindow):
         self.transport_bar.set_state(state)
 
     def _on_play_pause(self) -> None:
-        if not self.engine.has_clip:
+        if self.recorder.is_running or not self.engine.has_clip:
             return
         self.engine.toggle_play_pause()
         self.transport_bar.set_state(self.engine.state)
 
     def _on_stop(self) -> None:
+        if self.recorder.is_running:
+            self._finish_recording()
+            return
         self.engine.stop()
         self.transport_bar.set_state(self.engine.state)
         self.track_panel.set_playhead(self.engine.position)
         self.level_meter.reset()
+
+    def _on_record(self) -> None:
+        """Toggle recording and open the completed temporary WAV."""
+        if self.recorder.is_running:
+            self._finish_recording()
+        else:
+            self._start_recording()
+
+    def _start_recording(self) -> None:
+        self.engine.stop()
+        self.transport_bar.set_state(self.engine.state)
+        sample_rate = self.engine.sample_rate or 48000
+        channels = min(max(self.engine.n_channels, 1), 2)
+        with tempfile.NamedTemporaryFile(
+            prefix="audio-studio-recording-", suffix=".wav", delete=False
+        ) as pending:
+            target = Path(pending.name)
+
+        try:
+            self.recorder.open(
+                sample_rate,
+                channels,
+                block_size=1024,
+                target_path=target,
+            )
+            self.recorder.start()
+        except RecorderDeviceError as exc:
+            self.recorder.close()
+            self.recorder = NullRecorder()
+            try:
+                self.recorder.open(
+                    sample_rate,
+                    channels,
+                    block_size=1024,
+                    target_path=target,
+                )
+                self.recorder.start()
+            except Exception as fallback_exc:  # noqa: BLE001 - report both backend failures
+                target.unlink(missing_ok=True)
+                QMessageBox.critical(
+                    self,
+                    "Cannot record",
+                    f"Input device failed: {exc}\nSynthetic fallback failed: {fallback_exc}",
+                )
+                self._set_recording_ui(False)
+                return
+            self.statusBar().showMessage(
+                f"Input device unavailable ({exc}); recording synthetic silence", 5000
+            )
+
+        self._recording_path = target
+        self._set_recording_ui(True)
+
+    def _finish_recording(self) -> None:
+        target = self._recording_path
+        try:
+            captured = self.recorder.stop()
+        except (AudioLoadError, RecorderDeviceError, OSError) as exc:
+            QMessageBox.critical(self, "Recording failed", str(exc))
+            self._set_recording_ui(False)
+            return
+        self._set_recording_ui(False)
+        self._recording_path = None
+        if captured.n_frames == 0 or target is None:
+            if target is not None:
+                target.unlink(missing_ok=True)
+            self.statusBar().showMessage("No audio was captured", 4000)
+            return
+        if self.open_file(target):
+            self.statusBar().showMessage(
+                f"Recorded {format_timecode(captured.duration)} to {target.name}", 5000
+            )
+
+    def _set_recording_ui(self, recording: bool) -> None:
+        self.transport_bar.set_recording(recording)
+        transport_enabled = self.engine.has_clip and not recording
+        for action in (
+            self.action_play,
+            self.action_stop,
+            self.action_home,
+            self.action_end,
+            self.action_loop,
+            self.action_sel_only,
+        ):
+            action.setEnabled(transport_enabled)
+        if recording:
+            self.status_recording.setText(
+                f"● Recording · 0 frames · {self.recorder.sample_rate / 1000:g} kHz"
+            )
+        else:
+            self.status_recording.setText(f"Input: {self.recorder.name} · Ready")
 
     def _on_seek(self, frame: int) -> None:
         position = self.engine.seek(frame)
@@ -1402,6 +1518,7 @@ class MainWindow(QMainWindow):
             return
         self._refresh_timer.stop()
         self._analysis_timer.stop()
+        self.recorder.close()
         self.engine.shutdown()
         self._loudness_pool.shutdown(wait=False, cancel_futures=True)
         super().closeEvent(event)
