@@ -2823,3 +2823,70 @@ nothing can leave `implemented` until R2-T09 defines and runs the promotion (a C
 at a pinned tip). That is now the only structural blocker on the P0 set; the five P1
 tagging tasks are independent of it and can go in parallel.
 A90 backfill verification: **1089 passed, 0 failed**; `ruff check .` clean.
+
+#### A89 — R2-T05 opens: the meshio bridge (backfill for completed A85)
+
+R2-T05 was the last core track with no commit. This slice lands its first half — the
+optional-dependency seam and the mesh conversion — and leaves the acceptance
+registration and the UNV/UFF work for the rest of the track.
+
+**`io/meshio_bridge.py`.** `from_meshio` turns a `meshio.Mesh` into a `NeutralModel`
+and `to_meshio` goes back, through one explicit table,
+`CELL_TYPE_TO_ELEMENT`: `vertex`/`line`/`triangle`/`quad`/`tetra`/`hexahedron` ↔
+`MASS1`/`ROD2`/`TRI3`/`QUAD4`/`TET4`/`HEX8`. `read_meshio` and `write_meshio` wrap
+meshio's file entry points and re-raise its errors as `FormatError`, the same error
+type the BDF and UFF readers use. Four conversion decisions are worth recording:
+
+- **The table is one-to-one, and `BEAM2`/`SPRING2` are deliberately outside it.**
+  meshio's `line` cell carries no attribute distinguishing a rod from a beam or a
+  bushing, so exporting one would come back as a `ROD2` — a silently different model.
+  `to_meshio` raises `FormatError` instead, and a test pins that the two stay unmapped.
+- **Connectivity stores node *ids*, not point indices**, per the `NeutralModel`
+  contract; meshio's zero-based indices are translated on the way in and back out.
+  Labels survive a round trip because `to_meshio` writes them as the `node_ids` point
+  data and `element_ids` cell data that `from_meshio` reads back — which is exactly the
+  shape the proposed AC-IO-001 asks for.
+- **Property ids come from whatever the file has**: `property_ids`, else
+  `gmsh:physical`, else `medit:ref`, else a configurable default. A mesher tag is the
+  closest thing most formats have to a property assignment, and no format carries
+  material data at all, so `materials`/`properties` come back empty by construction
+  rather than by omission.
+- **Unmapped cell types are skipped, not fatal** — a `UserWarning` plus a per-type count
+  in `meta["skipped_cell_types"]`, mirroring the BDF reader's "import the supported
+  subset" policy. A second-order mesh therefore imports its corner cells instead of
+  refusing to open.
+
+**The P7 seam.** `meshio` is imported lazily inside `require_meshio()`, never at module
+import time, so `import openfemlab.io` still works with only numpy/scipy/pyyaml — a test
+asserts it. A missing package raises the new `MissingDependencyError`, which subclasses
+**both** `OpenFEMLabError` and `ImportError`: the typed hierarchy gets the error, and the
+`except ImportError` call sites that predate it keep working. `from_meshio` goes one step
+further and needs nothing but NumPy — it is duck-typed on `points`/`cells`, so a caller
+holding a mesh converts it in an installation without the extra. This replaces the
+`NotImplementedError` stub that had been sitting in `io/__init__.py`.
+
+**`tests/test_meshio_bridge.py`, 44 tests**, skipped as a module via
+`pytest.importorskip` when meshio is absent. Coverage runs from the simple cases (a
+two-quad mesh, a unit cube, 2-D points padded to three columns, mixed and repeated cell
+blocks) through the id plumbing, the malformed-input rejections, the export round trip,
+a real file round trip through `.vtu`, and the seam itself — the missing-dependency path
+is exercised by monkeypatching the guarded `import_module`, so it is tested even in an
+environment that *has* meshio. Two findings shaped the tests: `meshio.Mesh` validates
+cell-data lengths itself, so the bridge's own check needs a duck-typed mesh to reach,
+and meshio raises `ReadError` (not `WriteError`) when a writer cannot deduce the format
+from the path, so both are caught.
+
+`pyproject.toml`'s `[dev]` extra grew `meshio` — the `[io]` extra already had it — so
+`make install` exercises the bridge instead of skipping it; without the extra the module
+skips cleanly, which was verified by blocking the import.
+
+**Verification** from a private clone with `PYTHONPATH` pinned, Python 3.12.3: full
+suite **1133 passed, 0 failed** at the merged tip (the trunk's 1089 from A90 plus
+exactly these 44), `ruff check .` clean. With meshio unavailable: **1089 passed,
+1 skipped**.
+
+**Remaining on R2-T05**: AC-IO-001..003 registration (AC-IO-001's engine and test now
+exist, so it needs the three-file spec-first commit and moves the pinned 44-criterion
+inventory), UNV 2411/2412 in `io/uff.py`, UFF writing, and — shared with R2-T02 — the
+`NeutralModel` → `Model` conversion, which is the one thing standing between
+`read_meshio` and the round's imported-3D-mesh demo.

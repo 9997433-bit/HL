@@ -61,7 +61,7 @@ elements 24, optimization 15, dynamics 13, registry consistency 12, workflow 11.
 | R2-T02 | 3D continuum elements (GAP-02) | **Partial** — QUAD4 (61 tests), TET4 (66), HEX8 (76), and AC-ELEM-001..003 (24 acceptance cases) landed. The 3D beam, shell facet, and solid/shell BDF cards remain. |
 | R2-T03 | Reduction/expansion, TAM (GAP-08) | **Mostly done** — `correlation/reduction.py` (A36) plus the AC-CORR-006 gate, registered and `implemented` with a noise sweep pinning where the gate breaks (A43). AC-CORR-009 registration and `SensorMap` sign folding remain. |
 | R2-T04 | Bayesian MAP updating (GAP-11 slice) | **Mostly done** — the MS-3.5 MAP estimator with prior/posterior covariance landed (`4b2a416`, 35 tests), and AC-UPD-006a/b are registered and `implemented` behind an eight-test gate on the ten-DOF twin, with the Laplace σ_post now filling the `CorrectionReport` column (A57). σ_post in the CLI `update` document remains. |
-| R2-T05 | meshio bridge + IO completion (GAP-03) | **Not started** — UNV 2411/2412, meshio, UFF writing, AC-IO-* rows all open. |
+| R2-T05 | meshio bridge + IO completion (GAP-03) | **Partial** — the meshio bridge landed behind the P7 optional-dependency seam (A89, `io/meshio_bridge.py`, 44 tests): `from_meshio`/`to_meshio` over a one-to-one cell-type table, `read_meshio`/`write_meshio`, `MissingDependencyError`. UNV 2411/2412, UFF writing and the AC-IO-* rows remain open. |
 | R2-T06 | Updating depth (GAP-10) | **Partial** — AC-UPD-007 (P0) is tagged and `implemented` (A44); the collinearity screen was already in `workflow/selection.py`. QR-pivoting refinement, analytic MAC-row Jacobian wiring, and the model-level parameter resolver remain. |
 | R2-T07 | SciPy optimization backend (GAP-12) | **Done** — SLSQP/trust-constr with analytic Jacobians (A27), active-set KKT + trust-constr Hessian fixes (A40 harvest), and strengthened AC-OPT-002/003 oracles incl. a bound-active optimum (A34). Shape variables still FD. |
 | R2-T08 | R1-O2 branch reconciliation | **Done** — content reconciled by A14; the superseded/merged side branches were audited in [`BRANCH_CLEANUP.md`](BRANCH_CLEANUP.md) and deleted from `origin` (A62). |
@@ -81,7 +81,7 @@ elements 24, optimization 15, dynamics 13, registry consistency 12, workflow 11.
 | M5 Optimization (MS-5) | `optimization/` | 27 / 15 | Sizing complete (GAP-12 closed) with bound-active KKT oracles; shape variables fall back to finite differences. AC-OPT-001..004 implemented. |
 | M6 Damped dynamics (MS-7) | `solver/dynamics.py` | 82 / 13 | Complete; FRF updating residual deferred to Round 3. AC-DYN-001..005 implemented. |
 | Core, elements & mesh | `core/`, `mesh/` | 18 + 61 + 66 + 76 + 17 (contracts) / 24 | Partial: 1D set, QUAD4, TET4, and HEX8 landed; 3D beam and shell facet remain open. |
-| IO | `io/` | 13 + 5 + 6 | Partial: native YAML/JSON round trip, UFF 55/58 reader, BDF `GRID`/`CROD`/`MAT1`. UNV 2411/2412, meshio bridge, solid/shell cards, writers open; no AC-IO rows registered. |
+| IO | `io/` | 13 + 5 + 6 + 44 | Partial: native YAML/JSON round trip, UFF 55/58 reader, BDF `GRID`/`CROD`/`MAT1`, meshio bridge (optional `[io]` extra; its 44 tests skip without it). UNV 2411/2412, solid/shell cards, UFF writing open; no AC-IO rows registered. |
 | CLI | `cli/` | 23 + 16 (+1 e2e) | `modal` / `correlate` / `update` / `correlate-frf` complete end to end. |
 | QA / infra | `tests/acceptance/`, CI | 12 registry + 5 boundary + 4 perf + 3 scaffold | Registry enforcement green; CI matrix 3.10–3.13; Ruff missing from CI (R2-T09). |
 
@@ -96,8 +96,10 @@ elements 24, optimization 15, dynamics 13, registry consistency 12, workflow 11.
 2. **R2-T02 remainder** (P0): the 3D beam, the shell facet, and the
    `CQUAD4`/`CTETRA`/`CHEXA`/`PSHELL`/`PSOLID` BDF cards (HEX8 and the
    AC-ELEM-001..003 registrations landed with the `5641d75` merge).
-3. **R2-T05 IO completion**: meshio bridge (optional dependency), UNV
-   2411/2412, UFF writing; register AC-IO-001..003.
+3. **R2-T05 IO completion**: UNV 2411/2412, UFF writing, and the
+   `NeutralModel` → `Model` conversion that makes an imported mesh
+   re-analyzable; register AC-IO-001..003 (the meshio bridge itself landed
+   with A89).
 4. **R2-T06 remainder**: QR-with-pivoting refinement of the collinearity
    screen, analytic MAC-row Jacobian in the updater's shape-residual path,
    model-level parameter resolver with assembled per-element dK/dp.
