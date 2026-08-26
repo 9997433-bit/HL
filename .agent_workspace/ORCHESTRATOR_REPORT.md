@@ -1,15 +1,15 @@
 # OpenFEMLab 编排总报告（Orchestrator Report）
 
-**报告人：** A91（顶替已完成的 A78）· **日期：** 2026-08-26
+**报告人：** A94（顶替已完成的 A87）· **日期：** 2026-08-26
 **分支：** `cursor/femtools-industrial-7aa3` · **Pull Request：** [PR #5](https://github.com/9997433-bit/hl/pull/5)（Draft，base `main`）
-**已验证快照：** A78 里程碑提交 `05e1b51` —— 全量 `pytest` **1035 通过 / 0 失败**（本次在分离的私有工作树独立复跑，55.22 s），`ruff check .` 干净（Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1）。
+**已验证快照：** 提交 `25a6e9d` —— 全量 `pytest` **1089 通过 / 0 失败**（本次在分离的私有工作树独立复跑，68.3 s；collect-only 复核同为 1089），`ruff check .` 干净（Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1）。
 
 ---
 
 ## 一、执行摘要
 
 OpenFEMLab 是一个受 FEMtools 启发、但完全开源（MIT）、求解器无关的 CAE 平台。
-截至本报告，**Round 1 已完成收官，Round 2 的九个任务中五个已关闭、三个部分完成、一个待启动**。平台已交付从建模、模态分析、试验相关性、灵敏度/贝叶斯模型修正、阻尼动力学与 FRF 综合，到优化与命令行工作流的完整链路，由 **1035 个测试**（含 **44 条**量化验收准则的机器可读注册表）与 GitHub Actions CI（Python 3.10–3.13）守护。本报告周期的标志性进展：**HEX8 三线性六面体单元已合入主干**（76 个单元测试 + AC-ELEM-001..003 共 24 个验收用例），连续体单元三件套（QUAD4/TET4/HEX8）就位；**全部 P0 验收准则 34/34 已达 `implemented`**——注册表中仅剩的 5 条 `specified` 全部为 P1。成果已通过 [PR #5](https://github.com/9997433-bit/hl/pull/5) 汇入评审流程。
+截至本报告，**Round 1 已完成收官，Round 2 的九个任务中六个已关闭、两个部分完成、一个待启动**。平台已交付从建模、模态分析、试验相关性、灵敏度/贝叶斯模型修正、阻尼动力学与 FRF 综合，到优化与命令行工作流的完整链路，由 **1089 个测试**（含 **44 条**量化验收准则的机器可读注册表）与 GitHub Actions CI（Python 3.10–3.13）守护。本报告周期的标志性进展：**空间梁单元 `BeamElement3D`（CBAR 风格）已合入主干**（42 个测试）——继 QUAD4/TET4/HEX8 连续体三件套之后，导入模型可能携带的每一类单元（杆、平面梁、空间框架构件、壳四边形、四面体、六面体）均已具备内部列式，除壳面元外单元列式再无缺口；同时 **R2-T04 贝叶斯 MAP 的验收接线关闭**（AC-UPD-006a/b 已 `implemented`，`CorrectionReport` 汇报 Laplace 后验 σ_post），注册表推进至 **41 条 `implemented`、仅剩 3 条 `specified`（全部 P1）**。成果已通过 [PR #5](https://github.com/9997433-bit/hl/pull/5) 汇入评审流程。
 
 对标 FEMtools 的一句话结论：**在算法深度、开放性与自动化上超越，在 GUI 与商用格式广度上有意让步**（后者已登记为 Round 2/3 计划项，不是隐藏缺陷）。
 
@@ -19,11 +19,11 @@ OpenFEMLab 是一个受 FEMtools 启发、但完全开源（MIT）、求解器�
 
 ### 2.1 已交付的能力
 
-- **核心 FEM 与模态求解**：节点主序自由度模型（SPC 约束、集中质量）；弹簧/杆/平面梁单元，加上 QUAD4 等参平面应力/应变单元（常应变分片试验精确通过，轴向谱与等效杆吻合至 2.4e-13）、TET4 常应变四面体（畸变网格 3D 分片试验精确至 2.8e-16）与 **HEX8 三线性六面体**（76 个测试：畸变多单元分片试验机器精度、刚体零应变/零能模式计数、对闭式轴杆谱的二阶收敛，以及区别于常应变四面体的弯曲行为）；一趟式预分配 COO→CSR 装配；统一的 `ModalSolver` 门面（稠密 + 稀疏 shift-invert 后端、无质量自由度静力凝聚、质量归一化、参与/有效质量、LU 缓存），对闭式解验证至 1e-9 相对误差。
+- **核心 FEM 与模态求解**：节点主序自由度模型（SPC 约束、集中质量）；弹簧/杆/平面梁单元，加上 QUAD4 等参平面应力/应变单元（常应变分片试验精确通过，轴向谱与等效杆吻合至 2.4e-13）、TET4 常应变四面体（畸变网格 3D 分片试验精确至 2.8e-16）、HEX8 三线性六面体（76 个测试：畸变多单元分片试验机器精度、刚体零应变/零能模式计数、对闭式轴杆谱的二阶收敛），以及 **BeamElement3D 空间 Euler–Bernoulli 梁**（两节点各 6 自由度：轴向、St Venant 扭转与两主平面非耦合弯曲，取向遵循 Nastran CBAR 约定；两弯曲平面复用同一 Hermite 刚度/质量块，`(u, v, θz)` 子块与平面梁一致至 1e-14——单一梁内核，不违 GAP-01 规则；42 个测试：单元级闭式悬臂挠度/转角、轴向与扭转柔度均至 1e-12，双平面悬臂谱吻合闭式解至 5e-3，固定-自由轴的一阶扭转模态吻合 c/(4L) 至 4e-4，自由-自由构件恰好 6 个刚体模态，平面 `beam_mesh` 悬臂的每个频率在空间模型中再现至 1e-8，装配谱在模型整体刚体旋转下不变）；一趟式预分配 COO→CSR 装配；统一的 `ModalSolver` 门面（稠密 + 稀疏 shift-invert 后端、无质量自由度静力凝聚、质量归一化、参与/有效质量、LU 缓存），对闭式解验证至 1e-9 相对误差。
 - **阻尼动力学与 FRF**（82 个测试）：Rayleigh/模态/结构（迟滞）阻尼；复模态与模态相位共线性；模态、复模态与直接求逆三种 FRF 综合；谐响应；剩余柔度；FRAC/FDAC 频响相关性指标。
-- **相关性分析**：MAC / autoMAC / 质量加权 MAC、MSF、伪正交性、COMAC；带方向符号的传感器-自由度对齐（`SensorMap.signs` 已接入缩减基）；匈牙利算法全局最优模态配对（MAC 阈值、频率窗、频率惩罚）；Guyan / IRS / SEREP 缩减基、TAM 质量与 SEREP 振型扩展；FRF 相关性以 schema 1.1 的 `frf` 块进入 JSON `CorrelationReport`，且报告可从自身 JSON 工件解析回对象（AC-CORR-008）。
-- **模型修正**：解析 Fox–Kapoor 特征值/特征向量/MAC 灵敏度（向量化、稀疏感知、有限差分验证至 ≤ 1e-6）；LM / Gauss–Newton 修正器（Tikhonov 正则化、参数边界、逐迭代 MAC 重配对）；贝叶斯 MAP 路径（`GaussianPrior` + `BayesianUpdater`，复用同一迭代内核，输出 Laplace 后验 σ_post 与置信区间）。孪生实验将分组刚度/质量因子恢复至机器精度。
-- **修正工作流**：S1 基线 → S6 验证的六阶段状态机，机器可读门控失败、共线性筛查（MS-3.6）、留出验证目标防过拟合、σ_post 参数不确定度，`CorrectionReport` 可复现（重跑一致至 1e-12）。
+- **相关性分析**：MAC / autoMAC / 质量加权 MAC、MSF、伪正交性、COMAC；带方向符号的传感器-自由度对齐（`SensorMap.signs` 已接入缩减基）；匈牙利算法全局最优模态配对（MAC 阈值、频率窗、频率惩罚）；Guyan / IRS / SEREP 缩减基、TAM 质量与 SEREP 振型扩展；FRF 相关性以 schema 1.1 的 `frf` 块进入 JSON `CorrelationReport`，且报告可从自身 JSON 工件解析回对象（AC-CORR-008，含无振型报告的空块/NaN 往返钉扎）。
+- **模型修正**：解析 Fox–Kapoor 特征值/特征向量/MAC 灵敏度（向量化、稀疏感知、有限差分验证至 ≤ 1e-6）；LM / Gauss–Newton 修正器（Tikhonov 正则化、参数边界、逐迭代 MAC 重配对）；贝叶斯 MAP 路径（`GaussianPrior` + `BayesianUpdater`，复用同一迭代内核，输出 Laplace 后验 σ_post 与置信区间），**AC-UPD-006a/b 已在 10 自由度孪生上验收**（弱先验→GN 极限、强先验下的后验收缩）。孪生实验将分组刚度/质量因子恢复至机器精度。
+- **修正工作流**：S1 基线 → S6 验证的六阶段状态机，机器可读门控失败、共线性筛查（MS-3.6）、留出验证目标防过拟合，`CorrectionReport` 现汇报 Laplace 后验 σ_post 参数不确定度列，且可复现（重跑一致至 1e-12）。
 - **优化**：设计变量、模态/质量/频响响应函数、带 MAC 模态跟踪的解析梯度、SciPy SLSQP/trust-constr 后端（硬边界、解析 Jacobian、方法无关 KKT 残差）。双杆链非对称 `(6, 4)` 最优解从对称初值恢复至 1.1e-16 相对误差。
 - **IO 与 CLI**：schema 版本化的原生 YAML/JSON 往返；UFF/UNV 数据集 55/58 读取器；Nastran BDF 精简读取器；`openfemlab modal | correlate | update | correlate-frf` 四个子命令，stdout 输出机器可读 JSON、退出码即 CI 验收门控。
 - **规格与 QA**：`ARCHITECTURE.md`、`MODULE_SPEC.md`（MS-0..8）、`ACCEPTANCE_CRITERIA.md`（**44 条准则**）、`SOTA_GAP_ANALYSIS.md`（GAP-01..15）、可运行 `examples/`、基准与性能回归门控。
@@ -34,10 +34,10 @@ OpenFEMLab 是一个受 FEMtools 启发、但完全开源（MIT）、求解器�
 |---|---|---|---|
 | 求解器无关数据模型 | 成熟、接口众多 | 同一理念；UNV 55/58 + Nastran 精简版，meshio 在计划中 | 持平（广度后补） |
 | 模态分析 | 内置 + 外部求解器 | SciPy 稠密 + shift-invert Lanczos，全程稀疏，LU 缓存 | 持平 |
-| 3D 连续体单元 | 完整库 | QUAD4/TET4/HEX8 三件套，统一 AC-ELEM 验收门（分片/刚体/收敛）；梁壳面元后补 | 持平（核心已齐） |
+| 3D 单元库 | 完整库 | QUAD4/TET4/HEX8 连续体三件套 + BeamElement3D 空间梁（CBAR 风格），统一验收门（分片/刚体/收敛/闭式谱）；壳面元后补 | 持平（仅缺壳） |
 | 动力学响应 / FRF | 成熟 | 三类阻尼、复模态、导纳/机械导纳/加速度导纳综合、FRAC/FDAC | 持平 |
 | 相关性（MAC/COMAC/正交性） | 有 | 另加全局最优匈牙利配对 | **超越** |
-| 灵敏度模型修正 | 加权最小二乘、手动调参 | LM 自适应阻尼 + Tikhonov + 构造性边界 + 解析 MAC 灵敏度 + 贝叶斯 MAP（Laplace 后验） | **超越** |
+| 灵敏度模型修正 | 加权最小二乘、手动调参 | LM 自适应阻尼 + Tikhonov + 构造性边界 + 解析 MAC 灵敏度 + 贝叶斯 MAP（Laplace 后验，已验收） | **超越** |
 | 验证工作流 | GUI 驱动 | 种子化、schema 版本化六阶段流水线，留出门控 + 机器可读失败 | **超越** |
 | 脚本化 | 专有类 BASIC | 完整 Python + SciPy 生态，CI 原生 CLI | **超越** |
 | 可复现性 | 二进制工程文件 | 纯文本模型、git 记录、无头重跑 | **超越** |
@@ -61,51 +61,39 @@ OpenFEMLab 是一个受 FEMtools 启发、但完全开源（MIT）、求解器�
 | 任务 | 内容 | 状态 |
 |---|---|---|
 | R2-T01 | 动力学/FRF 链（阻尼、复模态、FRF 综合与相关、schema 1.1 `frf` 块、`correlate-frf` CLI） | **完成**（AC-DYN-001..005 已注册并实现，含退出门槛演示，无遗留项） |
-| R2-T02 | 3D 连续体单元库 | **部分**——QUAD4（61）、TET4（66）与 **HEX8（76）均已上主干**，AC-ELEM-001..003 已注册并 `implemented`（24 个验收用例覆盖全部三个单元族）；余量：3D 梁、壳面元、实体/壳 BDF 卡 |
+| R2-T02 | 3D 单元库 | **部分**——QUAD4（61）、TET4（66）、HEX8（76）与 **空间梁 BeamElement3D（42）** 均已上主干，AC-ELEM-001..003 已注册并 `implemented`；**除壳面元外单元列式再无缺口**。余量：带钻转自由度的平板壳面元；`CQUAD4`/`CTETRA`/`CHEXA`/`CBAR`/`PSHELL`/`PSOLID` BDF 卡；`NeutralModel → Model` 转换 |
 | R2-T03 | SEREP/Guyan/IRS 缩减 + TAM + 振型扩展 | **基本完成**——引擎落地，AC-CORR-006/009 均已注册并 `implemented`，`SensorMap.signs` 已接入缩减基（A58）；余量：缩减模块对稀疏输入的稠密化（GAP-13 规模前需改） |
-| R2-T04 | 贝叶斯 MAP 修正（MS-3.5） | **部分**——估计器已落地（35 个测试）；AC-UPD-006a/b（P1 门控项）仍为 `specified`，验收接线待做 |
+| R2-T04 | 贝叶斯 MAP 修正（MS-3.5） | **验收完成**——估计器落地（36 个测试），AC-UPD-006a/b 已注册并 `implemented`（10 自由度孪生上的八用例验收门），`CorrectionReport` σ_post 列已接入；验收范围外余量：CLI `update` 文档输出 σ_post |
 | R2-T05 | meshio 桥 + UNV 2411/2412 | 待启动 |
 | R2-T06 | 修正深度（共线性筛查等） | **P0 部分完成**（MS-3.6 筛查 + AC-UPD-007 已 `implemented`）；P1 余量（QR 选主元精化、解析 MAC 行 Jacobian 接线、模型级参数解析器）开放 |
 | R2-T07 | SciPy 优化后端 | **完成**（GAP-12 对尺寸优化关闭，AC-OPT-001..004 实现，含边界激活 KKT 判据） |
 | R2-T08 | R1-O2 平行实现和解 | **完成**——有用行为经和解合入主干；被取代的远程分支已审计并删除（见 `BRANCH_CLEANUP.md`） |
 | R2-T09 | 退出加固（CI、注册表推进） | 进行中——CI 全绿（Python 3.10–3.13）；`ruff check` 尚未进 CI；注册表 `implemented → verified` 翻转待做 |
 
-**Round 2 退出门槛的剩余项**：5 条 P1 准则（AC-MODAL-008、AC-UPD-006a/b、AC-UPD-008、AC-WORK-003）补齐验收测试并翻至 `implemented`，随后全部 P0/P1 翻至 `verified`；"导入 3D 网格 → 内部再分析"演示（依赖 T05）。HEX8 与 AC-ELEM 注册、FRF 演示两侧均已关闭。
+**Round 2 退出门槛的剩余项**：3 条 P1 准则（AC-MODAL-008、AC-UPD-008、AC-WORK-003）补齐验收测试并翻至 `implemented`，随后全部 P0/P1 翻至 `verified`；"导入 3D 网格 → 内部再分析"演示（依赖 T05）。HEX8/空间梁与 AC-ELEM 注册、AC-UPD-006a/b、FRF 演示各侧均已关闭。
 
-## 五、质量与验证：1035 个测试
+## 五、质量与验证：1089 个测试
 
-- 全量套件 **1035 通过 / 0 失败**，于 A78 里程碑提交 `05e1b51` 在分离的私有工作树中独立复跑验证（55.22 s，`PYTHONPATH` 钉住该工作树的 `src`）；`ruff check .` 干净。
-- **44 条**量化验收准则由机器可读注册表钉住：**39 条 `implemented`、5 条 `specified`、0 条 `verified`**。按优先级：**P0 34/34 全部 `implemented`——P0 已收口**；P1 共 10 条，5 条 `implemented`、5 条 `specified`。注册表一致性本身也是测试——新准则必须与规格文档、实现测试在同一变更中落地，否则套件失败。
-- 相比上一份编排报告（876 个测试、40 条准则）：净增 159 个测试与 4 条准则，主要来自 HEX8 单元套件（76）、AC-ELEM 验收切片（24）、AC-CORR-008/009 与 P0 验收标注收口。
+- 全量套件 **1089 通过 / 0 失败**，于提交 `25a6e9d` 在分离的私有工作树中独立复跑验证（68.3 s，`PYTHONPATH` 钉住该工作树的 `src`）；collect-only 独立复核收集数同为 1089；`ruff check .` 干净。
+- **44 条**量化验收准则由机器可读注册表钉住：**41 条 `implemented`、3 条 `specified`、0 条 `verified`**。按优先级：**P0 共 34 条，全部 `implemented`——P0 保持收口**；P1 共 10 条，7 条 `implemented`、3 条 `specified`（AC-MODAL-008、AC-UPD-008、AC-WORK-003）。注册表一致性本身也是测试——新准则必须与规格文档、实现测试在同一变更中落地，否则套件失败。
+- 相比上一份编排报告（1033 个测试、44 条准则）：净增 56 个测试，准则总数不变但推进 2 条（AC-UPD-006a/b `specified → implemented`）。构成：空间梁 `BeamElement3D` 套件 **42**；AC-UPD-006a/b 验收批次 **12**（八用例验收门 + 贝叶斯单测 1 + 工作流 σ_post 接线 3）；AC-CORR-008 无振型报告往返钉扎 **2**。
 - 端到端演示：模型 → 模态 → 相关 → 修正 → 复算，频率误差 22.86% → 0%，MAC 1.0；README 的 CLI 会话可复现退出码 0/3/0/0。
 - GitHub Actions CI 覆盖 Python 3.10–3.13。
 
 ## 六、Pull Request
 
-[PR #5 — OpenFEMLab: solver-independent CAE platform](https://github.com/9997433-bit/hl/pull/5)（Draft，head `cursor/femtools-industrial-7aa3` → base `main`）。标题中的测试数（430）反映的是开 PR 时的规模；A78 里程碑已增长至 **1035**，后续当前分支验证见 `.agent_workspace/PR_DRAFT.md`。
+[PR #5 — OpenFEMLab: solver-independent CAE platform](https://github.com/9997433-bit/hl/pull/5)（Draft，head `cursor/femtools-industrial-7aa3` → base `main`）。标题中的测试数（430）反映的是开 PR 时的规模，现已增长至 **1089**，建议在转正式评审前刷新 PR 标题与正文（`.agent_workspace/PR_DRAFT.md` 备有草案，需同步至本快照）。
 
 ## 七、下一步
 
 1. **收官 Round 2**：
-   - 补齐 5 条 P1 准则的验收接线（AC-UPD-006a/b 弱先验→GN 极限与后验收缩、AC-MODAL-008 频率窗、AC-UPD-008、AC-WORK-003），随后启动全注册表 `implemented → verified` 翻转（以钉住提交的 CI 通过作为晋升凭据），满足退出门槛；
-   - 3D 梁与壳面元单元 + `CQUAD4`/`CTETRA`/`CHEXA`/`PSHELL`/`PSOLID` BDF 卡（R2-T02 余量）；
+   - 补齐最后 3 条 P1 准则的验收接线（AC-MODAL-008 频率窗、AC-UPD-008、AC-WORK-003），随后启动全注册表 `implemented → verified` 翻转（以钉住提交的 CI 通过作为晋升凭据），满足退出门槛；
+   - 壳面元单元 + `CQUAD4`/`CTETRA`/`CHEXA`/`CBAR`/`PSHELL`/`PSOLID` BDF 卡 + `NeutralModel → Model` 转换（R2-T02 余量）；顺带的廉价项：空间梁加入 AC-ELEM-002 刚体不变性用例表（无需新准则 ID）；
    - meshio 桥 + UNV 2411/2412 几何读取（R2-T05），打通"导入工业网格 → 内部再分析"演示，并注册 AC-IO-001..003；
-   - `ruff check` 进 CI（R2-T09）。
-2. **推进 PR #5 评审**：以 A78 的 1035 测试里程碑和后续当前分支验证为依据刷新标题/正文，Draft 转正式，评审后合入 `main`。
+   - `ruff check` 进 CI（R2-T09）；CLI `update` 文档输出 σ_post（R2-T04 验收范围外余量）。
+2. **推进 PR #5 评审**：刷新标题/正文至 1089 测试规模，Draft 转正式，评审后合入 `main`。
 3. **Round 3（SOTA 打磨）**：FRF 模态参数识别 MPE（GAP-06）、预试验传感器布置（GAP-07）、5 万自由度规模化（GAP-13，含缩减模块去稠密化）、绘图/可视化（GAP-15）、FRF 修正残差、TMCMC 贝叶斯采样、Craig–Bampton CMS。
 
 ---
 
 *编排记录（进度日志、Round 2 计划、状态快照、分支清理审计、PR 草案）均在 `.agent_workspace/` 下，属文档而非运行时代码。*
-
----
-
-## 里程碑速报（2026-08-26 · 面向用户 · 记录：A97）
-
-OpenFEMLab——对标 FEMtools 的开源（MIT）、求解器无关 CAE 平台——达成新的验证里程碑：
-
-- **1089 个测试全部通过，0 失败**（钉于提交 `069b097`，`ruff check` 干净；详见 `STATUS.md`）。
-- **P0 正式收口**：44 条量化验收准则中全部 **34 条 P0 已实现**；仅剩 3 条 P1（AC-MODAL-008、AC-UPD-008、AC-WORK-003）待验收接线。
-- 对标 FEMtools：模型修正、相关性配对、脚本化与可复现性**超越**，模态/动力学/缩减**持平**；GUI 与商用格式广度为已登记的计划差距，非隐藏缺陷。
-- 全部成果经 [PR #5](https://github.com/9997433-bit/hl/pull/5) 汇入评审流程（meshio 桥已在快照后续落地主干）。
-- **Round 2 余量**：3 条 P1 准则接线并将注册表翻至 `verified`；壳面元与实体/壳 BDF 卡（R2-T02）；UNV 2411/2412 几何与写出器（R2-T05 收尾）；`ruff` 进 CI（R2-T09）。
