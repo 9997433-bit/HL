@@ -1,15 +1,15 @@
 /**
- * 识字语料库 —— 500 个学前到二年级高频字，按「单元」分组。
+ * 识字语料库 —— 1000 个学前到小学中段的高频字，按「单元」分组。
  *
  * 字表以 `shared/data/common-hanzi.json` 为事实基线：那份 JSON 里的每个字都必须
  * 在这里出现，且拼音一致，`npm run check:data` 会守住这条。这里比基线多出来的
  * 字段（声调、部首、组词、例句、卡片图标）是识字 App 的教学包装。
  *
- * 字表长到 500 个字之后，整份语料一次性进主包已经不合适了，于是拆成两层：
+ * 字表长到上千个字之后，整份语料一次性进主包已经不合适了，于是拆成两层：
  *
  *   char-index.js   每个字的「轻」信息（拼音 / 声调 / 单元 / 部首 / 笔画 / 图标），
  *                   首页地图、字表卡片、复习队列、家长报表都只需要这一层，
- *                   它随主包一起加载。
+ *                   它随主包一起加载，由 scripts/gen-char-corpus.mjs 生成。
  *   chars/uN.js     每个单元的「重」内容（释义 / 组词 / 例句），
  *                   由下面的加载器 import() 进来，翻到哪个单元才下载哪一包。
  *
@@ -66,12 +66,37 @@ export const UNITS = [
   { id: 'u30', name: '说话的小词', emoji: '💭', color: 'var(--seed-coral)', desc: '因为所以，把话说顺' },
   { id: 'u31', name: '数一数', emoji: '🧮', color: 'var(--seed-mango)', desc: '加减和量词' },
   { id: 'u32', name: '我会学习', emoji: '📖', color: 'var(--seed-leaf)', desc: '练一练，就学会了' },
-  { id: 'u33', name: '唱歌和游戏', emoji: '🎵', color: 'var(--seed-sky)', desc: '玩着玩着就认字了' }
+  { id: 'u33', name: '唱歌和游戏', emoji: '🎵', color: 'var(--seed-sky)', desc: '玩着玩着就认字了' },
+  { id: 'u34', name: '学校与课堂', emoji: '🔔', color: 'var(--seed-grape)', desc: '上课铃一响就开始' },
+  { id: 'u35', name: '说话和文章', emoji: '📝', color: 'var(--seed-mint)', desc: '把想说的写成一段话' },
+  { id: 'u36', name: '车船去远方', emoji: '🚢', color: 'var(--seed-coral)', desc: '路上跑的，水里开的' },
+  { id: 'u37', name: '穿在身上', emoji: '👕', color: 'var(--seed-mango)', desc: '衣裤鞋袜，布和线' },
+  { id: 'u38', name: '天气变变变', emoji: '🌈', color: 'var(--seed-leaf)', desc: '晴阴霜露，冷暖来去' },
+  { id: 'u39', name: '田野和庄稼', emoji: '🌾', color: 'var(--seed-sky)', desc: '种地打粮，山溪田头' },
+  { id: 'u40', name: '好用的工具', emoji: '🔨', color: 'var(--seed-grape)', desc: '斧锯锤钉，样样趁手' },
+  { id: 'u41', name: '看病和健康', emoji: '🏥', color: 'var(--seed-mint)', desc: '生病别怕，看医生去' },
+  { id: 'u42', name: '逛商店', emoji: '🛒', color: 'var(--seed-coral)', desc: '买卖算账，一分一角' },
+  { id: 'u43', name: '写信和消息', emoji: '✉️', color: 'var(--seed-mango)', desc: '把话送到很远的地方' },
+  { id: 'u44', name: '过节和礼貌', emoji: '🎊', color: 'var(--seed-leaf)', desc: '节日团圆，见面问好' },
+  { id: 'u45', name: '我们的国家', emoji: '🏯', color: 'var(--seed-sky)', desc: '京华山川，九州风物' },
+  { id: 'u46', name: '荒野和大地', emoji: '🏜️', color: 'var(--seed-grape)', desc: '深浅宽窄，样样比一比' },
+  { id: 'u47', name: '鸟兽虫鱼', emoji: '🦅', color: 'var(--seed-mint)', desc: '天上飞的，水里游的' },
+  { id: 'u48', name: '花木和果子', emoji: '🍇', color: 'var(--seed-coral)', desc: '梅兰竹菊，葡萄柿子' },
+  { id: 'u49', name: '房子里外', emoji: '🏠', color: 'var(--seed-mango)', desc: '墙顶梁柱，厅堂卧室' },
+  { id: 'u50', name: '灶台和收拾', emoji: '🍳', color: 'var(--seed-leaf)', desc: '蒸炸煎烤，抹桌扫地' },
+  { id: 'u51', name: '音乐和画画', emoji: '🎨', color: 'var(--seed-sky)', desc: '弹琴打鼓，描红涂色' },
+  { id: 'u52', name: '运动会', emoji: '🏅', color: 'var(--seed-grape)', desc: '投掷攀登，比赛争先' },
+  { id: 'u53', name: '用心想一想', emoji: '🤔', color: 'var(--seed-mint)', desc: '猜疑判断，观察探究' },
+  { id: 'u54', name: '从前和现在', emoji: '🏺', color: 'var(--seed-coral)', desc: '古今世代，始终在变' },
+  { id: 'u55', name: '量一量比一比', emoji: '⚖️', color: 'var(--seed-mango)', desc: '寸亩升斗，或多或少' },
+  { id: 'u56', name: '科学和宇宙', emoji: '🚀', color: 'var(--seed-leaf)', desc: '技术器物，星辰宇宙' },
+  { id: 'u57', name: '心情和身体', emoji: '😌', color: 'var(--seed-sky)', desc: '喜怒哀乐，眉眼手掌' },
+  { id: 'u58', name: '讲故事', emoji: '🧚', color: 'var(--seed-grape)', desc: '神仙侠客，敲门搬家' }
 ]
 
 export const UNIT_MAP = new Map(UNITS.map((u) => [u.id, u]))
 
-/** 全部 500 个字的轻量信息，顺序即课程顺序。 */
+/** 全部 1000 个字的轻量信息，顺序即课程顺序。 */
 export const CHARACTERS = CHAR_INDEX
 
 export const CHARACTER_MAP = new Map(CHARACTERS.map((c) => [c.char, c]))
@@ -124,7 +149,32 @@ const DETAIL_LOADERS = {
   u30: () => import('./chars/u30.js'),
   u31: () => import('./chars/u31.js'),
   u32: () => import('./chars/u32.js'),
-  u33: () => import('./chars/u33.js')
+  u33: () => import('./chars/u33.js'),
+  u34: () => import('./chars/u34.js'),
+  u35: () => import('./chars/u35.js'),
+  u36: () => import('./chars/u36.js'),
+  u37: () => import('./chars/u37.js'),
+  u38: () => import('./chars/u38.js'),
+  u39: () => import('./chars/u39.js'),
+  u40: () => import('./chars/u40.js'),
+  u41: () => import('./chars/u41.js'),
+  u42: () => import('./chars/u42.js'),
+  u43: () => import('./chars/u43.js'),
+  u44: () => import('./chars/u44.js'),
+  u45: () => import('./chars/u45.js'),
+  u46: () => import('./chars/u46.js'),
+  u47: () => import('./chars/u47.js'),
+  u48: () => import('./chars/u48.js'),
+  u49: () => import('./chars/u49.js'),
+  u50: () => import('./chars/u50.js'),
+  u51: () => import('./chars/u51.js'),
+  u52: () => import('./chars/u52.js'),
+  u53: () => import('./chars/u53.js'),
+  u54: () => import('./chars/u54.js'),
+  u55: () => import('./chars/u55.js'),
+  u56: () => import('./chars/u56.js'),
+  u57: () => import('./chars/u57.js'),
+  u58: () => import('./chars/u58.js')
 }
 
 /** 已经下载过的单元详情：unitId → { 汉字: { meaning, words, sentence } }。 */
@@ -169,7 +219,7 @@ export function getLoadedCharacter(char) {
   return details?.[char] ? { ...base, ...details[char] } : null
 }
 
-/** 整份语料（会把 33 个详情包全下下来），内容自检和导出报表用。 */
+/** 整份语料（会把所有详情包全下下来），内容自检和导出报表用。 */
 export async function loadAllCharacters() {
   const units = [...new Set(CHARACTERS.map((c) => c.unit))]
   await Promise.all(units.map((unit) => loadUnitDetails(unit)))
