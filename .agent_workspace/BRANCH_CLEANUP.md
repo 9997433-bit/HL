@@ -91,15 +91,15 @@ same 1168).
 
 | Branch | Remote tip | Relationship to trunk | Recommendation |
 |---|---|---|---|
-| `cursor/ac-backfill-a56-r2-02bf` | `89c93a5` | Ancestor of trunk with zero branch-only commits. Its MS-1.2 frequency-window feature, the AC-MODAL-008/UPD-008/WORK-003 suites and the non-finite JSON fix entered the integration history through merge `8bc2ec4`. | **Safe to delete as fully merged.** |
-| `cursor/ac-backfill-a56-02bf` | `03757fe` | Not an ancestor; four branch-only commits. This is the same run's first attempt, based on `7faaf23` and finished against a trunk 60 commits further on. Its `modal.py`, `test_modal.py` and `test_workflow.py` are byte-identical to trunk; its only other content is a second, independent AC-CORR-008 implementation superseded by `1e99970` plus the fix now on trunk. | **Do not merge; safe to delete as superseded.** |
+| `cursor/ac-backfill-a56-r2-02bf` | `89c93a5` | Ancestor of trunk with zero branch-only commits. Its MS-1.2 frequency-window feature, the AC-MODAL-008/UPD-008/WORK-003 suites and the non-finite JSON fix entered the integration history through merge `8bc2ec4`. | **Deleted from `origin` as fully merged.** |
+| `cursor/ac-backfill-a56-02bf` | `03757fe` | Not an ancestor; four branch-only commits. This is the same run's first attempt, based on `7faaf23` and finished against a trunk 60 commits further on. Its `modal.py`, `test_modal.py` and `test_workflow.py` are byte-identical to trunk; its only other content is a second, independent AC-CORR-008 implementation superseded by `1e99970` plus the fix now on trunk. | **Do not merge.** Retained on `origin` as superseded pending separate deletion review. |
 
 ```text
 git merge-base --is-ancestor origin/cursor/ac-backfill-a56-r2-02bf \
                              origin/cursor/femtools-industrial-7aa3
 yes
 git rev-list --left-right --count origin/cursor/femtools-industrial-7aa3...origin/cursor/ac-backfill-a56-r2-02bf
-36  0
+42  0
 
 git merge-base --is-ancestor origin/cursor/ac-backfill-a56-02bf \
                              origin/cursor/femtools-industrial-7aa3
@@ -108,7 +108,9 @@ git rev-list --left-right --count origin/cursor/femtools-industrial-7aa3...origi
 110  4
 ```
 
-Neither branch was deleted by this run; both are recorded here for review.
+The fully merged R2 branch was deleted from `origin` on 2026-08-26 after its
+`89c93a5` tip was reverified against trunk. The first-attempt branch remains on
+`origin` and must not be merged.
 
 > [!NOTE]
 > The warning above about `cursor/hex8-solid-element-d0b7` being "contaminated with
