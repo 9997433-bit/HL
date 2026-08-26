@@ -269,18 +269,26 @@ await interact('算术恒星：数字键盘输入', '/#/arithmetic', async (page
 
 await interact('数独空间站：填格 + 提示直到完成', '/#/sudoku', async (page) => {
   const cells = await page.evaluate(() => document.querySelectorAll('.cell').length)
-  const filled = await page.evaluate(() => {
+  // 选格与按数字要分两拍：数字键在选中格子之前是禁用的，
+  // 同一个 evaluate 里查不到 Vue 刚更新的 disabled 状态
+  const emptyBefore = await page.evaluate(
+    () => [...document.querySelectorAll('.cell')].filter((c) => !c.innerText.trim()).length,
+  )
+  await page.evaluate(() => {
     const empty = [...document.querySelectorAll('.cell')].find((c) => !c.innerText.trim())
-    if (!empty) return false
-    empty.click()
-    const pad = [...document.querySelectorAll('.pad-key, .pad button, .num-key')].find(
-      (b) => !b.disabled,
-    )
-    if (!pad) return false
-    pad.click()
-    return true
+    if (empty) empty.click()
   })
-  await sleep(500)
+  await sleep(250)
+  await page.evaluate(() => {
+    const pad = [...document.querySelectorAll('.numkey:not(.erase)')].find((b) => !b.disabled)
+    if (pad) pad.click()
+  })
+  await sleep(400)
+  const emptyAfter = await page.evaluate(
+    () => [...document.querySelectorAll('.cell')].filter((c) => !c.innerText.trim()).length,
+  )
+  const filled = emptyAfter === emptyBefore - 1
+  if (!filled) throw new Error(`填数没生效：空格 ${emptyBefore} → ${emptyAfter}`)
 
   let hints = 0
   for (let i = 0; i < 20; i++) {
