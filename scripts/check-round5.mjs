@@ -120,6 +120,7 @@ try {
 
 /* --------------------------------------- H4 应用题母题 ≥ 100（M-M3） */
 try {
+  await import('../apps/math-app/scripts/register-alias.mjs')
   const wp = await import('../apps/math-app/src/data/wordProblems.js')
   const n = wp.WORD_PROBLEMS?.length ?? wp.default?.length ?? 0
   check(
