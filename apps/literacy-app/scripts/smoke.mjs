@@ -66,6 +66,12 @@ const ROUTES = [
   ['成语 画蛇添足', '/#/idioms/hstz'],
   ['成语 水滴石穿', '/#/idioms/sdsc'],
   ['成语 举一反三', '/#/idioms/jyfs'],
+  ['成语 愚公移山', '/#/idioms/ygys'],
+  ['成语 盲人摸象', '/#/idioms/mrmx'],
+  ['成语 五颜六色', '/#/idioms/wyls'],
+  ['字源馆', '/#/etymology'],
+  ['字源 日（象形）', `/#/etymology/${encodeURIComponent('日')}`],
+  ['字源 明（会意）', `/#/etymology/${encodeURIComponent('明')}`],
   ['家长中心', '/#/parent'],
   ['未知路由回落', '/#/nope/nope']
 ]
@@ -878,6 +884,153 @@ await interact('设计令牌：识字 App 用的是共享令牌层', '/#/', asyn
   if (!tokens.artTint) throw new Error('识字 App 自己的 --art-tint 丢了')
   return `共享令牌 --tap-hero=${tokens.shared}，--mango-500=${tokens.palette}，--text-soft=${tokens.textSoft}`
 })
+
+/* ------------------------------------------------------------ 字源演变 */
+
+/** 等演变动画走到收尾状态，再把舞台上的东西数一遍。 */
+const readStage = (page) =>
+  page.evaluate(() => {
+    const el = document.querySelector('.ety')
+    if (!el) return null
+    const strokes = [...el.querySelectorAll('.ety__stroke')]
+    const frames = [...el.querySelectorAll('.ety__frame')]
+    return {
+      stage: el.dataset.stage,
+      kind: el.dataset.kind,
+      ink: el.querySelectorAll('.ety__ink').length,
+      parts: el.querySelectorAll('.ety__part').length,
+      strokes: strokes.length,
+      masked: strokes.filter((p) => p.getAttribute('mask')).length,
+      reveals: el.querySelectorAll('.ety__reveal').length,
+      visibleFrames: frames.filter((f) => Number(getComputedStyle(f).opacity) > 0.9).length,
+      text: el.querySelector('.ety__text')?.innerText.replace(/\s+/g, ' ').trim() ?? '',
+      live: el.querySelector('.sr-only[aria-live="polite"]')?.innerText.trim() ?? ''
+    }
+  })
+
+const waitStageDone = (page) =>
+  page.waitForFunction(
+    () => ['done', 'static'].includes(document.querySelector('.ety')?.dataset.stage),
+    { timeout: 20000 }
+  )
+
+await interact(
+  '字源馆：象形字从小图演变到笔画',
+  `/#/etymology/${encodeURIComponent('日')}`,
+  async (page) => {
+    await page.waitForSelector('.ety[data-ready="true"]', { timeout: 12000 })
+    await waitStageDone(page)
+    const s = await readStage(page)
+    if (s.kind !== 'xiang') throw new Error(`「日」应当归在象形，实际是 ${s.kind}`)
+    if (s.ink < 2) throw new Error(`第一帧的小图只画出了 ${s.ink} 笔`)
+    if (s.strokes < 3) throw new Error(`第二帧只画出了 ${s.strokes} 笔，笔顺数据没接上`)
+    if (s.masked !== s.strokes) throw new Error('笔画没有挂上遮罩，「一笔一笔写」的动画不会生效')
+    if (s.reveals !== s.strokes) throw new Error(`遮罩 ${s.reveals} 条对不上 ${s.strokes} 笔`)
+    if (!s.text.includes('象形')) throw new Error(`配文里没有说明这是什么字：「${s.text}」`)
+    if (!s.live) throw new Error('演变过程没有任何 aria-live 播报')
+    return `象形「日」：小图 ${s.ink} 笔 → 楷书 ${s.strokes} 笔（${s.masked} 笔逐笔显出）`
+  }
+)
+
+await interact(
+  '字源馆：形声字先拆零件，切字后重新演一遍',
+  `/#/etymology/${encodeURIComponent('河')}`,
+  async (page) => {
+    await page.waitForSelector('.ety[data-ready="true"]', { timeout: 12000 })
+    await waitStageDone(page)
+    const he = await readStage(page)
+    if (he.kind !== 'xing') throw new Error(`「河」应当归在形声，实际是 ${he.kind}`)
+    if (he.parts !== 2) throw new Error(`形声字第一帧应当摆出两个零件，实际 ${he.parts} 个`)
+    if (he.ink !== 0) throw new Error('形声字不该画小图')
+    if (!he.strokes) throw new Error('形声字第二帧没有笔画')
+
+    // 换一个字：舞台要重新从「看图」演起，而不是停在上一个字的收尾状态
+    const picked = await page.evaluate(() => {
+      const btn = [...document.querySelectorAll('.glyphbtn')].find((b) => b.innerText.trim() === '山')
+      if (!btn) return false
+      btn.click()
+      return true
+    })
+    if (!picked) throw new Error('字表里点不到「山」')
+    await page.waitForFunction(() => document.querySelector('.ety')?.dataset.char === '山', {
+      timeout: 8000
+    })
+    await waitStageDone(page)
+    const shan = await readStage(page)
+    if (shan.kind !== 'xiang') throw new Error('换到「山」以后分类没跟着换')
+    if (!shan.ink) throw new Error('换字后第一帧的小图没有重新画出来')
+    return `形声「河」拆成 ${he.parts} 个零件；换到象形「山」后重演（小图 ${shan.ink} 笔）`
+  }
+)
+
+await interact(
+  '字源馆：系统要求减少动态时降级成两幅静图',
+  `/#/etymology/${encodeURIComponent('日')}`,
+  async (page) => {
+    await page.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }])
+    await page.reload({ waitUntil: 'networkidle2', timeout: 20000 })
+    await page.waitForSelector('.ety[data-ready="true"]', { timeout: 12000 })
+    await new Promise((r) => setTimeout(r, 600))
+
+    const s = await readStage(page)
+    if (s.stage !== 'static') throw new Error(`减少动态时应当直接进静止模式，实际 stage=${s.stage}`)
+    if (s.masked !== 0) throw new Error('静止模式下笔画还挂着遮罩，会有一半笔画显不出来')
+    if (s.visibleFrames < 2) throw new Error(`静止模式要把两幅图都摆出来，实际只看得到 ${s.visibleFrames} 幅`)
+    if (!s.ink || !s.strokes) throw new Error('静止模式下小图或字形是空的')
+    if (!s.text.includes('象形')) throw new Error('静止模式下配文丢了')
+
+    // 不动，但该说的一句不能少：文字说明和播报都要还在
+    if (!s.live.includes('减少动态')) {
+      throw new Error(`静止模式没有告诉用户动画为什么没播：「${s.live}」`)
+    }
+    const noReplay = await page.evaluate(() =>
+      [...document.querySelectorAll('.ety__acts .btn')].every((b) => !b.innerText.includes('再演一遍'))
+    )
+    if (!noReplay) throw new Error('减少动态时还留着「再演一遍」按钮')
+    return `静止模式：两幅图并排（小图 ${s.ink} 笔 + 楷书 ${s.strokes} 笔），无遮罩、无时间线`
+  }
+)
+
+await interact(
+  '单字页：字源动画点开才下载',
+  `/#/learn/${encodeURIComponent('山')}`,
+  async (page) => {
+    const isStageChunk = (url) => {
+      const file = url.split('/').pop() ?? ''
+      return /^EtymologyStage-/.test(file) || /^etymology-(?!index-)/.test(file)
+    }
+    const asked = []
+    page.on('request', (r) => {
+      if (isStageChunk(r.url())) asked.push(r.url().split('/').pop())
+    })
+
+    await page.reload({ waitUntil: 'networkidle2', timeout: 20000 })
+    await page.waitForSelector('#char-origin-panel', { timeout: 8000 })
+    await new Promise((r) => setTimeout(r, 400))
+    if (asked.length) throw new Error(`还没点就下载了字源分块：${asked.join('、')}`)
+
+    const collapsed = await page.evaluate(() => {
+      const btn = document.querySelector('[aria-controls="char-origin-panel"]')
+      return { expanded: btn?.getAttribute('aria-expanded'), stage: !!document.querySelector('.ety') }
+    })
+    if (collapsed.expanded !== 'false') throw new Error('入口按钮没有正确标注 aria-expanded')
+    if (collapsed.stage) throw new Error('还没点开，演变舞台就已经挂在页面上了')
+
+    await page.evaluate(() => document.querySelector('[aria-controls="char-origin-panel"]').click())
+    await page.waitForSelector('.ety[data-ready="true"]', { timeout: 12000 })
+    await waitStageDone(page)
+
+    if (!asked.length) throw new Error('点开之后也没有请求字源分块，说明它被打进了主包')
+    const s = await readStage(page)
+    if (!s.ink || !s.strokes) throw new Error('单字页里的演变舞台是空的')
+    const expanded = await page.evaluate(
+      () => document.querySelector('[aria-controls="char-origin-panel"]')?.getAttribute('aria-expanded')
+    )
+    if (expanded !== 'true') throw new Error('展开后 aria-expanded 没有跟着变')
+
+    return `点开前 0 个请求，点开后加载 ${asked.length} 个分块（${asked.join('、')}）并演完`
+  }
+)
 
 await interact('单字页：笔顺数据可用', `/#/learn/${encodeURIComponent('日')}`, async (page) => {
   await new Promise((r) => setTimeout(r, 1500))

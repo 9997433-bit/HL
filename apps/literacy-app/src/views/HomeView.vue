@@ -5,6 +5,7 @@ import ProgressRing from '@/components/ProgressRing.vue'
 import { useProgressStore } from '@/stores/progress.js'
 import { useSettingsStore } from '@/stores/settings.js'
 import { BOOKS } from '@/data/books.js'
+import { TOTAL_ETYMOLOGY } from '@/data/etymology-index.js'
 import { TOTAL_IDIOMS } from '@/data/idiom-index.js'
 import { RADICALS } from '@/data/radicals.js'
 import { sfx } from '@/utils/sfx.js'
@@ -47,6 +48,15 @@ const stations = computed(() => [
     done: progress.radicalsSeen,
     total: RADICALS.length,
     unit: '个'
+  },
+  {
+    to: '/etymology',
+    emoji: '🏺',
+    title: '字源馆',
+    desc: `${TOTAL_ETYMOLOGY} 个字，看它从一张小图变成今天的样子`,
+    color: 'var(--sky-400)',
+    done: null,
+    total: null
   },
   {
     to: '/books',
