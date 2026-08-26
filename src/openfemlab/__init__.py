@@ -71,11 +71,16 @@ _EXPORTS: dict[str, str] = {
     "SensorMap": "openfemlab.workflow",
     "ValidationGates": "openfemlab.workflow",
     "run_correction": "openfemlab.workflow",
+    # optimization
+    "OptimizationProblem": "openfemlab.optimization",
+    "OptimizationResult": "openfemlab.optimization",
+    "minimize_sizing": "openfemlab.optimization",
     # errors
     "OpenFEMLabError": "openfemlab.exceptions",
     "ModelError": "openfemlab.exceptions",
     "ElementError": "openfemlab.exceptions",
     "SolverError": "openfemlab.exceptions",
+    "OptimizationError": "openfemlab.exceptions",
 }
 
 __all__ = ["__version__", *sorted(_EXPORTS)]
@@ -121,7 +126,11 @@ if TYPE_CHECKING:  # pragma: no cover
     from .exceptions import ElementError as ElementError
     from .exceptions import ModelError as ModelError
     from .exceptions import OpenFEMLabError as OpenFEMLabError
+    from .exceptions import OptimizationError as OptimizationError
     from .exceptions import SolverError as SolverError
+    from .optimization import OptimizationProblem as OptimizationProblem
+    from .optimization import OptimizationResult as OptimizationResult
+    from .optimization import minimize_sizing as minimize_sizing
     from .solver.dynamics import ComplexModalResult as ComplexModalResult
     from .solver.dynamics import FrequencyResponse as FrequencyResponse
     from .solver.dynamics import ModalDamping as ModalDamping
