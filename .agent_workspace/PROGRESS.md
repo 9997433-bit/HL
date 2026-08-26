@@ -2179,3 +2179,12 @@ the AC-UPD-006a/b registry rows stay `specified` because their tags belong in
 - Verified the exact committed trunk snapshot `8604807` from the isolated
   `/tmp/a62-cleanup` clone with `PYTHONPATH` pinned to its own `src`: **876 passed,
   0 failed** in 29.26 seconds.
+
+#### A67 — trunk verification (backfill for completed A65)
+
+- Verified the integration tip `e1a4cc8` from the isolated `/tmp/a38` worktree with
+  `PYTHONPATH` pinned to its own `src`: **876 passed, 0 failed** with `pytest -q`;
+  `ruff check .` also passed cleanly.
+- The unpinned pytest invocation inherited `/workspace/src` and failed collection
+  against that unrelated checkout. Pinning the branch-local source removed the
+  cross-worktree import contamination; no product-code fix was required.
