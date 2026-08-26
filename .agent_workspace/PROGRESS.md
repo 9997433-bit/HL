@@ -65,7 +65,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A50 | claude-opus-5-thinking-high-fast | Remaining P0 acceptance batch: AC-MODAL-007/009, AC-CORR-005/007, AC-UPD-004/005, AC-WORK-001/002/004/005 + MS-1.1 solver validation and MS-3.4 stop reasons/divergence guard (backfill for A31) | complete |
 | A58 | claude-opus-5-thinking-high-fast | R2-T03: register AC-CORR-009 (TAM pseudo-orthogonality) and wire `SensorMap.signs` through the reduction bases (backfill for A43) | complete |
 | A76 | gpt-5.6-sol-xhigh-fast | Current-tip pytest verification (backfill for completed A75) | complete — A75 done; 921 passed |
-| A80 | gpt-5.6-sol-xhigh-fast | Authoritative current-tip pytest count (backfill for completed A76) | complete — 921 passed at `9052f95`; collection confirmed 921 |
+| A80 | gpt-5.6-sol-xhigh-fast | Authoritative current-tip pytest count (backfill for completed A76) | complete — 1033 passed at `ff484e4`; collection confirmed 1033 |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
@@ -2635,3 +2635,53 @@ drilling DOFs, the `CQUAD4`/`CTETRA`/`CHEXA`/`CBAR`/`PSHELL`/`PSOLID` cards in
 `io/nastran.py`, and the `NeutralModel → Model` conversion that turns an imported block
 into bound elements. AC-ELEM-001..003 need a CI run, not another test, to reach
 `verified`.
+#### A79 — merging the HEX8 brick slice into the integration branch (backfill for A59)
+
+A59 left two branches with the same `d0b7` suffix and only one of them mergeable. This
+entry records which, why, and what the counters became.
+
+**Which branch, and why not the other.** `cursor/hex8-solid-element-d0b7` is the branch
+A59's own entry marks **superseded**: it was built in the shared `/workspace` checkout and
+its `git add -A` swept a concurrent agent's in-flight `solver/modal.py` and
+`exceptions.py` into it. That agent's AC-MODAL-007/009 work reached the trunk on its own
+afterwards, so merging the entangled branch would fork a second copy of it — its diff
+against the rebuilt branch is 17 files and ~2500 lines of exactly that duplication.
+`cursor/hex8-brick-ac-elem-d0b7` is the clean rebuild: five element files plus the three
+registration edits, nothing else. That is the one merged here; the superseded branch stays
+unmerged and should be deleted rather than revisited.
+
+**The three conflicts were all the same conflict.** Every one was an inventory counter
+that the trunk and the branch each moved for a different reason — the trunk had added
+AC-CORR-009 (M2: 8 → 9) while the branch added the M7 `ELEM` family. The registry rows
+themselves auto-merged cleanly, since the two sides touched disjoint entries; only the
+hand-maintained totals that shadow them collided:
+
+- `tests/acceptance/test_criteria_registry.py` — `EXPECTED_CRITERIA_PER_FAMILY` (take
+  `CORR: 9` from the trunk *and* `ELEM: 3` from the branch) and `len(REGISTRY) == 44`
+  (41 + 3), not either side's 41 or 43.
+- `docs/ACCEPTANCE_CRITERIA.md` §9 — the same numbers in prose.
+- `.agent_workspace/PROGRESS.md` — not a counter but a two-sided append (A50 on the trunk,
+  A59 on the branch); both entries kept, in agent order.
+
+Resolving by taking either side wholesale would have passed `git merge` and then failed
+`test_registry_inventory_matches_documented_scope`, which is the point of pinning the
+totals twice. Each resolved file was staged by explicit path — `git add <file>`, never
+`git add -A` — which is the rule A59's incident produced.
+
+**Verification at the merged tip:** full suite **1033 passed, 0 failed**, `ruff check .`
+clean, Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1, from a private clone with `PYTHONPATH`
+pinned to its own `src`. The HEX8 merge alone took the trunk's 921 to **1021** — exactly
+the 100 tests A59 measured (76 in `tests/test_hex8.py`, 24 parametrized cases in
+`tests/acceptance/test_elements.py`) — and the AC-CORR-008 work that landed upstream
+mid-merge added the remaining 12. Registry: **44 criteria, 39 `implemented`, 5
+`specified`**, and with AC-CORR-008 and AC-ELEM-001..003 both in, **every P0 row is now
+`implemented`**; the five outstanding are all P1 (AC-MODAL-008, AC-UPD-006a/b,
+AC-UPD-008, AC-WORK-003).
+
+**The shared checkout is still moving.** `/workspace` advanced under this run before the
+merge even started, and the integration branch's remote tip moved three more times during
+it (`a975087` → `b56593c` → `ca5abae` → the AC-CORR-008 landing). The merge was therefore
+staged in a private clone under a name no other agent would pick, committed as soon as it
+was coherent, and pushed through a fetch-merge-push retry loop rather than a single push.
+Two of those three upstream moves touched files this merge also touched and still merged
+cleanly; the loop is cheap insurance, not ceremony.

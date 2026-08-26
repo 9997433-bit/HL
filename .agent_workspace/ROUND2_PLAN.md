@@ -16,17 +16,20 @@ A supporting backlog covers the remaining Round 2 items from
 
 ---
 
-## 0. Status snapshot — mid-round (A61, 2026-08-26, code baseline `7cc1120`)
+## 0. Status snapshot — mid-round (A79, 2026-08-26, integration tip after the HEX8 merge)
 
 Verified at that tip from a private clone (`PYTHONPATH` pinned): full suite
-**876 passed, 0 failed**, `ruff check .` clean, on Python 3.12.3 / NumPy 2.5.2 /
-SciPy 1.18.1. Registry: **43 criteria — 35 `implemented`, 8 `specified`, 0 `verified`**
-after the A59 element slice added the three M7 rows.
+**1033 passed, 0 failed**, `ruff check .` clean, on Python 3.12.3 / NumPy 2.5.2 /
+SciPy 1.18.1. Registry: **44 criteria — 39 `implemented`, 5 `specified`, 0 `verified`**
+once the A59 element slice's three M7 rows joined the trunk's AC-CORR-009. Every **P0**
+row is now `implemented`; the five still `specified` are all P1 (AC-MODAL-008,
+AC-UPD-006a/b, AC-UPD-008, AC-WORK-003). Nothing can reach `verified` until R2-T09
+stands up the CI job.
 
 | Task | Status |
 |---|---|
 | R2-T01 dynamics/FRF | **COMPLETE** — engine (`acda625`), AC-DYN-001..005 `implemented`, report `frf` block at schema 1.1 (A41), `openfemlab correlate-frf` CLI (A54). No open work. |
-| R2-T02 3D elements | **PARTIAL** — QUAD4 (A37), TET4 (A46) and HEX8 (A59) landed with mesh generators and 203 tests, and AC-ELEM-001..003 are registered as module M7 over all three (A59, +24 acceptance cases). Open: 3D beam, flat-facet shell, `NeutralModel` → `Model` conversion, solid/shell BDF cards. |
+| R2-T02 3D elements | **PARTIAL** — QUAD4 (A37), TET4 (A46) and HEX8 (A59, merged by A79) are all on the integration branch with mesh generators and 203 tests, and AC-ELEM-001..003 are registered as module M7 over all three (+24 acceptance cases). Open: 3D beam, flat-facet shell, `NeutralModel` → `Model` conversion, solid/shell BDF cards. |
 | R2-T03 reduction/expansion | **PARTIAL** — engine (A36, `correlation/reduction.py`) and the AC-CORR-006 gate `implemented` (A43). Open: AC-CORR-009 registration, `SensorMap.signs` wiring, sparse inputs, `verified` flip. |
 | R2-T04 Bayesian MAP | **PARTIAL** — estimator (A49, `updating/bayesian.py`, 35 tests). Open: AC-UPD-006a/b tagging + registry flip, σ_post in the CLI/report output. |
 | R2-T05 meshio & IO | **NOT STARTED** — the only core track with no commit. |
@@ -145,7 +148,8 @@ consistency tests fail.
   a 162-element distorted 3D patch exact to 2.8e-16, exactly six zero-energy modes,
   quadratic axial h-convergence from above, and the element's bending locking pinned as
   a known limitation.
-  *HEX8* (A59, `cursor/hex8-brick-ac-elem-d0b7`; suite **976 passed**, Ruff clean):
+  *HEX8* (A59, `cursor/hex8-brick-ac-elem-d0b7`, **merged into the integration branch by
+  A79**; suite **1033 passed** at the merged tip, Ruff clean):
   `Hex8Element` trilinear brick plus `gauss_legendre_3d`, `hex_block_mesh` /
   `MeshBuilder.add_hex8` (sharing the structured-grid helper with `tet_block_mesh`, so
   both number their nodes alike), and 76 tests in `tests/test_hex8.py` — a 27-element
@@ -353,8 +357,9 @@ Round 2 is done when, on the integration branch in CI:
    particular AC-CORR-006 (SEREP), AC-UPD-006a/b (Bayesian), AC-MODAL-008,
    AC-WORK-003, AC-UPD-008, AC-OPT-004.
 3. The newly registered dynamics / element / IO criteria (T01/T02/T05 proposals above)
-   are at least `implemented` — done for AC-DYN-001..005 (T01) and AC-ELEM-001..003
-   (T02); the AC-IO-* rows of T05 are still unregistered.
+   are at least `implemented` — done on the integration branch for AC-DYN-001..005 (T01)
+   and, since the A79 merge, AC-ELEM-001..003 (T02); the AC-IO-* rows of T05 are still
+   unregistered.
 4. A measured FRF (UFF-58) can be compared against a synthesized FRF from a damped model
    via FRAC/FDAC through the CLI, and a meshio- or BDF-imported 3D mesh can be
    re-analyzed internally — the two headline workflow demos for the round. **The FRF

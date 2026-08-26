@@ -48,8 +48,8 @@ from earlier entries.
   nothing verified here is off-branch.
 - [ ] **Title is stale** — it still says "430 tests". Refresh title and body
   from [`PR_DRAFT.md`](PR_DRAFT.md) before review; the draft itself is pinned
-  at 876 (`8604807`) and needs the same one-line bump to the current head
-  count.
+  at the 1033-count post-HEX8 tip and needs the same one-line bump to the
+  reconciled head count.
 - [x] Reviewer-facing docs are in place: `PR_DRAFT.md` (body + FEMtools
   comparison table), [`STATUS.md`](STATUS.md) (module table, registry census),
   [`BRANCH_CLEANUP.md`](BRANCH_CLEANUP.md) (side-branch audit; superseded
