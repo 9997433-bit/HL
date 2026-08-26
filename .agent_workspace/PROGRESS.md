@@ -22,6 +22,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | Agent | Model | Focus | Status |
 |-------|-------|-------|--------|
 | A01 | claude-fable-5-thinking-xhigh | Module spec & acceptance criteria (docs + registry) | complete |
+| A03 | claude-fable-5-thinking-xhigh | SOTA gap audit & Round 1 conclusion (backfill) | complete |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
@@ -42,7 +43,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | Agent | Model | Focus | Status |
 |-------|-------|-------|--------|
 | R1-F1 | claude-fable-5-thinking-xhigh | Global architecture & SOTA audit | pending |
-| R1-F2 | claude-fable-5-thinking-xhigh | Module spec & acceptance criteria | pending |
+| R1-F2 | claude-fable-5-thinking-xhigh | Module spec & acceptance criteria | complete |
 | R1-O1 | claude-opus-5-thinking-high-fast | Core FEM + modal solver | complete |
 | R1-O2 | claude-opus-5-thinking-high-fast | Model updating & correlation | pending |
 | R1-G1 | gpt-5.6-sol-xhigh-fast | Project scaffold & benchmarks | complete |
@@ -111,6 +112,27 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
   registry with 13 consistency tests (ID format/uniqueness, dense numbering,
   cross-references against both docs, controlled vocabularies, P0 coverage).
 - Verified on Python 3.12: 13/13 registry tests pass; new files pass Ruff.
+
+#### R1-F2 — Module Spec & Acceptance Criteria
+- Added `docs/MODULE_SPEC.md`: binding specs for M1 modal analysis
+  (K·φ = λ·M·φ, dense/shift-invert-Lanczos/LOBPCG backends, rigid-body and
+  missed-mode handling, mass-normalization + sign convention), M2 correlation
+  (MAC/weighted MAC, Hungarian mode pairing, frequency error, COMAC,
+  test–analysis DOF mapping), M3 updating (Fox–Kapoor and eigenvalue
+  sensitivities, LM-regularized weighted Gauss–Newton, Bayesian MAP with
+  posterior covariance, collinearity-based parameter selection), M4 correction
+  workflow (S1–S6 state machine with validation gates and held-out targets),
+  M5 gradient-based sizing optimization hook. Aligned to `openfemlab` layering
+  from `docs/ARCHITECTURE.md`.
+- Added `docs/ACCEPTANCE_CRITERIA.md`: 35 measurable criteria
+  (AC-MODAL-001..009, AC-CORR-001..008, AC-UPD-001..008 incl. 006a/b,
+  AC-WORK-001..005, AC-OPT-001..004) with quantitative gates (e.g. analytic
+  eigenvalues ≤ 1e-10 rel. err; sensitivities vs FD ≤ 1e-6; post-update
+  MAC ≥ 0.95 and |Δf| ≤ 1%), verification-method taxonomy, and P0/P1/P2
+  round gates.
+- Added `tests/acceptance/test_criteria_registry.py`: machine-readable
+  registry of all 35 criteria + 10 consistency tests (ID format/uniqueness,
+  dense numbering, doc/spec/registry sync, P0 coverage). All 10 pass.
 
 ### Round 2 — Targeted Refactor & Deep Optimization
 **Status:** PENDING
