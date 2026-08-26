@@ -10,9 +10,11 @@ from .elements import (
     Element,
     Quad4Element,
     SpringElement,
+    Tet4Element,
     TrussElement,
     gauss_legendre_2d,
     plane_constitutive_matrix,
+    solid_constitutive_matrix,
 )
 from .model import (
     DOF,
@@ -38,9 +40,11 @@ __all__ = [
     "BarElement",
     "BeamElement2D",
     "Quad4Element",
+    "Tet4Element",
     "PLANE_STATES",
     "gauss_legendre_2d",
     "plane_constitutive_matrix",
+    "solid_constitutive_matrix",
     "AssembledSystem",
     "assemble_system",
     "assemble_stiffness",
