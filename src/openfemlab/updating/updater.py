@@ -7,8 +7,10 @@ The updater minimises a weighted least-squares residual between measured
 
 with respect to bounded scaling parameters (see
 :mod:`openfemlab.updating.parameters`).  Each iteration builds the sensitivity
-matrix ``J = dr/dx`` (finite differences by default, or a user supplied
-analytical callback), then solves the damped normal equations
+matrix ``J = dr/dx`` (finite differences by default, or user supplied
+analytical callbacks — ``sensitivity_function`` for the frequency rows,
+``shape_sensitivity_function`` for the MAC rows), then solves the damped normal
+equations
 
     (J^T J + λ diag(J^T J) + β I) Δx = -(J^T r + β (x - x0))
 
@@ -36,7 +38,7 @@ from ..correlation.pairing import pair_modes
 from ..correlation.summary import CorrelationSummary, correlation_summary
 from ..exceptions import UpdatingDivergenceError
 from .parameters import ParameterSet, UpdatableParameter
-from .sensitivity import ModalData, SensitivityResult, as_modal_data
+from .sensitivity import ModalData, SensitivityResult, as_modal_data, mac_sensitivity
 
 __all__ = [
     "CONVERGED_REASONS",
@@ -232,8 +234,17 @@ class ModelUpdater:
     sensitivity_function:
         Optional analytical sensitivity ``f(params, modal_data) -> (n_modes,
         n_free_parameters)`` array of ``df/dp`` in Hz.  When given it replaces
-        the finite-difference frequency sensitivities (shape residuals, if any,
-        still use finite differences).
+        the finite-difference frequency sensitivities.
+    shape_sensitivity_function:
+        Optional analytical eigenvector sensitivity ``f(params, modal_data) ->
+        (n_free_parameters, n_dof, n_modes)`` array of ``dφ/dp`` on the
+        correlation DOFs, e.g. Fox & Kapoor derivatives from
+        :func:`~openfemlab.updating.sensitivity.mode_shape_sensitivity`.
+        Together with ``sensitivity_function`` it makes the MAC rows of the
+        residual analytical too, so an iteration costs one model evaluation
+        instead of one per parameter.  Ignored (finite differences are used
+        instead) for the ``"difference"`` shape residual and for full-matrix
+        ``dof_weights``, neither of which the MAC derivative covers.
     """
 
     def __init__(
@@ -245,6 +256,9 @@ class ModelUpdater:
         *,
         dof_weights: Sequence[float] | np.ndarray | None = None,
         sensitivity_function: Callable[[Mapping[str, float], ModalData], np.ndarray] | None = None,
+        shape_sensitivity_function: (
+            Callable[[Mapping[str, float], ModalData], np.ndarray] | None
+        ) = None,
         options: UpdatingOptions | None = None,
         **option_overrides: object,
     ) -> None:
@@ -261,6 +275,7 @@ class ModelUpdater:
             raise ValueError("at least one target frequency is required")
         self.dof_weights = None if dof_weights is None else np.asarray(dof_weights, dtype=float)
         self.sensitivity_function = sensitivity_function
+        self.shape_sensitivity_function = shape_sensitivity_function
         self.options = options or UpdatingOptions()
         for key, value in option_overrides.items():
             if not hasattr(self.options, key):
@@ -402,7 +417,7 @@ class ModelUpdater:
         baseline_data: ModalData,
     ) -> np.ndarray:
         """Sensitivity matrix ``dr/dx`` of the residual at the current point."""
-        analytical = self._analytical_frequency_jacobian(design_values, pairs, baseline_data)
+        analytical = self._analytical_jacobian(design_values, pairs, baseline_data)
         if analytical is not None:
             return analytical
 
@@ -421,13 +436,13 @@ class ModelUpdater:
                 columns.append((r_plus - r_minus) / (2.0 * steps[k]))
         return np.column_stack(columns)
 
-    def _analytical_frequency_jacobian(
+    def _analytical_jacobian(
         self,
         design_values: np.ndarray,
         pairs: list[tuple[int, int]],
         data: ModalData,
     ) -> np.ndarray | None:
-        """Residual Jacobian from a user supplied ``df/dp`` matrix, if usable."""
+        """Residual Jacobian from the supplied analytical sensitivities, if usable."""
         if self.sensitivity_function is None:
             return None
         uses_shapes = (
@@ -435,28 +450,88 @@ class ModelUpdater:
             and self.target.mode_shapes is not None
             and data.mode_shapes is not None
         )
-        if uses_shapes:
-            return None  # shape residuals require finite differences
+        if uses_shapes and not self._shape_rows_are_analytical:
+            return None  # this shape residual still requires finite differences
 
         physical = self.parameters.design_to_physical(design_values)
-        df_dp = np.atleast_2d(np.asarray(self.sensitivity_function(physical, data), dtype=float))
         free = self.parameters.free
-        if df_dp.shape != (data.n_modes, len(free)):
-            raise ValueError(
-                f"sensitivity_function returned {df_dp.shape}, expected "
-                f"({data.n_modes}, {len(free)})"
-            )
         mode_weights = self._mode_weights(pairs)
-        rows = []
-        for weight, (i, j) in zip(mode_weights, pairs, strict=True):
-            row = df_dp[j, :] / self.target.frequencies[i]
-            rows.append(self.options.frequency_weight * weight * row)
-        jacobian = np.array(rows, dtype=float)
+
+        blocks = [self._frequency_rows(physical, data, pairs, mode_weights, len(free))]
+        if uses_shapes:
+            blocks.append(self._mac_rows(physical, data, pairs, mode_weights, len(free)))
+        jacobian = np.vstack(blocks)
         # Chain rule for log-scaled design variables: dr/dx = dr/dp * p.
         chain = np.array(
             [parameter.value if parameter.log_scaled else 1.0 for parameter in free], dtype=float
         )
         return jacobian * chain[None, :]
+
+    @property
+    def _shape_rows_are_analytical(self) -> bool:
+        """Whether the shape block of the residual has a usable derivative."""
+        if self.shape_sensitivity_function is None or self.options.shape_residual != "mac":
+            return False
+        # mac_sensitivity only knows the diagonal (per-DOF) weighting.
+        return self.dof_weights is None or self.dof_weights.ndim == 1
+
+    def _frequency_rows(
+        self,
+        physical: Mapping[str, float],
+        data: ModalData,
+        pairs: list[tuple[int, int]],
+        mode_weights: np.ndarray,
+        n_free: int,
+    ) -> np.ndarray:
+        """Rows of ``d[(f_fe - f_test) / f_test]/dp`` for the paired modes."""
+        raw = self.sensitivity_function(physical, data)  # type: ignore[misc]
+        df_dp = np.atleast_2d(np.asarray(raw, dtype=float))
+        if df_dp.shape != (data.n_modes, n_free):
+            raise ValueError(
+                f"sensitivity_function returned {df_dp.shape}, expected "
+                f"({data.n_modes}, {n_free})"
+            )
+        rows = [
+            self.options.frequency_weight * weight * df_dp[j, :] / self.target.frequencies[i]
+            for weight, (i, j) in zip(mode_weights, pairs, strict=True)
+        ]
+        return np.array(rows, dtype=float).reshape(len(pairs), n_free)
+
+    def _mac_rows(
+        self,
+        physical: Mapping[str, float],
+        data: ModalData,
+        pairs: list[tuple[int, int]],
+        mode_weights: np.ndarray,
+        n_free: int,
+    ) -> np.ndarray:
+        """Rows of ``d[1 - sqrt(MAC)]/dp`` from the Fox & Kapoor ``dφ/dp``."""
+        test_shapes = np.asarray(self.target.mode_shapes)
+        fe_shapes = np.asarray(data.mode_shapes)
+        dphi_dp = np.asarray(self.shape_sensitivity_function(physical, data))  # type: ignore[misc]
+        expected = (n_free, fe_shapes.shape[0], data.n_modes)
+        if dphi_dp.shape != expected:
+            raise ValueError(
+                f"shape_sensitivity_function returned {dphi_dp.shape}, expected {expected}"
+            )
+
+        test_columns = [i for i, _ in pairs]
+        fe_columns = [j for _, j in pairs]
+        dmac_dp = mac_sensitivity(
+            test_shapes[:, test_columns],
+            fe_shapes[:, fe_columns],
+            dphi_dp[:, :, fe_columns],
+            self.dof_weights,
+        )
+        macs = np.array(
+            [mac_value(test_shapes[:, i], fe_shapes[:, j], self.dof_weights) for i, j in pairs]
+        )
+        # An orthogonal pair sits at the peak of the residual, where sqrt(MAC)
+        # is not differentiable; leaving its row at zero keeps the step finite.
+        chain = np.zeros(len(pairs))
+        correlated = macs > 0.0
+        chain[correlated] = -0.5 / np.sqrt(macs[correlated])
+        return self.options.shape_weight * (mode_weights * chain)[:, None] * dmac_dp
 
     # ------------------------------------------------------------------
     # main loop

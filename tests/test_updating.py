@@ -401,6 +401,128 @@ def test_finite_difference_and_analytical_jacobians_reach_the_same_optimum(
         assert finite.parameters[name] == pytest.approx(analytic.parameters[name], abs=1.0e-6)
 
 
+# --------------------------------------------------- analytic MAC-row Jacobian
+
+
+def small_twin() -> tuple[ScalingModel, ModalData, ParameterSet]:
+    """Six-DOF, two-group chain measured at three sensors.
+
+    ``num_modes`` covers every DOF, so the modal superposition behind the
+    eigenvector derivatives is complete and the Fox & Kapoor MAC derivative is
+    exact rather than truncated.
+    """
+    twin = chain_model(
+        n_dof=6, n_stiffness_groups=2, num_modes=6, dof_selection=np.array([1, 3, 5])
+    )
+    return twin, twin({"k0": 0.85, "k1": 1.20}), parameter_set(["k0", "k1"])
+
+
+def linearization_point(updater: ModelUpdater) -> tuple[np.ndarray, list, np.ndarray, ModalData]:
+    """The ``jacobian`` arguments at the updater's starting point."""
+    x = updater.parameters.design_values()
+    data = updater.evaluate(x)
+    pairs = updater.pair(data)
+    return x, pairs, updater.residual(data, pairs), data
+
+
+def test_analytic_mac_rows_match_finite_differences_on_a_small_twin() -> None:
+    """Both blocks of ``dr/dx`` — relative frequency and ``1 - sqrt(MAC)``."""
+    twin, target, parameters = small_twin()
+    names = parameters.free_names
+    numeric = ModelUpdater(
+        twin, parameters, target.frequencies, target.mode_shapes, shape_weight=1.0
+    )
+    analytic = ModelUpdater(
+        twin,
+        parameters,
+        target.frequencies,
+        target.mode_shapes,
+        shape_weight=1.0,
+        sensitivity_function=twin.sensitivity_function(names),
+        shape_sensitivity_function=twin.shape_sensitivity_function(names),
+    )
+
+    x, pairs, residual, data = linearization_point(numeric)
+    finite = numeric.jacobian(x, pairs, residual, data)
+    exact = analytic.jacobian(x, pairs, residual, data)
+
+    assert finite.shape == (2 * len(pairs), len(names))
+    mac_block = slice(len(pairs), None)
+    assert np.abs(finite[mac_block]).max() > 1.0e-3  # the MAC rows are not trivially zero
+    np.testing.assert_allclose(exact, finite, rtol=1.0e-5, atol=1.0e-9)
+
+
+def test_the_analytic_mac_jacobian_never_perturbs_the_model() -> None:
+    """The whole residual is differentiated in closed form: no extra evaluations."""
+    twin, target, parameters = small_twin()
+    names = parameters.free_names
+    updater = ModelUpdater(
+        twin,
+        parameters,
+        target.frequencies,
+        target.mode_shapes,
+        shape_weight=1.0,
+        sensitivity_function=twin.sensitivity_function(names),
+        shape_sensitivity_function=twin.shape_sensitivity_function(names),
+    )
+
+    x, pairs, residual, data = linearization_point(updater)
+    before = updater.n_evaluations
+    updater.jacobian(x, pairs, residual, data)
+
+    assert updater.n_evaluations == before
+
+
+def test_the_difference_shape_residual_still_falls_back_to_finite_differences() -> None:
+    """Only ``1 - sqrt(MAC)`` has a Fox & Kapoor derivative here."""
+    twin, target, parameters = small_twin()
+    names = parameters.free_names
+    updater = ModelUpdater(
+        twin,
+        parameters,
+        target.frequencies,
+        target.mode_shapes,
+        shape_weight=1.0,
+        shape_residual="difference",
+        sensitivity_function=twin.sensitivity_function(names),
+        shape_sensitivity_function=twin.shape_sensitivity_function(names),
+    )
+
+    x, pairs, residual, data = linearization_point(updater)
+    before = updater.n_evaluations
+    updater.jacobian(x, pairs, residual, data)
+
+    assert updater.n_evaluations == before + 2 * len(names)
+
+
+def test_the_analytic_and_finite_difference_mac_paths_reach_the_same_optimum() -> None:
+    """Same recovered twin, fewer model evaluations."""
+    twin, target, parameters = small_twin()
+    names = parameters.free_names
+    common = dict(shape_weight=1.0, max_iterations=20)
+
+    numeric = ModelUpdater(twin, parameters, target.frequencies, target.mode_shapes, **common)
+    analytic = ModelUpdater(
+        twin,
+        parameters,
+        target.frequencies,
+        target.mode_shapes,
+        sensitivity_function=twin.sensitivity_function(names),
+        shape_sensitivity_function=twin.shape_sensitivity_function(names),
+        **common,
+    )
+    finite_result = numeric.run()
+    analytic_result = analytic.run()
+
+    assert analytic_result.converged, analytic_result.message
+    for name, value in {"k0": 0.85, "k1": 1.20}.items():
+        assert analytic_result.parameters[name] == pytest.approx(value, abs=1.0e-6)
+        assert analytic_result.parameters[name] == pytest.approx(
+            finite_result.parameters[name], abs=1.0e-6
+        )
+    assert analytic.n_evaluations < numeric.n_evaluations
+
+
 def test_gauss_newton_and_levenberg_marquardt_agree(model: ScalingModel) -> None:
     truth = {"k0": 0.93, "k1": 1.12, "k2": 0.98, "k3": 1.04}
     target = model(truth)
