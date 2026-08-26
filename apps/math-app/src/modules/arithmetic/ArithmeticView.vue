@@ -178,10 +178,19 @@ function onGraded({ correct }) {
   if (correct) comboBest.value = Math.max(comboBest.value, progress.combo)
 }
 
-/** QuizShell 里的自适应引擎发来的升降档建议，攒到下一轮开始时再换档。 */
+/**
+ * QuizShell 里的自适应引擎发来的升降档建议，攒到下一轮开始时再换档，
+ * 且一轮最多挪一档：全对 10 题也不该把孩子从 10 以内直接扔进 100 以内。
+ */
 function onAdapt({ difficulty }) {
   if (!autoLevel.value) return
-  pendingLevel.value = difficulty === level.value ? null : difficulty
+  const from = LEVEL_STEPS.indexOf(level.value)
+  const to = LEVEL_STEPS.indexOf(difficulty)
+  if (from < 0 || to < 0 || to === from) {
+    pendingLevel.value = null
+    return
+  }
+  pendingLevel.value = LEVEL_STEPS[from + (to > from ? 1 : -1)]
 }
 
 const pendingLabel = computed(() => {
