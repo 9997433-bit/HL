@@ -1,11 +1,11 @@
 # Superseded Branch Cleanup
 
 Audit date: 2026-08-26  
-Integration branch audited and tested: `cursor/femtools-industrial-7aa3` at `8604807`
+Initial integration snapshot audited and tested: `cursor/femtools-industrial-7aa3` at `8604807`
 
 These remote branches no longer carry work that should be merged. Delete them after
-review; no GitHub pull request (open or closed) is associated with any of the five.
-All five were deleted from `origin` on 2026-08-26.
+review; no GitHub pull request (open or closed) is associated with any of the six.
+All six were deleted from `origin` on 2026-08-26.
 
 | Branch | Deleted remote tip | Relationship to trunk | Deletion status |
 |---|---|---|---|
@@ -14,8 +14,10 @@ All five were deleted from `origin` on 2026-08-26.
 | `cursor/dynamics-damping-frf-9500` | `f4683d6` | The remote tip is an ancestor of trunk and has zero branch-only commits. The dynamics/FRF implementation entered the integration history through merge `acda625`. | **Deleted from `origin` as fully merged.** |
 | `cursor/optimization-scipy-backend-f421` | `069d37a` | The functional tip (`8b46480`) entered trunk through harvest merge `6cf0f49`. The five branch-only commits at deletion are two base merges and three progress-only commits; the active-set KKT and trust-constr Hessian fixes are on trunk and summarized in A40's progress record. | **Deleted from `origin` as superseded.** |
 | `cursor/optimization-acceptance-gates-2414` | `00572d8` | The remote tip is an ancestor of trunk and has zero branch-only commits. Its strengthened AC-OPT-002/003 gates and documentation entered trunk through A52's merge. | **Deleted from `origin` as fully merged.** |
+| `cursor/ac-corr-009-tam-orthogonality-113b` | `927f164` | The remote tip is an ancestor of integration tip `9052f95` and has zero branch-only commits. Its AC-CORR-009 registration and `SensorMap.signs` wiring are already integrated. | **Deleted from `origin` as fully merged.** |
 
-Verification used the fetched remote tips, not potentially stale local branch pointers:
+Verification for the original five used the fetched remote tips, not potentially stale
+local branch pointers:
 
 ```text
 git merge-base --is-ancestor origin/<branch> 8604807
@@ -33,8 +35,18 @@ optimization-scipy-backend: 89  5
 optimization-acceptance:    81  0
 ```
 
-The full committed trunk suite passed at that snapshot: **876 passed, 0 failed** in
-29.26 seconds.
+The A81 follow-up verified the sixth branch before deletion:
+
+```text
+git merge-base --is-ancestor origin/cursor/ac-corr-009-tam-orthogonality-113b 9052f95
+yes
+
+git rev-list --left-right --count 9052f95...origin/cursor/ac-corr-009-tam-orthogonality-113b
+12  0
+```
+
+The full committed trunk suite passed for the initial five-branch snapshot:
+**876 passed, 0 failed** in 29.26 seconds.
 
 After deletion, `git ls-remote --heads origin` returned no ref for any branch in
 this table.
