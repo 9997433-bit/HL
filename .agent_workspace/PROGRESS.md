@@ -102,6 +102,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A137 | gpt-5.6-sol-xhigh-fast | End-user quickstart: examples/05 + README「5 分钟上手」 | complete — merged at `669440d`, MAC 1.0 / df 0% after update |
 | A138 | gpt-5.6-sol-xhigh-fast | PR #5 → main merge readiness checklist + CI green verify | complete — `MERGE_READINESS.md` merged; CI green on `459a3d2` |
 | A139 | claude-opus-5-thinking-high-fast | GAP-03 OP2 reader spike (research + io/op2 stub) | complete — merged MS-9.6 + op2 seam, +10 tests / 10 skipped |
+| A140 | claude-opus-5-thinking-high-fast | R3-T05 / GAP-05 close-out: FRF updating residual `updating/frf.py` + AC-UPD-009 | complete — branch `cursor/frf-updating-7aa3` at `ca02ff5`, +33 tests, Ruff clean |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
@@ -3725,3 +3726,66 @@ throughout and was not touched.
 
 `openfemlab update` MAP path with `bayesian` JSON block (+34 tests in
 `tests/test_cli_update.py`); `posterior_sigma` moved to `updating.bayesian`.
+
+#### A140 — R3-T05: the FRF updating residual closes GAP-05
+
+Round 2 landed FRF *synthesis* (MS-7.3) and the FRAC/FDAC *metrics* (MS-7.4); what GAP-05
+still named was the third piece — updating **from** FRFs. That is now
+`openfemlab/updating/frf.py`: `FRFResidual` stacks the real and imaginary parts of
+`W [H(ω; θ) − H_meas(ω)]` over a chosen subset of frequency lines, and `FRFUpdater` feeds
+it to the existing MS-3.4 estimator with the line search, bounds and σ_post untouched.
+
+**The residual is a provider, not a mode flag.** `UpdatingOptions` was left alone. The
+FRF block enters as an object with the four methods the loop already calls — `state`,
+`residual`, `jacobian`, `correlation` — so the trust region, damping schedule and stop
+reasons are literally the same code paths AC-UPD-003 gates. The one seam cut into
+`ModelUpdater` is a class attribute, `requires_modal_targets`; `FRFUpdater` clears it, and
+its `correlation()` returns an empty `CorrelationSummary` because a pure FRF run has no
+mode table to pair. What it returns instead is an `FRFUpdatingResult` carrying the
+`FRFCorrelation` before and after, which is the report a test engineer actually reads.
+
+**The Jacobian is analytic, not finite differences.** Differentiating
+`Z(ω) H = I` gives `∂H/∂θ = −H (∂K/∂θ − ω² ∂M/∂θ + iω ∂C/∂θ) H`, and the pieces are
+already in the tree: `ScalingModel.derivatives()` supplies `∂K/∂θ` and `∂M/∂θ`, and the
+receptance columns are reused from the synthesis that produced the residual, so a column
+of the Jacobian costs two triangular solves rather than a refactorization. Rayleigh
+damping differentiates along with the stiffness it rides on; a parameter that touches only
+the damping matrix gets its `∂C/∂θ` from an explicit part. On the twin the analytic block
+matches central differences to **2.2e-10** relative — that is the derivative, not an
+approximation to it — and the practical difference shows in the evaluation count:
+**9 model evaluations against 101** for the finite-difference route, which the criterion
+keeps as a supported fallback (`analytic_jacobian=False`) precisely so the two can be
+compared. They agree on the answer to 1.2e-9.
+
+**The twin is deliberately harder than the modal one.** A damped 10-DOF chain, detuned
+−20 % / +20 % / −15 % in three stiffness factors *and* +30 % in its damping level, measured
+at four sensors driven at the free end over 129 lines spanning every resonance, with 2 %
+multiplicative complex noise on each entry. The measurement is synthesized straight from
+the M6 kernel rather than through the provider under test, so the "truth" and the model
+being judged do not share an implementation. Every second line is fitted (520 residual
+rows) and **the odd lines are held out**, so the FRAC gate reads data the residual never
+saw. Recovery: `k1 0.8004 / k2 1.1992 / k3 0.8497 / c 1.3026` against a truth of
+`0.80 / 1.20 / 0.85 / 1.30`, worst factor error **2.5e-3** (gate 1e-2), cost 563.8 → 0.043
+in 8 iterations, and held-out FRAC **0.9999 on every channel** where the nominal model sits
+at 0.55–0.90. Both guard directions are asserted: the starting model fails the gate on the
+same lines, and the measurement is confirmed to actually carry its noise.
+
+**Deviation from the plan, on purpose.** ROUND3_PLAN calls this criterion AC-UPD-011. The
+registry enforces *dense* numbering per family, and the highest registered UPD row was 008
+— 009 and 010 were free, and were checked against the other live branches before claiming
+one. So the criterion is registered **AC-UPD-009**, P2, `twin`, `implemented`; leaving 009
+and 010 as holes to reach 011 would have failed the registry's own gate. The UPD family
+moves 9 → 10 rows and the registry 57 → 58. P2 stays `implemented` — promotion to
+`verified` is the R2-T09 gate-run path, not this branch's to take.
+
+**Verification.** Full suite **1633 passed, 10 skipped** in 22.1 s, `ruff check .` clean, at
+`ca02ff5`. Of those, 5 are the AC-UPD-009 acceptance tests and 28 are `tests/test_frf_updating.py`
+— a 2-DOF rig pinning the contracts the twin does not reach: both weightings and the
+magnitude floor, line subsetting, an accelerance measurement, the log-scale chain rule,
+Jacobian caching, and the typed failures. Determinism re-checked under two
+`PYTHONHASHSEED` values.
+
+**Process.** `/workspace` was on a third agent's branch with uncommitted changes for the
+whole run — the hazard A114 and A124 recorded — and a concurrent push to the registry
+invalidated a patch mid-flight. Moved to a private worktree at `/tmp/frf-work` with an
+explicit `PYTHONPATH` and did not touch the shared tree.
