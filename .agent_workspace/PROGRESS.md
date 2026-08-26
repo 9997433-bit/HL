@@ -34,6 +34,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A13 | claude-opus-5-thinking-high-fast | M4 correction workflow state machine & `CorrectionReport` (backfill for A01) | complete |
 | A14 | claude-opus-5-thinking-high-fast | R1-O2 correlation/updating branch reconciliation (backfill) | complete |
 | A26 | claude-opus-5-thinking-high-fast | MS-4 workflow landing verification & Round 2 kickoff (backfill for A17) | complete |
+| A02 | claude-fable-5-thinking-xhigh | M5 optimization design & stubs: size/shape hooks, gradient interface, `docs/OPTIMIZATION.md` (backfill for A05) | complete |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
@@ -864,6 +865,60 @@ integrate rather than fork.
   types; if `correlation/` grows an FRF section they should be re-exported from there rather
   than reimplemented. Remaining GAP-05 scope is an FRF residual inside `updating/updater.py`;
   GAP-04 still lacks transient (time-domain) response.
+
+#### A02 — M5 Optimization Design & Stubs (backfill for A05)
+- Designed and landed `src/openfemlab/optimization/` (spec MS-5, GAP-12): a two-level
+  architecture where a structural layer (models, parameters, responses) lowers into a
+  plain bound-constrained vector NLP (`OptimizationProblem`) that swappable backends
+  consume — no FE concept leaks below the lowering line. Full design rationale, reuse
+  map, gradient-route table and AC-OPT mapping in the new `docs/OPTIMIZATION.md`.
+- **Size hooks / updating integration:** sizing variables *are* the updating
+  parameters — `DesignSpace` wraps `updating.parameters.ParameterSet` (bounds, log
+  design-space mapping, FD steps) and appends `ShapeVariable` amplitudes, so a model
+  calibrated by `ModelUpdater` is optimized without re-declaring anything. Deeper:
+  `problem_from_updater(updater)` lowers an updating run itself into the same vector
+  problem (`f = 1/2‖r‖²`, gradient `Jᵀr` from the updater's own jacobian machinery),
+  the seam for driving updating with a generic backend in Round 2.
+- **Shape hooks:** basis-field mesh morphing `X(a) = X0 + Σ aⱼVⱼ` with the exact
+  linear morph and geometry gradient `dX/da = V` implemented
+  (`DesignSpace.morph_displacement` / `apply_to_coordinates`); FE regeneration and
+  geometric `dK/da` deferred to Round 3, shape gradients route through tracked FD.
+- **Gradient interface (modal integration):** `ModalDesignEvaluator` produces one
+  cached `DesignState` per design point (objective + all constraints share a single
+  eigensolve) and auto-detects the `MatrixDerivativeProvider` shape (`assemble` /
+  `derivatives` / `eigen` — `ScalingModel` satisfies it unmodified) to fill an
+  analytic bundle from the shared M3 Fox–Kapoor kernel: `df/dp` re-ordered to
+  MAC-tracked reference mode labels, exact `dm/dp = mass(Mⱼ)`. Fallback: central FD
+  over the design vector with a one-time warning; `check_gradient` is the AC-OPT-001
+  verification gate. MAC tracking (via `updating.sensitivity.track_modes` against the
+  previous iterate's tracked view) keeps `NaturalFrequency(i)` responses and gradient
+  rows attached to physical branches across crossings (AC-OPT-004 mechanism).
+- Constraints standardize to `g ≤ 0` with dimensionless normalization
+  (`frequency_floor` gives MS-5.1's `g = 1 − f/f_min`); `minimize_sizing` exposes the
+  exact MS-5.3 signature. Backend contract (bounds hard per AC-OPT-003, no internal
+  differentiation per MS-5.2, `g ≤ 0 → g ≥ 0` sign mapping for SLSQP) is documented in
+  `ScipyBackend`; its `solve` is the **single** `NotImplementedError` stub, Round 2
+  gated by AC-OPT-002/003. Added `OptimizationError` to `openfemlab.exceptions` and
+  top-level lazy exports (`OptimizationProblem`/`OptimizationResult`/`minimize_sizing`).
+- `tests/test_optimization.py`: 16 contract tests — design-space layout/bounds/clip,
+  log chain rule, shape morphing, single-solve sharing, analytic-route detection,
+  exact mass gradient, AC-OPT-001 frequency-gradient checks at 3 seeded points
+  (objective and constraint callbacks), MS-5.1 standardization, FD-fallback warning,
+  mode tracking across an eigen-order crossing, vector-problem bound validation,
+  backend registry, stub pinning, and updater-interop gradient consistency (`Jᵀr` vs
+  FD ≤ 1e-6; zero residual/gradient at the true parameters). All 16 pass at the
+  current tip; new files Ruff-clean.
+- Same shared working-tree hazard A13/A15/A21 reported, worse this round: sibling
+  agents repeatedly reverted `exceptions.py` and both `__init__.py` files mid-edit,
+  `/workspace` was switched onto `cursor/dynamics-damping-frf-9500` mid-run (taking
+  the in-flight files with it, committed there as `9d77b80` by the concurrent flow and
+  merged back via `acda625`), so verification and the docs/PROGRESS commits were
+  finished from a detached worktree at `/tmp/a02-opt`.
+- Open for the orchestrator: R2-T07 (optimization backend) should wire
+  `ScipyBackend.solve` + the AC-OPT-002 reference problem against the already-compiled
+  lowering; element-level assembled `dK/dp` for the native `Model` stack is the other
+  half of GAP-12 (today only affine `ScalingModel`-style models get analytic
+  gradients).
 
 ### Round 2 — Targeted Refactor & Deep Optimization
 **Status:** KICKED OFF — backlog planned in `.agent_workspace/ROUND2_PLAN.md` (A24); the
