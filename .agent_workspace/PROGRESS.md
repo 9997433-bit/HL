@@ -32,6 +32,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A15 | claude-opus-5-thinking-high-fast | GAP-01 `ModalResult` contract unification (backfill for R1-F1) | complete |
 | A13 | claude-opus-5-thinking-high-fast | M4 correction workflow state machine & `CorrectionReport` (backfill for A01) | complete |
 | A14 | claude-opus-5-thinking-high-fast | R1-O2 correlation/updating branch reconciliation (backfill) | complete |
+| A26 | claude-opus-5-thinking-high-fast | MS-4 workflow landing verification & Round 2 kickoff (backfill for A17) | complete |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
@@ -784,7 +785,8 @@ into the integration branch, so nothing is left stranded on a side branch.**
   `specified` until an `tests/acceptance/test_workflow.py` claims them.
 
 ### Round 2 — Targeted Refactor & Deep Optimization
-**Status:** PLANNED — see `.agent_workspace/ROUND2_PLAN.md` (A24)
+**Status:** KICKED OFF — backlog planned in `.agent_workspace/ROUND2_PLAN.md` (A24); the
+MS-4 workflow carried over from Round 1 is landed and verified at `5bc6a6d` (A26)
 
 Core backlog (prioritized, from `docs/SOTA_GAP_ANALYSIS.md` §4/§6 + Round 1 conclusion):
 1. **R2-T01 Dynamics/FRF chain** (GAP-04/05, P0) — damping models, harmonic response,
@@ -803,6 +805,46 @@ Supporting: R2-T06 updating depth (incl. the still-unimplemented **P0** AC-UPD-0
 collinearity screen), R2-T07 scipy optimization backend (GAP-12), R2-T08 R1-O2 branch
 reconciliation, R2-T09 CI exit hardening. Exit bar: all P0+P1 criteria `verified`,
 new dynamics/element/IO criteria at least `implemented`, GAP-01 stays closed.
+
+#### A26 — Round 1 carry-over cleared: MS-4 workflow landed (backfill for A17)
+- Round 1 closed with the MS-4 `workflow/` package listed as its single largest piece of
+  uncommitted debt ("Remaining defects / open items", and Round 2 priority 1). That debt is
+  now retired on this branch: A13's `2f21993` (package) and `36befc3` (tests) carry the
+  six-stage state machine, with `26aa64a` the follow-on that reads the corrected parameters
+  back out of `UpdatingResult.parameter_set`. This agent recovered and re-derived the
+  package independently and confirmed the trees are identical — the recovered commit
+  rebased onto the branch as "patch contents already upstream", so there is exactly one
+  MS-4 implementation on this branch, not two competing ones.
+- Verified at `5bc6a6d` on Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1: `tests/test_workflow.py`
+  **38 passed**, full suite **332 passed** (7 s), `ruff check src tests` clean.
+- Coverage confirmed against the spec section by section: MS-4.1 stage order and the
+  machine-readable `(stage, reason)` halt with `SKIPPED` successors; MS-4.2 gates
+  (MAC ≥ 0.95, |Δf| ≤ 1 %, ≥ 3 pairs, bounds, warning-severity plausibility, held-out
+  MAC ≥ 0.9 and no-worse-than-baseline); MS-4.3 `schema_version = "1.0"` and rerun
+  reproducibility to 1e-12 via `to_dict(include_timing=False)`; MS-4.4 `run_correction`
+  signature; and the MS-3.6 selection diagnosis behind S3.
+- **Backlog correction for R2-T06.** The A24 plan above lists AC-UPD-007 (MS-3.6 collinear
+  parameter detection and freeze) as the last unimplemented **P0** criterion. It is no
+  longer unimplemented: `workflow/selection.py` is the collinearity screen, and
+  `test_workflow.py::test_duplicated_parameter_is_frozen_and_updating_still_converges`
+  exercises exactly the criterion's twin scenario — `k0_copy` is frozen with
+  `freeze_reason == "collinear"`, the other three parameters stay selected, and the run
+  recovers `k0 = 1.3` to 1e-4 with `status == "PASS"`. What R2-T06 still owes is the
+  registry tagging (so the criterion reads `verified` rather than `unimplemented`) and the
+  QR-with-column-pivoting refinement; the greedy norm-ordered screen already in place is
+  the MS-3.6 behaviour, not a placeholder.
+- **Working-tree hazard, third occurrence.** The `workflow/*.py` sources were deleted from
+  the shared `/workspace` checkout mid-run by a concurrent agent while
+  `tests/test_workflow.py` stayed committed — an import-broken state. They were recovered
+  from the dangling commit `021163e` (`git fsck --lost-found`) into a private worktree at
+  `/tmp/a26`. Three rounds of this failure mode now argue for making the private-worktree
+  rule mandatory rather than advisory, since `git clean`/branch-switch collateral is not
+  something the offending agent can see.
+
+**Round 2 entry state.** Of the two packages Round 1 left uncommitted, `workflow/` is now
+in and green; the `optimization/` build-out (`variables`, `responses`, `gradients`,
+`problem`, `sizing`, `backends`) is still in-flight in the shared tree and is the last
+Round-1 carry-over, tracked as R2-T07. The A24 backlog above is otherwise the live plan.
 
 ### Round 3 — SOTA Polish & Final Acceptance
 **Status:** PENDING
