@@ -157,6 +157,31 @@ adding an LGPL dependency to the default install. That extra does not silently
 change Audio Studio's current SciPy conversion path: preserve the source sample
 rate for a final master until a selectable soxr/VHQ path is integrated.
 
+## Repair and recording takes
+
+`DeClipEffect` reconstructs short, flat-topped peaks offline. It detects
+repeated samples on a clipping rail and fits a cubic Hermite spline between
+the intact values and slopes on either side; untouched samples remain bit for
+bit unchanged. Set `threshold` to the known rail when the source clipped below
+digital full scale:
+
+```python
+from audio_studio.dsp.repair import DeClipEffect
+
+cleaned = DeClipEffect(threshold=0.8).process(clipped, 48_000)
+```
+
+The effect is deliberately skipped by live preview because it needs future
+samples. `last_report` lists every detected range and whether it was repaired;
+edge plateaus and runs longer than `max_clip_ms` are reported but left alone.
+
+Every completed transport recording is assigned `Take 001`, `Take 002`, and so
+on. **File ▸ Takes** lists the current session's recordings and reopens one in
+the waveform editor. A saved project keeps `takes.json` and copied take audio
+inside its `.hlproj` directory. An unsaved or file-based session uses an atomic
+`*.takes.json` sidecar instead. The Qt-free API is
+`audio_studio.core.recorder.TakeRegistry`.
+
 ## VST3 plugins (optional `plugins` extra — not enabled by default)
 
 Audio Studio can host VST3 effect plugins through
@@ -311,8 +336,9 @@ binary artifacts must not include it. See
   device under/overruns through `xruns`), `PyAudioOutput` (PortAudio via
   `PyAudio`) or `NullOutput` (simulated clock, plus a manually-pumped mode used
   by the tests).
-- Recording to WAV from mono or stereo `PyAudio` input, with a deterministic
-  silence/tone `NullRecorder` for headless systems and tests.
+- Crash-safe PCM-24 BWF recording from mono or stereo `PyAudio` input, with
+  marker cues, numbered session takes, and a deterministic silence/tone
+  `NullRecorder` for headless systems and tests.
 
 **Editing core** (`audio_studio.core.edit_session.EditSession`)
 
@@ -397,6 +423,8 @@ binary artifacts must not include it. See
   feedback delay, FDN reverb, peak/RMS/true-peak normalization, multiple fade
   curves, and RBJ parametric EQ with stateful block processing. Core dynamics
   and time/space effects have basic controls in the live rack.
+- Offline cubic reconstruction for hard-clipped peaks, alongside predictive
+  de-clicking and mains-hum detection/removal.
 - ITU-R BS.1770 K-weighted integrated loudness and EBU-style loudness range.
 - Cached spectrogram reduction/colorization and candidate-window true-peak
   evaluation keep common redraw and normalization paths bounded.
@@ -526,9 +554,9 @@ above this package.
   bundles (File ▸ Save/Open Project); undo history is not persisted — the saved
   document is the flattened edit result. Export remains available for one-off
   audio files.
-- Recording is an MVP path: PyAudio input supports mono/stereo capture to WAV,
-  but there is no input-device/level control, live monitoring, punch recording,
-  or Broadcast Wave Format (BWF) metadata yet.
+- Recording is an MVP path: PyAudio input supports mono/stereo crash-safe BWF
+  capture, cues, and numbered takes, but there is no input-device/level control,
+  live monitoring, comping, or punch recording.
 - Spectral selection editing covers attenuating and deleting a dragged
   rectangle. There is no healing brush, lasso or paintbrush selection, no
   spectral copy/paste, and the mask is rectangular in time as well as in

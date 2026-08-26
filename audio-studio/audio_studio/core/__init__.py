@@ -46,6 +46,7 @@ from .loader import (
 from .markers import Marker, MarkerItem, MarkerList, Region
 from .output import AudioOutput, NullOutput, OutputDeviceError, PyAudioOutput, create_output
 from .peaks import Envelope, PeakPyramid
+from .recorder import RecordingTake, Take, TakeRegistry, TakeRegistryError
 from .ring_buffer import RingBuffer
 from .sample_source import (
     MemorySampleSource,
@@ -109,6 +110,7 @@ __all__ = [
     "PyAudioOutput",
     "Region",
     "RegionSource",
+    "RecordingTake",
     "ReverseCommand",
     "RingBuffer",
     "SampleSource",
@@ -119,6 +121,9 @@ __all__ = [
     "StreamingSampleSource",
     "StreamingAudioDocument",
     "StreamingEditSession",
+    "Take",
+    "TakeRegistry",
+    "TakeRegistryError",
     "TimeRange",
     "Track",
     "TransportState",

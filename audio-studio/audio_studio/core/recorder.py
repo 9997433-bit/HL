@@ -10,6 +10,7 @@ and a successful stop atomically renames the file into place.
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import struct
@@ -17,12 +18,12 @@ import tempfile
 import threading
 import time
 from abc import ABC, abstractmethod
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator, Mapping
 from contextlib import suppress
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import BinaryIO
+from typing import Any, BinaryIO
 
 import numpy as np
 
@@ -35,10 +36,317 @@ _PCM_24_MIN = -(1 << 23)
 _BEXT_FIXED_SIZE = 602
 _DEFAULT_FLUSH_INTERVAL = 1.0
 _WAV_EXTENSIONS = frozenset({".wav", ".wave"})
+_TAKE_REGISTRY_VERSION = 1
+_TAKES_JSON = "takes.json"
 
 
 class RecorderDeviceError(RuntimeError):
     """Raised when an input device cannot be opened or started."""
+
+
+class TakeRegistryError(RuntimeError):
+    """Raised when take metadata cannot be read or validated."""
+
+
+@dataclass(frozen=True, slots=True)
+class Take:
+    """One numbered recording in a session."""
+
+    number: int
+    path: Path
+    created_at: str
+    sample_rate: int
+    channels: int
+    frames: int
+    metadata: dict[str, Any]
+
+    @property
+    def name(self) -> str:
+        return f"Take {self.number:03d}"
+
+    @property
+    def duration(self) -> float:
+        return self.frames / self.sample_rate if self.sample_rate > 0 else 0.0
+
+    @property
+    def frame_count(self) -> int:
+        """Recorder-style alias for :attr:`frames`."""
+        return self.frames
+
+
+RecordingTake = Take
+
+
+class TakeRegistry:
+    """Persistent, monotonically numbered recording takes for one session.
+
+    Passing an ``.hlproj`` directory stores ``takes.json`` and the recordings
+    inside that bundle.  Any other path is treated as a sidecar anchor:
+    ``session.wav`` gets ``session.wav.takes.json``.  A path already ending in
+    ``.takes.json`` is used as-is.
+    """
+
+    def __init__(
+        self,
+        session_path: str | Path,
+        *,
+        media_directory: str | Path | None = None,
+    ) -> None:
+        session = Path(session_path).expanduser().resolve()
+        self.session_path = session
+        self.project_root: Path | None
+        if session.suffix.lower() == ".hlproj":
+            self.project_root = session
+            self.metadata_path = session / _TAKES_JSON
+            default_media = session / "takes"
+        else:
+            self.project_root = None
+            if session.name.endswith(".takes.json"):
+                self.metadata_path = session
+                stem = session.name[: -len(".takes.json")]
+            else:
+                self.metadata_path = Path(f"{session}.takes.json")
+                stem = session.name
+            default_media = self.metadata_path.parent / f"{stem}.takes"
+        self.media_directory = (
+            Path(media_directory).expanduser().resolve()
+            if media_directory is not None
+            else default_media
+        )
+        self._lock = threading.RLock()
+        self._takes: list[Take] = []
+        self.reload()
+
+    @property
+    def takes(self) -> tuple[Take, ...]:
+        with self._lock:
+            return tuple(self._takes)
+
+    @property
+    def json_path(self) -> Path:
+        """Alias naming the metadata file by its representation."""
+        return self.metadata_path
+
+    @property
+    def next_number(self) -> int:
+        with self._lock:
+            return max((take.number for take in self._takes), default=0) + 1
+
+    def take(self, number: int) -> Take | None:
+        with self._lock:
+            return next((take for take in self._takes if take.number == int(number)), None)
+
+    def next_take_path(self, suffix: str = ".wav") -> Path:
+        """Return an unused numbered media path without creating the file."""
+        suffix = suffix if str(suffix).startswith(".") else f".{suffix}"
+        with self._lock:
+            number = self.next_number
+            registered = {take.path for take in self._takes}
+            while True:
+                candidate = (self.media_directory / f"take-{number:03d}{suffix}").resolve()
+                if candidate not in registered and not candidate.exists():
+                    return candidate
+                number += 1
+
+    def register(
+        self,
+        path: str | Path,
+        *,
+        sample_rate: int,
+        channels: int,
+        frames: int | None = None,
+        frame_count: int | None = None,
+        created_at: str | datetime | None = None,
+        metadata: Mapping[str, Any] | None = None,
+        number: int | None = None,
+    ) -> Take:
+        """Append and durably persist one completed recording."""
+        rate = int(sample_rate)
+        channel_count = int(channels)
+        if frames is None:
+            frames = frame_count
+        if frames is None:
+            raise ValueError("frames or frame_count is required")
+        frame_total = int(frames)
+        if rate <= 0 or channel_count <= 0 or frame_total < 0:
+            raise ValueError("take format must have positive rate/channels and non-negative frames")
+
+        if isinstance(created_at, datetime):
+            timestamp = created_at.astimezone(timezone.utc).isoformat()
+        elif created_at is None:
+            timestamp = datetime.now(timezone.utc).isoformat()
+        else:
+            timestamp = str(created_at)
+        try:
+            datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ValueError("created_at must be an ISO-8601 timestamp") from exc
+
+        resolved = Path(path).expanduser().resolve()
+        details = dict(metadata or {})
+        # Validate extension metadata before touching the registry file.
+        try:
+            json.dumps(details)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("take metadata must be JSON serialisable") from exc
+
+        with self._lock:
+            if any(take.path == resolved for take in self._takes):
+                raise ValueError(f"take is already registered: {resolved}")
+            assigned = self.next_number if number is None else int(number)
+            if assigned <= 0 or any(take.number == assigned for take in self._takes):
+                raise ValueError(f"take number is already registered: {assigned}")
+            take = Take(
+                number=assigned,
+                path=resolved,
+                created_at=timestamp,
+                sample_rate=rate,
+                channels=channel_count,
+                frames=frame_total,
+                metadata=details,
+            )
+            updated = sorted([*self._takes, take], key=lambda item: item.number)
+            self._write(updated)
+            self._takes = updated
+            return take
+
+    register_take = register
+
+    def reload(self) -> tuple[Take, ...]:
+        """Reload metadata written by this or another registry instance."""
+        with self._lock:
+            if not self.metadata_path.is_file():
+                self._takes = []
+                return ()
+            try:
+                raw = json.loads(self.metadata_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as exc:
+                raise TakeRegistryError(f"cannot read {self.metadata_path}: {exc}") from exc
+            if not isinstance(raw, dict) or raw.get("version") != _TAKE_REGISTRY_VERSION:
+                version = raw.get("version") if isinstance(raw, dict) else None
+                raise TakeRegistryError(f"unsupported take registry version {version!r}")
+            entries = raw.get("takes")
+            if not isinstance(entries, list):
+                raise TakeRegistryError("take registry has no takes array")
+
+            loaded: list[Take] = []
+            numbers: set[int] = set()
+            try:
+                for item in entries:
+                    number = int(item["number"])
+                    if number <= 0 or number in numbers:
+                        raise ValueError(f"invalid or duplicate take number {number}")
+                    numbers.add(number)
+                    stored_path = Path(str(item["path"]))
+                    path = (
+                        stored_path.resolve()
+                        if stored_path.is_absolute()
+                        else (self.metadata_path.parent / stored_path).resolve()
+                    )
+                    details = item.get("metadata") or {}
+                    if not isinstance(details, dict):
+                        raise TypeError("take metadata must be an object")
+                    take = Take(
+                        number=number,
+                        path=path,
+                        created_at=str(item["created_at"]),
+                        sample_rate=int(item["sample_rate"]),
+                        channels=int(item["channels"]),
+                        frames=int(item["frames"]),
+                        metadata=dict(details),
+                    )
+                    if take.sample_rate <= 0 or take.channels <= 0 or take.frames < 0:
+                        raise ValueError(f"invalid format for take {number}")
+                    loaded.append(take)
+            except (KeyError, TypeError, ValueError) as exc:
+                raise TakeRegistryError(
+                    f"invalid take metadata in {self.metadata_path}: {exc}"
+                ) from exc
+            self._takes = sorted(loaded, key=lambda item: item.number)
+            return tuple(self._takes)
+
+    def copy_to(self, session_path: str | Path) -> TakeRegistry:
+        """Copy this registry and its existing media into another session."""
+        destination = TakeRegistry(session_path)
+        if destination.metadata_path == self.metadata_path:
+            return self
+
+        for original in self.takes:
+            number = original.number
+            if destination.take(number) is not None:
+                number = destination.next_number
+            suffix = original.path.suffix or ".wav"
+            target = destination.media_directory / f"take-{number:03d}{suffix}"
+            if original.path.is_file():
+                target.parent.mkdir(parents=True, exist_ok=True)
+                if original.path != target:
+                    shutil.copy2(original.path, target)
+                registered_path = target
+            else:
+                registered_path = original.path
+            destination.register(
+                registered_path,
+                sample_rate=original.sample_rate,
+                channels=original.channels,
+                frames=original.frames,
+                created_at=original.created_at,
+                metadata=original.metadata,
+                number=number,
+            )
+        return destination
+
+    def _stored_path(self, path: Path) -> str:
+        if self.project_root is not None:
+            try:
+                return path.relative_to(self.project_root).as_posix()
+            except ValueError:
+                pass
+        return str(path)
+
+    def _write(self, takes: Iterable[Take]) -> None:
+        payload = {
+            "version": _TAKE_REGISTRY_VERSION,
+            "takes": [
+                {
+                    "number": take.number,
+                    "name": take.name,
+                    "path": self._stored_path(take.path),
+                    "created_at": take.created_at,
+                    "sample_rate": take.sample_rate,
+                    "channels": take.channels,
+                    "frames": take.frames,
+                    "duration_s": take.duration,
+                    "metadata": take.metadata,
+                }
+                for take in takes
+            ],
+        }
+        self.metadata_path.parent.mkdir(parents=True, exist_ok=True)
+        pending = tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            prefix=f".{self.metadata_path.name}.",
+            suffix=".tmp",
+            dir=self.metadata_path.parent,
+            delete=False,
+        )
+        try:
+            with pending:
+                json.dump(payload, pending, indent=2, sort_keys=True)
+                pending.write("\n")
+                pending.flush()
+                os.fsync(pending.fileno())
+            os.replace(pending.name, self.metadata_path)
+            _fsync_directory(self.metadata_path.parent)
+        except Exception:
+            Path(pending.name).unlink(missing_ok=True)
+            raise
+
+    def __len__(self) -> int:
+        return len(self.takes)
+
+    def __iter__(self) -> Iterator[Take]:
+        return iter(self.takes)
 
 
 @dataclass(frozen=True, slots=True)
