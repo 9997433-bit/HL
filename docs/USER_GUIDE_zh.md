@@ -77,6 +77,9 @@ for mode, frequency in enumerate(result.frequencies, start=1):
     print(f"mode {mode}: {frequency:.3f} Hz")
 ```
 
+要在一个两自由度模型上直接跑通“模态分析 → 相关 → 修正 → 复核”，请运行
+[`examples/05_five_minute_workflow.py`](../examples/05_five_minute_workflow.py)。
+
 完整的“模型 → 合成试验 → 相关 → 修正 → 验证”流程见
 [`examples/02_model_updating_workflow.py`](../examples/02_model_updating_workflow.py)。
 

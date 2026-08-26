@@ -46,9 +46,9 @@ with `PYTHONPATH=src` on Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1.
 - [x] Open against `main`, head `cursor/femtools-industrial-7aa3`,
   227+ commits; the verified 876 snapshot is an ancestor of the PR head, so
   nothing verified here is off-branch.
-- [ ] **Title is stale** — it still says "430 tests". Refresh title and body
-  from [`PR_DRAFT.md`](PR_DRAFT.md) before review; the draft is now pinned at
-  the latest 1184-test tip.
+- [x] **Title and body are synchronized** — the PR now advertises **1508 tests
+  and 47 verified criteria**, matching [`PR_DRAFT.md`](PR_DRAFT.md) and the
+  Round 2 sign-off snapshot.
 - [x] Reviewer-facing docs are in place: `PR_DRAFT.md` (body + FEMtools
   comparison table), [`STATUS.md`](STATUS.md) (module table, registry census),
   [`BRANCH_CLEANUP.md`](BRANCH_CLEANUP.md) (side-branch audit; superseded
@@ -60,7 +60,8 @@ with `PYTHONPATH=src` on Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1.
   [`PROGRESS.md`](PROGRESS.md)).
 - [x] Both carry-over packages (`workflow/`, `optimization/`) landed; the
   dynamics/optimization integration merged at `acda625`, closing the round at
-  430 tests. The suite has since grown to 1184 with no Round 1 regressions.
+  its then-current test count. The suite has since grown to **1508** with no
+  Round 1 regressions.
 - [x] No open Round 1 items remain.
 
 ## 5. Round 2 — IN PROGRESS

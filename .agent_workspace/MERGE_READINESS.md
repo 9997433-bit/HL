@@ -1,0 +1,54 @@
+# PR #5 Merge Readiness — OpenFEMLab 0.1.0
+
+**Checked:** 2026-08-26 (UTC)
+**Pull request:** [PR #5](https://github.com/9997433-bit/HL/pull/5)
+**Base:** `main` at `5bad55d`
+**PR head:** `cursor/femtools-industrial-7aa3` (post-A138 merge pending push)
+
+## CI on the latest trunk
+
+- [x] Push CI run [32971541774](https://github.com/9997433-bit/HL/actions/runs/32971541774) — **success** on `459a3d2`.
+- [x] Pull-request CI run [32971545766](https://github.com/9997433-bit/HL/actions/runs/32971545766) — **success** (Python 3.10–3.13 + gates).
+- [x] The PR-body synchronization check passed. The live title and body advertise
+  **1508 tests and 47 verified criteria**.
+
+## Conflicts and review state
+
+- [x] `origin/main` is an ancestor of the PR head. The divergence is
+  `0` main-only / `405` PR-only commits.
+- [x] `git merge-tree --write-tree origin/main
+  origin/cursor/femtools-industrial-7aa3` completed without conflicts (resulting
+  tree `d4f1fa6450c87bff3d13c78a05caa01afc9a30b7`).
+- [x] GitHub reports `MERGEABLE`; merge state is expected to return to `CLEAN`
+  after the current checks finish.
+- [ ] Convert the PR from Draft to ready for review.
+- [ ] Obtain any human approval required by repository policy. No review was
+  recorded when this checklist was written.
+
+## Version tag suggestion
+
+- [x] Use package version **0.1.0** for this first integrated release;
+  `pyproject.toml` and `openfemlab.__version__` already agree on `0.1.0`.
+- [x] No repository tags currently exist.
+- [ ] After the merge commit passes `main` CI, create the annotated release tag
+  **`v0.1.0`** at that exact commit. The `v` prefix distinguishes the Git tag
+  while preserving package version `0.1.0`.
+
+## Post-merge steps
+
+- [ ] Confirm the merge commit on `main` passes the Python 3.10–3.13 matrix and
+  acceptance-gates job.
+- [ ] From a clean checkout of that commit, build the source distribution and
+  wheel and smoke-test installation plus `openfemlab --version`.
+- [ ] Create and push the annotated `v0.1.0` tag only after those checks pass.
+- [ ] Publish the GitHub release and package artifacts if public distribution is
+  intended; include the Round 2 sign-off and known Round 3 deferrals.
+- [ ] Remove the merged integration branch when retention is no longer needed,
+  then start Round 3 work from the updated `main`.
+
+## Documentation reconciliation
+
+- [x] Current-facing PR, status, pre-review and orchestrator documents now use the
+  signed-off **1508-test / 47-verified** snapshot.
+- [x] Older counts remain only where they identify a dated historical run or
+  milestone; they are not presented as the current merge result.
