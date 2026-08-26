@@ -181,15 +181,20 @@ The `scipy.optimize.minimize` lowering:
 | `gradient` | `jac=`, always set — scipy's 2-point fallback is explicitly disabled |
 | iterate callback | one `OptimizationIterate` row plus the evaluator's modal-solve counter |
 | `result.success` / `message` | `OptimizationResult.converged` / `message` |
-| stationarity | trust-constr `optimality`; for SLSQP, which reports none, a projected KKT residual computed here |
+| stationarity | trust-constr `optimality`; for SLSQP, which reports none, a KKT residual reconstructed here over the active constraints and bounds |
 
 **Stationarity.** SLSQP exposes no optimality measure, and its raw gradient norm
 is not one: at a constrained optimum `∇f` is balanced by the active constraint
 gradients, not zero. So the backend reconstructs the first-order residual
-`∇f + Σ λ_k ∇g_k`, recovering the multipliers of the active set by *non-negative*
-least squares (`λ_k ≥ 0` is part of KKT — an unsigned solve could report a
-spuriously small residual), and projecting out components held at a bound where a
-bound multiplier legitimately absorbs them.
+`∇f + Σ μ_k a_k`, recovering the multipliers by *non-negative* least squares
+(`μ_k ≥ 0` is part of KKT — an unsigned solve could report a spuriously small
+residual). The columns `a_k` are the jacobian of each active inequality **and**
+`∓e_i` for a variable held at its lower/upper bound: a bound multiplier has to
+enter the same fit rather than being projected out afterwards, because the
+constraint multipliers that best explain the free components are not the ones a
+fit over all components returns. Projecting last leaves a residue exactly where
+the measure matters — on the reference chain with the `k2` bound raised above its
+free optimum, the verified solution reported 2.6e-2 instead of 2.8e-17.
 
 **Hessians (trust-constr only).** trust-constr needs a Lagrangian Hessian and the
 package supplies no second derivatives. Constraint curvature is neglected — the
@@ -201,7 +206,11 @@ converges in 17 iterations. Neglecting curvature costs step quality, not
 correctness: the gradients that drive the KKT test are exact. The objective's
 Hessian is still approximated by quasi-Newton unless the caller passes an exact
 one as `options={"hess": …}` — worth doing for a minimum-mass objective, which is
-linear.
+linear, but only when the *constraints* are where the curvature is not. Both
+Hessians zero leaves the trust-region subproblem entirely linear: on the sized
+chain below, whose curvature is all in the frequency constraint, declaring the
+objective's exact zero stalls the run at 2e-3 relative where the quasi-Newton
+approximation converges in 123 iterations.
 
 **Status.** Implemented and gated. Measured on the reference problems of
 `tests/acceptance/test_optimization.py` with SLSQP:
@@ -210,6 +219,14 @@ linear.
 |---------|---------|--------------------|--------------|-------------|
 | Sized oscillator, min mass s.t. `f_1 ≥ f_min` | `t* = λ m₀/(k − λμ)` | 3.3e-16 | 4.4e-16 | 8 |
 | Payload placement, max `f_1` s.t. `m ≥ m_req` | even split `m_j = m_req/2` | 1.0e-12 | 2.0e-15 | 7 |
+| Sized chain, min mass s.t. `f_1 ≥ f_min` | asymmetric `k* = (3S*/5, 2S*/5)` | 1.1e-16 | 2.2e-16 | 11 |
+
+The sized chain is the case that needs the solver to *choose* between variables:
+the other two optima are one-dimensional or symmetric, so a method that never
+breaks the symmetry of its starting point would still pass them. Raising its
+`k2` lower bound above the free optimum puts the solution on a bound, which is
+where the two methods separate — SLSQP lands on it exactly, trust-constr stops a
+barrier width inside — and where the KKT measure needs the bound multiplier.
 
 trust-constr reaches the same optima within the 1e-4 objective gate, but as an
 interior-point method it stops a barrier width short of the boundary, so its
