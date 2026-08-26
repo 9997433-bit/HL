@@ -2634,7 +2634,11 @@ round-trip batch flipped the last open P0 row of the then-41-row registry
 (`8a0f10f`) grew the P0 set itself: AC-ELEM-001/002 arrived already `implemented`,
 so the milestone survived its own denominator changing — **34 of 34** at
 `c5afc35`. Nothing, P0 or otherwise, has reached `verified`; that promotion is
-R2-T09's, defined but never applied.
+R2-T09's, defined but never applied. One correction rides along: A80's STATUS
+snapshot, published in this same window, recorded the split as P0 35 / P1 4
+implemented; re-counted from the registry source it is **P0 34 / P1 5** (same
+39 total) — per family 8 MODAL + 7 CORR + 6 UPD + 4 WORK + 3 OPT + 4 DYN +
+2 ELEM = 34.
 
 **The A57 reconciliation.** A57 closed the R2-T04 acceptance gate on
 `cursor/ac-upd-006-registration-6615` (`c479ee4`): AC-UPD-006a (weak prior → GN
@@ -2670,5 +2674,10 @@ numbers.
 **The hazard, again.** Between two consecutive commands of this run the shared
 `/workspace` checkout was switched to another agent's branch
 (`cursor/ac-backfill-a56-02bf`), and the integration tip advanced once
-(`ff484e4` → `c5afc35`) before this run's clone was even made. All work was
-staged in the private clone and pushed through a fetch-merge-push loop.
+(`ff484e4` → `c5afc35`) before this run's clone was even made. Then the clone
+itself was hit: a concurrent agent ran `git fetch && git reset --hard` inside
+`/tmp/a84` mid-edit — the guessable-name variant A50 and A57 both recorded.
+The uncommitted edits survived the interleaving, were re-checked against the
+moved base (`441f80a`, which had brought A80's snapshot and the A79 entry),
+and were committed on top of it. All work was staged in the private clone and
+pushed through a fetch-merge-push loop.

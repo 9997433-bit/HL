@@ -6,7 +6,10 @@
 `main`. [`PR_DRAFT.md`](PR_DRAFT.md) and the pre-review checklist
 ([`PRE_REVIEW.md`](PRE_REVIEW.md)) are pinned at this same 1033-test tip.
 
-This file supersedes A69's 933-test snapshot.
+This file supersedes A80's 1,033-test snapshot (published in the same write
+window), which recorded the priority split as P0 35 / P1 4 implemented;
+re-counted from the registry source the split is **P0 34 / P1 5** (same 39
+total).
 
 ---
 
@@ -19,8 +22,9 @@ commands of this run — was never relied on. The tested code tip was `c5afc35`.
 
 - `pytest -q` — **1033 passed, 0 failed**. The count rose from A69's 933 by
   exactly the 100 tests of the HEX8 slice (76 in `tests/test_hex8.py`, 24
-  parametrized AC-ELEM cases), merged by A79 at `8a0f10f`; the two commits
-  since the merge are docs-only.
+  parametrized AC-ELEM cases), merged by A79 at `8a0f10f`; every commit since
+  the merge is docs-only (the code tree at `441f80a` is identical to
+  `c5afc35`'s).
 - `ruff check .` — clean, no findings.
 - Acceptance-criteria registry — **44 criteria: 39 `implemented`,
   5 `specified`, 0 `verified`**.
