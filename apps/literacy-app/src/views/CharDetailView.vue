@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import HanziStrokeBox from '@/components/HanziStrokeBox.vue'
 import StarBurst from '@/components/StarBurst.vue'
+import VoiceNotice from '@/components/VoiceNotice.vue'
 import { CHARACTERS, getCharacter } from '@/data/characters.js'
 import { RADICAL_MAP, getRadical } from '@/data/radicals.js'
 import { useProgressStore } from '@/stores/progress.js'
@@ -133,6 +134,8 @@ watch(decoded, () => {
     </section>
 
     <p v-if="toast" class="toast">{{ toast }}</p>
+
+    <VoiceNotice fallback="拼音就在字的上面，家长可以照着拼音读给孩子听。" />
 
     <!-- 组词 -->
     <section class="card stack">
