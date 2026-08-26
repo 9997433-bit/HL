@@ -1,7 +1,7 @@
 # PR Draft — OpenFEMLab Round 1
 
 Ready to file. Base: `main`. Head: `cursor/femtools-industrial-7aa3`.
-Verified at commit `c92729a`: full suite **1168 passed in 58.50 s**,
+Verified at commit `e111901`: full suite **1184 passed in 52.32 s**,
 `ruff check .` clean (Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1).
 Source references: [README](../README.md), [Chinese user guide](../docs/USER_GUIDE_zh.md),
 and [orchestrator report](ORCHESTRATOR_REPORT.md).
@@ -9,7 +9,7 @@ and [orchestrator report](ORCHESTRATOR_REPORT.md).
 ## Title
 
 ```
-OpenFEMLab: solver-independent CAE platform — modal analysis, correlation, model updating, damped dynamics, 3D elements (1168 tests)
+OpenFEMLab: solver-independent CAE platform — modal analysis, correlation, model updating, damped dynamics, 3D elements (1184 tests)
 ```
 
 ## Body
@@ -83,9 +83,9 @@ synthesis, and optimization hooks — all behind one CLI and a schema-versioned 
   JSON/YAML model specs and UFF-58 measured FRFs; machine-readable JSON on stdout,
   diagnostics on stderr, CI acceptance gates via exit codes; covered end to end
   including subprocess runs.
-- **QA stack**: 1168 tests including a machine-readable registry of 44 quantified
-  acceptance criteria: all 44 `implemented`, 0 `specified`, and 0 `verified`, with
-  **34/34 P0** and **10/10 P1** rows implemented — plus boundary/probe suites,
+- **QA stack**: 1184 tests including a machine-readable registry of 44 quantified
+  acceptance criteria: 35 `implemented`, 0 `specified`, and 9 `verified`, with
+  **34/34 P0** and **10/10 P1** rows covered — plus boundary/probe suites,
   performance-regression
   gates, and benchmarks; GitHub Actions CI on Python 3.10–3.13; `ruff check` clean.
 - **Docs**: [`README`](README.md) with a reproducible CLI walkthrough,
@@ -96,13 +96,13 @@ synthesis, and optimization hooks — all behind one CLI and a schema-versioned 
 
 ## Verification
 
-- `PYTHONPATH=src python -m pytest` — **1168 passed in 58.50 s** at commit `c92729a`
+- `PYTHONPATH=src python -m pytest` — **1184 passed in 52.32 s** at commit `e111901`
   on Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1, from a detached private worktree.
 - `ruff check .` — clean.
 - A93 re-ran the suite one commit earlier, at the merge that brought the spatial
   beam onto the integration branch (`75dd070`): **1089 passed in 56.82 s**,
   `ruff check .` clean. The 44 tests between the two tips are the meshio bridge.
-- Per-suite breakdown (sums to 1168): acceptance registry + gates 372, dynamics 82,
+- Per-suite breakdown (sums to 1184): acceptance registry + gates 388, dynamics 82,
   HEX8 76, TET4 66, QUAD4 61, updating 57, correlation 52, meshio bridge 44,
   modal solver 44, `BeamElement3D` 42, workflow 41, Bayesian updating 36,
   reduction/expansion 32, optimization 27, FRF correlation 25,
@@ -166,11 +166,11 @@ openness, and automation:
   `NeutralModel → Model` conversion that turns an imported block into bound elements are
   still open, which is what keeps an imported industrial mesh from being re-analyzed
   internally.
-- The acceptance registry is closed at **44/44 `implemented`** (34 P0 + 10 P1);
+- The acceptance registry is closed at **44/44 covered** (35 `implemented` +
+  9 `verified`, spanning all 34 P0 and 10 P1 rows);
   MPE from measured FRFs and pretest planning remain pending outside this registry
   closure and are tracked in `docs/SOTA_GAP_ANALYSIS.md` and
   `.agent_workspace/ROUND2_PLAN.md`.
-- No criterion is `verified` yet, and that is a CI fact rather than a testing gap: the
-  registry reserves `verified` for a row that has passed in CI, and R2-T09 has not stood
-  the job up. All 44 `implemented` rows pass locally.
+- R2-T09 now enforces the promotion gate in CI and has advanced 9 criteria to
+  `verified`; the remaining 35 stay `implemented`.
 ```
