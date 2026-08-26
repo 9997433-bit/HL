@@ -936,6 +936,10 @@ class MainWindow(QMainWindow):
         self.action_paste.setEnabled(editing and has_clipboard)
         self.action_insert_silence.setEnabled(editing)
 
+        has_band = self.spectrum_panel.selection is not None
+        self.action_spectral_attenuate.setEnabled(editing and has_band)
+        self.action_spectral_delete.setEnabled(editing and has_band)
+
     def _update_window_title(self) -> None:
         clip = self.editor_clip
         dirty = self._has_unsaved_changes()
@@ -1063,6 +1067,46 @@ class MainWindow(QMainWindow):
             self._edit_session.reverse(self._selected_range())
 
         self._run_edit("Reverse", _reverse)
+
+    def _spectral_selection(self) -> SpectralSelection:
+        selection = self.spectrum_panel.selection
+        if selection is None:
+            raise EditError("drag a box across the spectral display first")
+        if selection.time.clamped(self.engine.n_frames).is_empty:
+            raise EditError("the spectral selection lies outside the clip")
+        return selection
+
+    def spectral_attenuate(self) -> None:
+        """Duck the band under the spectral selection by the default amount."""
+
+        def _attenuate() -> None:
+            assert self._edit_session is not None
+            selection = self._spectral_selection()
+            self._edit_session.attenuate_band(
+                selection.time, selection.low_hz, selection.high_hz
+            )
+            self.statusBar().showMessage(
+                f"Attenuated {selection.low_hz:.0f}–{selection.high_hz:.0f} Hz by "
+                f"{abs(SPECTRAL_ATTENUATION_DB):.0f} dB",
+                4000,
+            )
+
+        self._run_edit("Attenuate Selection", _attenuate)
+
+    def spectral_delete(self) -> None:
+        """Remove the band under the spectral selection and resynthesise."""
+
+        def _delete() -> None:
+            assert self._edit_session is not None
+            selection = self._spectral_selection()
+            self._edit_session.remove_band(
+                selection.time, selection.low_hz, selection.high_hz
+            )
+            self.statusBar().showMessage(
+                f"Removed {selection.low_hz:.0f}–{selection.high_hz:.0f} Hz", 4000
+            )
+
+        self._run_edit("Delete Selection", _delete)
 
     def edit_insert_silence(self) -> None:
         rate = max(self.engine.sample_rate, 1)
@@ -1694,6 +1738,20 @@ class MainWindow(QMainWindow):
         text = f"{format_timecode(start)} → {format_timecode(end)}"
         self.transport_bar.set_selection_text(format_timecode(end - start))
         self.status_selection.setText(f"Selection: {text} ({selection.length:,} frames)")
+
+    def _on_spectral_selection(
+        self, rng: TimeRange | None, low_hz: float, high_hz: float
+    ) -> None:
+        self._update_edit_actions()
+        if rng is None:
+            self.statusBar().clearMessage()
+            return
+        start, end = rng.to_seconds(max(self.engine.sample_rate, 1))
+        self.statusBar().showMessage(
+            f"Spectral selection: {format_timecode(start)} → {format_timecode(end)}  ·  "
+            f"{low_hz:.0f}–{high_hz:.0f} Hz",
+            6000,
+        )
 
     def _on_spectrum_seek(self, time_s: float) -> None:
         self._on_seek(int(round(time_s * max(self.engine.sample_rate, 1))))
