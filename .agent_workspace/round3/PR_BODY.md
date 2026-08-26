@@ -92,7 +92,12 @@ Final local result:
 - Ruff: pass
 - GUI smoke: `python -m audio_studio --null-audio --offscreen --exit-after 5`
   exited 0
-- CI: `<!-- workflow URL; all matrix jobs must be green -->`
+- Integrated code CI (`c908a7e`):
+  [success](https://github.com/9997433-bit/HL/actions/runs/32949624137)
+
+The commits after `c908a7e` in this handoff only add acceptance evidence,
+documentation and progress status. Orchestrator must replace the link above
+with a new green run if another product/CI branch is merged.
 
 ### Performance result in this branch snapshot
 

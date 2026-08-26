@@ -90,6 +90,9 @@ feature-equivalent to Adobe Audition.
 - Final integrated local run: 659 passed, 23 expected-gap xfails, and one XPASS
   for the newly delivered third-party license gate; Ruff and the five-second
   offscreen/null-audio GUI smoke passed.
+- Audio CI for integrated code commit `c908a7e` passed, including the binding
+  guard, Linux full suite, macOS/Windows smoke lanes, GUI smoke and performance
+  probes.
 - Round 3 acceptance report: 30 checklist items, 7 currently evidenced and 23
   expected gaps; `sota_claimed` remains false.
 - SLO/compliance validation snapshot: 21 tests green; six headless SLO proxies
@@ -108,9 +111,8 @@ feature-equivalent to Adobe Audition.
   remain incomplete.
 - No physical-device RTT/underrun certification or 10-minute realtime soak;
   cloud measurements are headless proxies.
-- The latest pre-Round-3 branch CI run was failing; local validation now passes,
-  but the PR must not claim a green cross-platform gate until a final-HEAD
-  post-merge run succeeds.
+- The integrated code CI is green, but macOS/Windows are smoke lanes rather
+  than the Linux full suite; any later product merge requires a new green run.
 - Accessibility, HiDPI, workspace persistence, RF64/>4 GB workflows, and
   full installer license/SBOM validation remain release blockers beyond this
   alpha.

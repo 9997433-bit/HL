@@ -117,7 +117,7 @@ External runtime
 | Ruff / GUI smoke | pass / 5 秒 offscreen null-audio pass | Linux 云机、无真实音频设备 |
 | SLO/compliance 报告 | 21 passed；6/6 headless proxies pass | `formal_slos_verified = 0` |
 | Golden null roundtrip | PCM_16、PCM_24、FLOAT covered | 不等于全格式/BWF/RF64 |
-| 最新预 Round 3 GitHub run | [failure](https://github.com/9997433-bit/HL/actions/runs/32948286756) | PR 前必须由新的 HEAD 绿跑替代 |
+| 集成代码 GitHub CI (`c908a7e`) | [success](https://github.com/9997433-bit/HL/actions/runs/32949624137) | 后续仅报告/总结提交未触发 workflow |
 
 本地验证使用 `audio-studio/.venv` 的锁定 CI 栈；命令为
 `ruff check tools scripts tests`、`QT_QPA_PLATFORM=offscreen pytest -q tests
@@ -198,8 +198,8 @@ p99 `0.844 ms`、underrun `0%`，低于 `1.33 ms` 逃生舱阈值。该结果仍
 
 1. 缺真实 WASAPI/CoreAudio/ALSA 设备 RTT、30/60 分钟播放录音 soak 与 xrun 证据。
 2. Python SPSC 不加 Python mutex，但 GIL/OS scheduling 仍可能制造长尾。
-3. 跨平台 workflow 已补齐 full/smoke lanes；历史 run 为红，最终新 HEAD 仍必须
-   取得全绿结果才能关闭此项。
+3. 跨平台 workflow 已补齐 full/smoke lanes且 `c908a7e` 全绿；macOS/Windows
+   仍只是 smoke，任何后续产品分支合并后必须在新 HEAD 重跑。
 4. accessibility、HiDPI、屏幕阅读器、WCAG 对比度和完整键盘闭环未终验。
 5. 缺正式安装器、签名/notarization、artifact SBOM 和逐平台 license bundle。
 
