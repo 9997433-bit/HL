@@ -6,6 +6,7 @@
   "description": "开源儿童识字 Web 应用 — 单字学习 / 听音识字 / 偏旁部首 / 分级绘本 / 成语启蒙",
   "scripts": {
     "gen:hanzi": "node scripts/gen-hanzi-data.mjs",
+    "gen:corpus": "node scripts/gen-char-corpus.mjs",
     "predev": "npm run gen:hanzi",
     "dev": "vite",
     "prebuild": "npm run gen:hanzi",

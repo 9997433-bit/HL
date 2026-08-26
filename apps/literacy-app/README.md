@@ -6,10 +6,12 @@
 
 > 架构决策与竞品审计详见仓库根目录 `.agent_workspace/literacy-architecture.md`。
 
-**版本状态（Round 4 进行中）**：Round 3 交付 200 字 / 16 单元、axe serious 清零、
+**版本状态（Round 5 进行中）**：Round 3 交付 200 字 / 16 单元、axe serious 清零、
 描红键盘替代与 aria-live 播报、设计令牌迁移。Round 4 把字库扩到 500 字 / 33 单元，
 课文按单元切包懒加载，并在家长中心加了学习计划（每日新字上限 + 单元选择）。
-字表以 `src/data/char-index.js` + `src/data/chars/` 为唯一事实来源，
+Round 5 把字库扩到 1000 字 / 58 单元，并把整份字表改成脚本生成：
+`scripts/data/char-seed.txt` 是唯一真源，`npm run gen:corpus` 产出
+`src/data/char-index.js`、`src/data/chars/` 和 `shared/data/common-hanzi.json`。
 终验实测见 `.agent_workspace/GLOBAL-SUMMARY-REPORT.md`。
 
 ## 快速开始
@@ -34,7 +36,7 @@ Service Worker 不支持 `file://`，不能通过直接双击 `dist/index.html` 
 
 ## 字表与复习曲线
 
-字表 500 字 / 33 单元,分两层存放,规模由 `check:data` 与 `gen:hanzi` 双重守护:
+字表 1000 字 / 58 单元,分两层存放,规模由 `check:data` 与 `gen:hanzi` 双重守护:
 
 - `src/data/char-index.js` —— 每个字的拼音 / 声调 / 单元 / 部首 / 笔画 / 图标。
   首页地图、字表卡片、复习队列、家长报表都只用这一层,它随主包加载。
@@ -42,9 +44,31 @@ Service Worker 不支持 `file://`，不能通过直接双击 `dist/index.html` 
   由 `src/data/characters.js` 里的 `loadUnitDetails()` / `loadCharacter()` 用
   `import()` 按需拉取,Vite 的 `manualChunks` 把它们切成 `chars-uN` 独立块,
   翻到哪个单元才下载哪一包。`npm run check:bundle` 会在 dist 上核对
-  「首屏没有同步加载课文包」,防止有人一行 import 把 500 个字的课文塞回主包。
+  「首屏没有同步加载课文包」,防止有人一行 import 把上千个字的课文塞回主包。
 
 字表页一次只挂一个单元,底部按单元翻页,避免上百张卡片同时进 DOM。
+
+### 字表怎么改
+
+两层字表和共享基线都是生成物,不要手改,改 `scripts/data/char-seed.txt` 再重新生成:
+
+```bash
+npm run gen:corpus     # 只读缓存,不需要额外依赖
+```
+
+seed 每行一个字,字段是 `汉字|拼音|部首 id|图标|释义|组词|例句`
+(老单元只写前四段,课文仍是手写稿)。声调、笔画、部首和组词例句的拼音一律派生,
+不手写:笔画数 `hanzi-writer-data` 的笔顺条数,部首走 cnchar,拼音走 pinyin-pro,
+派生结果落在 `scripts/data/derived-cache.json`,所以平时生成不依赖这两个工具包。
+seed 里换了字或改了词句之后要重新派生:
+
+```bash
+npm i --no-save pinyin-pro cnchar cnchar-radical
+npm run gen:corpus -- --refresh
+```
+
+多音字是这里最容易出错的地方:标注器按词典挑读音,挑的和字表登记的不一致时,
+生成器以字表为准就地改回来,并把每一处改动打印出来让人复核。
 
 ## 学习计划
 
