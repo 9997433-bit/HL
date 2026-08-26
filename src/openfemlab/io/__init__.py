@@ -36,6 +36,14 @@ from ._native import (
     write_model,
     write_test_data,
 )
+from .uff import (
+    UFFDataset,
+    UFFFunction,
+    UFFMode,
+    read_uff,
+    read_uff_functions,
+    read_uff_modes,
+)
 
 # Familiar persistence aliases for script-oriented workflows.
 load = read
@@ -106,4 +114,10 @@ __all__ = [
     "dof_map_from_dict",
     "dof_map_from_labels",
     "from_meshio",
+    "UFFDataset",
+    "UFFFunction",
+    "UFFMode",
+    "read_uff",
+    "read_uff_functions",
+    "read_uff_modes",
 ]
