@@ -1,10 +1,10 @@
 # OpenFEMLab — Status Snapshot
 
-**Recorded by:** A55 (backfill for completed A51) · **Date:** 2026-08-26
-**Branch:** `cursor/femtools-industrial-7aa3` · **Snapshot commit:** `0928f95`
+**Recorded by:** A74 (backfill for completed A71) · **Date:** 2026-08-26
+**Branch:** `cursor/femtools-industrial-7aa3` · **Tested code commit:** `c5a205a`
 **Pull request:** [PR #5](https://github.com/9997433-bit/HL/pull/5) — open against
-`main`. [`PR_DRAFT.md`](PR_DRAFT.md) is pinned at 876 tests at `0928f95`,
-consistent with the verification recorded here.
+`main`. [`PR_DRAFT.md`](PR_DRAFT.md) remains pinned at the earlier 876-test
+snapshot and therefore trails the verification recorded here.
 
 This file supersedes the earlier R2-T01-scoped status note with a full-project
 snapshot.
@@ -13,21 +13,19 @@ snapshot.
 
 ## 1. Verification snapshot (independent, this run)
 
-Run from a detached private worktree at `/tmp/a55` with `PYTHONPATH` pinned to
-its `src` (the shared `/workspace` checkout was mid-merge with conflicts at
-snapshot time and was not touched).
+Run from `/workspace` after a fetch and hard reset to
+`origin/cursor/femtools-industrial-7aa3`. The branch advanced through
+documentation-only commits while verification ran; the tested code tip was
+`c5a205a`.
 
-- `python -m pytest` — **876 passed, 0 failed** in 8.26 s
-  (Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1).
+- `pytest -q` — **900 passed, 0 failed** in 60.22 s; a collection-only pass
+  independently confirmed 900 tests.
 - `ruff check .` — clean, no findings.
-- Acceptance-criteria registry — **40 criteria: 32 `implemented`,
-  8 `specified`, 0 `verified`**. By priority: P0 29 implemented / 3 specified;
+- Acceptance-criteria registry — **40 criteria: 34 `implemented`,
+  6 `specified`, 0 `verified`**. By priority: P0 31 implemented / 1 specified;
   P1 3 implemented / 5 specified.
-- The tip moved three times during this task (TET4, Bayesian MAP, the
-  `correlate-frf` CLI, and four acceptance-gate batches all landed mid-run);
-  the suite was re-verified at each tip — 671 at `0bed333`, 797 at `be38d2c`,
-  and finally **876 at `0928f95`** — so the numbers above are derived at the
-  snapshot commit, not carried over.
+- The count increased by 24 from the prior 876-test snapshot when the
+  AC-UPD-004/005 acceptance batch landed.
 
 Unit suites (623 tests):
 
@@ -46,7 +44,7 @@ Unit suites (623 tests):
 | `test_frf_correlation.py` | 25 | | | |
 | `test_cli.py` + `test_cli_correlation.py` | 23 | | | |
 
-Acceptance suites (253 tests): modal 98, correlation 81, updating 23,
+Acceptance suites (277 tests): modal 98, correlation 81, updating 47,
 optimization 15, dynamics 13, registry consistency 12, workflow 11.
 
 ## 2. Round status
@@ -79,7 +77,7 @@ optimization 15, dynamics 13, registry consistency 12, workflow 11.
 |---|---|---|---|
 | M1 Modal analysis (MS-1) | `solver/modal.py` (+ `modal/eigen.py` adapter) | 44 / 98 | Complete for Round-2 scope, incl. typed input validation (MS-1.1). AC-MODAL-001..007 and 009 implemented; only 008 (P1 frequency window) `specified`. |
 | M2 Correlation (MS-2) | `correlation/` (mac, metrics, pairing, align, reduction, frf, report) | 52 + 25 + 25 / 81 | Engine complete incl. Guyan/IRS/SEREP + TAM and the schema-1.1 FRF block. AC-CORR-005/006/007 implemented; 008 (report round-trip) `specified`; AC-CORR-009 unregistered. |
-| M3 Model updating (MS-3) | `updating/` | 57 + 35 / 23 | LM/GN with analytic Fox–Kapoor + MAC sensitivities complete; Bayesian MAP estimator landed. AC-UPD-004/005 (P0) and 006a/006b/008 (P1) still `specified`. |
+| M3 Model updating (MS-3) | `updating/` | 57 + 35 / 47 | LM/GN with analytic Fox–Kapoor + MAC sensitivities complete; Bayesian MAP estimator landed. AC-UPD-004/005 (P0) are implemented; 006a/006b/008 (P1) remain `specified`. |
 | M4 Correction workflow (MS-4) | `workflow/` | 38 / 11 | Complete (S1–S6, gates, collinearity screen, σ_post, reproducible report). AC-WORK-001/002/004/005 and AC-UPD-007 implemented; AC-WORK-003 `specified`. |
 | M5 Optimization (MS-5) | `optimization/` | 27 / 15 | Sizing complete (GAP-12 closed) with bound-active KKT oracles; shape variables fall back to finite differences. AC-OPT-001..004 implemented. |
 | M6 Damped dynamics (MS-7) | `solver/dynamics.py` | 82 / 13 | Complete; FRF updating residual deferred to Round 3. AC-DYN-001..005 implemented. |
@@ -90,11 +88,10 @@ optimization 15, dynamics 13, registry consistency 12, workflow 11.
 
 ## 4. Open gaps (priority order)
 
-1. **Registry closure.** 8 of 40 criteria remain `specified` and nothing has
+1. **Registry closure.** 6 of 40 criteria remain `specified` and nothing has
    been advanced to `verified`; the Round-2 exit bar requires every P0+P1
-   criterion `verified`. Remaining P0: AC-CORR-008 (report JSON round-trip),
-   AC-UPD-004 (convergence/divergence guard), AC-UPD-005 (ill-posed
-   robustness). Remaining P1: AC-MODAL-008, AC-UPD-006a/006b/008, AC-WORK-003.
+   criterion `verified`. Remaining P0: AC-CORR-008 (report JSON round-trip).
+   Remaining P1: AC-MODAL-008, AC-UPD-006a/006b/008, AC-WORK-003.
    Several gate behaviour that already exists and is unit-tested — these are
    acceptance-test-and-tagging tasks, not feature work.
 2. **R2-T04 acceptance wiring** (P1 gate-blockers): the MAP estimator is in;
