@@ -28,7 +28,13 @@ import scipy.sparse.linalg as spla
 
 from ..core.assembly import AssembledSystem, assemble_system
 from ..core.results import NORMALIZATIONS, RIGID_BODY_TOL, ModalResult
-from ..exceptions import SolverConvergenceError, SolverError
+from ..exceptions import (
+    MatrixDefinitenessError,
+    MatrixSymmetryError,
+    MissedModesWarning,
+    SolverConvergenceError,
+    SolverError,
+)
 
 __all__ = [
     "ModalSolver",
@@ -36,12 +42,30 @@ __all__ = [
     "NORMALIZATIONS",
     "RIGID_BODY_TOL",
     "RESIDUAL_TOL",
+    "SYMMETRY_TOL",
+    "INERTIA_CHECK_LIMIT",
     "eigenpair_residuals",
+    "eigenvalue_count_below",
+    "eigenvalue_count_in_range",
     "residual_floor",
+    "validate_symmetry",
 ]
 
 #: Default MS-1.2 relative-residual tolerance every returned eigenpair must meet.
 RESIDUAL_TOL = 1e-8
+
+#: MS-1.1 symmetry tolerance ``‖A - A^T‖_max <= SYMMETRY_TOL * ‖A‖_max``.
+SYMMETRY_TOL = 1e-10
+
+#: Reduced problem size up to which the MS-1.2 missed-mode inertia check runs
+#: automatically. The check factorizes a dense ``K - sigma M`` twice, so it is
+#: only worth its O(n^3) below a size where that is cheap next to the solve.
+INERTIA_CHECK_LIMIT = 2000
+
+#: Relative slack on the frequency-window bounds, so a mode sitting exactly on
+#: ``f_lo`` or ``f_hi`` is inside the window rather than at the mercy of the
+#: last bit of the eigenvalue.
+WINDOW_RTOL = 1e-12
 
 #: Relative gap below which two mode components count as tied for the MS-1.3
 #: sign rule, so a near-symmetric mode gets the same sign from every backend.
@@ -122,10 +146,13 @@ class ModalSolver:
         sparse: bool | None = None,
         shift: float | None = None,
         max_frequency: float | None = None,
+        freq_window: tuple[float, float] | None = None,
         condense_massless: bool = True,
         tol: float = 0.0,
         maxiter: int | None = None,
         residual_tol: float | None = RESIDUAL_TOL,
+        missed_mode_check: bool | None = None,
+        strict: bool = False,
         seed: int | None = 0,
         cache_factorization: bool = True,
     ) -> ModalResult:
@@ -148,6 +175,14 @@ class ModalSolver:
             with rigid-body modes still factorize.
         max_frequency:
             Discard modes above this frequency [Hz].
+        freq_window:
+            MS-1.2 frequency-window request ``(f_lo, f_hi)`` in Hz: only modes
+            inside the window are returned, ``num_modes`` acting as a cap on
+            how many of them. The dense backend evaluates the whole spectrum
+            and is therefore exact; the Lanczos backend shifts to the middle of
+            the window so an interior window is reachable at all. Either way
+            the count is checked against :func:`eigenvalue_count_in_range`, so
+            a truncated window is reported rather than passed off as complete.
         condense_massless:
             Statically condense DOFs with zero mass instead of failing on a
             singular mass matrix.
@@ -164,6 +199,16 @@ class ModalSolver:
             ``‖K phi - lambda M phi‖ / ‖K phi‖ <= residual_tol``, else
             :class:`~openfemlab.exceptions.SolverConvergenceError` is raised
             carrying the residuals. ``None`` skips the check.
+        missed_mode_check:
+            Run the MS-1.2 Sylvester inertia check behind a ``freq_window``
+            request. ``None`` runs it for reduced problems of at most
+            :data:`INERTIA_CHECK_LIMIT` equations and records that it was
+            skipped in ``ModalResult.meta`` otherwise.
+        strict:
+            Escalate the MS-1.2 diagnostic warnings — today the
+            :class:`~openfemlab.exceptions.MissedModesWarning` of an incomplete
+            frequency window — into
+            :class:`~openfemlab.exceptions.SolverError`.
         seed:
             Seeds the Lanczos starting vector, which ARPACK would otherwise
             draw at random — making repeated sparse runs differ in the last
@@ -181,6 +226,8 @@ class ModalSolver:
         if num_modes < 1:
             raise SolverError(f"num_modes must be >= 1, got {num_modes}")
 
+        window = None if freq_window is None else _window_eigenvalues(freq_window)
+
         K_r, M_r, transform, M_ff = self._prepare_problem(condense_massless)
 
         size = K_r.shape[0]
@@ -197,22 +244,33 @@ class ModalSolver:
                 K_r,
                 M_r,
                 requested,
-                shift=shift,
+                shift=_window_shift(window) if shift is None and window is not None else shift,
                 tol=tol,
                 maxiter=maxiter,
                 seed=seed,
                 cache_factorization=cache_factorization,
             )
         else:
-            values, vectors = self._solve_dense(K_r, M_r, requested)
+            # A window filters the extraction, so the extraction has to reach
+            # into it; the dense backend has the whole spectrum in hand anyway.
+            values, vectors = self._solve_dense(
+                K_r, M_r, size if window is not None else requested
+            )
 
         values, vectors = _sort_and_clip(values, vectors, K_r, M_r)
         if residual_tol is not None:
             _verify_residuals(K_r, M_r, values, vectors, residual_tol)
 
+        meta: dict[str, object] = {}
+        if window is not None:
+            values, vectors = _apply_window(values, vectors, window, requested)
+            meta = self._window_diagnostics(
+                K_r, M_r, window, values.size, missed_mode_check, strict
+            )
+
         if max_frequency is not None:
             limit = (2.0 * np.pi * float(max_frequency)) ** 2
-            keep = values <= limit * (1.0 + 1e-12)
+            keep = values <= limit * (1.0 + WINDOW_RTOL)
             values, vectors = values[keep], vectors[:, keep]
 
         if transform is not None:
@@ -225,9 +283,45 @@ class ModalSolver:
             mode_shapes=self.system.expand(vectors),
             free_dofs=self.system.free_dofs,
             normalization=normalization,
+            meta=meta or None,
             system=self.system,
             num_condensed_dofs=0 if transform is None else int(transform.num_condensed),
         )
+
+    def _window_diagnostics(
+        self,
+        K,
+        M,
+        window: tuple[float, float],
+        found: int,
+        missed_mode_check: bool | None,
+        strict: bool,
+    ) -> dict[str, object]:
+        """Compare the window contents against the MS-1.2 inertia count."""
+        lower, upper = window
+        meta: dict[str, object] = {
+            "freq_window_hz": (
+                float(np.sqrt(max(lower, 0.0)) / (2.0 * np.pi)),
+                float(np.sqrt(max(upper, 0.0)) / (2.0 * np.pi)),
+            ),
+            "modes_in_window": int(found),
+        }
+        run = K.shape[0] <= INERTIA_CHECK_LIMIT if missed_mode_check is None else missed_mode_check
+        if not run:
+            meta["expected_in_window"] = None
+            return meta
+
+        expected = eigenvalue_count_in_range(K, M, lower, upper)
+        meta["expected_in_window"] = expected
+        if found < expected:
+            message = (
+                f"the frequency window holds {expected} modes but only {found} were "
+                f"extracted; raise 'num_modes' (or widen 'maxiter') to complete it"
+            )
+            if strict:
+                raise SolverError(message)
+            warnings.warn(message, MissedModesWarning, stacklevel=3)
+        return meta
 
     def clear_cache(self) -> None:
         """Discard reduced matrices and sparse factorizations cached by this solver."""
@@ -245,6 +339,10 @@ class ModalSolver:
             return cached
 
         K_ff, M_ff = self.system.reduced()
+        for matrix, name in ((K_ff, "K"), (M_ff, "M")):
+            _validate_finite(matrix, name)
+            validate_symmetry(matrix, name)
+        _validate_mass_definiteness(M_ff)
         K_ff = _symmetrize(K_ff)
         M_ff = _symmetrize(M_ff)
         _, transform = _condense_massless(K_ff, M_ff, enabled=condense_massless)
@@ -267,9 +365,9 @@ class ModalSolver:
         M_d = M.toarray() if sp.issparse(M) else np.asarray(M, dtype=float)
         try:
             values, vectors = sla.eigh(K_d, M_d)
-        except np.linalg.LinAlgError as exc:  # pragma: no cover - LAPACK dependent
-            raise SolverError(
-                "dense eigensolver failed; the mass matrix is probably not positive definite"
+        except np.linalg.LinAlgError as exc:
+            raise MatrixDefinitenessError(
+                "dense eigensolver failed; the mass matrix is not positive definite"
             ) from exc
         return values[:num_modes], vectors[:, :num_modes]
 
@@ -343,6 +441,131 @@ def _symmetrize(matrix):
         return ((matrix + matrix.T) * 0.5).tocsr()
     matrix = np.asarray(matrix, dtype=float)
     return 0.5 * (matrix + matrix.T)
+
+
+def _to_dense(matrix) -> np.ndarray:
+    return matrix.toarray() if sp.issparse(matrix) else np.asarray(matrix, dtype=float)
+
+
+def validate_symmetry(matrix, name: str, tolerance: float = SYMMETRY_TOL) -> float:
+    """Check the MS-1.1 symmetry tolerance and return the relative asymmetry.
+
+    Symmetrization is applied unconditionally afterwards, so this exists to
+    stop a matrix that is *not* nearly symmetric from being quietly replaced by
+    ``(A + A^T)/2`` — a different problem with a plausible-looking answer.
+    """
+    difference = matrix - matrix.T
+    peak = float(abs(matrix).max()) if matrix.shape[0] else 0.0
+    worst = float(abs(difference).max()) if matrix.shape[0] else 0.0
+    if peak <= 0.0:
+        return 0.0
+    asymmetry = worst / peak
+    if asymmetry > tolerance:
+        raise MatrixSymmetryError(
+            f"{name} is not symmetric: ‖{name} - {name}^T‖_max / ‖{name}‖_max = "
+            f"{asymmetry:.3e} exceeds {tolerance:.1e}",
+            asymmetry=asymmetry,
+            tolerance=tolerance,
+        )
+    return asymmetry
+
+
+def _validate_finite(matrix, name: str) -> None:
+    data = matrix.data if sp.issparse(matrix) else np.asarray(matrix)
+    if not np.all(np.isfinite(data)):
+        raise SolverError(f"{name} contains NaN or infinite entries")
+
+
+def _validate_mass_definiteness(M) -> None:
+    """Reject the obviously indefinite mass matrices before factorization.
+
+    A negative diagonal entry is enough on its own: ``e_i^T M e_i < 0`` means
+    ``M`` is indefinite, whatever the rest of it looks like. The remaining
+    cases surface as a failed factorization inside the backend and are mapped
+    onto the same error there.
+    """
+    diagonal = np.asarray(M.diagonal(), dtype=float)
+    negative = np.flatnonzero(diagonal < 0.0)
+    if negative.size:
+        worst = int(negative[np.argmin(diagonal[negative])])
+        raise MatrixDefinitenessError(
+            f"the mass matrix is indefinite: DOF {worst} has mass "
+            f"{diagonal[worst]:.6g} < 0",
+            eigenvalue=float(diagonal[worst]),
+        )
+
+
+def _negative_inertia(blocks: np.ndarray, scale: float) -> int:
+    """Negative eigenvalues of the block-diagonal factor ``D`` of an LDL^T."""
+    zero = 1e-12 * max(scale, 1.0)
+    size = blocks.shape[0]
+    negatives = 0
+    index = 0
+    while index < size:
+        coupled = index + 1 < size and abs(blocks[index + 1, index]) > zero
+        if coupled:
+            a, b = blocks[index, index], blocks[index + 1, index + 1]
+            off = blocks[index, index + 1]
+            determinant = a * b - off * off
+            if determinant < -zero * zero:
+                negatives += 1  # a saddle: one eigenvalue of each sign
+            elif determinant > zero * zero and a + b < 0.0:
+                negatives += 2
+            index += 2
+        else:
+            if blocks[index, index] < -zero:
+                negatives += 1
+            index += 1
+    return negatives
+
+
+def eigenvalue_count_below(K, M, sigma: float) -> int:
+    """Number of eigenvalues of ``K phi = lambda M phi`` strictly below ``sigma``.
+
+    Sylvester's law of inertia: with ``M`` positive definite, the count equals
+    the number of negative eigenvalues of ``K - sigma M``, which an LDL^T
+    factorization reports directly. That is the MS-1.2 missed-mode check —
+    it answers "how many modes are down there" without extracting any of them.
+    """
+    shifted = _to_dense(K) - float(sigma) * _to_dense(M)
+    shifted = 0.5 * (shifted + shifted.T)
+    scale = float(np.max(np.abs(shifted))) if shifted.size else 0.0
+    _, blocks, _ = sla.ldl(shifted)
+    return _negative_inertia(blocks, scale)
+
+
+def eigenvalue_count_in_range(K, M, lower: float, upper: float) -> int:
+    """Number of eigenvalues in ``[lower, upper]``, by two inertia counts.
+
+    The bounds are the ones :func:`_apply_window` filters on, so the count and
+    the filter agree on a mode sitting exactly on a bound.
+    """
+    return eigenvalue_count_below(K, M, upper) - eigenvalue_count_below(K, M, lower)
+
+
+def _window_eigenvalues(freq_window) -> tuple[float, float]:
+    """``(lambda_lo, lambda_hi)`` of a ``(f_lo, f_hi)`` request, bounds padded."""
+    try:
+        low, high = (float(value) for value in freq_window)
+    except (TypeError, ValueError) as exc:
+        raise SolverError("freq_window must be a (f_lo, f_hi) pair in Hz") from exc
+    if low < 0.0 or high < low:
+        raise SolverError(f"freq_window must satisfy 0 <= f_lo <= f_hi, got ({low}, {high})")
+    lower = (2.0 * np.pi * low) ** 2
+    upper = (2.0 * np.pi * high) ** 2
+    return lower * (1.0 - WINDOW_RTOL), upper * (1.0 + WINDOW_RTOL)
+
+
+def _window_shift(window: tuple[float, float]) -> float:
+    """Shift-invert target for an interior window: its centre."""
+    lower, upper = window
+    return 0.5 * (lower + upper)
+
+
+def _apply_window(values: np.ndarray, vectors: np.ndarray, window, cap: int):
+    lower, upper = window
+    keep = np.flatnonzero((values >= lower) & (values <= upper))[:cap]
+    return values[keep], vectors[:, keep]
 
 
 def _default_shift(K, M) -> float:
@@ -438,22 +661,27 @@ def _sort_and_clip(values: np.ndarray, vectors: np.ndarray, K, M):
     alone would report a rigid-body mode at some meaningless ``1e-9 Hz``.
     MS-1.2 asks for ``f = 0`` on those modes, which is also what makes the
     reported spectrum agree with ``ModalResult.is_rigid``.
+
+    Below the same floor on the *negative* side the eigenvalue is no longer
+    round-off around zero but a genuinely unstable model, and MS-1.1 wants that
+    reported as :class:`~openfemlab.exceptions.MatrixDefinitenessError` rather
+    than as an imaginary frequency clipped to 0 Hz.
     """
     values = np.asarray(values, dtype=float)
     order = np.argsort(values)
     values = values[order]
     vectors = np.asarray(vectors, dtype=float)[:, order]
     if values.size:
-        scale = float(np.max(np.abs(values)))
-        threshold = -1e-6 * max(scale, 1.0)
-        if np.any(values < threshold):
-            warnings.warn(
-                "negative eigenvalues encountered: the stiffness matrix is not positive "
-                "semi-definite (unstable model or wrong material data)",
-                RuntimeWarning,
-                stacklevel=3,
+        floor = _rigid_body_threshold(values, K, M)
+        if values[0] < -floor:
+            raise MatrixDefinitenessError(
+                f"eigenvalue {values[0]:.6g} lies below the rigid-body noise floor "
+                f"{-floor:.6g}: the stiffness matrix is not positive semi-definite "
+                "(unstable model or wrong material data)",
+                eigenvalue=float(values[0]),
+                floor=float(-floor),
             )
-        values = np.where(values <= _rigid_body_threshold(values, K, M), 0.0, values)
+        values = np.where(values <= floor, 0.0, values)
     return values, vectors
 
 
@@ -538,7 +766,9 @@ def _mass_normalize(vectors: np.ndarray, M, normalization: str) -> np.ndarray:
         return vectors / peaks
     generalized = np.einsum("ij,ij->j", vectors, M @ vectors)
     if np.any(generalized <= 0.0):
-        raise SolverError("non-positive generalized mass; the mass matrix is not positive definite")
+        raise MatrixDefinitenessError(
+            "non-positive generalized mass; the mass matrix is not positive definite"
+        )
     return vectors / np.sqrt(generalized)
 
 

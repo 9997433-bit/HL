@@ -13,6 +13,7 @@ import numpy as np
 
 from ..core.elements import (
     BeamElement2D,
+    Hex8Element,
     Quad4Element,
     SpringElement,
     Tet4Element,
@@ -28,6 +29,7 @@ __all__ = [
     "beam_mesh",
     "quad_plate_mesh",
     "tet_block_mesh",
+    "hex_block_mesh",
     "truss_from_arrays",
 ]
 
@@ -97,6 +99,9 @@ class MeshBuilder:
 
     def add_tet4(self, node_ids: Sequence[Hashable], material: Material, **kwargs):
         return self.model.add_element(Tet4Element(node_ids, material, **kwargs))
+
+    def add_hex8(self, node_ids: Sequence[Hashable], material: Material, **kwargs):
+        return self.model.add_element(Hex8Element(node_ids, material, **kwargs))
 
     def add_spring(self, node_a, node_b, stiffness: float, dof=DOF.UX):
         return self.model.add_element(SpringElement((node_a, node_b), stiffness, dof=dof))
@@ -344,6 +349,58 @@ def quad_plate_mesh(
     return model
 
 
+def _box_grid(
+    model: Model,
+    length: float,
+    width: float,
+    height: float,
+    num_x: int,
+    num_y: int,
+    num_z: int,
+    origin: Sequence[float],
+    support: str,
+    supports: set[str],
+):
+    """Validate a structured box, fill ``model`` with its nodes, return ``node_id``.
+
+    Nodes are numbered ``id = (k (num_y + 1) + j) (num_x + 1) + i`` with ``i``
+    running along X, so ``0`` sits at ``origin`` and the last id at the far
+    corner. Shared by the tetrahedral and hexahedral block generators so both
+    number their grids identically.
+    """
+    if support not in supports:
+        raise ModelError(f"unknown support {support!r}; expected one of {sorted(supports)}")
+    for label, value in (("length", length), ("width", width), ("height", height)):
+        if value <= 0.0:
+            raise ModelError(f"{label} must be positive, got {value}")
+    for label, value in (("num_x", num_x), ("num_y", num_y), ("num_z", num_z)):
+        if value < 1:
+            raise ModelError(f"{label} must be >= 1, got {value}")
+
+    start = _as_point(origin)
+
+    def node_id(i: int, j: int, k: int) -> int:
+        return (k * (num_y + 1) + j) * (num_x + 1) + i
+
+    for k in range(num_z + 1):
+        for j in range(num_y + 1):
+            for i in range(num_x + 1):
+                model.add_node(
+                    node_id(i, j, k),
+                    start[0] + length * i / num_x,
+                    start[1] + width * j / num_y,
+                    start[2] + height * k / num_z,
+                )
+    return node_id
+
+
+def _cell_corners(node_id, i: int, j: int, k: int) -> list[int]:
+    """The eight node ids of cell ``(i, j, k)``, indexed by ``di + 2 dj + 4 dk``."""
+    return [
+        node_id(i + (c & 1), j + ((c >> 1) & 1), k + ((c >> 2) & 1)) for c in range(8)
+    ]
+
+
 #: Kuhn (Freudenthal) subdivision of a cell into six tetrahedra, as indices into
 #: the eight corners numbered ``di + 2 dj + 4 dk``. Every tetrahedron is ordered
 #: for a positive volume, and because the subdivision is identical in every cell
@@ -383,39 +440,16 @@ def tet_block_mesh(
     ``x = origin_x`` face, ``"free"`` leaves the block unsupported (six
     rigid-body modes).
     """
-    supports = {"cantilever", "free"}
-    if support not in supports:
-        raise ModelError(f"unknown support {support!r}; expected one of {sorted(supports)}")
-    for label, value in (("length", length), ("width", width), ("height", height)):
-        if value <= 0.0:
-            raise ModelError(f"{label} must be positive, got {value}")
-    for label, value in (("num_x", num_x), ("num_y", num_y), ("num_z", num_z)):
-        if value < 1:
-            raise ModelError(f"{label} must be >= 1, got {value}")
-
-    start = _as_point(origin)
     model = Model(dofs=(DOF.UX, DOF.UY, DOF.UZ), name=name)
-
-    def node_id(i: int, j: int, k: int) -> int:
-        return (k * (num_y + 1) + j) * (num_x + 1) + i
-
-    for k in range(num_z + 1):
-        for j in range(num_y + 1):
-            for i in range(num_x + 1):
-                model.add_node(
-                    node_id(i, j, k),
-                    start[0] + length * i / num_x,
-                    start[1] + width * j / num_y,
-                    start[2] + height * k / num_z,
-                )
+    node_id = _box_grid(
+        model, length, width, height, num_x, num_y, num_z, origin, support,
+        {"cantilever", "free"},
+    )
 
     for k in range(num_z):
         for j in range(num_y):
             for i in range(num_x):
-                corners = [
-                    node_id(i + (c & 1), j + ((c >> 1) & 1), k + ((c >> 2) & 1))
-                    for c in range(8)
-                ]
+                corners = _cell_corners(node_id, i, j, k)
                 for tet in _KUHN_TETRAHEDRA:
                     model.add_element(
                         Tet4Element([corners[c] for c in tet], material, lumped_mass=lumped_mass)
@@ -423,6 +457,67 @@ def tet_block_mesh(
 
     if support == "cantilever":
         model.fix_nodes([node_id(0, j, k) for k in range(num_z + 1) for j in range(num_y + 1)])
+    return model
+
+
+#: The HEX8 corner order (``-zeta`` face counter-clockwise, then ``+zeta``) as
+#: indices into the ``di + 2 dj + 4 dk`` corner numbering of a structured cell.
+_HEX8_CORNERS: tuple[int, ...] = (0, 1, 3, 2, 4, 5, 7, 6)
+
+
+def hex_block_mesh(
+    length: float,
+    width: float,
+    height: float,
+    num_x: int,
+    num_y: int,
+    num_z: int,
+    material: Material,
+    *,
+    support: str = "cantilever",
+    origin: Sequence[float] = (0.0, 0.0, 0.0),
+    lumped_mass: bool = False,
+    integration_order: int = 2,
+    name: str = "hex block",
+) -> Model:
+    """Structured ``num_x x num_y x num_z`` grid of HEX8 bricks.
+
+    Nodes are numbered exactly as in :func:`tet_block_mesh`
+    (``id = (k (num_y + 1) + j) (num_x + 1) + i``), so the two generators
+    produce interchangeable node sets for the same box and the same element
+    can be compared against either discretization.
+
+    ``support`` selects the boundary conditions: ``"cantilever"`` clamps the
+    ``x = origin_x`` face, ``"free"`` leaves the block unsupported (six
+    rigid-body modes), ``"simply-supported"`` restrains the two ``x`` faces
+    transversally and one corner axially.
+    """
+    model = Model(dofs=(DOF.UX, DOF.UY, DOF.UZ), name=name)
+    node_id = _box_grid(
+        model, length, width, height, num_x, num_y, num_z, origin, support,
+        {"cantilever", "free", "simply-supported"},
+    )
+
+    for k in range(num_z):
+        for j in range(num_y):
+            for i in range(num_x):
+                corners = _cell_corners(node_id, i, j, k)
+                model.add_element(
+                    Hex8Element(
+                        [corners[c] for c in _HEX8_CORNERS],
+                        material,
+                        lumped_mass=lumped_mass,
+                        integration_order=integration_order,
+                    )
+                )
+
+    root = [node_id(0, j, k) for k in range(num_z + 1) for j in range(num_y + 1)]
+    tip = [node_id(num_x, j, k) for k in range(num_z + 1) for j in range(num_y + 1)]
+    if support == "cantilever":
+        model.fix_nodes(root)
+    elif support == "simply-supported":
+        model.fix_nodes(root + tip, (DOF.UY, DOF.UZ))
+        model.fix(node_id(0, 0, 0), (DOF.UX,))
     return model
 
 
