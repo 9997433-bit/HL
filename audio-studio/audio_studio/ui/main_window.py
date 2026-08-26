@@ -1,10 +1,18 @@
-"""Main application window: a DAW-style single-track editing surface.
+"""Main application window: a DAW-style editing surface with two workspaces.
 
-Three views share the window: the waveform lane in the centre, a dockable
-spectral display, and a dockable effect rack. The rack is a *preview* insert —
-it is spliced into the engine's output path (see
-:class:`~audio_studio.dsp.preview.EffectPreview`) and changes what is heard
-without touching the clip in memory.
+The window hosts the two halves of the application side by side, exactly as
+Audition does. The **waveform** workspace is the destructive editor: one clip,
+one lane, a dockable spectral display and a dockable effect rack. The
+**multitrack** workspace (View ▸ Multitrack Mode) is the non-destructive one:
+a :class:`~audio_studio.core.session.MultitrackSession` of tracks and clip
+references, drawn by :class:`~audio_studio.ui.multitrack_view.MultitrackView`.
+
+Switching between them re-points the transport rather than duplicating it —
+the session's mixer is a ``SampleSource`` like any other, so it reaches the
+device through the same feeder, the same ring buffer and the same effect
+preview insert. The rack is a *preview*: it is spliced into the engine's output
+path (see :class:`~audio_studio.dsp.preview.EffectPreview`) and changes what is
+heard without touching the audio in memory.
 
 Analysis that costs real time — the spectrogram transform, the BS.1770
 integrated loudness — never runs on the Qt thread while the user waits.
@@ -45,15 +53,19 @@ from ..core.engine import AudioEngine
 from ..core.loader import (
     SUPPORTED_EXTENSIONS,
     AudioLoadError,
+    LoadedAudio,
     describe_backends,
     file_dialog_filter,
     save_audio,
 )
+from ..core.sample_source import MemorySampleSource
+from ..core.session import MultitrackSession, Track
 from ..core.types import TimeRange, TransportState, format_timecode
 from ..dsp.loudness import LoudnessMeter, LoudnessReport, format_lufs
 from ..dsp.preview import EffectPreview
 from .effect_rack import EffectRackPanel, default_preview_chain
 from .level_meter import LevelMeter
+from .multitrack_view import MultitrackView
 from .spectrum_panel import SpectrumPanel
 from .theme import PALETTE, stylesheet
 from .track_panel import TrackPanel
@@ -89,6 +101,13 @@ class MainWindow(QMainWindow):
         self.transport_bar = TransportBar()
         self.spectrum_panel = SpectrumPanel()
         self.effect_rack = EffectRackPanel(self.effect_chain)
+
+        self.session = MultitrackSession()
+        self.multitrack_view = MultitrackView(self.session)
+        self._workspace = "waveform"
+        # The clip the waveform editor owns. Held separately because the engine
+        # forgets it while the transport is pointed at the session mixer.
+        self._editor_clip: LoadedAudio | None = None
 
         self._loudness_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="loudness")
         self._loudness_job: Future[LoudnessReport] | None = None
@@ -132,10 +151,17 @@ class MainWindow(QMainWindow):
         editor_row.addWidget(self.track_panel, 1)
         editor_row.addLayout(meter_column)
 
+        # The two workspaces are siblings rather than stacked pages so that the
+        # transport bar and the output meter stay put across a mode switch.
+        self.waveform_page = QWidget()
+        self.waveform_page.setLayout(editor_row)
+        self.multitrack_view.hide()
+
         root = QVBoxLayout()
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
-        root.addLayout(editor_row, 1)
+        root.addWidget(self.waveform_page, 1)
+        root.addWidget(self.multitrack_view, 1)
         root.addWidget(self.transport_bar)
 
         central = QWidget()
@@ -234,6 +260,23 @@ class MainWindow(QMainWindow):
             tip="Re-run the spectral analysis over the selection (or the whole clip)",
         )
 
+        # The workspace switch is orthogonal to the layout modes above: it
+        # chooses which *document* is on screen, not how it is laid out.
+        self.action_multitrack = action(
+            "&Multitrack Mode", self._on_multitrack_toggled, "Alt+4", checkable=True,
+            tip="Switch between the waveform editor and the multitrack session",
+        )
+        self.action_add_track = action(
+            "Add Clip as &Track", self.add_clip_as_track, "Ctrl+Shift+T",
+            tip="Place the loaded clip on a new multitrack lane",
+        )
+        self.action_mt_zoom_in = action(
+            "Multitrack Zoom I&n", self.multitrack_view.zoom_in, "Alt+="
+        )
+        self.action_mt_zoom_out = action(
+            "Multitrack Zoom O&ut", self.multitrack_view.zoom_out, "Alt+-"
+        )
+
         self.action_play = action("&Play / Pause", self._on_play_pause, "Space")
         self.action_stop = action("&Stop", self._on_stop, "Esc")
         self.action_home = action("Go to &Start", self._on_skip_start, "Home")
@@ -276,6 +319,11 @@ class MainWindow(QMainWindow):
         view_menu.addAction(self.action_view_waveform)
         view_menu.addAction(self.action_view_spectrum)
         view_menu.addAction(self.action_view_split)
+        view_menu.addSeparator()
+        view_menu.addAction(self.action_multitrack)
+        view_menu.addAction(self.action_add_track)
+        view_menu.addAction(self.action_mt_zoom_in)
+        view_menu.addAction(self.action_mt_zoom_out)
         view_menu.addSeparator()
         view_menu.addAction(self.spectrum_dock.toggleViewAction())
         view_menu.addAction(self.effects_dock.toggleViewAction())
@@ -340,6 +388,9 @@ class MainWindow(QMainWindow):
         self.spectrum_panel.fftSizeChanged.connect(lambda _size: self.analyze_spectrum())
         self.effect_rack.chainChanged.connect(self._on_chain_changed)
 
+        self.multitrack_view.seekRequested.connect(self._on_seek)
+        self.multitrack_view.sessionChanged.connect(self._on_session_edited)
+
         self.engine.add_state_listener(self._on_engine_state)
 
     # ----------------------------------------------------------- file access
@@ -368,10 +419,10 @@ class MainWindow(QMainWindow):
         self._update_for_clip()
 
     def export_dialog(self) -> None:
-        clip = self.engine.clip
+        clip = self.editor_clip
         if clip is None:
             return
-        selection = self.engine.selection
+        selection = self.engine.selection if not self.is_playing_session else None
         suggested = clip.path.with_name(f"{clip.path.stem}-export.wav")
         path, _ = QFileDialog.getSaveFileName(
             self, "Export audio", str(suggested), "WAV (*.wav);;FLAC (*.flac)"
@@ -507,11 +558,112 @@ class MainWindow(QMainWindow):
     def view_mode(self) -> str:
         return getattr(self, "_view_mode", "split")
 
+    # ----------------------------------------------------------- workspaces
+
+    @property
+    def workspace(self) -> str:
+        """``"waveform"`` or ``"multitrack"`` — which document is on screen."""
+        return self._workspace
+
+    @property
+    def editor_clip(self) -> LoadedAudio | None:
+        """The clip the waveform editor holds, whatever the transport is playing."""
+        return self._editor_clip if self._editor_clip is not None else self.engine.clip
+
+    def set_workspace(self, name: str) -> None:
+        """Show the waveform editor or the multitrack session.
+
+        The first switch into multitrack seeds the session from the loaded clip
+        so the workspace is never an empty room; after that it is left alone.
+        """
+        if name not in ("waveform", "multitrack"):
+            raise ValueError(f"unknown workspace {name!r}")
+        self._workspace = name
+        multitrack = name == "multitrack"
+
+        if multitrack and self.session.n_tracks == 0 and self.editor_clip is not None:
+            self.add_clip_as_track()
+
+        self.waveform_page.setVisible(not multitrack)
+        self.multitrack_view.setVisible(multitrack)
+        if self.action_multitrack.isChecked() != multitrack:
+            self.action_multitrack.setChecked(multitrack)
+
+        self._route_transport()
+        if multitrack:
+            self.multitrack_view.zoom_to_fit()
+            self.multitrack_view.set_playhead(self.engine.position)
+        self._update_status_format()
+
+    def _on_multitrack_toggled(self) -> None:
+        self.set_workspace("multitrack" if self.action_multitrack.isChecked() else "waveform")
+
+    def add_clip_as_track(self, name: str | None = None) -> Track | None:
+        """Place the loaded clip on a new lane of the multitrack session."""
+        clip = self.editor_clip
+        if clip is None:
+            return None
+        buffer = clip.buffer
+        if self.session.n_tracks == 0 or not self.session.clips:
+            # An empty session has no opinion about format yet, so it adopts
+            # the first clip's rather than refusing it.
+            self.session.set_format(buffer.sample_rate, buffer.n_channels)
+        if buffer.sample_rate != self.session.sample_rate:
+            QMessageBox.warning(
+                self,
+                "Sample rate mismatch",
+                f"{clip.name} is {buffer.sample_rate} Hz but the session runs at "
+                f"{self.session.sample_rate} Hz. Resampling is not implemented yet.",
+            )
+            return None
+
+        track = self.session.add_track(name or clip.name)
+        self.session.add_clip(track, MemorySampleSource(buffer), start=0, name=clip.name)
+        self.multitrack_view.zoom_to_fit()
+        self._route_transport()
+        self._update_status_format()
+        self.statusBar().showMessage(f"Added {clip.name} to the session", 4000)
+        return track
+
+    @property
+    def is_playing_session(self) -> bool:
+        """True when the transport is pulling from the session mixer."""
+        return self.engine.source is self.session.mixer
+
+    def _route_transport(self) -> None:
+        """Point the transport at whichever document the visible workspace owns.
+
+        Swapping the source is all it takes: the mixer satisfies the same
+        protocol a decoded clip does, so the feeder, the ring buffer and the
+        effect preview insert carry on unchanged.
+        """
+        wants_session = self._workspace == "multitrack" and self.session.n_frames > 0
+        if wants_session == self.is_playing_session:
+            return
+        if wants_session:
+            self._editor_clip = self.engine.clip
+            self.engine.set_source(self.session.mixer)
+        else:
+            self.engine.set_clip(self._editor_clip)
+
+        has_audio = self.engine.has_clip
+        self.transport_bar.set_enabled_for_clip(has_audio)
+        self.transport_bar.set_duration(self.engine.duration)
+        self.transport_bar.set_position(0.0)
+        self.level_meter.set_channels(max(self.engine.n_channels, 1))
+        self.level_meter.reset()
+
+    def _on_session_edited(self) -> None:
+        self._route_transport()
+        self._update_status_format()
+
     # -------------------------------------------------------------- reactive
 
     def _update_for_clip(self) -> None:
-        clip = self.engine.clip
-        self.track_panel.set_clip(clip, self.engine.pyramid)
+        if not self.is_playing_session:
+            self._editor_clip = self.engine.clip
+        clip = self.editor_clip
+        self.track_panel.set_clip(self.engine.clip, self.engine.pyramid)
         has_clip = self.engine.has_clip
 
         self.transport_bar.set_enabled_for_clip(has_clip)
@@ -523,19 +675,33 @@ class MainWindow(QMainWindow):
 
         for act in (self.action_close, self.action_export, self.action_select_all):
             act.setEnabled(has_clip)
+        self.action_add_track.setEnabled(clip is not None)
 
-        if clip is None:
-            self.setWindowTitle(__app_name__)
-            self.status_format.setText("No file")
-        else:
-            self.setWindowTitle(f"{clip.name} — {__app_name__}")
-            self.status_format.setText(
-                f"{clip.name}  ·  {clip.audio_format.describe()}  ·  "
-                f"{format_timecode(clip.duration)}  ·  {clip.buffer.n_frames:,} frames"
-            )
+        self.setWindowTitle(__app_name__ if clip is None else f"{clip.name} — {__app_name__}")
+        self._route_transport()
+        self._update_status_format()
         self.status_selection.setText("Selection: —")
         self.analyze_spectrum()
         self.measure_loudness()
+
+    def _update_status_format(self) -> None:
+        """Describe whatever the transport is currently pointed at."""
+        if self.is_playing_session:
+            self.status_format.setText(
+                f"{self.session.n_tracks} tracks  ·  "
+                f"{self.session.sample_rate / 1000:g} kHz  ·  "
+                f"{format_timecode(self.session.duration)}  ·  "
+                f"{self.session.n_frames:,} frames"
+            )
+            return
+        clip = self.editor_clip
+        if clip is None:
+            self.status_format.setText("No file")
+            return
+        self.status_format.setText(
+            f"{clip.name}  ·  {clip.audio_format.describe()}  ·  "
+            f"{format_timecode(clip.duration)}  ·  {clip.buffer.n_frames:,} frames"
+        )
 
     def _on_tick(self) -> None:
         """Poll the engine 30×/s: the audio threads never touch Qt objects."""
@@ -544,7 +710,10 @@ class MainWindow(QMainWindow):
             return
         position = self.engine.position
         playing = self.engine.is_playing
-        self.track_panel.set_playhead(position, follow=playing)
+        if self._workspace == "multitrack":
+            self.multitrack_view.set_playhead(position)
+        else:
+            self.track_panel.set_playhead(position, follow=playing)
         self.transport_bar.set_position(position / max(self.engine.sample_rate, 1))
 
         levels = self.engine.levels
@@ -573,6 +742,7 @@ class MainWindow(QMainWindow):
 
     def _on_seek(self, frame: int) -> None:
         position = self.engine.seek(frame)
+        self.multitrack_view.set_playhead(position)
         self.track_panel.set_playhead(position)
         self.track_panel.waveform.set_cursor_frame(position, emit=False)
         self.transport_bar.set_position(position / max(self.engine.sample_rate, 1))
