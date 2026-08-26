@@ -1,16 +1,16 @@
 """Acceptance-criteria registry and consistency tests.
 
 Machine-readable registry of every acceptance criterion defined in
-``docs/ACCEPTANCE_CRITERIA.md`` (see its section 10 for the enforcement
+``docs/ACCEPTANCE_CRITERIA.md`` (see its section 11 for the enforcement
 contract). Implementation suites import ``REGISTRY`` / ``get_criterion`` to
 tag themselves; the tests in this file guard that the registry, the criteria
 document, and ``docs/MODULE_SPEC.md`` never drift apart.
 
-Registry contract (ACCEPTANCE_CRITERIA.md sections 1 and 10):
+Registry contract (ACCEPTANCE_CRITERIA.md sections 1 and 11):
 - IDs follow ``AC-<MODULE>-NNN[a-z]?`` with MODULE in {MODAL, CORR, UPD,
-  WORK, OPT, DYN, ELEM, IO}; numbering is dense per module (no gaps); an
-  optional lowercase suffix marks closely coupled sub-criteria sharing a
-  number.
+  WORK, OPT, DYN, ELEM, IO, PRETEST}; numbering is dense per module (no
+  gaps); an optional lowercase suffix marks closely coupled sub-criteria
+  sharing a number.
 - ``priority`` in {P0, P1, P2} (P0 blocks Round-1, P1 blocks Round-2).
 - ``method`` in {oracle, property, twin, contract, regression}.
 - ``status`` lifecycle: specified -> implemented -> verified. A criterion may
@@ -39,10 +39,12 @@ SPEC_DOC = REPO_ROOT / "docs" / "MODULE_SPEC.md"
 CI_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 CI_GATE_JOB = "gates"
 
-ID_REGEX = re.compile(r"AC-(?:MODAL|CORR|UPD|WORK|OPT|DYN|ELEM|IO)-\d{3}[a-z]?")
-ID_FULLMATCH = re.compile(r"^AC-(MODAL|CORR|UPD|WORK|OPT|DYN|ELEM|IO)-(\d{3})([a-z]?)$")
+ID_REGEX = re.compile(r"AC-(?:MODAL|CORR|UPD|WORK|OPT|DYN|ELEM|IO|PRETEST)-\d{3}[a-z]?")
+ID_FULLMATCH = re.compile(
+    r"^AC-(MODAL|CORR|UPD|WORK|OPT|DYN|ELEM|IO|PRETEST)-(\d{3})([a-z]?)$"
+)
 
-VALID_MODULES = ("M1", "M2", "M3", "M4", "M5", "M6", "M7", "M8")
+VALID_MODULES = ("M1", "M2", "M3", "M4", "M5", "M6", "M7", "M8", "M9")
 VALID_PRIORITIES = ("P0", "P1", "P2")
 VALID_METHODS = ("oracle", "property", "twin", "contract", "regression")
 VALID_STATUSES = ("specified", "implemented", "verified")
@@ -51,20 +53,20 @@ VALID_STATUSES = ("specified", "implemented", "verified")
 COVERED_STATUSES = ("implemented", "verified")
 
 #: Modules whose rows are all still awaiting their first promotion, exempt from
-#: the span rule of ACCEPTANCE_CRITERIA.md section 10 rule 8. Empty after the
-#: A120 M8 promotion closed Round 2.
-MODULES_AWAITING_PROMOTION: tuple[str, ...] = ()
+#: the span rule of ACCEPTANCE_CRITERIA.md section 11 rule 8. M9 (pretest,
+#: GAP-07) entered spec-first in Round 3 with every row ``specified``.
+MODULES_AWAITING_PROMOTION: tuple[str, ...] = ("M9",)
 
 #: How an implementation suite tags a test with the criterion it verifies.
 TAG_REGEX = re.compile(r"criterion\(\s*\"(AC-[A-Z]+-\d{3}[a-z]?)\"\s*\)")
 
 FAMILY_TO_MODULE = {
     "MODAL": "M1", "CORR": "M2", "UPD": "M3", "WORK": "M4", "OPT": "M5",
-    "DYN": "M6", "ELEM": "M7", "IO": "M8",
+    "DYN": "M6", "ELEM": "M7", "IO": "M8", "PRETEST": "M9",
 }
 EXPECTED_CRITERIA_PER_FAMILY = {
     "MODAL": 9, "CORR": 9, "UPD": 9, "WORK": 5, "OPT": 4, "DYN": 5, "ELEM": 3,
-    "IO": 3,
+    "IO": 3, "PRETEST": 5,
 }
 
 
@@ -95,6 +97,7 @@ _OPT_SUITE = "tests/acceptance/test_optimization.py"
 _DYN_SUITE = "tests/acceptance/test_dynamics.py"
 _ELEM_SUITE = "tests/acceptance/test_elements.py"
 _IO_SUITE = "tests/acceptance/test_io.py"
+_PRETEST_SUITE = "tests/acceptance/test_pretest.py"
 
 REGISTRY: tuple[AcceptanceCriterion, ...] = (
     # --- M1 Modal analysis (MS-1) -------------------------------------------
@@ -199,6 +202,19 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P1", "contract", "MS-9.3", _IO_SUITE, "verified"),
     _c("AC-IO-003", "Imported mesh assembles as the hand-built model",
        "P0", "contract", "MS-9.4", _IO_SUITE, "verified"),
+    # --- M9 Pretest sensor placement (MS-10) — Round-3 spec-first, all rows
+    # ``specified``: the openfemlab.pretest API is stubbed and no tagged tests
+    # exist yet (ACCEPTANCE_CRITERIA.md section 10).
+    _c("AC-PRETEST-001", "EI leverage identities and det-FIM downdate",
+       "P0", "property", "MS-10.2", _PRETEST_SUITE),
+    _c("AC-PRETEST-002", "EI attains the exhaustive det-FIM optimum on the chain fixtures",
+       "P0", "oracle", "MS-10.2", _PRETEST_SUITE),
+    _c("AC-PRETEST-003", "Quality metrics separate layouts consistently with AC-CORR-009",
+       "P1", "twin", "MS-10.4", _PRETEST_SUITE),
+    _c("AC-PRETEST-004", "Determinism, constraints, and typed failures",
+       "P0", "contract", "MS-10.2, MS-10.5", _PRETEST_SUITE),
+    _c("AC-PRETEST-005", "MKE ranking matches the closed-form chain",
+       "P2", "oracle", "MS-10.3", _PRETEST_SUITE),
 )
 
 _BY_ID = {c.test_id: c for c in REGISTRY}
@@ -219,7 +235,7 @@ def verified_ids() -> tuple[str, ...]:
 
 
 # ---------------------------------------------------------------------------
-# Consistency tests (enforcement rules of ACCEPTANCE_CRITERIA.md section 10)
+# Consistency tests (enforcement rules of ACCEPTANCE_CRITERIA.md section 11)
 # ---------------------------------------------------------------------------
 
 def test_registry_inventory_matches_documented_scope():
@@ -228,7 +244,7 @@ def test_registry_inventory_matches_documented_scope():
         for family in EXPECTED_CRITERIA_PER_FAMILY
     }
     assert counts == EXPECTED_CRITERIA_PER_FAMILY
-    assert len(REGISTRY) == 47
+    assert len(REGISTRY) == 52
 
 
 def test_ids_unique():

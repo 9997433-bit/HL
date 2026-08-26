@@ -20,7 +20,7 @@ AC-<MODULE>-<NNN>[<suffix>]
 ```
 
 - `<MODULE>` ∈ `MODAL` (M1), `CORR` (M2), `UPD` (M3), `WORK` (M4), `OPT` (M5),
-  `DYN` (M6), `ELEM` (M7), `IO` (M8).
+  `DYN` (M6), `ELEM` (M7), `IO` (M8), `PRETEST` (M9).
 - `<NNN>`: three-digit number, dense per module (no gaps).
 - `<suffix>`: optional single lowercase letter for closely coupled
   sub-criteria that share a number (e.g. `AC-UPD-006a` / `AC-UPD-006b`).
@@ -523,21 +523,85 @@ run (AC-IO-003).
 
 ---
 
-## 10. Registry and enforcement
+## 10. M9 — Pretest Sensor Placement (spec MS-10)
+
+Added in Round 3 by A134 (gap GAP-07), **spec-first**: the `openfemlab.pretest`
+API is stubbed against MS-10.5 and every row below is `specified` — no
+implementation and no tagged tests exist yet, which section 11 rule 6 enforces
+rather than trusts. The quantitative gates were measured on the pinned
+fixtures before being written down (backward-elimination EI against exhaustive
+subset search on the ten-DOF chain; the two five-channel layouts the
+AC-CORR-009 suite already pins), so promotion requires an implementation, not
+a renegotiation of the numbers.
+
+| ID | Pri | Criterion (summary) | Quantitative gate | Spec |
+|----|-----|--------------------|-------------------|------|
+| AC-PRETEST-001 | P0 | EI leverage identities and det-FIM downdate | at every step: `E_d ∈ [0, 1]`, `Σ E_d = m` (1e-10); det after removing `d` = `(1 − E_d)·det` to 1e-12 rel.; full orthonormal basis ⇒ every `E_d = 1 ± 1e-12` | MS-10.2 |
+| AC-PRETEST-002 | P0 | EI attains the exhaustive det-FIM optimum on the chain fixtures | selected set equals the argmax over all C(10, s) subsets; det ratio = 1 on every pinned (m, s) case | MS-10.2 |
+| AC-PRETEST-003 | P1 | Quality metrics separate layouts consistently with AC-CORR-009 | `(1,3,5,7,9)` beats `(0,2,5,7,9)` on all four metrics; EI det ≥ both; contiguous `(0..4)` auto-MAC ≥ 0.9 while EI ≤ 0.10 | MS-10.4 |
+| AC-PRETEST-004 | P0 | Determinism, constraints, and typed failures | `s < m` / rank-deficient candidates raise `PretestError`; `keep` rows never eliminated; reruns bitwise identical | MS-10.2, MS-10.5 |
+| AC-PRETEST-005 | P2 | MKE ranking matches the closed-form chain | mode-1 MKE strictly increasing toward the free end, argmax = tip; `mass = c·I` changes no EI selection | MS-10.3 |
+
+### Details
+
+- **AC-PRETEST-001** (`property`) — Running EI backward elimination on the
+  ten-DOF chain's target modes, at every elimination step the retained
+  leverages lie in `[0, 1]` and sum to the target-mode count `m` within 1e-10
+  (trace of an orthogonal projector), and the FIM determinant after removing
+  DOF `d` equals `(1 − E_d)` times the determinant before it to 1e-12 relative
+  (matrix determinant lemma) — asserted against determinants computed
+  independently of the selection code. For the full orthonormal basis
+  (`k = n`, identity mass) every leverage equals 1 within 1e-12.
+- **AC-PRETEST-002** (`oracle`) — On the 10-DOF fixed-free chain, for
+  `(m = 3, s ∈ {3, 4, 5})` and `(m = 5, s ∈ {5, 6, 7})`, and on the
+  `ten_dof_chain` fixture for `(m = 4, s = 5)`, the EI-selected sensor set
+  equals the exhaustive-search argmax of `det(Φ_Sᵀ Φ_S)` over all `C(10, s)`
+  subsets, computed by brute force inside the test. (Greedy backward
+  elimination carries no general optimality guarantee; on these pinned
+  fixtures the agreement is exact and was verified numerically before this row
+  was written.)
+- **AC-PRETEST-003** (`twin`) — On the AC-CORR-009 chain twin (four target
+  modes, five channels), `placement_quality` ranks the spread layout
+  `(1, 3, 5, 7, 9)` above the adversarial `(0, 2, 5, 7, 9)` on **all four**
+  metrics (det_fim 0.091 vs 0.045, condition 1.20 vs 1.70, `σ_min` 0.71 vs
+  0.50, auto-MAC off-diagonal 0.012 vs 0.13) — the same verdict the Guyan-TAM
+  gate reaches on that pair; the EI selection's `det_fim` is ≥ both; and the
+  contiguous layout `(0, 1, 2, 3, 4)` shows auto-MAC off-diagonal ≥ 0.9
+  (spatial aliasing) where the EI selection stays ≤ 0.10. The criterion pins
+  the *ranking*, not a TAM verdict: MS-10.1 records that the EI optimum's
+  Guyan TAM can still fail AC-CORR-009, and the two checks stay separate.
+- **AC-PRETEST-004** (`contract`) — Requesting `s < m` sensors, or a candidate
+  set whose mode partition is rank deficient, raises `PretestError` (never a
+  silent low-rank placement); rows named in `keep=` appear in every selection
+  and never in the elimination order; rows outside `candidates=` are never
+  selected; two runs with identical inputs return bitwise-identical
+  `PlacementResult` arrays, the ties of the all-tie orthonormal case broken by
+  the pinned highest-index-removed rule.
+- **AC-PRETEST-005** (`oracle`) — On the uniform fixed-free chain the mode-1
+  modal kinetic energy is strictly increasing toward the free end and its
+  argmax is the tip DOF (closed-form mode shape `φ_j ∝ sin` of an increasing
+  argument below `π/2`); scaling a uniform mass matrix by any positive
+  constant changes no EI selection (weighting invariance of MS-10.2).
+
+---
+
+## 11. Registry and enforcement
 
 `tests/acceptance/test_criteria_registry.py` holds the machine-readable
 registry (one entry per criterion: ID, title, module, spec anchor, priority,
 verification method, planned test reference, status).
 
-The current inventory is **47 criteria**: M1 = 9, M2 = 9, M3 = 9,
-M4 = 5, M5 = 4, M6 = 5, M7 = 3, and M8 = 3. The two suffixed M3 rows
+The current inventory is **52 criteria**: M1 = 9, M2 = 9, M3 = 9,
+M4 = 5, M5 = 4, M6 = 5, M7 = 3, M8 = 3, and M9 = 5. The two suffixed M3 rows
 (`AC-UPD-006a` / `AC-UPD-006b`) are distinct criteria under one dense base
 number.
 
 Fourteen of them were `verified` after the first two promotion waves (A109,
 A121). The third wave — promoted at Round 2 sign-off — closed module **M8**
-(AC-IO-001..003) so the inventory now reads **47 `verified`, 0 `implemented`,
-0 `specified`**: every P0 and P1 row rests on the CI gate.
+(AC-IO-001..003), putting every Round-1/2 row on the CI gate. Round 3 opened
+module **M9** spec-first (section 10), so the inventory reads
+**47 `verified`, 0 `implemented`, 5 `specified`**; M9 is carried in
+`MODULES_AWAITING_PROMOTION` until its first promotion.
 
 The registry tests enforce:
 

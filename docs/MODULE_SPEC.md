@@ -521,6 +521,7 @@ M5 minimize_sizing reuses M1 solves + M3 sensitivity kernel + M2 mode tracking
 M6 damped dynamics extends M1 modes to FRFs; FRAC/FDAC feed M2 correlation
 M7 elements assemble the K, M every module above consumes
 M8 io reads a file into a NeutralModel and converts it into the M7 elements
+M9 pretest selects the sensor DOFs M2's SensorMap observes, from M1 mode sets
 ```
 
 - Mass-normalized, sign-fixed modes (MS-1.3) are the invariant every consumer
@@ -963,4 +964,143 @@ def neutral_to_model(neutral, *, dofs=None, name=None, material=None, section=No
                      beam_orientation=None, integration_order=2,
                      skip_unsupported=False) -> Model
 def infer_dofs(model: NeutralModel) -> tuple[DOF, ...]
+```
+
+---
+
+## 10. Module M9 — Pretest Planning and Sensor Placement (`openfemlab.pretest`) (MS-10)
+
+Round-3 module (GAP-07), **specified ahead of its implementation**: the MS-10.5
+API is stubbed in `openfemlab.pretest` (every function raises
+`NotImplementedError` naming this section) and the AC-PRETEST rows enter the
+registry at `specified`. Numbering note — the eighth module took `MS-9`
+because `MS-6` is the inter-module contracts section, so the ninth takes
+`MS-10`.
+
+### MS-10.1 Problem statement and scope
+
+Given the target mode set `Φ ∈ R^{n×m}` of an M1 solve (mass-normalized,
+MS-1.3) and a candidate DOF set (default: every row of `Φ`; in practice the
+translational free DOFs an accelerometer can observe), choose `s ≥ m` sensor
+DOFs that keep the target modes observable and mutually distinguishable once
+the campaign is reduced to those channels (MS-2.1). The output feeds a
+`SensorMap`, so this module is where the sensor set of the whole M2/M4 chain
+is decided *before* any hardware is mounted — the question the AC-CORR-009
+sensor-placement case asks after the fact.
+
+- **Figure of merit:** the Fisher information matrix of the sensor partition,
+  `Q_S = Φ_Sᵀ Φ_S`. Under i.i.d. unit-variance channel noise, the least-squares
+  estimate of the modal coordinates from the sensor readings has covariance
+  `Q_S⁻¹`, so maximizing `det Q_S` minimizes the confidence volume of the
+  identified modal coordinates.
+- **Scope.** Round-3 scope is sensor placement (EI) plus the MKE ranking and
+  the quality report; exciter (driving-point) placement shares the module and
+  the result contract but is a P2 outline (MS-10.3).
+- **What EI does *not* claim.** `det Q_S` grades target-mode observability,
+  not test-analysis-model orthogonality: on the ten-DOF chain fixture the EI
+  optimum for `m = 4, s = 5` is `(1, 3, 4, 6, 9)`, whose **Guyan** TAM fails
+  the AC-CORR-009 0.10 off-diagonal gate at 0.19 (a SEREP TAM at the same
+  placement is exact as always). TAM adequacy at a chosen placement therefore
+  stays a separate check; MS-10.4 reports the observability metrics and leaves
+  the TAM verdict to MS-2.1/AC-CORR-009 rather than folding the two together.
+
+### MS-10.2 Effective Independence (EI)
+
+Kammer's backward elimination on the candidate rows `C`:
+
+```
+E_d = [Φ_C (Φ_Cᵀ Φ_C)⁻¹ Φ_Cᵀ]_dd          (leverage of candidate DOF d)
+```
+
+- The `E_d` are the diagonal of the orthogonal projector onto the column space
+  of `Φ_C`, hence `E_d ∈ [0, 1]` and `Σ_d E_d = m` exactly, at every
+  elimination step — the conservation law AC-PRETEST-001 pins.
+- **Iteration.** Remove the candidate with the smallest `E_d`, recompute the
+  leverages, repeat until `s` rows remain. Each removal multiplies the FIM
+  determinant by exactly `1 − E_d` (matrix determinant lemma), which is at
+  once the justification of the greedy rule — remove the DOF whose loss costs
+  the least determinant — and a per-step invariant a test can assert without
+  trusting the implementation.
+- **The iteration cannot destroy the rank it is protecting.** With
+  `|C| > m` candidates the smallest leverage satisfies `E_min ≤ m/|C| < 1`,
+  so the post-removal determinant `(1 − E_min) det Q` stays positive; rank
+  collapse can only be *requested* (`s < m`, or a candidate set that is rank
+  deficient to begin with), and such a request raises `PretestError`
+  (typed failure, MS-0.3) instead of returning an unobservable placement.
+- **Determinism and tie-breaking.** Among minimizers within `1e-12` of each
+  other, the highest row index is removed (low-numbered DOFs are kept), so
+  repeated runs are bitwise identical — the MS-0.2/AC-MODAL-005 discipline.
+  A full orthonormal basis (`k = n`, mass-normalized modes of an identity
+  mass) is the canonical all-tie case: every leverage is exactly 1.
+- **Constraints.** `candidates=` restricts the pool (e.g. translations only);
+  `keep=` marks rows that are never eliminated (already-mounted channels);
+  both are honored row-for-row (AC-PRETEST-004).
+- **Mass weighting.** Optional `mass=` reweights the shapes to `M^(1/2) Φ`
+  (diagonal mass exactly, consistent mass via Cholesky), turning the FIM into
+  a kinetic-energy-weighted information matrix. For `M = c·I` the weighting
+  changes no selection.
+- The reference implementation recomputes the projector each step; the
+  rank-one leverage downdate is an optimization, not part of the contract.
+
+### MS-10.3 Energy rankings (MKE; exciter outline)
+
+- **Modal kinetic energy** `MKE_di = M_dd Φ_di²` (diagonal/lumped mass) ranks
+  DOFs by the kinetic energy mode `i` carries there — the classical cross-check
+  that an EI selection has not landed on low-signal DOFs. Exposed per mode and
+  summed over the target set. On the uniform fixed-free chain the mode-1
+  ranking is closed-form: `|φ_1|` increases monotonically toward the free end,
+  so the tip is the argmax (AC-PRETEST-005).
+- **Exciter placement** (P2 outline, API reserved): rank driving points by the
+  average driving-point residue `ADPR_d = Σ_i Φ_di² / ω_i`, which favors DOFs
+  that receive all target modes and penalizes node lines. Not part of the
+  Round-3 gate set.
+
+### MS-10.4 Placement quality assessment
+
+`placement_quality` grades any placement — EI-selected or externally given —
+so competing layouts are compared on numbers rather than adjectives:
+
+| Metric | Definition | Reading |
+|---|---|---|
+| `det_fim` | `det(Φ_Sᵀ Φ_S)` | volume of the information ellipsoid |
+| `condition` | `σ_max/σ_min` of `Φ_S` | worst-direction observability loss |
+| `min_singular_value` | `σ_min(Φ_S)` | margin to an unobservable mode |
+| `automac_off_diagonal` | max off-diagonal of `automac(Φ_S)` | spatial aliasing between target modes |
+
+- The auto-MAC column is computed by `correlation.automac` (MS-2.2), not by a
+  second kernel (the GAP-01 rule).
+- On the AC-CORR-009 chain twin (four target modes, five channels) the four
+  metrics rank the spread layout `(1, 3, 5, 7, 9)` above `(0, 2, 5, 7, 9)` on
+  every axis — det 0.091 vs 0.045, condition 1.20 vs 1.70, `σ_min` 0.71 vs
+  0.50, auto-MAC 0.012 vs 0.13 — the same verdict the Guyan-TAM gate reaches
+  on that pair, while a contiguous five-channel layout `(0..4)` aliases the
+  target modes at auto-MAC 0.91. Pinned by AC-PRETEST-003.
+
+### MS-10.5 Public API
+
+```python
+@dataclass(frozen=True)
+class PlacementQuality:
+    det_fim: float
+    condition: float
+    min_singular_value: float
+    automac_off_diagonal: float
+
+@dataclass(frozen=True)
+class PlacementResult:
+    selected: tuple[int, ...]      # retained rows, ascending
+    eliminated: tuple[int, ...]    # removal order, first removed first
+    leverage: np.ndarray           # (s,) EI leverage of the retained rows
+    det_fim: float                 # det(Q_S) of the selection
+    det_history: np.ndarray        # det(FIM) after each elimination
+    quality: PlacementQuality
+    diagnostics: dict              # method, weighting, candidate/keep sets
+
+def ei_leverage(shapes, *, mass=None) -> np.ndarray             # (n,)
+def select_sensors(shapes, num_sensors, *, mass=None,
+                   candidates=None, keep=(),
+                   method: str = "ei") -> PlacementResult
+def modal_kinetic_energy(shapes, mass) -> np.ndarray            # (n, m)
+def placement_quality(shapes, selected) -> PlacementQuality
+def to_sensor_map(placement, *, labels=None) -> SensorMap       # MS-2.1 bridge
 ```

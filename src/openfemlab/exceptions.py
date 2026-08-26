@@ -13,6 +13,7 @@ __all__ = [
     "MissedModesWarning",
     "UpdatingDivergenceError",
     "OptimizationError",
+    "PretestError",
     "MissingDependencyError",
 ]
 
@@ -171,6 +172,16 @@ class UpdatingDivergenceError(OpenFEMLabError):
 
 class OptimizationError(OpenFEMLabError):
     """Ill-posed optimization statement or a failed optimization run."""
+
+
+class PretestError(OpenFEMLabError):
+    """A sensor-placement request that cannot yield an observable test (MS-10).
+
+    Raised when fewer sensors than target modes are requested, or when the
+    candidate mode partition is rank deficient — MS-10.2 refuses to return a
+    placement on which the target modes cannot be distinguished, rather than
+    handing a silently unobservable channel set to the M2/M4 chain.
+    """
 
 
 class MissingDependencyError(OpenFEMLabError, ImportError):
