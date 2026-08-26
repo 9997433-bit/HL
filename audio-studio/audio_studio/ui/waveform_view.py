@@ -16,8 +16,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
-from PyQt6.QtCore import QPoint, QRectF, Qt, pyqtSignal
-from PyQt6.QtGui import (
+from PySide6.QtCore import QPoint, QRectF, Qt, Signal
+from PySide6.QtGui import (
     QColor,
     QMouseEvent,
     QPainter,
@@ -28,7 +28,7 @@ from PyQt6.QtGui import (
     QResizeEvent,
     QWheelEvent,
 )
-from PyQt6.QtWidgets import QSizePolicy, QWidget
+from PySide6.QtWidgets import QSizePolicy, QWidget
 
 from ..core.peaks import PeakPyramid
 from ..core.types import TimeRange
@@ -58,10 +58,10 @@ class _CacheKey:
 class WaveformView(QWidget):
     """Scrollable, zoomable, selectable waveform canvas."""
 
-    seekRequested = pyqtSignal(int)
-    selectionChanged = pyqtSignal(object)  # TimeRange | None
-    viewChanged = pyqtSignal(int, int)  # view_start, view_frames
-    cursorMoved = pyqtSignal(int)
+    seekRequested = Signal(int)
+    selectionChanged = Signal(object)  # TimeRange | None
+    viewChanged = Signal(int, int)  # view_start, view_frames
+    cursorMoved = Signal(int)
 
     def __init__(self, parent: QWidget | None = None, palette: Palette = PALETTE) -> None:
         super().__init__(parent)
@@ -564,5 +564,5 @@ class WaveformView(QWidget):
         painter.drawLine(int(x), 0, int(x), self.height())
         painter.setBrush(colour)
         painter.drawPolygon(
-            QPoint(int(x) - 5, 0), QPoint(int(x) + 5, 0), QPoint(int(x), 8)
+            QPolygon([QPoint(int(x) - 5, 0), QPoint(int(x) + 5, 0), QPoint(int(x), 8)])
         )

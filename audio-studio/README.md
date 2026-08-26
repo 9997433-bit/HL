@@ -7,7 +7,7 @@ portable to a later C++/JUCE host.
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│ audio_studio.ui      PyQt6 widgets, DAW-style editing surface │
+│ audio_studio.ui    PySide6 widgets, DAW-style editing surface │
 ├──────────────────────────────────────────────────────────────┤
 │ audio_studio.core    engine · transport · decode · envelopes  │  ← Qt-free
 ├──────────────────────────────────────────────────────────────┤

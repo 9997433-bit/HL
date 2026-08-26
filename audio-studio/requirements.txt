@@ -2,7 +2,10 @@
 numpy>=1.24
 scipy>=1.10
 soundfile>=0.12.1
-PyQt6>=6.5
+# Qt binding. PySide6-Essentials is the LGPL upstream binding the architecture
+# plan standardises on; the -Essentials wheel drops the WebEngine/3D modules
+# this application never loads.
+PySide6-Essentials>=6.6
 
 # Real-time output device backend. Optional: the engine falls back to an
 # internal simulated clock when no hardware backend is importable, which keeps

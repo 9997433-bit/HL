@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QMouseEvent, QPainter, QPaintEvent, QPen
-from PyQt6.QtWidgets import QSizePolicy, QWidget
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QMouseEvent, QPainter, QPaintEvent, QPen
+from PySide6.QtWidgets import QSizePolicy, QWidget
 
 from ..core.types import format_timecode
 from .theme import PALETTE, Palette
@@ -15,7 +15,7 @@ RULER_HEIGHT: int = 26
 class TimeRuler(QWidget):
     """Draws labelled tick marks for the currently visible frame range."""
 
-    seekRequested = pyqtSignal(int)
+    seekRequested = Signal(int)
 
     def __init__(self, parent: QWidget | None = None, palette: Palette = PALETTE) -> None:
         super().__init__(parent)

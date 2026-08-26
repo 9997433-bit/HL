@@ -6,8 +6,8 @@ track so a multi-track session view can stack instances of it later.
 
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -31,8 +31,8 @@ HEADER_WIDTH: int = 172
 class TrackHeader(QWidget):
     """Name, format summary and per-track toggles for one lane."""
 
-    muteToggled = pyqtSignal(bool)
-    soloToggled = pyqtSignal(bool)
+    muteToggled = Signal(bool)
+    soloToggled = Signal(bool)
 
     def __init__(self, parent: QWidget | None = None, palette: Palette = PALETTE) -> None:
         super().__init__(parent)
@@ -94,9 +94,9 @@ class TrackHeader(QWidget):
 class TrackPanel(QWidget):
     """One editable audio lane."""
 
-    seekRequested = pyqtSignal(int)
-    selectionChanged = pyqtSignal(object)
-    muteToggled = pyqtSignal(bool)
+    seekRequested = Signal(int)
+    selectionChanged = Signal(object)
+    muteToggled = Signal(bool)
 
     def __init__(self, parent: QWidget | None = None, palette: Palette = PALETTE) -> None:
         super().__init__(parent)

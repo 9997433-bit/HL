@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from PyQt6.QtGui import QColor
+from PySide6.QtGui import QColor
 
 
 @dataclass(frozen=True, slots=True)

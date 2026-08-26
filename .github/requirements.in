@@ -2,7 +2,7 @@
 numpy
 scipy
 soundfile
-PyQt6
+PySide6-Essentials
 pytest
 pytest-qt
 ruff

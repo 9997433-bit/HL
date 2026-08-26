@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PyQt6.QtCore import Qt, QTimer, pyqtSlot
-from PyQt6.QtGui import QAction, QCloseEvent, QDragEnterEvent, QDropEvent, QKeySequence
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Qt, QTimer, Slot
+from PySide6.QtGui import QAction, QCloseEvent, QDragEnterEvent, QDropEvent, QKeySequence
+from PySide6.QtWidgets import (
     QFileDialog,
     QHBoxLayout,
     QLabel,
@@ -336,7 +336,7 @@ class MainWindow(QMainWindow):
             # but stop repainting once the meter has bottomed out.
             self.level_meter.update_levels((0.0,) * self.level_meter.channels)
 
-    @pyqtSlot(object)
+    @Slot(object)
     def _on_engine_state(self, state: TransportState) -> None:
         self.transport_bar.set_state(state)
 

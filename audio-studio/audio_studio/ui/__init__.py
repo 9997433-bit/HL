@@ -1,4 +1,4 @@
-"""PyQt6 front-end widgets."""
+"""PySide6 front-end widgets."""
 
 from __future__ import annotations
 

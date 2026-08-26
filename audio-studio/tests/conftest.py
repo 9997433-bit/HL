@@ -93,7 +93,7 @@ def realtime_engine() -> Iterator[AudioEngine]:
 @pytest.fixture(scope="session")
 def qapp() -> Iterator[object]:
     """A single offscreen QApplication shared by the widget tests."""
-    from PyQt6.QtWidgets import QApplication
+    from PySide6.QtWidgets import QApplication
 
     app = QApplication.instance() or QApplication([])
     yield app

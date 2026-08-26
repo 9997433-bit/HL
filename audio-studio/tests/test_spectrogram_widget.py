@@ -20,11 +20,11 @@ from audio_studio.ui.colormaps import (  # noqa: E402
     make_gradient,
 )
 
-pytest.importorskip("PyQt6")
+pytest.importorskip("PySide6")
 
-from PyQt6.QtCore import QPoint  # noqa: E402
-from PyQt6.QtGui import QImage  # noqa: E402
-from PyQt6.QtWidgets import QApplication  # noqa: E402
+from PySide6.QtCore import QPoint  # noqa: E402
+from PySide6.QtGui import QImage  # noqa: E402
+from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from audio_studio.ui.spectrogram_widget import (  # noqa: E402
     FrequencyScale,
@@ -320,12 +320,13 @@ class TestPainting:
     """Paint into an off-screen image; a crash here is a crash in the app."""
 
     def _paint(self, widget: SpectrogramWidget) -> QImage:
-        from PyQt6.QtGui import QPainter
+        from PySide6.QtGui import QPainter
 
         image = QImage(widget.width(), widget.height(), QImage.Format.Format_RGB32)
         image.fill(0)
         painter = QPainter(image)
-        widget.render(painter)
+        # PySide6 only exposes the painter overload together with an offset.
+        widget.render(painter, QPoint(0, 0))
         painter.end()
         return image
 
@@ -376,8 +377,6 @@ def _is_monotonic_in_lightness(name: str, tolerance: float = 2.0) -> bool:
 def _image_to_array(image: QImage) -> np.ndarray:
     """Copy a Format_RGB888 QImage into an ``(h, w, 3)`` uint8 array."""
     width, height = image.width(), image.height()
-    pointer = image.constBits()
-    pointer.setsize(image.sizeInBytes())
     stride = image.bytesPerLine()
-    raw = np.frombuffer(bytes(pointer), dtype=np.uint8).reshape(height, stride)
+    raw = np.frombuffer(image.constBits(), dtype=np.uint8).reshape(height, stride)
     return raw[:, : width * 3].reshape(height, width, 3)

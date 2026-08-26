@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -36,12 +36,12 @@ def _button(text: str, tooltip: str, *, checkable: bool = False) -> QPushButton:
 class TransportBar(QWidget):
     """Bottom transport strip. Emits intent only; the window owns the engine."""
 
-    playPauseRequested = pyqtSignal()
-    stopRequested = pyqtSignal()
-    skipToStartRequested = pyqtSignal()
-    skipToEndRequested = pyqtSignal()
-    loopToggled = pyqtSignal(bool)
-    volumeChanged = pyqtSignal(float)
+    playPauseRequested = Signal()
+    stopRequested = Signal()
+    skipToStartRequested = Signal()
+    skipToEndRequested = Signal()
+    loopToggled = Signal(bool)
+    volumeChanged = Signal(float)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)

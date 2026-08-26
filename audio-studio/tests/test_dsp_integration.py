@@ -41,8 +41,8 @@ def qt_app():
     application, and the instance must be held in a variable — letting it be
     garbage collected is the same as never creating it.
     """
-    pytest.importorskip("PyQt6")
-    from PyQt6.QtWidgets import QApplication
+    pytest.importorskip("PySide6")
+    from PySide6.QtWidgets import QApplication
 
     return QApplication.instance() or QApplication([])
 
@@ -448,8 +448,6 @@ def test_a_long_file_analyses_in_bounded_memory() -> None:
 def _image_to_array(image) -> np.ndarray:
     """Copy a Format_RGB888 QImage into an ``(h, w, 3)`` uint8 array."""
     width, height = image.width(), image.height()
-    pointer = image.constBits()
-    pointer.setsize(image.sizeInBytes())
     stride = image.bytesPerLine()
-    raw = np.frombuffer(bytes(pointer), dtype=np.uint8).reshape(height, stride)
+    raw = np.frombuffer(image.constBits(), dtype=np.uint8).reshape(height, stride)
     return raw[:, : width * 3].reshape(height, width, 3)

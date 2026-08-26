@@ -6,6 +6,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from conftest import SAMPLE_RATE, make_tone
 
 from audio_studio.core.loader import (
     AudioLoadError,
@@ -17,8 +18,6 @@ from audio_studio.core.loader import (
     supported_formats,
 )
 from audio_studio.core.types import AudioBuffer
-
-from conftest import SAMPLE_RATE, make_tone
 
 
 def test_load_wav_preserves_shape_rate_and_samples(wav_path: Path, tone: AudioBuffer) -> None:

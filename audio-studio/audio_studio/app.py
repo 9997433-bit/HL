@@ -44,8 +44,8 @@ def main(argv: list[str] | None = None) -> int:
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
     # Imported after the platform plugin is chosen so Qt picks it up.
-    from PyQt6.QtCore import QTimer
-    from PyQt6.QtWidgets import QApplication
+    from PySide6.QtCore import QTimer
+    from PySide6.QtWidgets import QApplication
 
     from .core.engine import AudioEngine
     from .core.output import NullOutput, create_output

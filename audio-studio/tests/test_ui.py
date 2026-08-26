@@ -130,7 +130,7 @@ def test_playhead_is_clamped_to_the_clip(waveform: WaveformView) -> None:
 def test_waveform_renders_without_error_at_several_zoom_levels(
     waveform: WaveformView,
 ) -> None:
-    from PyQt6.QtGui import QPixmap
+    from PySide6.QtGui import QPixmap
 
     for frames in (waveform.n_frames, 20_000, 2_000, 200, 64):
         waveform.set_view(1_000, frames)

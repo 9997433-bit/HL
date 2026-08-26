@@ -305,7 +305,7 @@ def bench_realtime(duration_s: float, runs: int) -> list[Result]:
 def bench_render(runs: int) -> list[Result]:
     """Spectrogram-to-pixels cost, which sets the interactive frame rate."""
     try:
-        from PyQt6.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication
 
         from audio_studio.ui.spectrogram_widget import SpectrogramWidget
     except ImportError:

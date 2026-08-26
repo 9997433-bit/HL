@@ -18,6 +18,7 @@ from __future__ import annotations
 import threading
 from abc import ABC, abstractmethod
 from collections import OrderedDict
+from contextlib import suppress
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
@@ -111,7 +112,12 @@ class BaseSampleSource(ABC):
             position += block.shape[0]
 
     def close(self) -> None:
-        """Release any backing resource. Idempotent by contract."""
+        """Release any backing resource. Idempotent by contract.
+
+        Not abstract: an in-memory source has nothing to release, and forcing
+        every implementation to write an empty override buys nothing.
+        """
+        return
 
     def __enter__(self) -> BaseSampleSource:
         return self
@@ -338,10 +344,8 @@ class StreamingSampleSource(BaseSampleSource):
                 return
             self._closed = True
             self._cache.clear()
-            try:
+            with suppress(Exception):  # closing twice must not explode
                 self._handle.close()
-            except Exception:  # noqa: BLE001 - closing twice must not explode
-                pass
 
     def __repr__(self) -> str:
         return (

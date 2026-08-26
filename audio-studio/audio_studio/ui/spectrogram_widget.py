@@ -1,4 +1,4 @@
-"""PyQt6 spectrogram / waterfall display.
+"""PySide6 spectrogram / waterfall display.
 
 The widget renders a dB matrix as a colour-mapped heat map with calibrated
 frequency and time axes, a logarithmic frequency option, and a hover read-out
@@ -27,8 +27,8 @@ from collections.abc import Sequence
 from enum import Enum
 
 import numpy as np
-from PyQt6.QtCore import QPoint, QRect, Qt, pyqtSignal
-from PyQt6.QtGui import (
+from PySide6.QtCore import QPoint, QRect, Qt, Signal
+from PySide6.QtGui import (
     QColor,
     QFont,
     QFontMetrics,
@@ -39,7 +39,7 @@ from PyQt6.QtGui import (
     QPen,
     QResizeEvent,
 )
-from PyQt6.QtWidgets import QSizePolicy, QWidget
+from PySide6.QtWidgets import QSizePolicy, QWidget
 
 from ..dsp.spectral import Spectrogram, WaterfallBuffer
 from .colormaps import COLORMAP_NAMES, DEFAULT_COLORMAP, get_colormap
@@ -103,13 +103,13 @@ class SpectrogramWidget(QWidget):
     """
 
     #: Emitted while the pointer is over the plot: ``(time_s, frequency_hz, level_db)``.
-    cursorMoved = pyqtSignal(float, float, float)
+    cursorMoved = Signal(float, float, float)
 
     #: Emitted when the pointer leaves the plot area.
-    cursorLeft = pyqtSignal()
+    cursorLeft = Signal()
 
     #: Emitted on click: ``(time_s, frequency_hz)``.
-    positionClicked = pyqtSignal(float, float)
+    positionClicked = Signal(float, float)
 
     def __init__(
         self,

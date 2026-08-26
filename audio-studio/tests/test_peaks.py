@@ -14,7 +14,8 @@ def noisy_signal(n_frames: int = 200_000, channels: int = 2) -> np.ndarray:
     base = np.sin(2.0 * np.pi * 220.0 * t) * 0.6
     data = np.empty((n_frames, channels), dtype=np.float32)
     for ch in range(channels):
-        data[:, ch] = base * (ch + 1) * 0.5 + rng.standard_normal(n_frames).astype(np.float32) * 0.05
+        noise = rng.standard_normal(n_frames).astype(np.float32) * 0.05
+        data[:, ch] = base * (ch + 1) * 0.5 + noise
     return np.clip(data, -1.0, 1.0)
 
 
