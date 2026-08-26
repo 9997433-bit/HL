@@ -26,6 +26,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A04 | claude-opus-5-thinking-high-fast | Updating sensitivity kernel, updater wiring & test suite | complete |
 | A17 | claude-fable-5-thinking-xhigh | Round 1 conclusion brief & full-suite verification (backfill) | complete |
 | A07 | claude-opus-5-thinking-high-fast | Rich CLI (modal/correlate/update), model spec format & workflow example | complete |
+| A24 | claude-fable-5-thinking-xhigh | Round 2 plan: prioritized backlog with AC links (backfill for A22) | complete |
 | A25 | gpt-5.6-sol-xhigh-fast | CLI subprocess coverage over example 02 fixtures | complete |
 | A15 | claude-opus-5-thinking-high-fast | GAP-01 `ModalResult` contract unification (backfill for R1-F1) | complete |
 | A13 | claude-opus-5-thinking-high-fast | M4 correction workflow state machine & `CorrectionReport` (backfill for A01) | complete |
@@ -635,8 +636,46 @@ orchestrator to diff against the landed implementation in Round 2.
   both commits were recovered by cherry-picking into a detached worktree at `/tmp/a13wt`.
   `workflow/sensors.py` had already been swept into another agent's `e031b5a` before that.
 
+#### A24 — Round 2 Plan (backfill for A22)
+- Wrote `.agent_workspace/ROUND2_PLAN.md`: prioritized Round 2 backlog derived from
+  `docs/SOTA_GAP_ANALYSIS.md` (gap register §4, sequencing §6) and the Round 1
+  conclusion, with every task linked to its binding gates in
+  `docs/ACCEPTANCE_CRITERIA.md` / `docs/MODULE_SPEC.md` anchors.
+- Reconciled the plan against work landed since the audit so tasks are targeted, not
+  duplicative: GAP-01 largely closed (unified `ModalResult`, 192-test green suite),
+  GAP-03 partially closed (UFF 55/58, minimal BDF), GAP-14 closed (CLI), GAP-10/09
+  partial; flagged the in-flight `cursor/dynamics-damping-frf-9500` branch so R2-T01
+  integrates it instead of forking a second dynamics implementation.
+- Core backlog: T01 dynamics/FRF, T02 3D elements, T03 SEREP/TAM, T04 Bayesian MAP,
+  T05 meshio; supporting T06–T09 (updating depth incl. P0 AC-UPD-007, optimization
+  backend, R1-O2 reconciliation, CI exit hardening). Three parallel waves with a
+  spec-first rule: new AC IDs (AC-DYN/ELEM/IO-*) land in the criteria doc, module spec,
+  and registry in the same commit, enforced by the registry consistency tests.
+- Defined the Round 2 exit bar: all P0+P1 registry criteria `verified` (P1 blocks
+  Round-2 sign-off per AC §1.2), new-track criteria at least `implemented`, and two
+  headline demos — measured UFF-58 FRF vs synthesized FRF via FRAC/FDAC through the
+  CLI, and an imported 3D mesh re-analyzed internally.
+
 ### Round 2 — Targeted Refactor & Deep Optimization
-**Status:** PENDING
+**Status:** PLANNED — see `.agent_workspace/ROUND2_PLAN.md` (A24)
+
+Core backlog (prioritized, from `docs/SOTA_GAP_ANALYSIS.md` §4/§6 + Round 1 conclusion):
+1. **R2-T01 Dynamics/FRF chain** (GAP-04/05, P0) — damping models, harmonic response,
+   FRF synthesis, FRAC/FDAC; integrate the in-flight `cursor/dynamics-damping-frf-9500`
+   work; new AC-DYN-* criteria registered spec-first.
+2. **R2-T02 3D continuum elements** (GAP-02, P0) — QUAD4/TET4/HEX8 + 3D beam with patch
+   /convergence gates (AC-MODAL-001/003/004/007 extended, new AC-ELEM-*).
+3. **R2-T03 SEREP/TAM reduction & expansion** (GAP-08) — Guyan/IRS/SEREP, TAM
+   pseudo-orthogonality, shape expansion; closes Round-2 gate AC-CORR-006.
+4. **R2-T04 Bayesian MAP updating** (GAP-11 slice, MS-3.5) — Gaussian-prior MAP step +
+   posterior covariance; closes Round-2 gates AC-UPD-006a/b.
+5. **R2-T05 meshio bridge & IO completion** (GAP-03 remainder) — optional-dependency
+   meshio ↔ NeutralModel bridge, UNV 2411/2412.
+
+Supporting: R2-T06 updating depth (incl. the still-unimplemented **P0** AC-UPD-007
+collinearity screen), R2-T07 scipy optimization backend (GAP-12), R2-T08 R1-O2 branch
+reconciliation, R2-T09 CI exit hardening. Exit bar: all P0+P1 criteria `verified`,
+new dynamics/element/IO criteria at least `implemented`, GAP-01 stays closed.
 
 ### Round 3 — SOTA Polish & Final Acceptance
 **Status:** PENDING
