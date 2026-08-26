@@ -50,6 +50,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A37 | claude-opus-5-thinking-high-fast | Merge the QUAD4 branch onto the trunk and re-verify the suite (backfill for R2-T02) | complete |
 | A35 | claude-fable-5-thinking-xhigh | AC-DYN registration (backfill for A28): found R2-T01 had landed it mid-run; dropped the duplicate, verified the head | complete |
 | A45 | gpt-5.6-sol-xhigh-fast | Current-tip 595-test/Ruff verification and PR-draft refresh (backfill for A37) | complete |
+| A47 | gpt-5.6-sol-xhigh-fast | Reconcile A23's 41-vs-40 criteria audit count and pin the registry inventory (backfill for A35) | complete |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
@@ -1059,8 +1060,8 @@ new dynamics/element/IO criteria at least `implemented`, GAP-01 stays closed.
   `PYTHONPATH` pinned to the private worktree): full suite **534 passed** (67 s),
   `pytest -m acceptance` **106 passed**, `ruff check .` clean. Registry now holds
   **40 criteria, 20 implemented / 20 specified**, with all five AC-DYN `implemented`
-  (A23's audit counted 41 at the previous tip; the registry itself says 40 — worth a
-  one-line reconciliation next audit).
+  (A23's 41 was an arithmetic slip; A47 reconciled it to 40 and pinned the
+  9+8+9+5+4+5 module inventory in the criteria document and registry tests).
 - Working-tree hazard, still live: `/workspace` was mid-rebase on
   `cursor/optimization-sizing-hook-254c` with unresolved conflicts when this run
   started, and the branch tip advanced five times during the run (three of them while
@@ -1577,7 +1578,7 @@ NumPy 2.5.2 / SciPy 1.18.1). Concurs with the closure: the exit bar is met and b
 carry-over packages are landed and green, so COMPLETE stands.
 
 One bookkeeping caveat carried to Round 2: per AC §1.2 the P0 registry rows AC-UPD-007
-and AC-WORK-001/002/004/005 are still `specified` (20 of 41 criteria `implemented`
+and AC-WORK-001/002/004/005 are still `specified` (20 of 40 criteria `implemented`
 after the A27/AC-DYN batches, none `verified`), even though `tests/test_workflow.py`
 demonstrates the AC-WORK gates numerically — tagging them is already scheduled with
 R2-T06 and the next acceptance batches. The first PR body draft (`17d03ba`) was folded
@@ -1647,3 +1648,19 @@ working-tree hazard A28/A32 already report.
 
 Remaining P0 rows still `specified`: AC-MODAL-007/009, AC-CORR-005/007/008,
 AC-UPD-004/005/007, AC-WORK-001/002/004/005.
+
+#### A47 — reconcile A23's criteria count (backfill for A35)
+
+- Audited the criteria document against the machine registry: both define the same
+  **40 distinct IDs**, split M1..M6 as **9 + 8 + 9 + 5 + 4 + 5**. The two suffixed M3
+  rows (`AC-UPD-006a` and `AC-UPD-006b`) are separate criteria under one dense base
+  number. No criterion is missing from either source; A23's **41** was arithmetic, not
+  a lost registry row.
+- Commit `c8e3ce2` records that inventory in `docs/ACCEPTANCE_CRITERIA.md` and pins the
+  per-family counts in `test_criteria_registry.py`. It also fixes real documentation
+  drift left by the M6 insertion: the enforcement contract moved from section 7 to
+  section 8, and the blocking-criterion check now correctly describes M1..M6.
+- Full committed suite verified in the clean `/tmp/a47` worktree at `c8e3ce2`, with
+  `PYTHONPATH=/tmp/a47/src`: **611 passed** in 122.32 s. The shared checkout contained
+  an unrelated untracked `tests/acceptance/test_workflow.py`; it was preserved and
+  excluded by verifying the exact committed tree rather than deleting concurrent work.
