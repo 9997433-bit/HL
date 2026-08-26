@@ -106,6 +106,38 @@ const CASES = [
       }
     },
   ],
+  ['字源馆', `/#/etymology/${encodeURIComponent('日')}`],
+  [
+    // 演变动画演完之后才是最终形态：第一帧淡出、笔画全部显出、播报区写满字。
+    // 半路截图扫不到收尾状态的对比度，所以先等它演完。
+    '字源馆（演完）',
+    `/#/etymology/${encodeURIComponent('河')}`,
+    async (page) => {
+      await page.waitForSelector('.ety[data-ready="true"]', { timeout: 12_000 })
+      await page.waitForFunction(
+        () => ['done', 'static'].includes(document.querySelector('.ety')?.dataset.stage),
+        { timeout: 20_000 },
+      )
+      await wait(300)
+    },
+  ],
+  [
+    // 单字页里的字源舞台是折叠的，不展开等于没扫到
+    '单字详情（展开字源）',
+    `/#/learn/${encodeURIComponent('山')}`,
+    async (page) => {
+      await page.waitForSelector('[aria-controls="char-origin-panel"]', { timeout: 8_000 })
+      await page.evaluate(() =>
+        document.querySelector('[aria-controls="char-origin-panel"]').click(),
+      )
+      await page.waitForSelector('.ety[data-ready="true"]', { timeout: 12_000 })
+      await page.waitForFunction(
+        () => ['done', 'static'].includes(document.querySelector('.ety')?.dataset.stage),
+        { timeout: 20_000 },
+      )
+      await wait(300)
+    },
+  ],
   [
     '庆祝浮层',
     '/#/books/b3',
