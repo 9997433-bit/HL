@@ -439,6 +439,24 @@ class TestEffectRackPanel:
         assert rack.hum_harmonics.value() == 3
 
 
+def _select_band(window: MainWindow, low_hz: float, high_hz: float) -> None:
+    """Put a spectral rectangle over the whole clip, as a drag would."""
+    from audio_studio.ui.spectrogram_widget import SpectralRegion
+
+    window.analyze_spectrum()
+    duration = window.engine.n_frames / window.engine.sample_rate
+    window.spectrum_panel.spectrogram.set_region(
+        SpectralRegion(0.0, duration, low_hz, high_hz)
+    )
+
+
+def _tone_level(signal: np.ndarray, frequency: float, sample_rate: int) -> float:
+    """Amplitude of one frequency in ``signal``, by projection onto its phasor."""
+    body = np.asarray(signal, dtype=np.float64)
+    phasor = np.exp(-2j * np.pi * frequency * np.arange(body.size) / sample_rate)
+    return float(2.0 * abs(np.vdot(phasor, body)) / body.size)
+
+
 class TestWindowIntegration:
     def test_the_docks_are_built_and_named(self, window: MainWindow) -> None:
         assert window.spectrum_dock.widget() is window.spectrum_panel
@@ -494,6 +512,43 @@ class TestWindowIntegration:
     def test_clicking_the_spectrogram_seeks_the_transport(self, window: MainWindow) -> None:
         window.spectrum_panel.seekRequested.emit(0.5)
         assert window.engine.position == window.engine.sample_rate // 2
+
+    def test_a_spectral_selection_arms_the_band_edits(self, window: MainWindow) -> None:
+        assert not window.action_spectral_delete.isEnabled()
+
+        _select_band(window, 300.0, 600.0)
+
+        assert window.action_spectral_attenuate.isEnabled()
+        assert window.action_spectral_delete.isEnabled()
+        assert "Hz" in window.statusBar().currentMessage()
+
+    def test_deleting_a_selected_band_edits_the_document(self, window: MainWindow) -> None:
+        """The 440 Hz fundamental of the test tone, taken out of the left channel."""
+        rate = window.engine.sample_rate
+        before = window.engine.source.read(0, window.engine.n_frames)
+
+        _select_band(window, 340.0, 540.0)
+        window.spectral_delete()
+
+        after = window.engine.source.read(0, window.engine.n_frames)
+        assert after.shape == before.shape
+        assert window.action_undo.isEnabled()
+        assert window.action_undo.text().startswith("&Undo Remove")
+        assert _tone_level(after[8_000:-8_000, 0], 440.0, rate) < 1e-3
+        assert _tone_level(before[8_000:-8_000, 0], 440.0, rate) == pytest.approx(0.5, rel=0.02)
+
+    def test_attenuating_without_a_selection_asks_for_one(
+        self, window: MainWindow, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        warnings: list[str] = []
+        monkeypatch.setattr(
+            "audio_studio.ui.main_window.QMessageBox.warning",
+            lambda _parent, _title, text, *a, **k: warnings.append(text),
+        )
+
+        window.spectral_attenuate()
+
+        assert warnings and "drag a box" in warnings[0]
 
     def test_the_hover_read_out_reaches_the_status_bar(self, window: MainWindow) -> None:
         window.spectrum_panel.readoutChanged.emit("0.500 s  1000.0 Hz  -20.0 dB")

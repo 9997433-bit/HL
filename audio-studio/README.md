@@ -184,9 +184,9 @@ binary artifacts must not include it. See
 - Copy-on-write document: an immutable list of segment views onto immutable
   chunks, so cutting ten seconds out of an hour rewrites a handful of records
   and copies nothing.
-- Nine undoable commands — cut, copy, paste, delete, trim, silence, insert
-  silence, gain, fade and reverse — on an undo stack whose revisions share
-  almost all of their storage.
+- Ten undoable commands — cut, copy, paste, delete, trim, silence, insert
+  silence, gain, fade, reverse and spectral band edits — on an undo stack whose
+  revisions share almost all of their storage.
 - The session itself satisfies `SampleSource`, so the transport plays an
   edited document straight off the undo stack without flattening it first;
   revision publication is atomic, so a reader sees either the old or the new
@@ -223,6 +223,21 @@ binary artifacts must not include it. See
   asynchronous integrated loudness/LRA analysis. The rack is processed on the
   feeder thread, before the master fader, so a rack change reaches the speakers
   once the already-queued blocks have drained rather than instantly.
+
+**Spectral selection editing** (`audio_studio.dsp.spectral_edit`)
+
+- Drag a rectangle across the spectral display to select a time span crossed
+  with a frequency band; the panel reports it as a frame range plus an interval
+  in hertz, with the offset of the analysed excerpt added back.
+- *Attenuate Selection* (`Ctrl+Alt+A`) ducks the band by 12 dB and *Delete
+  Selection* (`Ctrl+Alt+D`) removes it: an STFT is taken over the selected
+  range, the bins inside the band are scaled, and the result is resynthesised
+  through the same weighted overlap-add inverse the analyser uses.
+- The mask is feathered across a couple of bins *outside* the band, so the
+  interval the user drew is attenuated in full while the brick-wall ringing a
+  hard gate produces is kept down.
+- Both land on the undo stack as ordinary in-place commands, so undo restores
+  the original samples bit for bit rather than resynthesising them back.
 
 **Markers and regions** (`audio_studio.core.markers.MarkerList`)
 
@@ -284,6 +299,7 @@ an older build) simply rebuilds the overview on load.
 | `Ctrl+=` / `Ctrl+-` / `Ctrl+0` | Zoom in / out / fit |
 | `Ctrl+Shift+0` | Zoom to selection |
 | `Ctrl+Up` / `Ctrl+Down` | Amplitude zoom |
+| `Ctrl+Alt+A` / `Ctrl+Alt+D` | Attenuate / delete the spectral selection |
 | `M` / `Shift+M` | Add a marker at the playhead / a region from the selection |
 | `Ctrl+Left` / `Ctrl+Right` | Go to the previous / next marker |
 | `F2` | Rename the marker selected in the Markers panel |
@@ -340,10 +356,13 @@ above this package.
 - Recording is an MVP path: PyAudio input supports mono/stereo capture to WAV,
   but there is no input-device/level control, live monitoring, punch recording,
   or Broadcast Wave Format (BWF) metadata yet.
-- No complete repair suite (noise reduction remains), spectral selection
-  editing, production VST3/AU host or plugin delay compensation, or timeline
-  markers yet — see the roadmap in the release sign-off. Batch processing is
-  covered by the `audio_studio.batch` CLI above.
+- Spectral selection editing covers attenuating and deleting a dragged
+  rectangle. There is no healing brush, lasso or paintbrush selection, no
+  spectral copy/paste, and the mask is rectangular in time as well as in
+  frequency.
+- No complete repair suite (noise reduction remains), production VST3/AU host
+  or plugin delay compensation yet — see the roadmap in the release sign-off.
+  Batch processing is covered by the `audio_studio.batch` CLI above.
 - Not a low-latency monitor: the default device block is 1024 frames
   (~21 ms at 48 kHz), and while the drawn playhead is interpolated between
   callbacks, the audio it tracks is still quantised to that block.
@@ -381,7 +400,8 @@ The first tagged preview: a **single-track waveform editor and analyzer**, not
 yet a multitrack DAW.
 
 - **Highlights:** streaming or in-memory playback over a lock-free SPSC ring;
-  nine undoable copy-on-write edit commands with storage-sharing undo;
+  ten undoable copy-on-write edit commands with storage-sharing undo, spectral
+  band attenuation and removal among them;
   parametric EQ / gain / normalize / fade with a live preview rack;
   calibrated spectral display; BS.1770-4 loudness and 4x true-peak metering;
   bit-exact WAV null-test, EBU 3341/3342 compliance vectors and an SLO suite
