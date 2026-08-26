@@ -74,6 +74,7 @@ class AudioEngine:
         self._audio_format: AudioFormat | None = None
         self._pyramid: PeakPyramid | None = None
         self._ring: RingBuffer | None = None
+        self._scratch = np.empty((self._block_size, 1), dtype=SAMPLE_DTYPE)
 
         self._state = TransportState.STOPPED
         self._source_pos = 0
@@ -398,18 +399,37 @@ class AudioEngine:
     # ------------------------------------------------------------ device I/O
 
     def render(self, n_frames: int) -> np.ndarray:
-        """Device callback: drain the ring buffer, apply gain, publish levels."""
+        """Device callback: drain the ring buffer, apply gain, publish levels.
+
+        Allocates the block it returns, because the backend owns the result
+        afterwards. A backend that can supply its own buffer should call
+        :meth:`render_into` instead and pay no allocation at all.
+        """
         ring = self._ring
         channels = ring.channels if ring is not None else max(self.n_channels, 1)
-        if ring is None or self._state is not TransportState.PLAYING:
-            return np.zeros((n_frames, channels), dtype=SAMPLE_DTYPE)
+        out = np.empty((n_frames, channels), dtype=SAMPLE_DTYPE)
+        self.render_into(out)
+        return out
 
-        block = ring.read(n_frames, pad=True)
+    def render_into(self, out: np.ndarray) -> int:
+        """Zero-allocation device callback: fill ``out`` in place.
+
+        Returns the number of real frames; anything beyond that is silence the
+        ring buffer could not cover. Nothing here allocates, takes a lock or
+        touches the filesystem — the three things a real-time callback must not
+        do — because the feeder thread has already done all of them.
+        """
+        ring = self._ring
+        if ring is None or self._state is not TransportState.PLAYING:
+            out[:] = 0.0
+            return 0
+
+        delivered = ring.read_into(out)
         gain = 0.0 if self._muted else self._volume
         if gain != 1.0:
-            block = block * SAMPLE_DTYPE(gain)
-        self._update_levels(block)
-        return block
+            out *= SAMPLE_DTYPE(gain)
+        self._update_levels(out)
+        return delivered
 
     def _update_levels(self, block: np.ndarray) -> None:
         if block.size == 0:
@@ -477,6 +497,9 @@ class AudioEngine:
     def _reset_ring(self, channels: int) -> None:
         capacity = max(self._block_size * self._ring_blocks, self._block_size * 4)
         self._ring = RingBuffer(capacity, channels)
+        # Reused by every pump, so steady-state playback allocates nothing on
+        # the feeder thread either -- the ring copies out of it immediately.
+        self._scratch = np.empty((self._block_size, channels), dtype=SAMPLE_DTYPE)
 
     def _start_output(self) -> None:
         try:
@@ -537,19 +560,21 @@ class AudioEngine:
 
             position = self._source_pos
             generation = self._generation
+            scratch = self._scratch
             n = min(self._block_size, region.end - position)
 
         # Decoding happens outside the lock. A streaming source touches the disk
         # here, and the GUI polls :attr:`position` thirty times a second.
-        chunk = source.read(position, n)
+        chunk = scratch[:n]
+        decoded = source.read_into(chunk, position)
 
         with self._lock:
             if generation != self._generation or ring is not self._ring:
                 return True  # a seek landed mid-read: drop the block and re-pump
-            if chunk.shape[0] == 0:  # truncated or closed source
+            if decoded == 0:  # truncated, closed or failed source
                 self._exhausted = True
                 return False
-            written = ring.write(chunk)
+            written = ring.write(chunk[:decoded])
             self._source_pos = position + written
             return written > 0
 

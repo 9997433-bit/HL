@@ -185,9 +185,7 @@ class AudioDocument:
     def from_buffer(
         cls, buffer: AudioBuffer, *, chunk_frames: int = DEFAULT_CHUNK_FRAMES, copy: bool = True
     ) -> AudioDocument:
-        return cls.from_array(
-            buffer.data, buffer.sample_rate, chunk_frames=chunk_frames, copy=copy
-        )
+        return cls.from_array(buffer.data, buffer.sample_rate, chunk_frames=chunk_frames, copy=copy)
 
     @classmethod
     def silence(cls, n_frames: int, sample_rate: int, n_channels: int) -> AudioDocument:
@@ -255,9 +253,25 @@ class AudioDocument:
         start = max(0, min(int(start), self._n_frames))
         count = max(0, min(int(n_frames), self._n_frames - start))
         out = np.empty((count, self._channels), dtype=SAMPLE_DTYPE)
-        if count == 0:
-            return out
+        self._gather(out, start, count)
+        return out
 
+    def read_into(self, out: np.ndarray, start: int) -> int:
+        """Fill a caller-owned buffer, zero-padding past the end. Allocates nothing."""
+        if out.ndim != 2 or out.shape[1] != self._channels:
+            raise ValueError(f"out must be (frames, {self._channels}), got {out.shape}")
+        wanted = int(out.shape[0])
+        start = max(0, min(int(start), self._n_frames))
+        count = min(wanted, self._n_frames - start)
+        self._gather(out, start, count)
+        if count < wanted:
+            out[count:] = 0.0
+        return count
+
+    def _gather(self, out: np.ndarray, start: int, count: int) -> None:
+        """Walk the segment list, copying each overlapping slice into ``out``."""
+        if count <= 0:
+            return
         index = self._locate(start)
         written = 0
         while written < count and index < len(self._segments):
@@ -268,7 +282,6 @@ class AudioDocument:
             out[written : written + take] = segment.chunk.data[source : source + take]
             written += take
             index += 1
-        return out
 
     def to_array(self) -> np.ndarray:
         return self.read(0, self._n_frames)
@@ -337,9 +350,7 @@ class AudioDocument:
     def concat(self, other: AudioDocument) -> AudioDocument:
         return self.insert(self._n_frames, other)
 
-    def map_range(
-        self, rng: TimeRange, fn: Callable[[np.ndarray], np.ndarray]
-    ) -> AudioDocument:
+    def map_range(self, rng: TimeRange, fn: Callable[[np.ndarray], np.ndarray]) -> AudioDocument:
         """Rewrite one range through ``fn``, leaving every other chunk shared."""
         clipped = rng.clamped(self._n_frames)
         if clipped.is_empty:
@@ -496,9 +507,7 @@ class InsertSilenceCommand(EditCommand):
         if self._n_frames <= 0:
             raise EditError(f"{self.label}: need a positive length, got {self._n_frames}")
         self._at = max(0, min(self._at, document.n_frames))
-        silence = AudioDocument.silence(
-            self._n_frames, document.sample_rate, document.n_channels
-        )
+        silence = AudioDocument.silence(self._n_frames, document.sample_rate, document.n_channels)
         return document.insert(self._at, silence)
 
     def revert(self, document: AudioDocument) -> AudioDocument:
@@ -803,6 +812,19 @@ class EditSession:
     def read(self, start: int, n_frames: int) -> np.ndarray:
         # One attribute load: the revision cannot change under our feet.
         return self._document.read(start, n_frames)
+
+    def read_into(self, out: np.ndarray, start: int) -> int:
+        """Serve the feeder thread straight from the current revision."""
+        return self._document.read_into(out, start)
+
+    @property
+    def exact(self) -> bool:
+        """An edit document is already in memory, so reads never block."""
+        return True
+
+    @property
+    def last_error(self) -> Exception | None:
+        return None
 
     def read_range(self, rng: TimeRange) -> np.ndarray:
         clipped = rng.clamped(self.n_frames)

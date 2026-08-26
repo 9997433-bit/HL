@@ -38,7 +38,22 @@ DEFAULT_CACHE_BLOCKS: int = 8
 
 @runtime_checkable
 class SampleSource(Protocol):
-    """Anything the transport can play: a random-access window onto PCM audio."""
+    """Anything the transport can play: a random-access window onto PCM audio.
+
+    Two read surfaces, deliberately:
+
+    ``read_into``
+        The one the feeder thread uses. It fills a buffer the caller owns and
+        reuses, so a steady-state playback loop allocates nothing, and it never
+        raises — an I/O failure zero-fills, records :attr:`last_error` and
+        returns a short count, because an exception escaping the feeder would
+        take the transport down mid-playback.
+    ``read``
+        The ergonomic one, for analysis and tests, which allocates its result.
+
+    Neither belongs on the device callback: both are allowed to block on disk.
+    The callback reads the ring buffer, and only the ring buffer.
+    """
 
     @property
     def sample_rate(self) -> int: ...
@@ -53,11 +68,18 @@ class SampleSource(Protocol):
         """Return ``[start, start + n_frames)`` as ``(frames, channels)`` float32."""
         ...
 
+    def read_into(self, out: np.ndarray, start: int) -> int:
+        """Fill ``out`` from ``start``, zero-padding the tail; returns real frames."""
+        ...
+
     def close(self) -> None: ...
 
 
 class BaseSampleSource(ABC):
     """Shared plumbing: bounds clamping, slicing helpers, context management."""
+
+    #: Set by :meth:`read_into` when a read fails instead of propagating.
+    _last_error: Exception | None = None
 
     @property
     @abstractmethod
@@ -73,6 +95,45 @@ class BaseSampleSource(ABC):
 
     @abstractmethod
     def read(self, start: int, n_frames: int) -> np.ndarray: ...
+
+    @property
+    def exact(self) -> bool:
+        """True when reads cannot block — i.e. the audio is already in memory."""
+        return True
+
+    @property
+    def last_error(self) -> Exception | None:
+        """The most recent failure swallowed by :meth:`read_into`."""
+        return self._last_error
+
+    def read_into(self, out: np.ndarray, start: int) -> int:
+        """Copy ``[start, start + len(out))`` into ``out``; never raises.
+
+        Subclasses override this with a copy that allocates nothing; the
+        fallback here goes through :meth:`read` so a minimal implementation
+        only has to provide one method.
+        """
+        self._check_out(out)
+        try:
+            block = self.read(start, int(out.shape[0]))
+        except Exception as exc:  # noqa: BLE001 - the feeder must keep running
+            self._last_error = exc
+            out[:] = 0.0
+            return 0
+        return self._fill(out, block)
+
+    def _check_out(self, out: np.ndarray) -> None:
+        channels = self.n_channels
+        if out.ndim != 2 or out.shape[1] != channels:
+            raise ValueError(f"out must be (frames, {channels}), got {out.shape}")
+
+    @staticmethod
+    def _fill(out: np.ndarray, block: np.ndarray) -> int:
+        n = int(block.shape[0])
+        out[:n] = block
+        if n < out.shape[0]:
+            out[n:] = 0.0
+        return n
 
     @property
     def duration(self) -> float:
@@ -167,6 +228,14 @@ class MemorySampleSource(BaseSampleSource):
         # Copied so a caller can hold or mutate the block without aliasing the clip.
         return np.array(self._buffer.data[start : start + count], dtype=SAMPLE_DTYPE)
 
+    def read_into(self, out: np.ndarray, start: int) -> int:
+        self._check_out(out)
+        start, count = self._clamp(start, int(out.shape[0]))
+        out[:count] = self._buffer.data[start : start + count]
+        if count < out.shape[0]:
+            out[count:] = 0.0
+        return count
+
     def view(self, start: int, n_frames: int) -> np.ndarray:
         """Zero-copy variant for callers that promise not to mutate the result."""
         start, count = self._clamp(start, n_frames)
@@ -202,6 +271,7 @@ class StreamingSampleSource(BaseSampleSource):
         "_channels",
         "_closed",
         "_handle",
+        "_last_error",
         "_lock",
         "_n_frames",
         "_path",
@@ -229,6 +299,7 @@ class StreamingSampleSource(BaseSampleSource):
         self._cache: OrderedDict[int, np.ndarray] = OrderedDict()
         self._lock = threading.Lock()
         self._closed = False
+        self._last_error: Exception | None = None
 
         try:
             self._handle = sf.SoundFile(str(self._path), mode="r")
@@ -287,14 +358,35 @@ class StreamingSampleSource(BaseSampleSource):
             container=container,
         )
 
+    @property
+    def exact(self) -> bool:
+        return False  # reads may block on the disk
+
     # ------------------------------------------------------------------ I/O
 
     def read(self, start: int, n_frames: int) -> np.ndarray:
         start, count = self._clamp(start, n_frames)
         if count == 0:
             return self._empty()
-
         out = np.empty((count, self._channels), dtype=SAMPLE_DTYPE)
+        return out[: self._gather(out, start, count)]
+
+    def read_into(self, out: np.ndarray, start: int) -> int:
+        self._check_out(out)
+        wanted = int(out.shape[0])
+        start, count = self._clamp(start, wanted)
+        try:
+            written = self._gather(out, start, count)
+        except Exception as exc:  # noqa: BLE001 - the feeder must keep running
+            self._last_error = exc
+            out[:] = 0.0
+            return 0
+        if written < wanted:
+            out[written:] = 0.0
+        return written
+
+    def _gather(self, out: np.ndarray, start: int, count: int) -> int:
+        """Copy ``count`` frames from ``start`` into the head of ``out``."""
         written = 0
         while written < count:
             position = start + written
@@ -303,10 +395,10 @@ class StreamingSampleSource(BaseSampleSource):
             block = self._block(block_index)
             take = min(count - written, block.shape[0] - offset)
             if take <= 0:  # truncated file: stop rather than spin
-                return out[:written]
+                break
             out[written : written + take] = block[offset : offset + take]
             written += take
-        return out
+        return written
 
     def _block(self, index: int) -> np.ndarray:
         with self._lock:

@@ -200,6 +200,82 @@ def test_concurrent_readers_do_not_corrupt_each_other(
 
 
 # ---------------------------------------------------------------------------
+# the zero-allocation read surface
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("start", "size"), [(0, 256), (4_000, 1_024), (36_800, 512), (37_000, 128)]
+)
+def test_read_into_agrees_with_read(
+    memory: MemorySampleSource, streaming: StreamingSampleSource, start: int, size: int
+) -> None:
+    for source in (memory, streaming):
+        out = np.full((size, 2), -7.0, dtype=np.float32)
+
+        delivered = source.read_into(out, start)
+        expected = source.read(start, size)
+
+        assert delivered == expected.shape[0]
+        assert np.array_equal(out[:delivered], expected)
+        assert np.all(out[delivered:] == 0.0)  # the tail is padded, not left stale
+
+
+def test_read_into_rejects_a_mis_shaped_buffer(memory: MemorySampleSource) -> None:
+    with pytest.raises(ValueError, match=r"out must be \(frames, 2\)"):
+        memory.read_into(np.empty((16, 1), dtype=np.float32), 0)
+
+
+def test_read_into_reports_failures_instead_of_raising(
+    wav: tuple[Path, AudioBuffer],
+) -> None:
+    """An exception escaping the feeder loop would take playback down."""
+    source = StreamingSampleSource(wav[0])
+    source.close()
+    out = np.full((128, 2), 3.0, dtype=np.float32)
+
+    delivered = source.read_into(out, 0)
+
+    assert delivered == 0
+    assert np.all(out == 0.0)
+    assert isinstance(source.last_error, ValueError)
+
+
+def test_sources_declare_whether_reads_can_block(
+    memory: MemorySampleSource, streaming: StreamingSampleSource
+) -> None:
+    assert memory.exact
+    assert not streaming.exact
+    assert memory.last_error is None
+
+
+def test_reading_into_a_reused_buffer_does_not_allocate(
+    memory: MemorySampleSource,
+) -> None:
+    import tracemalloc
+
+    out = np.empty((512, 2), dtype=np.float32)
+    for _ in range(4):
+        memory.read_into(out, 0)
+
+    tracemalloc.start()
+    try:
+        before = tracemalloc.take_snapshot()
+        for i in range(100):
+            memory.read_into(out, i * 512)
+        after = tracemalloc.take_snapshot()
+    finally:
+        tracemalloc.stop()
+
+    grew = sum(
+        entry.size_diff
+        for entry in after.compare_to(before, "filename")
+        if entry.traceback[0].filename.endswith("sample_source.py")
+    )
+    assert grew < 1_024, f"read_into allocated {grew} bytes across 100 blocks"
+
+
+# ---------------------------------------------------------------------------
 # lifecycle and errors
 # ---------------------------------------------------------------------------
 
@@ -380,6 +456,48 @@ def test_replacing_a_streamed_clip_closes_the_previous_handle(
         assert not second.is_closed
     finally:
         engine.shutdown()
+
+
+def test_render_into_matches_render_without_allocating(
+    wav: tuple[Path, AudioBuffer],
+) -> None:
+    """The real-time callback path has to produce the same audio as the easy one."""
+    import tracemalloc
+
+    engine = AudioEngine(NullOutput(realtime=False), block_size=256, ring_blocks=8)
+    try:
+        engine.load(wav[0])
+        engine.play()
+        expected = _render_all(engine, 256)
+
+        engine.stop()
+        engine.seek(0)
+        engine.play()
+        out = np.empty((256, 2), dtype=np.float32)
+        while engine._ring.available_read < 256:  # noqa: SLF001 - wait for the feeder
+            pass
+        for _ in range(4):
+            engine.render_into(out)  # warm up
+
+        tracemalloc.start()
+        try:
+            before = tracemalloc.take_snapshot()
+            for _ in range(50):
+                engine.render_into(out)
+            after = tracemalloc.take_snapshot()
+        finally:
+            tracemalloc.stop()
+    finally:
+        engine.shutdown()
+
+    assert np.allclose(expected, wav[1].data[:256], atol=1e-6)
+    grew = sum(
+        entry.size_diff
+        for entry in after.compare_to(before, "filename")
+        if entry.traceback[0].filename.endswith(("ring_buffer.py", "engine.py"))
+    )
+    # Metering still builds a LevelReading per block; the audio path itself does not.
+    assert grew < 32_768, f"render_into allocated {grew} bytes over 50 callbacks"
 
 
 def test_the_engine_can_play_an_edit_session(wav: tuple[Path, AudioBuffer]) -> None:

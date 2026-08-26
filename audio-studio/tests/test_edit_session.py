@@ -104,9 +104,7 @@ class TestDocument:
         excerpt = document.slice(TimeRange(10_000, 90_000))
 
         assert np.array_equal(excerpt.to_array(), ramp(100_000)[10_000:90_000])
-        shared = {id(s.chunk) for s in excerpt.segments} & {
-            id(s.chunk) for s in document.segments
-        }
+        shared = {id(s.chunk) for s in excerpt.segments} & {id(s.chunk) for s in document.segments}
         assert len(shared) == len(excerpt.segments)
 
     def test_delete_and_insert_are_inverses(self) -> None:
@@ -321,9 +319,7 @@ class TestCommands:
 
 
 class TestUndoRedo:
-    def test_a_long_history_unwinds_to_the_original_samples(
-        self, session: EditSession
-    ) -> None:
+    def test_a_long_history_unwinds_to_the_original_samples(self, session: EditSession) -> None:
         original = session.document.to_array()
 
         session.cut(TimeRange(100, 400))
@@ -448,11 +444,36 @@ class TestSession:
 
         assert isinstance(session, SampleSource)
         assert session.read(0, 10).shape == (10, 2)
+        assert session.exact
+        assert session.last_error is None
         session.close()  # a session owns no OS handle; must still be callable
 
-    def test_the_revision_counter_advances_on_every_change(
-        self, session: EditSession
-    ) -> None:
+    def test_read_into_serves_the_feeder_without_allocating(self, session: EditSession) -> None:
+        out = np.full((300, 2), -1.0, dtype=np.float32)
+
+        delivered = session.read_into(out, 1_800)
+
+        assert delivered == 200  # only 200 frames remain from 1_800
+        assert np.array_equal(out[:200], session.read(1_800, 200))
+        assert np.all(out[200:] == 0.0)
+
+    def test_read_into_rejects_a_mis_shaped_buffer(self, session: EditSession) -> None:
+        with pytest.raises(ValueError, match=r"out must be \(frames, 2\)"):
+            session.read_into(np.empty((16, 1), dtype=np.float32), 0)
+
+    def test_read_into_crosses_segment_boundaries(self) -> None:
+        """After a paste the document is a patchwork; a read must not see the seams."""
+        data = ramp(1_000)
+        session = EditSession(AudioDocument.from_array(data, SR, chunk_frames=64))
+        session.copy(TimeRange(0, 100))
+        session.paste(500)
+
+        out = np.empty((1_100, 2), dtype=np.float32)
+        assert session.read_into(out, 0) == 1_100
+        expected = np.concatenate([data[:500], data[:100], data[500:]])
+        assert np.array_equal(out, expected)
+
+    def test_the_revision_counter_advances_on_every_change(self, session: EditSession) -> None:
         start = session.revision
 
         session.silence(TimeRange(0, 10))

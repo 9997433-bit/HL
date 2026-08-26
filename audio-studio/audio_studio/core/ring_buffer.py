@@ -88,6 +88,14 @@ class RingBuffer:
         """Free frames the producer may still push."""
         return self._capacity - self.available_read
 
+    def read_available(self) -> int:
+        """Consumer-side spelling of :attr:`available_read`."""
+        return self.available_read
+
+    def write_available(self) -> int:
+        """Producer-side spelling of :attr:`available_write`."""
+        return self.available_write
+
     @property
     def frames_written(self) -> int:
         """Total frames accepted since construction (never reset by :meth:`clear`)."""
@@ -162,20 +170,19 @@ class RingBuffer:
             self._overrun_frames += offered - n
         return n
 
-    def read(self, n_frames: int, *, pad: bool = False) -> np.ndarray:
-        """Pop up to ``n_frames`` frames.
+    def read_into(self, out: np.ndarray) -> int:
+        """Fill ``out`` from the queue, returning how many frames were real.
 
-        With ``pad=True`` the result is always exactly ``n_frames`` long,
-        zero-filled on underrun -- what a device callback needs to keep the
-        stream glitch-free.
+        The rest of ``out`` is zeroed, so a device callback always gets a full
+        block. This is the real-time path: no allocation, no lock, at most two
+        ``memcpy``-shaped slice copies. ``out`` must be a pre-allocated
+        ``(frames, channels)`` float32 array the caller reuses every callback.
         """
-        if n_frames < 0:
-            raise ValueError(f"n_frames must be non-negative, got {n_frames}")
-
+        if out.ndim != 2 or out.shape[1] != self._channels:
+            raise ValueError(f"out must be (frames, {self._channels}), got {out.shape}")
+        wanted = int(out.shape[0])
         read = self._read
-        available = max(self._write - read, 0)
-        n = min(n_frames, available)
-        out = np.zeros((n_frames if pad else n, self._channels), dtype=SAMPLE_DTYPE)
+        n = min(wanted, max(self._write - read, 0))
         if n:
             index = read % self._capacity
             first = min(n, self._capacity - index)
@@ -185,9 +192,44 @@ class RingBuffer:
                 out[first:n] = self._buffer[:remainder]
             # Free the slots only after the payload has been copied out.
             self._read = read + n
-        if n < n_frames:
-            self._underrun_frames += n_frames - n
-        return out
+        if n < wanted:
+            out[n:] = 0.0
+            self._underrun_frames += wanted - n
+        return n
+
+    def read(self, n_frames: int, *, pad: bool = False) -> np.ndarray:
+        """Pop up to ``n_frames`` frames into a freshly allocated array.
+
+        With ``pad=True`` the result is always exactly ``n_frames`` long,
+        zero-filled on underrun. Convenient for tests and offline callers;
+        anything on the device thread should use :meth:`read_into` instead.
+        """
+        if n_frames < 0:
+            raise ValueError(f"n_frames must be non-negative, got {n_frames}")
+
+        if pad:
+            out = np.empty((n_frames, self._channels), dtype=SAMPLE_DTYPE)
+            self.read_into(out)
+            return out
+
+        out = np.empty((min(n_frames, self.available_read), self._channels), dtype=SAMPLE_DTYPE)
+        delivered = self.read_into(out)
+        if delivered < n_frames:
+            self._underrun_frames += n_frames - delivered
+        return out[:delivered]
+
+    def drop(self, n_frames: int) -> int:
+        """Discard up to ``n_frames`` queued frames without copying them out.
+
+        Used to fast-forward the consumer past audio a seek has invalidated.
+        """
+        if n_frames < 0:
+            raise ValueError(f"n_frames must be non-negative, got {n_frames}")
+        read = self._read
+        n = min(int(n_frames), max(self._write - read, 0))
+        if n:
+            self._read = read + n
+        return n
 
     def peek(self, n_frames: int) -> np.ndarray:
         """Return queued frames without consuming them (metering / debugging)."""

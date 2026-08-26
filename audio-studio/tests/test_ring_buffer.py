@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import threading
 import time
+import tracemalloc
 
 import numpy as np
 import pytest
@@ -172,6 +173,101 @@ def test_clear_on_an_empty_buffer_is_a_no_op() -> None:
     ring.clear()
 
     assert (ring.frames_read, ring.frames_written) == (0, 0)
+
+
+# ---------------------------------------------------------------------------
+# the real-time read surface
+# ---------------------------------------------------------------------------
+
+
+def test_read_into_fills_the_caller_buffer_and_pads_the_tail() -> None:
+    ring = RingBuffer(16, 2)
+    ring.write(ramp(6))
+    out = np.full((10, 2), -1.0, dtype=np.float32)
+
+    delivered = ring.read_into(out)
+
+    assert delivered == 6
+    assert np.array_equal(out[:6], ramp(6))
+    assert np.all(out[6:] == 0.0)
+    assert ring.underrun_frames == 4
+
+
+def test_read_into_handles_a_wrapped_region() -> None:
+    ring = RingBuffer(10, 1)
+    ring.write(ramp(8, 1))
+    ring.read(6)
+    ring.write(ramp(6, 1, offset=100))
+    out = np.empty((8, 1), dtype=np.float32)
+
+    assert ring.read_into(out) == 8
+    assert np.array_equal(out[:, 0], np.array([6, 7, 100, 101, 102, 103, 104, 105], np.float32))
+
+
+def test_read_into_rejects_a_mis_shaped_buffer() -> None:
+    ring = RingBuffer(16, 2)
+
+    with pytest.raises(ValueError, match=r"out must be \(frames, 2\)"):
+        ring.read_into(np.empty((4, 3), dtype=np.float32))
+
+
+def test_the_realtime_path_does_not_allocate_per_block() -> None:
+    """The whole point of read_into: a device callback that never hits malloc.
+
+    Not literally zero bytes — the monotonic counters are Python ints, so each
+    one costs a 32-byte object that immediately replaces its predecessor. What
+    must not happen is an allocation that scales with the audio, and 100 kB of
+    frames moving through for well under 1 kB of churn says it does not.
+    """
+    ring = RingBuffer(4_096, 2)
+    out = np.empty((256, 2), dtype=np.float32)
+    block = ramp(256)
+    for _ in range(4):  # warm up numpy's internal caches and this frame's locals
+        ring.write(block)
+        ring.read_into(out)
+
+    tracemalloc.start()
+    try:
+        before = tracemalloc.take_snapshot()
+        for _ in range(100):
+            ring.write(block)
+            ring.read_into(out)
+        after = tracemalloc.take_snapshot()
+    finally:
+        tracemalloc.stop()
+
+    moved = 100 * block.nbytes
+    grew = sum(
+        entry.size_diff
+        for entry in after.compare_to(before, "filename")
+        if entry.traceback[0].filename.endswith("ring_buffer.py")
+    )
+    assert grew < 1_024, f"steady-state read/write allocated {grew} bytes for {moved} moved"
+
+
+def test_drop_fast_forwards_without_copying() -> None:
+    ring = RingBuffer(32, 1)
+    ring.write(ramp(20, 1))
+
+    assert ring.drop(5) == 5
+    assert ring.available_read == 15
+    assert np.array_equal(ring.read(3)[:, 0], np.array([5, 6, 7], np.float32))
+
+    assert ring.drop(1_000) == 12  # clamped to what is queued
+    assert ring.available_read == 0
+
+
+def test_drop_rejects_a_negative_count() -> None:
+    with pytest.raises(ValueError, match="non-negative"):
+        RingBuffer(8, 1).drop(-1)
+
+
+def test_the_available_methods_mirror_the_properties() -> None:
+    ring = RingBuffer(16, 1)
+    ring.write(ramp(5, 1))
+
+    assert ring.read_available() == ring.available_read == 5
+    assert ring.write_available() == ring.available_write == 11
 
 
 # ---------------------------------------------------------------------------
