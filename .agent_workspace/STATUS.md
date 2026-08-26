@@ -35,8 +35,9 @@ The tables below are that snapshot and are not re-pinned here. Since it was
 taken, the `NeutralModel` → `Model` converter (A106, 52 tests), the flat-facet
 shell `ShellQuad4Element` (A98, 72 tests) and the R2-T09 promotion tool (A109,
 23 tests) landed; re-measured at `571c864`, the suite reads **1,331 passed,
-0 failed** with `ruff check .` clean, and the registry reads **14 `verified`,
-30 `implemented`** (13 of the verified rows are P0, 1 is P1).
+0 failed** with `ruff check .` clean. **A121** (2026-08-26) batch-promoted every
+remaining green row: the registry now reads **44 `verified`, 0 `implemented`**
+(34 P0 + 10 P1, all gated in CI).
 
 Unit suites (796 tests):
 
@@ -77,7 +78,7 @@ Acceptance registry and gate suites: **388 tests**.
 | R2-T06 | Updating depth (GAP-10) | **Partial** — AC-UPD-007 (P0) is tagged and `implemented` (A44); the collinearity screen was already in `workflow/selection.py`. QR-pivoting refinement, analytic MAC-row Jacobian wiring, and the model-level parameter resolver remain. |
 | R2-T07 | SciPy optimization backend (GAP-12) | **Done** — SLSQP/trust-constr with analytic Jacobians (A27), active-set KKT + trust-constr Hessian fixes (A40 harvest), and strengthened AC-OPT-002/003 oracles incl. a bound-active optimum (A34). Shape variables still FD. |
 | R2-T08 | R1-O2 branch reconciliation | **Done** — content reconciled by A14; the superseded/merged side branches were audited in [`BRANCH_CLEANUP.md`](BRANCH_CLEANUP.md) and deleted from `origin` (A62, plus `cursor/beam3d-cbar-element-c9a7` once A93 merged it). |
-| R2-T09 | CI exit hardening | **Partial** — the `gates` job runs the import check, `ruff check .`, the registry consistency tests, the promotion gate and `-m acceptance`; `scripts/promote_verified.py` (A109) flips a row once the gate is green, and 14 criteria are `verified` behind it. What remains is promoting the other 30 rows as their tracks close. |
+| R2-T09 | CI exit hardening | **Complete for Round 2 sign-off** — the `gates` job and `scripts/promote_verified.py` (A109, A121) advanced all 44 criteria to `verified` behind green gate evidence. |
 
 - **Round 3 — PENDING.** GAP-06 (MPE), GAP-07 (pretest EI), GAP-13 (50k-DOF
   scale), GAP-15 (plotting), and the FRF updating residual stay deferred.
