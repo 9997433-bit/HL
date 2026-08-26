@@ -536,13 +536,18 @@ await interact('配对记忆：翻牌配对直到全清', '/#/games/memory', asy
     throw new Error('盖着的牌把汉字写进了 DOM，读屏会直接把答案念出来')
   }
 
-  const flipCard = (index) =>
-    page.evaluate((i) => {
+  /** 一律走键盘：聚焦那张牌，回车翻开——顺带证明牌是真的可聚焦按钮。 */
+  const flipCard = async (index) => {
+    const focused = await page.evaluate((i) => {
       const node = document.querySelectorAll('.mcard')[i]
       if (!node || node.disabled) return false
-      node.click()
-      return true
+      node.focus()
+      return document.activeElement === node
     }, index)
+    if (!focused) return false
+    await page.keyboard.press('Enter')
+    return true
+  }
 
   /** 像人一样玩：翻开过的牌记在 known 里，凑齐一对就去收。 */
   const known = new Map()
@@ -630,7 +635,7 @@ await interact('配对记忆：翻牌配对直到全清', '/#/games/memory', asy
   const done = await page.evaluate(() => document.body.innerText.includes('全部配对完成'))
   if (!done) throw new Error(`翻了 ${flips} 次还没配完，牌桌没有清空`)
 
-  return `翻 ${flips} 次清空牌桌，盖着的牌不泄露答案`
+  return `只用回车翻 ${flips} 次清空牌桌，盖着的牌不泄露答案`
 })
 
 await interact('找不同：找出唯一不同的字，键盘连过 3 关', '/#/games/spot', async (page) => {
