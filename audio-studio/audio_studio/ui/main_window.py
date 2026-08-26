@@ -23,6 +23,7 @@ dragging a selection re-analyses once rather than on every mouse move.
 
 from __future__ import annotations
 
+import html
 import tempfile
 from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
@@ -38,6 +39,8 @@ from PySide6.QtGui import (
     QKeySequence,
 )
 from PySide6.QtWidgets import (
+    QDialog,
+    QDialogButtonBox,
     QDockWidget,
     QFileDialog,
     QHBoxLayout,
@@ -45,6 +48,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
     QMessageBox,
+    QTextBrowser,
     QToolBar,
     QVBoxLayout,
     QWidget,
@@ -112,6 +116,42 @@ ANALYSIS_DEBOUNCE_MS: int = 250
 MAX_RECENT_FILES: int = 8
 
 
+def strip_mnemonic(text: str) -> str:
+    """``"Fade &In"`` → ``"Fade In"``, keeping a literal ``&&`` as one ``&``."""
+    return text.replace("&&", "\x00").replace("&", "").replace("\x00", "&")
+
+
+class ShortcutsDialog(QDialog):
+    """Help ▸ Keyboard Shortcuts — the menu bindings as a readable table.
+
+    Modeless on purpose: the point of the sheet is to try a shortcut while it
+    is on screen, which a modal dialog would swallow.
+    """
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Keyboard Shortcuts")
+        self.setObjectName("ShortcutsDialog")
+        self.resize(560, 640)
+
+        self.browser = QTextBrowser(self)
+        self.browser.setOpenExternalLinks(False)
+        self.browser.setAccessibleName("Keyboard shortcuts")
+        self.browser.setAccessibleDescription(
+            "Table of every menu command and the key that runs it"
+        )
+
+        self.buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close, self)
+        self.buttons.rejected.connect(self.reject)
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(self.browser, 1)
+        layout.addWidget(self.buttons)
+
+    def set_html(self, markup: str) -> None:
+        self.browser.setHtml(markup)
+
+
 class MainWindow(QMainWindow):
     """Hosts the engine and wires it to the editing widgets."""
 
@@ -127,6 +167,7 @@ class MainWindow(QMainWindow):
         self.preview = attach_preview(self.engine, self.effect_chain)
         self._recent: list[Path] = []
         self._recording_path: Path | None = None
+        self._shortcuts_dialog: ShortcutsDialog | None = None
         untitled_take_dir = Path(tempfile.mkdtemp(prefix="audio-studio-session-"))
         self.take_registry = TakeRegistry(
             untitled_take_dir / "session.takes.json",
@@ -289,17 +330,23 @@ class MainWindow(QMainWindow):
             QKeySequence.StandardKey.Open,
             tip="Open an audio file",
         )
-        self.action_close = action("&Close", self.close_clip, QKeySequence.StandardKey.Close)
+        # Spelled out rather than taken from StandardKey.Close, whose primary
+        # binding here is Ctrl+F4; Ctrl+W is what the docs promise and what Qt
+        # turns into Cmd+W on macOS anyway.
+        self.action_close = action("&Close", self.close_clip, "Ctrl+W")
         self.action_export = action(
             "&Export As…",
             self.export_dialog,
             QKeySequence.StandardKey.SaveAs,
             tip="Write the clip (or the selection) to a new file",
         )
+        # Ctrl+S rather than Ctrl+Shift+S: the latter is the platform's
+        # Save As, which Export already owns, and two actions on one sequence
+        # make both of them ambiguous rather than one of them a synonym.
         self.action_save_project = action(
             "Save &Project",
             self.save_project,
-            "Ctrl+Shift+S",
+            QKeySequence.StandardKey.Save,
             tip="Save the session to an .hlproj project bundle",
         )
         self.action_save_project_as = action(
@@ -314,7 +361,9 @@ class MainWindow(QMainWindow):
             "Ctrl+Shift+O",
             tip="Open an .hlproj project bundle",
         )
-        self.action_quit = action("E&xit", self.close, QKeySequence.StandardKey.Quit)
+        # StandardKey.Quit resolves to nothing outside macOS, which would
+        # leave the one action nobody wants to hunt for in a menu unbound.
+        self.action_quit = action("E&xit", self.close, "Ctrl+Q")
 
         self.action_select_all = action(
             "Select &All",
@@ -453,11 +502,13 @@ class MainWindow(QMainWindow):
         self.action_remove_marker = action(
             "&Remove Marker",
             self.remove_selected_marker,
+            "Ctrl+Shift+Del",
             tip="Delete the marker selected in the Markers list",
         )
         self.action_clear_markers = action(
             "&Clear All Markers",
             self.clear_markers,
+            "Ctrl+Alt+M",
             tip="Remove every marker and region from the document",
         )
 
@@ -540,12 +591,31 @@ class MainWindow(QMainWindow):
         self.action_sel_only = action(
             "Play Selection &Only",
             self._on_play_selection_only,
+            "Shift+L",
             checkable=True,
             tip="Restrict the transport to the selected range",
         )
         self.action_sel_only.setChecked(True)
 
-        self.action_about = action("&About", self.show_about)
+        self.action_shortcuts = action(
+            "&Keyboard Shortcuts",
+            self.show_shortcuts,
+            QKeySequence.StandardKey.HelpContents,
+            tip="List every menu command and the key that runs it",
+        )
+        self.action_about = action("&About", self.show_about, "Shift+F1")
+
+        # The dock toggles are Qt's own actions, but they sit in the menus
+        # like any other command and are covered by the same rule: everything
+        # reachable from the menu bar is reachable from the keyboard.
+        for act, sequence in (
+            (self.spectrum_dock.toggleViewAction(), "Ctrl+Alt+1"),
+            (self.effects_dock.toggleViewAction(), "Ctrl+Alt+2"),
+            (self.plugin_dock.toggleViewAction(), "Ctrl+Alt+3"),
+            (self.markers_dock.toggleViewAction(), "Ctrl+Alt+4"),
+        ):
+            act.setShortcut(sequence)
+            self.addAction(act)
 
     def _build_menus(self) -> None:
         bar = self.menuBar()
@@ -638,7 +708,10 @@ class MainWindow(QMainWindow):
         transport_menu.addAction(self.action_loop)
         transport_menu.addAction(self.action_sel_only)
 
-        bar.addMenu("&Help").addAction(self.action_about)
+        help_menu = bar.addMenu("&Help")
+        help_menu.addAction(self.action_shortcuts)
+        help_menu.addSeparator()
+        help_menu.addAction(self.action_about)
 
     def _build_toolbar(self) -> None:
         toolbar = QToolBar("Main")
@@ -2069,6 +2142,74 @@ class MainWindow(QMainWindow):
         waveform.set_amplitude_scale(waveform.amplitude_scale * factor)
 
     # ----------------------------------------------------------- misc events
+
+    def shortcut_table(self) -> list[tuple[str, list[tuple[str, str]]]]:
+        """The menu bar as ``[(menu, [(command, keys), …]), …]``, in menu order.
+
+        Read back off the live :class:`QAction` objects instead of a
+        hand-written list, so the Help sheet cannot document a binding the
+        application does not have. Separators and the recent-files submenu
+        drop out: neither is a command with a key of its own.
+        """
+        table: list[tuple[str, list[tuple[str, str]]]] = []
+        for menu_action in self.menuBar().actions():
+            menu = menu_action.menu()
+            if menu is None:
+                continue
+            rows = [
+                (
+                    strip_mnemonic(act.text()),
+                    act.shortcut().toString(QKeySequence.SequenceFormat.NativeText),
+                )
+                for act in menu.actions()
+                if not act.isSeparator() and act.menu() is None
+            ]
+            if rows:
+                table.append((strip_mnemonic(menu_action.text()), rows))
+        return table
+
+    def shortcuts_html(self) -> str:
+        """The shortcut table as a document for :class:`QTextBrowser`.
+
+        Qt's rich text engine supports a subset of CSS and ignores class
+        selectors on table cells, so the colours are written inline.
+        """
+        p = PALETTE
+        rows: list[str] = []
+        for title, entries in self.shortcut_table():
+            rows.append(
+                f'<tr><th colspan="2" align="left" '
+                f'style="padding-top:12px; color:{p.accent};">{html.escape(title)}</th></tr>'
+            )
+            rows.extend(
+                f'<tr><td style="padding:2px 18px 2px 0;">{html.escape(command)}</td>'
+                f'<td style="padding:2px 0; color:{p.text_dim};"><b>{html.escape(keys)}</b></td>'
+                "</tr>"
+                for command, keys in entries
+            )
+        body = "\n".join(rows)
+        return (
+            f'<html><body style="color:{p.text}; background-color:{p.surface};">'
+            f"<h3>{html.escape(__app_name__)} keyboard shortcuts</h3>"
+            "<p>Every command in the menu bar, with the key that runs it. "
+            "Menus themselves are reachable with their underlined letter and "
+            "the Alt key.</p>"
+            f'<table cellspacing="0" width="100%">{body}</table>'
+            "</body></html>"
+        )
+
+    def show_shortcuts(self) -> ShortcutsDialog:
+        """Open (or re-raise) the keyboard shortcut sheet."""
+        dialog = self._shortcuts_dialog
+        if dialog is None:
+            dialog = ShortcutsDialog(self)
+            self._shortcuts_dialog = dialog
+        # Rebuilt on every open: Undo and Redo rename themselves after an edit.
+        dialog.set_html(self.shortcuts_html())
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
+        return dialog
 
     def show_about(self) -> None:
         QMessageBox.about(
