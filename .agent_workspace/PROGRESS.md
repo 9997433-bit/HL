@@ -46,11 +46,12 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A36 | claude-opus-5-thinking-high-fast | R2-T03 start: `correlation/reduction.py` (Guyan/IRS/SEREP, TAM mass, expansion) + 2-DOF suite (backfill for A32) | complete |
 | A23 | claude-fable-5-thinking-xhigh | Round 1 sign-off audit: independent multi-tip verification & first PR body draft (backfill for A20) | complete |
 | A42 | gpt-5.6-sol-xhigh-fast | 498-test baseline timestamp & current-tip CI verification (backfill for A39) | complete |
-| R2-T02 | claude-opus-5-thinking-high-fast | GAP-02 QUAD4 plane-stress/plane-strain element, patch test & modal suite (backfill for A19) | partial — QUAD4 slice landed; TET4/HEX8/3D beam open |
+| R2-T02 | claude-opus-5-thinking-high-fast | GAP-02 QUAD4 plane-stress/plane-strain element, patch test & modal suite (backfill for A19) | partial — QUAD4 and TET4 slices landed; HEX8/3D beam open |
 | A37 | claude-opus-5-thinking-high-fast | Merge the QUAD4 branch onto the trunk and re-verify the suite (backfill for R2-T02) | complete |
 | A35 | claude-fable-5-thinking-xhigh | AC-DYN registration (backfill for A28): found R2-T01 had landed it mid-run; dropped the duplicate, verified the head | complete |
 | A45 | gpt-5.6-sol-xhigh-fast | Current-tip 595-test/Ruff verification and PR-draft refresh (backfill for A37) | complete |
 | A47 | gpt-5.6-sol-xhigh-fast | Reconcile A23's 41-vs-40 criteria audit count and pin the registry inventory (backfill for A35) | complete |
+| A46 | claude-opus-5-thinking-high-fast | R2-T02 continued: TET4 constant-strain tetrahedron, Kuhn tet-block mesh, 3D patch suite (backfill for A42) | complete |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
@@ -944,7 +945,8 @@ integrate rather than fork.
 MS-4 workflow carried over from Round 1 is landed and verified at `5bc6a6d` (A26), the
 damped-dynamics and optimization tracks are merged in at `acda625` (A19 implementation,
 A28 integration), **R2-T01 is DONE** — AC-DYN-001..005 registered and implemented — and
-**R2-T02 is PARTIAL**, its QUAD4 slice merged onto the trunk by A37
+**R2-T02 is PARTIAL**, its QUAD4 slice merged onto the trunk by A37 and its TET4 slice
+landed by A46
 
 Core backlog (prioritized, from `docs/SOTA_GAP_ANALYSIS.md` §4/§6 + Round 1 conclusion):
 1. ~~**R2-T01 Dynamics/FRF chain** (GAP-04/05, P0) — damping models, harmonic response,
@@ -956,10 +958,11 @@ Core backlog (prioritized, from `docs/SOTA_GAP_ANALYSIS.md` §4/§6 + Round 1 co
    and an FRF block in the `CorrelationReport` schema.
 2. **R2-T02 3D continuum elements** (GAP-02, P0) — QUAD4/TET4/HEX8 + 3D beam with patch
    /convergence gates (AC-MODAL-001/003/004/007 extended, new AC-ELEM-*). **PARTIAL:
-   QUAD4 is landed on the trunk**, merged from `cursor/quad4-plane-stress-element-b99c`
-   by A37 (see the R2-T02 and A37 entries below); TET4, HEX8, the 3D beam, the
-   `CQUAD4`/`CTETRA`/`CHEXA`/`PSHELL`/`PSOLID` BDF cards and the AC-ELEM-* registry rows
-   are the remaining slice.
+   QUAD4 and TET4 are landed on the trunk**, QUAD4 merged from
+   `cursor/quad4-plane-stress-element-b99c` by A37 and TET4 from
+   `cursor/tet4-solid-element-08d1` by A46 (see the R2-T02, A37 and A46 entries below);
+   HEX8, the 3D beam, the `CQUAD4`/`CTETRA`/`CHEXA`/`PSHELL`/`PSOLID` BDF cards and the
+   AC-ELEM-* registry rows are the remaining slice.
 3. **R2-T03 SEREP/TAM reduction & expansion** (GAP-08) — Guyan/IRS/SEREP, TAM
    pseudo-orthogonality, shape expansion; closes Round-2 gate AC-CORR-006. *Engine
    landed by A36 (`correlation/reduction.py`, 25 tests); the AC-CORR-006 acceptance test
@@ -1664,3 +1667,60 @@ AC-UPD-004/005/007, AC-WORK-001/002/004/005.
   `PYTHONPATH=/tmp/a47/src`: **611 passed** in 122.32 s. The shared checkout contained
   an unrelated untracked `tests/acceptance/test_workflow.py`; it was preserved and
   excluded by verifying the exact committed tree rather than deleting concurrent work.
+
+#### A46 — R2-T02 continued: TET4 constant-strain tetrahedron (backfill for A42)
+
+`Tet4Element` in `core/elements.py` is the second element slice of GAP-02: the 4-node
+linear tetrahedron with `UX`/`UY`/`UZ` at each node, `K = V Bᵀ D B` from a constant `B`,
+consistent mass `ρV/20 (1 + I) ⊗ I₃`, row-sum lumping to `ρV/4` per node, and constant
+strain/stress recovery. The 3D elasticity matrix moved out into a reusable
+`solid_constitutive_matrix(material)` alongside the existing planar one, so HEX8 and the
+solid BDF cards can share it.
+
+**Meshing.** `mesh/simple.py` gained `tet_block_mesh` (plus `MeshBuilder.add_tet4`), a
+structured box whose cells are split by the **Kuhn/Freudenthal** triangulation into six
+tetrahedra. Kuhn was chosen over the 5-tet split because it is translation-invariant:
+every cell puts the same diagonal on a shared face, so the mesh is conforming without a
+checkerboard orientation rule. The six connectivity tuples are stored pre-oriented for
+positive volume (odd permutations have their last two nodes swapped), and a test walks
+every triangular face of a 2×2×3 block to confirm each interior face is shared by exactly
+two tets and the boundary count is `4(n_x n_y + n_y n_z + n_z n_x)`.
+
+**Verification** — `tests/test_tet4.py`, **66 tests**, layered like `test_quad4.py`:
+
+- *Patch.* A 3×3×3 Kuhn box (64 nodes, 162 elements) with its eight interior nodes pulled
+  20 % off the grid by a deterministic trig offset, driven by a prescribed linear field on
+  every boundary node. The interior displacements come back at **2.8e-16 relative** and
+  every element reports the same constant stress to 1e-9 relative — the element passes the
+  patch test on genuinely distorted geometry, not just on the reference tetrahedron.
+- *Oracle.* A roller-supported block under uniaxial extension recovers `σxx = E ε` with
+  all five other components at zero, and the far corner contracts by exactly `−ν ε w`
+  and `−ν ε h`; strain energy of a linear field matches `½ V εᵀ D ε` to 1e-12.
+- *Kinematics.* Exactly six zero-energy modes (no hourglassing to guard against — one
+  point is full integration for a constant-strain element), zero nodal force under all
+  three rigid translations, zero strain energy and zero strain under all three rigid
+  rotations, invariance of `K` under a Rodrigues rotation about `(1,1,1)`.
+- *Modal.* Six rigid-body modes on a free block; with lateral motion suppressed and
+  `ν = 0`, the axial spectrum converges to `c/4L` **from above** at rates 4.09/4.04, hitting
+  3.7e-4 at 16 elements; mass-orthonormality below 1e-9; lumped mass never above
+  consistent.
+- *Limitation, pinned.* Bending locks hard. Against the Euler–Bernoulli cantilever the
+  first frequency is **+207 %** at 108 DOF and still **+25 %** at 2475 DOF, where QUAD4 is
+  inside 2 % with a fraction of the equations. The test asserts the monotone-from-above
+  decay *and* that the finest mesh is still 10–30 % stiff, so nobody mistakes TET4 for a
+  bending element.
+
+**Scope deliberately left alone.** No AC-ELEM-* rows were registered. `test_quad4.py` and
+`test_tet4.py` both produce the evidence for the three proposed criteria, but registering
+them means moving the 40-criterion inventory A47 has just pinned in
+`test_criteria_registry.py` and `ACCEPTANCE_CRITERIA.md` §1.4 — a spec-first change that
+belongs with the HEX8 slice that completes the element family, not squeezed in beside it.
+
+Verified in a private clone at `/tmp/a46` with `PYTHONPATH=/tmp/a46/src`, on Python
+3.12.3 / NumPy 2.5.2 / SciPy 1.18.1: **702 tests collected, 702 passed**, `ruff check .`
+clean. That is the trunk's 636 at `1db2f03` plus the 66 new ones.
+
+**Working-tree hazard, seventh occurrence.** A concurrent agent ran `git reset --hard` on
+`/workspace` mid-edit and discarded the first pass of this element wholesale. The work was
+redone in a private clone. Every entry since A28 has now reported this; the shared
+checkout should be treated as read-only scratch and nothing but a fetch target.
