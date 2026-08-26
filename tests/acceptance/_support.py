@@ -92,6 +92,33 @@ def chain_eigenvalues_fixed_fixed(n: int, stiffness: float = 1.0, mass: float = 
     return 2.0 * (stiffness / mass) * (1.0 - np.cos(j * np.pi / (n + 1)))
 
 
+def chain_eigenvalues_free_free(n: int, stiffness: float = 1.0, mass: float = 1.0):
+    """``lambda_j`` of a free-free chain: ``2 k/m (1 - cos(j pi/n))``, ``j = 0..n-1``.
+
+    The first entry is the rigid-body translation and is exactly zero.
+    """
+    j = np.arange(n)
+    return 2.0 * (stiffness / mass) * (1.0 - np.cos(j * np.pi / n))
+
+
+def free_free_chain_matrices(n: int, stiffness: float = 1.0, mass: float = 1.0):
+    """``(K, M)`` of a chain of ``n`` masses with no connection to ground."""
+    K = np.zeros((n, n))
+    for j in range(n - 1):
+        K[j, j] += stiffness
+        K[j + 1, j + 1] += stiffness
+        K[j, j + 1] -= stiffness
+        K[j + 1, j] -= stiffness
+    return K, mass * np.eye(n)
+
+
+def nullity(matrix, tolerance: float = 1e-10) -> int:
+    """Dimension of the null space of ``matrix``, from its singular values."""
+    singular_values = np.linalg.svd(dense(matrix), compute_uv=False)
+    cut = tolerance * (singular_values[0] if singular_values.size else 1.0)
+    return int(np.count_nonzero(singular_values <= cut))
+
+
 def cantilever_frequencies(
     length: float,
     material: Material = STEEL,
@@ -164,3 +191,21 @@ def relative_error(actual, expected) -> np.ndarray:
     actual = np.asarray(actual, dtype=float)
     expected = np.asarray(expected, dtype=float)
     return np.abs(actual - expected) / np.abs(expected)
+
+
+def eigenpair_residuals(K, M, eigenvalues, shapes) -> np.ndarray:
+    """``‖K phi - lambda M phi‖ / ‖K phi‖`` per eigenpair — MS-1.2, spelled out.
+
+    Deliberately a second implementation rather than a call into the solver:
+    AC-MODAL-006 asks this suite to assert the convergence guarantee, so it
+    must not be checked with the very code that enforces it.
+    """
+    K = dense(K)
+    M = dense(M)
+    values = np.asarray(eigenvalues, dtype=float)
+    phi = np.asarray(shapes, dtype=float)
+    residual = K @ phi - (M @ phi) * values[None, :]
+    denominator = np.linalg.norm(K @ phi, axis=0)
+    if np.any(denominator <= 0.0):
+        raise AssertionError("a mode has no stiffness response; use the rigid-mode form")
+    return np.linalg.norm(residual, axis=0) / denominator

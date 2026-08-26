@@ -8,8 +8,8 @@ document, and ``docs/MODULE_SPEC.md`` never drift apart.
 
 Registry contract (ACCEPTANCE_CRITERIA.md sections 1 and 7):
 - IDs follow ``AC-<MODULE>-NNN[a-z]?`` with MODULE in {MODAL, CORR, UPD,
-  WORK, OPT}; numbering is dense per module (no gaps); an optional lowercase
-  suffix marks closely coupled sub-criteria sharing a number.
+  WORK, OPT, DYN}; numbering is dense per module (no gaps); an optional
+  lowercase suffix marks closely coupled sub-criteria sharing a number.
 - ``priority`` in {P0, P1, P2} (P0 blocks Round-1, P1 blocks Round-2).
 - ``method`` in {oracle, property, twin, contract, regression}.
 - ``status`` lifecycle: specified -> implemented -> verified. A criterion may
@@ -28,10 +28,10 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 CRITERIA_DOC = REPO_ROOT / "docs" / "ACCEPTANCE_CRITERIA.md"
 SPEC_DOC = REPO_ROOT / "docs" / "MODULE_SPEC.md"
 
-ID_REGEX = re.compile(r"AC-(?:MODAL|CORR|UPD|WORK|OPT)-\d{3}[a-z]?")
-ID_FULLMATCH = re.compile(r"^AC-(MODAL|CORR|UPD|WORK|OPT)-(\d{3})([a-z]?)$")
+ID_REGEX = re.compile(r"AC-(?:MODAL|CORR|UPD|WORK|OPT|DYN)-\d{3}[a-z]?")
+ID_FULLMATCH = re.compile(r"^AC-(MODAL|CORR|UPD|WORK|OPT|DYN)-(\d{3})([a-z]?)$")
 
-VALID_MODULES = ("M1", "M2", "M3", "M4", "M5")
+VALID_MODULES = ("M1", "M2", "M3", "M4", "M5", "M6")
 VALID_PRIORITIES = ("P0", "P1", "P2")
 VALID_METHODS = ("oracle", "property", "twin", "contract", "regression")
 VALID_STATUSES = ("specified", "implemented", "verified")
@@ -44,13 +44,14 @@ TAG_REGEX = re.compile(r"criterion\(\s*\"(AC-[A-Z]+-\d{3}[a-z]?)\"\s*\)")
 
 FAMILY_TO_MODULE = {
     "MODAL": "M1", "CORR": "M2", "UPD": "M3", "WORK": "M4", "OPT": "M5",
+    "DYN": "M6",
 }
 
 
 @dataclass(frozen=True)
 class AcceptanceCriterion:
     test_id: str
-    module: str          # M1..M5
+    module: str          # M1..M6
     title: str
     priority: str        # P0 | P1 | P2
     method: str          # oracle | property | twin | contract | regression
@@ -71,6 +72,7 @@ _CORR_SUITE = "tests/acceptance/test_correlation.py"
 _UPD_SUITE = "tests/acceptance/test_updating.py"
 _WORK_SUITE = "tests/acceptance/test_workflow.py"
 _OPT_SUITE = "tests/acceptance/test_optimization.py"
+_DYN_SUITE = "tests/acceptance/test_dynamics.py"
 
 REGISTRY: tuple[AcceptanceCriterion, ...] = (
     # --- M1 Modal analysis (MS-1) -------------------------------------------
@@ -81,11 +83,11 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
     _c("AC-MODAL-003", "Mass-orthonormality of returned modes",
        "P0", "contract", "MS-1.3", _MODAL_SUITE, "implemented"),
     _c("AC-MODAL-004", "Rigid-body mode detection",
-       "P0", "oracle", "MS-1.2", _MODAL_SUITE),
+       "P0", "oracle", "MS-1.2", _MODAL_SUITE, "implemented"),
     _c("AC-MODAL-005", "Sign convention & determinism",
-       "P0", "contract", "MS-1.3", _MODAL_SUITE),
+       "P0", "contract", "MS-1.3", _MODAL_SUITE, "implemented"),
     _c("AC-MODAL-006", "Residual convergence guarantee",
-       "P0", "contract", "MS-1.2", _MODAL_SUITE),
+       "P0", "contract", "MS-1.2", _MODAL_SUITE, "implemented"),
     _c("AC-MODAL-007", "Effective modal mass completeness",
        "P0", "oracle", "MS-1.4", _MODAL_SUITE),
     _c("AC-MODAL-008", "Frequency-window extraction + missed-mode guard",
@@ -98,9 +100,9 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
     _c("AC-CORR-002", "MAC scaling/sign invariance",
        "P0", "property", "MS-2.2", _CORR_SUITE, "implemented"),
     _c("AC-CORR-003", "Pairing recovers ground truth",
-       "P0", "twin", "MS-2.3", _CORR_SUITE),
+       "P0", "twin", "MS-2.3", _CORR_SUITE, "implemented"),
     _c("AC-CORR-004", "COMAC localizes bad DOF",
-       "P0", "twin", "MS-2.5", _CORR_SUITE),
+       "P0", "twin", "MS-2.5", _CORR_SUITE, "implemented"),
     _c("AC-CORR-005", "Frequency-error sign convention",
        "P0", "oracle", "MS-2.4", _CORR_SUITE),
     _c("AC-CORR-006", "Reduction/expansion (SEREP) consistency",
@@ -148,6 +150,17 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P0", "contract", "MS-5.2", _OPT_SUITE, "implemented"),
     _c("AC-OPT-004", "Mode tracking across crossings",
        "P1", "twin", "MS-5.2", _OPT_SUITE, "implemented"),
+    # --- M6 Damped dynamics and FRF (MS-7) ------------------------------------
+    _c("AC-DYN-001", "Damped FRF vs closed form",
+       "P0", "oracle", "MS-7.3", _DYN_SUITE, "implemented"),
+    _c("AC-DYN-002", "Modal superposition matches direct inversion",
+       "P0", "property", "MS-7.3", _DYN_SUITE, "implemented"),
+    _c("AC-DYN-003", "Proportional damping yields real modes",
+       "P0", "property", "MS-7.2", _DYN_SUITE, "implemented"),
+    _c("AC-DYN-004", "FRAC/FDAC self-identity and scale invariance",
+       "P0", "property", "MS-7.4", _DYN_SUITE, "implemented"),
+    _c("AC-DYN-005", "Synthesized FRF survives the UFF-58 round trip",
+       "P1", "contract", "MS-7.4", _DYN_SUITE, "implemented"),
 )
 
 _BY_ID = {c.test_id: c for c in REGISTRY}

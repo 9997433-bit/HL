@@ -69,7 +69,9 @@ update); **P1** = core parity feature missing; **P2** = enhancement / scale / po
 | Analytic dK/dp / dM/dp providers wired to the element library | **Absent** | Fox-Kapoor is fed by hand |
 | Parameter target resolver (`material.<id>.<attr>`) | **Absent** | declared "Round 2" in `updating/parameters.py` |
 | Bayesian updating / UQ / parameter collinearity diagnostics | **Absent** | promised by AC-UPD-006/007 |
-| Optimization backend | **Stub** | `optimization/__init__.py::solve` raises `NotImplementedError` |
+| Sizing optimization hook (mass objective, MAC-tracked frequency constraints) | Present | `optimization/sizing.py`, `docs/OPTIMIZATION.md` |
+| Optimizer backend (SLSQP / trust-constr, KKT termination report) | Present | `optimization/backends.py` |
+| Shape optimization (geometric `dK/da`), topology optimization, DOE/surrogates | **Absent** | morph and geometry gradient only; see `docs/OPTIMIZATION.md` §4 and its staging table |
 
 ### L0/L4 Foundation & interfaces (`io`, `cli`)
 | Capability | Status | Evidence |
@@ -96,7 +98,7 @@ at audit time the suite did **not** collect cleanly (Appendix A).
 | Dynamics | FRF synthesis, forced response, structural modification | **Absent** |
 | Pretest & Correlation | Sensor/exciter placement (EI), TAM, geometry mapping, MAC/COMAC/orthogonality, FRF correlation | Shape metrics + pairing present; **pretest, TAM, mapping, FRF metrics absent** |
 | Model Updating | Sensitivity-based (freq/shape/FRF/mass residuals), local/global parameters, robust estimation | Freq+MAC residual LM updater present; **FRF/mass residuals, parameter resolver, analytic dK/dp absent** |
-| Optimization | Sizing/shape optimization on validated models | **Stub** |
+| Optimization | Sizing/shape optimization on validated models | Sizing hook present (AC-OPT-001..004 verified); **shape/topology optimization absent** |
 | MPE | Modal parameter extraction from measured FRFs, stabilization diagrams | **Absent** |
 | Probabilistic Analysis | Monte Carlo, DOE, response surfaces | **Absent** |
 
@@ -127,7 +129,7 @@ at audit time the suite did **not** collect cleanly (Appendix A).
 | GAP-09 | P1 | Correlation | No geometry alignment / automated test-sensor ↔ FE-node mapping | R2 |
 | GAP-10 | P1 | Updating | No parameter target resolver, no assembled dK/dp providers, no mass/shape-difference residuals, no robust estimation, no subset selection/collinearity diagnostics (AC-UPD-007) | R2 |
 | GAP-11 | P1 | UQ | No Bayesian updating (AC-UPD-006), Monte Carlo, DOE, or response surfaces | R3 |
-| GAP-12 | P2 | Optimization | **Closed (R2).** `ScipyBackend.solve` wires SLSQP/trust-constr onto the lowered problem; AC-OPT-001..004 `implemented` in `tests/acceptance/test_optimization.py`. Remaining: no equality constraints, no multistart, geometric `dK/da` for shape variables | R3 |
+| GAP-12 | P2 | Optimization | **Closed for sizing** — scipy backends wired with a KKT termination report, AC-OPT-001..004 verified (`docs/OPTIMIZATION.md`). Open: geometric `dK/da` for shape variables, topology optimization, DOE/surrogates | R3 |
 | GAP-13 | P2 | Scale | Dense threshold 400 DOF; benchmarks stop at 1k DOF vs AC-PERF-001's 50k budget; no LOBPCG/AMG path; no reanalysis acceleration in updating loops | R3 |
 | GAP-14 | P2 | Workflow | CLI `modal`/`correlate`/`update` stubbed; no session report schema (AC-WORK-002) | R2/R3 |
 | GAP-15 | P2 | Visualization | No mode-shape/MAC plotting helpers (deferred by design for v1) | R3+ |
@@ -197,7 +199,7 @@ opportunity to *exceed* FEMtools rather than chase it).
 - **Round 2 (make the core workflow real):** GAP-01 unification first (single Model/Result
   contract, one eigensolver façade, green CI); then GAP-03 (UFF + BDF subset), GAP-04
   (damping + FRF synthesis), GAP-10 (parameter resolver + assembled dK/dp), GAP-09
-  (node mapping), GAP-02 (QUAD4/TET4/HEX8 minimum set), ~~GAP-12 (scipy backend)~~ (closed),
+  (node mapping), GAP-02 (QUAD4/TET4/HEX8 minimum set), GAP-12 (scipy backend — done),
   GAP-14 (CLI wiring).
 - **Round 3 (parity completion + differentiation):** GAP-06 (LSCF + stabilization), GAP-07
   (EI pretest), GAP-08 (SEREP/TAM + expansion), GAP-05 (FRAC/FRF updating), GAP-11

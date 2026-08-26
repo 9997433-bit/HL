@@ -11,7 +11,7 @@ from collections.abc import Hashable, Sequence
 
 import numpy as np
 
-from ..core.elements import BeamElement2D, SpringElement, TrussElement
+from ..core.elements import BeamElement2D, Quad4Element, SpringElement, TrussElement
 from ..core.model import DOF, Material, Model, Section
 from ..exceptions import ModelError
 
@@ -20,6 +20,7 @@ __all__ = [
     "spring_mass_chain",
     "bar_mesh",
     "beam_mesh",
+    "quad_plate_mesh",
     "truss_from_arrays",
 ]
 
@@ -83,6 +84,9 @@ class MeshBuilder:
 
     def add_beam(self, node_a, node_b, material: Material, section: Section, **kwargs):
         return self.model.add_element(BeamElement2D((node_a, node_b), material, section, **kwargs))
+
+    def add_quad4(self, node_ids: Sequence[Hashable], material: Material, **kwargs):
+        return self.model.add_element(Quad4Element(node_ids, material, **kwargs))
 
     def add_spring(self, node_a, node_b, stiffness: float, dof=DOF.UX):
         return self.model.add_element(SpringElement((node_a, node_b), stiffness, dof=dof))
@@ -251,6 +255,83 @@ def beam_mesh(
     if tip_mass:
         mesh.add_point_mass(node_ids[-1], tip_mass, dofs=(DOF.UY,))
     return mesh.build()
+
+
+def quad_plate_mesh(
+    length: float,
+    height: float,
+    num_x: int,
+    num_y: int,
+    material: Material,
+    *,
+    thickness: float = 1.0,
+    plane: str = "stress",
+    support: str = "cantilever",
+    origin: Sequence[float] = (0.0, 0.0, 0.0),
+    lumped_mass: bool = False,
+    integration_order: int = 2,
+    name: str = "quad plate",
+) -> Model:
+    """Structured ``num_x x num_y`` grid of QUAD4 elements in the XY plane.
+
+    Nodes are numbered row major (``id = row * (num_x + 1) + column``, with the
+    row index running along Y), so ``0`` is the origin corner and
+    ``(num_x + 1) * (num_y + 1) - 1`` the far corner. Element connectivity is
+    counter-clockwise.
+
+    ``support`` selects the boundary conditions: ``"cantilever"`` clamps the
+    ``x = origin_x`` edge, ``"free"`` leaves the plate unsupported (three
+    rigid-body modes), ``"simply-supported"`` pins the two vertical edges in Y
+    and the lower-left node in X.
+    """
+    supports = {"cantilever", "free", "simply-supported"}
+    if support not in supports:
+        raise ModelError(f"unknown support {support!r}; expected one of {sorted(supports)}")
+    if length <= 0.0 or height <= 0.0:
+        raise ModelError(f"length and height must be positive, got {length} and {height}")
+    if num_x < 1 or num_y < 1:
+        raise ModelError(f"num_x and num_y must be >= 1, got {num_x} and {num_y}")
+
+    start = _as_point(origin)
+    model = Model(dofs=(DOF.UX, DOF.UY), name=name)
+
+    def node_id(column: int, row: int) -> int:
+        return row * (num_x + 1) + column
+
+    for row in range(num_y + 1):
+        for column in range(num_x + 1):
+            model.add_node(
+                node_id(column, row),
+                start[0] + length * column / num_x,
+                start[1] + height * row / num_y,
+                start[2],
+            )
+
+    for row in range(num_y):
+        for column in range(num_x):
+            model.add_element(
+                Quad4Element(
+                    (
+                        node_id(column, row),
+                        node_id(column + 1, row),
+                        node_id(column + 1, row + 1),
+                        node_id(column, row + 1),
+                    ),
+                    material,
+                    thickness=thickness,
+                    plane=plane,
+                    lumped_mass=lumped_mass,
+                    integration_order=integration_order,
+                )
+            )
+
+    if support == "cantilever":
+        model.fix_nodes([node_id(0, row) for row in range(num_y + 1)])
+    elif support == "simply-supported":
+        model.fix_nodes([node_id(0, row) for row in range(num_y + 1)], (DOF.UY,))
+        model.fix_nodes([node_id(num_x, row) for row in range(num_y + 1)], (DOF.UY,))
+        model.fix(node_id(0, 0), (DOF.UX,))
+    return model
 
 
 def truss_from_arrays(

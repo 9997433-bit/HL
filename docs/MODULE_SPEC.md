@@ -493,6 +493,7 @@ M1 ModalResult ──▶ M2 correlate ──▶ CorrelationReport ─┐
                             │                          │
 M4 run_correction orchestrates S1..S6 ◀────────────────┘
 M5 minimize_sizing reuses M1 solves + M3 sensitivity kernel + M2 mode tracking
+M6 damped dynamics extends M1 modes to FRFs; FRAC/FDAC feed M2 correlation
 ```
 
 - Mass-normalized, sign-fixed modes (MS-1.3) are the invariant every consumer
@@ -502,3 +503,115 @@ M5 minimize_sizing reuses M1 solves + M3 sensitivity kernel + M2 mode tracking
 - Acceptance criteria in `docs/ACCEPTANCE_CRITERIA.md` bind each requirement
   above to a measurable test; the ID registry is enforced by
   `tests/acceptance/test_criteria_registry.py`.
+
+---
+
+## 7. Module M6 — Damped Dynamics and Frequency Response (`openfemlab.solver.dynamics`) (MS-7)
+
+Round-2 module (R2-T01) carrying the M1 undamped eigenproblem through to the
+quantity a test campaign actually measures: the frequency response function.
+Numbering note — MS-6 is the inter-module contracts section above, so the
+sixth module takes the anchor prefix `MS-7`.
+
+### MS-7.1 Damping models
+
+Three descriptions, all reducible to the modal coefficient `2ζ_rω_r` the FRF
+denominator consumes:
+
+| Model | Physical form | Modal ratio |
+|---|---|---|
+| Rayleigh (proportional) | `C = αM + βK` | `ζ_r = α/(2ω_r) + βω_r/2` |
+| Modal | none in general | `ζ_r` given per mode |
+| Structural (hysteretic) | `K(1 + iη)` | `ζ_r = η/2` at every frequency |
+
+- Rayleigh exposes `2ζ_rω_r = α + βω_r²` directly so a rigid-body mode
+  (`ω_r = 0`) stays finite where the ratio itself diverges.
+- Fits: two-point anchoring (`from_frequencies`), least-squares over measured
+  modal damping (`from_modal_damping`), and the mass-/stiffness-only
+  degenerate cases.
+- `modal_damping_matrix` realizes prescribed modal ratios physically as
+  `C = MΦ diag(2ζ_rω_r/m_r) ΦᵀM`; the Caughey–O'Kelly residual
+  `‖CM⁻¹K − KM⁻¹C‖` (`proportionality_index`) classifies any `C` as
+  classical or not.
+- Structural damping has no viscous matrix unless a reference frequency is
+  named; requesting one without it raises `SolverError` (MS-0.3).
+
+### MS-7.2 Complex (damped) modes
+
+The quadratic eigenproblem `(s²M + sC + K)φ = 0` is solved through the
+symmetric state-space linearization
+
+```
+A = [[C, M], [M, 0]],   B = [[K, 0], [0, −M]],   (sA + B)ψ = 0,  ψ = [φ; sφ]
+```
+
+- One member of each conjugate pair is retained; overdamped (real) roots have
+  no partner and are flagged by `is_oscillatory`.
+- Default `"state"` normalization scales each mode to unit modal-A
+  `a_r = φ_rᵀCφ_r + 2s_rφ_rᵀMφ_r`, the scaling that makes the residue
+  numerator exactly `φ_rφ_rᵀ`.
+- Derived spectrum: `ω_r = |s_r|`, `ω_d = |Im s_r|`, `ζ_r = −Re s_r/|s_r|`.
+- Modal Phase Collinearity grades how monophase each mode is; proportional
+  damping must return MPC = 1 to machine precision (AC-DYN-003).
+- Massless retained DOFs make the pencil singular and raise `SolverError`
+  rather than returning junk eigenvalues.
+
+### MS-7.3 Harmonic response and FRF synthesis
+
+Receptance is displacement per unit force; mobility is `iωH` and accelerance
+`−ω²H`, and the three are interconvertible on a `FrequencyResponse`
+(conversion to a lower order at 0 Hz is refused as singular).
+
+- **Real-mode superposition** (`modal_frf`):
+  `H_jk(ω) = Σ_r φ_jrφ_kr / (m_r[(ω_r² − ω²) + iω·2ζ_rω_r])`, optionally plus
+  a residual-flexibility matrix `R = K⁻¹ − Σ_r φ_rφ_rᵀ/(m_rω_r²)` that
+  restores the static contribution of the truncated modes.
+- **Complex-mode residues** (`complex_modal_frf`):
+  `H(iω) = Σ_r [φ_rφ_rᵀ/(a_r(iω − s_r)) + conj]`, valid for non-proportional
+  damping where real-mode superposition is not.
+- **Direct inversion** (`direct_frf`, `harmonic_response`): solve
+  `Z(ω)x = f` with `Z = (1 + iη)K − ω²M + iωC` per frequency line. This is the
+  untruncated reference the two syntheses are gated against (AC-DYN-002), and
+  a singular `Z` raises `SolverError` naming the offending frequency.
+- With the full basis retained, both syntheses must reproduce direct inversion
+  to solver precision; against a closed-form 1-DOF/2-DOF oracle the receptance
+  must match to 1e-8 relative off resonance (AC-DYN-001).
+
+### MS-7.4 FRF correlation metrics
+
+- **FRAC** — `|h_aᴴh_b|² / ((h_aᴴh_a)(h_bᴴh_b))` over the frequency axis: the
+  FRF analogue of MAC (MS-2.2), 1 for FRFs differing only by a complex scale.
+- **FDAC** — the same ratio between the deflection shapes of two FRF sets at
+  every pair of frequency lines; a clean diagonal means matched resonances and
+  an off-diagonal ridge exposes a frequency shift.
+- Both are re-exported through `openfemlab.correlation` so FRF correlation
+  reaches consumers through the M2 namespace without a second implementation
+  (the GAP-01 rule). Degenerate (zero-norm) inputs return 0 rather than NaN.
+- Self-identity and scale invariance mirror AC-CORR-001/002 and are gated by
+  AC-DYN-004.
+- Measured FRFs enter through the dataset-58 reader (`io/uff.py`); a
+  synthesized `FrequencyResponse` written in that format must survive the
+  round trip and correlate at FRAC = 1 with its source (AC-DYN-005).
+
+### MS-7.5 Public API
+
+```python
+def complex_modes(K, M, C=None, num_modes=None, *, free_dofs=None,
+                  normalization: str = "state") -> ComplexModalResult
+
+def modal_frf(frequencies, modes, damping=0.0, *, modal_masses=None,
+              num_modes=None, response_dofs=None, excitation_dofs=None,
+              residual=None,
+              response_type: str = "receptance") -> FrequencyResponse
+
+def direct_frf(frequencies, K, M, C=None, *, free_dofs=None,
+               structural_damping=None, response_dofs=None,
+               excitation_dofs=None,
+               response_type: str = "receptance") -> FrequencyResponse
+
+def harmonic_response(frequencies, K, M, C=None, *, load, free_dofs=None,
+                      structural_damping=None) -> np.ndarray
+
+def frac(reference, comparison, *, axis: int = 0)
+def fdac(reference, comparison) -> np.ndarray
+```

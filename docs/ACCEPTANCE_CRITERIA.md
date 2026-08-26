@@ -19,7 +19,8 @@ stay consistent (unique IDs, no dangling references, no numbering gaps).
 AC-<MODULE>-<NNN>[<suffix>]
 ```
 
-- `<MODULE>` ∈ `MODAL` (M1), `CORR` (M2), `UPD` (M3), `WORK` (M4), `OPT` (M5).
+- `<MODULE>` ∈ `MODAL` (M1), `CORR` (M2), `UPD` (M3), `WORK` (M4), `OPT` (M5),
+  `DYN` (M6).
 - `<NNN>`: three-digit number, dense per module (no gaps).
 - `<suffix>`: optional single lowercase letter for closely coupled
   sub-criteria that share a number (e.g. `AC-UPD-006a` / `AC-UPD-006b`).
@@ -273,7 +274,53 @@ default branch). The registry file is the single source of truth for status.
 
 ---
 
-## 7. Registry and enforcement
+## 7. M6 — Damped Dynamics and FRF (spec MS-7)
+
+Added in Round 2 by R2-T01 (gaps GAP-04/05). The module extends the M1
+eigenproblem to damped response; its correlation metrics (FRAC/FDAC) are the
+frequency-domain counterparts of the M2 gates AC-CORR-001/002.
+
+| ID | Pri | Criterion (summary) | Quantitative gate | Spec |
+|----|-----|--------------------|-------------------|------|
+| AC-DYN-001 | P0 | Damped FRF vs closed form | 1-DOF/2-DOF receptance rel. err ≤ 1e-8 off resonance | MS-7.3 |
+| AC-DYN-002 | P0 | Modal superposition = direct inversion | full basis: rel. err ≤ 1e-8 vs `Z(ω)⁻¹` | MS-7.3 |
+| AC-DYN-003 | P0 | Proportional damping ⇒ real modes | MPC ≥ 1 − 1e-8; ζ_r matches `α/(2ω_r) + βω_r/2` to 1e-10 | MS-7.2 |
+| AC-DYN-004 | P0 | FRAC/FDAC self-identity and invariance | self-FRAC = 1 ± 1e-12; scale change ≤ 1e-12; FDAC diagonal = 1 | MS-7.4 |
+| AC-DYN-005 | P1 | Synthesized FRF survives UFF-58 round trip | abscissa and ordinate recovered to ≤ 1e-9 rel.; FRAC = 1 | MS-7.4 |
+
+### Details
+
+- **AC-DYN-001** (`oracle`) — For the viscously damped 1-DOF oscillator the
+  synthesized receptance equals `1/(k − mω² + iωc)` and for the 2-DOF analytic
+  fixture it equals the closed-form inverse of the 2×2 dynamic stiffness, both
+  to relative error ≤ 1e-8 on a frequency line that avoids the resonances.
+  Mobility and accelerance views satisfy `iωH` and `−ω²H` exactly.
+- **AC-DYN-002** (`property`) — With the complete modal basis retained,
+  `modal_frf` (real modes, proportional damping) and `complex_modal_frf`
+  (complex modes, non-proportional damping) both reproduce `direct_frf` to
+  relative error ≤ 1e-8 at every frequency line and every FRF entry. A
+  truncated real-mode synthesis plus `residual_flexibility` reproduces the
+  exact static (0 Hz) receptance.
+- **AC-DYN-003** (`property`) — For `C = αM + βK`, the complex modes are
+  monophase: MPC ≥ 1 − 1e-8 per mode, the extracted damping ratios match
+  `ζ_r = α/(2ω_r) + βω_r/2` to 1e-10, the damped frequencies match
+  `ω_r√(1 − ζ_r²)`, and `is_proportional(K, M, C)` is true while a
+  deliberately non-proportional `C` (single grounded dashpot) is rejected.
+- **AC-DYN-004** (`property`) — `frac(h, h) = 1` within 1e-12; scaling either
+  FRF by a nonzero complex constant leaves FRAC unchanged within 1e-12; the
+  FDAC matrix of a response set against itself has a unit diagonal and is
+  symmetric; a zero-norm input yields 0 rather than NaN. This mirrors
+  AC-CORR-001/002 in the frequency domain.
+- **AC-DYN-005** (`contract`) — A synthesized receptance line written as an
+  ASCII dataset-58 record (complex, even abscissa spacing) and read back with
+  `openfemlab.io.uff.read_uff_functions` recovers the frequency abscissa and
+  the complex ordinates to ≤ 1e-9 relative, and correlates with the source at
+  FRAC = 1, so measured and synthesized FRFs are interchangeable in the
+  correlation pipeline.
+
+---
+
+## 8. Registry and enforcement
 
 `tests/acceptance/test_criteria_registry.py` holds the machine-readable
 registry (one entry per criterion: ID, title, module, spec anchor, priority,

@@ -11,6 +11,9 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 ## Branch
 `cursor/femtools-industrial-7aa3`
 
+## Pull Request
+[PR #5](https://github.com/9997433-bit/HL/pull/5) is open against `main`.
+
 ## 永久编排规则（不可遗忘）
 - **始终保持 10 个子代理并发满负荷运行**
 - 任一子代理完成/失败 → 主调度器**立即**派发新 Task 补齐至 10
@@ -37,6 +40,14 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A02 | claude-fable-5-thinking-xhigh | M5 optimization design & stubs: size/shape hooks, gradient interface, `docs/OPTIMIZATION.md` (backfill for A05) | complete |
 | A28 | claude-opus-5-thinking-high-fast | Dynamics/optimization branch integration onto the trunk (backfill for A15) | complete |
 | A32 | claude-fable-5-thinking-xhigh | Round 1 closure: 430-test/Ruff verification, PR draft, progress reconciliation (backfill for A29) | complete |
+| A30 | claude-fable-5-thinking-xhigh | Round 1 close-out: independent full-suite verification & PR-draft completion (backfill for A14) | complete |
+| A27 | claude-opus-5-thinking-high-fast | R2-T07 scipy optimization backend & AC-OPT gates (backfill for A25) | complete |
+| A39 | gpt-5.6-sol-xhigh-fast | R2-T07 post-integration verification & PR-draft refresh (backfill for A27) | complete |
+| A36 | claude-opus-5-thinking-high-fast | R2-T03 start: `correlation/reduction.py` (Guyan/IRS/SEREP, TAM mass, expansion) + 2-DOF suite (backfill for A32) | complete |
+| A23 | claude-fable-5-thinking-xhigh | Round 1 sign-off audit: independent multi-tip verification & first PR body draft (backfill for A20) | complete |
+| A42 | gpt-5.6-sol-xhigh-fast | 498-test baseline timestamp & current-tip CI verification (backfill for A39) | complete |
+| R2-T02 | claude-opus-5-thinking-high-fast | GAP-02 QUAD4 plane-stress/plane-strain element, patch test & modal suite (backfill for A19) | partial — QUAD4 slice landed; TET4/HEX8/3D beam open |
+| A37 | claude-opus-5-thinking-high-fast | Merge the QUAD4 branch onto the trunk and re-verify the suite (backfill for R2-T02) | complete |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
@@ -926,21 +937,30 @@ integrate rather than fork.
   gradients).
 
 ### Round 2 — Targeted Refactor & Deep Optimization
-**Status:** KICKED OFF — backlog planned in `.agent_workspace/ROUND2_PLAN.md` (A24); the
-MS-4 workflow carried over from Round 1 is landed and verified at `5bc6a6d` (A26), and the
+**Status:** IN PROGRESS — backlog planned in `.agent_workspace/ROUND2_PLAN.md` (A24); the
+MS-4 workflow carried over from Round 1 is landed and verified at `5bc6a6d` (A26), the
 damped-dynamics and optimization tracks are merged in at `acda625` (A19 implementation,
-A28 integration)
+A28 integration), **R2-T01 is DONE** — AC-DYN-001..005 registered and implemented — and
+**R2-T02 is PARTIAL**, its QUAD4 slice merged onto the trunk by A37
 
 Core backlog (prioritized, from `docs/SOTA_GAP_ANALYSIS.md` §4/§6 + Round 1 conclusion):
-1. **R2-T01 Dynamics/FRF chain** (GAP-04/05, P0) — damping models, harmonic response,
-   FRF synthesis, FRAC/FDAC. The engine is landed: `cursor/dynamics-damping-frf-9500`
-   was merged into the trunk at `acda625`. What remains is the AC-DYN-* criteria
-   registered spec-first against that API, plus the measured-vs-synthesized FRF demo
-   named in the Round 2 exit bar.
+1. ~~**R2-T01 Dynamics/FRF chain** (GAP-04/05, P0) — damping models, harmonic response,
+   FRF synthesis, FRAC/FDAC.~~ **DONE.** The engine landed with the `acda625` merge of
+   `cursor/dynamics-damping-frf-9500`, and AC-DYN-001..005 are now registered spec-first
+   against that API and `implemented` (see the R2-T01 entry below). GAP-04 is closed;
+   GAP-05 is closed apart from the FRF updating residual the plan defers to Round 3.
+   Handed on to the exit-bar work: the measured-vs-synthesized FRF demo through the CLI,
+   and an FRF block in the `CorrelationReport` schema.
 2. **R2-T02 3D continuum elements** (GAP-02, P0) — QUAD4/TET4/HEX8 + 3D beam with patch
-   /convergence gates (AC-MODAL-001/003/004/007 extended, new AC-ELEM-*).
+   /convergence gates (AC-MODAL-001/003/004/007 extended, new AC-ELEM-*). **PARTIAL:
+   QUAD4 is landed on the trunk**, merged from `cursor/quad4-plane-stress-element-b99c`
+   by A37 (see the R2-T02 and A37 entries below); TET4, HEX8, the 3D beam, the
+   `CQUAD4`/`CTETRA`/`CHEXA`/`PSHELL`/`PSOLID` BDF cards and the AC-ELEM-* registry rows
+   are the remaining slice.
 3. **R2-T03 SEREP/TAM reduction & expansion** (GAP-08) — Guyan/IRS/SEREP, TAM
-   pseudo-orthogonality, shape expansion; closes Round-2 gate AC-CORR-006.
+   pseudo-orthogonality, shape expansion; closes Round-2 gate AC-CORR-006. *Engine
+   landed by A36 (`correlation/reduction.py`, 25 tests); the AC-CORR-006 acceptance test
+   and the AC-CORR-009 registration are what remain — see the A36 entry below.*
 4. **R2-T04 Bayesian MAP updating** (GAP-11 slice, MS-3.5) — Gaussian-prior MAP step +
    posterior covariance; closes Round-2 gates AC-UPD-006a/b.
 5. **R2-T05 meshio bridge & IO completion** (GAP-03 remainder) — optional-dependency
@@ -948,9 +968,72 @@ Core backlog (prioritized, from `docs/SOTA_GAP_ANALYSIS.md` §4/§6 + Round 1 co
 
 Supporting: R2-T06 updating depth (incl. the still-unimplemented **P0** AC-UPD-007
 collinearity screen), R2-T07 scipy optimization backend (GAP-12 — the surrounding M5
-package landed at `acda625`, so this is now only `ScipyBackend.solve`), R2-T08 R1-O2
-branch reconciliation, R2-T09 CI exit hardening. Exit bar: all P0+P1 criteria `verified`,
+package landed at `acda625` and `ScipyBackend.solve` is now wired too, so this is
+**done**, A27), R2-T08 R1-O2 branch reconciliation, R2-T09 CI exit hardening.
+Exit bar: all P0+P1 criteria `verified`,
 new dynamics/element/IO criteria at least `implemented`, GAP-01 stays closed.
+
+#### R2-T01 — Dynamics & FRF chain closed out (GAP-04/05, P0)
+- **Integration first, and only one implementation.** The plan's binding constraint was
+  to harvest `cursor/dynamics-damping-frf-9500` rather than fork a rival dynamics kernel
+  (the GAP-01 lesson). Confirmed done: A28's merge `acda625` carries `solver/dynamics.py`
+  (1,288 lines — damping models, complex modes, FRF synthesis, FRAC/FDAC),
+  `tests/test_dynamics.py` (**82 passed**) and the `optimization/` sizing contracts, and
+  `frac`/`fdac` are defined in exactly one place on the branch. This entry adds the
+  spec-first half of R2-T01 that the merge did not cover.
+- **Criteria registered spec-first.** `MODULE_SPEC.md` §7 defines module **M6** with
+  anchors **MS-7.1..7.5** (damping models, complex modes, harmonic response and FRF
+  synthesis, FRF correlation, public API). MS-6 was already the inter-module contracts
+  section, so the sixth module takes the `MS-7` prefix rather than renumbering live
+  anchors. `ACCEPTANCE_CRITERIA.md` §7 defines AC-DYN-001..005; the registry gained the
+  `DYN` family (→ M6) and all five entries at `implemented`, which the enforcement tests
+  accept only because `tests/acceptance/test_dynamics.py` carries a `@criterion` tag for
+  each ID.
+- **AC-DYN-001** (`oracle`, gate 1e-8) — 1-DOF damped receptance against
+  `1/(k − mω² + iωc)`: direct inversion **exact (0)**, real-mode superposition
+  **1.9e-16**. 2-DOF fixture against the hand-inverted 2×2 dynamic stiffness on 31
+  off-resonance lines: **1.1e-15** direct, **1.2e-15** modal. Mobility and accelerance
+  are checked against `iωH` and `−ω²H`, so the MS-7.3 conventions are pinned rather than
+  assumed.
+- **AC-DYN-002** (`property`, gate 1e-8) — with the full basis retained on the 10-DOF
+  chain, real-mode superposition matches `Z(ω)⁻¹` to **8.0e-15**; for a deliberately
+  non-classical `C` (single grounded dashpot, Caughey–O'Kelly residual **0.632**) the
+  complex-mode residue expansion matches to **8.4e-15** — the case where real-mode
+  superposition is not valid at all. Truncating to 3 of 10 modes costs **4.6 %** at 0 Hz
+  and `residual_flexibility` brings it back to **9.8e-16**; the test asserts the
+  truncation error is real before crediting the correction.
+- **AC-DYN-003** (`property`) — for `C = αM + βK` (α=0.02, β=0.004, ζ spanning
+  **0.90 %..6.72 %** across the chain spectrum) the complex modes are monophase to
+  **1 − 2.2e-16** MPC, the extracted ratios match `α/(2ω_r) + βω_r/2` to **1.2e-15**, and
+  `ω_d = ω_r√(1 − ζ²)` holds. The negative control is what makes the gate meaningful: the
+  grounded dashpot drops the worst MPC to **0.7516** and `is_proportional` rejects it.
+- **AC-DYN-004** (`property`, gate 1e-12) — the frequency-domain mirror of
+  AC-CORR-001/002. Self-FRAC deviates by **4.4e-16**; 8 seeded complex scale factors move
+  FRAC by at most **1.2e-15** against a non-trivial reference (cross-DOF FRAC spans
+  **0.0014..0.5353**, so invariance is measured against real signal, not against 1); the
+  FDAC diagonal is unit to **8.9e-16** with **exact** symmetry; zero-norm inputs return 0,
+  not NaN.
+- **AC-DYN-005** (`contract`, gate 1e-9) — a synthesized drive-point receptance written
+  as an ASCII dataset-58 record (ordinate type 6, even spacing) and read back through
+  `io/uff.py` recovers the abscissa **exactly** and the complex ordinates to **1.2e-13**,
+  correlating with its source at FRAC **1 − 0**. The formatter lives in the test, not the
+  library: the criterion gates the reader contract, and UFF *writing* stays R2-T05 scope.
+- **FRAC/FDAC reachable from the correlation namespace.** `openfemlab.correlation` and
+  the package root now re-export `frac`/`fdac` from `solver.dynamics` — a re-export, not
+  a copy, and the import points downward (correlation is L3, solver L2). The
+  `CorrelationReport` schema is deliberately untouched: an FRF block there is a
+  `schema_version` bump that belongs with the CLI demo in the exit-bar work.
+- Verified on Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1: `tests/test_dynamics.py`
+  **82 passed**, `tests/acceptance` **59 passed** (13 new AC-DYN tests + 46 existing),
+  full suite **443 passed** (430 before this change), Ruff clean.
+- **Working-tree hazard, fourth occurrence** — and this time it destroyed work rather
+  than just risking it. The R2-T02 element agent was editing `/workspace` concurrently;
+  midway through, a reset there wiped four of this task's edited files
+  (`MODULE_SPEC.md`, `ACCEPTANCE_CRITERIA.md`, the registry, `correlation/__init__.py`)
+  out of the tree, and the editable install briefly resolved `openfemlab` to
+  `/tmp/a28/src`. The work was redone in a private detached worktree at `/tmp/r2t01` and
+  pushed from there. A13, A15, A21 and A26 all report the same failure mode; the
+  private-worktree rule should be mandatory, not advisory.
 
 #### A26 — Round 1 carry-over cleared: MS-4 workflow landed (backfill for A17)
 - Round 1 closed with the MS-4 `workflow/` package listed as its single largest piece of
@@ -990,12 +1073,112 @@ new dynamics/element/IO criteria at least `implemented`, GAP-01 stays closed.
   rule mandatory rather than advisory, since `git clean`/branch-switch collateral is not
   something the offending agent can see.
 
+#### R2-T02 — QUAD4 plane-stress/plane-strain element (first slice of GAP-02; PARTIAL)
+- **The first continuum element on the branch.** `ElementType.QUAD4` has been declared in
+  `core/neutral.py` since Round 1 with no formulation behind it, so an imported shell mesh
+  could be correlated but never re-analyzed. `core/elements.py` now carries
+  `Quad4Element`: a four-node isoparametric bilinear quadrilateral in the XY plane
+  (`UX`, `UY`), with `K = t ∫ BᵀDB dA` and `M = ρt ∫ NᵀN dA` on a tensor-product
+  Gauss-Legendre rule (`gauss_legendre_2d`, 1–4 points per direction, 2×2 by default,
+  which integrates both exactly for any non-degenerate quadrilateral). Plane stress and
+  plane strain share one `plane_constitutive_matrix` helper; mass is consistent by
+  default, or row-sum lumped, which preserves the total mass for any element shape.
+  `strain()`/`stress()` recover the element state at any natural point.
+- **Validation is refused rather than tolerated.** A non-positive Jacobian at any Gauss
+  point — degenerate, inverted, or clockwise connectivity — raises `ElementError` naming
+  the point, and nodes spanning Z beyond 1e-9 of the in-plane scale are rejected instead
+  of being silently projected. A constant Z offset is accepted, so a plate at `z = 3.5`
+  gives bit-identical matrices to the same plate at `z = 0`.
+- `mesh/simple.py` gained `quad_plate_mesh(length, height, num_x, num_y, material, …)` —
+  a row-major structured grid with counter-clockwise connectivity and
+  `cantilever`/`free`/`simply-supported` supports — plus `MeshBuilder.add_quad4`, so the
+  convergence and modal fixtures are generated rather than hand-written.
+- **Patch test, exactly.** The MacNeal-Harder five-element distorted patch (0.24 × 0.12
+  rectangle, four interior nodes, boundary field `u = 1e-3(x + y/2)`,
+  `v = 1e-3(y + x/2)`) recovers the interior displacements to **2.7e-20 absolute against
+  a 2e-4 field** — machine precision — and every element reports the exact constant stress
+  **σₓ = σᵧ = 1333.333, τₓᵧ = 400.0** at every sample point, for integration orders 2 and 3
+  alike. At element level an arbitrary constant strain state is reproduced to 1e-12
+  relative on a distorted quad, and its consistent nodal forces are self-equilibrated.
+- **Zero-energy modes are counted, not assumed.** With full 2×2 integration a distorted
+  element has exactly **three** zero eigenvalues (the planar rigid-body motions) and no
+  hourglass modes; the suite also pins the counterpart, that one-point reduced integration
+  is rank deficient with **five**. Rigid translation produces no nodal force and rigid
+  rotation produces neither strain nor strain energy, both to 1e-12 of the matrix scale.
+- **Modal results.** With `ν = 0` the column-constant axial subspace of a rectangular
+  QUAD4 strip is both K- and M-invariant and coincides with a linear bar discretization,
+  so the strip's axial spectrum must equal `bar_mesh`'s exactly — measured agreement is
+  **2.4e-13 relative** over three modes, which is a far sharper oracle than a continuum
+  comparison. Against the continuum bar the first axial frequency converges
+  quadratically, error **4.1e-3 → 1.0e-3 → 2.6e-4** for 5/10/20 elements. Bending is the
+  honest weak spot and is recorded as such: bilinear elements carry bending through shear,
+  so a cantilever strip locks *from above* at **+18.7 % → +4.9 % → +1.2 %** for
+  20×2 / 40×4 / 80×8, a clean 4× error reduction per refinement. A free plate returns
+  exactly three rigid-body modes with the first elastic mode at 6.9 kHz, cantilever modes
+  are mass-orthonormal to < 1e-9, plane strain is stiffer than plane stress, and lumped
+  mass is never stiffer than consistent mass.
+- Added `tests/test_quad4.py` — **61 tests** covering shape-function and quadrature
+  identities, the two constitutive closed forms, geometry validation and every error path,
+  stiffness invariances (including in-plane rotation and linear scaling in `t` and `E`),
+  the patch tests above, mass bookkeeping (total mass in each direction, lumped = row sum,
+  massless material), the mesh generator and assembly, and the modal checks.
+- Verified on Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1: full suite **491 passed**
+  (430 + 61) at `174a0fc`, `ruff check src tests` clean.
+- **Working-tree hazard, fifth occurrence.** Two variants hit this run. The venv's
+  editable install had been repointed at a sibling agent's `/tmp/a28/src`, so an unguarded
+  `pytest` in `/workspace` tested that tree and could not even import `Quad4Element`;
+  every run here pinned `PYTHONPATH`. Then a concurrent agent ran
+  `git reset --hard origin/…` plus a branch checkout on the shared clone mid-commit, which
+  deleted `tests/test_quad4.py` from disk and left the branch pointer on a foreign tree.
+  The work was recovered from the reflog commit `6e6d126` and finished in a private
+  worktree at `/tmp/quad4wt`. The same `git add -A src` also swept a concurrent agent's
+  uncommitted `correlation/__init__.py` FRAC/FDAC edit into the first commit; it was
+  dropped from the recovered one, so this branch touches only element, mesh and export
+  files.
+- Open for the orchestrator: the AC-ELEM-001/002/003 registry rows the A24 plan proposes
+  are **not** registered — this branch adds no criteria IDs, so the spec-first rule is not
+  violated, but the numbers above are exactly the evidence those rows want (AC-ELEM-001
+  patch test at machine precision, AC-ELEM-002 rigid-body invariance, AC-ELEM-003
+  quadratic h-convergence). Registering them should land with the TET4/HEX8 slice, in the
+  same change as the `ACCEPTANCE_CRITERIA.md` / `MODULE_SPEC.md` edits.
+
 **Round 2 entry state.** Both packages Round 1 left uncommitted are now in and green:
 `workflow/` via A13/A26, and the `optimization/` build-out (`variables`, `responses`,
 `gradients`, `problem`, `sizing`, `backends`) via the A28 merge below. No Round-1
-carry-over remains, and what R2-T07 still owes is narrower than the plan states — the
-package is landed and tested, and only `ScipyBackend.solve` is a stub. The A24 backlog
-above is otherwise the live plan.
+carry-over remains, and R2-T07's remaining debt — `ScipyBackend.solve` — was cleared by
+A27. The A24 backlog above is otherwise the live plan.
+
+#### A37 — QUAD4 branch merged onto the trunk (backfill for R2-T02)
+- Merged `cursor/quad4-plane-stress-element-b99c` into the integration branch. The branch
+  had been cut from `b9d26f0` and the trunk had moved on by the R2-T01 dynamics close-out,
+  the AC-DYN/AC-MODAL/AC-OPT acceptance batches and the A27 optimization backend, so the
+  merge was replayed against the current trunk rather than fast-forwarded.
+- **Conflicts and how they were resolved.** Both were documentation-only:
+  - `PROGRESS.md` Active Pool — the two sides appended different rows to the same table
+    line. Both kept; the R2-T02 row is recorded as **partial** rather than complete, since
+    the branch delivers only the QUAD4 slice of GAP-02.
+  - `ROUND2_PLAN.md` §1 gap table — the trunk had rewritten the GAP-04/05 row to
+    "Closed by R2-T01" while the branch rewrote the adjacent GAP-02 row to "Partial".
+    Both rewrites kept.
+  - `src/openfemlab/__init__.py` auto-merged: the trunk's `SolverConvergenceError` export
+    and the branch's `Quad4Element` / `plane_constitutive_matrix` / `fdac` / `frac`
+    exports land side by side. Verified by resolving all 54 names in `__all__` through
+    the lazy `__getattr__`, so the PEP 562 table and the `TYPE_CHECKING` aliases agree.
+- No source conflicts: the branch only adds to `core/elements.py`, `core/__init__.py` and
+  `mesh/simple.py`, none of which the trunk touched in the interval.
+- **Verification after the merge** (Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1, `PYTHONPATH`
+  pinned at the worktree `src` so the venv's editable install cannot shadow it): full
+  suite **559 passed**, `ruff check .` clean. That is the trunk's 498 plus the branch's
+  61 QUAD4 tests, comfortably past the 491 the R2-T02 record measured in isolation.
+  The trunk moved again while this was being verified (A39's PR-draft refresh and A36's
+  R2-T03 reduction/expansion start), so it was merged back in and re-run: **595 passed**,
+  Ruff still clean. Only the Active Pool table conflicted the second time.
+- **Working-tree hazard, sixth occurrence.** A concurrent agent ran
+  `git reset --hard origin/cursor/femtools-industrial-7aa3` on the shared `/workspace`
+  clone twice during this run, discarding a completed and verified merge commit both
+  times. The merge was redone in a private worktree at `/tmp/a37wt`, which git protects
+  because a branch checked out in one worktree cannot be checked out in another. The
+  private-worktree rule R2-T02 asked to make mandatory should be treated as such.
 
 #### A28 — Dynamics & Optimization Branch Integration (backfill for A15)
 - Merged `cursor/dynamics-damping-frf-9500` into the integration branch at `acda625`,
@@ -1061,6 +1244,129 @@ above is otherwise the live plan.
      FRF correlation metrics. A19 flags the same seam from the other side (they belong in
      `correlation/` if it grows an FRF section); worth settling before the R2-T01 CLI demo
      depends on it.
+
+#### A27 — R2-T07 scipy optimization backend & the AC-OPT gates (backfill for A25)
+- **Cleared the one stub A28 left open.** `9d77b80`/`db36a32` landed the optimization
+  package with a deliberate hole: `ScipyBackend.solve` raised `NotImplementedError`, so
+  `minimize_sizing` could lower a problem but never solve one and all four AC-OPT criteria
+  were unmet. The backend is now wired exactly as `docs/OPTIMIZATION.md` §7 specified it —
+  `Bounds(keep_feasible=True)`, negated inequalities for SLSQP against
+  `NonlinearConstraint(g, -inf, 0)` for trust-constr, `jac` always supplied — and GAP-12 is
+  closed for sizing.
+- **`jac` is not an optimization, it is the contract.** Letting scipy fall back to 2-point
+  differencing would spend one hidden eigensolve per variable per iteration on top of the
+  analytic Fox-Kapoor gradients the package already computes for free, so a problem with no
+  gradient callback now raises `OptimizationError` rather than silently costing 4x.
+- **Bounds audit made non-tautological.** Points are projected onto the box before they
+  reach the model, but `OptimizationIterate.x` stores the *raw* point the backend reported,
+  so `in_bounds` audits AC-OPT-003 instead of restating the projection. The acceptance test
+  additionally spies on the compiled callbacks and asserts that no point the model is asked
+  to evaluate leaves the box.
+- **One stationarity measure for both methods.** SLSQP reports a final gradient norm and
+  trust-constr an `optimality`; neither is comparable to the other. `kkt_residual` instead
+  solves the NNLS fit of the multipliers of the active inequalities and active bounds and
+  reports `‖df/dx + Σ λ_k dg_k/dx + μ_bounds‖` relative to the gradient scale, so a run's
+  first-order optimality reads the same whichever backend produced it.
+- **Reference problem with a closed-form oracle.** A grounded spring-mass chain where
+  `t_j` scales the stiffness *and* the structural mass of link `j` over a fixed
+  non-structural mass `m_0`. Without `m_0` a uniform scaling leaves every frequency
+  unchanged and mass minimization stops fighting the frequency floor; with it the optimum
+  is on the constraint boundary. Scaling every link together gives
+  `λ_i(t) = t μ_i/(t m_s + m_0)`, so `f_1 ≥ f_min` binds at
+  `t* = ω² m_0/(μ_1 − ω² m_s)` — an oracle, not a previous run of the code.
+- **Results.** 3-mass chain, `f_min = 0.065 Hz`, `t*` = 2.667380 (mass 9.502139).
+  SLSQP converges in **7 iterations / 8 eigensolves** to `t` = 2.667380
+  (**9.2e-11** relative), `|g| = 0` and stationarity **0.000e+00**; trust-constr agrees to
+  4.9e-6 relative in 16 iterations / 11 eigensolves. Sizing the three links independently
+  reaches mass **3.977** against the uniform design's 9.502 at the same floor, with the
+  constraint active and stationarity 6.9e-06, and no feasible sample out of 80 random
+  draws beats it. AC-OPT-001: analytic vs central FD worst relative error **1.03e-09**
+  (mass objective) and **2.42e-10** (normalized frequency constraint) over three seeded
+  feasible points — three orders inside the 1e-6 gate.
+- Added `tests/acceptance/test_optimization.py`, the suite the registry has named since the
+  criteria were written, and flipped AC-OPT-001..004 from `specified` to `implemented`;
+  the registry's own status-honesty test enforces the tagging. Extended
+  `tests/test_optimization.py` over the wired backend, replacing the test that pinned the
+  stub's stub-ness.
+- Verified on Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1: full suite **485 passed** (13 s)
+  after the final rebase onto `2f9d6e6`, `ruff check src tests` clean.
+- Open for the orchestrator: shape variables still route through finite differences (no
+  geometric `dK/da`), `problem_from_updater` is wired and gradient-checked but nothing
+  drives `ModelUpdater` through it yet, and DOE/surrogates remain Round 3. Ran in a private
+  worktree at `/tmp/a27` — the shared `/workspace` checkout was on another agent's branch
+  with uncommitted optimization drafts when this task started, and A28's ref-level variant
+  of the same hazard is recorded above.
+
+#### A39 — R2-T07 post-integration verification (backfill for A27)
+- Reset the feature branch to remote tip `f0c65c2` and independently ran the complete suite
+  from a private worktree with `PYTHONPATH` pinned to that checkout: **498 passed, 0 failed**
+  in 29.42 s on Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1. The increase from A27's 485 is
+  the 13-test AC-DYN acceptance batch subsequently landed by R2-T01.
+- Refreshed `.agent_workspace/PR_DRAFT.md` from the stale 430-test baseline to 498,
+  including the exact per-suite total, and replaced the obsolete backend-stub wording:
+  `ScipyBackend` now implements SLSQP and trust-constr with analytic Jacobians, hard bounds,
+  iteration/KKT audit fields, and standardized constraint mapping. **GAP-12 is closed for
+  sizing optimization.**
+
+#### A36 — R2-T03 started: reduction / expansion module (backfill for A32)
+- Opened `src/openfemlab/correlation/reduction.py`, the GAP-08 / MS-2.1 bridge the plan
+  ranks as the top Round-2 sign-off blocker. One `ReductionBasis` dataclass carries the
+  transformation `u_full = T u_master` plus the master rows it was built for, and knows
+  three operations every consumer needs: `reduce_matrix` (`TᵀAT`, symmetrized),
+  `reduce_shapes` (pick the sensor rows), and `expand` (`T Φ_master`). Three constructors
+  fill it: `guyan_reduction` (static condensation, `T_s = [I; −K_ss⁻¹K_sm]`),
+  `irs_reduction` (`T_s + S M T_s M_r⁻¹K_r`), and `serep_basis`
+  (`T = Φ_full (Φ_sensor)⁺`). `expand_shapes` is the MS-2.1 one-liner
+  `Φ_test^full = Φ_fe (T Φ_fe)⁺ Φ_test`; `tam_mass` returns `TᵀMT`, which feeds the
+  existing `correlation.mac.orthogonality` / weighted-MAC machinery unchanged — no second
+  metric kernel was written (GAP-01 rule).
+- **No new numeric kernel forked from the solver either.** `solver/modal.py::_MasslessCondensation`
+  stays the eigensolver's private path; the new module is the general-master-set version
+  of the same algebra and is verified against the property that motivated the private one
+  (a massless slave DOF condenses exactly). Merging the two is a follow-up, not a
+  duplicate: the solver's variant partitions by zero mass and is wired into the
+  eigenproblem's recovery step, while this one takes an arbitrary sensor set.
+- `tests/test_reduction.py`, **25 tests**, built on the 2-DOF chain of
+  `tests/modal_reference.py` with DOF 0 as the only sensor — the smallest model where
+  reduction is a genuine approximation. Every numeric assertion is a closed form, not a
+  recorded value: the Guyan basis `[1, k0/(k0+k1)]ᵀ`, the reduced stiffness as the
+  series spring `k0k1/(k0+k1)`, exactness at `m1 = 0`, and the Rayleigh bracket
+  `λ_1 < λ_guyan < λ_2` when the slave carries mass (λ_guyan = 400 against λ_1 = 325.5,
+  λ_2 = 1474.5 — a 23 % error on one sensor, which is the honest size of the effect the
+  gate exists to catch). IRS cuts that error and collapses back onto Guyan without slave
+  inertia. Two longer-chain cases carry the shape of the pending gates: 3 modes of an
+  8-DOF chain seen by 4 sensors expand back with **MAC ≥ 0.999** (AC-CORR-006), and the
+  SEREP TAM gives pseudo-orthogonality with diag ≥ 0.99 / off-diag ≤ 0.10 (the proposed
+  AC-CORR-009).
+- Verified from a private worktree at `/tmp/a36` with `PYTHONPATH` pinned to it, on
+  Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1: full suite **523 passed** (66 s; 498 before
+  this change), `ruff check src tests` clean. Landed as `7d4bd7b` (module) and `1bbc4d3`
+  (tests) after rebasing twice onto a moving remote tip.
+- **What R2-T03 still owes**, in the order the plan wants it:
+  1. The AC-CORR-006 gate itself. The physics is covered by
+     `test_expansion_of_an_underinstrumented_chain_keeps_mac_above_the_gate`, but the
+     criterion also demands *pairing computed in reduced space equals pairing computed in
+     expanded space*, and it must live in `tests/acceptance/test_correlation.py` tagged
+     `@criterion("AC-CORR-006")` before the registry may leave `specified`. Until that
+     lands the criterion still reads `specified` and P1 sign-off is still blocked.
+  2. AC-CORR-009 (TAM pseudo-orthogonality) is *not* registered. Registering it means
+     editing `docs/ACCEPTANCE_CRITERIA.md`, `docs/MODULE_SPEC.md` and the registry in one
+     commit — the spec-first rule — which is why this change deliberately touched no
+     document: a half-registered ID fails `test_registry_matches_acceptance_criteria_doc`.
+  3. `SensorMap` wiring. The module takes master rows as plain indices, which is exactly
+     `SensorMap.rows`, but it ignores `SensorMap.signs`; a caller with flipped
+     accelerometers must apply `SensorMap.reduce` first. A `from_sensor_map` constructor
+     that folds the signs into `T` is the clean fix.
+  4. Sparse inputs are accepted but densified (`_dense`), fine at Round-2 fixture scale
+     and wrong at GAP-13 scale. Craig-Bampton CMS and geometry-based sensor mapping stay
+     out of scope per the plan.
+
+#### A42 — 498-test baseline timestamp and current-tip verification (backfill for A39)
+- Verification recorded **2026-08-26 07:53:53 UTC**. A39's **498 passed, 0 failed**
+  result remains the post-R2-T07 baseline at `f0c65c2`. After resetting to the current
+  remote tip `8f65f64`, A42 independently ran the CI command with imports pinned to the
+  isolated checkout: **595 passed, 0 failed** in 38.19 s on Python 3.12.3 / NumPy 2.5.2 /
+  SciPy 1.18.1. Repository-wide `python -m ruff check .` also passed with no findings.
 
 ### Round 3 — SOTA Polish & Final Acceptance
 **Status:** PENDING
@@ -1192,3 +1498,43 @@ the lost-ref variant A28 reports): full
 suite **430 passed** (4.9 s), `ruff check .` clean. **Round 1 is closed on content as
 well as on the exit bar.** The ready-to-file PR for `main` (title + body) is in
 `.agent_workspace/PR_DRAFT.md`.
+
+#### Addendum — independent close-out verification (A30, backfill for A14)
+
+A30 ran the same close-out independently and the two agents' numbers agree, so the
+Round 1 declaration rests on two separate measurements rather than one: full suite
+**332 passed** at `5bc6a6d` (9.98 s) before the dynamics/optimization merge, and
+**430 passed** (4.6 s) with `ruff check .` clean (ruff 0.16.4) on the merged tip
+`9c674d5`, both on Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1 from the `/tmp/a23`
+worktree with `PYTHONPATH` pinned per the A14 method note. Per-file collection sums
+to exactly 430 (dynamics 82, updating 57, correlation 52, modal 44, workflow 38,
+acceptance 46, CLI 22+1, core 18, result contract 17, optimization 16, IO 24,
+boundary/perf/e2e/scaffold 13).
+
+A30 completed the A32 PR draft rather than replacing it: added the per-suite test
+breakdown and the `docs/ARCHITECTURE.md` §7 FEMtools comparison table to the PR body,
+and corrected one overstated claim — `ScipyBackend.solve` is a pinned Round 2 stub
+(its own test asserts `NotImplementedError` naming GAP-12), so the optimization bullet
+now says the backend seam and KKT result fields exist while the `minimize` wiring is
+Round 2 scope. Two docs-only close-out commits raced this one onto the branch tip
+(`516184b`, `b9d26f0`); this record was rebuilt on top of them instead of fighting the
+rebase, so nothing from the concurrent closure was overwritten.
+
+#### Addendum — Independent sign-off audit (A23, backfill for A20)
+
+Ran in parallel with the A30/A32 closure, from a private worktree with `PYTHONPATH`
+pinned to its own `src` (the shared environment pointed at a sibling worktree's sources).
+Independently re-verified the full suite green at five successive branch tips while the
+closure landed — `2bfad98` **195**, `36befc3` **250**, `5bc6a6d` **332**, the merged tip
+`3f4cad6` **430**, and, after the A27 optimization backend landed, **498 passed,
+0 failed** — with repo-wide `ruff check .` clean at every checkpoint (Python 3.12 /
+NumPy 2.5.2 / SciPy 1.18.1). Concurs with the closure: the exit bar is met and both A15
+carry-over packages are landed and green, so COMPLETE stands.
+
+One bookkeeping caveat carried to Round 2: per AC §1.2 the P0 registry rows AC-UPD-007
+and AC-WORK-001/002/004/005 are still `specified` (20 of 41 criteria `implemented`
+after the A27/AC-DYN batches, none `verified`), even though `tests/test_workflow.py`
+demonstrates the AC-WORK gates numerically — tagging them is already scheduled with
+R2-T06 and the next acceptance batches. The first PR body draft (`17d03ba`) was folded
+into the closure lineage and superseded by the A30/A32 polish now in
+`.agent_workspace/PR_DRAFT.md`; both record the same platform state.

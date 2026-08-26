@@ -3,7 +3,17 @@
 from __future__ import annotations
 
 from .assembly import AssembledSystem, assemble_mass, assemble_stiffness, assemble_system
-from .elements import BarElement, BeamElement2D, Element, SpringElement, TrussElement
+from .elements import (
+    PLANE_STATES,
+    BarElement,
+    BeamElement2D,
+    Element,
+    Quad4Element,
+    SpringElement,
+    TrussElement,
+    gauss_legendre_2d,
+    plane_constitutive_matrix,
+)
 from .model import (
     DOF,
     ROTATIONAL_DOFS,
@@ -27,6 +37,10 @@ __all__ = [
     "TrussElement",
     "BarElement",
     "BeamElement2D",
+    "Quad4Element",
+    "PLANE_STATES",
+    "gauss_legendre_2d",
+    "plane_constitutive_matrix",
     "AssembledSystem",
     "assemble_system",
     "assemble_stiffness",

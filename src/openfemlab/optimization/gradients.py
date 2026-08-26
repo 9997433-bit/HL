@@ -50,8 +50,8 @@ class MatrixDerivativeProvider(Protocol):
     requested parameter (``None`` where the parameter does not touch that
     matrix); ``assemble(values)`` returns the system matrices at a parameter
     point.  :class:`~openfemlab.updating.scaling_model.ScalingModel` satisfies
-    this protocol; an element-level ``dK/dp`` assembler will provide it for the
-    native :class:`~openfemlab.core.model.Model` stack.
+    this protocol; an element-level ``dK/dp`` assembler (Round 2, GAP-12) will
+    provide it for the native :class:`~openfemlab.core.model.Model` stack.
     """
 
     def assemble(
