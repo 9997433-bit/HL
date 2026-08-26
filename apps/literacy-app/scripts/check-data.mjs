@@ -5,10 +5,17 @@
  * 一旦有人加了一句超纲的话，孩子就会卡住。这条必须自动化守住。
  */
 
-import { CHARACTERS, TOTAL_CHARACTERS, UNITS } from '../src/data/characters.js'
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+import { CHARACTERS, CHARACTER_MAP, TOTAL_CHARACTERS, UNITS } from '../src/data/characters.js'
 import { BOOKS, charsInBook, verifyBookCoverage } from '../src/data/books.js'
 import { IDIOMS } from '../src/data/idioms.js'
 import { RADICALS, getRadical } from '../src/data/radicals.js'
+
+const here = path.dirname(fileURLToPath(import.meta.url))
+const baselineFile = path.resolve(here, '..', '..', '..', 'shared', 'data', 'common-hanzi.json')
 
 const fails = []
 const notes = []
@@ -16,7 +23,7 @@ const notes = []
 const check = (ok, msg) => (ok ? notes.push(`✓ ${msg}`) : fails.push(`✗ ${msg}`))
 
 /* ----------------------------------------------------------------- 字表 */
-check(TOTAL_CHARACTERS >= 100, `字表 ${TOTAL_CHARACTERS} 个字（要求 ≥ 100）`)
+check(TOTAL_CHARACTERS >= 200, `字表 ${TOTAL_CHARACTERS} 个字（要求 ≥ 200）`)
 
 const dupes = CHARACTERS.map((c) => c.char).filter((c, i, a) => a.indexOf(c) !== i)
 check(dupes.length === 0, `字表无重复${dupes.length ? `（重复：${dupes.join('')}）` : ''}`)
@@ -44,8 +51,37 @@ check(badWords.length === 0, `每个字至少 2 个带拼音的组词，例句�
 const thinUnits = UNITS.filter((u) => CHARACTERS.filter((c) => c.unit === u.id).length < 5)
 check(thinUnits.length === 0, `每个单元至少 5 个字${thinUnits.length ? `（${thinUnits.map((u) => u.name).join('、')}）` : ''}`)
 
+/* --------------------------------------------------------- 与共享基线对齐
+ *
+ * shared/data/common-hanzi.json 是 monorepo 里这套字库的事实基线，别的 App
+ * 和验收脚本都读它。字表可以在基线之上加教学包装，但不能少字、更不能改拼音，
+ * 否则两边一分叉，孩子在不同入口看到的读音就会打架。
+ */
+const baseline = JSON.parse(fs.readFileSync(baselineFile, 'utf8')).characters ?? []
+check(baseline.length >= 200, `共享字库基线 ${baseline.length} 个字（要求 ≥ 200）`)
+
+const missingFromTable = baseline.filter((b) => !CHARACTER_MAP.has(b.character))
+check(
+  missingFromTable.length === 0,
+  `基线里的字都在字表里${missingFromTable.length ? `（缺：${missingFromTable.map((b) => b.character).join('')}）` : ''}`
+)
+
+const pinyinDrift = baseline.filter(
+  (b) => CHARACTER_MAP.has(b.character) && CHARACTER_MAP.get(b.character).pinyin !== b.pinyin
+)
+check(
+  pinyinDrift.length === 0,
+  `字表拼音与基线一致${pinyinDrift.length ? `（${pinyinDrift.map((b) => `${b.character}:${b.pinyin}≠${CHARACTER_MAP.get(b.character).pinyin}`).join('、')}）` : ''}`
+)
+
 /* ----------------------------------------------------------------- 绘本 */
-check(BOOKS.length >= 2, `绘本 ${BOOKS.length} 本（要求 ≥ 2）`)
+check(BOOKS.length >= 5, `绘本 ${BOOKS.length} 本（要求 ≥ 5）`)
+
+const bookDupes = BOOKS.map((b) => b.id).filter((v, i, a) => a.indexOf(v) !== i)
+check(bookDupes.length === 0, `绘本 id 无重复${bookDupes.length ? `（${bookDupes.join(',')}）` : ''}`)
+
+const levels = [...new Set(BOOKS.map((b) => b.level))]
+check(levels.length >= 3, `绘本覆盖 ${levels.length} 个分级（要求 ≥ 3）`)
 
 const coverage = verifyBookCoverage()
 check(
@@ -62,7 +98,7 @@ for (const b of BOOKS) {
 }
 
 /* ----------------------------------------------------------------- 成语 */
-check(IDIOMS.length >= 5, `成语 ${IDIOMS.length} 个（要求 ≥ 5）`)
+check(IDIOMS.length >= 20, `成语 ${IDIOMS.length} 个（要求 ≥ 20）`)
 
 const idiomDupes = IDIOMS.map((i) => i.id).filter((v, i, a) => a.indexOf(v) !== i)
 check(idiomDupes.length === 0, `成语 id 无重复${idiomDupes.length ? `（${idiomDupes.join(',')}）` : ''}`)
@@ -80,6 +116,9 @@ check(
 
 const badChars = IDIOMS.filter((i) => (i.chars?.length ?? 0) !== 4)
 check(badChars.length === 0, `每个成语都做了四字拆解${badChars.length ? `（${badChars.map(idiomName).join('、')}）` : ''}`)
+
+const noQuiz = IDIOMS.filter((i) => !i.quiz)
+check(noQuiz.length === 0, `每个成语都配了情景题${noQuiz.length ? `（${noQuiz.map(idiomName).join('、')}）` : ''}`)
 
 const badQuiz = IDIOMS.filter((i) => {
   if (!i.quiz) return false

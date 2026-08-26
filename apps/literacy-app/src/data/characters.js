@@ -1,5 +1,9 @@
 /**
- * 识字语料库 —— 106 个学前到一年级高频字，按「单元」分组。
+ * 识字语料库 —— 200 个学前到一年级高频字，按「单元」分组。
+ *
+ * 字表以 `shared/data/common-hanzi.json` 为事实基线：那份 JSON 里的每个字都必须
+ * 在这里出现，且拼音一致，`npm run check:data` 会守住这条。这里比基线多出来的
+ * 字段（声调、部首、组词、例句、卡片图标）是识字 App 的教学包装。
  *
  * 每个字段的用途：
  *   char      汉字本体
@@ -28,7 +32,11 @@ export const UNITS = [
   { id: 'u9', name: '小动物', emoji: '🐟', color: 'var(--seed-sky)', desc: '水里游的，家里养的' },
   { id: 'u10', name: '五颜六色', emoji: '🎨', color: 'var(--seed-grape)', desc: '认识六种颜色' },
   { id: 'u11', name: '四季和时间', emoji: '🍂', color: 'var(--seed-mint)', desc: '春夏秋冬，早晚今明' },
-  { id: 'u12', name: '出发去玩', emoji: '🚗', color: 'var(--seed-coral)', desc: '左右前后，出门啦' }
+  { id: 'u12', name: '出发去玩', emoji: '🚗', color: 'var(--seed-coral)', desc: '左右前后，出门啦' },
+  { id: 'u13', name: '动起来', emoji: '🏃', color: 'var(--seed-mango)', desc: '走跑跳坐，身体的动作' },
+  { id: 'u14', name: '家里的东西', emoji: '🛋️', color: 'var(--seed-leaf)', desc: '桌椅床灯，屋里都认得' },
+  { id: 'u15', name: '好吃的', emoji: '🍚', color: 'var(--seed-sky)', desc: '米饭菜果，餐桌上的字' },
+  { id: 'u16', name: '常用小词', emoji: '🔤', color: 'var(--seed-grape)', desc: '这那什么，说话离不开' }
 ]
 
 export const CHARACTERS = [
@@ -133,6 +141,26 @@ export const CHARACTERS = [
     ],
     sentence: { text: '我是小小的我。', p: 'wǒ shì xiǎo xiǎo de wǒ.' }
   },
+  {
+    char: '个', pinyin: 'gè', tone: 4, unit: 'u1', radical: 'renzitou', strokes: 3, emoji: '🧩',
+    meaning: '数东西时最常用的量词，一个、两个。',
+    words: [
+      { w: '一个', p: 'yī gè' },
+      { w: '个人', p: 'gè rén' },
+      { w: '半个', p: 'bàn gè' }
+    ],
+    sentence: { text: '我家有四个人。', p: 'wǒ jiā yǒu sì gè rén.' }
+  },
+  {
+    char: '们', pinyin: 'men', tone: 5, unit: 'u1', radical: 'ren', strokes: 5, emoji: '👥',
+    meaning: '放在「我、你、他」后面，表示不止一个人。',
+    words: [
+      { w: '我们', p: 'wǒ men' },
+      { w: '你们', p: 'nǐ men' },
+      { w: '他们', p: 'tā men' }
+    ],
+    sentence: { text: '我们一起去上学。', p: 'wǒ men yī qǐ qù shàng xué.' }
+  },
 
   // ------------------------------ 单元二 ------------------------------
   {
@@ -234,6 +262,36 @@ export const CHARACTERS = [
       { w: '花草', p: 'huā cǎo' }
     ],
     sentence: { text: '小花在水上。', p: 'xiǎo huā zài shuǐ shàng.' }
+  },
+  {
+    char: '海', pinyin: 'hǎi', tone: 3, unit: 'u2', radical: 'shui', strokes: 10, emoji: '🌊',
+    meaning: '很大很大的一片水，比河宽得多。',
+    words: [
+      { w: '大海', p: 'dà hǎi' },
+      { w: '海水', p: 'hǎi shuǐ' },
+      { w: '海风', p: 'hǎi fēng' }
+    ],
+    sentence: { text: '大海里有很多鱼。', p: 'dà hǎi lǐ yǒu hěn duō yú.' }
+  },
+  {
+    char: '河', pinyin: 'hé', tone: 2, unit: 'u2', radical: 'shui', strokes: 8, emoji: '🏞️',
+    meaning: '在地上弯弯流着的一条水。',
+    words: [
+      { w: '小河', p: 'xiǎo hé' },
+      { w: '河水', p: 'hé shuǐ' },
+      { w: '过河', p: 'guò hé' }
+    ],
+    sentence: { text: '小河里有小鱼。', p: 'xiǎo hé lǐ yǒu xiǎo yú.' }
+  },
+  {
+    char: '林', pinyin: 'lín', tone: 2, unit: 'u2', radical: 'mu', strokes: 8, emoji: '🌳',
+    meaning: '两个木并在一起，树多的地方就是林。',
+    words: [
+      { w: '树林', p: 'shù lín' },
+      { w: '山林', p: 'shān lín' },
+      { w: '林子', p: 'lín zi' }
+    ],
+    sentence: { text: '树林里有小鸟在唱。', p: 'shù lín lǐ yǒu xiǎo niǎo zài chàng.' }
   },
 
   // ------------------------------ 单元三 ------------------------------
@@ -337,6 +395,36 @@ export const CHARACTERS = [
     ],
     sentence: { text: '小牛说：好，好！', p: 'xiǎo niú shuō: hǎo, hǎo!' }
   },
+  {
+    char: '头', pinyin: 'tóu', tone: 2, unit: 'u3', radical: 'da', strokes: 5, emoji: '🙂',
+    meaning: '身体最上面的那一部分。',
+    words: [
+      { w: '头发', p: 'tóu fa' },
+      { w: '点头', p: 'diǎn tóu' },
+      { w: '石头', p: 'shí tou' }
+    ],
+    sentence: { text: '小羊的头上有两只角。', p: 'xiǎo yáng de tóu shàng yǒu liǎng zhī jiǎo.' }
+  },
+  {
+    char: '牙', pinyin: 'yá', tone: 2, unit: 'u3', radical: 'ya', strokes: 4, emoji: '🦷',
+    meaning: '嘴里白白的牙齿，用来咬东西。',
+    words: [
+      { w: '牙齿', p: 'yá chǐ' },
+      { w: '刷牙', p: 'shuā yá' },
+      { w: '月牙', p: 'yuè yá' }
+    ],
+    sentence: { text: '早上我要刷牙。', p: 'zǎo shang wǒ yào shuā yá.' }
+  },
+  {
+    char: '兔', pinyin: 'tù', tone: 4, unit: 'u3', radical: 'erbu', strokes: 8, emoji: '🐰',
+    meaning: '长耳朵的小兔子，跳得又快又轻。',
+    words: [
+      { w: '小兔', p: 'xiǎo tù' },
+      { w: '白兔', p: 'bái tù' },
+      { w: '兔子', p: 'tù zi' }
+    ],
+    sentence: { text: '白兔的耳朵很长。', p: 'bái tù de ěr duo hěn cháng.' }
+  },
 
   // ------------------------------ 单元四 ------------------------------
   {
@@ -438,6 +526,36 @@ export const CHARACTERS = [
       { w: '也好', p: 'yě hǎo' }
     ],
     sentence: { text: '小羊也会上山。', p: 'xiǎo yáng yě huì shàng shān.' }
+  },
+  {
+    char: '了', pinyin: 'le', tone: 5, unit: 'u4', radical: 'yizhe', strokes: 2, emoji: '🏁',
+    meaning: '放在句子后面，表示事情已经发生。',
+    words: [
+      { w: '好了', p: 'hǎo le' },
+      { w: '来了', p: 'lái le' },
+      { w: '看了', p: 'kàn le' }
+    ],
+    sentence: { text: '下雨了，我们回家。', p: 'xià yǔ le, wǒ men huí jiā.' }
+  },
+  {
+    char: '很', pinyin: 'hěn', tone: 3, unit: 'u4', radical: 'shuangren', strokes: 9, emoji: '‼️',
+    meaning: '表示程度大，「很好」就是特别好。',
+    words: [
+      { w: '很好', p: 'hěn hǎo' },
+      { w: '很多', p: 'hěn duō' },
+      { w: '很大', p: 'hěn dà' }
+    ],
+    sentence: { text: '今天的天气很好。', p: 'jīn tiān de tiān qì hěn hǎo.' }
+  },
+  {
+    char: '和', pinyin: 'hé', tone: 2, unit: 'u4', radical: 'he', strokes: 8, emoji: '🤝',
+    meaning: '把两样东西连起来说，也表示和气。',
+    words: [
+      { w: '你和我', p: 'nǐ hé wǒ' },
+      { w: '和好', p: 'hé hǎo' },
+      { w: '和气', p: 'hé qì' }
+    ],
+    sentence: { text: '小猫和小狗是好朋友。', p: 'xiǎo māo hé xiǎo gǒu shì hǎo péng you.' }
   },
 
   // ------------------------------ 单元五 ------------------------------
@@ -541,6 +659,26 @@ export const CHARACTERS = [
     ],
     sentence: { text: '水里有一万条小鱼。', p: 'shuǐ lǐ yǒu yī wàn tiáo xiǎo yú.' }
   },
+  {
+    char: '半', pinyin: 'bàn', tone: 4, unit: 'u5', radical: 'ba', strokes: 5, emoji: '🌗',
+    meaning: '把一个东西分成一样大的两份，其中一份。',
+    words: [
+      { w: '一半', p: 'yī bàn' },
+      { w: '半天', p: 'bàn tiān' },
+      { w: '半个', p: 'bàn gè' }
+    ],
+    sentence: { text: '半个苹果给你。', p: 'bàn gè píng guǒ gěi nǐ.' }
+  },
+  {
+    char: '双', pinyin: 'shuāng', tone: 1, unit: 'u5', radical: 'you', strokes: 4, emoji: '🙌',
+    meaning: '成对的两个，两个「又」并排站着。',
+    words: [
+      { w: '一双', p: 'yī shuāng' },
+      { w: '双手', p: 'shuāng shǒu' },
+      { w: '双人', p: 'shuāng rén' }
+    ],
+    sentence: { text: '我有一双新鞋。', p: 'wǒ yǒu yī shuāng xīn xié.' }
+  },
 
   // ------------------------------ 单元六 ------------------------------
   {
@@ -622,6 +760,46 @@ export const CHARACTERS = [
       { w: '树林', p: 'shù lín' }
     ],
     sentence: { text: '大树上有一只小鸟。', p: 'dà shù shàng yǒu yī zhī xiǎo niǎo.' }
+  },
+  {
+    char: '星', pinyin: 'xīng', tone: 1, unit: 'u6', radical: 'ri', strokes: 9, emoji: '⭐',
+    meaning: '夜里天上一闪一闪的小亮点。',
+    words: [
+      { w: '星星', p: 'xīng xing' },
+      { w: '星光', p: 'xīng guāng' },
+      { w: '明星', p: 'míng xīng' }
+    ],
+    sentence: { text: '天上的星星很多。', p: 'tiān shàng de xīng xing hěn duō.' }
+  },
+  {
+    char: '光', pinyin: 'guāng', tone: 1, unit: 'u6', radical: 'erbu', strokes: 6, emoji: '🔆',
+    meaning: '太阳、灯发出来的亮，照到哪里哪里就亮。',
+    words: [
+      { w: '月光', p: 'yuè guāng' },
+      { w: '光明', p: 'guāng míng' },
+      { w: '火光', p: 'huǒ guāng' }
+    ],
+    sentence: { text: '月光照在小河上。', p: 'yuè guāng zhào zài xiǎo hé shàng.' }
+  },
+  {
+    char: '冰', pinyin: 'bīng', tone: 1, unit: 'u6', radical: 'liangdian', strokes: 6, emoji: '🧊',
+    meaning: '水冻硬了就变成冰，摸上去很凉。',
+    words: [
+      { w: '冰水', p: 'bīng shuǐ' },
+      { w: '冰山', p: 'bīng shān' },
+      { w: '冰冷', p: 'bīng lěng' }
+    ],
+    sentence: { text: '冬天河上有冰。', p: 'dōng tiān hé shàng yǒu bīng.' }
+  },
+  {
+    char: '沙', pinyin: 'shā', tone: 1, unit: 'u6', radical: 'shui', strokes: 7, emoji: '🏖️',
+    meaning: '又细又小的石头粒儿。',
+    words: [
+      { w: '沙子', p: 'shā zi' },
+      { w: '沙地', p: 'shā dì' },
+      { w: '风沙', p: 'fēng shā' }
+    ],
+    sentence: { text: '海边有很多沙子。', p: 'hǎi biān yǒu hěn duō shā zi.' }
   },
 
   // ------------------------------ 单元七 ------------------------------
@@ -725,6 +903,46 @@ export const CHARACTERS = [
     ],
     sentence: { text: '我爱我的家。', p: 'wǒ ài wǒ de jiā.' }
   },
+  {
+    char: '哥', pinyin: 'gē', tone: 1, unit: 'u7', radical: 'kou', strokes: 10, emoji: '👦',
+    meaning: '比我大的男孩子，是我的哥哥。',
+    words: [
+      { w: '哥哥', p: 'gē ge' },
+      { w: '大哥', p: 'dà gē' },
+      { w: '哥们', p: 'gē men' }
+    ],
+    sentence: { text: '哥哥会读很多书。', p: 'gē ge huì dú hěn duō shū.' }
+  },
+  {
+    char: '姐', pinyin: 'jiě', tone: 3, unit: 'u7', radical: 'nv', strokes: 8, emoji: '👧',
+    meaning: '比我大的女孩子，是我的姐姐。',
+    words: [
+      { w: '姐姐', p: 'jiě jie' },
+      { w: '大姐', p: 'dà jiě' },
+      { w: '姐妹', p: 'jiě mèi' }
+    ],
+    sentence: { text: '姐姐在家里写字。', p: 'jiě jie zài jiā lǐ xiě zì.' }
+  },
+  {
+    char: '妹', pinyin: 'mèi', tone: 4, unit: 'u7', radical: 'nv', strokes: 8, emoji: '🧒',
+    meaning: '比我小的女孩子，是我的妹妹。',
+    words: [
+      { w: '妹妹', p: 'mèi mei' },
+      { w: '小妹', p: 'xiǎo mèi' },
+      { w: '姐妹', p: 'jiě mèi' }
+    ],
+    sentence: { text: '妹妹在草地上跑。', p: 'mèi mei zài cǎo dì shàng pǎo.' }
+  },
+  {
+    char: '国', pinyin: 'guó', tone: 2, unit: 'u7', radical: 'wei', strokes: 8, emoji: '🏯',
+    meaning: '很多人一起生活的大地方，我们的国家。',
+    words: [
+      { w: '中国', p: 'zhōng guó' },
+      { w: '国家', p: 'guó jiā' },
+      { w: '国土', p: 'guó tǔ' }
+    ],
+    sentence: { text: '我爱我的国家。', p: 'wǒ ài wǒ de guó jiā.' }
+  },
 
   // ------------------------------ 单元八 ------------------------------
   {
@@ -827,6 +1045,36 @@ export const CHARACTERS = [
     ],
     sentence: { text: '我听见小鸟在唱歌。', p: 'wǒ tīng jiàn xiǎo niǎo zài chàng gē.' }
   },
+  {
+    char: '问', pinyin: 'wèn', tone: 4, unit: 'u8', radical: 'men', strokes: 6, emoji: '❓',
+    meaning: '不明白就开口问一问，门里有个口。',
+    words: [
+      { w: '问好', p: 'wèn hǎo' },
+      { w: '不问', p: 'bù wèn' },
+      { w: '问答', p: 'wèn dá' }
+    ],
+    sentence: { text: '不明白就问老师。', p: 'bù míng bai jiù wèn lǎo shī.' }
+  },
+  {
+    char: '答', pinyin: 'dá', tone: 2, unit: 'u8', radical: 'zhutou', strokes: 12, emoji: '🗨️',
+    meaning: '别人问了，你说出来的话就是答。',
+    words: [
+      { w: '回答', p: 'huí dá' },
+      { w: '答对', p: 'dá duì' },
+      { w: '问答', p: 'wèn dá' }
+    ],
+    sentence: { text: '我大声回答老师。', p: 'wǒ dà shēng huí dá lǎo shī.' }
+  },
+  {
+    char: '本', pinyin: 'běn', tone: 3, unit: 'u8', radical: 'mu', strokes: 5, emoji: '📔',
+    meaning: '树根那一横画在下面；也用来数书，一本书。',
+    words: [
+      { w: '一本', p: 'yī běn' },
+      { w: '书本', p: 'shū běn' },
+      { w: '本子', p: 'běn zi' }
+    ],
+    sentence: { text: '我在本子上写字。', p: 'wǒ zài běn zi shàng xiě zì.' }
+  },
 
   // ------------------------------ 单元九 ------------------------------
   {
@@ -878,6 +1126,76 @@ export const CHARACTERS = [
       { w: '狗窝', p: 'gǒu wō' }
     ],
     sentence: { text: '小狗和小猫是好朋友。', p: 'xiǎo gǒu hé xiǎo māo shì hǎo péng you.' }
+  },
+  {
+    char: '鸡', pinyin: 'jī', tone: 1, unit: 'u9', radical: 'niao', strokes: 7, emoji: '🐔',
+    meaning: '会咯咯叫、会下蛋的鸡。',
+    words: [
+      { w: '小鸡', p: 'xiǎo jī' },
+      { w: '鸡蛋', p: 'jī dàn' },
+      { w: '母鸡', p: 'mǔ jī' }
+    ],
+    sentence: { text: '母鸡下了一个蛋。', p: 'mǔ jī xià le yī gè dàn.' }
+  },
+  {
+    char: '鸭', pinyin: 'yā', tone: 1, unit: 'u9', radical: 'niao', strokes: 10, emoji: '🦆',
+    meaning: '嘴巴扁扁、会游水的鸭子。',
+    words: [
+      { w: '小鸭', p: 'xiǎo yā' },
+      { w: '鸭子', p: 'yā zi' },
+      { w: '水鸭', p: 'shuǐ yā' }
+    ],
+    sentence: { text: '小鸭在河里游。', p: 'xiǎo yā zài hé lǐ yóu.' }
+  },
+  {
+    char: '猪', pinyin: 'zhū', tone: 1, unit: 'u9', radical: 'quan', strokes: 11, emoji: '🐷',
+    meaning: '胖胖的小猪，鼻子圆圆的。',
+    words: [
+      { w: '小猪', p: 'xiǎo zhū' },
+      { w: '猪肉', p: 'zhū ròu' },
+      { w: '野猪', p: 'yě zhū' }
+    ],
+    sentence: { text: '小猪吃了半个瓜。', p: 'xiǎo zhū chī le bàn gè guā.' }
+  },
+  {
+    char: '象', pinyin: 'xiàng', tone: 4, unit: 'u9', radical: 'shizhu', strokes: 11, emoji: '🐘',
+    meaning: '鼻子长长的大象，是最大的陆地动物。',
+    words: [
+      { w: '大象', p: 'dà xiàng' },
+      { w: '象牙', p: 'xiàng yá' },
+      { w: '好象', p: 'hǎo xiàng' }
+    ],
+    sentence: { text: '大象的鼻子很长。', p: 'dà xiàng de bí zi hěn cháng.' }
+  },
+  {
+    char: '虎', pinyin: 'hǔ', tone: 3, unit: 'u9', radical: 'hutou', strokes: 8, emoji: '🐯',
+    meaning: '身上有黄黑花纹的老虎，森林里最威风。',
+    words: [
+      { w: '老虎', p: 'lǎo hǔ' },
+      { w: '小虎', p: 'xiǎo hǔ' },
+      { w: '虎口', p: 'hǔ kǒu' }
+    ],
+    sentence: { text: '山里有一只老虎。', p: 'shān lǐ yǒu yī zhī lǎo hǔ.' }
+  },
+  {
+    char: '蛙', pinyin: 'wā', tone: 1, unit: 'u9', radical: 'chong', strokes: 12, emoji: '🐸',
+    meaning: '呱呱叫的青蛙，会在水里游、在草里跳。',
+    words: [
+      { w: '青蛙', p: 'qīng wā' },
+      { w: '田蛙', p: 'tián wā' },
+      { w: '蛙人', p: 'wā rén' }
+    ],
+    sentence: { text: '田里有很多青蛙。', p: 'tián lǐ yǒu hěn duō qīng wā.' }
+  },
+  {
+    char: '熊', pinyin: 'xióng', tone: 2, unit: 'u9', radical: 'sidian', strokes: 14, emoji: '🐻',
+    meaning: '胖乎乎的大熊，冬天要睡很久。',
+    words: [
+      { w: '小熊', p: 'xiǎo xióng' },
+      { w: '大熊', p: 'dà xióng' },
+      { w: '熊猫', p: 'xióng māo' }
+    ],
+    sentence: { text: '小熊在林子里走。', p: 'xiǎo xióng zài lín zi lǐ zǒu.' }
   },
 
   // ------------------------------ 单元十 ------------------------------
@@ -940,6 +1258,56 @@ export const CHARACTERS = [
       { w: '天黑', p: 'tiān hēi' }
     ],
     sentence: { text: '天黑了，小猫回家了。', p: 'tiān hēi le, xiǎo māo huí jiā le.' }
+  },
+  {
+    char: '色', pinyin: 'sè', tone: 4, unit: 'u10', radical: 'se', strokes: 6, emoji: '🎨',
+    meaning: '颜色，红的绿的蓝的都是色。',
+    words: [
+      { w: '颜色', p: 'yán sè' },
+      { w: '红色', p: 'hóng sè' },
+      { w: '白色', p: 'bái sè' }
+    ],
+    sentence: { text: '你最爱什么颜色？', p: 'nǐ zuì ài shén me yán sè?' }
+  },
+  {
+    char: '圆', pinyin: 'yuán', tone: 2, unit: 'u10', radical: 'wei', strokes: 10, emoji: '⭕',
+    meaning: '像太阳、像车轮一样没有角的形状。',
+    words: [
+      { w: '圆圆', p: 'yuán yuán' },
+      { w: '圆月', p: 'yuán yuè' },
+      { w: '半圆', p: 'bàn yuán' }
+    ],
+    sentence: { text: '中秋的月亮圆圆的。', p: 'zhōng qiū de yuè liàng yuán yuán de.' }
+  },
+  {
+    char: '方', pinyin: 'fāng', tone: 1, unit: 'u10', radical: 'fang', strokes: 4, emoji: '🔷',
+    meaning: '四个角一样大的形状，也指方向。',
+    words: [
+      { w: '方方', p: 'fāng fāng' },
+      { w: '四方', p: 'sì fāng' },
+      { w: '地方', p: 'dì fang' }
+    ],
+    sentence: { text: '我家的桌子是方的。', p: 'wǒ jiā de zhuō zi shì fāng de.' }
+  },
+  {
+    char: '长', pinyin: 'cháng', tone: 2, unit: 'u10', radical: 'chang', strokes: 4, emoji: '📏',
+    meaning: '从这头到那头距离大，和「短」相反。',
+    words: [
+      { w: '很长', p: 'hěn cháng' },
+      { w: '长长', p: 'cháng cháng' },
+      { w: '长大', p: 'zhǎng dà' }
+    ],
+    sentence: { text: '大象的鼻子长长的。', p: 'dà xiàng de bí zi cháng cháng de.' }
+  },
+  {
+    char: '高', pinyin: 'gāo', tone: 1, unit: 'u10', radical: 'gao', strokes: 10, emoji: '🗼',
+    meaning: '离地面远，和「矮」相反。',
+    words: [
+      { w: '很高', p: 'hěn gāo' },
+      { w: '高山', p: 'gāo shān' },
+      { w: '高高', p: 'gāo gāo' }
+    ],
+    sentence: { text: '树很高，鸟在高高的树上。', p: 'shù hěn gāo, niǎo zài gāo gāo de shù shàng.' }
   },
 
   // ------------------------------ 单元十一 ------------------------------
@@ -1043,6 +1411,36 @@ export const CHARACTERS = [
     ],
     sentence: { text: '读书的时间到了。', p: 'dú shū de shí jiān dào le.' }
   },
+  {
+    char: '分', pinyin: 'fēn', tone: 1, unit: 'u11', radical: 'ba', strokes: 4, emoji: '⏱️',
+    meaning: '一小时有六十分；也表示把东西分开。',
+    words: [
+      { w: '十分', p: 'shí fēn' },
+      { w: '分开', p: 'fēn kāi' },
+      { w: '分手', p: 'fēn shǒu' }
+    ],
+    sentence: { text: '十分钟后我们去玩。', p: 'shí fēn zhōng hòu wǒ men qù wán.' }
+  },
+  {
+    char: '刻', pinyin: 'kè', tone: 4, unit: 'u11', radical: 'daopang', strokes: 8, emoji: '⏳',
+    meaning: '一刻是十五分钟；也表示用刀在东西上划。',
+    words: [
+      { w: '一刻', p: 'yī kè' },
+      { w: '时刻', p: 'shí kè' },
+      { w: '刻字', p: 'kè zì' }
+    ],
+    sentence: { text: '再过一刻我们就走。', p: 'zài guò yī kè wǒ men jiù zǒu.' }
+  },
+  {
+    char: '岁', pinyin: 'suì', tone: 4, unit: 'u11', radical: 'shan', strokes: 6, emoji: '🎂',
+    meaning: '过一个生日就长一岁。',
+    words: [
+      { w: '几岁', p: 'jǐ suì' },
+      { w: '六岁', p: 'liù suì' },
+      { w: '岁月', p: 'suì yuè' }
+    ],
+    sentence: { text: '今年我六岁了。', p: 'jīn nián wǒ liù suì le.' }
+  },
 
   // ------------------------------ 单元十二 ------------------------------
   {
@@ -1114,6 +1512,564 @@ export const CHARACTERS = [
       { w: '不足', p: 'bù zú' }
     ],
     sentence: { text: '我用足走路，用手写字。', p: 'wǒ yòng zú zǒu lù, yòng shǒu xiě zì.' }
+  },
+  {
+    char: '前', pinyin: 'qián', tone: 2, unit: 'u12', radical: 'daopang', strokes: 9, emoji: '🚩',
+    meaning: '脸朝着的那一边，也表示更早的时候。',
+    words: [
+      { w: '前面', p: 'qián miàn' },
+      { w: '前后', p: 'qián hòu' },
+      { w: '前天', p: 'qián tiān' }
+    ],
+    sentence: { text: '前面有一个大门。', p: 'qián miàn yǒu yī gè dà mén.' }
+  },
+  {
+    char: '后', pinyin: 'hòu', tone: 4, unit: 'u12', radical: 'kou', strokes: 6, emoji: '🔙',
+    meaning: '背对着的那一边，也表示晚一点。',
+    words: [
+      { w: '后面', p: 'hòu miàn' },
+      { w: '后来', p: 'hòu lái' },
+      { w: '前后', p: 'qián hòu' }
+    ],
+    sentence: { text: '小狗跟在我后面。', p: 'xiǎo gǒu gēn zài wǒ hòu miàn.' }
+  },
+  {
+    char: '里', pinyin: 'lǐ', tone: 3, unit: 'u12', radical: 'li', strokes: 7, emoji: '📥',
+    meaning: '东西的内部，和「外」相反。',
+    words: [
+      { w: '里面', p: 'lǐ miàn' },
+      { w: '家里', p: 'jiā lǐ' },
+      { w: '千里', p: 'qiān lǐ' }
+    ],
+    sentence: { text: '小猫在房里睡觉。', p: 'xiǎo māo zài fáng lǐ shuì jiào.' }
+  },
+  {
+    char: '外', pinyin: 'wài', tone: 4, unit: 'u12', radical: 'xi', strokes: 5, emoji: '📤',
+    meaning: '门的另一边，和「里」相反。',
+    words: [
+      { w: '外面', p: 'wài miàn' },
+      { w: '门外', p: 'mén wài' },
+      { w: '里外', p: 'lǐ wài' }
+    ],
+    sentence: { text: '门外下雨了。', p: 'mén wài xià yǔ le.' }
+  },
+  {
+    char: '边', pinyin: 'biān', tone: 1, unit: 'u12', radical: 'zouzhi', strokes: 5, emoji: '🧭',
+    meaning: '旁边、一侧，左边右边都是边。',
+    words: [
+      { w: '左边', p: 'zuǒ biān' },
+      { w: '右边', p: 'yòu biān' },
+      { w: '海边', p: 'hǎi biān' }
+    ],
+    sentence: { text: '我坐在姐姐的右边。', p: 'wǒ zuò zài jiě jie de yòu biān.' }
+  },
+
+  // ------------------------------ 单元十三 ------------------------------
+  {
+    char: '走', pinyin: 'zǒu', tone: 3, unit: 'u13', radical: 'zou', strokes: 7, emoji: '🥾',
+    meaning: '两只脚一前一后地行动。',
+    words: [
+      { w: '走路', p: 'zǒu lù' },
+      { w: '走开', p: 'zǒu kāi' },
+      { w: '走来', p: 'zǒu lái' }
+    ],
+    sentence: { text: '我和哥哥走去学校。', p: 'wǒ hé gē ge zǒu qù xué xiào.' }
+  },
+  {
+    char: '跑', pinyin: 'pǎo', tone: 3, unit: 'u13', radical: 'zu', strokes: 12, emoji: '💨',
+    meaning: '比走快得多，两只脚都会离地。',
+    words: [
+      { w: '跑步', p: 'pǎo bù' },
+      { w: '快跑', p: 'kuài pǎo' },
+      { w: '跑来', p: 'pǎo lái' }
+    ],
+    sentence: { text: '小马在草地上跑。', p: 'xiǎo mǎ zài cǎo dì shàng pǎo.' }
+  },
+  {
+    char: '跳', pinyin: 'tiào', tone: 4, unit: 'u13', radical: 'zu', strokes: 13, emoji: '🤸',
+    meaning: '用力一蹬，身体离开地面。',
+    words: [
+      { w: '跳高', p: 'tiào gāo' },
+      { w: '跳起', p: 'tiào qǐ' },
+      { w: '跳动', p: 'tiào dòng' }
+    ],
+    sentence: { text: '小兔跳得又高又远。', p: 'xiǎo tù tiào de yòu gāo yòu yuǎn.' }
+  },
+  {
+    char: '坐', pinyin: 'zuò', tone: 4, unit: 'u13', radical: 'tu', strokes: 7, emoji: '🧎',
+    meaning: '两个人一起坐在土地上，就是坐。',
+    words: [
+      { w: '坐下', p: 'zuò xià' },
+      { w: '坐好', p: 'zuò hǎo' },
+      { w: '坐车', p: 'zuò chē' }
+    ],
+    sentence: { text: '我们坐在桌前吃饭。', p: 'wǒ men zuò zài zhuō qián chī fàn.' }
+  },
+  {
+    char: '站', pinyin: 'zhàn', tone: 4, unit: 'u13', radical: 'libu', strokes: 10, emoji: '🚏',
+    meaning: '两只脚立在地上不动，也指车站。',
+    words: [
+      { w: '站好', p: 'zhàn hǎo' },
+      { w: '车站', p: 'chē zhàn' },
+      { w: '站住', p: 'zhàn zhù' }
+    ],
+    sentence: { text: '老师站在门口等我们。', p: 'lǎo shī zhàn zài mén kǒu děng wǒ men.' }
+  },
+  {
+    char: '吃', pinyin: 'chī', tone: 1, unit: 'u13', radical: 'kou', strokes: 6, emoji: '😋',
+    meaning: '把东西放进嘴里嚼一嚼咽下去。',
+    words: [
+      { w: '吃饭', p: 'chī fàn' },
+      { w: '好吃', p: 'hǎo chī' },
+      { w: '吃菜', p: 'chī cài' }
+    ],
+    sentence: { text: '妹妹在吃一个苹果。', p: 'mèi mei zài chī yī gè píng guǒ.' }
+  },
+  {
+    char: '喝', pinyin: 'hē', tone: 1, unit: 'u13', radical: 'kou', strokes: 12, emoji: '🥤',
+    meaning: '把水或汤送进嘴里咽下去。',
+    words: [
+      { w: '喝水', p: 'hē shuǐ' },
+      { w: '喝茶', p: 'hē chá' },
+      { w: '喝奶', p: 'hē nǎi' }
+    ],
+    sentence: { text: '我要喝一杯水。', p: 'wǒ yào hē yī bēi shuǐ.' }
+  },
+  {
+    char: '拿', pinyin: 'ná', tone: 2, unit: 'u13', radical: 'shou', strokes: 10, emoji: '🤲',
+    meaning: '用手把东西握住带走。',
+    words: [
+      { w: '拿好', p: 'ná hǎo' },
+      { w: '拿来', p: 'ná lái' },
+      { w: '拿走', p: 'ná zǒu' }
+    ],
+    sentence: { text: '我拿着一本书。', p: 'wǒ ná zhe yī běn shū.' }
+  },
+  {
+    char: '唱', pinyin: 'chàng', tone: 4, unit: 'u13', radical: 'kou', strokes: 11, emoji: '🎤',
+    meaning: '用好听的声音把歌说出来。',
+    words: [
+      { w: '唱歌', p: 'chàng gē' },
+      { w: '合唱', p: 'hé chàng' },
+      { w: '唱好', p: 'chàng hǎo' }
+    ],
+    sentence: { text: '小鸟在树上唱歌。', p: 'xiǎo niǎo zài shù shàng chàng gē.' }
+  },
+  {
+    char: '笑', pinyin: 'xiào', tone: 4, unit: 'u13', radical: 'zhutou', strokes: 10, emoji: '😄',
+    meaning: '开心的时候嘴角往上弯。',
+    words: [
+      { w: '笑了', p: 'xiào le' },
+      { w: '好笑', p: 'hǎo xiào' },
+      { w: '大笑', p: 'dà xiào' }
+    ],
+    sentence: { text: '我们都笑了。', p: 'wǒ men dōu xiào le.' }
+  },
+  {
+    char: '哭', pinyin: 'kū', tone: 1, unit: 'u13', radical: 'kou', strokes: 10, emoji: '😢',
+    meaning: '难过的时候会流眼泪、会出声。',
+    words: [
+      { w: '哭了', p: 'kū le' },
+      { w: '大哭', p: 'dà kū' },
+      { w: '不哭', p: 'bù kū' }
+    ],
+    sentence: { text: '妹妹哭了，我给她一个苹果。', p: 'mèi mei kū le, wǒ gěi tā yī gè píng guǒ.' }
+  },
+  {
+    char: '打', pinyin: 'dǎ', tone: 3, unit: 'u13', radical: 'shou', strokes: 5, emoji: '🏓',
+    meaning: '用手做的动作，打球、打水都用它。',
+    words: [
+      { w: '打球', p: 'dǎ qiú' },
+      { w: '打开', p: 'dǎ kāi' },
+      { w: '打水', p: 'dǎ shuǐ' }
+    ],
+    sentence: { text: '哥哥在打球。', p: 'gē ge zài dǎ qiú.' }
+  },
+  {
+    char: '玩', pinyin: 'wán', tone: 2, unit: 'u13', radical: 'wang', strokes: 8, emoji: '🧸',
+    meaning: '开开心心地做喜欢的事。',
+    words: [
+      { w: '玩水', p: 'wán shuǐ' },
+      { w: '好玩', p: 'hǎo wán' },
+      { w: '玩具', p: 'wán jù' }
+    ],
+    sentence: { text: '我和妹妹在外面玩。', p: 'wǒ hé mèi mei zài wài miàn wán.' }
+  },
+
+  // ------------------------------ 单元十四 ------------------------------
+  {
+    char: '桌', pinyin: 'zhuō', tone: 1, unit: 'u14', radical: 'mu', strokes: 10, emoji: '🍽️',
+    meaning: '吃饭、写字用的桌子。',
+    words: [
+      { w: '桌子', p: 'zhuō zi' },
+      { w: '书桌', p: 'shū zhuō' },
+      { w: '饭桌', p: 'fàn zhuō' }
+    ],
+    sentence: { text: '书放在桌子上。', p: 'shū fàng zài zhuō zi shàng.' }
+  },
+  {
+    char: '椅', pinyin: 'yǐ', tone: 3, unit: 'u14', radical: 'mu', strokes: 12, emoji: '🪑',
+    meaning: '有靠背的椅子，坐上去很舒服。',
+    words: [
+      { w: '椅子', p: 'yǐ zi' },
+      { w: '木椅', p: 'mù yǐ' },
+      { w: '一把椅子', p: 'yī bǎ yǐ zi' }
+    ],
+    sentence: { text: '我坐在小椅子上。', p: 'wǒ zuò zài xiǎo yǐ zi shàng.' }
+  },
+  {
+    char: '床', pinyin: 'chuáng', tone: 2, unit: 'u14', radical: 'guang', strokes: 7, emoji: '🛏️',
+    meaning: '晚上睡觉的地方。',
+    words: [
+      { w: '小床', p: 'xiǎo chuáng' },
+      { w: '起床', p: 'qǐ chuáng' },
+      { w: '木床', p: 'mù chuáng' }
+    ],
+    sentence: { text: '早上七点我起床。', p: 'zǎo shang qī diǎn wǒ qǐ chuáng.' }
+  },
+  {
+    char: '灯', pinyin: 'dēng', tone: 1, unit: 'u14', radical: 'huo', strokes: 6, emoji: '💡',
+    meaning: '天黑了就打开灯，屋里就亮了。',
+    words: [
+      { w: '开灯', p: 'kāi dēng' },
+      { w: '灯光', p: 'dēng guāng' },
+      { w: '红灯', p: 'hóng dēng' }
+    ],
+    sentence: { text: '天黑了，我们开灯。', p: 'tiān hēi le, wǒ men kāi dēng.' }
+  },
+  {
+    char: '窗', pinyin: 'chuāng', tone: 1, unit: 'u14', radical: 'xue', strokes: 12, emoji: '🪟',
+    meaning: '墙上透光透风的口子。',
+    words: [
+      { w: '窗子', p: 'chuāng zi' },
+      { w: '开窗', p: 'kāi chuāng' },
+      { w: '窗口', p: 'chuāng kǒu' }
+    ],
+    sentence: { text: '窗外有一棵大树。', p: 'chuāng wài yǒu yī kē dà shù.' }
+  },
+  {
+    char: '衣', pinyin: 'yī', tone: 1, unit: 'u14', radical: 'yifu', strokes: 6, emoji: '👕',
+    meaning: '穿在身上的衣服。',
+    words: [
+      { w: '衣服', p: 'yī fu' },
+      { w: '大衣', p: 'dà yī' },
+      { w: '雨衣', p: 'yǔ yī' }
+    ],
+    sentence: { text: '下雨天要穿雨衣。', p: 'xià yǔ tiān yào chuān yǔ yī.' }
+  },
+  {
+    char: '鞋', pinyin: 'xié', tone: 2, unit: 'u14', radical: 'gebu', strokes: 15, emoji: '👟',
+    meaning: '穿在脚上走路用的鞋子。',
+    words: [
+      { w: '鞋子', p: 'xié zi' },
+      { w: '小鞋', p: 'xiǎo xié' },
+      { w: '雨鞋', p: 'yǔ xié' }
+    ],
+    sentence: { text: '我的鞋子是红色的。', p: 'wǒ de xié zi shì hóng sè de.' }
+  },
+  {
+    char: '帽', pinyin: 'mào', tone: 4, unit: 'u14', radical: 'jin', strokes: 12, emoji: '🧢',
+    meaning: '戴在头上的帽子。',
+    words: [
+      { w: '帽子', p: 'mào zi' },
+      { w: '花帽', p: 'huā mào' },
+      { w: '草帽', p: 'cǎo mào' }
+    ],
+    sentence: { text: '夏天要戴一顶草帽。', p: 'xià tiān yào dài yī dǐng cǎo mào.' }
+  },
+  {
+    char: '碗', pinyin: 'wǎn', tone: 3, unit: 'u14', radical: 'shitou', strokes: 13, emoji: '🥣',
+    meaning: '装饭装汤的圆圆的碗。',
+    words: [
+      { w: '一碗', p: 'yī wǎn' },
+      { w: '饭碗', p: 'fàn wǎn' },
+      { w: '大碗', p: 'dà wǎn' }
+    ],
+    sentence: { text: '我吃了一碗饭。', p: 'wǒ chī le yī wǎn fàn.' }
+  },
+  {
+    char: '杯', pinyin: 'bēi', tone: 1, unit: 'u14', radical: 'mu', strokes: 8, emoji: '🥛',
+    meaning: '喝水用的杯子。',
+    words: [
+      { w: '一杯', p: 'yī bēi' },
+      { w: '水杯', p: 'shuǐ bēi' },
+      { w: '茶杯', p: 'chá bēi' }
+    ],
+    sentence: { text: '桌上有一杯茶。', p: 'zhuō shàng yǒu yī bēi chá.' }
+  },
+  {
+    char: '伞', pinyin: 'sǎn', tone: 3, unit: 'u14', radical: 'renzitou', strokes: 6, emoji: '☂️',
+    meaning: '下雨天撑开来挡雨的伞。',
+    words: [
+      { w: '雨伞', p: 'yǔ sǎn' },
+      { w: '打伞', p: 'dǎ sǎn' },
+      { w: '花伞', p: 'huā sǎn' }
+    ],
+    sentence: { text: '下雨了，我打着一把伞。', p: 'xià yǔ le, wǒ dǎ zhe yī bǎ sǎn.' }
+  },
+  {
+    char: '房', pinyin: 'fáng', tone: 2, unit: 'u14', radical: 'hubu', strokes: 8, emoji: '🏡',
+    meaning: '住人的房子、屋子。',
+    words: [
+      { w: '房子', p: 'fáng zi' },
+      { w: '房间', p: 'fáng jiān' },
+      { w: '书房', p: 'shū fáng' }
+    ],
+    sentence: { text: '我在房里看书。', p: 'wǒ zài fáng lǐ kàn shū.' }
+  },
+  {
+    char: '电', pinyin: 'diàn', tone: 4, unit: 'u14', radical: 'tian', strokes: 5, emoji: '⚡',
+    meaning: '看不见的电，让灯亮起来、让车跑起来。',
+    words: [
+      { w: '电车', p: 'diàn chē' },
+      { w: '电灯', p: 'diàn dēng' },
+      { w: '电话', p: 'diàn huà' }
+    ],
+    sentence: { text: '有了电，灯就亮了。', p: 'yǒu le diàn, dēng jiù liàng le.' }
+  },
+
+  // ------------------------------ 单元十五 ------------------------------
+  {
+    char: '米', pinyin: 'mǐ', tone: 3, unit: 'u15', radical: 'mi', strokes: 6, emoji: '🍙',
+    meaning: '白白的小米粒，煮熟就是饭。',
+    words: [
+      { w: '大米', p: 'dà mǐ' },
+      { w: '米饭', p: 'mǐ fàn' },
+      { w: '小米', p: 'xiǎo mǐ' }
+    ],
+    sentence: { text: '田里的米长得很好。', p: 'tián lǐ de mǐ zhǎng de hěn hǎo.' }
+  },
+  {
+    char: '饭', pinyin: 'fàn', tone: 4, unit: 'u15', radical: 'shipang', strokes: 7, emoji: '🍚',
+    meaning: '米煮熟以后就是饭，一天要吃三顿。',
+    words: [
+      { w: '吃饭', p: 'chī fàn' },
+      { w: '米饭', p: 'mǐ fàn' },
+      { w: '饭菜', p: 'fàn cài' }
+    ],
+    sentence: { text: '我们一家人一起吃饭。', p: 'wǒ men yī jiā rén yī qǐ chī fàn.' }
+  },
+  {
+    char: '菜', pinyin: 'cài', tone: 4, unit: 'u15', radical: 'cao', strokes: 11, emoji: '🥬',
+    meaning: '可以吃的绿叶植物，也指做好的一道菜。',
+    words: [
+      { w: '青菜', p: 'qīng cài' },
+      { w: '饭菜', p: 'fàn cài' },
+      { w: '买菜', p: 'mǎi cài' }
+    ],
+    sentence: { text: '桌上有一大碗青菜。', p: 'zhuō shàng yǒu yī dà wǎn qīng cài.' }
+  },
+  {
+    char: '果', pinyin: 'guǒ', tone: 3, unit: 'u15', radical: 'mu', strokes: 8, emoji: '🍇',
+    meaning: '树上结出来能吃的果子。',
+    words: [
+      { w: '水果', p: 'shuǐ guǒ' },
+      { w: '苹果', p: 'píng guǒ' },
+      { w: '果子', p: 'guǒ zi' }
+    ],
+    sentence: { text: '树上有很多果子。', p: 'shù shàng yǒu hěn duō guǒ zi.' }
+  },
+  {
+    char: '苹', pinyin: 'píng', tone: 2, unit: 'u15', radical: 'cao', strokes: 8, emoji: '🍎',
+    meaning: '和「果」连在一起，就是又甜又脆的苹果。',
+    words: [
+      { w: '苹果', p: 'píng guǒ' },
+      { w: '红苹果', p: 'hóng píng guǒ' },
+      { w: '半个苹果', p: 'bàn gè píng guǒ' }
+    ],
+    sentence: { text: '我吃了一个红苹果。', p: 'wǒ chī le yī gè hóng píng guǒ.' }
+  },
+  {
+    char: '面', pinyin: 'miàn', tone: 4, unit: 'u15', radical: 'mianbu', strokes: 9, emoji: '🍜',
+    meaning: '长长的面条；也表示「一面、外面」的面。',
+    words: [
+      { w: '面条', p: 'miàn tiáo' },
+      { w: '外面', p: 'wài miàn' },
+      { w: '前面', p: 'qián miàn' }
+    ],
+    sentence: { text: '中午我们吃面。', p: 'zhōng wǔ wǒ men chī miàn.' }
+  },
+  {
+    char: '蛋', pinyin: 'dàn', tone: 4, unit: 'u15', radical: 'chong', strokes: 11, emoji: '🥚',
+    meaning: '母鸡下的蛋，圆圆的，能煮着吃。',
+    words: [
+      { w: '鸡蛋', p: 'jī dàn' },
+      { w: '蛋花', p: 'dàn huā' },
+      { w: '一个蛋', p: 'yī gè dàn' }
+    ],
+    sentence: { text: '早上我吃一个鸡蛋。', p: 'zǎo shang wǒ chī yī gè jī dàn.' }
+  },
+  {
+    char: '奶', pinyin: 'nǎi', tone: 3, unit: 'u15', radical: 'nv', strokes: 5, emoji: '🍼',
+    meaning: '白白的牛奶，也用来叫奶奶。',
+    words: [
+      { w: '牛奶', p: 'niú nǎi' },
+      { w: '奶奶', p: 'nǎi nai' },
+      { w: '喝奶', p: 'hē nǎi' }
+    ],
+    sentence: { text: '妹妹每天喝一杯牛奶。', p: 'mèi mei měi tiān hē yī bēi niú nǎi.' }
+  },
+  {
+    char: '糖', pinyin: 'táng', tone: 2, unit: 'u15', radical: 'mi', strokes: 16, emoji: '🍬',
+    meaning: '甜甜的糖，不过吃多了牙会坏。',
+    words: [
+      { w: '白糖', p: 'bái táng' },
+      { w: '糖果', p: 'táng guǒ' },
+      { w: '一块糖', p: 'yī kuài táng' }
+    ],
+    sentence: { text: '糖很甜，可是不能多吃。', p: 'táng hěn tián, kě shì bù néng duō chī.' }
+  },
+  {
+    char: '茶', pinyin: 'chá', tone: 2, unit: 'u15', radical: 'cao', strokes: 9, emoji: '🍵',
+    meaning: '用茶叶泡出来的水，香香的。',
+    words: [
+      { w: '喝茶', p: 'hē chá' },
+      { w: '茶水', p: 'chá shuǐ' },
+      { w: '花茶', p: 'huā chá' }
+    ],
+    sentence: { text: '父亲最爱喝茶。', p: 'fù qīn zuì ài hē chá.' }
+  },
+  {
+    char: '肉', pinyin: 'ròu', tone: 4, unit: 'u15', radical: 'rou', strokes: 6, emoji: '🍖',
+    meaning: '可以吃的肉，鸡肉、牛肉都是。',
+    words: [
+      { w: '牛肉', p: 'niú ròu' },
+      { w: '鸡肉', p: 'jī ròu' },
+      { w: '猪肉', p: 'zhū ròu' }
+    ],
+    sentence: { text: '今天的菜里有牛肉。', p: 'jīn tiān de cài lǐ yǒu niú ròu.' }
+  },
+  {
+    char: '瓜', pinyin: 'guā', tone: 1, unit: 'u15', radical: 'gua', strokes: 5, emoji: '🍉',
+    meaning: '藤上结的大瓜，西瓜、南瓜都是瓜。',
+    words: [
+      { w: '西瓜', p: 'xī guā' },
+      { w: '大瓜', p: 'dà guā' },
+      { w: '瓜子', p: 'guā zǐ' }
+    ],
+    sentence: { text: '夏天我们吃西瓜。', p: 'xià tiān wǒ men chī xī guā.' }
+  },
+
+  // ------------------------------ 单元十六 ------------------------------
+  {
+    char: '这', pinyin: 'zhè', tone: 4, unit: 'u16', radical: 'zouzhi', strokes: 7, emoji: '👇',
+    meaning: '指离自己近的人或东西。',
+    words: [
+      { w: '这个', p: 'zhè ge' },
+      { w: '这里', p: 'zhè lǐ' },
+      { w: '这些', p: 'zhè xiē' }
+    ],
+    sentence: { text: '这是我的本子。', p: 'zhè shì wǒ de běn zi.' }
+  },
+  {
+    char: '那', pinyin: 'nà', tone: 4, unit: 'u16', radical: 'youer', strokes: 6, emoji: '👆',
+    meaning: '指离自己远的人或东西。',
+    words: [
+      { w: '那个', p: 'nà ge' },
+      { w: '那里', p: 'nà lǐ' },
+      { w: '那天', p: 'nà tiān' }
+    ],
+    sentence: { text: '那是老师的书。', p: 'nà shì lǎo shī de shū.' }
+  },
+  {
+    char: '什', pinyin: 'shén', tone: 2, unit: 'u16', radical: 'ren', strokes: 4, emoji: '❔',
+    meaning: '和「么」连在一起，用来问事情。',
+    words: [
+      { w: '什么', p: 'shén me' },
+      { w: '为什么', p: 'wèi shén me' },
+      { w: '什么时候', p: 'shén me shí hou' }
+    ],
+    sentence: { text: '这是什么？', p: 'zhè shì shén me?' }
+  },
+  {
+    char: '么', pinyin: 'me', tone: 5, unit: 'u16', radical: 'pie', strokes: 3, emoji: '🔎',
+    meaning: '常跟在「什、怎、这」后面，读轻声。',
+    words: [
+      { w: '什么', p: 'shén me' },
+      { w: '怎么', p: 'zěn me' },
+      { w: '这么', p: 'zhè me' }
+    ],
+    sentence: { text: '你想吃什么？', p: 'nǐ xiǎng chī shén me?' }
+  },
+  {
+    char: '都', pinyin: 'dōu', tone: 1, unit: 'u16', radical: 'youer', strokes: 10, emoji: '🧑‍🤝‍🧑',
+    meaning: '表示全部，一个也不少。',
+    words: [
+      { w: '都是', p: 'dōu shì' },
+      { w: '都好', p: 'dōu hǎo' },
+      { w: '都来', p: 'dōu lái' }
+    ],
+    sentence: { text: '我们都很开心。', p: 'wǒ men dōu hěn kāi xīn.' }
+  },
+  {
+    char: '要', pinyin: 'yào', tone: 4, unit: 'u16', radical: 'nv', strokes: 9, emoji: '🙏',
+    meaning: '想得到，也表示应该、将要。',
+    words: [
+      { w: '要好', p: 'yào hǎo' },
+      { w: '不要', p: 'bù yào' },
+      { w: '要来', p: 'yào lái' }
+    ],
+    sentence: { text: '我要一杯水。', p: 'wǒ yào yī bēi shuǐ.' }
+  },
+  {
+    char: '能', pinyin: 'néng', tone: 2, unit: 'u16', radical: 'yue', strokes: 10, emoji: '💪',
+    meaning: '做得到、可以。',
+    words: [
+      { w: '能行', p: 'néng xíng' },
+      { w: '不能', p: 'bù néng' },
+      { w: '能干', p: 'néng gàn' }
+    ],
+    sentence: { text: '我能自己走去学校。', p: 'wǒ néng zì jǐ zǒu qù xué xiào.' }
+  },
+  {
+    char: '想', pinyin: 'xiǎng', tone: 3, unit: 'u16', radical: 'xindi', strokes: 13, emoji: '💭',
+    meaning: '在心里琢磨，也表示很希望。',
+    words: [
+      { w: '想想', p: 'xiǎng xiang' },
+      { w: '想家', p: 'xiǎng jiā' },
+      { w: '想学', p: 'xiǎng xué' }
+    ],
+    sentence: { text: '我想学会写这个字。', p: 'wǒ xiǎng xué huì xiě zhè ge zì.' }
+  },
+  {
+    char: '用', pinyin: 'yòng', tone: 4, unit: 'u16', radical: 'yongbu', strokes: 5, emoji: '🛠️',
+    meaning: '拿东西来做事，就是用。',
+    words: [
+      { w: '有用', p: 'yǒu yòng' },
+      { w: '用心', p: 'yòng xīn' },
+      { w: '用手', p: 'yòng shǒu' }
+    ],
+    sentence: { text: '我用右手写字。', p: 'wǒ yòng yòu shǒu xiě zì.' }
+  },
+  {
+    char: '做', pinyin: 'zuò', tone: 4, unit: 'u16', radical: 'ren', strokes: 11, emoji: '🧑‍🔧',
+    meaning: '动手去干一件事。',
+    words: [
+      { w: '做事', p: 'zuò shì' },
+      { w: '做好', p: 'zuò hǎo' },
+      { w: '做饭', p: 'zuò fàn' }
+    ],
+    sentence: { text: '母亲在做饭。', p: 'mǔ qīn zài zuò fàn.' }
+  },
+  {
+    char: '给', pinyin: 'gěi', tone: 3, unit: 'u16', radical: 'jiaosi', strokes: 9, emoji: '📬',
+    meaning: '把东西交到别人手里。',
+    words: [
+      { w: '给你', p: 'gěi nǐ' },
+      { w: '给我', p: 'gěi wǒ' },
+      { w: '送给', p: 'sòng gěi' }
+    ],
+    sentence: { text: '我把苹果给妹妹。', p: 'wǒ bǎ píng guǒ gěi mèi mei.' }
+  },
+  {
+    char: '把', pinyin: 'bǎ', tone: 3, unit: 'u16', radical: 'shou', strokes: 7, emoji: '🧹',
+    meaning: '「把书拿来」里的把，用来提前说出被动作的东西。',
+    words: [
+      { w: '一把', p: 'yī bǎ' },
+      { w: '把手', p: 'bǎ shǒu' },
+      { w: '把门', p: 'bǎ mén' }
+    ],
+    sentence: { text: '请把书放在桌上。', p: 'qǐng bǎ shū fàng zài zhuō shàng.' }
   }
 ]
 

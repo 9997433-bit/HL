@@ -67,6 +67,44 @@ export const BOOKS = [
       { emoji: '👀', text: '我会看，我也会说。', p: 'wǒ huì kàn, wǒ yě huì shuō.' },
       { emoji: '🧒', text: '我不是大人，我是小小的我！', p: 'wǒ bù shì dà rén, wǒ shì xiǎo xiǎo de wǒ!' }
     ]
+  },
+  {
+    id: 'b4',
+    title: '我家的一天',
+    pinyin: 'wǒ jiā de yī tiān',
+    level: 3,
+    levelName: '第 3 级 · 一家人的日子',
+    cover: '🏡',
+    palette: ['#ffe0c2', '#e6f5c9'],
+    summary: '从早饭到晚上开灯，跟着我看看家里的一天。',
+    newChars: ['坐', '桌', '吃', '饭', '哥', '姐', '杯', '茶', '房', '灯'],
+    pages: [
+      { emoji: '🍚', text: '早上，我坐在桌前吃饭。', p: 'zǎo shang, wǒ zuò zài zhuō qián chī fàn.' },
+      { emoji: '👨‍👩‍👧', text: '父母也来了，我们一家人都在。', p: 'fù mǔ yě lái le, wǒ men yī jiā rén dōu zài.' },
+      { emoji: '🥬', text: '桌上有米饭、菜和一个蛋。', p: 'zhuō shàng yǒu mǐ fàn, cài hé yī gè dàn.' },
+      { emoji: '🍎', text: '哥哥要一杯茶，姐姐想吃苹果。', p: 'gē ge yào yī bēi chá, jiě jie xiǎng chī píng guǒ.' },
+      { emoji: '📖', text: '吃了饭，我们去房里读书。', p: 'chī le fàn, wǒ men qù fáng lǐ dú shū.' },
+      { emoji: '💡', text: '晚上，灯是黄的，我们都笑了。', p: 'wǎn shang, dēng shì huáng de, wǒ men dōu xiào le.' }
+    ]
+  },
+  {
+    id: 'b5',
+    title: '小鸡问什么',
+    pinyin: 'xiǎo jī wèn shén me',
+    level: 3,
+    levelName: '第 3 级 · 爱问的小动物',
+    cover: '🐔',
+    palette: ['#fff1cf', '#d9f6f3'],
+    summary: '小鸡什么都想问。问一问，就多知道一点。',
+    newChars: ['鸡', '鸭', '猪', '问', '这', '那', '什', '么', '都', '能'],
+    pages: [
+      { emoji: '🐔', text: '小鸡问：这是什么？', p: 'xiǎo jī wèn: zhè shì shén me?' },
+      { emoji: '🐄', text: '老牛说：这是一个大瓜。', p: 'lǎo niú shuō: zhè shì yī gè dà guā.' },
+      { emoji: '🦆', text: '小鸭问：那是什么？', p: 'xiǎo yā wèn: nà shì shén me?' },
+      { emoji: '🥚', text: '小猪说：那是一个白色的蛋。', p: 'xiǎo zhū shuō: nà shì yī gè bái sè de dàn.' },
+      { emoji: '😄', text: '小鸡和小鸭都笑了：我们什么都想问！', p: 'xiǎo jī hé xiǎo yā dōu xiào le: wǒ men shén me dōu xiǎng wèn!' },
+      { emoji: '🌟', text: '老牛说：多问一问，我们都能学好。', p: 'lǎo niú shuō: duō wèn yī wèn, wǒ men dōu néng xué hǎo.' }
+    ]
   }
 ]
 
