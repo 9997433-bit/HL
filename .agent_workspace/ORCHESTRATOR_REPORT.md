@@ -1,15 +1,15 @@
 # OpenFEMLab 编排总报告（Orchestrator Report）
 
-**报告人：** A66（顶替已完成的 A63）· **日期：** 2026-08-26
+**报告人：** A77（顶替已完成的 A74）· **日期：** 2026-08-26
 **分支：** `cursor/femtools-industrial-7aa3` · **Pull Request：** [PR #5](https://github.com/9997433-bit/hl/pull/5)（Draft，base `main`）
-**已验证快照：** 提交 `8604807` —— 全量 `pytest` **876 通过 / 0 失败**（29.26 s，独立克隆验证；主干基线复核 33.22 s），`ruff check .` 干净（Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1）。
+**已验证快照：** 提交 `adf5cdc` —— 全量 `pytest` **1,033 通过 / 0 失败**（91.15 s），`ruff check .` 干净（Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1）。
 
 ---
 
 ## 一、执行摘要
 
 OpenFEMLab 是一个受 FEMtools 启发、但完全开源（MIT）、求解器无关的 CAE 平台。
-截至本报告，**Round 1 已完成收官，Round 2 的九个任务中五个已关闭、两个部分完成、两个待启动**。平台已交付从建模、模态分析、试验相关性、灵敏度/贝叶斯模型修正、阻尼动力学与 FRF 综合，到优化与命令行工作流的完整链路，由 **876 个测试**（含 40 条量化验收准则的机器可读注册表）与 GitHub Actions CI（Python 3.10–3.13）守护。成果已通过 [PR #5](https://github.com/9997433-bit/hl/pull/5) 汇入评审流程。
+截至本报告，**Round 1 已完成收官，Round 2 的九个任务中五个已关闭、两个部分完成、两个待启动**。平台已交付从建模、模态分析、试验相关性、灵敏度/贝叶斯模型修正、阻尼动力学与 FRF 综合，到优化与命令行工作流的完整链路，由 **1,033 个测试**（含 44 条量化验收准则的机器可读注册表）与 GitHub Actions CI（Python 3.10–3.13）守护。成果已通过 [PR #5](https://github.com/9997433-bit/hl/pull/5) 汇入评审流程。
 
 对标 FEMtools 的一句话结论：**在算法深度、开放性与自动化上超越，在 GUI 与商用格式广度上有意让步**（后者已登记为 Round 2/3 计划项，不是隐藏缺陷）。
 
@@ -26,7 +26,7 @@ OpenFEMLab 是一个受 FEMtools 启发、但完全开源（MIT）、求解器�
 - **修正工作流**：S1 基线 → S6 验证的六阶段状态机，机器可读门控失败、共线性筛查（MS-3.6）、留出验证目标防过拟合、σ_post 参数不确定度，`CorrectionReport` 可复现（重跑一致至 1e-12）。
 - **优化**：设计变量、模态/质量/频响响应函数、带 MAC 模态跟踪的解析梯度、SciPy SLSQP/trust-constr 后端（硬边界、解析 Jacobian、方法无关 KKT 残差）。双杆链非对称 `(6, 4)` 最优解从对称初值恢复至 1.1e-16 相对误差。
 - **IO 与 CLI**：schema 版本化的原生 YAML/JSON 往返；UFF/UNV 数据集 55/58 读取器；Nastran BDF 精简读取器；`openfemlab modal | correlate | update | correlate-frf` 四个子命令，stdout 输出机器可读 JSON、退出码即 CI 验收门控。
-- **规格与 QA**：`ARCHITECTURE.md`、`MODULE_SPEC.md`（MS-0..7）、`ACCEPTANCE_CRITERIA.md`（40 条准则）、`SOTA_GAP_ANALYSIS.md`（GAP-01..15）、可运行 `examples/`、基准与性能回归门控。
+- **规格与 QA**：`ARCHITECTURE.md`、`MODULE_SPEC.md`（MS-0..8）、`ACCEPTANCE_CRITERIA.md`（44 条准则）、`SOTA_GAP_ANALYSIS.md`（GAP-01..15）、可运行 `examples/`、基准与性能回归门控。
 
 ### 2.2 对标 FEMtools 逐项裁定
 
@@ -60,7 +60,7 @@ OpenFEMLab 是一个受 FEMtools 启发、但完全开源（MIT）、求解器�
 | 任务 | 内容 | 状态 |
 |---|---|---|
 | R2-T01 | 动力学/FRF 链（阻尼、复模态、FRF 综合与相关、schema 1.1 `frf` 块、`correlate-frf` CLI） | **完成**（AC-DYN-001..005 已注册并实现，无遗留项） |
-| R2-T02 | 3D 连续体单元库 | **部分**——QUAD4 与 TET4 已上主干（各 61 / 66 个测试）；HEX8、3D 梁、壳面元、实体/壳 BDF 卡与 AC-ELEM-* 注册仍开放 |
+| R2-T02 | 3D 连续体单元库 | **部分**——QUAD4、TET4、HEX8 已上主干（各 61 / 66 / 76 个测试），AC-ELEM-001..003 已注册；3D 梁、壳面元与实体/壳 BDF 卡仍开放 |
 | R2-T03 | SEREP/Guyan/IRS 缩减 + TAM + 振型扩展 | **引擎已落地**，AC-CORR-006 门控 `implemented`；余量：AC-CORR-009 注册、`SensorMap.signs` 接线 |
 | R2-T04 | 贝叶斯 MAP 修正（MS-3.5） | **估计器已落地**（35 个测试），AC-UPD-006a/b 验收标注与 σ_post 报告输出正在收尾合入 |
 | R2-T05 | meshio 桥 + UNV 2411/2412 | 待启动 |
@@ -69,27 +69,27 @@ OpenFEMLab 是一个受 FEMtools 启发、但完全开源（MIT）、求解器�
 | R2-T08 | R1-O2 平行实现和解 | **完成**——有用行为经和解合入主干；5 条被取代的远程分支已审计并删除（见 `BRANCH_CLEANUP.md`） |
 | R2-T09 | 退出加固（CI、注册表推进） | 进行中——CI 全绿；注册表 `implemented → verified` 翻转待做 |
 
-**Round 2 退出门槛的剩余项**：全部 P0/P1 准则翻至 `verified`；HEX8 落地后一并注册 AC-ELEM-*；"导入 3D 网格 → 内部再分析"演示（依赖 T02/T05）。FRF 演示一侧已经关闭。
+**Round 2 退出门槛的剩余项**：全部 P0/P1 准则翻至 `verified`；"导入 3D 网格 → 内部再分析"演示（依赖 T02/T05）。FRF 演示一侧已经关闭。
 
-## 五、质量与验证：876 个测试
+## 五、质量与验证：1,033 个测试
 
-- 全量套件 **876 通过 / 0 失败**，于提交 `8604807` 在隔离克隆中验证（29.26 s），主干基线复核 33.22 s；`ruff check .` 干净。
-- 40 条量化验收准则由机器可读注册表钉住，注册表一致性本身也是测试——新准则必须与规格文档、实现测试在同一变更中落地，否则套件失败。
+- 全量套件 **1,033 通过 / 0 失败**，于提交 `adf5cdc` 验证（91.15 s）；`ruff check .` 干净。
+- 44 条量化验收准则由机器可读注册表钉住，注册表一致性本身也是测试——新准则必须与规格文档、实现测试在同一变更中落地，否则套件失败。
 - 端到端演示：模型 → 模态 → 相关 → 修正 → 复算，频率误差 22.86% → 0%，MAC 1.0；README 的 CLI 会话可复现退出码 0/3/0/0。
 - GitHub Actions CI 覆盖 Python 3.10–3.13。
 
 ## 六、Pull Request
 
-[PR #5 — OpenFEMLab: solver-independent CAE platform](https://github.com/9997433-bit/hl/pull/5)（Draft，head `cursor/femtools-industrial-7aa3` → base `main`）。标题中的测试数（430）反映的是开 PR 时的规模，现已增长至 876，建议在转正式评审前刷新 PR 标题与正文（`.agent_workspace/PR_DRAFT.md` 备有最新草案）。
+[PR #5 — OpenFEMLab: solver-independent CAE platform](https://github.com/9997433-bit/hl/pull/5)（Draft，head `cursor/femtools-industrial-7aa3` → base `main`）。标题中的测试数（430）反映的是开 PR 时的规模，现已增长至 1,033，建议在转正式评审前刷新 PR 标题与正文（`.agent_workspace/PR_DRAFT.md` 备有最新草案）。
 
 ## 七、下一步
 
 1. **收官 Round 2**：
-   - HEX8 + 3D 梁单元落地，同批注册 AC-ELEM-001..003 并为 QUAD4/TET4 既有证据补 `@criterion` 标签（R2-T02 余量）；
+   - 3D 梁单元与壳面元落地（R2-T02 余量）；
    - meshio 桥 + UNV 2411/2412 几何读取（R2-T05），打通"导入工业网格 → 内部再分析"演示；
    - σ_post 输出到 CLI `update` 文档与 `CorrectionReport` 参数表（AC-WORK-005 已预留列，正在收尾）；
    - 注册表全面 `implemented → verified` 翻转，满足退出门槛。
-2. **推进 PR #5 评审**：刷新标题/正文至 876 测试规模，Draft 转正式，评审后合入 `main`。
+2. **推进 PR #5 评审**：刷新标题/正文至 1,033 测试规模，Draft 转正式，评审后合入 `main`。
 3. **Round 3（SOTA 打磨）**：FRF 模态参数识别 MPE（GAP-06）、预试验传感器布置（GAP-07）、5 万自由度规模化（GAP-13）、绘图/可视化（GAP-15）、FRF 修正残差、TMCMC 贝叶斯采样、Craig–Bampton CMS。
 
 ---

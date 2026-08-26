@@ -43,6 +43,7 @@ implementation calls it "fe", so ``ModePairing.unpaired_fe`` is the
 
 from __future__ import annotations
 
+import json
 import math
 
 import numpy as np
@@ -1337,3 +1338,70 @@ def test_ac_corr_008_an_unknown_schema_version_is_refused():
     for version in ("1.0", "2.0"):
         with pytest.raises(ValueError, match="schema"):
             CorrelationReport.from_dict({**payload, "schema_version": version})
+
+
+def _frequency_only_report() -> CorrelationReport:
+    """A report paired on frequencies alone: every optional block empty."""
+    test_frequencies, _ = _scaled_chain()
+    analysis_frequencies, _ = _scaled_chain(stiffness_factor=STIFFNESS_FACTOR)
+    return correlation_report(
+        test_frequencies=test_frequencies,
+        fe_frequencies=analysis_frequencies,
+        method="frequency",
+        meta={"case": "ten_dof_chain", "shapes": False},
+    )
+
+
+@criterion("AC-CORR-008")
+def test_ac_corr_008_a_report_with_no_shapes_at_all_round_trips_too():
+    """The emptiest payload the schema can produce, and the only NaN in it.
+
+    Pairing on frequencies alone leaves ``mac_matrix``, ``comac`` and
+    ``dof_labels`` unset and every ``ModePair.mac`` at NaN, so this is the one
+    flavor where the parser has to rebuild absent blocks and an unknown value
+    at the same time -- without turning either into a zero, which would read as
+    a correlation of nothing with nothing.
+    """
+    report = _frequency_only_report()
+
+    parsed = CorrelationReport.from_json(report.to_json())
+
+    assert parsed.mac_matrix is None and parsed.comac is None and parsed.dof_labels is None
+    assert parsed.pairing.method == report.pairing.method == "frequency"
+    assert parsed.pairing.as_tuples() == report.pairing.as_tuples()
+    assert all(math.isnan(pair.mac) for pair in parsed.pairing.pairs)
+    np.testing.assert_allclose(
+        [pair.frequency_error_pct for pair in parsed.pairing.pairs],
+        [pair.frequency_error_pct for pair in report.pairing.pairs],
+        rtol=0.0,
+        atol=ROUND_TRIP_TOLERANCE,
+    )
+    assert parsed.summary.as_dict() == report.summary.as_dict()
+    assert parsed.report() == report.report()
+
+
+@criterion("AC-CORR-008")
+def test_ac_corr_008_that_unknown_mac_is_written_as_a_token_strict_json_lacks():
+    """What the NaN above costs a reader that is not Python.
+
+    ``json`` writes it as the bare token ``NaN``: the value survives the round
+    trip, which is why the parse above reproduces the report, but the file is
+    not RFC 8259 and a conforming reader (``JSON.parse``, ``serde_json``)
+    rejects it -- as does ``json`` itself the moment ``allow_nan=False`` is
+    asked for. Every report built from mode shapes, which is what the CLI
+    publishes, is conforming, so this bounds the exposure to the shape-free
+    case rather than excusing it. The same NaN is why comparing the two
+    payloads with ``==`` fails here: NaN is not equal to itself, and that is
+    not a round-trip failure.
+    """
+    report = _frequency_only_report()
+    text = report.to_json()
+    payload = json.loads(text)
+
+    assert '"mac": NaN' in text
+    with pytest.raises(ValueError, match="not JSON compliant"):
+        json.dumps(payload, allow_nan=False)
+    assert all(math.isnan(pair["mac"]) for pair in payload["pairs"])
+    assert payload != report.to_dict()
+
+    assert json.dumps(_round_trip_report(with_frf=True).to_dict(), allow_nan=False)

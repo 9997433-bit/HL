@@ -65,7 +65,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A50 | claude-opus-5-thinking-high-fast | Remaining P0 acceptance batch: AC-MODAL-007/009, AC-CORR-005/007, AC-UPD-004/005, AC-WORK-001/002/004/005 + MS-1.1 solver validation and MS-3.4 stop reasons/divergence guard (backfill for A31) | complete |
 | A58 | claude-opus-5-thinking-high-fast | R2-T03: register AC-CORR-009 (TAM pseudo-orthogonality) and wire `SensorMap.signs` through the reduction bases (backfill for A43) | complete |
 | A76 | gpt-5.6-sol-xhigh-fast | Current-tip pytest verification (backfill for completed A75) | complete — A75 done; 921 passed |
-| A80 | gpt-5.6-sol-xhigh-fast | Authoritative current-tip pytest count (backfill for completed A76) | complete — 921 passed at `9052f95`; collection confirmed 921 |
+| A80 | gpt-5.6-sol-xhigh-fast | Authoritative current-tip pytest count (backfill for completed A76) | complete — 1033 passed at `ff484e4`; collection confirmed 1033 |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
@@ -990,11 +990,14 @@ Core backlog (prioritized, from `docs/SOTA_GAP_ANALYSIS.md` §4/§6 + Round 1 co
    **The only remaining item is the `implemented` → `verified` flip, which needs a CI
    run rather than more code**, i.e. R2-T09. See the A36, A43 and A58 entries below.*
 4. **R2-T04 Bayesian MAP updating** (GAP-11 slice, MS-3.5) — Gaussian-prior MAP step +
-   posterior covariance; closes Round-2 gates AC-UPD-006a/b. **PARTIAL: the estimator
-   is on the trunk** (A49, `updating/bayesian.py`, 35 tests) driving the shared LM loop
-   through the new `normal_equations`/`penalty` hooks; remaining are the AC-UPD-006a/b
-   acceptance tags + registry flips and σ_post in the CLI `update` document and the
-   `CorrectionReport` table.
+   posterior covariance; closes Round-2 gates AC-UPD-006a/b. *The estimator landed by
+   A49 (`updating/bayesian.py`, 35 tests), driving the shared LM loop through the new
+   `normal_equations`/`penalty` hooks, and **both criteria are now `implemented`** —
+   A57 added the eight-test acceptance gate on the ten-DOF twin, flipped the registry
+   in the same commit and wired the Laplace σ_post into the `CorrectionReport` column
+   AC-WORK-005 reserves. Remaining: σ_post in the CLI `update` document, and moving
+   both rows from `implemented` to `verified` once CI has run them. See the A49 and A57
+   entries below.*
 5. **R2-T05 meshio bridge & IO completion** (GAP-03 remainder) — optional-dependency
    meshio ↔ NeutralModel bridge, UNV 2411/2412. **NOT STARTED.**
 
@@ -2359,6 +2362,69 @@ the AC-UPD-006a/b registry rows stay `specified` because their tags belong in
   against that unrelated checkout. Pinning the branch-local source removed the
   cross-worktree import contamination; no product-code fix was required.
 
+#### A57 — R2-T04 closes its acceptance gate: AC-UPD-006a/b registered (backfill for A49)
+
+The second slice of the second Round-2 gate-blocker. A49 landed the MS-3.5 estimator
+and left the two registry rows at `specified` because their tags belong in the M3
+acceptance suite; this run writes them, flips both rows in the same commit, and
+finishes the σ_post surface A49 listed as outstanding.
+
+- `tests/acceptance/test_updating.py` gains eight tagged tests on the suite's *own*
+  rig — the `ten_dof_chain` split into three stiffness and two mass groups, run as the
+  AC-UPD-003 `stiffness` twin, so the deterministic answer the weak-prior limit has to
+  reproduce is already pinned a few tests above. Deliberately not a copy of A49's 2-DOF
+  unit suite: different model, different residual dimension (6 modes / 3 free factors,
+  over-determined rather than square), and the linearization the step tests compare on
+  is assembled in the suite from the model's analytic frequency sensitivity rather than
+  read back from either estimator.
+- **AC-UPD-006a** three ways. A zero prior precision is an *identity*, not a limit, so
+  the MAP step matches Gauss–Newton to 1e-12 even with an off-centre prior mean. Over
+  precisions 1e-2 → 1e-6 → 1e-12 the relative gap falls monotonically 2.2e-1 → 3.8e-5 →
+  3.8e-11, inside the documented 1e-8; the sweep asserts the strongest prior bends the
+  step by > 10 % so the gate cannot pass vacuously. End to end a σ = 1e6 prior
+  reproduces the deterministic run's factors to 1e-8 and still clears the MS-4.2 gates.
+- **AC-UPD-006b** likewise. σ_post ≤ σ_prior componentwise over σ ∈ {1, 0.1, 0.01} and
+  below the width the same run reports with no prior at all; every narrowing of the
+  prior strictly narrows every posterior marginal; and at σ = 0.01 the solution stays
+  inside 3σ_prior of θ₀ (7.9e-6, against a 3e-2 limit) while provably *not* recovering
+  the truth — which is what makes the three-sigma statement a gate rather than an
+  accident of a prior that happens to agree with the data.
+- **A real bug fell out of the σ_post work.** `ModelUpdater.run()` recorded the bare
+  data misfit as the starting cost but compared every trial against `cost + penalty`,
+  so the first acceptance test weighed two different objectives. Both penalties in the
+  tree are zero at the starting point — `regularization` is anchored at θ₀, and so is a
+  Gaussian prior that takes its default mean — which is why nothing caught it. Give the
+  prior an explicit mean and it bites: with `from_std(0.01, mean=[0.90, 1.10])` on the
+  2-DOF chain the initial cost read 2.85e-3 against a first trial of 8.5e-3, no step
+  was ever accepted, and the run returned θ₀ with the prior mean silently ignored.
+  Penalizing the starting cost fixes it (initial 4.50, step accepted, run lands on the
+  prior mean). `GaussianPrior.mean` was effectively dead at run level until now; the
+  existing test only exercised the linearized step.
+- **σ_post reaches the `CorrectionReport`.** AC-WORK-005 has reserved the column since
+  the schema landed, but S4 could only fill it with the least-squares stand-in
+  `C_post ≈ σ² (JᵀJ)⁻¹`, σ² read off the final residual — on the noise-free twins the
+  workflow tests use that collapses to ~1e-12, a statement about how well the fit
+  closed rather than about what the measurement was worth. `CorrectionWorkflow` now
+  takes `prior` and `noise_covariance`; either switches S4 from `ModelUpdater` to
+  `BayesianUpdater` and the column carries the Laplace posterior the run already
+  evaluated at its solution. With neither, nothing changes to the last digit, so
+  AC-WORK-002 reproducibility and every existing report stay put.
+- Verified from the isolated clone with `PYTHONPATH` pinned to its own `src`:
+  **888 passed** (884 at the merged trunk tip + 1 updating + 3 workflow, on top of the
+  8 acceptance tests already counted), `ruff check .` clean.
+- **Left open for R2-T04:** σ_post in the CLI `update` document — that needs a
+  prior/noise block in the update spec schema, a column in the rendered table and the
+  JSON payload, and CLI doc updates, which is a slice of its own rather than a
+  footnote. Also still open from A49: whether the prior should be expressible in
+  *physical* space rather than only the updater's design space.
+- **Process note, the hard way.** The private-clone rule A48/A49 established is not
+  enough on its own if the clone has a *guessable* name. A concurrent agent ran
+  `git checkout && git fetch && git reset --hard` inside `/tmp/a57` — the obvious path
+  for subagent A57 — and destroyed this run's uncommitted working tree; only the
+  already-pushed acceptance commit survived. Redone in a timestamped, PID-suffixed
+  directory. Two rules, not one: work in a private clone, and give it a name no other
+  agent would pick.
+
 #### A64 — Chinese quickstart user guide `docs/USER_GUIDE_zh.md` (backfill for A52)
 
 Documentation-only landing: the first end-user document in a language other than
@@ -2645,3 +2711,113 @@ slice is coherent.
 `CQUAD4`/`CTETRA`/`CHEXA`/`CBAR`/`PSHELL`/`PSOLID` cards in `io/nastran.py`, and the
 `NeutralModel → Model` conversion. No element formulation is outstanding except the
 shell.
+
+#### A79 — merging the HEX8 brick slice into the integration branch (backfill for A59)
+
+A59 left two branches with the same `d0b7` suffix and only one of them mergeable. This
+entry records which, why, and what the counters became.
+
+**Which branch, and why not the other.** `cursor/hex8-solid-element-d0b7` is the branch
+A59's own entry marks **superseded**: it was built in the shared `/workspace` checkout and
+its `git add -A` swept a concurrent agent's in-flight `solver/modal.py` and
+`exceptions.py` into it. That agent's AC-MODAL-007/009 work reached the trunk on its own
+afterwards, so merging the entangled branch would fork a second copy of it — its diff
+against the rebuilt branch is 17 files and ~2500 lines of exactly that duplication.
+`cursor/hex8-brick-ac-elem-d0b7` is the clean rebuild: five element files plus the three
+registration edits, nothing else. That is the one merged here; the superseded branch stays
+unmerged and should be deleted rather than revisited.
+
+**The three conflicts were all the same conflict.** Every one was an inventory counter
+that the trunk and the branch each moved for a different reason — the trunk had added
+AC-CORR-009 (M2: 8 → 9) while the branch added the M7 `ELEM` family. The registry rows
+themselves auto-merged cleanly, since the two sides touched disjoint entries; only the
+hand-maintained totals that shadow them collided:
+
+- `tests/acceptance/test_criteria_registry.py` — `EXPECTED_CRITERIA_PER_FAMILY` (take
+  `CORR: 9` from the trunk *and* `ELEM: 3` from the branch) and `len(REGISTRY) == 44`
+  (41 + 3), not either side's 41 or 43.
+- `docs/ACCEPTANCE_CRITERIA.md` §9 — the same numbers in prose.
+- `.agent_workspace/PROGRESS.md` — not a counter but a two-sided append (A50 on the trunk,
+  A59 on the branch); both entries kept, in agent order.
+
+Resolving by taking either side wholesale would have passed `git merge` and then failed
+`test_registry_inventory_matches_documented_scope`, which is the point of pinning the
+totals twice. Each resolved file was staged by explicit path — `git add <file>`, never
+`git add -A` — which is the rule A59's incident produced.
+
+**Verification at the merged tip:** full suite **1033 passed, 0 failed**, `ruff check .`
+clean, Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1, from a private clone with `PYTHONPATH`
+pinned to its own `src`. The HEX8 merge alone took the trunk's 921 to **1021** — exactly
+the 100 tests A59 measured (76 in `tests/test_hex8.py`, 24 parametrized cases in
+`tests/acceptance/test_elements.py`) — and the AC-CORR-008 work that landed upstream
+mid-merge added the remaining 12. Registry: **44 criteria, 39 `implemented`, 5
+`specified`**, and with AC-CORR-008 and AC-ELEM-001..003 both in, **every P0 row is now
+`implemented`**; the five outstanding are all P1 (AC-MODAL-008, AC-UPD-006a/b,
+AC-UPD-008, AC-WORK-003).
+
+**The shared checkout is still moving.** `/workspace` advanced under this run before the
+merge even started, and the integration branch's remote tip moved three more times during
+it (`a975087` → `b56593c` → `ca5abae` → the AC-CORR-008 landing). The merge was therefore
+staged in a private clone under a name no other agent would pick, committed as soon as it
+was coherent, and pushed through a fetch-merge-push retry loop rather than a single push.
+Two of those three upstream moves touched files this merge also touched and still merged
+cleanly; the loop is cheap insurance, not ceremony.
+
+#### A78 — milestone: every P0 acceptance criterion is `implemented` (backfill for A50)
+
+**The milestone.** With AC-CORR-008 closed, the registry at tip `c5afc35` reads
+**44 criteria: 39 `implemented`, 5 `specified`, 0 `verified`** — and by priority
+**P0 34 implemented / 0 specified**, P1 4 / 5. Every blocking criterion in
+`docs/ACCEPTANCE_CRITERIA.md` now has an executable, tagged test behind it. The five
+rows still `specified` are all P1 and all of the same cheap kind (the engine exists
+and is unit-tested; the acceptance tagging is not written): AC-MODAL-008,
+AC-UPD-006a/006b, AC-UPD-008, AC-WORK-003. This supersedes the A50 entry above, which
+recorded AC-CORR-008 as the last P0 row outstanding, and the P0 count in A61's
+mid-point brief; A79 reports the same census from the merge side.
+
+**AC-CORR-008 itself was closed by `1e99970`, not by this task.** That commit gave the
+artifact a parse side — `from_dict`/`from_json` across `ModePair`, `ModePairing`,
+`CorrelationSummary`, `FRFCorrelation` and `CorrelationReport`, plus `SCHEMA_KEYS`, the
+pinned key set `to_dict` emits — and registered the criterion with eleven tagged cases.
+That is the right shape for the criterion: MS-2.6 calls the report the exchange
+currency between M2, M3 and M4, and until then it could only be written. The parser is
+the strict inverse of the serializer: a payload missing a schema key, or carrying a
+`schema_version` this build does not know, is refused as corrupt rather than turned
+into a report with a silently empty block.
+
+**What this task added (`515aa2e`), two cases.** The batch exercises the parser only on
+reports built from mode shapes. A report paired on frequencies alone is the emptiest
+payload the schema can emit — `mac_matrix`, `comac` and `dof_labels` all `null` — and
+the only one that can contain a NaN, since `ModePair.mac` is unknown without shapes.
+The first case pins that the parse rebuilds the absent blocks as absent and keeps the
+NaN a NaN, rather than reading either as a zero, which would report a correlation of
+nothing with nothing; the restored summary, pairing and `report()` text are identical.
+The second records the cost: `json` writes that NaN as a bare token, so the file is
+**not RFC 8259** and a conforming reader (`JSON.parse`, `serde_json`) rejects it, as
+does `json` itself under `allow_nan=False`. Shape-based reports — what
+`openfemlab correlate` and `correlate-frf` publish — are conforming, so the exposure is
+bounded to the shape-free case rather than excused. Whether to spell an unknown MAC as
+`null` instead is a schema change (1.1 → 1.2 under the MS-6 rule) and was deliberately
+not started here.
+
+**Verification.** From a private detached worktree at `/tmp/a78` with `PYTHONPATH`
+pinned to its `src`, Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1: full suite
+**1035 passed, 0 failed** (86 s) at `c5afc35` plus these two cases, `ruff check .`
+clean. STATUS.md was already refreshed for the milestone by A69 (at `1e99970`,
+933 tests, before the HEX8 merge); its test count and criteria total now trail this
+tip and need one more pass.
+
+**Dispatch note, a new hazard alongside the shared-checkout one.** This task was
+dispatched to implement AC-CORR-008 and was three minutes behind a sibling agent that
+had already landed it — a complete duplicate suite was written, verified green and
+committed in a private worktree before the rebase onto the trunk surfaced the
+collision, and was then dropped in favour of the version already on the branch. The
+shared-checkout rule (work in a private worktree) is what made the collision
+recoverable, but it does not prevent it: `git fetch` and a look at the registry status
+of the target criterion belong at the *start* of a backfill task, not at its first
+push.
+
+**Open for the orchestrator.** The exit bar wants every P0+P1 criterion `verified`, and
+nothing can leave `implemented` until R2-T09 defines and runs the promotion (a CI run
+at a pinned tip). That is now the only structural blocker on the P0 set; the five P1
+tagging tasks are independent of it and can go in parallel.
