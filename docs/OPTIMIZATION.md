@@ -51,6 +51,23 @@ that no FE concept reaches the optimizer.
 Everything below the vector layer is swappable, which is the extension point
 `docs/ARCHITECTURE.md` §11 reserves for external optimizers.
 
+Module layout:
+
+| File | Owns |
+|------|------|
+| `variables.py` | `DesignSpace`, `ShapeVariable` (sizing reuses `UpdatableParameter`) |
+| `responses.py` | `DesignState`, `Response`, `TotalMass`, `NaturalFrequency`, `Objective`, `Constraint`, `frequency_floor` |
+| `gradients.py` | `MatrixDerivativeProvider`, Fox-Kapoor adapter, FD fallback, `check_gradient` |
+| `problem.py` | `OptimizationProblem`, `VectorConstraint`, `OptimizationIterate`, `OptimizationResult` |
+| `backends.py` | `OptimizerBackend` protocol, `ScipyBackend` (stub), registry |
+| `sizing.py` | `ModalDesignEvaluator`, `compile_sizing_problem`, `minimize_sizing`, `problem_from_updater` |
+
+Errors raise `OptimizationError` (`openfemlab.exceptions`); the top level
+re-exports `OptimizationProblem`, `OptimizationResult` and `minimize_sizing`.
+Contract tests: `tests/test_optimization.py` (16 tests pin the design space,
+both gradient routes, mode tracking, the bound contract, the backend registry,
+the stub, and the updater interop).
+
 ## 3. Problem statement
 
 The vector layer is the standardized bound-constrained NLP of MS-5.1:
@@ -183,10 +200,38 @@ drive updating with a generic bound-constrained backend instead of the built-in
 Levenberg-Marquardt loop — and the reason calibration and design optimization do
 not need two problem statements.
 
-## 9. Staging
+## 9. Public API
+
+```python
+# spec MS-5.3 hook
+minimize_sizing(model, params, objective, constraints=(), *,
+                backend="slsqp", tol=1e-8, max_iter=100, seed=0)
+    -> OptimizationResult
+
+# lowering, exposed for tests and Round 2
+compile_sizing_problem(model, params, objective, constraints=(), **options)
+    -> (OptimizationProblem, ModalDesignEvaluator)
+
+# updating interop
+problem_from_updater(updater: ModelUpdater) -> OptimizationProblem
+
+# verification (AC-OPT-001)
+check_gradient(fun, jac, x, *, steps=1e-6, tolerance=1e-6) -> GradientCheck
+```
+
+## 10. Staging
 
 | Round | Scope |
 |-------|-------|
 | 1 | Design space, lowering, both gradient routes, mode tracking, response/result contracts, backend seam |
-| 2 | `ScipyBackend.solve` (GAP-12); AC-OPT-002/003 gates; drive `ModelUpdater` through the shared statement |
-| 3 | Geometric `dK/da` for shape variables; DOE sampling and response-surface surrogates for expensive objectives |
+| 2 | `ScipyBackend.solve` (GAP-12); AC-OPT-002/003 gates; drive `ModelUpdater` through the shared statement; element-level assembled `∂K/∂p`/`∂M/∂p` for the native `Model` stack (today only affine `ScalingModel`-style models take the analytic route); `dof_types`-aware translational mass for continuum models |
+| 3 | Geometric `dK/da` for shape variables (FE regeneration from morphed coordinates); DOE sampling and response-surface surrogates for expensive objectives; multistart driver over `seed` |
+
+## 11. Acceptance criteria mapping
+
+| Criterion | Mechanism | Status |
+|-----------|-----------|--------|
+| AC-OPT-001 (gradients vs FD, 1e-6) | `check_gradient` + analytic routes | mechanism tested at 3 seeded points (Round 1) |
+| AC-OPT-002 (reference optimum) | `ScipyBackend.solve` | Round 2 gate |
+| AC-OPT-003 (bounds never violated) | `DesignSpace.clip`, `OptimizationProblem.feasible`, iterate history | primitives tested; full iterate audit lands with the backend |
+| AC-OPT-004 (mode tracking) | evaluator reference tracking via `track_modes` | crossing test passes (Round 1) |
