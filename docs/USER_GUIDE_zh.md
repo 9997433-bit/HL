@@ -138,15 +138,56 @@ point_masses:
 单元类型支持 `spring`、`truss`、`beam`）。`supports`、`point_masses`、
 `rotary_inertias` 分别添加约束、集中质量与转动惯量。
 
+模型修正通过**点分路径**寻址文档中的单个数值，例如 `materials.steel.E` 或
+`mesh.elements.2.stiffness`——这是第 9 节参数声明中 `target` 字段的含义。
+
 在模型规格之外，Python API 还提供空间梁单元 `BeamElement3D`（可从 `openfemlab`
 顶层导入，或经 `ModelBuilder.add_beam3d` 添加）：类似 Nastran CBAR 的两节点空间
 构件，每节点 6 个自由度（UX/UY/UZ/RX/RY/RZ），涵盖轴向拉压、St Venant 扭转与两个
 主平面内互不耦合的弯曲；局部坐标系按 CBAR 约定由方向向量（`orientation`）确定，
 截面需给出正的 `inertia_y`、`inertia_z` 与 `torsion_constant`。该单元由 42 项专门
-测试覆盖；包含 meshio 桥 44 项测试在内，当前完整套件共 **1133 项测试全部通过**。
+测试覆盖。
 
-模型修正通过**点分路径**寻址文档中的单个数值，例如 `materials.steel.E` 或
-`mesh.elements.2.stiffness`——这是第 9 节参数声明中 `target` 字段的含义。
+### 平面壳单元 `ShellQuad4Element`
+
+`ShellQuad4Element`（从 `openfemlab.core` 导入，或经 `MeshBuilder.add_shell_quad4`
+添加）是让导入的壳网格**可以真正重新分析**的四节点平面小片单元，每节点同样是
+6 个自由度。单元自身的坐标系由几何确定：`e_z` 取两条对角线的法向，`e_x` 取投影到
+面内的平均 `xi` 方向，`e_y = e_z × e_x`；局部 24×24 矩阵再按节点块旋转到整体坐标，
+方式与 `BeamElement3D` 旋转其 12×12 块完全一致。在该坐标系下单元分为三个互不耦合
+的部分：
+
+- **膜**——直接复用平面应力的 `Quad4Element`，因此库中只有一套双线性膜内核；
+- **弯曲**——Reissner-Mindlin 板，`D_b = t³/12 · D`，剪切修正系数 `κ = 5/6`；横向
+  剪切采用 Bathe 与 Dvorkin 的 **MITC4** 假设应变场（在四条边中点取协变剪应变后
+  线性插值），既消除剪切自锁，又不像减缩积分那样留下秩亏；
+- **钻转**——绕法向的转动在该列式中没有物理刚度，故以 `drilling_factor` 给出一个
+  虚拟对角刚度，使局部矩阵非奇异。
+
+使用前需要知道的三点约定：单元是**平的**，节点离面超过 `flatness_tolerance` 与单元
+尺寸之积时会直接抛出 `ElementError`，而不是悄悄投影，翘曲的四边形必须加密；钻转
+自由度恒为无质量，弯曲转动在未设 `rotary_inertia` 时同样无质量（模态求解器可精确
+凝聚，但阻尼解或直接解必须约束它们）；膜与弯曲在单个小片内不耦合，曲率只能靠网格
+的分片来表达。共面装配因此保持恰好 6 个刚体模态，折角处则会引入一点与网格相关的
+人为刚度。
+
+结构化网格生成器 `mesh.simple.shell_plate_mesh` 按与 `quad_plate_mesh` 相同的行主序
+编号建立矩形板，`support` 可取 `cantilever`、`free` 或 `simply-supported`：
+
+```python
+from openfemlab.core import Material
+from openfemlab.mesh.simple import shell_plate_mesh
+
+model = shell_plate_mesh(
+    1.0, 0.5, 8, 4,
+    Material(E=2.1e11, nu=0.3, density=7850.0),
+    thickness=2.0e-3,
+    support="cantilever",
+)
+```
+
+该单元由 72 项专门测试覆盖；包含 meshio 桥 44 项测试在内，当前完整套件共
+**1308 项测试全部通过**。
 
 ## 6. meshio 工业网格桥（Python API）
 

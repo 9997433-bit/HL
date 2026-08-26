@@ -675,6 +675,7 @@ model may be re-analyzed at moved nodes without rebuilding its elements.
 | `TrussElement` (`BarElement`) | 2 / translations | axial `EA/L` in direction cosines | closed form |
 | `BeamElement2D` | 2 / `UX,UY,RZ` | planar Euler–Bernoulli | closed form |
 | `Quad4Element` | 4 / `UX,UY` | bilinear isoparametric, plane stress/strain | `gauss_legendre_2d`, 2×2 default |
+| `ShellQuad4Element` | 4 / all six | flat facet: plane-stress membrane + MITC4 Mindlin plate + drilling penalty | `gauss_legendre_2d`, 2×2 default |
 | `Tet4Element` | 4 / translations | constant-strain tetrahedron | one point (exact) |
 | `Hex8Element` | 8 / translations | trilinear isoparametric brick | `gauss_legendre_3d`, 2×2×2 default |
 
@@ -686,14 +687,49 @@ model may be re-analyzed at moved nodes without rebuilding its elements.
   non-positive Jacobian is rejected with `ElementError` naming the offending
   natural point rather than silently sign-flipped.
 - Structured generators in `mesh.simple` build the verification meshes:
-  `quad_plate_mesh`, `tet_block_mesh` (Kuhn-subdivided cells, conforming) and
-  `hex_block_mesh`, which numbers its nodes identically to `tet_block_mesh`.
+  `quad_plate_mesh`, `shell_plate_mesh` (same row-major node numbering as
+  `quad_plate_mesh`, so the membrane-only and shell discretizations of one
+  rectangle share a node set), `tet_block_mesh` (Kuhn-subdivided cells,
+  conforming) and `hex_block_mesh`, which numbers its nodes identically to
+  `tet_block_mesh`.
 - Known limitations, documented rather than hidden: QUAD4 and HEX8 carry
   bending through parasitic shear and lock on coarse high-aspect-ratio meshes;
   TET4 is constant-strain and locks far harder; all three stiffen as `nu → 0.5`.
   Reduced integration is selectable (`integration_order=1`) but rank deficient
   — 2 hourglass modes on QUAD4, 12 on HEX8 — and is provided for comparison
   studies only, with no hourglass stabilization.
+
+`ShellQuad4Element` is the flat-facet shell that makes an imported shell mesh
+analysable, so it carries the extra contract the continuum elements do not:
+
+- **Facet frame.** `e_z` is the normal of the two diagonals, `e_x` the averaged
+  `xi` direction projected into the plane, `e_y = e_z × e_x`. The local 24×24
+  matrix is rotated into global axes node-block by node-block, exactly as
+  `BeamElement3D` rotates its 12×12 blocks, so the element may sit at any
+  orientation in space.
+- **Three uncoupled parts** in that frame: the plane-stress `Quad4Element`
+  membrane evaluated on the projected in-plane coordinates (one bilinear
+  membrane kernel in the library, not two); a Reissner–Mindlin plate
+  `K = ∫ B_kᵀ D_b B_k dA + κ G t ∫ B_sᵀ B_s dA` with `D_b = t³/12 · D` and
+  `κ = 5/6`, whose transverse shear uses the **MITC4** assumed-strain field of
+  Bathe and Dvorkin — covariant shears sampled at the four edge midpoints and
+  interpolated linearly, curing shear locking without the rank deficiency
+  reduced integration leaves behind; and a fictitious `drilling_factor`
+  diagonal stiffness on the normal rotation, which keeps the local matrix
+  non-singular.
+- **Flatness is enforced, not assumed.** Nodes out of plane by more than
+  `flatness_tolerance` times the element size raise `ElementError` naming the
+  warp rather than being silently projected, so a warped quadrilateral must be
+  refined.
+- **What the penalty costs.** The drilling stiffness is decoupled from the
+  membrane (no Allman or Hughes–Brezzi rotation field), so a coplanar assembly
+  never loads it and keeps exactly six rigid-body modes as AC-ELEM-002 requires,
+  while a folded assembly picks up a small mesh-dependent artificial stiffness
+  at the fold. Drilling DOFs are always massless and the bending rotations are
+  massless unless `rotary_inertia` is set — the modal solver condenses such DOFs
+  exactly, but a damped or direct solve must constrain them. Membrane and
+  bending do not couple within one facet, so curvature is represented only by
+  the faceting of the mesh.
 
 ### MS-8.3 Completeness and stability
 
@@ -742,6 +778,14 @@ class Element(ABC):
 class Quad4Element(Element):   # thickness, plane, lumped_mass, integration_order
 class Tet4Element(Element):    # lumped_mass
 class Hex8Element(Element):    # lumped_mass, integration_order
+
+class ShellQuad4Element(Element):
+    # thickness, lumped_mass, rotary_inertia, integration_order, drilling_factor
+    flatness_tolerance: float   # relative out-of-plane spread still called flat
+    shear_correction: float     # 5/6
+    def local_frame(self, coords) -> tuple[np.ndarray, np.ndarray]   # origin, [e_x, e_y, e_z]
+    def local_coords(self, coords) -> np.ndarray                     # (4, 2) in-plane
+    def transformation_matrix(self, coords) -> np.ndarray            # 24 x 24
 
 def plane_constitutive_matrix(material, plane: str = "stress") -> np.ndarray
 def solid_constitutive_matrix(material) -> np.ndarray
