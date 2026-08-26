@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import gsap from 'gsap'
 import StarBurst from '@/components/StarBurst.vue'
-import { CHARACTERS, getCharacter } from '@/data/characters.js'
+import { CHARACTERS } from '@/data/characters.js'
 import { useProgressStore } from '@/stores/progress.js'
 import { useSettingsStore } from '@/stores/settings.js'
 import { isSpeechSupported, speak, stopSpeaking } from '@/utils/speech.js'
@@ -55,7 +55,7 @@ function nextRound() {
 
   const list = pool.value
   // 需要复习的字优先出现
-  const review = progress.reviewQueue.map(getCharacter).filter((c) => c && list.includes(c))
+  const review = progress.reviewQueue.filter((c) => list.some((x) => x.char === c.char))
   const preferred = review.length && Math.random() < 0.6 ? review : list
   const pick = preferred[Math.floor(Math.random() * preferred.length)]
   target.value = pick

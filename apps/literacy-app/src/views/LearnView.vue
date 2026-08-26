@@ -74,7 +74,12 @@ const randomChar = computed(() => {
           学完一个单元的 60%，下一个单元就会解锁。
         </p>
       </div>
-      <ProgressRing :percent="progress.overallPercent" :size="82" :stroke="9" label="已认识" />
+      <ProgressRing
+        :value="progress.overallProgress"
+        :size="82"
+        :thickness="9"
+        sublabel="已认识"
+      />
     </section>
 
     <div class="toolbar" role="tablist" aria-label="筛选汉字">

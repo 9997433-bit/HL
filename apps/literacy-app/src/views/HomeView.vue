@@ -4,7 +4,6 @@ import gsap from 'gsap'
 import ProgressRing from '@/components/ProgressRing.vue'
 import { useProgressStore } from '@/stores/progress.js'
 import { useSettingsStore } from '@/stores/settings.js'
-import { getCharacter } from '@/data/characters.js'
 import { BOOKS } from '@/data/books.js'
 import { IDIOMS } from '@/data/idioms.js'
 import { RADICALS } from '@/data/radicals.js'
@@ -15,7 +14,7 @@ const settings = useSettingsStore()
 
 const mapRef = ref(null)
 
-const nextChar = computed(() => getCharacter(progress.nextChar))
+const nextChar = computed(() => progress.nextChar)
 
 const stations = computed(() => [
   {
@@ -123,10 +122,10 @@ onMounted(() => {
       </div>
       <ProgressRing
         class="hero__ring"
-        :percent="progress.overallPercent"
+        :value="progress.overallProgress"
         :size="106"
-        :stroke="11"
-        label="总进度"
+        :thickness="11"
+        sublabel="总进度"
       />
     </section>
 

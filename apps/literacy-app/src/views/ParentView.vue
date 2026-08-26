@@ -142,7 +142,12 @@ function resetSettings() {
 
       <!-- 总览 -->
       <section class="card overview">
-        <ProgressRing :percent="progress.overallPercent" :size="98" :stroke="10" label="识字进度" />
+        <ProgressRing
+          :value="progress.overallProgress"
+          :size="98"
+          :thickness="10"
+          sublabel="识字进度"
+        />
         <div class="overview__grid">
           <div><strong>{{ progress.learnedCount }}</strong><small>学过的字</small></div>
           <div><strong>{{ progress.masteredCount }}</strong><small>已掌握</small></div>

@@ -1,7 +1,18 @@
-import { defineStore } from 'pinia'
-import { setSfxMuted } from '@/utils/sfx.js'
+/**
+ * 外观 / 朗读设置的门面。
+ *
+ * 真正的状态只有一份，存在 progress store 的 `state.settings` 里
+ * （连同学习进度一起持久化、一起导出）。这里不再自己存一份，
+ * 否则顶栏切主题和家长面板切主题会各改各的，`<html data-theme>` 被两边抢着写。
+ *
+ * 保留这个 store 是因为界面层用「soundOn / reduceMotion / dailyLimitMinutes」
+ * 这类面向使用者的说法更好读，而底层字段名是 sound / motion / restReminderMin。
+ * 门面只做这层命名映射，不持有任何状态。
+ */
 
-const STORAGE_KEY = 'literacy.settings.v1'
+import { computed } from 'vue'
+import { defineStore } from 'pinia'
+import { useProgressStore } from './progress.js'
 
 export const THEMES = [
   { id: 'sunny', name: '明亮童趣', emoji: '🌞', desc: '色彩鲜艳，白天使用' },
@@ -16,88 +27,106 @@ export const FONT_SCALES = [
   { id: 'huge', name: '超大' }
 ]
 
-function readStored() {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}')
-  } catch {
-    return {}
-  }
-}
+/** 这两项底层没有默认值，读的时候兜底，写的时候直接落到 state.settings 上。 */
+const DEFAULT_SPEECH_RATE = 0.85
+const DEFAULT_BREAK_REMINDER = true
 
-export const useSettingsStore = defineStore('settings', {
-  state: () => ({
-    theme: 'sunny',
-    fontScale: 'normal',
-    reduceMotion: false,
-    soundOn: true,
-    speechOn: true,
-    speechRate: 0.75,
-    showPinyin: true,
-    /** 家长设定的每日建议时长（分钟），0 表示不限制 */
-    dailyLimitMinutes: 20,
-    /** 达到时长后是否强制提示休息 */
-    breakReminder: true,
-    childName: '',
-    _loaded: false
-  }),
+export const useSettingsStore = defineStore('settings', () => {
+  const progress = useProgressStore()
+  const raw = () => progress.state.settings
 
-  getters: {
-    themeMeta: (s) => THEMES.find((t) => t.id === s.theme) || THEMES[0],
-    isEyeCare: (s) => s.theme === 'care'
-  },
+  const theme = computed(() => raw().theme)
+  const fontScale = computed(() => raw().fontScale)
+  const reduceMotion = computed(() => raw().motion === 'reduced')
+  const soundOn = computed(() => raw().sound)
+  const speechOn = computed(() => raw().speech)
+  const showPinyin = computed(() => raw().showPinyin)
+  const speechRate = computed(() => raw().speechRate ?? DEFAULT_SPEECH_RATE)
+  const dailyLimitMinutes = computed(() => raw().restReminderMin)
+  const breakReminder = computed(() => raw().breakReminder ?? DEFAULT_BREAK_REMINDER)
+  const childName = computed(() => progress.state.childName)
 
-  actions: {
-    load() {
-      Object.assign(this.$state, readStored(), { _loaded: true })
-      this.apply()
-    },
+  const themeMeta = computed(() => THEMES.find((t) => t.id === theme.value) ?? THEMES[0])
+  const isEyeCare = computed(() => theme.value === 'care')
 
-    apply() {
-      const root = document.documentElement
-      root.dataset.theme = this.theme
-      root.dataset.fontScale = this.fontScale
-      root.dataset.motion = this.reduceMotion ? 'reduced' : 'full'
-      setSfxMuted(!this.soundOn)
-      const meta = document.querySelector('meta[name="theme-color"]')
-      if (meta) {
-        meta.setAttribute(
-          'content',
-          getComputedStyle(root).getPropertyValue('--bg-page-solid').trim() || '#ffb84d'
-        )
+  /** 界面用词 → 底层字段。只转换出现过的键，其余原样透传。 */
+  function update(patch = {}) {
+    const next = {}
+    for (const [key, value] of Object.entries(patch)) {
+      switch (key) {
+        case 'reduceMotion':
+          next.motion = value ? 'reduced' : 'full'
+          break
+        case 'soundOn':
+          next.sound = value
+          break
+        case 'speechOn':
+          next.speech = value
+          break
+        case 'dailyLimitMinutes':
+          next.restReminderMin = value
+          break
+        case 'childName':
+          progress.setProfile({ childName: value })
+          break
+        default:
+          next[key] = value
       }
-    },
-
-    persist() {
-      const { _loaded, ...rest } = this.$state
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(rest))
-      } catch {
-        /* 隐私模式下 localStorage 可能不可用，忽略即可 */
-      }
-    },
-
-    setTheme(id) {
-      this.theme = id
-      this.apply()
-      this.persist()
-    },
-
-    cycleTheme() {
-      const idx = THEMES.findIndex((t) => t.id === this.theme)
-      this.setTheme(THEMES[(idx + 1) % THEMES.length].id)
-    },
-
-    update(patch) {
-      Object.assign(this.$state, patch)
-      this.apply()
-      this.persist()
-    },
-
-    reset() {
-      this.$reset()
-      this._loaded = true
-      this.apply()
-      this.persist()
     }
+    if (Object.keys(next).length) progress.updateSettings(next)
+  }
+
+  function setTheme(id) {
+    progress.updateSettings({ theme: id })
+  }
+
+  function cycleTheme() {
+    progress.cycleTheme()
+  }
+
+  function toggleEyeCare() {
+    progress.toggleEyeCare()
+  }
+
+  /** 只恢复外观相关设置，学习进度不动。 */
+  function reset() {
+    progress.updateSettings({
+      theme: 'sunny',
+      fontScale: 'normal',
+      motion: 'full',
+      sound: true,
+      speech: true,
+      showPinyin: true,
+      restReminderMin: 20,
+      speechRate: DEFAULT_SPEECH_RATE,
+      breakReminder: DEFAULT_BREAK_REMINDER
+    })
+  }
+
+  /** 兼容旧调用：外观在 progress store 初始化时已经应用过了。 */
+  function load() {
+    progress.applyAppearance()
+  }
+
+  return {
+    theme,
+    fontScale,
+    reduceMotion,
+    soundOn,
+    speechOn,
+    showPinyin,
+    speechRate,
+    dailyLimitMinutes,
+    breakReminder,
+    childName,
+    themeMeta,
+    isEyeCare,
+
+    update,
+    setTheme,
+    cycleTheme,
+    toggleEyeCare,
+    reset,
+    load
   }
 })

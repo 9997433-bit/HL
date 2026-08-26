@@ -2,11 +2,12 @@
 /**
  * 笔顺动画盒子。
  *
- * hanzi-writer 从 CDN 按需加载（见 utils/hanziWriter.js）。加载失败时
- * 不阻塞学习流程：退化成田字格里的静态大字 + 一句提示，其余功能照常。
+ * 笔顺数据优先用打包进来的离线数据，缺字才回退 CDN（见 utils/hanziData.js）。
+ * 两边都拿不到时不阻塞学习流程：退化成田字格里的静态大字 + 一句提示。
  */
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { loadHanziWriter } from '@/utils/hanziWriter.js'
+import { charDataLoader } from '@/utils/hanziData.js'
 import { sfx } from '@/utils/sfx.js'
 import { useSettingsStore } from '@/stores/settings.js'
 
@@ -70,6 +71,7 @@ async function build() {
       width: props.size,
       height: props.size,
       padding: 14,
+      charDataLoader,
       showOutline: true,
       showCharacter: true,
       strokeAnimationSpeed: settings.reduceMotion ? 3 : 1.1,

@@ -1,60 +1,21 @@
 /**
- * 用 WebAudio 合成的音效，避免打包任何音频文件。
- * 全部音效都很短，音量压得比较低，适合小朋友长时间使用。
+ * 音效的兼容出口。
+ *
+ * 实现只有一份，在 utils/audio.js 里。早期这里有一套独立的 WebAudio 实现，
+ * 结果是家长面板里关掉「音效」只能静音其中一套，另一套照响；
+ * 现在统一转发过去，静音开关对全站生效。
+ *
+ * 新代码请直接 import '@/utils/audio.js'。
  */
 
-let ctx = null
-let muted = false
-
-function audioCtx() {
-  if (typeof window === 'undefined') return null
-  const Ctor = window.AudioContext || window.webkitAudioContext
-  if (!Ctor) return null
-  if (!ctx) ctx = new Ctor()
-  if (ctx.state === 'suspended') ctx.resume().catch(() => {})
-  return ctx
-}
-
-export function setSfxMuted(value) {
-  muted = Boolean(value)
-}
-
-function tone({ freq, start = 0, dur = 0.14, type = 'sine', gain = 0.12 }) {
-  const ac = audioCtx()
-  if (!ac || muted) return
-  const t0 = ac.currentTime + start
-  const osc = ac.createOscillator()
-  const g = ac.createGain()
-  osc.type = type
-  osc.frequency.setValueAtTime(freq, t0)
-  g.gain.setValueAtTime(0.0001, t0)
-  g.gain.exponentialRampToValueAtTime(gain, t0 + 0.02)
-  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur)
-  osc.connect(g).connect(ac.destination)
-  osc.start(t0)
-  osc.stop(t0 + dur + 0.02)
-}
+import { sfx as audioSfx, setSoundEnabled } from './audio.js'
 
 export const sfx = {
-  tap() {
-    tone({ freq: 660, dur: 0.08, gain: 0.07, type: 'triangle' })
-  },
-  correct() {
-    tone({ freq: 660, start: 0, dur: 0.13 })
-    tone({ freq: 880, start: 0.1, dur: 0.14 })
-    tone({ freq: 1174, start: 0.2, dur: 0.22 })
-  },
-  wrong() {
-    tone({ freq: 300, dur: 0.16, type: 'sawtooth', gain: 0.07 })
-    tone({ freq: 210, start: 0.12, dur: 0.2, type: 'sawtooth', gain: 0.06 })
-  },
-  levelUp() {
-    ;[523, 659, 784, 1047].forEach((f, i) =>
-      tone({ freq: f, start: i * 0.09, dur: 0.2, gain: 0.1 })
-    )
-  },
-  page() {
-    tone({ freq: 480, dur: 0.06, type: 'triangle', gain: 0.05 })
-    tone({ freq: 720, start: 0.05, dur: 0.07, type: 'triangle', gain: 0.05 })
-  }
+  ...audioSfx,
+  /** 旧名字：升级 / 通关的欢呼声。 */
+  levelUp: audioSfx.celebrate
+}
+
+export function setSfxMuted(muted) {
+  setSoundEnabled(!muted)
 }
