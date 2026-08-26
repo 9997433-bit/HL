@@ -34,6 +34,7 @@ python -m venv .venv && source .venv/bin/activate
 pip install -e .                 # application + null-audio backend
 pip install -e ".[dev]"          # add tests, lint, and type checking
 pip install -e ".[audio,dev]"    # also add the optional hardware backends
+pip install -e ".[mastering]"    # add optional libsoxr bindings
 ```
 
 The `audio` extra installs two PortAudio bindings: `sounddevice`, which is the
@@ -129,6 +130,32 @@ picks the curve) — and re-encoded into `--output`, keeping its name.
 exit code is 0 when every file rendered, 1 when any failed, 2 when nothing
 matched. The same pipeline is scriptable from Python via
 `audio_studio.batch.BatchJob` and `run_batch`.
+
+## Mastering exports
+
+Audio Studio processes samples as float32. Exporting to `PCM_16` or `PCM_24`
+reduces that working precision, so `save_audio()` applies TPDF dither by
+default. Dither is added independently per sample/channel at ±1 target-format
+LSB and is not applied to floating-point or compressed subtypes. Leave it on
+for the final integer master; use `dither=False` only for a deliberate
+bit-exact round trip or when the material was already dithered at its final
+depth. Repeatedly dithering intermediate files raises their noise floor.
+
+The reproducible 96 kHz → 44.1 kHz SRC probe can be run from the repository
+root:
+
+```bash
+python tools/src_report.py
+```
+
+It writes `.agent_workspace/round3/src-quality-report.json`, reports passband
+sweep deviation, out-of-band sweep mirrors, and 1 kHz THD+N, and exits nonzero
+when any offline mastering gate is missed. The current
+`scipy.signal.resample_poly` default does miss those VHQ gates, so the
+`mastering` extra makes the latest Python `soxr` bindings available without
+adding an LGPL dependency to the default install. That extra does not silently
+change Audio Studio's current SciPy conversion path: preserve the source sample
+rate for a final master until a selectable soxr/VHQ path is integrated.
 
 ## VST3 plugins (optional `plugins` extra — not enabled by default)
 
@@ -539,10 +566,11 @@ above this package.
 - The SPSC ring is lock-free at the Python level but still executes under
   CPython/GIL scheduling; physical-device p99 timing and a long soak are not
   certified by headless tests.
-- Sample-rate conversion quality is unrated against the acceptance targets and
-  bit-depth reduction applies no TPDF dither yet — for mastering-grade exports
-  keep the source rate and float depth. Do not claim certified broadcast
-  compliance from the current alpha.
+- The measured SciPy SRC path misses the offline VHQ acceptance targets; the
+  `mastering` extra stages optional soxr bindings but does not yet select them
+  in the application. PCM-16/24 export now applies TPDF dither by default.
+  Preserve the source rate for final masters and do not claim certified
+  broadcast compliance from the current alpha.
 - Loop playback restarts from the region start without a crossfade, and the
   reported position is briefly clamped across the wrap.
 - Long files stream from disk and use sparse in-memory edit overlays. Their peak

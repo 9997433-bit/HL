@@ -31,7 +31,10 @@ def test_wav_noop_import_export_is_sample_bit_exact(
     sf.write(source, samples, 48_000, subtype=subtype)
 
     loaded = load_audio(source)
-    save_audio(exported, loaded.buffer, subtype=subtype)
+    # This gate intentionally measures a no-op container round trip. Production
+    # integer exports dither by default; disabling it here preserves the source
+    # PCM bytes that this test is designed to compare.
+    save_audio(exported, loaded.buffer, subtype=subtype, dither=False)
 
     assert_bit_exact_wav(source, exported)
 

@@ -66,6 +66,14 @@ _EXT_TO_SUBTYPE_DEFAULT = {
     ".oga": "VORBIS",
 }
 
+# Integer export formats whose depth is below the float32 working format's
+# precision. Other libsndfile PCM subtypes either expand the working format
+# (PCM_32) or are not mastering/export targets (8-bit PCM).
+_DITHER_BIT_DEPTHS = {
+    "PCM_16": 16,
+    "PCM_24": 24,
+}
+
 
 class AudioLoadError(RuntimeError):
     """Raised when a file cannot be decoded by any available backend."""
@@ -260,18 +268,57 @@ def resample(buffer: AudioBuffer, target_sample_rate: int) -> AudioBuffer:
     return AudioBuffer(np.ascontiguousarray(converted, dtype=SAMPLE_DTYPE), target_sample_rate)
 
 
+def quantize_with_tpdf(
+    samples: np.ndarray,
+    bit_depth: int,
+    *,
+    rng: np.random.Generator | None = None,
+) -> np.ndarray:
+    """Quantize floating-point samples with triangular-PDF dither.
+
+    The difference of two independent uniform variates produces TPDF noise with
+    a peak amplitude of one target-format LSB. Values are clipped to the
+    asymmetric range representable by signed PCM before being returned as
+    float32 values on the target quantization grid.
+    """
+    if not 2 <= bit_depth <= 32:
+        raise ValueError(f"bit_depth must be between 2 and 32, got {bit_depth}")
+
+    array = np.asarray(samples)
+    generator = rng if rng is not None else np.random.default_rng()
+    scale = float(1 << (bit_depth - 1))
+    noise_lsb = generator.random(array.shape)
+    noise_lsb -= generator.random(array.shape)
+
+    quantized = np.rint(array.astype(np.float64, copy=False) * scale + noise_lsb)
+    np.clip(quantized, -scale, scale - 1.0, out=quantized)
+    quantized /= scale
+    return np.ascontiguousarray(quantized, dtype=SAMPLE_DTYPE)
+
+
 def save_audio(
     path: str | Path,
     buffer: AudioBuffer,
     *,
     subtype: str | None = None,
+    dither: bool = True,
 ) -> Path:
-    """Encode ``buffer`` to ``path``; the container follows the extension."""
+    """Encode ``buffer`` to ``path``; the container follows the extension.
+
+    PCM-16 and PCM-24 exports receive TPDF dither by default before their
+    float32 samples are reduced to the integer target depth. Set
+    ``dither=False`` for a deliberate bit-exact/no-op integer round trip.
+    Dither is ignored for floating-point and compressed subtypes.
+    """
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     chosen = subtype or _EXT_TO_SUBTYPE_DEFAULT.get(path.suffix.lower(), "PCM_24")
+    output = buffer.data
+    bit_depth = _DITHER_BIT_DEPTHS.get(chosen.upper())
+    if dither and bit_depth is not None:
+        output = quantize_with_tpdf(output, bit_depth)
     try:
-        sf.write(str(path), buffer.data, buffer.sample_rate, subtype=chosen)
+        sf.write(str(path), output, buffer.sample_rate, subtype=chosen)
     except Exception as exc:  # noqa: BLE001 - normalised into AudioLoadError
         raise AudioLoadError(f"Cannot write {path}: {exc}") from exc
     return path

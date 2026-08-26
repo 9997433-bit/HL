@@ -111,7 +111,7 @@ def _verify_wav_null_roundtrip(tmp_path: Path) -> None:
         exported = tmp_path / f"exported-{subtype}.wav"
         sf.write(source, samples, SAMPLE_RATE, subtype=subtype)
         loaded = load_audio(source)
-        save_audio(exported, loaded.buffer, subtype=subtype)
+        save_audio(exported, loaded.buffer, subtype=subtype, dither=False)
         assert_bit_exact_wav(source, exported)
 
 
