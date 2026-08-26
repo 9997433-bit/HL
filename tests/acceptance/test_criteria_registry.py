@@ -47,7 +47,7 @@ FAMILY_TO_MODULE = {
     "DYN": "M6",
 }
 EXPECTED_CRITERIA_PER_FAMILY = {
-    "MODAL": 9, "CORR": 8, "UPD": 9, "WORK": 5, "OPT": 4, "DYN": 5,
+    "MODAL": 9, "CORR": 9, "UPD": 9, "WORK": 5, "OPT": 4, "DYN": 5,
 }
 
 
@@ -114,6 +114,8 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P0", "property", "MS-2.2", _CORR_SUITE, "implemented"),
     _c("AC-CORR-008", "CorrelationReport JSON round-trip",
        "P0", "contract", "MS-2.6", _CORR_SUITE),
+    _c("AC-CORR-009", "TAM pseudo-orthogonality",
+       "P1", "twin", "MS-2.1, MS-2.2", _CORR_SUITE, "implemented"),
     # --- M3 Model updating (MS-3) --------------------------------------------
     _c("AC-UPD-001", "Eigenvalue sensitivity vs central FD",
        "P0", "oracle", "MS-3.3", _UPD_SUITE, "implemented"),
@@ -188,7 +190,7 @@ def test_registry_inventory_matches_documented_scope():
         for family in EXPECTED_CRITERIA_PER_FAMILY
     }
     assert counts == EXPECTED_CRITERIA_PER_FAMILY
-    assert len(REGISTRY) == 40
+    assert len(REGISTRY) == 41
 
 
 def test_ids_unique():

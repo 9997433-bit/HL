@@ -171,6 +171,13 @@ set `(f_e, Φ_e)`, generally observed on a reduced sensor DOF set.
   sensor DOFs for mass-weighted metrics on the reduced space. Consistency
   requirement: for noise-free synthetic "test" data extracted from the model
   itself, reduced-space and full-space pairing must agree (AC-CORR-006).
+- **TAM mass**: any of those bases gives the test-analysis-model mass
+  `M_TAM = Tᵀ M T` on the sensor DOFs, which is the weighting the MS-2.2
+  pseudo-orthogonality check runs on. A basis built from a `SensorMap` is
+  expressed in *channel* coordinates, so the per-channel orientation signs are
+  carried by the reduction rather than applied by every consumer. Adequacy
+  requirement: an acceptable TAM keeps exact test modes pseudo-orthogonal
+  (AC-CORR-009).
 
 ### MS-2.2 MAC — Modal Assurance Criterion
 
@@ -193,7 +200,10 @@ MAC(i, j) = |φ_a,iᴴ φ_e,j|² / ( (φ_a,iᴴ φ_a,i) (φ_e,jᴴ φ_e,j) )
   matrix to solver precision (AC-CORR-001).
 - Related matrices provided by the same kernel: auto-MAC (`Φ_a` vs `Φ_a`,
   spatial-independence check for sensor placement) and pseudo-orthogonality
-  `POC = Φ_eᵀ M_ss Φ_a` (P1).
+  `POC = Φ_eᵀ M_ss Φ_a` (P1), with `M_ss` the MS-2.1 TAM mass and both mode
+  sets normalized through it. Unlike the MAC the POC is not scale invariant —
+  that is the point, it checks the normalization too. Gate: paired diagonal
+  ≥ 0.99, off-diagonal ≤ 0.10 (AC-CORR-009).
 
 ### MS-2.3 Mode pairing
 
