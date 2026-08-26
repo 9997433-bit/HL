@@ -1,14 +1,14 @@
 """Acceptance-criteria registry and consistency tests.
 
 Machine-readable registry of every acceptance criterion defined in
-``docs/ACCEPTANCE_CRITERIA.md`` (see its section 8 for the enforcement
+``docs/ACCEPTANCE_CRITERIA.md`` (see its section 9 for the enforcement
 contract). Implementation suites import ``REGISTRY`` / ``get_criterion`` to
 tag themselves; the tests in this file guard that the registry, the criteria
 document, and ``docs/MODULE_SPEC.md`` never drift apart.
 
 Registry contract (ACCEPTANCE_CRITERIA.md sections 1 and 8):
 - IDs follow ``AC-<MODULE>-NNN[a-z]?`` with MODULE in {MODAL, CORR, UPD,
-  WORK, OPT, DYN}; numbering is dense per module (no gaps); an optional
+  WORK, OPT, DYN, ELEM}; numbering is dense per module (no gaps); an optional
   lowercase suffix marks closely coupled sub-criteria sharing a number.
 - ``priority`` in {P0, P1, P2} (P0 blocks Round-1, P1 blocks Round-2).
 - ``method`` in {oracle, property, twin, contract, regression}.
@@ -28,10 +28,10 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 CRITERIA_DOC = REPO_ROOT / "docs" / "ACCEPTANCE_CRITERIA.md"
 SPEC_DOC = REPO_ROOT / "docs" / "MODULE_SPEC.md"
 
-ID_REGEX = re.compile(r"AC-(?:MODAL|CORR|UPD|WORK|OPT|DYN)-\d{3}[a-z]?")
-ID_FULLMATCH = re.compile(r"^AC-(MODAL|CORR|UPD|WORK|OPT|DYN)-(\d{3})([a-z]?)$")
+ID_REGEX = re.compile(r"AC-(?:MODAL|CORR|UPD|WORK|OPT|DYN|ELEM)-\d{3}[a-z]?")
+ID_FULLMATCH = re.compile(r"^AC-(MODAL|CORR|UPD|WORK|OPT|DYN|ELEM)-(\d{3})([a-z]?)$")
 
-VALID_MODULES = ("M1", "M2", "M3", "M4", "M5", "M6")
+VALID_MODULES = ("M1", "M2", "M3", "M4", "M5", "M6", "M7")
 VALID_PRIORITIES = ("P0", "P1", "P2")
 VALID_METHODS = ("oracle", "property", "twin", "contract", "regression")
 VALID_STATUSES = ("specified", "implemented", "verified")
@@ -44,10 +44,10 @@ TAG_REGEX = re.compile(r"criterion\(\s*\"(AC-[A-Z]+-\d{3}[a-z]?)\"\s*\)")
 
 FAMILY_TO_MODULE = {
     "MODAL": "M1", "CORR": "M2", "UPD": "M3", "WORK": "M4", "OPT": "M5",
-    "DYN": "M6",
+    "DYN": "M6", "ELEM": "M7",
 }
 EXPECTED_CRITERIA_PER_FAMILY = {
-    "MODAL": 9, "CORR": 8, "UPD": 9, "WORK": 5, "OPT": 4, "DYN": 5,
+    "MODAL": 9, "CORR": 8, "UPD": 9, "WORK": 5, "OPT": 4, "DYN": 5, "ELEM": 3,
 }
 
 
@@ -76,6 +76,7 @@ _UPD_SUITE = "tests/acceptance/test_updating.py"
 _WORK_SUITE = "tests/acceptance/test_workflow.py"
 _OPT_SUITE = "tests/acceptance/test_optimization.py"
 _DYN_SUITE = "tests/acceptance/test_dynamics.py"
+_ELEM_SUITE = "tests/acceptance/test_elements.py"
 
 REGISTRY: tuple[AcceptanceCriterion, ...] = (
     # --- M1 Modal analysis (MS-1) -------------------------------------------
@@ -164,6 +165,13 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P0", "property", "MS-7.4", _DYN_SUITE, "implemented"),
     _c("AC-DYN-005", "Synthesized FRF survives the UFF-58 round trip",
        "P1", "contract", "MS-7.4", _DYN_SUITE, "implemented"),
+    # --- M7 Element library (MS-8) --------------------------------------------
+    _c("AC-ELEM-001", "Patch test exact to machine precision",
+       "P0", "oracle", "MS-8.3", _ELEM_SUITE, "implemented"),
+    _c("AC-ELEM-002", "Rigid-body invariance and zero-energy mode count",
+       "P0", "property", "MS-8.3", _ELEM_SUITE, "implemented"),
+    _c("AC-ELEM-003", "Quadratic h-convergence on the continuum oracle",
+       "P1", "property", "MS-8.4", _ELEM_SUITE, "implemented"),
 )
 
 _BY_ID = {c.test_id: c for c in REGISTRY}
@@ -179,7 +187,7 @@ def ids() -> tuple[str, ...]:
 
 
 # ---------------------------------------------------------------------------
-# Consistency tests (enforcement rules of ACCEPTANCE_CRITERIA.md section 8)
+# Consistency tests (enforcement rules of ACCEPTANCE_CRITERIA.md section 9)
 # ---------------------------------------------------------------------------
 
 def test_registry_inventory_matches_documented_scope():
@@ -188,7 +196,7 @@ def test_registry_inventory_matches_documented_scope():
         for family in EXPECTED_CRITERIA_PER_FAMILY
     }
     assert counts == EXPECTED_CRITERIA_PER_FAMILY
-    assert len(REGISTRY) == 40
+    assert len(REGISTRY) == 43
 
 
 def test_ids_unique():
@@ -236,7 +244,7 @@ def test_numbering_dense_per_module():
 
 
 def test_every_module_has_blocking_criterion():
-    """Each module M1..M6 carries at least one P0 criterion (rule 5)."""
+    """Each module M1..M7 carries at least one P0 criterion (rule 5)."""
     p0_modules = {c.module for c in REGISTRY if c.priority == "P0"}
     missing = set(VALID_MODULES) - p0_modules
     assert not missing, f"modules without a P0 criterion: {sorted(missing)}"

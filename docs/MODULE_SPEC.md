@@ -3,7 +3,7 @@
 **Document ID:** MS-R1-F2 · **Round:** 1 · **Author:** R1-F2 (module spec & acceptance criteria)
 **Status:** Draft for Round-1 implementation · **Companion doc:** `docs/ACCEPTANCE_CRITERIA.md`
 
-This document specifies the five core modules of the platform. Section anchors
+This document specifies the core modules of the platform. Section anchors
 (`MS-<module>.<section>`) are referenced by acceptance criteria IDs
 (`AC-<MODULE>-NNN`) in the companion document and by the machine-readable
 registry in `tests/acceptance/test_criteria_registry.py`.
@@ -502,6 +502,7 @@ M1 ModalResult ──▶ M2 correlate ──▶ CorrelationReport ─┐
 M4 run_correction orchestrates S1..S6 ◀────────────────┘
 M5 minimize_sizing reuses M1 solves + M3 sensitivity kernel + M2 mode tracking
 M6 damped dynamics extends M1 modes to FRFs; FRAC/FDAC feed M2 correlation
+M7 elements assemble the K, M every module above consumes
 ```
 
 - Mass-normalized, sign-fixed modes (MS-1.3) are the invariant every consumer
@@ -628,4 +629,112 @@ def harmonic_response(frequencies, K, M, C=None, *, load, free_dofs=None,
 
 def frac(reference, comparison, *, axis: int = 0)
 def fdac(reference, comparison) -> np.ndarray
+```
+
+---
+
+## 8. Module M7 — Element Library (`openfemlab.core.elements`) (MS-8)
+
+Round-2 module (R2-T02) supplying the `K` and `M` every module above consumes.
+Numbering note — the sixth module took `MS-7` because `MS-6` is the
+inter-module contracts section, so the seventh takes `MS-8`.
+
+### MS-8.1 Element contract
+
+Every element is an `Element` subclass and exposes the same four things to
+`core.assembly`:
+
+- `node_ids` — connectivity in local node order;
+- `bind(available)` — freezes the per-node DOF signature against the model's
+  active DOFs, raising `ElementError` when a required DOF is inactive
+  (MS-0.3: typed failure, never a silent drop);
+- `stiffness_matrix(coords)` / `mass_matrix(coords)` — dense local matrices in
+  **global** axes, ordered node-major with that DOF signature;
+- `total_mass(coords)` — the structural mass the element contributes, which is
+  what `AssembledSystem.total_mass` and the AC-MODAL-007 effective-mass balance
+  are checked against.
+
+Geometry enters only through `coords`; an element holds no copy of it, so a
+model may be re-analyzed at moved nodes without rebuilding its elements.
+
+### MS-8.2 Formulations
+
+| Element | Nodes / DOFs | Formulation | Quadrature |
+|---|---|---|---|
+| `SpringElement` | 1–2 / one DOF | scalar spring, optionally grounded | — |
+| `TrussElement` (`BarElement`) | 2 / translations | axial `EA/L` in direction cosines | closed form |
+| `BeamElement2D` | 2 / `UX,UY,RZ` | planar Euler–Bernoulli | closed form |
+| `Quad4Element` | 4 / `UX,UY` | bilinear isoparametric, plane stress/strain | `gauss_legendre_2d`, 2×2 default |
+| `Tet4Element` | 4 / translations | constant-strain tetrahedron | one point (exact) |
+| `Hex8Element` | 8 / translations | trilinear isoparametric brick | `gauss_legendre_3d`, 2×2×2 default |
+
+- Constitutive matrices are shared, not re-derived per element:
+  `plane_constitutive_matrix(material, plane)` for the 2D states and
+  `solid_constitutive_matrix(material)` for the 3D one (GAP-01 rule).
+- Node ordering is counter-clockwise (QUAD4), first three counter-clockwise
+  seen from the fourth (TET4), and face-by-face counter-clockwise (HEX8). A
+  non-positive Jacobian is rejected with `ElementError` naming the offending
+  natural point rather than silently sign-flipped.
+- Structured generators in `mesh.simple` build the verification meshes:
+  `quad_plate_mesh`, `tet_block_mesh` (Kuhn-subdivided cells, conforming) and
+  `hex_block_mesh`, which numbers its nodes identically to `tet_block_mesh`.
+- Known limitations, documented rather than hidden: QUAD4 and HEX8 carry
+  bending through parasitic shear and lock on coarse high-aspect-ratio meshes;
+  TET4 is constant-strain and locks far harder; all three stiffen as `nu → 0.5`.
+  Reduced integration is selectable (`integration_order=1`) but rank deficient
+  — 2 hourglass modes on QUAD4, 12 on HEX8 — and is provided for comparison
+  studies only, with no hourglass stabilization.
+
+### MS-8.3 Completeness and stability
+
+The two requirements that make an element admissible, both gated:
+
+- **Patch test / constant-strain completeness.** On a patch of distorted
+  elements whose boundary carries a linear displacement field `u = G x`, the
+  interior displacements must reproduce that field and every element must
+  report the constant stress `D ε(G)` — to machine precision, not to a
+  tolerance (AC-ELEM-001). The quadrature rule must therefore integrate
+  `det J` exactly, which the default rules do for any non-degenerate element.
+- **Rigid-body invariance and rank.** Every rigid-body motion produces zero
+  nodal force, zero strain and zero strain energy, and the element stiffness
+  has exactly the rigid-body nullity — 3 planar, 6 spatial — so no hourglass
+  mode survives full integration, and an unsupported assembly shows exactly
+  that many zero frequencies (AC-ELEM-002). This is the element-level
+  precondition for the AC-MODAL-004 rigid-body count.
+
+### MS-8.4 Mass matrices and convergence
+
+- **Consistent mass** `M = ∫ ρ NᵀN dV` is the default; **lumped mass** is its
+  row sum (`np.diag(M.sum(axis=1))`), which is unconditionally positive for
+  these shape functions and preserves the total translational mass on any
+  element shape. The lumped spectrum must not exceed the consistent one.
+- Total mass and the lumped diagonal are integrated exactly by the default
+  rules on any element geometry; the off-diagonal consistent terms of a
+  distorted HEX8 are quadrature-approximated and converge with
+  `integration_order=3`.
+- **Convergence.** A conforming displacement element with consistent mass
+  bounds eigenvalues from above and converges quadratically in `h`: halving
+  the element size must quarter the frequency error against a continuum
+  oracle (AC-ELEM-003). The oracle used is the axial spectrum of a bar,
+  `f_1 = c/(4L)` with `c = √(E/ρ)`, which a 2D or 3D mesh reproduces exactly
+  in the limit once `ν = 0` decouples the lateral directions.
+
+### MS-8.5 Public API
+
+```python
+class Element(ABC):
+    node_ids: tuple[Hashable, ...]
+    def bind(self, available: tuple[DOF, ...]) -> tuple[DOF, ...]
+    def stiffness_matrix(self, coords: np.ndarray) -> np.ndarray
+    def mass_matrix(self, coords: np.ndarray) -> np.ndarray
+    def total_mass(self, coords: np.ndarray) -> float
+
+class Quad4Element(Element):   # thickness, plane, lumped_mass, integration_order
+class Tet4Element(Element):    # lumped_mass
+class Hex8Element(Element):    # lumped_mass, integration_order
+
+def plane_constitutive_matrix(material, plane: str = "stress") -> np.ndarray
+def solid_constitutive_matrix(material) -> np.ndarray
+def gauss_legendre_2d(order: int = 2) -> tuple[np.ndarray, np.ndarray]
+def gauss_legendre_3d(order: int = 2) -> tuple[np.ndarray, np.ndarray]
 ```
