@@ -19,9 +19,38 @@ from scipy import sparse
 
 from openfemlab.core.neutral import NeutralModel
 
+from .dynamics import (
+    ComplexModalResult,
+    DampingModel,
+    FrequencyResponse,
+    ModalDamping,
+    RayleighDamping,
+    StructuralDamping,
+    complex_modal_frf,
+    complex_modes,
+    direct_frf,
+    harmonic_response,
+    modal_frf,
+)
 from .modal import ModalResult, ModalSolver
 
-__all__ = ["ElementFormulation", "assemble_km", "ModalSolver", "ModalResult"]
+__all__ = [
+    "ComplexModalResult",
+    "DampingModel",
+    "ElementFormulation",
+    "FrequencyResponse",
+    "ModalDamping",
+    "ModalResult",
+    "ModalSolver",
+    "RayleighDamping",
+    "StructuralDamping",
+    "assemble_km",
+    "complex_modal_frf",
+    "complex_modes",
+    "direct_frf",
+    "harmonic_response",
+    "modal_frf",
+]
 
 
 class ElementFormulation(ABC):
