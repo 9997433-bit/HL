@@ -54,6 +54,12 @@ _EXPORTS: dict[str, str] = {
     "ScalingModel": "openfemlab.updating",
     "UpdatableParameter": "openfemlab.updating",
     "update_model": "openfemlab.updating",
+    # correction workflow
+    "CorrectionReport": "openfemlab.workflow",
+    "HoldoutSpec": "openfemlab.workflow",
+    "SensorMap": "openfemlab.workflow",
+    "ValidationGates": "openfemlab.workflow",
+    "run_correction": "openfemlab.workflow",
     # errors
     "OpenFEMLabError": "openfemlab.exceptions",
     "ModelError": "openfemlab.exceptions",
@@ -112,3 +118,8 @@ if TYPE_CHECKING:  # pragma: no cover
     from .updating import ScalingModel as ScalingModel
     from .updating import UpdatableParameter as UpdatableParameter
     from .updating import update_model as update_model
+    from .workflow import CorrectionReport as CorrectionReport
+    from .workflow import HoldoutSpec as HoldoutSpec
+    from .workflow import SensorMap as SensorMap
+    from .workflow import ValidationGates as ValidationGates
+    from .workflow import run_correction as run_correction
