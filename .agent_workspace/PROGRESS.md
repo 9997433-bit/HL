@@ -1362,10 +1362,10 @@ A27. The A24 backlog above is otherwise the live plan.
      out of scope per the plan.
 
 #### A42 — 498-test baseline timestamp and current-tip verification (backfill for A39)
-- Verification recorded **2026-08-26 07:50:51 UTC**. A39's **498 passed, 0 failed**
+- Verification recorded **2026-08-26 07:53:53 UTC**. A39's **498 passed, 0 failed**
   result remains the post-R2-T07 baseline at `f0c65c2`. After resetting to the current
-  remote tip `b1b0ab8`, A42 independently ran the CI command with imports pinned to the
-  isolated checkout: **534 passed, 0 failed** in 19.98 s on Python 3.12.3 / NumPy 2.5.2 /
+  remote tip `8f65f64`, A42 independently ran the CI command with imports pinned to the
+  isolated checkout: **595 passed, 0 failed** in 38.19 s on Python 3.12.3 / NumPy 2.5.2 /
   SciPy 1.18.1. Repository-wide `python -m ruff check .` also passed with no findings.
 
 ### Round 3 — SOTA Polish & Final Acceptance
