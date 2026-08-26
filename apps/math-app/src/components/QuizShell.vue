@@ -8,10 +8,12 @@
  *
  * 题目协议（数组的每一项）：
  * {
- *   id, skill,                  // skill 用于上报掌握度
+ *   id, skill,                  // skill 用于上报掌握度，id 用于错题本去重
  *   answer: Number,             // 唯一正确答案
  *   options: Number[],          // 选择模式下的候选项
  *   unit: String,               // 单位，显示在选项与答案框里
+ *   title | text | prompt,      // 错题本里这道题显示成什么，缺省用「第 n 题」兜底
+ *   difficulty: *,              // 属于哪个难度档（配合 difficultySteps 做自适应）
  *   hint | hints: String[],     // 分级提示，用一级扣一颗星
  *   stars: Number | (ctx) => Number,  // 答对基础星数，默认 1；函数形式可按连击/秒答加成
  *   xp: Number,                 // 答对经验，默认 10
@@ -24,9 +26,10 @@ import gsap from 'gsap'
 import MascotBot from '@/components/MascotBot.vue'
 import SessionBar from '@/components/SessionBar.vue'
 import RoundSummary from '@/components/RoundSummary.vue'
-import { useProgressStore } from '@/stores/progress.js'
+import { useProgressStore, wrongBookKey } from '@/stores/progress.js'
 import { useFeedback } from '@/composables/useFeedback'
 import { errorTagInfo } from '@/data/errorTags.js'
+import { createAdaptiveEngine } from '@/core/engine/adaptive.js'
 import { sample } from '@/utils/random'
 import { sound } from '@/utils/sound'
 
@@ -51,9 +54,23 @@ const props = defineProps({
   prompts: { type: Array, default: () => ['算一算，答案是多少？'] },
   /** 键盘模式下是否渲染内置答案框（题面里已有填空位时关掉）。 */
   showAnswerSlot: { type: Boolean, default: true },
+  /** 自适应调度：按掌握度 EMA 决定本轮剩下的题先出哪一道。 */
+  adaptive: { type: Boolean, default: true },
+  /** 难度档序列（由易到难）；给了才会按连对/连错发出升降档建议。 */
+  difficultySteps: { type: Array, default: () => [] },
+  /** 当前难度档，配合 difficultySteps 使用。 */
+  difficulty: { type: [String, Number], default: null },
 })
 
-const emit = defineEmits(['update:inputMode', 'graded', 'finished', 'replay', 'home', 'advance'])
+const emit = defineEmits([
+  'update:inputMode',
+  'graded',
+  'finished',
+  'replay',
+  'home',
+  'advance',
+  'adapt',
+])
 
 const progress = useProgressStore()
 const { correct: fxCorrect, wrong: fxWrong, burst, flyStar, pop, enter } = useFeedback()
@@ -61,6 +78,8 @@ const { correct: fxCorrect, wrong: fxWrong, burst, flyStar, pop, enter } = useFe
 const total = computed(() => props.questions.length)
 
 const index = ref(0)
+/** order[i] = 第 i 个出场的题在 props.questions 里的下标，自适应调度只改这个映射。 */
+const order = ref([])
 const marks = ref([])
 const correctCount = ref(0)
 const starsEarned = ref(0)
@@ -78,7 +97,7 @@ const questionStart = ref(Date.now())
 const stageRef = ref(null)
 const promptRef = ref(null)
 
-const current = computed(() => props.questions[index.value] ?? null)
+const current = computed(() => props.questions[order.value[index.value] ?? index.value] ?? null)
 const hints = computed(() => {
   const q = current.value
   if (!q) return []
@@ -106,6 +125,49 @@ const shownTags = computed(() =>
     ...errorTagInfo(id),
   })),
 )
+
+/* ----------------------------------------------------- 自适应 / 错题本 */
+
+const keyOf = (q) => wrongBookKey(props.moduleId, q?.id ?? `${q?.skill ?? 'q'}-${q?.answer}`)
+
+/** 错题本列表里显示的题面；各玩法字段名不统一，这里统一兜底，绝不写出 undefined。 */
+function titleOf(q, position) {
+  for (const candidate of [q?.title, q?.text, q?.prompt, q?.equation]) {
+    if (typeof candidate === 'string' && candidate.trim()) return candidate.trim()
+  }
+  return `${props.moduleName} · 第 ${position + 1} 题`
+}
+
+/** 这个玩法当前还欠着几道错题，答题时一直挂在进度条下面提醒。 */
+const wrongOwed = computed(() => progress.wrongOfModule(props.moduleId).length)
+
+let engine = createAdaptiveEngine({})
+
+function makeEngine() {
+  engine = createAdaptiveEngine({
+    mastery: progress.state.mastery,
+    wrongBook: progress.state.wrongBook,
+    steps: props.difficultySteps,
+    difficulty: props.difficulty,
+    wrongKeyOf: keyOf,
+  })
+}
+
+/**
+ * 把「下一道」换成引擎挑中的那道：只在剩下的题里做一次交换，
+ * 每道题仍然恰好出一次，进度条与本轮题数都不受影响。
+ */
+function planNext() {
+  const at = index.value + 1
+  if (!props.adaptive || at >= order.value.length) return
+  const tail = order.value.slice(at)
+  const picked = engine.pickNextQuestion(tail.map((i) => props.questions[i]))
+  if (!picked || picked.index === 0) return
+  const swapped = [...order.value]
+  const target = at + picked.index
+  ;[swapped[at], swapped[target]] = [swapped[target], swapped[at]]
+  order.value = swapped
+}
 
 /* ---------------------------------------------------------------- 判题 */
 
@@ -137,24 +199,62 @@ function grade(value, anchor) {
       xp: q.xp ?? 10,
       tag: q.tag,
     })
+    // 这道题原本欠在错题本里：答对就把它放出去，比多给一颗星更有成就感
+    const redeemed = progress.clearWrong(keyOf(q))
     fxCorrect(anchor)
     burst(anchor, { count: 16 + Math.min(10, progress.combo * 2) })
     flyStar(anchor)
     mood.value = 'cheer'
-    message.value = fast
-      ? `又快又准！+${stars} ⭐`
-      : progress.combo >= 3
-        ? `${progress.combo} 连击，火力全开 🔥 +${stars} ⭐`
-        : sample(['答对啦！', '算得很好 👏', '完全正确 ✅'])
-    lastResult.value = { correct: true, value, answer: q.answer, stars, elapsed, errorTags: [] }
+    message.value = redeemed
+      ? `错题拿下！这道题从错题本里飞走啦 📕✨ +${stars} ⭐`
+      : fast
+        ? `又快又准！+${stars} ⭐`
+        : progress.combo >= 3
+          ? `${progress.combo} 连击，火力全开 🔥 +${stars} ⭐`
+          : sample(['答对啦！', '算得很好 👏', '完全正确 ✅'])
+    lastResult.value = {
+      correct: true,
+      value,
+      answer: q.answer,
+      stars,
+      elapsed,
+      errorTags: [],
+      redeemed,
+    }
   } else {
     const errorTags = tagsFor(q, value)
     progress.recordAnswer(props.moduleId, false, { skill: q.skill, errorTags })
+    progress.recordWrong({
+      id: keyOf(q),
+      module: props.moduleId,
+      skill: q.skill,
+      errorTag: errorTags[0],
+      errorTags,
+      title: titleOf(q, index.value),
+      answer: q.answer,
+      options: Array.isArray(q.options) ? q.options : [],
+      unit: q.unit ?? '',
+      hint: hints.value[0] ?? '',
+      lastWrong: value,
+    })
     fxWrong(anchor)
     mood.value = 'sad'
-    message.value = `正确答案是 ${q.answer}${q.unit ?? ''}，记住这一题哦。`
-    lastResult.value = { correct: false, value, answer: q.answer, stars: 0, elapsed, errorTags }
+    message.value = `正确答案是 ${q.answer}${q.unit ?? ''}，已记进错题本 📕`
+    lastResult.value = {
+      correct: false,
+      value,
+      answer: q.answer,
+      stars: 0,
+      elapsed,
+      errorTags,
+      redeemed: false,
+    }
   }
+
+  // 掌握度 EMA 与连对/连错都交给引擎，升降档只发建议，换不换档由父组件决定
+  const adapt = engine.record(q.skill, right)
+  if (adapt.changed) emit('adapt', adapt)
+  planNext()
 
   // 用完提示就把剩下的提示全部摊开，讲评时孩子能看到完整思路
   hintLevel.value = hints.value.length
@@ -204,7 +304,8 @@ function next() {
   index.value += 1
   message.value = sample(props.prompts)
   questionStart.value = Date.now()
-  emit('advance', index.value)
+  // 自适应换过顺序，父组件要的是「现在这道题在题库里的下标」
+  emit('advance', order.value[index.value] ?? index.value)
   animateIn()
 }
 
@@ -223,6 +324,8 @@ function finish() {
 
 function restart() {
   index.value = 0
+  order.value = props.questions.map((_, i) => i)
+  makeEngine()
   marks.value = []
   correctCount.value = 0
   starsEarned.value = 0
@@ -237,6 +340,7 @@ function restart() {
   message.value = props.prompts[0] ?? ''
   questionStart.value = Date.now()
   progress.resetCombo()
+  emit('advance', order.value[0] ?? 0)
   animateIn()
 }
 
@@ -331,6 +435,9 @@ defineExpose({ restart, index, current, locked, typed })
       <div class="bar-foot">
         <span class="chip">⭐ 本轮 {{ starsEarned }}</span>
         <span v-if="fastAnswers" class="chip">⚡ 秒答 {{ fastAnswers }}</span>
+        <span v-if="wrongOwed" class="chip owed" :title="'答对同一道题就能把它移出错题本'">
+          📕 错题本 {{ wrongOwed }}
+        </span>
         <slot name="bar-extra" v-bind="slotCtx" />
       </div>
     </section>
@@ -453,6 +560,11 @@ defineExpose({ restart, index, current, locked, typed })
   gap: 8px;
   flex-wrap: wrap;
   align-items: center;
+}
+
+.owed {
+  background: rgba(255, 122, 198, 0.18);
+  border-color: rgba(255, 122, 198, 0.5);
 }
 
 .quiz-stage {

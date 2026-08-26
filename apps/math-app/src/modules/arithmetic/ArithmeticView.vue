@@ -34,9 +34,14 @@ const OPS = [
   { id: 'mix', label: '混合 ±' },
 ]
 
+const LEVEL_STEPS = LEVELS.map((l) => l.id)
+
 const level = ref(LEVEL_BY_AGE_BAND[settings.ageBand] ?? 10)
 const op = ref('mix')
 const inputMode = ref('choice')
+/** 自动难度：连对就升档、连错就降档，但只在下一轮生效，不打断正在做的这一轮。 */
+const autoLevel = ref(true)
+const pendingLevel = ref(null)
 
 const isHard = computed(() => level.value === 100)
 const comboBest = ref(0)
@@ -115,6 +120,8 @@ function buildQuestion() {
   return {
     ...q,
     id: `${q.a}${q.sign}${q.b}`,
+    title: `${q.a} ${q.sign} ${q.b} = ?`,
+    difficulty: level.value,
     skill: arithmeticSkill({ level: level.value, kind: q.kind }),
     options: numericOptions(q.answer, {
       count: 4,
@@ -134,6 +141,13 @@ const questions = ref(Array.from({ length: ROUND_SIZE }, buildQuestion))
 const currentIndex = ref(0)
 
 function newRound() {
+  // 上一轮攒下的升降档建议在这里兑现：改 level 会触发下面的 watch 重新出题
+  const suggested = pendingLevel.value
+  pendingLevel.value = null
+  if (autoLevel.value && suggested && suggested !== level.value) {
+    level.value = suggested
+    return
+  }
   comboBest.value = 0
   currentIndex.value = 0
   questions.value = Array.from({ length: ROUND_SIZE }, buildQuestion)
@@ -164,6 +178,25 @@ function onGraded({ correct }) {
   if (correct) comboBest.value = Math.max(comboBest.value, progress.combo)
 }
 
+/** QuizShell 里的自适应引擎发来的升降档建议，攒到下一轮开始时再换档。 */
+function onAdapt({ difficulty }) {
+  if (!autoLevel.value) return
+  pendingLevel.value = difficulty === level.value ? null : difficulty
+}
+
+const pendingLabel = computed(() => {
+  const target = pendingLevel.value
+  if (!autoLevel.value || !target || target === level.value) return ''
+  const name = LEVELS.find((l) => l.id === target)?.label ?? `${target} 以内`
+  return target > level.value ? `下一轮升到 ${name}` : `下一轮降到 ${name}`
+})
+
+function toggleAuto() {
+  sound.click()
+  autoLevel.value = !autoLevel.value
+  if (!autoLevel.value) pendingLevel.value = null
+}
+
 function setLevel(id) {
   if (level.value === id) return
   sound.click()
@@ -187,9 +220,12 @@ function setOp(id) {
       :speed-bonus-ms="SPEED_BONUS_MS"
       :perfect-bonus="4"
       :show-answer-slot="false"
+      :difficulty-steps="LEVEL_STEPS"
+      :difficulty="level"
       :hint-labels="['💡 提示', '💡 再提示（少 1⭐）']"
       :prompts="['算一算，答案是多少？', '看清符号再作答 🙂', '心里默算一遍，再选答案。']"
       @advance="currentIndex = $event"
+      @adapt="onAdapt"
       @graded="onGraded"
       @replay="newRound"
       @home="router.push('/')"
@@ -218,6 +254,14 @@ function setOp(id) {
             {{ o.label }}
           </button>
         </div>
+        <button
+          class="btn btn--ghost btn--sm"
+          :aria-pressed="autoLevel"
+          title="连对就升档、连错就降档，换档在下一轮生效"
+          @click="toggleAuto"
+        >
+          🎚️ 自动难度{{ autoLevel ? '开' : '关' }}
+        </button>
       </template>
 
       <!-- 口算连击：连击越高星星加成越多，这里把加成明确画出来 -->
@@ -228,6 +272,7 @@ function setOp(id) {
           <em v-else-if="progress.combo >= 3">×2⭐</em>
         </span>
         <span v-if="comboBest >= 2" class="chip">🏅 本轮最佳 {{ comboBest }}</span>
+        <span v-if="pendingLabel" class="chip chip-on">🎚️ {{ pendingLabel }}</span>
       </template>
 
       <template #question="{ question, typed }">
