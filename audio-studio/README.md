@@ -143,31 +143,45 @@ pip install -e ".[plugins]"      # installs pedalboard (GPL-3.0)
 
 ### In the application
 
-**View ▸ VST3 Plugin** opens the plugin dock, tabbed behind the effects rack on
+**View ▸ VST3 Plugins** opens the plugin dock, tabbed behind the effects rack on
 the right-hand side because both drive the same preview chain.
 
-1. **Load VST3…** opens a file dialog filtered to `*.vst3`. On macOS and Linux
-   a plugin is a directory bundle, so pick the `.vst3` folder itself; the
-   "All files" filter is there for platforms that hide the extension.
-2. The plugin's name and path appear under the button, and one slider is
-   generated per parameter the plugin reports on the normalised 0–1 host scale.
-   Moving a slider writes straight through to the running plugin. Parameters
+1. **Scan…** picks a folder and lists the `.vst3` bundles under it in the combo
+   beside it, then **Load** puts the selected one into the first free slot.
+   Scanning reads each bundle's own `moduleinfo.json` — the metadata file the
+   VST3 SDK ships so hosts can enumerate plugins — so it never runs plugin code
+   and works without the `plugins` extra installed.
+2. **Load VST3…** in a slot opens a file dialog filtered to `*.vst3`, for a
+   plugin that lives somewhere a scan did not reach. On macOS and Linux a plugin
+   is a directory bundle, so pick the `.vst3` folder itself; the "All files"
+   filter is there for platforms that hide the extension.
+3. The plugin's name appears in its slot, and the **Parameters** box below shows
+   the *selected* slot's controls — click a slot to select it. One slider is
+   generated per parameter the plugin reports on the normalised 0–1 host scale,
+   and moving a slider writes straight through to the running plugin. Parameters
    reported as display values (`4800.0`, `"bell"`) are shown read-only rather
    than guessed at — edit those in the plugin's own editor.
-3. **Bypass** takes the plugin out of the playback path; **Remove** unloads it
-   and takes its slot out of the rack.
+4. **Bypass** takes one plugin out of the playback path; **Remove** unloads it
+   and empties its slot; **▲**/**▼** swap it with the neighbouring slot.
 
-The plugin is inserted into the preview chain ahead of the true-peak limiter,
-so the rack's safety net still catches it, and it shows up in the `FX:` field of
-the status bar like any built-in effect. Like the rest of the rack it is a
-*monitoring insert*: it changes what is heard and never rewrites the audio in
+There are **three** slots. They process in slot order — slot 1 first — and the
+whole group is inserted into the preview chain ahead of the true-peak limiter,
+so the rack's safety net still catches them, and they show up in the `FX:` field
+of the status bar like any built-in effect. Like the rest of the rack they are
+*monitoring inserts*: they change what is heard and never rewrite the audio in
 memory until you render.
 
-There is **one** plugin slot. Loading a second plugin replaces the first: plugin
-delay compensation, per-slot state and reordering all have to land before a
-multi-slot plugin rack would be honest about what it is doing. Without the
-extra installed, the panel says so in place, with the install command, instead
-of failing at the file dialog.
+The panel adds up the delay the loaded plugins report and shows the total under
+the slots. That figure is a warning, not a correction: **there is no plugin
+delay compensation yet**, so a plugin that reports latency is heard late.
+Bypassing one takes its delay out of the sum with it.
+
+Saving a project records which bundle sits in which slot — paths only. Reopening
+it loads those bundles again with their own default settings; plugin parameter
+state is a backend-specific blob that is not written yet. A plugin the project
+names but this machine does not have leaves its slot empty and says so in the
+panel rather than failing the open. Without the extra installed, the panel says
+so in place, with the install command, instead of failing at the file dialog.
 
 ### From Python
 
@@ -189,13 +203,47 @@ chain.add(create_plugin_effect("/path/to/Plugin.vst3"))
 an `Effect`, adding the rack's `bypass`/`mix` controls and forwarding
 `prepare`/`reset`/`process_block` so the plugin's streaming state is its own.
 
+### Finding plugins
+
+`audio_studio.plugins.scanner` is the discovery half, and it is deliberately
+pedalboard-free: it reads the bundle layout and `Contents/moduleinfo.json`
+rather than loading binaries, so a scan cannot be crashed by a bad plugin.
+
+```python
+from audio_studio.plugins.scanner import ScanCache, discover_plugins
+
+cache = ScanCache.load("~/.cache/audio-studio/plugins.json")
+for plugin in discover_plugins(cache=cache):   # platform plugin folders
+    print(plugin.id, plugin.name, plugin.vendor, plugin.path)
+cache.save()
+```
+
+`discover_plugins(paths)` walks each root to `max_depth` levels (4 by default),
+never descends into a `.vst3`, and returns one `PluginDescriptor(id, name, path,
+vendor)` per bundle, sorted by name. A bundle that predates the `moduleinfo`
+convention reports its file name and an empty vendor rather than a guess.
+
+The `ScanCache` keys each description on the bundle's size and modification
+time, so rescanning a system plugin folder costs a `stat` per bundle; changed
+bundles are re-read, uninstalled ones are pruned, and `force=True` re-probes
+everything. `discover_plugins(..., isolate=True)` runs each probe in a
+subprocess with a timeout — the same list, at the cost of an interpreter
+start-up per bundle, for a probe that must not be trusted with the editor's
+process. The scanner is also a command line:
+
+```bash
+python -m audio_studio.plugins.scanner                     # platform defaults
+python -m audio_studio.plugins.scanner ~/.vst3 --isolate
+```
+
 `audio_studio.plugins` always imports cleanly — pedalboard is loaded lazily,
 inside the single bridge module `audio_studio/plugins/pedalboard_bridge.py`,
-the first time a plugin is opened. The UI panel keeps that boundary: it probes
-for the extra with `importlib.util.find_spec`, which locates the package without
-executing it. Without the extra installed, loading a plugin raises
-`PluginLoadError` with installation instructions. Plugin state is still not
-persisted into projects, and there is no plugin delay compensation.
+the first time a plugin is opened. Discovery never reaches it at all. The UI
+panel keeps that boundary too: it probes for the extra with
+`importlib.util.find_spec`, which locates the package without executing it.
+Without the extra installed, loading a plugin raises `PluginLoadError` with
+installation instructions. Projects remember plugin *paths* but not plugin
+parameter state, and there is no plugin delay compensation.
 
 **License notice.** pedalboard is GPL-3.0 (incorporating JUCE, Rubber Band
 and FFTW). Installing the `plugins` extra for private use does not change the
@@ -458,11 +506,12 @@ above this package.
   rectangle. There is no healing brush, lasso or paintbrush selection, no
   spectral copy/paste, and the mask is rectangular in time as well as in
   frequency.
-- No complete repair suite (noise reduction remains). VST3 hosting is one
-  plugin slot behind the optional `plugins` extra (View ▸ VST3 Plugin): no AU
-  format, no multi-slot plugin rack, no plugin delay compensation, and plugin
-  state is not saved into projects — see the roadmap in the release sign-off.
-  Batch processing is covered by the `audio_studio.batch` CLI above.
+- No complete repair suite (noise reduction remains). VST3 hosting is a
+  three-slot rack behind the optional `plugins` extra (View ▸ VST3 Plugins),
+  with a filesystem-only bundle scanner: no AU format, no plugin delay
+  compensation, no plugin editor windows, and projects remember plugin paths but
+  not plugin parameter state — see the roadmap in the release sign-off. Batch
+  processing is covered by the `audio_studio.batch` CLI above.
 - The default device block is now 256 frames (~5.3 ms at 48 kHz);
   `SoundDeviceOutput` and `PyAudioOutput` retry with 512 and then 1024 frames
   when the device rejects it. On Windows, opt-in WASAPI exclusive mode

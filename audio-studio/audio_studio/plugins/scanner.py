@@ -458,9 +458,9 @@ class ScanCache:
         self,
         entries: dict[str, dict[str, Any]] | None = None,
         *,
-        path: Path | None = None,
+        path: str | Path | None = None,
     ) -> None:
-        self.path = path
+        self.path = Path(path).expanduser() if path is not None else None
         self._entries: dict[str, dict[str, Any]] = dict(entries or {})
         self._dirty = False
 
@@ -469,7 +469,7 @@ class ScanCache:
     @classmethod
     def load(cls, path: str | Path) -> ScanCache:
         """Read a cache file, or return an empty cache when it is unusable."""
-        target = Path(path)
+        target = Path(path).expanduser()
         try:
             payload = json.loads(target.read_text(encoding="utf-8"))
         except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -562,7 +562,7 @@ class ScanCache:
         A cache that cannot be written is not worth reporting: the caller
         already has the scan results it asked for.
         """
-        target = Path(path) if path is not None else self.path
+        target = Path(path).expanduser() if path is not None else self.path
         if target is None:
             return None
         payload = json.dumps(
