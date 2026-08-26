@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 import ProgressRing from '@/components/ProgressRing.vue'
 import { FONT_SCALES, THEMES, useSettingsStore } from '@/stores/settings.js'
 import { MASTERY_THRESHOLD, useProgressStore } from '@/stores/progress.js'
-import { CHARACTERS, UNITS } from '@/data/characters.js'
+import { CHARACTERS, UNITS, charsOfUnit } from '@/data/characters.js'
 import { BOOKS } from '@/data/books.js'
 import { IDIOMS } from '@/data/idioms.js'
 import { sfx } from '@/utils/sfx.js'
@@ -121,6 +121,42 @@ const bandCounts = computed(() =>
     count: progress.memoryCards.filter((c) => bandOf(c.retention).label === b.label).length
   }))
 )
+
+/* ---------------- 学习计划 ----------------
+ *
+ * 计划只管「今天学什么新字」：每天新字上限决定推荐节奏，勾选单元决定顺序。
+ * 一个都不勾就是按课程顺序学全部，这也是默认。
+ */
+const NEW_LIMITS = [
+  { value: 0, label: '不限' },
+  { value: 3, label: '3 个' },
+  { value: 5, label: '5 个' },
+  { value: 8, label: '8 个' },
+  { value: 12, label: '12 个' },
+  { value: 20, label: '20 个' }
+]
+
+const planRows = computed(() =>
+  UNITS.map((u) => ({
+    ...u,
+    total: charsOfUnit(u.id).length,
+    picked: settings.planUnits.includes(u.id),
+    ...progress.unitProgress(u.id)
+  }))
+)
+
+const wholeCourse = computed(() => settings.planUnits.length === 0)
+
+function togglePlanUnit(id) {
+  sfx.tap()
+  settings.togglePlanUnit(id)
+}
+
+function useWholeCourse() {
+  sfx.tap()
+  settings.clearPlanUnits()
+  flash('已恢复成按课程顺序学全部单元')
+}
 
 /* ---------------- 数据管理 ---------------- */
 const importError = ref('')
@@ -324,6 +360,80 @@ function resetSettings() {
             <span class="weak__char">{{ c.char }}</span>
             <small>对 {{ c.correct }} · 错 {{ c.wrong }}</small>
           </RouterLink>
+        </div>
+      </section>
+
+      <!-- 学习计划 -->
+      <section class="card stack">
+        <h3 class="section-title">
+          <span class="section-title__emoji" aria-hidden="true">🗓️</span>
+          学习计划
+        </h3>
+        <p class="muted plan__intro">
+          计划只决定「今天推荐学哪些新字」。已经学过的字随时可以复习，
+          到期的复习也不受上限影响。
+        </p>
+
+        <div class="field">
+          <span id="new-limit-label" class="field__label">每天最多学几个新字</span>
+          <div class="segmented" role="group" aria-labelledby="new-limit-label">
+            <button
+              v-for="l in NEW_LIMITS"
+              :key="l.value"
+              class="segmented__item"
+              :class="{ 'is-on': settings.dailyNewCharLimit === l.value }"
+              type="button"
+              :aria-pressed="settings.dailyNewCharLimit === l.value"
+              @click="settings.update({ dailyNewCharLimit: l.value })"
+            >
+              {{ l.label }}
+            </button>
+          </div>
+          <p class="muted plan__today" role="status" aria-live="polite">
+            今天已经学了 {{ progress.newCharsToday }} 个新字，
+            <template v-if="progress.newCharsLeft === null">今天不限量。</template>
+            <template v-else-if="progress.dailyLimitReached">
+              今天的新字学完啦，剩下的时间留给复习和绘本吧。
+            </template>
+            <template v-else>还可以再学 {{ progress.newCharsLeft }} 个。</template>
+          </p>
+        </div>
+
+        <div class="field">
+          <span id="plan-units-label" class="field__label">这一阶段只学这些单元</span>
+          <div class="row plan__summary">
+            <button
+              class="chip"
+              :class="{ 'is-on': wholeCourse }"
+              type="button"
+              :aria-pressed="wholeCourse"
+              @click="useWholeCourse"
+            >
+              📚 全部 {{ UNITS.length }} 个单元
+            </button>
+            <span class="pill">
+              计划内 {{ progress.planProgress.learned }} / {{ progress.planProgress.total }} 字
+              （{{ progress.planProgress.percent }}%）
+            </span>
+            <span v-if="progress.nextChar" class="pill pill--accent">
+              下一个字：{{ progress.nextChar.char }} {{ progress.nextChar.pinyin }}
+            </span>
+          </div>
+          <div class="plan" role="group" aria-labelledby="plan-units-label">
+            <label v-for="u in planRows" :key="u.id" class="plan__unit" :class="{ 'is-on': u.picked }">
+              <input
+                type="checkbox"
+                :checked="u.picked"
+                @change="togglePlanUnit(u.id)"
+              />
+              <span class="plan__emoji" aria-hidden="true">{{ u.emoji }}</span>
+              <span class="plan__meta">
+                <strong>{{ u.name }}</strong>
+                <small>{{ u.done }}/{{ u.total }} 字</small>
+              </span>
+            </label>
+          </div>
+          <p class="muted">一个都不勾，就按课程顺序把 {{ CHARACTERS.length }} 个字学下来。</p>
         </div>
       </section>
 
@@ -905,6 +1015,82 @@ function resetSettings() {
 .segmented__item.is-on {
   background: var(--brand);
   color: var(--text-invert);
+}
+
+/* 学习计划 */
+.plan__intro,
+.plan__today {
+  font-size: 0.85rem;
+  line-height: 1.7;
+}
+
+.plan__summary {
+  flex-wrap: wrap;
+}
+
+.chip {
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+  border: 2px solid transparent;
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: var(--text);
+}
+
+.chip.is-on {
+  background: var(--brand);
+  border-color: transparent;
+  color: var(--text-invert);
+}
+
+.plan {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.plan__unit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+  border: 2px solid transparent;
+  cursor: pointer;
+}
+
+.plan__unit.is-on {
+  border-color: var(--brand);
+}
+
+.plan__unit input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--brand);
+}
+
+.plan__emoji {
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.plan__meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.plan__meta strong {
+  font-size: 0.88rem;
+  color: var(--text-strong);
+}
+
+.plan__meta small {
+  font-size: 0.75rem;
+  color: var(--text-soft);
 }
 
 .toggles {
