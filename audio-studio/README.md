@@ -77,6 +77,26 @@ Headless smoke test:
 xvfb-run -a python -m audio_studio --null-audio --exit-after 5 track.wav
 ```
 
+## Batch processing
+
+`audio_studio.batch` processes whole folders offline, no GUI required:
+
+```bash
+python -m audio_studio.batch.cli --input "stems/*.wav" --output out/ --lufs -16
+audio-studio-batch --input "takes/**/*.flac" --output out/ \
+    --lufs -16 --true-peak -1.0 --fade-in 0.05 --fade-out 0.5 --format wav
+```
+
+Each matched file is decoded, run through the requested operations in order —
+`--gain-db`, then `--lufs` loudness normalisation (BS.1770 integrated, with an
+optional `--true-peak` ceiling), then `--fade-in`/`--fade-out` (`--fade-shape`
+picks the curve) — and re-encoded into `--output`, keeping its name.
+`--format` converts the container and `--subtype` overrides the encoding
+(e.g. `PCM_16`, `FLOAT`). Progress is printed to stdout one line per file; the
+exit code is 0 when every file rendered, 1 when any failed, 2 when nothing
+matched. The same pipeline is scriptable from Python via
+`audio_studio.batch.BatchJob` and `run_batch`.
+
 ## What the MVP does
 
 **Audio engine** (`audio_studio.core.engine.AudioEngine`)
@@ -212,8 +232,9 @@ tests live one directory above this package.
   but there is no input-device/level control, live monitoring, punch recording,
   or Broadcast Wave Format (BWF) metadata yet.
 - No complete repair suite (noise reduction remains), spectral selection
-  editing, production VST3/AU host or plugin delay compensation, batch
-  processing, or timeline markers yet — see the roadmap in the release sign-off.
+  editing, production VST3/AU host or plugin delay compensation, or timeline
+  markers yet — see the roadmap in the release sign-off. Batch processing is
+  covered by the `audio_studio.batch` CLI above.
 - Not a low-latency monitor: the default device block is 1024 frames
   (~21 ms at 48 kHz) and there is no exclusive-mode backend handling; playhead
   accuracy is bounded by the block size.
