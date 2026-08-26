@@ -24,7 +24,7 @@
 
 | # | Alias | Model Slug | Role | Agent ID | Env |
 |---|-------|------------|------|----------|-----|
-| 1 | fable | claude-fable-5-thinking-xhigh | 架构规划 & PRD | bc-001f86ec | cloud | 🔄 RUNNING |
+| 1 | fable | claude-fable-5-thinking-xhigh | 架构规划 & PRD | bc-001f86ec | cloud | ✅ DONE |
 | 2 | fable | claude-fable-5-thinking-xhigh | SOTA 审计 & 验收基准 | bc-33fcd8d0 | cloud | ✅ DONE |
 | 3 | opus-fast | claude-opus-5-thinking-high-fast | 核心引擎 & GUI 骨架 | bc-dc96ff89 | local | 🔄 RUNNING |
 | 4 | opus-fast | claude-opus-5-thinking-high-fast | 频谱分析 & 基础 DSP | bc-62ed54d8 | local | 🔄 RUNNING |
