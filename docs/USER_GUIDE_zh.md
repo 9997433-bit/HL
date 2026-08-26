@@ -143,14 +143,50 @@ point_masses:
 构件，每节点 6 个自由度（UX/UY/UZ/RX/RY/RZ），涵盖轴向拉压、St Venant 扭转与两个
 主平面内互不耦合的弯曲；局部坐标系按 CBAR 约定由方向向量（`orientation`）确定，
 截面需给出正的 `inertia_y`、`inertia_z` 与 `torsion_constant`。该单元由 42 项专门
-测试覆盖，项目完整测试套件也随之达到 **1089 项测试全部通过** 的验证里程碑。[^latest-suite]
-
-[^latest-suite]: 最新的完整测试套件现已包含 **1133+ 项测试**。
+测试覆盖；包含 meshio 桥 44 项测试在内，当前完整套件共 **1133 项测试全部通过**。
 
 模型修正通过**点分路径**寻址文档中的单个数值，例如 `materials.steel.E` 或
-`mesh.elements.2.stiffness`——这是第 8 节参数声明中 `target` 字段的含义。
+`mesh.elements.2.stiffness`——这是第 9 节参数声明中 `target` 字段的含义。
 
-## 6. 模态分析：`openfemlab modal`
+## 6. meshio 工业网格桥（Python API）
+
+安装 `[io]` 附加依赖后，可把 meshio 支持的 Gmsh、Abaqus、VTK 等网格读入统一的
+`NeutralModel`，也可写回由文件扩展名或 `file_format` 指定的格式：
+
+```python
+from openfemlab.io import read_meshio, write_meshio
+
+neutral = read_meshio("bracket.msh")
+print(neutral.n_nodes, neutral.n_elements)
+write_meshio(neutral, "bracket.vtu")
+```
+
+已有 `meshio.Mesh` 内存对象时，使用 `from_meshio(mesh)`；反向转换使用
+`to_meshio(neutral)`。桥接层采用显式的一对一映射：
+
+| meshio cell type | `ElementType` |
+|---|---|
+| `vertex` | `MASS1` |
+| `line` | `ROD2` |
+| `triangle` | `TRI3` |
+| `quad` | `QUAD4` |
+| `tetra` | `TET4` |
+| `hexahedron` | `HEX8` |
+
+meshio 的零基点索引会转换为中性模型的节点 ID。`node_ids`、`element_ids` 以及
+`property_ids` / `gmsh:physical` / `medit:ref` 标签会尽可能保留；不支持的单元类型会
+发出 `UserWarning`，数量记录在 `neutral.meta["skipped_cell_types"]`。由于 meshio 的
+`line` 无法区分杆、梁和弹簧，`BEAM2` / `SPRING2` 不会被含糊地导出，而是抛出
+`FormatError`。
+
+当前 R2-T05 只完成了**几何与连接关系桥接**。一般网格文件不含 OpenFEMLab 所需的完整
+材料和截面定义，因此导入结果的 `materials` / `properties` 为空，尚不能直接传给
+`ModalSolver`；在自动 `NeutralModel → Model` 转换落地前，调用方需自行补充材料、截面、
+约束并构造分析模型。UNV 2411/2412 几何读取也仍在后续范围内。`meshio` 采用懒加载，
+未安装附加依赖时只有文件读写/导出入口会抛出带安装提示的 `MissingDependencyError`，
+核心包与 `from_meshio` 的鸭子类型转换仍可使用。
+
+## 7. 模态分析：`openfemlab modal`
 
 ```bash
 openfemlab modal cantilever.yaml -n 8
@@ -169,7 +205,7 @@ openfemlab modal cantilever.yaml -n 6 --normalization mass -o modes.yaml
 | `--sparse` / `--dense` | 强制 Lanczos 稀疏路径或 LAPACK 稠密路径（默认自动选择） |
 | `-o/--output PATH` | 写出完整模态结果（频率、振型、DOF 映射），可直接作为 `correlate` 的 FE 侧输入 |
 
-## 7. FE/试验相关：`openfemlab correlate`
+## 8. FE/试验相关：`openfemlab correlate`
 
 ```bash
 openfemlab correlate cantilever.yaml measured.yaml --mac-threshold 0.7
@@ -204,7 +240,7 @@ damping: [0.01, 0.01, 0.01]   # 可选
 | `--require-mac MAC` | 任一配对 MAC 低于此值时以退出码 3 结束 |
 | `--require-frequency PCT` | 任一频率误差超过此百分比时以退出码 3 结束 |
 
-## 8. 模型修正：`openfemlab update`
+## 9. 模型修正：`openfemlab update`
 
 ```bash
 openfemlab update updating.yaml -o cantilever.updated.yaml --report report.json --strict
@@ -243,7 +279,7 @@ options:                        # 透传给 UpdatingOptions
 报告包含每个参数的名义值、更新值、缩放因子与变化百分比，修正前后的相关性指标
 （最大频率误差，若使用振型还有 mean/min MAC），以及逐次迭代的代价、阻尼与步长。
 
-## 9. FRF 相关：`openfemlab correlate-frf`
+## 10. FRF 相关：`openfemlab correlate-frf`
 
 ```bash
 openfemlab correlate-frf measured.unv cantilever.yaml --require-frac 0.9
@@ -277,7 +313,7 @@ channels:
 | `--require-frac FRAC` | 任一通道 FRAC 低于此值时以退出码 3 结束 |
 | `--require-fdac FDAC` | 任一 FDAC 对角元低于此值时以退出码 3 结束 |
 
-## 10. 端到端工作流
+## 11. 端到端工作流
 
 示例脚本一次生成模型规格、实测模态数据与修正配置三个文件：
 
@@ -311,7 +347,7 @@ openfemlab correlate run/cantilever.updated.yaml run/measured.yaml \
 在 CI 中，把第 2、4 步作为质量闸门：门槛未过时命令以退出码 3 结束，流水线即失败；
 `--format json` 与 `-o` 产出的报告是 schema 版本化的，便于归档与比对。
 
-## 11. 延伸阅读
+## 12. 延伸阅读
 
 - [`README.md`](../README.md) —— 功能总览、测试与基准
 - [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) —— 模块边界与数据流
