@@ -31,6 +31,9 @@ from earlier entries.
   line (A57: AC-UPD-006a/b registration, Laplace σ_post in the
   `CorrectionReport`) that this run merged with the HEX8 line; on the merged
   tree: **1045 passed, 0 failed** in 56.37 s.
+- [x] **Final check at the pushed tip** (this checklist's merge with the A78
+  acceptance batch): **1047 passed, 0 failed** in 110.13 s, `ruff check .`
+  clean.
 - [x] No skips, xfails-as-passes, or flaky reruns observed in any run.
 
 ## 2. Lint
