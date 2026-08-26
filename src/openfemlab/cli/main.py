@@ -65,7 +65,11 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    reporter = Reporter(color=not args.no_color, quiet=args.quiet)
+    reporter = Reporter(
+        color=not args.no_color,
+        quiet=args.quiet,
+        diagnostics_to_stderr=getattr(args, "format", "table") != "table",
+    )
     try:
         return int(args.func(args, reporter))
     except OpenFEMLabError as exc:

@@ -78,6 +78,9 @@ class Reporter:
         Set to False to disable rich rendering entirely (``--no-color``).
     quiet:
         Suppress everything except tables and explicitly requested documents.
+    diagnostics_to_stderr:
+        Route notes and warnings to stderr. Set this whenever the command
+        emits a JSON or YAML document, so that stdout stays parseable.
     """
 
     def __init__(
@@ -86,12 +89,20 @@ class Reporter:
         *,
         color: bool = True,
         quiet: bool = False,
+        diagnostics_to_stderr: bool = False,
     ) -> None:
         self.stream = stream if stream is not None else sys.stdout
         self.quiet = quiet
+        self.diagnostics = sys.stderr if diagnostics_to_stderr else self.stream
         self._console = None
+        self._diagnostic_console = None
         if color and RICH_AVAILABLE:
             self._console = _RichConsole(file=self.stream, highlight=False, soft_wrap=True)
+            self._diagnostic_console = (
+                _RichConsole(file=self.diagnostics, highlight=False, soft_wrap=True)
+                if diagnostics_to_stderr
+                else self._console
+            )
 
     @property
     def rich(self) -> bool:
@@ -116,16 +127,16 @@ class Reporter:
     def note(self, text: str) -> None:
         if self.quiet:
             return
-        if self._console is not None:
-            self._console.print(text, style="dim")
+        if self._diagnostic_console is not None:
+            self._diagnostic_console.print(text, style="dim")
             return
-        self.line(text)
+        print(text, file=self.diagnostics)
 
     def warning(self, text: str) -> None:
-        if self._console is not None:
-            self._console.print(f"warning: {text}", style="yellow")
+        if self._diagnostic_console is not None:
+            self._diagnostic_console.print(f"warning: {text}", style="yellow")
             return
-        print(f"warning: {text}", file=self.stream)
+        print(f"warning: {text}", file=self.diagnostics)
 
     def error(self, text: str) -> None:
         target = sys.stderr
