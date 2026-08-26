@@ -1947,3 +1947,54 @@ acceptance test claimed them.
   because it is the same bytes. Nothing was duplicated or reverted, but the shared
   checkout is now demonstrably a place where one agent's uncommitted work becomes
   another's commit — private worktrees are not optional.
+
+#### A49 — R2-T04 starts: the MS-3.5 Bayesian MAP estimator lands (backfill for A47)
+
+First slice of the second Round-2 gate-blocker. The MAP estimator exists and is tested;
+the AC-UPD-006a/b registry rows stay `specified` because their tags belong in
+`tests/acceptance/test_updating.py`, which is the follow-on slice.
+
+- `src/openfemlab/updating/bayesian.py` (new): `GaussianPrior` over the free design
+  variables — scalar, per-parameter or full `C_p`, plus `from_std`, `uninformative` and
+  an optional prior mean; `covariance_matrix` / `precision_matrix` validate and expand a
+  covariance spec (symmetry and positive-definiteness included). `map_step` and
+  `posterior_covariance` are the bare kernels;
+  `PosteriorEstimate` reports the mean, the covariance, per-parameter σ_post against
+  σ_prior, a correlation matrix, credible intervals and a table;
+  `BayesianUpdater` / `update_model_bayesian` / `BayesianUpdatingResult` are the
+  run-level API, re-exported from `openfemlab.updating` and the lazy top-level map.
+- **No second updating loop.** `ModelUpdater` grew two overridable hooks —
+  `normal_equations` and `penalty` — extracted from `run()` with behaviour unchanged, and
+  `BayesianUpdater` substitutes
+  `(Jᵀ C_ε⁻¹ J + C_p⁻¹) Δθ = −[Jᵀ C_ε⁻¹ r + C_p⁻¹ (θ − θ₀)]` plus the matching
+  noise-weighted cost. Mode re-pairing, bounds projection, LM damping and the
+  Fox–Kapoor/FD sensitivity stack are shared, per the GAP-01 rule. The posterior is a
+  Laplace estimate from a Jacobian re-evaluated *at* the converged point rather than the
+  last iterate's, and falls back to a pseudo-inverse on a rank-deficient information
+  matrix so an unidentifiable direction reports zero variance instead of raising.
+- The prior lives in the updater's **design space**, so a `log_scaled` parameter gets a
+  lognormal prior on its scaling factor. Documented in the module and pinned by a test;
+  a physical-space spelling is left as an open question for the AC slice.
+- `tests/test_bayesian_updating.py` (new, 35 tests) on the canonical 2-DOF grounded chain
+  (`two_dof_chain` as an affine `ScalingModel`, two stiffness factors against two measured
+  frequencies, truth `(1.15, 0.88)`). Both MS-3.5 limits are pinned twice, at the algebra
+  level and end to end: the MAP step's relative distance to the Gauss–Newton step falls
+  monotonically over prior precisions 1e-2 → 1e-6 → 1e-12 and lands at ≤ 1e-8 even with a
+  deliberately off-centre prior mean (AC-UPD-006a), and a σ = 1e6 run reproduces
+  `update_model`'s parameters to 1e-8; σ_post ≤ σ_prior componentwise, tighter priors
+  shrink the posterior monotonically over σ ∈ {1, 0.1, 0.01}, and at σ = 0.01 the solution
+  stays inside 3σ_prior of θ₀ while provably *not* recovering the truth (AC-UPD-006b).
+  Also covered: covariance validation rejects negative, mis-sized, asymmetric, indefinite
+  and rank-3 specs; the step is invariant to a uniform `C_ε` rescale but follows a
+  non-uniform one on an over-determined fit; a 100× noise covariance widens σ_post exactly
+  10×; the weak-prior twin recovers `(1.15, 0.88)` to ≤ 1e-3.
+- Verified at the rebased tip on Python 3.12.3 / NumPy 2.4.4 / SciPy 1.18.1 from the
+  private clone `/tmp/a49`: **709 passed** in 103 s, `ruff check .` clean. Baseline before
+  the change on the same clone was 671.
+- Remaining for R2-T04: tag AC-UPD-006a/b in the M3 acceptance suite and flip both rows
+  to `implemented`; surface σ_post through the CLI `update` document and the
+  `CorrectionReport` parameter table (AC-WORK-005 already reserves the column).
+- Fourth run to take the private-clone route rather than the shared `/workspace`
+  checkout, and it was again the right call: the integration tip moved twice during this
+  landing (a 34-commit A40/A52 merge sweep, then the A43 AC-CORR-006 batch) and both were
+  absorbed by rebase with no conflicts and no lost work.

@@ -31,7 +31,7 @@ the gap register at audit time:
 | GAP-04/05 dynamics & FRF | P0/P1, absent | **Closed by R2-T01.** `cursor/dynamics-damping-frf-9500` merged at `acda625`; AC-DYN-001..005 registered and `implemented`. GAP-05's FRF *updating residual* stays deferred to Round 3 as planned below. |
 | GAP-02 3D elements | P0, absent | **Partial.** QUAD4 plane stress/strain landed with `mesh.simple.quad_plate_mesh` and 61 tests (R2-T02 first slice, merged from `cursor/quad4-plane-stress-element-b99c`). Remaining: TET4, HEX8, 3D beam, the solid/shell BDF cards → R2-T02 remainder. |
 | GAP-08 reduction/expansion | P1, absent | Open (R2 slice: Guyan/SEREP/TAM + expansion) → R2-T03. |
-| GAP-11 Bayesian/UQ | P1, absent | Open (R2 slice: MS-3.5 MAP + posterior covariance) → R2-T04. |
+| GAP-11 Bayesian/UQ | P1, absent | **Partial.** The MS-3.5 MAP estimator landed in `updating/bayesian.py` with Gaussian prior, noise covariance and Laplace posterior σ_post (A49, 35 tests). Remaining: AC-UPD-006a/b tagging + registry flip, σ_post in the CLI/report output. Sampling (TMCMC/MC/DOE) stays Round 3 → R2-T04. |
 | GAP-12 optimization backend | P2, stub | **Closed for sizing by R2-T07.** `ScipyBackend.solve` runs SLSQP/trust-constr with analytic Jacobians, hard bounds and active-set KKT residuals; AC-OPT-001..004 are implemented. `cursor/optimization-scipy-backend-f421` was harvested by A40 (active-set multipliers, zero trust-constr constraint Hessian). Shape variables still fall back to finite differences. |
 | R1-O2 parallel implementation | — | Reconciliation of `cursor/r1o2-correlation-updating-e393` in progress on `cursor/reconcile-r1o2-correlation-updating-64c5` → R2-T08 harvests the diff. |
 
@@ -175,6 +175,24 @@ consistency tests fail.
 
 ### R2-T04 — Bayesian MAP updating with posterior covariance
 
+- **Status: PARTIAL — the estimator is on the trunk (A49).**
+  `src/openfemlab/updating/bayesian.py` carries `GaussianPrior` (scalar /
+  per-parameter / full `C_p`, `from_std`, `uninformative`, optional prior mean),
+  `map_step`, `posterior_covariance`, a `PosteriorEstimate` reporting per-parameter
+  σ_post, and `BayesianUpdater` / `update_model_bayesian`. The estimator drives the
+  *existing* LM loop rather than forking it: `ModelUpdater` grew two overridable hooks
+  (`normal_equations`, `penalty`) and `BayesianUpdater` swaps in
+  `(Jᵀ C_ε⁻¹ J + C_p⁻¹) Δθ = −[Jᵀ C_ε⁻¹ r + C_p⁻¹ (θ − θ₀)]`, so mode re-pairing, bounds
+  projection and the sensitivity stack stay shared (GAP-01 rule). `tests/test_bayesian_
+  updating.py` pins both MS-3.5 limits on the 2-DOF grounded chain in 35 tests — the GN
+  limit as `C_p⁻¹ → 0` (rel. diff ≤ 1e-8 at scale 1e-12, and end to end against
+  `update_model`) and posterior contraction with a tight prior holding θ* inside
+  3σ_prior of θ₀. Suite **709 passed**, `ruff check .` clean.
+  **Remaining to close the task:** tag AC-UPD-006a/b in
+  `tests/acceptance/test_updating.py` and flip both registry rows
+  `specified → implemented`; surface σ_post through the CLI `update` document and the
+  `CorrectionReport` σ_post column (AC-WORK-005 reserves it); decide whether the prior
+  should also be expressible in *physical* space rather than only design space.
 - **Priority:** 4 (P1 — **blocks Round-2 sign-off** via AC-UPD-006a/b) ·
   **Gaps:** [GAP-11](../docs/SOTA_GAP_ANALYSIS.md) (R2 slice), MS-3.5
 - **Why fourth:** the second gate-blocker, and the main opportunity to *exceed* FEMtools
@@ -286,4 +304,6 @@ Round 2 is done when, on the integration branch in CI:
    (R2-T05). QUAD4 is landed; TET4, HEX8 and the 3D beam remain.
 3. **R2-T03 — SEREP/TAM reduction & expansion** (GAP-08): the top Round-2 sign-off
    blocker via AC-CORR-006, with R2-T04 Bayesian MAP (AC-UPD-006a/b) as the tied
-   gate-blocker immediately behind it.
+   gate-blocker immediately behind it. Both now have their engines on the trunk
+   (`correlation/reduction.py`, `updating/bayesian.py`); what is left on each is the
+   acceptance-suite tagging and registry flip that actually clears the gate.
