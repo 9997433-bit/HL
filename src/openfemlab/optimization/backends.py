@@ -16,21 +16,31 @@ backend must honour:
   SLSQP convention is ``g(x) >= 0``, so the adapter negates both the function
   and its jacobian when mapping.
 
-``ScipyBackend.solve`` is the single Round 1 stub in this package: the mapping
-is specified below and in ``docs/OPTIMIZATION.md``; the wired implementation
-is a Round 2 deliverable (GAP-12), gated by AC-OPT-002 on the reference
-spring-mass sizing problem.
+``docs/OPTIMIZATION.md`` section 7 states the same mapping in prose.
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
+
+import numpy as np
 
 from ..exceptions import OptimizationError
-from .problem import OptimizationProblem, OptimizationResult
+from .problem import OptimizationIterate, OptimizationProblem, OptimizationResult
 
-__all__ = ["OptimizerBackend", "ScipyBackend", "get_backend", "available_backends"]
+__all__ = [
+    "OptimizerBackend",
+    "ScipyBackend",
+    "kkt_residual",
+    "get_backend",
+    "available_backends",
+]
+
+#: Tolerance of the AC-OPT-003 bound audit; also the width of the projection
+#: that absorbs a backend's round-off before an evaluation is requested.
+BOUND_TOLERANCE = 1.0e-12
 
 
 @runtime_checkable
@@ -40,25 +50,67 @@ class OptimizerBackend(Protocol):
     def solve(self, problem: OptimizationProblem) -> OptimizationResult: ...
 
 
+def kkt_residual(
+    objective_gradient: np.ndarray,
+    constraint_gradients: dict[str, np.ndarray],
+    x: np.ndarray,
+    bounds: tuple[np.ndarray, np.ndarray],
+    *,
+    tolerance: float = 1.0e-9,
+) -> float:
+    """First-order stationarity measure at ``x``.
+
+    Solves the non-negative least-squares problem for the multipliers of the
+    active inequalities and the active bounds,
+
+    ``min_{lambda, mu >= 0} || df/dx + sum_k lambda_k dg_k/dx + mu_bounds ||``,
+
+    and returns the residual norm relative to the gradient scale.  Zero means
+    the first-order KKT conditions hold to working precision.  SLSQP and
+    trust-constr report incomparable diagnostics of their own, so the
+    termination report uses this measure for both.
+    """
+    from scipy.optimize import nnls
+
+    g = np.asarray(objective_gradient, dtype=float).ravel()
+    lo, hi = bounds
+    columns = [np.asarray(dg, dtype=float).ravel() for dg in constraint_gradients.values()]
+    for i in range(g.size):
+        unit = np.zeros(g.size)
+        if x[i] >= hi[i] - tolerance:
+            unit[i] = 1.0
+        elif x[i] <= lo[i] + tolerance:
+            unit[i] = -1.0
+        else:
+            continue
+        columns.append(unit)
+
+    scale = max(float(np.linalg.norm(g)), 1.0)
+    if not columns:
+        return float(np.linalg.norm(g)) / scale
+    _, residual = nnls(np.column_stack(columns), -g)
+    return float(residual) / scale
+
+
 @dataclass
 class ScipyBackend:
     """Adapter over :func:`scipy.optimize.minimize` (SLSQP / trust-constr).
 
-    Planned lowering (Round 2):
+    The lowering:
 
-    - ``bounds`` -> ``scipy.optimize.Bounds(lo, hi)``; iterates additionally
-      clipped in the objective wrapper so SLSQP round-off cannot escape the
-      box (AC-OPT-003, tolerance 1e-12).
+    - ``bounds`` -> ``scipy.optimize.Bounds(lo, hi, keep_feasible=True)``;
+      every point is additionally clipped before it reaches the model, so
+      round-off cannot escape the box (AC-OPT-003, tolerance 1e-12).
     - each :class:`~openfemlab.optimization.problem.VectorConstraint` ->
       ``{"type": "ineq", "fun": -g, "jac": -dg}`` for SLSQP, or a
       ``NonlinearConstraint(g, -inf, 0)`` for trust-constr.
     - ``jac`` always set from ``problem.gradient`` — scipy's 2-point fallback
       is explicitly disabled (spec MS-5.2).
     - a callback records :class:`~openfemlab.optimization.problem.
-      OptimizationIterate` rows and the modal-solve counter of the evaluator.
-    - termination maps ``result.status/message`` onto
-      :class:`OptimizationResult` with the KKT measure trust-constr reports
-      (``optimality``) or SLSQP's final gradient norm as ``stationarity``.
+      OptimizationIterate` rows for the bound and convergence audit.
+    - termination maps scipy's ``success``/``message`` onto
+      :class:`OptimizationResult`, with :func:`kkt_residual` as the
+      method-independent ``stationarity``.
 
     Parameters
     ----------
@@ -66,16 +118,22 @@ class ScipyBackend:
         ``"slsqp"`` (default, spec MS-5.2) or ``"trust-constr"``.
     tol, max_iter, seed:
         Termination tolerance, iteration cap, and the seed forwarded to any
-        stochastic multistart wrapper (single-start in Round 2).
+        stochastic multistart wrapper (single-start today).
+    active_tol:
+        A constraint counts as active when ``|g| <= active_tol``.
+    options:
+        Extra options forwarded to ``scipy.optimize.minimize``.
     """
 
     method: str = "slsqp"
     tol: float = 1.0e-8
     max_iter: int = 100
     seed: int = 0
+    active_tol: float = 1.0e-6
     options: dict = field(default_factory=dict)
 
     _METHODS = ("slsqp", "trust-constr")
+    _SCIPY_NAMES = {"slsqp": "SLSQP", "trust-constr": "trust-constr"}
 
     def __post_init__(self) -> None:
         method = self.method.lower()
@@ -90,13 +148,135 @@ class ScipyBackend:
             raise OptimizationError("max_iter must be at least 1")
 
     def solve(self, problem: OptimizationProblem) -> OptimizationResult:
-        """Minimize the problem.  Round 1 stub — wired in Round 2 (GAP-12)."""
-        raise NotImplementedError(
-            "ScipyBackend.solve is the Round 2 deliverable of GAP-12: the "
-            "scipy.optimize.minimize mapping is specified in "
-            "docs/OPTIMIZATION.md section 7 and in this class's docstring, and "
-            "is gated by AC-OPT-002/003 before it can land"
+        """Minimize ``problem`` and report the termination state."""
+        from scipy.optimize import Bounds, NonlinearConstraint, minimize
+
+        if problem.gradient is None:
+            raise OptimizationError(
+                "the problem carries no gradient callback; scipy would fall back to "
+                "internal finite differences, which spec MS-5.2 forbids"
+            )
+
+        lo, hi = problem.bounds
+        counters = {"evaluations": 0}
+        cache: dict[bytes, float] = {}
+        history: list[OptimizationIterate] = []
+
+        def project(x: np.ndarray) -> np.ndarray:
+            return np.clip(np.asarray(x, dtype=float).ravel(), lo, hi)
+
+        def objective(x: np.ndarray) -> float:
+            projected = project(x)
+            counters["evaluations"] += 1
+            value = float(problem.objective(projected))
+            cache[projected.tobytes()] = value
+            return value
+
+        def objective_gradient(x: np.ndarray) -> np.ndarray:
+            return np.asarray(problem.gradient(project(x)), dtype=float).ravel()
+
+        def record(xk: np.ndarray, *_: object) -> None:
+            raw = np.asarray(xk, dtype=float).ravel().copy()
+            projected = project(raw)
+            value = cache.get(projected.tobytes())
+            if value is None:
+                value = objective(projected)
+            violations = [float(c.fun(projected)) for c in problem.constraints]
+            history.append(
+                OptimizationIterate(
+                    iteration=len(history) + 1,
+                    x=raw,
+                    objective=value,
+                    max_violation=max(violations) if violations else 0.0,
+                    in_bounds=problem.feasible(raw, tolerance=BOUND_TOLERANCE),
+                )
+            )
+
+        if self.method == "slsqp":
+            constraints: Any = [
+                {
+                    "type": "ineq",
+                    "fun": _negated(c.fun, project),
+                    "jac": _negated_jac(c.jac, project),
+                }
+                for c in problem.constraints
+            ]
+        else:
+            constraints = [
+                NonlinearConstraint(
+                    _projected(c.fun, project),
+                    -np.inf,
+                    0.0,
+                    jac=_projected_jac(c.jac, project),
+                )
+                for c in problem.constraints
+            ]
+
+        raw = minimize(
+            objective,
+            problem.x0,
+            method=self._SCIPY_NAMES[self.method],
+            jac=objective_gradient,
+            bounds=Bounds(lo, hi, keep_feasible=True),
+            constraints=constraints,
+            tol=self.tol,
+            options={"maxiter": self.max_iter, **self.options},
+            callback=record,
         )
+
+        x = project(raw.x)
+        values = problem.constraint_values(x)
+        gradients = {
+            c.name: np.asarray(c.jac(x), dtype=float).ravel()
+            for c in problem.constraints
+            if c.jac is not None
+        }
+        return OptimizationResult(
+            converged=bool(raw.success) and all(v <= self.active_tol for v in values.values()),
+            message=str(raw.message),
+            x=x,
+            objective=float(problem.objective(x)),
+            constraint_values=values,
+            active_set=[name for name, v in values.items() if abs(v) <= self.active_tol],
+            stationarity=kkt_residual(objective_gradient(x), gradients, x, problem.bounds),
+            n_iterations=int(getattr(raw, "nit", len(history))),
+            n_evaluations=counters["evaluations"],
+            history=history,
+            variables=dict(zip(problem.names, x.tolist(), strict=False)),
+        )
+
+
+def _projected(
+    fun: Callable[[np.ndarray], float], project: Callable[[np.ndarray], np.ndarray]
+) -> Callable[[np.ndarray], float]:
+    return lambda x: float(fun(project(x)))
+
+
+def _projected_jac(
+    jac: Callable[[np.ndarray], np.ndarray] | None,
+    project: Callable[[np.ndarray], np.ndarray],
+) -> Callable[[np.ndarray], np.ndarray]:
+    if jac is None:
+        raise OptimizationError(
+            "a constraint without a jacobian would force scipy to differentiate "
+            "internally, which spec MS-5.2 forbids"
+        )
+    return lambda x: np.asarray(jac(project(x)), dtype=float).ravel()
+
+
+def _negated(
+    fun: Callable[[np.ndarray], float], project: Callable[[np.ndarray], np.ndarray]
+) -> Callable[[np.ndarray], float]:
+    """SLSQP states inequalities as ``g(x) >= 0``; the problem states ``g(x) <= 0``."""
+    return lambda x: -float(fun(project(x)))
+
+
+def _negated_jac(
+    jac: Callable[[np.ndarray], np.ndarray] | None,
+    project: Callable[[np.ndarray], np.ndarray],
+) -> Callable[[np.ndarray], np.ndarray]:
+    projected = _projected_jac(jac, project)
+    return lambda x: -np.asarray(projected(x), dtype=float).ravel()
 
 
 #: Registered backend factories, keyed by the name accepted by

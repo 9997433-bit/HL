@@ -12,7 +12,7 @@ The lowering pipeline::
     OptimizationProblem                  plain bound-constrained NLP
         |  problem.solve(backend)
         v
-    OptimizationResult                   (backend wiring lands in Round 2)
+    OptimizationResult                   termination report
 
 The *model* contract is the one :class:`~openfemlab.updating.updater.
 ModelUpdater` already uses — a callable mapping ``{parameter name: value}`` to
@@ -254,12 +254,11 @@ def minimize_sizing(
     Minimizes ``objective`` over the bounded design variables subject to the
     standardized inequality ``constraints``, reusing the modal solver (M1),
     the Fox-Kapoor sensitivity kernel (M3) and MAC mode tracking (M2).
-
-    Round 1 performs the full lowering and then dispatches to the backend,
-    whose ``solve`` is the single remaining stub (Round 2, GAP-12).
     """
-    problem, _ = compile_sizing_problem(model, params, objective, constraints)
-    return problem.solve(backend, tol=tol, max_iter=max_iter, seed=seed)
+    problem, evaluator = compile_sizing_problem(model, params, objective, constraints)
+    result = problem.solve(backend, tol=tol, max_iter=max_iter, seed=seed)
+    result.n_modal_solves = evaluator.n_modal_solves
+    return result
 
 
 def problem_from_updater(updater: ModelUpdater) -> OptimizationProblem:
@@ -269,10 +268,10 @@ def problem_from_updater(updater: ModelUpdater) -> OptimizationProblem:
     ``f(x) = 1/2 ||r(x)||^2`` with the Gauss-Newton gradient ``J^T r`` built
     from the updater's residual and jacobian machinery (analytic Fox-Kapoor
     sensitivities when the updater has them, its mode-repairing finite
-    differences otherwise).  This is the seam through which Round 2 can drive
-    updating with a generic bound-constrained backend (e.g. trust-constr)
-    instead of the built-in Levenberg-Marquardt loop, and through which
-    updating and design studies share one problem statement.
+    differences otherwise).  This is the seam through which a generic
+    bound-constrained backend (e.g. trust-constr) can drive updating instead of
+    the built-in Levenberg-Marquardt loop, and through which updating and
+    design studies share one problem statement.
     """
 
     def evaluate(x: np.ndarray) -> tuple[ModalData, list[tuple[int, int]], np.ndarray]:

@@ -111,12 +111,13 @@ class OptimizationProblem:
         lo, hi = self.bounds
         return bool(np.all(x >= lo - tolerance) and np.all(x <= hi + tolerance))
 
-    def solve(self, backend: str = "slsqp", **options: object) -> OptimizationResult:
-        """Run a registered backend on this problem.
+    def constraint_values(self, x: Vector) -> dict[str, float]:
+        """Standardized ``g_k(x)`` keyed by constraint name."""
+        x = self.clip(x)
+        return {c.name: float(c.fun(x)) for c in self.constraints}
 
-        Round 1 registers the scipy backend as a documented stub; the wired
-        implementation lands with Round 2 (GAP-12).
-        """
+    def solve(self, backend: str = "slsqp", **options: object) -> OptimizationResult:
+        """Run a registered backend on this problem."""
         from .backends import get_backend
 
         return get_backend(backend, **{**self.options, **options}).solve(self)
@@ -124,7 +125,11 @@ class OptimizationProblem:
 
 @dataclass
 class OptimizationIterate:
-    """One accepted iterate of an optimization run (backend callback record)."""
+    """One accepted iterate of an optimization run (backend callback record).
+
+    ``x`` is the *raw* point the backend reported, before any projection, so
+    that ``in_bounds`` audits the AC-OPT-003 contract instead of restating it.
+    """
 
     iteration: int
     x: Vector
@@ -140,7 +145,8 @@ class OptimizationResult:
     Attributes
     ----------
     converged:
-        Whether the backend reported successful termination.
+        Whether the backend reported successful termination *and* the solution
+        satisfies the constraints.
     message:
         Backend termination message.
     x:
@@ -152,8 +158,8 @@ class OptimizationResult:
     active_set:
         Names of constraints active at the solution (``|g| <= active_tol``).
     stationarity:
-        KKT/stationarity measure as reported by the backend (NaN when the
-        backend provides none).
+        First-order KKT residual at the solution, relative to the gradient
+        scale (NaN when the backend provides none).
     n_iterations, n_evaluations, n_modal_solves:
         Iteration and cost counters; ``n_modal_solves`` counts actual
         eigensolves, the dominant expense.
