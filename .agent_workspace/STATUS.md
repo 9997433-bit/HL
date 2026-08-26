@@ -74,11 +74,11 @@ Acceptance registry and gate suites: **388 tests**.
 | R2-T02 | 3D element library (GAP-02) | **Done** — QUAD4 (61 tests), TET4 (66), HEX8 (76), the 42-test spatial `BeamElement3D` and the flat-facet `ShellQuad4Element` (A98, 72 tests) are all on the integration branch; the beam arrived with merge `75dd070` (A93) and `cursor/beam3d-cbar-element-c9a7` was deleted from `origin` afterwards. `io/neutral_convert.py` binds an imported block into those formulations (A106, 52 tests) and reaches the shell through `quad4_as="shell"` (A129). The three items that kept this partial all closed: the solid/shell BDF cards (A119), the converter's shell branch (A129), and the AC-ELEM case table over the shell (A124) — AC-ELEM-001..003 now run **33 acceptance cases** across QUAD4/TET4/HEX8/SHELL4, 9 of them the shell's. |
 | R2-T03 | Reduction/expansion, TAM (GAP-08) | **Acceptance-complete** — `correlation/reduction.py` (A36), AC-CORR-006/009, and `SensorMap.signs` folding are implemented; AC-CORR-006 is now `verified`. Sparse inputs still densify and must be addressed before GAP-13 scale. |
 | R2-T04 | Bayesian MAP updating (GAP-11 slice) | **Acceptance-complete** — the MS-3.5 MAP estimator with prior/posterior covariance landed (`4b2a416`, now 36 tests), and AC-UPD-006a/b are `implemented` with Laplace σ_post in the `CorrectionReport` (A57, merged to the trunk by A83). Only σ_post in the CLI `update` document is left, and it is outside the acceptance slice. |
-| R2-T05 | meshio bridge + IO completion (GAP-03) | **Partial** — the meshio bridge landed behind the P7 optional-dependency seam (A89, `io/meshio_bridge.py`, 44 tests): `from_meshio`/`to_meshio` over a one-to-one cell-type table, `read_meshio`/`write_meshio`, `MissingDependencyError`. A106's `io/neutral_convert.py` closed the re-analysis half, so `read_meshio` → `neutral_to_model` → `ModalSolver` runs end to end; A123's `write_uff`/`format_uff` (20 round-trip tests) made UFF datasets 55/58 writable as well as readable; A125's `read_unv` covers UNV 2411/2412; and A120 gated the whole path as module **M8** (`MS-9`, AC-IO-001..003, 30 acceptance cases, inventory 44 → 47). Promoting the three M8 rows is what remains. |
+| R2-T05 | meshio bridge + IO completion (GAP-03) | **Done** — meshio bridge (A89), `neutral_convert` (A106), UFF read/write (A123), UNV 2411/2412 (A125), module **M8** with AC-IO-001..003 **`verified`** (A120 + sign-off promotion). `read_meshio` → `neutral_to_model` → `ModalSolver` is gated end to end. OP2 and other industrial formats deferred to Round 3. |
 | R2-T06 | Updating depth (GAP-10) | **Partial** — AC-UPD-007 (P0) is tagged and `implemented` (A44); the collinearity screen was already in `workflow/selection.py`. QR-pivoting refinement, analytic MAC-row Jacobian wiring, and the model-level parameter resolver remain. |
 | R2-T07 | SciPy optimization backend (GAP-12) | **Done** — SLSQP/trust-constr with analytic Jacobians (A27), active-set KKT + trust-constr Hessian fixes (A40 harvest), and strengthened AC-OPT-002/003 oracles incl. a bound-active optimum (A34). Shape variables still FD. |
 | R2-T08 | R1-O2 branch reconciliation | **Done** — content reconciled by A14; the superseded/merged side branches were audited in [`BRANCH_CLEANUP.md`](BRANCH_CLEANUP.md) and deleted from `origin` (A62, plus `cursor/beam3d-cbar-element-c9a7` once A93 merged it). |
-| R2-T09 | CI exit hardening | **Complete for Round 2 sign-off** — the `gates` job and `scripts/promote_verified.py` (A109, A121) advanced all 44 criteria to `verified` behind green gate evidence. |
+| R2-T09 | CI exit hardening | **Complete** — the `gates` job and `scripts/promote_verified.py` (A109, A121, sign-off) advanced all **47** criteria to `verified` behind green gate evidence. |
 
 - **Round 3 — PENDING.** GAP-06 (MPE), GAP-07 (pretest EI), GAP-13 (50k-DOF
   scale), GAP-15 (plotting), and the FRF updating residual stay deferred.
@@ -94,52 +94,30 @@ Acceptance registry and gate suites: **388 tests**.
 | M5 Optimization (MS-5) | `optimization/` | 27 / 15 | Sizing complete (GAP-12 closed) with bound-active KKT oracles; shape variables fall back to finite differences. AC-OPT-001..004 are covered, including one `verified` row. |
 | M6 Damped dynamics (MS-7) | `solver/dynamics.py` | 82 / 13 | Complete; FRF updating residual deferred to Round 3. AC-DYN-001..005 are covered, including one `verified` row. |
 | Core, elements & mesh | `core/`, `mesh/` | 18 + 42 + 61 + 66 + 72 + 76 + 17 (contracts) | Complete: 1D set, spatial beam, QUAD4, TET4, HEX8 and the MITC4 flat-facet shell all landed, and AC-ELEM-001..003 — all three `verified` — carry a row per formulation, the shell included since A124 (33 acceptance cases, 9 shell). |
-| IO (MS-9) | `io/` | 13 + 5 + 20 + 50 + 6 + 44 + 30 (+30 BDF) + 52 | Partial: native YAML/JSON round trip, UFF 55/58 reader and writer, UNV 2411/2412 reader, BDF `GRID`/`CROD`/`CBAR`/`CQUAD4`/`CTETRA`/`CHEXA`/`MAT1`/`PSHELL`/`PSOLID`, meshio bridge (optional `[io]` extra; those tests skip without it), `NeutralModel` → `Model` conversion. Module **M8** with AC-IO-001..003 `implemented` (A120). |
+| IO (MS-9) | `io/` | 13 + 5 + 20 + 50 + 6 + 44 + 30 (+30 BDF) + 52 | Complete for Round-2 scope: native YAML/JSON round trip, UFF 55/58 reader and writer, UNV 2411/2412 reader, extended BDF cards, meshio bridge (optional `[io]` extra), `NeutralModel` → `Model` conversion. Module **M8** with AC-IO-001..003 **`verified`**. |
 | CLI | `cli/` | 23 + 16 (+1 e2e) | `modal` / `correlate` / `update` / `correlate-frf` complete end to end. |
 | QA / infra | `tests/acceptance/`, CI | 388 acceptance + 5 boundary + 4 perf + 3 scaffold | Registry enforcement green; CI matrix 3.10–3.13 runs pytest, Ruff, and the promotion gate. |
 
-## 4. Open gaps (priority order)
+## 4. Open gaps (Round 3 and polish)
 
-1. **Registry promotion.** All 47 criteria are covered (**37/37 P0,
-   10/10 P1**): 44 are `verified` across M1–M7 and 3 M8 rows are
-   `implemented`. Promoting AC-IO-001..003 closes the Round-2 IO gate.
-2. ~~**R2-T02 remainder** (P0): the `CQUAD4`/`CTETRA`/`CHEXA`/`PSHELL`/`PSOLID`
-   BDF cards, the shell branch in `neutral_convert`, and the AC-ELEM case
-   table over the shell.~~ **Closed** by A119, A129 and A124 respectively;
-   R2-T02 reads **Done** in the task table above.
-3. **R2-T05 IO completion**: promote the three M8 rows AC-IO-001..003 registered
-   with A120 (the meshio bridge landed with A89, the `NeutralModel` → `Model`
-   conversion that makes an imported mesh re-analyzable with A106, UFF 55/58
-   writing with A123, and UNV 2411/2412 reading with A125).
-4. **R2-T06 remainder**: QR-with-pivoting refinement of the collinearity
-   screen, analytic MAC-row Jacobian in the updater's shape-residual path,
-   model-level parameter resolver with assembled per-element dK/dp.
-5. **R2-T03 residue**: AC-CORR-009 (TAM pseudo-orthogonality) is registered and
-   `SensorMap.signs` is folded into the reduction bases (A58); what is left is
-   that the reduction module densifies sparse inputs — fine now, wrong at
-   GAP-13 scale.
-6. **R2-T04 residue**: σ_post in the CLI `update` document — a prior/noise
-   block in the update spec schema, a column in the rendered table and the
-   JSON payload. The acceptance gate and the `CorrectionReport` half are done.
-7. **CI hardening (R2-T09)**: the promotion machinery is complete — `ci.yml`
-   has a `gates` job with `ruff check .`, and the `implemented → verified`
-   transition is defined and enforced by
-   `tests/acceptance/test_registry_ci.py` (a green, reproducible re-run of the
-   promoted criteria) rather than by a pinned manual run. Open: promote the
-   remaining 30 rows.
-8. **Process**: the shared-`/workspace` hazard has been recorded by eight+
-   agents and was live again at this snapshot (mid-merge conflict state, HEAD
-   moving between consecutive commands). Detached private worktree + pinned
-   `PYTHONPATH` + fetch-before-push should be treated as mandatory — and the
-   worktree needs an *unguessable* name: A57 lost a working tree to another
-   agent resetting the predictable `/tmp/a57`.
+Round 2 is **signed off** at integration tip with **1508 tests passed** and
+**47/47 acceptance criteria `verified`**. Remaining work is Round 3 scope or
+non-blocking polish:
 
-Since the earlier snapshot, AC-CORR-008 supplied the final P0 acceptance gate;
-AC-UPD-006a/b and the Laplace σ_post report integration landed; the 42-test
-spatial beam slice was merged into the integration branch and its side branch
-deleted; the meshio bridge opened R2-T05; the last three acceptance gates
-closed; the `NeutralModel` → `Model` converter made an imported mesh
-re-analyzable; the flat-facet shell closed the last open element formulation;
-and the promotion tool flipped five more criteria. The registry stands at
-**44/44 covered** (30 `implemented`, 14 `verified`), and the suite at
-**1,331 passed**.
+1. **R2-T06 remainder** (Round 3 / P1): QR-with-pivoting refinement of the
+   collinearity screen, analytic MAC-row Jacobian in the updater's shape-residual
+   path, model-level parameter resolver with assembled per-element dK/dp.
+2. **R2-T03 residue**: the reduction module densifies sparse inputs — fine now,
+   wrong at GAP-13 (50k-DOF) scale.
+3. **GAP-03 extension**: native OP2 and other industrial formats beyond the
+   meshio/BDF/UNV/UFF interchange closed in Round 2.
+4. **Round 3 backlog** (see `ROUND2_SIGNOFF.md`): GAP-06 (MPE), GAP-07
+   (pretest EI), GAP-13 (large-scale sparse), GAP-15 (plotting), FRF updating
+   residual.
+5. **Process**: detached private worktree + pinned `PYTHONPATH` + fetch-before-push
+   remain mandatory for multi-agent runs on this repository.
+
+Since the A121 snapshot, A120 registered module M8 (AC-IO-001..003), A124 closed
+R2-T02 with the shell AC-ELEM rows, and sign-off promotion advanced the last three
+M8 criteria to `verified`. The registry stands at **47/47 `verified`**, and the
+suite at **1508 passed**.

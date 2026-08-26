@@ -534,20 +534,10 @@ M4 = 5, M5 = 4, M6 = 5, M7 = 3, and M8 = 3. The two suffixed M3 rows
 (`AC-UPD-006a` / `AC-UPD-006b`) are distinct criteria under one dense base
 number.
 
-Fourteen of them are `verified` under the section 1.5 gate. The first wave took
-one criterion per module, so the promotion exercises every module of the
-platform (AC-MODAL-003, AC-CORR-001, AC-CORR-002, AC-UPD-001, AC-WORK-002,
-AC-OPT-003, AC-DYN-004, AC-ELEM-001), plus the P1 Round-2 sign-off blocker
-AC-CORR-006. The second wave closed the P0 rows of the two modules whose
-Round-2 tasks are complete — M6 damped dynamics (AC-DYN-001, AC-DYN-002,
-AC-DYN-003) and M5 optimization (AC-OPT-001, AC-OPT-002) — so every P0
-criterion of M5 and M6 now rests on the gate.
-
-M8 is the one module with no promoted row: its three criteria were registered
-after the second wave and are `implemented`. The span rule below would
-otherwise read as satisfied by silence, so the registry names M8 explicitly in
-`MODULES_AWAITING_PROMOTION` and fails if that list still claims a module whose
-first criterion has since been promoted — the exemption expires by itself.
+Fourteen of them were `verified` after the first two promotion waves (A109,
+A121). The third wave — promoted at Round 2 sign-off — closed module **M8**
+(AC-IO-001..003) so the inventory now reads **47 `verified`, 0 `implemented`,
+0 `specified`**: every P0 and P1 row rests on the CI gate.
 
 The registry tests enforce:
 
@@ -564,9 +554,10 @@ The registry tests enforce:
 7. Promotion honesty: `verified` is reserved for blocking (P0/P1) criteria,
    requires the green, reproducible gate run of section 1.5, and requires the
    CI `gates` job that runs it to exist.
-8. Promotion span: every module carries a `verified` criterion except the ones
-   `MODULES_AWAITING_PROMOTION` names, and a module on that list may not
-   already have one.
+8. Promotion span: every module in `VALID_MODULES` carries at least one
+   `verified` criterion. The registry may name modules in
+   `MODULES_AWAITING_PROMOTION` only while they have no promoted row; the same
+   test fails if a module on that list already has one.
 
 Adding, renaming, or retiring a criterion is done by editing the registry and
 this document in the same change; the registry test fails otherwise.

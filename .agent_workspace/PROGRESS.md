@@ -85,6 +85,8 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A120 | claude-opus-5-thinking-high-fast | R2-T05: register AC-IO-001..003 as module M8 (+30 tests) | complete — registry 47 rows (44 verified / 3 implemented M8) |
 | A123 | claude-opus-5-thinking-high-fast | R2-T05: UFF datasets 55/58 writer `write_uff`/`format_uff` (+20 tests) | complete — 1385 passed, Ruff clean |
 | A124 | claude-opus-5-thinking-high-fast | R2-T02 last item: fold `ShellQuad4Element` into the AC-ELEM-001..003 case table (patch, zero-energy count, h-convergence) | complete — 9 shell cases across all three criteria, 1394 passed, Ruff clean |
+| A125 | claude-opus-5-thinking-high-fast | R2-T05: UNV 2411/2412 reader `read_unv` (+50 tests) | complete — merged on integration branch |
+| sign-off | parent orchestrator | Round 2 closure: promote AC-IO-001..003, doc reconcile, branch cleanup | complete — 1508 passed, 47/47 verified |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |

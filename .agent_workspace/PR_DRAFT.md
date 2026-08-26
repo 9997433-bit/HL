@@ -1,15 +1,16 @@
-# PR Draft — OpenFEMLab Round 1
+# PR Draft — OpenFEMLab Round 2 Sign-Off
 
 Ready to file. Base: `main`. Head: `cursor/femtools-industrial-7aa3`.
-Verified at commit `571c864`: full suite **1331 passed**,
+Verified at commit pending sign-off push: full suite **1508 passed**,
 `ruff check .` clean (Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1).
+Registry: **47/47 acceptance criteria `verified`**.
 Source references: [README](../README.md), [Chinese user guide](../docs/USER_GUIDE_zh.md),
-and [orchestrator report](ORCHESTRATOR_REPORT.md).
+[Round 2 sign-off](ROUND2_SIGNOFF.md), and [orchestrator report](ORCHESTRATOR_REPORT.md).
 
 ## Title
 
 ```
-OpenFEMLab: solver-independent CAE platform — modal analysis, correlation, model updating, damped dynamics, 3D elements (1331 tests)
+OpenFEMLab: industrial CAE platform — modal, correlation, updating, dynamics, 3D elements, IO interchange (1508 tests, 47 verified criteria)
 ```
 
 ## Body
@@ -174,10 +175,10 @@ openness, and automation:
   the facet through `quad4_as="shell"` (A129); and the
   `CQUAD4`/`CTETRA`/`CHEXA`/`CBAR`/`PSHELL`/`PSOLID` cards read (A119). An imported
   industrial mesh — solid, frame or shell — can now be re-analyzed internally.
-- The acceptance registry is closed at **44/44 `verified`** (all 34 P0 and 10 P1 rows);
-  MPE from measured FRFs and pretest planning remain pending outside this registry
-  closure and are tracked in `docs/SOTA_GAP_ANALYSIS.md` and
-  `.agent_workspace/ROUND2_PLAN.md`.
-- R2-T09 is **complete for Round 2 sign-off**: CI gates plus `promote_verified.py`
-  (A72, A109, A121) advanced every row to `verified`.
+- The acceptance registry is closed at **47/47 `verified`** (all 37 P0 and 10 P1 rows),
+  including module **M8 (IO)** AC-IO-001..003 promoted at Round 2 sign-off. MPE from
+  measured FRFs and pretest planning remain Round 3 scope — see
+  `.agent_workspace/ROUND2_SIGNOFF.md`.
+- R2-T09 is **complete**: CI gates plus `promote_verified.py` advanced every row to
+  `verified`.
 ```

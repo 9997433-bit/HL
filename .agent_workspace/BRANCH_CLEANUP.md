@@ -176,3 +176,15 @@ The promotion branch tip is an ancestor of integration tip `319c50e` with zero
 branch-only commits; its `scripts/promote_verified.py` tool and five-criterion promotion
 landed through merges at `571c864`. `cursor/r2-t09-promote-verified-bb5f` was deleted
 from `origin` on 2026-08-26 after reverification.
+
+## Round 2 sign-off — merged side branches retired
+
+Audited at trunk `7d1268f` before AC-IO promotion. The following remote branch was an
+ancestor of trunk with zero branch-only commits:
+
+| Branch | Remote tip | Counts (trunk...branch) | Deletion status |
+|---|---|---|---|
+| `cursor/neutral-convert-shell-7aa3` | `0449651` | 26 / 0 | **Deleted from `origin` on 2026-08-26** (A129 `quad4_as="shell"`). |
+
+Local-only merge branches (`cursor/merge-a*-7aa3`) were pruned after sign-off; they
+carried no unique commits relative to trunk.

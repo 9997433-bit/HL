@@ -51,11 +51,9 @@ VALID_STATUSES = ("specified", "implemented", "verified")
 COVERED_STATUSES = ("implemented", "verified")
 
 #: Modules whose rows are all still awaiting their first promotion, exempt from
-#: the span rule of ACCEPTANCE_CRITERIA.md section 10 rule 8. A module belongs
-#: here only while its criteria are newly registered: the exemption expires by
-#: itself, because ``test_verified_criteria_span_every_module`` also fails when
-#: a module named here *does* have a verified row.
-MODULES_AWAITING_PROMOTION = ("M8",)
+#: the span rule of ACCEPTANCE_CRITERIA.md section 10 rule 8. Empty after the
+#: A120 M8 promotion closed Round 2.
+MODULES_AWAITING_PROMOTION: tuple[str, ...] = ()
 
 #: How an implementation suite tags a test with the criterion it verifies.
 TAG_REGEX = re.compile(r"criterion\(\s*\"(AC-[A-Z]+-\d{3}[a-z]?)\"\s*\)")
@@ -196,11 +194,11 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P1", "property", "MS-8.4", _ELEM_SUITE, "verified"),
     # --- M8 Model interchange (MS-9) ------------------------------------------
     _c("AC-IO-001", "Native document survives the JSON/YAML round trip",
-       "P0", "contract", "MS-9.2", _IO_SUITE, "implemented"),
+       "P0", "contract", "MS-9.2", _IO_SUITE, "verified"),
     _c("AC-IO-002", "meshio file round trip preserves the neutral model",
-       "P1", "contract", "MS-9.3", _IO_SUITE, "implemented"),
+       "P1", "contract", "MS-9.3", _IO_SUITE, "verified"),
     _c("AC-IO-003", "Imported mesh assembles as the hand-built model",
-       "P0", "contract", "MS-9.4", _IO_SUITE, "implemented"),
+       "P0", "contract", "MS-9.4", _IO_SUITE, "verified"),
 )
 
 _BY_ID = {c.test_id: c for c in REGISTRY}

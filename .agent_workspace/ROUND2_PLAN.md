@@ -16,31 +16,25 @@ A supporting backlog covers the remaining Round 2 items from
 
 ---
 
-## 0. Status snapshot — Round 2 sign-off (A126 + A121, 2026-08-26, integration tip `8065205`)
+## 0. Status snapshot — Round 2 **SIGNED OFF** (2026-08-26, integration tip pending push)
 
-Verified at integration tip `8065205` from a detached private worktree (`PYTHONPATH`
-pinned): full suite **1335 passed, 0 failed**, `ruff check .` clean, on Python
-3.12.3 / NumPy 2.5.2 / SciPy 1.18.1. Registry: **44 criteria — 44 `verified`,
-0 `implemented`, 0 `specified`** (all 34 P0 + 10 P1 rows gated in CI). **A121**
-batch-promoted the last 30 `implemented` rows via `promote_verified.py --run
---apply`.
-
-Earlier snapshots on this page read **1133 passed / 0 `verified`** (A93), **1149 /
-9 `verified`** (A72), and **1331 / 14 `verified` / 30 `implemented`** (A109 at
-`571c864`). Since `571c864`: `quad4_as="shell"` in `neutral_convert` (A129),
-the imported-shell modal example (A128), and the A121 closure above.
+Verified on branch `cursor/r2-signoff-7aa3`: full suite **1508 passed, 0 failed**,
+`ruff check .` clean, on Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1. Registry:
+**47 criteria — 47 `verified`, 0 `implemented`, 0 `specified`** (all 37 P0 + 10 P1
+rows gated in CI). **A121** batch-promoted M1–M7; **sign-off** promoted AC-IO-001..003
+(M8) via `promote_verified.py --run --apply`.
 
 | Task | Status |
 |---|---|
-| R2-T01 dynamics/FRF | **COMPLETE** — engine (`acda625`), AC-DYN-001..005 **`verified`**, report `frf` block at schema 1.1 (A41), `openfemlab correlate-frf` CLI (A54). |
-| R2-T02 3D elements | **COMPLETE** — all formulations in `core/elements.py`; `neutral_convert` with `quad4_as="shell"` (A129); Nastran BDF reads CQUAD4/CTETRA/CHEXA/CBAR + PSHELL/PSOLID (A119); AC-ELEM-001..003 carry a `SHELL4` row beside QUAD4/TET4/HEX8 (A124), so the "every formulation" claim of ACCEPTANCE_CRITERIA §8 is now mechanical. |
-| R2-T03 reduction/expansion | **ACCEPTANCE-COMPLETE** — engine (A36), AC-CORR-006/009 **`verified`**. Open: sparse inputs. |
-| R2-T04 Bayesian MAP | **ACCEPTANCE-COMPLETE** — estimator (A49), AC-UPD-006a/b **`verified`**, σ_post in `CorrectionReport` and CLI `update` (A122). |
-| R2-T05 meshio & IO | **ACCEPTANCE-COMPLETE for registration** — meshio bridge (A89), `neutral_convert` (A106), UFF read/write (A123), UNV 2411/2412 (A125), AC-IO-001..003 as module M8 (A120). Open: promote the three M8 rows to `verified`. |
-| R2-T06 updating depth | P0 slice closed (AC-UPD-007 **`verified`**); P1 depth (MAC-row Jacobian, model-level resolver) open. |
-| R2-T07 optimization | **COMPLETE for sizing** — AC-OPT-001..004 **`verified`**. Shape variables still FD. |
+| R2-T01 dynamics/FRF | **COMPLETE** |
+| R2-T02 3D elements | **COMPLETE** — shell AC-ELEM rows (A124) closed the last item. |
+| R2-T03 reduction/expansion | **ACCEPTANCE-COMPLETE** — sparse-input densification deferred to Round 3. |
+| R2-T04 Bayesian MAP | **ACCEPTANCE-COMPLETE** — CLI σ_post landed (A122). |
+| R2-T05 meshio & IO | **COMPLETE** — M8 AC-IO-001..003 **`verified`**. |
+| R2-T06 updating depth | P0 slice closed; P1 depth open → Round 3. |
+| R2-T07 optimization | **COMPLETE for sizing**. |
 | R2-T08 R1-O2 reconciliation | **COMPLETE** |
-| R2-T09 exit hardening | **COMPLETE for Round 2 sign-off** — CI gates + `promote_verified.py` (A72, A109, A121); **44/44 `verified`**. |
+| R2-T09 exit hardening | **COMPLETE** — **47/47 `verified`**. |
 
 ---
 
@@ -52,7 +46,7 @@ the gap register at audit time:
 | Gap | Audit status | Status entering Round 2 |
 |---|---|---|
 | GAP-01 integration split-brain | P0, suite not collecting | **Largely closed.** `ModalResult` unified (commit `508813e`), `modal/eigen.py` is a thin adapter over `solver/modal.py` (A08), full suite green at **192 passed** (A22). Residual: enforce the "seams land atomically with consumers" rule and keep CI green. |
-| GAP-03 industrial IO | P0, absent | **Partial.** Native/meshio/BDF/UNV/UFF interchange is gated by AC-IO-001..003 (A120, module M8). Remaining: OP2, promote M8 criteria. |
+| GAP-03 industrial IO | P0, absent | **Closed for Round 2.** Native/meshio/BDF/UNV/UFF interchange gated by AC-IO-001..003 (**`verified`**, module M8). OP2 and broader format breadth → Round 3. |
 | GAP-14 CLI stubs | P2, stubbed | **Closed for R2.** `modal`/`correlate`/`update` landed with model-spec format, gates, JSON/YAML documents on clean stdout (A07/A16/A22). |
 | GAP-10 updating depth | P1, absent | **Partial.** Dotted-path parameter targeting in the CLI spec layer (A07), affine `ScalingModel` dK/dθ (A04), vectorized Fox–Kapoor + MAC sensitivities (A04/A10). Remaining: model-level resolver, assembled per-element dK/dp, analytic MAC-row Jacobian wiring → R2-T06. The MS-3.6 collinearity screen is done: `workflow/selection.py` plus the AC-UPD-007 acceptance tests (A44). |
 | GAP-09 node mapping | P1, absent | **Partial.** Label-based DOF alignment (`correlation/align.py`, `workflow/sensors.py`). Remaining: geometry-based nearest-node mapping → folded into R2-T05/T06 scope notes. |
@@ -391,8 +385,7 @@ consistency tests fail.
   UFF writing landed with A123: `write_uff`/`format_uff` emit datasets 55 and 58 in the
   records `read_uff` accepts, with 20 round-trip tests. UNV 2411/2412 reading landed
   with A125 (`read_unv`, 50 tests). The acceptance rows landed with A120 as module **M8**
-  (`MS-9`), which moves the pinned inventory to 47. **Remaining to close the task:**
-  promoting the three M8 rows once a gate run with the `[io]` extra is green.
+  (`MS-9`), inventory 47. Sign-off promoted AC-IO-001..003 to **`verified`**.
 - **Scope:**
   - ~~`io/meshio_bridge.py`: bidirectional `meshio.Mesh` ↔ `NeutralModel` conversion
     (points → node arrays, cell blocks → `ElementType` blocks with an explicit,
@@ -432,7 +425,7 @@ consistency tests fail.
 | R2-T06 | 6 | Updating depth completion: the MS-3.6 collinearity screen with norm-ranked subset selection is **done** ([AC-UPD-007](../docs/ACCEPTANCE_CRITERIA.md), P0, `twin`: duplicated parameter detected at cosine > 0.99, one frozen, recovery gates still met — `workflow/selection.py`, tagged by A44); wire the analytic MAC-row Jacobian into the updater's shape-residual path (A04 flagged this as a cheap win — FD fallback currently used whenever shapes are present); model-level parameter target resolver (`material.<id>.<attr>`) with assembled per-element dK/dp providers | [GAP-10](../docs/SOTA_GAP_ANALYSIS.md), AC-UPD-007, MS-3.1/3.3/3.6 | What is left is P1 depth work; the P0 slice closed with the AC-UPD-007 tagging. |
 | R2-T07 | 7 | Optimization backend: replace `optimization.solve` `NotImplementedError` with a scipy SLSQP/trust-constr backend using the sensitivity kernel for gradients and MAC-based mode tracking | [GAP-12](../docs/SOTA_GAP_ANALYSIS.md), [AC-OPT-001..003](../docs/ACCEPTANCE_CRITERIA.md) (P0), AC-OPT-004 (P1), MS-5 | Coordinate with the in-flight `optimization/{backends,gradients,problem,responses,variables}.py` on `cursor/dynamics-damping-frf-9500` — land that branch, don't fork. |
 | R2-T08 | 8 | R1-O2 reconciliation: diff `cursor/r1o2-correlation-updating-e393` against the landed correlation/updating packages; harvest superior pieces (per-DOF MSF-scaled shape residuals, log-space parameter transform, frequency-window pairing acceptance) and delete the rest | GAP-01 hygiene | Already in progress on `cursor/reconcile-r1o2-correlation-updating-64c5`; merge through the integration branch, not around it. |
-| R2-T09 | 9 | Round 2 exit hardening: CI job runs `import openfemlab` + full suite + Ruff + registry consistency on every push; registry statuses advanced `specified → implemented → verified` for every criterion a Round 2 task closes | Round 1 exit-bar carryover, AC §1.5 | **COMPLETE (A72, A109, A121).** Gates job + `promote_verified.py`; **44/44 `verified`**. |
+| R2-T09 | 9 | Round 2 exit hardening | Round 1 exit-bar carryover, AC §1.5 | **COMPLETE (A72, A109, A121, sign-off).** **47/47 `verified`**. |
 
 ---
 
