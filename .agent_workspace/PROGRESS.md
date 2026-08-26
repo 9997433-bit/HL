@@ -3136,3 +3136,84 @@ Here it was equivalent in structure and wrong in one detail, and diffing the two
 what surfaced the non-finite JSON. Work was done in a private worktree at `/tmp/a56`
 with `PYTHONPATH` pinned to its own `src`; the shared `/workspace` checkout was in use
 by other agents throughout and was never touched.
+
+#### A98 — R2-T02 continued: the flat shell QUAD4 facet (backfill for completed A95)
+
+The last missing formulation in `core/elements.py`. `ShellQuad4Element` closes the shell
+slice of GAP-02, so bar, planar beam, membrane quad, tet, hex, spatial frame member and
+now the shell facet all have a formulation and an imported shell mesh can be
+re-analyzed rather than only correlated.
+
+**`ShellQuad4Element` (`core/elements.py`).** Four nodes, six DOFs each. The facet frame
+is built from the geometry — `e_z` along the normal of the two diagonals, `e_x` along the
+averaged `xi` direction — and the local 24x24 matrix is rotated node by node into global
+axes, the same construction `BeamElement3D` uses for its 12x12 blocks. In that frame the
+element splits into three uncoupled parts:
+
+* **Membrane.** The existing plane-stress `Quad4Element`, evaluated on the projected
+  in-plane coordinates. That is reuse, not re-derivation: the global membrane sub-block
+  reproduces `Quad4Element` to **2.4e-16** and the in-plane spectrum of a
+  `shell_plate_mesh` with its out-of-plane DOFs suppressed equals the `quad_plate_mesh`
+  spectrum to 1e-10, both asserted, so there is no second membrane kernel to drift
+  (GAP-01 rule).
+* **Bending.** A Reissner-Mindlin plate whose transverse shear uses the **MITC4**
+  assumed-strain field (Bathe-Dvorkin): the covariant shears are sampled at the four
+  edge midpoints and interpolated linearly. That choice is what buys both properties at
+  once — no shear locking *and* no rank deficiency. A selectively reduced-integration
+  Mindlin quad leaves two spurious modes per element; this one has exactly six
+  zero-energy modes on a distorted facet, and because the quadrilateral's edges are
+  straight the mid-edge sample of a constant-curvature state is exact, so the element
+  reproduces constant curvature to machine precision on arbitrary planar geometry.
+* **Drilling.** The rotation about the normal has no physical stiffness here, so a
+  fictitious diagonal torsional stiffness (`drilling_factor`, default 1e-3 of the mean
+  plate rotational diagonal, hence element-size aware) keeps the local matrix
+  non-singular. It is a penalty, not an Allman or Hughes-Brezzi rotation field, and it
+  is *decoupled* from the membrane — which is exactly why a coplanar assembly never
+  loads it and still shows six rigid-body modes, while a folded assembly picks up the
+  small artificial stiffness that stops the crease from hinging.
+
+**Mass.** Translational `rho t int N^T N dA` on all three directions. Bending rotary
+inertia `rho t^3 / 12` is available but **off by default**, the usual shell convention:
+on a thin plate it is a sub-0.1 % correction, and including it makes the mass matrix ill
+conditioned enough (`cond(M) ~ 4e6` at `t/L = 0.005`) that the modal solver's residual
+guard trips at its default 1e-8. With it off the rotations are massless and the solver's
+Guyan condensation removes them exactly. The drilling DOFs are always massless.
+
+**`tests/test_shell_quad4.py`, 72 tests**, plus `shell_plate_mesh` and
+`MeshBuilder.add_shell_quad4` as the mesh seams. Both MacNeal-Harder patch tests run on
+the shell: membrane interior displacements exact to **1e-16**, bending to **5e-12** with
+the recovered transverse shear at 1e-18, and the moment/stress resultants checked through
+their tensor invariants because each element reports them in its own facet frame. Modal
+accuracy is measured against the Navier simply-supported plate: **+7.2 %, +1.7 %,
++0.42 %** on 4x4, 8x8 and 12x12 grids, converging quadratically from above, with the
+degenerate `(1,2)`/`(2,1)` pair recovered to 1e-6 of each other. The cantilever strip
+lands **+0.21 %** on the Euler-Bernoulli first frequency at 40 elements and within 1 %
+(and, correctly, on the stiff side) of the beam tip deflection. A plate tilted by an
+arbitrary 3D rotation has the same spectrum to 1e-8, a free plate has exactly six
+rigid-body modes, and a folded two-facet shell assembles to a positive-definite stiffness
+and solves mass-orthonormally.
+
+**Documented limitations**, all pinned by tests: a warped quadrilateral is rejected
+rather than silently projected; the drilling stiffness is a penalty; membrane and bending
+do not couple inside one facet, so curvature is carried only by the faceting; and
+`integration_order=1` is rank deficient (12 zero modes) because the assumed shear field
+fixes locking, not under-integration.
+
+Verified in a private worktree at `/tmp/a98` with `PYTHONPATH` pinned, Python 3.12.3 /
+NumPy 2.5.2 / SciPy 1.18.1. At the branch's own base: **1205 passed, 0 failed**, which is
+that base's 1133 plus exactly the 72 this slice adds. Re-verified after merging the
+integration tip (which moved under the task, bringing the R2-T09 CI gate and the
+registry closure): **1256 passed, 0 failed** in 56 s, `ruff check .` clean. No acceptance
+criterion was touched, so the pinned 44-criterion inventory does not move — but unlike
+the spatial beam the shell is a strong candidate for all three AC-ELEM rows, since it
+already carries a patch test, a zero-energy-mode count and a quadratic convergence study
+in developer form; folding it into `tests/acceptance/test_elements.py` needs a per-case
+oracle switch (the Navier plate rather than the continuum bar) and no new criterion ID.
+
+**Working-tree hazard, again.** The first implementation was written directly in the
+shared `/workspace` checkout and was destroyed mid-edit by another agent's hard reset:
+`HEAD` moved from `7368c92` to `dd356dc` and every uncommitted file reverted, with no
+stash to recover from. Redone in a private worktree and committed after each
+self-contained step, which is what A66, A82 and A56 all recommend. The rule earns another
+restatement: **do not edit the shared `/workspace` checkout at all**, and push after every
+commit rather than at the end.
