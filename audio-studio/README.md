@@ -120,22 +120,61 @@ you opt in explicitly.
 pip install -e ".[plugins]"      # installs pedalboard (GPL-3.0)
 ```
 
+### In the application
+
+**View ▸ VST3 Plugin** opens the plugin dock, tabbed behind the effects rack on
+the right-hand side because both drive the same preview chain.
+
+1. **Load VST3…** opens a file dialog filtered to `*.vst3`. On macOS and Linux
+   a plugin is a directory bundle, so pick the `.vst3` folder itself; the
+   "All files" filter is there for platforms that hide the extension.
+2. The plugin's name and path appear under the button, and one slider is
+   generated per parameter the plugin reports on the normalised 0–1 host scale.
+   Moving a slider writes straight through to the running plugin. Parameters
+   reported as display values (`4800.0`, `"bell"`) are shown read-only rather
+   than guessed at — edit those in the plugin's own editor.
+3. **Bypass** takes the plugin out of the playback path; **Remove** unloads it
+   and takes its slot out of the rack.
+
+The plugin is inserted into the preview chain ahead of the true-peak limiter,
+so the rack's safety net still catches it, and it shows up in the `FX:` field of
+the status bar like any built-in effect. Like the rest of the rack it is a
+*monitoring insert*: it changes what is heard and never rewrites the audio in
+memory until you render.
+
+There is **one** plugin slot. Loading a second plugin replaces the first: plugin
+delay compensation, per-slot state and reordering all have to land before a
+multi-slot plugin rack would be honest about what it is doing. Without the
+extra installed, the panel says so in place, with the install command, instead
+of failing at the file dialog.
+
+### From Python
+
 ```python
-from audio_studio.plugins import create_plugin_host
+from audio_studio.plugins import create_plugin_host, create_plugin_effect
 
 host = create_plugin_host("/path/to/Plugin.vst3")
 host.prepare(sample_rate=48_000, n_channels=2)
 out = host.process_block(block, 48_000)   # planar (n_channels, n_samples)
 host.parameters()                          # {name: normalised value}
+host.set_parameter("Drive", 0.75)          # same scale parameters() reports
 host.latency_samples()                     # reported plugin delay, in samples
+
+# The same plugin as an ordinary Effect, for an EffectChain:
+chain.add(create_plugin_effect("/path/to/Plugin.vst3"))
 ```
+
+`PluginEffectAdapter` is the bridge between the two: it wraps a `PluginHost` as
+an `Effect`, adding the rack's `bypass`/`mix` controls and forwarding
+`prepare`/`reset`/`process_block` so the plugin's streaming state is its own.
 
 `audio_studio.plugins` always imports cleanly — pedalboard is loaded lazily,
 inside the single bridge module `audio_studio/plugins/pedalboard_bridge.py`,
-the first time a plugin is opened. Without the extra installed, loading a
-plugin raises `PluginLoadError` with installation instructions. The current
-scaffold is API-only: plugins are not yet wired into the effect rack or the
-UI, and plugin state is not yet persisted into projects.
+the first time a plugin is opened. The UI panel keeps that boundary: it probes
+for the extra with `importlib.util.find_spec`, which locates the package without
+executing it. Without the extra installed, loading a plugin raises
+`PluginLoadError` with installation instructions. Plugin state is still not
+persisted into projects, and there is no plugin delay compensation.
 
 **License notice.** pedalboard is GPL-3.0 (incorporating JUCE, Rubber Band
 and FFTW). Installing the `plugins` extra for private use does not change the
@@ -360,8 +399,10 @@ above this package.
   rectangle. There is no healing brush, lasso or paintbrush selection, no
   spectral copy/paste, and the mask is rectangular in time as well as in
   frequency.
-- No complete repair suite (noise reduction remains), production VST3/AU host
-  or plugin delay compensation yet — see the roadmap in the release sign-off.
+- No complete repair suite (noise reduction remains). VST3 hosting is one
+  plugin slot behind the optional `plugins` extra (View ▸ VST3 Plugin): no AU
+  format, no multi-slot plugin rack, no plugin delay compensation, and plugin
+  state is not saved into projects — see the roadmap in the release sign-off.
   Batch processing is covered by the `audio_studio.batch` CLI above.
 - The default device block is now 256 frames (~5.3 ms at 48 kHz);
   `SoundDeviceOutput` and `PyAudioOutput` retry with 512 and then 1024 frames
