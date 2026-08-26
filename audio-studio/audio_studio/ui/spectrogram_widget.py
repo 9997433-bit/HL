@@ -124,11 +124,13 @@ class SpectrogramWidget(QWidget):
 
     Examples
     --------
-    >>> # doctest: +SKIP
-    >>> widget = SpectrogramWidget()
-    >>> widget.set_spectrogram(analyzer.spectrogram(audio))
-    >>> widget.set_colormap("viridis")
-    >>> widget.set_db_range(-100.0, 0.0)
+    Needs a running ``QApplication``, so this is illustration rather than a
+    doctest::
+
+        widget = SpectrogramWidget()
+        widget.set_spectrogram(analyzer.spectrogram(audio))
+        widget.set_colormap("viridis")
+        widget.set_db_range(-100.0, 0.0)
     """
 
     #: Emitted while the pointer is over the plot: ``(time_s, frequency_hz, level_db)``.

@@ -59,6 +59,7 @@ from .util import (
     peak_level,
     power_to_db,
     rms_level,
+    true_peak_candidate_db,
     true_peak_level,
 )
 from .windows import WindowInfo, WindowType, available_windows, get_window, window_info
@@ -113,4 +114,5 @@ __all__ = [
     "peak_level",
     "rms_level",
     "true_peak_level",
+    "true_peak_candidate_db",
 ]

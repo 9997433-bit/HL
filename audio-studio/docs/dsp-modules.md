@@ -1,9 +1,11 @@
 # DSP Modules
 
-Reference for `audio_studio.dsp` (spectral analysis, effects) and the Qt
-spectrogram view in `audio_studio.ui`. Adobe Audition is the behavioural
+Reference for `audio_studio.dsp` (spectral analysis, effects, loudness) and the
+Qt spectral view in `audio_studio.ui`. Adobe Audition is the behavioural
 reference: a full-scale sine reads 0 dBFS, the spectral display defaults to a
-logarithmic frequency axis, and fades offer the same curve family.
+logarithmic frequency axis, and fades offer the same curve family. Loudness and
+true peak follow ITU-R BS.1770-4 and EBU R 128 instead, because those are
+written down.
 
 ---
 
@@ -22,12 +24,16 @@ logarithmic frequency axis, and fades offer the same curve family.
   - [WaterfallBuffer](#waterfallbuffer)
 - [Effects](#effects)
   - [The Effect contract](#the-effect-contract)
+  - [Bypass and wet/dry](#bypass-and-wetdry)
   - [ThreeBandEQ / ParametricEQ](#threebandeq--parametriceq)
   - [GainEffect](#gaineffect)
   - [NormalizeEffect](#normalizeeffect)
   - [FadeEffect](#fadeeffect)
   - [EffectChain](#effectchain)
+  - [Live preview](#live-preview)
+- [Loudness](#loudness)
 - [SpectrogramWidget](#spectrogramwidget)
+- [Application integration](#application-integration)
 - [Performance](#performance)
 - [Testing](#testing)
 
@@ -302,7 +308,27 @@ from `process_block`.
 
 Other shared members: `enabled`, `prepare(sample_rate, n_channels)`, `reset()`,
 `parameters()` (a serialisable dict for presets and undo). `process()` never
-modifies its input.
+modifies its input, and neither does a pass-through: an effect that is bypassed
+or fully dry still returns a fresh array rather than the caller's buffer.
+
+### Bypass and wet/dry
+
+Every effect carries the two controls a mixer insert has:
+
+```python
+effect.bypass = True     # out of the path; the inverse of effect.enabled
+effect.mix = 0.35        # 0.0 dry .. 1.0 wet, clamped
+```
+
+`mix` crossfades the effect's **output against its own input**, so a member
+halfway down a chain blends against what reached it rather than against the
+original file. Both controls appear in `parameters()`, so a preset round-trips
+them, and both work identically offline and streaming.
+
+The two are not interchangeable. `bypass` skips the processing entirely, which
+is what an A/B comparison wants; `mix = 0.0` still runs the effect (keeping its
+filter state warm) and throws the result away, which is what a parallel-blend
+control wants.
 
 ### ThreeBandEQ / ParametricEQ
 
@@ -391,6 +417,42 @@ adjacent to a very quiet signal can be boosted; exact silence is left alone.
 `measure_levels(audio)` returns peak, true peak, RMS, crest factor and
 per-channel peaks, all in dBFS.
 
+#### True peak by candidate window
+
+Oversampling a whole file 4x to find one maximum is the wrong shape of work,
+and it made `TRUE_PEAK` the slowest thing in the library at 356 ms per minute
+of stereo. `true_peak_level` instead interpolates only where the peak can be.
+
+An interpolated sample is a weighted sum of the 13 input samples around it, so
+its magnitude is bounded by the kernel's L1 norm times the largest of them.
+That norm is a property of the filter, not a guess:
+
+```python
+from audio_studio.dsp import true_peak_candidate_db
+
+true_peak_candidate_db(4)    # -5.64 dB
+```
+
+Audio whose local maximum sits below `sample_peak - 5.64 dB` therefore *cannot*
+host the true peak, and is skipped. The scan runs on 512-sample blocks (one
+strided reduction, ~1 ms per channel-minute), surviving blocks are merged into
+windows padded by 64 samples, and each window reads its filter context straight
+out of the source array — so a window edge is not a signal edge and the answer
+is identical to interpolating everything. `true_peak_level(audio, exact=True)`
+does interpolate everything, and the tests assert the two agree on tones,
+noise, clicks, fades, DC and stereo material.
+
+When the surviving windows would cost more than one contiguous pass (dense,
+loud programme material, where nothing can be skipped) the whole channel is
+interpolated instead, so the shortcut never loses to the thing it replaced:
+
+| Material | Before | Now |
+|---|---|---|
+| Dense mix, 60 s stereo | 356 ms | 45 ms |
+| Steady loud tone (worst case) | 356 ms | 47 ms |
+| Fade-in | 356 ms | 23 ms |
+| Quiet passages, occasional transients | 356 ms | 5 ms |
+
 ### FadeEffect
 
 ```python
@@ -431,10 +493,108 @@ chain = EffectChain([
 processed = chain.process(audio, 48_000)
 ```
 
-Chains are themselves `Effect`s, so they nest. A chain reports
-`is_offline_only` as soon as any enabled member does, which keeps the streaming
-contract honest rather than failing halfway through a block. Disabled members
-are skipped.
+Chains are themselves `Effect`s, so they nest, and they have the same `bypass`
+and `mix` controls as their members — the chain's `mix` is the "amount" knob on
+a mastering insert, crossfading the whole rack against the audio that went into
+it. Disabled members are skipped; `chain.active` lists the ones that are not.
+
+The rack can be edited while it is running:
+
+```python
+chain.add(GainEffect(gain_db=-3.0))     # prepared for the live format on the way in
+chain.insert(0, ThreeBandEQ())
+chain.move(0, 2)                        # order matters: EQ before a limiter is not the same
+chain.remove(effect)
+chain.clear()
+```
+
+**Streaming a rack that contains an offline-only member.** By default the chain
+skips it — an EQ can be auditioned while a normaliser waits for render, which
+is what a live preview needs. Pass `skip_offline_in_stream=False` for the
+strict contract, where the chain reports `is_offline_only` as soon as any
+enabled member does and `process_block` raises instead:
+
+```python
+EffectChain([eq, NormalizeEffect()]).process_block(block, 48_000)          # EQ only
+EffectChain([eq, NormalizeEffect()], skip_offline_in_stream=False)         # raises
+```
+
+### Live preview
+
+`EffectPreview` runs a chain on the device render path, so a rack can be
+auditioned against playback without touching the clip in memory. It wraps an
+`AudioOutput` rather than reaching into the transport, which means no engine
+code knows it is there and every backend works the same way:
+
+```python
+from audio_studio.dsp import EffectPreview
+
+preview = EffectPreview(engine.output, chain)
+engine = AudioEngine(preview)          # or ui.attach_preview(engine, chain)
+```
+
+Every block the device pulls goes through the chain on its way out. Bypassing
+returns the original audio on the next block, which is the difference between
+auditioning a setting and committing to it. Processing happens on the device
+thread, so two things are deliberately non-fatal there:
+
+- an effect that raises costs **one dry block**, not the stream —
+  `failed_blocks` and `last_error` record it for the UI to report;
+- offline-only members are skipped rather than raising, per the chain rule
+  above.
+
+`is_active` says whether the rack will change anything on the next block
+(enabled, non-empty, `mix > 0`), and every other attribute is proxied to the
+wrapped backend so `NullOutput.pump` or a device's `latency` keep working.
+
+---
+
+## Loudness
+
+`audio_studio.dsp.loudness` implements ITU-R BS.1770-4 / EBU R 128. Loudness is
+not level: two masters can share a peak of -1 dBFS and sit 6 LU apart, which is
+why delivery specs are written in LUFS (-14 for most streaming platforms, -23
+for broadcast).
+
+```python
+from audio_studio.dsp import LoudnessMeter, format_lufs
+
+meter = LoudnessMeter(48_000)
+report = meter.integrated(audio)          # just the headline number, in LUFS
+report = meter.analyze(audio)             # everything, in one pass
+
+report.integrated_lufs                    # gated programme loudness
+report.short_term_max_lufs                # 3 s window
+report.momentary_max_lufs                 # 400 ms window
+report.loudness_range_lu                  # EBU Tech 3342 LRA
+report.true_peak_dbtp, report.sample_peak_dbfs
+report.target_offset_lu(-14.0)            # how far from a delivery target
+format_lufs(report.integrated_lufs)       # "-23.0 LUFS", or "-∞ LUFS" for silence
+```
+
+The four stages, and what each is for:
+
+| Stage | Detail |
+|---|---|
+| K-weighting | +4 dB high shelf at 1682 Hz (head response) into a 38 Hz high-pass (ear insensitivity). At 48 kHz the coefficients match BS.1770-4 Tables 1 and 2 to 1e-6 |
+| 400 ms blocks, 75% overlap | Mean square per block, computed from one cumulative sum per channel so a 60-minute file costs the same per block as a short one |
+| Channel weighting | Surrounds count 1.41x (+1.5 dB); the LFE of a 5.1 layout is excluded entirely. `channel_weights(n)` for 1-6 channels, or pass your own to the meter |
+| Two-stage gating | Blocks below -70 LUFS absolute are dropped, then blocks more than 10 LU below the ungated mean. Gating is what stops the silence between dialogue dragging a programme's reading down |
+
+The filter is **re-derived from the analog prototypes** at whatever sample rate
+it is asked for rather than resampling the published table, so 44.1 kHz and
+96 kHz are as correct as 48 kHz. Coefficients are cached per rate.
+
+Time series are available for a meter display, as `(times, lufs)` with times at
+the block *end*:
+
+```python
+times, lufs = meter.momentary(audio)
+times, lufs = meter.short_term(audio)
+```
+
+Digital silence reads `-inf` rather than a large negative number, because the
+distinction matters to a compliance check.
 
 ---
 
@@ -475,14 +635,78 @@ stays on the menu because it is still the fastest way to spot a narrow line.
 Qt.
 
 **Downsampling is max-pooled, not sub-sampled.** The dB matrix is reduced onto
-the widget's pixel grid with `numpy.maximum.reduceat` before colourisation, so
-a 10-minute file paints as fast as a 1-second one *and* a single hot bin
-survives being zoomed out instead of aliasing away. Where the view is zoomed in
-past one sample per pixel the same call degenerates to nearest-neighbour, which
-is the wanted behaviour there.
+the widget's pixel grid before colourisation, so a 10-minute file paints as
+fast as a 1-second one *and* a single hot bin survives being zoomed out instead
+of aliasing away. Where the view is zoomed in past one sample per pixel the
+reduction degenerates to nearest-neighbour, which is the wanted behaviour
+there. The result is `numpy.maximum.reduceat` semantics element for element,
+but computed as one gather per offset-within-a-segment: segments here are a few
+rows each and there are thousands of them, which is the case `reduceat` handles
+worst, and the difference is 33 ms against 6 ms for a minute of audio at
+1920 px.
 
+**Two render caches, because the axes go stale for different reasons.**
+
+| Cache | Keyed on | Survives |
+|---|---|---|
+| Column-reduced `(width, n_bins)` | data version, pixel width | palette, dB range, height, frequency zoom, scale |
+| Row-reduced `(height, width)` | the above plus height, scale, frequency range | palette, dB range |
+
+So changing the colormap or dragging the dynamic range re-runs only the
+colourisation, and a frequency zoom or a vertical resize re-pools rows over the
+already-reduced columns instead of touching the STFT. On a 1080p view of a
+one-minute file that is 34 ms for the first paint and 18 ms for a palette
+change, against 64 ms for everything before the caches existed.
+
+`reduced_matrix(width, height)` exposes the pooled grid, and
 `render_image(width, height)` is separate from `paintEvent`, so the renderer
 can be exercised headlessly and reused for thumbnails and export.
+
+---
+
+## Application integration
+
+`audio_studio.ui.main_window` wires the pieces above into the editor.
+
+**Spectral view.** `SpectrumPanel` (a `SpectrogramWidget` plus its controls)
+lives in a `QDockWidget` along the bottom. It owns its analysis: the FFT size
+is a control, and the hop widens with the length of the audio so that a
+ten-minute file produces about as many columns as a ten-second one — past
+`MAX_ANALYSIS_FRAMES` (4096) the extra columns cannot reach the screen anyway.
+
+```python
+from audio_studio.ui import SpectrumPanel
+
+panel.analyze(audio, sample_rate, offset_s=selection_start_s)
+panel.seekRequested    # click position, in clip time — the offset is added back
+panel.readoutChanged   # hover read-out for the status bar
+panel.fftSizeChanged   # the owner re-runs the analysis
+```
+
+The window analyses the **selection** when there is one and the whole clip
+otherwise, debounced by 150 ms so that a drag emitting a selection per mouse
+move does not start a transform per event.
+
+**View modes** are exclusive, on `Alt+1` / `Alt+2` / `Alt+3`:
+
+| Mode | Waveform editor | Spectral dock |
+|---|---|---|
+| `waveform` | shown | hidden |
+| `spectrum` | hidden | shown |
+| `split` (default) | shown | shown |
+
+**Effect rack.** `EffectRackPanel` docks to the right and drives the live
+`EffectChain` through `EffectPreview`. Every control writes straight into the
+effect objects the device thread is already reading, so a move is audible on
+the next block: there is no apply step, and nothing is written back to the clip
+until the user renders. The rack a session starts with is
+`default_preview_chain()` — a flat 3-band EQ into a trim, both of which stream.
+
+**Status bar.** Integrated loudness and true peak of the loaded clip, plus a
+one-line summary of the rack (`FX: 3-Band EQ → Gain @ 50% wet`, or
+`FX bypassed`). The measurement runs on a worker thread and is collected by the
+UI tick, because K-weighting and gating a ten-minute file takes over a second
+and a slot is the wrong place to spend it.
 
 ---
 
@@ -534,16 +758,28 @@ overlap, not by the transform length.
 
 ### Effects (60 s stereo, offline)
 
-| Effect | Median | x realtime |
-|---|---|---|
-| 3-band EQ | 34.9 ms | 1717x |
-| Normalize (peak) | 3.4 ms | 17448x |
-| Normalize (true peak) | 356.3 ms | 168x |
-| Fade in/out | 3.8 ms | 15666x |
-| Full chain | 402.9 ms | 149x |
+| Effect | Median | x realtime | Was |
+|---|---|---|---|
+| 3-band EQ | 36.1 ms | 1663x | 34.9 ms |
+| Normalize (peak) | 3.4 ms | 17770x | 3.4 ms |
+| Normalize (true peak) | **46.9 ms** | 1280x | 356.3 ms |
+| Fade in/out | 4.0 ms | 15021x | 3.8 ms |
+| Full chain | **89.7 ms** | 669x | 402.9 ms |
 
-True-peak normalisation dominates a chain: it polyphase-upsamples the entire
-buffer 4x just to find a maximum.
+True-peak normalisation used to dominate a chain by upsampling the entire
+buffer 4x to find a maximum; it now interpolates only the windows that can hold
+the peak (see [NormalizeEffect](#true-peak-by-candidate-window)). That is a 7.6x
+speed-up on this signal and 4.5x on the chain as a whole, with a bit-identical
+result.
+
+### Loudness (60 s stereo)
+
+| Call | Median | x realtime |
+|---|---|---|
+| `integrated` | 52.3 ms | 1148x |
+| `analyze` (integrated + momentary + short-term + LRA + true peak) | 158.5 ms | 378x |
+
+Fast enough for a file, not for a slot: the window measures on a worker thread.
 
 ### Real-time and rendering
 
@@ -551,9 +787,18 @@ buffer 4x just to find a maximum.
 |---|---|---|
 | Meter, 128-sample blocks | 58.9 ms / 10 s audio | 170x realtime, 2.7 ms callbacks |
 | Meter, 1024-sample blocks | 47.7 ms / 10 s audio | 209x realtime |
-| Render 640x360 | 25.6 ms | 39 fps |
-| Render 1280x720 | 44.4 ms | 23 fps |
-| Render 1920x1080 | 70.7 ms | 14 fps |
+| Render 640x360, first paint | 11.0 ms | 91 fps (was 25.6 ms) |
+| Render 640x360, palette change | 1.9 ms | 516 fps |
+| Render 1280x720, first paint | 18.9 ms | 53 fps (was 44.4 ms) |
+| Render 1280x720, palette change | 7.9 ms | 127 fps |
+| Render 1920x1080, first paint | 33.9 ms | 30 fps (was 70.7 ms) |
+| Render 1920x1080, palette change | 17.6 ms | 57 fps |
+
+Two figures per size because two very different costs share one entry point.
+A *first paint* pools the STFT onto the pixel grid; a *palette change* reuses
+the cached grid and only re-colourises, which is what the colormap, dynamic
+range and auto-scale controls do. The old single figure was measuring the
+pooling every time, since there was no cache to hit.
 
 ---
 
@@ -562,14 +807,15 @@ buffer 4x just to find a maximum.
 ```bash
 cd audio-studio
 QT_QPA_PLATFORM=offscreen python -m pytest tests/test_windows.py \
-    tests/test_spectral.py tests/test_effects.py \
-    tests/test_spectrogram_widget.py tests/test_dsp_integration.py
+    tests/test_spectral.py tests/test_effects.py tests/test_loudness.py \
+    tests/test_preview.py tests/test_spectrogram_widget.py \
+    tests/test_ui.py tests/test_dsp_integration.py
 
 # every example in this document's API sections is also a runnable doctest
 python -m pytest --doctest-modules audio_studio/dsp
 ```
 
-284 tests plus 5 doctests. Signal generators live in `tests/signals.py`. The
+501 tests plus 9 doctests. Signal generators live in `tests/signals.py`. The
 suite is written
 to check behaviour against analytic expectations rather than against the
 implementation:
@@ -582,9 +828,26 @@ implementation:
   paths that have to agree.
 - Streaming output is asserted equal to offline output for every streamable
   effect.
+- Loudness is checked against the **EBU Tech 3341 test signals** and the
+  published BS.1770-4 coefficient tables, not against this implementation's own
+  output: a -23 dBFS 1 kHz stereo tone must read -23.0 LUFS, the surround
+  weighting must be +1.5 dB, and the gate must actually discard what it exists
+  to discard.
+- The true-peak shortcut is asserted equal to full 4x oversampling on tones,
+  noise, clicks, fades, DC, one-sample transients and stereo material, plus a
+  timing guard on the 60 s stereo case. A shortcut that is merely usually right
+  would be worse than no shortcut.
+- The render caches are verified by counting calls to the pooling primitive: a
+  palette or range change must reach it zero times, a frequency zoom exactly
+  once, and a width change twice. The pooled result is compared with
+  `numpy.maximum.reduceat` element for element across shapes and both axes.
 - The widget is rendered offscreen and the resulting pixels are checked: a
   boosted band must be brighter, a 2 kHz tone must land at the right height on
   a log axis, a one-bin line must survive being zoomed out.
+- The preview insert is driven through a real engine on a hand-pumped device:
+  the rack must be audible in what the device pulls, bypass must return the
+  original samples, a raising effect must cost one dry block rather than the
+  stream, and the clip in memory must come out unchanged.
 
 Edge cases with dedicated coverage: empty buffers, input shorter than one
 window, DC and Nyquist (the two bins one-sided folding must not double), exact

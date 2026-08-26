@@ -25,7 +25,7 @@ Examples
 >>> tone = 0.5 * np.sin(2 * np.pi * 1000.0 * t)      # -9.03 dBFS RMS
 >>> meter = LoudnessMeter(sr)
 >>> round(meter.integrated(tone), 1)
--9.7
+-9.0
 """
 
 from __future__ import annotations
@@ -193,8 +193,10 @@ class LoudnessMeter:
     >>> sr = 48_000
     >>> noise = np.random.default_rng(0).normal(0.0, 0.1, (2, sr * 4))
     >>> report = LoudnessMeter(sr).analyze(noise)
-    >>> -25.0 < report.integrated_lufs < -15.0
-    True
+    >>> round(report.integrated_lufs, 1)
+    -13.8
+    >>> round(report.target_offset_lu(-14.0), 1)   # 0.2 LU over a streaming target
+    0.2
     """
 
     def __init__(

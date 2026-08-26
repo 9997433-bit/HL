@@ -108,9 +108,11 @@ class EffectRackPanel(QWidget):
 
     Examples
     --------
-    >>> # doctest: +SKIP
-    >>> rack = EffectRackPanel(chain)
-    >>> rack.chainChanged.connect(window.refresh_preview_status)
+    Needs a running ``QApplication``, so this is illustration rather than a
+    doctest::
+
+        rack = EffectRackPanel(chain)
+        rack.chainChanged.connect(window.refresh_preview_status)
     """
 
     #: Emitted after any control changes the chain.
