@@ -82,7 +82,7 @@ def synthesize_segments(
     parts: list[np.ndarray] = []
     phase_samples = 0
     for duration_seconds, peak_dbfs in segments:
-        frame_count = int(round(duration_seconds * sample_rate))
+        frame_count = round(duration_seconds * sample_rate)
         if frame_count <= 0:
             raise ValueError("segment durations must be positive")
         sample_numbers = np.arange(

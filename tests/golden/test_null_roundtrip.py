@@ -14,8 +14,9 @@ AUDIO_STUDIO_ROOT = REPOSITORY_ROOT / "audio-studio"
 if str(AUDIO_STUDIO_ROOT) not in sys.path:
     sys.path.insert(0, str(AUDIO_STUDIO_ROOT))
 
-from audio_studio.core.loader import load_audio, save_audio  # noqa: E402
-from tools.golden_audio import assert_bit_exact_wav, fingerprint_wav  # noqa: E402
+from audio_studio.core.loader import load_audio, save_audio
+
+from tools.golden_audio import assert_bit_exact_wav, fingerprint_wav
 
 
 @pytest.mark.parametrize("subtype", ("PCM_16", "PCM_24", "FLOAT"))

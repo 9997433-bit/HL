@@ -94,8 +94,8 @@ def _window_powers(
     window_seconds: float,
     step_seconds: float,
 ) -> np.ndarray:
-    window = int(round(window_seconds * sample_rate))
-    step = int(round(step_seconds * sample_rate))
+    window = round(window_seconds * sample_rate)
+    step = round(step_seconds * sample_rate)
     if frame_energy.size < window:
         return np.empty(0, dtype=np.float64)
     starts = np.arange(0, frame_energy.size - window + 1, step, dtype=np.int64)

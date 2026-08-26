@@ -13,8 +13,9 @@ import statistics
 import sys
 import time
 import wave
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import numpy as np
 
@@ -23,10 +24,10 @@ AUDIO_STUDIO_ROOT = REPOSITORY_ROOT / "audio-studio"
 if str(AUDIO_STUDIO_ROOT) not in sys.path:
     sys.path.insert(0, str(AUDIO_STUDIO_ROOT))
 
-from audio_studio.core.loader import load_audio  # noqa: E402
-from audio_studio.core.ring_buffer import RingBuffer  # noqa: E402
-from audio_studio.dsp.effects import EffectChain, GainEffect, ThreeBandEQ  # noqa: E402
-from audio_studio.dsp.spectral import SpectralAnalyzer, SpectralConfig  # noqa: E402
+from audio_studio.core.loader import load_audio
+from audio_studio.core.ring_buffer import RingBuffer
+from audio_studio.dsp.effects import EffectChain, GainEffect, ThreeBandEQ
+from audio_studio.dsp.spectral import SpectralAnalyzer, SpectralConfig
 
 SAMPLE_RATE = 48_000
 BLOCK_FRAMES = 128
