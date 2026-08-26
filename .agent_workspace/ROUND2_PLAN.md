@@ -32,7 +32,7 @@ the gap register at audit time:
 | GAP-02 3D elements | P0, absent | **Partial.** QUAD4 plane stress/strain landed with `mesh.simple.quad_plate_mesh` and 61 tests (R2-T02 first slice, merged from `cursor/quad4-plane-stress-element-b99c` by A40). Remaining: TET4, HEX8, 3D beam, the solid/shell BDF cards → R2-T02 remainder. |
 | GAP-08 reduction/expansion | P1, absent | Open (R2 slice: Guyan/SEREP/TAM + expansion) → R2-T03. |
 | GAP-11 Bayesian/UQ | P1, absent | Open (R2 slice: MS-3.5 MAP + posterior covariance) → R2-T04. |
-| GAP-12 optimization backend | P2, stub | Open; scipy-backend work also appears in flight on `cursor/dynamics-damping-frf-9500` → R2-T07 coordinates. |
+| GAP-12 optimization backend | P2, stub | **Closed for sizing by R2-T07.** `ScipyBackend.solve` runs SLSQP/trust-constr with analytic Jacobians, hard bounds and active-set KKT residuals; AC-OPT-001..004 are implemented. `cursor/optimization-scipy-backend-f421` was harvested by A40 (active-set multipliers, zero trust-constr constraint Hessian). Shape variables still fall back to finite differences. |
 | R1-O2 parallel implementation | — | Reconciliation of `cursor/r1o2-correlation-updating-e393` in progress on `cursor/reconcile-r1o2-correlation-updating-64c5` → R2-T08 harvests the diff. |
 
 GAP-06 (MPE), GAP-07 (pretest EI), GAP-13 (50k-DOF scale), GAP-15 (plotting) stay in

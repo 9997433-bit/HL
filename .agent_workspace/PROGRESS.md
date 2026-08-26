@@ -951,7 +951,8 @@ Core backlog (prioritized, from `docs/SOTA_GAP_ANALYSIS.md` §4/§6 + Round 1 co
    and an FRF block in the `CorrelationReport` schema.
 2. **R2-T02 3D continuum elements** (GAP-02, P0) — QUAD4/TET4/HEX8 + 3D beam with patch
    /convergence gates (AC-MODAL-001/003/004/007 extended, new AC-ELEM-*). **QUAD4 is
-   landed** on `cursor/quad4-plane-stress-element-b99c` (see the R2-T02 entry below);
+   landed** on the integration branch (merged from `cursor/quad4-plane-stress-element-b99c`
+   by A40; see the R2-T02 entry below);
    TET4, HEX8, the 3D beam, the `CQUAD4`/`CTETRA`/`CHEXA`/`PSHELL`/`PSOLID` BDF cards and
    the AC-ELEM-* registry rows are the remaining slice.
 3. **R2-T03 SEREP/TAM reduction & expansion** (GAP-08) — Guyan/IRS/SEREP, TAM
@@ -1325,6 +1326,50 @@ A27. The A24 backlog above is otherwise the live plan.
   4. Sparse inputs are accepted but densified (`_dense`), fine at Round-2 fixture scale
      and wrong at GAP-13 scale. Craig-Bampton CMS and geometry-based sensor mapping stay
      out of scope per the plan.
+
+#### A40 — side-branch merge sweep & verification (backfill for A38)
+- **Swept every side branch for work not yet on the integration branch** and merged the
+  two that still carried unique commits. `cursor/optimization-sizing-hook-254c` needed
+  nothing — it is an ancestor of the trunk (zero unique commits), so the sizing hook was
+  already landed. Same for `cursor/dynamics-damping-frf-9500` and
+  `cursor/dynamics-optimization-integration-75b6`.
+- **QUAD4 (R2-T02) merged** as `b34f072` from `cursor/quad4-plane-stress-element-b99c`
+  (`1322234` element + `869c79c` docs). Code merged clean; the only conflicts were the
+  agent table in this file and the GAP-02/GAP-04 rows of `ROUND2_PLAN.md`, where the
+  branch had been cut before R2-T01 landed and still described dynamics as in flight —
+  resolved in favour of the trunk's newer status plus the branch's QUAD4 row. Suite went
+  523 → **595 passed** (+61 QUAD4, +11 acceptance/reduction tests pushed to the trunk
+  by A36/A23 while this task ran).
+- **`cursor/optimization-scipy-backend-f421` harvested** as `6cf0f49`, which was *not*
+  redundant with A27's backend: it had been rebased onto trunk tip `b1b0ab8` and carries
+  two real fixes on top of it. `kkt_residual` now receives only the constraints active at
+  `x` — a multiplier on a strictly satisfied constraint violates complementary slackness
+  and can certify a non-stationary point as converged — and `trust-constr` gets an
+  explicit zero constraint Hessian, because scipy's per-constraint BFGS default
+  degenerates on the linear mass-budget constraint that dominates sizing work (the
+  2-variable payload problem exhausted `maxiter` before, converges in under 30 iterations
+  now). Merged additively: +6 tests, no conflicts.
+  `cursor/optimization-acceptance-gates-2414` is subsumed (its unique content is the same
+  `932fccd` plus a merge commit).
+- **Still unmerged, deliberately:** `cursor/r1o2-correlation-updating-e393` and
+  `cursor/reconcile-r1o2-correlation-updating-64c5` — both branch from pre-Round-1-close
+  ancestors and A14 already reconciled their content; merging them now would resurrect a
+  parallel correlation/updating implementation. Left for the orchestrator to close as
+  superseded rather than merged.
+- **Verified** at `6cf0f49` from a private worktree at `/tmp/a40` with `PYTHONPATH` pinned
+  to it, Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1: full suite **601 passed, 0 failed**
+  (64.6 s), `ruff check .` clean. `PR_DRAFT.md` refreshed off the stale 498 baseline —
+  count, title, per-suite breakdown (sums to 601), the QUAD4 and reduction/expansion
+  capabilities, 40 registered criteria, and the scope note that used to claim no
+  continuum elements exist.
+- **Working-tree hazard, sixth occurrence.** `/workspace` was on another agent's branch
+  with an uncommitted FRF-correlation draft (`correlation/frf.py`, untracked) and gained
+  three commits *during* this task's first merge attempt, which is how that merge ended up
+  parented on A36's reduction work by accident. Redone from the private worktree and
+  `/workspace` was handed back on the branch and tree state it was found in. The editable
+  install still points at `/workspace/src`, so any private worktree needs
+  `PYTHONPATH=<worktree>/src` or it silently tests the shared checkout — which is exactly
+  how the first QUAD4 run failed to import `Quad4Element`.
 
 ### Round 3 — SOTA Polish & Final Acceptance
 **Status:** PENDING
