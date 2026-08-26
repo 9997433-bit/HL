@@ -145,7 +145,7 @@ consistency tests fail.
   a 162-element distorted 3D patch exact to 2.8e-16, exactly six zero-energy modes,
   quadratic axial h-convergence from above, and the element's bending locking pinned as
   a known limitation.
-  *HEX8* (A59, `cursor/hex8-brick-ac-elem-d0b7`; suite **930 passed**, Ruff clean):
+  *HEX8* (A59, `cursor/hex8-brick-ac-elem-d0b7`; suite **976 passed**, Ruff clean):
   `Hex8Element` trilinear brick plus `gauss_legendre_3d`, `hex_block_mesh` /
   `MeshBuilder.add_hex8` (sharing the structured-grid helper with `tet_block_mesh`, so
   both number their nodes alike), and 76 tests in `tests/test_hex8.py` — a 27-element

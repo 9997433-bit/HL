@@ -2373,8 +2373,9 @@ future formulation is covered by adding a row. Measured: patch defects 1.5e-16 /
 `ν = 0` and lateral motion suppressed both reduce to the same 1D axial discretization.
 
 Verified from a private clone with `PYTHONPATH` pinned to it, Python 3.12.3 /
-NumPy 2.5.2 / SciPy 1.18.1: full suite **930 passed, 0 failed**, `ruff check .` clean.
-This slice contributes **100** tests (76 in `tests/test_hex8.py`, 24 in
+NumPy 2.5.2 / SciPy 1.18.1, at the rebuilt tip on the current trunk: full suite
+**976 passed, 0 failed** (158 s), `ruff check .` clean. That is the trunk's **876**
+plus exactly the **100** this slice adds (76 in `tests/test_hex8.py`, 24 in
 `tests/acceptance/test_elements.py`).
 
 **Working-tree hazard, and two new variants of it.** Two agents were writing
