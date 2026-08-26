@@ -23,6 +23,9 @@ Implemented here
 - **AC-CORR-006** (twin, MS-2.1) — SEREP expansion of noise-free sensor data
   reproduces the full-space analysis shapes with MAC >= 0.999, and the pairing
   computed on the sensor DOFs equals the pairing computed after expansion.
+- **AC-CORR-009** (twin, MS-2.1/MS-2.2) — the same noise-free sensor data,
+  normalized through the TAM mass ``T^T M T``, stays pseudo-orthogonal to the
+  analysis modes: paired ``|POC|`` diagonal >= 0.99, off-diagonal <= 0.10.
 
 The first two criteria are checked on a diagonal mass matrix (the chain
 fixtures) and on the consistent, fully populated mass matrix of the cantilever
@@ -49,14 +52,18 @@ from openfemlab.correlation import (
     frequency_difference,
     frequency_error_matrix,
     guyan_reduction,
+    irs_reduction,
     mac,
     mac_value,
     normalized_frequency_residual,
+    orthogonality,
     pair_modes,
     relative_frequency_error,
+    serep_basis,
     tam_mass,
 )
 from openfemlab.mesh.simple import beam_mesh
+from openfemlab.workflow.sensors import SensorMap
 
 from ._support import (
     SQUARE,
@@ -923,3 +930,238 @@ def test_ac_corr_007_a_zero_norm_shape_is_rejected_rather_than_clipped():
 
     with pytest.raises(ValueError, match="zero-norm"):
         mac(degenerate, analysis)
+
+
+# ---------------------------------------------------------------- AC-CORR-009
+
+#: Gate of AC-CORR-009 on the TAM pseudo-orthogonality matrix.
+POC_DIAGONAL_MIN = 0.99
+POC_OFF_DIAGONAL_MAX = 0.10
+
+#: A second five-channel layout of the chain, for the sensor-placement case.
+CHAIN_SENSORS_SPREAD = (1, 3, 5, 7, 9)
+
+#: Local stiffening of the "test article" in the model-error case.
+SEVERE_DETUNE = 1.35
+MILD_DETUNE = 1.1
+
+
+def _tam_normalized(shapes: np.ndarray, tam: np.ndarray) -> np.ndarray:
+    """Scale every column so ``phi^T M_TAM phi = 1`` -- the POC normalization."""
+    return shapes / np.sqrt(np.abs(np.einsum("ij,ij->j", shapes, tam @ shapes)))
+
+
+def _pseudo_orthogonality(test_shapes, analysis_shapes, tam) -> np.ndarray:
+    """``|Phi_test^T M_TAM Phi_a|`` with both sets normalized through the TAM."""
+    return np.abs(
+        orthogonality(
+            _tam_normalized(test_shapes, tam), _tam_normalized(analysis_shapes, tam), tam
+        )
+    )
+
+
+def _poc_extremes(poc: np.ndarray, truth) -> tuple[float, float]:
+    """``(worst paired diagonal, largest off-diagonal)`` of a POC matrix."""
+    diagonal = [poc[test, fe] for test, fe in truth]
+    off_diagonal = poc.copy()
+    for test, fe in truth:
+        off_diagonal[test, fe] = 0.0
+    return float(np.min(diagonal)), float(np.max(off_diagonal))
+
+
+def _serep_poc_extremes(analysis, sensors, mass, measured, truth):
+    """The two gated numbers, read through the SEREP TAM of the same mode band."""
+    tam = tam_mass(serep_basis(analysis, sensors), mass)
+    return _poc_extremes(_pseudo_orthogonality(measured, analysis[sensors, :], tam), truth)
+
+
+@criterion("AC-CORR-009")
+@pytest.mark.parametrize("case", sorted(TWIN_MODELS))
+def test_ac_corr_009_the_serep_tam_keeps_the_test_modes_pseudo_orthogonal(case):
+    """The gate itself: paired |POC| >= 0.99 and every off-diagonal <= 0.10."""
+    analysis, _, mass, sensors = TWIN_MODELS[case]()
+    measured, truth = _measured(analysis[sensors, :])
+
+    worst_diagonal, worst_off = _serep_poc_extremes(analysis, sensors, mass, measured, truth)
+
+    assert worst_diagonal >= POC_DIAGONAL_MIN, f"{case}: paired POC down to {worst_diagonal:.4f}"
+    assert worst_off <= POC_OFF_DIAGONAL_MAX, f"{case}: POC off-diagonal up to {worst_off:.4f}"
+
+
+@criterion("AC-CORR-009")
+@pytest.mark.parametrize("case", sorted(TWIN_MODELS))
+def test_ac_corr_009_through_a_serep_tam_the_poc_is_the_pairing_permutation(case):
+    """No margin question on the twin: the matrix is exact, not merely inside.
+
+    ``T Phi_sensor = Phi`` for a SEREP basis built from the same modes, so
+    ``T^T M T`` carries the full-space mass orthogonality onto the sensor set
+    and the POC of in-band data is a signed permutation matrix. Recorded
+    separately from the gate because "clears 0.99/0.10" and "is the identity to
+    solver precision" are different statements about the same run.
+    """
+    analysis, _, mass, sensors = TWIN_MODELS[case]()
+    measured, truth = _measured(analysis[sensors, :])
+    tam = tam_mass(serep_basis(analysis, sensors), mass)
+
+    poc = _pseudo_orthogonality(measured, analysis[sensors, :], tam)
+
+    permutation = np.zeros_like(poc)
+    for test_index, fe_index in truth:
+        permutation[test_index, fe_index] = 1.0
+    np.testing.assert_allclose(poc, permutation, atol=1e-10)
+
+
+@criterion("AC-CORR-009")
+@pytest.mark.parametrize("case", sorted(TWIN_MODELS))
+def test_ac_corr_009_a_guyan_tam_on_the_same_sensors_does_not_meet_the_gate(case):
+    """What the criterion actually discriminates, since the diagonal cannot.
+
+    Exact test modes normalize to the analysis modes themselves under *any*
+    weighting, so the paired diagonal is 1 for every TAM and carries no
+    information on this twin. The off-diagonal does: static condensation
+    smears the slave inertia along static shapes and leaves the reduced modes
+    non-orthogonal at 0.34 (chain) and 0.11 (beam). AC-CORR-009 is therefore a
+    statement about the test-analysis model, not about the normalization.
+    """
+    analysis, K, mass, sensors = TWIN_MODELS[case]()
+    measured, truth = _measured(analysis[sensors, :])
+    tam = tam_mass(guyan_reduction(K, sensors), mass)
+
+    worst_diagonal, worst_off = _poc_extremes(
+        _pseudo_orthogonality(measured, analysis[sensors, :], tam), truth
+    )
+
+    assert worst_diagonal >= POC_DIAGONAL_MIN
+    assert worst_off > POC_OFF_DIAGONAL_MAX, f"{case}: Guyan TAM off-diagonal only {worst_off:.4f}"
+
+
+@criterion("AC-CORR-009")
+@pytest.mark.parametrize("case", sorted(TWIN_MODELS))
+def test_ac_corr_009_the_irs_inertia_correction_moves_the_tam_toward_the_gate(case):
+    """One inertia correction buys a factor of 1.8 (chain) to 6 (beam).
+
+    Enough to bring the beam inside the gate at 0.018 and not enough for the
+    chain at 0.19, which is the ordering the reduction module documents:
+    Guyan, then IRS, then SEREP as the only exact-in-band basis.
+    """
+    analysis, K, mass, sensors = TWIN_MODELS[case]()
+    measured, truth = _measured(analysis[sensors, :])
+
+    def off_diagonal(basis) -> float:
+        tam = tam_mass(basis, mass)
+        return _poc_extremes(_pseudo_orthogonality(measured, analysis[sensors, :], tam), truth)[1]
+
+    guyan = off_diagonal(guyan_reduction(K, sensors))
+    irs = off_diagonal(irs_reduction(K, mass, sensors))
+    assert irs < guyan, f"{case}: IRS {irs:.4f} did not improve on Guyan {guyan:.4f}"
+
+
+@criterion("AC-CORR-009")
+def test_ac_corr_009_a_guyan_tam_passes_or_fails_on_where_the_sensors_sit():
+    """Same channel count, opposite verdict: this is a pretest gate.
+
+    Five accelerometers on the chain at (0, 2, 5, 7, 9) leave the Guyan TAM
+    off-diagonal at 0.34; moving them to (1, 3, 5, 7, 9) -- still five, still
+    the same four modes -- brings it to 0.054, inside the gate. Nothing about
+    the model changed, so on an approximate TAM what AC-CORR-009 measures is
+    instrumentation adequacy, the GAP-07 pretest question Round 3 picks up.
+    """
+    analysis, K, mass, _ = _chain_twin()
+
+    def off_diagonal(rows) -> float:
+        measured, truth = _measured(analysis[rows, :])
+        tam = tam_mass(guyan_reduction(K, rows), mass)
+        return _poc_extremes(_pseudo_orthogonality(measured, analysis[rows, :], tam), truth)[1]
+
+    assert off_diagonal(list(CHAIN_SENSORS)) > POC_OFF_DIAGONAL_MAX
+    assert off_diagonal(list(CHAIN_SENSORS_SPREAD)) <= POC_OFF_DIAGONAL_MAX
+
+
+@criterion("AC-CORR-009")
+def test_ac_corr_009_the_diagonal_becomes_a_measurement_once_the_article_differs():
+    """What the 0.99 diagonal is for, given that exact modes cannot move it.
+
+    Reading the test modes off a locally stiffened chain and correlating them
+    through the *nominal* model's TAM drops the worst paired POC to 0.975 and
+    lifts the off-diagonal to 0.18 at a 35 % error, so both halves fail; a 10 %
+    error still passes at 0.997 / 0.069. That brackets the sensitivity of the
+    gate to model error, which is the failure mode it exists to catch on real
+    hardware.
+    """
+    analysis, _, mass, sensors = _chain_twin()
+
+    def extremes(scale: float) -> tuple[float, float]:
+        detuned = _detuned_modes(scale, SEREP_BAND)
+        measured, truth = _measured(detuned[sensors, :])
+        return _serep_poc_extremes(analysis, sensors, mass, measured, truth)
+
+    severe_diagonal, severe_off = extremes(SEVERE_DETUNE)
+    assert severe_diagonal < POC_DIAGONAL_MIN, f"the detune left {severe_diagonal:.4f}"
+    assert severe_off > POC_OFF_DIAGONAL_MAX
+
+    mild_diagonal, mild_off = extremes(MILD_DETUNE)
+    assert mild_diagonal >= POC_DIAGONAL_MIN
+    assert mild_off <= POC_OFF_DIAGONAL_MAX
+
+
+@criterion("AC-CORR-009")
+@pytest.mark.parametrize("case", sorted(TWIN_MODELS))
+def test_ac_corr_009_the_noise_free_qualifier_is_where_the_gate_stops_holding(case):
+    """5 % channel noise still clears it; 8 % fails both halves on both twins.
+
+    The same ``BREAKDOWN_NOISE`` that makes the two AC-CORR-006 pairings
+    disagree takes AC-CORR-009 out as well -- off-diagonal 0.12, diagonal 0.986
+    -- and between the two levels the matrix degrades smoothly. So a passing
+    AC-CORR-009 on measured data says as much about the noise floor as about
+    the TAM, and the criterion's "noise-free" wording is load bearing.
+    """
+    analysis, _, mass, sensors = TWIN_MODELS[case]()
+
+    def extremes(noise: float) -> tuple[float, float]:
+        measured, truth = _measured(analysis[sensors, :], noise=noise)
+        return _serep_poc_extremes(analysis, sensors, mass, measured, truth)
+
+    tolerable_diagonal, tolerable_off = extremes(HEAVY_NOISE)
+    assert tolerable_diagonal >= POC_DIAGONAL_MIN
+    assert tolerable_off <= POC_OFF_DIAGONAL_MAX
+
+    broken_diagonal, broken_off = extremes(BREAKDOWN_NOISE)
+    assert broken_diagonal < POC_DIAGONAL_MIN, f"{case}: diagonal survived at {broken_diagonal:.4f}"
+    assert broken_off > POC_OFF_DIAGONAL_MAX, f"{case}: off-diagonal survived at {broken_off:.4f}"
+
+
+@criterion("AC-CORR-009")
+@pytest.mark.parametrize("case", sorted(TWIN_MODELS))
+def test_ac_corr_009_reversed_channels_leave_the_poc_entry_for_entry_unchanged(case):
+    """Orientation signs belong to the reduction, not to every consumer of it.
+
+    Half the channels are mounted against the model axis. Building the basis
+    from the ``SensorMap`` instead of its rows puts the transformation in
+    channel coordinates, so reducing an FE shape reproduces ``SensorMap.reduce``
+    and the TAM mass comes out as the unoriented one conjugated by the sign
+    matrix -- which leaves every POC entry where it was. The gate is therefore
+    blind to cabling, and nothing downstream of the reduction has to undo it.
+    """
+    analysis, _, mass, sensors = TWIN_MODELS[case]()
+    channels = SensorMap(
+        rows=tuple(sensors),
+        signs=tuple(-1.0 if index % 2 else 1.0 for index in range(len(sensors))),
+    )
+    oriented = serep_basis(analysis, channels)
+    analysis_channels = oriented.reduce_shapes(analysis)
+    measured, truth = _measured(analysis_channels)
+
+    poc = _pseudo_orthogonality(measured, analysis_channels, tam_mass(oriented, mass))
+
+    np.testing.assert_allclose(analysis_channels, channels.reduce(analysis), atol=1e-14)
+    assert not np.allclose(analysis_channels, analysis[sensors, :]), "the flips must be visible"
+    unoriented, _ = _measured(analysis[sensors, :])
+    np.testing.assert_allclose(
+        poc,
+        _pseudo_orthogonality(
+            unoriented, analysis[sensors, :], tam_mass(serep_basis(analysis, sensors), mass)
+        ),
+        atol=1e-10,
+    )
+    worst_diagonal, worst_off = _poc_extremes(poc, truth)
+    assert worst_diagonal >= POC_DIAGONAL_MIN and worst_off <= POC_OFF_DIAGONAL_MAX

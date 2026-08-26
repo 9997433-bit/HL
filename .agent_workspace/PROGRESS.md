@@ -62,6 +62,8 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A55 | claude-fable-5-thinking-xhigh | Status snapshot: `.agent_workspace/STATUS.md` — 876-test verification, Round 1/2 state, module table, open gaps (backfill for A51) | complete |
 | A61 | claude-fable-5-thinking-xhigh | Round 2 mid-point brief, plan status snapshot & 876-test tip verification (backfill for A53) | complete |
 | A50 | claude-opus-5-thinking-high-fast | Remaining P0 acceptance batch: AC-MODAL-007/009, AC-CORR-005/007, AC-UPD-004/005, AC-WORK-001/002/004/005 + MS-1.1 solver validation and MS-3.4 stop reasons/divergence guard (backfill for A31) | complete |
+| A58 | claude-opus-5-thinking-high-fast | R2-T03: register AC-CORR-009 (TAM pseudo-orthogonality) and wire `SensorMap.signs` through the reduction bases (backfill for A43) | complete |
+| A76 | gpt-5.6-sol-xhigh-fast | Current-tip pytest verification (backfill for completed A75) | complete — A75 done; 900 passed |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
@@ -956,9 +958,10 @@ integrate rather than fork.
 **R2-T01 is COMPLETE** (engine `acda625`, AC-DYN-001..005, report `frf` block A41,
 `correlate-frf` CLI A54 — no open work); **R2-T02, R2-T03 and R2-T04 are PARTIAL** —
 QUAD4/TET4 landed (A37/A46) with HEX8 and the 3D beam open, the reduction/expansion
-engine and its AC-CORR-006 gate landed (A36/A43) with AC-CORR-009 open, and the
-Bayesian MAP estimator landed (A49) with the AC-UPD-006a/b tagging open. See the
-mid-point brief below.
+engine and both its gates landed (A36/A43/A58 — AC-CORR-006 and AC-CORR-009 are
+`implemented` and the `SensorMap.signs` wiring is done, leaving only the `verified`
+flip), and the Bayesian MAP estimator landed (A49) with the AC-UPD-006a/b tagging
+open. See the mid-point brief below.
 
 Core backlog (prioritized, from `docs/SOTA_GAP_ANALYSIS.md` §4/§6 + Round 1 conclusion):
 1. ~~**R2-T01 Dynamics/FRF chain** (GAP-04/05, P0) — damping models, harmonic response,
@@ -977,13 +980,12 @@ Core backlog (prioritized, from `docs/SOTA_GAP_ANALYSIS.md` §4/§6 + Round 1 co
    HEX8, the 3D beam, the `CQUAD4`/`CTETRA`/`CHEXA`/`PSHELL`/`PSOLID` BDF cards and the
    AC-ELEM-* registry rows are the remaining slice.
 3. **R2-T03 SEREP/TAM reduction & expansion** (GAP-08) — Guyan/IRS/SEREP, TAM
-   pseudo-orthogonality, shape expansion; closes Round-2 gate AC-CORR-006. *Engine
-   landed by A36 (`correlation/reduction.py`, 25 tests) and **AC-CORR-006 is now
-   `implemented`** — A43 added the 19-case acceptance gate and flipped the registry in
-   the same commit. Remaining: registering AC-CORR-009 (TAM pseudo-orthogonality, the
-   engine and its test already exist), the `SensorMap.signs` wiring, and moving
-   AC-CORR-006 from `implemented` to `verified` once CI has run it. See the A36 and A43
-   entries below.*
+   pseudo-orthogonality, shape expansion; closes Round-2 gates AC-CORR-006 and
+   AC-CORR-009. *Engine landed by A36 (`correlation/reduction.py`) and **both criteria
+   are now `implemented`** — A43 added the 19-case AC-CORR-006 gate, A58 registered
+   AC-CORR-009 with 14 cases and wired `SensorMap.signs` through all three bases.
+   **The only remaining item is the `implemented` → `verified` flip, which needs a CI
+   run rather than more code**, i.e. R2-T09. See the A36, A43 and A58 entries below.*
 4. **R2-T04 Bayesian MAP updating** (GAP-11 slice, MS-3.5) — Gaussian-prior MAP step +
    posterior covariance; closes Round-2 gates AC-UPD-006a/b. *The estimator landed by
    A49 (`updating/bayesian.py`, 35 tests), driving the shared LM loop through the new
@@ -1017,8 +1019,8 @@ green throughout.
   **R2-T02 PARTIAL** (QUAD4 + TET4 landed with generators and 127 tests; HEX8, the 3D
   beam, the `NeutralModel` → `Model` conversion, solid/shell BDF cards and AC-ELEM-*
   registration open); **R2-T03 PARTIAL** (reduction/expansion engine plus the
-  AC-CORR-006 gate `implemented`; AC-CORR-009, `SensorMap.signs`, the `verified` flip
-  open); **R2-T04 PARTIAL** (MAP estimator with posterior covariance landed on the
+  AC-CORR-006 gate `implemented`; AC-CORR-009 and `SensorMap.signs` closed by A58
+  after this brief was written, leaving only the `verified` flip); **R2-T04 PARTIAL** (MAP estimator with posterior covariance landed on the
   shared LM loop; acceptance tagging and σ_post surfacing open); **R2-T05 NOT
   STARTED** — the only core track with no commit. Supporting: R2-T06's P0 slice and
   R2-T07 are done, R2-T08 needs only a close-as-superseded decision, R2-T09 has not
@@ -1808,6 +1810,85 @@ A27. The A24 backlog above is otherwise the live plan.
   `EXPECTED_CRITERIA_PER_FAMILY` inventory count in one commit; the `SensorMap.signs`
   wiring (`from_sensor_map`); and the densification of sparse inputs. AC-CORR-006 itself
   needs one more step to reach `verified`: a CI run, not another test.
+
+#### A58 — R2-T03: AC-CORR-009 registered and `SensorMap.signs` wired (backfill for A43)
+- **AC-CORR-009 is `implemented`, registered atomically.** `docs/ACCEPTANCE_CRITERIA.md`
+  (M2 table row, details entry, inventory **40 → 41** with M2 = 9),
+  `docs/MODULE_SPEC.md` (a TAM-mass bullet under MS-2.1 and the gate on MS-2.2's `POC`
+  formula), the registry row and the 14 tagged cases in
+  `tests/acceptance/test_correlation.py` all land in one commit, which is the only way
+  the registry lets a criterion leave `specified` — `test_covered_criteria_have_a_tagged_test`
+  rejects a flip without a tag and `test_tagged_tests_match_the_registry` rejects a tag
+  without the flip. Registered as **P1, `twin`, spec anchors MS-2.1 + MS-2.2**: P1
+  because TAM pseudo-orthogonality is mandated R2-T03 scope, so it belongs on the
+  Round-2 exit bar next to AC-CORR-006.
+- **The gate, stated precisely.** `|POC| = |Φ_eᵀ M_TAM Φ_a|` with *both* mode sets
+  normalized through the TAM mass, paired diagonal ≥ 0.99 and every off-diagonal ≤ 0.10,
+  on the same two twins AC-CORR-006 uses (10-DOF chain read at 5 of 10 DOFs; 12-element
+  cantilever with 5 transverse channels over a 36-DOF free partition). The plan proposed
+  the thresholds; the normalization and the cross form come from MS-2.2, which defines
+  `POC = Φ_eᵀ M_ss Φ_a` rather than a self-orthogonality.
+- **Half the gate is uninformative on a noise-free twin, and the suite says so.** Exact
+  test modes *are* the analysis modes at the sensors up to sign and gain, so after TAM
+  normalization the paired diagonal is 1 for **any** symmetric weighting — the 0.99 half
+  is arithmetic, not a measurement, on this data. The off-diagonal is the half that
+  discriminates, and it separates the three bases cleanly on both twins: SEREP 0.000,
+  IRS 0.187 (chain) / 0.018 (beam), Guyan 0.336 (chain) / 0.110 (beam). So a Guyan TAM
+  at this instrumentation **fails** the criterion it is registered under, which is the
+  point: AC-CORR-009 grades the test-analysis model, not the normalization.
+- **On the SEREP TAM it is exact, not marginal.** `T Φ_sensor = Φ` whenever the sensor
+  partition has full column rank, so `Tᵀ M T` carries the full-space mass orthogonality
+  onto the sensor set and the POC of in-band data is the pairing permutation to 1e-10.
+  Pinned as its own test, separately from the 0.99/0.10 assertion, for the same reason
+  A43 separated the AC-CORR-006 exactness case: "clears the gate" and "is the identity"
+  are different claims.
+- **Where the numbers make it a real gate.** Two tests bracket its sensitivity.
+  *Sensor placement*: five channels on the chain at (0, 2, 5, 7, 9) leave the Guyan TAM
+  at 0.336 and five at (1, 3, 5, 7, 9) bring it to 0.054 — same count, same modes,
+  opposite verdict, so on an approximate TAM this is the GAP-07 pretest question in
+  disguise. *Model error and noise*: reading the test modes off a 35 %-stiffened chain
+  through the nominal TAM drops the diagonal to 0.975 and lifts the off-diagonal to
+  0.177 (both halves fail) while a 10 % error still passes at 0.997 / 0.069; and at the
+  8 % channel noise that already breaks AC-CORR-006's pairing agreement, AC-CORR-009
+  fails too at 0.986 / 0.126, while 5 % passes at 0.994 / 0.077. The diagonal therefore
+  only becomes a measurement once the article differs from the model — which is exactly
+  when it is wanted.
+- **`SensorMap.signs` wiring, done without a new import edge.** `guyan_reduction`,
+  `irs_reduction` and `serep_basis` now accept a sensor map wherever they accepted
+  master rows, resolved structurally (`rows`/`signs` attributes) rather than by
+  importing `openfemlab.workflow.sensors` into `openfemlab.correlation` — the workflow
+  layer already imports the correlation layer, and reversing that would close a cycle.
+  The transformation is post-scaled by `diag(1/s)`, so reduced coordinates are measured
+  channels: `reduce_shapes` reproduces `SensorMap.reduce` exactly, `expand` undoes the
+  orientations, and `tam_mass` returns the unoriented TAM conjugated by the sign matrix.
+  That last identity is why a reversed cable cannot move the AC-CORR-009 verdict, which
+  is asserted entry by entry rather than only at the gate. A43's hand-off named this
+  `from_sensor_map`; widening the existing `master` parameter is the smaller API.
+- **Not done, and deliberately.** A43 also listed "densification of sparse inputs" —
+  `_dense` already densifies sparse `K`/`M` in every constructor and
+  `test_reduction_accepts_sparse_matrices` covers it, so there was nothing to do beyond
+  confirming it. The `ReductionBasis` is still dense throughout; a sparse-native TAM is
+  a GAP-13 scale question, not an R2-T03 one.
+- **Verified 2026-08-26** at the pushed tip on
+  `cursor/ac-corr-009-tam-orthogonality-113b`, rebased onto trunk `6cc6f53`. Full suite
+  **897 passed, 0 failed** in 15.3 s on Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1; the
+  merge base `e1a4cc8` gives **876 passed** in the same clone, so this change is exactly
+  **+21** (14 acceptance cases + 7 reduction unit tests) and moves nothing else.
+  Repository-wide `python -m ruff check .` clean.
+- **Working-tree hazard, ninth occurrence — and a new failure mode: `git stash` is
+  shared.** A private detached worktree under `/workspace/.git` was not enough this
+  time. `refs/stash` is a single ref for the whole repository, worktrees included, so a
+  `git stash` taken to measure a baseline was overwritten by a concurrent agent's stash
+  between the push and the pop; the pop then restored *their* changes into this
+  worktree, with conflicts, and this task's edits were gone — the stash commit was never
+  reachable afterwards. The worktree's `HEAD` had also been moved by something outside
+  this task. The work was redone in a **fully independent clone** (`git clone <origin>`,
+  no `--shared`, its own object store and refs), which is the only arrangement in this
+  environment that another agent cannot reach. Two rules for anyone following:
+  **never run `git stash` in the shared repository or any worktree of it**, and commit
+  and push after every self-contained edit rather than at the end.
+- **Still open on R2-T03:** nothing but the `implemented` → `verified` flip for
+  AC-CORR-006 and AC-CORR-009, which needs the R2-T09 CI job, not more code.
 
 #### A55 — status snapshot recorded (backfill for A51)
 - Wrote [`.agent_workspace/STATUS.md`](STATUS.md): the current verification

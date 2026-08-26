@@ -1,10 +1,10 @@
 # OpenFEMLab — Status Snapshot
 
-**Recorded by:** A55 (backfill for completed A51) · **Date:** 2026-08-26
-**Branch:** `cursor/femtools-industrial-7aa3` · **Snapshot commit:** `0928f95`
+**Recorded by:** A74 (backfill for completed A71) · **Date:** 2026-08-26
+**Branch:** `cursor/femtools-industrial-7aa3` · **Tested code commit:** `c5a205a`
 **Pull request:** [PR #5](https://github.com/9997433-bit/HL/pull/5) — open against
-`main`. [`PR_DRAFT.md`](PR_DRAFT.md) is pinned at 876 tests at `0928f95`,
-consistent with the verification recorded here.
+`main`. [`PR_DRAFT.md`](PR_DRAFT.md) remains pinned at the earlier 876-test
+snapshot and therefore trails the verification recorded here.
 
 This file supersedes the earlier R2-T01-scoped status note with a full-project
 snapshot.
@@ -13,21 +13,19 @@ snapshot.
 
 ## 1. Verification snapshot (independent, this run)
 
-Run from a detached private worktree at `/tmp/a55` with `PYTHONPATH` pinned to
-its `src` (the shared `/workspace` checkout was mid-merge with conflicts at
-snapshot time and was not touched).
+Run from `/workspace` after a fetch and hard reset to
+`origin/cursor/femtools-industrial-7aa3`. The branch advanced through
+documentation-only commits while verification ran; the tested code tip was
+`c5a205a`.
 
-- `python -m pytest` — **876 passed, 0 failed** in 8.26 s
-  (Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1).
+- `pytest -q` — **900 passed, 0 failed** in 60.22 s; a collection-only pass
+  independently confirmed 900 tests.
 - `ruff check .` — clean, no findings.
-- Acceptance-criteria registry — **40 criteria: 32 `implemented`,
-  8 `specified`, 0 `verified`**. By priority: P0 29 implemented / 3 specified;
+- Acceptance-criteria registry — **40 criteria: 34 `implemented`,
+  6 `specified`, 0 `verified`**. By priority: P0 31 implemented / 1 specified;
   P1 3 implemented / 5 specified.
-- The tip moved three times during this task (TET4, Bayesian MAP, the
-  `correlate-frf` CLI, and four acceptance-gate batches all landed mid-run);
-  the suite was re-verified at each tip — 671 at `0bed333`, 797 at `be38d2c`,
-  and finally **876 at `0928f95`** — so the numbers above are derived at the
-  snapshot commit, not carried over.
+- The count increased by 24 from the prior 876-test snapshot when the
+  AC-UPD-004/005 acceptance batch landed.
 
 Unit suites (623 tests):
 
@@ -46,7 +44,7 @@ Unit suites (623 tests):
 | `test_frf_correlation.py` | 25 | | | |
 | `test_cli.py` + `test_cli_correlation.py` | 23 | | | |
 
-Acceptance suites (253 tests): modal 98, correlation 81, updating 23,
+Acceptance suites (277 tests): modal 98, correlation 81, updating 47,
 optimization 15, dynamics 13, registry consistency 12, workflow 11.
 
 ## 2. Round status

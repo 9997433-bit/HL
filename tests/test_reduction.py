@@ -28,6 +28,7 @@ from openfemlab.correlation import (
     tam_mass,
 )
 from openfemlab.exceptions import SolverError
+from openfemlab.workflow.sensors import SensorMap
 from tests.modal_reference import (
     solve_generalized_symmetric,
     two_dof_chain,
@@ -296,6 +297,76 @@ def test_master_dof_validation(toy):
         guyan_reduction(K, [])
     with pytest.raises(IndexError, match="out of range"):
         guyan_reduction(K, [7])
+
+
+# ---------------------------------------------------------------------------
+# Sensor-map orientation signs
+# ---------------------------------------------------------------------------
+
+ORIENTED_ROWS = (1, 3, 5, 7)
+ORIENTED_SIGNS = (1.0, -1.0, -1.0, 1.0)
+
+
+@pytest.fixture
+def instrumented_chain():
+    """``(shapes, K, M, sensor_map)`` of the 8-DOF chain read by 4 flipped channels."""
+    chain = uniform_chain(8)
+    K, M = chain.matrices()
+    _, shapes = solve_generalized_symmetric(K, M)
+    return shapes[:, :3], K, M, SensorMap(rows=ORIENTED_ROWS, signs=ORIENTED_SIGNS)
+
+
+def test_a_sensor_map_reduces_exactly_as_the_map_itself_does(instrumented_chain):
+    """``reduce_shapes`` and ``SensorMap.reduce`` must not drift apart."""
+    shapes, _, _, sensors = instrumented_chain
+    basis = serep_basis(shapes, sensors)
+    np.testing.assert_allclose(basis.reduce_shapes(shapes), sensors.reduce(shapes), atol=1e-14)
+    assert basis.signs is not None
+    assert "oriented" in repr(basis)
+
+
+@pytest.mark.parametrize("kind", ["guyan", "irs", "serep"])
+def test_channel_coordinates_round_trip_through_the_basis(kind, instrumented_chain):
+    """Reducing then expanding is still the identity on the basis range."""
+    shapes, K, M, sensors = instrumented_chain
+    basis = {
+        "guyan": lambda: guyan_reduction(K, sensors),
+        "irs": lambda: irs_reduction(K, M, sensors),
+        "serep": lambda: serep_basis(shapes, sensors),
+    }[kind]()
+    channels = basis.reduce_shapes(shapes)
+    np.testing.assert_allclose(basis.reduce_shapes(basis.expand(channels)), channels, atol=1e-12)
+
+
+def test_orientation_signs_cancel_out_of_the_expansion(instrumented_chain):
+    """A flipped cable changes the measured rows, not the reconstructed shape."""
+    shapes, _, _, sensors = instrumented_chain
+    rows = list(ORIENTED_ROWS)
+    measured = shapes[rows, :] * -2.5
+
+    through_rows = expand_shapes(shapes, rows, measured)
+    through_map = expand_shapes(shapes, sensors, measured * np.asarray(ORIENTED_SIGNS)[:, None])
+
+    np.testing.assert_allclose(through_map, through_rows, atol=1e-12)
+
+
+def test_the_oriented_tam_is_the_unoriented_one_conjugated_by_the_signs(instrumented_chain):
+    """``M_TAM`` in channel space is ``D M_TAM D``, so pseudo-orthogonality is unmoved."""
+    _, K, M, sensors = instrumented_chain
+    signs = np.diag(ORIENTED_SIGNS)
+
+    plain = tam_mass(guyan_reduction(K, list(ORIENTED_ROWS)), M)
+    oriented = tam_mass(guyan_reduction(K, sensors), M)
+
+    np.testing.assert_allclose(oriented, signs @ plain @ signs, atol=1e-12)
+
+
+def test_a_sensor_map_without_signs_leaves_the_basis_unoriented(instrumented_chain):
+    """The default all-``+1`` map must not perturb the transformation at all."""
+    _, K, _, _ = instrumented_chain
+    plain = guyan_reduction(K, list(ORIENTED_ROWS))
+    mapped = guyan_reduction(K, SensorMap(rows=ORIENTED_ROWS))
+    np.testing.assert_allclose(mapped.transformation, plain.transformation, atol=1e-14)
 
 
 def test_reduction_accepts_sparse_matrices(toy):
