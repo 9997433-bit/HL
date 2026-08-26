@@ -1,17 +1,22 @@
-"""Planned reader for the Nastran OP2 binary result file — **not implemented**.
+"""Reader for the Nastran OP2 binary result file — framing and normal modes.
 
 OP2 is the binary companion of the ASCII bulk data :mod:`openfemlab.io.nastran`
 reads: one file that can carry the analysed model *and* its normal-mode
 solution, which is exactly the pair the correlation and updating modules need
 from an industrial solver.  Reaching it means writing a binary parser, and a
-binary parser without a test corpus is a liability, so this module is a
-deliberately empty seam: it holds the format knowledge the spike established
-(GAP-03 extension, MODULE_SPEC MS-9.6) and the API the reader will expose, and
-every entry point raises :class:`NotImplementedError`.
+binary parser without a test corpus is a liability, so the reader is landed in
+phases (GAP-03 extension, MODULE_SPEC MS-9.6), each with its own tests:
+Phases 1 and 2 — the record framing and the normal modes — are implemented
+here, and :func:`read_op2` still raises :class:`NotImplementedError` because
+Phase 3 geometry is not written yet.
 
 Nothing here is re-exported from :mod:`openfemlab.io`.  A name in that
-namespace advertises a working reader, so ``read_op2`` stays reachable only as
-``openfemlab.io.op2.read_op2`` until it reads a file.
+namespace advertises a *supported* reader, and this one is validated only
+against files this repository's own test writer produces (``tests/_op2.py``) —
+that is, against our reading of the format rather than against Nastran.  The
+break in the MS-9.5 rule ends when the opt-in corpus test over real MSC and NX
+output has run; until then the reader is reachable as
+``openfemlab.io.op2.read_op2_modes`` and no shorter.
 
 What the format looks like
 --------------------------
@@ -33,6 +38,7 @@ name (``GEOM1``, ``OUGV1``, ``LAMA``, ...) and a trailer, so a reader can
 identify a block and skip the ones it does not want by walking keys, without
 understanding their contents.  That property is what makes a *subset* reader
 honest rather than fragile — every table below can be skipped structurally.
+:mod:`openfemlab.io.op2_framing` is that layer, and only that layer.
 
 *The file header.* The opening marker distinguishes the two ways Nastran is
 asked to write an OP2: ``3`` for ``PARAM,POST,-1``, which is followed by the
@@ -79,15 +85,16 @@ Roadmap
 Each phase is independently landable and independently testable, and no phase
 ships without the tests named in it.
 
-**Phase 1 — framing.**  The record layer only: word size and byte-order
-detection, the key/continuation walk, block name and trailer, and a directory
-of ``(name, offset)`` for the whole file.  This phase reads no engineering
-data, which is what makes it cheap to test exhaustively — truncated records,
-mismatched trailing byte counts, a 64-bit file, a byte-swapped file.  It also
-delivers something useful on its own: ``list_op2_tables`` tells a user why
-their file has no modes in it.
+**Phase 1 — framing.**  *Implemented* in :mod:`openfemlab.io.op2_framing`.  The
+record layer only: word size and byte-order detection, the key/continuation
+walk, block name and trailer, and a directory of ``(name, offset)`` for the
+whole file.  This phase reads no engineering data, which is what makes it cheap
+to test exhaustively — truncated records, mismatched trailing byte counts, a
+64-bit file, a byte-swapped file.  It also delivers something useful on its
+own: :func:`list_op2_tables` tells a user why their file has no modes in it.
 
-**Phase 2 — modes.**  ``LAMA`` and ``OUGV1`` into a ``ModalResult`` whose
+**Phase 2 — modes.**  *Implemented*: :func:`read_op2_modes` pairs ``LAMA`` with
+the eigenvectors of ``BOUGV1``/``OUGV1``/``OUG1`` into a ``ModalResult`` whose
 ``DofMap`` carries the file's grid labels, so an imported eigenvector aligns
 against a test set through the existing MS-4 label matching.  Restricted to
 real normal modes in SORT1: complex eigenvectors, SORT2 and random output all
@@ -102,19 +109,21 @@ counted in ``meta``, the partial-import policy of MS-9.3.
 **Phase 4 — coordinate systems.**  ``CORD1R``/``CORD2R`` and the ``CP``/``CD``
 fields, which Phases 2 and 3 must reject rather than ignore (see below).
 
-Why this is not started yet
----------------------------
-Three risks decide the shape of the work, and none of them is about the
+What still stands between this and "supported"
+----------------------------------------------
+Three risks decided the shape of the work, and none of them is about the
 parsing:
 
 *No corpus.* Producing an OP2 needs a Nastran licence, so the test files
-cannot be generated in CI the way UFF and BDF fixtures are.  The way out is a
-test-only writer: emit the framing and record layouts documented above from a
-known model, then assert the reader recovers it.  That validates every byte
-layout this module claims and runs offline, but it validates them against *our
-reading of the spec*, not against Nastran — so it must be paired with an
-opt-in corpus test over real files (an environment variable pointing at a
-directory, skipped when unset) before the reader may be called supported.
+cannot be generated in CI the way UFF and BDF fixtures are.  The way out taken
+here is a test-only writer (``tests/_op2.py``): it emits the framing and record
+layouts documented above from a known model, and the tests assert the reader
+recovers it.  That validates every byte layout this module claims and runs
+offline, but it validates them against *our reading of the spec*, not against
+Nastran — so it must be paired with an opt-in corpus test over real files (an
+environment variable pointing at a directory, skipped when unset) before the
+reader may be called supported.  That test is still outstanding, which is why
+nothing here is exported.
 
 *Dialects.* The record keys are stable, the record *contents* are not.
 ``CQUAD4`` is the standing example: NX writes 14 words and MSC writes 15, under
@@ -126,8 +135,8 @@ rather than reading past the end of an entry.
 *Coordinate systems.* ``GRID`` carries a ``CP`` (definition) and ``CD``
 (output) frame, and OP2 eigenvectors are written in ``CD``.  A model with any
 non-zero ``CP``/``CD`` and no ``CORD`` transform would import with silently
-wrong coordinates and shapes, so Phases 2 and 3 must raise on it — the same
-line :func:`~openfemlab.io.nastran.read_bdf` already draws for ``GRID`` and
+wrong coordinates and shapes, so Phases 2 and 3 raise on it — the same line
+:func:`~openfemlab.io.nastran.read_bdf` already draws for ``GRID`` and
 :mod:`openfemlab.io.unv` draws for dataset 2420.
 
 An optional dependency on `pyNastran <https://github.com/SteveDoyle2/pyNastran>`_
@@ -141,19 +150,28 @@ matches a mature one.
 References
 ----------
 The record keys and word layouts recorded here were cross-checked against
-pyNastran 1.4.1 (``op2/tables/geom/``) and pyYeti's ``nastran.op2`` format
-notes; both are independent implementations of the MSC DMAP documentation.
+pyNastran 1.4.1 (``op2/tables/geom/``, ``op2/op2_interface/op2_reader.py``) and
+pyYeti's ``nastran.op2`` format notes; both are independent implementations of
+the MSC DMAP documentation.
 """
 
 from __future__ import annotations
 
 from os import PathLike
+from pathlib import Path
 from typing import BinaryIO
 
+import numpy as np
+
+from openfemlab.core.dofs import DofMap, DofType
 from openfemlab.core.neutral import ElementType, NeutralModel
 from openfemlab.core.results import ModalResult
 
+from ._common import FormatError
+from .op2_framing import OP2Block, OP2Format, read_op2_blocks
+
 __all__ = [
+    "GEOM1_GRID_RECORDS",
     "GEOM2_ELEMENT_RECORDS",
     "OP2_GEOMETRY_TABLES",
     "OP2_MODE_TABLES",
@@ -189,6 +207,47 @@ GEOM2_ELEMENT_RECORDS: dict[tuple[int, int, int], ElementType] = {
     (7308, 73, 253): ElementType.HEX8,    # CHEXA
 }
 
+#: ``GEOM1`` record key → ``(words per GRID entry, CP word, CD word)``, the
+#: three dialects of the ``GRID`` card.  Phase 2 reads these only to *refuse* a
+#: model whose grids are not in the basic frame; Phase 3 will read the
+#: coordinates through the same table.  The 11-word form writes the location in
+#: double precision, which moves ``CD`` — the reason this is a table and not a
+#: constant.
+GEOM1_GRID_RECORDS: dict[tuple[int, int, int], tuple[int, int, int]] = {
+    (4501, 45, 1): (8, 1, 5),
+    (4501, 45, 810001): (8, 1, 5),
+    (4501, 45, 1120001): (11, 1, 8),
+}
+
+#: Words in the ``IDENT`` record that opens every result subtable.
+_IDENT_WORDS = 146
+
+#: Words per entry of the ``LAMA`` eigenvalue table: mode number, extraction
+#: order, eigenvalue, radians, cycles, generalized mass and stiffness.
+_LAMA_ENTRY_WORDS = 7
+
+#: Words per entry of a real eigenvector: the coded grid id, the grid type and
+#: the six components.
+_REAL_EIGENVECTOR_WORDS = 8
+
+#: ``IDENT`` analysis code of a real normal-modes run, and of the complex
+#: eigenvalue runs this subset refuses.
+_REAL_MODES_ANALYSIS_CODE = 2
+_COMPLEX_MODES_ANALYSIS_CODE = 9
+
+#: ``IDENT`` table code of an eigenvector, and format code of a real one.
+_EIGENVECTOR_TABLE_CODE = 7
+_REAL_FORMAT_CODE = 1
+
+#: Grid type of a geometric grid point; scalar and extra points differ.
+_GRID_POINT_TYPE = 1
+
+#: Sort codes that mean SORT2 (one record per point, all times inside).
+_SORT2_CODES = frozenset({2, 3, 6})
+
+#: The six components of a real eigenvector entry, in file order.
+_MODE_DOFS = (DofType.UX, DofType.UY, DofType.UZ, DofType.RX, DofType.RY, DofType.RZ)
+
 _ROADMAP = (
     "reading it is planned as the GAP-03 extension (docs/MODULE_SPEC.md MS-9.6); "
     "the format subset and the phases are documented in openfemlab.io.op2"
@@ -223,20 +282,104 @@ def read_op2(source: str | PathLike[str] | BinaryIO) -> NeutralModel:
 def read_op2_modes(source: str | PathLike[str] | BinaryIO) -> ModalResult:
     """Read the normal modes of an OP2 file into a ``ModalResult`` — Phase 2.
 
-    Will pair the ``LAMA`` eigenvalue table with the ``OUGV1`` eigenvectors and
-    return a :class:`~openfemlab.core.results.ModalResult` whose ``DofMap``
-    carries the file's grid labels, so the modes align against a test set
-    without a separate node mapping.  Real normal modes in SORT1 only.
+    Pairs the ``LAMA`` eigenvalue table with the eigenvectors of the first
+    ``OUG`` block the file carries (``BOUGV1`` first, since it is written in
+    the basic frame) and returns a
+    :class:`~openfemlab.core.results.ModalResult` whose ``DofMap`` carries the
+    file's grid labels, so the modes align against a test set without a
+    separate node mapping.  Modes come back ordered by mode number, with the
+    frequencies of the ``LAMA`` table and the generalized masses in ``meta``.
+
+    Parameters
+    ----------
+    source:
+        Path to an OP2 file, or an open binary stream positioned at its start.
 
     Raises
     ------
-    NotImplementedError
-        Always.
+    ~openfemlab.io.FormatError
+        If the file is not an OP2 or its framing is inconsistent; if it holds
+        no eigenvalue or eigenvector table; if the output is anything other
+        than real normal modes in SORT1 at grid points; or if any ``GRID`` in
+        the file names a non-basic ``CP``/``CD`` frame, which Phase 4 will
+        transform and this phase must not silently ignore.
     """
 
-    raise NotImplementedError(
-        f"OP2 mode import is not implemented: {_ROADMAP}. In the meantime, {_ALTERNATIVES}."
+    wanted = {*OP2_MODE_TABLES, "GEOM1"}
+    op2_format, blocks = read_op2_blocks(source, keep=wanted)
+    source_name = _source_name(source)
+    names = [block.name for block in blocks]
+
+    eigenvalues = _first_block(blocks, ("LAMA",))
+    if eigenvalues is None:
+        raise FormatError(
+            f"{_where(source_name)} has no LAMA eigenvalue table, so it holds no normal "
+            f"modes; its data blocks are {', '.join(names) or '(none)'}"
+        )
+    displacements = _first_block(blocks, OP2_MODE_TABLES[1:])
+    if displacements is None:
+        raise FormatError(
+            f"{_where(source_name)} has a LAMA table but none of the eigenvector tables "
+            f"{', '.join(OP2_MODE_TABLES[1:])}; its data blocks are {', '.join(names)}"
+        )
+
+    _reject_non_basic_frames(blocks, op2_format, source_name)
+
+    table = _read_lama(eigenvalues, op2_format, source_name)
+    grids, shapes_by_mode, subcases = _read_eigenvectors(
+        displacements, op2_format, source_name
     )
+    if len(subcases) > 1:
+        listed = ", ".join(str(subcase) for subcase in sorted(subcases))
+        raise FormatError(
+            f"{_where(source_name)} holds eigenvectors of several subcases ({listed}); "
+            "reading more than one modal subcase from a file is outside the MS-9.6 subset"
+        )
+
+    mode_numbers = sorted(shapes_by_mode)
+    missing = [number for number in mode_numbers if number not in table]
+    if missing:
+        listed = ", ".join(str(number) for number in missing)
+        raise FormatError(
+            f"{_where(source_name)}: {displacements.name} holds modes {listed} that the "
+            "LAMA eigenvalue table does not, so their frequencies are unknown"
+        )
+
+    frequencies = np.array([table[number][2] for number in mode_numbers], dtype=np.float64)
+    generalized_masses = np.array(
+        [table[number][3] for number in mode_numbers], dtype=np.float64
+    )
+    shapes = np.column_stack([shapes_by_mode[number] for number in mode_numbers])
+    dof_map = DofMap.regular(grids, _MODE_DOFS)
+
+    meta: dict[str, object] = {
+        "format": "nastran-op2",
+        "tables": tuple(names),
+        "eigenvector_table": displacements.name,
+        "word_size": op2_format.word_size,
+        "byte_order": op2_format.byte_order,
+        "mode_numbers": tuple(mode_numbers),
+        "generalized_masses": generalized_masses.tolist(),
+        "generalized_stiffnesses": [table[number][4] for number in mode_numbers],
+    }
+    if op2_format.version:
+        meta["solver_version"] = op2_format.version
+    if subcases:
+        meta["subcase"] = int(next(iter(subcases)))
+    if source_name is not None:
+        meta["source"] = source_name
+
+    normalized = bool(np.allclose(generalized_masses, 1.0, rtol=0.0, atol=1e-6))
+    try:
+        return ModalResult(
+            frequencies=frequencies,
+            shapes=shapes,
+            dof_map=dof_map,
+            meta=meta,
+            normalization="mass" if normalized else "none",
+        )
+    except ValueError as exc:  # pragma: no cover - guarded by the checks above
+        raise FormatError(f"{_where(source_name)} holds an inconsistent mode set: {exc}") from exc
 
 
 def list_op2_tables(source: str | PathLike[str] | BinaryIO) -> list[str]:
@@ -244,14 +387,238 @@ def list_op2_tables(source: str | PathLike[str] | BinaryIO) -> list[str]:
 
     The diagnostic the framing layer delivers before any engineering data is
     parsed: it answers "does this file even contain modes?", which is the
-    question a user hits first when a run wrote the wrong ``PARAM,POST``.
+    question a user hits first when a run wrote the wrong ``PARAM,POST``.  No
+    record contents are read, so a block this module knows nothing about is
+    named all the same.
 
     Raises
     ------
-    NotImplementedError
-        Always.
+    ~openfemlab.io.FormatError
+        If the file is not an OP2 or its record framing is inconsistent.
     """
 
-    raise NotImplementedError(
-        f"OP2 reading is not implemented: {_ROADMAP}."
-    )
+    _format, blocks = read_op2_blocks(source)
+    return [block.name for block in blocks]
+
+
+# ---------------------------------------------------------------- internals
+
+
+def _source_name(source: str | PathLike[str] | BinaryIO) -> str | None:
+    if isinstance(source, (str, PathLike)):
+        return str(Path(source))
+    name = getattr(source, "name", None)
+    return str(name) if name is not None else None
+
+
+def _where(source_name: str | None) -> str:
+    return f"OP2 file {source_name}" if source_name else "OP2 stream"
+
+
+def _first_block(blocks: list[OP2Block], names: tuple[str, ...]) -> OP2Block | None:
+    """The file's first block named by ``names``, preferring the earlier name."""
+
+    for name in names:
+        for block in blocks:
+            if block.name == name:
+                return block
+    return None
+
+
+def _iter_subtables(block: OP2Block, op2_format: OP2Format):
+    """Yield the ``(IDENT, data)`` record pairs of a result block.
+
+    A result block interleaves a 146-word ``IDENT`` describing one case with
+    the data record holding its values, ahead of which sits the subtable name
+    record; pairing on the ``IDENT`` length skips that one without having to
+    know what it says.
+    """
+
+    ident: bytes | None = None
+    for record in block.records:
+        if op2_format.nwords(record) == _IDENT_WORDS:
+            ident = record
+        elif ident is not None:
+            yield ident, record
+            ident = None
+
+
+def _read_lama(
+    block: OP2Block, op2_format: OP2Format, source_name: str | None
+) -> dict[int, tuple[int, float, float, float, float]]:
+    """``LAMA`` as ``mode number → (order, eigenvalue, Hz, mass, stiffness)``."""
+
+    table: dict[int, tuple[int, float, float, float, float]] = {}
+    for _ident, data in _iter_subtables(block, op2_format):
+        nwords = op2_format.nwords(data)
+        if nwords % _LAMA_ENTRY_WORDS:
+            raise FormatError(
+                f"{_where(source_name)}: a LAMA record holds {nwords} words, which is not "
+                f"a multiple of the {_LAMA_ENTRY_WORDS}-word eigenvalue entry"
+            )
+        integers = op2_format.ints(data).reshape(-1, _LAMA_ENTRY_WORDS)
+        reals = op2_format.floats(data).reshape(-1, _LAMA_ENTRY_WORDS)
+        for row in range(integers.shape[0]):
+            table[int(integers[row, 0])] = (
+                int(integers[row, 1]),
+                float(reals[row, 2]),
+                float(reals[row, 4]),
+                float(reals[row, 5]),
+                float(reals[row, 6]),
+            )
+    if not table:
+        raise FormatError(f"{_where(source_name)}: the LAMA table holds no eigenvalues")
+    return table
+
+
+def _read_eigenvectors(
+    block: OP2Block, op2_format: OP2Format, source_name: str | None
+) -> tuple[list[int], dict[int, np.ndarray], set[int]]:
+    """The grid labels, one flattened shape per mode, and the subcases seen."""
+
+    grids: list[int] | None = None
+    shapes: dict[int, np.ndarray] = {}
+    subcases: set[int] = set()
+
+    for ident, data in _iter_subtables(block, op2_format):
+        header = op2_format.ints(ident)
+        mode, device_code, num_wide = _check_ident(header, block.name, source_name)
+        subcases.add(int(header[3]))
+
+        nwords = op2_format.nwords(data)
+        if nwords % num_wide:
+            raise FormatError(
+                f"{_where(source_name)}: a {block.name} record for mode {mode} holds "
+                f"{nwords} words, which is not a multiple of the {num_wide} words per "
+                "entry its IDENT declares"
+            )
+        integers = op2_format.ints(data).reshape(-1, num_wide)
+        reals = op2_format.floats(data).reshape(-1, num_wide)
+
+        grid_types = set(int(value) for value in integers[:, 1])
+        if grid_types - {_GRID_POINT_TYPE}:
+            other = ", ".join(str(value) for value in sorted(grid_types - {_GRID_POINT_TYPE}))
+            raise FormatError(
+                f"{_where(source_name)}: {block.name} mode {mode} carries points of grid "
+                f"type {other}; scalar and extra points have no six-component shape and "
+                "are outside the MS-9.6 subset"
+            )
+        coded = integers[:, 0]
+        if np.any((coded - device_code) % 10):
+            raise FormatError(
+                f"{_where(source_name)}: {block.name} mode {mode} has entries whose grid "
+                f"id is not written as grid * 10 + {device_code}"
+            )
+        labels = [int(value) for value in (coded - device_code) // 10]
+        if grids is None:
+            grids = labels
+        elif labels != grids:
+            raise FormatError(
+                f"{_where(source_name)}: {block.name} mode {mode} is written on a "
+                "different set of grids than the modes before it"
+            )
+        if mode in shapes:
+            raise FormatError(
+                f"{_where(source_name)}: {block.name} holds mode {mode} more than once"
+            )
+        shapes[mode] = np.asarray(reals[:, 2:8], dtype=np.float64).reshape(-1)
+
+    if grids is None or not shapes:
+        raise FormatError(
+            f"{_where(source_name)}: the {block.name} table holds no eigenvectors"
+        )
+    return grids, shapes, subcases
+
+
+def _check_ident(
+    header: np.ndarray, table_name: str, source_name: str | None
+) -> tuple[int, int, int]:
+    """Validate one result ``IDENT`` and return ``(mode, device, num_wide)``."""
+
+    approach_code = int(header[0])
+    analysis_code, device_code = divmod(approach_code, 10)
+    table_code = int(header[1]) % 1000
+    sort_code = int(header[1]) // 1000
+    mode = int(header[4])
+    format_code = int(header[8])
+    num_wide = int(header[9])
+
+    if analysis_code == _COMPLEX_MODES_ANALYSIS_CODE:
+        raise FormatError(
+            f"{_where(source_name)}: {table_name} holds complex eigenvectors (analysis "
+            f"code {_COMPLEX_MODES_ANALYSIS_CODE}); MS-9.6 Phase 2 reads real normal "
+            f"modes (analysis code {_REAL_MODES_ANALYSIS_CODE}) only"
+        )
+    if analysis_code != _REAL_MODES_ANALYSIS_CODE:
+        raise FormatError(
+            f"{_where(source_name)}: {table_name} was written by analysis code "
+            f"{analysis_code}, not the normal-modes code {_REAL_MODES_ANALYSIS_CODE}"
+        )
+    if sort_code in _SORT2_CODES:
+        raise FormatError(
+            f"{_where(source_name)}: {table_name} is written in SORT2 (sort code "
+            f"{sort_code}), which orders the file by point rather than by mode; MS-9.6 "
+            "Phase 2 reads SORT1 only"
+        )
+    if table_code != _EIGENVECTOR_TABLE_CODE:
+        raise FormatError(
+            f"{_where(source_name)}: {table_name} carries table code {table_code}, not "
+            f"the eigenvector code {_EIGENVECTOR_TABLE_CODE}"
+        )
+    if format_code != _REAL_FORMAT_CODE:
+        raise FormatError(
+            f"{_where(source_name)}: {table_name} mode {mode} is written with format code "
+            f"{format_code} (real/imaginary or magnitude/phase), not the real format code "
+            f"{_REAL_FORMAT_CODE}"
+        )
+    if num_wide != _REAL_EIGENVECTOR_WORDS:
+        raise FormatError(
+            f"{_where(source_name)}: {table_name} mode {mode} declares {num_wide} words "
+            f"per entry; a real eigenvector at a grid point is {_REAL_EIGENVECTOR_WORDS}"
+        )
+    return mode, device_code, num_wide
+
+
+def _reject_non_basic_frames(
+    blocks: list[OP2Block], op2_format: OP2Format, source_name: str | None
+) -> None:
+    """Refuse a model whose ``GRID`` cards name a non-basic ``CP``/``CD``.
+
+    Eigenvectors are written in each grid's ``CD`` frame, so a file with any
+    non-zero frame and no ``CORD`` transform imports as silently rotated
+    shapes.  Phase 4 reads the transforms; until then this is a refusal, the
+    same line the ASCII reader draws.
+    """
+
+    for block in blocks:
+        if block.name != "GEOM1":
+            continue
+        for record in block.records:
+            words = op2_format.ints(record)
+            if words.size < 3:
+                continue
+            key = (int(words[0]), int(words[1]), int(words[2]))
+            layout = GEOM1_GRID_RECORDS.get(key)
+            if layout is None:
+                continue
+            entry_words, cp_word, cd_word = layout
+            body = words[3:]
+            if body.size == 0:
+                continue
+            if body.size % entry_words:
+                raise FormatError(
+                    f"{_where(source_name)}: GEOM1 record {key} holds {body.size} words, "
+                    f"which is not a multiple of its {entry_words}-word GRID entry"
+                )
+            entries = body.reshape(-1, entry_words)
+            frames = entries[:, [cp_word, cd_word]]
+            offending = entries[np.any(frames != 0, axis=1), 0]
+            if offending.size:
+                listed = ", ".join(str(int(value)) for value in offending[:5])
+                more = ", ..." if offending.size > 5 else ""
+                raise FormatError(
+                    f"{_where(source_name)}: GRID {listed}{more} define or output in a "
+                    "non-basic coordinate system (CP/CD), and OP2 eigenvectors are written "
+                    "in CD; reading the CORD transforms is MS-9.6 Phase 4, so importing "
+                    "these modes would rotate them silently"
+                )
