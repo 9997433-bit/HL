@@ -374,6 +374,13 @@ Iterative MAP step (linearized):
   (`σ_post ≤ σ_prior` componentwise, AC-UPD-006b).
 - Sampling-based posterior (MCMC/TMCMC) is out of scope Round 1; the MAP
   API is designed so a sampler can reuse `h(p)`, `C_ε`, `C_p`.
+- Surfaces: `BayesianUpdater` / `update_model_bayesian` in Python, the
+  `prior` / `noise_covariance` arguments of the MS-4 workflow, and the
+  `prior:` / `noise:` sections of an `openfemlab update` configuration.
+  All three report σ_post per parameter — `ParameterEntry.sigma_post` in a
+  `CorrectionReport`, the `bayesian` block of the CLI document — through the
+  one extractor `updating.bayesian.posterior_sigma`, which falls back to the
+  least-squares `σ²(SᵀS)⁻¹` when the run was deterministic.
 
 ### MS-3.6 Parameter selection
 

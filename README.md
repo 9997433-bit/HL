@@ -190,6 +190,25 @@ channels on the measured frequency line and reports FRAC per channel plus the
 FDAC matrix; the damping may also live in the model spec as a `damping:` block
 (`ratio`, `ratios`, or `alpha`/`beta`) instead of on the command line.
 
+`update` runs the deterministic Levenberg-Marquardt loop by default and the
+Bayesian (maximum-a-posteriori) one as soon as the configuration carries a
+`prior` or a `noise` section:
+
+```yaml
+prior:
+  std: {stiffness: 0.05, mass: 0.02}   # or a scalar, a list, variance:, covariance:
+  mean: 1.0                            # optional; defaults to the starting point
+noise:
+  std: 0.005                           # measurement noise over the residual entries
+```
+
+Both are covariances over the updater's design space, so a `log_scaled`
+parameter takes its prior on `log(factor)`. The report then gains a `bayesian`
+block with the resolved prior, the noise model and the Laplace posterior
+`(JᵀC_ε⁻¹J + C_p⁻¹)⁻¹`, and every parameter entry carries the posterior
+standard deviation `sigma_post` next to its `sigma_prior`. A deterministic run
+reports `sigma_post` too, from the least-squares covariance `σ²(JᵀJ)⁻¹`.
+
 Global `--quiet`, `--no-color`, and `--traceback` options support scripts and
 diagnostics.
 
