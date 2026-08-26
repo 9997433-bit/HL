@@ -30,6 +30,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A25 | gpt-5.6-sol-xhigh-fast | CLI subprocess coverage over example 02 fixtures | complete |
 | A15 | claude-opus-5-thinking-high-fast | GAP-01 `ModalResult` contract unification (backfill for R1-F1) | complete |
 | A13 | claude-opus-5-thinking-high-fast | M4 correction workflow state machine & `CorrectionReport` (backfill for A01) | complete |
+| A14 | claude-opus-5-thinking-high-fast | R1-O2 correlation/updating branch reconciliation (backfill) | complete |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
@@ -52,7 +53,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | R1-F1 | claude-fable-5-thinking-xhigh | Global architecture & SOTA audit | done |
 | R1-F2 | claude-fable-5-thinking-xhigh | Module spec & acceptance criteria | complete |
 | R1-O1 | claude-opus-5-thinking-high-fast | Core FEM + modal solver | complete |
-| R1-O2 | claude-opus-5-thinking-high-fast | Model updating & correlation | complete (branch `cursor/r1o2-correlation-updating-e393`) |
+| R1-O2 | claude-opus-5-thinking-high-fast | Model updating & correlation | complete (branch `cursor/r1o2-correlation-updating-e393`, reconciled into the integration branch by A14) |
 | R1-G1 | gpt-5.6-sol-xhigh-fast | Project scaffold & benchmarks | complete |
 | R1-G2 | gpt-5.6-sol-xhigh-fast | Boundary tests & mock probes | complete |
 
@@ -272,12 +273,73 @@ orchestrator to diff against the landed implementation in Round 2.
   modes and noisy targets (0.2% frequency, 1% shape) recovers all three group factors within
   5% and removes > 90% of the cost. All new files pass the project Ruff configuration.
 
+#### A14 — R1-O2 Branch Reconciliation (backfill)
+**Closes the open R1-O2 item above: `cursor/r1o2-correlation-updating-e393` is now folded
+into the integration branch, so nothing is left stranded on a side branch.**
+
+- Diffed the R1-O2 branch against the landed `correlation/` and `updating/` packages
+  file by file, then ran R1-O2's own 62 tests against the landed implementation as the
+  acid test. 60 passed unchanged, which confirmed the algorithms R1-O2 delivered had
+  already been absorbed: the Levenberg–Marquardt updater, the Fox–Kapoor eigenvalue
+  sensitivities, and the Hungarian mode pairing (A06 also split them into
+  `pairing.py`/`summary.py` and extended pairing with `freq_penalty`/`max_pairs`, and
+  A04 extended sensitivity with `mode_shape_sensitivity`/`mac_sensitivity`). Two
+  failures remained, and both were real findings rather than merge noise.
+- **Regression fixed.** `ModelUpdater.__init__` lost R1-O2's `ParameterSet.copy()` when
+  the code landed, so a run wrote its solution back into the caller's
+  `UpdatableParameter` objects. A second run over the same parameters then started from
+  the first run's answer, which silently made Tikhonov regularisation a no-op: `x0` was
+  the already-converged point, so the regularised and unregularised runs returned
+  identical parameters (1.40/0.70 on the 2-DOF twin experiment). Restored the copy.
+- **Behaviour deliberately kept from the integration branch.** The other failure was
+  `mac([0, 0], [1, 2])`: R1-O2 returned 0.0, the integration branch raises on a
+  zero-norm mode (commit "reject undefined MAC for null modes"). Raising is the better
+  contract — an undefined MAC should not silently look like a perfectly uncorrelated
+  pair — so R1-O2's contradicting test was dropped rather than the behaviour.
+- **Strictness restored.** The repository-wide Ruff pass (A11) resolved B905 by writing
+  `strict=False` everywhere, which turned R1-O2's length-checked `zip`s into silently
+  truncating ones. Put `strict=True` back in `updating/parameters.py` (3),
+  `updating/sensitivity.py` (3), `updating/updater.py` (2), `correlation/pairing.py` (1)
+  and `tests/modal_reference.py` (1) — every one of those is either guarded by an
+  explicit size check or pairs equal-length outputs, so a mismatch is a bug worth raising.
+- **Hungarian pairing wired into the updater.** `correlation.pairing` implemented the
+  globally optimal assignment but `ModelUpdater` only ever asked for `"greedy"`.
+  `UpdatingOptions.mode_pairing` now also accepts `"optimal"`, threaded through both the
+  per-iteration re-pairing and the correlation summaries.
+- **Test suites merged**, not replaced: the two branches covered different things (R1-O2
+  drives a callable model over the analytic spring-mass chain, the integration branch
+  drives the affine `ScalingModel`), so R1-O2's distinct cases were added alongside.
+  New on the correlation side: the `mac_matrix`/`auto_mac` compatibility aliases, per-DOF
+  sensor weighting that masks a polluted channel, `frequency_error_matrix`, frequency-only
+  pairing, an all-modes-unpaired frequency window, the pairing table, greedy-vs-optimal
+  agreement, `off_diagonal_mac`, `normalized_frequency_residual`, and the flat summary
+  dict. New on the updating side: the whole parameter/design-space layer (bounds,
+  log-scaling round trip, `ParameterSet` bookkeeping), `as_modal_data` over the common
+  solver return types, `ModalData` validation, forward/central FD agreement, and the
+  callable-model runs — shape-difference residual, frequency-only updating, noisy targets
+  on a measured DOF subset, bounds, history monotonicity, evaluation counting for the
+  analytical path, and an updating run driven through `solver.modal.ModalSolver`.
+- Added guards for both reconciled behaviours: the updater must leave the caller's
+  parameter objects at their initial values, and `mode_pairing="optimal"` must reach the
+  greedy pass's solution.
+- Verified on Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1, rebased onto the integration tip:
+  `tests/test_correlation.py` 52 passed (was 35) and `tests/test_updating.py` 57 (was 28),
+  so 109 correlation + updating tests all green, and **+46 on the whole suite**
+  (258 passed against a 212-test tip at the time of the final rebase; the branch was
+  moving, so read the delta rather than the absolute). `ruff check src tests` passes.
+- Method note for the orchestrator: this run worked in a detached `git worktree` because
+  `/workspace` had concurrent uncommitted edits, and the base branch advanced four times
+  during the run. Tests there need `PYTHONPATH` pointed at the worktree's `src`, since
+  the venv's editable install resolves `openfemlab` to `/workspace/src` — measuring a
+  worktree without it silently tests the shared tree instead.
+
 #### A11 — Repository-wide Ruff Cleanup
 - Cleared all reported Ruff failures across `openfemlab` and its tests: modernized
   imports and annotations, wrapped overlong lines, removed an unused test import, renamed
   an ambiguous inertia variable, and made every `zip` policy explicit.
 - Used `strict=False` for existing `zip` calls so unequal inputs retain their prior
-  truncation behavior.
+  truncation behavior. (A14 later put `strict=True` back on the ten correlation/updating
+  call sites that were written strict before this pass; see the A14 entry above.)
 
 #### A06 — Correlation Package Completion & Fixture Test Suite
 - Completed `src/openfemlab/correlation/` against MS-2 and landed it on the integration
