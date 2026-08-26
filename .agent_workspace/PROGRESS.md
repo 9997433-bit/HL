@@ -1505,9 +1505,9 @@ A27. The A24 backlog above is otherwise the live plan.
   Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1: **595 passed** at the QUAD4 merge, **601**
   with the harvest at `6cf0f49`, **617** after merging the trunk tip back in (A31's P0
   acceptance batch), **642** once A41's FRF correlation block landed, and finally
-  **679 passed, 0 failed** (114 s) at `16ff791`, the commit this sweep pushed to the
+  **715 passed, 0 failed** (88 s) at `b0ed436`, the commit this sweep pushed to the
   trunk. `ruff check .` clean at every step. `PR_DRAFT.md` refreshed off the stale 498
-  baseline — count, title, per-suite breakdown (sums to 679), the QUAD4,
+  baseline — count, title, per-suite breakdown (sums to 715), the QUAD4,
   reduction/expansion and FRF-block capabilities, 40 registered criteria, and the scope
   note that used to claim no continuum elements exist. The trunk moved under this task
   eight times; the count holds only for as long as that does, and the per-suite
@@ -1661,13 +1661,14 @@ A27. The A24 backlog above is otherwise the live plan.
   sees the 5 measured rows. The conservative side is the expanded one — useful to know for
   anyone tempted to treat expansion as cosmetic. Also pinned by a test, so the equality the
   criterion asserts is never read as unconditional.
-- **Verified 2026-08-26 08:14 UTC** from a private worktree with both `PYTHONPATH` entries
-  pinned to it (`<worktree>:<worktree>/src`) — necessary because the venv's editable
-  install resolves `openfemlab` to the shared `/workspace/src`. Full suite **672 passed,
-  0 failed** in 70.8 s on Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1; the same tip with
-  `-k "not ac_corr_006"` gives **653 passed**, so this change is +19 and touches nothing
-  else. Repository-wide `python -m ruff check .` clean. Rebased three times onto a tip
-  that moved under the work each time.
+- **Verified 2026-08-26 08:19 UTC** at the pushed tip `9f8a1b6`, from a private worktree
+  with both `PYTHONPATH` entries pinned to it (`<worktree>:<worktree>/src`) — necessary
+  because the venv's editable install resolves `openfemlab` to the shared `/workspace/src`.
+  Full suite **680 passed, 0 failed** in 104.9 s on Python 3.12.3 / NumPy 2.5.2 /
+  SciPy 1.18.1; the same tip with `-k "not ac_corr_006"` gives **661 passed, 19
+  deselected**, so this change is exactly +19 and touches nothing else. Repository-wide
+  `python -m ruff check .` clean. Rebased five times onto a tip that moved under the work
+  each time; the absolute count is only meaningful next to the delta.
 - **Working-tree hazard, seventh and eighth occurrence — and the first one that cost a
   branch ref.** `/workspace` was reset out from under the first attempt exactly as A40
   describes, so the work moved to a private worktree at `/tmp/a43`. That path was then
@@ -1990,10 +1991,11 @@ Verified in a private clone at `/tmp/a46` with `PYTHONPATH=/tmp/a46/src`, on Pyt
 clean. That is the trunk's 636 at `1db2f03` plus the 66 new ones. The trunk moved to
 `0bed333` (A40's merge sweep and A41's FRF report block) while this was being verified, so
 the slice was merged onto that tip and re-run: **737 passed**, Ruff still clean. It moved
-again to `44f2ec0` (A44's AC-WORK/AC-UPD-007 tagging) during the push, so the branch was
-synced once more and re-run at **740 passed**, Ruff clean. Both conflicts were the Active
-Pool table and the appended entries at the end of this file, where each side had added its
-own rows; everything was kept.
+three more times during the push — A44's AC-WORK/AC-UPD-007 tagging, A43's AC-CORR-006
+gate and the R2-T04 Bayesian MAP landing — so the branch was synced after each and re-run
+at 740, 746 and finally **781 passed** at the pushed tip `e4bd20c`, Ruff clean throughout.
+Every conflict was the Active Pool table or the appended entries at the end of this file,
+where each side had added its own rows; all were kept.
 
 **Working-tree hazard, again.** A concurrent agent ran `git reset --hard` on `/workspace`
 mid-edit and discarded the first pass of this element wholesale. The work was redone in a

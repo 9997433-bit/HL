@@ -43,6 +43,7 @@ from openfemlab.solver.dynamics import (
     residual_flexibility,
 )
 
+from .._uff58 import dataset_58
 from ._support import criterion, fixture_matrices, load_fixture
 
 #: Gates of AC-DYN-001/002 (relative error against a closed form or Z(w)^-1).
@@ -322,48 +323,10 @@ def test_degenerate_inputs_return_zero_rather_than_nan() -> None:
 # --------------------------------------------------------------- AC-DYN-005
 
 
-def _dataset_58(frequencies: np.ndarray, values: np.ndarray) -> str:
-    """Format one complex, evenly spaced dataset-58 record (11 records + data).
-
-    Written here rather than in the library because the criterion gates the
-    *reader* contract: the library owns no UFF writer yet (that is R2-T05).
-    """
-    increment = float(frequencies[1] - frequencies[0])
-    identification = (
-        f"{4:5d}{1:10d}{0:5d}{0:10d} "
-        f"{'NONE':>10}{1:10d}{1:4d} "
-        f"{'NONE':>10}{1:10d}{1:4d}"
-    )
-    data_form = (
-        f"{6:10d}{frequencies.size:10d}{1:10d}"
-        f"{float(frequencies[0]):13.5E}{increment:13.5E}{0.0:13.5E}"
-    )
-    abscissa = f"{18:10d}{0:5d}{0:5d}{0:5d} {'Frequency':<20} {'Hz':<20}"
-    ordinate = f"{8:10d}{0:5d}{0:5d}{0:5d} {'Receptance':<20} {'m/N':<20}"
-    unused = f"{0:10d}{0:5d}{0:5d}{0:5d} {'NONE':<20} {'NONE':<20}"
-
-    interleaved = np.empty(2 * values.size)
-    interleaved[0::2] = values.real
-    interleaved[1::2] = values.imag
-    data = [
-        " ".join(f"{value:.12E}" for value in interleaved[start : start + 4])
-        for start in range(0, interleaved.size, 4)
-    ]
-    records = [
-        "synthesized FRF",
-        "AC-DYN-005",
-        "26-AUG-26",
-        "OpenFEMLab",
-        "receptance",
-        identification,
-        data_form,
-        abscissa,
-        ordinate,
-        unused,
-        unused,
-        *data,
-    ]
-    return "\n".join(["    -1", f"{58:6d}", *records, "    -1", ""])
+#: Free-text header of the record this criterion writes. The formatter itself
+#: lives in ``tests/_uff58.py`` rather than in the library because the library
+#: owns no UFF *writer* yet (that is R2-T05) and this gate is about the reader.
+_ID_LINES = ("synthesized FRF", "AC-DYN-005", "26-AUG-26", "OpenFEMLab", "receptance")
 
 
 @criterion("AC-DYN-005")
@@ -380,7 +343,7 @@ def test_synthesized_frf_round_trips_through_the_uff_58_reader(tmp_path) -> None
     ).drive_point(0)
 
     path = tmp_path / "synthesized.unv"
-    path.write_text(_dataset_58(frequencies, line), encoding="utf-8")
+    path.write_text(dataset_58(frequencies, line, id_lines=_ID_LINES), encoding="utf-8")
 
     functions = read_uff_functions(path)
     assert len(functions) == 1
