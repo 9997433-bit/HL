@@ -913,7 +913,7 @@ await interact('生活行星：母题规模与进阶档', '/#/word-problems', as
     const m = document.body.innerText.match(/母题\s*(\d+)\s*\/\s*(\d+)\s*道/)
     return m ? Number(m[2]) : 0
   })
-  if (bank < 25) throw new Error(`母题只有 ${bank} 类，少于要求的 25 类`)
+  if (bank < 100) throw new Error(`母题只有 ${bank} 类，少于要求的 100 类`)
 
   const switched = await page.evaluate(() => {
     const el = [...document.querySelectorAll('.seg-btn')].find((b) => b.innerText.includes('进阶'))
