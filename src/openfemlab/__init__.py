@@ -80,6 +80,7 @@ _EXPORTS: dict[str, str] = {
     "ModelError": "openfemlab.exceptions",
     "ElementError": "openfemlab.exceptions",
     "SolverError": "openfemlab.exceptions",
+    "SolverConvergenceError": "openfemlab.exceptions",
     "OptimizationError": "openfemlab.exceptions",
 }
 
@@ -127,6 +128,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from .exceptions import ModelError as ModelError
     from .exceptions import OpenFEMLabError as OpenFEMLabError
     from .exceptions import OptimizationError as OptimizationError
+    from .exceptions import SolverConvergenceError as SolverConvergenceError
     from .exceptions import SolverError as SolverError
     from .optimization import OptimizationProblem as OptimizationProblem
     from .optimization import OptimizationResult as OptimizationResult

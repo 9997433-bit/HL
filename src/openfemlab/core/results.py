@@ -175,6 +175,11 @@ class ModalResult:
         scale = float(np.max(np.abs(self.eigenvalues))) if self.n_modes else 0.0
         return self.eigenvalues <= max(RIGID_BODY_TOL * scale, 0.0)
 
+    @property
+    def is_rigid(self) -> npt.NDArray[np.bool_]:
+        """MS-1.5 spelling of :attr:`rigid_body_modes`."""
+        return self.rigid_body_modes
+
     def mode(self, index: int) -> np.ndarray:
         """Mode shape ``index`` as a full-length DOF vector."""
         return self.shapes[:, index]

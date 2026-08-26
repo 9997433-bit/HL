@@ -28,9 +28,25 @@ import scipy.sparse.linalg as spla
 
 from ..core.assembly import AssembledSystem, assemble_system
 from ..core.results import NORMALIZATIONS, RIGID_BODY_TOL, ModalResult
-from ..exceptions import SolverError
+from ..exceptions import SolverConvergenceError, SolverError
 
-__all__ = ["ModalSolver", "ModalResult", "NORMALIZATIONS", "RIGID_BODY_TOL"]
+__all__ = [
+    "ModalSolver",
+    "ModalResult",
+    "NORMALIZATIONS",
+    "RIGID_BODY_TOL",
+    "RESIDUAL_TOL",
+    "eigenpair_residuals",
+    "residual_floor",
+]
+
+#: Default MS-1.2 relative-residual tolerance every returned eigenpair must meet.
+RESIDUAL_TOL = 1e-8
+
+#: Safety margin over the round-off floor of :func:`residual_floor`; the
+#: backward-error bound of a dense LAPACK solve carries a problem-size constant,
+#: so the floor is only meaningful up to a factor of this order.
+RESIDUAL_ROUNDOFF_FACTOR = 64.0
 
 
 class ModalSolver:
@@ -104,6 +120,8 @@ class ModalSolver:
         max_frequency: float | None = None,
         condense_massless: bool = True,
         tol: float = 0.0,
+        maxiter: int | None = None,
+        residual_tol: float | None = RESIDUAL_TOL,
         cache_factorization: bool = True,
     ) -> ModalResult:
         """Extract the ``num_modes`` lowest normal modes.
@@ -128,6 +146,19 @@ class ModalSolver:
         condense_massless:
             Statically condense DOFs with zero mass instead of failing on a
             singular mass matrix.
+        tol:
+            Convergence tolerance handed to the sparse backend (0 = machine
+            precision). It bounds the backend's own error estimate, which is
+            why the returned pairs are verified against ``residual_tol`` too.
+        maxiter:
+            Cap on the sparse backend's Arnoldi restarts. ``None`` leaves the
+            ARPACK default; a value too low to converge raises
+            :class:`~openfemlab.exceptions.SolverConvergenceError`.
+        residual_tol:
+            Every returned eigenpair must satisfy the MS-1.2 relative residual
+            ``‖K phi - lambda M phi‖ / ‖K phi‖ <= residual_tol``, else
+            :class:`~openfemlab.exceptions.SolverConvergenceError` is raised
+            carrying the residuals. ``None`` skips the check.
         cache_factorization:
             Reuse the sparse ``K - shift M`` LU factorization on subsequent
             solves by this solver. Disable when benchmarking cold solves. Call
@@ -158,12 +189,15 @@ class ModalSolver:
                 requested,
                 shift=shift,
                 tol=tol,
+                maxiter=maxiter,
                 cache_factorization=cache_factorization,
             )
         else:
             values, vectors = self._solve_dense(K_r, M_r, requested)
 
-        values, vectors = _sort_and_clip(values, vectors)
+        values, vectors = _sort_and_clip(values, vectors, K_r, M_r)
+        if residual_tol is not None:
+            _verify_residuals(K_r, M_r, values, vectors, residual_tol)
 
         if max_frequency is not None:
             limit = (2.0 * np.pi * float(max_frequency)) ** 2
@@ -236,6 +270,7 @@ class ModalSolver:
         *,
         shift: float | None,
         tol: float,
+        maxiter: int | None,
         cache_factorization: bool,
     ):
         sigma = _default_shift(K, M) if shift is None else float(shift)
@@ -261,8 +296,20 @@ class ModalSolver:
                 which="LM",
                 OPinv=inverse,
                 tol=tol,
+                maxiter=maxiter,
             )
-        except (spla.ArpackNoConvergence, RuntimeError, ValueError) as exc:
+        except spla.ArpackNoConvergence as exc:
+            partial_values = np.atleast_1d(np.asarray(exc.eigenvalues, dtype=float).ravel())
+            partial_vectors = np.asarray(exc.eigenvectors, dtype=float)
+            if partial_vectors.ndim != 2 or partial_vectors.shape[1] != partial_values.size:
+                partial_values = np.empty(0)
+            raise SolverConvergenceError(
+                f"the Lanczos backend converged {partial_values.size} of {num_modes} modes "
+                f"with sigma={sigma:g}; raise 'maxiter', loosen 'tol' or use sparse=False",
+                residuals=eigenpair_residuals(K, M, partial_values, partial_vectors),
+                tolerance=tol,
+            ) from exc
+        except (RuntimeError, ValueError) as exc:
             raise SolverError(
                 f"sparse eigensolver failed for {num_modes} modes with sigma={sigma:g}; "
                 "try a different 'shift' or sparse=False"
@@ -353,7 +400,27 @@ def _condense_massless(K, M, *, enabled: bool):
     return massful, _MasslessCondensation(K, M, massful, massless)
 
 
-def _sort_and_clip(values: np.ndarray, vectors: np.ndarray):
+def _stiffness_to_inertia_scale(K, M) -> float:
+    """``tr(K)/tr(M)`` — the eigenvalue scale of the model (MS-1.2)."""
+    inertia = float(np.sum(M.diagonal()))
+    return float(np.sum(K.diagonal())) / max(inertia, np.finfo(float).tiny)
+
+
+def _rigid_body_threshold(values: np.ndarray, K, M) -> float:
+    """MS-1.2 rigid-body cut ``eps_rigid * max(lambda_max, 1e-9 tr(K)/tr(M))``."""
+    scale = float(np.max(np.abs(values))) if values.size else 0.0
+    return RIGID_BODY_TOL * max(scale, 1e-9 * abs(_stiffness_to_inertia_scale(K, M)))
+
+
+def _sort_and_clip(values: np.ndarray, vectors: np.ndarray, K, M):
+    """Ascending eigenpairs with the rigid-body eigenvalues set to exactly zero.
+
+    An eigenvalue that is numerically zero comes out of LAPACK/ARPACK as a
+    fraction of the round-off floor and with an arbitrary sign, so leaving it
+    alone would report a rigid-body mode at some meaningless ``1e-9 Hz``.
+    MS-1.2 asks for ``f = 0`` on those modes, which is also what makes the
+    reported spectrum agree with ``ModalResult.is_rigid``.
+    """
     values = np.asarray(values, dtype=float)
     order = np.argsort(values)
     values = values[order]
@@ -368,8 +435,80 @@ def _sort_and_clip(values: np.ndarray, vectors: np.ndarray):
                 RuntimeWarning,
                 stacklevel=3,
             )
-        values = np.where(values < 0.0, 0.0, values)
+        values = np.where(values <= _rigid_body_threshold(values, K, M), 0.0, values)
     return values, vectors
+
+
+def _row_norm(matrix) -> float:
+    """``‖A‖_inf`` (largest absolute row sum), dense or sparse."""
+    return float(np.asarray(abs(matrix).sum(axis=1)).max())
+
+
+def _residual_denominators(K, M, values: np.ndarray, vectors: np.ndarray) -> np.ndarray:
+    """``‖K phi‖``, except ``lambda_ref ‖M phi‖`` for rigid-body modes (MS-1.2)."""
+    rigid = values <= _rigid_body_threshold(values, K, M)
+    elastic = np.linalg.norm(K @ vectors, axis=0)
+    reference = abs(_stiffness_to_inertia_scale(K, M)) * np.linalg.norm(M @ vectors, axis=0)
+    return np.where(rigid, reference, elastic)
+
+
+def eigenpair_residuals(K, M, eigenvalues, mode_shapes) -> np.ndarray:
+    """MS-1.2 relative residual ``‖K phi - lambda M phi‖ / ‖K phi‖`` per eigenpair.
+
+    A rigid-body mode has ``K phi = 0``, so MS-1.2 replaces the denominator
+    with ``lambda_ref ‖M phi‖``, ``lambda_ref = tr(K)/tr(M)`` being the
+    stiffness-to-inertia scale of the model.
+    """
+    values = np.asarray(eigenvalues, dtype=float).ravel()
+    vectors = np.asarray(mode_shapes, dtype=float)
+    if values.size == 0:
+        return np.empty(0)
+    numerator = np.linalg.norm(K @ vectors - (M @ vectors) * values[None, :], axis=0)
+    denominator = _residual_denominators(K, M, values, vectors)
+    usable = denominator > 0.0
+    return np.where(usable, numerator / np.where(usable, denominator, 1.0), 0.0)
+
+
+def residual_floor(K, M, eigenvalues, mode_shapes) -> np.ndarray:
+    """Smallest :func:`eigenpair_residuals` double precision can deliver.
+
+    A backward-stable eigensolver returns pairs whose *absolute* residual is of
+    order ``eps (‖K‖ + lambda ‖M‖) ‖phi‖``. Dividing by the MS-1.2 denominator
+    turns that into a relative floor which grows with the spread of the
+    spectrum: the lowest mode of a stiff structure simply cannot reach the
+    fixed 1e-8 of MS-1.2, so the convergence check is asserted against
+    ``max(tol, floor)`` rather than against ``tol`` alone.
+    """
+    values = np.asarray(eigenvalues, dtype=float).ravel()
+    vectors = np.asarray(mode_shapes, dtype=float)
+    if values.size == 0:
+        return np.empty(0)
+    absolute = (
+        RESIDUAL_ROUNDOFF_FACTOR
+        * np.finfo(float).eps
+        * (_row_norm(K) + values * _row_norm(M))
+        * np.linalg.norm(vectors, axis=0)
+    )
+    denominator = _residual_denominators(K, M, values, vectors)
+    usable = denominator > 0.0
+    return np.where(usable, absolute / np.where(usable, denominator, 1.0), 0.0)
+
+
+def _verify_residuals(K, M, values: np.ndarray, vectors: np.ndarray, tolerance: float) -> None:
+    residuals = eigenpair_residuals(K, M, values, vectors)
+    if residuals.size == 0:
+        return
+    limits = np.maximum(tolerance, residual_floor(K, M, values, vectors))
+    exceeded = residuals > limits
+    if np.any(exceeded):
+        worst = int(np.argmax(residuals / limits))
+        raise SolverConvergenceError(
+            f"eigenpair {worst + 1} of {residuals.size} has relative residual "
+            f"{residuals[worst]:.3e} > {limits[worst]:.3e}; tighten 'tol', raise 'maxiter' "
+            "or use sparse=False",
+            residuals=residuals,
+            tolerance=tolerance,
+        )
 
 
 def _mass_normalize(vectors: np.ndarray, M, normalization: str) -> np.ndarray:
