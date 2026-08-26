@@ -12,6 +12,7 @@
     "build": "bash scripts/build-all.sh",
     "build:all": "bash scripts/build-all.sh",
     "test": "npm run test:literacy && npm run test:math",
+    "test:acceptance": "bash scripts/acceptance.sh",
     "test:literacy": "bash scripts/test-literacy.sh",
     "test:math": "bash scripts/test-math.sh"
   },
@@ -20,6 +21,7 @@
     "npm": ">=10"
   },
   "devDependencies": {
+    "axe-core": "^4.13.0",
     "puppeteer-core": "^25.9.0"
   }
 }
