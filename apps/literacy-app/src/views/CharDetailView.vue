@@ -13,13 +13,23 @@
  *  3. 田字格、组词、例句、底部操作在所有阶段都在原地，状态机只换中间那块面板；
  *     这样孩子随时想写一笔、想听个词都不用先退出当前步骤。
  */
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import {
+  computed,
+  defineAsyncComponent,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  reactive,
+  ref,
+  watch
+} from 'vue'
 import { useRouter } from 'vue-router'
 import gsap from 'gsap'
 import HanziStrokeBox from '@/components/HanziStrokeBox.vue'
 import StarBurst from '@/components/StarBurst.vue'
 import VoiceNotice from '@/components/VoiceNotice.vue'
 import { CHARACTERS, getCharacter, getLoadedCharacter, loadCharacter } from '@/data/characters.js'
+import { hasEtymology } from '@/data/etymology-index.js'
 import { RADICAL_MAP, getRadical } from '@/data/radicals.js'
 import { useProgressStore } from '@/stores/progress.js'
 import { useSettingsStore } from '@/stores/settings.js'
@@ -27,6 +37,13 @@ import { speak } from '@/utils/speech.js'
 import { sfx } from '@/utils/sfx.js'
 
 const props = defineProps({ char: { type: String, required: true } })
+
+/**
+ * 字源演变按需加载：只有六十多个字有字源语料，而演变动画本身还要带上
+ * GSAP 时间线和小图数据。有语料的字先显示一个入口按钮，孩子点了才 import()，
+ * 没点过的字一个字节也不下载。
+ */
+const EtymologyStage = defineAsyncComponent(() => import('@/components/EtymologyStage.vue'))
 
 const router = useRouter()
 const progress = useProgressStore()
@@ -102,6 +119,15 @@ watch(
   { immediate: true }
 )
 const radical = computed(() => (item.value ? getRadical(item.value.radical) : null))
+
+/** 有字源语料的字才显示「这个字的来历」，展开之后才真的把动画组件拉下来。 */
+const hasOrigin = computed(() => hasEtymology(decoded.value))
+const originOpen = ref(false)
+
+function toggleOrigin() {
+  sfx.tap()
+  originOpen.value = !originOpen.value
+}
 
 /**
  * 只有 RADICALS 里的重点部首有讲解页。
@@ -351,6 +377,7 @@ function restartFlow() {
 
 function resetFlow() {
   clearTimers()
+  originOpen.value = false
   settled = false
   rewardBadges.value = []
   flowRounds.value = 0
@@ -719,6 +746,33 @@ onBeforeUnmount(clearTimers)
     <p v-if="toast" class="toast" aria-hidden="true">{{ toast }}</p>
 
     <VoiceNotice fallback="拼音就在字的上面，家长可以照着拼音读给孩子听。" />
+
+    <!-- 这个字的来历：有字源语料的字才出现，展开才加载演变动画 -->
+    <section v-if="hasOrigin" class="card stack origin">
+      <h3 class="section-title">
+        <span class="section-title__emoji" aria-hidden="true">🏺</span>
+        这个字的来历
+        <RouterLink
+          class="origin__more"
+          :to="`/etymology/${encodeURIComponent(item.char)}`"
+          @click="sfx.tap()"
+        >
+          去字源馆 →
+        </RouterLink>
+      </h3>
+      <button
+        class="btn btn--accent btn--block"
+        type="button"
+        :aria-expanded="originOpen"
+        aria-controls="char-origin-panel"
+        @click="toggleOrigin"
+      >
+        {{ originOpen ? '收起来' : `🏺 看看「${item.char}」当初是怎么来的` }}
+      </button>
+      <div id="char-origin-panel" class="origin__panel">
+        <EtymologyStage v-if="originOpen" :char="item.char" :size="176" />
+      </div>
+    </section>
 
     <!-- 组词 -->
     <section v-if="item.words" class="card stack">
@@ -1149,6 +1203,17 @@ onBeforeUnmount(clearTimers)
   font-weight: 800;
   box-shadow: var(--shadow-md);
   animation: pop-in var(--dur-mid) var(--ease-pop);
+}
+
+.origin__more {
+  margin-left: auto;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-soft);
+}
+
+.origin__panel:empty {
+  display: none;
 }
 
 .words {

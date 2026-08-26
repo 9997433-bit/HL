@@ -80,6 +80,13 @@ const routes = [
     meta: { title: '读绘本', emoji: '📖' }
   },
   {
+    path: '/etymology/:char?',
+    name: 'etymology',
+    component: () => import('@/views/EtymologyView.vue'),
+    props: true,
+    meta: { title: '字源馆', emoji: '🏺' }
+  },
+  {
     path: '/idioms',
     name: 'idioms',
     component: () => import('@/views/IdiomsView.vue'),

@@ -18,7 +18,6 @@ import {
 } from '@/data/characters.js'
 import { BADGES, TOTAL_BADGES } from '@/data/badges.js'
 import { BOOKS } from '@/data/books.js'
-import { IDIOMS } from '@/data/idioms.js'
 import { RADICALS } from '@/data/radicals.js'
 import { setSoundEnabled, setSpeechEnabled } from '@/utils/audio.js'
 import { RATING, createCard, dueCards, retention, schedule } from '@/utils/srs.js'
@@ -246,7 +245,15 @@ export const useProgressStore = defineStore('progress', () => {
   })
 
   const booksFinished = computed(() => BOOKS.filter((b) => state.books[b.id]?.finishedAt).length)
-  const idiomsRead = computed(() => IDIOMS.filter((i) => state.idioms[i.id]?.read).length)
+  /**
+   * 「学过几条成语」直接数存档，不去比对 IDIOMS。
+   *
+   * 进度 store 挂在应用外壳上，是首屏必然要下载的东西；从它 import 成语语料，
+   * 六十条成语连故事带情景题就会一起被打进入口块。这里只需要一个数字，
+   * 数存档里的记录就够了——语料改名换 id 的代价是可能多算一条旧记录，
+   * 比让每个孩子先下载几十 KB 用不上的故事划算得多。
+   */
+  const idiomsRead = computed(() => Object.values(state.idioms).filter((i) => i?.read).length)
   const radicalsSeen = computed(() => RADICALS.filter((r) => state.radicals[r.id]?.seen).length)
 
   const quizTotals = computed(() => {

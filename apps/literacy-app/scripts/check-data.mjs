@@ -19,6 +19,9 @@ import { BOOKS, charsInBook, verifyBookCoverage } from '../src/data/books.js'
 import { IDIOMS } from '../src/data/idioms.js'
 import { TOTAL_IDIOMS } from '../src/data/idiom-index.js'
 import { RADICALS, getRadical } from '../src/data/radicals.js'
+import { ETYMOLOGY, ETYMOLOGY_KINDS } from '../src/data/etymology.js'
+import { ETYMOLOGY_CHARS } from '../src/data/etymology-index.js'
+import { validateShape } from '../src/utils/etymologySketch.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const baselineFile = path.resolve(here, '..', '..', '..', 'shared', 'data', 'common-hanzi.json')
@@ -214,6 +217,66 @@ const badQuiz = IDIOMS.filter((i) => {
 })
 check(badQuiz.length === 0, `成语情景题的正确答案下标都在选项范围内${badQuiz.length ? `（${badQuiz.map(idiomName).join('、')}）` : ''}`)
 
+/* ----------------------------------------------------------------- 字源
+ *
+ * 字源动画的第二帧直接用离线笔顺数据画，所以字源语料只能收字表里的字——
+ * 收了字表外的字，那一帧就会在断网时开天窗。
+ */
+check(ETYMOLOGY.length >= 50, `字源演变 ${ETYMOLOGY.length} 个字（要求 ≥ 50）`)
+
+const etyDupes = ETYMOLOGY.map((e) => e.c).filter((v, i, a) => a.indexOf(v) !== i)
+check(etyDupes.length === 0, `字源语料无重复字${etyDupes.length ? `（${etyDupes.join('')}）` : ''}`)
+
+const etyStray = ETYMOLOGY.filter((e) => !CHARACTER_MAP.has(e.c))
+check(
+  etyStray.length === 0,
+  `字源语料里的字都在字表里${etyStray.length ? `（${etyStray.map((e) => e.c).join('')}）` : ''}`
+)
+
+const etyKinds = new Set(ETYMOLOGY_KINDS.map((k) => k.id))
+const etyBadKind = ETYMOLOGY.filter((e) => !etyKinds.has(e.kind))
+check(
+  etyBadKind.length === 0,
+  `每个字都归到了象形/指事/会意/形声${etyBadKind.length ? `（${etyBadKind.map((e) => e.c).join('')}）` : ''}`
+)
+
+const etyNoText = ETYMOLOGY.filter((e) => !e.origin || !e.evolve)
+check(
+  etyNoText.length === 0,
+  `每个字都写了「本来是什么」和「怎么变的」${etyNoText.length ? `（${etyNoText.map((e) => e.c).join('')}）` : ''}`
+)
+
+// 第一帧要么是小图要么是零件，两样都没有的话舞台上会是一块空白
+const etyNoFrame = ETYMOLOGY.filter((e) => !e.sketch?.length && !(e.parts?.length >= 2))
+check(
+  etyNoFrame.length === 0,
+  `每个字都有小图或至少两个零件${etyNoFrame.length ? `（${etyNoFrame.map((e) => e.c).join('')}）` : ''}`
+)
+
+const etyBadShape = []
+for (const e of ETYMOLOGY) {
+  for (const shape of e.sketch ?? []) {
+    const problem = validateShape(shape)
+    if (problem) etyBadShape.push(`${e.c}:${problem}`)
+  }
+}
+check(
+  etyBadShape.length === 0,
+  `每张字源小图都画得出来${etyBadShape.length ? `（${etyBadShape.join('；')}）` : ''}`
+)
+
+check(
+  ETYMOLOGY_CHARS === ETYMOLOGY.map((e) => e.c).join(''),
+  '单字页用的字源索引与语料逐字对齐'
+)
+
+// 每一类都得有几个字，不然「原来这一类字都长这样」的规律看不出来
+const thinKinds = ETYMOLOGY_KINDS.filter((k) => ETYMOLOGY.filter((e) => e.kind === k.id).length < 5)
+check(
+  thinKinds.length === 0,
+  `象形/指事/会意/形声每类至少 5 个字${thinKinds.length ? `（${thinKinds.map((k) => k.name).join('、')}）` : ''}`
+)
+
 /* ------------------------------------------------------------- 偏旁部首 */
 check(RADICALS.length >= 8, `偏旁部首 ${RADICALS.length} 个`)
 
@@ -234,7 +297,8 @@ console.log(`\n内容自检：${notes.length} 项通过，${fails.length} 项失
 console.log(
   `\n统计：${TOTAL_CHARACTERS} 字 / ${UNITS.length} 单元 / ${RADICALS.length} 偏旁 / ` +
     `${BOOKS.length} 本绘本（共 ${BOOKS.reduce((n, b) => n + b.pages.length, 0)} 页，` +
-    `${new Set(BOOKS.flatMap(charsInBook)).size} 个不重复用字） / ${IDIOMS.length} 个成语`
+    `${new Set(BOOKS.flatMap(charsInBook)).size} 个不重复用字） / ${IDIOMS.length} 个成语 / ` +
+    `${ETYMOLOGY.length} 个字有字源演变`
 )
 
 process.exit(fails.length ? 1 : 0)

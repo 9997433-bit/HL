@@ -6,7 +6,7 @@ import { FONT_SCALES, THEMES, useSettingsStore } from '@/stores/settings.js'
 import { MASTERY_THRESHOLD, useProgressStore } from '@/stores/progress.js'
 import { CHARACTERS, UNITS, charsOfUnit } from '@/data/characters.js'
 import { BOOKS } from '@/data/books.js'
-import { IDIOMS } from '@/data/idioms.js'
+import { TOTAL_IDIOMS } from '@/data/idiom-index.js'
 import { sfx } from '@/utils/sfx.js'
 import { speak, voiceInfo } from '@/utils/audio.js'
 import { useVoiceStatus } from '@/composables/useVoiceStatus.js'
@@ -303,7 +303,7 @@ function resetSettings() {
         </ul>
         <div class="row">
           <span class="pill">📖 绘本 {{ progress.booksFinished }}/{{ BOOKS.length }}</span>
-          <span class="pill">🎭 成语 {{ progress.idiomsSeen }}/{{ IDIOMS.length }}</span>
+          <span class="pill">🎭 成语 {{ progress.idiomsSeen }}/{{ TOTAL_IDIOMS }}</span>
           <span class="pill">🎧 游戏 {{ progress.game.plays }} 题 · 正确率 {{ progress.gameAccuracy }}%</span>
         </div>
       </section>
