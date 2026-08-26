@@ -76,6 +76,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A106 | claude-opus-5-thinking-high-fast | R2-T02/R2-T05 shared item: `io/neutral_convert.py`, the `NeutralModel` → `Model` conversion for rod/beam/quad/tet/hex (backfill for completed A105) | complete — 52 tests, 1236 passed at `f0cd39a`, Ruff clean |
 | A109 | claude-opus-5-thinking-high-fast | R2-T09 continued: `scripts/promote_verified.py` and the tests that flip five criteria to `verified` on a gate run (backfill for completed A107) | complete — registry 14 `verified` / 30 `implemented`, 1259 passed, Ruff clean |
 | A114 | claude-opus-5-thinking-high-fast | Confirm the A104/A98 shell merge landed and close the user-facing documentation gap it left (backfill) | complete — merge already on the trunk; `MODULE_SPEC.md` / `USER_GUIDE_zh.md` now cover the shell, 1331 passed at `571c864`, Ruff clean |
+| A121 | gpt-5.6-sol-xhigh-fast | R2-T09 batch promotion: run every remaining implemented criterion through `promote_verified.py --run --apply` | complete — all 30 promoted; registry 44 `verified` / 0 `implemented` |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
@@ -3424,3 +3425,26 @@ commands, which is why the work moved to `/tmp/a114`. And the environment handed
 run a `PYTHONPATH` pointing at `/tmp/a98` — *another agent's worktree* — so an unpinned
 `pytest` imported the wrong `openfemlab` and failed on an import error that had nothing
 to do with the checkout under test. Pin `PYTHONPATH`; do not merely inherit it.
+
+#### A121 — R2-T09 batch promotion closes the implemented registry
+
+Ran `scripts/promote_verified.py --run --apply` from the private `/tmp/a121`
+worktree with `PYTHONPATH=/tmp/a121/src`, one module at a time so each status change
+was backed by its own green acceptance gate. All 30 remaining `implemented` criteria
+passed, with 273 tagged test cases in the promotion runs:
+
+- **Modal (8; 111 cases):** AC-MODAL-001, AC-MODAL-002, AC-MODAL-004,
+  AC-MODAL-005, AC-MODAL-006, AC-MODAL-007, AC-MODAL-008, AC-MODAL-009.
+- **Correlation (6; 75 cases):** AC-CORR-003, AC-CORR-004, AC-CORR-005,
+  AC-CORR-007, AC-CORR-008, AC-CORR-009.
+- **Updating (8; 55 cases):** AC-UPD-002, AC-UPD-003, AC-UPD-004, AC-UPD-005,
+  AC-UPD-006a, AC-UPD-006b, AC-UPD-007, AC-UPD-008.
+- **Workflow (4; 17 cases):** AC-WORK-001, AC-WORK-003, AC-WORK-004,
+  AC-WORK-005.
+- **Optimization (1; 2 cases):** AC-OPT-004.
+- **Dynamics (1; 1 case):** AC-DYN-005.
+- **Elements (2; 12 cases):** AC-ELEM-002, AC-ELEM-003.
+
+The registry moves from **14 `verified` / 30 `implemented`** to
+**44 `verified` / 0 `implemented`**. No criterion was blocked or left at
+`implemented`.
