@@ -343,6 +343,12 @@ class LimiterEffect(Effect):
             if target_value < current:
                 current = target_value
                 hold = hold_samples
+            elif target_value < 1.0:
+                # ``current`` is already at least as conservative as this
+                # peak requires, but it must stay there until that peak has
+                # crossed the delayed output.  Without renewing the hold here,
+                # release could start before a later, slightly smaller peak.
+                hold = max(hold, hold_samples)
             elif hold > 0:
                 hold -= 1
             else:

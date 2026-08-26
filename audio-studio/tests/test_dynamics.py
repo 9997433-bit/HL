@@ -130,6 +130,14 @@ def test_limiter_links_channels_to_preserve_the_stereo_image() -> None:
     assert np.allclose(ratio, 4.0, atol=1e-6)
 
 
+def test_limiter_renews_lookahead_hold_for_dense_peaks() -> None:
+    rng = np.random.default_rng(7)
+    dense_peaks = (0.8 * rng.standard_normal(20_000)).astype(np.float32)
+    output = LimiterEffect(ceiling_db=-1.0).process(dense_peaks, SR)
+
+    assert float(linear_to_db(true_peak_level(output, exact=True))) <= -1.0 + 0.02
+
+
 def test_parameters_include_dynamics_controls() -> None:
     compressor = CompressorEffect(threshold_db=-24.0, ratio=6.0).parameters()
     limiter = LimiterEffect(ceiling_db=-2.0).parameters()
