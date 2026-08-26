@@ -8,6 +8,8 @@ __all__ = [
     "ElementError",
     "SolverError",
     "SolverConvergenceError",
+    "MatrixSymmetryError",
+    "MatrixDefinitenessError",
     "OptimizationError",
 ]
 
@@ -54,6 +56,72 @@ class SolverConvergenceError(SolverError):
     ) -> None:
         super().__init__(message)
         self.residuals: tuple[float, ...] = tuple(float(value) for value in residuals)  # type: ignore[union-attr]
+        self.tolerance = float(tolerance)
+
+
+class MatrixSymmetryError(SolverError):
+    """A system matrix is not symmetric to the MS-1.1 tolerance.
+
+    MS-1.1 lets the solvers *enforce* symmetry by averaging ``(A + Aᵀ)/2``, but
+    only once the input is already symmetric up to round-off. A larger defect
+    means the caller assembled or imported something the symmetric
+    eigenproblem does not describe, so averaging it would silently solve a
+    different problem.
+
+    Attributes
+    ----------
+    matrix:
+        Which matrix failed, ``"K"`` or ``"M"``.
+    defect:
+        ``‖A - Aᵀ‖_max / ‖A‖_max``, the quantity that was compared.
+    tolerance:
+        The relative tolerance it had to meet.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        matrix: str = "",
+        defect: float = 0.0,
+        tolerance: float = 0.0,
+    ) -> None:
+        super().__init__(message)
+        self.matrix = str(matrix)
+        self.defect = float(defect)
+        self.tolerance = float(tolerance)
+
+
+class MatrixDefinitenessError(SolverError):
+    """A system matrix violates the definiteness MS-1.1 requires.
+
+    Raised for a mass matrix that is not positive (semi-)definite and for a
+    stiffness matrix whose spectrum reaches below the rigid-body noise floor —
+    an unstable model or wrong material data, which must not be reported as a
+    set of modes at an imaginary frequency.
+
+    Attributes
+    ----------
+    matrix:
+        Which matrix failed, ``"K"`` or ``"M"``.
+    value:
+        The offending quantity (the most negative eigenvalue or generalized
+        mass found).
+    tolerance:
+        The floor it had to stay above.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        matrix: str = "",
+        value: float = 0.0,
+        tolerance: float = 0.0,
+    ) -> None:
+        super().__init__(message)
+        self.matrix = str(matrix)
+        self.value = float(value)
         self.tolerance = float(tolerance)
 
 

@@ -667,5 +667,5 @@ def test_negative_stiffness_matrix_warns():
     M = np.eye(2)
     solver = ModalSolver.from_matrices(K, M)
     with pytest.warns(RuntimeWarning, match="negative eigenvalues"):
-        result = solver.solve(num_modes=2, normalization="none")
+        result = solver.solve(num_modes=2, normalization="none", definiteness_tol=None)
     assert result.eigenvalues[0] == 0.0

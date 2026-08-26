@@ -56,6 +56,8 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A44 | claude-opus-5-thinking-high-fast | Tag AC-WORK-001/002/004/005 and AC-UPD-007; new `tests/acceptance/test_workflow.py` (backfill for A23) | complete |
 | A43 | claude-opus-5-thinking-high-fast | R2-T03: AC-CORR-006 acceptance gate (reduced- vs expanded-space pairing) and its registration (backfill for A36) | complete |
 | A46 | claude-opus-5-thinking-high-fast | R2-T02 continued: TET4 constant-strain tetrahedron, Kuhn tet-block mesh, 3D patch suite (backfill for A42) | complete |
+| A54 | claude-opus-5-thinking-high-fast | `openfemlab correlate-frf`: the CLI surface over `correlation/frf.py`, closing the last R2-T01 exit item (backfill for A41) | complete |
+| A62 | gpt-5.6-sol-xhigh-fast | Superseded-branch closure record and current-trunk verification (backfill for A40) | complete |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
@@ -959,8 +961,8 @@ Core backlog (prioritized, from `docs/SOTA_GAP_ANALYSIS.md` §4/§6 + Round 1 co
    against that API and `implemented` (see the R2-T01 entry below). GAP-04 is closed;
    GAP-05 is closed apart from the FRF updating residual the plan defers to Round 3.
    The last exit item of the task — an FRF block in the `CorrelationReport` schema — is
-   closed too (A41, `schema_version` 1.1). Handed on to the exit-bar work: only the
-   measured-vs-synthesized FRF demo through the CLI.
+   closed too (A41, `schema_version` 1.1), and so is the measured-vs-synthesized FRF
+   demo through the CLI (A54, `openfemlab correlate-frf`). **R2-T01 has no open work.**
 2. **R2-T02 3D continuum elements** (GAP-02, P0) — QUAD4/TET4/HEX8 + 3D beam with patch
    /convergence gates (AC-MODAL-001/003/004/007 extended, new AC-ELEM-*). **PARTIAL:
    QUAD4 and TET4 are landed on the trunk**, QUAD4 merged from
@@ -1092,9 +1094,61 @@ new dynamics/element/IO criteria at least `implemented`, GAP-01 stays closed.
   procedure.
 - Open for the orchestrator: the CLI FRF demo is the only R2-T01 exit item left
   (`ROUND2_PLAN.md` §5 item 4) — a command surface over `frf_correlation`, with the
-  metric and the artifact already in place. Registering an AC ID for the block (the
-  natural home is an AC-CORR-* contract row alongside AC-CORR-008) needs the spec-first
-  three-file commit and was deliberately not half-done here.
+  metric and the artifact already in place. *Closed by A54 below.* Registering an AC ID
+  for the block (the natural home is an AC-CORR-* contract row alongside AC-CORR-008)
+  needs the spec-first three-file commit and was deliberately not half-done here.
+
+#### A54 — `openfemlab correlate-frf`: the CLI FRF demo (closes R2-T01 outright)
+- **The last R2-T01 exit item** (`ROUND2_PLAN.md` §5 item 4): a measured UFF-58 FRF
+  compared against one synthesized from a damped model, through the CLI. A41 had already
+  landed the metric and the artifact, so this is a command surface — no new kernel, and
+  `frac`/`fdac` still exist exactly once (GAP-01 holds).
+- **`cli/commands/correlate_frf.py`.** `openfemlab correlate-frf MEASURED COMPARISON`
+  resolves both sides to one *FRF column* — the response channels driven by a single
+  exciter — and hands the pair to `correlation.frf_correlation`. The measured side reads
+  a UFF/UNV dataset-58 file (one record per channel, response and reference DOFs taken
+  from the identification record) or a JSON/YAML FRF document with the same content. The
+  comparison side is either a second measurement or a model specification, which is then
+  solved and synthesized *on the measured frequency line, at the measured channels*:
+  every `(node, DOF)` channel is resolved to a model equation through
+  `Model.dof_index`, so a channel the model does not carry is named rather than silently
+  dropped, and a second measurement is reordered onto the reference channel order.
+- **Damping is part of the command, because a synthesized FRF is meaningless without
+  it.** `--damping ZETA` (uniform modal ratio) and `--rayleigh ALPHA BETA` override an
+  optional `damping:` block in the spec (`ratio`, per-mode `ratios`, or `alpha`/`beta`),
+  which in turn overrides the 2 % default; the report records which of the three the
+  numbers came from. The spec block is read in the CLI layer, not in `cli/spec.py`,
+  because `Model` carries no damping — `solver.dynamics` takes it as a separate argument.
+- **The artifact is the schema-1.1 one.** The report publishes `FRFCorrelation.as_dict()`
+  under `frf` next to `schema_version` `1.1`, so a consumer reads the same block whether
+  it came from the library or the CLI. `--require-frac` / `--require-fdac` gate it and
+  reuse `correlate.CORRELATION_FAILED` (exit 3) rather than defining a second code;
+  `--no-fdac` suppresses the matrix that is quadratic in the frequency count, and asking
+  for the FDAC gate anyway is reported instead of silently passing.
+- **`tests/test_cli_frf.py`, 16 tests.** The headline demo is the exit-bar one: modes of
+  a fixed-fixed chain → Rayleigh-damped synthesis → dataset-58 file → the CLI → FRAC and
+  the FDAC diagonal back at 1 within **8.9e-16** and **4.4e-16**, carried through the
+  12-digit UFF interchange. The negative control keeps that honest: the same measurement
+  against a 40 %-softened chain gives per-channel FRAC **0.134 / 0.054 / 0.075** (mean
+  **0.087**) and a worst FDAC diagonal of **0.183**, and trips `--require-frac 0.99` with
+  exit 3. The rest pin the input resolution (UFF vs document, spec vs second
+  measurement), channel reordering, the named failures (missing channel, channel outside
+  the model, mismatched frequency lines, unnamed exciter), the three damping sources, and
+  the table/JSON/file outputs.
+- `tests/_uff58.py` now holds the ASCII dataset-58 formatter that AC-DYN-005 had inlined,
+  parameterized by response/reference node and direction. The suite writes UFF in one
+  place; the library still writes none (that is R2-T05).
+- Verified from a private clone at `/tmp/a54` (`PYTHONPATH` pinned to its `src`), Python
+  3.12.3: full suite **695 passed** (679 before this change) on the clone's base, and
+  **797 passed** after rebasing onto the branch tip the sibling agents had advanced
+  meanwhile; `ruff check .` clean at both points.
+- **Working-tree hazard, a seventh time.** The first pass was written in `/workspace` and
+  wiped mid-run by a concurrent agent's `git reset --hard`; only the untracked new files
+  survived. Same lesson as A13/A15/A19/A21/A26/A36/A41 — start in a private clone.
+- Open for the orchestrator: the command has no AC ID. The natural row is an AC-CORR-*
+  `contract` criterion next to AC-CORR-008 covering the CLI artifact, and it needs the
+  spec-first three-file commit (`ACCEPTANCE_CRITERIA.md`, `MODULE_SPEC.md`, registry), so
+  it was deliberately not half-done here.
 
 #### A35 — AC-DYN registration backfill: duplicate dropped, head verified (backfill for A28)
 - Dispatched to register AC-DYN-* criteria (FRF match, damping ratios, FRAC) and wire the
@@ -1505,9 +1559,9 @@ A27. The A24 backlog above is otherwise the live plan.
   Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1: **595 passed** at the QUAD4 merge, **601**
   with the harvest at `6cf0f49`, **617** after merging the trunk tip back in (A31's P0
   acceptance batch), **642** once A41's FRF correlation block landed, and finally
-  **679 passed, 0 failed** (114 s) at `16ff791`, the commit this sweep pushed to the
+  **841 passed, 0 failed** (26 s) at `936edc5`, the last commit this sweep pushed to the
   trunk. `ruff check .` clean at every step. `PR_DRAFT.md` refreshed off the stale 498
-  baseline — count, title, per-suite breakdown (sums to 679), the QUAD4,
+  baseline — count, title, per-suite breakdown (sums to 841), the QUAD4,
   reduction/expansion and FRF-block capabilities, 40 registered criteria, and the scope
   note that used to claim no continuum elements exist. The trunk moved under this task
   eight times; the count holds only for as long as that does, and the per-suite
@@ -1577,6 +1631,48 @@ A27. The A24 backlog above is otherwise the live plan.
   a task already closed on the trunk is what produced the duplication; a check of the trunk's
   gap table before dispatch would have caught it.
 
+#### A52 — `cursor/optimization-acceptance-gates-2414` merged onto the trunk (backfill for A34)
+- **A40's "subsumed" verdict was true when written and is no longer.** The sweep above
+  closed `cursor/optimization-acceptance-gates-2414` as carrying nothing but `932fccd`
+  plus a merge commit. A34 then pushed four more commits onto it — the two-link AC-OPT-002
+  oracle, the bound-active AC-OPT-003 case, the §7/§8 `OPTIMIZATION.md` notes, and its own
+  progress record — so the branch had unique content after all and was still unmerged at
+  `ec0e927`. Merged here.
+- **What the merge actually takes.** Only `tests/acceptance/test_optimization.py`,
+  `docs/OPTIMIZATION.md` and the A34 progress entry. Git reported conflicts across
+  `optimization/backends.py`, `optimization/problem.py` and `tests/test_optimization.py`
+  as well, but those are an artifact of a criss-cross history — the two branches have
+  **two** merge bases (`1db2f03` and `7f1a094`), so the ort strategy diffs against a
+  synthesized base. Against the real tip base the gates branch changes none of those three
+  files: A34 had already adopted the trunk's module wholesale, and the trunk has since
+  advanced past it via A40's harvest of `f421`. All three were resolved to the trunk side,
+  which is the no-op resolution, not a judgement call.
+- The one substantive resolution was an import block: the gates branch's copy of the
+  acceptance file predates the trunk's `NaturalFrequency`/`Objective` imports, so the
+  union was kept. `PROGRESS.md` took both new sections.
+- **Verified** from a private clone at `/tmp/a52` with `PYTHONPATH=/tmp/a52/src`, Python
+  3.12.3 / NumPy 2.5.2 / SciPy 1.18.1: **676 passed, 0 failed** at the gate merge itself,
+  and finally **876 passed, 0 failed** at `0928f95`, the pushed tip, after the integration
+  branch moved six times underneath this task — A44's AC-WORK/AC-UPD-007 tagging, then
+  A46's TET4 slice and A49's Bayesian MAP estimator, then A43's dataset-58 sharing and the
+  `correlate-frf` CLI command, then the MS-1.1 modal input validation with AC-MODAL-007/009,
+  then a further AC-CORR batch. `ruff check .` clean at every step; the 15 AC-OPT gates pass
+  on the merged tree. The count is a moving target on a trunk this active: treat it as
+  correct for the named commit, not as a standing figure.
+- `PR_DRAFT.md` was re-pinned at 876 with the per-suite breakdown re-derived from
+  `--collect-only` rather than adjusted arithmetically, and three claims it had outgrown
+  were corrected rather than left standing behind a fresh count: TET4 is landed (so
+  R2-T02's open list is HEX8, the 3D beam and shell facets, with TET4's bending lock
+  pinned by test rather than fixed), the Bayesian MAP path is implemented with its
+  AC-UPD-006a/b rows still untagged, and the CLI has a fourth command.
+- **Working-tree hazard, seventh occurrence — and this time it ate a commit.** The first
+  merge was made in `/workspace` and verified green at 665, and was then destroyed by
+  another agent's `git reset --hard` before it could be pushed; the reflog shows the
+  branch reset out from under this task three times inside a few minutes. Redone in a
+  private clone. The lesson is not new but the failure mode is sharper than the earlier
+  reports: `/workspace` loses *committed, unpushed* work, so committing is not a
+  safeguard there — only a private checkout is.
+
 #### A43 — R2-T03: the AC-CORR-006 gate lands and the criterion is registered (backfill for A36)
 - **AC-CORR-006 is `implemented`.** `tests/acceptance/test_correlation.py` gained the
   nine tests (**19 parametrized cases**) A36's hand-off asked for, and the registry row
@@ -1627,13 +1723,14 @@ A27. The A24 backlog above is otherwise the live plan.
   sees the 5 measured rows. The conservative side is the expanded one — useful to know for
   anyone tempted to treat expansion as cosmetic. Also pinned by a test, so the equality the
   criterion asserts is never read as unconditional.
-- **Verified 2026-08-26 08:14 UTC** from a private worktree with both `PYTHONPATH` entries
-  pinned to it (`<worktree>:<worktree>/src`) — necessary because the venv's editable
-  install resolves `openfemlab` to the shared `/workspace/src`. Full suite **672 passed,
-  0 failed** in 70.8 s on Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1; the same tip with
-  `-k "not ac_corr_006"` gives **653 passed**, so this change is +19 and touches nothing
-  else. Repository-wide `python -m ruff check .` clean. Rebased three times onto a tip
-  that moved under the work each time.
+- **Verified 2026-08-26 08:19 UTC** at the pushed tip `9f8a1b6`, from a private worktree
+  with both `PYTHONPATH` entries pinned to it (`<worktree>:<worktree>/src`) — necessary
+  because the venv's editable install resolves `openfemlab` to the shared `/workspace/src`.
+  Full suite **680 passed, 0 failed** in 104.9 s on Python 3.12.3 / NumPy 2.5.2 /
+  SciPy 1.18.1; the same tip with `-k "not ac_corr_006"` gives **661 passed, 19
+  deselected**, so this change is exactly +19 and touches nothing else. Repository-wide
+  `python -m ruff check .` clean. Rebased five times onto a tip that moved under the work
+  each time; the absolute count is only meaningful next to the delta.
 - **Working-tree hazard, seventh and eighth occurrence — and the first one that cost a
   branch ref.** `/workspace` was reset out from under the first attempt exactly as A40
   describes, so the work moved to a private worktree at `/tmp/a43`. That path was then
@@ -1956,10 +2053,11 @@ Verified in a private clone at `/tmp/a46` with `PYTHONPATH=/tmp/a46/src`, on Pyt
 clean. That is the trunk's 636 at `1db2f03` plus the 66 new ones. The trunk moved to
 `0bed333` (A40's merge sweep and A41's FRF report block) while this was being verified, so
 the slice was merged onto that tip and re-run: **737 passed**, Ruff still clean. It moved
-again to `44f2ec0` (A44's AC-WORK/AC-UPD-007 tagging) during the push, so the branch was
-synced once more and re-run at **740 passed**, Ruff clean. Both conflicts were the Active
-Pool table and the appended entries at the end of this file, where each side had added its
-own rows; everything was kept.
+three more times during the push — A44's AC-WORK/AC-UPD-007 tagging, A43's AC-CORR-006
+gate and the R2-T04 Bayesian MAP landing — so the branch was synced after each and re-run
+at 740, 746 and finally **781 passed** at the pushed tip `e4bd20c`, Ruff clean throughout.
+Every conflict was the Active Pool table or the appended entries at the end of this file,
+where each side had added its own rows; all were kept.
 
 **Working-tree hazard, again.** A concurrent agent ran `git reset --hard` on `/workspace`
 mid-edit and discarded the first pass of this element wholesale. The work was redone in a
@@ -2064,3 +2162,20 @@ the AC-UPD-006a/b registry rows stay `specified` because their tags belong in
   checkout, and it was again the right call: the integration tip moved twice during this
   landing (a 34-commit A40/A52 merge sweep, then the A43 AC-CORR-006 batch) and both were
   absorbed by rebase with no conflicts and no lost work.
+
+#### A62 — superseded-branch closure record and trunk verification (backfill for A40)
+
+- Added `.agent_workspace/BRANCH_CLEANUP.md` with explicit closure dispositions for
+  `cursor/r1o2-correlation-updating-e393`, `cursor/merge-quad4-backfill-4595`, and
+  `cursor/dynamics-damping-frf-9500`.
+- Verified against fetched remote tips that the QUAD4 backfill (`d3498b4`) and
+  dynamics/FRF (`f4683d6`) branches are ancestors of trunk with zero branch-only commits.
+  R1-O2 (`f1452f8`) remains intentionally non-ancestral: A14's reconciliation tip
+  (`5762f2d`) is on trunk, while merging the three obsolete branch-only commits would
+  restore a parallel implementation and weaken the trunk's null-mode MAC contract.
+- Confirmed that none of the three branches has an associated open or closed GitHub pull
+  request. All three remote branches can be deleted; R1-O2 must be closed as superseded,
+  not merged.
+- Verified the exact committed trunk snapshot `8604807` from the isolated
+  `/tmp/a62-cleanup` clone with `PYTHONPATH` pinned to its own `src`: **876 passed,
+  0 failed** in 29.26 seconds.

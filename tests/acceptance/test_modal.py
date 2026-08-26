@@ -18,6 +18,14 @@ Implemented here
 - **AC-MODAL-006** (contract, MS-1.2) — every returned eigenpair satisfies the
   MS-1.2 relative residual, and a starved Lanczos run raises
   ``SolverConvergenceError`` with the residuals attached.
+- **AC-MODAL-007** (oracle, MS-1.4) — summed over the complete modal basis, the
+  effective modal masses reproduce the rigid-body mass of the structure in each
+  translational direction to 1e-8 relative.
+- **AC-MODAL-009** (contract, MS-1.1) — an asymmetric ``K`` or ``M`` beyond the
+  MS-1.1 tolerance raises ``MatrixSymmetryError``, an indefinite ``M`` or a
+  negative eigenvalue past the rigid-body noise floor raises
+  ``MatrixDefinitenessError``, and the solver package contains no bare
+  ``assert`` and no path that returns a NaN instead of failing.
 
 MS-1.2 also lists ``lobpcg`` as an optional third backend. ``ModalSolver``
 exposes the dense and shift-invert Lanczos paths today through its ``sparse``
@@ -27,19 +35,29 @@ lands later, so the pairwise comparison extends without editing this suite.
 
 from __future__ import annotations
 
+import ast
 import inspect
 from itertools import combinations
+from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pytest
 from scipy.linalg import eigh, null_space
 
+import openfemlab.solver as solver_package
 from openfemlab import ModalSolver
+from openfemlab.core.model import DOF
 from openfemlab.correlation import mac
-from openfemlab.exceptions import SolverConvergenceError
-from openfemlab.mesh.simple import beam_mesh, spring_mass_chain
-from openfemlab.solver.modal import residual_floor
+from openfemlab.exceptions import (
+    MatrixDefinitenessError,
+    MatrixSymmetryError,
+    OpenFEMLabError,
+    SolverConvergenceError,
+    SolverError,
+)
+from openfemlab.mesh.simple import beam_mesh, quad_plate_mesh, spring_mass_chain
+from openfemlab.solver.modal import SYMMETRY_TOL, residual_floor, symmetry_defect
 
 from ._support import (
     SQUARE,
@@ -67,6 +85,10 @@ BACKEND_MAC_TOLERANCE = 1e-10
 ORTHONORMALITY_TOLERANCE = 1e-8
 RESIDUAL_TOLERANCE = 1e-8
 SIGN_TIE_TOLERANCE = 1e-8
+EFFECTIVE_MASS_RTOL = 1e-8
+
+#: Mass fraction a half-length modal basis must still be missing (AC-MODAL-007).
+TRUNCATION_DEFICIT = 1e-4
 
 #: Solver keywords per MS-1.2 backend name.
 BACKENDS: dict[str, dict[str, Any]] = {
@@ -483,3 +505,374 @@ def test_ac_modal_006_a_loosely_converged_run_is_rejected_by_the_residual_gate()
     # — and not some other guard — the thing that rejected them.
     loose = ModalSolver(model).solve(num_modes=10, sparse=True, tol=1e-3, residual_tol=None)
     assert np.max(_free_dof_residuals(loose)) > RESIDUAL_TOLERANCE
+
+
+# --------------------------------------------------------------- AC-MODAL-007
+
+#: Chain masses of the two completeness cases, uniform and graded.
+COMPLETENESS_CHAIN_MASSES = 10
+GRADED_MASSES = tuple(0.5 + 0.25 * index for index in range(COMPLETENESS_CHAIN_MASSES))
+
+#: Cantilevered plate: a two-direction model with a consistent-mass beam
+#: alongside it, so the completeness identity is checked where the mass matrix
+#: is neither diagonal nor confined to a single direction.
+PLATE_DIVISIONS = (6, 3)
+
+
+def _grounded_chain(mass) -> ModalSolver:
+    return ModalSolver(spring_mass_chain(COMPLETENESS_CHAIN_MASSES, 1.0, mass))
+
+
+def _plate_solver() -> ModalSolver:
+    plate = quad_plate_mesh(
+        2.0, 0.5, *PLATE_DIVISIONS, STEEL, thickness=0.01, support="cantilever",
+        lumped_mass=True,
+    )
+    return ModalSolver(plate)
+
+
+def _beam_solver_full() -> ModalSolver:
+    return ModalSolver(beam_mesh(1.0, 8, STEEL, SQUARE, support="cantilever"))
+
+
+#: Models whose mass is carried entirely by free DOFs, so the participating
+#: mass of MS-1.4 *is* the total mass of the model.
+FULLY_FREE_MASS_CASES = {
+    "uniform_chain": lambda: (_grounded_chain(2.0), ("UX",)),
+    "graded_chain": lambda: (_grounded_chain(GRADED_MASSES), ("UX",)),
+}
+
+#: Models whose supports carry mass too; there the oracle is the rigid-body
+#: mass of the *free* partition (see the second test).
+SUPPORTED_MASS_CASES = {
+    "cantilever_beam": lambda: (_beam_solver_full(), ("UX", "UY")),
+    "cantilever_plate": lambda: (_plate_solver(), ("UX", "UY")),
+}
+
+COMPLETENESS_CASES = FULLY_FREE_MASS_CASES | SUPPORTED_MASS_CASES
+
+
+def _complete_basis(solver: ModalSolver):
+    """Every mode of the free partition, with nothing condensed away."""
+    return solver.solve(
+        num_modes=solver.system.num_free_dofs, sparse=False, condense_massless=False
+    )
+
+
+def _rigid_body_mass(system, direction: str) -> float:
+    """``r^T M r`` for the unit translation ``r`` of the free DOFs (MS-1.4).
+
+    Spelled out here rather than taken from the result object: the mass a
+    structure can put into its modes is the mass its *free* DOFs carry, so this
+    is what the modal sum has to reproduce. It coincides with the total mass of
+    the model exactly when no supported DOF holds any.
+    """
+    influence = np.zeros(system.num_dofs, dtype=float)
+    influence[np.asarray(system.dof_types) == int(DOF.parse(direction))] = 1.0
+    influence[system.constrained_dofs] = 0.0
+    return float(influence @ (system.M @ influence))
+
+
+@criterion("AC-MODAL-007")
+@pytest.mark.parametrize("case", sorted(COMPLETENESS_CASES))
+def test_ac_modal_007_the_complete_basis_accounts_for_all_participating_mass(case):
+    """``sum_j m_eff,j = r^T M r`` per translational direction, to 1e-8 relative."""
+    solver, directions = COMPLETENESS_CASES[case]()
+
+    result = _complete_basis(solver)
+
+    assert result.num_modes == solver.system.num_free_dofs
+    for direction in directions:
+        total = _rigid_body_mass(result.system, direction)
+        recovered = float(np.sum(result.effective_masses(direction)))
+        assert recovered == pytest.approx(total, rel=EFFECTIVE_MASS_RTOL), (
+            f"{case}/{direction}: {recovered:.12g} of {total:.12g}"
+        )
+
+
+@criterion("AC-MODAL-007")
+@pytest.mark.parametrize("case", sorted(FULLY_FREE_MASS_CASES))
+def test_ac_modal_007_that_sum_is_the_total_mass_when_no_support_carries_any(case):
+    """On the chains the MS-1.4 oracle is the model's own total mass."""
+    solver, directions = FULLY_FREE_MASS_CASES[case]()
+
+    result = _complete_basis(solver)
+
+    total_mass = result.system.total_mass
+    assert _rigid_body_mass(result.system, "UX") == pytest.approx(total_mass, rel=1e-14)
+    for direction in directions:
+        recovered = float(np.sum(result.effective_masses(direction)))
+        assert recovered == pytest.approx(total_mass, rel=EFFECTIVE_MASS_RTOL)
+
+
+@criterion("AC-MODAL-007")
+@pytest.mark.parametrize("case", sorted(SUPPORTED_MASS_CASES))
+def test_ac_modal_007_mass_held_by_the_supports_is_correctly_left_out(case):
+    """Where the two oracles differ, and why the free-partition one is right.
+
+    A clamped node of a consistent-mass beam — or of a lumped-mass plate whose
+    fixed edge owns a share of the element mass — still contributes to the total
+    mass of the model, but the reaction carries it and no mode can. Summing the
+    effective masses to the *total* mass there would be wrong, so the criterion
+    is pinned against the participating mass and this test records the gap.
+    """
+    solver, directions = SUPPORTED_MASS_CASES[case]()
+
+    result = _complete_basis(solver)
+
+    for direction in directions:
+        participating = _rigid_body_mass(result.system, direction)
+        assert participating < result.system.total_mass
+        assert float(np.sum(result.effective_masses(direction))) == pytest.approx(
+            participating, rel=EFFECTIVE_MASS_RTOL
+        )
+
+
+@criterion("AC-MODAL-007")
+@pytest.mark.parametrize("case", sorted(COMPLETENESS_CASES))
+def test_ac_modal_007_a_truncated_basis_falls_short(case):
+    """Completeness is a real gate: half the basis leaves mass unaccounted for.
+
+    Half rather than "all but the last mode", because the top of the spectrum
+    contributes so little that dropping one mode is invisible at 1e-8 — which
+    is exactly why the criterion asks for the *complete* basis and why the
+    truncation this test uses has to be a substantial one to mean anything.
+    """
+    solver, directions = COMPLETENESS_CASES[case]()
+
+    result = _complete_basis(solver)
+
+    for direction in directions:
+        masses = result.effective_masses(direction)
+        total = _rigid_body_mass(result.system, direction)
+        assert np.all(masses >= 0.0), "an effective mass is a square; it cannot be negative"
+        cumulative = np.cumsum(masses)
+        assert np.all(np.diff(cumulative) >= 0.0)
+        half = cumulative[masses.size // 2 - 1]
+        assert half < total * (1.0 - TRUNCATION_DEFICIT), (
+            f"{case}/{direction}: half the basis already holds {half / total:.9f}"
+        )
+
+
+@criterion("AC-MODAL-007")
+def test_ac_modal_007_effective_mass_is_the_squared_participation_factor():
+    """MS-1.4 pinned: for mass-normalized modes ``m_eff,j = Gamma_j^2``."""
+    solver, _ = FULLY_FREE_MASS_CASES["graded_chain"]()
+
+    result = _complete_basis(solver)
+
+    assert result.normalization == "mass"
+    np.testing.assert_allclose(result.modal_masses, 1.0, atol=ORTHONORMALITY_TOLERANCE)
+    np.testing.assert_allclose(
+        result.effective_masses("UX"), result.participation_factors("UX") ** 2, rtol=1e-12
+    )
+
+
+# --------------------------------------------------------------- AC-MODAL-009
+
+#: A well-posed 3-DOF reference the invalid inputs below are perturbations of.
+VALID_K = np.array([[2.0, -1.0, 0.0], [-1.0, 2.0, -1.0], [0.0, -1.0, 1.0]])
+VALID_M = np.diag([1.0, 2.0, 3.0])
+
+#: Asymmetry large enough to be a modelling error rather than round-off.
+ASYMMETRY = 1e-3
+
+
+def _perturbed(matrix: np.ndarray, row: int, column: int, amount: float) -> np.ndarray:
+    perturbed = matrix.copy()
+    perturbed[row, column] += amount
+    return perturbed
+
+
+@criterion("AC-MODAL-009")
+@pytest.mark.parametrize("name", ["K", "M"])
+@pytest.mark.parametrize("backend", sorted(BACKENDS))
+def test_ac_modal_009_an_asymmetric_matrix_is_rejected_by_name(name, backend):
+    """MS-1.1 validates symmetry before enforcing it; a real defect raises."""
+    K = _perturbed(VALID_K, 0, 1, ASYMMETRY) if name == "K" else VALID_K
+    M = _perturbed(VALID_M, 0, 1, ASYMMETRY) if name == "M" else VALID_M
+
+    with pytest.raises(MatrixSymmetryError) as excinfo:
+        ModalSolver.from_matrices(K, M).solve(num_modes=2, **BACKENDS[backend])
+
+    error = excinfo.value
+    assert error.matrix == name
+    assert error.tolerance == SYMMETRY_TOL
+    assert error.defect > SYMMETRY_TOL
+    assert error.defect == pytest.approx(symmetry_defect(K if name == "K" else M), rel=1e-12)
+
+
+@criterion("AC-MODAL-009")
+@pytest.mark.parametrize("backend", sorted(BACKENDS))
+def test_ac_modal_009_round_off_asymmetry_is_still_symmetrized_silently(backend):
+    """The gate is a tolerance, not a ban: MS-1.1 averages what it accepts."""
+    nudged = _perturbed(VALID_K, 0, 1, 1e-14)
+    assert 0.0 < symmetry_defect(nudged) <= SYMMETRY_TOL
+
+    reference = ModalSolver.from_matrices(VALID_K, VALID_M).solve(
+        num_modes=3, **BACKENDS[backend]
+    )
+    accepted = ModalSolver.from_matrices(nudged, VALID_M).solve(
+        num_modes=3, **BACKENDS[backend]
+    )
+
+    np.testing.assert_allclose(accepted.eigenvalues, reference.eigenvalues, rtol=1e-10)
+
+
+@criterion("AC-MODAL-009")
+@pytest.mark.parametrize(
+    ("label", "mass"),
+    [
+        ("negative_diagonal", np.diag([1.0, -1.0, 3.0])),
+        ("indefinite", np.array([[1.0, 2.0, 0.0], [2.0, 1.0, 0.0], [0.0, 0.0, 1.0]])),
+        ("singular", np.diag([1.0, 0.0, 3.0])),
+    ],
+)
+def test_ac_modal_009_a_mass_matrix_that_is_not_definite_is_rejected(label, mass):
+    """Every non-SPD mass matrix leaves through ``MatrixDefinitenessError``.
+
+    The three cases enter the solver by different routes — the O(n) diagonal
+    screen, the failed LAPACK factorization, and the massless-DOF condensation
+    that cannot condense a DOF with no stiffness of its own — and the criterion
+    is that a caller sees one error type regardless.
+    """
+    with pytest.raises(SolverError) as excinfo:
+        ModalSolver.from_matrices(VALID_K, mass).solve(
+            num_modes=2, sparse=False, condense_massless=False
+        )
+
+    error = excinfo.value
+    if label == "singular":
+        # A zero-mass DOF is not a definiteness failure, it is the ill-posed
+        # eigenproblem MS-1.1 asks to be condensed away; with condensation
+        # switched off it must still fail loudly rather than return junk.
+        assert isinstance(error, SolverError)
+    else:
+        assert isinstance(error, MatrixDefinitenessError)
+        assert error.matrix == "M"
+
+
+@criterion("AC-MODAL-009")
+def test_ac_modal_009_a_singular_mass_matrix_is_condensed_rather_than_rejected():
+    """The counterpart of the case above: MS-1.1's sanctioned way out."""
+    mass = np.diag([1.0, 0.0, 3.0])
+
+    result = ModalSolver.from_matrices(VALID_K, mass).solve(
+        num_modes=2, sparse=False, condense_massless=True
+    )
+
+    assert result.num_condensed_dofs == 1
+    assert np.all(np.isfinite(result.eigenvalues))
+
+
+@criterion("AC-MODAL-009")
+@pytest.mark.parametrize("backend", sorted(BACKENDS))
+def test_ac_modal_009_a_negative_eigenvalue_past_the_noise_floor_is_rejected(backend):
+    """``omega^2 < 0`` is an imaginary frequency, not a rigid-body mode."""
+    unstable = np.diag([1.0, 1.0, -1.0])
+
+    with pytest.raises(MatrixDefinitenessError) as excinfo:
+        ModalSolver.from_matrices(unstable, VALID_M).solve(num_modes=3, **BACKENDS[backend])
+
+    error = excinfo.value
+    assert error.matrix == "K"
+    assert error.value < 0.0
+
+
+@criterion("AC-MODAL-009")
+def test_ac_modal_009_the_definiteness_gate_can_be_opened_deliberately():
+    """``definiteness_tol=None`` warns instead, so the spectrum stays inspectable.
+
+    Opening it alone is not enough, and that is the point: the buckling mode is
+    reported at ``lambda = 0`` while ``K phi = -M phi``, so the MS-1.2 residual
+    gate rejects it next. An unstable model can only be looked at by disabling
+    both guards explicitly — there is no combination of defaults that returns
+    one of these pairs as if it were converged.
+    """
+    unstable = np.diag([1.0, 1.0, -1.0])
+    solver = ModalSolver.from_matrices(unstable, VALID_M)
+
+    with pytest.warns(RuntimeWarning, match="negative eigenvalues"):
+        with pytest.raises(SolverConvergenceError):
+            solver.solve(num_modes=3, sparse=False, definiteness_tol=None)
+
+    with pytest.warns(RuntimeWarning, match="negative eigenvalues"):
+        result = solver.solve(
+            num_modes=3, sparse=False, definiteness_tol=None, residual_tol=None
+        )
+
+    assert result.eigenvalues[0] == 0.0
+    assert np.all(np.isfinite(result.mode_shapes))
+
+
+@criterion("AC-MODAL-009")
+def test_ac_modal_009_a_rigid_body_model_is_not_caught_by_the_definiteness_gate():
+    """The gate fires below the noise floor only, which is what makes it a default."""
+    K, M = free_free_chain_matrices(FREE_FREE_CHAIN_MASSES)
+
+    result = ModalSolver.from_matrices(K, M).solve(num_modes=3, sparse=False)
+
+    assert result.eigenvalues[0] == 0.0
+    assert bool(result.is_rigid[0])
+
+
+@criterion("AC-MODAL-009")
+@pytest.mark.parametrize("name", ["K", "M"])
+def test_ac_modal_009_non_finite_entries_fail_instead_of_propagating(name):
+    """A NaN must not travel through LAPACK into a result that looks solved."""
+    K = _perturbed(VALID_K, 1, 1, np.nan) if name == "K" else VALID_K
+    M = _perturbed(VALID_M, 1, 1, np.nan) if name == "M" else VALID_M
+
+    with pytest.raises(SolverError, match="non-finite"):
+        ModalSolver.from_matrices(K, M).solve(num_modes=2, sparse=False)
+
+
+@criterion("AC-MODAL-009")
+@pytest.mark.parametrize("case", sorted(MODEL_CASES))
+@pytest.mark.parametrize("backend", sorted(BACKENDS))
+def test_ac_modal_009_an_accepted_result_never_carries_a_nan(case, backend):
+    """The other half of "no silent NaN": what comes back is always finite."""
+    solver, num_modes = MODEL_CASES[case]()
+
+    result = solver.solve(num_modes=num_modes, **BACKENDS[backend])
+
+    assert np.all(np.isfinite(result.eigenvalues))
+    assert np.all(np.isfinite(result.frequencies))
+    assert np.all(np.isfinite(result.mode_shapes))
+
+
+@criterion("AC-MODAL-009")
+@pytest.mark.parametrize(
+    ("label", "call"),
+    [
+        ("unknown_normalization",
+         lambda: ModalSolver.from_matrices(VALID_K, VALID_M).solve(normalization="unit")),
+        ("no_modes",
+         lambda: ModalSolver.from_matrices(VALID_K, VALID_M).solve(num_modes=0)),
+        ("shape_mismatch",
+         lambda: ModalSolver.from_matrices(VALID_K, np.eye(4))),
+        ("rectangular",
+         lambda: ModalSolver.from_matrices(np.ones((2, 3)), np.ones((2, 3)))),
+        ("no_source", lambda: ModalSolver()),
+        ("two_sources", lambda: ModalSolver(object(), system=object())),
+    ],
+)
+def test_ac_modal_009_malformed_requests_raise_typed_errors(label, call):
+    """Every caller mistake leaves through the package's own exception tree."""
+    with pytest.raises(OpenFEMLabError):
+        call()
+
+
+@criterion("AC-MODAL-009")
+def test_ac_modal_009_the_solver_package_contains_no_bare_assert():
+    """MS-1.1: typed exceptions, never a bare ``assert`` a -O run would drop."""
+    offenders = []
+    root = Path(solver_package.__file__).parent
+    for path in sorted(root.rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        offenders += [
+            f"{path.relative_to(root)}:{node.lineno}"
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Assert)
+        ]
+    assert not offenders, f"bare assert statements in the solver package: {offenders}"
