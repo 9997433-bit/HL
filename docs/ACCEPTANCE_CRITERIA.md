@@ -410,10 +410,10 @@ M4 = 5, M5 = 4, M6 = 5, and M7 = 3. The two suffixed M3 rows
 (`AC-UPD-006a` / `AC-UPD-006b`) are distinct criteria under one dense base
 number.
 
-Eight of them are `verified` under the section 1.5 gate — one blocking
-criterion per module, so the promotion exercises every module of the platform:
-AC-MODAL-003, AC-CORR-001, AC-CORR-002, AC-UPD-001, AC-WORK-002, AC-OPT-003,
-AC-DYN-004, AC-ELEM-001.
+Nine of them are `verified` under the section 1.5 gate: one criterion per
+module, so the promotion exercises every module of the platform
+(AC-MODAL-003, AC-CORR-001, AC-CORR-002, AC-UPD-001, AC-WORK-002, AC-OPT-003,
+AC-DYN-004, AC-ELEM-001), plus the P1 Round-2 sign-off blocker AC-CORR-006.
 
 The registry tests enforce:
 

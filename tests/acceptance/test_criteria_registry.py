@@ -120,7 +120,7 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
     _c("AC-CORR-005", "Frequency-error sign convention",
        "P0", "oracle", "MS-2.4", _CORR_SUITE, "implemented"),
     _c("AC-CORR-006", "Reduction/expansion (SEREP) consistency",
-       "P1", "twin", "MS-2.1", _CORR_SUITE, "implemented"),
+       "P1", "twin", "MS-2.1", _CORR_SUITE, "verified"),
     _c("AC-CORR-007", "MAC range and complex-shape support",
        "P0", "property", "MS-2.2", _CORR_SUITE, "implemented"),
     _c("AC-CORR-008", "CorrelationReport JSON round-trip",
