@@ -6,8 +6,9 @@
  */
 
 import { createServer } from 'node:http'
-import { readFile } from 'node:fs/promises'
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { extname, join, normalize } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import puppeteer from 'puppeteer-core'
@@ -55,6 +56,7 @@ const ROUTES = [
   ['数独空间站', '/#/sudoku'],
   ['生活行星', '/#/word-problems'],
   ['成就墙', '/#/progress'],
+  ['家长中心', '/#/parent'],
   ['未知路由回落', '/#/nope/nope'],
 ]
 
@@ -526,6 +528,110 @@ await interact('数独空间站：切换 9×9 档位', '/#/sudoku', async (page)
     throw new Error(`9×9 填数没生效：空格 ${info.empty} → ${emptyAfter}`)
   }
   return `81 格 / 9 个数字键，空格 ${info.empty} → ${emptyAfter}`
+})
+
+/* ------------------------------------------------------------ 家长中心 */
+
+/** 读口算门上的题面并算出答案；进门后题面消失，返回 null。 */
+const gateSum = (page) =>
+  page.evaluate(() => {
+    const label = document.querySelector('label[for="parent-gate"]')?.innerText ?? ''
+    const m = label.match(/(\d+)\s*\+\s*(\d+)/)
+    return m ? Number(m[1]) + Number(m[2]) : null
+  })
+
+await interact('家长中心：口算门挡住孩子', '/#/parent', async (page) => {
+  const sum = await gateSum(page)
+  if (sum === null) throw new Error('家长中心没有口算门')
+
+  await page.type('#parent-gate', String(sum + 7))
+  await page.click('.gate-form button[type="submit"]')
+  await sleep(400)
+  if ((await gateSum(page)) === null) throw new Error('口算门答错也放行了')
+
+  const retry = await gateSum(page)
+  await page.type('#parent-gate', String(retry))
+  await page.click('.gate-form button[type="submit"]')
+  await sleep(600)
+  if ((await gateSum(page)) !== null) throw new Error('答对了却没进家长中心')
+
+  const panel = await page.evaluate(() => ({
+    radar: !!document.querySelector('.radar-shape'),
+    axes: document.querySelectorAll('.axis-row').length,
+    sections: [...document.querySelectorAll('.panel-title')].map((h) => h.innerText.trim()),
+  }))
+  if (!panel.radar) throw new Error('没有渲染技能雷达')
+  if (panel.axes !== 6) throw new Error(`技能雷达应有 6 根轴，实际 ${panel.axes}`)
+  for (const need of ['时长提醒', '技能雷达', '错因统计', '进度备份']) {
+    if (!panel.sections.some((title) => title.includes(need))) {
+      throw new Error(`家长中心缺少「${need}」板块`)
+    }
+  }
+  return `答错被拦下，答对后进入；雷达 ${panel.axes} 轴，板块 ${panel.sections.length} 个`
+})
+
+await interact('家长中心：导入 JSON 覆盖进度', '/#/parent', async (page) => {
+  const dir = await mkdtemp(join(tmpdir(), 'mathquest-'))
+  const file = join(dir, 'backup.json')
+  await writeFile(
+    file,
+    JSON.stringify({
+      app: 'mathquest',
+      version: 1,
+      progress: {
+        pilotName: '备份船长',
+        stars: 42,
+        level: 3,
+        totalAnswered: 99,
+        totalCorrect: 80,
+        mastery: { 'add-within-10': 0.9 },
+        errorTagCounts: { carry: 5, borrow: 2 },
+        daily: { '2026-01-01': { seconds: 600, answered: 12, correct: 9 } },
+      },
+    }),
+  )
+
+  const sum = await gateSum(page)
+  await page.type('#parent-gate', String(sum))
+  await page.click('.gate-form button[type="submit"]')
+  await sleep(500)
+
+  const input = await page.$('input[type="file"]')
+  if (!input) throw new Error('家长中心没有导入入口')
+  await input.uploadFile(file)
+  await sleep(700)
+
+  const stored = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem('mathquest/progress') || '{}'),
+  )
+  if (stored.totalAnswered !== 99 || stored.stars !== 42) {
+    throw new Error(`导入没有写进 store：题数 ${stored.totalAnswered}，星星 ${stored.stars}`)
+  }
+  if (stored.mastery?.['add-within-10'] !== 0.9) throw new Error('导入丢了掌握度')
+
+  const shown = await starCount(page)
+  if (shown !== 42) throw new Error(`导入后顶栏星星显示 ${shown}，应为 42`)
+
+  const rendered = await page.evaluate(() => ({
+    errors: document.querySelectorAll('.error-row').length,
+    text: document.body.innerText,
+  }))
+  if (rendered.errors !== 2) throw new Error(`错因统计应有 2 条，实际 ${rendered.errors}`)
+  if (!rendered.text.includes('99')) throw new Error('累计题数没有刷新到 99')
+
+  // 导入的是整档备份，导出必须能原样还回去
+  const roundTrip = await page.evaluate(() => {
+    const raw = localStorage.getItem('mathquest/progress')
+    return JSON.parse(raw).errorTagCounts
+  })
+  if (roundTrip.carry !== 5) throw new Error('错因计数在导入后被改写')
+
+  await page.evaluate(() => {
+    const el = [...document.querySelectorAll('button')].find((b) => b.innerText.includes('导出'))
+    if (el) el.click()
+  })
+  await sleep(300)
+  return `导入 99 题 / 42 星生效，错因 ${rendered.errors} 条，顶栏星星 ${shown}`
 })
 
 await browser.close()

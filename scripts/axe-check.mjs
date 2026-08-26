@@ -37,9 +37,26 @@ const APPS = [
       ['数独空间站', '/#/sudoku'],
       ['生活行星', '/#/word-problems'],
       ['成就墙', '/#/progress'],
+      ['家长中心', '/#/parent', unlockParentGate],
     ],
   },
 ]
+
+/**
+ * 家长中心默认被一道口算题挡着，直接扫只能扫到门口那一屏。
+ * 这里先把题算对进门，让报告正文也进入扫描范围。
+ */
+async function unlockParentGate(page) {
+  const sum = await page.evaluate(() => {
+    const label = document.querySelector('label[for="parent-gate"]')?.textContent ?? ''
+    const match = label.match(/(\d+)\s*\+\s*(\d+)/)
+    return match ? Number(match[1]) + Number(match[2]) : null
+  })
+  if (sum === null) throw new Error('家长中心没有找到口算门')
+  await page.type('#parent-gate', String(sum))
+  await page.click('.gate-form button[type="submit"]')
+  await page.waitForFunction(() => !document.querySelector('#parent-gate'), { timeout: 5_000 })
+}
 
 const MIME = {
   '.css': 'text/css; charset=utf-8',
@@ -120,7 +137,7 @@ async function closeServer(server) {
 }
 
 async function scanPage(browser, app, base, route) {
-  const [routeName, routePath] = route
+  const [routeName, routePath, prepare] = route
   const page = await browser.newPage()
   await page.setViewport({ width: 420, height: 860, isMobile: true, hasTouch: true })
 
@@ -140,6 +157,11 @@ async function scanPage(browser, app, base, route) {
       { timeout: 8_000 },
     )
     await new Promise((resolveWait) => setTimeout(resolveWait, 200))
+    // 有些页面要先走一步交互才能看到正文（例如家长中心的口算门）
+    if (prepare) {
+      await prepare(page)
+      await new Promise((resolveWait) => setTimeout(resolveWait, 300))
+    }
     await page.addScriptTag({ content: axeCore.source })
 
     const result = await page.evaluate(async (tags) => {
