@@ -7,6 +7,14 @@ on the build host) and whose Windows wheels expose WASAPI. The binding also
 hands the stream status flags to every callback, which is what lets this backend
 report under/overruns instead of dropping them silently.
 
+On Windows the backend can additionally request **WASAPI exclusive mode**, which
+bypasses the shared-mode system mixer for a shorter output path. Exclusive mode
+is opt-in twice over: the constructor must ask for it *and* the
+``AUDIO_STUDIO_WASAPI_EXCLUSIVE=1`` safety switch must be set, because an
+exclusive stream takes over the device and can be refused outright. When the
+device rejects the exclusive stream the backend falls back to an ordinary
+shared-mode stream instead of failing playback.
+
 The module is imported lazily by :func:`audio_studio.core.output.create_output`;
 importing it never imports ``sounddevice`` itself, so it stays safe to ship on a
 machine that has no PortAudio at all.
@@ -14,12 +22,15 @@ machine that has no PortAudio at all.
 
 from __future__ import annotations
 
+import os
+import sys
 from contextlib import suppress
 from typing import Any
 
 import numpy as np
 
 from .output import (
+    WASAPI_EXCLUSIVE_ENV_VAR,
     AudioOutput,
     OutputDeviceError,
     _block_size_candidates,
@@ -29,17 +40,34 @@ from .output import (
 __all__ = ["SoundDeviceOutput"]
 
 
+def _device_uses_wasapi(sd: Any, device: int | str | None) -> bool:
+    """Best-effort check that ``device`` is served by the WASAPI host API."""
+    try:
+        info = sd.query_devices(device, kind="output")
+        host_api = sd.query_hostapis(int(info["hostapi"]))
+        return "wasapi" in str(host_api["name"]).lower()
+    except Exception:  # noqa: BLE001 - an unknown host API stays in shared mode
+        return False
+
+
 class SoundDeviceOutput(AudioOutput):
     """PortAudio backend driven in callback (pull) mode via ``sounddevice``."""
 
-    name = "sounddevice"
-
-    def __init__(self, device: int | str | None = None) -> None:
+    def __init__(self, device: int | str | None = None, *, exclusive: bool = False) -> None:
         super().__init__()
         self._device = device
+        self._exclusive = exclusive
+        self._exclusive_active = False
         self._stream: Any | None = None
         self._underflows = 0
         self._overflows = 0
+
+    @property
+    def name(self) -> str:  # type: ignore[override]
+        """Backend label; carries the WASAPI mode when the stream runs exclusive."""
+        if self._exclusive_active:
+            return "sounddevice (WASAPI exclusive)"
+        return "sounddevice"
 
     @staticmethod
     def is_available() -> bool:
@@ -78,6 +106,29 @@ class SoundDeviceOutput(AudioOutput):
                     return latency
         return super().latency
 
+    def _wasapi_exclusive_enabled(self, sd: Any) -> bool:
+        """True when every gate for WASAPI exclusive mode is open.
+
+        The mode engages only when it was requested at construction time, the
+        process runs on Windows, the ``AUDIO_STUDIO_WASAPI_EXCLUSIVE=1`` safety
+        switch is set, and the target output device is driven by WASAPI.
+        """
+        if not (self._exclusive and sys.platform == "win32"):
+            return False
+        if os.environ.get(WASAPI_EXCLUSIVE_ENV_VAR, "").strip() != "1":
+            return False
+        return _device_uses_wasapi(sd, self._device)
+
+    def _extra_settings_candidates(self, sd: Any) -> tuple[Any, ...]:
+        """Host-API ladder: WASAPI exclusive first when engaged, then shared."""
+        if not self._wasapi_exclusive_enabled(sd):
+            return (None,)
+        try:
+            settings = sd.WasapiSettings(exclusive=True)
+        except Exception:  # noqa: BLE001 - a binding without WASAPI support
+            return (None,)
+        return (settings, None)
+
     def _open_stream(self) -> None:
         try:
             import sounddevice as sd
@@ -86,26 +137,33 @@ class SoundDeviceOutput(AudioOutput):
 
         self._underflows = 0
         self._overflows = 0
+        self._exclusive_active = False
         requested = self._block_size
         last_error: Exception | None = None
         try:
             with _quiet_native_stderr():
-                for block_size in _block_size_candidates(requested):
-                    self._block_size = block_size
-                    try:
-                        self._stream = sd.OutputStream(
-                            samplerate=self._sample_rate,
-                            channels=self._channels,
-                            dtype="float32",
-                            blocksize=block_size,
-                            device=self._device,
-                            callback=self._sounddevice_callback,
-                        )
-                    except Exception as exc:  # noqa: BLE001 - try the next safe size
-                        last_error = exc
-                        self._teardown()
-                        continue
-                    return
+                for extra_settings in self._extra_settings_candidates(sd):
+                    stream_kwargs: dict[str, Any] = {}
+                    if extra_settings is not None:
+                        stream_kwargs["extra_settings"] = extra_settings
+                    for block_size in _block_size_candidates(requested):
+                        self._block_size = block_size
+                        try:
+                            self._stream = sd.OutputStream(
+                                samplerate=self._sample_rate,
+                                channels=self._channels,
+                                dtype="float32",
+                                blocksize=block_size,
+                                device=self._device,
+                                callback=self._sounddevice_callback,
+                                **stream_kwargs,
+                            )
+                        except Exception as exc:  # noqa: BLE001 - try the next safe size
+                            last_error = exc
+                            self._teardown()
+                            continue
+                        self._exclusive_active = extra_settings is not None
+                        return
         except Exception as exc:  # noqa: BLE001
             last_error = exc
         self._block_size = requested

@@ -22,6 +22,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="use the simulated output backend instead of a hardware device",
     )
     parser.add_argument(
+        "--wasapi-exclusive",
+        action="store_true",
+        help="request WASAPI exclusive-mode output for lower latency "
+        "(Windows only; other platforms ignore it)",
+    )
+    parser.add_argument(
         "--offscreen",
         action="store_true",
         help="render with the Qt offscreen platform plugin (headless smoke tests)",
@@ -48,13 +54,17 @@ def main(argv: list[str] | None = None) -> int:
     from PySide6.QtWidgets import QApplication
 
     from .core.engine import AudioEngine
-    from .core.output import NullOutput, create_output
+    from .core.output import WASAPI_EXCLUSIVE_ENV_VAR, NullOutput, create_output
     from .ui.main_window import MainWindow
 
     app = QApplication(sys.argv[:1] + (argv or []))
     app.setApplicationName(__app_name__)
     app.setApplicationVersion(__version__)
     app.setOrganizationName("Audio Studio")
+
+    # Must land before the engine builds its output; create_output() reads it.
+    if args.wasapi_exclusive:
+        os.environ[WASAPI_EXCLUSIVE_ENV_VAR] = "1"
 
     output = NullOutput() if args.null_audio else create_output()
     engine = AudioEngine(output)

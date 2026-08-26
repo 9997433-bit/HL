@@ -1,43 +1,53 @@
-"""VST3 plugin slot: load one external plugin into the live preview rack.
+"""VST3 plugin rack: three slots feeding the live preview chain.
 
-The panel is the UI half of :mod:`audio_studio.plugins`. It loads a ``.vst3``
-bundle, wraps it in a :class:`~audio_studio.plugins.adapter.PluginEffectAdapter`
-and inserts that adapter into the same
-:class:`~audio_studio.dsp.effects.base.EffectChain` the effect rack drives, so a
-plugin is auditioned exactly like a built-in effect: it changes what is heard
-and never touches the audio in memory.
+The panel is the UI half of :mod:`audio_studio.plugins`. It loads ``.vst3``
+bundles, wraps each in a
+:class:`~audio_studio.plugins.adapter.PluginEffectAdapter` and inserts those
+adapters into the same :class:`~audio_studio.dsp.effects.base.EffectChain` the
+effect rack drives, so a plugin is auditioned exactly like a built-in effect: it
+changes what is heard and never touches the audio in memory.
 
-There is **one** plugin slot. Loading a second plugin replaces the first rather
-than growing a chain — plugin delay compensation, per-slot state persistence and
-reordering all have to land before a real plugin rack is honest, and a slot that
-silently accumulated unmanaged latency would be worse than no rack at all.
+There are three slots. They run in slot order — slot 1 first — and always ahead
+of the rack's true-peak limiter, which is the safety net for exactly this kind
+of unknown processor. **▲**/**▼** swap neighbouring slots, so the chain order
+can be changed without reloading anything.
 
-Two constraints shape the rest of this module:
+Three constraints shape the rest of this module:
 
 *The GPL boundary.* pedalboard is GPL-3.0 and optional. Nothing here imports it,
 directly or transitively: :mod:`audio_studio.plugins` is pedalboard-free to
-import, the panel probes for the extra with :func:`importlib.util.find_spec`
-(which locates a module without executing it), and pedalboard is only reached
-inside :func:`~audio_studio.plugins.adapter.create_plugin_effect` once the user
-actually picks a file. Without the extra the panel says so, in place, with the
+import, scanning reads only the filesystem, the panel probes for the extra with
+:func:`importlib.util.find_spec` (which locates a module without executing it),
+and pedalboard is only reached inside
+:func:`~audio_studio.plugins.adapter.create_plugin_effect` once the user
+actually loads a plugin. Without the extra the panel says so, in place, with the
 install command — a dialog the user cannot copy out of would be worse.
+
+*Latency is reported, not compensated.* The panel adds up what the loaded
+plugins report and shows the total, because a delay that is not compensated is
+at least one the user can see. Nothing shifts the preview to match it yet; a
+plugin that reports latency is heard late.
 
 *Parameter scales are the plugin's business.* A host reports parameters as a
 ``{name: value}`` snapshot where the value is normally the 0–1 normalised host
 value, but may be anything a plugin chooses to expose. Values in ``[0, 1]``
 get a slider; everything else is shown read-only rather than guessed at, because
-writing a wrongly-scaled value into a live plugin is audible.
+writing a wrongly-scaled value into a live plugin is audible. Parameters belong
+to one slot at a time: the panel shows those of the *selected* slot, which is
+the one last loaded or clicked.
 """
 
 from __future__ import annotations
 
 import importlib.util
-from collections.abc import Callable
+from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QMouseEvent
 from PySide6.QtWidgets import (
+    QComboBox,
     QFileDialog,
     QGroupBox,
     QHBoxLayout,
@@ -51,8 +61,21 @@ from PySide6.QtWidgets import (
 
 from ..dsp.effects import EffectChain, LimiterEffect
 from ..plugins import PluginEffectAdapter, PluginLoadError, create_plugin_effect
+from ..plugins.scanner import (
+    PluginDescriptor,
+    PluginScanError,
+    ScanCache,
+    default_plugin_paths,
+    discover_plugins,
+)
 
-__all__ = ["PluginPanel", "plugins_extra_installed"]
+__all__ = ["SLOT_COUNT", "PluginPanel", "plugins_extra_installed"]
+
+#: How many plugins can be loaded at once. Three is what fits in the dock
+#: without scrolling and is enough for the usual channel-strip shape (character
+#: → correction → glue); a rack that grows without plugin delay compensation
+#: would mostly grow its uncompensated latency.
+SLOT_COUNT = 3
 
 #: Filter for the load dialog. A ``.vst3`` is a directory bundle on macOS and
 #: Linux, so the dialog also has to accept one that the platform presents as a
@@ -65,6 +88,8 @@ SLIDER_STEPS = 1000
 #: Plugins with hundreds of parameters exist. Past this many rows the panel is
 #: unusable as a scroll list anyway, so the remainder is summarised instead.
 MAX_PARAMETER_ROWS = 24
+
+_EMPTY_SLOT = "Empty"
 
 _NO_PLUGIN = "No plugin loaded."
 
@@ -174,20 +199,130 @@ class _ParameterReadout(QWidget):
         self.readout.setText(str(value))
 
 
+class _PluginSlotBox(QGroupBox):
+    """One slot's controls; the panel owns what they mean.
+
+    The widget holds the adapter currently in the slot but never touches the
+    effect chain: insertion order is a property of the rack as a whole, so the
+    panel resynchronises it whenever any slot changes.
+    """
+
+    loadRequested = Signal(int)
+    removeRequested = Signal(int)
+    bypassToggled = Signal(int, bool)
+    moveRequested = Signal(int, int)
+    selected = Signal(int)
+
+    def __init__(self, index: int, parent: QWidget | None = None) -> None:
+        super().__init__(f"Plugin Slot {index + 1}", parent)
+        self.index = index
+        self.adapter: PluginEffectAdapter | None = None
+
+        self.load_button = QPushButton("Load VST3…")
+        self.load_button.setToolTip(
+            f"Open a .vst3 bundle into slot {index + 1}, replacing whatever is in it"
+        )
+        self.load_button.clicked.connect(lambda: self.loadRequested.emit(self.index))
+
+        self.name_label = QLabel(_EMPTY_SLOT)
+        self.name_label.setObjectName("SecondaryTimecode")
+        self.name_label.setWordWrap(True)
+
+        self.bypass_button = QPushButton("Bypass")
+        self.bypass_button.setCheckable(True)
+        self.bypass_button.setToolTip("Take this plugin out of the playback path")
+        self.bypass_button.toggled.connect(
+            lambda checked: self.bypassToggled.emit(self.index, bool(checked))
+        )
+
+        self.remove_button = QPushButton("Remove")
+        self.remove_button.setToolTip("Unload this plugin and empty the slot")
+        self.remove_button.clicked.connect(lambda: self.removeRequested.emit(self.index))
+
+        self.up_button = QPushButton("▲")
+        self.up_button.setToolTip("Run this plugin one slot earlier in the chain")
+        self.up_button.setMaximumWidth(28)
+        self.up_button.clicked.connect(lambda: self.moveRequested.emit(self.index, -1))
+
+        self.down_button = QPushButton("▼")
+        self.down_button.setToolTip("Run this plugin one slot later in the chain")
+        self.down_button.setMaximumWidth(28)
+        self.down_button.clicked.connect(lambda: self.moveRequested.emit(self.index, 1))
+
+        buttons = QHBoxLayout()
+        buttons.setContentsMargins(0, 0, 0, 0)
+        buttons.setSpacing(4)
+        buttons.addWidget(self.bypass_button)
+        buttons.addWidget(self.remove_button)
+        buttons.addWidget(self.up_button)
+        buttons.addWidget(self.down_button)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(8, 4, 8, 8)
+        layout.setSpacing(4)
+        layout.addWidget(self.load_button)
+        layout.addWidget(self.name_label)
+        layout.addLayout(buttons)
+
+    # -- state -------------------------------------------------------------
+
+    @property
+    def has_plugin(self) -> bool:
+        return self.adapter is not None
+
+    def set_adapter(self, adapter: PluginEffectAdapter | None) -> None:
+        """Put ``adapter`` (or nothing) in the slot and redraw its controls."""
+        self.adapter = adapter
+        if adapter is None:
+            self.name_label.setText(_EMPTY_SLOT)
+            self.setToolTip("")
+        else:
+            self.name_label.setText(adapter.plugin_name)
+            self.setToolTip(str(adapter.plugin_path))
+        self.update_controls(first=self.index == 0, last=self.index == SLOT_COUNT - 1)
+
+    def update_controls(self, *, first: bool, last: bool) -> None:
+        loaded = self.adapter is not None
+        self.bypass_button.setEnabled(loaded)
+        self.remove_button.setEnabled(loaded)
+        self.up_button.setEnabled(loaded and not first)
+        self.down_button.setEnabled(loaded and not last)
+        blocked = self.bypass_button.blockSignals(True)
+        try:
+            self.bypass_button.setChecked(loaded and bool(self.adapter and self.adapter.bypass))
+        finally:
+            self.bypass_button.blockSignals(blocked)
+
+    def set_selected(self, selected: bool) -> None:
+        """Mark the slot whose parameters the panel is showing."""
+        title = f"Plugin Slot {self.index + 1}"
+        self.setTitle(f"▸ {title}" if selected else title)
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802 - Qt override
+        self.selected.emit(self.index)
+        super().mousePressEvent(event)
+
+
 class PluginPanel(QWidget):
-    """The single external-plugin slot, wired to a live :class:`EffectChain`.
+    """Three external-plugin slots, wired to a live :class:`EffectChain`.
 
     Parameters
     ----------
     chain:
-        The rack to insert the loaded plugin into. May be ``None``, in which
-        case the panel still loads plugins but nothing is inserted anywhere —
-        useful for testing the widget on its own.
+        The rack to insert loaded plugins into. May be ``None``, in which case
+        the panel still loads plugins but nothing is inserted anywhere — useful
+        for testing the widget on its own.
     loader:
         Callable taking a path and returning a
         :class:`~audio_studio.plugins.adapter.PluginEffectAdapter`. Defaults to
         :func:`~audio_studio.plugins.adapter.create_plugin_effect`; tests
         substitute a fake so no plugin binary (and no pedalboard) is needed.
+    scanner:
+        Callable taking a directory and returning the
+        :class:`~audio_studio.plugins.scanner.PluginDescriptor` list to offer in
+        the combo. Defaults to a cached
+        :func:`~audio_studio.plugins.scanner.discover_plugins` over that one
+        directory.
 
     Examples
     --------
@@ -196,10 +331,12 @@ class PluginPanel(QWidget):
 
         panel = PluginPanel(window.effect_chain)
         panel.pluginChanged.connect(window.refresh_preview_status)
-        panel.load_plugin("/plugins/GreatVerb.vst3")
+        panel.scan_directory("/usr/lib/vst3")
+        panel.load_plugin("/usr/lib/vst3/GreatVerb.vst3", slot=0)
     """
 
-    #: Emitted whenever the slot changes: loaded, removed, bypassed, retuned.
+    #: Emitted whenever the rack changes: loaded, removed, moved, bypassed,
+    #: retuned.
     pluginChanged = Signal()
 
     def __init__(
@@ -208,61 +345,89 @@ class PluginPanel(QWidget):
         parent: QWidget | None = None,
         *,
         loader: Callable[[str | Path], PluginEffectAdapter] | None = None,
+        scanner: Callable[[Path], list[PluginDescriptor]] | None = None,
     ) -> None:
         super().__init__(parent)
         self.chain = chain
         self._loader = loader
-        self.adapter: PluginEffectAdapter | None = None
+        self._scanner = scanner
+        # An in-memory cache: rescanning the same folder after installing one
+        # plugin re-reads that plugin's metadata and stats the rest.
+        self._scan_cache = ScanCache()
+        self._scan_directory: Path | None = None
+        self.discovered: list[PluginDescriptor] = []
         self.parameter_rows: dict[str, _ParameterSlider | _ParameterReadout] = {}
+        self._active_slot = 0
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(8)
-        layout.addWidget(self._build_slot())
+        layout.addWidget(self._build_browser())
+        self.slots: list[_PluginSlotBox] = []
+        for index in range(SLOT_COUNT):
+            slot = self._build_slot(index)
+            self.slots.append(slot)
+            layout.addWidget(slot)
+        layout.addWidget(self._build_latency())
         layout.addWidget(self._build_parameters(), 1)
         layout.addWidget(self._build_message())
-        self.setMinimumWidth(240)
+        self.setMinimumWidth(260)
         self._update_controls()
 
     # -- construction ------------------------------------------------------
 
-    def _build_slot(self) -> QWidget:
-        box = QGroupBox("External Plugin")
+    def _build_browser(self) -> QWidget:
+        box = QGroupBox("Installed Plugins")
 
-        self.load_button = QPushButton("Load VST3…")
-        self.load_button.setToolTip(
-            "Open a .vst3 bundle and insert it into the preview rack. "
-            "One slot: loading another plugin replaces this one"
+        self.scan_button = QPushButton("Scan…")
+        self.scan_button.setToolTip(
+            "Search a folder for .vst3 bundles. Scanning reads the bundles' own "
+            "metadata files and never runs plugin code"
         )
-        self.load_button.clicked.connect(self.open_plugin_dialog)
+        self.scan_button.clicked.connect(self.open_scan_dialog)
 
-        self.name_label = QLabel(_NO_PLUGIN)
-        self.name_label.setWordWrap(True)
+        self.plugin_combo = QComboBox()
+        self.plugin_combo.setToolTip("Plugins found by the last scan")
+        self.plugin_combo.setEnabled(False)
+        self.plugin_combo.addItem("No plugins scanned yet")
 
-        self.bypass_button = QPushButton("Bypass")
-        self.bypass_button.setCheckable(True)
-        self.bypass_button.setToolTip("Take the plugin out of the playback path")
-        self.bypass_button.toggled.connect(self._on_bypass)
+        self.scan_load_button = QPushButton("Load")
+        self.scan_load_button.setToolTip("Load the selected plugin into the first free slot")
+        self.scan_load_button.setEnabled(False)
+        self.scan_load_button.clicked.connect(self.load_selected)
 
-        self.remove_button = QPushButton("Remove")
-        self.remove_button.setToolTip("Unload the plugin and take its slot out of the rack")
-        self.remove_button.clicked.connect(self.remove_plugin)
-
-        buttons = QHBoxLayout()
-        buttons.setContentsMargins(0, 0, 0, 0)
-        buttons.addWidget(self.bypass_button)
-        buttons.addWidget(self.remove_button)
+        row = QHBoxLayout()
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(4)
+        row.addWidget(self.scan_button)
+        row.addWidget(self.plugin_combo, 1)
+        row.addWidget(self.scan_load_button)
 
         layout = QVBoxLayout(box)
         layout.setContentsMargins(8, 4, 8, 8)
-        layout.setSpacing(6)
-        layout.addWidget(self.load_button)
-        layout.addWidget(self.name_label)
-        layout.addLayout(buttons)
+        layout.addLayout(row)
         return box
 
+    def _build_slot(self, index: int) -> _PluginSlotBox:
+        slot = _PluginSlotBox(index)
+        slot.loadRequested.connect(self.open_plugin_dialog)
+        slot.removeRequested.connect(self.remove_plugin)
+        slot.bypassToggled.connect(self._on_bypass)
+        slot.moveRequested.connect(self.move_slot)
+        slot.selected.connect(self.set_active_slot)
+        return slot
+
+    def _build_latency(self) -> QWidget:
+        self.latency_label = QLabel()
+        self.latency_label.setObjectName("SecondaryTimecode")
+        self.latency_label.setToolTip(
+            "Sum of the delay the loaded plugins report. The preview is not "
+            "delay-compensated yet, so a plugin that reports latency is heard late"
+        )
+        return self.latency_label
+
     def _build_parameters(self) -> QWidget:
-        box = QGroupBox("Parameters")
+        self.parameter_box = QGroupBox("Parameters")
 
         self.parameter_container = QWidget()
         self.parameter_layout = QVBoxLayout(self.parameter_container)
@@ -276,10 +441,10 @@ class PluginPanel(QWidget):
         self.parameter_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
         self.parameter_scroll.setWidget(self.parameter_container)
 
-        layout = QVBoxLayout(box)
+        layout = QVBoxLayout(self.parameter_box)
         layout.setContentsMargins(8, 4, 8, 8)
         layout.addWidget(self.parameter_scroll)
-        return box
+        return self.parameter_box
 
     def _build_message(self) -> QWidget:
         self.message = QLabel()
@@ -289,41 +454,72 @@ class PluginPanel(QWidget):
         self.message.setText(_NO_PLUGIN if plugins_extra_installed() else _EXTRA_MISSING_HINT)
         return self.message
 
-    # -- slot management ---------------------------------------------------
+    # -- the rack ----------------------------------------------------------
 
     @property
     def has_plugin(self) -> bool:
-        return self.adapter is not None
+        """Whether any slot holds a plugin."""
+        return any(slot.has_plugin for slot in self.slots)
+
+    @property
+    def adapters(self) -> list[PluginEffectAdapter]:
+        """Loaded plugins in chain order, empty slots skipped."""
+        return [slot.adapter for slot in self.slots if slot.adapter is not None]
+
+    @property
+    def active_slot(self) -> int:
+        """Index of the slot whose parameters are on show."""
+        return self._active_slot
+
+    @property
+    def adapter(self) -> PluginEffectAdapter | None:
+        """Plugin in the selected slot, or ``None`` when it is empty."""
+        return self.slots[self._active_slot].adapter
 
     @property
     def plugin_name(self) -> str | None:
-        """Name reported by the loaded plugin, or ``None`` when the slot is empty."""
-        return None if self.adapter is None else self.adapter.plugin_name
+        """Name of the plugin in the selected slot, if there is one."""
+        adapter = self.adapter
+        return None if adapter is None else adapter.plugin_name
+
+    def slot_of(self, index: int) -> _PluginSlotBox:
+        """The slot widget at ``index``."""
+        return self.slots[index]
+
+    def set_active_slot(self, index: int) -> None:
+        """Show ``index``'s parameters. Out-of-range indices are ignored."""
+        if not 0 <= index < SLOT_COUNT or index == self._active_slot:
+            return
+        self._active_slot = index
+        self.refresh_parameters()
+        self._update_controls()
 
     def set_chain(self, chain: EffectChain | None) -> None:
-        """Point the panel at a different rack, carrying the loaded plugin over."""
-        adapter = self.adapter
-        if adapter is not None and self.chain is not None and adapter in self.chain.effects:
-            self.chain.remove(adapter)
+        """Point the panel at a different rack, carrying the plugins over."""
+        if self.chain is not None:
+            self._detach_all(self.chain)
         self.chain = chain
-        if adapter is not None and chain is not None:
-            chain.insert(self._insert_index(chain), adapter)
+        self._sync_chain()
 
-    def open_plugin_dialog(self) -> bool:
-        """Ask for a ``.vst3`` bundle and load it."""
+    # -- loading -----------------------------------------------------------
+
+    def open_plugin_dialog(self, slot: int | None = None) -> bool:
+        """Ask for a ``.vst3`` bundle and load it into ``slot``."""
+        start = self._scan_directory or next(iter(default_plugin_paths()), Path.home())
         path, _ = QFileDialog.getOpenFileName(
-            self, "Load VST3 plugin", str(Path.home()), PLUGIN_DIALOG_FILTER
+            self, "Load VST3 plugin", str(start), PLUGIN_DIALOG_FILTER
         )
-        return self.load_plugin(path) if path else False
+        return self.load_plugin(path, slot=slot) if path else False
 
-    def load_plugin(self, path: str | Path) -> bool:
-        """Load ``path`` into the slot, replacing whatever was there.
+    def load_plugin(self, path: str | Path, *, slot: int | None = None) -> bool:
+        """Load ``path`` into ``slot``, or into the first free slot.
 
         Returns ``False`` and reports in the panel's message line when the
-        plugin (or the ``plugins`` extra) could not be loaded; the previously
-        loaded plugin is left untouched in that case, because dropping a
-        working plugin because a second one failed to open would be rude.
+        plugin (or the ``plugins`` extra) could not be loaded; the slot keeps
+        whatever it already held in that case, because dropping a working
+        plugin because a second one failed to open would be rude.
         """
+        target = self._target_slot(slot)
         loader = self._loader if self._loader is not None else create_plugin_effect
         try:
             adapter = loader(path)
@@ -331,39 +527,107 @@ class PluginPanel(QWidget):
             self.message.setText(str(exc))
             return False
 
-        self._detach_adapter()
-        self.adapter = adapter
-        if self.chain is not None:
-            self.chain.insert(self._insert_index(self.chain), adapter)
-        self.name_label.setText(f"{adapter.plugin_name}\n{adapter.plugin_path}")
-        self.message.setText(f"Loaded {adapter.plugin_name} into the preview rack.")
+        self._detach(self.slots[target].adapter)
+        self.slots[target].set_adapter(adapter)
+        self._active_slot = target
+        self._sync_chain()
+        self.message.setText(
+            f"Loaded {adapter.plugin_name} into slot {target + 1} of the preview rack."
+        )
         self.refresh_parameters()
         self._update_controls()
         self.pluginChanged.emit()
         return True
 
-    def remove_plugin(self) -> bool:
-        """Unload the plugin and take its slot out of the rack."""
-        if self.adapter is None:
+    def load_selected(self) -> bool:
+        """Load the plugin currently chosen in the scan combo."""
+        descriptor = self.selected_descriptor()
+        if descriptor is None:
+            self.message.setText("Scan a folder first, then pick a plugin to load.")
             return False
-        name = self.adapter.plugin_name
-        self._detach_adapter()
-        self.adapter = None
-        self.name_label.setText(_NO_PLUGIN)
-        self.message.setText(f"Removed {name}.")
+        return self.load_plugin(descriptor.path)
+
+    def remove_plugin(self, slot: int | None = None) -> bool:
+        """Unload the plugin in ``slot`` (the selected one by default)."""
+        index = self._active_slot if slot is None else int(slot)
+        adapter = self.slots[index].adapter
+        if adapter is None:
+            return False
+        self._detach(adapter)
+        self.slots[index].set_adapter(None)
+        self._sync_chain()
+        self.message.setText(f"Removed {adapter.plugin_name} from slot {index + 1}.")
         self.refresh_parameters()
         self._update_controls()
         self.pluginChanged.emit()
         return True
 
-    def _detach_adapter(self) -> None:
-        adapter = self.adapter
-        if adapter is not None and self.chain is not None and adapter in self.chain.effects:
+    def move_slot(self, index: int, delta: int) -> bool:
+        """Swap slot ``index`` with the neighbour ``delta`` slots away.
+
+        Slots are the chain order, so swapping two of them is what reordering
+        the plugin rack means. The selection follows the plugin that moved.
+        """
+        other = index + int(delta)
+        if not (0 <= index < SLOT_COUNT and 0 <= other < SLOT_COUNT):
+            return False
+        moving = self.slots[index].adapter
+        if moving is None:
+            return False
+        self.slots[index].set_adapter(self.slots[other].adapter)
+        self.slots[other].set_adapter(moving)
+        self._active_slot = other
+        self._sync_chain()
+        self.message.setText(f"Moved {moving.plugin_name} to slot {other + 1}.")
+        self.refresh_parameters()
+        self._update_controls()
+        self.pluginChanged.emit()
+        return True
+
+    def _target_slot(self, slot: int | None) -> int:
+        """Where a load with no explicit slot goes: the first free one."""
+        if slot is not None:
+            if not 0 <= int(slot) < SLOT_COUNT:
+                raise IndexError(f"plugin slot {slot} is outside 0..{SLOT_COUNT - 1}")
+            return int(slot)
+        free = next((s.index for s in self.slots if not s.has_plugin), None)
+        return self._active_slot if free is None else free
+
+    # -- chain wiring ------------------------------------------------------
+
+    def _sync_chain(self) -> None:
+        """Rewrite the chain so the loaded plugins run in slot order.
+
+        Cheaper schemes (insert here, move there) all have to reason about
+        where the rack's own effects have moved to since the last edit. Pulling
+        the panel's adapters out and putting them back as a block is O(slots)
+        on a chain of a handful of effects and cannot drift out of order.
+        """
+        chain = self.chain
+        if chain is None:
+            return
+        self._detach_all(chain)
+        index = self._insert_index(chain)
+        for adapter in self.adapters:
+            chain.insert(index, adapter)
+            index += 1
+
+    def _detach_all(self, chain: EffectChain) -> None:
+        for adapter in self.adapters:
+            if any(effect is adapter for effect in chain.effects):
+                chain.remove(adapter)
+
+    def _detach(self, adapter: PluginEffectAdapter | None) -> None:
+        if (
+            adapter is not None
+            and self.chain is not None
+            and any(effect is adapter for effect in self.chain.effects)
+        ):
             self.chain.remove(adapter)
 
     @staticmethod
     def _insert_index(chain: EffectChain) -> int:
-        """Where the plugin goes: ahead of the limiter, if the rack has one.
+        """Where the plugins go: ahead of the limiter, if the rack has one.
 
         A true-peak limiter is the rack's safety net, and an unknown plugin is
         exactly what it is there to catch. Everything else is appended.
@@ -373,15 +637,111 @@ class PluginPanel(QWidget):
             len(chain),
         )
 
+    # -- scanning ----------------------------------------------------------
+
+    def open_scan_dialog(self) -> list[PluginDescriptor]:
+        """Ask for a folder and scan it for ``.vst3`` bundles."""
+        start = self._scan_directory or next(iter(default_plugin_paths()), Path.home())
+        directory = QFileDialog.getExistingDirectory(
+            self, "Scan folder for VST3 plugins", str(start)
+        )
+        return self.scan_directory(directory) if directory else []
+
+    def scan_directory(self, directory: str | Path) -> list[PluginDescriptor]:
+        """Populate the combo with the plugins found under ``directory``.
+
+        A scan reads bundle metadata off disk and never loads plugin code, so
+        it is safe to point at a folder of unknown plugins. Anything that could
+        not be described is left out and counted in the message line rather
+        than raised: one broken bundle must not hide the rest.
+        """
+        root = Path(directory)
+        failures: list[Path] = []
+        scanner = self._scanner
+        try:
+            if scanner is not None:
+                found = list(scanner(root))
+            else:
+                found = discover_plugins(
+                    [root],
+                    cache=self._scan_cache,
+                    on_error=lambda bundle, _exc: failures.append(bundle),
+                )
+        except (OSError, PluginScanError) as exc:
+            self.message.setText(f"Could not scan {root}: {exc}")
+            return []
+
+        self._scan_directory = root
+        self.set_discovered(found)
+        skipped = f", {len(failures)} skipped" if failures else ""
+        self.message.setText(
+            f"Found {len(found)} plugin{'' if len(found) == 1 else 's'} in {root}{skipped}."
+            if found
+            else f"No .vst3 plugins under {root}{skipped}."
+        )
+        return found
+
+    def set_discovered(self, descriptors: Iterable[PluginDescriptor]) -> None:
+        """Fill the combo from a plugin list, without scanning anything."""
+        self.discovered = list(descriptors)
+        blocked = self.plugin_combo.blockSignals(True)
+        try:
+            self.plugin_combo.clear()
+            for descriptor in self.discovered:
+                self.plugin_combo.addItem(str(descriptor), descriptor)
+                self.plugin_combo.setItemData(
+                    self.plugin_combo.count() - 1,
+                    str(descriptor.path),
+                    Qt.ItemDataRole.ToolTipRole,
+                )
+            if not self.discovered:
+                self.plugin_combo.addItem("No plugins found")
+        finally:
+            self.plugin_combo.blockSignals(blocked)
+        self.plugin_combo.setEnabled(bool(self.discovered))
+        self.scan_load_button.setEnabled(bool(self.discovered))
+
+    def selected_descriptor(self) -> PluginDescriptor | None:
+        """The plugin chosen in the combo, or ``None`` when nothing was found."""
+        data = self.plugin_combo.currentData()
+        return data if isinstance(data, PluginDescriptor) else None
+
+    # -- latency -----------------------------------------------------------
+
+    def total_latency_samples(self) -> int:
+        """Delay reported by the plugins that are actually in the path.
+
+        A bypassed plugin is not processed, so it contributes nothing. A plugin
+        that cannot report its latency counts as zero — the same thing
+        pedalboard says for a backend that compensates internally.
+        """
+        total = 0
+        for adapter in self.adapters:
+            if adapter.bypass:
+                continue
+            try:
+                total += int(adapter.latency_samples())
+            except (AttributeError, TypeError, ValueError):
+                continue
+        return total
+
+    def _latency_text(self) -> str:
+        total = self.total_latency_samples()
+        if total <= 0:
+            return "Plugin latency: 0 samples"
+        return f"Plugin latency: {total} samples (not compensated)"
+
     # -- parameters --------------------------------------------------------
 
     def refresh_parameters(self) -> None:
-        """Rebuild the parameter controls from the plugin's current snapshot."""
+        """Rebuild the parameter controls from the selected plugin's snapshot."""
         self._clear_parameters()
-        if self.adapter is None:
+        adapter = self.adapter
+        self.parameter_box.setTitle(f"Parameters — Slot {self._active_slot + 1}")
+        if adapter is None:
             return
         try:
-            snapshot = self.adapter.plugin_parameters()
+            snapshot = adapter.plugin_parameters()
         except Exception as exc:  # noqa: BLE001 - a plugin that cannot be read is not fatal
             self.message.setText(f"Could not read plugin parameters: {exc}")
             return
@@ -400,9 +760,10 @@ class PluginPanel(QWidget):
 
     def read_parameters(self) -> None:
         """Pull the control positions back from the plugin, without rebuilding."""
-        if self.adapter is None:
+        adapter = self.adapter
+        if adapter is None:
             return
-        for name, value in self.adapter.plugin_parameters().items():
+        for name, value in adapter.plugin_parameters().items():
             row = self.parameter_rows.get(name)
             if isinstance(row, _ParameterSlider) and _is_normalised(value):
                 row.set_value(float(value))
@@ -427,39 +788,103 @@ class PluginPanel(QWidget):
                 widget.deleteLater()
 
     def _on_parameter(self, name: str, value: float) -> None:
-        if self.adapter is None:
+        adapter = self.adapter
+        if adapter is None:
             return
         try:
-            self.adapter.set_parameter(name, value)
+            adapter.set_parameter(name, value)
         except (NotImplementedError, KeyError, ValueError, TypeError) as exc:
             self.message.setText(f"Could not set {name}: {exc}")
             return
         self.message.setText(f"{name} = {value:.3f}")
         self.pluginChanged.emit()
 
-    # -- state -------------------------------------------------------------
+    # -- project state -----------------------------------------------------
+
+    def project_state(self) -> list[dict[str, Any]]:
+        """What the ``.hlproj`` remembers: which bundle is in which slot.
+
+        Paths and the bypass flag only. A plugin's *parameter* state is a
+        backend-specific blob that would have to survive plugin updates and
+        machine moves to be worth writing, so a reopened project loads the
+        plugins with their own defaults until that lands.
+        """
+        return [
+            {
+                "slot": slot.index,
+                "path": str(slot.adapter.plugin_path),
+                "bypass": bool(slot.adapter.bypass),
+            }
+            for slot in self.slots
+            if slot.adapter is not None
+        ]
+
+    def restore_project_state(self, entries: Sequence[dict[str, Any]]) -> int:
+        """Reload the plugins a project was saved with; returns how many opened.
+
+        Plugins are a property of the machine, not of the project: a bundle may
+        have been uninstalled, or the project may be open on a machine without
+        the ``plugins`` extra. Every failure is counted and reported in the
+        message line, and the slots that did load still work.
+        """
+        for slot in self.slots:
+            self._detach(slot.adapter)
+            slot.set_adapter(None)
+        self._active_slot = 0
+
+        loaded = 0
+        missing: list[str] = []
+        for entry in entries:
+            path = str(entry.get("path", ""))
+            if not path:
+                continue
+            index = int(entry.get("slot", loaded))
+            if not 0 <= index < SLOT_COUNT:
+                index = loaded
+            if self.load_plugin(path, slot=index):
+                adapter = self.slots[index].adapter
+                if adapter is not None:
+                    adapter.bypass = bool(entry.get("bypass", False))
+                loaded += 1
+            else:
+                missing.append(Path(path).name)
+
+        self._sync_chain()
+        self.refresh_parameters()
+        self._update_controls()
+        if missing:
+            self.message.setText(
+                f"{len(missing)} plugin{'' if len(missing) == 1 else 's'} from this "
+                f"project could not be loaded: {', '.join(missing)}"
+            )
+        self.pluginChanged.emit()
+        return loaded
+
+    # -- status ------------------------------------------------------------
 
     def summary(self) -> str:
-        """One-line description of the slot, for a status bar."""
-        if self.adapter is None:
-            return "Plugin: none"
-        state = "bypassed" if self.adapter.bypass else "active"
-        return f"Plugin: {self.adapter.plugin_name} ({state})"
+        """One-line description of the rack, for a status bar."""
+        loaded = self.adapters
+        if not loaded:
+            return "Plugins: none"
+        parts = [
+            f"{adapter.plugin_name} ({'bypassed' if adapter.bypass else 'active'})"
+            for adapter in loaded
+        ]
+        return "Plugins: " + ", ".join(parts)
 
-    def _on_bypass(self, bypassed: bool) -> None:
-        if self.adapter is not None:
-            self.adapter.bypass = bool(bypassed)
+    def _on_bypass(self, index: int, bypassed: bool) -> None:
+        adapter = self.slots[index].adapter
+        if adapter is not None:
+            adapter.bypass = bool(bypassed)
+        self._update_controls()
         self.pluginChanged.emit()
 
     def _update_controls(self) -> None:
-        adapter = self.adapter
-        self.bypass_button.setEnabled(adapter is not None)
-        self.remove_button.setEnabled(adapter is not None)
-        blocked = self.bypass_button.blockSignals(True)
-        try:
-            self.bypass_button.setChecked(adapter is not None and adapter.bypass)
-        finally:
-            self.bypass_button.blockSignals(blocked)
+        for slot in self.slots:
+            slot.update_controls(first=slot.index == 0, last=slot.index == SLOT_COUNT - 1)
+            slot.set_selected(slot.index == self._active_slot)
+        self.latency_label.setText(self._latency_text())
 
 
 def _is_normalised(value: Any) -> bool:

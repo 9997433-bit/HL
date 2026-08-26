@@ -36,7 +36,7 @@ from audio_studio.core.loader import (
     supported_formats,
 )
 from audio_studio.core.sample_source import StreamingSampleSource
-from audio_studio.core.types import AudioBuffer
+from audio_studio.core.types import AudioBuffer, TimeRange
 
 SR = 48_000
 N_FRAMES = 12_000
@@ -89,9 +89,7 @@ def w64_file(tmp_path_factory: pytest.TempPathFactory, buffer: AudioBuffer) -> P
 # ---------------------------------------------------------------------------
 
 
-def test_sniff_identifies_each_container(
-    wav_file: Path, rf64_file: Path, w64_file: Path
-) -> None:
+def test_sniff_identifies_each_container(wav_file: Path, rf64_file: Path, w64_file: Path) -> None:
     assert sniff_container(wav_file) is None  # plain RIFF is not a 64-bit container
     assert sniff_container(rf64_file) == "RF64"
     assert sniff_container(w64_file) == "W64"
@@ -291,9 +289,7 @@ def test_an_unreadable_large_container_is_presumed_large(tmp_path: Path) -> None
 
 
 @pytest.mark.skipif(not HAS_RF64, reason="libsndfile lacks RF64")
-def test_rf64_export_roundtrip(
-    tmp_path: Path, buffer: AudioBuffer, wav_file: Path
-) -> None:
+def test_rf64_export_roundtrip(tmp_path: Path, buffer: AudioBuffer, wav_file: Path) -> None:
     exported = save_audio(tmp_path / "bounce.rf64", buffer, subtype="FLOAT")
 
     assert sniff_container(exported) == "RF64"
@@ -322,22 +318,26 @@ def test_rf64_streams_bit_exactly(rf64_file: Path, buffer: AudioBuffer) -> None:
 
 
 # ---------------------------------------------------------------------------
-# the editor refuses to slurp what it should stream
+# the editor uses sparse overlays for what it should stream
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.usefixtures("qapp")
-def test_main_window_opens_large_files_read_only(
-    wav_file: Path, monkeypatch: pytest.MonkeyPatch
+def test_main_window_opens_large_files_as_streaming_edits(
+    wav_file: Path, buffer: AudioBuffer, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Over-budget files get streamed playback, no EditSession and no dialog."""
+    """Over-budget files get an editable streaming session and no full decode."""
+    from audio_studio.core.edit_session import StreamingEditSession
     from audio_studio.core.engine import AudioEngine
     from audio_studio.core.output import NullOutput
+    from audio_studio.core.peaks import PeakPyramid
+    from audio_studio.core.peaks_cache import write as write_peaks
     from audio_studio.ui import main_window as mw
     from audio_studio.ui.main_window import MainWindow
 
     # Shrink the budget so the 12k-frame fixture counts as "large".
     monkeypatch.setattr(mw, "DEFAULT_MEMORY_BUDGET_BYTES", 1_024)
+    write_peaks(wav_file, PeakPyramid(buffer.data))
 
     window = MainWindow(AudioEngine(NullOutput(realtime=False), block_size=256))
     try:
@@ -346,17 +346,23 @@ def test_main_window_opens_large_files_read_only(
         assert window.engine.is_streaming
         assert window.engine.has_clip
         assert window.engine.clip is None  # nothing was decoded into RAM
+        assert window.engine.pyramid is not None  # overview came from the .pk sidecar
+        assert not window.engine.pyramid.has_samples
         assert window.engine.n_frames == N_FRAMES
-        assert window._edit_session is None  # noqa: SLF001 - read-only is the point
+        assert isinstance(window._edit_session, StreamingEditSession)  # noqa: SLF001
         assert not window.action_undo.isEnabled()
-        assert not window.action_cut.isEnabled()
+        assert not window.action_cut.isEnabled()  # no selection yet
+        window.engine.set_selection(TimeRange(100, 200))
+        window._update_edit_actions()  # noqa: SLF001 - exercise menu wiring
+        assert window.action_cut.isEnabled()
+        assert window.action_gain.isEnabled()
 
         # Whole-file analysis would materialise the samples; the guard skips it.
         assert window.audio_range(0, window.engine.n_frames) is None
         small = window.audio_range(0, 128)  # 1 kB: within budget, still served
         assert small is not None and small.shape == (128, 2)
 
-        assert "read-only" in window.status_format.text().lower()
+        assert "streaming editable" in window.status_format.text().lower()
     finally:
         window._mark_project_saved()  # noqa: SLF001 - avoid a blocking close prompt
         window.close()

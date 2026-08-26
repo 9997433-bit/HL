@@ -67,6 +67,26 @@ AUDIO_STUDIO_OUTPUT=sounddevice python -m audio_studio   # never fall back to Py
 AUDIO_STUDIO_OUTPUT=null        python -m audio_studio   # skip hardware entirely
 ```
 
+On **Windows only**, the sounddevice backend can additionally request WASAPI
+*exclusive* mode. Shared mode (the default) routes through the Windows audio
+engine's mixer, which adds its own buffering (typically around 10 ms) on top of
+the device period; exclusive mode bypasses the mixer and talks to the device
+directly, so output latency is bounded mostly by the negotiated block size
+(256 frames ≈ 5.3 ms at 48 kHz). The trade-off is that an exclusive stream
+takes over the device — other applications go silent — and the device may
+refuse to open at all, in which case the backend automatically falls back to a
+shared-mode stream. Because of that footgun it is off by default and must be
+switched on explicitly:
+
+```bash
+set AUDIO_STUDIO_WASAPI_EXCLUSIVE=1        # cmd.exe; ignored on non-Windows hosts
+python -m audio_studio
+python -m audio_studio --wasapi-exclusive  # equivalent: sets the variable for you
+```
+
+The active mode shows up in the status bar and the About box as
+`sounddevice (WASAPI exclusive)`.
+
 ## Run
 
 ```bash
@@ -80,6 +100,7 @@ Useful flags:
 | Flag | Purpose |
 |---|---|
 | `--null-audio` | Force the simulated backend instead of a hardware device |
+| `--wasapi-exclusive` | Request WASAPI exclusive-mode output (Windows only, see above) |
 | `--offscreen` | Use Qt's offscreen platform plugin (headless smoke tests) |
 | `--exit-after N` | Quit after N seconds, for CI |
 
@@ -122,31 +143,45 @@ pip install -e ".[plugins]"      # installs pedalboard (GPL-3.0)
 
 ### In the application
 
-**View ▸ VST3 Plugin** opens the plugin dock, tabbed behind the effects rack on
+**View ▸ VST3 Plugins** opens the plugin dock, tabbed behind the effects rack on
 the right-hand side because both drive the same preview chain.
 
-1. **Load VST3…** opens a file dialog filtered to `*.vst3`. On macOS and Linux
-   a plugin is a directory bundle, so pick the `.vst3` folder itself; the
-   "All files" filter is there for platforms that hide the extension.
-2. The plugin's name and path appear under the button, and one slider is
-   generated per parameter the plugin reports on the normalised 0–1 host scale.
-   Moving a slider writes straight through to the running plugin. Parameters
+1. **Scan…** picks a folder and lists the `.vst3` bundles under it in the combo
+   beside it, then **Load** puts the selected one into the first free slot.
+   Scanning reads each bundle's own `moduleinfo.json` — the metadata file the
+   VST3 SDK ships so hosts can enumerate plugins — so it never runs plugin code
+   and works without the `plugins` extra installed.
+2. **Load VST3…** in a slot opens a file dialog filtered to `*.vst3`, for a
+   plugin that lives somewhere a scan did not reach. On macOS and Linux a plugin
+   is a directory bundle, so pick the `.vst3` folder itself; the "All files"
+   filter is there for platforms that hide the extension.
+3. The plugin's name appears in its slot, and the **Parameters** box below shows
+   the *selected* slot's controls — click a slot to select it. One slider is
+   generated per parameter the plugin reports on the normalised 0–1 host scale,
+   and moving a slider writes straight through to the running plugin. Parameters
    reported as display values (`4800.0`, `"bell"`) are shown read-only rather
    than guessed at — edit those in the plugin's own editor.
-3. **Bypass** takes the plugin out of the playback path; **Remove** unloads it
-   and takes its slot out of the rack.
+4. **Bypass** takes one plugin out of the playback path; **Remove** unloads it
+   and empties its slot; **▲**/**▼** swap it with the neighbouring slot.
 
-The plugin is inserted into the preview chain ahead of the true-peak limiter,
-so the rack's safety net still catches it, and it shows up in the `FX:` field of
-the status bar like any built-in effect. Like the rest of the rack it is a
-*monitoring insert*: it changes what is heard and never rewrites the audio in
+There are **three** slots. They process in slot order — slot 1 first — and the
+whole group is inserted into the preview chain ahead of the true-peak limiter,
+so the rack's safety net still catches them, and they show up in the `FX:` field
+of the status bar like any built-in effect. Like the rest of the rack they are
+*monitoring inserts*: they change what is heard and never rewrite the audio in
 memory until you render.
 
-There is **one** plugin slot. Loading a second plugin replaces the first: plugin
-delay compensation, per-slot state and reordering all have to land before a
-multi-slot plugin rack would be honest about what it is doing. Without the
-extra installed, the panel says so in place, with the install command, instead
-of failing at the file dialog.
+The panel adds up the delay the loaded plugins report and shows the total under
+the slots. That figure is a warning, not a correction: **there is no plugin
+delay compensation yet**, so a plugin that reports latency is heard late.
+Bypassing one takes its delay out of the sum with it.
+
+Saving a project records which bundle sits in which slot — paths only. Reopening
+it loads those bundles again with their own default settings; plugin parameter
+state is a backend-specific blob that is not written yet. A plugin the project
+names but this machine does not have leaves its slot empty and says so in the
+panel rather than failing the open. Without the extra installed, the panel says
+so in place, with the install command, instead of failing at the file dialog.
 
 ### From Python
 
@@ -168,13 +203,47 @@ chain.add(create_plugin_effect("/path/to/Plugin.vst3"))
 an `Effect`, adding the rack's `bypass`/`mix` controls and forwarding
 `prepare`/`reset`/`process_block` so the plugin's streaming state is its own.
 
+### Finding plugins
+
+`audio_studio.plugins.scanner` is the discovery half, and it is deliberately
+pedalboard-free: it reads the bundle layout and `Contents/moduleinfo.json`
+rather than loading binaries, so a scan cannot be crashed by a bad plugin.
+
+```python
+from audio_studio.plugins.scanner import ScanCache, discover_plugins
+
+cache = ScanCache.load("~/.cache/audio-studio/plugins.json")
+for plugin in discover_plugins(cache=cache):   # platform plugin folders
+    print(plugin.id, plugin.name, plugin.vendor, plugin.path)
+cache.save()
+```
+
+`discover_plugins(paths)` walks each root to `max_depth` levels (4 by default),
+never descends into a `.vst3`, and returns one `PluginDescriptor(id, name, path,
+vendor)` per bundle, sorted by name. A bundle that predates the `moduleinfo`
+convention reports its file name and an empty vendor rather than a guess.
+
+The `ScanCache` keys each description on the bundle's size and modification
+time, so rescanning a system plugin folder costs a `stat` per bundle; changed
+bundles are re-read, uninstalled ones are pruned, and `force=True` re-probes
+everything. `discover_plugins(..., isolate=True)` runs each probe in a
+subprocess with a timeout — the same list, at the cost of an interpreter
+start-up per bundle, for a probe that must not be trusted with the editor's
+process. The scanner is also a command line:
+
+```bash
+python -m audio_studio.plugins.scanner                     # platform defaults
+python -m audio_studio.plugins.scanner ~/.vst3 --isolate
+```
+
 `audio_studio.plugins` always imports cleanly — pedalboard is loaded lazily,
 inside the single bridge module `audio_studio/plugins/pedalboard_bridge.py`,
-the first time a plugin is opened. The UI panel keeps that boundary: it probes
-for the extra with `importlib.util.find_spec`, which locates the package without
-executing it. Without the extra installed, loading a plugin raises
-`PluginLoadError` with installation instructions. Plugin state is still not
-persisted into projects, and there is no plugin delay compensation.
+the first time a plugin is opened. Discovery never reaches it at all. The UI
+panel keeps that boundary too: it probes for the extra with
+`importlib.util.find_spec`, which locates the package without executing it.
+Without the extra installed, loading a plugin raises `PluginLoadError` with
+installation instructions. Projects remember plugin *paths* but not plugin
+parameter state, and there is no plugin delay compensation.
 
 **License notice.** pedalboard is GPL-3.0 (incorporating JUCE, Rubber Band
 and FFTW). Installing the `plugins` extra for private use does not change the
@@ -230,6 +299,11 @@ binary artifacts must not include it. See
   edited document straight off the undo stack without flattening it first;
   revision publication is atomic, so a reader sees either the old or the new
   complete document, never half an edit.
+- Over-budget RF64/W64 files use a streaming edit session: unchanged timeline
+  segments remain references to the file, while gain/fade/silence and other
+  sample-changing operations materialise only the selected ranges as sparse
+  overlay chunks. Cut and paste splice those references without decoding the
+  base, and undo swaps immutable sparse revisions.
 - The source file is never modified in place; export writes a new file.
 
 **Waveform display** (`audio_studio.ui.waveform_view.WaveformView`)
@@ -347,12 +421,13 @@ their size as a first-class concern rather than an accident:
   ~48 minutes of stereo 48 kHz) with an error that points at streaming
   playback instead of an opaque `MemoryError` minutes later.
 - **The editor streams what it cannot slurp.** *File ▸ Open* on an over-budget
-  file opens it for **read-only streamed playback**: the transport pulls
-  blocks straight off disk through `StreamingSampleSource`, nothing is decoded
-  whole, and the edit actions stay disabled. Whole-file analysis (loudness,
-  full-clip spectrogram) is skipped under the same budget; selection-sized
-  analysis still works. In-memory editing of such files is future work — the
-  copy-on-write `EditSession` currently requires the samples in RAM.
+  file opens a `StreamingEditSession`: transport and unchanged edit ranges pull
+  blocks from `StreamingSampleSource`, while cut, paste, gain and the other
+  selection edits use sparse in-memory overlays. Undo never writes the base
+  file. Whole-file analysis (loudness, full-clip spectrogram) is skipped under
+  the same budget; selection-sized analysis still works. A current `.pk`
+  sidecar supplies the full overview, and sample-level zoom reads only a
+  bounded detail window around the playhead.
 - **Export round-trips.** `save_audio("bounce.rf64", …)` writes RF64 (and
   `.w64` writes Wave64) whenever the local libsndfile supports it, so a
   long-form bounce is not silently truncated at 4 GB.
@@ -431,17 +506,21 @@ above this package.
   rectangle. There is no healing brush, lasso or paintbrush selection, no
   spectral copy/paste, and the mask is rectangular in time as well as in
   frequency.
-- No complete repair suite (noise reduction remains). VST3 hosting is one
-  plugin slot behind the optional `plugins` extra (View ▸ VST3 Plugin): no AU
-  format, no multi-slot plugin rack, no plugin delay compensation, and plugin
-  state is not saved into projects — see the roadmap in the release sign-off.
-  Batch processing is covered by the `audio_studio.batch` CLI above.
+- No complete repair suite (noise reduction remains). VST3 hosting is a
+  three-slot rack behind the optional `plugins` extra (View ▸ VST3 Plugins),
+  with a filesystem-only bundle scanner: no AU format, no plugin delay
+  compensation, no plugin editor windows, and projects remember plugin paths but
+  not plugin parameter state — see the roadmap in the release sign-off. Batch
+  processing is covered by the `audio_studio.batch` CLI above.
 - The default device block is now 256 frames (~5.3 ms at 48 kHz);
   `SoundDeviceOutput` and `PyAudioOutput` retry with 512 and then 1024 frames
-  when the device rejects it. This lowers callback latency but is not certified
-  low-latency monitoring: shared-mode host buffering still applies, WASAPI
-  exclusive mode, ASIO and per-host latency hints are not wired up, and the
-  ASIO SDK is not shipped.
+  when the device rejects it. On Windows, opt-in WASAPI exclusive mode
+  (`--wasapi-exclusive` or `AUDIO_STUDIO_WASAPI_EXCLUSIVE=1`) additionally
+  bypasses the shared-mode mixer. This lowers callback latency but is not
+  certified low-latency monitoring: shared-mode host buffering still applies
+  unless exclusive mode is enabled, ASIO and per-host latency hints are not
+  wired up, the ASIO SDK is not shipped, and no hardware round-trip
+  measurements back the numbers.
 - On the first playback, the engine collects cyclic garbage and freezes the
   existing GC-tracked object graph until shutdown to keep old objects out of
   playback-time collections. Set `AUDIO_STUDIO_RT_GC=0` to disable this
@@ -466,14 +545,13 @@ above this package.
   compliance from the current alpha.
 - Loop playback restarts from the region start without a crossfade, and the
   reported position is briefly clamped across the wrap.
-- Long files stream from disk for playback and their peak pyramid survives in a
-  `.pk` sidecar between sessions, but the edit history and the pyramid itself
-  are held in memory while a clip is open, and a pyramid restored for a streamed
-  file only resolves down to its finest cached level (256 frames per bin) until
-  the samples are read. RF64/W64 containers are detected, streamed and exported
-  (see *Large files* above), but out-of-core *editing* is still missing: a file
-  past the memory budget opens as read-only streamed playback, without a
-  waveform overview unless a `.pk` sidecar already exists.
+- Long files stream from disk and use sparse in-memory edit overlays. Their peak
+  pyramid survives in a `.pk` sidecar between sessions; without a current
+  sidecar only the bounded detail window is available. A restored overview
+  resolves down to its finest cached level (256 frames per bin), then
+  sample-level zoom reads the edited source around the playhead. Streaming
+  edits can still consume substantial memory when the selected region itself
+  is large, and saving an edit project flattens its audio.
 
 ## Release notes — v0.1.0-alpha
 

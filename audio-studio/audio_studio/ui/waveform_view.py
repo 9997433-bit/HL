@@ -33,6 +33,7 @@ from PySide6.QtWidgets import QSizePolicy, QWidget
 
 from ..core.markers import MarkerList
 from ..core.peaks import PeakPyramid
+from ..core.sample_source import SampleSource
 from ..core.types import TimeRange
 from .theme import PALETTE, Palette
 
@@ -41,6 +42,9 @@ MIN_VIEW_FRAMES: int = 32
 
 #: Pixels per sample above which individual samples are drawn as a polyline.
 SAMPLE_MODE_PPS: float = 4.0
+
+#: Maximum PCM window retained for sample-accurate streaming detail.
+DETAIL_WINDOW_FRAMES: int = 1 << 16
 
 #: Drag distance, in pixels, below which a press counts as a click, not a selection.
 SELECTION_DRAG_SLOP: int = 3
@@ -77,6 +81,9 @@ class WaveformView(QWidget):
 
         self._pyramid: PeakPyramid | None = None
         self._samples: np.ndarray | None = None
+        self._sample_source: SampleSource | None = None
+        self._detail_samples: np.ndarray | None = None
+        self._detail_start = 0
         self._sample_rate = 44100
         self._n_frames = 0
 
@@ -109,12 +116,27 @@ class WaveformView(QWidget):
         pyramid: PeakPyramid | None,
         sample_rate: int = 44100,
         samples: np.ndarray | None = None,
+        *,
+        sample_source: SampleSource | None = None,
+        n_frames: int | None = None,
     ) -> None:
-        """Attach a clip's envelope pyramid (and raw samples for sample-level zoom)."""
+        """Attach an overview plus optional PCM or streaming detail source."""
         self._pyramid = pyramid
         self._samples = samples
+        self._sample_source = sample_source
+        self._detail_samples = None
+        self._detail_start = 0
         self._sample_rate = max(int(sample_rate), 1)
-        self._n_frames = pyramid.n_frames if pyramid is not None else 0
+        if n_frames is not None:
+            self._n_frames = max(int(n_frames), 0)
+        elif pyramid is not None:
+            self._n_frames = pyramid.n_frames
+        elif samples is not None:
+            self._n_frames = int(samples.shape[0])
+        elif sample_source is not None:
+            self._n_frames = sample_source.n_frames
+        else:
+            self._n_frames = 0
         self._selection = None
         self._playhead = 0.0
         self._cursor_frame = 0
@@ -135,7 +157,11 @@ class WaveformView(QWidget):
 
     @property
     def has_clip(self) -> bool:
-        return self._pyramid is not None and self._n_frames > 0
+        return self._n_frames > 0 and (
+            self._pyramid is not None
+            or self._samples is not None
+            or self._sample_source is not None
+        )
 
     # ------------------------------------------------------------ view range
 
@@ -178,6 +204,8 @@ class WaveformView(QWidget):
             return
 
         self._view_start, self._view_frames = start, frames
+        if not self._detail_covers(start, start + frames):
+            self._detail_samples = None
         self._invalidate_cache()
         self.update()
         if emit:
@@ -280,6 +308,13 @@ class WaveformView(QWidget):
         if frame == self._playhead:
             return
         self._playhead = frame
+        if (
+            self._sample_source is not None
+            and self.pixels_per_frame >= SAMPLE_MODE_PPS
+            and not self._detail_covers(int(frame), int(frame) + 1)
+        ):
+            self._detail_samples = None
+            self._invalidate_cache()
         if follow:
             self.ensure_visible(int(frame))
         self.update()
@@ -434,13 +469,13 @@ class WaveformView(QWidget):
 
     def _waveform_pixmap(self) -> QPixmap:
         key = _CacheKey(
-            clip_id=id(self._pyramid),
+            clip_id=id(self._pyramid) if self._pyramid is not None else id(self._sample_source),
             view_start=self._view_start,
             view_frames=self._view_frames,
             width=self.width(),
             height=self.height(),
             amplitude_scale=self._amplitude_scale,
-            channels=self._pyramid.n_channels if self._pyramid else 0,
+            channels=self._display_channels,
         )
         if self._cache is not None and self._cache_key == key:
             return self._cache
@@ -460,10 +495,19 @@ class WaveformView(QWidget):
         return pixmap
 
     def _channel_rects(self) -> list[QRectF]:
-        assert self._pyramid is not None
-        channels = max(self._pyramid.n_channels, 1)
+        channels = max(self._display_channels, 1)
         lane = self.height() / channels
         return [QRectF(0.0, i * lane, float(self.width()), lane) for i in range(channels)]
+
+    @property
+    def _display_channels(self) -> int:
+        if self._pyramid is not None:
+            return self._pyramid.n_channels
+        if self._samples is not None and self._samples.ndim == 2:
+            return int(self._samples.shape[1])
+        if self._sample_source is not None:
+            return self._sample_source.n_channels
+        return 0
 
     def _paint_grid(self, painter: QPainter) -> None:
         painter.setPen(QPen(self._palette.color("waveform_grid"), 1))
@@ -479,8 +523,27 @@ class WaveformView(QWidget):
         span = self._view_frames / self._sample_rate
         raw = span / 10.0
         candidates = (
-            0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5,
-            1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 1800, 3600,
+            0.001,
+            0.002,
+            0.005,
+            0.01,
+            0.02,
+            0.05,
+            0.1,
+            0.2,
+            0.5,
+            1,
+            2,
+            5,
+            10,
+            15,
+            30,
+            60,
+            120,
+            300,
+            600,
+            1800,
+            3600,
         )
         step = next((c for c in candidates if c >= raw), candidates[-1])
         start_time = self._view_start / self._sample_rate
@@ -489,15 +552,14 @@ class WaveformView(QWidget):
         return [first + i * step for i in range(count)]
 
     def _paint_channels(self, painter: QPainter) -> None:
-        assert self._pyramid is not None
         n_bins = max(self.width(), 1)
         pixels_per_frame = self.pixels_per_frame
         sample_mode = (
-            self._samples is not None and pixels_per_frame >= SAMPLE_MODE_PPS
-        )
+            self._samples is not None or self._sample_source is not None
+        ) and pixels_per_frame >= SAMPLE_MODE_PPS
         envelope = (
             None
-            if sample_mode
+            if sample_mode or self._pyramid is None
             else self._pyramid.envelope(self._view_start, self.view_end, n_bins)
         )
 
@@ -516,7 +578,8 @@ class WaveformView(QWidget):
                 self._paint_samples(painter, channel, mid, half, peak_pen)
                 continue
 
-            assert envelope is not None
+            if envelope is None:
+                continue
             if channel >= envelope.n_channels:
                 continue
             lows = np.clip(envelope.minimum[:, channel] * self._amplitude_scale, -1.0, 1.0)
@@ -546,7 +609,7 @@ class WaveformView(QWidget):
         self, painter: QPainter, channel: int, mid: float, half: float, pen: QPen
     ) -> None:
         """Sample-accurate polyline used when zoomed past ~4 px per sample."""
-        samples = self._samples
+        samples, sample_start = self._detail_for_view()
         if samples is None or channel >= samples.shape[1]:
             return
         start = max(self._view_start - 1, 0)
@@ -554,8 +617,13 @@ class WaveformView(QWidget):
         if end <= start:
             return
 
-        values = np.clip(samples[start:end, channel] * self._amplitude_scale, -1.0, 1.0)
-        xs = [self.frame_to_x(start + i) for i in range(len(values))]
+        local_start = max(start - sample_start, 0)
+        local_end = min(end - sample_start, samples.shape[0])
+        if local_end <= local_start:
+            return
+        frame_start = sample_start + local_start
+        values = np.clip(samples[local_start:local_end, channel] * self._amplitude_scale, -1.0, 1.0)
+        xs = [self.frame_to_x(frame_start + i) for i in range(len(values))]
         ys = [mid - float(v) * half for v in values]
 
         painter.setPen(pen)
@@ -564,6 +632,51 @@ class WaveformView(QWidget):
         if self.pixels_per_frame >= 8.0:
             for point in polyline:
                 painter.drawEllipse(point, 2, 2)
+
+    def _detail_covers(self, start: int, end: int) -> bool:
+        samples = self._detail_samples
+        return (
+            samples is not None
+            and self._detail_start <= start
+            and end <= self._detail_start + samples.shape[0]
+        )
+
+    def _detail_for_view(self) -> tuple[np.ndarray | None, int]:
+        """Return bounded PCM around the playhead for sample-level drawing."""
+        if self._samples is not None:
+            return self._samples, 0
+        source = self._sample_source
+        if source is None or self._n_frames <= 0:
+            return None, 0
+
+        needed_start = max(self._view_start - 2, 0)
+        needed_end = min(self.view_end + 2, self._n_frames)
+        if self._detail_covers(needed_start, needed_end):
+            return self._detail_samples, self._detail_start
+
+        playhead = int(self._playhead)
+        anchor = (
+            playhead if needed_start <= playhead <= needed_end else (needed_start + needed_end) // 2
+        )
+        window = min(
+            self._n_frames,
+            max(DETAIL_WINDOW_FRAMES, needed_end - needed_start),
+        )
+        start = max(0, min(anchor - window // 2, self._n_frames - window))
+        # Ensure a manually panned detail view is covered even when the
+        # playhead sits just beyond one edge.
+        if needed_start < start:
+            start = needed_start
+        elif needed_end > start + window:
+            start = needed_end - window
+        start = max(0, min(start, self._n_frames - window))
+        try:
+            samples = source.read(start, window)
+        except Exception:  # noqa: BLE001 - a waveform miss must not take down Qt
+            samples = None
+        self._detail_samples = samples
+        self._detail_start = start
+        return samples, start
 
     def _paint_selection(self, painter: QPainter) -> None:
         if self._selection is None or self._selection.is_empty:
@@ -593,9 +706,7 @@ class WaveformView(QWidget):
             colour = self._flag_colour(region.color, "region")
             wash = QColor(colour)
             wash.setAlpha(30)
-            painter.fillRect(
-                QRectF(x0, 0.0, max(x1 - x0, 1.0), float(self.height())), wash
-            )
+            painter.fillRect(QRectF(x0, 0.0, max(x1 - x0, 1.0), float(self.height())), wash)
             painter.setPen(QPen(colour, 1, Qt.PenStyle.DashLine))
             painter.drawLine(int(x0), 0, int(x0), self.height())
             painter.drawLine(int(x1), 0, int(x1), self.height())

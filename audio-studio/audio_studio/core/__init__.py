@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from .edit_session import (
     AudioDocument,
+    BaseSegment,
     Chunk,
     CutCommand,
     DeleteCommand,
@@ -17,6 +18,8 @@ from .edit_session import (
     ReverseCommand,
     Segment,
     SilenceCommand,
+    StreamingAudioDocument,
+    StreamingEditSession,
     TrimCommand,
     UndoStack,
 )
@@ -74,6 +77,7 @@ __all__ = [
     "AudioFormat",
     "AudioLoadError",
     "AudioOutput",
+    "BaseSegment",
     "Bus",
     "Chunk",
     "Clip",
@@ -113,6 +117,8 @@ __all__ = [
     "SilenceCommand",
     "SoundDeviceOutput",
     "StreamingSampleSource",
+    "StreamingAudioDocument",
+    "StreamingEditSession",
     "TimeRange",
     "Track",
     "TransportState",

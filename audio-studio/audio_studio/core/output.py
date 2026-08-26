@@ -15,6 +15,7 @@ import time
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager, suppress
+from typing import Any
 
 import numpy as np
 
@@ -328,6 +329,18 @@ class PyAudioOutput(AudioOutput):
 #: ``sounddevice`` pins the new one, ``null`` skips hardware entirely.
 OUTPUT_BACKEND_ENV_VAR = "AUDIO_STUDIO_OUTPUT"
 
+#: Safety switch for WASAPI exclusive-mode output. Only the value ``1`` on a
+#: Windows host makes :func:`create_output` request exclusive mode from the
+#: sounddevice backend; every other value or platform keeps shared mode.
+WASAPI_EXCLUSIVE_ENV_VAR = "AUDIO_STUDIO_WASAPI_EXCLUSIVE"
+
+
+def _wasapi_exclusive_requested() -> bool:
+    """True when the WASAPI exclusive switch is set on a Windows host."""
+    if sys.platform != "win32":
+        return False
+    return os.environ.get(WASAPI_EXCLUSIVE_ENV_VAR, "").strip() == "1"
+
 _BACKEND_ALIASES: dict[str, tuple[str, ...]] = {
     "pyaudio": ("pyaudio",),
     "portaudio": ("pyaudio",),
@@ -360,18 +373,18 @@ def _backend_order() -> tuple[str, ...]:
     return _BACKEND_ALIASES.get(requested, _DEFAULT_BACKEND_ORDER)
 
 
-def _open_probe(cls: type[AudioOutput]) -> AudioOutput | None:
+def _open_probe(cls: type[AudioOutput], **kwargs: Any) -> AudioOutput | None:
     """Return a fresh backend instance when a throwaway stream really opens."""
     if not getattr(cls, "is_available", lambda: False)():
         return None
-    probe = cls()
+    probe = cls(**kwargs)
     try:
         probe.open(48000, 2, lambda n: np.zeros((n, 2), dtype=SAMPLE_DTYPE))
     except OutputDeviceError:
         return None
     finally:
         probe.close()
-    return cls()
+    return cls(**kwargs)
 
 
 def create_output(*, prefer_null: bool = False) -> AudioOutput:
@@ -379,8 +392,10 @@ def create_output(*, prefer_null: bool = False) -> AudioOutput:
 
     The search order is ``sounddevice`` then ``pyaudio``, and
     ``AUDIO_STUDIO_OUTPUT`` pins one of them (``pyaudio``, ``sounddevice`` or
-    ``null``). Falls back to :class:`NullOutput` so the application always
-    starts, even on a container with no ALSA device.
+    ``null``). On Windows, ``AUDIO_STUDIO_WASAPI_EXCLUSIVE=1`` additionally asks
+    the sounddevice backend for WASAPI exclusive mode. Falls back to
+    :class:`NullOutput` so the application always starts, even on a container
+    with no ALSA device.
     """
     if prefer_null:
         return NullOutput()
@@ -388,7 +403,10 @@ def create_output(*, prefer_null: bool = False) -> AudioOutput:
         cls = _backend_class(name)
         if cls is None:
             continue
-        backend = _open_probe(cls)
+        kwargs: dict[str, Any] = {}
+        if name == "sounddevice" and _wasapi_exclusive_requested():
+            kwargs["exclusive"] = True
+        backend = _open_probe(cls, **kwargs)
         if backend is not None:
             return backend
     return NullOutput()

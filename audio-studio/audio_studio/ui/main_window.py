@@ -51,7 +51,13 @@ from PySide6.QtWidgets import (
 )
 
 from .. import __app_name__, __version__
-from ..core.edit_session import SPECTRAL_ATTENUATION_DB, EditError, EditSession
+from ..core import peaks_cache
+from ..core.edit_session import (
+    SPECTRAL_ATTENUATION_DB,
+    EditError,
+    EditSession,
+    StreamingEditSession,
+)
 from ..core.engine import AudioEngine
 from ..core.large_file import DEFAULT_MEMORY_BUDGET_BYTES, should_stream
 from ..core.loader import (
@@ -70,7 +76,7 @@ from ..core.recorder import (
     RecorderDeviceError,
     create_recorder,
 )
-from ..core.sample_source import MemorySampleSource
+from ..core.sample_source import MemorySampleSource, StreamingSampleSource
 from ..core.session import MultitrackSession, Track
 from ..core.types import TimeRange, TransportState, format_timecode
 from ..dsp.loudness import LoudnessMeter, LoudnessReport, format_lufs
@@ -129,7 +135,7 @@ class MainWindow(QMainWindow):
         self.transport_bar = TransportBar()
         self.spectrum_panel = SpectrumPanel()
         self.effect_rack = EffectRackPanel(self.effect_chain)
-        # One external-plugin slot, inserted into the same preview chain the
+        # Three external-plugin slots, inserted into the same preview chain the
         # rack drives, so a VST3 is auditioned through the same path.
         self.plugin_panel = PluginPanel(self.effect_chain)
 
@@ -144,7 +150,7 @@ class MainWindow(QMainWindow):
         # The clip the waveform editor owns. Held separately because the engine
         # forgets it while the transport is pointed at the session mixer.
         self._editor_clip: LoadedAudio | None = None
-        self._edit_session: EditSession | None = None
+        self._edit_session: EditSession | StreamingEditSession | None = None
         self._project_path: Path | None = None
         self._project_dirty: bool = False
 
@@ -226,10 +232,10 @@ class MainWindow(QMainWindow):
         )
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.effects_dock)
 
-        # The plugin slot feeds the same chain as the rack, so it belongs on the
-        # same side of the window — tabbed behind it rather than competing for
-        # width with a panel most sessions never open.
-        self.plugin_dock = QDockWidget("VST3 Plugin", self)
+        # The plugin slots feed the same chain as the rack, so they belong on
+        # the same side of the window — tabbed behind it rather than competing
+        # for width with a panel most sessions never open.
+        self.plugin_dock = QDockWidget("VST3 Plugins", self)
         self.plugin_dock.setObjectName("PluginDock")
         self.plugin_dock.setWidget(self.plugin_panel)
         self.plugin_dock.setAllowedAreas(
@@ -252,8 +258,12 @@ class MainWindow(QMainWindow):
 
     def _build_actions(self) -> None:
         def action(
-            text: str, slot, shortcut: QKeySequence | QKeySequence.StandardKey | str | None = None,
-            *, checkable: bool = False, tip: str = "",
+            text: str,
+            slot,
+            shortcut: QKeySequence | QKeySequence.StandardKey | str | None = None,
+            *,
+            checkable: bool = False,
+            tip: str = "",
         ) -> QAction:
             act = QAction(text, self)
             if shortcut is not None:
@@ -266,30 +276,41 @@ class MainWindow(QMainWindow):
             return act
 
         self.action_open = action(
-            "&Open…", self.open_file_dialog, QKeySequence.StandardKey.Open,
+            "&Open…",
+            self.open_file_dialog,
+            QKeySequence.StandardKey.Open,
             tip="Open an audio file",
         )
         self.action_close = action("&Close", self.close_clip, QKeySequence.StandardKey.Close)
         self.action_export = action(
-            "&Export As…", self.export_dialog, QKeySequence.StandardKey.SaveAs,
+            "&Export As…",
+            self.export_dialog,
+            QKeySequence.StandardKey.SaveAs,
             tip="Write the clip (or the selection) to a new file",
         )
         self.action_save_project = action(
-            "Save &Project", self.save_project, "Ctrl+Shift+S",
+            "Save &Project",
+            self.save_project,
+            "Ctrl+Shift+S",
             tip="Save the session to an .hlproj project bundle",
         )
         self.action_save_project_as = action(
-            "Save Project &As…", self.save_project_as, "Ctrl+Alt+S",
+            "Save Project &As…",
+            self.save_project_as,
+            "Ctrl+Alt+S",
             tip="Save the session to a new .hlproj directory",
         )
         self.action_open_project = action(
-            "Open &Project…", self.open_project_dialog, "Ctrl+Shift+O",
+            "Open &Project…",
+            self.open_project_dialog,
+            "Ctrl+Shift+O",
             tip="Open an .hlproj project bundle",
         )
         self.action_quit = action("E&xit", self.close, QKeySequence.StandardKey.Quit)
 
         self.action_select_all = action(
-            "Select &All", self.track_panel.waveform.select_all,
+            "Select &All",
+            self.track_panel.waveform.select_all,
             QKeySequence.StandardKey.SelectAll,
         )
         self.action_deselect = action(
@@ -297,96 +318,138 @@ class MainWindow(QMainWindow):
         )
 
         self.action_undo = action(
-            "&Undo", self.edit_undo, QKeySequence.StandardKey.Undo,
+            "&Undo",
+            self.edit_undo,
+            QKeySequence.StandardKey.Undo,
             tip="Undo the last edit",
         )
         self.action_redo = action(
-            "&Redo", self.edit_redo, QKeySequence.StandardKey.Redo,
+            "&Redo",
+            self.edit_redo,
+            QKeySequence.StandardKey.Redo,
             tip="Redo the last undone edit",
         )
         self.action_cut = action(
-            "Cu&t", self.edit_cut, QKeySequence.StandardKey.Cut,
+            "Cu&t",
+            self.edit_cut,
+            QKeySequence.StandardKey.Cut,
             tip="Cut the selection to the clipboard",
         )
         self.action_copy = action(
-            "&Copy", self.edit_copy, QKeySequence.StandardKey.Copy,
+            "&Copy",
+            self.edit_copy,
+            QKeySequence.StandardKey.Copy,
             tip="Copy the selection to the clipboard",
         )
         self.action_paste = action(
-            "&Paste", self.edit_paste, QKeySequence.StandardKey.Paste,
+            "&Paste",
+            self.edit_paste,
+            QKeySequence.StandardKey.Paste,
             tip="Paste the clipboard at the playhead",
         )
         self.action_delete = action(
-            "&Delete", self.edit_delete, QKeySequence.StandardKey.Delete,
+            "&Delete",
+            self.edit_delete,
+            QKeySequence.StandardKey.Delete,
             tip="Delete the selected range",
         )
         self.action_silence = action(
-            "&Silence", self.edit_silence, "Ctrl+Shift+M",
+            "&Silence",
+            self.edit_silence,
+            "Ctrl+Shift+M",
             tip="Replace the selection with digital silence",
         )
         self.action_trim = action(
-            "Trim to &Selection", self.edit_trim, "Ctrl+T",
+            "Trim to &Selection",
+            self.edit_trim,
+            "Ctrl+T",
             tip="Keep only the selected range",
         )
         self.action_gain = action(
-            "Apply &Gain…", self.edit_gain, "Ctrl+G",
+            "Apply &Gain…",
+            self.edit_gain,
+            "Ctrl+G",
             tip="Change the level of the selection in decibels",
         )
         self.action_fade_in = action(
-            "Fade &In", self.edit_fade_in, "Ctrl+Shift+I",
+            "Fade &In",
+            self.edit_fade_in,
+            "Ctrl+Shift+I",
             tip="Apply a cosine fade-in across the selection",
         )
         self.action_fade_out = action(
-            "Fade O&ut", self.edit_fade_out, "Ctrl+Shift+U",
+            "Fade O&ut",
+            self.edit_fade_out,
+            "Ctrl+Shift+U",
             tip="Apply a cosine fade-out across the selection",
         )
         self.action_reverse = action(
-            "&Reverse", self.edit_reverse, "Ctrl+R",
+            "&Reverse",
+            self.edit_reverse,
+            "Ctrl+R",
             tip="Reverse the selected audio",
         )
         self.action_insert_silence = action(
-            "Insert &Silence…", self.edit_insert_silence, "Ctrl+Shift+N",
+            "Insert &Silence…",
+            self.edit_insert_silence,
+            "Ctrl+Shift+N",
             tip="Insert silence at the playhead",
         )
 
         self.action_spectral_attenuate = action(
-            "&Attenuate Selection", self.spectral_attenuate, "Ctrl+Alt+A",
+            "&Attenuate Selection",
+            self.spectral_attenuate,
+            "Ctrl+Alt+A",
             tip=(
                 f"Turn the band selected on the spectral display down by "
                 f"{abs(SPECTRAL_ATTENUATION_DB):.0f} dB"
             ),
         )
         self.action_spectral_delete = action(
-            "&Delete Selection", self.spectral_delete, "Ctrl+Alt+D",
+            "&Delete Selection",
+            self.spectral_delete,
+            "Ctrl+Alt+D",
             tip="Remove the band selected on the spectral display",
         )
 
         self.action_add_marker = action(
-            "Add &Marker", self.add_marker_at_playhead, "M",
+            "Add &Marker",
+            self.add_marker_at_playhead,
+            "M",
             tip="Drop a marker at the playhead",
         )
         self.action_add_region = action(
-            "Add &Region from Selection", self.add_region_from_selection, "Shift+M",
+            "Add &Region from Selection",
+            self.add_region_from_selection,
+            "Shift+M",
             tip="Name the selected range as a region",
         )
         self.action_next_marker = action(
-            "&Next Marker", self.go_to_next_marker, "Ctrl+Right",
+            "&Next Marker",
+            self.go_to_next_marker,
+            "Ctrl+Right",
             tip="Move the playhead to the next marker",
         )
         self.action_prev_marker = action(
-            "&Previous Marker", self.go_to_previous_marker, "Ctrl+Left",
+            "&Previous Marker",
+            self.go_to_previous_marker,
+            "Ctrl+Left",
             tip="Move the playhead to the previous marker",
         )
         self.action_rename_marker = action(
-            "Re&name Marker…", self.rename_selected_marker, "F2",
+            "Re&name Marker…",
+            self.rename_selected_marker,
+            "F2",
             tip="Rename the marker selected in the Markers list",
         )
         self.action_remove_marker = action(
-            "&Remove Marker", self.remove_selected_marker,
+            "&Remove Marker",
+            self.remove_selected_marker,
             tip="Delete the marker selected in the Markers list",
         )
         self.action_clear_markers = action(
-            "&Clear All Markers", self.clear_markers,
+            "&Clear All Markers",
+            self.clear_markers,
             tip="Remove every marker and region from the document",
         )
 
@@ -408,15 +471,24 @@ class MainWindow(QMainWindow):
         self.layout_group = QActionGroup(self)
         self.layout_group.setExclusive(True)
         self.action_view_waveform = action(
-            "&Waveform", lambda: self.set_view_mode("waveform"), "Alt+1", checkable=True,
+            "&Waveform",
+            lambda: self.set_view_mode("waveform"),
+            "Alt+1",
+            checkable=True,
             tip="Waveform editor only",
         )
         self.action_view_spectrum = action(
-            "&Spectral", lambda: self.set_view_mode("spectrum"), "Alt+2", checkable=True,
+            "&Spectral",
+            lambda: self.set_view_mode("spectrum"),
+            "Alt+2",
+            checkable=True,
             tip="Spectral frequency display only",
         )
         self.action_view_split = action(
-            "S&plit", lambda: self.set_view_mode("split"), "Alt+3", checkable=True,
+            "S&plit",
+            lambda: self.set_view_mode("split"),
+            "Alt+3",
+            checkable=True,
             tip="Waveform above, spectral display below",
         )
         for act in (self.action_view_waveform, self.action_view_spectrum, self.action_view_split):
@@ -424,18 +496,25 @@ class MainWindow(QMainWindow):
         self.action_view_split.setChecked(True)
 
         self.action_analyze = action(
-            "&Analyze Now", self.analyze_spectrum, "F5",
+            "&Analyze Now",
+            self.analyze_spectrum,
+            "F5",
             tip="Re-run the spectral analysis over the selection (or the whole clip)",
         )
 
         # The workspace switch is orthogonal to the layout modes above: it
         # chooses which *document* is on screen, not how it is laid out.
         self.action_multitrack = action(
-            "&Multitrack Mode", self._on_multitrack_toggled, "Alt+4", checkable=True,
+            "&Multitrack Mode",
+            self._on_multitrack_toggled,
+            "Alt+4",
+            checkable=True,
             tip="Switch between the waveform editor and the multitrack session",
         )
         self.action_add_track = action(
-            "Add Clip as &Track", self.add_clip_as_track, "Ctrl+Shift+T",
+            "Add Clip as &Track",
+            self.add_clip_as_track,
+            "Ctrl+Shift+T",
             tip="Place the loaded clip on a new multitrack lane",
         )
         self.action_mt_zoom_in = action(
@@ -451,7 +530,9 @@ class MainWindow(QMainWindow):
         self.action_end = action("Go to &End", self._on_skip_end, "End")
         self.action_loop = action("&Loop", self._on_loop_toggled, "L", checkable=True)
         self.action_sel_only = action(
-            "Play Selection &Only", self._on_play_selection_only, checkable=True,
+            "Play Selection &Only",
+            self._on_play_selection_only,
+            checkable=True,
             tip="Restrict the transport to the selected range",
         )
         self.action_sel_only.setChecked(True)
@@ -636,9 +717,8 @@ class MainWindow(QMainWindow):
         """Load ``path`` into the editor; returns False and reports on failure.
 
         A file whose decoded form would blow the in-memory editing budget —
-        an RF64/W64 capture is the archetype — is opened for streamed,
-        read-only playback instead of being decoded whole into an
-        :class:`EditSession`.
+        an RF64/W64 capture is the archetype — is opened as a sparse streaming
+        edit session instead of being decoded whole.
         """
         if not self._confirm_discard_unsaved(action="opening another file"):
             return False
@@ -658,31 +738,36 @@ class MainWindow(QMainWindow):
         return True
 
     def _open_file_streaming(self, path: str | Path) -> bool:
-        """Open ``path`` for read-only streamed playback, never decoding it whole.
-
-        No :class:`EditSession` is created — editing needs the samples in
-        memory, which is exactly what the memory budget refused — so the edit
-        actions stay disabled and the transport pulls straight from a
-        :class:`~audio_studio.core.sample_source.StreamingSampleSource`. The
-        waveform overview is also skipped: building it would read every frame,
-        which defeats the point of streaming (a ``.pk`` sidecar, when one
-        exists, is picked up by the engine without that pass).
-        """
+        """Open ``path`` through a sparse editable overlay, never decoding it whole."""
+        source: StreamingSampleSource | None = None
         try:
-            source = self.engine.open_stream(path)
+            source = StreamingSampleSource(path)
+            audio_format = source.audio_format()
+            pyramid = peaks_cache.read(source.path) if peaks_cache.cache_enabled() else None
         except AudioLoadError as exc:
+            if source is not None:
+                source.close()
             QMessageBox.critical(self, "Cannot open file", str(exc))
             return False
+
+        self._clear_edit_session()
+        session = EditSession.from_streaming(source)
+        session.add_listener(self._on_edit_session_changed)
+        self._edit_session = session
+        self.engine.set_source(
+            session,
+            audio_format=audio_format,
+            pyramid=pyramid,
+            owns_source=True,
+        )
         self._project_path = None
         self._project_dirty = False
-        self._clear_edit_session()
         self.set_markers(MarkerList())
         self._editor_clip = None
         self._remember_recent(source.path)
         self._update_for_clip()
         self.statusBar().showMessage(
-            f"Streaming {source.path.name} — too large to edit in memory, "
-            "playback is read-only",
+            f"Streaming {source.path.name} — edits use a bounded sparse overlay",
             6000,
         )
         return True
@@ -770,6 +855,11 @@ class MainWindow(QMainWindow):
         self.session = restore_multitrack(snapshot.multitrack, path)
         self.multitrack_view.set_session(self.session)
         self.set_markers(snapshot.markers)
+        # Plugins are the one part of a project that belongs to the machine as
+        # much as to the bundle: a plugin that is not installed here reports
+        # itself in the panel and leaves its slot empty rather than failing the
+        # open.
+        self.plugin_panel.restore_project_state(snapshot.plugins)
 
         if snapshot.waveform is not None:
             clip, session, playhead, selection = load_waveform_document(snapshot)
@@ -840,6 +930,7 @@ class MainWindow(QMainWindow):
             playhead=playhead,
             selection=selection,
             markers=self.markers,
+            plugins=self.plugin_panel.project_state(),
         )
 
     def _has_unsaved_changes(self) -> bool:
@@ -894,6 +985,27 @@ class MainWindow(QMainWindow):
         self._editor_clip = clip
         self._install_editor_source(clip)
 
+    @property
+    def _streaming_edit_session(self) -> StreamingEditSession | None:
+        session = self._edit_session
+        return session if isinstance(session, StreamingEditSession) else None
+
+    def _set_streaming_waveform(self, session: StreamingEditSession) -> None:
+        source = session.base_source
+        path = getattr(source, "path", Path("stream"))
+        audio_format = self.engine.audio_format
+        if audio_format is None and hasattr(source, "audio_format"):
+            audio_format = source.audio_format()
+        if audio_format is None:
+            return
+        self.track_panel.set_stream(
+            path,
+            audio_format,
+            session.n_frames,
+            self.engine.pyramid,
+            session,
+        )
+
     def _install_editor_source(self, clip: LoadedAudio) -> None:
         session = self._edit_session
         if session is None:
@@ -927,16 +1039,19 @@ class MainWindow(QMainWindow):
         samples = session.read(0, n_frames)
         return PeakPyramid(samples), samples
 
-    def _on_edit_session_changed(self, _session: EditSession) -> None:
+    def _on_edit_session_changed(self, _session: EditSession | StreamingEditSession) -> None:
         if self._workspace != "waveform" or self.is_playing_session:
             self._update_edit_actions()
             return
-        clip = self._editor_clip
-        if clip is None:
-            return
-        pyramid, samples = self._waveform_cache(_session)
-        self.engine.update_pyramid(pyramid)
-        self.track_panel.set_clip(clip, pyramid, samples=samples)
+        if isinstance(_session, StreamingEditSession):
+            self._set_streaming_waveform(_session)
+        else:
+            clip = self._editor_clip
+            if clip is None:
+                return
+            pyramid, samples = self._waveform_cache(_session)
+            self.engine.update_pyramid(pyramid)
+            self.track_panel.set_clip(clip, pyramid, samples=samples)
         self.transport_bar.set_duration(self.engine.duration)
 
         selection = self.engine.selection
@@ -1000,9 +1115,14 @@ class MainWindow(QMainWindow):
 
     def _update_window_title(self) -> None:
         clip = self.editor_clip
+        streaming = self._streaming_edit_session
         dirty = self._has_unsaved_changes()
         if self._project_path is not None:
             prefix = self._project_path.stem + ("*" if dirty else "")
+        elif streaming is not None:
+            source = streaming.base_source
+            name = getattr(getattr(source, "path", None), "name", "Streaming audio")
+            prefix = f"{name}*" if dirty else name
         elif clip is None:
             self.setWindowTitle(__app_name__)
             return
@@ -1140,9 +1260,7 @@ class MainWindow(QMainWindow):
         def _attenuate() -> None:
             assert self._edit_session is not None
             selection = self._spectral_selection()
-            self._edit_session.attenuate_band(
-                selection.time, selection.low_hz, selection.high_hz
-            )
+            self._edit_session.attenuate_band(selection.time, selection.low_hz, selection.high_hz)
             self.statusBar().showMessage(
                 f"Attenuated {selection.low_hz:.0f}–{selection.high_hz:.0f} Hz by "
                 f"{abs(SPECTRAL_ATTENUATION_DB):.0f} dB",
@@ -1157,9 +1275,7 @@ class MainWindow(QMainWindow):
         def _delete() -> None:
             assert self._edit_session is not None
             selection = self._spectral_selection()
-            self._edit_session.remove_band(
-                selection.time, selection.low_hz, selection.high_hz
-            )
+            self._edit_session.remove_band(selection.time, selection.low_hz, selection.high_hz)
             self.statusBar().showMessage(
                 f"Removed {selection.low_hz:.0f}–{selection.high_hz:.0f} Hz", 4000
             )
@@ -1241,8 +1357,7 @@ class MainWindow(QMainWindow):
         region = self.markers.add_region(selection.start, selection.end)
         self.markers_dock.show()
         self._after_markers_changed(
-            f"{region.name} spans {self._timecode(region.start)}"
-            f" → {self._timecode(region.end)}"
+            f"{region.name} spans {self._timecode(region.start)} → {self._timecode(region.end)}"
         )
         self.marker_panel.select(region.id)
         return region
@@ -1293,9 +1408,7 @@ class MainWindow(QMainWindow):
             return False
         self._on_seek(marker.frame)
         self.marker_panel.select(marker.id)
-        self.statusBar().showMessage(
-            f"{marker.name} · {self._timecode(marker.frame)}", 3000
-        )
+        self.statusBar().showMessage(f"{marker.name} · {self._timecode(marker.frame)}", 3000)
         return True
 
     def _on_region_activated(self, region: object) -> None:
@@ -1323,8 +1436,7 @@ class MainWindow(QMainWindow):
             return None
         if (
             self.engine.is_streaming
-            and (stop - start) * max(self.engine.n_channels, 1) * 4
-            > DEFAULT_MEMORY_BUDGET_BYTES
+            and (stop - start) * max(self.engine.n_channels, 1) * 4 > DEFAULT_MEMORY_BUDGET_BYTES
         ):
             return None
         source = getattr(self.engine, "source", None)
@@ -1371,9 +1483,7 @@ class MainWindow(QMainWindow):
             return
         self.status_loudness.setText("Loudness: measuring…")
         meter = LoudnessMeter(rate)
-        self._loudness_job = self._loudness_pool.submit(
-            meter.analyze, audio, channels_last=True
-        )
+        self._loudness_job = self._loudness_pool.submit(meter.analyze, audio, channels_last=True)
 
     def _collect_loudness(self) -> None:
         job = self._loudness_job
@@ -1466,6 +1576,9 @@ class MainWindow(QMainWindow):
     def _refresh_editor_waveform(self) -> None:
         clip = self._editor_clip
         session = self._edit_session
+        if isinstance(session, StreamingEditSession):
+            self._set_streaming_waveform(session)
+            return
         if clip is None or session is None:
             return
         pyramid, samples = self._waveform_cache(session)
@@ -1544,7 +1657,10 @@ class MainWindow(QMainWindow):
         if not self.is_playing_session:
             self._editor_clip = self.engine.clip
         clip = self.editor_clip
-        if self._edit_session is not None and clip is not None:
+        streaming = self._streaming_edit_session
+        if streaming is not None:
+            self._set_streaming_waveform(streaming)
+        elif self._edit_session is not None and clip is not None:
             _, samples = self._waveform_cache(self._edit_session)
             self.track_panel.set_clip(clip, self.engine.pyramid, samples=samples)
         else:
@@ -1604,11 +1720,21 @@ class MainWindow(QMainWindow):
             )
             return
         clip = self.editor_clip
+        streaming = self._streaming_edit_session
+        if streaming is not None and self.engine.audio_format is not None:
+            fmt = self.engine.audio_format
+            self.status_format.setText(
+                f"Streaming editable  ·  {fmt.describe()}  ·  "
+                f"{format_timecode(self.engine.duration)}  ·  "
+                f"{self.engine.n_frames:,} frames  ·  "
+                f"{streaming.overlay_chunk_count} overlay chunks"
+            )
+            return
         if clip is None:
             if self.engine.is_streaming and self.engine.audio_format is not None:
                 fmt = self.engine.audio_format
                 self.status_format.setText(
-                    f"Streaming (read-only)  ·  {fmt.describe()}  ·  "
+                    f"Streaming  ·  {fmt.describe()}  ·  "
                     f"{format_timecode(self.engine.duration)}  ·  "
                     f"{self.engine.n_frames:,} frames"
                 )
@@ -1813,9 +1939,7 @@ class MainWindow(QMainWindow):
         self.transport_bar.set_selection_text(format_timecode(end - start))
         self.status_selection.setText(f"Selection: {text} ({selection.length:,} frames)")
 
-    def _on_spectral_selection(
-        self, rng: TimeRange | None, low_hz: float, high_hz: float
-    ) -> None:
+    def _on_spectral_selection(self, rng: TimeRange | None, low_hz: float, high_hz: float) -> None:
         self._update_edit_actions()
         if rng is None:
             self.statusBar().clearMessage()
@@ -1860,8 +1984,7 @@ class MainWindow(QMainWindow):
     def dragEnterEvent(self, event: QDragEnterEvent) -> None:  # noqa: N802 - Qt override
         mime = event.mimeData()
         if mime.hasUrls() and any(
-            Path(url.toLocalFile()).suffix.lower() in SUPPORTED_EXTENSIONS
-            for url in mime.urls()
+            Path(url.toLocalFile()).suffix.lower() in SUPPORTED_EXTENSIONS for url in mime.urls()
         ):
             event.acceptProposedAction()
 
