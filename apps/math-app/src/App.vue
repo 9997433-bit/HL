@@ -1,11 +1,15 @@
 <script setup>
-import { computed, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, watch } from 'vue'
 import StarField from '@/components/StarField.vue'
 import TopBar from '@/components/TopBar.vue'
 import AchievementToast from '@/components/AchievementToast.vue'
+import BreakReminder from '@/components/BreakReminder.vue'
 import { useSettingsStore } from '@/stores/settings.js'
 import { useProgressStore } from '@/stores/progress.js'
 import { sound } from '@/utils/sound'
+
+/** 使用时长的采样间隔：15 秒够画分钟级曲线，又不会频繁写 localStorage。 */
+const USAGE_TICK_MS = 15_000
 
 const settings = useSettingsStore()
 const progress = useProgressStore()
@@ -17,6 +21,16 @@ watch(
   (on) => sound.setEnabled(on),
   { immediate: true },
 )
+
+// 只统计页面真正在前台的时间：切到后台的挂机时长不该算进防沉迷额度
+let usageTimer = null
+onMounted(() => {
+  usageTimer = setInterval(() => {
+    if (document.visibilityState !== 'visible') return
+    progress.recordUsage(USAGE_TICK_MS / 1000)
+  }, USAGE_TICK_MS)
+})
+onBeforeUnmount(() => clearInterval(usageTimer))
 </script>
 
 <template>
@@ -24,6 +38,7 @@ watch(
   <div class="app-root" :class="rootClass">
     <TopBar />
     <AchievementToast />
+    <BreakReminder />
     <router-view v-slot="{ Component }">
       <transition name="page" mode="out-in">
         <component :is="Component" />
