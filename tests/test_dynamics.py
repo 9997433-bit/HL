@@ -863,12 +863,16 @@ def test_axial_bar_damped_spectrum_matches_the_undamped_solver():
     damped = complex_modes(K, M, C, num_modes=4, free_dofs=free)
 
     # The state-space QZ solve is a few digits less accurate than the symmetric
-    # eigensolver it is compared against, hence 1e-7 rather than 1e-12.
+    # eigensolver it is compared against, hence 1e-7 rather than 1e-12. The
+    # Rayleigh ratio zeta = (alpha/omega + beta omega)/2 is dominated by its
+    # beta omega half here, so it carries the frequency error into a term that
+    # is a thousandth of omega: one more digit of slack on the LAPACK builds CI
+    # runs (observed 1.6e-7 there against 4e-9 locally).
     np.testing.assert_allclose(damped.frequencies, undamped.frequencies, rtol=1e-7)
     np.testing.assert_allclose(
         damped.damping_ratios,
         rayleigh.damping_ratios(undamped.angular_frequencies),
-        rtol=1e-7,
+        rtol=1e-6,
     )
     assert np.all(damped.modal_phase_collinearity > 1 - 1e-7)
 
