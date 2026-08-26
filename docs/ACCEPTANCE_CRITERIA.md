@@ -60,6 +60,27 @@ Each registry entry carries a status: `specified` → `implemented`
 (test exists and passes locally) → `verified` (test passing in CI on the
 default branch). The registry file is the single source of truth for status.
 
+The `implemented` → `verified` promotion is enforced, not asserted by hand.
+`tests/acceptance/test_registry_ci.py` re-runs the tagged tests of every
+criterion the registry marks `verified` in a clean pytest subprocess — the
+selection is derived from the registry, so the two cannot drift — and the
+promotion only holds when
+
+1. the gate run exits green with no failure, error, or skip,
+2. every promoted criterion contributes at least one passing test, landing in
+   the suite its registry row names,
+3. a second run under a different interpreter hash seed and single-threaded
+   BLAS reproduces the outcome test for test (the determinism rule of
+   section 1.4), and
+4. the CI `gates` job still runs `import openfemlab`, Ruff, the registry
+   consistency tests, this gate, and the acceptance suites on every push.
+
+Any of those failing turns the suite red, so a broken criterion has to be
+demoted to `implemented` (or fixed) before the branch can go green again.
+The gate selection is available to any run through
+`pytest --criterion AC-<MODULE>-NNN [--criterion-report PATH]`
+(`tests/conftest.py`).
+
 ---
 
 ## 2. M1 — Modal Analysis (spec MS-1)
@@ -389,6 +410,11 @@ M4 = 5, M5 = 4, M6 = 5, and M7 = 3. The two suffixed M3 rows
 (`AC-UPD-006a` / `AC-UPD-006b`) are distinct criteria under one dense base
 number.
 
+Nine of them are `verified` under the section 1.5 gate: one criterion per
+module, so the promotion exercises every module of the platform
+(AC-MODAL-003, AC-CORR-001, AC-CORR-002, AC-UPD-001, AC-WORK-002, AC-OPT-003,
+AC-DYN-004, AC-ELEM-001), plus the P1 Round-2 sign-off blocker AC-CORR-006.
+
 The registry tests enforce:
 
 1. ID uniqueness and format (`AC-<MODULE>-NNN[a-z]?`).
@@ -401,6 +427,9 @@ The registry tests enforce:
    suite named by its `test_file` contains a test tagged
    `@criterion("<ID>")`, and every tag in a suite resolves to a criterion that
    names that suite.
+7. Promotion honesty: `verified` is reserved for blocking (P0/P1) criteria,
+   requires the green, reproducible gate run of section 1.5, and requires the
+   CI `gates` job that runs it to exist.
 
 Adding, renaming, or retiring a criterion is done by editing the registry and
 this document in the same change; the registry test fails otherwise.

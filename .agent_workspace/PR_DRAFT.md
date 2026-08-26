@@ -149,6 +149,10 @@ openness, and automation:
 - **R2-T01 is COMPLETE.** The `correlate-frf` CLI closes its final exit item:
   measured UFF-58 or JSON/YAML FRFs can be correlated against synthesized damped-model
   responses with machine-readable FRAC/FDAC gates.
+- **R2-T04 is ACCEPTANCE-COMPLETE.** The 36-test MS-3.5 Bayesian MAP estimator,
+  AC-UPD-006a/b `implemented` gates, and Laplace σ_post in the `CorrectionReport`
+  are all on the integration branch. CLI `update` document output remains outside
+  this acceptance slice.
 - `.agent_workspace/` holds orchestration records (progress log, Round 2 plan);
   it is documentation, not runtime code.
 - **R2-T02 has its three continuum slices and spatial beam.** QUAD4, TET4, HEX8, and

@@ -14,7 +14,11 @@ Registry contract (ACCEPTANCE_CRITERIA.md sections 1 and 8):
 - ``method`` in {oracle, property, twin, contract, regression}.
 - ``status`` lifecycle: specified -> implemented -> verified. A criterion may
   only leave ``specified`` once the suite named by ``test_file`` carries a test
-  tagged ``@criterion("<ID>")`` (see ``tests/acceptance/_support.py``).
+  tagged ``@criterion("<ID>")`` (see ``tests/acceptance/_support.py``); it may
+  only reach ``verified`` once the CI gate re-runs those tests green and
+  reproducibly (``tests/acceptance/test_registry_ci.py``, CI job
+  ``CI_GATE_JOB``), so the status set below is the promotion claim and that
+  suite is its evidence.
 - ``spec_ref`` anchors must exist in ``docs/MODULE_SPEC.md``.
 """
 
@@ -24,9 +28,15 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+import yaml
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CRITERIA_DOC = REPO_ROOT / "docs" / "ACCEPTANCE_CRITERIA.md"
 SPEC_DOC = REPO_ROOT / "docs" / "MODULE_SPEC.md"
+
+#: Workflow and job that run the gate behind every ``verified`` status.
+CI_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ci.yml"
+CI_GATE_JOB = "gates"
 
 ID_REGEX = re.compile(r"AC-(?:MODAL|CORR|UPD|WORK|OPT|DYN|ELEM)-\d{3}[a-z]?")
 ID_FULLMATCH = re.compile(r"^AC-(MODAL|CORR|UPD|WORK|OPT|DYN|ELEM)-(\d{3})([a-z]?)$")
@@ -85,7 +95,7 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
     _c("AC-MODAL-002", "Backend consistency (dense/lanczos/lobpcg)",
        "P0", "property", "MS-1.2", _MODAL_SUITE, "implemented"),
     _c("AC-MODAL-003", "Mass-orthonormality of returned modes",
-       "P0", "contract", "MS-1.3", _MODAL_SUITE, "implemented"),
+       "P0", "contract", "MS-1.3", _MODAL_SUITE, "verified"),
     _c("AC-MODAL-004", "Rigid-body mode detection",
        "P0", "oracle", "MS-1.2", _MODAL_SUITE, "implemented"),
     _c("AC-MODAL-005", "Sign convention & determinism",
@@ -100,9 +110,9 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P0", "contract", "MS-1.1", _MODAL_SUITE, "implemented"),
     # --- M2 Correlation (MS-2) ----------------------------------------------
     _c("AC-CORR-001", "Weighted MAC self-identity",
-       "P0", "property", "MS-2.2", _CORR_SUITE, "implemented"),
+       "P0", "property", "MS-2.2", _CORR_SUITE, "verified"),
     _c("AC-CORR-002", "MAC scaling/sign invariance",
-       "P0", "property", "MS-2.2", _CORR_SUITE, "implemented"),
+       "P0", "property", "MS-2.2", _CORR_SUITE, "verified"),
     _c("AC-CORR-003", "Pairing recovers ground truth",
        "P0", "twin", "MS-2.3", _CORR_SUITE, "implemented"),
     _c("AC-CORR-004", "COMAC localizes bad DOF",
@@ -110,7 +120,7 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
     _c("AC-CORR-005", "Frequency-error sign convention",
        "P0", "oracle", "MS-2.4", _CORR_SUITE, "implemented"),
     _c("AC-CORR-006", "Reduction/expansion (SEREP) consistency",
-       "P1", "twin", "MS-2.1", _CORR_SUITE, "implemented"),
+       "P1", "twin", "MS-2.1", _CORR_SUITE, "verified"),
     _c("AC-CORR-007", "MAC range and complex-shape support",
        "P0", "property", "MS-2.2", _CORR_SUITE, "implemented"),
     _c("AC-CORR-008", "CorrelationReport JSON round-trip",
@@ -119,7 +129,7 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P1", "twin", "MS-2.1, MS-2.2", _CORR_SUITE, "implemented"),
     # --- M3 Model updating (MS-3) --------------------------------------------
     _c("AC-UPD-001", "Eigenvalue sensitivity vs central FD",
-       "P0", "oracle", "MS-3.3", _UPD_SUITE, "implemented"),
+       "P0", "oracle", "MS-3.3", _UPD_SUITE, "verified"),
     _c("AC-UPD-002", "Fox-Kapoor shape sensitivity vs central FD",
        "P0", "oracle", "MS-3.3", _UPD_SUITE, "implemented"),
     _c("AC-UPD-003", "Twin-experiment parameter recovery",
@@ -140,7 +150,7 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
     _c("AC-WORK-001", "End-to-end correction passes gates",
        "P0", "twin", "MS-4.1, MS-4.2", _WORK_SUITE, "implemented"),
     _c("AC-WORK-002", "Deterministic reproducibility",
-       "P0", "contract", "MS-4.3", _WORK_SUITE, "implemented"),
+       "P0", "contract", "MS-4.3", _WORK_SUITE, "verified"),
     _c("AC-WORK-003", "Held-out validation detects overfitting",
        "P1", "twin", "MS-4.1", _WORK_SUITE, "implemented"),
     _c("AC-WORK-004", "Failed gate halts with typed reason",
@@ -153,7 +163,7 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
     _c("AC-OPT-002", "Reference problem reaches known optimum",
        "P0", "oracle", "MS-5.2", _OPT_SUITE, "implemented"),
     _c("AC-OPT-003", "Box bounds never violated",
-       "P0", "contract", "MS-5.2", _OPT_SUITE, "implemented"),
+       "P0", "contract", "MS-5.2", _OPT_SUITE, "verified"),
     _c("AC-OPT-004", "Mode tracking across crossings",
        "P1", "twin", "MS-5.2", _OPT_SUITE, "implemented"),
     # --- M6 Damped dynamics and FRF (MS-7) ------------------------------------
@@ -164,12 +174,12 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
     _c("AC-DYN-003", "Proportional damping yields real modes",
        "P0", "property", "MS-7.2", _DYN_SUITE, "implemented"),
     _c("AC-DYN-004", "FRAC/FDAC self-identity and scale invariance",
-       "P0", "property", "MS-7.4", _DYN_SUITE, "implemented"),
+       "P0", "property", "MS-7.4", _DYN_SUITE, "verified"),
     _c("AC-DYN-005", "Synthesized FRF survives the UFF-58 round trip",
        "P1", "contract", "MS-7.4", _DYN_SUITE, "implemented"),
     # --- M7 Element library (MS-8) --------------------------------------------
     _c("AC-ELEM-001", "Patch test exact to machine precision",
-       "P0", "oracle", "MS-8.3", _ELEM_SUITE, "implemented"),
+       "P0", "oracle", "MS-8.3", _ELEM_SUITE, "verified"),
     _c("AC-ELEM-002", "Rigid-body invariance and zero-energy mode count",
        "P0", "property", "MS-8.3", _ELEM_SUITE, "implemented"),
     _c("AC-ELEM-003", "Quadratic h-convergence on the continuum oracle",
@@ -186,6 +196,11 @@ def get_criterion(test_id: str) -> AcceptanceCriterion:
 
 def ids() -> tuple[str, ...]:
     return tuple(c.test_id for c in REGISTRY)
+
+
+def verified_ids() -> tuple[str, ...]:
+    """IDs claiming ``verified``; the gate suite re-runs exactly these."""
+    return tuple(c.test_id for c in REGISTRY if c.status == "verified")
 
 
 # ---------------------------------------------------------------------------
@@ -316,6 +331,30 @@ def test_tagged_tests_match_the_registry():
                     f"{test_id} has a test in {relative} but is still {entry.status!r}"
                 )
     assert not problems, problems
+
+
+def test_verified_criteria_are_round_gates():
+    """Promotion is reserved for blocking criteria (rule 7)."""
+    stretch = [c.test_id for c in REGISTRY
+               if c.status == "verified" and c.priority == "P2"]
+    assert not stretch, f"P2 criteria promoted to verified: {stretch}"
+
+
+def test_verified_criteria_span_every_module():
+    """The promoted slice gates all of M1..M6, not one corner of the platform."""
+    covered = {c.module for c in REGISTRY if c.status == "verified"}
+    missing = sorted(set(VALID_MODULES) - covered)
+    assert not missing, f"modules with no verified criterion: {missing}"
+
+
+def test_verified_criteria_run_in_the_ci_gate_job():
+    """A ``verified`` status is only meaningful if CI still runs the gate."""
+    assert CI_WORKFLOW.is_file(), f"missing CI workflow: {CI_WORKFLOW}"
+    jobs = yaml.safe_load(CI_WORKFLOW.read_text(encoding="utf-8")).get("jobs", {})
+    assert CI_GATE_JOB in jobs, (
+        f"{len(verified_ids())} criteria claim 'verified' but the workflow has "
+        f"no {CI_GATE_JOB!r} job (jobs: {sorted(jobs)})"
+    )
 
 
 def test_module_spec_anchors_exist():
