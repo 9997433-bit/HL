@@ -432,24 +432,26 @@ def test_held_out_mode_is_excluded_from_updating_and_checked_at_validation(
 
 
 def test_overfitting_run_fails_the_held_out_gate() -> None:
-    """AC-WORK-003: eight parameters fitted to four noisy targets overfit.
+    """AC-WORK-003: four parameters fitted to four noisy targets overfit.
 
-    Every in-sample gate passes — the fitted modes are matched to 1e-3 % — yet
-    the reserved mode degrades by two orders of magnitude, which is exactly
-    what the held-out check exists to catch.
+    Reserving the highest mode leaves as many free factors as fitted targets,
+    so the fit is exactly determined and the measurement noise has nowhere to
+    go but into the parameters.  Every in-sample gate passes on the modes it
+    was shown, yet the reserved mode comes out forty times worse, which is
+    exactly what the held-out check exists to catch.
+
+    The frequency tolerance is the 2 % MS-4.2 allows for noisy measurements:
+    with the 1 % default the reserved mode would trip the ordinary gate too,
+    and the criterion is about what the *other* gates let through.
     """
-    overparameterised = chain_model(n_groups=8, num_modes=4)
+    overparameterised = chain_model(n_groups=4, num_modes=5)
     truth = dict(
-        zip(
-            [f"k{g}" for g in range(8)],
-            [1.2, 0.85, 1.15, 0.9, 1.1, 0.95, 1.25, 0.8],
-            strict=True,
-        )
+        zip([f"k{g}" for g in range(4)], [1.2, 0.85, 1.15, 0.9], strict=True)
     )
     clean = overparameterised.modal_data(truth)
-    rng = np.random.default_rng(0)
+    rng = np.random.default_rng(2)
     noisy = ModalData(
-        clean.frequencies * (1.0 + 0.03 * rng.standard_normal(clean.frequencies.size)),
+        clean.frequencies * (1.0 + 0.005 * rng.standard_normal(clean.frequencies.size)),
         clean.mode_shapes,
     )
 
@@ -458,8 +460,13 @@ def test_overfitting_run_fails_the_held_out_gate() -> None:
         noisy,
         None,
         params(truth),
+        gates=ValidationGates(freq_tolerance_pct=2.0),
         holdout=HoldoutSpec(highest_paired=1),
     )
+
+    # The screen has nothing to say here: four targets identify four factors,
+    # so the run reaching S6 at all is the fit being well posed, not lucky.
+    assert report.parameter_selection.frozen == []
 
     assert report.status == "FAIL"
     assert report.failure["details"]["failed_gates"] == ["holdout_frequency_improvement"]
@@ -474,7 +481,9 @@ def test_overfitting_run_fails_the_held_out_gate() -> None:
         for pair in report.final_correlation.to_dict()["pairs"]
         if pair["test_index"] not in report.holdout_modes
     ]
-    assert max(fitted) < 1.0e-3
+    reserved = report.holdout_final.summary.max_abs_freq_error_pct
+    assert max(fitted) < 0.1
+    assert reserved > 10.0 * max(fitted)
 
 
 def test_held_out_channels_are_given_zero_weight_during_updating(model, measured) -> None:
@@ -586,6 +595,156 @@ def test_select_parameters_ranks_collinear_and_insensitive_columns() -> None:
 def test_select_parameters_rejects_a_mislabelled_matrix() -> None:
     with pytest.raises(ValueError, match="parameter names"):
         select_parameters(np.eye(3), ["a", "b"])
+
+
+def test_select_parameters_freezes_a_column_no_single_partner_explains() -> None:
+    """MS-3.6: the screen measures against the retained span, not pairwise.
+
+    ``sum`` is the sum of ``a`` and ``b``, so the three columns span a plane
+    and only two of them are identifiable.  No *pair* is near-parallel — every
+    pairwise cosine here is 0.71, far under the 0.99 threshold — so a pairwise
+    screen sees three healthy parameters.  Projecting onto the span does not.
+    """
+    sensitivity = np.array(
+        [
+            [1.0, 0.0, 1.0],
+            [0.0, 1.0, 1.0],
+            [0.0, 0.0, 0.0],
+        ]
+    )
+    selection = select_parameters(sensitivity, ["a", "b", "sum"])
+
+    assert len(selection.selected) == 2
+    frozen = next(d for d in selection.diagnostics if not d.selected)
+    assert frozen.reason == "collinear"
+    assert frozen.max_cosine == pytest.approx(0.5**0.5, abs=1e-12)
+    assert frozen.max_cosine < selection.settings["collinearity_threshold"]
+    assert frozen.subspace_cosine == pytest.approx(1.0, abs=1e-12)
+    assert frozen.independence == pytest.approx(0.0, abs=1e-12)
+    # The table has to show the number that actually triggered the freeze.
+    assert "span cos 1.0000" in selection.table()
+
+
+def test_select_parameters_pivots_on_new_information_not_on_raw_norm() -> None:
+    """The pivot is the largest *residual*, which reorders the ranking.
+
+    ``big`` and ``near`` are the two longest columns but nearly the same
+    direction; ``fresh`` is the shortest and the only one carrying the second
+    row.  Ranking by column norm would visit ``near`` second, ranking by what
+    each column adds visits ``fresh`` second — and then ``near`` has nothing
+    left to contribute.
+    """
+    sensitivity = np.array(
+        [
+            [3.0, 2.9, 0.0],
+            [0.0, 0.6, 1.0],
+        ]
+    )
+    names = ["big", "near", "fresh"]
+    norms = np.linalg.norm(sensitivity, axis=0)
+
+    selection = select_parameters(sensitivity, names)
+
+    assert [names[j] for j in np.argsort(-norms)] == ["big", "near", "fresh"]
+    assert selection.pivot_order == ["big", "fresh", "near"]
+    assert selection.selected == ["big", "fresh"]
+    assert selection.reason_for("near") == "collinear"
+    # Two rows can support two parameters; the pair kept is the orthogonal one.
+    assert selection.selected_condition_number == pytest.approx(3.0, rel=1e-12)
+
+
+def test_select_parameters_stops_at_the_rank_of_a_wide_matrix() -> None:
+    """More parameters than targets is rank deficiency a pairwise screen misses.
+
+    Three responses cannot identify five parameters whatever the angles
+    between the columns are.  The condition number is no help either: an SVD
+    of a wide matrix returns only ``min(rows, cols)`` singular values, so the
+    full matrix reports as perfectly conditioned.
+    """
+    rng = np.random.default_rng(7)
+    sensitivity = rng.normal(size=(3, 5))
+
+    selection = select_parameters(sensitivity, ["p0", "p1", "p2", "p3", "p4"])
+
+    assert len(selection.selected) == 3
+    assert selection.condition_number < 1.0e3
+    for diagnostic in selection.diagnostics:
+        if diagnostic.selected:
+            continue
+        assert diagnostic.reason == "collinear"
+        assert diagnostic.max_cosine < 0.99
+        assert diagnostic.subspace_cosine == pytest.approx(1.0, abs=1e-9)
+
+
+def test_selection_reports_the_pivoted_ranking_and_its_angles() -> None:
+    """``independence`` and ``subspace_cosine`` are two views of one angle."""
+    sensitivity = np.array(
+        [
+            [1.0, 0.0, 2.0, 1e-9],
+            [0.0, 1.0, 0.0, 0.0],
+            [1.0, 0.0, 2.0, 0.0],
+        ]
+    )
+    selection = select_parameters(sensitivity, ["a", "b", "a_copy", "dead"])
+
+    # ``dead`` never enters the pivoting: it is rejected on its norm alone.
+    assert selection.pivot_order == ["a_copy", "b", "a"]
+    assert selection.to_dict()["pivot_order"] == ["a_copy", "b", "a"]
+
+    first = next(d for d in selection.diagnostics if d.name == "a_copy")
+    assert first.independence == 1.0 and first.subspace_cosine == 0.0
+
+    for diagnostic in selection.diagnostics:
+        if diagnostic.name == "dead":
+            continue
+        total = diagnostic.independence**2 + diagnostic.subspace_cosine**2
+        assert total == pytest.approx(1.0, abs=1e-12)
+
+
+def test_under_determined_run_is_screened_down_to_the_observable_rank() -> None:
+    """Eight parameters against three fitted targets: three survive S3.
+
+    This is the pairwise screen's blind spot on a real twin.  Reserving the
+    highest of four modes leaves three fitted frequency targets, so at most
+    three parameters are identifiable — but no two of the eight spring-group
+    columns are near-parallel, and the wide matrix's condition number is a
+    harmless 2.7.  Only the projection onto the retained span sees it.
+    """
+    overparameterised = chain_model(n_groups=8, num_modes=4)
+    truth = dict(
+        zip(
+            [f"k{g}" for g in range(8)],
+            [1.2, 0.85, 1.15, 0.9, 1.1, 0.95, 1.25, 0.8],
+            strict=True,
+        )
+    )
+    clean = overparameterised.modal_data(truth)
+    rng = np.random.default_rng(0)
+    noisy = ModalData(
+        clean.frequencies * (1.0 + 0.03 * rng.standard_normal(clean.frequencies.size)),
+        clean.mode_shapes,
+    )
+
+    report = run_correction(
+        overparameterised,
+        noisy,
+        None,
+        params(truth),
+        holdout=HoldoutSpec(highest_paired=1),
+    )
+    selection = report.parameter_selection
+
+    assert selection.sensitivity.shape == (3, 8)
+    assert len(selection.selected) == 3
+    assert selection.selected == sorted(selection.pivot_order[:3])
+    assert selection.condition_number < 10.0
+
+    for name in selection.frozen:
+        diagnostic = next(d for d in selection.diagnostics if d.name == name)
+        assert diagnostic.reason == "collinear"
+        assert diagnostic.max_cosine < 0.99
+        assert diagnostic.subspace_cosine == pytest.approx(1.0, abs=1e-9)
+        assert report.parameter(name).final == 1.0
 
 
 # --------------------------------------------------------------- the sensor map
