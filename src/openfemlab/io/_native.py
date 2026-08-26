@@ -10,10 +10,12 @@ from typing import Any, TextIO
 import numpy as np
 
 from openfemlab.core.dofs import DofMap, DofType
-from openfemlab.core.neutral import ElementType
-from openfemlab.core.neutral import NeutralMaterial as Material
-from openfemlab.core.neutral import NeutralModel as Model
-from openfemlab.core.neutral import NeutralProperty as Property
+from openfemlab.core.neutral import (
+    ElementType,
+    NeutralMaterial,
+    NeutralModel,
+    NeutralProperty,
+)
 from openfemlab.core.results import ModalResult, TestData
 
 from ._common import (
@@ -121,11 +123,11 @@ def dof_map_from_labels(labels: Sequence[Any]) -> DofMap:
         raise FormatError(f"invalid dof_labels: {exc}") from exc
 
 
-def model_to_dict(model: Model) -> dict[str, Any]:
+def model_to_dict(model: NeutralModel) -> dict[str, Any]:
     """Return a JSON/YAML-safe, schema-versioned model mapping."""
 
-    if not isinstance(model, Model):
-        raise TypeError(f"expected Model, got {type(model).__name__}")
+    if not isinstance(model, NeutralModel):
+        raise TypeError(f"expected NeutralModel, got {type(model).__name__}")
     document: dict[str, Any] = {
         **_HEADER,
         "object_type": "model",
@@ -165,7 +167,7 @@ def model_to_dict(model: Model) -> dict[str, Any]:
     return document
 
 
-def model_from_dict(value: Any) -> Model:
+def model_from_dict(value: Any) -> NeutralModel:
     """Construct and validate a neutral :class:`Model` from a mapping."""
 
     root = require_mapping(value)
@@ -186,7 +188,7 @@ def model_from_dict(value: Any) -> Model:
         dof_map,
     )
     try:
-        return Model(
+        return NeutralModel(
             nodes=nodes,
             node_ids=node_ids,
             elements=elements,
@@ -200,14 +202,14 @@ def model_from_dict(value: Any) -> Model:
         raise FormatError(f"invalid model: {exc}") from exc
 
 
-def read_model(source: str | PathLike[str] | TextIO, *, format: str | None = None) -> Model:
+def read_model(source: str | PathLike[str] | TextIO, *, format: str | None = None) -> NeutralModel:
     """Read a neutral model from JSON or YAML."""
 
     return model_from_dict(read_data(source, format=format))
 
 
 def write_model(
-    model: Model,
+    model: NeutralModel,
     destination: str | PathLike[str] | TextIO,
     *,
     format: str | None = None,
@@ -369,7 +371,7 @@ def read(
     source: str | PathLike[str] | TextIO,
     *,
     format: str | None = None,
-) -> Model | ModalResult | TestData | Any:
+) -> NeutralModel | ModalResult | TestData | Any:
     """Read a native object, or return a plain mapping for an untyped fixture."""
 
     value = read_data(source, format=format)
@@ -386,14 +388,14 @@ def read(
 
 
 def write(
-    value: Model | ModalResult | TestData | Any,
+    value: NeutralModel | ModalResult | TestData | Any,
     destination: str | PathLike[str] | TextIO,
     *,
     format: str | None = None,
 ) -> None:
     """Write a supported core object or an ordinary JSON-compatible value."""
 
-    if isinstance(value, Model):
+    if isinstance(value, NeutralModel):
         document = model_to_dict(value)
     elif isinstance(value, ModalResult):
         document = modal_result_to_dict(value)
@@ -540,12 +542,12 @@ def _parse_element_type(value: Any) -> ElementType:
             ) from exc
 
 
-def _read_materials(value: Any) -> dict[int, Material]:
+def _read_materials(value: Any) -> dict[int, NeutralMaterial]:
     entries = _table_entries(value, "materials")
-    materials: dict[int, Material] = {}
+    materials: dict[int, NeutralMaterial] = {}
     for entry in entries:
         try:
-            material = Material(
+            material = NeutralMaterial(
                 id=int(entry["id"]),
                 E=float(entry["E"]),
                 nu=float(entry["nu"]),
@@ -560,13 +562,13 @@ def _read_materials(value: Any) -> dict[int, Material]:
     return materials
 
 
-def _read_properties(value: Any) -> dict[int, Property]:
+def _read_properties(value: Any) -> dict[int, NeutralProperty]:
     entries = _table_entries(value, "properties")
-    properties: dict[int, Property] = {}
+    properties: dict[int, NeutralProperty] = {}
     for entry in entries:
         try:
             raw_values = require_mapping(entry.get("values", {}), "property values")
-            prop = Property(
+            prop = NeutralProperty(
                 id=int(entry["id"]),
                 material_id=int(entry["material_id"]),
                 values={str(key): float(item) for key, item in raw_values.items()},
@@ -598,8 +600,8 @@ def _validate_model_parts(
     nodes: np.ndarray,
     elements: Mapping[ElementType, np.ndarray],
     property_ids: Mapping[ElementType, np.ndarray],
-    materials: Mapping[int, Material],
-    properties: Mapping[int, Property],
+    materials: Mapping[int, NeutralMaterial],
+    properties: Mapping[int, NeutralProperty],
     dof_map: DofMap | None,
 ) -> None:
     if nodes.ndim != 2 or nodes.shape[1] != 3:

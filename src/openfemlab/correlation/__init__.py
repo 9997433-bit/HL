@@ -35,7 +35,16 @@ from .align import (
     align_shapes,
     selection_matrix,
 )
-from .mac import automac, comac, mac, mac_value, modal_scale_factor, orthogonality
+from .mac import (
+    auto_mac,
+    automac,
+    comac,
+    mac,
+    mac_matrix,
+    mac_value,
+    modal_scale_factor,
+    orthogonality,
+)
 from .metrics import (
     FrequencyDifference,
     frequency_difference,
@@ -61,9 +70,11 @@ __all__ = [
     "align_shapes",
     "selection_matrix",
     # shape metrics
+    "auto_mac",
     "automac",
     "comac",
     "mac",
+    "mac_matrix",
     "mac_value",
     "modal_scale_factor",
     "orthogonality",
