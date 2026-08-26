@@ -3259,12 +3259,14 @@ that: the status flip is now the *output* of the gate run.
   `promote_verified.py --run --apply`: AC-DYN-001/002/003 and AC-OPT-001/002. The slice
   completes the P0 rows of the two modules whose Round-2 tasks are complete (R2-T01
   dynamics, R2-T07 optimization), joining the AC-DYN-004 and AC-OPT-003 rows A72
-  promoted.   Registry split is now **14 `verified` / 30 `implemented`** of 44 — 13 of the 34 P0
+  promoted. Registry split is now **14 `verified` / 30 `implemented`** of 44 — 13 of the 34 P0
   rows and 1 of the 10 P1 rows are promoted; the P1 rows of both modules (AC-DYN-005,
   AC-OPT-004) stay `implemented`.
   `ACCEPTANCE_CRITERIA.md` §1.5 documents the tool and §9 records the widened slice.
-- **Measured** — full suite **1207 passed** in 14.6 s, `ruff check .` clean, on Python
-  3.12.3 from the private clone `/tmp/a109` with `PYTHONPATH` pinned to its own `src`.
+- **Measured** — full suite **1207 passed** in 14.6 s on the slice (the trunk's 1184
+  plus exactly these 23) and **1259 passed** after merging the trunk tip `181effb`,
+  which had meanwhile taken A106's 52-test conversion; `ruff check .` clean on both, on
+  Python 3.12.3 from the private clone `/tmp/a109` with `PYTHONPATH` pinned to its `src`.
   The gate suite re-runs the widened slice twice under different hash seeds in 13 s;
   the five criteria were chosen partly because their tests are fast, so the gate stays
   cheap as it widens.
