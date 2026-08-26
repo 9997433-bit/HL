@@ -11,8 +11,9 @@ Quick start::
     LoudnessMeter(48_000).analyze(processed).check("EBU R128")   # ITU-R BS.1770-4
 
 Restoration lives in :mod:`audio_studio.dsp.repair`: ``DeClickEffect`` for
-impulsive damage, ``DeClipEffect`` for clipped peaks, and ``DeHumEffect`` for
-mains interference. All are ordinary rack effects.
+impulsive damage, ``DeClipEffect`` for clipped peaks, ``DeHumEffect`` for mains
+interference, and ``NoiseReduceEffect`` for a stationary noise floor. All are
+ordinary rack effects.
 
 All buffers are planar ``(n_channels, n_samples)`` float arrays; mono may be
 passed as plain 1-D. See :mod:`audio_studio.dsp.util` for the conversion
@@ -62,9 +63,13 @@ from .repair import (
     DeClickReport,
     DeHumEffect,
     HumEstimate,
+    NoiseProfile,
+    NoiseReduceEffect,
     detect_clipping,
     detect_clicks,
     detect_hum,
+    learn_noise_profile,
+    reduce_noise,
     repair_clipping,
     repair_clicks,
 )
@@ -153,6 +158,10 @@ __all__ = [
     "DeHumEffect",
     "HumEstimate",
     "detect_hum",
+    "NoiseReduceEffect",
+    "NoiseProfile",
+    "learn_noise_profile",
+    "reduce_noise",
     # live preview
     "EffectPreview",
     # loudness
