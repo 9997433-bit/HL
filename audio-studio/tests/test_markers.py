@@ -94,6 +94,15 @@ class TestMarkerList:
         assert region.name == "Region 1"
         assert len(markers) == 3
 
+    def test_the_default_name_skips_one_already_in_use(self) -> None:
+        markers = MarkerList()
+        markers.add_marker(0)
+        markers.add_marker(10)
+        markers.remove("mrk_0001")
+
+        assert markers.add_marker(20).name == "Marker 1"
+        assert [m.name for m in markers.markers] == ["Marker 2", "Marker 1"]
+
     def test_markers_stay_ordered_by_frame(self) -> None:
         markers = MarkerList()
         markers.add_marker(900, "late")

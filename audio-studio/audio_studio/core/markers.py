@@ -232,7 +232,7 @@ class MarkerList:
         """Append a marker at ``frame`` and return it."""
         marker = Marker(
             id=marker_id or self._fresh_id(MARKER_ID_PREFIX),
-            name=name or f"Marker {len(self._markers) + 1}",
+            name=name or _fresh_name("Marker", (m.name for m in self._markers)),
             frame=frame,
             color=color,
         )
@@ -251,7 +251,7 @@ class MarkerList:
         """Append a region spanning ``[start, end)`` and return it."""
         region = Region(
             id=region_id or self._fresh_id(REGION_ID_PREFIX),
-            name=name or f"Region {len(self._regions) + 1}",
+            name=name or _fresh_name("Region", (r.name for r in self._regions)),
             start=start,
             end=end,
             color=color,
@@ -374,6 +374,15 @@ class MarkerList:
 
 def _sort_key(item: MarkerItem) -> tuple[int, str]:
     return item.position, item.id
+
+
+def _fresh_name(prefix: str, taken: Iterable[str]) -> str:
+    """``"Marker 3"``-style default that does not repeat one already in use."""
+    used = set(taken)
+    index = 1
+    while f"{prefix} {index}" in used:
+        index += 1
+    return f"{prefix} {index}"
 
 
 def _infer_kind(entry: dict[str, Any]) -> str:
