@@ -100,19 +100,35 @@ feature-equivalent to Adobe Audition.
 - Final benchmark delta: configuration and environment match the Round 1
   baseline; all nine compared metrics are stable and warnings are empty.
 
+### Post-Round 3 additions (alpha release candidate)
+
+#### Added
+
+- Full EditSession UI wiring: Edit menu and toolbar with cut, copy, paste, delete,
+  silence, trim, gain, fade in/out, reverse, insert silence, and unlimited
+  undo/redo with modified-state window title markers.
+- `.hlproj` schema-v1 project bundles: save/open waveform document, multitrack
+  session, UI state and on-disk media copies; unsaved-change guards on
+  close/open.
+- Multitrack Session MVP: track lanes, clip placement, master fader, workspace
+  switch between waveform editor and multitrack view.
+- De-Hum and De-Click repair effects in the dockable preview rack (De-Click is
+  render-only; preview skips it by design).
+
+#### Changed
+
+- README limitations updated to reflect editing UI, project persistence, and
+  multitrack MVP boundaries.
+
 ### Known gaps
 
-- No completed multitrack mixer/routing workflow, recording path, project
-  persistence/recovery, batch processor, or production plugin host.
-- `EditSession` exists in the core but destructive edit commands are not yet a
-  complete GUI workflow.
+- Multitrack production workflow (buses/sends/automation) remains incomplete.
+- No input/recording path, batch processor, or production VST3/AU plugin host.
+- Undo history is not persisted inside `.hlproj` (flattened document only).
 - EBU vectors cover only part of the target matrix; true-peak limiting,
   loudness normalization, AES17, highest-quality SRC, and TPDF dither gates
   remain incomplete.
 - No physical-device RTT/underrun certification or 10-minute realtime soak;
   cloud measurements are headless proxies.
-- The integrated code CI is green, but macOS/Windows are smoke lanes rather
-  than the Linux full suite; any later product merge requires a new green run.
-- Accessibility, HiDPI, workspace persistence, RF64/>4 GB workflows, and
-  full installer license/SBOM validation remain release blockers beyond this
-  alpha.
+- Accessibility, HiDPI, RF64/>4 GB workflows, and full installer license/SBOM
+  validation remain release blockers beyond this alpha.
