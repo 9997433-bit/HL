@@ -54,6 +54,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A41 | claude-opus-5-thinking-high-fast | FRF block in the `CorrelationReport` schema, `schema_version` 1.1 (backfill for R2-T01) | complete |
 | A40 | claude-opus-5-thinking-high-fast | Side-branch merge sweep (scipy backend harvest; QUAD4 raced with A37), full-suite verification & PR-draft refresh (backfill for A38) | complete |
 | A44 | claude-opus-5-thinking-high-fast | Tag AC-WORK-001/002/004/005 and AC-UPD-007; new `tests/acceptance/test_workflow.py` (backfill for A23) | complete |
+| A43 | claude-opus-5-thinking-high-fast | R2-T03: AC-CORR-006 acceptance gate (reduced- vs expanded-space pairing) and its registration (backfill for A36) | complete |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
@@ -966,8 +967,12 @@ Core backlog (prioritized, from `docs/SOTA_GAP_ANALYSIS.md` §4/§6 + Round 1 co
    are the remaining slice.
 3. **R2-T03 SEREP/TAM reduction & expansion** (GAP-08) — Guyan/IRS/SEREP, TAM
    pseudo-orthogonality, shape expansion; closes Round-2 gate AC-CORR-006. *Engine
-   landed by A36 (`correlation/reduction.py`, 25 tests); the AC-CORR-006 acceptance test
-   and the AC-CORR-009 registration are what remain — see the A36 entry below.*
+   landed by A36 (`correlation/reduction.py`, 25 tests) and **AC-CORR-006 is now
+   `implemented`** — A43 added the 19-case acceptance gate and flipped the registry in
+   the same commit. Remaining: registering AC-CORR-009 (TAM pseudo-orthogonality, the
+   engine and its test already exist), the `SensorMap.signs` wiring, and moving
+   AC-CORR-006 from `implemented` to `verified` once CI has run it. See the A36 and A43
+   entries below.*
 4. **R2-T04 Bayesian MAP updating** (GAP-11 slice, MS-3.5) — Gaussian-prior MAP step +
    posterior covariance; closes Round-2 gates AC-UPD-006a/b.
 5. **R2-T05 meshio bridge & IO completion** (GAP-03 remainder) — optional-dependency
@@ -1426,12 +1431,12 @@ A27. The A24 backlog above is otherwise the live plan.
   this change), `ruff check src tests` clean. Landed as `7d4bd7b` (module) and `1bbc4d3`
   (tests) after rebasing twice onto a moving remote tip.
 - **What R2-T03 still owes**, in the order the plan wants it:
-  1. The AC-CORR-006 gate itself. The physics is covered by
+  1. ~~The AC-CORR-006 gate itself. The physics is covered by
      `test_expansion_of_an_underinstrumented_chain_keeps_mac_above_the_gate`, but the
      criterion also demands *pairing computed in reduced space equals pairing computed in
      expanded space*, and it must live in `tests/acceptance/test_correlation.py` tagged
-     `@criterion("AC-CORR-006")` before the registry may leave `specified`. Until that
-     lands the criterion still reads `specified` and P1 sign-off is still blocked.
+     `@criterion("AC-CORR-006")` before the registry may leave `specified`.~~ **DONE** —
+     delivered by A43 below; the criterion now reads `implemented`.
   2. AC-CORR-009 (TAM pseudo-orthogonality) is *not* registered. Registering it means
      editing `docs/ACCEPTANCE_CRITERIA.md`, `docs/MODULE_SPEC.md` and the registry in one
      commit — the spec-first rule — which is why this change deliberately touched no
@@ -1568,6 +1573,81 @@ A27. The A24 backlog above is otherwise the live plan.
   worktree at `/tmp/a34` (the same hazard A27 and A28 recorded). Dispatching a backfill for
   a task already closed on the trunk is what produced the duplication; a check of the trunk's
   gap table before dispatch would have caught it.
+
+#### A43 — R2-T03: the AC-CORR-006 gate lands and the criterion is registered (backfill for A36)
+- **AC-CORR-006 is `implemented`.** `tests/acceptance/test_correlation.py` gained the
+  nine tests (**19 parametrized cases**) A36's hand-off asked for, and the registry row
+  moved from `specified` in the *same* commit (`4310a66`) — the spec-first rule, which the
+  registry enforces from both directions: `test_covered_criteria_have_a_tagged_test`
+  rejects a status flip without a tagged test, `test_tagged_tests_match_the_registry`
+  rejects a tagged test without the status. `docs/ACCEPTANCE_CRITERIA.md` and
+  `docs/MODULE_SPEC.md` already carried the ID, its gate and the MS-2.1 consistency
+  requirement, so no document needed editing and none was touched.
+- **What the criterion actually demands, and how it is met.** The gate has two halves.
+  *Reconstruction*: SEREP expansion of noise-free sensor data reproduces the full-space
+  analysis shapes at MAC ≥ 0.999. *Consistency*: pairing computed in reduced space equals
+  pairing computed in expanded space. Both are checked on two twins — the 10-DOF chain
+  fixture read at 5 of its 10 DOFs, and a 12-element cantilever whose accelerometers see
+  transverse translation only, so every rotational and axial DOF is unmeasured. The beam
+  is the honest test-analysis case: 5 channels observing a 36-DOF free partition, with a
+  consistent (non-diagonal) mass matrix.
+- **The reconstruction half is exact, not marginal.** `T = Φ(Φ_s)⁺` is a left inverse of
+  the sensor partition whenever that partition has full column rank, so in-band noise-free
+  data comes back at MAC = 1 to 1e-12 and the instrumented rows return their own values to
+  1e-10. Recorded as its own test rather than hidden behind the 0.999 gate, because the
+  difference between "passes the gate" and "is algebraically exact" is the difference
+  between a threshold that happens to hold and one with no margin question at all.
+- **The consistency half is a result, not a tautology** — worth stating because it would
+  be easy to assume the two pairings are the same arithmetic. They are not: `T` is not
+  orthogonal, so the MAC of expanded shapes is a genuinely different matrix from the MAC
+  of the sensor rows. The two differ by **0.13** (chain) and **0.16** (beam) somewhere,
+  and the sensor-space matrix carries off-diagonals up to **0.31** on the beam, i.e. real
+  ambiguity for the assignment to get wrong. It does not: both `greedy` and `optimal`
+  recover the same ground-truth permutation in both spaces, and they agree on
+  `unpaired_fe` too when a mode is left unmeasured. The Guyan-TAM mass-weighted route
+  MS-2.1 also names (`tam_mass(guyan_reduction(K, sensors), M)` as the MAC weighting)
+  reaches the same pairing.
+- **Where the gate stops being true, stated in the suite.** A noise sweep pins what the
+  0.999 threshold does and does not measure. At 0.2 % per-channel noise both pairings hold
+  and the gate passes. At 5 % the gate *fails* — SEREP projects noise onto the retained
+  band rather than rejecting it, dropping the worst reconstruction MAC to 0.990 (chain) /
+  0.833 (beam) — while both pairings still recover the ground truth exactly. So the
+  reconstruction gate is the strictly harder of the two halves, and reading a passing
+  AC-CORR-006 as "the pairing is safe under measurement noise" overstates it by more than
+  an order of magnitude in noise level. The suite asserts that failure, so the limitation
+  cannot silently drift.
+- **And where consistency itself breaks, which the criterion's "noise-free" wording
+  quietly reserves.** At 8 % noise on the beam the two pairings genuinely disagree. Not by
+  crossing wires: every pair they both make is identical, but the expanded pairing drops
+  its worst mode below `mac_min` where the reduced one still accepts it, because expansion
+  spreads one corrupted channel across all 36 DOFs while the sensor-space MAC only ever
+  sees the 5 measured rows. The conservative side is the expanded one — useful to know for
+  anyone tempted to treat expansion as cosmetic. Also pinned by a test, so the equality the
+  criterion asserts is never read as unconditional.
+- **Verified 2026-08-26 08:14 UTC** from a private worktree with both `PYTHONPATH` entries
+  pinned to it (`<worktree>:<worktree>/src`) — necessary because the venv's editable
+  install resolves `openfemlab` to the shared `/workspace/src`. Full suite **672 passed,
+  0 failed** in 70.8 s on Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1; the same tip with
+  `-k "not ac_corr_006"` gives **653 passed**, so this change is +19 and touches nothing
+  else. Repository-wide `python -m ruff check .` clean. Rebased three times onto a tip
+  that moved under the work each time.
+- **Working-tree hazard, seventh and eighth occurrence — and the first one that cost a
+  branch ref.** `/workspace` was reset out from under the first attempt exactly as A40
+  describes, so the work moved to a private worktree at `/tmp/a43`. That path was then
+  *also* reset by another agent, and because the branch was checked out there, the reset
+  moved the **branch ref**, not just a detached HEAD: two commits were left unreferenced
+  and recoverable only from the worktree reflog. Two lessons for anyone following: a
+  private worktree needs a path no other agent will guess (`/tmp/a<id>` is exactly the
+  pattern everyone uses), and checking a branch out into it converts someone else's
+  `reset --hard` from a nuisance into lost work — a detached worktree plus
+  `git push origin HEAD:<branch>` would have been safe.
+- **Still open on R2-T03**, unchanged by this commit: AC-CORR-009 (TAM
+  pseudo-orthogonality) is still unregistered although both the engine and
+  `test_tam_pseudo_orthogonality_separates_modes_of_a_longer_chain` exist — registering it
+  needs `docs/ACCEPTANCE_CRITERIA.md`, `docs/MODULE_SPEC.md`, the registry row and the
+  `EXPECTED_CRITERIA_PER_FAMILY` inventory count in one commit; the `SensorMap.signs`
+  wiring (`from_sensor_map`); and the densification of sparse inputs. AC-CORR-006 itself
+  needs one more step to reach `verified`: a CI run, not another test.
 
 ### Round 3 — SOTA Polish & Final Acceptance
 **Status:** PENDING
@@ -1867,3 +1947,54 @@ acceptance test claimed them.
   because it is the same bytes. Nothing was duplicated or reverted, but the shared
   checkout is now demonstrably a place where one agent's uncommitted work becomes
   another's commit — private worktrees are not optional.
+
+#### A49 — R2-T04 starts: the MS-3.5 Bayesian MAP estimator lands (backfill for A47)
+
+First slice of the second Round-2 gate-blocker. The MAP estimator exists and is tested;
+the AC-UPD-006a/b registry rows stay `specified` because their tags belong in
+`tests/acceptance/test_updating.py`, which is the follow-on slice.
+
+- `src/openfemlab/updating/bayesian.py` (new): `GaussianPrior` over the free design
+  variables — scalar, per-parameter or full `C_p`, plus `from_std`, `uninformative` and
+  an optional prior mean; `covariance_matrix` / `precision_matrix` validate and expand a
+  covariance spec (symmetry and positive-definiteness included). `map_step` and
+  `posterior_covariance` are the bare kernels;
+  `PosteriorEstimate` reports the mean, the covariance, per-parameter σ_post against
+  σ_prior, a correlation matrix, credible intervals and a table;
+  `BayesianUpdater` / `update_model_bayesian` / `BayesianUpdatingResult` are the
+  run-level API, re-exported from `openfemlab.updating` and the lazy top-level map.
+- **No second updating loop.** `ModelUpdater` grew two overridable hooks —
+  `normal_equations` and `penalty` — extracted from `run()` with behaviour unchanged, and
+  `BayesianUpdater` substitutes
+  `(Jᵀ C_ε⁻¹ J + C_p⁻¹) Δθ = −[Jᵀ C_ε⁻¹ r + C_p⁻¹ (θ − θ₀)]` plus the matching
+  noise-weighted cost. Mode re-pairing, bounds projection, LM damping and the
+  Fox–Kapoor/FD sensitivity stack are shared, per the GAP-01 rule. The posterior is a
+  Laplace estimate from a Jacobian re-evaluated *at* the converged point rather than the
+  last iterate's, and falls back to a pseudo-inverse on a rank-deficient information
+  matrix so an unidentifiable direction reports zero variance instead of raising.
+- The prior lives in the updater's **design space**, so a `log_scaled` parameter gets a
+  lognormal prior on its scaling factor. Documented in the module and pinned by a test;
+  a physical-space spelling is left as an open question for the AC slice.
+- `tests/test_bayesian_updating.py` (new, 35 tests) on the canonical 2-DOF grounded chain
+  (`two_dof_chain` as an affine `ScalingModel`, two stiffness factors against two measured
+  frequencies, truth `(1.15, 0.88)`). Both MS-3.5 limits are pinned twice, at the algebra
+  level and end to end: the MAP step's relative distance to the Gauss–Newton step falls
+  monotonically over prior precisions 1e-2 → 1e-6 → 1e-12 and lands at ≤ 1e-8 even with a
+  deliberately off-centre prior mean (AC-UPD-006a), and a σ = 1e6 run reproduces
+  `update_model`'s parameters to 1e-8; σ_post ≤ σ_prior componentwise, tighter priors
+  shrink the posterior monotonically over σ ∈ {1, 0.1, 0.01}, and at σ = 0.01 the solution
+  stays inside 3σ_prior of θ₀ while provably *not* recovering the truth (AC-UPD-006b).
+  Also covered: covariance validation rejects negative, mis-sized, asymmetric, indefinite
+  and rank-3 specs; the step is invariant to a uniform `C_ε` rescale but follows a
+  non-uniform one on an over-determined fit; a 100× noise covariance widens σ_post exactly
+  10×; the weak-prior twin recovers `(1.15, 0.88)` to ≤ 1e-3.
+- Verified at the rebased tip on Python 3.12.3 / NumPy 2.4.4 / SciPy 1.18.1 from the
+  private clone `/tmp/a49`: **709 passed** in 103 s, `ruff check .` clean. Baseline before
+  the change on the same clone was 671.
+- Remaining for R2-T04: tag AC-UPD-006a/b in the M3 acceptance suite and flip both rows
+  to `implemented`; surface σ_post through the CLI `update` document and the
+  `CorrectionReport` parameter table (AC-WORK-005 already reserves the column).
+- Fourth run to take the private-clone route rather than the shared `/workspace`
+  checkout, and it was again the right call: the integration tip moved twice during this
+  landing (a 34-commit A40/A52 merge sweep, then the A43 AC-CORR-006 batch) and both were
+  absorbed by rebase with no conflicts and no lost work.
