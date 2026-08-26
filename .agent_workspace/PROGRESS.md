@@ -69,6 +69,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A57 | claude-opus-5-thinking-high-fast | R2-T04 acceptance gate: register AC-UPD-006a/b, penalize the starting cost, and carry the Laplace σ_post into the `CorrectionReport` (backfill for A49) | complete |
 | A83 | claude-opus-5-thinking-high-fast | Land the AC-UPD-006 registration branch on the trunk, verify the tip and mark R2-T04 acceptance-complete (backfill for completed A57) | complete — 1089 passed at `7368c92`, Ruff clean, side branch deleted |
 | A84 | claude-fable-5-thinking-xhigh | P0 32/32→34/34 milestone chronology pinned; AC-UPD-006 registry-count divergence with A57's branch reconciled (backfill for completed A69) | complete — 1033 passed at `c5afc35`; post-merge union 41/3 confirmed at the tip |
+| A99 | gpt-5.6-sol-xhigh-fast | Current-tip pytest verification (backfill for completed A97) | complete — A97 done; 1133 passed |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
