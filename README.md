@@ -57,8 +57,9 @@ change before the first stable release.
   specifications.
 - Read support for ASCII UFF/UNV dataset 55 mode shapes and dataset 58
   functions/FRFs.
-- A dependency-free Nastran BDF reader for the supported `GRID`, `CROD`, and
-  `MAT1` subset in free-field and small fixed-field form.
+- A dependency-free Nastran BDF reader for the supported `GRID`, `CROD`,
+  `CBAR`, `CQUAD4`, `CTETRA`, `CHEXA`, `MAT1`, `PSHELL` and `PSOLID` subset in
+  free-field and small fixed-field form, continuation lines included.
 - A `meshio` bridge (optional `[io]` extra) converting mesh files to and from
   the neutral model for the `vertex`/`line`/`triangle`/`quad`/`tetra`/
   `hexahedron` cell types.
