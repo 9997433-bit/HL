@@ -40,6 +40,7 @@ from pathlib import Path
 
 import numpy as np
 
+from . import rt_discipline
 from .loader import LoadedAudio, load_audio, resample
 from .output import DEFAULT_BLOCK_SIZE, AudioOutput, OutputDeviceError, create_output
 from .peaks import PeakPyramid
@@ -136,6 +137,7 @@ class AudioEngine:
 
         self._feeder: threading.Thread | None = None
         self._feeder_stop = threading.Event()
+        self._realtime_mode_entered = False
         self._state_listeners: list[StateListener] = []
         self._finished_listeners: list[Callable[[], None]] = []
 
@@ -689,7 +691,18 @@ class AudioEngine:
             self._output.open(
                 FALLBACK_SAMPLE_RATE, channels, self.render, block_size=self._block_size
             )
+        self._adopt_output_block_size(channels)
         self._reset_ring(channels)
+
+    def _adopt_output_block_size(self, channels: int) -> None:
+        """Resize preallocated engine workspaces after hardware negotiation."""
+        negotiated = int(self._output.block_size)
+        if negotiated == self._block_size:
+            return
+        self._block_size = negotiated
+        self._telemetry.configure(channels, block_size=negotiated)
+        self._ramp_curve = np.empty(negotiated, dtype=SAMPLE_DTYPE)
+        self._ramp_index = np.arange(1, negotiated + 1, dtype=SAMPLE_DTYPE)
 
     def _resample_to_fallback_rate(self, sample_rate: int) -> int:
         """Convert the whole source when the device refuses its native rate.
@@ -750,6 +763,9 @@ class AudioEngine:
     # ---------------------------------------------------------------- feeder
 
     def _start_feeder(self) -> None:
+        if not self._realtime_mode_entered:
+            rt_discipline.enter_realtime_mode()
+            self._realtime_mode_entered = True
         self._feeder_stop.clear()
         self._prime_ring()
         thread = threading.Thread(target=self._feeder_loop, name="AudioFeeder", daemon=True)
@@ -853,3 +869,6 @@ class AudioEngine:
             with suppress(Exception):  # shutdown is best-effort
                 source.close()
         self._close_output()
+        if self._realtime_mode_entered:
+            self._realtime_mode_entered = False
+            rt_discipline.leave_realtime_mode()

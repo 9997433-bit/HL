@@ -84,9 +84,11 @@ class FakeSoundDevice(types.ModuleType):
     def __init__(self, *, open_error: Exception | None = None) -> None:
         super().__init__("sounddevice")
         self.open_error = open_error
+        self.attempted_block_sizes: list[int] = []
         self.streams: list[FakeOutputStream] = []
 
     def OutputStream(self, **kwargs: Any) -> FakeOutputStream:  # noqa: N802 - mirrors the binding
+        self.attempted_block_sizes.append(kwargs["blocksize"])
         if self.open_error is not None:
             raise self.open_error
         stream = FakeOutputStream(**kwargs)
@@ -141,6 +143,69 @@ def test_block_size_is_configurable(fake_sd: FakeSoundDevice) -> None:
     try:
         assert backend.block_size == 64
         assert fake_sd.streams[0].config["blocksize"] == 64
+    finally:
+        backend.close()
+
+
+def test_default_block_size_falls_back_when_the_device_rejects_256(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class RejectLowLatencyBlock(FakeSoundDevice):
+        def OutputStream(self, **kwargs: Any) -> FakeOutputStream:  # noqa: N802
+            self.attempted_block_sizes.append(kwargs["blocksize"])
+            if kwargs["blocksize"] == 256:
+                raise RuntimeError("unsupported block size")
+            stream = FakeOutputStream(**kwargs)
+            self.streams.append(stream)
+            return stream
+
+    module = RejectLowLatencyBlock()
+    monkeypatch.setitem(sys.modules, "sounddevice", module)
+    backend = SoundDeviceOutput()
+    backend.open(SAMPLE_RATE, CHANNELS, ramp)
+    try:
+        assert module.attempted_block_sizes == [256, 512]
+        assert backend.block_size == 512
+    finally:
+        backend.close()
+
+
+def test_pyaudio_default_block_size_falls_back_through_1024(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    attempts: list[int] = []
+
+    class FakeStream:
+        def start_stream(self) -> None:
+            pass
+
+        def stop_stream(self) -> None:
+            pass
+
+        def close(self) -> None:
+            pass
+
+    class FakePyAudioInstance:
+        def open(self, **kwargs: Any) -> FakeStream:
+            block_size = kwargs["frames_per_buffer"]
+            attempts.append(block_size)
+            if block_size < 1024:
+                raise RuntimeError("unsupported block size")
+            return FakeStream()
+
+        def terminate(self) -> None:
+            pass
+
+    module = types.ModuleType("pyaudio")
+    module.paFloat32 = 1  # type: ignore[attr-defined]
+    module.paContinue = 0  # type: ignore[attr-defined]
+    module.PyAudio = FakePyAudioInstance  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "pyaudio", module)
+    backend = output_module.PyAudioOutput()
+    backend.open(SAMPLE_RATE, CHANNELS, ramp)
+    try:
+        assert attempts == [256, 512, 1024]
+        assert backend.block_size == 1024
     finally:
         backend.close()
 

@@ -66,6 +66,24 @@ class PluginHost(ABC):
     def parameters(self) -> dict[str, Any]:
         """Snapshot of the plugin's parameters, ``{name: value}``."""
 
+    def set_parameter(self, name: str, value: Any) -> None:
+        """Write one parameter back to the plugin.
+
+        Optional: a backend that can only read parameters keeps this default,
+        which tells the caller so rather than silently dropping the write. A UI
+        offering parameter controls is expected to catch it.
+
+        Raises
+        ------
+        NotImplementedError
+            When the backend cannot write parameters.
+        KeyError
+            When the plugin has no parameter called ``name``.
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__} cannot write plugin parameters"
+        )
+
     def reset(self) -> None:  # noqa: B027 - hosts without state legitimately do nothing
         """Clear streaming state without changing parameters."""
 

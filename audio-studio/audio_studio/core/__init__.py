@@ -21,6 +21,13 @@ from .edit_session import (
     UndoStack,
 )
 from .engine import AudioEngine
+from .large_file import (
+    DEFAULT_MEMORY_BUDGET_BYTES,
+    MemoryBudgetError,
+    check_memory_budget,
+    is_large_container,
+    should_stream,
+)
 from .loader import (
     SUPPORTED_EXTENSIONS,
     AudioLoadError,
@@ -28,6 +35,7 @@ from .loader import (
     file_dialog_filter,
     load_audio,
     probe,
+    probe_frames,
     resample,
     save_audio,
     supported_formats,
@@ -58,6 +66,7 @@ from .types import (
 )
 
 __all__ = [
+    "DEFAULT_MEMORY_BUDGET_BYTES",
     "SUPPORTED_EXTENSIONS",
     "AudioBuffer",
     "AudioDocument",
@@ -86,6 +95,7 @@ __all__ = [
     "MarkerItem",
     "MarkerList",
     "MasterBus",
+    "MemoryBudgetError",
     "MemorySampleSource",
     "MultitrackSession",
     "NullOutput",
@@ -109,14 +119,18 @@ __all__ = [
     "TrimCommand",
     "UndoStack",
     "amplitude_to_db",
+    "check_memory_budget",
     "create_output",
     "db_to_amplitude",
     "file_dialog_filter",
     "format_timecode",
+    "is_large_container",
     "load_audio",
     "open_source",
     "probe",
+    "probe_frames",
     "resample",
     "save_audio",
+    "should_stream",
     "supported_formats",
 ]

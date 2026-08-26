@@ -120,22 +120,61 @@ you opt in explicitly.
 pip install -e ".[plugins]"      # installs pedalboard (GPL-3.0)
 ```
 
+### In the application
+
+**View ▸ VST3 Plugin** opens the plugin dock, tabbed behind the effects rack on
+the right-hand side because both drive the same preview chain.
+
+1. **Load VST3…** opens a file dialog filtered to `*.vst3`. On macOS and Linux
+   a plugin is a directory bundle, so pick the `.vst3` folder itself; the
+   "All files" filter is there for platforms that hide the extension.
+2. The plugin's name and path appear under the button, and one slider is
+   generated per parameter the plugin reports on the normalised 0–1 host scale.
+   Moving a slider writes straight through to the running plugin. Parameters
+   reported as display values (`4800.0`, `"bell"`) are shown read-only rather
+   than guessed at — edit those in the plugin's own editor.
+3. **Bypass** takes the plugin out of the playback path; **Remove** unloads it
+   and takes its slot out of the rack.
+
+The plugin is inserted into the preview chain ahead of the true-peak limiter,
+so the rack's safety net still catches it, and it shows up in the `FX:` field of
+the status bar like any built-in effect. Like the rest of the rack it is a
+*monitoring insert*: it changes what is heard and never rewrites the audio in
+memory until you render.
+
+There is **one** plugin slot. Loading a second plugin replaces the first: plugin
+delay compensation, per-slot state and reordering all have to land before a
+multi-slot plugin rack would be honest about what it is doing. Without the
+extra installed, the panel says so in place, with the install command, instead
+of failing at the file dialog.
+
+### From Python
+
 ```python
-from audio_studio.plugins import create_plugin_host
+from audio_studio.plugins import create_plugin_host, create_plugin_effect
 
 host = create_plugin_host("/path/to/Plugin.vst3")
 host.prepare(sample_rate=48_000, n_channels=2)
 out = host.process_block(block, 48_000)   # planar (n_channels, n_samples)
 host.parameters()                          # {name: normalised value}
+host.set_parameter("Drive", 0.75)          # same scale parameters() reports
 host.latency_samples()                     # reported plugin delay, in samples
+
+# The same plugin as an ordinary Effect, for an EffectChain:
+chain.add(create_plugin_effect("/path/to/Plugin.vst3"))
 ```
+
+`PluginEffectAdapter` is the bridge between the two: it wraps a `PluginHost` as
+an `Effect`, adding the rack's `bypass`/`mix` controls and forwarding
+`prepare`/`reset`/`process_block` so the plugin's streaming state is its own.
 
 `audio_studio.plugins` always imports cleanly — pedalboard is loaded lazily,
 inside the single bridge module `audio_studio/plugins/pedalboard_bridge.py`,
-the first time a plugin is opened. Without the extra installed, loading a
-plugin raises `PluginLoadError` with installation instructions. The current
-scaffold is API-only: plugins are not yet wired into the effect rack or the
-UI, and plugin state is not yet persisted into projects.
+the first time a plugin is opened. The UI panel keeps that boundary: it probes
+for the extra with `importlib.util.find_spec`, which locates the package without
+executing it. Without the extra installed, loading a plugin raises
+`PluginLoadError` with installation instructions. Plugin state is still not
+persisted into projects, and there is no plugin delay compensation.
 
 **License notice.** pedalboard is GPL-3.0 (incorporating JUCE, Rubber Band
 and FFTW). Installing the `plugins` extra for private use does not change the
@@ -286,6 +325,38 @@ AUDIO_STUDIO_PEAK_CACHE_KEY=content           python -m audio_studio  # fingerpr
 an optional `peaks` key in the media entry; a bundle written without one (or by
 an older build) simply rebuilds the overview on load.
 
+### Large files (RF64 / W64)
+
+Plain RIFF/WAV stores chunk sizes in 32 bits, so a recording cannot cross 4 GB
+without switching container. Audio Studio reads and writes the two containers
+that lift the limit — **RF64** (EBU Tech 3306; `BW64` broadcast headers are
+recognised too) and **Sony Wave64** (`.w64`) — through libsndfile, and treats
+their size as a first-class concern rather than an accident:
+
+- **Detection is explicit.** `core.large_file.is_large_container()` sniffs the
+  header magic (`RF64`/`BW64`/the Wave64 GUID) without touching a decoder, and
+  `probe()` pins the container name from the same bytes when a libsndfile
+  build labels a 64-bit WAV variant generically.
+- **Frame counts are 64-bit safe.** An RF64 capture can exceed 2³¹ frames.
+  `probe_frames()` and `StreamingSampleSource.n_frames` report plain Python
+  `int`s (arbitrary precision), so no offset computation downstream can wrap.
+- **A memory budget guards full decodes.** Decoding a file into the editor
+  costs `frames × channels × 4` bytes of float32 before undo history is even
+  counted. `core.large_file.check_memory_budget()` estimates that from the
+  header alone and refuses files past the budget (500 MB by default,
+  ~48 minutes of stereo 48 kHz) with an error that points at streaming
+  playback instead of an opaque `MemoryError` minutes later.
+- **The editor streams what it cannot slurp.** *File ▸ Open* on an over-budget
+  file opens it for **read-only streamed playback**: the transport pulls
+  blocks straight off disk through `StreamingSampleSource`, nothing is decoded
+  whole, and the edit actions stay disabled. Whole-file analysis (loudness,
+  full-clip spectrogram) is skipped under the same budget; selection-sized
+  analysis still works. In-memory editing of such files is future work — the
+  copy-on-write `EditSession` currently requires the samples in RAM.
+- **Export round-trips.** `save_audio("bounce.rf64", …)` writes RF64 (and
+  `.w64` writes Wave64) whenever the local libsndfile supports it, so a
+  long-form bounce is not silently truncated at 4 GB.
+
 ### Keyboard
 
 | Shortcut | Action |
@@ -360,15 +431,22 @@ above this package.
   rectangle. There is no healing brush, lasso or paintbrush selection, no
   spectral copy/paste, and the mask is rectangular in time as well as in
   frequency.
-- No complete repair suite (noise reduction remains), production VST3/AU host
-  or plugin delay compensation yet — see the roadmap in the release sign-off.
+- No complete repair suite (noise reduction remains). VST3 hosting is one
+  plugin slot behind the optional `plugins` extra (View ▸ VST3 Plugin): no AU
+  format, no multi-slot plugin rack, no plugin delay compensation, and plugin
+  state is not saved into projects — see the roadmap in the release sign-off.
   Batch processing is covered by the `audio_studio.batch` CLI above.
-- Not a low-latency monitor: the default device block is 1024 frames
-  (~21 ms at 48 kHz), and while the drawn playhead is interpolated between
-  callbacks, the audio it tracks is still quantised to that block.
-  `SoundDeviceOutput` is the step towards fixing this, but it currently opens
-  the host API's shared mode only — WASAPI exclusive mode, ASIO and per-host
-  latency hints are not wired up, and the ASIO SDK is not shipped.
+- The default device block is now 256 frames (~5.3 ms at 48 kHz);
+  `SoundDeviceOutput` and `PyAudioOutput` retry with 512 and then 1024 frames
+  when the device rejects it. This lowers callback latency but is not certified
+  low-latency monitoring: shared-mode host buffering still applies, WASAPI
+  exclusive mode, ASIO and per-host latency hints are not wired up, and the
+  ASIO SDK is not shipped.
+- On the first playback, the engine collects cyclic garbage and freezes the
+  existing GC-tracked object graph until shutdown to keep old objects out of
+  playback-time collections. Set `AUDIO_STUDIO_RT_GC=0` to disable this
+  discipline; it reduces one source of jitter but does not make CPython a
+  hard-real-time runtime.
 - Under/overruns are counted per stream (`SoundDeviceOutput.xruns`,
   `.underflows`, `.overflows`) but nothing surfaces them in the UI yet, and
   `PyAudioOutput` cannot report them at all. Recording still runs on PyAudio
@@ -376,8 +454,9 @@ above this package.
 - The effect-rack preview chain runs on the feeder thread, so a heavy chain no
   longer starves the device callback — but it is processed a ring buffer ahead
   of what you hear, so a parameter or bypass change lands after the queued
-  blocks drain (~340 ms at the default block and ring depth). A backend opened
-  outside the transport still processes in the render callback.
+  blocks drain (~85 ms at the default block and ring depth, or longer after
+  device fallback). A backend opened outside the transport still processes in
+  the render callback.
 - The SPSC ring is lock-free at the Python level but still executes under
   CPython/GIL scheduling; physical-device p99 timing and a long soak are not
   certified by headless tests.
@@ -391,8 +470,10 @@ above this package.
   `.pk` sidecar between sessions, but the edit history and the pyramid itself
   are held in memory while a clip is open, and a pyramid restored for a streamed
   file only resolves down to its finest cached level (256 frames per bin) until
-  the samples are read. RF64/>4 GB out-of-core workflows are not yet complete
-  end to end.
+  the samples are read. RF64/W64 containers are detected, streamed and exported
+  (see *Large files* above), but out-of-core *editing* is still missing: a file
+  past the memory budget opens as read-only streamed playback, without a
+  waveform overview unless a `.pk` sidecar already exists.
 
 ## Release notes — v0.1.0-alpha
 

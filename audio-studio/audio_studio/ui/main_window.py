@@ -53,6 +53,7 @@ from PySide6.QtWidgets import (
 from .. import __app_name__, __version__
 from ..core.edit_session import SPECTRAL_ATTENUATION_DB, EditError, EditSession
 from ..core.engine import AudioEngine
+from ..core.large_file import DEFAULT_MEMORY_BUDGET_BYTES, should_stream
 from ..core.loader import (
     SUPPORTED_EXTENSIONS,
     AudioLoadError,
@@ -86,6 +87,7 @@ from .effect_rack import EffectRackPanel, default_preview_chain
 from .level_meter import LevelMeter
 from .marker_panel import MarkerPanel
 from .multitrack_view import MultitrackView
+from .plugin_panel import PluginPanel
 from .spectrum_panel import SpectralSelection, SpectrumPanel
 from .theme import PALETTE, stylesheet
 from .track_panel import TrackPanel
@@ -127,6 +129,9 @@ class MainWindow(QMainWindow):
         self.transport_bar = TransportBar()
         self.spectrum_panel = SpectrumPanel()
         self.effect_rack = EffectRackPanel(self.effect_chain)
+        # One external-plugin slot, inserted into the same preview chain the
+        # rack drives, so a VST3 is auditioned through the same path.
+        self.plugin_panel = PluginPanel(self.effect_chain)
 
         # Markers annotate the waveform document, so they live with the window
         # rather than the engine and are saved into the project bundle.
@@ -220,6 +225,19 @@ class MainWindow(QMainWindow):
             Qt.DockWidgetArea.RightDockWidgetArea | Qt.DockWidgetArea.LeftDockWidgetArea
         )
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.effects_dock)
+
+        # The plugin slot feeds the same chain as the rack, so it belongs on the
+        # same side of the window — tabbed behind it rather than competing for
+        # width with a panel most sessions never open.
+        self.plugin_dock = QDockWidget("VST3 Plugin", self)
+        self.plugin_dock.setObjectName("PluginDock")
+        self.plugin_dock.setWidget(self.plugin_panel)
+        self.plugin_dock.setAllowedAreas(
+            Qt.DockWidgetArea.RightDockWidgetArea | Qt.DockWidgetArea.LeftDockWidgetArea
+        )
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.plugin_dock)
+        self.tabifyDockWidget(self.effects_dock, self.plugin_dock)
+        self.effects_dock.raise_()
 
         self.markers_dock = QDockWidget("Markers", self)
         self.markers_dock.setObjectName("MarkersDock")
@@ -516,6 +534,7 @@ class MainWindow(QMainWindow):
         view_menu.addSeparator()
         view_menu.addAction(self.spectrum_dock.toggleViewAction())
         view_menu.addAction(self.effects_dock.toggleViewAction())
+        view_menu.addAction(self.plugin_dock.toggleViewAction())
         view_menu.addAction(self.markers_dock.toggleViewAction())
         view_menu.addAction(self.action_analyze)
 
@@ -589,6 +608,7 @@ class MainWindow(QMainWindow):
         self.spectrum_panel.attenuateRequested.connect(self.spectral_attenuate)
         self.spectrum_panel.deleteRequested.connect(self.spectral_delete)
         self.effect_rack.chainChanged.connect(self._on_chain_changed)
+        self.plugin_panel.pluginChanged.connect(self._on_chain_changed)
 
         self.marker_panel.selectionChanged.connect(self._update_marker_actions)
         self.marker_panel.goToRequested.connect(self._on_seek)
@@ -613,9 +633,17 @@ class MainWindow(QMainWindow):
             self.open_file(path)
 
     def open_file(self, path: str | Path) -> bool:
-        """Load ``path`` into the editor; returns False and reports on failure."""
+        """Load ``path`` into the editor; returns False and reports on failure.
+
+        A file whose decoded form would blow the in-memory editing budget —
+        an RF64/W64 capture is the archetype — is opened for streamed,
+        read-only playback instead of being decoded whole into an
+        :class:`EditSession`.
+        """
         if not self._confirm_discard_unsaved(action="opening another file"):
             return False
+        if should_stream(path, budget_bytes=DEFAULT_MEMORY_BUDGET_BYTES):
+            return self._open_file_streaming(path)
         try:
             clip = self.engine.load(path)
         except AudioLoadError as exc:
@@ -627,6 +655,36 @@ class MainWindow(QMainWindow):
         self._remember_recent(clip.path)
         self._update_for_clip()
         self.statusBar().showMessage(f"Loaded {clip.name}", 4000)
+        return True
+
+    def _open_file_streaming(self, path: str | Path) -> bool:
+        """Open ``path`` for read-only streamed playback, never decoding it whole.
+
+        No :class:`EditSession` is created — editing needs the samples in
+        memory, which is exactly what the memory budget refused — so the edit
+        actions stay disabled and the transport pulls straight from a
+        :class:`~audio_studio.core.sample_source.StreamingSampleSource`. The
+        waveform overview is also skipped: building it would read every frame,
+        which defeats the point of streaming (a ``.pk`` sidecar, when one
+        exists, is picked up by the engine without that pass).
+        """
+        try:
+            source = self.engine.open_stream(path)
+        except AudioLoadError as exc:
+            QMessageBox.critical(self, "Cannot open file", str(exc))
+            return False
+        self._project_path = None
+        self._project_dirty = False
+        self._clear_edit_session()
+        self.set_markers(MarkerList())
+        self._editor_clip = None
+        self._remember_recent(source.path)
+        self._update_for_clip()
+        self.statusBar().showMessage(
+            f"Streaming {source.path.name} — too large to edit in memory, "
+            "playback is read-only",
+            6000,
+        )
         return True
 
     def close_clip(self) -> None:
@@ -1256,10 +1314,18 @@ class MainWindow(QMainWindow):
         """Interleaved frames ``[start, stop)`` of the loaded audio, or ``None``.
 
         Reads through the engine's sample source when there is one, so a clip
-        streamed off disk analyses the same way as one held in memory.
+        streamed off disk analyses the same way as one held in memory — unless
+        materialising the range would blow the memory budget the streaming
+        open existed to protect, in which case the analysis is skipped.
         """
         start, stop = max(0, int(start)), min(int(stop), self.engine.n_frames)
         if stop <= start:
+            return None
+        if (
+            self.engine.is_streaming
+            and (stop - start) * max(self.engine.n_channels, 1) * 4
+            > DEFAULT_MEMORY_BUDGET_BYTES
+        ):
             return None
         source = getattr(self.engine, "source", None)
         if source is not None:
@@ -1539,6 +1605,14 @@ class MainWindow(QMainWindow):
             return
         clip = self.editor_clip
         if clip is None:
+            if self.engine.is_streaming and self.engine.audio_format is not None:
+                fmt = self.engine.audio_format
+                self.status_format.setText(
+                    f"Streaming (read-only)  ·  {fmt.describe()}  ·  "
+                    f"{format_timecode(self.engine.duration)}  ·  "
+                    f"{self.engine.n_frames:,} frames"
+                )
+                return
             self.status_format.setText("No file")
             return
         self.status_format.setText(
@@ -1763,6 +1837,9 @@ class MainWindow(QMainWindow):
             self.statusBar().clearMessage()
 
     def _on_chain_changed(self) -> None:
+        # The rack and the plugin slot insert into one chain, and the rack's
+        # summary names every member of it, so both paths re-read the same line.
+        self.effect_rack.update_status()
         self.status_fx.setText(self.effect_rack.summary())
 
     def _scale_amplitude(self, factor: float) -> None:

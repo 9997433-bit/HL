@@ -7,7 +7,10 @@ surface with pedalboard is confined to this one module:
 
 * pedalboard is **never** imported at module import time — only inside
   :func:`load_pedalboard`, the first time a plugin is actually loaded;
-* nothing in the default application imports this module;
+* this module is the only one that names pedalboard at all. The plugin panel
+  is part of the default application and therefore imports *this* module, but
+  importing it does not import pedalboard, and the panel probes for the extra
+  with :func:`importlib.util.find_spec` rather than by trying an import;
 * the dependency is installed only by an explicit user action:
   ``pip install "audio-studio[plugins]"``.
 
@@ -181,3 +184,20 @@ class VST3PluginWrapper(PluginHost):
             str(key): getattr(parameter, "raw_value", parameter)
             for key, parameter in dict(raw).items()
         }
+
+    def set_parameter(self, name: str, value: Any) -> None:
+        """Write ``name`` back to the plugin on the same scale :meth:`parameters` reads.
+
+        Parameters exposed as ``AudioProcessorParameter`` objects are written
+        through ``raw_value`` (the 0–1 normalised host value); anything else is
+        set as a plain attribute on the plugin, which is how pedalboard exposes
+        its built-in processors.
+        """
+        raw = dict(getattr(self._plugin, "parameters", None) or {})
+        if name not in raw:
+            raise KeyError(f"{self.name!r} has no parameter {name!r}")
+        parameter = raw[name]
+        if hasattr(parameter, "raw_value"):
+            parameter.raw_value = value
+        else:
+            setattr(self._plugin, name, value)

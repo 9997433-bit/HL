@@ -310,6 +310,10 @@ class StreamingSampleSource(BaseSampleSource):
 
         self._sample_rate = int(self._handle.samplerate)
         self._channels = int(self._handle.channels)
+        # libsndfile reports frames as a 64-bit count — an RF64/W64 capture can
+        # exceed 2**31 — and it may surface here as a numpy scalar. Converting
+        # to a plain Python int keeps every downstream offset computation
+        # arbitrary-precision instead of silently wrapping at int32/int64.
         self._n_frames = int(self._handle.frames)
         self._subtype = str(self._handle.subtype or "UNKNOWN")
 
@@ -325,6 +329,7 @@ class StreamingSampleSource(BaseSampleSource):
 
     @property
     def n_frames(self) -> int:
+        """Total frames, as an int64-safe Python ``int`` (RF64/W64 exceed 2**31)."""
         return self._n_frames
 
     @property
