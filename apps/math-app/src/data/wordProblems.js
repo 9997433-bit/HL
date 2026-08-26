@@ -444,7 +444,7 @@ export const WORD_PROBLEMS = [
       const each = randInt(2, 6)
       const take = randInt(1, parts - 1)
       return {
-        text: `把 ${parts * each} 个橘子平均分成 ${parts} 份，其中的 ${take} 份是多少个？`,
+        text: `果篮里有 ${parts * each} 个橘子，平均分成 ${parts} 份，其中的 ${take} 份是多少个？`,
         equation: `${parts * each} ÷ ${parts} × ${take} = ?`,
         answer: each * take,
         unit: '个',

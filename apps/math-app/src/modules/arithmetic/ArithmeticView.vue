@@ -106,7 +106,8 @@ function errorTagsOf(q, answered) {
   if (q.kind === 'sub' && onesA < onesB) tags.push('borrow')
   if (Math.abs(answered - q.answer) === 10) tags.push('off-by-ten')
   else if (Math.abs(answered - q.answer) === 1) tags.push('off-by-one')
-  return [...new Set(tags)]
+  // 归不到具体类型也要留一条记录，否则这道错题在家长报告里就消失了
+  return tags.length ? [...new Set(tags)] : ['miscalc']
 }
 
 function buildQuestion() {
