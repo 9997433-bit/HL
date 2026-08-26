@@ -250,21 +250,28 @@ for (const [label, path] of [
 }
 
 await interact('算术恒星：数字键盘输入', '/#/arithmetic', async (page) => {
-  const hasKeypad = await page.evaluate(() => {
+  // 点完切换按钮要等一拍再查 DOM，同一个 evaluate 里 Vue 还没重渲染出键盘
+  const toggled = await page.evaluate(() => {
     const toggle = [...document.querySelectorAll('button')].find((b) => /键盘|输入/.test(b.innerText))
-    if (toggle) toggle.click()
-    return !!document.querySelector('.key')
-  })
-  await sleep(400)
-  const typed = await page.evaluate(() => {
-    const keys = [...document.querySelectorAll('.key')]
-    const digit = keys.find((k) => /^\d$/.test(k.innerText.trim()))
-    if (!digit) return false
-    digit.click()
+    if (!toggle) return false
+    toggle.click()
     return true
   })
+  await sleep(400)
+  const hasKeypad = await page.evaluate(() => document.querySelectorAll('.key').length > 0)
+  if (!hasKeypad) throw new Error(`没切出数字键盘（找到切换按钮=${toggled}）`)
+
+  const typed = await page.evaluate(() => {
+    const digit = [...document.querySelectorAll('.key')].find((k) => /^\d$/.test(k.innerText.trim()))
+    if (!digit) return null
+    digit.click()
+    return digit.innerText.trim()
+  })
   await sleep(300)
-  return `切到键盘=${hasKeypad}，按键可用=${typed}`
+  if (!typed) throw new Error('数字键盘上没有可按的数字键')
+  const echoed = await page.evaluate(() => document.querySelector('.equation .slot')?.innerText?.trim() ?? '')
+  if (echoed !== typed) throw new Error(`按下「${typed}」但算式里显示的是「${echoed}」`)
+  return `切到键盘=${hasKeypad}，按下「${typed}」后算式回显「${echoed}」`
 })
 
 await interact('数独空间站：填格 + 提示直到完成', '/#/sudoku', async (page) => {
@@ -384,14 +391,26 @@ await interact('无障碍：键盘也能装货', '/#/number-sense', async (page)
 })
 
 await interact('进度持久化：答题后刷新仍在', '/#/geometry', async (page) => {
+  // 星星只在答对时才涨，而脚本是随机点选项的，拿星星当断言可能恒等于 0；
+  // totalAnswered 答对答错都会加，是这里唯一稳定可判的量。
+  const answeredCount = () =>
+    page.evaluate(
+      () => JSON.parse(localStorage.getItem('mathquest/progress') || '{}').totalAnswered ?? 0,
+    )
+
   await playChoiceModule(page, 4)
-  const before = await starCount(page)
+  const before = await answeredCount()
+  const starsBefore = await starCount(page)
+  if (before === 0) throw new Error('答了 4 题但 totalAnswered 仍是 0，进度根本没写入')
+
   await page.goto(base + '/#/', { waitUntil: 'networkidle2' })
   await page.reload({ waitUntil: 'networkidle2' })
   await sleep(700)
-  const after = await starCount(page)
-  if (before > 0 && after !== before) throw new Error(`刷新后星星从 ${before} 变成 ${after}`)
-  return `刷新前 ${before} 星，刷新后 ${after} 星`
+  const after = await answeredCount()
+  const starsAfter = await starCount(page)
+  if (after !== before) throw new Error(`刷新后作答数从 ${before} 变成 ${after}`)
+  if (starsAfter !== starsBefore) throw new Error(`刷新后星星从 ${starsBefore} 变成 ${starsAfter}`)
+  return `刷新前后作答数都是 ${after}，星星都是 ${starsAfter}`
 })
 
 await browser.close()
