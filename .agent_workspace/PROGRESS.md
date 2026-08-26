@@ -11,6 +11,9 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 ## Branch
 `cursor/femtools-industrial-7aa3`
 
+## Pull Request
+[PR #5](https://github.com/9997433-bit/HL/pull/5) is open against `main`.
+
 ## 永久编排规则（不可遗忘）
 - **始终保持 10 个子代理并发满负荷运行**
 - 任一子代理完成/失败 → 主调度器**立即**派发新 Task 补齐至 10
