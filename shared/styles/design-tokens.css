@@ -1,0 +1,487 @@
+/* ==========================================================================
+   design-tokens.css — 识字 App / 数学 App 共享设计令牌（唯一令牌源）
+   ==========================================================================
+   规范文档：.agent_workspace/ui-ux-design-spec.md
+   使用方式：
+     1. 在各 App 入口 CSS 的第一行 `@import` 本文件（先于本地主题/组件层）。
+     2. 根元素设置主题：
+        - literacy-app: <html data-theme="sunny|care|night">（默认 sunny）
+        - math-app:     <html data-theme="cosmos">
+     3. 组件只允许引用「语义令牌」（--bg-* --surface* --text* --brand* --accent*
+        --success --danger --star 等）；「原始色板」仅供主题层映射使用。
+     4. JS 读取共享常量（音量/时长）：
+        getComputedStyle(document.documentElement).getPropertyValue('--sfx-gain')
+   分层：
+     §1 原始色板  §2 排印  §3 间距/圆角/层级  §4 动效  §5 交互尺寸
+     §6 组件令牌  §7 音频令牌  §8 主题层(sunny/care/night/cosmos)
+     §9 字号缩放  §10 动效降级  §11 兼容别名
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   §1 原始色板（主题无关，禁止在组件中直接引用）
+   -------------------------------------------------------------------------- */
+:root {
+  /* 芒果 — 识字品牌暖色 */
+  --mango-50: #fff8e8;
+  --mango-100: #fff0d4;
+  --mango-200: #ffdfa8;
+  --mango-300: #ffce7a;
+  --mango-400: #ffb84d;
+  --mango-500: #ff9f1c;
+  --mango-600: #f57c00;
+  --mango-700: #c96400;
+  --mango-800: #9a4c00;
+  --mango-900: #6b3400;
+
+  /* 珊瑚 — 温和警示/爱心 */
+  --coral-100: #ffe4e1;
+  --coral-300: #ffafa6;
+  --coral-400: #ff8a80;
+  --coral-500: #ef5350;
+  --coral-700: #c62828;
+
+  /* 薄荷 — 强调/次操作 */
+  --mint-100: #d9f6f3;
+  --mint-300: #8fe3dc;
+  --mint-400: #4ecdc4;
+  --mint-500: #26a69a;
+  --mint-700: #00796b;
+
+  /* 天空 — 信息/水与天 */
+  --sky-100: #e2f1ff;
+  --sky-300: #a4d3ff;
+  --sky-400: #6cb6ff;
+  --sky-500: #339af0;
+  --sky-700: #1971c2;
+
+  /* 葡萄 — 魔法/点缀 */
+  --grape-100: #efe7f8;
+  --grape-300: #cdb6e8;
+  --grape-400: #b39ddb;
+  --grape-500: #9575cd;
+  --grape-700: #6a4fb3;
+
+  /* 嫩叶 — 成功/成长 */
+  --leaf-100: #e8f5d9;
+  --leaf-300: #b6de8b;
+  --leaf-400: #8bc34a;
+  --leaf-500: #66bb6a;
+  --leaf-700: #4a7328;
+
+  /* 星光 — 奖励专用（不得挪作他用） */
+  --star-400: #ffd45e;
+  --star-500: #ffc93c;
+
+  /* 深空 — 数学 App 背景深度阶梯（注意：命名沿用 math-app 的太空语义） */
+  --cosmos-0: #060818;
+  --cosmos-1: #0b1030;
+  --cosmos-2: #141a46;
+  --cosmos-3: #1e2760;
+  --cosmos-4: #2a3480;
+
+  /* 霓虹 — 数学 App 可交互高亮 */
+  --neon-cyan: #5ee7ff;
+  --neon-violet: #9b8cff;
+  --neon-pink: #ff7ac6;
+  --neon-gold: #ffce4d;
+  --neon-green: #55e6a5;
+  --neon-red: #ff6b7d;
+  --neon-orange: #ff9f45;
+
+  /* 暖墨 — 暖色主题文字三级 */
+  --warmink-900: #3d2f1f;
+  --warmink-700: #5a4632;
+  --warmink-500: #8a7963;
+
+  /* 星幕 — 深色主题文字三级 */
+  --ice-100: #f2f5ff;
+  --ice-300: #b9c2ee;
+  --ice-500: #7b86c4;
+
+  /* 纸面 — 暖色底 */
+  --paper-warm: #fff6e2;
+  --paper-care: #f0e9d6;
+}
+
+/* --------------------------------------------------------------------------
+   §2 排印
+   -------------------------------------------------------------------------- */
+:root {
+  --font-round: 'Nunito', 'PingFang SC', 'Hiragino Sans GB', 'Noto Sans SC',
+    'Microsoft YaHei', 'Heiti SC', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-hanzi: 'LXGW WenKai', 'Kaiti SC', 'STKaiti', 'KaiTi', var(--font-round);
+  --font-num: 'Nunito', ui-rounded, var(--font-round);
+
+  /* 字号阶梯（rem 基于 body = 16px × --font-scale） */
+  --fs-xs: 0.8rem;      /* 仅家长面板 */
+  --fs-sm: 0.9rem;
+  --fs-md: 1.05rem;     /* 儿童正文下限 */
+  --fs-lg: 1.2rem;
+  --fs-xl: 1.45rem;
+  --fs-2xl: clamp(1.8rem, 4vw, 2.3rem);
+  --fs-display: clamp(2.4rem, 6vw, 3.4rem);
+  --fs-hanzi: clamp(96px, 26vmin, 200px);
+
+  --lh-tight: 1.2;
+  --lh-base: 1.6;
+  --lh-loose: 1.85;
+
+  --fw-medium: 500;
+  --fw-bold: 700;    /* 儿童界面最低字重 */
+  --fw-heavy: 800;
+  --fw-black: 900;
+
+  --font-scale: 1;
+}
+
+/* --------------------------------------------------------------------------
+   §3 间距（4pt 网格）/ 圆角 / 层级
+   -------------------------------------------------------------------------- */
+:root {
+  --gap-2xs: 4px;
+  --gap-xs: 8px;
+  --gap-sm: 12px;
+  --gap-md: 16px;
+  --gap-lg: 24px;
+  --gap-xl: 36px;
+  --gap-2xl: 48px;
+  --gap-3xl: 64px;
+
+  --radius-xs: 8px;
+  --radius-sm: 12px;
+  --radius-md: 20px;
+  --radius-lg: 28px;
+  --radius-xl: 36px;
+  --radius-pill: 999px;
+
+  --z-base: 0;
+  --z-raised: 10;
+  --z-sticky: 100;
+  --z-overlay: 500;
+  --z-modal: 600;
+  --z-toast: 700;
+  --z-parent-gate: 800;
+
+  /* 断点参考（media query 无法用变量，此处仅作单一事实源记录）：
+     480px 手机竖屏紧凑 / 640px 手机横屏 / 900px 平板 / 1200px 桌面 */
+}
+
+/* --------------------------------------------------------------------------
+   §4 动效（时长 / 缓动 / 编排）
+   -------------------------------------------------------------------------- */
+:root {
+  --dur-instant: 90ms;   /* 按压反馈 */
+  --dur-fast: 160ms;     /* 悬停、开关 */
+  --dur-mid: 280ms;      /* 页面过渡、卡片入场、主题切换 */
+  --dur-slow: 520ms;     /* 大元素入场、进度条 */
+  --dur-hero: 900ms;     /* 庆祝主体、关卡解锁 */
+  --stagger-step: 70ms;  /* 列表错落步进 */
+
+  --ease-pop: cubic-bezier(0.34, 1.56, 0.64, 1);       /* 弹出过冲 back.out */
+  --ease-bounce: cubic-bezier(0.22, 1.61, 0.36, 1);    /* 强回弹，奖励元素 */
+  --ease-smooth: cubic-bezier(0.45, 0, 0.25, 1);       /* 位移/页面过渡 */
+  --ease-anticipate: cubic-bezier(0.36, 0, 0.66, -0.36); /* 退场蓄力 */
+
+  /* 空闲引导节奏（JS 读取，单位 ms） */
+  --idle-hint-ms: 6000;   /* 目标呼吸提示 */
+  --idle-voice-ms: 8000;  /* 语音重提示 */
+  --skippable-min-ms: 1500; /* 超过此时长的动画必须可跳过 */
+}
+
+/* --------------------------------------------------------------------------
+   §5 交互尺寸（儿童友好触控）
+   -------------------------------------------------------------------------- */
+:root {
+  --tap-min: 56px;    /* 儿童界面最小可点尺寸 */
+  --tap-comfy: 72px;  /* 关卡节点等舒适尺寸 */
+  --tap-hero: 96px;   /* 答题选项/拖拽物 */
+  --tap-gap-min: 8px; /* 相邻可点目标最小间距 */
+  --snap-radius: 24px; /* 拖拽磁吸半径（JS 读取） */
+
+  --focus-ring-width: 3px;
+  --focus-ring-offset: 3px;
+}
+
+/* --------------------------------------------------------------------------
+   §6 组件令牌
+   -------------------------------------------------------------------------- */
+:root {
+  --btn-h-sm: 44px;   /* 仅家长面板 */
+  --btn-h-md: 56px;   /* 儿童界面默认 = --tap-min */
+  --btn-h-lg: 68px;   /* 主操作 */
+  --btn-h-hero: 84px; /* 首页/结果页 CTA */
+
+  --quiz-option-min: 96px;
+  --progress-h: 14px;
+  --star-size: 44px;
+  --hanzi-grid-size: clamp(220px, 60vmin, 420px);
+  --card-pad: var(--gap-lg);
+  --toast-dur-ms: 2400;
+}
+
+/* --------------------------------------------------------------------------
+   §7 音频令牌（JS 经 getComputedStyle 读取，保证 CSS/JS 单一事实源）
+   -------------------------------------------------------------------------- */
+:root {
+  --bgm-gain: 0.35;      /* 背景音乐总线 */
+  --sfx-gain: 0.7;       /* 音效总线 */
+  --voice-gain: 1;       /* 语音总线 */
+  --voice-duck: 0.3;     /* 语音播报时其余总线压低到的比例 */
+  --sfx-dedupe-ms: 100;  /* 同类音效去重窗口 */
+  --gain-ramp-ms: 20;    /* 音量渐变防爆点 */
+  --audio-latency-budget-ms: 100; /* 点击到发声预算 */
+}
+
+/* --------------------------------------------------------------------------
+   §8 主题层 — 组件仅引用以下语义令牌
+   -------------------------------------------------------------------------- */
+
+/* ---------- sunny 明亮童趣（识字默认） ---------- */
+:root,
+:root[data-theme='sunny'] {
+  --bg-page: linear-gradient(165deg, #fff4d6 0%, #ffe6ef 42%, #e2f4ff 100%);
+  --bg-page-solid: var(--paper-warm);
+  --bg-blob-a: rgba(255, 184, 77, 0.4);
+  --bg-blob-b: rgba(108, 182, 255, 0.32);
+  --bg-blob-c: rgba(139, 195, 74, 0.28);
+
+  --surface: rgba(255, 255, 255, 0.92);
+  --surface-strong: #ffffff;
+  --surface-sunken: #fff6e6;
+  --surface-border: rgba(255, 255, 255, 0.75);
+
+  --text-strong: var(--warmink-900);
+  --text: var(--warmink-700);
+  --text-soft: var(--warmink-500);
+  --text-invert: #ffffff;
+
+  --brand: var(--mango-500);
+  --brand-strong: var(--mango-600);
+  --brand-soft: var(--mango-100);
+
+  --accent: var(--mint-400);
+  --accent-soft: var(--mint-100);
+  --info: var(--sky-500);
+  --danger: var(--coral-500);
+  --success: var(--leaf-500);
+  --star: var(--star-500);
+
+  --grid-line: rgba(239, 83, 80, 0.28);
+  --stroke-ink: var(--warmink-900);
+  --stroke-hint: #e6ded2;
+
+  --focus-ring: var(--mango-500);
+  --overlay-scrim: rgba(20, 15, 8, 0.45);
+
+  --shadow-sm: 0 2px 8px rgba(90, 70, 40, 0.08);
+  --shadow-md: 0 8px 24px rgba(90, 70, 40, 0.12);
+  --shadow-lg: 0 16px 40px rgba(90, 70, 40, 0.16);
+  --shadow-press: 0 3px 0 rgba(0, 0, 0, 0.12);
+  --shadow-glow: 0 0 24px rgba(255, 159, 28, 0.3);
+
+  color-scheme: light;
+}
+
+/* ---------- care 护眼（低蓝光、低对比、禁辉光） ---------- */
+:root[data-theme='care'] {
+  --bg-page: linear-gradient(165deg, #f3ecd8 0%, #e9e3cd 55%, #e2e6d3 100%);
+  --bg-page-solid: var(--paper-care);
+  --bg-blob-a: rgba(203, 186, 138, 0.34);
+  --bg-blob-b: rgba(160, 186, 160, 0.26);
+  --bg-blob-c: rgba(198, 176, 150, 0.24);
+
+  --surface: rgba(250, 246, 234, 0.94);
+  --surface-strong: #faf6ea;
+  --surface-sunken: #efe8d4;
+  --surface-border: rgba(190, 176, 140, 0.4);
+
+  --text-strong: #3f3a2c;
+  --text: #55503f;
+  --text-soft: #7d7663;
+  --text-invert: #fbf8ef;
+
+  --brand: #c98a3c;
+  --brand-strong: #a96f28;
+  --brand-soft: #f0e3c9;
+
+  --accent: #5f9e93;
+  --accent-soft: #dfeae5;
+  --info: #5b87a6;
+  --danger: #c1615b;
+  --success: #6d9a63;
+  --star: #d8ab48;
+
+  --grid-line: rgba(160, 120, 100, 0.3);
+  --stroke-ink: #3f3a2c;
+  --stroke-hint: #ded5bd;
+
+  --focus-ring: #a96f28;
+  --overlay-scrim: rgba(45, 40, 25, 0.4);
+
+  --shadow-sm: 0 2px 6px rgba(90, 80, 50, 0.07);
+  --shadow-md: 0 6px 18px rgba(90, 80, 50, 0.1);
+  --shadow-lg: 0 12px 30px rgba(90, 80, 50, 0.12);
+  --shadow-press: 0 3px 0 rgba(60, 50, 30, 0.12);
+  --shadow-glow: none; /* 护眼模式禁用辉光 */
+
+  color-scheme: light;
+}
+
+/* ---------- night 夜间（睡前故事） ---------- */
+:root[data-theme='night'] {
+  --bg-page: linear-gradient(165deg, #23283b 0%, #2b2340 55%, #1e2a35 100%);
+  --bg-page-solid: #23283b;
+  --bg-blob-a: rgba(120, 108, 200, 0.3);
+  --bg-blob-b: rgba(80, 140, 180, 0.26);
+  --bg-blob-c: rgba(150, 110, 150, 0.22);
+
+  --surface: rgba(52, 57, 79, 0.9);
+  --surface-strong: #3a4059;
+  --surface-sunken: #2d3247;
+  --surface-border: rgba(255, 255, 255, 0.12);
+
+  --text-strong: #f4f1ea;
+  --text: #ddd8ce;
+  --text-soft: #a7a2b4;
+  --text-invert: #23283b;
+
+  --brand: var(--mango-400);
+  --brand-strong: #ffa726;
+  --brand-soft: rgba(255, 184, 77, 0.16);
+
+  --accent: #6fd6cd;
+  --accent-soft: rgba(111, 214, 205, 0.16);
+  --info: var(--sky-300);
+  --danger: #ef7b74;
+  --success: #7fc98a;
+  --star: var(--star-400);
+
+  --grid-line: rgba(255, 184, 77, 0.28);
+  --stroke-ink: #f4f1ea;
+  --stroke-hint: rgba(255, 255, 255, 0.16);
+
+  --focus-ring: var(--mango-400);
+  --overlay-scrim: rgba(5, 8, 18, 0.6);
+
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.36);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.44);
+  --shadow-press: 0 3px 0 rgba(0, 0, 0, 0.4);
+  --shadow-glow: 0 0 20px rgba(255, 184, 77, 0.24);
+
+  color-scheme: dark;
+}
+
+/* ---------- cosmos 深空（数学 App 默认） ---------- */
+:root[data-theme='cosmos'] {
+  --bg-page: radial-gradient(120% 90% at 50% 0%, #1b2360 0%, var(--cosmos-1) 45%, var(--cosmos-0) 100%);
+  --bg-page-solid: var(--cosmos-1);
+  --bg-blob-a: rgba(94, 231, 255, 0.14);
+  --bg-blob-b: rgba(155, 140, 255, 0.14);
+  --bg-blob-c: rgba(255, 122, 198, 0.1);
+
+  --surface: rgba(30, 38, 96, 0.92);
+  --surface-strong: var(--cosmos-3);
+  --surface-sunken: var(--cosmos-2);
+  --surface-border: rgba(140, 158, 255, 0.22);
+
+  --text-strong: var(--ice-100);
+  --text: var(--ice-300);
+  --text-soft: var(--ice-500);
+  --text-invert: #08122b;
+
+  --brand: var(--neon-cyan);
+  --brand-strong: #37d4f0;
+  --brand-soft: rgba(94, 231, 255, 0.16);
+
+  --accent: var(--neon-violet);
+  --accent-soft: rgba(155, 140, 255, 0.16);
+  --info: var(--sky-300);
+  --danger: var(--neon-red);
+  --success: var(--neon-green);
+  --star: var(--neon-gold);
+
+  --grid-line: rgba(94, 231, 255, 0.28);
+  --stroke-ink: var(--ice-100);
+  --stroke-hint: rgba(255, 255, 255, 0.16);
+
+  --focus-ring: var(--neon-cyan);
+  --overlay-scrim: rgba(3, 6, 24, 0.6);
+
+  --shadow-sm: 0 2px 10px rgba(3, 6, 24, 0.4);
+  --shadow-md: 0 10px 28px rgba(3, 6, 24, 0.5);
+  --shadow-lg: 0 18px 40px rgba(3, 6, 24, 0.55);
+  --shadow-press: 0 3px 0 rgba(0, 0, 0, 0.45);
+  --shadow-glow: 0 0 24px rgba(94, 231, 255, 0.35);
+
+  color-scheme: dark;
+}
+
+/* --------------------------------------------------------------------------
+   §9 字号缩放（家长面板四档）
+   -------------------------------------------------------------------------- */
+:root[data-font-scale='small'] { --font-scale: 0.9; }
+:root[data-font-scale='normal'] { --font-scale: 1; }
+:root[data-font-scale='large'] { --font-scale: 1.14; }
+:root[data-font-scale='huge'] { --font-scale: 1.28; }
+
+/* --------------------------------------------------------------------------
+   §10 动效降级（家长开关 data-motion + 系统偏好，二者取严）
+   -------------------------------------------------------------------------- */
+:root[data-motion='reduced'] *,
+:root[data-motion='reduced'] *::before,
+:root[data-motion='reduced'] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion='full']) *,
+  :root:not([data-motion='full']) *::before,
+  :root:not([data-motion='full']) *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   §11 兼容别名（Round 2 迁移完成后删除）
+   -------------------------------------------------------------------------- */
+
+/* literacy-app theme.css 旧名 */
+:root {
+  --seed-mango: var(--mango-400);
+  --seed-coral: var(--coral-400);
+  --seed-mint: var(--mint-400);
+  --seed-sky: var(--sky-400);
+  --seed-grape: var(--grape-400);
+  --seed-leaf: var(--leaf-400);
+}
+
+/* math-app main.css 旧名（仅 cosmos 主题下生效；--space-* 在旧文件中是颜色而非间距） */
+:root[data-theme='cosmos'] {
+  --space-0: var(--cosmos-0);
+  --space-1: var(--cosmos-1);
+  --space-2: var(--cosmos-2);
+  --space-3: var(--cosmos-3);
+
+  --ink: var(--ice-100);
+  --ink-soft: var(--ice-300);
+  --ink-dim: var(--ice-500);
+
+  --cyan: var(--neon-cyan);
+  --violet: var(--neon-violet);
+  --pink: var(--neon-pink);
+  --gold: var(--neon-gold);
+  --green: var(--neon-green);
+  --red: var(--neon-red);
+  --orange: var(--neon-orange);
+
+  --radius-s: var(--radius-sm);
+  --radius-m: var(--radius-md);
+  --radius-l: var(--radius-xl);
+
+  --shadow-card: var(--shadow-lg);
+}

@@ -1,0 +1,31 @@
+{
+  "name": "literacy-app",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "开源儿童识字 Web 应用 — 单字学习 / 听音识字 / 偏旁部首 / 分级绘本 / 成语启蒙",
+  "scripts": {
+    "gen:hanzi": "node scripts/gen-hanzi-data.mjs",
+    "predev": "npm run gen:hanzi",
+    "dev": "vite",
+    "prebuild": "npm run gen:hanzi",
+    "build": "vite build",
+    "preview": "vite preview --port 4173",
+    "test:srs": "node scripts/test-srs.mjs",
+    "check:data": "node scripts/check-data.mjs",
+    "smoke": "node scripts/smoke.mjs",
+    "test": "npm run test:srs && npm run check:data && npm run build && npm run smoke"
+  },
+  "dependencies": {
+    "gsap": "^3.12.5",
+    "hanzi-writer": "^3.7.3",
+    "pinia": "^2.2.6",
+    "vue": "^3.5.13",
+    "vue-router": "^4.4.5"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.1",
+    "hanzi-writer-data": "^2.0.1",
+    "vite": "^5.4.11"
+  }
+}

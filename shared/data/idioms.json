@@ -1,0 +1,513 @@
+{
+  "schemaVersion": 1,
+  "title": "儿童常用成语启蒙",
+  "language": "zh-Hans",
+  "license": "CC0-1.0",
+  "source": "成语和拼音属于语言事实；儿童浅释、例句与启示由本项目编写",
+  "idioms": [
+    {
+      "id": "huashetianzu",
+      "idiom": "画蛇添足",
+      "pinyin": "huà shé tiān zú",
+      "meaning": "做了多余的事，反而把事情弄坏。",
+      "example": "图画已经很好看了，再乱加颜色就是画蛇添足。",
+      "lesson": "事情做到合适就好，不要多此一举。",
+      "tags": [
+        "启蒙",
+        "品格"
+      ]
+    },
+    {
+      "id": "shouzhudaitu",
+      "idiom": "守株待兔",
+      "pinyin": "shǒu zhū dài tù",
+      "meaning": "只等偶然的好运，不愿主动努力。",
+      "example": "想取得好成绩要认真练习，不能守株待兔。",
+      "lesson": "收获来自行动，不能只靠运气。",
+      "tags": [
+        "启蒙",
+        "品格"
+      ]
+    },
+    {
+      "id": "wangyangbulao",
+      "idiom": "亡羊补牢",
+      "pinyin": "wáng yáng bǔ láo",
+      "meaning": "出了问题后及时补救，还不算晚。",
+      "example": "发现错题后马上弄懂，也算亡羊补牢。",
+      "lesson": "犯错不可怕，及时改正很重要。",
+      "tags": [
+        "启蒙",
+        "品格"
+      ]
+    },
+    {
+      "id": "yanerdaoling",
+      "idiom": "掩耳盗铃",
+      "pinyin": "yǎn ěr dào líng",
+      "meaning": "自己骗自己，以为别人也不知道真相。",
+      "example": "把没写完的作业藏起来，就像掩耳盗铃。",
+      "lesson": "诚实面对问题，才能真正解决问题。",
+      "tags": [
+        "启蒙",
+        "品格"
+      ]
+    },
+    {
+      "id": "jingdizhiwa",
+      "idiom": "井底之蛙",
+      "pinyin": "jǐng dǐ zhī wā",
+      "meaning": "见识很少，却以为自己知道全部。",
+      "example": "多读书、多观察，别做井底之蛙。",
+      "lesson": "世界很大，要保持好奇和谦虚。",
+      "tags": [
+        "启蒙",
+        "品格"
+      ]
+    },
+    {
+      "id": "bamiaozhuzhang",
+      "idiom": "拔苗助长",
+      "pinyin": "bá miáo zhù zhǎng",
+      "meaning": "太着急求结果，反而把事情弄坏。",
+      "example": "刚学一天就做超难的题，可能会拔苗助长。",
+      "lesson": "成长有规律，学习要一步一步来。",
+      "tags": [
+        "启蒙",
+        "品格"
+      ]
+    },
+    {
+      "id": "yegonghaolong",
+      "idiom": "叶公好龙",
+      "pinyin": "yè gōng hào lóng",
+      "meaning": "嘴上说很喜欢，其实并不真正喜欢或了解。",
+      "example": "他说爱运动却从不参加活动，有点叶公好龙。",
+      "lesson": "真正的喜欢要用行动来证明。",
+      "tags": [
+        "启蒙",
+        "品格"
+      ]
+    },
+    {
+      "id": "keguqiujian",
+      "idiom": "刻舟求剑",
+      "pinyin": "kè zhōu qiú jiàn",
+      "meaning": "情况已经变化，却还用原来的办法做事。",
+      "example": "地图更新了还照旧路线走，可能是刻舟求剑。",
+      "lesson": "观察变化，及时调整办法。",
+      "tags": [
+        "启蒙",
+        "品格"
+      ]
+    },
+    {
+      "id": "huliweihu",
+      "idiom": "狐假虎威",
+      "pinyin": "hú jiǎ hǔ wēi",
+      "meaning": "借着别人的力量来吓唬人。",
+      "example": "不能靠朋友的名气狐假虎威。",
+      "lesson": "本领要靠自己学习，不能欺负别人。",
+      "tags": [
+        "启蒙",
+        "品格"
+      ]
+    },
+    {
+      "id": "duiniutanqin",
+      "idiom": "对牛弹琴",
+      "pinyin": "duì niú tán qín",
+      "meaning": "没有看清对象，用了对方听不懂的方式。",
+      "example": "给幼儿讲太深的术语，像是对牛弹琴。",
+      "lesson": "表达时要考虑对方能不能听懂。",
+      "tags": [
+        "启蒙",
+        "品格"
+      ]
+    },
+    {
+      "id": "zixiangmaodun",
+      "idiom": "自相矛盾",
+      "pinyin": "zì xiāng máo dùn",
+      "meaning": "前后说法互相冲突，不能同时成立。",
+      "example": "他说从不迟到，又说昨天迟到了，前后自相矛盾。",
+      "lesson": "说话前认真想一想，保持前后一致。",
+      "tags": [
+        "启蒙",
+        "品格"
+      ]
+    },
+    {
+      "id": "yikezhangmu",
+      "idiom": "一叶障目",
+      "pinyin": "yī yè zhàng mù",
+      "meaning": "被局部挡住，看不到事情的整体。",
+      "example": "只看一次失败就放弃，是一叶障目。",
+      "lesson": "看问题要全面，别被一个小地方困住。",
+      "tags": [
+        "启蒙",
+        "品格"
+      ]
+    },
+    {
+      "id": "wenjichiwu",
+      "idiom": "闻鸡起舞",
+      "pinyin": "wén jī qǐ wǔ",
+      "meaning": "听到鸡叫就起来练习，形容勤奋努力。",
+      "example": "她每天早起读书，有闻鸡起舞的精神。",
+      "lesson": "坚持练习，能力会一点点提高。",
+      "tags": [
+        "启蒙",
+        "品格"
+      ]
+    },
+    {
+      "id": "shuidaoqucheng",
+      "idiom": "水到渠成",
+      "pinyin": "shuǐ dào qú chéng",
+      "meaning": "条件准备好了，事情自然就会成功。",
+      "example": "每天积累生字，阅读进步就是水到渠成。",
+      "lesson": "认真准备和积累，不必急于求成。",
+      "tags": [
+        "启蒙",
+        "品格"
+      ]
+    },
+    {
+      "id": "jushachengta",
+      "idiom": "聚沙成塔",
+      "pinyin": "jù shā chéng tǎ",
+      "meaning": "一点一点积累，最终可以完成大目标。",
+      "example": "每天学一个新词，也能聚沙成塔。",
+      "lesson": "小小的坚持能带来大大的成长。",
+      "tags": [
+        "启蒙",
+        "品格"
+      ]
+    },
+    {
+      "id": "tongzhouxiezhi",
+      "idiom": "同舟共济",
+      "pinyin": "tóng zhōu gòng jì",
+      "meaning": "大家一起面对困难、互相帮助。",
+      "example": "小组同舟共济，很快完成了实验。",
+      "lesson": "合作能让团队走得更远。",
+      "tags": [
+        "启蒙",
+        "品格"
+      ]
+    },
+    {
+      "id": "lianglierxing",
+      "idiom": "量力而行",
+      "pinyin": "liàng lì ér xíng",
+      "meaning": "根据自己的能力选择合适的事情去做。",
+      "example": "挑选练习题要量力而行，再逐渐增加难度。",
+      "lesson": "了解自己的能力，也勇敢地逐步挑战。",
+      "tags": [
+        "启蒙",
+        "品格"
+      ]
+    },
+    {
+      "id": "xunxujianjin",
+      "idiom": "循序渐进",
+      "pinyin": "xún xù jiàn jìn",
+      "meaning": "按照顺序，一步一步地前进。",
+      "example": "学数学要从基础开始，循序渐进。",
+      "lesson": "打好基础后再挑战更难的内容。",
+      "tags": [
+        "启蒙",
+        "品格"
+      ]
+    },
+    {
+      "id": "jujinghuishen",
+      "idiom": "聚精会神",
+      "pinyin": "jù jīng huì shén",
+      "meaning": "注意力非常集中，认真做一件事。",
+      "example": "同学们聚精会神地听老师讲故事。",
+      "lesson": "专心能帮助我们学得更扎实。",
+      "tags": [
+        "启蒙",
+        "品格"
+      ]
+    },
+    {
+      "id": "kaijuanyouyi",
+      "idiom": "开卷有益",
+      "pinyin": "kāi juàn yǒu yì",
+      "meaning": "打开书来阅读，通常会有收获。",
+      "example": "每天读一会儿好书，真是开卷有益。",
+      "lesson": "选择合适的书，养成阅读习惯。",
+      "tags": [
+        "启蒙",
+        "品格"
+      ]
+    },
+    {
+      "idiom": "一心一意",
+      "pinyin": "yī xīn yī yì",
+      "meaning": "心思专一，没有别的想法。",
+      "example": "她一心一意地练习写字。",
+      "tags": [
+        "专注",
+        "品格"
+      ],
+      "id": "idiom-021",
+      "lesson": "心思专一，没有别的想法。"
+    },
+    {
+      "idiom": "三心二意",
+      "pinyin": "sān xīn èr yì",
+      "meaning": "想法摇摆不定，做事不专心。",
+      "example": "学习时不要三心二意。",
+      "tags": [
+        "专注",
+        "提醒"
+      ],
+      "id": "idiom-022",
+      "lesson": "想法摇摆不定，做事不专心。"
+    },
+    {
+      "idiom": "四面八方",
+      "pinyin": "sì miàn bā fāng",
+      "meaning": "周围各个方向。",
+      "example": "朋友们从四面八方赶来。",
+      "tags": [
+        "方位",
+        "数字"
+      ],
+      "id": "idiom-023",
+      "lesson": "周围各个方向。"
+    },
+    {
+      "idiom": "五颜六色",
+      "pinyin": "wǔ yán liù sè",
+      "meaning": "颜色很多，非常好看。",
+      "example": "花园里开满五颜六色的花。",
+      "tags": [
+        "颜色",
+        "景物"
+      ],
+      "id": "idiom-024",
+      "lesson": "颜色很多，非常好看。"
+    },
+    {
+      "idiom": "七上八下",
+      "pinyin": "qī shàng bā xià",
+      "meaning": "心里不安，不能平静。",
+      "example": "等待比赛结果时，他心里七上八下。",
+      "tags": [
+        "心情",
+        "数字"
+      ],
+      "id": "idiom-025",
+      "lesson": "心里不安，不能平静。"
+    },
+    {
+      "idiom": "九牛一毛",
+      "pinyin": "jiǔ niú yī máo",
+      "meaning": "很多数量里极小的一部分。",
+      "example": "这点水对大湖来说只是九牛一毛。",
+      "tags": [
+        "数量",
+        "比喻"
+      ],
+      "id": "idiom-026",
+      "lesson": "很多数量里极小的一部分。"
+    },
+    {
+      "idiom": "十全十美",
+      "pinyin": "shí quán shí měi",
+      "meaning": "各方面都非常完美。",
+      "example": "作品不必十全十美，认真完成就有收获。",
+      "tags": [
+        "评价",
+        "数字"
+      ],
+      "id": "idiom-027",
+      "lesson": "各方面都非常完美。"
+    },
+    {
+      "idiom": "画龙点睛",
+      "pinyin": "huà lóng diǎn jīng",
+      "meaning": "在关键处加上一笔，使内容更精彩。",
+      "example": "结尾的一句话起到了画龙点睛的作用。",
+      "tags": [
+        "表达",
+        "故事"
+      ],
+      "id": "idiom-028",
+      "lesson": "在关键处加上一笔，使内容更精彩。"
+    },
+    {
+      "idiom": "马到成功",
+      "pinyin": "mǎ dào chéng gōng",
+      "meaning": "事情一开始就顺利成功。",
+      "example": "祝大家在比赛中马到成功。",
+      "tags": [
+        "祝福",
+        "成功"
+      ],
+      "id": "idiom-029",
+      "lesson": "事情一开始就顺利成功。"
+    },
+    {
+      "idiom": "鸟语花香",
+      "pinyin": "niǎo yǔ huā xiāng",
+      "meaning": "鸟儿鸣叫，花儿芳香，景色美好。",
+      "example": "春天的公园鸟语花香。",
+      "tags": [
+        "春天",
+        "景物"
+      ],
+      "id": "idiom-030",
+      "lesson": "鸟儿鸣叫，花儿芳香，景色美好。"
+    },
+    {
+      "idiom": "春暖花开",
+      "pinyin": "chūn nuǎn huā kāi",
+      "meaning": "春天气候温暖，花朵开放。",
+      "example": "春暖花开时，我们一起去踏青。",
+      "tags": [
+        "春天",
+        "景物"
+      ],
+      "id": "idiom-031",
+      "lesson": "春天气候温暖，花朵开放。"
+    },
+    {
+      "idiom": "秋高气爽",
+      "pinyin": "qiū gāo qì shuǎng",
+      "meaning": "秋天天空高远，天气凉爽。",
+      "example": "秋高气爽，正适合户外运动。",
+      "tags": [
+        "秋天",
+        "天气"
+      ],
+      "id": "idiom-032",
+      "lesson": "秋天天空高远，天气凉爽。"
+    },
+    {
+      "idiom": "水滴石穿",
+      "pinyin": "shuǐ dī shí chuān",
+      "meaning": "只要坚持，微小的力量也能完成难事。",
+      "example": "每天认识三个字，水滴石穿也会有大进步。",
+      "tags": [
+        "坚持",
+        "比喻"
+      ],
+      "id": "idiom-033",
+      "lesson": "只要坚持，微小的力量也能完成难事。"
+    },
+    {
+      "idiom": "坚持不懈",
+      "pinyin": "jiān chí bù xiè",
+      "meaning": "一直努力，不松懈。",
+      "example": "他坚持不懈地完成了长跑训练。",
+      "tags": [
+        "坚持",
+        "品格"
+      ],
+      "id": "idiom-034",
+      "lesson": "一直努力，不松懈。"
+    },
+    {
+      "idiom": "助人为乐",
+      "pinyin": "zhù rén wéi lè",
+      "meaning": "把帮助别人当作快乐的事。",
+      "example": "她助人为乐，经常帮助同学。",
+      "tags": [
+        "友善",
+        "品格"
+      ],
+      "id": "idiom-035",
+      "lesson": "把帮助别人当作快乐的事。"
+    },
+    {
+      "idiom": "同心协力",
+      "pinyin": "tóng xīn xié lì",
+      "meaning": "大家目标一致，共同努力。",
+      "example": "我们同心协力搭好了积木城堡。",
+      "tags": [
+        "合作",
+        "品格"
+      ],
+      "id": "idiom-036",
+      "lesson": "大家目标一致，共同努力。"
+    },
+    {
+      "idiom": "专心致志",
+      "pinyin": "zhuān xīn zhì zhì",
+      "meaning": "把全部心思放在一件事上。",
+      "example": "他专心致志地观察汉字的笔画。",
+      "tags": [
+        "专注",
+        "品格"
+      ],
+      "id": "idiom-037",
+      "lesson": "把全部心思放在一件事上。"
+    },
+    {
+      "idiom": "学以致用",
+      "pinyin": "xué yǐ zhì yòng",
+      "meaning": "把学到的知识用到实际中。",
+      "example": "学会加法后去计算水果数量，这就是学以致用。",
+      "tags": [
+        "学习",
+        "实践"
+      ],
+      "id": "idiom-038",
+      "lesson": "把学到的知识用到实际中。"
+    },
+    {
+      "idiom": "举一反三",
+      "pinyin": "jǔ yī fǎn sān",
+      "meaning": "从一件事想到并理解相似的其他事。",
+      "example": "掌握方法后，他能举一反三解决新题。",
+      "tags": [
+        "思考",
+        "学习"
+      ],
+      "id": "idiom-039",
+      "lesson": "从一件事想到并理解相似的其他事。"
+    },
+    {
+      "idiom": "温故知新",
+      "pinyin": "wēn gù zhī xīn",
+      "meaning": "复习旧知识时得到新的理解。",
+      "example": "每天复习字卡，可以温故知新。",
+      "tags": [
+        "复习",
+        "学习"
+      ],
+      "id": "idiom-040",
+      "lesson": "复习旧知识时得到新的理解。"
+    },
+    {
+      "idiom": "百闻不如一见",
+      "pinyin": "bǎi wén bù rú yī jiàn",
+      "meaning": "听别人说很多次，不如亲自看一次。",
+      "example": "百闻不如一见，亲手做实验更容易明白。",
+      "tags": [
+        "实践",
+        "见识"
+      ],
+      "id": "idiom-041",
+      "lesson": "听别人说很多次，不如亲自看一次。"
+    },
+    {
+      "idiom": "千里之行，始于足下",
+      "pinyin": "qiān lǐ zhī xíng, shǐ yú zú xià",
+      "meaning": "再远的路也要从第一步开始。",
+      "example": "千里之行，始于足下，今天先学会第一个字。",
+      "tags": [
+        "行动",
+        "坚持"
+      ],
+      "id": "idiom-042",
+      "lesson": "再远的路也要从第一步开始。"
+    }
+  ]
+}
