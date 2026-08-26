@@ -45,7 +45,7 @@ Final fable verdict: `<!-- pass / conditional / fail + report link -->`
 
 - [ ] Multitrack Session MVP: `<!-- merged SHA or "not merged" -->`
 - [ ] Product BS.1770/repair additions: `<!-- merged SHA or "not merged" -->`
-- [ ] CI repair and acceptance automation: `<!-- merged SHA or "not merged" -->`
+- [x] CI repair and acceptance automation: `b20e34d`, `772dec1`
 - [x] Third-party license inventory and distribution policy
 - [x] Changelog, global summary and PR handoff template
 - [x] Final same-host Round 1 performance delta
@@ -60,6 +60,7 @@ Final fable verdict: `<!-- pass / conditional / fail + report link -->`
 - `THIRD_PARTY_LICENSES.md` — dependency notices and distribution rules
 - `CHANGELOG.md` — `0.1.0-alpha` three-round history
 - `.agent_workspace/FINAL_SUMMARY.md` — architecture, evidence, gaps and roadmap
+- `.agent_workspace/round3/ci-acceptance-report.json` — 30-item acceptance state
 - `.agent_workspace/round3/final-perf-delta.json` — final baseline comparison
 
 ## Verification
@@ -70,8 +71,10 @@ Final fable verdict: `<!-- pass / conditional / fail + report link -->`
 python -m pip install --requirement .github/requirements.lock
 python -m pip install --no-deps --editable ./audio-studio
 
-ruff check tools scripts tests audio-studio
+ruff check tools scripts tests
 QT_QPA_PLATFORM=offscreen pytest -q tests audio-studio/tests
+python tools/run_round3_acceptance.py \
+  --output .agent_workspace/round3/ci-acceptance-report.json
 
 python tools/benchmark_audio.py \
   --output .agent_workspace/round3/benchmark-final.json
@@ -83,9 +86,12 @@ python tools/perf-regression.py \
 
 Final local result:
 
-- Tests: `<!-- N passed, duration, environment -->`
-- Ruff: `<!-- pass/fail -->`
-- GUI smoke: `<!-- command and result -->`
+- Tests: `659 passed, 23 xfailed, 1 xpassed in 6.38s` (Linux/Python 3.12,
+  Qt offscreen; xfails are audited missing evidence)
+- Round 3 acceptance: `7 evidenced, 23 expected gaps, sota_claimed=false`
+- Ruff: pass
+- GUI smoke: `python -m audio_studio --null-audio --offscreen --exit-after 5`
+  exited 0
 - CI: `<!-- workflow URL; all matrix jobs must be green -->`
 
 ### Performance result in this branch snapshot

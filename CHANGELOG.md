@@ -62,6 +62,10 @@ feature-equivalent to Adobe Audition.
 
 #### Added
 
+- Thirty-item executable SOTA acceptance checklist with explicit expected-gap
+  reporting, machine-readable report generation, and a PyQt6 binding guard.
+- Linux Qt runtime provisioning plus Linux full-suite and macOS/Windows smoke
+  lanes in the Audio CI workflow.
 - Complete third-party dependency and distribution policy in
   `THIRD_PARTY_LICENSES.md`, including LGPL source/relinking obligations,
   pedalboard GPL isolation, FFmpeg build restrictions, and the default no-ASIO
@@ -83,6 +87,11 @@ feature-equivalent to Adobe Audition.
 
 - Round 1 application suite: 364 tests reported green.
 - Round 2 merged progress record: 501+ tests after engine and DSP/UI additions.
+- Final integrated local run: 659 passed, 23 expected-gap xfails, and one XPASS
+  for the newly delivered third-party license gate; Ruff and the five-second
+  offscreen/null-audio GUI smoke passed.
+- Round 3 acceptance report: 30 checklist items, 7 currently evidenced and 23
+  expected gaps; `sota_claimed` remains false.
 - SLO/compliance validation snapshot: 21 tests green; six headless SLO proxies
   passed, with zero formal hardware SLOs claimed.
 - Final benchmark delta: configuration and environment match the Round 1
@@ -99,8 +108,9 @@ feature-equivalent to Adobe Audition.
   remain incomplete.
 - No physical-device RTT/underrun certification or 10-minute realtime soak;
   cloud measurements are headless proxies.
-- The latest pre-Round-3 branch CI run was failing; the PR must not claim a
-  green cross-platform gate until a post-merge run succeeds.
+- The latest pre-Round-3 branch CI run was failing; local validation now passes,
+  but the PR must not claim a green cross-platform gate until a final-HEAD
+  post-merge run succeeds.
 - Accessibility, HiDPI, workspace persistence, RF64/>4 GB workflows, and
   full installer license/SBOM validation remain release blockers beyond this
   alpha.

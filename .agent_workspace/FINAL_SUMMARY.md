@@ -2,7 +2,7 @@
 
 生成日期：2026-08-26  
 分支：`agent/audio-analysis-software`  
-总结基线：Round 3 派发点 `6f93ab2`，加本报告、许可清单与最终同构性能回归  
+总结基线：Round 3 CI/验收自动化 `772dec1`，加本报告、许可清单与最终同构性能回归
 版本候选：`0.1.0-alpha`
 
 ## 1. 结论
@@ -76,6 +76,10 @@ External runtime
 
 ### Round 3：本子任务交付的发布准备
 
+- CI 补齐 Linux Qt runtime，增加 PyQt6 binding guard、Linux 全量套件、
+  macOS/Windows smoke lanes 和 acceptance artifact 上传。
+- 新增 30 项可执行 SOTA checklist：已有证据走硬断言，缺口走带原因的 xfail，
+  machine-readable report 明确 `sota_claimed: false`，避免“CI 绿”等同“SOTA 通过”。
 - 新增 `THIRD_PARTY_LICENSES.md`，覆盖所有声明的直接运行时依赖、CI 锁定传递
   依赖、关键 native/codec 组件、上游许可指针和分发义务。
 - 固化 PySide6/libsndfile/soxr/FFmpeg 的 LGPL 动态替换与源码获取策略。
@@ -85,9 +89,9 @@ External runtime
 - 重新运行同构 benchmark 并产出 `benchmark-final.json` 与
   `final-perf-delta.json`。
 
-其余 Round 3 并发任务（多轨 MVP、产品计量/修复、CI/验收自动化、fable 终审）
-不在 `6f93ab2` 快照内；orchestrator 合并后必须以实际 diff 和 CI 结果更新 PR
-勾选项，不得用“已派发”替代“已交付”。
+其余 Round 3 并发任务（多轨 MVP、产品计量/修复、fable 终审）不在本总结快照
+内；orchestrator 合并后必须以实际 diff 和 CI 结果更新 PR 勾选项，不得用
+“已派发”替代“已交付”。
 
 ## 4. 测试与验证
 
@@ -108,12 +112,17 @@ External runtime
 |---|---|---|
 | Round 1 应用套件 | 364 passed | Round 1 快照 |
 | Round 2 合并进度记录 | 501+ tests | 以最终 CI 重跑为准 |
+| 当前集成本地全量 | 659 passed，23 xfailed，1 xpassed | xfail 是已审计缺口；XPASS 为新许可清单 |
+| Round 3 acceptance | 30 项中 7 evidenced、23 expected gaps | `sota_claimed = false` |
+| Ruff / GUI smoke | pass / 5 秒 offscreen null-audio pass | Linux 云机、无真实音频设备 |
 | SLO/compliance 报告 | 21 passed；6/6 headless proxies pass | `formal_slos_verified = 0` |
 | Golden null roundtrip | PCM_16、PCM_24、FLOAT covered | 不等于全格式/BWF/RF64 |
 | 最新预 Round 3 GitHub run | [failure](https://github.com/9997433-bit/HL/actions/runs/32948286756) | PR 前必须由新的 HEAD 绿跑替代 |
 
-当前云机没有 PySide6，因此本子任务不能把文档生成时的本地环境冒充最终 GUI
-验证环境。最终 PR 的测试声明必须引用 CI 或已安装锁定依赖后的完整重跑结果。
+本地验证使用 `audio-studio/.venv` 的锁定 CI 栈；命令为
+`ruff check tools scripts tests`、`QT_QPA_PLATFORM=offscreen pytest -q tests
+audio-studio/tests` 和 5 秒 null-audio GUI smoke。它证明当前 Linux checkout
+可运行，但不能替代最终 SHA 的三平台 CI 与真实音频设备验证。
 
 ## 5. 最终性能
 
@@ -189,7 +198,8 @@ p99 `0.844 ms`、underrun `0%`，低于 `1.33 ms` 逃生舱阈值。该结果仍
 
 1. 缺真实 WASAPI/CoreAudio/ALSA 设备 RTT、30/60 分钟播放录音 soak 与 xrun 证据。
 2. Python SPSC 不加 Python mutex，但 GIL/OS scheduling 仍可能制造长尾。
-3. 跨平台 workflow 已定义但当前最近一次 run 为红；新 HEAD 必须全绿。
+3. 跨平台 workflow 已补齐 full/smoke lanes；历史 run 为红，最终新 HEAD 仍必须
+   取得全绿结果才能关闭此项。
 4. accessibility、HiDPI、屏幕阅读器、WCAG 对比度和完整键盘闭环未终验。
 5. 缺正式安装器、签名/notarization、artifact SBOM 和逐平台 license bundle。
 
