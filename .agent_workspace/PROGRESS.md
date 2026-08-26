@@ -60,6 +60,15 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 - Sensitivity finite differences matched analytic derivatives within 1.69e-9 relative error.
 - Verified on Python 3.12: 5 boundary tests passed; aggregate install validation passed.
 
+#### A09 — Native Model and Modal IO
+- Added schema-versioned YAML/JSON readers and writers for neutral models,
+  analytical modal results, and experimental test data.
+- Preserved complex mode shapes, DOF maps, element/property/material tables,
+  metadata, damping, and test geometry across text round trips.
+- Added safe generic fixture loading and adapters for repository
+  `tests/fixtures/*.yaml`, including `modes_by_dof` layout conversion.
+- Added IO round-trip, fixture compatibility, format-error, and validation tests.
+
 ### Round 2 — Targeted Refactor & Deep Optimization
 **Status:** PENDING
 
