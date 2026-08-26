@@ -9,6 +9,11 @@ Implemented here
   ``seed`` produce reports whose every numeric field agrees to ``1e-12``
   relative, and whose JSON is byte-identical once the wall-time fields are
   dropped.
+- **AC-WORK-003** (twin, MS-4.1) — with the highest paired mode reserved, S4
+  fits one target fewer and S6 evaluates the reserved one on its own; an
+  over-parameterized fit to noisy targets is blocked by the held-out gate with
+  a machine-readable reason, while the same run passes every other gate when
+  nothing is reserved.
 - **AC-WORK-004** (contract, MS-4.1) — test data pairing fewer than ``min_pairs``
   modes halts at S2 with a machine-readable ``{stage, reason}`` failure; the
   stages behind it are ``SKIPPED`` and nothing is marked ``PASS``.
@@ -34,9 +39,11 @@ import numpy as np
 import pytest
 
 from openfemlab.updating import ScalingModel, UpdatableParameter
+from openfemlab.updating.sensitivity import ModalData
 from openfemlab.workflow import (
     SCHEMA_VERSION,
     STAGE_ORDER,
+    HoldoutSpec,
     Stage,
     StageStatus,
     ValidationGates,
@@ -327,3 +334,212 @@ def test_ac_work_005_the_report_serializes_to_valid_json(tmp_path):
 
     path = report.save(tmp_path / "correction.json")
     assert json.loads(path.read_text(encoding="utf-8")) == restored
+
+
+# ------------------------------------------------- AC-WORK-003 held-out targets
+
+#: MS-4.1 gate on the reserved target.
+HOLDOUT_MAC_MIN = 0.9
+
+#: The over-parameterized twin: one factor per pair of springs, so five free
+#: factors face five fitted frequency residuals once the highest mode is
+#: reserved. An exactly determined fit has nowhere to put the measurement noise
+#: except into the parameters, which is what overfitting is.
+OVERFIT_GROUPS = tuple((2 * index + 1, 2 * index + 2) for index in range(5))
+OVERFIT_NOISE_PCT = 1.0
+OVERFIT_SEED = 4242
+
+#: Limits the overfitted run is judged against. Deliberately looser than the
+#: AC-WORK-001 gates on the modal set as a whole: the point of the criterion is
+#: that the *held-out* gate catches what the others let through.
+OVERFIT_GATES = ValidationGates(
+    mac_min=0.95, freq_tolerance_pct=2.0, holdout_mac_min=HOLDOUT_MAC_MIN
+)
+
+
+def _overfit_model() -> ScalingModel:
+    stiffness_parts, mass_parts = spring_chain_parts(
+        NUM_MASSES, OVERFIT_GROUPS, MASS_GROUPS
+    )
+    return ScalingModel(
+        stiffness_parts,
+        base_mass=sum(mass_parts.values()),
+        num_modes=NUM_MODES,
+        use_solver=False,
+    )
+
+
+def _noisy_targets(model: ScalingModel):
+    """Measurements of the *nominal* model, with 1 % scatter on the frequencies.
+
+    Nominal, so there is no correction to find: every parameter move the run
+    makes is a move onto the noise. The mode shapes are left clean, which keeps
+    the pairing unambiguous and the failure attributable to the frequencies.
+    """
+    truth = {name: 1.0 for name in model.parameter_names}
+    clean = model.modal_data(truth)
+    rng = np.random.default_rng(OVERFIT_SEED)
+    scatter = 1.0 + 0.01 * OVERFIT_NOISE_PCT * rng.standard_normal(clean.frequencies.size)
+    return ModalData(clean.frequencies * scatter, clean.mode_shapes)
+
+
+def _overfit_report(holdout: HoldoutSpec):
+    model = _overfit_model()
+    parameters = [
+        UpdatableParameter(name, 1.0, 0.5, 2.0) for name in sorted(model.parameter_names)
+    ]
+    return run_correction(
+        model,
+        _noisy_targets(model),
+        None,
+        parameters,
+        gates=OVERFIT_GATES,
+        holdout=holdout,
+        seed=SEED,
+    )
+
+
+def _reserved_run(highest_paired: int = 1):
+    """The clean AC-WORK-001 twin with the highest paired mode reserved."""
+    model = _chain_model()
+    return run_correction(
+        model,
+        _measured(model),
+        None,
+        _parameters(),
+        holdout=HoldoutSpec(highest_paired=highest_paired),
+        seed=SEED,
+    )
+
+
+def _stage_details(report, stage: Stage) -> dict:
+    return next(record for record in report.stages if record.stage is stage).details
+
+
+@criterion("AC-WORK-003")
+def test_ac_work_003_the_reserved_mode_is_kept_out_of_the_updating_residuals():
+    """``HoldoutSpec(highest_paired=1)`` removes one target from S4, and says which."""
+    report = _reserved_run()
+
+    assert report.holdout_modes == (NUM_MODES - 1,)
+    assert _stage_details(report, Stage.PAIRING)["holdout_modes"] == [NUM_MODES - 1]
+    assert _stage_details(report, Stage.UPDATING)["n_fitted_modes"] == NUM_MODES - 1
+    assert report.settings["holdout"] == {
+        "modes": [], "highest_paired": 1, "channels": [],
+    }
+
+
+@criterion("AC-WORK-003")
+def test_ac_work_003_the_reserved_mode_is_evaluated_at_s6():
+    """S6 correlates the reserved target on its own, before and after (MS-4.1)."""
+    report = _reserved_run()
+
+    assert report.holdout_baseline is not None
+    assert report.holdout_final is not None
+    assert report.holdout_final.summary.n_paired == 1
+    assert report.holdout_final.summary.min_mac >= HOLDOUT_MAC_MIN
+    assert report.holdout_final.summary.max_abs_freq_error_pct <= (
+        report.holdout_baseline.summary.max_abs_freq_error_pct
+    )
+
+    names = {result.name for result in report.gates}
+    assert {"holdout_mac", "holdout_frequency_improvement"} <= names
+
+
+@criterion("AC-WORK-003")
+def test_ac_work_003_reserving_a_target_does_not_spoil_a_genuine_correction():
+    """The noise-free twin still passes, with the reserved mode as the evidence.
+
+    Fitting five of the six modes is enough to identify all three factors, so
+    the reserved mode — which no residual ever saw — comes out correlated too.
+    That is what distinguishes a corrected model from a fitted one.
+    """
+    report = _reserved_run()
+
+    assert report.status == "PASS", report.failure
+    assert report.holdout_baseline.summary.max_abs_freq_error_pct > FREQ_TOLERANCE_PCT
+    assert report.holdout_final.summary.max_abs_freq_error_pct <= FREQ_TOLERANCE_PCT
+    for name, expected in TRUTH.items():
+        assert report.parameter(name).final == pytest.approx(expected, abs=1e-6)
+
+
+@criterion("AC-WORK-003")
+def test_ac_work_003_an_overfitted_run_fails_the_held_out_gate():
+    """Five factors fitted to five noisy targets: blocked, with a reason."""
+    report = _overfit_report(HoldoutSpec(highest_paired=1))
+
+    assert report.status == "FAIL"
+    blocking = [result.name for result in report.gates if result.is_blocking]
+    assert "holdout_frequency_improvement" in blocking
+    assert report.failure["stage"] == Stage.VALIDATION.value
+    assert report.failure["reason"] == "gate_failed"
+    assert "holdout_frequency_improvement" in report.failure["details"]["failed_gates"]
+
+    holdout = next(r for r in report.gates if r.name == "holdout_frequency_improvement")
+    assert holdout.value > holdout.limit, "the reserved target has to have got worse"
+
+
+@criterion("AC-WORK-003")
+def test_ac_work_003_the_same_run_passes_when_nothing_is_reserved():
+    """Why the reservation is the detector and not an incidental extra gate.
+
+    Judged on the targets it was fitted to, the overfitted model looks
+    corrected: every ordinary S6 gate is met. Only the target the fit never saw
+    exposes it.
+    """
+    unguarded = _overfit_report(HoldoutSpec())
+
+    assert unguarded.status == "PASS", unguarded.failure
+    assert unguarded.holdout_modes == ()
+    assert unguarded.holdout_final is None
+    assert not any(result.name.startswith("holdout") for result in unguarded.gates)
+
+
+@criterion("AC-WORK-003")
+def test_ac_work_003_the_overfit_shows_as_a_gap_between_fitted_and_reserved_modes():
+    """The signature of overfitting, read off the report the run produced."""
+    report = _overfit_report(HoldoutSpec(highest_paired=1))
+    reserved = set(report.holdout_modes)
+
+    fitted_error = max(
+        abs(pair.frequency_error_pct)
+        for pair in report.final_correlation.pairing.pairs
+        if pair.test_index not in reserved
+    )
+    reserved_error = report.holdout_final.summary.max_abs_freq_error_pct
+
+    assert fitted_error <= OVERFIT_NOISE_PCT
+    assert reserved_error > 2.0 * fitted_error, (
+        f"fitted {fitted_error:.4f} % vs reserved {reserved_error:.4f} %"
+    )
+
+
+@criterion("AC-WORK-003")
+def test_ac_work_003_reserving_every_target_leaves_nothing_to_fit():
+    """The degenerate reservation is a typed S3 failure, not an empty update."""
+    model = _chain_model()
+
+    report = run_correction(
+        model,
+        _measured(model),
+        None,
+        _parameters(),
+        holdout=HoldoutSpec(modes=tuple(range(NUM_MODES))),
+        seed=SEED,
+    )
+
+    assert report.status == "FAIL"
+    assert report.failure["stage"] == Stage.DIAGNOSIS.value
+    assert report.failure["reason"] == "no_fitted_targets"
+
+
+@criterion("AC-WORK-003")
+def test_ac_work_003_the_held_out_blocks_travel_in_the_report():
+    """A validation nobody can audit is not one; both blocks are serialized."""
+    payload = json.loads(_reserved_run().to_json())
+
+    holdout = payload["holdout"]
+    assert holdout["modes"] == [NUM_MODES - 1]
+    assert holdout["baseline"] is not None
+    assert holdout["final"] is not None
+    assert holdout["final"]["summary"]["n_paired"] == 1

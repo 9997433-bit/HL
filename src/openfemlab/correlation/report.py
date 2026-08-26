@@ -186,7 +186,11 @@ class CorrelationReport:
         )
 
     def to_json(self, indent: int | None = 2) -> str:
-        return json.dumps(self.to_dict(), indent=indent)
+        # ``allow_nan=False`` keeps the artifact inside RFC 8259: the blocks
+        # that legitimately hold non-finite scalars encode them as ``null``,
+        # so anything left over is a defect and should surface here rather
+        # than in whatever reads the file.
+        return json.dumps(self.to_dict(), indent=indent, allow_nan=False)
 
     @classmethod
     def from_json(cls, text: str) -> CorrelationReport:

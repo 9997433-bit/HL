@@ -31,6 +31,7 @@ from ..core.results import NORMALIZATIONS, RIGID_BODY_TOL, ModalResult
 from ..exceptions import (
     MatrixDefinitenessError,
     MatrixSymmetryError,
+    MissedModesWarning,
     SolverConvergenceError,
     SolverError,
 )
@@ -42,8 +43,13 @@ __all__ = [
     "RIGID_BODY_TOL",
     "RESIDUAL_TOL",
     "SYMMETRY_TOL",
+    "INERTIA_CHECK_LIMIT",
+    "WINDOW_RTOL",
     "eigenpair_residuals",
+    "eigenvalue_count_below",
+    "eigenvalue_count_in_range",
     "residual_floor",
+    "symmetry_defect",
 ]
 
 #: Default MS-1.2 relative-residual tolerance every returned eigenpair must meet.
@@ -51,6 +57,16 @@ RESIDUAL_TOL = 1e-8
 
 #: MS-1.1 symmetry tolerance: ``‖A - Aᵀ‖_max <= SYMMETRY_TOL * ‖A‖_max``.
 SYMMETRY_TOL = 1e-10
+
+#: Reduced problem size up to which the MS-1.2 missed-mode inertia count runs
+#: by default. It factorizes ``K - sigma M`` twice, so it is only worth its
+#: O(n^3) while that stays cheap next to the extraction it is checking.
+INERTIA_CHECK_LIMIT = 2000
+
+#: Relative slack on the frequency-window bounds, so a mode sitting exactly on
+#: ``f_lo`` or ``f_hi`` lands inside the window instead of being decided by the
+#: last bit of its eigenvalue.
+WINDOW_RTOL = 1e-12
 
 #: Relative gap below which two mode components count as tied for the MS-1.3
 #: sign rule, so a near-symmetric mode gets the same sign from every backend.
@@ -131,11 +147,14 @@ class ModalSolver:
         sparse: bool | None = None,
         shift: float | None = None,
         max_frequency: float | None = None,
+        freq_window: tuple[float, float] | None = None,
         condense_massless: bool = True,
         tol: float = 0.0,
         maxiter: int | None = None,
         residual_tol: float | None = RESIDUAL_TOL,
         definiteness_tol: float | None = RIGID_BODY_TOL,
+        missed_mode_check: bool | None = None,
+        strict: bool = False,
         seed: int | None = 0,
         cache_factorization: bool = True,
     ) -> ModalResult:
@@ -158,6 +177,15 @@ class ModalSolver:
             with rigid-body modes still factorize.
         max_frequency:
             Discard modes above this frequency [Hz].
+        freq_window:
+            MS-1.2 frequency-window request ``(f_lo, f_hi)`` in Hz. Only modes
+            inside the closed window are returned, with ``num_modes`` acting as
+            a cap on how many of them. The dense backend evaluates the whole
+            spectrum and is therefore exact; the sparse backend shifts to the
+            centre of the window so that an interior window is reachable at
+            all. Either way the number found is compared against
+            :func:`eigenvalue_count_in_range`, so a window the extraction could
+            not fill is reported instead of being passed off as complete.
         condense_massless:
             Statically condense DOFs with zero mass instead of failing on a
             singular mass matrix.
@@ -179,6 +207,17 @@ class ModalSolver:
             :class:`~openfemlab.exceptions.MatrixDefinitenessError` instead of
             being clipped to a rigid-body mode. ``None`` downgrades it to a
             ``RuntimeWarning`` so an unstable spectrum can be inspected.
+        missed_mode_check:
+            Run the MS-1.2 Sylvester inertia count behind a ``freq_window``
+            request. ``None`` runs it for reduced problems of at most
+            :data:`INERTIA_CHECK_LIMIT` equations and records
+            ``expected_in_window = None`` in ``ModalResult.meta`` otherwise, so
+            "not checked" never reads as "checked and complete".
+        strict:
+            Escalate the MS-1.2 window diagnostics — today the
+            :class:`~openfemlab.exceptions.MissedModesWarning` of an incomplete
+            frequency window — into
+            :class:`~openfemlab.exceptions.SolverError`.
         seed:
             Seeds the Lanczos starting vector, which ARPACK would otherwise
             draw at random — making repeated sparse runs differ in the last
@@ -196,6 +235,8 @@ class ModalSolver:
         if num_modes < 1:
             raise SolverError(f"num_modes must be >= 1, got {num_modes}")
 
+        window = None if freq_window is None else _window_eigenvalues(freq_window)
+
         K_r, M_r, transform, M_ff = self._prepare_problem(condense_massless)
 
         size = K_r.shape[0]
@@ -212,18 +253,29 @@ class ModalSolver:
                 K_r,
                 M_r,
                 requested,
-                shift=shift,
+                shift=_window_shift(window) if shift is None and window is not None else shift,
                 tol=tol,
                 maxiter=maxiter,
                 seed=seed,
                 cache_factorization=cache_factorization,
             )
         else:
-            values, vectors = self._solve_dense(K_r, M_r, requested)
+            # The window filters the extraction, so the extraction has to reach
+            # into it; the dense backend has the whole spectrum in hand anyway.
+            values, vectors = self._solve_dense(
+                K_r, M_r, size if window is not None else requested
+            )
 
         values, vectors = _sort_and_clip(values, vectors, K_r, M_r, definiteness_tol)
         if residual_tol is not None:
             _verify_residuals(K_r, M_r, values, vectors, residual_tol)
+
+        meta: dict[str, object] = {}
+        if window is not None:
+            values, vectors = _apply_window(values, vectors, window, requested)
+            meta = _window_diagnostics(
+                K_r, M_r, window, int(values.size), missed_mode_check, strict
+            )
 
         if max_frequency is not None:
             limit = (2.0 * np.pi * float(max_frequency)) ** 2
@@ -240,6 +292,7 @@ class ModalSolver:
             mode_shapes=self.system.expand(vectors),
             free_dofs=self.system.free_dofs,
             normalization=normalization,
+            meta=meta or None,
             system=self.system,
             num_condensed_dofs=0 if transform is None else int(transform.num_condensed),
         )
@@ -428,6 +481,125 @@ def _check_mass_definiteness(M) -> None:
             matrix="M",
             value=float(diagonal[worst]),
         )
+
+
+def _to_dense(matrix) -> np.ndarray:
+    return matrix.toarray() if sp.issparse(matrix) else np.asarray(matrix, dtype=float)
+
+
+def _negative_inertia(blocks: np.ndarray, scale: float) -> int:
+    """Count the negative eigenvalues of the block-diagonal ``D`` of an LDL^T."""
+    zero = 1e-12 * max(scale, 1.0)
+    size = blocks.shape[0]
+    negatives = 0
+    index = 0
+    while index < size:
+        coupled = index + 1 < size and abs(blocks[index + 1, index]) > zero
+        if not coupled:
+            if blocks[index, index] < -zero:
+                negatives += 1
+            index += 1
+            continue
+        a, b = blocks[index, index], blocks[index + 1, index + 1]
+        off = blocks[index, index + 1]
+        determinant = a * b - off * off
+        if determinant < -zero * zero:
+            negatives += 1  # a saddle: one eigenvalue of each sign
+        elif determinant > zero * zero and a + b < 0.0:
+            negatives += 2
+        index += 2
+    return negatives
+
+
+def eigenvalue_count_below(K, M, sigma: float) -> int:
+    """Eigenvalues of ``K phi = lambda M phi`` strictly below ``sigma``.
+
+    Sylvester's law of inertia: with ``M`` positive definite the count equals
+    the number of negative eigenvalues of ``K - sigma M``, which the block
+    diagonal of an LDL^T factorization reports directly. That is what makes the
+    MS-1.2 missed-mode guard cheap — it answers "how many modes are down there"
+    without extracting any of them.
+    """
+    shifted = _symmetrize(_to_dense(K) - float(sigma) * _to_dense(M))
+    scale = float(np.max(np.abs(shifted))) if shifted.size else 0.0
+    _, blocks, _ = sla.ldl(shifted)
+    return _negative_inertia(blocks, scale)
+
+
+def eigenvalue_count_in_range(K, M, lower: float, upper: float) -> int:
+    """Eigenvalues in ``[lower, upper)``, as the difference of two inertia counts.
+
+    A frequency window is closed on both sides, which the solver gets by
+    widening the bounds by :data:`WINDOW_RTOL` before calling this — the same
+    padding :func:`_apply_window` filters on, so the count and the filter agree
+    about a mode sitting exactly on a bound.
+    """
+    return eigenvalue_count_below(K, M, upper) - eigenvalue_count_below(K, M, lower)
+
+
+def _window_eigenvalues(freq_window) -> tuple[float, float]:
+    """``(lambda_lo, lambda_hi)`` of a ``(f_lo, f_hi)`` request, bounds padded."""
+    try:
+        low, high = (float(value) for value in freq_window)
+    except (TypeError, ValueError) as exc:
+        raise SolverError("freq_window must be an (f_lo, f_hi) pair in Hz") from exc
+    if not (np.isfinite(low) and np.isfinite(high)):
+        raise SolverError(f"freq_window bounds must be finite, got ({low}, {high})")
+    if low < 0.0 or high < low:
+        raise SolverError(f"freq_window must satisfy 0 <= f_lo <= f_hi, got ({low}, {high})")
+    lower = (2.0 * np.pi * low) ** 2
+    upper = (2.0 * np.pi * high) ** 2
+    return lower * (1.0 - WINDOW_RTOL), upper * (1.0 + WINDOW_RTOL)
+
+
+def _window_shift(window: tuple[float, float]) -> float:
+    """Shift-invert target for a window request: its centre."""
+    lower, upper = window
+    return 0.5 * (lower + upper)
+
+
+def _apply_window(values: np.ndarray, vectors: np.ndarray, window, cap: int):
+    lower, upper = window
+    keep = np.flatnonzero((values >= lower) & (values <= upper))[:cap]
+    return values[keep], vectors[:, keep]
+
+
+def _window_diagnostics(
+    K,
+    M,
+    window: tuple[float, float],
+    found: int,
+    missed_mode_check: bool | None,
+    strict: bool,
+) -> dict[str, object]:
+    """Compare what the window returned against the MS-1.2 inertia count."""
+    lower, upper = window
+    meta: dict[str, object] = {
+        "freq_window_hz": (
+            float(np.sqrt(max(lower, 0.0)) / (2.0 * np.pi)),
+            float(np.sqrt(max(upper, 0.0)) / (2.0 * np.pi)),
+        ),
+        "modes_in_window": found,
+    }
+    if missed_mode_check is None:
+        run = K.shape[0] <= INERTIA_CHECK_LIMIT
+    else:
+        run = bool(missed_mode_check)
+    if not run:
+        meta["expected_in_window"] = None
+        return meta
+
+    expected = eigenvalue_count_in_range(K, M, lower, upper)
+    meta["expected_in_window"] = expected
+    if found < expected:
+        message = (
+            f"the frequency window holds {expected} modes but only {found} were "
+            f"extracted; raise 'num_modes' (or 'maxiter') to fill it"
+        )
+        if strict:
+            raise SolverError(message)
+        warnings.warn(message, MissedModesWarning, stacklevel=4)
+    return meta
 
 
 def _default_shift(K, M) -> float:

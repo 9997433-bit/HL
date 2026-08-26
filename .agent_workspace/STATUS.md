@@ -22,6 +22,9 @@ below still describes the branch tip's code.
 
 - `PYTHONPATH=src python -m pytest` — **1,133 passed, 0 failed** in 74.87 s; a
   collection-only pass independently confirmed 1,133 tests.
+- A100 independently reconfirmed **1,133 passed, 0 failed** in 28.29 s at
+  `92e387d`; `src/`, `tests/`, and `pyproject.toml` are unchanged through the
+  current documentation tip `73c4032`.
 - `ruff check .` — clean, no findings.
 - Acceptance-criteria registry — **44 criteria: 41 `implemented`,
   3 `specified`, 0 `verified`**. By priority: **P0 34/34 implemented** and

@@ -72,6 +72,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A99 | gpt-5.6-sol-xhigh-fast | Current-tip pytest verification (backfill for completed A97) | complete — A97 done; 1133 passed |
 | A101 | gpt-5.6-sol-xhigh-fast | Confirm A89's meshio bridge landed and verify the full suite | complete — A89 landed; 1133 passed at `92e387d` |
 | A102 | gpt-5.6-sol-xhigh-fast | Independent meshio bridge/full-suite verification (backfill for completed A101) | complete — A101 done; A89 present; 1133 passed at `92e387d` |
+| A56 | claude-opus-5-thinking-high-fast | Close the acceptance registry: MS-1.2 frequency windows plus the last three unwritten criteria, AC-MODAL-008/UPD-008/WORK-003 (backfill for A44) | complete — registry 44/44 `implemented`, 1168 passed, Ruff clean |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
@@ -3053,3 +3054,81 @@ concurrent agent mid-edit — the guessable-name variant A50 and A57 recorded.
 The in-flight edits survived the interleaving and reached the remote through a
 fetch-merge-push loop, but only because they had not yet been staged when the
 reset hit; the durable store is the remote, nothing else.
+#### A56 — the acceptance registry closed at 44/44 (backfill for A44)
+
+Branch `cursor/ac-backfill-a56-r2-02bf`. The task asked for twelve open criteria and a
+40/40 registry; by the time the work landed the registry had grown to 44 rows and
+concurrent agents had closed nine of the twelve, so the criteria actually delivered
+here are the three A83's record left as "the only rows still unwritten" —
+**AC-MODAL-008, AC-UPD-008 and AC-WORK-003** — plus a defect found while reconciling
+against the AC-CORR-008 implementation that landed on the trunk in the meantime.
+
+**MS-1.2 frequency windows (AC-MODAL-008) — a feature that was specified but not
+built.** `ModalSolver.solve` gains `freq_window=(f_lo, f_hi)`, `missed_mode_check` and
+`strict`. The dense backend extracts the whole spectrum and filters it, so a window
+request is exact; the Lanczos backend shifts to the centre of the window, which is what
+makes an interior window reachable at all. `eigenvalue_count_below` and
+`eigenvalue_count_in_range` count a band from the inertia of an LDL^T factorization of
+`K - sigma M` (Sylvester), so the solver can say how many modes a window holds without
+extracting any of them. A window the request could not fill now raises
+`MissedModesWarning` — or `SolverError` under `strict` — instead of being handed
+downstream as complete, and `ModalResult.meta` records `expected_in_window: None` when
+the count was skipped, so "not checked" never reads as "checked and complete". The
+bounds carry a relative padding, so a mode sitting exactly on `f_lo`/`f_hi` is inside
+the window rather than decided by its last bit; contiguous band sweeps therefore
+neither lose nor duplicate the mode on a seam.
+
+**A real defect in the report artifact.** AC-CORR-008 had already been implemented on
+the trunk (`1e99970`) with the same shape this run had built independently, so that
+commit was dropped rather than merged — but the trunk version writes an unscored
+`ModePair.mac` and a percentage error against a 0 Hz mode as the bare `NaN` and
+`Infinity` tokens RFC 8259 does not define, and its own suite pinned that as accepted
+behaviour. Any published `CorrelationReport` from a frequency-only pairing was
+therefore a file only Python could read back: `JSON.parse` and `serde_json` both
+reject it. The pairing table now encodes those two scalars as `null` and restores them
+on parse, and `to_json` passes `allow_nan=False` so a non-finite value anywhere else
+fails at the write rather than at some downstream reader. The suite's two cases were
+rewritten to pin the fix — the artifact is parsed with a `parse_constant` hook that
+fails on any bare token, and a non-finite value planted in `meta` is shown to raise.
+
+**Acceptance suites.**
+
+- **AC-MODAL-008** (10 functions, 22 cases): window contents checked against a full
+  dense reference for a low, an interior and a single-mode band on both backends; an
+  empty band shown to return nothing rather than the nearest modes; the closed-bound
+  rule pinned; the inertia count checked against the reference at both ends of the
+  spectrum; the unfillable window shown to warn and, under `strict`, to raise; the
+  skipped count shown recorded; malformed window requests shown to be typed failures.
+- **AC-UPD-008** (4 tests): a twin whose two lowest modes swap places between the
+  starting point and the truth. The pairing is recomputed along the *recorded*
+  trajectory and every residual shown attached to the mode it physically belongs to.
+  Freezing the pairing to the mode order still converges, and drives its frequency
+  residual to zero — onto the parameters that put the right frequencies on the wrong
+  modes. Only the shape correlation exposes it, which is what makes ground-truth MAC
+  tracking the right gate for this criterion and the re-pairing load-bearing.
+- **AC-WORK-003** (8 tests): the reserved target shown missing from the S4 residuals
+  and present in the S6 evaluation. The overfitting twin gives one factor per pair of
+  springs and 1 % scatter on measurements of the *nominal* model, so every parameter
+  move is a move onto the noise; with the highest mode reserved the fitted modes agree
+  to 0.65 % while the reserved one drifts to 1.80 %, worse than the uncorrected model's
+  0.28 %, and the run is blocked with a machine-readable reason. The control run makes
+  the point that the reservation is what detects it: with nothing reserved the same fit
+  meets every other S6 gate and reads as a success.
+
+**Verification.** `pytest` at the branch tip: **1168 passed, 0 failed** (a collection
+pass confirms the same 1168); `ruff check src tests` clean. The registry is
+`Counter({'implemented': 44})` — **no criterion is left at `specified`**, which is the
+40/40 the task asked for at the count the registry has actually reached.
+
+**Process.** This run's first attempt was based on `7faaf23` and finished against a
+trunk 60 commits further on, so nine of its twelve criteria had been implemented
+elsewhere while it worked. Rebasing rather than merging made that visible commit by
+commit: two of the five were dropped as redundant, one was reduced to the single
+criterion the trunk still lacked, and only the genuinely new work survived. The trunk
+moved twice more during the rebase itself. The lesson matches A83's — re-fetch before
+every step — with one addition: when a criterion comes back as a conflict, the question
+to ask is whether the other implementation is *equivalent*, not just whether it exists.
+Here it was equivalent in structure and wrong in one detail, and diffing the two is
+what surfaced the non-finite JSON. Work was done in a private worktree at `/tmp/a56`
+with `PYTHONPATH` pinned to its own `src`; the shared `/workspace` checkout was in use
+by other agents throughout and was never touched.
