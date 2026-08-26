@@ -70,3 +70,7 @@ mypy_path = "src"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+markers = [
+    "acceptance: verifies a criterion of docs/ACCEPTANCE_CRITERIA.md",
+    "criterion(test_id, priority): acceptance-criterion registry ID under test",
+]
