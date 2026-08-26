@@ -1,14 +1,16 @@
 .PHONY: install test bench lint
 
+PYTHON ?= python3
+
 install:
-	python -m pip install -e ".[dev]"
+	$(PYTHON) -m pip install -e ".[dev]"
 
 test:
-	python -m pytest
+	$(PYTHON) -m pytest
 
 bench:
-	python benchmarks/bench_modal.py
-	python benchmarks/bench_updating.py
+	$(PYTHON) benchmarks/bench_modal.py
+	$(PYTHON) benchmarks/bench_updating.py
 
 lint:
-	python -m ruff check .
+	$(PYTHON) -m ruff check .

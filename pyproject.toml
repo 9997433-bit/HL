@@ -18,11 +18,17 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Topic :: Scientific/Engineering :: Physics",
 ]
-dependencies = ["numpy>=1.23", "scipy>=1.9"]
+dependencies = [
+    "numpy>=1.23",
+    "scipy>=1.9",
+    "pytest>=7.0",
+    "rich>=13.0",
+    "pyyaml>=6.0",
+]
 
 [project.optional-dependencies]
-test = ["pytest>=7.0"]
-dev = ["pytest>=7.0", "ruff>=0.5"]
+test = ["pytest>=7.0", "pytest-cov>=4.0"]
+dev = ["build>=1.0", "pytest-cov>=4.0", "ruff>=0.5"]
 
 [project.urls]
 Homepage = "https://github.com/openfemlab/openfemlab"
