@@ -80,7 +80,7 @@ const isActive = (item) => route.name === item.name
 
 .navbar__item.is-active {
   background: var(--brand-soft);
-  color: var(--brand-strong);
+  color: var(--text-strong);
 }
 
 .navbar__icon {

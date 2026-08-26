@@ -376,7 +376,7 @@ onBeforeUnmount(() => {
           ref="boardRef"
           class="board"
           :class="`s${sizeKey}`"
-          role="grid"
+          role="group"
           :aria-label="`${size}×${size} 数独`"
           :style="{ gridTemplateColumns: `repeat(${size}, 1fr)` }"
         >

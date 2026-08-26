@@ -10,7 +10,14 @@ defineProps({
 
 <template>
   <div class="session-bar">
-    <div class="dots" :aria-label="`进度 ${index} / ${total}`">
+    <div
+      class="dots"
+      role="progressbar"
+      :aria-label="`答题进度 ${index} / ${total}`"
+      :aria-valuenow="Math.min(index, total)"
+      aria-valuemin="0"
+      :aria-valuemax="total"
+    >
       <span
         v-for="i in total"
         :key="i"

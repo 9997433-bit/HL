@@ -364,15 +364,29 @@ onMounted(() => {
       <div class="set-row">
         <span>音效</span>
         <div class="spacer" />
-        <button class="toggle" :class="{ on: settings.soundOn }" @click="toggleSound">
-          <span class="knob" />
+        <button
+          class="toggle"
+          :class="{ on: settings.soundOn }"
+          type="button"
+          aria-label="音效"
+          :aria-pressed="settings.soundOn"
+          @click="toggleSound"
+        >
+          <span class="knob" aria-hidden="true" />
         </button>
       </div>
       <div class="set-row">
         <span>护眼模式<em class="dim tiny note">降低饱和度，长时间使用更舒服</em></span>
         <div class="spacer" />
-        <button class="toggle" :class="{ on: settings.eyeCare }" @click="toggleEyeCare">
-          <span class="knob" />
+        <button
+          class="toggle"
+          :class="{ on: settings.eyeCare }"
+          type="button"
+          aria-label="护眼模式"
+          :aria-pressed="settings.eyeCare"
+          @click="toggleEyeCare"
+        >
+          <span class="knob" aria-hidden="true" />
         </button>
       </div>
       <div class="set-row">
