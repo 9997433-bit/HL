@@ -65,7 +65,7 @@ FAMILY_TO_MODULE = {
     "DYN": "M6", "ELEM": "M7", "IO": "M8", "MPE": "M9", "PRETEST": "M10",
 }
 EXPECTED_CRITERIA_PER_FAMILY = {
-    "MODAL": 9, "CORR": 9, "UPD": 9, "WORK": 5, "OPT": 4, "DYN": 5, "ELEM": 3,
+    "MODAL": 9, "CORR": 9, "UPD": 10, "WORK": 5, "OPT": 4, "DYN": 5, "ELEM": 3,
     "IO": 3, "MPE": 5, "PRETEST": 5,
 }
 
@@ -158,6 +158,8 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P0", "twin", "MS-3.6", _UPD_SUITE, "verified"),
     _c("AC-UPD-008", "Mode switching handled by re-pairing",
        "P1", "twin", "MS-3.2", _UPD_SUITE, "verified"),
+    _c("AC-UPD-009", "FRF residual recovers a damped twin",
+       "P2", "twin", "MS-3.2, MS-7.3", _UPD_SUITE, "implemented"),
     # --- M4 Simulation correction workflow (MS-4) -----------------------------
     _c("AC-WORK-001", "End-to-end correction passes gates",
        "P0", "twin", "MS-4.1, MS-4.2", _WORK_SUITE, "verified"),
@@ -254,7 +256,7 @@ def test_registry_inventory_matches_documented_scope():
         for family in EXPECTED_CRITERIA_PER_FAMILY
     }
     assert counts == EXPECTED_CRITERIA_PER_FAMILY
-    assert len(REGISTRY) == 57
+    assert len(REGISTRY) == 58
 
 
 def test_ids_unique():

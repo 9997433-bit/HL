@@ -299,10 +299,27 @@ Stacked weighted residual vector `r(p)`; supported blocks:
 2. **Mode-shape residuals** (optional): either component residuals
    `r_φ = vec(T φ_a,i − φ_e,i)` after MSF scaling, or scalar
    `r_MAC,i = 1 − MAC_ii`.
-3. FRF residuals: out of scope Round 1 (interface reserved).
+3. **FRF residuals** (Round 3): on a chosen subset of frequency lines `ω_l`
+   and the measured response/excitation channels,
+
+   ```
+   r(ω_l) = W_l [ H(ω_l; θ) − H_meas(ω_l) ]      stacked as [Re r, Im r]
+   ```
+
+   with `H` synthesized by MS-7.3 from the same parameterized `K(θ)`, `M(θ)`
+   and `C(θ)`. Real/imaginary stacking rather than log-magnitude: it keeps the
+   residual analytic in `θ` (so the sensitivity below is exact) and retains the
+   phase that separates a stiffness error from a damping error, where a
+   log-magnitude residual is non-differentiable at the antiresonances.
+   `W_l` defaults to `1/|H_meas|` (floored relative to the largest measured
+   magnitude), which turns the block into a relative error so no resonance
+   peak dominates the fit; the unweighted complex difference is the
+   alternative. Choosing *which* lines to fit is the caller's — the residual
+   provider takes the subset and the weighting, it does not select them.
 
 Re-pairing (MS-2.3) is executed every iteration — mode switching during
-updating must not corrupt the residual ordering.
+updating must not corrupt the residual ordering. The FRF block needs no
+pairing: measured and synthesized lines are matched by frequency.
 
 ### MS-3.3 Sensitivities
 
@@ -328,6 +345,18 @@ updating must not corrupt the residual ordering.
   sensitivities for the cluster are flagged unreliable and excluded from `S`
   (eigenvalue sensitivities remain valid for the cluster sum only —
   Round 1 policy: warn and drop the affected shape residuals).
+- **FRF sensitivity** — differentiating `H = Z⁻¹` with
+  `Z(ω; θ) = K(θ) − ω² M(θ) + iω C(θ)`:
+
+  ```
+  ∂H/∂p_j = − H ( ∂K/∂p_j − ω² ∂M/∂p_j + iω ∂C/∂p_j ) H
+  ```
+
+  Exact wherever the `∂K/∂p`, `∂M/∂p`, `∂C/∂p` matrices of MS-3.1 are, and it
+  costs one factorization of `Z(ω)` per line for *all* parameters rather than
+  one per parameter. Validated against central finite differences of the
+  assembled residual per AC-UPD-009; the finite-difference route stays
+  available for models with no derivative matrices.
 
 ### MS-3.4 Deterministic updating — regularized weighted Gauss–Newton
 
@@ -414,6 +443,15 @@ def update_model(model: ParametricModel, test: TestModeSet,
 
 `UpdatingResult`: parameter history, residual history, per-iteration
 `CorrelationReport`s, final `C_post` (Bayesian), convergence flag + reason.
+
+The FRF block of MS-3.2 enters through a residual *provider* rather than a
+second loop: `updating.frf.FRFResidual(model, measured, damping=...)` assembles
+`r` and `∂r/∂θ`, and `FRFUpdater` / `update_model_frf` drive it with the
+MS-3.4 estimator, line search, bound projection, divergence guard and σ_post
+plumbing unchanged. An FRF run has no measured mode table, so its
+`CorrelationSummary` is empty and the correlation it does report is the MS-7.4
+FRAC/FDAC block (`FRFUpdatingResult.initial_frf_correlation` /
+`final_frf_correlation`).
 
 ---
 

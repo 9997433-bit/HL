@@ -224,6 +224,7 @@ only prints the plan.
 | AC-UPD-006b | P1 | Posterior contraction (tight prior) | σ_post ≤ σ_prior componentwise | MS-3.5 |
 | AC-UPD-007 | P0 | Collinear parameter detection & freeze | duplicate flagged (cos > 0.99), one frozen, still converges | MS-3.6 |
 | AC-UPD-008 | P1 | Mode switching handled by re-pairing | residual ordering correct through a mode crossing | MS-3.2 |
+| AC-UPD-009 | P2 | FRF residual recovers a damped twin | ‖θ* − θ_true‖_∞ ≤ 1e-2 from noisy FRFs; held-out FRAC ≥ 0.99 | MS-3.2, MS-7.3 |
 
 ### Details
 
@@ -262,6 +263,20 @@ only prints the plan.
   during updating is handled by per-iteration re-pairing: residuals stay
   attached to the physically correct modes (verified by ground-truth MAC
   tracking) and the run converges.
+- **AC-UPD-009** (`twin`) — A damped 10-DOF chain detuned in three stiffness
+  factors and one damping factor is recovered from **FRFs alone**: the
+  "measurement" is the FRF matrix synthesized at `θ_true` and corrupted with
+  2 % multiplicative complex noise from a seeded generator, and the residual
+  is the MS-3.2 real/imaginary stack
+  `r(ω_l) = W_l [H(ω_l; θ) − H_meas(ω_l)]` over the fitted frequency lines.
+  The run recovers `‖θ* − θ_true‖_∞ ≤ 1e-2` and reaches FRAC ≥ 0.99 on every
+  channel of a **held-out** line set that took no part in the fit — the
+  baseline model is far below that, so the gate measures the update rather
+  than the twin. The analytic sensitivity
+  `∂H/∂θ = −H (∂K/∂θ − ω² ∂M/∂θ + iω ∂C/∂θ) H` matches central finite
+  differences of the assembled residual to relative error ≤ 1e-6 and is the
+  active path, and switching it off for finite differences reaches the same
+  answer.
 
 ---
 
