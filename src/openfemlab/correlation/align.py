@@ -7,9 +7,10 @@ shapes are reduced onto it by the selection operator ``T``:
 
 ``Φ_fe,reduced = T Φ_fe``   with   ``T[i, k] = sign_i`` for sensor ``i`` at FE row ``k``
 
-This module only performs *reduction* (the Round-1 default). SEREP expansion
-of test shapes to the full FE space is the Round-3 upgrade and will reuse the
-same alignment objects.
+This module only performs *reduction* by row selection (the default). Matrix
+reduction onto the sensor set and SEREP expansion of test shapes to the full FE
+space live in :mod:`openfemlab.correlation.reduction` and consume the same row
+indices this module produces.
 
 Two entry points cover the two ways rows are identified: by
 :class:`~openfemlab.core.dofs.DofMap` (``(node_id, DofType)`` pairs — the

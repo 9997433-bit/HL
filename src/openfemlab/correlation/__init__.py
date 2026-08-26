@@ -4,7 +4,9 @@ Quantifies agreement between an FE :class:`~openfemlab.core.results.ModalResult`
 and measured :class:`~openfemlab.core.results.TestData`:
 
 - :mod:`~openfemlab.correlation.align` — DOF matching between the model and the
-  sensor set (reduction; SEREP expansion in Round 3).
+  sensor set.
+- :mod:`~openfemlab.correlation.reduction` — Guyan / IRS / SEREP bases, the TAM
+  mass matrix, and SEREP expansion of measured shapes to the full FE space.
 - :mod:`~openfemlab.correlation.mac` — ``mac`` / ``automac`` / ``comac`` /
   ``orthogonality`` shape-correlation metrics, optionally mass weighted.
 - :mod:`~openfemlab.correlation.metrics` — frequency-error metrics, with the
@@ -56,6 +58,14 @@ from .metrics import (
     relative_frequency_error,
 )
 from .pairing import ModePair, ModePairing, pair_modes
+from .reduction import (
+    ReductionBasis,
+    expand_shapes,
+    guyan_reduction,
+    irs_reduction,
+    serep_basis,
+    tam_mass,
+)
 from .report import CorrelationReport, correlate_modal_data, correlation_report
 from .summary import (
     CorrelationSummary,
@@ -94,6 +104,13 @@ __all__ = [
     "ModePair",
     "ModePairing",
     "pair_modes",
+    # reduction / expansion
+    "ReductionBasis",
+    "expand_shapes",
+    "guyan_reduction",
+    "irs_reduction",
+    "serep_basis",
+    "tam_mass",
     # aggregated results
     "CorrelationReport",
     "CorrelationSummary",
