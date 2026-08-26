@@ -428,6 +428,9 @@ class CorrectionWorkflow:
                 final_cost=result.final_cost,
             )
 
+        # The updater optimises its own copy, so S5/S6 read the corrected
+        # parameters back from the result rather than from the set handed in.
+        self.parameters = result.parameter_set
         self._updating = result
         self._timer.finish(
             StageStatus.PASSED,
