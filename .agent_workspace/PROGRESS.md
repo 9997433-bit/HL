@@ -101,6 +101,22 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
   `tests/fixtures/*.yaml`, including `modes_by_dof` layout conversion.
 - Added IO round-trip, fixture compatibility, format-error, and validation tests.
 
+#### A03 — SOTA Gap Audit (backfill)
+- Audited every module in `src/openfemlab/` and the full test suite against FEMtools'
+  capability map (Framework, Dynamics, Pretest & Correlation, Updating, Optimization,
+  MPE, Probabilistic) plus modern open-source SOTA (Bayesian updating, OMA/SSI, AD, CMS).
+- Published `docs/SOTA_GAP_ANALYSIS.md`: capability baseline, 15-entry gap register
+  (GAP-01..GAP-15 with P0/P1/P2 severity), top-5 detail, and Round 2/3 sequencing.
+- Top 5 gaps: (1) GAP-01 split-brain integration debt — two parallel core architectures,
+  renamed seam symbols, duplicate `ModalResult`/eigensolver, suite not collecting cleanly
+  at audit time; (2) GAP-03 no industrial model/test-data exchange (UFF/UNV, Nastran BDF,
+  meshio); (3) GAP-04/05 no damping, forced response, FRF synthesis or FRF correlation;
+  (4) GAP-06 no modal parameter extraction from measured FRFs; (5) GAP-07/08 no pretest
+  planning, TAM reduction (Guyan/IRS/SEREP) or mode-shape expansion.
+- Recorded timestamped import/test evidence (three distinct broken states observed while
+  concurrent agents integrated) as justification for a Round 2 "seams land atomically
+  with consumers" rule.
+
 #### A01 — Module Spec & Acceptance Criteria
 - Finalized `docs/MODULE_SPEC.md` (MS-0..MS-6): modal analysis, correlation,
   sensitivity-based updating, simulation-correction workflow, optimization hooks;
@@ -133,6 +149,37 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 - Added `tests/acceptance/test_criteria_registry.py`: machine-readable
   registry of all 35 criteria + 10 consistency tests (ID format/uniqueness,
   dense numbering, doc/spec/registry sync, P0 coverage). All 10 pass.
+
+#### A05 — Modal Module Completion & Fixture Benchmarks
+- Resolved the `core/model.py` name collision behind GAP-01: the solver-side model
+  (`DOF`, `Node`, `Material`, `Section`, `Model`) stays in `core.model`, while the flat
+  importer-facing contract moved to the new `core/neutral.py` as `NeutralModel`,
+  `NeutralMaterial`, `NeutralProperty`, `ElementType`. Before this, `core.elements`,
+  `core.assembly`, `mesh/simple.py` and `solver/modal.py` could not be imported together.
+- Repointed `io/_native.py`, `tests/test_io.py` and `solver/__init__.py` at
+  `core.neutral`, clearing the collection errors in the committed IO suite — the open
+  item R1-O1 flagged for the orchestrator.
+- Committed `core/results.py`, without which the already-committed `openfemlab.io`
+  could not be imported from a clean checkout.
+- Added 11 fixture-driven cases to `tests/test_modal_solver.py`:
+  `tests/fixtures/two_dof_analytic.yaml` and `tests/fixtures/ten_dof_chain.yaml` now
+  supply the reference spectra, mass-normalized shapes and tolerances, rather than
+  numbers hard-coded in the test body.
+- Fixture coverage: eigenvalues/omega/f to the fixture tolerances (1e-12 and 1e-11
+  relative), `phi^T M phi = I` and `phi^T K phi = diag(lambda)` to 1e-12, relative
+  eigenpair residual `||K phi - lambda M phi|| / ||K phi|| < 1e-12`, the 2-DOF shapes to
+  1e-10 absolute after sign alignment, the fixed-free sine law for the 10-DOF shapes,
+  and agreement of the sparse shift-invert backend with the reference.
+- Integration is pinned in both directions: `spring_mass_chain(2, 1, 1, fixed_end=True)`
+  and `spring_mass_chain(10, 1, 1)` must assemble exactly the fixture `K`/`M`, and the
+  full Model -> assembly -> eigensolve path must reproduce the fixture spectrum.
+- Verified on Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1:
+  `pytest tests/test_modal_solver.py -v` gives 44 passed (0.4 s); `tests/test_io.py`
+  13 passed. Touched files pass Ruff.
+- Open for the orchestrator: `ruff check .` still fails on files owned by other agents
+  (`openfemlab/__init__.py` TYPE_CHECKING re-export block, `core/dofs.py` B905,
+  `core/elements.py` E741, `core/model.py` UP037/E501), and `openfemlab/modal/eigen.py`
+  still duplicates the eigen extraction in `solver/modal.py`.
 
 ### Round 2 — Targeted Refactor & Deep Optimization
 **Status:** PENDING
