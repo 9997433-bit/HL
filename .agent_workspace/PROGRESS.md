@@ -17,6 +17,12 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 - 此规则优先级最高，无论上下文是否已满
 - 活跃池目标：10（3×fable + 4×opus-fast + 3×gpt-sol 推荐配比）
 
+## Active Pool
+
+| Agent | Model | Focus | Status |
+|-------|-------|-------|--------|
+| A01 | claude-fable-5-thinking-xhigh | Module spec & acceptance criteria (docs + registry) | complete |
+
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
 |--------|-------------|
@@ -93,6 +99,18 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 - Added safe generic fixture loading and adapters for repository
   `tests/fixtures/*.yaml`, including `modes_by_dof` layout conversion.
 - Added IO round-trip, fixture compatibility, format-error, and validation tests.
+
+#### A01 — Module Spec & Acceptance Criteria
+- Finalized `docs/MODULE_SPEC.md` (MS-0..MS-6): modal analysis, correlation,
+  sensitivity-based updating, simulation-correction workflow, optimization hooks;
+  package naming aligned to the approved `openfemlab` architecture.
+- Added `docs/ACCEPTANCE_CRITERIA.md`: 35 quantified criteria
+  (MODAL 9, CORR 8, UPD 9, WORK 5, OPT 4) with P0/P1 round gates, tolerances,
+  and verification methods (oracle/property/twin/contract/regression).
+- Added `tests/acceptance/test_criteria_registry.py`: machine-readable criterion
+  registry with 13 consistency tests (ID format/uniqueness, dense numbering,
+  cross-references against both docs, controlled vocabularies, P0 coverage).
+- Verified on Python 3.12: 13/13 registry tests pass; new files pass Ruff.
 
 ### Round 2 — Targeted Refactor & Deep Optimization
 **Status:** PENDING

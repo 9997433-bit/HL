@@ -1,0 +1,248 @@
+"""Acceptance-criteria registry and consistency tests.
+
+Machine-readable registry of every acceptance criterion defined in
+``docs/ACCEPTANCE_CRITERIA.md`` (see its section 7 for the enforcement
+contract). Implementation suites import ``REGISTRY`` / ``get_criterion`` to
+tag themselves; the tests in this file guard that the registry, the criteria
+document, and ``docs/MODULE_SPEC.md`` never drift apart.
+
+Registry contract (ACCEPTANCE_CRITERIA.md sections 1 and 7):
+- IDs follow ``AC-<MODULE>-NNN[a-z]?`` with MODULE in {MODAL, CORR, UPD,
+  WORK, OPT}; numbering is dense per module (no gaps); an optional lowercase
+  suffix marks closely coupled sub-criteria sharing a number.
+- ``priority`` in {P0, P1, P2} (P0 blocks Round-1, P1 blocks Round-2).
+- ``method`` in {oracle, property, twin, contract, regression}.
+- ``status`` lifecycle: specified -> implemented -> verified.
+- ``spec_ref`` anchors must exist in ``docs/MODULE_SPEC.md``.
+"""
+
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+CRITERIA_DOC = REPO_ROOT / "docs" / "ACCEPTANCE_CRITERIA.md"
+SPEC_DOC = REPO_ROOT / "docs" / "MODULE_SPEC.md"
+
+ID_REGEX = re.compile(r"AC-(?:MODAL|CORR|UPD|WORK|OPT)-\d{3}[a-z]?")
+ID_FULLMATCH = re.compile(r"^AC-(MODAL|CORR|UPD|WORK|OPT)-(\d{3})([a-z]?)$")
+
+VALID_MODULES = ("M1", "M2", "M3", "M4", "M5")
+VALID_PRIORITIES = ("P0", "P1", "P2")
+VALID_METHODS = ("oracle", "property", "twin", "contract", "regression")
+VALID_STATUSES = ("specified", "implemented", "verified")
+
+FAMILY_TO_MODULE = {
+    "MODAL": "M1", "CORR": "M2", "UPD": "M3", "WORK": "M4", "OPT": "M5",
+}
+
+
+@dataclass(frozen=True)
+class AcceptanceCriterion:
+    test_id: str
+    module: str          # M1..M5
+    title: str
+    priority: str        # P0 | P1 | P2
+    method: str          # oracle | property | twin | contract | regression
+    spec_ref: str        # comma-separated MODULE_SPEC.md anchors
+    test_file: str       # planned/actual implementation suite
+    status: str = "specified"
+
+
+def _c(test_id, title, priority, method, spec_ref, test_file,
+       status="specified"):
+    family = test_id.split("-")[1]
+    return AcceptanceCriterion(test_id, FAMILY_TO_MODULE[family], title,
+                               priority, method, spec_ref, test_file, status)
+
+
+_MODAL_SUITE = "tests/acceptance/test_modal.py"
+_CORR_SUITE = "tests/acceptance/test_correlation.py"
+_UPD_SUITE = "tests/acceptance/test_updating.py"
+_WORK_SUITE = "tests/acceptance/test_workflow.py"
+_OPT_SUITE = "tests/acceptance/test_optimization.py"
+
+REGISTRY: tuple[AcceptanceCriterion, ...] = (
+    # --- M1 Modal analysis (MS-1) -------------------------------------------
+    _c("AC-MODAL-001", "Analytic eigenvalue accuracy",
+       "P0", "oracle", "MS-1.1", _MODAL_SUITE),
+    _c("AC-MODAL-002", "Backend consistency (dense/lanczos/lobpcg)",
+       "P0", "property", "MS-1.2", _MODAL_SUITE),
+    _c("AC-MODAL-003", "Mass-orthonormality of returned modes",
+       "P0", "contract", "MS-1.3", _MODAL_SUITE),
+    _c("AC-MODAL-004", "Rigid-body mode detection",
+       "P0", "oracle", "MS-1.2", _MODAL_SUITE),
+    _c("AC-MODAL-005", "Sign convention & determinism",
+       "P0", "contract", "MS-1.3", _MODAL_SUITE),
+    _c("AC-MODAL-006", "Residual convergence guarantee",
+       "P0", "contract", "MS-1.2", _MODAL_SUITE),
+    _c("AC-MODAL-007", "Effective modal mass completeness",
+       "P0", "oracle", "MS-1.4", _MODAL_SUITE),
+    _c("AC-MODAL-008", "Frequency-window extraction + missed-mode guard",
+       "P1", "oracle", "MS-1.2", _MODAL_SUITE),
+    _c("AC-MODAL-009", "Input validation & typed failures",
+       "P0", "contract", "MS-1.1", _MODAL_SUITE),
+    # --- M2 Correlation (MS-2) ----------------------------------------------
+    _c("AC-CORR-001", "Weighted MAC self-identity",
+       "P0", "property", "MS-2.2", _CORR_SUITE),
+    _c("AC-CORR-002", "MAC scaling/sign invariance",
+       "P0", "property", "MS-2.2", _CORR_SUITE),
+    _c("AC-CORR-003", "Pairing recovers ground truth",
+       "P0", "twin", "MS-2.3", _CORR_SUITE),
+    _c("AC-CORR-004", "COMAC localizes bad DOF",
+       "P0", "twin", "MS-2.5", _CORR_SUITE),
+    _c("AC-CORR-005", "Frequency-error sign convention",
+       "P0", "oracle", "MS-2.4", _CORR_SUITE),
+    _c("AC-CORR-006", "Reduction/expansion (SEREP) consistency",
+       "P1", "twin", "MS-2.1", _CORR_SUITE),
+    _c("AC-CORR-007", "MAC range and complex-shape support",
+       "P0", "property", "MS-2.2", _CORR_SUITE),
+    _c("AC-CORR-008", "CorrelationReport JSON round-trip",
+       "P0", "contract", "MS-2.6", _CORR_SUITE),
+    # --- M3 Model updating (MS-3) --------------------------------------------
+    _c("AC-UPD-001", "Eigenvalue sensitivity vs central FD",
+       "P0", "oracle", "MS-3.3", _UPD_SUITE),
+    _c("AC-UPD-002", "Fox-Kapoor shape sensitivity vs central FD",
+       "P0", "oracle", "MS-3.3", _UPD_SUITE),
+    _c("AC-UPD-003", "Twin-experiment parameter recovery",
+       "P0", "twin", "MS-3.4", _UPD_SUITE),
+    _c("AC-UPD-004", "Convergence monitoring & divergence guard",
+       "P0", "contract", "MS-3.4", _UPD_SUITE),
+    _c("AC-UPD-005", "Ill-posed robustness (over-parameterized)",
+       "P0", "property", "MS-3.4", _UPD_SUITE),
+    _c("AC-UPD-006a", "Bayesian step -> GN limit (weak prior)",
+       "P1", "property", "MS-3.5", _UPD_SUITE),
+    _c("AC-UPD-006b", "Posterior contraction (tight prior)",
+       "P1", "property", "MS-3.5", _UPD_SUITE),
+    _c("AC-UPD-007", "Collinear parameter detection & freeze",
+       "P0", "twin", "MS-3.6", _UPD_SUITE),
+    _c("AC-UPD-008", "Mode switching handled by re-pairing",
+       "P1", "twin", "MS-3.2", _UPD_SUITE),
+    # --- M4 Simulation correction workflow (MS-4) -----------------------------
+    _c("AC-WORK-001", "End-to-end correction passes gates",
+       "P0", "twin", "MS-4.1, MS-4.2", _WORK_SUITE),
+    _c("AC-WORK-002", "Deterministic reproducibility",
+       "P0", "contract", "MS-4.3", _WORK_SUITE),
+    _c("AC-WORK-003", "Held-out validation detects overfitting",
+       "P1", "twin", "MS-4.1", _WORK_SUITE),
+    _c("AC-WORK-004", "Failed gate halts with typed reason",
+       "P0", "contract", "MS-4.1", _WORK_SUITE),
+    _c("AC-WORK-005", "CorrectionReport schema & versioning",
+       "P0", "contract", "MS-4.3", _WORK_SUITE),
+    # --- M5 Optimization hook (MS-5) ------------------------------------------
+    _c("AC-OPT-001", "Analytic gradients vs central FD",
+       "P0", "oracle", "MS-5.1", _OPT_SUITE),
+    _c("AC-OPT-002", "Reference problem reaches known optimum",
+       "P0", "oracle", "MS-5.2", _OPT_SUITE),
+    _c("AC-OPT-003", "Box bounds never violated",
+       "P0", "contract", "MS-5.2", _OPT_SUITE),
+    _c("AC-OPT-004", "Mode tracking across crossings",
+       "P1", "twin", "MS-5.2", _OPT_SUITE),
+)
+
+_BY_ID = {c.test_id: c for c in REGISTRY}
+
+
+def get_criterion(test_id: str) -> AcceptanceCriterion:
+    """Look up a criterion by ID (implementation suites tag tests with it)."""
+    return _BY_ID[test_id]
+
+
+def ids() -> tuple[str, ...]:
+    return tuple(c.test_id for c in REGISTRY)
+
+
+# ---------------------------------------------------------------------------
+# Consistency tests (enforcement rules of ACCEPTANCE_CRITERIA.md section 7)
+# ---------------------------------------------------------------------------
+
+def test_registry_not_empty():
+    assert len(REGISTRY) >= 30, "Round-1 scope defines 35 criteria"
+
+
+def test_ids_unique():
+    all_ids = [c.test_id for c in REGISTRY]
+    dupes = {i for i in all_ids if all_ids.count(i) > 1}
+    assert not dupes, f"duplicate acceptance criterion IDs: {sorted(dupes)}"
+
+
+def test_id_format():
+    bad = [c.test_id for c in REGISTRY if not ID_FULLMATCH.match(c.test_id)]
+    assert not bad, f"IDs not matching AC-<MODULE>-NNN[a-z]?: {bad}"
+
+
+def test_fields_valid():
+    for c in REGISTRY:
+        assert c.module in VALID_MODULES, (c.test_id, c.module)
+        assert c.priority in VALID_PRIORITIES, (c.test_id, c.priority)
+        assert c.method in VALID_METHODS, (c.test_id, c.method)
+        assert c.status in VALID_STATUSES, (c.test_id, c.status)
+        assert c.title.strip(), c.test_id
+        assert c.test_file.startswith("tests/"), (c.test_id, c.test_file)
+        for anchor in (a.strip() for a in c.spec_ref.split(",")):
+            assert re.fullmatch(r"MS-\d+(\.\d+)?", anchor), (
+                c.test_id, c.spec_ref)
+
+
+def test_module_family_consistent():
+    for c in REGISTRY:
+        family = ID_FULLMATCH.match(c.test_id).group(1)
+        assert FAMILY_TO_MODULE[family] == c.module, (c.test_id, c.module)
+
+
+def test_numbering_dense_per_module():
+    """Base numbers are contiguous from 001 within each family (rule 2)."""
+    families: dict[str, set[int]] = {}
+    for c in REGISTRY:
+        m = ID_FULLMATCH.match(c.test_id)
+        families.setdefault(m.group(1), set()).add(int(m.group(2)))
+    for family, nums in families.items():
+        expected = set(range(1, max(nums) + 1))
+        assert nums == expected, (
+            f"AC-{family}: numbers {sorted(nums)} have gaps "
+            f"(expected {sorted(expected)})"
+        )
+
+
+def test_every_module_has_blocking_criterion():
+    """Each module M1..M5 carries at least one P0 criterion (rule 5)."""
+    p0_modules = {c.module for c in REGISTRY if c.priority == "P0"}
+    missing = set(VALID_MODULES) - p0_modules
+    assert not missing, f"modules without a P0 criterion: {sorted(missing)}"
+
+
+def _doc_ids(path: Path) -> set[str]:
+    return set(ID_REGEX.findall(path.read_text(encoding="utf-8")))
+
+
+def test_registry_matches_acceptance_criteria_doc():
+    """Doc and registry define exactly the same ID set (rule 3)."""
+    assert CRITERIA_DOC.is_file(), f"missing document: {CRITERIA_DOC}"
+    doc_ids = _doc_ids(CRITERIA_DOC)
+    reg_ids = set(ids())
+    only_doc = sorted(doc_ids - reg_ids)
+    only_reg = sorted(reg_ids - doc_ids)
+    assert not only_doc and not only_reg, (
+        f"doc-only IDs: {only_doc}; registry-only IDs: {only_reg}"
+    )
+
+
+def test_module_spec_references_resolve():
+    """Every AC-* ID cited in MODULE_SPEC.md exists in the registry (rule 3)."""
+    assert SPEC_DOC.is_file(), f"missing document: {SPEC_DOC}"
+    dangling = sorted(_doc_ids(SPEC_DOC) - set(ids()))
+    assert not dangling, f"MODULE_SPEC.md cites unknown criteria: {dangling}"
+
+
+def test_module_spec_anchors_exist():
+    """Every spec_ref anchor appears verbatim in MODULE_SPEC.md (rule 4)."""
+    text = SPEC_DOC.read_text(encoding="utf-8")
+    missing = [
+        (c.test_id, anchor)
+        for c in REGISTRY
+        for anchor in (a.strip() for a in c.spec_ref.split(","))
+        if anchor not in text
+    ]
+    assert not missing, f"spec anchors not found in MODULE_SPEC.md: {missing}"
