@@ -37,7 +37,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 |-------|-------|-------|--------|
 | R1-F1 | claude-fable-5-thinking-xhigh | Global architecture & SOTA audit | pending |
 | R1-F2 | claude-fable-5-thinking-xhigh | Module spec & acceptance criteria | pending |
-| R1-O1 | claude-opus-5-thinking-high-fast | Core FEM + modal solver | pending |
+| R1-O1 | claude-opus-5-thinking-high-fast | Core FEM + modal solver | complete |
 | R1-O2 | claude-opus-5-thinking-high-fast | Model updating & correlation | pending |
 | R1-G1 | gpt-5.6-sol-xhigh-fast | Project scaffold & benchmarks | complete |
 | R1-G2 | gpt-5.6-sol-xhigh-fast | Boundary tests & mock probes | complete |
@@ -50,6 +50,31 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 - Verified on Python 3.12: 8 tests passed; R1-G1 files pass Ruff.
 - Modal median baselines: 10 DOF 0.669 ms; 100 DOF 1.180 ms; 1000 DOF 1.815 ms.
 - Updating baseline: 35.640 ms median for five iterations at 100 DOF (RMS 5.848e-3 to 1.583e-5).
+
+#### R1-O1 — Core FEM & Modal Solver
+- Added `core/model.py`: node-major DOF numbering over a configurable DOF signature
+  (`UX..RZ`), single-point constraints, concentrated masses and rotary inertias,
+  validated `Material`/`Section` value objects.
+- Added `core/elements.py`: scalar spring (grounded or 2-node), 2-node truss/bar with
+  consistent or lumped mass valid in 1D/2D/3D, planar Euler-Bernoulli beam (UX, UY, RZ).
+- Added `core/assembly.py`: COO-triplet assembly of symmetric CSR `K`/`M`, free/constrained
+  partitioning, free-to-full shape expansion, total-mass check.
+- Added `solver/modal.py`: `ModalSolver` for `K phi = omega^2 M phi` with automatic dense
+  (`scipy.linalg.eigh`) / sparse shift-invert (`scipy.sparse.linalg.eigsh`) selection, exact
+  static condensation of massless DOFs, mass/max normalization, deterministic mode signs,
+  and `ModalResult` (frequencies, modal masses, participation factors, effective masses).
+- Added `mesh/simple.py`: `MeshBuilder` plus spring-mass chain, axial bar, planar beam and
+  array-driven truss generators.
+- Verified against closed-form solutions: 2-DOF and 10-DOF chains (fixed-free `omega_i =
+  2 sqrt(k/m) sin((2i-1)pi/(2(2N+1)))`, fixed-fixed `omega_i = 2 sqrt(k/m) sin(i pi/(2(N+1)))`)
+  to 1e-9 relative, continuum bar `f_i = (2i-1)c/(4L)`, cantilever beam `beta_i^2/(2 pi)
+  sqrt(EI/(rho A L^4))` to 0.2%, plus quadratic mesh convergence, rigid-body and rotation
+  invariance checks.
+- Verified on Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1: 33 tests in
+  `tests/test_modal_solver.py` and 18 in `tests/test_core.py` pass (0.9 s).
+- Note for the orchestrator: `openfemlab/modal/eigen.py` (A09/neutral-model stack) duplicates
+  the eigen extraction now provided by `solver/modal.py`; `io/_native.py` still imports the
+  neutral names from `core.model`, which moved to `core.neutral`.
 
 #### R1-G2 — Boundary Tests & Mock Probes
 - Added analytic 2-DOF and 10-DOF chain fixtures plus synthetic FE/test modal data.
