@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import gsap from 'gsap'
 import MascotBot from '@/components/MascotBot.vue'
+import WrongBook from '@/components/WrongBook.vue'
 import { ACHIEVEMENTS } from '@/data/achievements'
 import { MODULES, MODULE_MAP } from '@/data/modules.js'
 import { useProgressStore } from '@/stores/progress.js'
@@ -325,6 +326,9 @@ onMounted(() => {
         </li>
       </ul>
     </section>
+
+    <!-- 错题本 -->
+    <WrongBook />
 
     <!-- 最近表现 -->
     <section v-if="spark" class="card">
