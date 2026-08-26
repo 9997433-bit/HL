@@ -272,6 +272,56 @@ orchestrator to diff against the landed implementation in Round 2.
 - Used `strict=False` for existing `zip` calls so unequal inputs retain their prior
   truncation behavior.
 
+#### A06 — Correlation Package Completion & Fixture Test Suite
+- Completed `src/openfemlab/correlation/` against MS-2 and landed it on the integration
+  branch (the R1-O2 branch work above stayed isolated): `mac.py`, `align.py`, `metrics.py`,
+  `pairing.py`, `summary.py`, `report.py`, with the package `__init__` exporting the whole
+  public API so consumers no longer import private submodules.
+- `mac.py`: MAC / autoMAC over real or complex shapes, now with optional DOF weighting —
+  a per-DOF vector or a full (also sparse) matrix such as a Guyan-reduced mass — giving the
+  mass-weighted MAC of MS-2.2; added scalar `mac_value`, `modal_scale_factor`, the
+  pseudo-orthogonality check `Φ_aᴴ M Φ_b`, and a COMAC that MSF-scales each pair and can
+  accumulate over a `ModePairing` instead of assuming column order.
+- `align.py` (new, the missing MS-2.1 piece): reduction of FE shapes onto the instrumented
+  DOFs, by `DofMap` intersection or by string labels, with sensor orientation signs, the
+  explicit selection operator `T`, strict-by-default reporting of sensors the model does not
+  have, and the list of model DOFs left uninstrumented.
+- `metrics.py`: frequency errors with the test set pinned as the reference
+  (`Δf% = 100 (f_fe − f_test) / f_test`, AC-CORR-005), rigid-body safe (no divide-by-zero
+  warnings, `±inf` reported instead).
+- `pairing.py`: added the MS-2.3 frequency penalty `β·|Δf|/f_test` on the MAC score, and made
+  the MAC threshold and frequency window act on the raw MAC so the penalty can only rank
+  candidates, never reject them.
+- `report.py` (new): schema-versioned `CorrelationReport` (v1.0) carrying the summary, pair
+  table, MAC matrix, COMAC and settings, serializable with `to_json()` for CLI/CI artifacts,
+  plus `correlate_modal_data(fe_result, test_data)` — the ARCHITECTURE §5.2 pipeline
+  (align → MAC → pair → report) over any objects exposing `frequencies`/`shapes`/`dof_map`.
+- Added `tests/test_correlation.py` (35 tests) driven by `tests/fixtures/test_modes.yaml`:
+  alignment (scrambled sensor order, unknown channel, orientation signs, selection operator),
+  MAC invariance to scaling/sign/complex phase, autoMAC exposing a sensor set that cannot
+  separate two modes, mass-weighted MAC and orthogonality on a non-unit mass matrix, COMAC
+  fault localization, pairing (shuffled order, missing test mode, uncorrelated mode left
+  unpaired, frequency-only pairing, tolerance window, frequency penalty, Hungarian optimality
+  against brute force), frequency-error conventions, gates, JSON round trip, the full fixture
+  pipeline through `openfemlab.io`, and a noisy-measurement case.
+- **Correlation metrics achieved on the fixture** (4-DOF model vs 3-channel test, `node_2`
+  uninstrumented): all three modes paired 0↔0, 1↔1, 2↔2 with **MAC = 1.000000000000000
+  (min = mean = max, gate 0.95)**; max off-diagonal MAC 0.1111 (three sensors no longer see
+  the modes as orthogonal); COMAC = [1, 1, 1]; frequency errors −0.990 / +1.010 / −1.961 %,
+  max |Δf| 1.961 %, rms 1.396 %, mean 1.320 % — passes the MS-4.2 gate (MAC ≥ 0.95,
+  |Δf| ≤ 2 %). Same numbers through the `DofMap` pipeline (min MAC 0.999999999999999,
+  3 correlation DOFs, 1 unmatched FE DOF). With 2 % shape noise and 0.2 % frequency noise the
+  pairing is unchanged and min MAC stays above 0.95.
+- Verified on Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1: `tests/test_correlation.py` 35 passed;
+  full suite 157 tests with the only failure in `tests/test_updating.py`
+  (`test_truncated_mode_shape_sensitivity_keeps_the_dominant_terms`, in-flight work by the
+  updating agent, unrelated to correlation). `ruff check src/openfemlab/correlation
+  tests/test_correlation.py` clean.
+- Open for the orchestrator: `cli/analysis.py` carries its own `mac_matrix`/`pair_modes`/
+  `common_rows` implementations; the `correlate` command should be repointed at
+  `openfemlab.correlation` (and at `CorrelationReport.to_json`) in Round 2 so there is one
+  correlation kernel.
+
 ### Round 2 — Targeted Refactor & Deep Optimization
 **Status:** PENDING
 
