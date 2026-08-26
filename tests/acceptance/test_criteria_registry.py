@@ -1,12 +1,12 @@
 """Acceptance-criteria registry and consistency tests.
 
 Machine-readable registry of every acceptance criterion defined in
-``docs/ACCEPTANCE_CRITERIA.md`` (see its section 7 for the enforcement
+``docs/ACCEPTANCE_CRITERIA.md`` (see its section 8 for the enforcement
 contract). Implementation suites import ``REGISTRY`` / ``get_criterion`` to
 tag themselves; the tests in this file guard that the registry, the criteria
 document, and ``docs/MODULE_SPEC.md`` never drift apart.
 
-Registry contract (ACCEPTANCE_CRITERIA.md sections 1 and 7):
+Registry contract (ACCEPTANCE_CRITERIA.md sections 1 and 8):
 - IDs follow ``AC-<MODULE>-NNN[a-z]?`` with MODULE in {MODAL, CORR, UPD,
   WORK, OPT, DYN}; numbering is dense per module (no gaps); an optional
   lowercase suffix marks closely coupled sub-criteria sharing a number.
@@ -45,6 +45,9 @@ TAG_REGEX = re.compile(r"criterion\(\s*\"(AC-[A-Z]+-\d{3}[a-z]?)\"\s*\)")
 FAMILY_TO_MODULE = {
     "MODAL": "M1", "CORR": "M2", "UPD": "M3", "WORK": "M4", "OPT": "M5",
     "DYN": "M6",
+}
+EXPECTED_CRITERIA_PER_FAMILY = {
+    "MODAL": 9, "CORR": 8, "UPD": 9, "WORK": 5, "OPT": 4, "DYN": 5,
 }
 
 
@@ -176,11 +179,16 @@ def ids() -> tuple[str, ...]:
 
 
 # ---------------------------------------------------------------------------
-# Consistency tests (enforcement rules of ACCEPTANCE_CRITERIA.md section 7)
+# Consistency tests (enforcement rules of ACCEPTANCE_CRITERIA.md section 8)
 # ---------------------------------------------------------------------------
 
-def test_registry_not_empty():
-    assert len(REGISTRY) >= 30, "Round-1 scope defines 35 criteria"
+def test_registry_inventory_matches_documented_scope():
+    counts = {
+        family: sum(c.test_id.startswith(f"AC-{family}-") for c in REGISTRY)
+        for family in EXPECTED_CRITERIA_PER_FAMILY
+    }
+    assert counts == EXPECTED_CRITERIA_PER_FAMILY
+    assert len(REGISTRY) == 40
 
 
 def test_ids_unique():
@@ -228,7 +236,7 @@ def test_numbering_dense_per_module():
 
 
 def test_every_module_has_blocking_criterion():
-    """Each module M1..M5 carries at least one P0 criterion (rule 5)."""
+    """Each module M1..M6 carries at least one P0 criterion (rule 5)."""
     p0_modules = {c.module for c in REGISTRY if c.priority == "P0"}
     missing = set(VALID_MODULES) - p0_modules
     assert not missing, f"modules without a P0 criterion: {sorted(missing)}"
