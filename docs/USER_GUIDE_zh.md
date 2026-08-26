@@ -186,10 +186,12 @@ model = shell_plate_mesh(
 )
 ```
 
-该单元由 72 项专门测试覆盖；包含 meshio 桥 44 项测试在内，当前完整套件共
-**1308 项测试全部通过**。
+该单元由 72 项专门测试覆盖；包含 meshio 桥 44 项与 UNV 读取 50 项测试在内，当前
+完整套件共 **1381 项测试全部通过**。
 
-## 6. meshio 工业网格桥（Python API）
+## 6. 工业网格导入（Python API）
+
+### meshio 桥
 
 安装 `[io]` 附加依赖后，可把 meshio 支持的 Gmsh、Abaqus、VTK 等网格读入统一的
 `NeutralModel`，也可写回由文件扩展名或 `file_format` 指定的格式：
@@ -220,19 +222,67 @@ meshio 的零基点索引会转换为中性模型的节点 ID。`node_ids`、`el
 `line` 无法区分杆、梁和弹簧，`BEAM2` / `SPRING2` 不会被含糊地导出，而是抛出
 `FormatError`。
 
-一般网格文件不含完整的材料、厚度与约束，因此转换时需补充这些分析属性。对于 QUAD4
-板网格，调用 `neutral_to_model(neutral, material=..., thickness=...,
-quad4_as="shell")` 即可绑定六自由度 `ShellQuad4Element`；再对边界节点调用
-`model.fix_nodes(...)`，便可交给 `ModalSolver`。完整的
-`read_meshio → neutral_to_model → 模态求解` 示例见
-[`examples/04_imported_shell_modal.py`](../examples/04_imported_shell_modal.py)，运行：
+网格文件只有几何与连接关系，不含 OpenFEMLab 所需的材料和截面定义，因此导入结果的
+`materials` / `properties` 为空；用 `neutral_to_model(...)` 转换为可求解的 `Model`
+时，通过 `material=` / `section=` / `thickness=` 补齐即可（见下文）。`meshio` 采用
+懒加载，未安装附加依赖时只有文件读写/导出入口会抛出带安装提示的
+`MissingDependencyError`，核心包与 `from_meshio` 的鸭子类型转换仍可使用。
 
-```bash
-python examples/04_imported_shell_modal.py
+### UNV 2411/2412 网格
+
+`read_unv` 读取 UNV 文件中的几何数据集——2411（节点）与 2412（单元）——无需任何可选
+依赖。同一个文件里的测试数据集（55 振型、58 FRF）由 `read_uff` 读取，两者互不干扰：
+
+```python
+from openfemlab.io import read_unv, read_uff_modes
+
+neutral = read_unv("plate.unv")      # 数据集 2411/2412 → NeutralModel
+modes = read_uff_modes("plate.unv")  # 同一文件的数据集 55
 ```
 
-`meshio` 采用懒加载，未安装附加依赖时只有文件读写/导出入口会抛出带安装提示的
-`MissingDependencyError`，核心包与 `from_meshio` 的鸭子类型转换仍可使用。
+单元通过显式的 FE descriptor 映射表转换（`openfemlab.io.unv.FE_DESCRIPTOR_TO_ELEMENT`）：
+
+| UNV FE descriptor | `ElementType` |
+|---|---|
+| 11 rod | `ROD2` |
+| 21 / 22 linear、tapered beam | `BEAM2` |
+| 41 / 91 linear triangle | `TRI3` |
+| 44 / 94 linear quadrilateral | `QUAD4` |
+| 111 linear tetrahedron | `TET4` |
+| 115 linear brick | `HEX8` |
+| 136 / 137 node-to-node spring | `SPRING2` |
+| 161 lumped mass | `MASS1` |
+
+表外的 descriptor（高阶单元、刚性单元等）会被跳过并发出 `UserWarning`，数量记录在
+`neutral.meta["skipped_fe_descriptors"]`——与 meshio 桥一致，导入受支持的子集而不是
+拒绝打开文件。UNV 只给出属性表号与材料表号而不定义表本身，因此表号分别保留在
+`element_property_ids` 和 `meta["element_material_ids"]` 中；梁的方向节点保留在
+`meta["beam_orientation_nodes"]`。坐标按文件所写的输出坐标系原样导入（数据集 2420
+不在本子集内），系统号记录在 `meta["export_coordinate_systems"]`，出现多个坐标系时
+会发出警告。
+
+### 导入后再分析
+
+两条导入路径都返回 `NeutralModel`，`neutral_to_model` 把它转换为可求解的内部
+`Model`：
+
+```python
+from openfemlab.core.model import Material, Section
+from openfemlab.io import neutral_to_model, read_unv
+from openfemlab.solver.modal import ModalSolver
+
+neutral = read_unv("frame.unv")
+model = neutral_to_model(
+    neutral,
+    material=Material(E=2.1e11, density=7850.0, nu=0.3),
+    section=Section(area=1e-4),
+)
+model.fix(1)
+result = ModalSolver(model).solve(num_modes=6)
+```
+
+约束不属于交换格式的内容，因此转换得到的模型是自由的，模态求解前需要自行
+`fix(...)`。
 
 ## 7. 模态分析：`openfemlab modal`
 
@@ -401,5 +451,4 @@ openfemlab correlate run/cantilever.updated.yaml run/measured.yaml \
 - [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) —— 模块边界与数据流
 - [`docs/MODULE_SPEC.md`](MODULE_SPEC.md) —— 各模块的行为规格
 - [`docs/SOTA_GAP_ANALYSIS.md`](SOTA_GAP_ANALYSIS.md) —— 与 FEMtools 及 2026 SOTA 的差距分析
-- `examples/01_cantilever_modal.py`、`examples/02_model_updating_workflow.py`、
-  `examples/04_imported_shell_modal.py` —— 可运行示例
+- `examples/01_cantilever_modal.py`、`examples/02_model_updating_workflow.py` —— 可运行示例
