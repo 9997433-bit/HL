@@ -90,7 +90,7 @@ _(Pending Round 2 completion)_
 | 2 | fable | claude-fable-5-thinking-xhigh | Round 2 SOTA 差距复审 | bc-0247424d | cloud | 🔄 |
 | 3 | opus-fast | claude-opus-5-thinking-high-fast | 引擎重构：EditSession/流式/SPSC | bc-ded8025e | local | 🔄 |
 | 4 | opus-fast | claude-opus-5-thinking-high-fast | DSP/UI 集成 & True Peak 优化 | bc-32308bf7 | local | 🔄 |
-| 5 | gpt-sol | gpt-5.6-sol-xhigh-fast | SLO 基准 & EBU 3341/3342 合规向量 | bc-d70ed740 | local | 🔄 |
+| 5 | gpt-sol | gpt-5.6-sol-xhigh-fast | SLO 基准 & EBU 3341/3342 合规向量 | bc-d70ed740 | local | ✅ DONE |
 | 6 | gpt-sol | gpt-5.6-sol-xhigh-fast | CI 矩阵 & Round 2 性能报告 | bc-90494473 | local | ✅ DONE |
 
 ## Round 3 Brief
