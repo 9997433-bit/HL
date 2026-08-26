@@ -48,12 +48,30 @@ node scripts/stress-test.js
 | 数学题型下限 | 9 类 | 9 类 |
 
 Round 2 的单次冷运行基线为：50,000 张汉字卡片 74.77 ms / 32.27 MiB，
-250,000 道数学题 21.31 ms / 18.25 MiB，结果 PASS。Round 3 实测数据在完成集成回归后
-写入本栏。
+250,000 道数学题 21.31 ms / 18.25 MiB，结果 PASS。
+
+Round 3 扩大负载探针在保留旧数据下限（仅用于隔离性能预算）时实测：
+
+| 探针 | Round 3 规模 | 实测耗时 | 内存/产物 | 完整性 |
+| --- | ---: | ---: | ---: | --- |
+| 汉字卡片标记生成 | 100,000 张 | 166.64 ms | 堆增量 62.82 MiB；HTML 12.77 MiB | PASS |
+| 数学题生成 | 500,000 题 | 41.83 ms | 堆增量 38.50 MiB；约 11,953,101 题/秒 | 0 无效题 |
 
 环境变量 `STRESS_HANZI_COUNT`、`STRESS_MATH_COUNT`、`STRESS_MAX_DURATION_MS`、
 `STRESS_MAX_HEAP_MB`、`STRESS_MIN_HANZI_DATASET`、`STRESS_MIN_MATH_DATASET` 和
 `STRESS_MIN_MATH_TYPES` 可用于诊断分档；不设置时执行表中的 Round 3 发布门禁。
+
+## 基础分支集成状态
+
+基于提交 `99e6197` 实跑新门禁；这记录的是待集成缺口，不是 Round 3 发布通过结论。
+
+| 命令 | 状态 | 结果 |
+| --- | --- | --- |
+| `npm run test:round3` | FAIL | FSRS 8/8 通过；到期“日”位于锁定单元而不可打开；课程字 106/200，链在识字 smoke 失败即停 |
+| 数学 App `npm test` | FAIL | 原有内容校验与 14 项交互通过；`/#/parent` 无口算家长门 |
+| `npm run test:offline` | PASS | 服务关闭后识字详情与数学数独均可由 Service Worker 启动 |
+| `npm run test:acceptance` | FAIL | 构建/包体通过；axe 为 critical=4、serious=63；环境无 Lighthouse CLI，未执行 Lighthouse |
+| `node scripts/stress-test.js` | FAIL | 静态输入为 100 字/85 题，未达到 Round 3 的 200 字/300 题门槛 |
 
 ## 边界说明
 
