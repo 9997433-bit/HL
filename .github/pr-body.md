@@ -1,10 +1,10 @@
 ## Summary
 
-**Round 2 sign-off** release of **OpenFEMLab**, an open-source, solver-independent CAE
+**Round 3 sign-off** release of **OpenFEMLab**, an open-source, solver-independent CAE
 platform inspired by FEMtools: modal analysis, FE–test correlation, sensitivity-based
-model updating, a productized simulation-correction workflow, damped dynamics with FRF
-synthesis, optimization hooks, and industrial mesh interchange — all behind one CLI and
-a schema-versioned IO layer.
+model updating (including FRF residuals), pretest sensor placement, modal parameter
+extraction from measured FRFs, damped dynamics, optimization, industrial mesh
+interchange, and Nastran OP2 mode import — behind one CLI and schema-versioned IO.
 
 ## What's included
 
@@ -19,7 +19,13 @@ a schema-versioned IO layer.
 - **Correlation** (`correlation/`): MAC/COMAC/orthogonality, Hungarian pairing, Guyan/IRS/SEREP
   reduction + TAM + SEREP expansion; schema-1.1 FRF block in `CorrelationReport`.
 - **Model updating** (`updating/`): analytic Fox–Kapoor + MAC sensitivities; LM/GN updater;
-  Bayesian MAP with Laplace σ_post; twin experiments to machine precision.
+  Bayesian MAP with Laplace σ_post; **FRF residual updating** (`frf.py`, AC-UPD-009).
+- **MPE (M9)** (`mpe/`): LSCF/poly-reference curve fit, stabilization diagram, LSFD shapes,
+  UFF-58 → `TestData` → correlate (AC-MPE-001..005).
+- **Pretest (M10)** (`pretest/`): Effective Independence sensor placement, MKE ranking,
+  placement quality metrics (AC-PRETEST-001..005).
+- **OP2 (MS-9.6 Phase 1-2)** (`io.op2`): `list_op2_tables`, `read_op2_modes` from
+  synthesized fixtures; Phase 3 geometry still deferred.
 - **Correction workflow** (`workflow/`): six-stage S1→S6 pipeline with held-out gates and
   reproducible `CorrectionReport`.
 - **Optimization** (`optimization/`): SciPy SLSQP/trust-constr sizing backend with analytic
@@ -29,16 +35,17 @@ a schema-versioned IO layer.
   `neutral_to_model` → re-analysis path gated by AC-IO-001..003 (**verified**).
 - **CLI** (`cli/`): `openfemlab modal | correlate | correlate-frf | update` with JSON/YAML
   specs, UFF-58 FRF input, MAP `prior:`/`noise:` and σ_post in `update` output.
-- **QA stack**: **1508 tests**; machine-readable registry of **47 acceptance criteria —
-  47 `verified`** (37 P0 + 10 P1); CI on Python 3.10–3.13 with `gates` job; `ruff check` clean.
-- **Docs**: README, [中文用户指南](docs/USER_GUIDE_zh.md), `MODULE_SPEC.md` (MS-1..MS-9),
-  `ACCEPTANCE_CRITERIA.md`, [Round 2 sign-off](.agent_workspace/ROUND2_SIGNOFF.md).
+- **QA stack**: **1658 tests** (3 skipped OP2 corpus opt-in); registry **60 acceptance
+  criteria — 60 `verified`** (37 P0 + 10 P1 + 7 P2); CI Python 3.10–3.13 + `gates`;
+  `ruff check` clean.
+- **Docs**: README, [中文用户指南](docs/USER_GUIDE_zh.md), `MODULE_SPEC.md` (MS-1..MS-11),
+  `ACCEPTANCE_CRITERIA.md`, [Round 3 sign-off](.agent_workspace/ROUND3_SIGNOFF.md).
 
 ## Verification
 
-- `PYTHONPATH=src python -m pytest` — **1508 passed** at commit `681f556` on Python 3.12.3.
+- `PYTHONPATH=src python -m pytest` — **1658 passed, 3 skipped** on Python 3.12.3.
 - `ruff check .` — clean.
-- `promote_verified.py --run --apply AC-IO-001 AC-IO-002 AC-IO-003` — 30/30 gate tests passed.
+- Registry gate: **60/60 `verified`** via `promote_verified.py` (Round 3 exit).
 - End-to-end: model → modal → correlate → update → re-solve; README CLI session reproduces
   exit codes 0/3/0/0.
 
