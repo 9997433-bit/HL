@@ -13,8 +13,7 @@ snapshot.
 
 ## 1. Verification snapshot
 
-The current code snapshot is pinned at `069b097`; the commits after it through
-this documentation sync change records only.
+This verification snapshot is pinned at code commit `069b097`.
 
 - `PYTHONPATH=src python -m pytest` — **1,089 passed, 0 failed** in 96.21 s.
 - `ruff check .` — clean, no findings.
