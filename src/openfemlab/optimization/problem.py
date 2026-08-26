@@ -111,10 +111,28 @@ class OptimizationProblem:
         lo, hi = self.bounds
         return bool(np.all(x >= lo - tolerance) and np.all(x <= hi + tolerance))
 
+    def constraint_names(self) -> list[str]:
+        """Report keys for the constraints, disambiguating repeated names.
+
+        Two constraints may legitimately carry the same label (the same
+        response bounded twice, say), and a plain name-keyed dict would drop
+        one of them from every report without saying so.
+        """
+        counts: dict[str, int] = {}
+        names = []
+        for constraint in self.constraints:
+            seen = counts.get(constraint.name, 0)
+            counts[constraint.name] = seen + 1
+            names.append(constraint.name if seen == 0 else f"{constraint.name}#{seen + 1}")
+        return names
+
     def constraint_values(self, x: Vector) -> dict[str, float]:
-        """Standardized ``g_k(x)`` keyed by constraint name."""
+        """Standardized ``g_k(x)`` keyed by :meth:`constraint_names`."""
         x = self.clip(x)
-        return {c.name: float(c.fun(x)) for c in self.constraints}
+        return {
+            name: float(c.fun(x))
+            for name, c in zip(self.constraint_names(), self.constraints, strict=True)
+        }
 
     def solve(self, backend: str = "slsqp", **options: object) -> OptimizationResult:
         """Run a registered backend on this problem."""

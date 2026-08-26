@@ -69,6 +69,12 @@ def kkt_residual(
     the first-order KKT conditions hold to working precision.  SLSQP and
     trust-constr report incomparable diagnostics of their own, so the
     termination report uses this measure for both.
+
+    ``constraint_gradients`` must contain only the constraints that are
+    *active* at ``x``.  Complementary slackness (``lambda_k g_k = 0``) forbids
+    a nonzero multiplier on a strictly satisfied constraint, so admitting one
+    would hand the solve a column it may not use and could certify a point as
+    stationary when it is not.
     """
     from scipy.optimize import nnls
 
@@ -111,6 +117,9 @@ class ScipyBackend:
     - termination maps scipy's ``success``/``message`` onto
       :class:`OptimizationResult`, with :func:`kkt_residual` as the
       method-independent ``stationarity``.
+    - under trust-constr, constraint curvature is neglected (the usual SQP
+      approximation) because scipy's per-constraint BFGS default degenerates
+      on the linear constraints that dominate sizing work.
 
     Parameters
     ----------
@@ -122,7 +131,11 @@ class ScipyBackend:
     active_tol:
         A constraint counts as active when ``|g| <= active_tol``.
     options:
-        Extra options forwarded to ``scipy.optimize.minimize``.
+        Extra options forwarded to ``scipy.optimize.minimize``.  Under
+        trust-constr a ``"hess"`` entry is lifted out and passed as the
+        *objective* Hessian — the escape hatch for a linear objective, where
+        the exact Hessian is zero and a quasi-Newton approximation has nothing
+        to learn from it.  SLSQP is first order and ignores it.
     """
 
     method: str = "slsqp"
@@ -149,6 +162,7 @@ class ScipyBackend:
 
     def solve(self, problem: OptimizationProblem) -> OptimizationResult:
         """Minimize ``problem`` and report the termination state."""
+        from scipy import sparse
         from scipy.optimize import Bounds, NonlinearConstraint, minimize
 
         if problem.gradient is None:
@@ -202,15 +216,39 @@ class ScipyBackend:
                 for c in problem.constraints
             ]
         else:
+            # Constraint curvature is neglected -- the usual SQP approximation.
+            # scipy's default is a per-constraint BFGS, which degenerates when
+            # the jacobian is constant, and the canonical sizing constraint (a
+            # mass budget) is exactly linear in the sizing scalars: with the
+            # default, the 2-variable payload-placement problem exhausts
+            # maxiter while emitting a warning per evaluation, where a zero
+            # constraint Hessian converges in under 30 iterations.  This costs
+            # step quality, not correctness -- the gradients that drive the KKT
+            # test are exact either way.
+            zero_hessian = sparse.csr_matrix((problem.n_variables, problem.n_variables))
             constraints = [
                 NonlinearConstraint(
                     _projected(c.fun, project),
                     -np.inf,
                     0.0,
                     jac=_projected_jac(c.jac, project),
+                    hess=lambda x, v: zero_hessian,
                 )
                 for c in problem.constraints
             ]
+
+        options = {"maxiter": self.max_iter, **self.options}
+        # trust-constr also needs a Hessian for the objective and has no second
+        # derivatives to work from, so it approximates one by quasi-Newton.  A
+        # minimum-mass objective is linear, which scipy reports as
+        # "delta_grad == 0.0"; the fix is the exact zero Hessian, and only the
+        # caller can assert that.  SLSQP is first order and has no use for one.
+        hessian = options.pop("hess", None)
+        extra = (
+            {"hess": hessian}
+            if hessian is not None and self.method != "slsqp"
+            else {}
+        )
 
         raw = minimize(
             objective,
@@ -220,16 +258,17 @@ class ScipyBackend:
             bounds=Bounds(lo, hi, keep_feasible=True),
             constraints=constraints,
             tol=self.tol,
-            options={"maxiter": self.max_iter, **self.options},
+            options=options,
             callback=record,
+            **extra,
         )
 
         x = project(raw.x)
         values = problem.constraint_values(x)
         gradients = {
-            c.name: np.asarray(c.jac(x), dtype=float).ravel()
-            for c in problem.constraints
-            if c.jac is not None
+            name: np.asarray(c.jac(x), dtype=float).ravel()
+            for name, c in zip(problem.constraint_names(), problem.constraints, strict=True)
+            if c.jac is not None and values[name] >= -self.active_tol
         }
         return OptimizationResult(
             converged=bool(raw.success) and all(v <= self.active_tol for v in values.values()),
@@ -242,7 +281,7 @@ class ScipyBackend:
             n_iterations=int(getattr(raw, "nit", len(history))),
             n_evaluations=counters["evaluations"],
             history=history,
-            variables=dict(zip(problem.names, x.tolist(), strict=False)),
+            variables=dict(zip(problem.names, x.tolist(), strict=True)),
         )
 
 

@@ -38,8 +38,11 @@ import pytest
 
 from openfemlab.correlation import mac
 from openfemlab.optimization import (
+    Constraint,
     DesignSpace,
     ModalDesignEvaluator,
+    NaturalFrequency,
+    Objective,
     TotalMass,
     check_gradient,
     compile_sizing_problem,
@@ -179,6 +182,62 @@ def test_ac_opt_002_no_feasible_sample_beats_the_multi_variable_optimum():
         feasible += 1
         assert problem.objective(x) >= result.objective - 1e-8
     assert feasible >= 5, "the probe must actually sample feasible designs"
+
+
+#: Payload-placement oracle: a coupled two-mass system carrying a required
+#: mass, split between its two mounts.  ``dlambda_1/dm_j = -lambda_1 phi_j^2``,
+#: so the split is stationary where the mode is equal-amplitude; for this ``K``
+#: that mode is ``phi = (1, 1)``, giving ``m_1 = m_2`` and ``lambda_1 = 2/m_req``.
+#: The floor binds from the other side than the sizing chain's does — a lighter
+#: structure would be stiffer, so the *required* mass is what holds the optimum.
+PAYLOAD_K = np.array([[2.0, -1.0], [-1.0, 2.0]])
+REQUIRED_MASS = 2.0
+
+
+def _payload_placement():
+    model = ScalingModel(
+        mass_parts={"m1": np.diag([1.0, 0.0]), "m2": np.diag([0.0, 1.0])},
+        base_stiffness=PAYLOAD_K,
+    )
+    parameters = [
+        UpdatableParameter("m1", value=1.6, lower=0.2, upper=5.0, kind="mass"),
+        UpdatableParameter("m2", value=1.4, lower=0.2, upper=5.0, kind="mass"),
+    ]
+    return model, parameters
+
+
+@criterion("AC-OPT-002")
+@pytest.mark.parametrize("backend", ["slsqp", "trust-constr"])
+def test_ac_opt_002_payload_placement_reaches_its_closed_form_optimum(backend):
+    """A closed-form oracle for a genuinely multi-variable optimum.
+
+    The sizing-chain oracle above pins one variable; here two interact, and the
+    optimum is still known exactly rather than argued from sampling.
+    """
+    expected_frequency = np.sqrt(2.0 / REQUIRED_MASS) / (2.0 * np.pi)
+
+    model, parameters = _payload_placement()
+    result = minimize_sizing(
+        model,
+        parameters,
+        Objective(NaturalFrequency(0), scale=-1.0),
+        [Constraint(TotalMass(), bound=REQUIRED_MASS, kind=">=")],
+        backend=backend,
+        tol=1e-10,
+        max_iter=200,
+    )
+
+    assert result.converged, result.report()
+    frequency = -result.objective
+    assert frequency == pytest.approx(expected_frequency, rel=OPTIMUM_RTOL)
+    for name in ("m1", "m2"):
+        assert result.variables[name] == pytest.approx(REQUIRED_MASS / 2.0, rel=1e-3)
+    assert result.max_violation <= ACTIVE_TOLERANCE
+    if backend == "slsqp":
+        # An interior-point run stops a barrier width inside the boundary, so
+        # only the active-set method is held to the activity gate.
+        assert abs(result.max_violation) <= ACTIVE_TOLERANCE
+        assert result.active_set == [f"total_mass >= {REQUIRED_MASS:g}"]
 
 
 @criterion("AC-OPT-003")
