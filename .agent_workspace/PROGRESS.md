@@ -64,6 +64,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A50 | claude-opus-5-thinking-high-fast | Remaining P0 acceptance batch: AC-MODAL-007/009, AC-CORR-005/007, AC-UPD-004/005, AC-WORK-001/002/004/005 + MS-1.1 solver validation and MS-3.4 stop reasons/divergence guard (backfill for A31) | complete |
 | A58 | claude-opus-5-thinking-high-fast | R2-T03: register AC-CORR-009 (TAM pseudo-orthogonality) and wire `SensorMap.signs` through the reduction bases (backfill for A43) | complete |
 | A76 | gpt-5.6-sol-xhigh-fast | Current-tip pytest verification (backfill for completed A75) | complete — A75 done; 921 passed |
+| A80 | gpt-5.6-sol-xhigh-fast | Authoritative current-tip pytest count (backfill for completed A76) | complete — 921 passed at `9052f95`; collection confirmed 921 |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
