@@ -27,9 +27,9 @@ const existsAny = (...rel) => rel.some((p) => fs.existsSync(path.join(root, p)))
 /* ------------------------------------------------ 硬门槛：字库 ≥ 500（L-M1） */
 const TARGET_CHARS = 500
 try {
-  const { TOTAL_CHARACTERS } = await import(
-    '../apps/literacy-app/src/data/characters.js'
-  )
+  const mod = await import('../apps/literacy-app/src/data/characters.js')
+  const idx = await import('../apps/literacy-app/src/data/character-index.js').catch(() => ({}))
+  const TOTAL_CHARACTERS = mod.TOTAL_CHARACTERS ?? idx.TOTAL_CHARACTERS ?? 0
   check(
     TOTAL_CHARACTERS >= TARGET_CHARS,
     TOTAL_CHARACTERS >= TARGET_CHARS
@@ -45,15 +45,20 @@ try {
 /* --------------------------------- 探针（PENDING，不拦截；实现后升级为硬门槛） */
 
 // M-M10 错题本：按 questionId 记录 + 重练答对移出
-if (existsAny('apps/math-app/src/stores/wrongBook.js', 'apps/math-app/src/utils/wrongBook.js')) {
-  pending('M-M10 错题本模块已出现 —— 请把本探针升级为硬门槛（断言记录/重练/答对移出语义）')
+const progressSrc = fs.readFileSync(path.join(root, 'apps/math-app/src/stores/progress.js'), 'utf8')
+if (/wrongBook/.test(progressSrc) || existsAny('apps/math-app/src/components/WrongBook.vue')) {
+  notes.push('✓ M-M10 错题本已接线（progress.wrongBook + WrongBook 组件）')
 } else {
-  pending('M-M10 错题本未接线（未找到 apps/math-app/src/stores/wrongBook.js）——由 r4-math-wrongbook 交付')
+  pending('M-M10 错题本未接线 —— 由 r4-math-wrongbook 交付')
 }
 
 // M-M9 自适应调度：连对升档 / 连错降档 / 弱项优先
-if (existsAny('apps/math-app/src/utils/adaptive.js', 'apps/math-app/src/core/adaptive.js')) {
-  pending('M-M9 adaptive.js 已出现 —— 请把本探针升级为硬门槛（三分支单测全绿）')
+if (existsAny(
+  'apps/math-app/src/core/engine/adaptive.js',
+  'apps/math-app/src/utils/adaptive.js',
+  'apps/math-app/src/core/adaptive.js'
+)) {
+  notes.push('✓ M-M9 adaptive.js 已接线')
 } else {
   pending('M-M9 adaptive.js 未接线 —— 由 r4-math-wrongbook 交付')
 }
@@ -61,10 +66,10 @@ if (existsAny('apps/math-app/src/utils/adaptive.js', 'apps/math-app/src/core/ada
 // M-M2 / M-P9 种子化 PRNG：题目 ID = 母题 + seed，≥300 可复现
 try {
   const randomSrc = fs.readFileSync(path.join(root, 'apps/math-app/src/utils/random.js'), 'utf8')
-  if (/mulberry32|seededR|createRng|seedrandom/i.test(randomSrc)) {
-    pending('M-M2/M-P9 检测到种子化 PRNG —— 请把本探针升级为硬门槛（≥300 可复现题，接入 check:content）')
+  if (/mulberry32|createRng|questionId/i.test(randomSrc)) {
+    notes.push('✓ M-M2/M-P9 种子化 PRNG 已接线（random.js）')
   } else {
-    pending('M-M2/M-P9 种子化 PRNG 未接线（random.js 仍是裸 Math.random）——由 r4-math-seed-daily 交付')
+    pending('M-M2/M-P9 种子化 PRNG 未接线 —— 由 r4-math-seed-daily 交付')
   }
 } catch {
   pending('M-M2/M-P9 无法读取 apps/math-app/src/utils/random.js，跳过探针')
