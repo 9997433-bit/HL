@@ -34,7 +34,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | R1-O1 | claude-opus-5-thinking-high-fast | Core FEM + modal solver | pending |
 | R1-O2 | claude-opus-5-thinking-high-fast | Model updating & correlation | pending |
 | R1-G1 | gpt-5.6-sol-xhigh-fast | Project scaffold & benchmarks | implemented; verification pending |
-| R1-G2 | gpt-5.6-sol-xhigh-fast | Boundary tests & mock probes | pending |
+| R1-G2 | gpt-5.6-sol-xhigh-fast | Boundary tests & mock probes | implemented; validation pending |
 
 #### R1-G1 — Project Scaffold & Benchmarks
 - Added Python packaging metadata, runtime/dev dependencies, Make targets, and push CI.

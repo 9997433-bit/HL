@@ -1,0 +1,35 @@
+# Two equal masses connected to ground and each other.
+# K = [[2, -1], [-1, 2]], M = I gives lambda = [1, 3].
+name: two_dof_analytic
+units:
+  mass: kg
+  stiffness: N/m
+  angular_frequency: rad/s
+  frequency: Hz
+dof_labels:
+  - mass_1:x
+  - mass_2:x
+mass_matrix:
+  - [1.0, 0.0]
+  - [0.0, 1.0]
+stiffness_matrix:
+  - [2.0, -1.0]
+  - [-1.0, 2.0]
+expected:
+  eigenvalues:
+    - 1.0
+    - 3.0
+  angular_frequencies:
+    - 1.0
+    - 1.7320508075688772
+  frequencies_hz:
+    - 0.15915494309189535
+    - 0.27566444771089604
+  mode_shape_layout: modes_by_dof
+  mass_normalized_mode_shapes:
+    - [0.7071067811865475, 0.7071067811865475]
+    - [0.7071067811865475, -0.7071067811865475]
+  mode_shape_sign_is_arbitrary: true
+tolerances:
+  eigenvalue_relative: 1.0e-12
+  mode_shape_absolute: 1.0e-10
