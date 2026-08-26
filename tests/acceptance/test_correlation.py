@@ -23,6 +23,11 @@ Implemented here
 - **AC-CORR-006** (twin, MS-2.1) — SEREP expansion of noise-free sensor data
   reproduces the full-space analysis shapes with MAC >= 0.999, and the pairing
   computed on the sensor DOFs equals the pairing computed after expansion.
+- **AC-CORR-008** (contract, MS-2.6) — a ``CorrelationReport`` written to JSON
+  and parsed back compares equal: settings and pairing table exactly, float
+  arrays to 1e-15. The artifact always emits the full schema-1.1 key set, the
+  ``frf`` block included as ``null`` when no FRF comparison ran, and a payload
+  that is truncated or carries another schema version is refused.
 - **AC-CORR-009** (twin, MS-2.1/MS-2.2) — the same noise-free sensor data,
   normalized through the TAM mass ``T^T M T``, stays pseudo-orthogonal to the
   analysis modes: paired ``|POC|`` diagonal >= 0.99, off-diagonal <= 0.10.
@@ -45,12 +50,18 @@ import pytest
 
 from openfemlab import ModalSolver
 from openfemlab.correlation import (
+    SCHEMA_KEYS,
+    SCHEMA_VERSION,
+    CorrelationReport,
+    FRFCorrelation,
     automac,
     comac,
+    correlation_report,
     correlation_summary,
     expand_shapes,
     frequency_difference,
     frequency_error_matrix,
+    frf_correlation,
     guyan_reduction,
     irs_reduction,
     mac,
@@ -99,6 +110,12 @@ FREQUENCY_ERROR_RTOL = 1e-10
 RANGE_SEED = 771
 RANGE_DRAWS = 6
 COMPLEX_TOLERANCE = 1e-12
+
+#: AC-CORR-008: the round-trip gate and the size of the FRF block it carries.
+ROUND_TRIP_TOLERANCE = 1e-15
+ROUND_TRIP_SEED = 31337
+FRF_LINES = 12
+FRF_CHANNELS = 4
 
 
 def _fixture_modes(name: str):
@@ -1165,3 +1182,158 @@ def test_ac_corr_009_reversed_channels_leave_the_poc_entry_for_entry_unchanged(c
     )
     worst_diagonal, worst_off = _poc_extremes(poc, truth)
     assert worst_diagonal >= POC_DIAGONAL_MIN and worst_off <= POC_OFF_DIAGONAL_MAX
+
+
+# ---------------------------------------------------------------- AC-CORR-008
+
+
+def _frf_block() -> FRFCorrelation:
+    """A FRAC/FDAC block over a short line, so the report carries every array."""
+    line = np.linspace(10.0, 60.0, FRF_LINES)
+    rng = np.random.default_rng(ROUND_TRIP_SEED)
+    reference = rng.standard_normal((FRF_LINES, FRF_CHANNELS)) + 1j * rng.standard_normal(
+        (FRF_LINES, FRF_CHANNELS)
+    )
+    comparison = reference * 1.05 + 0.02 * rng.standard_normal((FRF_LINES, FRF_CHANNELS))
+    return frf_correlation(
+        reference,
+        comparison,
+        frequencies=line,
+        channels=[f"ch{index}" for index in range(FRF_CHANNELS)],
+        meta={"source": "AC-CORR-008 twin"},
+    )
+
+
+def _round_trip_report(*, with_frf: bool) -> CorrelationReport:
+    """A fully populated report: MAC matrix, COMAC, labels, settings, meta."""
+    test_frequencies, shapes = _scaled_chain()
+    analysis_frequencies, _ = _scaled_chain(stiffness_factor=STIFFNESS_FACTOR)
+    return correlation_report(
+        test_frequencies=test_frequencies,
+        fe_frequencies=analysis_frequencies,
+        test_shapes=shapes,
+        fe_shapes=_detuned_modes(num_modes=FREQUENCY_MODES),
+        dof_labels=[f"node{index + 1}:UX" for index in range(shapes.shape[0])],
+        frf=_frf_block() if with_frf else None,
+        meta={"case": "ten_dof_chain", "run": 7},
+        method="optimal",
+        mac_threshold=MAC_MIN,
+    )
+
+
+@criterion("AC-CORR-008")
+@pytest.mark.parametrize("with_frf", [False, True], ids=["modal_only", "with_frf"])
+def test_ac_corr_008_the_artifact_emits_every_schema_key(with_frf):
+    """The key set is the schema, not the list of analyses that happened to run.
+
+    An FRF comparison that was not performed writes ``null``; a consumer can
+    therefore address ``report["frf"]`` unconditionally, which is what makes
+    the version number the only thing it has to branch on.
+    """
+    report = _round_trip_report(with_frf=with_frf)
+
+    payload = report.to_dict()
+
+    assert tuple(payload) == SCHEMA_KEYS
+    assert payload["schema_version"] == SCHEMA_VERSION == "1.1"
+    assert (payload["frf"] is not None) == with_frf
+
+
+@criterion("AC-CORR-008")
+@pytest.mark.parametrize("with_frf", [False, True], ids=["modal_only", "with_frf"])
+def test_ac_corr_008_serialize_parse_returns_an_equal_report(with_frf):
+    """``from_json(to_json(x))`` reproduces the artifact key for key."""
+    report = _round_trip_report(with_frf=with_frf)
+
+    parsed = CorrelationReport.from_json(report.to_json())
+
+    assert parsed.to_dict() == report.to_dict()
+    assert parsed.schema_version == report.schema_version
+
+
+@criterion("AC-CORR-008")
+@pytest.mark.parametrize("with_frf", [False, True], ids=["modal_only", "with_frf"])
+def test_ac_corr_008_the_pairing_table_and_settings_survive_exactly(with_frf):
+    """Indices, labels and settings are identities, so they must not be reformatted."""
+    report = _round_trip_report(with_frf=with_frf)
+
+    parsed = CorrelationReport.from_json(report.to_json())
+
+    assert parsed.settings == report.settings
+    assert parsed.meta == report.meta
+    assert parsed.dof_labels == report.dof_labels
+    assert parsed.pairing.method == report.pairing.method
+    assert parsed.pairing.as_tuples() == report.pairing.as_tuples()
+    assert parsed.pairing.unpaired_test == report.pairing.unpaired_test
+    assert parsed.pairing.unpaired_fe == report.pairing.unpaired_fe
+    assert [pair.as_dict() for pair in parsed.pairing.pairs] == [
+        pair.as_dict() for pair in report.pairing.pairs
+    ]
+
+
+@criterion("AC-CORR-008")
+@pytest.mark.parametrize("with_frf", [False, True], ids=["modal_only", "with_frf"])
+def test_ac_corr_008_float_arrays_survive_to_one_part_in_1e15(with_frf):
+    """Every float array comes back within 1e-15 absolute of what was written."""
+    report = _round_trip_report(with_frf=with_frf)
+
+    parsed = CorrelationReport.from_json(report.to_json())
+
+    arrays = {
+        "mac_matrix": (parsed.mac_matrix, report.mac_matrix),
+        "comac": (parsed.comac, report.comac),
+    }
+    if with_frf:
+        arrays["frf.frequencies"] = (parsed.frf.frequencies, report.frf.frequencies)
+        arrays["frf.frac"] = (parsed.frf.frac, report.frf.frac)
+        arrays["frf.fdac"] = (parsed.frf.fdac, report.frf.fdac)
+    for name, (actual, expected) in arrays.items():
+        assert actual is not None and expected is not None, name
+        assert actual.shape == expected.shape, name
+        np.testing.assert_allclose(
+            actual, expected, rtol=0.0, atol=ROUND_TRIP_TOLERANCE, err_msg=name
+        )
+    # The MAC matrix is non-trivial, so the tolerance above is a real gate.
+    assert np.min(report.mac_matrix) < 0.5 < np.max(report.mac_matrix)
+
+
+@criterion("AC-CORR-008")
+@pytest.mark.parametrize("with_frf", [False, True], ids=["modal_only", "with_frf"])
+def test_ac_corr_008_the_parsed_report_answers_the_same_questions(with_frf):
+    """A round trip restores behaviour, not only data: gates, scalars, text."""
+    report = _round_trip_report(with_frf=with_frf)
+
+    parsed = CorrelationReport.from_json(report.to_json())
+
+    assert parsed.summary.as_dict() == report.summary.as_dict()
+    assert parsed.worst_comac_dof() == report.worst_comac_dof()
+    assert parsed.is_correlated() == report.is_correlated()
+    assert parsed.report() == report.report()
+    if with_frf:
+        assert parsed.mean_frac == report.mean_frac
+        assert parsed.min_frac == report.min_frac
+        assert parsed.frf.channels == report.frf.channels
+        assert parsed.frf.worst_channel() == report.frf.worst_channel()
+    else:
+        assert parsed.frf is None
+
+
+@criterion("AC-CORR-008")
+def test_ac_corr_008_a_truncated_payload_is_refused_not_guessed():
+    """A missing block is a corrupt artifact, not an analysis that did not run."""
+    payload = _round_trip_report(with_frf=True).to_dict()
+
+    for key in SCHEMA_KEYS:
+        broken = {name: value for name, value in payload.items() if name != key}
+        with pytest.raises(ValueError, match="missing keys"):
+            CorrelationReport.from_dict(broken)
+
+
+@criterion("AC-CORR-008")
+def test_ac_corr_008_an_unknown_schema_version_is_refused():
+    """Reading a future artifact with today's parser would silently drop keys."""
+    payload = _round_trip_report(with_frf=False).to_dict()
+
+    for version in ("1.0", "2.0"):
+        with pytest.raises(ValueError, match="schema"):
+            CorrelationReport.from_dict({**payload, "schema_version": version})

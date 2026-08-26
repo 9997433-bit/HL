@@ -55,6 +55,30 @@ class ModePair:
             return float("inf")
         return 100.0 * (self.fe_frequency - self.test_frequency) / self.test_frequency
 
+    def as_dict(self) -> dict[str, Any]:
+        """One row of the pairing table, derived frequency error included."""
+        return {
+            "test_index": self.test_index,
+            "fe_index": self.fe_index,
+            "mac": self.mac,
+            "test_frequency": self.test_frequency,
+            "fe_frequency": self.fe_frequency,
+            "frequency_error_pct": self.frequency_error_pct,
+        }
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> ModePair:
+        """Inverse of :meth:`as_dict`; the frequency error is recomputed."""
+        test_frequency = payload["test_frequency"]
+        fe_frequency = payload["fe_frequency"]
+        return cls(
+            test_index=int(payload["test_index"]),
+            fe_index=int(payload["fe_index"]),
+            mac=float(payload["mac"]),
+            test_frequency=None if test_frequency is None else float(test_frequency),
+            fe_frequency=None if fe_frequency is None else float(fe_frequency),
+        )
+
 
 @dataclass
 class ModePairing:
@@ -97,6 +121,28 @@ class ModePairing:
     def as_tuples(self) -> list[tuple[int, int]]:
         """The pairing as ``(test_index, fe_index)`` tuples."""
         return [(p.test_index, p.fe_index) for p in self.pairs]
+
+    def as_dict(self) -> dict[str, Any]:
+        """Plain-Python view of the pairing (JSON ready, no NumPy scalars)."""
+        return {
+            "pairs": [pair.as_dict() for pair in self.pairs],
+            "unpaired_test": list(self.unpaired_test),
+            "unpaired_fe": list(self.unpaired_fe),
+            "mac_matrix": None if self.mac_matrix is None else self.mac_matrix.tolist(),
+            "method": self.method,
+        }
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> ModePairing:
+        """Inverse of :meth:`as_dict`."""
+        matrix = payload["mac_matrix"]
+        return cls(
+            pairs=[ModePair.from_dict(row) for row in payload["pairs"]],
+            unpaired_test=[int(i) for i in payload["unpaired_test"]],
+            unpaired_fe=[int(j) for j in payload["unpaired_fe"]],
+            mac_matrix=None if matrix is None else np.asarray(matrix, dtype=float),
+            method=str(payload["method"]),
+        )
 
     def table(self) -> str:
         """Human readable correlation table (FEMtools-style pair listing)."""

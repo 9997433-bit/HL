@@ -1,7 +1,7 @@
 # OpenFEMLab — Status Snapshot
 
-**Recorded by:** A74 (backfill for completed A71) · **Date:** 2026-08-26
-**Branch:** `cursor/femtools-industrial-7aa3` · **Tested code commit:** `c5a205a`
+**Recorded by:** A80 (backfill for completed A76) · **Date:** 2026-08-26
+**Branch:** `cursor/femtools-industrial-7aa3` · **Tested code commit:** `9052f95`
 **Pull request:** [PR #5](https://github.com/9997433-bit/HL/pull/5) — open against
 `main`. [`PR_DRAFT.md`](PR_DRAFT.md) remains pinned at the earlier 876-test
 snapshot and therefore trails the verification recorded here.
@@ -14,20 +14,19 @@ snapshot.
 ## 1. Verification snapshot (independent, this run)
 
 Run from `/workspace` after a fetch and hard reset to
-`origin/cursor/femtools-industrial-7aa3`. The branch advanced through
-documentation-only commits while verification ran; the tested code tip was
-`c5a205a`.
+`origin/cursor/femtools-industrial-7aa3`. The branch advanced through a
+documentation-only commit while verification ran; the tested code tip was
+`9052f95`.
 
-- `pytest -q` — **900 passed, 0 failed** in 60.22 s; a collection-only pass
-  independently confirmed 900 tests.
+- `pytest -q` — **921 passed, 0 failed** in 39.20 s; a collection-only pass
+  independently confirmed 921 tests.
 - `ruff check .` — clean, no findings.
 - Acceptance-criteria registry — **40 criteria: 34 `implemented`,
   6 `specified`, 0 `verified`**. By priority: P0 31 implemented / 1 specified;
   P1 3 implemented / 5 specified.
-- The count increased by 24 from the prior 876-test snapshot when the
-  AC-UPD-004/005 acceptance batch landed.
+- The count increased by 45 from the prior 876-test snapshot.
 
-Unit suites (623 tests):
+Unit suites (630 tests):
 
 | Suite | Tests | | Suite | Tests |
 |---|---|---|---|---|
@@ -40,11 +39,11 @@ Unit suites (623 tests):
 | `test_workflow.py` | 38 | | `test_boundary.py` | 5 |
 | `test_bayesian_updating.py` | 35 | | `test_performance_optimizations.py` | 4 |
 | `test_optimization.py` | 27 | | `test_scaffold.py` | 3 |
-| `test_reduction.py` | 25 | | `test_e2e_workflow.py` | 1 |
+| `test_reduction.py` | 32 | | `test_e2e_workflow.py` | 1 |
 | `test_frf_correlation.py` | 25 | | | |
 | `test_cli.py` + `test_cli_correlation.py` | 23 | | | |
 
-Acceptance suites (277 tests): modal 98, correlation 81, updating 47,
+Acceptance suites (291 tests): modal 98, correlation 95, updating 47,
 optimization 15, dynamics 13, registry consistency 12, workflow 11.
 
 ## 2. Round status
