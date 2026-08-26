@@ -20,14 +20,14 @@ const positiveInteger = (name, fallback) => {
 }
 
 const config = {
-  round: 2,
-  hanziCount: positiveInteger('STRESS_HANZI_COUNT', 50_000),
-  mathCount: positiveInteger('STRESS_MATH_COUNT', 250_000),
+  round: 3,
+  hanziCount: positiveInteger('STRESS_HANZI_COUNT', 100_000),
+  mathCount: positiveInteger('STRESS_MATH_COUNT', 500_000),
   seed: positiveInteger('STRESS_SEED', 20_260_826),
-  maxDurationMs: positiveInteger('STRESS_MAX_DURATION_MS', 2_000),
+  maxDurationMs: positiveInteger('STRESS_MAX_DURATION_MS', 1_500),
   maxHeapMb: positiveInteger('STRESS_MAX_HEAP_MB', 128),
-  minHanziDataset: positiveInteger('STRESS_MIN_HANZI_DATASET', 100),
-  minMathDataset: positiveInteger('STRESS_MIN_MATH_DATASET', 80),
+  minHanziDataset: positiveInteger('STRESS_MIN_HANZI_DATASET', 200),
+  minMathDataset: positiveInteger('STRESS_MIN_MATH_DATASET', 300),
   minMathTypes: positiveInteger('STRESS_MIN_MATH_TYPES', 9),
 }
 

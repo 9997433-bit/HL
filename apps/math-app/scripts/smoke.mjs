@@ -355,6 +355,147 @@ await interact('成就墙：改名 / 导出 / 清空进度', '/#/progress', asyn
   return `改名=${renamed && nameShown}，导出按钮=${exported}，清空=${reset}，清空后星星=${starsAfter}`
 })
 
+await interact('家长面板：家长门 / 报表 / 设置持久化', '/#/parent', async (page) => {
+  await page.evaluate(() => {
+    const now = Date.now()
+    localStorage.setItem(
+      'mathquest/progress',
+      JSON.stringify({
+        pilotName: '回归测试员',
+        stars: 24,
+        xp: 30,
+        level: 2,
+        totalAnswered: 10,
+        totalCorrect: 8,
+        bestStreak: 5,
+        mastery: { 'add-within-20': 0.82, 'shape-2d': 0.64 },
+        dailyStreak: 3,
+        lastPlayedDate: new Date(now).toISOString().slice(0, 10),
+        errorTagCounts: { calculation: 2 },
+        modules: {
+          arithmetic: {
+            answered: 10,
+            correct: 8,
+            stars: 20,
+            sessions: 1,
+            bestScore: 80,
+            lastPlayed: now,
+          },
+        },
+        counters: { arithmeticHardCorrect: 2, sudokuSolved: 0, perfectRuns: 0 },
+        achievements: {},
+        settings: { sound: true, animations: true },
+        history: [
+          {
+            moduleId: 'arithmetic',
+            correct: 8,
+            total: 10,
+            score: 80,
+            durationMs: 12 * 60 * 1000,
+            at: now,
+          },
+        ],
+        totalStudyMs: 12 * 60 * 1000,
+      }),
+    )
+  })
+  await page.reload({ waitUntil: 'networkidle2' })
+  await sleep(500)
+
+  const gate = await page.evaluate(() => {
+    const match = document.body.innerText.match(/(\d+)\s*([+＋\-−xX×*])\s*(\d+)/)
+    const input = document.querySelector(
+      'input[type="number"], input[inputmode="numeric"], input[pattern*="[0-9]"]',
+    )
+    if (!match || !input) return null
+
+    const left = Number(match[1])
+    const right = Number(match[3])
+    const operator = match[2]
+    const answer = /[-−]/.test(operator)
+      ? left - right
+      : /[xX×*]/.test(operator)
+        ? left * right
+        : left + right
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
+    setter.call(input, String(answer))
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    input.dispatchEvent(new Event('change', { bubbles: true }))
+    return { expression: match[0], answer }
+  })
+  if (!gate) throw new Error('家长面板没有口算家长门')
+
+  const entered = await page.evaluate(() => {
+    const button = [...document.querySelectorAll('button')].find(
+      (node) => /进入|验证|确认|解锁|提交/.test(node.innerText) && !node.disabled,
+    )
+    if (!button) return false
+    button.click()
+    return true
+  })
+  if (!entered) throw new Error('填写口算答案后找不到进入按钮')
+  await sleep(600)
+
+  const panel = await page.evaluate(() => {
+    const text = document.body.innerText.replace(/\s+/g, ' ')
+    const checks = {
+      accuracy: /正确率/.test(text),
+      duration: /学习时长|练习时长|累计时长|学习时间/.test(text),
+      ability: /能力|掌握度|技能|薄弱|模块表现/.test(text),
+      difficulty: /难度|年龄档|年龄段|练习范围/.test(text),
+      sound: /音量|声音|音效|语音/.test(text),
+      motion: /动效|动画/.test(text),
+      timeLimit: /时长提醒|使用时长|休息提醒|防沉迷/.test(text),
+      export: /导出/.test(text),
+    }
+    return { checks, text: text.slice(0, 300) }
+  })
+  const missing = Object.entries(panel.checks)
+    .filter(([, present]) => !present)
+    .map(([name]) => name)
+  if (missing.length) {
+    throw new Error(`解锁后家长面板缺少：${missing.join('、')}；页面：${panel.text}`)
+  }
+
+  const storageBefore = await page.evaluate(() => Object.fromEntries(Object.entries(localStorage)))
+  const toggled = await page.evaluate(() => {
+    const controls = [...document.querySelectorAll('button, input, select')]
+    const control = controls.find((node) => {
+      const label = node.closest('label')
+      const text = [
+        node.innerText,
+        node.getAttribute('aria-label'),
+        node.getAttribute('title'),
+        label?.innerText,
+      ]
+        .filter(Boolean)
+        .join(' ')
+      return /动效|动画/.test(text) && !node.disabled
+    })
+    if (!control) return false
+    control.click()
+    return true
+  })
+  if (!toggled) throw new Error('家长面板缺少可操作的动效设置')
+  await sleep(300)
+
+  const storageAfter = await page.evaluate(() => Object.fromEntries(Object.entries(localStorage)))
+  const changedKeys = Object.keys(storageAfter).filter(
+    (key) => storageAfter[key] !== storageBefore[key],
+  )
+  if (!changedKeys.length) throw new Error('切换动效后没有持久化任何设置')
+
+  await page.reload({ waitUntil: 'networkidle2' })
+  await sleep(400)
+  const persisted = await page.evaluate(
+    (expected) => expected.every(([key, value]) => localStorage.getItem(key) === value),
+    changedKeys.map((key) => [key, storageAfter[key]]),
+  )
+  if (!persisted) throw new Error(`刷新后设置存档发生变化：${changedKeys.join('、')}`)
+
+  return `口算 ${gate.expression}=${gate.answer}；报表/设置/导出齐全；持久化 ${changedKeys.join('、')}`
+})
+
 await interact('无障碍：键盘也能装货', '/#/number-sense', async (page) => {
   // 先跳到一道装货题（装货题的货物也带 .opt 类，所以这里不能用 answerOnce 盲点）
   const isCargoQuestion = () =>
