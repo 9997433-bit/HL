@@ -323,9 +323,9 @@ def test_degenerate_inputs_return_zero_rather_than_nan() -> None:
 # --------------------------------------------------------------- AC-DYN-005
 
 
-#: Free-text header of the record this criterion writes. The formatter itself
-#: lives in ``tests/_uff58.py`` rather than in the library because the library
-#: owns no UFF *writer* yet (that is R2-T05) and this gate is about the reader.
+#: Free-text header of the record this criterion writes. ``tests/_uff58.py``
+#: pins the header fields around the library writer so this gate stays about
+#: the reader recovering a synthesized receptance.
 _ID_LINES = ("synthesized FRF", "AC-DYN-005", "26-AUG-26", "OpenFEMLab", "receptance")
 
 
