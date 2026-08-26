@@ -959,7 +959,8 @@ integrate rather than fork.
 `.agent_workspace/ROUND2_PLAN.md` (A24; §0 status snapshot refreshed by A61).
 **R2-T01 is COMPLETE** (engine `acda625`, AC-DYN-001..005, report `frf` block A41,
 `correlate-frf` CLI A54 — no open work); **R2-T02, R2-T03 and R2-T04 are PARTIAL** —
-QUAD4/TET4 landed (A37/A46) with HEX8 and the 3D beam open, the reduction/expansion
+QUAD4/TET4/HEX8 and the spatial beam landed (A37/A46/A59/A82) with the shell facet and
+the solid/shell BDF cards open, the reduction/expansion
 engine and both its gates landed (A36/A43/A58 — AC-CORR-006 and AC-CORR-009 are
 `implemented` and the `SensorMap.signs` wiring is done, leaving only the `verified`
 flip), and the Bayesian MAP estimator landed (A49) with the AC-UPD-006a/b tagging
@@ -2569,3 +2570,78 @@ drilling DOFs, the `CQUAD4`/`CTETRA`/`CHEXA`/`CBAR`/`PSHELL`/`PSOLID` cards in
 `io/nastran.py`, and the `NeutralModel → Model` conversion that turns an imported block
 into bound elements. AC-ELEM-001..003 need a CI run, not another test, to reach
 `verified`.
+
+#### A82 — R2-T02 continued: the spatial beam (CBAR-like) (backfill for completed A81)
+
+The frame slice of GAP-02. With `BeamElement3D` on the trunk every element type an
+imported model is likely to carry — bar, planar beam, shell quad, tet, hex and now the
+spatial frame member — has a formulation, so a frame model can be re-analyzed rather
+than only correlated.
+
+**`BeamElement3D` (`core/elements.py`).** Two nodes, six DOFs each: axial extension,
+St Venant torsion (`G J / L`) and uncoupled bending in the two principal planes,
+`inertia_z` governing the local x-y plane and `inertia_y` the x-z plane. The two
+bending planes are the *same* Hermitian 4x4 blocks, extracted as
+`_bending_stiffness_block` / `_bending_mass_block` and conjugated by
+`diag(1, -1, 1, -1)` for the x-z plane because `dw/dx = -theta_y` there. That reuse is
+the point: the `(u, v, theta_z)` sub-block of both local matrices reproduces
+`BeamElement2D` to 1e-14, which a test asserts, so there is no second beam kernel to
+drift (GAP-01 rule).
+
+**Orientation.** The local frame follows the Nastran CBAR convention — local `x` from
+the first to the second node, the orientation vector `v` placing local `y` in the
+`x`-`v` plane. `orientation=None` picks whichever of global `Y` and `Z` is *least*
+aligned with the member, chosen so a member along global `X` reproduces the planar
+element's frame exactly (local `y` = global `Y`); a `v` parallel to the member is
+rejected rather than silently substituted, since silently substituting rolls the
+section and changes which inertia resists a load.
+
+**Mass.** The consistent matrix carries torsional rotary inertia `rho (Iy + Iz) L` —
+without it the twist DOFs are massless and there is no torsional mode at all — and
+neglects bending rotary inertia, matching the Euler-Bernoulli assumption and the planar
+element. `lumped_mass` row-lumps translation and twist and leaves the bending rotations
+massless, exactly as `BeamElement2D` does. Shear deformation, warping, shear-centre
+offsets and rigid end offsets are *not* modelled and are documented on the class: the
+element matches CBAR only where the shear centre coincides with the centroid.
+
+**`tests/test_beam3d.py`, 42 tests**, plus `MeshBuilder.add_beam3d` as the mesh seam.
+The closed-form checks are exact rather than approximate wherever the formulation
+allows it, because a cubic element is exact for an end load: tip deflection
+`P L^3 / (3 E I)` and tip rotation `P L^2 / (2 E I)` to **1e-12** in *both* bending
+planes (the x-z case pinning the rotation sign convention), axial `P L / (E A)` and
+torsional `T L / (G J)` to 1e-12, all on a single element. At model level a 12-element
+cantilever matches the Euler-Bernoulli spectrum in both planes to 5e-3 (16.71 / 25.07 /
+104.7 / 157.1 Hz), the fixed-free shaft mode matches `c / (4 L)` = 314.5 Hz to 4e-4 with
+the tip twist dominant, the second-mode error falls by more than 10x from 2 to 8
+elements, a free-free member has exactly six rigid-body modes, and every frequency of
+the planar `beam_mesh` cantilever reappears in the spatial model to 1e-8 — the planes
+decouple along global `X`, so that is an identity, not a tolerance. Rigid-body
+translations and rotations store no energy in global axes, and the assembled spectrum is
+invariant under a rigid rotation of the whole model.
+
+Verified in a private worktree with `PYTHONPATH` pinned, Python 3.12.3 / NumPy 2.5.2 /
+SciPy 1.18.1, at the branch tip on trunk `c5afc35`: full suite **1075 passed, 0 failed**
+(74 s), `ruff check .` clean. That is the trunk's 1033 plus exactly the 42 this slice
+adds. No acceptance criterion was touched: AC-ELEM-001's constant-strain patch test has
+no beam analogue and AC-ELEM-003's continuum bar oracle is the wrong convergence target
+for a cubic element, so the pinned 43-criterion inventory does not move. AC-ELEM-002
+(rigid-body invariance) is the one row the beam could join in
+`tests/acceptance/test_elements.py`'s case table, which needs no new ID and is left as a
+follow-up.
+
+**Working-tree hazard, tenth occurrence — A66's `git stash` warning, reproduced.** A
+concurrent agent ran `reset --hard` in `/workspace` while this task's edits were
+uncommitted, moving this task's branch to their commit, and a `git stash` taken moments
+later was entangled with their in-flight correlation changes: the pop restored *theirs*
+with conflicts and this task's source edits were gone. That is precisely the failure
+A66 recorded and warned against. The disturbed state was preserved as a named stash
+(`A82 backup of worktree state disturbed by a concurrent reset`), `/workspace` was left
+detached at the origin tip it had been reset to, and the work was redone in a private
+worktree at `/tmp/a82`. The rules stand and are worth repeating: **never `git stash` in
+the shared checkout or any worktree of it**, stage explicit paths, and push as soon as a
+slice is coherent.
+
+**Remaining on R2-T02:** the flat-facet shell with drilling DOFs, the
+`CQUAD4`/`CTETRA`/`CHEXA`/`CBAR`/`PSHELL`/`PSOLID` cards in `io/nastran.py`, and the
+`NeutralModel → Model` conversion. No element formulation is outstanding except the
+shell.
