@@ -35,6 +35,7 @@ _EXPORTS: dict[str, str] = {
     "TrussElement": "openfemlab.core.elements",
     "BarElement": "openfemlab.core.elements",
     "BeamElement2D": "openfemlab.core.elements",
+    "BeamElement3D": "openfemlab.core.elements",
     "Quad4Element": "openfemlab.core.elements",
     "Tet4Element": "openfemlab.core.elements",
     "plane_constitutive_matrix": "openfemlab.core.elements",
@@ -123,6 +124,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from .core.assembly import assemble_system as assemble_system
     from .core.elements import BarElement as BarElement
     from .core.elements import BeamElement2D as BeamElement2D
+    from .core.elements import BeamElement3D as BeamElement3D
     from .core.elements import Element as Element
     from .core.elements import Quad4Element as Quad4Element
     from .core.elements import SpringElement as SpringElement
