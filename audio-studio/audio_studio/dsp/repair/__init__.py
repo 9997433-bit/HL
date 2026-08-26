@@ -2,8 +2,9 @@
 
 `DeClickEffect` removes impulsive damage — vinyl ticks, dropouts, edit clicks —
 by predicting what the signal should have been and interpolating across what it
-was. `DeHumEffect` removes steady mains interference with a comb of notches on
-50 or 60 Hz and its harmonics.
+was. `DeClipEffect` reconstructs flat-topped peaks with a cubic spline.
+`DeHumEffect` removes steady mains interference with a comb of notches on 50 or
+60 Hz and its harmonics.
 
 Both are ordinary rack effects, so they combine with the rest of the chain::
 
@@ -26,16 +27,28 @@ from .declick import (
     repair_clicks,
     threshold_sigma_for,
 )
+from .declip import (
+    ClipEvent,
+    DeClipEffect,
+    DeClipReport,
+    detect_clipping,
+    repair_clipping,
+)
 from .dehum import DeHumEffect, HumEstimate, detect_hum
 
 __all__ = [
+    "ClipEvent",
     "ClickEvent",
+    "DeClipEffect",
+    "DeClipReport",
     "DeClickEffect",
     "DeClickReport",
     "DeHumEffect",
     "HumEstimate",
+    "detect_clipping",
     "detect_clicks",
     "detect_hum",
+    "repair_clipping",
     "repair_clicks",
     "threshold_sigma_for",
 ]
