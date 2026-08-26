@@ -224,6 +224,11 @@ def modal_result_to_dict(result: ModalResult) -> dict[str, Any]:
 
     if not isinstance(result, ModalResult):
         raise TypeError(f"expected ModalResult, got {type(result).__name__}")
+    if result.dof_map is None:
+        raise FormatError(
+            "modal result has no dof_map; attach one with ModalResult.with_dof_map() "
+            "before writing"
+        )
     return {
         **_HEADER,
         "object_type": "modal_result",

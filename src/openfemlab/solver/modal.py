@@ -11,12 +11,15 @@ by exact static (Guyan) condensation, which introduces no approximation because
 their inertia is exactly zero, and recovered afterwards from
 
     u_s = -K_ss^-1 K_sm u_m
+
+The result contract itself lives in :mod:`openfemlab.core.results`; this module
+re-exports :class:`~openfemlab.core.results.ModalResult` so that the internal
+solver and external importers hand consumers the same object.
 """
 
 from __future__ import annotations
 
 import warnings
-from dataclasses import dataclass, field
 
 import numpy as np
 import scipy.linalg as sla
@@ -24,139 +27,10 @@ import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
 from ..core.assembly import AssembledSystem, assemble_system
-from ..core.model import DOF
+from ..core.results import NORMALIZATIONS, RIGID_BODY_TOL, ModalResult
 from ..exceptions import SolverError
 
-__all__ = ["ModalSolver", "ModalResult", "NORMALIZATIONS"]
-
-NORMALIZATIONS = ("mass", "max", "none")
-
-#: Eigenvalues below ``RIGID_BODY_TOL * max(|lambda|)`` are treated as rigid-body modes.
-RIGID_BODY_TOL = 1e-8
-
-
-@dataclass
-class ModalResult:
-    """Eigenvalues and mode shapes of a :class:`ModalSolver` run.
-
-    Attributes
-    ----------
-    eigenvalues:
-        ``omega^2`` in ascending order (rigid-body modes clipped to exactly 0).
-    mode_shapes:
-        ``(num_dofs, num_modes)`` array in *full* model DOF space; constrained
-        DOFs hold zeros, condensed massless DOFs are recovered statically.
-    normalization:
-        Which scaling was applied (``"mass"``, ``"max"`` or ``"none"``).
-    """
-
-    eigenvalues: np.ndarray
-    mode_shapes: np.ndarray
-    free_dofs: np.ndarray
-    normalization: str = "mass"
-    system: AssembledSystem | None = field(default=None, repr=False)
-    num_condensed_dofs: int = 0
-
-    # ------------------------------------------------------------- spectrum
-
-    @property
-    def num_modes(self) -> int:
-        return int(self.eigenvalues.size)
-
-    @property
-    def angular_frequencies(self) -> np.ndarray:
-        """Circular natural frequencies ``omega`` [rad/s]."""
-        return np.sqrt(np.clip(self.eigenvalues, 0.0, None))
-
-    @property
-    def frequencies(self) -> np.ndarray:
-        """Natural frequencies ``f = omega / (2 pi)`` [Hz]."""
-        return self.angular_frequencies / (2.0 * np.pi)
-
-    @property
-    def periods(self) -> np.ndarray:
-        """Modal periods [s]; ``inf`` for rigid-body modes."""
-        with np.errstate(divide="ignore"):
-            return np.where(self.frequencies > 0.0, 1.0 / self.frequencies, np.inf)
-
-    @property
-    def rigid_body_modes(self) -> np.ndarray:
-        """Boolean mask flagging (numerically) zero-frequency modes."""
-        scale = float(np.max(np.abs(self.eigenvalues))) if self.num_modes else 0.0
-        return self.eigenvalues <= max(RIGID_BODY_TOL * scale, 0.0)
-
-    def mode(self, index: int) -> np.ndarray:
-        """Mode shape ``index`` as a full-length DOF vector."""
-        return self.mode_shapes[:, index]
-
-    # ------------------------------------------------- generalized quantities
-
-    def _mass_matrix(self):
-        if self.system is None:
-            raise SolverError("modal result carries no mass matrix; solve from a Model or system")
-        return self.system.M
-
-    @property
-    def modal_masses(self) -> np.ndarray:
-        """Generalized masses ``diag(phi^T M phi)`` (all ones for mass normalization)."""
-        M = self._mass_matrix()
-        return np.einsum("ij,ij->j", self.mode_shapes, M @ self.mode_shapes)
-
-    @property
-    def modal_stiffnesses(self) -> np.ndarray:
-        """Generalized stiffnesses ``diag(phi^T K phi) = lambda * modal mass``."""
-        if self.system is None:
-            raise SolverError("modal result carries no stiffness matrix")
-        K = self.system.K
-        return np.einsum("ij,ij->j", self.mode_shapes, K @ self.mode_shapes)
-
-    def orthogonality_error(self) -> float:
-        """Max off-diagonal magnitude of ``phi^T M phi`` (a solver quality check)."""
-        M = self._mass_matrix()
-        gram = self.mode_shapes.T @ (M @ self.mode_shapes)
-        off = gram - np.diag(np.diag(gram))
-        return float(np.max(np.abs(off))) if off.size else 0.0
-
-    def _influence_vector(self, direction: DOF | str | int) -> np.ndarray:
-        if self.system is None or self.system.dof_types is None:
-            raise SolverError("participation factors need an assembled system with DOF types")
-        target = DOF.parse(direction)
-        vector = np.zeros(self.system.num_dofs, dtype=float)
-        vector[np.asarray(self.system.dof_types) == int(target)] = 1.0
-        vector[self.system.constrained_dofs] = 0.0
-        return vector
-
-    def participation_factors(self, direction: DOF | str | int = DOF.UX) -> np.ndarray:
-        """Modal participation factors ``L_j = phi_j^T M r / (phi_j^T M phi_j)``."""
-        M = self._mass_matrix()
-        r = self._influence_vector(direction)
-        numerator = self.mode_shapes.T @ (M @ r)
-        return numerator / self.modal_masses
-
-    def effective_masses(self, direction: DOF | str | int = DOF.UX) -> np.ndarray:
-        """Effective modal masses ``L_j^2 * m_j``; they sum to the total mass."""
-        factors = self.participation_factors(direction)
-        return factors**2 * self.modal_masses
-
-    # ---------------------------------------------------------------- output
-
-    def summary(self, max_rows: int = 20) -> str:
-        lines = [
-            f"{'mode':>5} {'f [Hz]':>14} {'omega [rad/s]':>16} {'lambda':>16}",
-            "-" * 55,
-        ]
-        for i in range(min(self.num_modes, max_rows)):
-            lines.append(
-                f"{i + 1:>5} {self.frequencies[i]:>14.6g} "
-                f"{self.angular_frequencies[i]:>16.6g} {self.eigenvalues[i]:>16.6g}"
-            )
-        if self.num_modes > max_rows:
-            lines.append(f"... {self.num_modes - max_rows} more modes")
-        return "\n".join(lines)
-
-    def __repr__(self) -> str:  # pragma: no cover - debugging aid
-        freqs = np.array2string(self.frequencies[:5], precision=4)
-        return f"<ModalResult {self.num_modes} modes, f[Hz]={freqs}>"
+__all__ = ["ModalSolver", "ModalResult", "NORMALIZATIONS", "RIGID_BODY_TOL"]
 
 
 class ModalSolver:

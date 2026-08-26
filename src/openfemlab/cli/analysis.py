@@ -1,9 +1,8 @@
 """Analysis plumbing shared by the CLI commands.
 
-Bridges the solver-side objects (:class:`openfemlab.core.model.Model`,
-:class:`openfemlab.solver.modal.ModalResult`) to the DOF-mapped interchange
-contracts of :mod:`openfemlab.core.results`, which is the form
-``openfemlab.io`` persists and ``openfemlab.correlation`` consumes.
+Attaches a :class:`~openfemlab.core.dofs.DofMap` and provenance to the
+:class:`~openfemlab.core.results.ModalResult` the solver returns, which is the
+form ``openfemlab.io`` persists and ``openfemlab.correlation`` consumes.
 
 Numerical correlation intentionally does not live here: CLI commands delegate
 MAC calculation, mode pairing, and reporting to :mod:`openfemlab.correlation`.
@@ -15,7 +14,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from ..core.model import Model
-from ..solver.modal import ModalResult as SolverModalResult
+from ..core.results import ModalResult
 from ..solver.modal import ModalSolver
 from .spec import build_model
 
@@ -29,7 +28,7 @@ def solve_spec(
     normalization: str = "mass",
     max_frequency: float | None = None,
     sparse: bool | None = None,
-) -> tuple[Model, SolverModalResult]:
+) -> tuple[Model, ModalResult]:
     """Build the model described by ``spec`` and extract its normal modes."""
     model = build_model(spec)
     result = ModalSolver(model).solve(
@@ -50,13 +49,11 @@ def dof_map_of(model: Model):
 
 def as_modal_result(
     model: Model,
-    result: SolverModalResult,
+    result: ModalResult,
     *,
     meta: Mapping[str, Any] | None = None,
-):
-    """Convert a solver result into the DOF-mapped :mod:`openfemlab.core.results` form."""
-    from ..core.results import ModalResult
-
+) -> ModalResult:
+    """Attach ``model``'s DOF map and solver provenance to ``result``."""
     provenance: dict[str, Any] = {
         "solver": "openfemlab.solver.modal.ModalSolver",
         "normalization": result.normalization,
@@ -64,9 +61,4 @@ def as_modal_result(
     }
     if meta:
         provenance.update(meta)
-    return ModalResult(
-        frequencies=result.frequencies,
-        shapes=result.mode_shapes,
-        dof_map=dof_map_of(model),
-        meta=provenance,
-    )
+    return result.with_dof_map(dof_map_of(model), meta=provenance)

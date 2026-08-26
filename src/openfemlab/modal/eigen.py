@@ -1,8 +1,8 @@
 """Solver-independent matrix entry point for modal analysis.
 
-The numerical implementation lives in :mod:`openfemlab.solver.modal`.  This
-module only adapts its internal result to the portable
-:class:`openfemlab.core.results.ModalResult` contract.
+The numerical implementation lives in :mod:`openfemlab.solver.modal`; this
+module only labels its result with the caller's
+:class:`~openfemlab.core.dofs.DofMap`.
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ import numpy.typing as npt
 from scipy import sparse
 
 from openfemlab.core.dofs import DofMap
-from openfemlab.core.results import ModalResult as PortableModalResult
+from openfemlab.core.results import ModalResult
 from openfemlab.solver.modal import ModalSolver
 
 __all__ = ["solve_modes"]
@@ -25,7 +25,7 @@ def solve_modes(
     n_modes: int = 10,
     sigma: float = 0.0,
     mass_normalize: bool = True,
-) -> PortableModalResult:
+) -> ModalResult:
     """Extract the ``n_modes`` lowest elastic modes of ``(K, M)``.
 
     Parameters
@@ -64,10 +64,8 @@ def solve_modes(
         sparse=True,
         shift=sigma,
     )
-    return PortableModalResult(
-        frequencies=result.frequencies,
-        shapes=result.mode_shapes,
-        dof_map=dof_map,
+    return result.with_dof_map(
+        dof_map,
         meta={
             "solver": "openfemlab.ModalSolver",
             "normalization": "mass" if mass_normalize else "none",
