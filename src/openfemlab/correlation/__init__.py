@@ -9,6 +9,9 @@ and measured :class:`~openfemlab.core.results.TestData`:
   ``orthogonality`` shape-correlation metrics, optionally mass weighted.
 - :mod:`~openfemlab.correlation.metrics` — frequency-error metrics, with the
   test set as the reference: ``Δf% = 100 (f_fe − f_test) / f_test``.
+- ``frac`` / ``fdac`` — the frequency-domain counterparts of MAC, re-exported
+  from :mod:`openfemlab.solver.dynamics` so FRF correlation is reachable from
+  this namespace without a second implementation of the kernel.
 - :mod:`~openfemlab.correlation.pairing` — ``pair_modes``, globally optimal
   FE/test pairing via Hungarian assignment on a combined MAC + frequency cost,
   instead of the greedy max-MAC pass classic tools use.
@@ -27,6 +30,7 @@ imported through :mod:`openfemlab.io` — correlate the same way::
     print(report.report())
 """
 
+from ..solver.dynamics import fdac, frac
 from .align import (
     AlignedShapes,
     align_by_labels,
@@ -83,6 +87,9 @@ __all__ = [
     "frequency_difference",
     "frequency_error_matrix",
     "relative_frequency_error",
+    # FRF metrics (implemented in openfemlab.solver.dynamics)
+    "fdac",
+    "frac",
     # pairing
     "ModePair",
     "ModePairing",

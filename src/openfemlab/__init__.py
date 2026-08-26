@@ -52,6 +52,8 @@ _EXPORTS: dict[str, str] = {
     "complex_modal_frf": "openfemlab.solver.dynamics",
     "complex_modes": "openfemlab.solver.dynamics",
     "direct_frf": "openfemlab.solver.dynamics",
+    "fdac": "openfemlab.solver.dynamics",
+    "frac": "openfemlab.solver.dynamics",
     "harmonic_response": "openfemlab.solver.dynamics",
     "modal_frf": "openfemlab.solver.dynamics",
     # correlation
@@ -141,6 +143,8 @@ if TYPE_CHECKING:  # pragma: no cover
     from .solver.dynamics import complex_modal_frf as complex_modal_frf
     from .solver.dynamics import complex_modes as complex_modes
     from .solver.dynamics import direct_frf as direct_frf
+    from .solver.dynamics import fdac as fdac
+    from .solver.dynamics import frac as frac
     from .solver.dynamics import harmonic_response as harmonic_response
     from .solver.dynamics import modal_frf as modal_frf
     from .solver.modal import ModalResult as ModalResult
