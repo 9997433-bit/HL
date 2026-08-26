@@ -115,3 +115,20 @@ Neither branch was deleted by this run; both are recorded here for review.
 > unrelated AC-MODAL-008 commits" no longer describes work at risk of being lost.
 > AC-MODAL-008 was rebuilt against the reviewed trunk and landed in `8bc2ec4`, so
 > that branch holds nothing unique and the warning stands unchanged: do not merge it.
+
+## A116 backfill — R2-T09 verified promotion retired
+
+The R2-T09 promotion branch was verified against integration tip `a3e6375` before
+deletion. Its tip `b7b526b` is an ancestor with zero branch-only commits:
+
+```text
+git merge-base --is-ancestor origin/cursor/r2-t09-verified-promotion-c554 a3e6375
+yes
+
+git rev-list --left-right --count a3e6375...origin/cursor/r2-t09-verified-promotion-c554
+3  0
+```
+
+`cursor/r2-t09-verified-promotion-c554` was deleted locally and from `origin` on
+2026-08-26. A subsequent `git ls-remote --heads origin` confirmed that the remote
+ref is absent.
