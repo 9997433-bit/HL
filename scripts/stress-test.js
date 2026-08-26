@@ -92,7 +92,13 @@ function validateData(charactersData, mathData) {
     const ids = problems.map((item) => item.id)
     if (new Set(ids).size !== ids.length) errors.push('数学题 id 存在重复项')
     for (const problem of problems) {
-      if (!Array.isArray(problem.choices) || !problem.choices.includes(problem.answer)) {
+      if (!['number', 'string'].includes(typeof problem.answer)) {
+        errors.push(`数学题 ${problem.id || '(无 id)'} 缺少有效答案`)
+      }
+      if (
+        problem.choices !== undefined &&
+        (!Array.isArray(problem.choices) || !problem.choices.includes(problem.answer))
+      ) {
         errors.push(`数学题 ${problem.id || '(无 id)'} 的答案不在 choices 中`)
       }
     }
