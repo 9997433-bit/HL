@@ -10,7 +10,13 @@
 
 import { computed, reactive, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
-import { CHARACTER_MAP, CHARACTERS, TOTAL_CHARACTERS, UNITS } from '@/data/characters.js'
+import {
+  CHARACTER_INDEX,
+  CHARACTER_INDEX_MAP,
+  TOTAL_CHARACTERS,
+  UNITS,
+  UNIT_CHARACTER_IDS
+} from '@/data/character-index.js'
 import { BOOKS } from '@/data/books.js'
 import { IDIOMS } from '@/data/idioms.js'
 import { RADICALS } from '@/data/radicals.js'
@@ -169,11 +175,11 @@ export const useProgressStore = defineStore('progress', () => {
   /* ---------------------------------------------------------------- 派生 */
 
   const learnedChars = computed(() =>
-    CHARACTERS.filter((c) => (state.chars[c.char]?.level ?? 0) >= 1)
+    CHARACTER_INDEX.filter((c) => (state.chars[c.char]?.level ?? 0) >= 1)
   )
 
   const masteredChars = computed(() =>
-    CHARACTERS.filter((c) => (state.chars[c.char]?.level ?? 0) >= 3)
+    CHARACTER_INDEX.filter((c) => (state.chars[c.char]?.level ?? 0) >= 3)
   )
 
   const learnedCount = computed(() => learnedChars.value.length)
@@ -186,10 +192,10 @@ export const useProgressStore = defineStore('progress', () => {
   const levelProgress = computed(() => Math.min(1, state.xp / xpToNext.value))
 
   const unitProgress = (unitId) => {
-    const chars = CHARACTERS.filter((c) => c.unit === unitId)
+    const chars = Array.from(UNIT_CHARACTER_IDS[unitId] ?? '')
     if (!chars.length) return { total: 0, learned: 0, done: 0, mastered: 0, ratio: 0, percent: 0 }
-    const learned = chars.filter((c) => (state.chars[c.char]?.level ?? 0) >= 1).length
-    const mastered = chars.filter((c) => (state.chars[c.char]?.level ?? 0) >= 3).length
+    const learned = chars.filter((char) => (state.chars[char]?.level ?? 0) >= 1).length
+    const mastered = chars.filter((char) => (state.chars[char]?.level ?? 0) >= 3).length
     const ratio = learned / chars.length
     return {
       total: chars.length,
@@ -257,11 +263,11 @@ export const useProgressStore = defineStore('progress', () => {
    */
   const dueCharCards = computed(() => {
     const now = clock.value
-    return dueCards(state.srs, now).filter((card) => CHARACTER_MAP.has(card.charId))
+    return dueCards(state.srs, now).filter((card) => CHARACTER_INDEX_MAP.has(card.charId))
   })
 
   const reviewQueue = computed(() =>
-    dueCharCards.value.slice(0, 12).map((card) => CHARACTER_MAP.get(card.charId))
+    dueCharCards.value.slice(0, 12).map((card) => CHARACTER_INDEX_MAP.get(card.charId))
   )
 
   const dueCount = computed(() => dueCharCards.value.length)
@@ -297,7 +303,8 @@ export const useProgressStore = defineStore('progress', () => {
 
   /** 下一个还没学的字，首页「继续学习」按钮用。 */
   const nextChar = computed(
-    () => CHARACTERS.find((c) => (state.chars[c.char]?.level ?? 0) === 0) ?? CHARACTERS[0]
+    () =>
+      CHARACTER_INDEX.find((c) => (state.chars[c.char]?.level ?? 0) === 0) ?? CHARACTER_INDEX[0]
   )
 
   /* ---------------------------------------------------------------- 内部 */
