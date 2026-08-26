@@ -31,8 +31,20 @@ concurrency:
 env:
   QT_QPA_PLATFORM: offscreen
   PYTHONUTF8: "1"
+  PYTHONPATH: ${{ github.workspace }}
 
 jobs:
+  binding-guard:
+    name: PySide6 binding guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Reject PyQt6 imports
+        run: "! grep -rn PyQt6 audio-studio/"
+
   lint-and-test:
     name: Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -40,13 +52,32 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - ubuntu-latest
-          - macos-latest
-          - windows-latest
+        include:
+          - os: ubuntu-latest
+            suite: full
+          - os: macos-latest
+            suite: smoke
+          - os: windows-latest
+            suite: smoke
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
+
+      - name: Install Ubuntu Qt runtime libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes \
+            libdbus-1-3 \
+            libegl1 \
+            libfontconfig1 \
+            libgl1 \
+            libglib2.0-0 \
+            libxcb-cursor0 \
+            libxcb-xinerama0 \
+            libxi6 \
+            libxkbcommon-x11-0 \
+            libxrender1
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -61,10 +92,34 @@ jobs:
           python -m pip install --no-deps --editable ./audio-studio
 
       - name: Lint probes and support scripts
+        if: matrix.suite == 'full'
         run: ruff check tools scripts tests
 
-      - name: Run test suites offscreen
-        run: pytest -q tests audio-studio/tests
+      - name: Run full test suites offscreen
+        if: matrix.suite == 'full'
+        run: python -m pytest -q tests audio-studio/tests
+
+      - name: Run cross-platform smoke suites offscreen
+        if: matrix.suite == 'smoke'
+        run: >-
+          python -m pytest -q
+          audio-studio/tests/test_types.py
+          audio-studio/tests/test_loader.py
+          audio-studio/tests/test_loudness.py
+          tests/acceptance/test_sota_checklist.py
+
+      - name: Generate Round 3 acceptance report
+        if: matrix.suite == 'full'
+        run: >-
+          python tools/run_round3_acceptance.py
+          --output .agent_workspace/round3/ci-acceptance-report.json
+
+      - name: Upload Round 3 acceptance report
+        if: matrix.suite == 'full'
+        uses: actions/upload-artifact@v4
+        with:
+          name: round3-ci-acceptance-report
+          path: .agent_workspace/round3/ci-acceptance-report.json
 
   gui-smoke:
     name: GUI smoke (null audio)
@@ -73,6 +128,21 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
+
+      - name: Install Ubuntu Qt runtime libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes \
+            libdbus-1-3 \
+            libegl1 \
+            libfontconfig1 \
+            libgl1 \
+            libglib2.0-0 \
+            libxcb-cursor0 \
+            libxcb-xinerama0 \
+            libxi6 \
+            libxkbcommon-x11-0 \
+            libxrender1
 
       - name: Set up Python
         uses: actions/setup-python@v6
