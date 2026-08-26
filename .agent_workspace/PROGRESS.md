@@ -66,6 +66,8 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A58 | claude-opus-5-thinking-high-fast | R2-T03: register AC-CORR-009 (TAM pseudo-orthogonality) and wire `SensorMap.signs` through the reduction bases (backfill for A43) | complete |
 | A76 | gpt-5.6-sol-xhigh-fast | Current-tip pytest verification (backfill for completed A75) | complete — A75 done; 921 passed |
 | A80 | gpt-5.6-sol-xhigh-fast | Authoritative current-tip pytest count (backfill for completed A76) | complete — 1033 passed at `ff484e4`; collection confirmed 1033 |
+| A57 | claude-opus-5-thinking-high-fast | R2-T04 acceptance gate: register AC-UPD-006a/b, penalize the starting cost, and carry the Laplace σ_post into the `CorrectionReport` (backfill for A49) | complete |
+| A83 | claude-opus-5-thinking-high-fast | Land the AC-UPD-006 registration branch on the trunk, verify the tip and mark R2-T04 acceptance-complete (backfill for completed A57) | complete — 1089 passed at `7368c92`, Ruff clean, side branch deleted |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
@@ -956,15 +958,16 @@ integrate rather than fork.
 
 ### Round 2 — Targeted Refactor & Deep Optimization
 **Status:** IN PROGRESS, past the mid-point — backlog planned in
-`.agent_workspace/ROUND2_PLAN.md` (A24; §0 status snapshot refreshed by A61).
+`.agent_workspace/ROUND2_PLAN.md` (A24; §0 status snapshot refreshed by A83).
 **R2-T01 is COMPLETE** (engine `acda625`, AC-DYN-001..005, report `frf` block A41,
-`correlate-frf` CLI A54 — no open work); **R2-T02, R2-T03 and R2-T04 are PARTIAL** —
-QUAD4/TET4/HEX8 and the spatial beam landed (A37/A46/A59/A82) with the shell facet and
-the solid/shell BDF cards open, the reduction/expansion
-engine and both its gates landed (A36/A43/A58 — AC-CORR-006 and AC-CORR-009 are
-`implemented` and the `SensorMap.signs` wiring is done, leaving only the `verified`
-flip), and the Bayesian MAP estimator landed (A49) with the AC-UPD-006a/b tagging
-open. See the mid-point brief below.
+`correlate-frf` CLI A54 — no open work); **R2-T02 is PARTIAL while R2-T03 and R2-T04
+are ACCEPTANCE-COMPLETE** — QUAD4/TET4/HEX8 and the spatial beam landed
+(A37/A46/A59/A82) with the shell facet and the solid/shell BDF cards open, the
+reduction/expansion engine and both its gates landed (A36/A43/A58 — AC-CORR-006 and
+AC-CORR-009 are `implemented` and the `SensorMap.signs` wiring is done), and the
+Bayesian MAP estimator landed (A49) with the AC-UPD-006a/b tagging and the report
+σ_post closed (A57). Both tracks now wait only on the R2-T09 CI job that can move a
+criterion to `verified`. See the mid-point brief below.
 
 Core backlog (prioritized, from `docs/SOTA_GAP_ANALYSIS.md` §4/§6 + Round 1 conclusion):
 1. ~~**R2-T01 Dynamics/FRF chain** (GAP-04/05, P0) — damping models, harmonic response,
@@ -1024,7 +1027,9 @@ green throughout.
   registration open); **R2-T03 PARTIAL** (reduction/expansion engine plus the
   AC-CORR-006 gate `implemented`; AC-CORR-009 and `SensorMap.signs` closed by A58
   after this brief was written, leaving only the `verified` flip); **R2-T04 PARTIAL** (MAP estimator with posterior covariance landed on the
-  shared LM loop; acceptance tagging and σ_post surfacing open); **R2-T05 NOT
+  shared LM loop; acceptance tagging and σ_post surfacing open — both closed by A57
+  after this brief was written, so the track is now acceptance-complete and only the
+  CLI σ_post surface is left); **R2-T05 NOT
   STARTED** — the only core track with no commit. Supporting: R2-T06's P0 slice and
   R2-T07 are done, R2-T08 needs only a close-as-superseded decision, R2-T09 has not
   begun.
@@ -2890,3 +2895,47 @@ exist, so it needs the three-file spec-first commit and moves the pinned 44-crit
 inventory), UNV 2411/2412 in `io/uff.py`, UFF writing, and — shared with R2-T02 — the
 `NeutralModel` → `Model` conversion, which is the one thing standing between
 `read_meshio` and the round's imported-3D-mesh demo.
+
+#### A83 — R2-T04 is acceptance-complete; the AC-UPD-006 branch is closed out (backfill for completed A57)
+
+A57's work — the AC-UPD-006a/b acceptance gate, the starting-cost penalty fix and the
+Laplace σ_post in the `CorrectionReport` — was finished on
+`cursor/ac-upd-006-registration-6615`, but the branch was still open and the task
+boards still called R2-T04 partial. This run lands the merge, verifies the tip and
+closes the bookkeeping.
+
+- **The merge was made twice and neither copy is the one on the trunk.** The first was
+  made in the shared `/workspace` checkout; by the next command another agent had moved
+  HEAD to `cursor/beam3d-cbar-element-c9a7` in a conflicted state and the commit was
+  orphaned — though it was later picked up and pushed by someone else as `3e2df81`, and
+  a concurrent run reconciled it against the HEX8 trunk in `ad035d7`. The second was
+  built in a private clone and re-resolved against a trunk that had advanced seven more
+  commits; by the time it was verified, `git merge-base --is-ancestor` showed the branch
+  content was already an ancestor of `origin`, so this run reset to the trunk rather
+  than pushing a duplicate merge of the same tree. All three routes reached the same
+  product code: the `src/` and `tests/` diffs are identical.
+- **Verification.** At `e809290`, the first trunk commit carrying both AC-UPD-006 and
+  the AC-CORR-008 shape-free round-trip flavor: **1047 passed, 0 failed** in 97.7 s
+  with a collection-only pass confirming the same 1047, `ruff check .` clean. That is
+  A79's 1033 plus the twelve tests AC-UPD-006 carries — eight acceptance cases, three
+  workflow σ_post cases and one Bayesian unit case — and the two AC-CORR-008 cases
+  alongside. Re-verified at `7368c92` after the spatial beam landed: **1089 passed**,
+  Ruff clean. Both runs from a private clone with `PYTHONPATH` pinned to its own `src`.
+- **Registry: 44 criteria, 41 `implemented`, 3 `specified`, 0 `verified`** — by priority
+  P0 34/0 and P1 7/3, leaving AC-MODAL-008, AC-UPD-008 and AC-WORK-003 as the only rows
+  still unwritten.
+- **R2-T04 is marked acceptance-complete** in `STATUS.md`, in `ROUND2_PLAN.md` (the §0
+  board, the GAP-11 register row and the task section) and in the Round-2 header here.
+  What remains on the task is σ_post in the CLI `update` document — a prior/noise block
+  in the update spec schema plus a column in the rendered table and the JSON payload —
+  which is a slice of its own and does not hold the acceptance gate. R2-T03 has been in
+  the same position since A58 and is marked the same way. Neither can reach `verified`
+  until R2-T09 stands up the CI promotion, which is now the sole blocker on both.
+- `cursor/ac-upd-006-registration-6615` deleted from `origin`; its content is an
+  ancestor of the integration branch.
+- **Process.** Two agents merged the same side branch within minutes because neither
+  could see the other's in-flight work. `git merge-base --is-ancestor <branch> <trunk>`
+  is the cheap check that catches this, and it belongs *before* committing a merge, not
+  just before pushing one — re-run after every fetch, since on this branch the trunk
+  moved four times during a single run. The shared `/workspace` checkout was
+  unusable throughout: HEAD was moved out from under this run twice, once mid-merge.

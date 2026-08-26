@@ -77,9 +77,9 @@ synthesis, and optimization hooks — all behind one CLI and a schema-versioned 
   diagnostics on stderr, CI acceptance gates via exit codes; covered end to end
   including subprocess runs.
 - **QA stack**: 1089 tests including a machine-readable registry of 44 quantified
-  acceptance criteria: 41 `implemented`, 3 `specified`, and 0 `verified`, with every
-  **P0** row implemented — plus boundary/probe suites, performance-regression gates,
-  and benchmarks; GitHub Actions CI on Python 3.10–3.13; `ruff check` clean.
+  acceptance criteria: 41 `implemented`, 3 `specified`, and 0 `verified`, with all
+  **34/34 P0** rows implemented — plus boundary/probe suites, performance-regression
+  gates, and benchmarks; GitHub Actions CI on Python 3.10–3.13; `ruff check` clean.
 - **Docs**: [`README`](README.md) with a reproducible CLI walkthrough,
   [`中文用户指南`](docs/USER_GUIDE_zh.md), `ARCHITECTURE.md`, `MODULE_SPEC.md` (MS-0..8),
   `ACCEPTANCE_CRITERIA.md` (44 criteria), `SOTA_GAP_ANALYSIS.md` (GAP-01..15),
@@ -91,6 +91,9 @@ synthesis, and optimization hooks — all behind one CLI and a schema-versioned 
 - `PYTHONPATH=src python -m pytest` — **1089 passed in 96.21 s** at commit `069b097`
   on Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1.
 - `ruff check .` — clean.
+- A91 independently re-ran the completed A78 milestone at `05e1b51`:
+  **1035 passed in 55.22 s**, `ruff check .` clean; its 44-row registry was
+  39 `implemented` / 5 `specified`, with **P0 34/34 implemented**.
 - Per-suite breakdown (sums to 1089): acceptance registry + gates 337, dynamics 82,
   HEX8 76, TET4 66, QUAD4 61, updating 57, correlation 52, modal solver 44,
   `BeamElement3D` 42, workflow 41, Bayesian updating 36, reduction/expansion 32,

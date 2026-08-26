@@ -16,22 +16,22 @@ A supporting backlog covers the remaining Round 2 items from
 
 ---
 
-## 0. Status snapshot — mid-round (A79, 2026-08-26, integration tip after the HEX8 merge)
+## 0. Status snapshot — mid-round (A83, 2026-08-26, integration tip after the AC-UPD-006 and spatial-beam merges)
 
 Verified at that tip from a private clone (`PYTHONPATH` pinned): full suite
-**1033 passed, 0 failed**, `ruff check .` clean, on Python 3.12.3 / NumPy 2.5.2 /
-SciPy 1.18.1. Registry: **44 criteria — 39 `implemented`, 5 `specified`, 0 `verified`**
-once the A59 element slice's three M7 rows joined the trunk's AC-CORR-009. Every **P0**
-row is now `implemented`; the five still `specified` are all P1 (AC-MODAL-008,
-AC-UPD-006a/b, AC-UPD-008, AC-WORK-003). Nothing can reach `verified` until R2-T09
-stands up the CI job.
+**1089 passed, 0 failed**, `ruff check .` clean, on Python 3.12.3 / NumPy 2.5.2 /
+SciPy 1.18.1. Registry: **44 criteria — 41 `implemented`, 3 `specified`, 0 `verified`**
+once the A59 element slice's three M7 rows and the AC-UPD-006a/b pair joined the
+trunk's AC-CORR-008/009. Every **P0** row is now `implemented`; the three still
+`specified` are all P1 (AC-MODAL-008, AC-UPD-008, AC-WORK-003). Nothing can reach
+`verified` until R2-T09 stands up the CI job.
 
 | Task | Status |
 |---|---|
 | R2-T01 dynamics/FRF | **COMPLETE** — engine (`acda625`), AC-DYN-001..005 `implemented`, report `frf` block at schema 1.1 (A41), `openfemlab correlate-frf` CLI (A54). No open work. |
 | R2-T02 3D elements | **PARTIAL** — QUAD4 (A37), TET4 (A46) and HEX8 (A59, merged by A79) are all on the integration branch with mesh generators and 203 tests, AC-ELEM-001..003 are registered as module M7 over all three (+24 acceptance cases), and the spatial beam `BeamElement3D` landed with 42 tests (A82). Open: flat-facet shell, `NeutralModel` → `Model` conversion, solid/shell BDF cards (`CBAR` included). |
-| R2-T03 reduction/expansion | **PARTIAL** — engine (A36, `correlation/reduction.py`) and the AC-CORR-006 gate `implemented` (A43). Open: AC-CORR-009 registration, `SensorMap.signs` wiring, sparse inputs, `verified` flip. |
-| R2-T04 Bayesian MAP | **PARTIAL** — estimator (A49, `updating/bayesian.py`, 35 tests). Open: AC-UPD-006a/b tagging + registry flip, σ_post in the CLI/report output. |
+| R2-T03 reduction/expansion | **ACCEPTANCE-COMPLETE** — engine (A36, `correlation/reduction.py`) with the AC-CORR-006 gate `implemented` (A43), and AC-CORR-009 plus the `SensorMap.signs` wiring landed (A58). Open: sparse inputs, `verified` flip. |
+| R2-T04 Bayesian MAP | **ACCEPTANCE-COMPLETE** — estimator (A49, `updating/bayesian.py`, 36 tests) plus the AC-UPD-006a/b tagging, the registry flip and the Laplace σ_post in the `CorrectionReport` (A57, on the trunk since the `ac-upd-006-registration-6615` merge). Open: σ_post in the CLI `update` document, which is outside the acceptance slice. |
 | R2-T05 meshio & IO | **PARTIAL** — the meshio bridge landed (A89, `io/meshio_bridge.py`, 44 tests): `from_meshio`/`to_meshio` over a one-to-one cell-type table, `read_meshio`/`write_meshio`, and the P7 optional-dependency seam with `MissingDependencyError`. Open: AC-IO-001..003 registration, UNV 2411/2412, `NeutralModel` → `Model` re-analysis of an imported mesh, UFF writing. |
 | R2-T06 updating depth | P0 slice closed (AC-UPD-007, A44); P1 depth (MAC-row Jacobian wiring, model-level resolver, per-element dK/dp) open. |
 | R2-T07 optimization | **COMPLETE for sizing** — A27 backend + A40 harvest; AC-OPT-001..004 `implemented`. Shape variables still FD. |
@@ -54,8 +54,8 @@ the gap register at audit time:
 | GAP-09 node mapping | P1, absent | **Partial.** Label-based DOF alignment (`correlation/align.py`, `workflow/sensors.py`). Remaining: geometry-based nearest-node mapping → folded into R2-T05/T06 scope notes. |
 | GAP-04/05 dynamics & FRF | P0/P1, absent | **Closed by R2-T01.** `cursor/dynamics-damping-frf-9500` merged at `acda625`; AC-DYN-001..005 registered and `implemented`. GAP-05's FRF *updating residual* stays deferred to Round 3 as planned below. |
 | GAP-02 3D elements | P0, absent | **Partial.** QUAD4 plane stress/strain landed with `mesh.simple.quad_plate_mesh` and 61 tests (R2-T02 first slice, merged from `cursor/quad4-plane-stress-element-b99c`); TET4 landed with `mesh.simple.tet_block_mesh` and 66 tests (A46); HEX8 landed with `mesh.simple.hex_block_mesh`, 76 tests and the AC-ELEM-001..003 registration over all three elements (A59); the CBAR-like `BeamElement3D` landed with `MeshBuilder.add_beam3d` and 42 tests (A82). Remaining: the flat-facet shell, the solid/shell BDF cards → R2-T02 remainder. |
-| GAP-08 reduction/expansion | P1, absent | **Partial.** `correlation/reduction.py` landed (A36): Guyan/IRS/SEREP bases, `expand_shapes`, `tam_mass`, 25 tests; the AC-CORR-006 gate is `implemented` via the 19-case acceptance batch (A43). Remaining: AC-CORR-009 registration, `SensorMap.signs` wiring, the `verified` flip → R2-T03 remainder. |
-| GAP-11 Bayesian/UQ | P1, absent | **Closed for MAP by R2-T04.** The MS-3.5 estimator landed in `updating/bayesian.py` with Gaussian prior, noise covariance and Laplace posterior σ_post (A49, 35 tests); AC-UPD-006a/b are registered and `implemented`, and the `CorrectionReport` σ_post column now carries the posterior (A57). Remaining: σ_post in the CLI `update` document. Sampling (TMCMC/MC/DOE) stays Round 3 → R2-T04. |
+| GAP-08 reduction/expansion | P1, absent | **Partial.** `correlation/reduction.py` landed (A36): Guyan/IRS/SEREP bases, `expand_shapes`, `tam_mass`, 25 tests; the AC-CORR-006 gate is `implemented` via the 19-case acceptance batch (A43), and AC-CORR-009 plus the `SensorMap.signs` wiring landed with A58. Remaining: sparse inputs, the `verified` flip → R2-T03 remainder. |
+| GAP-11 Bayesian/UQ | P1, absent | **Closed for MAP by R2-T04, acceptance included.** The MS-3.5 estimator landed in `updating/bayesian.py` with Gaussian prior, noise covariance and Laplace posterior σ_post (A49, 36 tests); AC-UPD-006a/b are registered and `implemented` behind an eight-test gate on the ten-DOF twin, and the `CorrectionReport` σ_post column now carries the posterior (A57, merged to the trunk by A83). Remaining: σ_post in the CLI `update` document. Sampling (TMCMC/MC/DOE) stays Round 3 → R2-T04. |
 | GAP-12 optimization backend | P2, stub | **Closed for sizing by R2-T07.** `ScipyBackend.solve` runs SLSQP/trust-constr with analytic Jacobians, hard bounds and active-set KKT residuals; AC-OPT-001..004 are implemented. `cursor/optimization-scipy-backend-f421` was harvested by A40 (active-set multipliers, zero trust-constr constraint Hessian). Shape variables still fall back to finite differences. |
 | R1-O2 parallel implementation | — | Reconciliation of `cursor/r1o2-correlation-updating-e393` in progress on `cursor/reconcile-r1o2-correlation-updating-64c5` → R2-T08 harvests the diff. |
 
@@ -269,7 +269,9 @@ consistency tests fail.
   `specified` in the same change. `CorrectionWorkflow` now accepts `prior` /
   `noise_covariance`; either switches S4 to `BayesianUpdater` and fills the report's
   reserved σ_post column with the Laplace posterior instead of the least-squares
-  stand-in. Suite **888 passed**, `ruff check .` clean. Both criteria still need a CI
+  stand-in. Suite **888 passed** on A57's own tree, and **1089 passed** with
+  `ruff check .` clean at the trunk tip once the branch landed (A83). Both criteria
+  still need a CI
   run to reach `verified`, which is the R2 sign-off condition. **Left open:** σ_post in
   the CLI `update` document (needs a prior/noise block in the update spec schema), and
   whether the prior should also be expressible in *physical* rather than design space.

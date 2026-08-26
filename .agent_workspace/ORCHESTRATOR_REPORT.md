@@ -1,15 +1,15 @@
 # OpenFEMLab 编排总报告（Orchestrator Report）
 
-**报告人：** A87（顶替已完成的 A77）· **日期：** 2026-08-26
+**报告人：** A91（顶替已完成的 A78）· **日期：** 2026-08-26
 **分支：** `cursor/femtools-industrial-7aa3` · **Pull Request：** [PR #5](https://github.com/9997433-bit/hl/pull/5)（Draft，base `main`）
-**已验证快照：** 提交 `441f80a` —— 全量 `pytest` **1033 通过 / 0 失败**（本次在分离的私有工作树独立复跑，90.4 s；collect-only 复核同为 1033），`ruff check .` 干净（Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1）。
+**已验证快照：** A78 里程碑提交 `05e1b51` —— 全量 `pytest` **1035 通过 / 0 失败**（本次在分离的私有工作树独立复跑，55.22 s），`ruff check .` 干净（Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1）。
 
 ---
 
 ## 一、执行摘要
 
 OpenFEMLab 是一个受 FEMtools 启发、但完全开源（MIT）、求解器无关的 CAE 平台。
-截至本报告，**Round 1 已完成收官，Round 2 的九个任务中五个已关闭、三个部分完成、一个待启动**。平台已交付从建模、模态分析、试验相关性、灵敏度/贝叶斯模型修正、阻尼动力学与 FRF 综合，到优化与命令行工作流的完整链路，由 **1033 个测试**（含 **44 条**量化验收准则的机器可读注册表）与 GitHub Actions CI（Python 3.10–3.13）守护。本报告周期的标志性进展：**HEX8 三线性六面体单元已合入主干**（76 个单元测试 + AC-ELEM-001..003 共 24 个验收用例），连续体单元三件套（QUAD4/TET4/HEX8）就位；**全部 P0 验收准则已达 `implemented`**——注册表中仅剩的 5 条 `specified` 全部为 P1。成果已通过 [PR #5](https://github.com/9997433-bit/hl/pull/5) 汇入评审流程。
+截至本报告，**Round 1 已完成收官，Round 2 的九个任务中五个已关闭、三个部分完成、一个待启动**。平台已交付从建模、模态分析、试验相关性、灵敏度/贝叶斯模型修正、阻尼动力学与 FRF 综合，到优化与命令行工作流的完整链路，由 **1035 个测试**（含 **44 条**量化验收准则的机器可读注册表）与 GitHub Actions CI（Python 3.10–3.13）守护。本报告周期的标志性进展：**HEX8 三线性六面体单元已合入主干**（76 个单元测试 + AC-ELEM-001..003 共 24 个验收用例），连续体单元三件套（QUAD4/TET4/HEX8）就位；**全部 P0 验收准则 34/34 已达 `implemented`**——注册表中仅剩的 5 条 `specified` 全部为 P1。成果已通过 [PR #5](https://github.com/9997433-bit/hl/pull/5) 汇入评审流程。
 
 对标 FEMtools 的一句话结论：**在算法深度、开放性与自动化上超越，在 GUI 与商用格式广度上有意让步**（后者已登记为 Round 2/3 计划项，不是隐藏缺陷）。
 
@@ -72,17 +72,17 @@ OpenFEMLab 是一个受 FEMtools 启发、但完全开源（MIT）、求解器�
 
 **Round 2 退出门槛的剩余项**：5 条 P1 准则（AC-MODAL-008、AC-UPD-006a/b、AC-UPD-008、AC-WORK-003）补齐验收测试并翻至 `implemented`，随后全部 P0/P1 翻至 `verified`；"导入 3D 网格 → 内部再分析"演示（依赖 T05）。HEX8 与 AC-ELEM 注册、FRF 演示两侧均已关闭。
 
-## 五、质量与验证：1033 个测试
+## 五、质量与验证：1035 个测试
 
-- 全量套件 **1033 通过 / 0 失败**，于提交 `441f80a` 在分离的私有工作树中独立复跑验证（90.4 s，`PYTHONPATH` 钉住该工作树的 `src`）；collect-only 独立复核收集数同为 1033；`ruff check .` 干净。
-- **44 条**量化验收准则由机器可读注册表钉住：**39 条 `implemented`、5 条 `specified`、0 条 `verified`**。按优先级：**P0 共 34 条，全部 `implemented`——P0 已收口**；P1 共 10 条，5 条 `implemented`、5 条 `specified`。注册表一致性本身也是测试——新准则必须与规格文档、实现测试在同一变更中落地，否则套件失败。
-- 相比上一份编排报告（876 个测试、40 条准则）：净增 157 个测试与 4 条准则，主要来自 HEX8 单元套件（76）、AC-ELEM 验收切片（24）、AC-CORR-008/009 与 P0 验收标注收口。
+- 全量套件 **1035 通过 / 0 失败**，于 A78 里程碑提交 `05e1b51` 在分离的私有工作树中独立复跑验证（55.22 s，`PYTHONPATH` 钉住该工作树的 `src`）；`ruff check .` 干净。
+- **44 条**量化验收准则由机器可读注册表钉住：**39 条 `implemented`、5 条 `specified`、0 条 `verified`**。按优先级：**P0 34/34 全部 `implemented`——P0 已收口**；P1 共 10 条，5 条 `implemented`、5 条 `specified`。注册表一致性本身也是测试——新准则必须与规格文档、实现测试在同一变更中落地，否则套件失败。
+- 相比上一份编排报告（876 个测试、40 条准则）：净增 159 个测试与 4 条准则，主要来自 HEX8 单元套件（76）、AC-ELEM 验收切片（24）、AC-CORR-008/009 与 P0 验收标注收口。
 - 端到端演示：模型 → 模态 → 相关 → 修正 → 复算，频率误差 22.86% → 0%，MAC 1.0；README 的 CLI 会话可复现退出码 0/3/0/0。
 - GitHub Actions CI 覆盖 Python 3.10–3.13。
 
 ## 六、Pull Request
 
-[PR #5 — OpenFEMLab: solver-independent CAE platform](https://github.com/9997433-bit/hl/pull/5)（Draft，head `cursor/femtools-industrial-7aa3` → base `main`）。标题中的测试数（430）反映的是开 PR 时的规模，现已增长至 **1033**，建议在转正式评审前刷新 PR 标题与正文（`.agent_workspace/PR_DRAFT.md` 备有最新草案）。
+[PR #5 — OpenFEMLab: solver-independent CAE platform](https://github.com/9997433-bit/hl/pull/5)（Draft，head `cursor/femtools-industrial-7aa3` → base `main`）。标题中的测试数（430）反映的是开 PR 时的规模；A78 里程碑已增长至 **1035**，后续当前分支验证见 `.agent_workspace/PR_DRAFT.md`。
 
 ## 七、下一步
 
@@ -91,9 +91,21 @@ OpenFEMLab 是一个受 FEMtools 启发、但完全开源（MIT）、求解器�
    - 3D 梁与壳面元单元 + `CQUAD4`/`CTETRA`/`CHEXA`/`PSHELL`/`PSOLID` BDF 卡（R2-T02 余量）；
    - meshio 桥 + UNV 2411/2412 几何读取（R2-T05），打通"导入工业网格 → 内部再分析"演示，并注册 AC-IO-001..003；
    - `ruff check` 进 CI（R2-T09）。
-2. **推进 PR #5 评审**：刷新标题/正文至 1033 测试规模，Draft 转正式，评审后合入 `main`。
+2. **推进 PR #5 评审**：以 A78 的 1035 测试里程碑和后续当前分支验证为依据刷新标题/正文，Draft 转正式，评审后合入 `main`。
 3. **Round 3（SOTA 打磨）**：FRF 模态参数识别 MPE（GAP-06）、预试验传感器布置（GAP-07）、5 万自由度规模化（GAP-13，含缩减模块去稠密化）、绘图/可视化（GAP-15）、FRF 修正残差、TMCMC 贝叶斯采样、Craig–Bampton CMS。
 
 ---
 
 *编排记录（进度日志、Round 2 计划、状态快照、分支清理审计、PR 草案）均在 `.agent_workspace/` 下，属文档而非运行时代码。*
+
+---
+
+## 里程碑速报（2026-08-26 · 面向用户 · 记录：A97）
+
+OpenFEMLab——对标 FEMtools 的开源（MIT）、求解器无关 CAE 平台——达成新的验证里程碑：
+
+- **1089 个测试全部通过，0 失败**（钉于提交 `069b097`，`ruff check` 干净；详见 `STATUS.md`）。
+- **P0 正式收口**：44 条量化验收准则中全部 **34 条 P0 已实现**；仅剩 3 条 P1（AC-MODAL-008、AC-UPD-008、AC-WORK-003）待验收接线。
+- 对标 FEMtools：模型修正、相关性配对、脚本化与可复现性**超越**，模态/动力学/缩减**持平**；GUI 与商用格式广度为已登记的计划差距，非隐藏缺陷。
+- 全部成果经 [PR #5](https://github.com/9997433-bit/hl/pull/5) 汇入评审流程（meshio 桥已在快照后续落地主干）。
+- **Round 2 余量**：3 条 P1 准则接线并将注册表翻至 `verified`；壳面元与实体/壳 BDF 卡（R2-T02）；UNV 2411/2412 几何与写出器（R2-T05 收尾）；`ruff` 进 CI（R2-T09）。
