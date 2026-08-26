@@ -21,8 +21,8 @@ when that solver is importable, and falls back to a direct dense
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
-from typing import Any, Callable
+from collections.abc import Callable, Mapping, Sequence
+from typing import Any
 
 import numpy as np
 import scipy.linalg as sla
@@ -139,7 +139,9 @@ class ScalingModel:
 
     # ------------------------------------------------------------- assembly
 
-    def _values(self, values: Mapping[str, float] | Sequence[float] | np.ndarray) -> dict[str, float]:
+    def _values(
+        self, values: Mapping[str, float] | Sequence[float] | np.ndarray
+    ) -> dict[str, float]:
         if isinstance(values, Mapping):
             missing = [name for name in self.parameter_names if name not in values]
             if missing:
@@ -150,7 +152,7 @@ class ScalingModel:
             raise ValueError(
                 f"expected {len(self.parameter_names)} values, got {array.size}"
             )
-        return dict(zip(self.parameter_names, array.tolist()))
+        return dict(zip(self.parameter_names, array.tolist(), strict=False))
 
     def assemble(self, values: Mapping[str, float] | Sequence[float] | np.ndarray):
         """Return the assembled ``(K(θ), M(θ))``."""

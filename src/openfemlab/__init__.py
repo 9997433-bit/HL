@@ -45,12 +45,13 @@ _EXPORTS: dict[str, str] = {
     "ModalResult": "openfemlab.solver.modal",
     # correlation
     "mac": "openfemlab.correlation",
-    "mac_matrix": "openfemlab.correlation",
+    "mac_value": "openfemlab.correlation",
     "pair_modes": "openfemlab.correlation",
     "correlation_summary": "openfemlab.correlation",
     # updating
     "ModelUpdater": "openfemlab.updating",
     "ParameterSet": "openfemlab.updating",
+    "ScalingModel": "openfemlab.updating",
     "UpdatableParameter": "openfemlab.updating",
     "update_model": "openfemlab.updating",
     # errors
@@ -79,16 +80,35 @@ def __dir__() -> list[str]:
     return sorted(set(globals()) | set(_EXPORTS))
 
 
-if TYPE_CHECKING:  # pragma: no cover - import-time cost avoided at runtime
-    from .core.assembly import (
-        AssembledSystem,
-        assemble_mass,
-        assemble_stiffness,
-        assemble_system,
-    )
-    from .core.elements import BarElement, BeamElement2D, Element, SpringElement, TrussElement
-    from .core.model import DOF, Material, Model, Node, Section
-    from .correlation import correlation_summary, mac, mac_matrix, pair_modes
-    from .exceptions import ElementError, ModelError, OpenFEMLabError, SolverError
-    from .solver.modal import ModalResult, ModalSolver
-    from .updating import ModelUpdater, ParameterSet, UpdatableParameter, update_model
+# Type checkers cannot follow a module-level ``__getattr__``, so the same names
+# are re-exported here (redundant aliases, never executed at runtime).
+if TYPE_CHECKING:  # pragma: no cover
+    from .core.assembly import AssembledSystem as AssembledSystem
+    from .core.assembly import assemble_mass as assemble_mass
+    from .core.assembly import assemble_stiffness as assemble_stiffness
+    from .core.assembly import assemble_system as assemble_system
+    from .core.elements import BarElement as BarElement
+    from .core.elements import BeamElement2D as BeamElement2D
+    from .core.elements import Element as Element
+    from .core.elements import SpringElement as SpringElement
+    from .core.elements import TrussElement as TrussElement
+    from .core.model import DOF as DOF
+    from .core.model import Material as Material
+    from .core.model import Model as Model
+    from .core.model import Node as Node
+    from .core.model import Section as Section
+    from .correlation import correlation_summary as correlation_summary
+    from .correlation import mac as mac
+    from .correlation import mac_value as mac_value
+    from .correlation import pair_modes as pair_modes
+    from .exceptions import ElementError as ElementError
+    from .exceptions import ModelError as ModelError
+    from .exceptions import OpenFEMLabError as OpenFEMLabError
+    from .exceptions import SolverError as SolverError
+    from .solver.modal import ModalResult as ModalResult
+    from .solver.modal import ModalSolver as ModalSolver
+    from .updating import ModelUpdater as ModelUpdater
+    from .updating import ParameterSet as ParameterSet
+    from .updating import ScalingModel as ScalingModel
+    from .updating import UpdatableParameter as UpdatableParameter
+    from .updating import update_model as update_model
