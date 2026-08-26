@@ -31,7 +31,14 @@ written down.
   - [FadeEffect](#fadeeffect)
   - [EffectChain](#effectchain)
   - [Live preview](#live-preview)
+- [Restoration](#restoration)
+  - [DeClickEffect](#declickeffect)
+  - [DeHumEffect](#dehumeffect)
 - [Loudness](#loudness)
+  - [True peak](#true-peak)
+  - [Live metering](#live-metering)
+  - [Delivery targets](#delivery-targets)
+  - [Standards conformance](#standards-conformance)
 - [SpectrogramWidget](#spectrogramwidget)
 - [Application integration](#application-integration)
 - [Performance](#performance)
@@ -549,6 +556,109 @@ wrapped backend so `NullOutput.pump` or a device's `latency` keep working.
 
 ---
 
+## Restoration
+
+`audio_studio.dsp.repair` covers the two faults that dominate real recordings.
+Both are ordinary `Effect`s, so they combine with everything above:
+
+```python
+from audio_studio.dsp import EffectChain
+from audio_studio.dsp.repair import DeClickEffect, DeHumEffect
+
+restoration = EffectChain([DeHumEffect(frequency="auto"), DeClickEffect()])
+cleaned = restoration.process(audio, sample_rate)
+```
+
+Repair goes at the *top* of the chain: correct the recording, then shape it.
+
+### DeClickEffect
+
+A click is a handful of samples that do not belong to the signal around them.
+That is the definition and also the algorithm:
+
+1. **Predict.** Fit a linear predictor (an AR model, order 32 by default —
+   about 0.7 ms of history) to each analysis frame. Music and speech are highly
+   predictable over that span.
+2. **Detect.** Flag samples whose prediction residual exceeds a multiple of the
+   residual's *local* scale, estimated as a median absolute deviation so the
+   outliers being hunted cannot inflate the threshold meant to catch them.
+3. **Interpolate.** Flagged samples are removed, not attenuated, and replaced
+   by the values minimising the total prediction error across the hole. For a
+   burst of `m` samples that is an `m x m` least-squares solve, which
+   reconstructs a sine or a formant exactly rather than drawing a straight line.
+
+```python
+from audio_studio.dsp import DeClickEffect, detect_clicks, repair_clicks
+
+report = detect_clicks(audio, sample_rate)          # find without changing
+repaired, report = repair_clicks(audio, sample_rate)
+
+report.count, report.per_minute, report.repaired_samples
+report.events[0].start, report.events[0].length, report.events[0].seconds(sample_rate)
+report.in_channel(1)
+```
+
+| Parameter | Default | Meaning |
+|---|---|---|
+| `sensitivity` | `0.6` | `0..1`, mapped onto a residual threshold of 20 down to 3 sigma |
+| `order` | `32` | Predictor length; longer follows pitched material better |
+| `max_click_ms` | `2.0` | Longest burst treated as damage |
+| `frame_s` | `1.0` | How often the predictor is re-estimated |
+
+**The burst length adapts to the material, and that is what stops the repair
+doing damage.** In a tonal passage the predictor is accurate, the threshold is
+low, and a click rings through the residual for the length of the model — but
+interpolating a tonal passage is also nearly exact, so a generous repair costs
+nothing. In a noisy passage only the click itself clears the threshold and the
+repair stays surgical. The local scale estimate is raised to its loudest
+neighbouring window, which is what keeps a drum attack — half silence, half
+transient — from being judged against the silence in front of it.
+
+Runs longer than `max_click_ms` are left alone on purpose: a 20 ms transient the
+predictor cannot follow is a snare, not a tick. A hard gate edge, on the other
+hand, *is* damage, and is repaired.
+
+De-clicking is `is_offline_only`: it needs the audio either side of a click and
+a frame of context to model the signal. In a live rack the chain skips it and
+the panel says "applies on render".
+
+### DeHumEffect
+
+Hum is not one tone. Magnetic pickup gives a fundamental *and* a stack of
+harmonics, so notching 50 Hz alone leaves 100, 150 and 250 Hz buzzing. This is a
+comb of RBJ notches built on the same `EQBand` machinery as the equaliser, which
+means it streams and can draw its own response curve.
+
+```python
+from audio_studio.dsp import DeHumEffect, detect_hum
+
+DeHumEffect(frequency=50.0, harmonics=8, q=30.0)
+DeHumEffect(frequency="auto")               # measures the first buffer it sees
+DeHumEffect(frequency=60.0, depth_db=12.0)  # finite cut instead of a null
+
+estimate = detect_hum(audio, sample_rate)
+estimate.frequency, estimate.strength_db, estimate.present
+frequencies, magnitude_db = DeHumEffect().response_curve(sample_rate)
+```
+
+| Parameter | Default | Meaning |
+|---|---|---|
+| `frequency` | `50.0` | Mains frequency, or `"auto"` |
+| `harmonics` | `8` | Teeth, counting the fundamental; those above Nyquist are dropped |
+| `q` | `30.0` | ~1.7 Hz wide at 50 Hz — narrow enough for a bass note a semitone away |
+| `depth_db` | `None` | `None` nulls; a number cuts by that much |
+
+`detect_hum` compares each candidate's harmonic stack against the median level
+of the spectrum around it, so the verdict depends on how far the hum stands out
+of the programme rather than on how loud the programme is.
+
+Notches are minimum-phase: the magnitude a few hertz from a tooth is untouched,
+but the phase rotates through it. A de-hummed signal therefore will not null
+against the original even where its spectrum is identical — compare spectra, not
+samples, when checking what it did.
+
+---
+
 ## Loudness
 
 `audio_studio.dsp.loudness` implements ITU-R BS.1770-4 / EBU R 128. Loudness is
@@ -560,7 +670,7 @@ for broadcast).
 from audio_studio.dsp import LoudnessMeter, format_lufs
 
 meter = LoudnessMeter(48_000)
-report = meter.integrated(audio)          # just the headline number, in LUFS
+lufs = meter.integrated(audio)            # just the headline number
 report = meter.analyze(audio)             # everything, in one pass
 
 report.integrated_lufs                    # gated programme loudness
@@ -568,8 +678,11 @@ report.short_term_max_lufs                # 3 s window
 report.momentary_max_lufs                 # 400 ms window
 report.loudness_range_lu                  # EBU Tech 3342 LRA
 report.true_peak_dbtp, report.sample_peak_dbfs
+report.true_peak_per_channel_dbtp         # which side is clipping
+report.threshold_lufs                     # the relative gate this programme set
 report.target_offset_lu(-14.0)            # how far from a delivery target
 format_lufs(report.integrated_lufs)       # "-23.0 LUFS", or "-∞ LUFS" for silence
+report.as_dict()                          # JSON-friendly, for a report file
 ```
 
 The four stages, and what each is for:
@@ -585,16 +698,122 @@ The filter is **re-derived from the analog prototypes** at whatever sample rate
 it is asked for rather than resampling the published table, so 44.1 kHz and
 96 kHz are as correct as 48 kHz. Coefficients are cached per rate.
 
-Time series are available for a meter display, as `(times, lufs)` with times at
-the block *end*:
+**Each reading is stepped the way the document that defines it says**, which are
+not the same cadence:
+
+| Reading | Window | Step | Defined by |
+|---|---|---|---|
+| Momentary | 400 ms | 100 ms (10 Hz) | BS.1770-4 gating block; EBU Tech 3341 display refresh |
+| Short-term | 3 s | 100 ms (10 Hz) | EBU Tech 3341 display refresh |
+| Loudness range | 3 s | 1 s | EBU Tech 3342 |
 
 ```python
-times, lufs = meter.momentary(audio)
+times, lufs = meter.momentary(audio)      # (times, lufs), times at the block end
 times, lufs = meter.short_term(audio)
+times, lufs = meter.block_loudness(audio, window_s=3.0, step_s=1.0)
 ```
 
 Digital silence reads `-inf` rather than a large negative number, because the
 distinction matters to a compliance check.
+
+### True peak
+
+BS.1770-4 Annex 2 wants the peak of the *waveform*, which a converter will
+reconstruct, not the peak of the samples. The oversampling factor comes from the
+sample rate rather than being fixed at 4x, so 96 kHz material is not
+oversampled twice as far as it needs to be:
+
+```python
+from audio_studio.dsp import true_peak_oversample
+
+true_peak_oversample(48_000)    # 4  -> 192 kHz
+true_peak_oversample(96_000)    # 2  -> 192 kHz
+true_peak_oversample(192_000)   # 1  -> already there
+
+meter.true_peak(audio)              # dBTP
+meter.true_peak_per_channel(audio)  # in channel order
+```
+
+A 12 kHz tone at 48 kHz is sampled four times per cycle; land those samples half
+way between the peaks and every one reads 3 dB low while the waveform still
+reaches -6 dBFS. That is the case the compliance vectors check at three sample
+rates, and it is the reason `NormalizeMode.TRUE_PEAK` exists.
+
+### Live metering
+
+`StreamingLoudnessMeter` carries the K-filter state and the 100 ms energy grid
+across calls, so the numbers on the meter during playback are the numbers the
+file will be delivered with:
+
+```python
+from audio_studio.dsp import StreamingLoudnessMeter
+
+live = StreamingLoudnessMeter(48_000, n_channels=2)
+for block in device_blocks:               # any length
+    live.push(block)
+
+live.momentary_lufs, live.short_term_lufs, live.integrated_lufs
+live.loudness_range_lu, live.true_peak_dbtp, live.sample_peak_dbfs
+live.report()                             # same shape as the offline report
+live.reset()                              # forget the stream, keep the config
+```
+
+Only the energy of each finished 100 ms sub-block is kept, so an hour of
+metering costs 36 000 floats rather than an hour of audio, and pushing blocks
+reads within 0.01 LU of measuring the whole buffer offline.
+
+The true-peak tracker holds back the last few samples of every block instead of
+measuring them immediately: the audio that would give them their right-hand
+interpolation context has not arrived yet, and measuring them early makes a
+block boundary ring as if the signal had ended. They are measured on the next
+push, or — if the stream really has ended — when the reading is taken.
+
+### Delivery targets
+
+A measurement on its own is not an answer to "can I ship this":
+
+```python
+result = meter.analyze(audio).check("EBU R128")
+
+result.passed                 # or just: if result:
+result.failures               # ("true peak -0.30 dBTP exceeds -1.0 dBTP",)
+result.gain_to_target_db
+str(result)                   # "EBU R 128: FAIL — ..."
+```
+
+| Target | Integrated | Tolerance | Ceiling |
+|---|---|---|---|
+| `ebu_r128` | -23 LUFS | ±0.5 LU | -1.0 dBTP |
+| `atsc_a85` | -24 LUFS | ±2.0 LU | -2.0 dBTP |
+| `spotify` / `youtube` | -14 LUFS | ±1.0 LU | -1.0 dBTP |
+| `apple_podcasts` | -16 LUFS | ±1.0 LU | -1.0 dBTP |
+| `amazon_alexa` | -14 LUFS | ±2.0 LU | -2.0 dBTP |
+
+Names resolve leniently (`"EBU R128"`, `"ebu-r128"`), or pass a `DeliveryTarget`
+of your own. `report.normalization_gain_db(target)` returns the gain that lands
+on target **without pushing the true peak through the ceiling** — peaky, quiet
+material cannot reach -23 LUFS by gain alone, and the shortfall is visible as
+the gap that remains rather than as a clipped master.
+
+### Standards conformance
+
+`tests/compliance/` runs every EBU vector through this meter *and* through the
+independent oracle in `tools/ebu_r128.py`, which is deliberately the simplest
+implementation of the same text. A case only one of them passes is a defect in
+whichever is wrong — that is how the oracle's RLB high-pass was found to be
+normalised 0.043 dB away from BS.1770-4 Table 2.
+
+| Vectors | Checks |
+|---|---|
+| Tech 3341 loudness | -23 and -33 dBFS tones; programme wrapped in -36 dBFS; the absolute gate (-72 dBFS segments); the relative gate (a -55 dBFS passage, and digital silence) |
+| Tech 3341 channels | Stereo summing; 5.1 surround weighting; a full-scale LFE that must change nothing |
+| Tech 3341 dynamics | 10 Hz refresh of M and S; both settle inside one window of a step |
+| Tech 3341 true peak | 997 Hz at 0 dBFS across four sample rates; tones sampled 45° off their peaks at three |
+| Tech 3342 LRA | 10, 5 and 20 LU ranges; a steady programme has none; a passage below the gate is not range |
+
+Tolerances are the standards' own: ±0.1 LU on a loudness reading, ±1 LU on a
+loudness range, ±0.4 dB on a true peak. The two implementations agree with each
+other to 0.01 LU.
 
 ---
 
@@ -700,7 +919,15 @@ move does not start a transform per event.
 effect objects the device thread is already reading, so a move is audible on
 the next block: there is no apply step, and nothing is written back to the clip
 until the user renders. The rack a session starts with is
-`default_preview_chain()` — a flat 3-band EQ into a trim, both of which stream.
+`default_preview_chain()` — De-Hum and De-Click switched off, into a flat 3-band
+EQ, into a trim.
+
+Repair sits at the top because that is the order the work goes in: correct the
+recording, then shape it. De-clicking is offline-only, so preview skips it and
+its control reads "Enabled (applies on render)" rather than leaving the user
+wondering why nothing changed. De-humming streams like the EQ, and its mains
+frequency can be pinned to 50 or 60 Hz or left on `Auto`, which measures the
+first buffer the effect sees.
 
 **Status bar.** Integrated loudness and true peak of the loaded clip, plus a
 one-line summary of the rack (`FX: 3-Band EQ → Gain @ 50% wet`, or
@@ -712,29 +939,29 @@ and a slot is the wrong place to spend it.
 
 ## Performance
 
-Measured on 4 vCPU x86-64, Python 3.12.3, NumPy 2.4.4, SciPy 1.18.1. Reproduce
+Measured on 4 vCPU x86-64, Python 3.12.3, NumPy 2.5.2, SciPy 1.18.1. Reproduce
 with `python benchmarks/bench_stft.py [--duration N] [--json out.json]`.
 
 ### Headline: 60 s of 48 kHz stereo, FFT 2048, hop 512, Hann, float32
 
 | | |
 |---|---|
-| Median | **37.7 ms** |
-| Best | 34.7 ms |
-| Realtime factor | **1593x** |
-| CPU per second of audio | 0.63 ms |
+| Median | **33.1 ms** |
+| Best | 32.6 ms |
+| Realtime factor | **1810x** |
+| CPU per second of audio | 0.55 ms |
 | Output | 5626 frames x 1025 bins x 2 channels |
 
 ### STFT across transform sizes (60 s stereo, 75% overlap)
 
 | FFT | Frames | Median | x realtime | Resolution |
 |---|---|---|---|---|
-| 512 | 22501 | 31.4 ms | 1914x | 140.6 Hz |
-| 1024 | 11251 | 34.2 ms | 1753x | 70.3 Hz |
-| 2048 | 5626 | 37.7 ms | 1593x | 35.2 Hz |
-| 4096 | 2813 | 31.1 ms | 1932x | 17.6 Hz |
-| 8192 | 1407 | 31.9 ms | 1882x | 8.8 Hz |
-| 16384 | 704 | 31.8 ms | 1888x | 4.4 Hz |
+| 512 | 22501 | 31.2 ms | 1922x | 140.6 Hz |
+| 1024 | 11251 | 32.0 ms | 1875x | 70.3 Hz |
+| 2048 | 5626 | 33.1 ms | 1810x | 35.2 Hz |
+| 4096 | 2813 | 31.0 ms | 1938x | 17.6 Hz |
+| 8192 | 1407 | 31.8 ms | 1886x | 8.8 Hz |
+| 16384 | 704 | 30.2 ms | 1989x | 4.4 Hz |
 
 Cost is nearly flat in FFT size because total sample throughput is fixed by the
 overlap, not by the transform length.
@@ -743,28 +970,28 @@ overlap, not by the transform length.
 
 | Lever | Effect |
 |---|---|
-| Overlap 0% -> 87.5% | 10.7 ms -> 71.7 ms (frame count is the dominant term) |
-| `float32` -> `float64` | 33.9 ms -> 80.0 ms (2.4x) |
-| 1 -> 4 FFT workers | 55.8 ms -> 32.8 ms (1.7x; saturates at 4 on this box) |
+| Overlap 0% -> 87.5% | 11.0 ms -> 71.9 ms (frame count is the dominant term) |
+| `float32` -> `float64` | 34.3 ms -> 75.5 ms (2.2x) |
+| 1 -> 4 FFT workers | 55.5 ms -> 32.8 ms (1.7x; saturates at 4 on this box) |
 
 ### Pipeline stages (60 s stereo, FFT 2048)
 
 | Stage | Median | x realtime |
 |---|---|---|
-| `stft` | 34.8 ms | 1726x |
-| `spectrogram` (calibrated) | 45.8 ms | 1310x |
-| `spectrogram` -> dB | 94.1 ms | 638x |
-| `istft` | 43.7 ms | 1374x |
+| `stft` | 35.4 ms | 1695x |
+| `spectrogram` (calibrated) | 46.0 ms | 1304x |
+| `spectrogram` -> dB | 94.7 ms | 634x |
+| `istft` | 43.9 ms | 1366x |
 
 ### Effects (60 s stereo, offline)
 
 | Effect | Median | x realtime | Was |
 |---|---|---|---|
-| 3-band EQ | 36.1 ms | 1663x | 34.9 ms |
-| Normalize (peak) | 3.4 ms | 17770x | 3.4 ms |
+| 3-band EQ | 35.0 ms | 1715x | 34.9 ms |
+| Normalize (peak) | 3.4 ms | 17463x | 3.4 ms |
 | Normalize (true peak) | **46.9 ms** | 1280x | 356.3 ms |
-| Fade in/out | 4.0 ms | 15021x | 3.8 ms |
-| Full chain | **89.7 ms** | 669x | 402.9 ms |
+| Fade in/out | 4.2 ms | 14352x | 3.8 ms |
+| Full chain | **92.9 ms** | 646x | 402.9 ms |
 
 True-peak normalisation used to dominate a chain by upsampling the entire
 buffer 4x to find a maximum; it now interpolates only the windows that can hold
@@ -772,27 +999,46 @@ the peak (see [NormalizeEffect](#true-peak-by-candidate-window)). That is a 7.6x
 speed-up on this signal and 4.5x on the chain as a whole, with a bit-identical
 result.
 
+### Restoration (60 s stereo, offline, 300 injected clicks)
+
+| Call | Median | x realtime |
+|---|---|---|
+| `detect_clicks` | 458.2 ms | 131x |
+| `DeClickEffect.process` (detect + repair) | 459.7 ms | 131x |
+| `DeHumEffect.process`, 8 harmonics | 58.3 ms | 1030x |
+| `DeHumEffect.process`, `frequency="auto"` | 70.8 ms | 847x |
+
+Repairing costs almost nothing on top of finding: the AR fit and the residual
+scan run over every sample, the least-squares solves run over the 600 that were
+damaged. Auto-detection costs the 12 ms of one transform of the leading four
+seconds, paid once for the buffer rather than per tooth.
+
 ### Loudness (60 s stereo)
 
 | Call | Median | x realtime |
 |---|---|---|
-| `integrated` | 52.3 ms | 1148x |
-| `analyze` (integrated + momentary + short-term + LRA + true peak) | 158.5 ms | 378x |
+| `integrated` | 53.6 ms | 1120x |
+| `true_peak` | 51.8 ms | 1159x |
+| `analyze` (integrated + M + S + LRA + true peak) | 206.3 ms | 291x |
+| `StreamingLoudnessMeter`, 1024-sample blocks | 292.9 ms | 205x |
 
 Fast enough for a file, not for a slot: the window measures on a worker thread.
+The streaming meter costs 0.10 ms per 1024-sample block — 0.5% of a 21.3 ms
+callback — because each push filters its own block and folds the result into a
+running 100 ms grid rather than re-measuring the stream.
 
 ### Real-time and rendering
 
 | Case | Median | Note |
 |---|---|---|
-| Meter, 128-sample blocks | 58.9 ms / 10 s audio | 170x realtime, 2.7 ms callbacks |
-| Meter, 1024-sample blocks | 47.7 ms / 10 s audio | 209x realtime |
-| Render 640x360, first paint | 11.0 ms | 91 fps (was 25.6 ms) |
-| Render 640x360, palette change | 1.9 ms | 516 fps |
-| Render 1280x720, first paint | 18.9 ms | 53 fps (was 44.4 ms) |
-| Render 1280x720, palette change | 7.9 ms | 127 fps |
-| Render 1920x1080, first paint | 33.9 ms | 30 fps (was 70.7 ms) |
-| Render 1920x1080, palette change | 17.6 ms | 57 fps |
+| Spectrum, 128-sample blocks | 58.3 ms / 10 s audio | 171x realtime, 2.7 ms callbacks |
+| Spectrum, 1024-sample blocks | 47.5 ms / 10 s audio | 211x realtime |
+| Render 640x360, first paint | 11.6 ms | 86 fps (was 25.6 ms) |
+| Render 640x360, palette change | 2.1 ms | 483 fps |
+| Render 1280x720, first paint | 20.0 ms | 50 fps (was 44.4 ms) |
+| Render 1280x720, palette change | 8.3 ms | 121 fps |
+| Render 1920x1080, first paint | 35.9 ms | 28 fps (was 70.7 ms) |
+| Render 1920x1080, palette change | 18.4 ms | 54 fps |
 
 Two figures per size because two very different costs share one entry point.
 A *first paint* pools the STFT onto the pixel grid; a *palette change* reuses
@@ -807,18 +1053,21 @@ pooling every time, since there was no cache to hit.
 ```bash
 cd audio-studio
 QT_QPA_PLATFORM=offscreen python -m pytest tests/test_windows.py \
-    tests/test_spectral.py tests/test_effects.py tests/test_loudness.py \
-    tests/test_preview.py tests/test_spectrogram_widget.py \
-    tests/test_ui.py tests/test_dsp_integration.py
+    tests/test_spectral.py tests/test_effects.py tests/test_repair.py \
+    tests/test_loudness.py tests/test_preview.py \
+    tests/test_spectrogram_widget.py tests/test_ui.py \
+    tests/test_dsp_integration.py
 
 # every example in this document's API sections is also a runnable doctest
 python -m pytest --doctest-modules audio_studio/dsp
+
+# the standards vectors, from the repository root
+python -m pytest tests/compliance
 ```
 
-501 tests plus 9 doctests. Signal generators live in `tests/signals.py`. The
-suite is written
-to check behaviour against analytic expectations rather than against the
-implementation:
+704 tests, 21 doctests and 54 standards vectors. Signal generators live in
+`tests/signals.py`. The suite is written to check behaviour against analytic
+expectations rather than against the implementation:
 
 - Windows are compared sample-for-sample with `scipy.signal.get_window`.
 - Calibration is asserted against known sine amplitudes (`0.5` -> `-6.02 dBFS`),
@@ -828,15 +1077,29 @@ implementation:
   paths that have to agree.
 - Streaming output is asserted equal to offline output for every streamable
   effect.
-- Loudness is checked against the **EBU Tech 3341 test signals** and the
-  published BS.1770-4 coefficient tables, not against this implementation's own
-  output: a -23 dBFS 1 kHz stereo tone must read -23.0 LUFS, the surround
+- Loudness is checked against the **EBU Tech 3341 and 3342 test signals** and
+  the published BS.1770-4 coefficient tables, not against this implementation's
+  own output: a -23 dBFS 1 kHz stereo tone must read -23.0 LUFS, the surround
   weighting must be +1.5 dB, and the gate must actually discard what it exists
-  to discard.
+  to discard. Every vector runs twice, once through this meter and once through
+  the independent implementation in `tools/ebu_r128.py`, and the two are also
+  compared with each other to 0.01 LU — a hundred times tighter than the
+  standard's tolerance, because a shared reading that far apart means one of
+  them has drifted even when both still pass.
 - The true-peak shortcut is asserted equal to full 4x oversampling on tones,
   noise, clicks, fades, DC, one-sample transients and stereo material, plus a
   timing guard on the 60 s stereo case. A shortcut that is merely usually right
   would be worse than no shortcut.
+- Repair is judged on what it leaves behind, not on what it removes. De-humming
+  is measured tone by tone: every harmonic of the hum must drop by 30 dB while a
+  440 Hz note keeps its amplitude to within 0.01. De-clicking must take a 0.8
+  full-scale tick down to under 0.01 of error against the clean signal it was
+  added to, and return undamaged audio sample-for-sample. A percussive onset
+  must not be mistaken for damage, a hard gate edge must be, and neither effect
+  may write to its input.
+- The streaming meter is asserted equal to the offline one to 0.01 LU and
+  0.01 dBTP over the same audio at 128, 1024 and 4801 samples per block, none of
+  which lines up with the 100 ms grid it accumulates on.
 - The render caches are verified by counting calls to the pooling primitive: a
   palette or range change must reach it zero times, a frequency zoom exactly
   once, and a width change twice. The pooled result is compared with
