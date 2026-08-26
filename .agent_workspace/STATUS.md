@@ -3,8 +3,8 @@
 **Recorded by:** A115 (backfill) · **Date:** 2026-08-26
 **Branch:** `cursor/femtools-industrial-7aa3` · **Tested code commit:** `e111901`
 **Pull request:** [PR #5](https://github.com/9997433-bit/HL/pull/5) — open against
-`main`. [`PR_DRAFT.md`](PR_DRAFT.md) is synchronized to the 1,331-test
-re-measurement at `571c864` (below).
+`main`. [`PR_DRAFT.md`](PR_DRAFT.md) is synchronized to the **1,508-test,
+47/47-verified** Round 2 sign-off at `104e9e1`.
 
 This file supersedes the earlier R2-T01-scoped status note with a full-project
 snapshot.
@@ -31,13 +31,11 @@ bridge, acceptance-registry closure, and the R2-T09 promotion gate.
   the meshio bridge, +35 from the final registry-closure gates, and +16 from
   the R2-T09 promotion gate.
 
-The tables below are that snapshot and are not re-pinned here. Since it was
-taken, the `NeutralModel` → `Model` converter (A106, 52 tests), the flat-facet
-shell `ShellQuad4Element` (A98, 72 tests) and the R2-T09 promotion tool (A109,
-23 tests) landed; re-measured at `571c864`, the suite reads **1,331 passed,
-0 failed** with `ruff check .` clean. **A121** (2026-08-26) batch-promoted every
-remaining green row: the registry now reads **44 `verified`, 0 `implemented`**
-(34 P0 + 10 P1, all gated in CI).
+The tables below preserve that earlier snapshot and are not re-pinned here.
+Round 2 subsequently signed off at `104e9e1`: **1,508 passed, 0 failed,
+0 skipped**, `ruff check .` clean, and **47 `verified`, 0 `implemented`,
+0 `specified`** registry rows (37 P0 + 10 P1, all gated in CI). See
+[`ROUND2_SIGNOFF.md`](ROUND2_SIGNOFF.md) for the authoritative final inventory.
 
 Unit suites (796 tests):
 

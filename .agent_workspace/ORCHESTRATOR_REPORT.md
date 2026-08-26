@@ -26,7 +26,7 @@ OpenFEMLab 是一个受 FEMtools 启发、但完全开源（MIT）、求解器�
 - **修正工作流**：S1 基线 → S6 验证的六阶段状态机，机器可读门控失败、共线性筛查（MS-3.6）、留出验证目标防过拟合，`CorrectionReport` 现汇报 Laplace 后验 σ_post 参数不确定度列，且可复现（重跑一致至 1e-12）。
 - **优化**：设计变量、模态/质量/频响响应函数、带 MAC 模态跟踪的解析梯度、SciPy SLSQP/trust-constr 后端（硬边界、解析 Jacobian、方法无关 KKT 残差）。双杆链非对称 `(6, 4)` 最优解从对称初值恢复至 1.1e-16 相对误差。
 - **IO 与 CLI**：schema 版本化的原生 YAML/JSON 往返；UFF/UNV 数据集 55/58 读取器；Nastran BDF 精简读取器；meshio ↔ `NeutralModel` 双向桥（`vertex`/`line`/`triangle`/`quad`/`tetra`/`hexahedron` 映射至 MASS1/ROD2/TRI3/QUAD4/TET4/HEX8，支持文件和内存对象往返）；`openfemlab modal | correlate | update | correlate-frf` 四个子命令，stdout 输出机器可读 JSON、退出码即 CI 验收门控。
-- **规格与 QA**：`ARCHITECTURE.md`、`MODULE_SPEC.md`（MS-0..8）、`ACCEPTANCE_CRITERIA.md`（**44 条准则**）、`SOTA_GAP_ANALYSIS.md`（GAP-01..15）、可运行 `examples/`、基准与性能回归门控。
+- **规格与 QA**：`ARCHITECTURE.md`、`MODULE_SPEC.md`（MS-0..8）、`ACCEPTANCE_CRITERIA.md`（**47 条准则**）、`SOTA_GAP_ANALYSIS.md`（GAP-01..15）、可运行 `examples/`、基准与性能回归门控。
 
 ### 2.2 对标 FEMtools 逐项裁定
 
@@ -54,45 +54,38 @@ OpenFEMLab 是一个受 FEMtools 启发、但完全开源（MIT）、求解器�
 - Round 1 遗留的两个未提交包（MS-4 工作流、优化构建）随后原子化落地，回合在内容与退出门槛上双双关闭；提交 PR 草案时套件规模已达 430 个测试。
 - 性能基线已建立并被回归探针门控：100 自由度五迭代修正循环 35.3 → 7.9 ms（4.47×）；240 自由度特征值灵敏度 2.70×；2000 自由度稀疏装配 1.36×。
 
-## 四、Round 2 状态：进行中（IN PROGRESS）
+## 四、Round 2 状态：已签出（SIGNED OFF）
 
-依据 `.agent_workspace/ROUND2_PLAN.md`（A24）的九项任务：
+依据 [ROUND2_SIGNOFF.md](ROUND2_SIGNOFF.md) 的九项任务：
 
 | 任务 | 内容 | 状态 |
 |---|---|---|
-| R2-T01 | 动力学/FRF 链（阻尼、复模态、FRF 综合与相关、schema 1.1 `frf` 块、`correlate-frf` CLI） | **完成**（AC-DYN-001..005 已注册并实现，含退出门槛演示，无遗留项） |
-| R2-T02 | 3D 单元库 | **部分**——QUAD4（61）、TET4（66）、HEX8（76）、**空间梁 BeamElement3D（42）** 与 **平板壳面元 ShellQuad4Element（72，MITC4 板 + 钻转罚项，A98）** 均已上主干，`NeutralModel → Model` 转换（A106，52）亦已落地，AC-ELEM-001..003 覆盖连续体三件套，其中 AC-ELEM-001 已 `verified`；**单元列式再无缺口**。余量：把 AC-ELEM-* 参数化到壳面元；让 `to_model` 把导入的 `QUAD4` 块绑到壳而非膜单元；`CQUAD4`/`CTETRA`/`CHEXA`/`CBAR`/`PSHELL`/`PSOLID` BDF 卡 |
-| R2-T03 | SEREP/Guyan/IRS 缩减 + TAM + 振型扩展 | **基本完成**——引擎落地，AC-CORR-006 已 `verified`、AC-CORR-009 已 `implemented`，`SensorMap.signs` 已接入缩减基（A58）；余量：缩减模块对稀疏输入的稠密化（GAP-13 规模前需改） |
-| R2-T04 | 贝叶斯 MAP 修正（MS-3.5） | **验收完成**——估计器落地（36 个测试），AC-UPD-006a/b 已注册并 `implemented`（10 自由度孪生上的八用例验收门），`CorrectionReport` σ_post 列已接入；验收范围外余量：CLI `update` 文档输出 σ_post |
-| R2-T05 | meshio 桥 + UNV 2411/2412 | **部分**——`from_meshio`/`to_meshio` 与 `read_meshio`/`write_meshio` 已落地（44 个测试）；节点/单元标签和 `property_ids`/`gmsh:physical`/`medit:ref` 属性标签可往返，未知单元带诊断跳过，缺少 `[io]` 附加依赖时抛出带安装提示的 `MissingDependencyError`。AC-IO-001..003 已注册为模块 M8（A120），`NeutralModel → Model` 再分析已由 A106 打通。余量：UNV 2411/2412、UFF 写出 |
-| R2-T06 | 修正深度（共线性筛查等） | **P0 部分完成**（MS-3.6 筛查 + AC-UPD-007 已 `implemented`）；P1 余量（QR 选主元精化、解析 MAC 行 Jacobian 接线、模型级参数解析器）开放 |
-| R2-T07 | SciPy 优化后端 | **完成**（GAP-12 对尺寸优化关闭，AC-OPT-001..004 实现，含边界激活 KKT 判据） |
+| R2-T01 | 动力学/FRF 链 | **完成**——AC-DYN-001..005 已验证，`correlate-frf` CLI 已落地 |
+| R2-T02 | 3D 单元库 | **完成**——QUAD4/TET4/HEX8/空间梁/壳面元、BDF 卡与壳验收行均已落地 |
+| R2-T03 | SEREP/Guyan/IRS 缩减 + TAM + 振型扩展 | **验收完成**——AC-CORR-006/009 已验证；稀疏输入去稠密化转入 Round 3 |
+| R2-T04 | 贝叶斯 MAP 修正（MS-3.5） | **验收完成**——AC-UPD-006a/b、后验 σ_post 与 CLI 输出均已落地 |
+| R2-T05 | meshio / UNV / UFF / BDF | **完成**——M8 AC-IO-001..003 已验证，导入后内部再分析链路有门控 |
+| R2-T06 | 修正深度（共线性筛查等） | **P0 完成**——AC-UPD-007 已验证；P1 深化项转入 Round 3 |
+| R2-T07 | SciPy 优化后端 | **尺寸优化范围完成**——AC-OPT-001..004 已验证 |
 | R2-T08 | R1-O2 平行实现和解 | **完成**——有用行为经和解合入主干；被取代的远程分支已审计并删除（见 `BRANCH_CLEANUP.md`） |
-| R2-T09 | 退出加固（CI、注册表推进） | 进行中——CI 在 Python 3.10–3.13 运行全量 pytest、`ruff check` 与晋升门；`scripts/promote_verified.py` 使门槛通过后的翻转成为一次工具调用，14 条准则已 `verified`，其余 30 条待晋升 |
+| R2-T09 | 退出加固（CI、注册表推进） | **完成**——CI Python 3.10–3.13、Ruff 与验收门全绿，47/47 准则已验证 |
 
-**Round 2 退出门槛的剩余项**：将其余 30 条准则从 `implemented` 翻至 `verified`。"导入 3D 网格 → 内部再分析"链路已随 `io/neutral_convert.to_model` 打通，余下的是把壳块也纳入该转换。验收注册表接线、HEX8/空间梁/壳面元、R2-T04 与 FRF 演示均已关闭。
+## 五、质量与验证：1508 个测试
 
-## 五、质量与验证：1331 个测试
-
-- 当前分支全量套件 **1331 通过 / 0 失败**（A114 在 `571c864` 的分离工作树复跑，`PYTHONPATH` 钉在自身 `src`）。
+- Round 2 签出提交 `104e9e1` 的全量套件 **1508 通过 / 0 失败 / 0 跳过**（`PYTHONPATH` 钉在自身 `src`）。
 - meshio 不可用时桥接测试按可选依赖约定整体跳过，不影响核心包导入。
-- **44 条**量化验收准则由机器可读注册表钉住：**30 条 `implemented`、0 条 `specified`、14 条 `verified`**。按优先级：**P0 34/34、P1 10/10 全部覆盖**。注册表一致性与晋升证据本身也是测试。
-- 相比上一份 1184 测试快照净增 **147 个测试**：平板壳面元 72 个、`NeutralModel → Model` 转换 52 个、R2-T09 晋升工具 23 个。
+- **47 条**量化验收准则由机器可读注册表钉住：**47 条 `verified`、0 条 `implemented`、0 条 `specified`**。按优先级：**P0 37/37、P1 10/10 全部验证**。注册表一致性与晋升证据本身也是测试。
 - 端到端演示：模型 → 模态 → 相关 → 修正 → 复算，频率误差 22.86% → 0%，MAC 1.0；README 的 CLI 会话可复现退出码 0/3/0/0。
 - GitHub Actions CI 覆盖 Python 3.10–3.13。
 
 ## 六、Pull Request
 
-[PR #5 — OpenFEMLab: solver-independent CAE platform](https://github.com/9997433-bit/hl/pull/5)（Draft，head `cursor/femtools-industrial-7aa3` → base `main`）。标题中的测试数（430）反映的是开 PR 时的规模，现已增长至 **1331**，建议在转正式评审前刷新 PR 标题与正文（`.agent_workspace/PR_DRAFT.md` 已同步至本快照）。
+[PR #5 — OpenFEMLab: solver-independent CAE platform](https://github.com/9997433-bit/hl/pull/5)（Draft，head `cursor/femtools-industrial-7aa3` → base `main`）。标题与正文已同步至 **1508 测试、47 条准则全部 verified** 的签出快照；合并前检查见 [`MERGE_READINESS.md`](MERGE_READINESS.md)。
 
 ## 七、下一步
 
-1. **收官 Round 2**：
-   - 继续其余 30 条注册表 `implemented → verified` 翻转（以钉住提交的 CI 通过作为晋升凭据），满足退出门槛；
-   - 把 AC-ELEM-* 参数化到壳面元、让 `to_model` 支持壳块，再补 `CQUAD4`/`CTETRA`/`CHEXA`/`CBAR`/`PSHELL`/`PSOLID` BDF 卡（R2-T02 余量）；顺带的廉价项：空间梁加入 AC-ELEM-002 刚体不变性用例表（无需新准则 ID）；
-   - 完成 R2-T05 余量：增加 UNV 2411/2412 几何读取与 UFF 写出，并晋升 A120 注册的 AC-IO-001..003 三行（注册与"导入工业网格 → 内部再分析"演示均已落地）；
-   - CLI `update` 文档输出 σ_post（R2-T04 验收范围外余量）。
-2. **推进 PR #5 评审**：刷新标题/正文至 1331 测试规模，Draft 转正式，评审后合入 `main`。
+1. **推进 PR #5 评审与合并**：按 `MERGE_READINESS.md` 将 Draft 转正式、完成审批并合入 `main`。
+2. **发布 0.1.0**：在合并后通过的 `main` 提交上创建 `v0.1.0` 标签并验证构建工件。
 3. **Round 3（SOTA 打磨）**：FRF 模态参数识别 MPE（GAP-06）、预试验传感器布置（GAP-07）、5 万自由度规模化（GAP-13，含缩减模块去稠密化）、绘图/可视化（GAP-15）、FRF 修正残差、TMCMC 贝叶斯采样、Craig–Bampton CMS。
 
 ---

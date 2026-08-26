@@ -89,38 +89,32 @@ synthesis, and optimization hooks — all behind one CLI and a schema-versioned 
   JSON/YAML model specs and UFF-58 measured FRFs; machine-readable JSON on stdout,
   diagnostics on stderr, CI acceptance gates via exit codes; covered end to end
   including subprocess runs.
-- **QA stack**: 1331 tests including a machine-readable registry of 44 quantified
-  acceptance criteria: **44 `verified`**, 0 `implemented`, and 0 `specified`, with
-  **34/34 P0** and **10/10 P1** rows covered — plus boundary/probe suites,
+- **QA stack**: 1508 tests including a machine-readable registry of 47 quantified
+  acceptance criteria: **47 `verified`**, 0 `implemented`, and 0 `specified`, with
+  **37/37 P0** and **10/10 P1** rows covered — plus boundary/probe suites,
   performance-regression gates, and benchmarks; GitHub Actions CI on Python
   3.10–3.13; `ruff check` clean.
 - **Docs**: [`README`](README.md) with a reproducible CLI walkthrough,
   [`中文用户指南`](docs/USER_GUIDE_zh.md), `ARCHITECTURE.md`, `MODULE_SPEC.md` (MS-0..8),
-  `ACCEPTANCE_CRITERIA.md` (44 criteria), `SOTA_GAP_ANALYSIS.md` (GAP-01..15),
+  `ACCEPTANCE_CRITERIA.md` (47 criteria), `SOTA_GAP_ANALYSIS.md` (GAP-01..15),
   `OPTIMIZATION.md`, runnable `examples/`, and the
   [orchestrator report](.agent_workspace/ORCHESTRATOR_REPORT.md).
 
 ## Verification
 
-- `PYTHONPATH=src python -m pytest` — **1331 passed** at commit `571c864`
+- `PYTHONPATH=src python -m pytest` — **1508 passed** at commit `104e9e1`
   on Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1, from a detached private worktree.
 - `ruff check .` — clean.
-- The 147 tests added since the 1184-test snapshot at `e111901` are the flat-facet
-  shell (72), the `NeutralModel` → `Model` converter (52) and the R2-T09 promotion
-  tool (23).
-- Per-suite breakdown (sums to 1331): acceptance registry + gates 388, dynamics 82,
-  HEX8 76, shell facet 72, TET4 66, QUAD4 61, updating 57, correlation 52,
-  neutral-model conversion 52, meshio bridge 44,
-  modal solver 44, `BeamElement3D` 42, workflow 41, Bayesian updating 36,
-  reduction/expansion 32, optimization 27, FRF correlation 25, promotion tool 23,
-  IO (native/UFF/Nastran) 24, CLI 22+16+1 (incl. `correlate-frf`), core 18,
-  result contract 17, boundary/performance/e2e/scaffold 13.
-- The three continuum elements are held to one shared standard: AC-ELEM-001..003 are
-  parametrized over QUAD4, TET4 and HEX8 alike, so the patch test (defects 1.5e-16 /
+- The authoritative suite and registry inventory is recorded in
+  [`ROUND2_SIGNOFF.md`](ROUND2_SIGNOFF.md); all 47 criteria are promoted behind green
+  acceptance-gate evidence.
+- The three continuum elements and the shell are held to one shared standard:
+  AC-ELEM-001..003 are parametrized over QUAD4, TET4, HEX8 and SHELL4 alike, so the
+  patch test (defects 1.5e-16 /
   2.8e-16 / 2.8e-16), the exact zero-energy mode count, and quadratic h-convergence
   (observed orders 4.005 / 4.095 / 4.005 per halving) describe the element library rather
-  than whichever element landed most recently. The shell carries its own 72-test suite
-  but is not yet in that parametrization.
+  than whichever element landed most recently. The shell also carries its own 72-test
+  developer suite and nine acceptance cases.
 - HEX8 is the concrete argument for hexes over tets: against the Euler–Bernoulli
   cantilever it is +8.0 % at 2475 DOF where TET4 on the *same* grid is still +25 %. Its
   shear locking at one element through the thickness (+89 %) is asserted too, so the
@@ -162,9 +156,8 @@ openness, and automation:
   measured UFF-58 or JSON/YAML FRFs can be correlated against synthesized damped-model
   responses with machine-readable FRAC/FDAC gates.
 - **R2-T04 is ACCEPTANCE-COMPLETE.** The 36-test MS-3.5 Bayesian MAP estimator,
-  AC-UPD-006a/b `implemented` gates, and Laplace σ_post in the `CorrectionReport`
-  are all on the integration branch. CLI `update` document output remains outside
-  this acceptance slice.
+  AC-UPD-006a/b `verified` gates, Laplace σ_post in the `CorrectionReport`, and the
+  CLI `update` document output are all on the integration branch.
 - `.agent_workspace/` holds orchestration records (progress log, Round 2 plan);
   it is documentation, not runtime code.
 - **R2-T02 is complete.** QUAD4, TET4, HEX8, `BeamElement3D` and the flat-facet
