@@ -1,4 +1,4 @@
-"""Audio effects: EQ, dynamics, level control and fades.
+"""Audio effects: EQ, dynamics, spatial processing, level control and fades.
 
 Every processor subclasses :class:`~audio_studio.dsp.effects.base.Effect` and
 can be combined with :class:`~audio_studio.dsp.effects.base.EffectChain`::
@@ -22,6 +22,13 @@ from .gain import (
     NormalizeMode,
     measure_levels,
 )
+from .loudness_effect import (
+    LOUDNESS_PRESETS,
+    LoudnessNormalizeEffect,
+    LoudnessPreset,
+    loudness_preset,
+)
+from .spatial import DelayEffect, FDNReverbEffect, NoiseGateEffect
 
 __all__ = [
     "Effect",
@@ -41,4 +48,11 @@ __all__ = [
     "NormalizeEffect",
     "NormalizeMode",
     "measure_levels",
+    "LOUDNESS_PRESETS",
+    "LoudnessNormalizeEffect",
+    "LoudnessPreset",
+    "loudness_preset",
+    "NoiseGateEffect",
+    "DelayEffect",
+    "FDNReverbEffect",
 ]

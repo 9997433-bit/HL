@@ -1,18 +1,28 @@
-"""Input-device backends and recorded-audio accumulation.
+"""Input-device backends and crash-safe Broadcast Wave recording.
 
 Like :mod:`audio_studio.core.output`, this module keeps PortAudio behind a
 small Qt-free interface. Hardware callbacks publish float32 blocks while the
-base class owns lifecycle, thread-safe accumulation, and the optional WAV
-flush performed when recording stops.
+base class owns lifecycle and thread-safe accumulation. WAV targets are
+streamed as PCM-24 Broadcast Wave files: a ``bext`` chunk is present from the
+moment the temporary file is created, headers are checkpointed periodically,
+and a successful stop atomically renames the file into place.
 """
 
 from __future__ import annotations
 
+import os
+import shutil
+import struct
+import tempfile
 import threading
 import time
 from abc import ABC, abstractmethod
+from collections.abc import Iterable
 from contextlib import suppress
+from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import BinaryIO
 
 import numpy as np
 
@@ -20,18 +30,335 @@ from .loader import save_audio
 from .output import DEFAULT_BLOCK_SIZE, _quiet_native_stderr
 from .types import SAMPLE_DTYPE, AudioBuffer
 
+_PCM_24_MAX = (1 << 23) - 1
+_PCM_24_MIN = -(1 << 23)
+_BEXT_FIXED_SIZE = 602
+_DEFAULT_FLUSH_INTERVAL = 1.0
+_WAV_EXTENSIONS = frozenset({".wav", ".wave"})
+
 
 class RecorderDeviceError(RuntimeError):
     """Raised when an input device cannot be opened or started."""
+
+
+@dataclass(frozen=True, slots=True)
+class BWFCue:
+    """A named Broadcast Wave cue at a frame offset from recording start."""
+
+    frame: int
+    label: str = ""
+
+    def __post_init__(self) -> None:
+        if self.frame < 0:
+            raise ValueError(f"cue frame must be non-negative, got {self.frame}")
+        object.__setattr__(self, "frame", int(self.frame))
+        object.__setattr__(self, "label", str(self.label))
+
+
+def _riff_chunk(chunk_id: bytes, payload: bytes) -> bytes:
+    """Return one RIFF chunk including its word-alignment padding."""
+    if len(chunk_id) != 4:
+        raise ValueError("RIFF chunk ids must contain four bytes")
+    padding = b"\0" if len(payload) & 1 else b""
+    return chunk_id + struct.pack("<I", len(payload)) + payload + padding
+
+
+def _bext_payload(description: str, originator: str) -> bytes:
+    """Build the fixed BWF version-1 broadcast extension fields."""
+    now = datetime.now(timezone.utc)
+
+    def field(text: str, width: int) -> bytes:
+        encoded = str(text).encode("ascii", "replace")[:width]
+        return encoded.ljust(width, b"\0")
+
+    payload = b"".join(
+        (
+            field(description, 256),
+            field(originator, 32),
+            bytes(32),  # OriginatorReference
+            field(now.strftime("%Y-%m-%d"), 10),
+            field(now.strftime("%H-%M-%S"), 8),
+            struct.pack("<QH", 0, 1),  # TimeReference, BWF version
+            bytes(64),  # SMPTE UMID
+            bytes(190),
+        )
+    )
+    assert len(payload) == _BEXT_FIXED_SIZE
+    return payload
+
+
+def _pcm24_bytes(block: np.ndarray) -> bytes:
+    """Encode channel-last float samples as little-endian packed PCM-24."""
+    flat = np.asarray(block, dtype=np.float64).reshape(-1)
+    if flat.size == 0:
+        return b""
+    integers = np.clip(
+        np.rint(flat * (1 << 23)), _PCM_24_MIN, _PCM_24_MAX
+    ).astype(np.int32)
+    packed = np.empty((integers.size, 3), dtype=np.uint8)
+    packed[:, 0] = integers & 0xFF
+    packed[:, 1] = (integers >> 8) & 0xFF
+    packed[:, 2] = (integers >> 16) & 0xFF
+    return packed.tobytes()
+
+
+def _cue_chunks(cues: Iterable[BWFCue], frame_count: int) -> bytes:
+    """Build standard WAVE ``cue `` and ``LIST/adtl`` marker chunks."""
+    accepted = tuple(
+        cue
+        for cue in cues
+        if cue.frame <= frame_count and cue.frame <= 0xFFFFFFFF
+    )
+    if not accepted:
+        return b""
+
+    cue_payload = bytearray(struct.pack("<I", len(accepted)))
+    labels = bytearray(b"adtl")
+    for cue_id, cue in enumerate(accepted, start=1):
+        cue_payload.extend(
+            struct.pack(
+                "<II4sIII",
+                cue_id,
+                cue.frame,
+                b"data",
+                0,
+                0,
+                cue.frame,
+            )
+        )
+        label = cue.label.encode("utf-8", "replace") + b"\0"
+        labels.extend(_riff_chunk(b"labl", struct.pack("<I", cue_id) + label))
+    return _riff_chunk(b"cue ", bytes(cue_payload)) + _riff_chunk(b"LIST", bytes(labels))
+
+
+class _BroadcastWaveWriter:
+    """Small append-only PCM-24 BWF writer with durable header checkpoints."""
+
+    def __init__(
+        self,
+        target: Path,
+        sample_rate: int,
+        channels: int,
+        *,
+        description: str,
+        originator: str,
+        flush_interval: float,
+    ) -> None:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        pending = tempfile.NamedTemporaryFile(  # noqa: SIM115 - closed by finalize/abandon
+            mode="w+b",
+            prefix=f".{target.name}.",
+            suffix=".tmp",
+            dir=target.parent,
+            delete=False,
+        )
+        self.target = target
+        self.path = Path(pending.name)
+        self._file: BinaryIO = pending
+        self._sample_rate = int(sample_rate)
+        self._channels = int(channels)
+        self._block_align = self._channels * 3
+        self._flush_frames = max(1, int(round(sample_rate * flush_interval)))
+        self._frames = 0
+        self._checkpoint_frame = 0
+        self._audio_bytes = 0
+        self._closed = False
+
+        try:
+            self._write_header(description, originator)
+            self.flush()
+        except Exception:
+            pending.close()
+            self.path.unlink(missing_ok=True)
+            raise
+
+    @property
+    def frames(self) -> int:
+        return self._frames
+
+    def _write_header(self, description: str, originator: str) -> None:
+        stream = self._file
+        stream.write(b"RIFF\0\0\0\0WAVE")
+        stream.write(_riff_chunk(b"bext", _bext_payload(description, originator)))
+        byte_rate = self._sample_rate * self._block_align
+        fmt = struct.pack(
+            "<HHIIHH",
+            1,
+            self._channels,
+            self._sample_rate,
+            byte_rate,
+            self._block_align,
+            24,
+        )
+        stream.write(_riff_chunk(b"fmt ", fmt))
+        stream.write(b"data")
+        self._data_size_offset = stream.tell()
+        stream.write(struct.pack("<I", 0))
+        self._data_start = stream.tell()
+        self._audio_end = self._data_start
+
+    def write(self, block: np.ndarray) -> None:
+        if self._closed:
+            raise OSError("cannot write to a closed Broadcast Wave file")
+        data = np.asarray(block)
+        if data.ndim != 2 or data.shape[1] != self._channels:
+            raise ValueError(
+                f"BWF block has shape {data.shape}, expected (frames, {self._channels})"
+            )
+        encoded = _pcm24_bytes(data)
+        if self._audio_bytes + len(encoded) > 0xFFFFFFFF:
+            raise OSError("recording exceeds the 4 GiB RIFF/WAVE limit")
+        self._file.seek(self._audio_end)
+        self._file.write(encoded)
+        self._audio_bytes += len(encoded)
+        self._audio_end += len(encoded)
+        self._frames += int(data.shape[0])
+        if self._frames - self._checkpoint_frame >= self._flush_frames:
+            self.flush()
+
+    def _checkpoint_sizes(self, file_end: int) -> None:
+        if file_end - 8 > 0xFFFFFFFF:
+            raise OSError("recording exceeds the 4 GiB RIFF/WAVE limit")
+        stream = self._file
+        stream.seek(4)
+        stream.write(struct.pack("<I", file_end - 8))
+        stream.seek(self._data_size_offset)
+        stream.write(struct.pack("<I", self._audio_bytes))
+        stream.seek(file_end)
+
+    def flush(self) -> None:
+        """Durably checkpoint all complete frames and current RIFF sizes."""
+        if self._closed:
+            return
+        stream = self._file
+        stream.seek(self._audio_end)
+        if self._audio_bytes & 1:
+            stream.write(b"\0")
+        file_end = self._audio_end + (self._audio_bytes & 1)
+        stream.truncate(file_end)
+        self._checkpoint_sizes(file_end)
+        stream.flush()
+        os.fsync(stream.fileno())
+        self._checkpoint_frame = self._frames
+        stream.seek(self._audio_end)
+
+    def finalize(self, cues: Iterable[BWFCue]) -> None:
+        """Append cues, make the file durable, and close it."""
+        if self._closed:
+            return
+        stream = self._file
+        stream.seek(self._audio_end)
+        if self._audio_bytes & 1:
+            stream.write(b"\0")
+        stream.write(_cue_chunks(cues, self._frames))
+        file_end = stream.tell()
+        stream.truncate(file_end)
+        self._checkpoint_sizes(file_end)
+        stream.flush()
+        os.fsync(stream.fileno())
+        stream.close()
+        self._closed = True
+
+    def close_partial(self) -> None:
+        """Close a checkpointed temporary file without publishing it."""
+        if self._closed:
+            return
+        self.flush()
+        self._file.close()
+        self._closed = True
+
+
+def _fsync_directory(path: Path) -> None:
+    """Persist a rename on platforms that allow directory fsync."""
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+    try:
+        descriptor = os.open(path, flags)
+    except OSError:
+        return
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def _publish_bwf(writer: _BroadcastWaveWriter, cues: Iterable[BWFCue]) -> Path:
+    writer.finalize(cues)
+    os.replace(writer.path, writer.target)
+    _fsync_directory(writer.target.parent)
+    return writer.target
+
+
+def recover_bwf_recording(
+    partial_path: str | Path,
+    target_path: str | Path | None = None,
+) -> Path:
+    """Recover complete PCM frames from an interrupted streamed BWF file.
+
+    The temporary writer keeps ``bext`` and ``fmt `` complete from the outset.
+    Recovery therefore only needs to discard an incomplete final sample frame
+    and repair the RIFF/data sizes. When ``target_path`` is supplied the
+    partial is copied first, preserving the original crash artifact.
+    """
+    source = Path(partial_path)
+    target = source if target_path is None else Path(target_path)
+    if target != source:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source, target)
+
+    with target.open("r+b") as stream:
+        header = stream.read(12)
+        if len(header) != 12 or header[:4] != b"RIFF" or header[8:] != b"WAVE":
+            raise ValueError(f"{source} is not a RIFF/WAVE file")
+
+        block_align: int | None = None
+        data_size_offset: int | None = None
+        data_start: int | None = None
+        while True:
+            chunk_header = stream.read(8)
+            if len(chunk_header) != 8:
+                break
+            chunk_id, chunk_size = struct.unpack("<4sI", chunk_header)
+            payload_start = stream.tell()
+            if chunk_id == b"fmt ":
+                fmt = stream.read(min(chunk_size, 16))
+                if len(fmt) < 16:
+                    break
+                block_align = struct.unpack("<HHIIHH", fmt[:16])[4]
+            elif chunk_id == b"data":
+                data_size_offset = payload_start - 4
+                data_start = payload_start
+                break
+            stream.seek(payload_start + chunk_size + (chunk_size & 1))
+
+        if not block_align or data_size_offset is None or data_start is None:
+            raise ValueError(f"{source} has no complete PCM format/data header")
+
+        stream.seek(0, os.SEEK_END)
+        available = max(0, stream.tell() - data_start)
+        usable = (available // block_align) * block_align
+        if usable > 0xFFFFFFFF:
+            raise OSError("partial recording exceeds the 4 GiB RIFF/WAVE limit")
+        audio_end = data_start + usable
+        stream.seek(audio_end)
+        if usable & 1:
+            stream.write(b"\0")
+        file_end = audio_end + (usable & 1)
+        stream.truncate(file_end)
+        stream.seek(data_size_offset)
+        stream.write(struct.pack("<I", usable))
+        stream.seek(4)
+        stream.write(struct.pack("<I", file_end - 8))
+        stream.flush()
+        os.fsync(stream.fileno())
+    return target
 
 
 class AudioRecorder(ABC):
     """Common surface of hardware and synthetic recording backends.
 
     Captured blocks are copied out of the device callback and accumulated in
-    memory. If ``target_path`` is supplied to :meth:`open`, :meth:`stop`
-    flushes the complete recording to that path as a WAV (or another container
-    selected by the suffix).
+    memory. WAV targets are also streamed to a crash-recoverable BWF temporary
+    file; other containers retain the snapshot-on-stop behaviour.
     """
 
     name: str = "abstract"
@@ -43,6 +370,13 @@ class AudioRecorder(ABC):
         self._target_path: Path | None = None
         self._chunks: list[np.ndarray] = []
         self._frame_count = 0
+        self._bwf_writer: _BroadcastWaveWriter | None = None
+        self._target_written = False
+        self._description = "Audio Studio recording"
+        self._originator = "Audio Studio"
+        self._marker_source: Iterable[object] | None = None
+        self._recording_cues: list[BWFCue] = []
+        self._flush_interval = _DEFAULT_FLUSH_INTERVAL
         self._opened = False
         self._running = False
         self._state_lock = threading.RLock()
@@ -63,6 +397,12 @@ class AudioRecorder(ABC):
     @property
     def target_path(self) -> Path | None:
         return self._target_path
+
+    @property
+    def temporary_path(self) -> Path | None:
+        """Current recoverable BWF temporary path, when recording to WAV."""
+        with self._state_lock:
+            return self._bwf_writer.path if self._bwf_writer is not None else None
 
     @property
     def is_open(self) -> bool:
@@ -107,9 +447,13 @@ class AudioRecorder(ABC):
         *,
         block_size: int = DEFAULT_BLOCK_SIZE,
         target_path: str | Path | None = None,
+        description: str = "Audio Studio recording",
+        originator: str = "Audio Studio",
+        markers: Iterable[object] | None = None,
+        flush_interval: float = _DEFAULT_FLUSH_INTERVAL,
     ) -> None:
         """Configure a fresh recording and open its input stream."""
-        if sample_rate <= 0 or channels <= 0 or block_size <= 0:
+        if sample_rate <= 0 or channels <= 0 or block_size <= 0 or flush_interval < 0:
             raise RecorderDeviceError(
                 f"invalid stream format {sample_rate} Hz / {channels} ch / {block_size} frames"
             )
@@ -122,11 +466,33 @@ class AudioRecorder(ABC):
                 self._target_path = Path(target_path) if target_path is not None else None
                 self._chunks.clear()
                 self._frame_count = 0
+                self._target_written = False
+                self._description = str(description)
+                self._originator = str(originator)
+                self._marker_source = markers
+                self._recording_cues.clear()
+                self._flush_interval = float(flush_interval)
             try:
                 self._open_stream()
             except Exception:
                 self._close_stream()
                 raise
+            target = self._target_path
+            if target is not None and target.suffix.lower() in _WAV_EXTENSIONS:
+                try:
+                    writer = _BroadcastWaveWriter(
+                        target,
+                        self._sample_rate,
+                        self._channels,
+                        description=self._description,
+                        originator=self._originator,
+                        flush_interval=self._flush_interval,
+                    )
+                except Exception:
+                    self._close_stream()
+                    raise
+                with self._state_lock:
+                    self._bwf_writer = writer
             with self._state_lock:
                 self._opened = True
 
@@ -153,7 +519,7 @@ class AudioRecorder(ABC):
     def _start_stream(self) -> None: ...
 
     def stop(self) -> AudioBuffer:
-        """Stop capturing, flush the target file, and return the audio."""
+        """Stop capturing, atomically publish the target, and return the audio."""
         with self._transition_lock:
             with self._state_lock:
                 was_running = self._running
@@ -162,8 +528,16 @@ class AudioRecorder(ABC):
                 self._stop_stream()
             captured = self.buffer
             target = self._target_path
-            if target is not None:
+            writer = self._bwf_writer
+            if writer is not None:
+                _publish_bwf(writer, self._bwf_cues())
+                with self._state_lock:
+                    self._bwf_writer = None
+                    self._target_written = True
+            elif target is not None and not self._target_written:
                 save_audio(target, captured)
+                with self._state_lock:
+                    self._target_written = True
             return captured
 
     @abstractmethod
@@ -174,10 +548,59 @@ class AudioRecorder(ABC):
         target = Path(path) if path is not None else self._target_path
         if target is None:
             raise ValueError("no recording target path was provided")
-        written = save_audio(target, self.buffer)
+        snapshot = self.buffer
+        if target.suffix.lower() in _WAV_EXTENSIONS:
+            writer = _BroadcastWaveWriter(
+                target,
+                snapshot.sample_rate,
+                snapshot.n_channels,
+                description=self._description,
+                originator=self._originator,
+                flush_interval=self._flush_interval,
+            )
+            writer.write(snapshot.data)
+            written = _publish_bwf(writer, self._bwf_cues())
+        else:
+            written = save_audio(target, snapshot)
         with self._state_lock:
             self._target_path = written
+            self._target_written = True
         return written
+
+    def flush(self) -> None:
+        """Durably checkpoint streamed WAV audio captured so far."""
+        with self._state_lock:
+            writer = self._bwf_writer
+            if writer is not None:
+                writer.flush()
+
+    def add_cue(self, frame: int | None = None, label: str = "") -> BWFCue:
+        """Add a cue to the BWF, defaulting to the current recording frame."""
+        with self._state_lock:
+            cue = BWFCue(self._frame_count if frame is None else frame, label)
+            self._recording_cues.append(cue)
+            return cue
+
+    def add_marker(self, frame: int | None = None, name: str = "") -> BWFCue:
+        """Alias for :meth:`add_cue` using marker terminology."""
+        return self.add_cue(frame, name)
+
+    def abandon(self) -> Path | None:
+        """Stop without rename and leave a checkpointed file for recovery."""
+        with self._transition_lock:
+            with self._state_lock:
+                was_running = self._running
+                self._running = False
+                writer = self._bwf_writer
+            if was_running:
+                self._stop_stream()
+            if writer is not None:
+                writer.close_partial()
+            self._close_stream()
+            with self._state_lock:
+                self._bwf_writer = None
+                self._opened = False
+            return writer.path if writer is not None else None
 
     def close(self) -> None:
         """Stop and release the stream; safe to call more than once."""
@@ -209,6 +632,21 @@ class AudioRecorder(ABC):
                 return
             self._chunks.append(copied)
             self._frame_count += int(copied.shape[0])
+            if self._bwf_writer is not None:
+                self._bwf_writer.write(copied)
+
+    def _bwf_cues(self) -> tuple[BWFCue, ...]:
+        """Snapshot explicit cues plus point markers supplied to ``open``."""
+        with self._state_lock:
+            cues = list(self._recording_cues)
+            marker_source = self._marker_source
+        if marker_source is not None:
+            for marker in marker_source:
+                frame = getattr(marker, "frame", None)
+                if frame is None:
+                    continue
+                cues.append(BWFCue(int(frame), str(getattr(marker, "name", ""))))
+        return tuple(cues)
 
 
 class NullRecorder(AudioRecorder):

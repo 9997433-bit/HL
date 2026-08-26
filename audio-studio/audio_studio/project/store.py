@@ -4,10 +4,11 @@ A project bundles the waveform editor document, optional multitrack session,
 timeline markers, UI state and on-disk media copies so a session can be
 reopened on another machine without chasing the original source files.
 
-The schema stays at version 1 while it grows: readers treat every top-level key
-they do not recognise as absent, and every key added after the first release
-(``markers``, so far) is written only when it carries something, so a bundle
-saved by this build still opens in one that predates the addition.
+The schema stays at version 1 while it grows: readers treat every key they do
+not recognise as absent, and every key added after the first release (the
+top-level ``markers`` array and the per-media ``peaks`` sidecar pointer, so far)
+is written only when it carries something, so a bundle saved by this build still
+opens in one that predates the addition.
 """
 
 from __future__ import annotations
@@ -22,9 +23,11 @@ from typing import Any
 import numpy as np
 
 from .. import __app_name__, __version__
+from ..core import peaks_cache
 from ..core.edit_session import EditSession
 from ..core.loader import LoadedAudio, load_audio, save_audio
 from ..core.markers import MarkerList
+from ..core.peaks import PeakPyramid
 from ..core.sample_source import MemorySampleSource, SampleSource
 from ..core.session import MultitrackSession, Track
 from ..core.types import AudioBuffer, TimeRange
@@ -74,20 +77,17 @@ def _time_range_from_json(data: dict[str, int] | None) -> TimeRange | None:
     return TimeRange(int(data["start"]), int(data["end"]))
 
 
-def _write_wav(path: Path, source: SampleSource) -> None:
+def _write_wav(path: Path, source: SampleSource) -> np.ndarray:
+    """Copy ``source`` into the bundle and hand back the frames written."""
     path.parent.mkdir(parents=True, exist_ok=True)
     n_frames = int(source.n_frames)
-    if n_frames <= 0:
-        save_audio(
-            path,
-            AudioBuffer(
-                np.zeros((0, source.n_channels), dtype=np.float32),
-                source.sample_rate,
-            ),
-        )
-        return
-    data = source.read(0, n_frames)
+    data = (
+        source.read(0, n_frames)
+        if n_frames > 0
+        else np.zeros((0, source.n_channels), dtype=np.float32)
+    )
     save_audio(path, AudioBuffer(data, source.sample_rate))
+    return data
 
 
 def _source_key(source: SampleSource) -> str:
@@ -203,17 +203,19 @@ class ProjectStore:
                 if key not in media_index:
                     media_id = f"med_{len(media_items) + 1:04d}"
                     rel = f"media/{media_id}.wav"
-                    _write_wav(self.root / rel, clip.source)
+                    samples = _write_wav(self.root / rel, clip.source)
                     media_index[key] = media_id
-                    media_items.append(
-                        {
-                            "id": media_id,
-                            "path": rel,
-                            "sample_rate": int(clip.source.sample_rate),
-                            "channels": int(clip.source.n_channels),
-                            "frames": int(clip.source.n_frames),
-                        }
-                    )
+                    entry: dict[str, Any] = {
+                        "id": media_id,
+                        "path": rel,
+                        "sample_rate": int(clip.source.sample_rate),
+                        "channels": int(clip.source.n_channels),
+                        "frames": int(clip.source.n_frames),
+                    }
+                    peaks_rel = self._write_peaks(rel, samples)
+                    if peaks_rel is not None:
+                        entry["peaks"] = peaks_rel
+                    media_items.append(entry)
                 clips_json.append(
                     {
                         "id": clip.clip_id,
@@ -246,6 +248,23 @@ class ProjectStore:
             "media": media_items,
             "tracks": tracks_json,
         }
+
+    def _write_peaks(self, media_rel: str, samples: np.ndarray) -> str | None:
+        """Cache the waveform overview beside a media copy.
+
+        The returned bundle-relative path goes into the media entry as the
+        optional ``peaks`` key; a reader that predates it ignores the key, and
+        a reader that knows it still has to cope with the file being absent,
+        because peak caching can be switched off at save time.
+        """
+        if not peaks_cache.cache_enabled() or samples.shape[0] == 0:
+            return None
+        media_path = self.root / media_rel
+        peaks_rel = f"{media_rel}{peaks_cache.SUFFIX}"
+        written = peaks_cache.write(
+            media_path, PeakPyramid(samples), cache_path=self.root / peaks_rel
+        )
+        return peaks_rel if written is not None else None
 
 
 def save_project(
@@ -328,6 +347,29 @@ def restore_multitrack(data: dict[str, Any], project_root: Path) -> MultitrackSe
                 name=str(clip_data.get("name", "")),
             )
     return session
+
+
+def load_media_pyramid(
+    entry: dict[str, Any],
+    project_root: Path,
+    *,
+    samples: np.ndarray | None = None,
+) -> PeakPyramid | None:
+    """Waveform overview for one media entry, or ``None`` when it is not cached.
+
+    Bundles written before the optional ``peaks`` key, and bundles saved with
+    peak caching disabled, simply have no overview to restore; the caller then
+    builds one from the samples as it always did.
+    """
+    media_rel = entry.get("path")
+    if not media_rel:
+        return None
+    peaks_rel = entry.get("peaks") or f"{media_rel}{peaks_cache.SUFFIX}"
+    return peaks_cache.read(
+        project_root / str(media_rel),
+        samples=samples,
+        cache_path=project_root / str(peaks_rel),
+    )
 
 
 def load_waveform_document(

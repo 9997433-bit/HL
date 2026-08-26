@@ -163,18 +163,21 @@ def test_seek_during_playback_discards_stale_buffered_audio(
 def test_volume_and_mute_scale_the_output(
     engine: AudioEngine, loaded_clip: LoadedAudio
 ) -> None:
+    """Both land on their target; the ramp getting there is test_rt_discipline's."""
     engine.set_clip(loaded_clip)
     engine.play()
-    reference = pump(engine, blocks=1)
+    reference = pump(engine, blocks=3)
+    # A change is smoothed over a few milliseconds, so compare past the ramp.
+    settled = int(engine.volume_ramp_ms * engine.sample_rate / 1000.0) + 1
 
     engine.seek(0)
     engine.volume = 0.5
-    halved = pump(engine, blocks=1)
-    assert np.allclose(halved, reference * 0.5, atol=1e-6)
+    halved = pump(engine, blocks=3)
+    assert np.allclose(halved[settled:], reference[settled:] * 0.5, atol=1e-6)
 
     engine.seek(0)
     engine.muted = True
-    assert np.allclose(pump(engine, blocks=1), 0.0)
+    assert np.allclose(pump(engine, blocks=3)[settled:], 0.0)
 
 
 def test_metering_reports_per_channel_peak_and_rms(

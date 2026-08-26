@@ -51,7 +51,7 @@ from PySide6.QtWidgets import (
 )
 
 from .. import __app_name__, __version__
-from ..core.edit_session import EditError, EditSession
+from ..core.edit_session import SPECTRAL_ATTENUATION_DB, EditError, EditSession
 from ..core.engine import AudioEngine
 from ..core.loader import (
     SUPPORTED_EXTENSIONS,
@@ -86,7 +86,7 @@ from .effect_rack import EffectRackPanel, default_preview_chain
 from .level_meter import LevelMeter
 from .marker_panel import MarkerPanel
 from .multitrack_view import MultitrackView
-from .spectrum_panel import SpectrumPanel
+from .spectrum_panel import SpectralSelection, SpectrumPanel
 from .theme import PALETTE, stylesheet
 from .track_panel import TrackPanel
 from .transport_bar import TransportBar
@@ -331,6 +331,18 @@ class MainWindow(QMainWindow):
             tip="Insert silence at the playhead",
         )
 
+        self.action_spectral_attenuate = action(
+            "&Attenuate Selection", self.spectral_attenuate, "Ctrl+Alt+A",
+            tip=(
+                f"Turn the band selected on the spectral display down by "
+                f"{abs(SPECTRAL_ATTENUATION_DB):.0f} dB"
+            ),
+        )
+        self.action_spectral_delete = action(
+            "&Delete Selection", self.spectral_delete, "Ctrl+Alt+D",
+            tip="Remove the band selected on the spectral display",
+        )
+
         self.action_add_marker = action(
             "Add &Marker", self.add_marker_at_playhead, "M",
             tip="Drop a marker at the playhead",
@@ -464,6 +476,9 @@ class MainWindow(QMainWindow):
         edit_menu.addAction(self.action_reverse)
         edit_menu.addAction(self.action_insert_silence)
         edit_menu.addSeparator()
+        edit_menu.addAction(self.action_spectral_attenuate)
+        edit_menu.addAction(self.action_spectral_delete)
+        edit_menu.addSeparator()
         edit_menu.addAction(self.action_select_all)
         edit_menu.addAction(self.action_deselect)
 
@@ -570,6 +585,9 @@ class MainWindow(QMainWindow):
         self.spectrum_panel.seekRequested.connect(self._on_spectrum_seek)
         self.spectrum_panel.readoutChanged.connect(self._on_spectrum_readout)
         self.spectrum_panel.fftSizeChanged.connect(lambda _size: self.analyze_spectrum())
+        self.spectrum_panel.selectionChanged.connect(self._on_spectral_selection)
+        self.spectrum_panel.attenuateRequested.connect(self.spectral_attenuate)
+        self.spectrum_panel.deleteRequested.connect(self.spectral_delete)
         self.effect_rack.chainChanged.connect(self._on_chain_changed)
 
         self.marker_panel.selectionChanged.connect(self._update_marker_actions)
@@ -918,6 +936,10 @@ class MainWindow(QMainWindow):
         self.action_paste.setEnabled(editing and has_clipboard)
         self.action_insert_silence.setEnabled(editing)
 
+        has_band = self.spectrum_panel.selection is not None
+        self.action_spectral_attenuate.setEnabled(editing and has_band)
+        self.action_spectral_delete.setEnabled(editing and has_band)
+
     def _update_window_title(self) -> None:
         clip = self.editor_clip
         dirty = self._has_unsaved_changes()
@@ -1045,6 +1067,46 @@ class MainWindow(QMainWindow):
             self._edit_session.reverse(self._selected_range())
 
         self._run_edit("Reverse", _reverse)
+
+    def _spectral_selection(self) -> SpectralSelection:
+        selection = self.spectrum_panel.selection
+        if selection is None:
+            raise EditError("drag a box across the spectral display first")
+        if selection.time.clamped(self.engine.n_frames).is_empty:
+            raise EditError("the spectral selection lies outside the clip")
+        return selection
+
+    def spectral_attenuate(self) -> None:
+        """Duck the band under the spectral selection by the default amount."""
+
+        def _attenuate() -> None:
+            assert self._edit_session is not None
+            selection = self._spectral_selection()
+            self._edit_session.attenuate_band(
+                selection.time, selection.low_hz, selection.high_hz
+            )
+            self.statusBar().showMessage(
+                f"Attenuated {selection.low_hz:.0f}–{selection.high_hz:.0f} Hz by "
+                f"{abs(SPECTRAL_ATTENUATION_DB):.0f} dB",
+                4000,
+            )
+
+        self._run_edit("Attenuate Selection", _attenuate)
+
+    def spectral_delete(self) -> None:
+        """Remove the band under the spectral selection and resynthesise."""
+
+        def _delete() -> None:
+            assert self._edit_session is not None
+            selection = self._spectral_selection()
+            self._edit_session.remove_band(
+                selection.time, selection.low_hz, selection.high_hz
+            )
+            self.statusBar().showMessage(
+                f"Removed {selection.low_hz:.0f}–{selection.high_hz:.0f} Hz", 4000
+            )
+
+        self._run_edit("Delete Selection", _delete)
 
     def edit_insert_silence(self) -> None:
         rate = max(self.engine.sample_rate, 1)
@@ -1489,12 +1551,16 @@ class MainWindow(QMainWindow):
         self._collect_loudness()
         if self.recorder.is_running:
             self.status_recording.setText(
-                f"● Recording · {self.recorder.frame_count:,} frames · "
+                f"● Recording · {format_timecode(self.recorder.duration)} elapsed · "
+                f"{self.recorder.frame_count:,} frames · "
                 f"{self.recorder.sample_rate / 1000:g} kHz"
             )
         if not self.engine.has_clip:
             return
-        position = self.engine.position
+        # The interpolated playhead: the transport can only move it once per
+        # device block, which is slower than this tick and gives a visibly
+        # stepped playhead. The engine fills in the fraction between blocks.
+        position = self.engine.position_interpolated
         playing = self.engine.is_playing
         if self._workspace == "multitrack":
             self.multitrack_view.set_playhead(position)
@@ -1552,6 +1618,9 @@ class MainWindow(QMainWindow):
                 channels,
                 block_size=1024,
                 target_path=target,
+                description=f"{__app_name__} recording",
+                originator=__app_name__,
+                markers=self.markers,
             )
             self.recorder.start()
         except RecorderDeviceError as exc:
@@ -1563,6 +1632,9 @@ class MainWindow(QMainWindow):
                     channels,
                     block_size=1024,
                     target_path=target,
+                    description=f"{__app_name__} recording",
+                    originator=__app_name__,
+                    markers=self.markers,
                 )
                 self.recorder.start()
             except Exception as fallback_exc:  # noqa: BLE001 - report both backend failures
@@ -1615,7 +1687,8 @@ class MainWindow(QMainWindow):
             action.setEnabled(transport_enabled)
         if recording:
             self.status_recording.setText(
-                f"● Recording · 0 frames · {self.recorder.sample_rate / 1000:g} kHz"
+                f"● Recording · {format_timecode(0.0)} elapsed · 0 frames · "
+                f"{self.recorder.sample_rate / 1000:g} kHz · BWF"
             )
         else:
             self.status_recording.setText(f"Input: {self.recorder.name} · Ready")
@@ -1665,6 +1738,20 @@ class MainWindow(QMainWindow):
         text = f"{format_timecode(start)} → {format_timecode(end)}"
         self.transport_bar.set_selection_text(format_timecode(end - start))
         self.status_selection.setText(f"Selection: {text} ({selection.length:,} frames)")
+
+    def _on_spectral_selection(
+        self, rng: TimeRange | None, low_hz: float, high_hz: float
+    ) -> None:
+        self._update_edit_actions()
+        if rng is None:
+            self.statusBar().clearMessage()
+            return
+        start, end = rng.to_seconds(max(self.engine.sample_rate, 1))
+        self.statusBar().showMessage(
+            f"Spectral selection: {format_timecode(start)} → {format_timecode(end)}  ·  "
+            f"{low_hz:.0f}–{high_hz:.0f} Hz",
+            6000,
+        )
 
     def _on_spectrum_seek(self, time_s: float) -> None:
         self._on_seek(int(round(time_s * max(self.engine.sample_rate, 1))))

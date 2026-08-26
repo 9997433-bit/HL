@@ -109,6 +109,42 @@ exit code is 0 when every file rendered, 1 when any failed, 2 when nothing
 matched. The same pipeline is scriptable from Python via
 `audio_studio.batch.BatchJob` and `run_batch`.
 
+## VST3 plugins (optional `plugins` extra — not enabled by default)
+
+Audio Studio can host VST3 effect plugins through
+[pedalboard](https://github.com/spotify/pedalboard). The bridge is **not part
+of the default install**: nothing in the application imports pedalboard unless
+you opt in explicitly.
+
+```bash
+pip install -e ".[plugins]"      # installs pedalboard (GPL-3.0)
+```
+
+```python
+from audio_studio.plugins import create_plugin_host
+
+host = create_plugin_host("/path/to/Plugin.vst3")
+host.prepare(sample_rate=48_000, n_channels=2)
+out = host.process_block(block, 48_000)   # planar (n_channels, n_samples)
+host.parameters()                          # {name: normalised value}
+host.latency_samples()                     # reported plugin delay, in samples
+```
+
+`audio_studio.plugins` always imports cleanly — pedalboard is loaded lazily,
+inside the single bridge module `audio_studio/plugins/pedalboard_bridge.py`,
+the first time a plugin is opened. Without the extra installed, loading a
+plugin raises `PluginLoadError` with installation instructions. The current
+scaffold is API-only: plugins are not yet wired into the effect rack or the
+UI, and plugin state is not yet persisted into projects.
+
+**License notice.** pedalboard is GPL-3.0 (incorporating JUCE, Rubber Band
+and FFTW). Installing the `plugins` extra for private use does not change the
+MIT license of Audio Studio's source, but *distributing* Audio Studio together
+with pedalboard — in a wheel, installer or application bundle — creates a
+combined work that must be distributed under GPL-3.0 as a whole. Official MIT
+binary artifacts must not include it. See
+[`THIRD_PARTY_LICENSES.md`](../THIRD_PARTY_LICENSES.md).
+
 ## What the MVP does
 
 **Audio engine** (`audio_studio.core.engine.AudioEngine`)
@@ -126,6 +162,15 @@ matched. The same pipeline is scriptable from Python via
   selection-restricted playback.
 - The reported playhead subtracts what is still queued in the ring buffer, so
   it reflects what is audible rather than how far the feeder has run ahead.
+  `position` moves once per device block; `position_interpolated` walks the
+  last block off against the wall clock and returns a fractional frame, which
+  is what the UI draws so a 30 Hz repaint glides instead of stepping.
+- Master volume and mute are ramped over 10 ms rather than applied as a step,
+  so moving the fader during playback cannot click.
+- An optional per-block insert (`set_stream_processor`) runs on the feeder
+  thread, ahead of the ring buffer. The live effect rack uses it, so a chain
+  that overruns a block period costs latency the ring absorbs rather than a
+  dropout.
 - Per-channel peak/RMS metering published from the render callback.
 - Pluggable output: `SoundDeviceOutput` (PortAudio via `sounddevice`, reporting
   device under/overruns through `xruns`), `PyAudioOutput` (PortAudio via
@@ -139,9 +184,9 @@ matched. The same pipeline is scriptable from Python via
 - Copy-on-write document: an immutable list of segment views onto immutable
   chunks, so cutting ten seconds out of an hour rewrites a handful of records
   and copies nothing.
-- Nine undoable commands — cut, copy, paste, delete, trim, silence, insert
-  silence, gain, fade and reverse — on an undo stack whose revisions share
-  almost all of their storage.
+- Ten undoable commands — cut, copy, paste, delete, trim, silence, insert
+  silence, gain, fade, reverse and spectral band edits — on an undo stack whose
+  revisions share almost all of their storage.
 - The session itself satisfies `SampleSource`, so the transport plays an
   edited document straight off the undo stack without flattening it first;
   revision publication is atomic, so a reader sees either the old or the new
@@ -152,6 +197,9 @@ matched. The same pipeline is scriptable from Python via
 
 - Multi-resolution min/max/RMS pyramid, so a repaint costs O(widget width)
   rather than O(clip length).
+- The pyramid is cached to a `.pk` sidecar (see *Peak cache* below), so
+  reopening a file restores the overview instead of reducing every sample
+  again.
 - Below ~4 px per sample the view switches to a sample-accurate polyline with
   individual sample dots.
 - Zoom (`Ctrl`+wheel, anchored under the pointer), horizontal scroll (wheel),
@@ -172,7 +220,24 @@ matched. The same pipeline is scriptable from Python via
   of the whole clip or just the selection, and a status bar carrying format,
   duration, selection and active output backend.
 - Dockable spectrum and effects-rack panels, live wet/dry/bypass preview, and
-  asynchronous integrated loudness/LRA analysis.
+  asynchronous integrated loudness/LRA analysis. The rack is processed on the
+  feeder thread, before the master fader, so a rack change reaches the speakers
+  once the already-queued blocks have drained rather than instantly.
+
+**Spectral selection editing** (`audio_studio.dsp.spectral_edit`)
+
+- Drag a rectangle across the spectral display to select a time span crossed
+  with a frequency band; the panel reports it as a frame range plus an interval
+  in hertz, with the offset of the analysed excerpt added back.
+- *Attenuate Selection* (`Ctrl+Alt+A`) ducks the band by 12 dB and *Delete
+  Selection* (`Ctrl+Alt+D`) removes it: an STFT is taken over the selected
+  range, the bins inside the band are scaled, and the result is resynthesised
+  through the same weighted overlap-add inverse the analyser uses.
+- The mask is feathered across a couple of bins *outside* the band, so the
+  interval the user drew is attenuated in full while the brick-wall ringing a
+  hard gate produces is kept down.
+- Both land on the undo stack as ordinary in-place commands, so undo restores
+  the original samples bit for bit rather than resynthesising them back.
 
 **Markers and regions** (`audio_studio.core.markers.MarkerList`)
 
@@ -188,13 +253,38 @@ matched. The same pipeline is scriptable from Python via
 
 - Calibrated STFT/iSTFT, eight window functions, linear/log frequency display,
   waterfall data and color-blind-safe maps.
-- Gain, soft-knee lookahead compression, dBTP brickwall limiting,
-  peak/RMS/true-peak normalization, multiple fade curves, and RBJ parametric
-  EQ with stateful block processing. Compressor and limiter have basic
-  threshold/ratio and ceiling controls in the live rack.
+- Gain, noise gating, soft-knee lookahead compression, dBTP brickwall limiting,
+  feedback delay, FDN reverb, peak/RMS/true-peak normalization, multiple fade
+  curves, and RBJ parametric EQ with stateful block processing. Core dynamics
+  and time/space effects have basic controls in the live rack.
 - ITU-R BS.1770 K-weighted integrated loudness and EBU-style loudness range.
 - Cached spectrogram reduction/colorization and candidate-window true-peak
   evaluation keep common redraw and normalization paths bounded.
+
+### Peak cache
+
+Reducing a clip into the waveform pyramid costs one pass over every sample,
+which is the part of opening a long file that is actually slow. `AudioEngine`
+therefore persists the finished pyramid next to the audio as a `.pk` sidecar —
+`track.flac` gets `track.flac.pk`, roughly 0.4% of the audio's size — and reads
+it back on the next open, both for decoded (`load`) and streamed
+(`open_stream(build_pyramid=True)`) clips.
+
+The sidecar header stores the source's size and modification time, so editing
+or replacing the file misses instead of drawing a stale waveform, and the write
+goes through a temporary file plus a rename, so a reader never sees a partial
+pyramid. Every failure — unreadable sidecar, corrupt payload, read-only folder
+— falls back to building the pyramid in memory.
+
+```bash
+AUDIO_STUDIO_PEAK_CACHE=0                     python -m audio_studio  # never read or write .pk
+AUDIO_STUDIO_PEAK_CACHE_DIR=~/.cache/hl-peaks python -m audio_studio  # keep sidecars out of the audio folders
+AUDIO_STUDIO_PEAK_CACHE_KEY=content           python -m audio_studio  # fingerprint by SHA-256 instead of mtime+size
+```
+
+`.hlproj` bundles carry the same file for each media copy and point at it from
+an optional `peaks` key in the media entry; a bundle written without one (or by
+an older build) simply rebuilds the overview on load.
 
 ### Keyboard
 
@@ -209,6 +299,7 @@ matched. The same pipeline is scriptable from Python via
 | `Ctrl+=` / `Ctrl+-` / `Ctrl+0` | Zoom in / out / fit |
 | `Ctrl+Shift+0` | Zoom to selection |
 | `Ctrl+Up` / `Ctrl+Down` | Amplitude zoom |
+| `Ctrl+Alt+A` / `Ctrl+Alt+D` | Attenuate / delete the spectral selection |
 | `M` / `Shift+M` | Add a marker at the playhead / a region from the selection |
 | `Ctrl+Left` / `Ctrl+Right` | Go to the previous / next marker |
 | `F2` | Rename the marker selected in the Markers panel |
@@ -224,10 +315,11 @@ FFmpeg is discovered as a separate executable and is never linked into the
 application.
 
 pedalboard is GPL-3.0 and is intentionally absent from the default dependency
-tree and current package manifests. A future pedalboard plugin bridge must be
-an explicit, lazy-loaded optional extra; any installer that bundles it must
-distribute the combined work under GPL-3.0. The ASIO SDK is not included, and
-Audio Studio does not enable `SD_ENABLE_ASIO`.
+tree. It is reachable only through the explicit `plugins` optional extra and
+is imported lazily inside the isolated bridge module
+`audio_studio/plugins/pedalboard_bridge.py`; any installer that bundles it
+must distribute the combined work under GPL-3.0. The ASIO SDK is not included,
+and Audio Studio does not enable `SD_ENABLE_ASIO`.
 
 See [`THIRD_PARTY_LICENSES.md`](../THIRD_PARTY_LICENSES.md) for versions,
 upstream license pointers, LGPL source/relinking obligations, FFmpeg build
@@ -243,9 +335,11 @@ The suite covers value-type invariants, ring-buffer wrap-around and
 over/under-run handling, decoding round-trips and resampling, the peak pyramid
 against brute-force numpy reductions, the transport state machine, seek
 accuracy (including discarding stale buffered audio mid-playback), gain and
-metering, copy-on-write edits and deep undo/redo, disk-streaming sources, DSP
-streaming equivalence (including compressor/true-peak limiter dynamics),
-loudness/spectrum behavior, and Qt widgets under the offscreen platform plugin.
+metering, the real-time discipline rules (volume ramping, playhead
+interpolation and which thread the effect rack runs on), copy-on-write edits
+and deep undo/redo, disk-streaming sources, DSP streaming equivalence
+(including compressor/true-peak limiter dynamics), loudness/spectrum behavior,
+and Qt widgets under the offscreen platform plugin.
 Repository-level compliance, null-roundtrip and SLO tests live one directory
 above this package.
 
@@ -262,12 +356,16 @@ above this package.
 - Recording is an MVP path: PyAudio input supports mono/stereo capture to WAV,
   but there is no input-device/level control, live monitoring, punch recording,
   or Broadcast Wave Format (BWF) metadata yet.
-- No complete repair suite (noise reduction remains), spectral selection
-  editing, production VST3/AU host or plugin delay compensation, or timeline
-  markers yet — see the roadmap in the release sign-off. Batch processing is
-  covered by the `audio_studio.batch` CLI above.
+- Spectral selection editing covers attenuating and deleting a dragged
+  rectangle. There is no healing brush, lasso or paintbrush selection, no
+  spectral copy/paste, and the mask is rectangular in time as well as in
+  frequency.
+- No complete repair suite (noise reduction remains), production VST3/AU host
+  or plugin delay compensation yet — see the roadmap in the release sign-off.
+  Batch processing is covered by the `audio_studio.batch` CLI above.
 - Not a low-latency monitor: the default device block is 1024 frames
-  (~21 ms at 48 kHz) and playhead accuracy is bounded by the block size.
+  (~21 ms at 48 kHz), and while the drawn playhead is interpolated between
+  callbacks, the audio it tracks is still quantised to that block.
   `SoundDeviceOutput` is the step towards fixing this, but it currently opens
   the host API's shared mode only — WASAPI exclusive mode, ASIO and per-host
   latency hints are not wired up, and the ASIO SDK is not shipped.
@@ -275,9 +373,11 @@ above this package.
   `.underflows`, `.overflows`) but nothing surfaces them in the UI yet, and
   `PyAudioOutput` cannot report them at all. Recording still runs on PyAudio
   input regardless of which output backend is selected.
-- The effect-rack preview chain runs on the device render path. Light chains
-  are fine in practice; a heavy chain can starve the callback. Committed
-  (offline) effects are unaffected.
+- The effect-rack preview chain runs on the feeder thread, so a heavy chain no
+  longer starves the device callback — but it is processed a ring buffer ahead
+  of what you hear, so a parameter or bypass change lands after the queued
+  blocks drain (~340 ms at the default block and ring depth). A backend opened
+  outside the transport still processes in the render callback.
 - The SPSC ring is lock-free at the Python level but still executes under
   CPython/GIL scheduling; physical-device p99 timing and a long soak are not
   certified by headless tests.
@@ -287,9 +387,12 @@ above this package.
   compliance from the current alpha.
 - Loop playback restarts from the region start without a crossfade, and the
   reported position is briefly clamped across the wrap.
-- Long files stream from disk for playback, but the edit history and peak
-  pyramid are held in memory; RF64/>4 GB out-of-core workflows are not yet
-  complete end to end.
+- Long files stream from disk for playback and their peak pyramid survives in a
+  `.pk` sidecar between sessions, but the edit history and the pyramid itself
+  are held in memory while a clip is open, and a pyramid restored for a streamed
+  file only resolves down to its finest cached level (256 frames per bin) until
+  the samples are read. RF64/>4 GB out-of-core workflows are not yet complete
+  end to end.
 
 ## Release notes — v0.1.0-alpha
 
@@ -297,7 +400,8 @@ The first tagged preview: a **single-track waveform editor and analyzer**, not
 yet a multitrack DAW.
 
 - **Highlights:** streaming or in-memory playback over a lock-free SPSC ring;
-  nine undoable copy-on-write edit commands with storage-sharing undo;
+  ten undoable copy-on-write edit commands with storage-sharing undo, spectral
+  band attenuation and removal among them;
   parametric EQ / gain / normalize / fade with a live preview rack;
   calibrated spectral display; BS.1770-4 loudness and 4x true-peak metering;
   bit-exact WAV null-test, EBU 3341/3342 compliance vectors and an SLO suite

@@ -30,6 +30,10 @@ dependencies = [
 
 [project.optional-dependencies]
 audio = ["sounddevice>=0.4.6", "PyAudio>=0.2.13"]
+# GPL-3.0 boundary: installing this extra pulls in pedalboard (GPL-3.0 with
+# JUCE/Rubber Band/FFTW). It is opt-in only and must never be bundled into an
+# MIT-licensed binary artifact. See THIRD_PARTY_LICENSES.md.
+plugins = ["pedalboard>=0.9.0"]
 dev = [
     "pytest>=7.4",
     "pytest-qt>=4.2",

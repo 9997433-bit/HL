@@ -5,9 +5,19 @@ hop from the length of the audio it is given so that a ten-minute file produces
 about as many columns as a ten-second one — beyond a few thousand columns the
 extra detail cannot reach the screen anyway, and the transform stops being
 interactive.
+
+It also owns the *spectral selection*: the rectangle dragged over the
+spectrogram, which the widget reports in its own excerpt-relative seconds and
+the panel republishes in document coordinates — a
+:class:`~audio_studio.core.types.TimeRange` in frames plus a band in hertz.
+That is what an edit needs, because the analysis usually covers a selection
+rather than the whole file, and the offset between the two has to be added back
+before any sample is touched.
 """
 
 from __future__ import annotations
+
+from dataclasses import dataclass
 
 import numpy as np
 from PySide6.QtCore import Qt, Signal
@@ -20,11 +30,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ..core.types import TimeRange
 from ..dsp.spectral import SpectralAnalyzer, SpectralConfig
+from ..dsp.spectral_edit import ATTENUATION_DB
 from .colormaps import COLORMAP_NAMES, DEFAULT_COLORMAP
-from .spectrogram_widget import FrequencyScale, SpectrogramWidget
+from .spectrogram_widget import FrequencyScale, SpectralRegion, SpectrogramWidget
 
-__all__ = ["SpectrumPanel", "analysis_config"]
+__all__ = ["SpectralSelection", "SpectrumPanel", "analysis_config"]
 
 #: Columns beyond this cannot be resolved on any screen, so the hop is widened
 #: instead of computing frames nobody will see.
@@ -38,6 +50,26 @@ DB_RANGES: tuple[tuple[str, float], ...] = (
 )
 
 FFT_SIZES: tuple[int, ...] = (512, 1024, 2048, 4096, 8192)
+
+
+@dataclass(frozen=True, slots=True)
+class SpectralSelection:
+    """A spectrogram rectangle expressed in document coordinates."""
+
+    time: TimeRange
+    low_hz: float
+    high_hz: float
+
+    @property
+    def bandwidth_hz(self) -> float:
+        return self.high_hz - self.low_hz
+
+    def describe(self, sample_rate: float) -> str:
+        start, end = self.time.to_seconds(int(max(sample_rate, 1)))
+        return (
+            f"{start:.3f}–{end:.3f} s · "
+            f"{self.low_hz:.0f}–{self.high_hz:.0f} Hz"
+        )
 
 
 def analysis_config(sample_rate: float, n_frames: int, fft_size: int = 2048) -> SpectralConfig:
@@ -65,12 +97,25 @@ class SpectrumPanel(QWidget):
     #: Emitted when the FFT size changes; the owner re-runs the analysis.
     fftSizeChanged = Signal(int)
 
+    #: Emitted when the dragged rectangle changes: ``(TimeRange | None,
+    #: low_hz, high_hz)``, with the range in document frames. Both hertz
+    #: values are zero when the selection is dropped.
+    selectionChanged = Signal(object, float, float)
+
+    #: Emitted when the user asks for the selected band to be turned down.
+    attenuateRequested = Signal()
+
+    #: Emitted when the user asks for the selected band to be removed.
+    deleteRequested = Signal()
+
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.spectrogram = SpectrogramWidget()
         self._offset_s = 0.0
+        self._sample_rate = 0.0
         self._fft_size = 2048
         self._analysed_frames = 0
+        self._selection: SpectralSelection | None = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -83,6 +128,7 @@ class SpectrumPanel(QWidget):
         self.spectrogram.positionClicked.connect(
             lambda time_s, _hz: self.seekRequested.emit(self._offset_s + time_s)
         )
+        self.spectrogram.regionChanged.connect(self._on_region)
 
     def _build_controls(self) -> QWidget:
         bar = QWidget()
@@ -114,8 +160,22 @@ class SpectrumPanel(QWidget):
         self.auto_button.setToolTip("Fit the dynamic range to what is on screen")
         self.auto_button.clicked.connect(lambda: self.spectrogram.auto_scale())
 
+        self.attenuate_button = QPushButton("Attenuate")
+        self.attenuate_button.setToolTip(
+            f"Turn the selected band down by {abs(ATTENUATION_DB):.0f} dB"
+        )
+        self.attenuate_button.clicked.connect(self.attenuateRequested)
+
+        self.delete_button = QPushButton("Delete")
+        self.delete_button.setToolTip("Remove the selected band and resynthesise the rest")
+        self.delete_button.clicked.connect(self.deleteRequested)
+
         self.info_label = QLabel("No spectral data")
         self.info_label.setObjectName("SecondaryTimecode")
+
+        self.selection_label = QLabel("")
+        self.selection_label.setObjectName("SecondaryTimecode")
+        self.selection_label.setToolTip("Drag a box over the spectrogram to select a band")
 
         layout = QHBoxLayout(bar)
         layout.setContentsMargins(6, 4, 6, 4)
@@ -125,10 +185,13 @@ class SpectrumPanel(QWidget):
             QLabel("Range"), self.range_box,
             QLabel("FFT"), self.fft_box,
             self.scale_button, self.auto_button,
+            self.attenuate_button, self.delete_button,
         ):
             layout.addWidget(widget)
         layout.addSpacing(8)
         layout.addWidget(self.info_label, 1, Qt.AlignmentFlag.AlignLeft)
+        layout.addWidget(self.selection_label, 0, Qt.AlignmentFlag.AlignRight)
+        self._update_selection_ui()
         return bar
 
     # -- analysis ----------------------------------------------------------
@@ -140,6 +203,19 @@ class SpectrumPanel(QWidget):
     @property
     def has_data(self) -> bool:
         return self._analysed_frames > 0
+
+    @property
+    def selection(self) -> SpectralSelection | None:
+        """The dragged rectangle in document coordinates, or ``None``."""
+        return self._selection
+
+    @property
+    def sample_rate(self) -> float:
+        """Sample rate of the audio last analysed; ``0`` before the first one."""
+        return self._sample_rate
+
+    def clear_selection(self) -> None:
+        self.spectrogram.clear_region()
 
     def analyze(
         self,
@@ -159,6 +235,7 @@ class SpectrumPanel(QWidget):
         spectrogram = analyzer.spectrogram(audio, channels_last=channels_last)
 
         self._offset_s = float(offset_s)
+        self._sample_rate = float(sample_rate)
         self._analysed_frames = spectrogram.n_frames
         self.spectrogram.set_spectrogram(spectrogram)
         self.spectrogram.set_frequency_range(20.0, sample_rate / 2.0)
@@ -172,10 +249,40 @@ class SpectrumPanel(QWidget):
     def clear(self) -> None:
         self._analysed_frames = 0
         self._offset_s = 0.0
+        self._sample_rate = 0.0
         self.spectrogram.clear()
         self.info_label.setText("No spectral data")
 
     # -- slots -------------------------------------------------------------
+
+    def _on_region(self, region: SpectralRegion | None) -> None:
+        """Republish the widget's rectangle in frames on the document timeline."""
+        if region is None or self._sample_rate <= 0:
+            self._selection = None
+            self._update_selection_ui()
+            self.selectionChanged.emit(None, 0.0, 0.0)
+            return
+
+        rate = int(round(self._sample_rate))
+        self._selection = SpectralSelection(
+            TimeRange.from_seconds(
+                self._offset_s + region.start_s, self._offset_s + region.end_s, rate
+            ),
+            region.low_hz,
+            region.high_hz,
+        )
+        self._update_selection_ui()
+        self.selectionChanged.emit(
+            self._selection.time, self._selection.low_hz, self._selection.high_hz
+        )
+
+    def _update_selection_ui(self) -> None:
+        selection = self._selection
+        self.attenuate_button.setEnabled(selection is not None)
+        self.delete_button.setEnabled(selection is not None)
+        self.selection_label.setText(
+            "" if selection is None else selection.describe(self._sample_rate)
+        )
 
     def _on_scale(self, logarithmic: bool) -> None:
         self.scale_button.setText("Log" if logarithmic else "Linear")

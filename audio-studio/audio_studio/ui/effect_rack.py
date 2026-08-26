@@ -35,10 +35,15 @@ from PySide6.QtWidgets import (
 )
 
 from ..dsp.effects import (
+    LOUDNESS_PRESETS,
     CompressorEffect,
+    DelayEffect,
     EffectChain,
+    FDNReverbEffect,
     GainEffect,
     LimiterEffect,
+    LoudnessNormalizeEffect,
+    NoiseGateEffect,
     ThreeBandEQ,
 )
 from ..dsp.repair import DeClickEffect, DeHumEffect
@@ -57,22 +62,33 @@ HUM_CHOICES: tuple[tuple[str, float | str], ...] = (
     ("60 Hz", 60.0),
 )
 
+#: Delivery targets offered by the Loudness Match slot, as (label, preset key).
+LOUDNESS_CHOICES: tuple[tuple[str, str], ...] = (
+    ("Broadcast -23 LUFS (EBU R 128)", "broadcast"),
+    ("Streaming -16 LUFS", "streaming"),
+)
+
 
 def default_preview_chain() -> EffectChain:
     """The rack a new session starts with: repair, then a 3-band EQ into a trim.
 
     The EQ and trim are flat and the two repair effects are switched off, so
-    the chain is inaudible until something is moved. Everything but the
-    de-clicker streams, and the chain skips that one during preview.
+    the chain is inaudible until something is moved. Everything streams except
+    the de-clicker and the loudness matcher, which need the whole signal; the
+    chain skips those two during preview and they apply on render.
     """
     return EffectChain(
         [
             DeHumEffect(enabled=False),
             DeClickEffect(enabled=False),
+            NoiseGateEffect(enabled=False),
             ThreeBandEQ(),
             CompressorEffect(enabled=False),
             GainEffect(gain_db=0.0, ramp_ms=20.0),
+            DelayEffect(enabled=False),
+            FDNReverbEffect(enabled=False),
             LimiterEffect(enabled=False),
+            LoudnessNormalizeEffect(enabled=False),
         ]
     )
 
@@ -83,6 +99,14 @@ def _hum_choice_index(dehum: DeHumEffect) -> int:
         return 0
     for index, (_label, value) in enumerate(HUM_CHOICES):
         if isinstance(value, float) and abs(value - dehum.frequency) < 0.5:
+            return index
+    return 0
+
+
+def _loudness_choice_index(effect: LoudnessNormalizeEffect) -> int:
+    """Which entry of :data:`LOUDNESS_CHOICES` an effect's target corresponds to."""
+    for index, (_label, key) in enumerate(LOUDNESS_CHOICES):
+        if abs(LOUDNESS_PRESETS[key].target_lufs - effect.target_lufs) < 0.5:
             return index
     return 0
 
@@ -179,7 +203,9 @@ class EffectRackPanel(QWidget):
         layout.addWidget(self._build_eq())
         layout.addWidget(self._build_compressor())
         layout.addWidget(self._build_trim())
+        layout.addWidget(self._build_time_space())
         layout.addWidget(self._build_limiter())
+        layout.addWidget(self._build_loudness())
         layout.addWidget(self._build_footer())
         layout.addStretch(1)
         self.setMinimumWidth(240)
@@ -317,6 +343,64 @@ class EffectRackPanel(QWidget):
         layout.addWidget(self.compressor_ratio)
         return box
 
+    def _build_time_space(self) -> QWidget:
+        box = QGroupBox("Time & Space")
+
+        gate_label = QLabel("Noise Gate")
+        gate_label.setObjectName("SecondaryTimecode")
+        self.noise_gate_enabled = QCheckBox("Gate enabled")
+        self.noise_gate_enabled.toggled.connect(
+            lambda on: self._set_enabled(self.noise_gate, on)
+        )
+        self.noise_gate_threshold = _DbSlider("Threshold", -80.0, 0.0, -45.0)
+        self.noise_gate_threshold.valueChanged.connect(self._on_noise_gate_threshold)
+        self.noise_gate_ratio = _DbSlider("Ratio", 1.0, 20.0, 4.0, suffix=":1")
+        self.noise_gate_ratio.valueChanged.connect(self._on_noise_gate_ratio)
+
+        delay_label = QLabel("Delay")
+        delay_label.setObjectName("SecondaryTimecode")
+        self.delay_enabled = QCheckBox("Delay enabled")
+        self.delay_enabled.toggled.connect(lambda on: self._set_enabled(self.delay, on))
+        self.delay_time = _DbSlider("Time", 0.0, 1000.0, 250.0, suffix=" ms")
+        self.delay_time.valueChanged.connect(self._on_delay_time)
+        self.delay_feedback = _DbSlider("Feedback", 0.0, 95.0, 35.0, suffix=" %")
+        self.delay_feedback.valueChanged.connect(self._on_delay_feedback)
+        self.delay_mix = _DbSlider("Delay mix", 0.0, 100.0, 35.0, suffix=" %")
+        self.delay_mix.valueChanged.connect(self._on_delay_mix)
+
+        reverb_label = QLabel("FDN Reverb")
+        reverb_label.setObjectName("SecondaryTimecode")
+        self.reverb_enabled = QCheckBox("Reverb enabled")
+        self.reverb_enabled.toggled.connect(lambda on: self._set_enabled(self.reverb, on))
+        self.reverb_room_size = _DbSlider("Room size", 0.0, 100.0, 60.0, suffix=" %")
+        self.reverb_room_size.valueChanged.connect(self._on_reverb_room_size)
+        self.reverb_damping = _DbSlider("Damping", 0.0, 100.0, 35.0, suffix=" %")
+        self.reverb_damping.valueChanged.connect(self._on_reverb_damping)
+        self.reverb_mix = _DbSlider("Reverb mix", 0.0, 100.0, 25.0, suffix=" %")
+        self.reverb_mix.valueChanged.connect(self._on_reverb_mix)
+
+        layout = QVBoxLayout(box)
+        layout.setContentsMargins(8, 4, 8, 8)
+        layout.setSpacing(4)
+        for widget in (
+            gate_label,
+            self.noise_gate_enabled,
+            self.noise_gate_threshold,
+            self.noise_gate_ratio,
+            delay_label,
+            self.delay_enabled,
+            self.delay_time,
+            self.delay_feedback,
+            self.delay_mix,
+            reverb_label,
+            self.reverb_enabled,
+            self.reverb_room_size,
+            self.reverb_damping,
+            self.reverb_mix,
+        ):
+            layout.addWidget(widget)
+        return box
+
     def _build_limiter(self) -> QWidget:
         box = QGroupBox("True Peak Limiter")
         self.limiter_enabled = QCheckBox("Enabled")
@@ -330,6 +414,34 @@ class EffectRackPanel(QWidget):
         layout.setSpacing(4)
         layout.addWidget(self.limiter_enabled)
         layout.addWidget(self.limiter_ceiling)
+        return box
+
+    def _build_loudness(self) -> QWidget:
+        box = QGroupBox("Loudness Match")
+        self.loudness_enabled = QCheckBox("Enabled (applies on render)")
+        self.loudness_enabled.setToolTip(
+            "Normalise the clip's BS.1770 integrated loudness to the selected "
+            "delivery target. Needs the whole signal, so it is skipped during "
+            "live preview and applied on render"
+        )
+        self.loudness_enabled.toggled.connect(
+            lambda on: self._set_enabled(self.loudness, on)
+        )
+
+        self.loudness_preset = QComboBox()
+        for label, _key in LOUDNESS_CHOICES:
+            self.loudness_preset.addItem(label)
+        self.loudness_preset.setToolTip(
+            "Delivery target: the integrated LUFS the render should measure, "
+            "with the gain capped so the true peak stays under the preset's ceiling"
+        )
+        self.loudness_preset.currentIndexChanged.connect(self._on_loudness_preset)
+
+        layout = QVBoxLayout(box)
+        layout.setContentsMargins(8, 4, 8, 8)
+        layout.setSpacing(4)
+        layout.addWidget(self.loudness_enabled)
+        layout.addWidget(self.loudness_preset)
         return box
 
     def _build_footer(self) -> QWidget:
@@ -367,6 +479,24 @@ class EffectRackPanel(QWidget):
         return next((e for e in self.chain if isinstance(e, LimiterEffect)), None)
 
     @property
+    def noise_gate(self) -> NoiseGateEffect | None:
+        return next((e for e in self.chain if isinstance(e, NoiseGateEffect)), None)
+
+    @property
+    def delay(self) -> DelayEffect | None:
+        return next((e for e in self.chain if isinstance(e, DelayEffect)), None)
+
+    @property
+    def reverb(self) -> FDNReverbEffect | None:
+        return next((e for e in self.chain if isinstance(e, FDNReverbEffect)), None)
+
+    @property
+    def loudness(self) -> LoudnessNormalizeEffect | None:
+        return next(
+            (e for e in self.chain if isinstance(e, LoudnessNormalizeEffect)), None
+        )
+
+    @property
     def dehum(self) -> DeHumEffect | None:
         return next((e for e in self.chain if isinstance(e, DeHumEffect)), None)
 
@@ -390,6 +520,13 @@ class EffectRackPanel(QWidget):
                 self.compressor_enabled, self.compressor_threshold.slider,
                 self.compressor_ratio.slider, self.limiter_enabled,
                 self.limiter_ceiling.slider,
+                self.loudness_enabled, self.loudness_preset,
+                self.noise_gate_enabled, self.noise_gate_threshold.slider,
+                self.noise_gate_ratio.slider, self.delay_enabled,
+                self.delay_time.slider, self.delay_feedback.slider,
+                self.delay_mix.slider, self.reverb_enabled,
+                self.reverb_room_size.slider, self.reverb_damping.slider,
+                self.reverb_mix.slider,
                 self.dehum_enabled, self.hum_frequency, self.hum_harmonics,
                 self.hum_q.slider, self.declick_enabled, self.declick_sensitivity.slider,
             )
@@ -425,13 +562,37 @@ class EffectRackPanel(QWidget):
             if limiter is not None:
                 self.limiter_enabled.setChecked(limiter.enabled)
                 self.limiter_ceiling.set_value(limiter.ceiling_db)
+            loudness = self.loudness
+            if loudness is not None:
+                self.loudness_enabled.setChecked(loudness.enabled)
+                self.loudness_preset.setCurrentIndex(_loudness_choice_index(loudness))
+            noise_gate = self.noise_gate
+            if noise_gate is not None:
+                self.noise_gate_enabled.setChecked(noise_gate.enabled)
+                self.noise_gate_threshold.set_value(noise_gate.threshold_db)
+                self.noise_gate_ratio.set_value(noise_gate.ratio)
+            delay = self.delay
+            if delay is not None:
+                self.delay_enabled.setChecked(delay.enabled)
+                self.delay_time.set_value(delay.time_ms)
+                self.delay_feedback.set_value(delay.feedback * 100.0)
+                self.delay_mix.set_value(delay.mix * 100.0)
+            reverb = self.reverb
+            if reverb is not None:
+                self.reverb_enabled.setChecked(reverb.enabled)
+                self.reverb_room_size.set_value(reverb.room_size * 100.0)
+                self.reverb_damping.set_value(reverb.damping * 100.0)
+                self.reverb_mix.set_value(reverb.mix * 100.0)
         finally:
             for widget, previous in blocked:
                 widget.blockSignals(previous)
         for slider in (
             self.mix_slider, self.eq_low, self.eq_mid, self.eq_high, self.trim_gain,
             self.compressor_threshold, self.compressor_ratio, self.limiter_ceiling,
-            self.hum_q, self.declick_sensitivity,
+            self.noise_gate_threshold, self.noise_gate_ratio, self.delay_time,
+            self.delay_feedback, self.delay_mix, self.reverb_room_size,
+            self.reverb_damping, self.reverb_mix, self.hum_q,
+            self.declick_sensitivity,
         ):
             slider._update_readout()  # noqa: SLF001 - sibling widget, signals were blocked
         self._update_status()
@@ -468,6 +629,27 @@ class EffectRackPanel(QWidget):
         if limiter is not None:
             limiter.enabled = False
             limiter.ceiling_db = -1.0
+        loudness = self.loudness
+        if loudness is not None:
+            loudness.enabled = False
+            loudness.apply_preset(LOUDNESS_CHOICES[0][1])
+        noise_gate = self.noise_gate
+        if noise_gate is not None:
+            noise_gate.enabled = False
+            noise_gate.threshold_db = -45.0
+            noise_gate.ratio = 4.0
+        delay = self.delay
+        if delay is not None:
+            delay.enabled = False
+            delay.time_ms = 250.0
+            delay.feedback = 0.35
+            delay.mix = 0.35
+        reverb = self.reverb
+        if reverb is not None:
+            reverb.enabled = False
+            reverb.room_size = 0.6
+            reverb.damping = 0.35
+            reverb.mix = 0.25
         self.refresh()
         self.chainChanged.emit()
 
@@ -549,6 +731,60 @@ class EffectRackPanel(QWidget):
         limiter = self.limiter
         if limiter is not None:
             limiter.ceiling_db = float(ceiling_db)
+        self._changed()
+
+    def _on_loudness_preset(self, index: int) -> None:
+        loudness = self.loudness
+        if loudness is not None and 0 <= index < len(LOUDNESS_CHOICES):
+            loudness.apply_preset(LOUDNESS_CHOICES[index][1])
+        self._changed()
+
+    def _on_noise_gate_threshold(self, threshold_db: float) -> None:
+        noise_gate = self.noise_gate
+        if noise_gate is not None:
+            noise_gate.threshold_db = float(threshold_db)
+        self._changed()
+
+    def _on_noise_gate_ratio(self, ratio: float) -> None:
+        noise_gate = self.noise_gate
+        if noise_gate is not None:
+            noise_gate.ratio = float(ratio)
+        self._changed()
+
+    def _on_delay_time(self, milliseconds: float) -> None:
+        delay = self.delay
+        if delay is not None:
+            delay.time_ms = float(milliseconds)
+        self._changed()
+
+    def _on_delay_feedback(self, percent: float) -> None:
+        delay = self.delay
+        if delay is not None:
+            delay.feedback = percent / 100.0
+        self._changed()
+
+    def _on_delay_mix(self, percent: float) -> None:
+        delay = self.delay
+        if delay is not None:
+            delay.mix = percent / 100.0
+        self._changed()
+
+    def _on_reverb_room_size(self, percent: float) -> None:
+        reverb = self.reverb
+        if reverb is not None:
+            reverb.room_size = percent / 100.0
+        self._changed()
+
+    def _on_reverb_damping(self, percent: float) -> None:
+        reverb = self.reverb
+        if reverb is not None:
+            reverb.damping = percent / 100.0
+        self._changed()
+
+    def _on_reverb_mix(self, percent: float) -> None:
+        reverb = self.reverb
+        if reverb is not None:
+            reverb.mix = percent / 100.0
         self._changed()
 
     def _on_polarity(self, inverted: bool) -> None:

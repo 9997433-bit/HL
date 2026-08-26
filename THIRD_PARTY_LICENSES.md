@@ -14,12 +14,14 @@ inside each wheel or native package.
 |---|---|---|
 | Default application | `audio-studio/pyproject.toml` | NumPy, SciPy, SoundFile, PySide6-Essentials |
 | Hardware-audio extra | `audio-studio/pyproject.toml` `[audio]` | sounddevice, PyAudio, and a PortAudio library that is bundled by the sounddevice wheel or loaded dynamically |
+| Plugin-host extra | `audio-studio/pyproject.toml` `[plugins]` | pedalboard (GPL-3.0; opt-in only, lazily imported, never bundled into MIT artifacts — see the pedalboard section below) |
 | Full developer install | `audio-studio/requirements.txt` and `requirements-dev.txt` | Default application, sounddevice, PyAudio, and test/quality tools |
 | Probe/benchmark environment | root `requirements.txt` and `requirements-dev.txt` | NumPy, SciPy, sounddevice, SoundFile, librosa, platformdirs, and test/quality tools |
 | CI | `.github/requirements.in` and `.github/requirements.lock` | Default application test stack, pinned with direct CI transitives |
 
 The default application profile contains no component licensed under the
-unmodified GPL. PyQt6 and pedalboard are absent from all current manifests.
+unmodified GPL. PyQt6 is absent from all manifests; pedalboard appears only
+as the opt-in `[plugins]` extra and is never part of the default profile.
 The GPL exceptions and opt-in policy are documented below.
 
 ## Application and repository runtime dependencies
@@ -91,10 +93,14 @@ Audio Studio uses LGPL components only through replaceable shared libraries:
 
 [pedalboard](https://github.com/spotify/pedalboard) is GPL-3.0 and incorporates
 GPL/commercial components including JUCE, Rubber Band, and FFTW. It is **not a
-default dependency, is not present in any current manifest, and is not imported
-by the application**. If plugin-host work introduces it, it must be exposed
-only as an explicit `plugins` optional extra and imported lazily behind an
-isolated bridge.
+default dependency and is never imported at application import time**. It is
+declared only as the explicit `plugins` optional extra
+(`pip install "audio-studio[plugins]"`, `pedalboard>=0.9.0`) and the entire
+contact surface is the isolated bridge module
+`audio-studio/audio_studio/plugins/pedalboard_bridge.py`, which imports
+pedalboard lazily the first time a plugin is loaded and raises a clear error
+when the extra is absent. No other module imports pedalboard, and the extra is
+excluded from the CI lock and from every default/developer requirements file.
 
 Installing pedalboard for private use does not change the license of this
 repository's source. Distributing it together with Audio Studio in one wheel,
@@ -159,7 +165,10 @@ The repository's intentionally different profiles are reconciled as follows:
    and pins PySide6-Essentials, not PyQt6.
 4. FFmpeg is an external executable and appears only as an OS package in
    `Dockerfile.dev`; it is not a Python dependency or linked library.
-5. `pedalboard`, PyQt6, and ASIO are absent from the default and CI manifests.
+5. PyQt6 and ASIO are absent from every manifest. `pedalboard` appears in
+   exactly one place — the `[plugins]` optional extra of
+   `audio-studio/pyproject.toml` — and is absent from the default dependency
+   set, the developer requirements files, and the CI lock.
 
 Before publishing any binary artifact:
 
