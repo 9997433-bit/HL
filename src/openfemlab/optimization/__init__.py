@@ -30,7 +30,13 @@ statement.  Design and staging: ``docs/OPTIMIZATION.md``.
 
 from __future__ import annotations
 
-from .backends import OptimizerBackend, ScipyBackend, available_backends, get_backend
+from .backends import (
+    OptimizerBackend,
+    ScipyBackend,
+    available_backends,
+    get_backend,
+    kkt_residual,
+)
 from .gradients import (
     GradientCheck,
     MatrixDerivativeProvider,
@@ -85,6 +91,7 @@ __all__ = [
     "finite_difference_gradient",
     "frequency_floor",
     "get_backend",
+    "kkt_residual",
     "minimize_sizing",
     "modal_frequency_gradients",
     "problem_from_updater",

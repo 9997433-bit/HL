@@ -51,6 +51,23 @@ that no FE concept reaches the optimizer.
 Everything below the vector layer is swappable, which is the extension point
 `docs/ARCHITECTURE.md` §11 reserves for external optimizers.
 
+Module layout:
+
+| File | Owns |
+|------|------|
+| `variables.py` | `DesignSpace`, `ShapeVariable` (sizing reuses `UpdatableParameter`) |
+| `responses.py` | `DesignState`, `Response`, `TotalMass`, `NaturalFrequency`, `Objective`, `Constraint`, `frequency_floor` |
+| `gradients.py` | `MatrixDerivativeProvider`, Fox-Kapoor adapter, FD fallback, `check_gradient` |
+| `problem.py` | `OptimizationProblem`, `VectorConstraint`, `OptimizationIterate`, `OptimizationResult` |
+| `backends.py` | `OptimizerBackend` protocol, `ScipyBackend` (stub), registry |
+| `sizing.py` | `ModalDesignEvaluator`, `compile_sizing_problem`, `minimize_sizing`, `problem_from_updater` |
+
+Errors raise `OptimizationError` (`openfemlab.exceptions`); the top level
+re-exports `OptimizationProblem`, `OptimizationResult` and `minimize_sizing`.
+Contract tests: `tests/test_optimization.py` (16 tests pin the design space,
+both gradient routes, mode tracking, the bound contract, the backend registry,
+the stub, and the updater interop).
+
 ## 3. Problem statement
 
 The vector layer is the standardized bound-constrained NLP of MS-5.1:
@@ -164,62 +181,103 @@ The `scipy.optimize.minimize` lowering:
 | `gradient` | `jac=`, always set — scipy's 2-point fallback is explicitly disabled |
 | iterate callback | one `OptimizationIterate` row plus the evaluator's modal-solve counter |
 | `result.success` / `message` | `OptimizationResult.converged` / `message` |
-| stationarity | trust-constr `optimality`; for SLSQP, which reports none, a projected KKT residual computed here |
+| stationarity | `kkt_residual` (see below), the same measure for both methods |
 
-**Stationarity.** SLSQP exposes no optimality measure, and its raw gradient norm
-is not one: at a constrained optimum `∇f` is balanced by the active constraint
-gradients, not zero. So the backend reconstructs the first-order residual
-`∇f + Σ λ_k ∇g_k`, recovering the multipliers of the active set by *non-negative*
-least squares (`λ_k ≥ 0` is part of KKT — an unsigned solve could report a
-spuriously small residual), and projecting out components held at a bound where a
-bound multiplier legitimately absorbs them.
+`OptimizationResult.converged` additionally requires the solution to be
+feasible, so a run that terminates "successfully" against an unreachable
+constraint is reported as a failure rather than as an optimum.
 
-**Hessians (trust-constr only).** trust-constr needs a Lagrangian Hessian and the
-package supplies no second derivatives. Constraint curvature is neglected — the
-usual SQP approximation, and a necessary one here: scipy's default is a
-per-constraint BFGS, which degenerates when the jacobian is constant, and the
-canonical sizing constraint (a mass budget) is exactly linear. On the 2-variable
-reference problem the default exhausts `maxiter` where a zero constraint Hessian
-converges in 17 iterations. Neglecting curvature costs step quality, not
-correctness: the gradients that drive the KKT test are exact. The objective's
-Hessian is still approximated by quasi-Newton unless the caller passes an exact
-one as `options={"hess": …}` — worth doing for a minimum-mass objective, which is
-linear.
+**Stationarity.** SLSQP and trust-constr report incomparable diagnostics
+(a final gradient norm versus `optimality`), so the termination report uses one
+method-independent measure. `kkt_residual` solves the non-negative
+least-squares problem for the multipliers of the active inequalities and active
+bounds,
 
-**Status.** Implemented and gated. Measured on the reference problems of
-`tests/acceptance/test_optimization.py` with SLSQP:
+```
+min_{λ, μ ≥ 0}  ‖ df/dx + Σ_k λ_k dg_k/dx + μ_bounds ‖
+```
 
-| Problem | Optimum | Objective rel. err | Active `|g|` | Eigensolves |
-|---------|---------|--------------------|--------------|-------------|
-| Sized oscillator, min mass s.t. `f_1 ≥ f_min` | `t* = λ m₀/(k − λμ)` | 3.3e-16 | 4.4e-16 | 8 |
-| Payload placement, max `f_1` s.t. `m ≥ m_req` | even split `m_j = m_req/2` | 1.0e-12 | 2.0e-15 | 7 |
+and returns the residual relative to the gradient scale. Zero means the
+first-order KKT conditions hold at the solution.
 
-trust-constr reaches the same optima within the 1e-4 objective gate, but as an
-interior-point method it stops a barrier width short of the boundary, so its
-`|g|` settles around 1e-5 at default tolerances rather than at zero. AC-OPT-002
-is therefore read from SLSQP, the MS-5.2 default.
+**Status.** Wired and gated. AC-OPT-002 is verified against the closed-form
+optimum of §8 (objective within 1e-4 relative, active `|g| ≤ 1e-6`), AC-OPT-003
+over both the recorded iterates and the points the model is actually asked to
+evaluate. The remaining stub-free gap in the package is the geometric `dK/da`
+for shape variables (§4).
 
-## 8. Shared statement with updating
+## 8. Reference problem and its oracle
+
+The reference class is a grounded spring-mass chain of `n` masses in which
+design variable `t_j` scales both the stiffness **and** the structural mass of
+link `j`, while every node also carries a fixed non-structural mass `m_0`. The
+`m_0` matters: without it a uniform scaling of `K` and `M` leaves every
+frequency unchanged, mass minimization and the frequency floor stop fighting,
+and the problem is degenerate. With it the optimum sits on the constraint
+boundary, which is what AC-OPT-002 wants to see.
+
+The uniform variant — one variable scaling every link — has a closed-form
+optimum. With `K(t) = t K_1` and `M(t) = (t m_s + m_0) I` the eigenvalues are
+`λ_i(t) = t μ_i / (t m_s + m_0)`, so `f_1 ≥ f_min` binds exactly at
+
+```
+t* = ω² m_0 / (μ_1 − ω² m_s),        ω = 2π f_min
+```
+
+where `μ_1` is the smallest eigenvalue of `K_1`.
+
+| Criterion | Verified by |
+|---|---|
+| AC-OPT-001 | `check_gradient` on the compiled objective and constraint at three seeded feasible points |
+| AC-OPT-002 | the uniform chain solved to `t*` within 1e-4 relative with `\|g\| ≤ 1e-6`, plus a random-probe check that no feasible sample beats the three-variable optimum |
+| AC-OPT-003 | every recorded iterate *and* every point the model is asked to evaluate inside the box to 1e-12 |
+| AC-OPT-004 | two uncoupled oscillators driven through a crossing: the tracked frequency follows its branch and consecutive tracked shapes keep MAC ≥ 0.9 |
+
+`tests/acceptance/test_optimization.py` holds the gates;
+`tests/test_optimization.py` holds the behaviour they rest on.
+
+## 9. Shared statement with updating
 
 `problem_from_updater(updater)` re-expresses a calibration run as the same vector
 problem: the objective is the updater's weighted least-squares cost
 `f(x) = ½‖r(x)‖²` with the Gauss-Newton gradient `Jᵀr`, built from the updater's
-own residual and jacobian machinery. This is the seam through which Round 2 can
-drive updating with a generic bound-constrained backend instead of the built-in
+own residual and jacobian machinery. This is the seam through which a generic
+bound-constrained backend can drive updating instead of the built-in
 Levenberg-Marquardt loop — and the reason calibration and design optimization do
 not need two problem statements.
 
-## 9. Staging
+## 10. Public API
 
-| Round | Scope | State |
-|-------|-------|-------|
-| 1 | Design space, lowering, both gradient routes, mode tracking, response/result contracts, backend seam | done |
-| 2 | `ScipyBackend.solve` (GAP-12) and the AC-OPT-001..004 gates | done |
-| 2 | Drive `ModelUpdater` through the shared statement of section 8 | open |
-| 3 | Geometric `dK/da` for shape variables; DOE sampling and response-surface surrogates for expensive objectives | open |
+```python
+# spec MS-5.3 hook
+minimize_sizing(model, params, objective, constraints=(), *,
+                backend="slsqp", tol=1e-8, max_iter=100, seed=0)
+    -> OptimizationResult
 
-Still open in the module, beyond the staging above: no equality constraints
-(`Constraint` is `>=`/`<=` only), no multistart despite the `seed` parameter, and
-`translational_mass` treats every DOF as translational until
-`AssembledSystem.dof_types` is threaded through, so `TotalMass` is exact for
-chain and bar models but would count rotational rows on a continuum model.
+# lowering, exposed for tests and Round 2
+compile_sizing_problem(model, params, objective, constraints=(), **options)
+    -> (OptimizationProblem, ModalDesignEvaluator)
+
+# updating interop
+problem_from_updater(updater: ModelUpdater) -> OptimizationProblem
+
+# verification (AC-OPT-001)
+check_gradient(fun, jac, x, *, steps=1e-6, tolerance=1e-6) -> GradientCheck
+```
+
+## 11. Staging
+
+| Round | Scope |
+|-------|-------|
+| 1 | Design space, lowering, both gradient routes, mode tracking, response/result contracts, backend seam |
+| 2 | `ScipyBackend.solve` and the KKT termination report (GAP-12); AC-OPT-001..004 gates — **done** |
+| 3 | Element-level assembled `∂K/∂p`/`∂M/∂p` for the native `Model` stack (today only affine `ScalingModel`-style models take the analytic route); `dof_types`-aware translational mass for continuum models; geometric `dK/da` for shape variables (FE regeneration from morphed coordinates); driving `ModelUpdater` through the shared statement; DOE sampling and response-surface surrogates; multistart driver over `seed` |
+
+## 12. Acceptance criteria mapping
+
+| Criterion | Mechanism | Status |
+|-----------|-----------|--------|
+| AC-OPT-001 (gradients vs FD, 1e-6) | `check_gradient` + analytic routes | verified at 3 seeded points; worst 1.03e-09 |
+| AC-OPT-002 (reference optimum) | `ScipyBackend.solve` against the §8 oracle | verified; `t*` recovered to 9.2e-11 relative |
+| AC-OPT-003 (bounds never violated) | iterate history plus a spy on the compiled callbacks | verified over iterates *and* evaluations |
+| AC-OPT-004 (mode tracking) | evaluator reference tracking via `track_modes` | verified across a crossing at MAC ≥ 0.9 |

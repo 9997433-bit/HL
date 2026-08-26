@@ -11,6 +11,9 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 ## Branch
 `cursor/femtools-industrial-7aa3`
 
+## Pull Request
+[PR #5](https://github.com/9997433-bit/HL/pull/5) is open against `main`.
+
 ## 永久编排规则（不可遗忘）
 - **始终保持 10 个子代理并发满负荷运行**
 - 任一子代理完成/失败 → 主调度器**立即**派发新 Task 补齐至 10
@@ -29,10 +32,17 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A24 | claude-fable-5-thinking-xhigh | Round 2 plan: prioritized backlog with AC links (backfill for A22) | complete |
 | A25 | gpt-5.6-sol-xhigh-fast | CLI subprocess coverage over example 02 fixtures | complete |
 | A19 | claude-opus-5-thinking-high-fast | GAP-04/05 damped dynamics: damping, complex modes, FRF synthesis (backfill for A11) | complete |
+| A29 | gpt-5.6-sol-xhigh-fast | Rebase A13 workflow into dynamics/optimization integration branch | complete |
 | A15 | claude-opus-5-thinking-high-fast | GAP-01 `ModalResult` contract unification (backfill for R1-F1) | complete |
 | A13 | claude-opus-5-thinking-high-fast | M4 correction workflow state machine & `CorrectionReport` (backfill for A01) | complete |
 | A14 | claude-opus-5-thinking-high-fast | R1-O2 correlation/updating branch reconciliation (backfill) | complete |
 | A26 | claude-opus-5-thinking-high-fast | MS-4 workflow landing verification & Round 2 kickoff (backfill for A17) | complete |
+| A02 | claude-fable-5-thinking-xhigh | M5 optimization design & stubs: size/shape hooks, gradient interface, `docs/OPTIMIZATION.md` (backfill for A05) | complete |
+| A28 | claude-opus-5-thinking-high-fast | Dynamics/optimization branch integration onto the trunk (backfill for A15) | complete |
+| A32 | claude-fable-5-thinking-xhigh | Round 1 closure: 430-test/Ruff verification, PR draft, progress reconciliation (backfill for A29) | complete |
+| A30 | claude-fable-5-thinking-xhigh | Round 1 close-out: independent full-suite verification & PR-draft completion (backfill for A14) | complete |
+| A27 | claude-opus-5-thinking-high-fast | R2-T07 scipy optimization backend & AC-OPT gates (backfill for A25) | complete |
+| A39 | gpt-5.6-sol-xhigh-fast | R2-T07 post-integration verification & PR-draft refresh (backfill for A27) | complete |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
@@ -47,7 +57,10 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 ## Round Status
 
 ### Round 1 — Initial Build & Baseline Exploration
-**Status:** CONCLUDED — see Round Conclusions below (192/192 tests pass at `bae4b77`)  
+**Status:** COMPLETE — concluded at `bae4b77` (192 tests, see Round Conclusions below);
+both carry-over packages have since landed and the dynamics/optimization work is merged
+(`acda625`), bringing the suite to **430 passed** with `ruff check` clean (final
+addendum below).  
 **Dispatched:** 6 subagents (2×fable, 2×opus-fast, 2×gpt-sol), plus backfill agents A01–A20
 
 | Agent | Model | Focus | Status |
@@ -784,14 +797,154 @@ into the integration branch, so nothing is left stranded on a side branch.**
   demonstrates AC-WORK-001..004 numerically but is not tagged, so those criteria stay
   `specified` until an `tests/acceptance/test_workflow.py` claims them.
 
+#### A29 — A13/Dynamics Integration Backfill
+- Reconciled the feature branch with the completed A13 workflow and later A14/A21 updates,
+  preserving both A13's workflow record and A24's Round 2 plan during the progress-file
+  conflict, and pushed the resulting feature tip.
+- Rebased `cursor/dynamics-damping-frf-9500` onto that feature history. Git skipped the
+  already-landed workflow-test patch, so `tests/test_workflow.py` remains paired with the
+  complete `openfemlab.workflow` package instead of leaving tests without their consumer.
+- Preserved the workflow, damped-dynamics, and optimization package-root exports together.
+  The final branch includes the M4 workflow, reconciled updating stack, P0 acceptance batch,
+  structural sizing contracts, and GAP-04/05 damped dynamics/FRF implementation.
+- Verified the final integrated committed tree with full `pytest`: **430 passed, 0 failed**
+  (12.35 s, Python 3.12).
+
+#### A19 — GAP-04/05 Damped Dynamics: Damping, Complex Modes, FRF Synthesis
+Delivered on branch `cursor/dynamics-damping-frf-9500` — the branch R2-T01 is told to
+integrate rather than fork.
+
+- Added `solver/dynamics.py`, the chain from undamped normal modes to a measurable FRF —
+  the P0 gap A03 recorded as "everything downstream of undamped real modes is missing".
+- **Damping models.** `RayleighDamping` (`C = αM + βK`) with the exact two-anchor fit
+  (`from_frequencies`), a least-squares fit over any number of measured modes
+  (`from_modal_damping`), mass-/stiffness-only constructors, and the minimum of the ratio
+  curve (`√(αβ)` at `ω = √(α/β)`). `ModalDamping` carries explicit per-mode ratios;
+  `modal_damping_matrix` realizes them physically as `C = MΦ diag(2ζω/m) ΦᵀM`.
+  `StructuralDamping` gives the hysteretic `K(1+iη)` plus an equivalent viscous matrix once
+  a reference frequency is named. `proportionality_index`/`is_proportional` are the
+  Caughey-O'Kelly classical-damping test.
+- The models expose `modal_coefficients(ω) = 2ζω` alongside `damping_ratios(ω)`; for
+  Rayleigh that is `α + βω²`, so the FRF denominator stays finite at a rigid-body mode
+  where `ζ → ∞`.
+- **Complex modes.** `complex_modes` solves `(s²M + sC + K)φ = 0` through the *symmetric*
+  state-space linearization `A = [[C, M], [M, 0]]`, `B = [[K, 0], [0, −M]]`, keeping one
+  member of each conjugate pair and both members of an overdamped real pair.
+  `ComplexModalResult` reports undamped/damped frequencies, damping ratios, the quadratic
+  residual per mode, the modal phase collinearity (MPC), a best real approximation, and the
+  state-space constant `a_r = φᵀCφ + 2sφᵀMφ`, so residues stay correct under any
+  normalization (`"state"` → unit modal-A, `"max"`, `"none"`).
+- **FRF synthesis.** `modal_frf` (real-mode superposition, accepting a `ModalResult`, an
+  `(ω, Φ)` pair, or a `ComplexModalResult`), `complex_modal_frf` (residue superposition),
+  `direct_frf` (per-line inversion of `Z = (1+iη)K − ω²M + iωC`, dense or sparse LU above
+  400 DOFs), `harmonic_response` for constant or frequency-dependent loads, and
+  `residual_flexibility` for mode-truncation correction. `FrequencyResponse` carries the
+  `(nf, n_out, n_in)` matrix with receptance/mobility/accelerance conversion and
+  drive-point/row/column accessors.
+- **GAP-05 opener.** `frac` (Frequency Response Assurance Criterion) and `fdac` (Frequency
+  Domain Assurance Criterion matrix) are the platform's first FRF-domain correlation metrics.
+- **Results.** With every mode retained, real-mode superposition reproduces the direct
+  inversion to **2.1e-14** relative on a 6-DOF Rayleigh-damped chain, and complex-mode
+  residue superposition to **2.4e-12** on the *non-proportionally* damped version of the
+  same model (proportionality index 0.66, MPC 0.963–1.000, max quadratic residual 3.7e-13).
+  Under proportional damping the complex modes stay monophase (MPC = 1.000) and reproduce
+  the undamped spectrum to **8.0e-14** relative, with damping ratios matching the Rayleigh
+  curve to **7.2e-15** absolute. Truncating to 2 of 6 modes and adding the residual
+  flexibility restores the static response to **4.3e-16** relative and cuts the in-band
+  error **19.2×**. Closed-form checks pass exactly: SDOF poles `s = −ζω₀ ± iω₀√(1−ζ²)`,
+  receptance `1/(k − ω²m + iωc)`, resonant amplitude `1/(ω₀c)`, and the overdamped `ζ = 2`
+  case (two real poles with `s₁s₂ = k/m`, `s₁+s₂ = −c/m`) whose residue synthesis also
+  matches the direct solve to 1e-10.
+- Added `tests/test_dynamics.py` (**82 tests**, 0.3 s): damping fits and their failure
+  modes, classical/non-classical discrimination, complex modes against closed forms and
+  against the undamped solver, MPC properties, the three FRF paths against each other and
+  against analytic references, reciprocity, response-type algebra, truncation residuals,
+  harmonic response, the `FrequencyResponse` container, FRAC/FDAC, and a full
+  model → assembly → modes → damping → FRF integration case.
+- Verified on Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1: `tests/test_dynamics.py` 82 passed;
+  full repository suite on the integrated branch **430 passed**. `ruff check` clean on
+  `src/openfemlab/solver`, `src/openfemlab/__init__.py` and `tests/test_dynamics.py`.
+- **Known limitation, deliberately surfaced.** The state-space pencil is singular when a
+  retained DOF is massless, and unlike the undamped case there is no exact condensation once
+  `C` is present, so `complex_modes` raises with that instruction instead of returning
+  garbage (covered by a lumped-mass beam test). The undamped `ModalSolver` still condenses
+  automatically.
+- Hit the shared-working-tree hazard A13/A15 also report: concurrent checkouts reverted the
+  `__init__.py` export wiring and these progress notes twice mid-run, so the last steps were
+  finished in a detached worktree at `/tmp/a19wt`. All A19 commits are on the remote branch.
+- Open for the orchestrator: FRAC/FDAC currently live in `solver/dynamics.py` beside the FRF
+  types; if `correlation/` grows an FRF section they should be re-exported from there rather
+  than reimplemented. Remaining GAP-05 scope is an FRF residual inside `updating/updater.py`;
+  GAP-04 still lacks transient (time-domain) response.
+
+#### A02 — M5 Optimization Design & Stubs (backfill for A05)
+- Designed and landed `src/openfemlab/optimization/` (spec MS-5, GAP-12): a two-level
+  architecture where a structural layer (models, parameters, responses) lowers into a
+  plain bound-constrained vector NLP (`OptimizationProblem`) that swappable backends
+  consume — no FE concept leaks below the lowering line. Full design rationale, reuse
+  map, gradient-route table and AC-OPT mapping in the new `docs/OPTIMIZATION.md`.
+- **Size hooks / updating integration:** sizing variables *are* the updating
+  parameters — `DesignSpace` wraps `updating.parameters.ParameterSet` (bounds, log
+  design-space mapping, FD steps) and appends `ShapeVariable` amplitudes, so a model
+  calibrated by `ModelUpdater` is optimized without re-declaring anything. Deeper:
+  `problem_from_updater(updater)` lowers an updating run itself into the same vector
+  problem (`f = 1/2‖r‖²`, gradient `Jᵀr` from the updater's own jacobian machinery),
+  the seam for driving updating with a generic backend in Round 2.
+- **Shape hooks:** basis-field mesh morphing `X(a) = X0 + Σ aⱼVⱼ` with the exact
+  linear morph and geometry gradient `dX/da = V` implemented
+  (`DesignSpace.morph_displacement` / `apply_to_coordinates`); FE regeneration and
+  geometric `dK/da` deferred to Round 3, shape gradients route through tracked FD.
+- **Gradient interface (modal integration):** `ModalDesignEvaluator` produces one
+  cached `DesignState` per design point (objective + all constraints share a single
+  eigensolve) and auto-detects the `MatrixDerivativeProvider` shape (`assemble` /
+  `derivatives` / `eigen` — `ScalingModel` satisfies it unmodified) to fill an
+  analytic bundle from the shared M3 Fox–Kapoor kernel: `df/dp` re-ordered to
+  MAC-tracked reference mode labels, exact `dm/dp = mass(Mⱼ)`. Fallback: central FD
+  over the design vector with a one-time warning; `check_gradient` is the AC-OPT-001
+  verification gate. MAC tracking (via `updating.sensitivity.track_modes` against the
+  previous iterate's tracked view) keeps `NaturalFrequency(i)` responses and gradient
+  rows attached to physical branches across crossings (AC-OPT-004 mechanism).
+- Constraints standardize to `g ≤ 0` with dimensionless normalization
+  (`frequency_floor` gives MS-5.1's `g = 1 − f/f_min`); `minimize_sizing` exposes the
+  exact MS-5.3 signature. Backend contract (bounds hard per AC-OPT-003, no internal
+  differentiation per MS-5.2, `g ≤ 0 → g ≥ 0` sign mapping for SLSQP) is documented in
+  `ScipyBackend`; its `solve` is the **single** `NotImplementedError` stub, Round 2
+  gated by AC-OPT-002/003. Added `OptimizationError` to `openfemlab.exceptions` and
+  top-level lazy exports (`OptimizationProblem`/`OptimizationResult`/`minimize_sizing`).
+- `tests/test_optimization.py`: 16 contract tests — design-space layout/bounds/clip,
+  log chain rule, shape morphing, single-solve sharing, analytic-route detection,
+  exact mass gradient, AC-OPT-001 frequency-gradient checks at 3 seeded points
+  (objective and constraint callbacks), MS-5.1 standardization, FD-fallback warning,
+  mode tracking across an eigen-order crossing, vector-problem bound validation,
+  backend registry, stub pinning, and updater-interop gradient consistency (`Jᵀr` vs
+  FD ≤ 1e-6; zero residual/gradient at the true parameters). All 16 pass at the
+  current tip; new files Ruff-clean.
+- Same shared working-tree hazard A13/A15/A21 reported, worse this round: sibling
+  agents repeatedly reverted `exceptions.py` and both `__init__.py` files mid-edit,
+  `/workspace` was switched onto `cursor/dynamics-damping-frf-9500` mid-run (taking
+  the in-flight files with it, committed there as `9d77b80` by the concurrent flow and
+  merged back via `acda625`), so verification and the docs/PROGRESS commits were
+  finished from a detached worktree at `/tmp/a02-opt`.
+- Open for the orchestrator: R2-T07 (optimization backend) should wire
+  `ScipyBackend.solve` + the AC-OPT-002 reference problem against the already-compiled
+  lowering; element-level assembled `dK/dp` for the native `Model` stack is the other
+  half of GAP-12 (today only affine `ScalingModel`-style models get analytic
+  gradients).
+
 ### Round 2 — Targeted Refactor & Deep Optimization
-**Status:** KICKED OFF — backlog planned in `.agent_workspace/ROUND2_PLAN.md` (A24); the
-MS-4 workflow carried over from Round 1 is landed and verified at `5bc6a6d` (A26)
+**Status:** IN PROGRESS — backlog planned in `.agent_workspace/ROUND2_PLAN.md` (A24); the
+MS-4 workflow carried over from Round 1 is landed and verified at `5bc6a6d` (A26), the
+damped-dynamics and optimization tracks are merged in at `acda625` (A19 implementation,
+A28 integration), and **R2-T01 is DONE** — AC-DYN-001..005 registered and implemented
 
 Core backlog (prioritized, from `docs/SOTA_GAP_ANALYSIS.md` §4/§6 + Round 1 conclusion):
-1. **R2-T01 Dynamics/FRF chain** (GAP-04/05, P0) — damping models, harmonic response,
-   FRF synthesis, FRAC/FDAC; integrate the in-flight `cursor/dynamics-damping-frf-9500`
-   work; new AC-DYN-* criteria registered spec-first.
+1. ~~**R2-T01 Dynamics/FRF chain** (GAP-04/05, P0) — damping models, harmonic response,
+   FRF synthesis, FRAC/FDAC.~~ **DONE.** The engine landed with the `acda625` merge of
+   `cursor/dynamics-damping-frf-9500`, and AC-DYN-001..005 are now registered spec-first
+   against that API and `implemented` (see the R2-T01 entry below). GAP-04 is closed;
+   GAP-05 is closed apart from the FRF updating residual the plan defers to Round 3.
+   Handed on to the exit-bar work: the measured-vs-synthesized FRF demo through the CLI,
+   and an FRF block in the `CorrelationReport` schema.
 2. **R2-T02 3D continuum elements** (GAP-02, P0) — QUAD4/TET4/HEX8 + 3D beam with patch
    /convergence gates (AC-MODAL-001/003/004/007 extended, new AC-ELEM-*).
 3. **R2-T03 SEREP/TAM reduction & expansion** (GAP-08) — Guyan/IRS/SEREP, TAM
@@ -802,9 +955,73 @@ Core backlog (prioritized, from `docs/SOTA_GAP_ANALYSIS.md` §4/§6 + Round 1 co
    meshio ↔ NeutralModel bridge, UNV 2411/2412.
 
 Supporting: R2-T06 updating depth (incl. the still-unimplemented **P0** AC-UPD-007
-collinearity screen), R2-T07 scipy optimization backend (GAP-12), R2-T08 R1-O2 branch
-reconciliation, R2-T09 CI exit hardening. Exit bar: all P0+P1 criteria `verified`,
+collinearity screen), R2-T07 scipy optimization backend (GAP-12 — the surrounding M5
+package landed at `acda625` and `ScipyBackend.solve` is now wired too, so this is
+**done**, A27), R2-T08 R1-O2 branch reconciliation, R2-T09 CI exit hardening.
+Exit bar: all P0+P1 criteria `verified`,
 new dynamics/element/IO criteria at least `implemented`, GAP-01 stays closed.
+
+#### R2-T01 — Dynamics & FRF chain closed out (GAP-04/05, P0)
+- **Integration first, and only one implementation.** The plan's binding constraint was
+  to harvest `cursor/dynamics-damping-frf-9500` rather than fork a rival dynamics kernel
+  (the GAP-01 lesson). Confirmed done: A28's merge `acda625` carries `solver/dynamics.py`
+  (1,288 lines — damping models, complex modes, FRF synthesis, FRAC/FDAC),
+  `tests/test_dynamics.py` (**82 passed**) and the `optimization/` sizing contracts, and
+  `frac`/`fdac` are defined in exactly one place on the branch. This entry adds the
+  spec-first half of R2-T01 that the merge did not cover.
+- **Criteria registered spec-first.** `MODULE_SPEC.md` §7 defines module **M6** with
+  anchors **MS-7.1..7.5** (damping models, complex modes, harmonic response and FRF
+  synthesis, FRF correlation, public API). MS-6 was already the inter-module contracts
+  section, so the sixth module takes the `MS-7` prefix rather than renumbering live
+  anchors. `ACCEPTANCE_CRITERIA.md` §7 defines AC-DYN-001..005; the registry gained the
+  `DYN` family (→ M6) and all five entries at `implemented`, which the enforcement tests
+  accept only because `tests/acceptance/test_dynamics.py` carries a `@criterion` tag for
+  each ID.
+- **AC-DYN-001** (`oracle`, gate 1e-8) — 1-DOF damped receptance against
+  `1/(k − mω² + iωc)`: direct inversion **exact (0)**, real-mode superposition
+  **1.9e-16**. 2-DOF fixture against the hand-inverted 2×2 dynamic stiffness on 31
+  off-resonance lines: **1.1e-15** direct, **1.2e-15** modal. Mobility and accelerance
+  are checked against `iωH` and `−ω²H`, so the MS-7.3 conventions are pinned rather than
+  assumed.
+- **AC-DYN-002** (`property`, gate 1e-8) — with the full basis retained on the 10-DOF
+  chain, real-mode superposition matches `Z(ω)⁻¹` to **8.0e-15**; for a deliberately
+  non-classical `C` (single grounded dashpot, Caughey–O'Kelly residual **0.632**) the
+  complex-mode residue expansion matches to **8.4e-15** — the case where real-mode
+  superposition is not valid at all. Truncating to 3 of 10 modes costs **4.6 %** at 0 Hz
+  and `residual_flexibility` brings it back to **9.8e-16**; the test asserts the
+  truncation error is real before crediting the correction.
+- **AC-DYN-003** (`property`) — for `C = αM + βK` (α=0.02, β=0.004, ζ spanning
+  **0.90 %..6.72 %** across the chain spectrum) the complex modes are monophase to
+  **1 − 2.2e-16** MPC, the extracted ratios match `α/(2ω_r) + βω_r/2` to **1.2e-15**, and
+  `ω_d = ω_r√(1 − ζ²)` holds. The negative control is what makes the gate meaningful: the
+  grounded dashpot drops the worst MPC to **0.7516** and `is_proportional` rejects it.
+- **AC-DYN-004** (`property`, gate 1e-12) — the frequency-domain mirror of
+  AC-CORR-001/002. Self-FRAC deviates by **4.4e-16**; 8 seeded complex scale factors move
+  FRAC by at most **1.2e-15** against a non-trivial reference (cross-DOF FRAC spans
+  **0.0014..0.5353**, so invariance is measured against real signal, not against 1); the
+  FDAC diagonal is unit to **8.9e-16** with **exact** symmetry; zero-norm inputs return 0,
+  not NaN.
+- **AC-DYN-005** (`contract`, gate 1e-9) — a synthesized drive-point receptance written
+  as an ASCII dataset-58 record (ordinate type 6, even spacing) and read back through
+  `io/uff.py` recovers the abscissa **exactly** and the complex ordinates to **1.2e-13**,
+  correlating with its source at FRAC **1 − 0**. The formatter lives in the test, not the
+  library: the criterion gates the reader contract, and UFF *writing* stays R2-T05 scope.
+- **FRAC/FDAC reachable from the correlation namespace.** `openfemlab.correlation` and
+  the package root now re-export `frac`/`fdac` from `solver.dynamics` — a re-export, not
+  a copy, and the import points downward (correlation is L3, solver L2). The
+  `CorrelationReport` schema is deliberately untouched: an FRF block there is a
+  `schema_version` bump that belongs with the CLI demo in the exit-bar work.
+- Verified on Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1: `tests/test_dynamics.py`
+  **82 passed**, `tests/acceptance` **59 passed** (13 new AC-DYN tests + 46 existing),
+  full suite **443 passed** (430 before this change), Ruff clean.
+- **Working-tree hazard, fourth occurrence** — and this time it destroyed work rather
+  than just risking it. The R2-T02 element agent was editing `/workspace` concurrently;
+  midway through, a reset there wiped four of this task's edited files
+  (`MODULE_SPEC.md`, `ACCEPTANCE_CRITERIA.md`, the registry, `correlation/__init__.py`)
+  out of the tree, and the editable install briefly resolved `openfemlab` to
+  `/tmp/a28/src`. The work was redone in a private detached worktree at `/tmp/r2t01` and
+  pushed from there. A13, A15, A21 and A26 all report the same failure mode; the
+  private-worktree rule should be mandatory, not advisory.
 
 #### A26 — Round 1 carry-over cleared: MS-4 workflow landed (backfill for A17)
 - Round 1 closed with the MS-4 `workflow/` package listed as its single largest piece of
@@ -844,10 +1061,139 @@ new dynamics/element/IO criteria at least `implemented`, GAP-01 stays closed.
   rule mandatory rather than advisory, since `git clean`/branch-switch collateral is not
   something the offending agent can see.
 
-**Round 2 entry state.** Of the two packages Round 1 left uncommitted, `workflow/` is now
-in and green; the `optimization/` build-out (`variables`, `responses`, `gradients`,
-`problem`, `sizing`, `backends`) is still in-flight in the shared tree and is the last
-Round-1 carry-over, tracked as R2-T07. The A24 backlog above is otherwise the live plan.
+**Round 2 entry state.** Both packages Round 1 left uncommitted are now in and green:
+`workflow/` via A13/A26, and the `optimization/` build-out (`variables`, `responses`,
+`gradients`, `problem`, `sizing`, `backends`) via the A28 merge below. No Round-1
+carry-over remains, and R2-T07's remaining debt — `ScipyBackend.solve` — was cleared by
+A27. The A24 backlog above is otherwise the live plan.
+
+#### A28 — Dynamics & Optimization Branch Integration (backfill for A15)
+- Merged `cursor/dynamics-damping-frf-9500` into the integration branch at `acda625`,
+  landing the two tracks Round 1 and A24 had both flagged as in-flight: A19's GAP-04/05
+  damped-dynamics chain (`solver/dynamics.py`, `tests/test_dynamics.py`, 82 tests) and
+  A02's MS-5 optimization build-out
+  (`optimization/{variables,responses,gradients,problem,sizing,backends}.py`,
+  `tests/test_optimization.py`, 16 tests), which had been swept into A19's commits from
+  the shared tree. The A02, A19 and A29 entries describe the delivered engines; this
+  entry records the integration.
+- **No conflicts to resolve.** A19 had rebased onto `0409b3e` before pushing, so the merge
+  base was current and git took every hunk cleanly, including the `openfemlab/__init__.py`
+  export table and the PROGRESS line both sides touched. Verified afterwards that the
+  merge is content-complete rather than merely conflict-free: `openfemlab.solver` exports
+  the dynamics API, and `OptimizationProblem`, `OptimizationResult`, `minimize_sizing` and
+  `OptimizationError` all resolve from the package root.
+- **A second merge** (`57ba8c2`) brought the A29 and A19 progress records themselves onto
+  the trunk. Both were written after the rebase and lived only on the side branch, which
+  is exactly the "nothing stranded on a side branch" rule A29 states.
+- **The failure mode this backfill actually guarded against.** In the shared `/workspace`
+  clone the branch pointer `cursor/dynamics-damping-frf-9500` had been reset onto the
+  trunk after A19 pushed, so merging that local ref reported "Already up to date" and
+  would have silently landed nothing. The five commits were located through the branch
+  reflog (`490970a` and its parents), then confirmed still present on
+  `origin/cursor/dynamics-damping-frf-9500` — the ref that was actually merged. This is
+  the fourth occurrence of the shared-tree hazard A13/A15/A21/A26 report and the worst
+  variant so far: a lost *ref* rather than a lost working tree, because it fails silently
+  instead of breaking an import. All of this agent's work was done in a private worktree
+  at `/tmp/a28` with `PYTHONPATH` pinned to it, since the venv's editable install points
+  at `/workspace/src` and would otherwise test a sibling agent's tree.
+- Verified at `acda625` on Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1: full suite
+  **332 → 430 passed** (5 s), `ruff check .` clean. Every pre-existing suite is unchanged;
+  the 98 new tests are the two merged files.
+- **Independent integration checks** — not a re-run of A19's suite, but the merged packages
+  driven through the trunk's own `ModalSolver`, `mesh.simple.spring_mass_chain` and
+  `updating.ScalingModel`, which is the part a merge can break. Damped SDOF poles match
+  `s = −ζω₀ ± iω₀√(1−ζ²)` to **7.4e-16** relative and ζ to **6.1e-16**. A 10-DOF chain
+  under Rayleigh damping reports proportionality index **exactly 0.0**. Over 400 frequency
+  lines from 1–120 Hz, real-mode superposition and complex-mode residue superposition
+  reproduce the direct inversion of `Z(ω) = K − ω²M + iωC` to **2.1e-13** and **1.3e-10**
+  relative, with drive-point **FRAC = 1.000000000000000** on both routes. On the 2-DOF
+  sizing reference the analytic Fox-Kapoor route matches central differences to
+  **1.4e-10** (mass objective) and **2.1e-10** (normalized frequency constraint) against
+  the 1e-6 AC-OPT-001 gate, at **7** eigensolves for both checks together — the
+  evaluator's one-solve-per-design-point cache behaving as specified.
+- Opened `docs/OPTIMIZATION.md` (`9c674d5`). `optimization/__init__.py`, `backends.py`
+  and the `ScipyBackend.solve` `NotImplementedError` message all cite it by name — the
+  last of those is user-facing — but the merge landed code referencing a file that
+  existed on no branch and in no reachable commit, so the two API levels, the design
+  space and lowering pipeline, both gradient routes and the "section 7" scipy mapping the
+  stub message promises were written up from the shipped code. A02 then extended it
+  (`ea65d7b`) with the module layout, the public API block and the AC-OPT mapping.
+- Open for the orchestrator, in priority order:
+  1. `ScipyBackend.solve` is the one remaining stub, so `minimize_sizing` raises
+     `NotImplementedError` and AC-OPT-002/003 cannot be claimed. This is R2-T07/GAP-12,
+     now unblocked: the lowering, both gradient routes, mode tracking and the result
+     contract are all in and tested.
+  2. No `AC-DYN-*` criteria exist yet, so 82 passing dynamics tests move nothing in the
+     registry. R2-T01's spec-first rule (criteria doc + module spec + registry in one
+     commit) should now be applied to the landed API rather than to a planned one.
+  3. `frac`/`fdac` are reachable only as `openfemlab.solver.dynamics.frac`: the curated
+     `openfemlab.solver.__all__` and the package root export the synthesis API but not the
+     FRF correlation metrics. A19 flags the same seam from the other side (they belong in
+     `correlation/` if it grows an FRF section); worth settling before the R2-T01 CLI demo
+     depends on it.
+
+#### A27 — R2-T07 scipy optimization backend & the AC-OPT gates (backfill for A25)
+- **Cleared the one stub A28 left open.** `9d77b80`/`db36a32` landed the optimization
+  package with a deliberate hole: `ScipyBackend.solve` raised `NotImplementedError`, so
+  `minimize_sizing` could lower a problem but never solve one and all four AC-OPT criteria
+  were unmet. The backend is now wired exactly as `docs/OPTIMIZATION.md` §7 specified it —
+  `Bounds(keep_feasible=True)`, negated inequalities for SLSQP against
+  `NonlinearConstraint(g, -inf, 0)` for trust-constr, `jac` always supplied — and GAP-12 is
+  closed for sizing.
+- **`jac` is not an optimization, it is the contract.** Letting scipy fall back to 2-point
+  differencing would spend one hidden eigensolve per variable per iteration on top of the
+  analytic Fox-Kapoor gradients the package already computes for free, so a problem with no
+  gradient callback now raises `OptimizationError` rather than silently costing 4x.
+- **Bounds audit made non-tautological.** Points are projected onto the box before they
+  reach the model, but `OptimizationIterate.x` stores the *raw* point the backend reported,
+  so `in_bounds` audits AC-OPT-003 instead of restating the projection. The acceptance test
+  additionally spies on the compiled callbacks and asserts that no point the model is asked
+  to evaluate leaves the box.
+- **One stationarity measure for both methods.** SLSQP reports a final gradient norm and
+  trust-constr an `optimality`; neither is comparable to the other. `kkt_residual` instead
+  solves the NNLS fit of the multipliers of the active inequalities and active bounds and
+  reports `‖df/dx + Σ λ_k dg_k/dx + μ_bounds‖` relative to the gradient scale, so a run's
+  first-order optimality reads the same whichever backend produced it.
+- **Reference problem with a closed-form oracle.** A grounded spring-mass chain where
+  `t_j` scales the stiffness *and* the structural mass of link `j` over a fixed
+  non-structural mass `m_0`. Without `m_0` a uniform scaling leaves every frequency
+  unchanged and mass minimization stops fighting the frequency floor; with it the optimum
+  is on the constraint boundary. Scaling every link together gives
+  `λ_i(t) = t μ_i/(t m_s + m_0)`, so `f_1 ≥ f_min` binds at
+  `t* = ω² m_0/(μ_1 − ω² m_s)` — an oracle, not a previous run of the code.
+- **Results.** 3-mass chain, `f_min = 0.065 Hz`, `t*` = 2.667380 (mass 9.502139).
+  SLSQP converges in **7 iterations / 8 eigensolves** to `t` = 2.667380
+  (**9.2e-11** relative), `|g| = 0` and stationarity **0.000e+00**; trust-constr agrees to
+  4.9e-6 relative in 16 iterations / 11 eigensolves. Sizing the three links independently
+  reaches mass **3.977** against the uniform design's 9.502 at the same floor, with the
+  constraint active and stationarity 6.9e-06, and no feasible sample out of 80 random
+  draws beats it. AC-OPT-001: analytic vs central FD worst relative error **1.03e-09**
+  (mass objective) and **2.42e-10** (normalized frequency constraint) over three seeded
+  feasible points — three orders inside the 1e-6 gate.
+- Added `tests/acceptance/test_optimization.py`, the suite the registry has named since the
+  criteria were written, and flipped AC-OPT-001..004 from `specified` to `implemented`;
+  the registry's own status-honesty test enforces the tagging. Extended
+  `tests/test_optimization.py` over the wired backend, replacing the test that pinned the
+  stub's stub-ness.
+- Verified on Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1: full suite **485 passed** (13 s)
+  after the final rebase onto `2f9d6e6`, `ruff check src tests` clean.
+- Open for the orchestrator: shape variables still route through finite differences (no
+  geometric `dK/da`), `problem_from_updater` is wired and gradient-checked but nothing
+  drives `ModelUpdater` through it yet, and DOE/surrogates remain Round 3. Ran in a private
+  worktree at `/tmp/a27` — the shared `/workspace` checkout was on another agent's branch
+  with uncommitted optimization drafts when this task started, and A28's ref-level variant
+  of the same hazard is recorded above.
+
+#### A39 — R2-T07 post-integration verification (backfill for A27)
+- Reset the feature branch to remote tip `f0c65c2` and independently ran the complete suite
+  from a private worktree with `PYTHONPATH` pinned to that checkout: **498 passed, 0 failed**
+  in 29.42 s on Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1. The increase from A27's 485 is
+  the 13-test AC-DYN acceptance batch subsequently landed by R2-T01.
+- Refreshed `.agent_workspace/PR_DRAFT.md` from the stale 430-test baseline to 498,
+  including the exact per-suite total, and replaced the obsolete backend-stub wording:
+  `ScipyBackend` now implements SLSQP and trust-constr with analytic Jacobians, hard bounds,
+  iteration/KKT audit fields, and standardized constraint mapping. **GAP-12 is closed for
+  sizing optimization.**
 
 ### Round 3 — SOTA Polish & Final Acceptance
 **Status:** PENDING
@@ -958,3 +1304,45 @@ from the shared working tree and are the only pieces of declared Round 1 scope n
 committed with tests. Everything else in the "Remaining defects / open items" list above is
 Round 2/3 scope by design, not Round 1 debt. Once those two packages land green, the round
 closes on content as well as on the exit bar.
+
+#### Addendum — Round 1 COMPLETE (A32, backfill for A29)
+
+The two packages the A15 addendum listed as the last uncommitted Round 1 scope are both
+landed and green on this branch. A13's MS-4 `workflow/` package was verified in by A26 at
+`5bc6a6d`; the `optimization/` build-out (`variables`, `responses`, `gradients`,
+`problem`, `sizing`, scipy `backends`, 16 tests) arrived together with the damped-dynamics
+track when `acda625` merged `cursor/dynamics-damping-frf-9500` —
+`solver/dynamics.py` now carries Rayleigh/modal/structural damping, complex modes with
+modal phase collinearity, modal/complex-modal/direct FRF synthesis, harmonic response,
+residual flexibility, and FRAC/FDAC (82 tests, the largest suite in the repository).
+`docs/OPTIMIZATION.md` (`9c674d5`) is the design reference the package points at.
+
+Verified at `9c674d5` on Python 3.12 / NumPy 2.5.2 / SciPy 1.18.1, from a private
+detached worktree (`/tmp/a32`, `PYTHONPATH` pinned to its `src` per the A14 method note —
+the shared `/workspace` checkout had been switched onto `cursor/quad4-plane-stress-element-b99c`
+by a concurrent agent mid-run, the fifth occurrence of the working-tree hazard counting
+the lost-ref variant A28 reports): full
+suite **430 passed** (4.9 s), `ruff check .` clean. **Round 1 is closed on content as
+well as on the exit bar.** The ready-to-file PR for `main` (title + body) is in
+`.agent_workspace/PR_DRAFT.md`.
+
+#### Addendum — independent close-out verification (A30, backfill for A14)
+
+A30 ran the same close-out independently and the two agents' numbers agree, so the
+Round 1 declaration rests on two separate measurements rather than one: full suite
+**332 passed** at `5bc6a6d` (9.98 s) before the dynamics/optimization merge, and
+**430 passed** (4.6 s) with `ruff check .` clean (ruff 0.16.4) on the merged tip
+`9c674d5`, both on Python 3.12.3 / NumPy 2.5.2 / SciPy 1.18.1 from the `/tmp/a23`
+worktree with `PYTHONPATH` pinned per the A14 method note. Per-file collection sums
+to exactly 430 (dynamics 82, updating 57, correlation 52, modal 44, workflow 38,
+acceptance 46, CLI 22+1, core 18, result contract 17, optimization 16, IO 24,
+boundary/perf/e2e/scaffold 13).
+
+A30 completed the A32 PR draft rather than replacing it: added the per-suite test
+breakdown and the `docs/ARCHITECTURE.md` §7 FEMtools comparison table to the PR body,
+and corrected one overstated claim — `ScipyBackend.solve` is a pinned Round 2 stub
+(its own test asserts `NotImplementedError` naming GAP-12), so the optimization bullet
+now says the backend seam and KKT result fields exist while the `minimize` wiring is
+Round 2 scope. Two docs-only close-out commits raced this one onto the branch tip
+(`516184b`, `b9d26f0`); this record was rebuilt on top of them instead of fighting the
+rebase, so nothing from the concurrent closure was overwritten.

@@ -111,12 +111,13 @@ class OptimizationProblem:
         lo, hi = self.bounds
         return bool(np.all(x >= lo - tolerance) and np.all(x <= hi + tolerance))
 
-    def solve(self, backend: str = "slsqp", **options: object) -> OptimizationResult:
-        """Run a registered backend on this problem.
+    def constraint_values(self, x: Vector) -> dict[str, float]:
+        """Standardized ``g_k(x)`` keyed by constraint name."""
+        x = self.clip(x)
+        return {c.name: float(c.fun(x)) for c in self.constraints}
 
-        ``options`` override the ones carried by the problem, and are forwarded
-        to the backend factory (``tol``, ``max_iter``, ``seed``, ...).
-        """
+    def solve(self, backend: str = "slsqp", **options: object) -> OptimizationResult:
+        """Run a registered backend on this problem."""
         from .backends import get_backend
 
         return get_backend(backend, **{**self.options, **options}).solve(self)
@@ -126,20 +127,8 @@ class OptimizationProblem:
 class OptimizationIterate:
     """One accepted iterate of an optimization run (backend callback record).
 
-    Attributes
-    ----------
-    iteration:
-        0 for the initial design, then one per accepted backend step.
-    x:
-        The design actually evaluated — already projected onto the box, since
-        that is the point the model saw.
-    objective, max_violation:
-        Objective value and the largest standardized ``g_k(x)`` there.
-    in_bounds:
-        Whether the *backend's proposal* was already inside the box before
-        clipping. This is what makes the AC-OPT-003 audit meaningful: ``x``
-        alone is feasible by construction, so a clipped excursion would
-        otherwise leave no trace.
+    ``x`` is the *raw* point the backend reported, before any projection, so
+    that ``in_bounds`` audits the AC-OPT-003 contract instead of restating it.
     """
 
     iteration: int
@@ -156,7 +145,8 @@ class OptimizationResult:
     Attributes
     ----------
     converged:
-        Whether the backend reported successful termination.
+        Whether the backend reported successful termination *and* the solution
+        satisfies the constraints.
     message:
         Backend termination message.
     x:
@@ -168,8 +158,8 @@ class OptimizationResult:
     active_set:
         Names of constraints active at the solution (``|g| <= active_tol``).
     stationarity:
-        KKT/stationarity measure as reported by the backend (NaN when the
-        backend provides none).
+        First-order KKT residual at the solution, relative to the gradient
+        scale (NaN when the backend provides none).
     n_iterations, n_evaluations, n_modal_solves:
         Iteration and cost counters; ``n_modal_solves`` counts actual
         eigensolves, the dominant expense.
