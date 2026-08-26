@@ -56,7 +56,7 @@ def relative_frequency_error(
     nonzero = test > 0.0
     out[nonzero] = (fe[nonzero] - test[nonzero]) / test[nonzero]
     residual = fe[~nonzero] - test[~nonzero]
-    out[~nonzero] = np.where(residual == 0.0, 0.0, np.inf * np.sign(residual))
+    out[~nonzero] = np.where(residual == 0.0, 0.0, np.copysign(np.inf, residual))
     return out
 
 
@@ -89,7 +89,7 @@ class FrequencyDifference:
         header = f"{'mode':>5} {'f_test [Hz]':>12} {'f_fe [Hz]':>12} {'Δf [Hz]':>10} {'Δf [%]':>9}"
         lines = [header, "-" * len(header)]
         for i, (ft, ffe, da, dp) in enumerate(
-            zip(self.test, self.fe, self.absolute, self.percent)
+            zip(self.test, self.fe, self.absolute, self.percent, strict=True)
         ):
             lines.append(f"{i:>5} {ft:12.4f} {ffe:12.4f} {da:10.4f} {dp:9.3f}")
         return "\n".join(lines)

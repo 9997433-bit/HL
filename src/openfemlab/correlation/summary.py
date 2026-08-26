@@ -172,7 +172,7 @@ def normalized_frequency_residual(
     if pairing is None:
         if test.size != fe.size:
             raise ValueError("without a pairing both frequency vectors must have equal length")
-        indices = list(zip(range(test.size), range(fe.size)))
+        indices = list(zip(range(test.size), range(fe.size), strict=True))
     else:
         indices = pairing.as_tuples()
     if not indices:
