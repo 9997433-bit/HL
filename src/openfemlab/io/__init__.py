@@ -9,6 +9,10 @@ Nastran bulk-data subset, :func:`read_uff` for UFF/UNV test data, and the
 :mod:`~openfemlab.io.meshio_bridge` adapter for everything ``meshio`` can
 open.  The meshio functions re-exported here import the optional package
 lazily, so this module stays importable without the ``[io]`` extra.
+
+Every one of those readers returns a :class:`~openfemlab.core.neutral.NeutralModel`;
+:func:`neutral_to_model` converts it into the internal
+:class:`~openfemlab.core.model.Model` so an imported mesh can be re-analyzed.
 """
 
 from __future__ import annotations
@@ -42,6 +46,13 @@ from ._native import (
 )
 from .meshio_bridge import from_meshio, read_meshio, to_meshio, write_meshio
 from .nastran import read_bdf, read_nastran
+from .neutral_convert import (
+    SUPPORTED_ELEMENT_TYPES,
+    infer_dofs,
+    material_from_neutral,
+    neutral_to_model,
+    section_from_values,
+)
 from .uff import (
     UFFDataset,
     UFFFunction,
@@ -114,6 +125,11 @@ __all__ = [
     "write_meshio",
     "read_bdf",
     "read_nastran",
+    "SUPPORTED_ELEMENT_TYPES",
+    "neutral_to_model",
+    "infer_dofs",
+    "material_from_neutral",
+    "section_from_values",
     "UFFDataset",
     "UFFFunction",
     "UFFMode",

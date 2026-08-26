@@ -73,7 +73,8 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A101 | gpt-5.6-sol-xhigh-fast | Confirm A89's meshio bridge landed and verify the full suite | complete — A89 landed; 1133 passed at `92e387d` |
 | A102 | gpt-5.6-sol-xhigh-fast | Independent meshio bridge/full-suite verification (backfill for completed A101) | complete — A101 done; A89 present; 1133 passed at `92e387d` |
 | A56 | claude-opus-5-thinking-high-fast | Close the acceptance registry: MS-1.2 frequency windows plus the last three unwritten criteria, AC-MODAL-008/UPD-008/WORK-003 (backfill for A44) | complete — registry 44/44 `implemented`, 1168 passed, Ruff clean |
-| A109 | claude-opus-5-thinking-high-fast | R2-T09 continued: `scripts/promote_verified.py` and the tests that flip five criteria to `verified` on a gate run (backfill for completed A107) | complete — registry 14 `verified` / 30 `implemented`, 1207 passed, Ruff clean |
+| A106 | claude-opus-5-thinking-high-fast | R2-T02/R2-T05 shared item: `io/neutral_convert.py`, the `NeutralModel` → `Model` conversion for rod/beam/quad/tet/hex (backfill for completed A105) | complete — 52 tests, 1236 passed at `f0cd39a`, Ruff clean |
+| A109 | claude-opus-5-thinking-high-fast | R2-T09 continued: `scripts/promote_verified.py` and the tests that flip five criteria to `verified` on a gate run (backfill for completed A107) | complete — registry 14 `verified` / 30 `implemented`, 1259 passed, Ruff clean |
 
 ## Reference: FEMtools Core Capabilities
 | Module | Description |
@@ -968,7 +969,8 @@ integrate rather than fork.
 **R2-T01 is COMPLETE** (engine `acda625`, AC-DYN-001..005, report `frf` block A41,
 `correlate-frf` CLI A54 — no open work); **R2-T02 is PARTIAL while R2-T03 and R2-T04
 are ACCEPTANCE-COMPLETE** — QUAD4/TET4/HEX8 and the spatial beam landed
-(A37/A46/A59/A82) with the shell facet and the solid/shell BDF cards open, the
+(A37/A46/A59/A82) and the `NeutralModel` → `Model` conversion with them (A106), leaving
+the shell facet and the solid/shell BDF cards open, the
 reduction/expansion engine and both its gates landed (A36/A43/A58 — AC-CORR-006 and
 AC-CORR-009 are `implemented` and the `SensorMap.signs` wiring is done), and the
 Bayesian MAP estimator landed (A49) with the AC-UPD-006a/b tagging and the report
@@ -986,11 +988,13 @@ Core backlog (prioritized, from `docs/SOTA_GAP_ANALYSIS.md` §4/§6 + Round 1 co
    demo through the CLI (A54, `openfemlab correlate-frf`). **R2-T01 has no open work.**
 2. **R2-T02 3D continuum elements** (GAP-02, P0) — QUAD4/TET4/HEX8 + 3D beam with patch
    /convergence gates (AC-MODAL-001/003/004/007 extended, new AC-ELEM-*). **PARTIAL:
-   QUAD4 and TET4 are landed on the trunk**, QUAD4 merged from
-   `cursor/quad4-plane-stress-element-b99c` by A37 and TET4 from
-   `cursor/tet4-solid-element-08d1` by A46 (see the R2-T02, A37 and A46 entries below);
-   HEX8, the 3D beam, the `CQUAD4`/`CTETRA`/`CHEXA`/`PSHELL`/`PSOLID` BDF cards and the
-   AC-ELEM-* registry rows are the remaining slice.
+   every formulation is landed on the trunk** — QUAD4 merged from
+   `cursor/quad4-plane-stress-element-b99c` by A37, TET4 from
+   `cursor/tet4-solid-element-08d1` by A46, HEX8 with the AC-ELEM-001..003 registration
+   by A59/A79, and the spatial `BeamElement3D` by A82/A93 — and A106 added the
+   `NeutralModel` → `Model` conversion that binds an imported block into them (see the
+   R2-T02, A37, A46, A59, A82 and A106 entries below). The flat-facet shell and the
+   `CQUAD4`/`CTETRA`/`CHEXA`/`CBAR`/`PSHELL`/`PSOLID` BDF cards are the remaining slice.
 3. **R2-T03 SEREP/TAM reduction & expansion** (GAP-08) — Guyan/IRS/SEREP, TAM
    pseudo-orthogonality, shape expansion; closes Round-2 gates AC-CORR-006 and
    AC-CORR-009. *Engine landed by A36 (`correlation/reduction.py`) and **both criteria
@@ -1008,7 +1012,11 @@ Core backlog (prioritized, from `docs/SOTA_GAP_ANALYSIS.md` §4/§6 + Round 1 co
    both rows from `implemented` to `verified` once CI has run them. See the A49 and A57
    entries below.*
 5. **R2-T05 meshio bridge & IO completion** (GAP-03 remainder) — optional-dependency
-   meshio ↔ NeutralModel bridge, UNV 2411/2412. **NOT STARTED.**
+   meshio ↔ NeutralModel bridge, UNV 2411/2412. **PARTIAL:** the bridge landed behind
+   the P7 seam (A89, `io/meshio_bridge.py`, 44 tests) and A106's `io/neutral_convert.py`
+   makes what it imports re-analyzable, so `read_meshio` → `neutral_to_model` →
+   `ModalSolver` runs end to end. Remaining: the AC-IO-001..003 registration,
+   UNV 2411/2412 in `io/uff.py`, and UFF writing. See the A89 and A106 entries below.
 
 Supporting: R2-T06 updating depth (the P0 AC-UPD-007 collinearity-screen slice closed
 with A44's tagging; P1 depth work remains), R2-T07 scipy optimization backend (GAP-12 —
@@ -3137,6 +3145,86 @@ Here it was equivalent in structure and wrong in one detail, and diffing the two
 what surfaced the non-finite JSON. Work was done in a private worktree at `/tmp/a56`
 with `PYTHONPATH` pinned to its own `src`; the shared `/workspace` checkout was in use
 by other agents throughout and was never touched.
+
+#### A106 — the `NeutralModel` → `Model` conversion (R2-T02 ∩ R2-T05, backfill for completed A105)
+
+Both element and IO tracks had been listing the same open item: every reader returns a
+`NeutralModel`, every element formulation lives on `Model`, and nothing joined them. An
+imported mesh could be correlated but never re-analyzed. `src/openfemlab/io/neutral_convert.py`
+is that join, and it is the last thing that stood between `read_meshio` and the round's
+second headline demo.
+
+**What it converts.** The five blocks the element library formulates: `ROD2` →
+`TrussElement`, `BEAM2` → `BeamElement3D` (or `BeamElement2D` in a planar model),
+`QUAD4` → `Quad4Element`, `TET4` → `Tet4Element`, `HEX8` → `Hex8Element`. `TRI3`,
+`MASS1` and `SPRING2` have no formulation yet, so a model carrying them is rejected by
+default and dropped with a `UserWarning` under `skip_unsupported=True` — the meshio
+bridge's "import the supported subset" policy, made opt-in here because dropping
+structure from a model that is about to be *solved* is a louder decision than dropping
+it from one that is about to be inspected.
+
+Four decisions are worth recording:
+
+- **The DOF signature is inferred, not assumed.** `infer_dofs` unions the per-block
+  requirement over the non-empty blocks: a quad-only mesh comes back planar `(UX, UY)`,
+  a solid mesh translational, and anything containing a `BEAM2` gets all six. Defaulting
+  to six DOFs everywhere would have left a quad plate with two unconstrained rotations
+  per node and a singular `K`; defaulting to three would have made frame meshes
+  unconvertible. The caller can still override with `dofs=`, which is how the same rod
+  chain converts into a one-DOF axial model.
+- **Property tables win, caller fallbacks fill the gaps.** A `NeutralProperty` supplies
+  the section (`A`, `Iz`/`I1`, `Iy`/`I2`, `J`, matched case-insensitively so the Nastran
+  spellings work) and the QUAD4 thickness (`t`); a `NeutralMaterial` supplies `E`, `nu`,
+  `rho`. A mesh file has none of that, so `material=` / `section=` / `thickness=` stand
+  in — and only where the tables are silent, never overriding them. A block that
+  resolves to nothing and has no fallback fails with the remedy named in the message
+  (`no material= fallback was given`), because "meshio gives you geometry only" is the
+  normal case, not an error to puzzle over.
+- **Labels survive.** Node ids become the internal model's node ids, so a DOF index can
+  be addressed by the label the source file used, and `meta["element_ids"]` becomes each
+  element's `eid`. `NeutralModel.dof_map` is deliberately *not* honoured: the internal
+  model numbers node-major from its own signature, and silently accepting a foreign
+  ordering would desynchronize every assembled matrix from `Model.dof_index`.
+- **One error type.** Every failure — duplicate node label, connectivity pointing at an
+  unknown node, a block whose width does not match its element, misaligned property-id
+  or element-id arrays, a material outside the `Material` validity range, a beam without
+  bending inertia — comes back as `FormatError`, the same type the BDF, UFF and meshio
+  readers raise, with the block and element named. `ModelError`/`ElementError` from the
+  core are caught and re-raised with that context rather than escaping raw.
+
+Boundary conditions and point masses are not in the interchange contract, so the
+returned model is unconstrained by construction; the docstring says so, since a
+free-free modal solve of an imported mesh is otherwise a surprising first result.
+
+**`tests/test_neutral_convert.py`, 52 tests**, in three layers: bookkeeping (DOF
+inference per block mix, labels, property lookup, the fallback matrix), equivalence and
+failure. The equivalence layer is the load-bearing one — for each family the converted
+model is assembled and its `K` compared entry-for-entry against the model a user would
+have written by hand with the same elements, and the converted rod chain is additionally
+shown to reproduce both `bar_mesh`'s spectrum and the continuum bar's `c / 4L` to 2e-3.
+A free imported brick is checked to have exactly six rigid-body modes, and one test
+takes the whole path — `meshio.Mesh` → `from_meshio` → `neutral_to_model` →
+`assemble_system` — and pins the assembled mass against `3 rho V`. That test uses
+`pytest.importorskip` locally rather than at module scope, so the other 51 still run
+without the `[io]` extra.
+
+**Verification** in a private worktree at `/tmp/a106` with `PYTHONPATH` pinned to its
+own `src`, Python 3.12 / NumPy 2.5.2: full suite **1236 passed** at `f0cd39a` (the
+trunk's 1184 plus exactly these 52), `ruff check .` clean. The shared `/workspace`
+checkout was never touched.
+
+**What this closes and what it does not.** R2-T02 and R2-T05 can both drop the
+conversion from their open lists; R2-T02 keeps the flat-facet shell and the solid/shell
+BDF cards, R2-T05 keeps AC-IO-001..003, UNV 2411/2412 and UFF writing. AC-IO-002
+("imported fixture assembles and solves through the modal pipeline") now has its engine
+and an in-suite demonstration, so what it needs is a committed Gmsh/Abaqus fixture and
+the three-file registration commit — worth pairing with the AC-IO-001 registration A89
+left ready. Two conversion gaps are deliberate and named in the module docstring: no
+per-element beam orientation (the converter applies one `beam_orientation=` to every
+`BEAM2`, which is right for a mesh and wrong for a CBAR deck, so it lands with the BDF
+`CBAR` card), and no `MASS1`/`SPRING2` handling even though both would be cheap, because
+neither has a place to read its mass or stiffness from until the property vocabulary
+grows.
 
 #### A109 — R2-T09 continued: promotion becomes a tool run (backfill for completed A107)
 
