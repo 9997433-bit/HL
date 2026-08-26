@@ -225,7 +225,8 @@ class ModelUpdater:
         The updating parameters (a :class:`ParameterSet` or any iterable of
         :class:`UpdatableParameter`).
     target_frequencies:
-        Measured natural frequencies in Hz.
+        Measured natural frequencies in Hz.  ``None`` is accepted only by a
+        subclass that clears :attr:`requires_modal_targets`.
     target_shapes:
         Optional ``(n_dof, n_modes)`` measured mode shapes expressed in the
         correlation DOFs returned by ``model``.
@@ -247,11 +248,16 @@ class ModelUpdater:
         ``dof_weights``, neither of which the MAC derivative covers.
     """
 
+    #: Whether this updater's residual is built from measured modal data.
+    #: :class:`openfemlab.updating.frf.FRFUpdater` clears it: its target is a
+    #: measured FRF, so there is no mode table to require.
+    requires_modal_targets: bool = True
+
     def __init__(
         self,
         model: ModelCallable,
         parameters: ParameterSet | Sequence[UpdatableParameter],
-        target_frequencies: Sequence[float] | np.ndarray,
+        target_frequencies: Sequence[float] | np.ndarray | None,
         target_shapes: np.ndarray | None = None,
         *,
         dof_weights: Sequence[float] | np.ndarray | None = None,
@@ -269,9 +275,10 @@ class ModelUpdater:
             parameters if isinstance(parameters, ParameterSet) else ParameterSet(parameters)
         ).copy()
         self.target = ModalData(
-            np.asarray(target_frequencies, dtype=float), target_shapes
+            np.asarray([] if target_frequencies is None else target_frequencies, dtype=float),
+            target_shapes,
         )
-        if self.target.n_modes == 0:
+        if self.requires_modal_targets and self.target.n_modes == 0:
             raise ValueError("at least one target frequency is required")
         self.dof_weights = None if dof_weights is None else np.asarray(dof_weights, dtype=float)
         self.sensitivity_function = sensitivity_function
