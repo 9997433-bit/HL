@@ -396,6 +396,26 @@ orchestrator to diff against the landed implementation in Round 2.
 - Remaining GAP-03 scope: datasets 2411/2412, Nastran BDF/OP2, meshio conversion, UFF
   writing, and binary 58b.
 
+#### A18 — GAP-03 Minimal Nastran BDF Reader
+- Added `io/nastran.py`, a dependency-free ASCII BDF reader for free-field and small
+  fixed-field `GRID`, `CROD`, and `MAT1` cards, exposed as `read_bdf` and
+  `read_nastran`. Unsupported cards are skipped and standard Nastran implicit exponents
+  are accepted.
+- Converted directly to `NeutralModel`: `GRID` labels and coordinates become the node
+  arrays, `CROD` connectivity becomes a `ROD2` block, property ids remain aligned with
+  that block, `MAT1` records populate neutral materials, and source format plus external
+  element ids are retained as metadata. `MAT1` derives a missing elastic constant from
+  the other two.
+- Added six tests for path and stream input, free and fixed fields, comments and bulk-data
+  boundaries, implicit exponents, unsupported cards, unknown nodes, unresolved coordinate
+  systems, and malformed-card diagnostics. Focused reader tests: **6 passed**; combined
+  native/UFF/Nastran IO tests: **24 passed**; touched files pass Ruff. The concurrent full
+  suite run reached **191 passed, 1 failed** in an unrelated uncommitted CLI regression
+  (`test_update_recovers_the_identifiable_parameter_ratio` emitted a progress line before
+  JSON).
+- Remaining GAP-03 scope: UFF 2411/2412, broader BDF cards and coordinate systems, OP2,
+  meshio conversion, UFF writing, binary 58b, and Nastran large-field/continuation cards.
+
 #### A16 — CLI Correlation Kernel Reconciliation
 - Confirmed the pulled integration branch no longer contains duplicate `mac_matrix`,
   `pair_modes`, or `common_rows` implementations in `cli/analysis.py`; correlation
