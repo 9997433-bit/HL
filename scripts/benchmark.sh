@@ -82,14 +82,24 @@ build_app() {
   printf '\n[%s] 构建计时...\n' "$label"
   started_at="$(date_ms)"
   if [[ "${BENCHMARK_SKIP_BUILD:-0}" != "1" ]]; then
-    npm --prefix "$app_dir" run build
+    if ! npm --prefix "$app_dir" run build; then
+      finished_at="$(date_ms)"
+      duration=$((finished_at - started_at))
+      printf '%s\tFAIL\t%s\t-\t-\t-\n' "$label" "$duration" >>"$BUILD_ROWS"
+      printf '[%s] 构建失败（%s ms），继续测量其他应用。\n' "$label" "$duration" >&2
+      return 1
+    fi
   fi
   finished_at="$(date_ms)"
   duration=$((finished_at - started_at))
 
-  [[ -f "$app_dir/dist/index.html" ]] || fail "${label}未生成 dist/index.html。"
+  if [[ ! -f "$app_dir/dist/index.html" ]]; then
+    printf '%s\tFAIL\t%s\t-\t-\t-\n' "$label" "$duration" >>"$BUILD_ROWS"
+    printf '[%s] 未生成 dist/index.html，继续测量其他应用。\n' "$label" >&2
+    return 1
+  fi
   IFS=$'\t' read -r raw_bytes gzip_bytes file_count < <(measure_bundle "$app_dir/dist")
-  printf '%s\t%s\t%s\t%s\t%s\n' \
+  printf '%s\tOK\t%s\t%s\t%s\t%s\n' \
     "$label" "$duration" "$raw_bytes" "$gzip_bytes" "$file_count" >>"$BUILD_ROWS"
   printf '[%s] %s ms，原始 %s，gzip 估算 %s（%s 个文件）\n' \
     "$label" "$duration" "$(format_bytes "$raw_bytes")" \
@@ -202,12 +212,15 @@ write_report() {
     printf -- '- Node.js：`%s`\n' "$(node --version)"
     printf -- '- npm：`%s`\n\n' "$(npm --version)"
     printf '## 构建与包体积\n\n'
-    printf '| 应用 | 构建时间 | 原始体积 | gzip 估算 | 文件数 |\n'
-    printf '| --- | ---: | ---: | ---: | ---: |\n'
-    while IFS=$'\t' read -r label duration raw_bytes gzip_bytes file_count; do
-      printf '| %s | %s ms | %s | %s | %s |\n' \
-        "$label" "$duration" "$(format_bytes "$raw_bytes")" \
-        "$(format_bytes "$gzip_bytes")" "$file_count"
+    printf '| 应用 | 状态 | 构建时间 | 原始体积 | gzip 估算 | 文件数 |\n'
+    printf '| --- | --- | ---: | ---: | ---: | ---: |\n'
+    while IFS=$'\t' read -r label status duration raw_bytes gzip_bytes file_count; do
+      if [[ "$status" == "OK" ]]; then
+        raw_bytes="$(format_bytes "$raw_bytes")"
+        gzip_bytes="$(format_bytes "$gzip_bytes")"
+      fi
+      printf '| %s | %s | %s ms | %s | %s | %s |\n' \
+        "$label" "$status" "$duration" "$raw_bytes" "$gzip_bytes" "$file_count"
     done <"$BUILD_ROWS"
 
     printf '\n## Lighthouse\n\n'
@@ -222,21 +235,48 @@ write_report() {
 
 : >"$BUILD_ROWS"
 : >"$LIGHTHOUSE_ROWS"
-build_app "识字 App" "$ROOT_DIR/apps/literacy-app"
-build_app "数学 App" "$ROOT_DIR/apps/math-app"
+BUILD_FAILURES=0
+if build_app "识字 App" "$ROOT_DIR/apps/literacy-app"; then
+  LITERACY_BUILD_OK=1
+else
+  LITERACY_BUILD_OK=0
+  BUILD_FAILURES=$((BUILD_FAILURES + 1))
+fi
+if build_app "数学 App" "$ROOT_DIR/apps/math-app"; then
+  MATH_BUILD_OK=1
+else
+  MATH_BUILD_OK=0
+  BUILD_FAILURES=$((BUILD_FAILURES + 1))
+fi
 
 if [[ "${BENCHMARK_SKIP_LIGHTHOUSE:-0}" == "1" ]]; then
-  printf '识字 App\tSKIP\t-\t-\t-\tBENCHMARK_SKIP_LIGHTHOUSE=1\n' >>"$LIGHTHOUSE_ROWS"
-  printf '数学 App\tSKIP\t-\t-\t-\tBENCHMARK_SKIP_LIGHTHOUSE=1\n' >>"$LIGHTHOUSE_ROWS"
+  [[ "$LITERACY_BUILD_OK" == "1" ]] &&
+    printf '识字 App\tSKIP\t-\t-\t-\tBENCHMARK_SKIP_LIGHTHOUSE=1\n' >>"$LIGHTHOUSE_ROWS" ||
+    printf '识字 App\tSKIP\t-\t-\t-\tBuild failed\n' >>"$LIGHTHOUSE_ROWS"
+  [[ "$MATH_BUILD_OK" == "1" ]] &&
+    printf '数学 App\tSKIP\t-\t-\t-\tBENCHMARK_SKIP_LIGHTHOUSE=1\n' >>"$LIGHTHOUSE_ROWS" ||
+    printf '数学 App\tSKIP\t-\t-\t-\tBuild failed\n' >>"$LIGHTHOUSE_ROWS"
 else
   LIGHTHOUSE_EXECUTABLE="$(find_lighthouse)"
   if [[ -z "$LIGHTHOUSE_EXECUTABLE" ]]; then
     printf '\nLighthouse 未安装，记录为 SKIP（可设置 LIGHTHOUSE_BIN 后重跑）。\n'
-    printf '识字 App\tSKIP\t-\t-\t-\tLighthouse not installed\n' >>"$LIGHTHOUSE_ROWS"
-    printf '数学 App\tSKIP\t-\t-\t-\tLighthouse not installed\n' >>"$LIGHTHOUSE_ROWS"
+    [[ "$LITERACY_BUILD_OK" == "1" ]] &&
+      printf '识字 App\tSKIP\t-\t-\t-\tLighthouse not installed\n' >>"$LIGHTHOUSE_ROWS" ||
+      printf '识字 App\tSKIP\t-\t-\t-\tBuild failed\n' >>"$LIGHTHOUSE_ROWS"
+    [[ "$MATH_BUILD_OK" == "1" ]] &&
+      printf '数学 App\tSKIP\t-\t-\t-\tLighthouse not installed\n' >>"$LIGHTHOUSE_ROWS" ||
+      printf '数学 App\tSKIP\t-\t-\t-\tBuild failed\n' >>"$LIGHTHOUSE_ROWS"
   else
-    lighthouse_app "识字 App" "$ROOT_DIR/apps/literacy-app" 4173 "$LIGHTHOUSE_EXECUTABLE"
-    lighthouse_app "数学 App" "$ROOT_DIR/apps/math-app" 4174 "$LIGHTHOUSE_EXECUTABLE"
+    if [[ "$LITERACY_BUILD_OK" == "1" ]]; then
+      lighthouse_app "识字 App" "$ROOT_DIR/apps/literacy-app" 4173 "$LIGHTHOUSE_EXECUTABLE"
+    else
+      printf '识字 App\tSKIP\t-\t-\t-\tBuild failed\n' >>"$LIGHTHOUSE_ROWS"
+    fi
+    if [[ "$MATH_BUILD_OK" == "1" ]]; then
+      lighthouse_app "数学 App" "$ROOT_DIR/apps/math-app" 4174 "$LIGHTHOUSE_EXECUTABLE"
+    else
+      printf '数学 App\tSKIP\t-\t-\t-\tBuild failed\n' >>"$LIGHTHOUSE_ROWS"
+    fi
   fi
 fi
 
@@ -249,4 +289,9 @@ if [[ -n "${BENCHMARK_REPORT:-}" ]]; then
   mkdir -p "$(dirname "$BENCHMARK_REPORT")"
   cp "$REPORT_PATH" "$BENCHMARK_REPORT"
   printf '\n报告已写入 %s\n' "$BENCHMARK_REPORT"
+fi
+
+if ((BUILD_FAILURES > 0)); then
+  printf '\nbenchmark: %s 个应用构建失败。\n' "$BUILD_FAILURES" >&2
+  exit 1
 fi
