@@ -108,8 +108,9 @@ export const WORD_PROBLEMS = [
     scene: '超市',
     make() {
       const start = randInt(15, 40)
-      const buy = randInt(3, 10)
-      const back = randInt(2, 8)
+      // 两次花销都从「还剩多少」里取上限，保证结果至少剩 1 元，不会算出负数
+      const buy = randInt(3, Math.min(10, start - 5))
+      const back = randInt(2, Math.min(8, start - buy - 1))
       return {
         text: `妈妈带了 ${start} 元去买菜，先花了 ${buy} 元买青菜，又花了 ${back} 元买鸡蛋。妈妈还剩多少元？`,
         equation: `${start} − ${buy} − ${back} = ?`,
@@ -284,11 +285,13 @@ export const WORD_PROBLEMS = [
     emoji: '📚',
     scene: '图书角',
     make() {
+      const [who] = pair()
       const total = randInt(20, 60)
-      const day1 = randInt(3, 12)
-      const day2 = randInt(3, 12)
+      // 两天的页数都受剩余页数约束，保证「还剩多少页」是正数
+      const day1 = randInt(3, Math.min(12, total - 6))
+      const day2 = randInt(3, Math.min(12, total - day1 - 2))
       return {
-        text: `一本故事书有 ${total} 页，${'小舟'}第一天看了 ${day1} 页，第二天看了 ${day2} 页。还剩多少页没看？`,
+        text: `一本故事书有 ${total} 页，${who}第一天看了 ${day1} 页，第二天看了 ${day2} 页。还剩多少页没看？`,
         equation: `${total} − ${day1} − ${day2} = ?`,
         answer: total - day1 - day2,
         unit: '页',
