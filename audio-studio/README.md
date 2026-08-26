@@ -33,10 +33,14 @@ cd audio-studio
 python -m venv .venv && source .venv/bin/activate
 pip install -e .                 # application + null-audio backend
 pip install -e ".[dev]"          # add tests, lint, and type checking
-pip install -e ".[audio,dev]"    # also add optional PyAudio hardware input/output
+pip install -e ".[audio,dev]"    # also add the optional hardware backends
 ```
 
-PortAudio needs its system library before `PyAudio` will build:
+The `audio` extra installs two PortAudio bindings: `sounddevice`, which is the
+preferred output backend, and `PyAudio`, which still drives recording. The
+`sounddevice` wheels carry their own PortAudio build (including WASAPI on
+Windows), so nothing else is needed for playback. `PyAudio` compiles against the
+system library:
 
 ```bash
 sudo apt-get install -y portaudio19-dev python3-dev   # Debian/Ubuntu
@@ -51,9 +55,17 @@ sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libdbus-1-3 \
     libxcb-randr0 libxcb-render-util0 libxcb-xinerama0 libasound2t64
 ```
 
-If PortAudio is unavailable the engine transparently falls back to a simulated
-output clock and synthetic input, so the application still starts and every
-control still works — you just will not hear or capture a real device.
+`create_output()` tries `sounddevice` first, then `PyAudio`, opening a throwaway
+stream on each before it commits. If neither yields a device the engine
+transparently falls back to a simulated output clock and synthetic input, so the
+application still starts and every control still works — you just will not hear
+or capture a real device. `AUDIO_STUDIO_OUTPUT` pins the choice:
+
+```bash
+AUDIO_STUDIO_OUTPUT=pyaudio     python -m audio_studio   # force the legacy binding
+AUDIO_STUDIO_OUTPUT=sounddevice python -m audio_studio   # never fall back to PyAudio
+AUDIO_STUDIO_OUTPUT=null        python -m audio_studio   # skip hardware entirely
+```
 
 ## Run
 
@@ -115,8 +127,10 @@ matched. The same pipeline is scriptable from Python via
 - The reported playhead subtracts what is still queued in the ring buffer, so
   it reflects what is audible rather than how far the feeder has run ahead.
 - Per-channel peak/RMS metering published from the render callback.
-- Pluggable output: `PyAudioOutput` (PortAudio) or `NullOutput` (simulated
-  clock, plus a manually-pumped mode used by the tests).
+- Pluggable output: `SoundDeviceOutput` (PortAudio via `sounddevice`, reporting
+  device under/overruns through `xruns`), `PyAudioOutput` (PortAudio via
+  `PyAudio`) or `NullOutput` (simulated clock, plus a manually-pumped mode used
+  by the tests).
 - Recording to WAV from mono or stereo `PyAudio` input, with a deterministic
   silence/tone `NullRecorder` for headless systems and tests.
 
@@ -203,8 +217,9 @@ matched. The same pipeline is scriptable from Python via
 ## Licensing and optional components
 
 The application is declared MIT. Its default dependency profile uses
-PySide6/Qt and libsndfile dynamically under their LGPL terms. PyAudio is an
-optional hardware-input/output extra; null backends remain available without it.
+PySide6/Qt and libsndfile dynamically under their LGPL terms. `sounddevice`
+(MIT, bundling PortAudio under its MIT-style license) and PyAudio are optional
+hardware-input/output extras; null backends remain available without either.
 FFmpeg is discovered as a separate executable and is never linked into the
 application.
 
@@ -252,8 +267,14 @@ above this package.
   markers yet — see the roadmap in the release sign-off. Batch processing is
   covered by the `audio_studio.batch` CLI above.
 - Not a low-latency monitor: the default device block is 1024 frames
-  (~21 ms at 48 kHz) and there is no exclusive-mode backend handling; playhead
-  accuracy is bounded by the block size.
+  (~21 ms at 48 kHz) and playhead accuracy is bounded by the block size.
+  `SoundDeviceOutput` is the step towards fixing this, but it currently opens
+  the host API's shared mode only — WASAPI exclusive mode, ASIO and per-host
+  latency hints are not wired up, and the ASIO SDK is not shipped.
+- Under/overruns are counted per stream (`SoundDeviceOutput.xruns`,
+  `.underflows`, `.overflows`) but nothing surfaces them in the UI yet, and
+  `PyAudioOutput` cannot report them at all. Recording still runs on PyAudio
+  input regardless of which output backend is selected.
 - The effect-rack preview chain runs on the device render path. Light chains
   are fine in practice; a heavy chain can starve the callback. Committed
   (offline) effects are unaffected.

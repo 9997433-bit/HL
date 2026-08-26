@@ -13,8 +13,8 @@ inside each wheel or native package.
 | Profile | Manifest | Included |
 |---|---|---|
 | Default application | `audio-studio/pyproject.toml` | NumPy, SciPy, SoundFile, PySide6-Essentials |
-| Hardware-audio extra | `audio-studio/pyproject.toml` `[audio]` | PyAudio, and a dynamically loaded PortAudio library |
-| Full developer install | `audio-studio/requirements.txt` and `requirements-dev.txt` | Default application, PyAudio, and test/quality tools |
+| Hardware-audio extra | `audio-studio/pyproject.toml` `[audio]` | sounddevice, PyAudio, and a PortAudio library that is bundled by the sounddevice wheel or loaded dynamically |
+| Full developer install | `audio-studio/requirements.txt` and `requirements-dev.txt` | Default application, sounddevice, PyAudio, and test/quality tools |
 | Probe/benchmark environment | root `requirements.txt` and `requirements-dev.txt` | NumPy, SciPy, sounddevice, SoundFile, librosa, platformdirs, and test/quality tools |
 | CI | `.github/requirements.in` and `.github/requirements.lock` | Default application test stack, pinned with direct CI transitives |
 
@@ -36,8 +36,8 @@ must be redistributed unchanged.
 | SoundFile (`python-soundfile`) | `>=0.12.1`; root/CI pin `0.14.0` | Python binding for audio file I/O | BSD-3-Clause | [upstream](https://github.com/bastibe/python-soundfile) / [license](https://github.com/bastibe/python-soundfile/blob/master/LICENSE) |
 | PySide6-Essentials | `>=6.6`; CI pin `6.11.2` | Qt 6 GUI binding | LGPL-3.0-only OR GPL/commercial; this project selects LGPL-3.0 | [upstream](https://doc.qt.io/qtforpython-6/) / [licensing](https://doc.qt.io/qtforpython-6/licenses.html) |
 | Shiboken6 | transitive through PySide6-Essentials; CI pin `6.11.2` | Python/C++ binding runtime | LGPL-3.0-only OR GPL/commercial; this project selects LGPL-3.0 | [upstream](https://code.qt.io/cgit/pyside/pyside-setup.git/) / [LGPL-3.0 text](https://www.gnu.org/licenses/lgpl-3.0.html) |
-| PyAudio | `[audio] >=0.2.13`; included by the full developer requirements | Optional PortAudio output backend | MIT | [upstream](https://people.csail.mit.edu/hubert/pyaudio/) / [license](https://github.com/jleb/pyaudio/blob/master/LICENSE.txt) |
-| sounddevice | root pin `0.5.6` | Device probe and repository audio environment | MIT | [upstream](https://python-sounddevice.readthedocs.io/) / [license](https://github.com/spatialaudio/python-sounddevice/blob/master/LICENSE) |
+| PyAudio | `[audio] >=0.2.13`; included by the full developer requirements | Optional PortAudio input backend and fallback output backend | MIT | [upstream](https://people.csail.mit.edu/hubert/pyaudio/) / [license](https://github.com/jleb/pyaudio/blob/master/LICENSE.txt) |
+| sounddevice | `[audio] >=0.4.6`; root pin `0.5.6` | Preferred PortAudio output backend; also the device probe and repository audio environment | MIT; wheels bundle PortAudio, whose notice must be redistributed | [upstream](https://python-sounddevice.readthedocs.io/) / [license](https://github.com/spatialaudio/python-sounddevice/blob/master/LICENSE) |
 | librosa | root pin `1.0.0` | Analysis/probe environment | ISC | [upstream](https://librosa.org/) / [license](https://github.com/librosa/librosa/blob/main/LICENSE.md) |
 | platformdirs | root pin `4.11.4` | Cross-platform data/cache locations for repository tooling | MIT | [upstream](https://platformdirs.readthedocs.io/) / [license](https://github.com/tox-dev/platformdirs/blob/main/LICENSE) |
 
@@ -52,7 +52,7 @@ requirements file by itself is not a redistributable binary bill of materials.
 | Component | Status and use | License | Upstream / license pointer |
 |---|---|---|---|
 | libsndfile | Loaded dynamically by SoundFile; PyPI SoundFile wheels may bundle it | LGPL-2.1-or-later | [upstream](https://libsndfile.github.io/libsndfile/) / [license](https://github.com/libsndfile/libsndfile/blob/master/COPYING) |
-| PortAudio | Loaded dynamically by PyAudio/sounddevice or installed by the OS | MIT | [upstream](https://www.portaudio.com/) / [license](https://github.com/PortAudio/portaudio/blob/master/LICENSE.txt) |
+| PortAudio | Bundled in the sounddevice wheels, otherwise loaded dynamically by PyAudio/sounddevice or installed by the OS | MIT | [upstream](https://www.portaudio.com/) / [license](https://github.com/PortAudio/portaudio/blob/master/LICENSE.txt) |
 | FFmpeg | Invoked only as a separate `subprocess`; Docker/dev environments install an OS package; it is not linked into or bundled with the application | LGPL-2.1-or-later by default; GPL-2.0-or-later when built with GPL parts; some builds are non-redistributable | [upstream](https://ffmpeg.org/) / [legal and license information](https://ffmpeg.org/legal.html) |
 | libsoxr / python-soxr | May be resolved transitively by the root librosa environment; not a direct application dependency | LGPL-2.1-or-later | [upstream](https://sourceforge.net/projects/soxr/) / [license](https://sourceforge.net/p/soxr/code/ci/master/tree/LICENCE) |
 | OpenBLAS and LAPACK | May be bundled in NumPy/SciPy wheels | BSD-family | [OpenBLAS license](https://github.com/OpenMathLib/OpenBLAS/blob/develop/LICENSE) / [LAPACK license](https://github.com/Reference-LAPACK/lapack/blob/master/LICENSE) |
@@ -149,11 +149,12 @@ These packages do not ship in the default application wheel.
 
 The repository's intentionally different profiles are reconciled as follows:
 
-1. `audio-studio/pyproject.toml` is the authoritative default install. PyAudio
-   is optional there; `audio-studio/requirements.txt` is the full desktop
-   developer profile and therefore includes that extra.
+1. `audio-studio/pyproject.toml` is the authoritative default install. Both
+   sounddevice and PyAudio are optional there; `audio-studio/requirements.txt`
+   is the full desktop developer profile and therefore includes that extra.
 2. Root requirements support probes and benchmarks, not the application wheel;
-   their sounddevice/librosa/platformdirs entries are listed above.
+   their librosa/platformdirs entries are listed above. sounddevice now appears
+   in both the root probe pin and the application `[audio]` extra.
 3. `.github/requirements.lock` is consistent with `.github/requirements.in`
    and pins PySide6-Essentials, not PyQt6.
 4. FFmpeg is an external executable and appears only as an OS package in
