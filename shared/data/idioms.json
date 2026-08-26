@@ -78,7 +78,7 @@
       ]
     },
     {
-      "id": "yeyegonghao",
+      "id": "yegonghaolong",
       "idiom": "叶公好龙",
       "pinyin": "yè gōng hào lóng",
       "meaning": "嘴上说很喜欢，其实并不真正喜欢或了解。",
@@ -174,11 +174,11 @@
       ]
     },
     {
-      "id": "jishichengta",
-      "idiom": "集石成塔",
-      "pinyin": "jí shí chéng tǎ",
+      "id": "jushachengta",
+      "idiom": "聚沙成塔",
+      "pinyin": "jù shā chéng tǎ",
       "meaning": "一点一点积累，最终可以完成大目标。",
-      "example": "每天学一个新词，也能集石成塔。",
+      "example": "每天学一个新词，也能聚沙成塔。",
       "lesson": "小小的坚持能带来大大的成长。",
       "tags": [
         "启蒙",
@@ -198,7 +198,7 @@
       ]
     },
     {
-      "id": "juliangduode",
+      "id": "lianglierxing",
       "idiom": "量力而行",
       "pinyin": "liàng lì ér xíng",
       "meaning": "根据自己的能力选择合适的事情去做。",
@@ -222,7 +222,7 @@
       ]
     },
     {
-      "id": "juzhongjingxin",
+      "id": "jujinghuishen",
       "idiom": "聚精会神",
       "pinyin": "jù jīng huì shén",
       "meaning": "注意力非常集中，认真做一件事。",
@@ -234,7 +234,7 @@
       ]
     },
     {
-      "id": "kaijuanYouyi",
+      "id": "kaijuanyouyi",
       "idiom": "开卷有益",
       "pinyin": "kāi juàn yǒu yì",
       "meaning": "打开书来阅读，通常会有收获。",
