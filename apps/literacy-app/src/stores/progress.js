@@ -10,7 +10,6 @@
 
 import { computed, reactive, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
-<<<<<<< HEAD
 import {
   CHARACTER_INDEX,
   CHARACTER_INDEX_MAP,
@@ -18,10 +17,7 @@ import {
   UNITS,
   UNIT_CHARACTER_IDS
 } from '@/data/character-index.js'
-=======
-import { CHARACTER_MAP, CHARACTERS, TOTAL_CHARACTERS, UNITS } from '@/data/characters.js'
 import { BADGES, TOTAL_BADGES } from '@/data/badges.js'
->>>>>>> c2c3e01 (feat(识字): 单字五步状态机、描红连错自动示范与徽章体系 v1)
 import { BOOKS } from '@/data/books.js'
 import { IDIOMS } from '@/data/idioms.js'
 import { RADICALS } from '@/data/radicals.js'

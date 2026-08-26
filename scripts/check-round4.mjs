@@ -45,11 +45,15 @@ try {
 /* --------------------------------- 探针（PENDING，不拦截；实现后升级为硬门槛） */
 
 // M-M10 错题本：按 questionId 记录 + 重练答对移出
-const progressSrc = fs.readFileSync(path.join(root, 'apps/math-app/src/stores/progress.js'), 'utf8')
-if (/wrongBook/.test(progressSrc) || existsAny('apps/math-app/src/components/WrongBook.vue')) {
-  notes.push('✓ M-M10 错题本已接线（progress.wrongBook + WrongBook 组件）')
-} else {
-  pending('M-M10 错题本未接线 —— 由 r4-math-wrongbook 交付')
+try {
+  const progressSrc = fs.readFileSync(path.join(root, 'apps/math-app/src/stores/progress.js'), 'utf8')
+  if (/wrongBook/.test(progressSrc) || existsAny('apps/math-app/src/components/WrongBook.vue')) {
+    notes.push('✓ M-M10 错题本已接线（progress.wrongBook + WrongBook 组件）')
+  } else {
+    pending('M-M10 错题本未接线 —— 由 r4-math-wrongbook 交付')
+  }
+} catch {
+  pending('M-M10 无法读取 progress store，跳过探针')
 }
 
 // M-M9 自适应调度：连对升档 / 连错降档 / 弱项优先
