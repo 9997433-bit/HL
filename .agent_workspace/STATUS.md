@@ -3,8 +3,8 @@
 **Recorded by:** A80 (backfill for completed A76) · **Date:** 2026-08-26
 **Branch:** `cursor/femtools-industrial-7aa3` · **Tested code commit:** `ff484e4`
 **Pull request:** [PR #5](https://github.com/9997433-bit/HL/pull/5) — open against
-`main`. [`PR_DRAFT.md`](PR_DRAFT.md) remains pinned at the earlier 876-test
-snapshot and therefore trails the verification recorded here.
+`main`. [`PR_DRAFT.md`](PR_DRAFT.md) is synchronized to this 1,033-test
+verification snapshot.
 
 This file supersedes the earlier R2-T01-scoped status note with a full-project
 snapshot.
@@ -17,8 +17,8 @@ Run from a detached private worktree at `/tmp/a80-8f2c` with `PYTHONPATH`
 pinned to its `src`, after fetching and resetting to the latest remote tip
 `ff484e4`.
 
-- `pytest -q` — **1033 passed, 0 failed** in 25.60 s; a collection-only pass
-  independently confirmed 1033 tests.
+- `pytest -q` — **1,033 passed, 0 failed** in 25.60 s; a collection-only pass
+  independently confirmed 1,033 tests.
 - `ruff check .` — clean, no findings.
 - Acceptance-criteria registry — **44 criteria: 39 `implemented`,
   5 `specified`, 0 `verified`**. By priority: **P0 35 implemented / 0
@@ -117,4 +117,4 @@ elements 24, optimization 15, dynamics 13, registry consistency 12, workflow 11.
 Resolved during this snapshot's own write window (tip churn): the superseded
 side branches were audited in [`BRANCH_CLEANUP.md`](BRANCH_CLEANUP.md) and
 deleted from `origin` (R2-T08 fully closed), and `PR_DRAFT.md` was refreshed to
-the verified 876 count.
+the verified 1,033 count.
