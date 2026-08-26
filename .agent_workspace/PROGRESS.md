@@ -24,6 +24,7 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 | A01 | claude-fable-5-thinking-xhigh | Module spec & acceptance criteria (docs + registry) | complete |
 | A03 | claude-fable-5-thinking-xhigh | SOTA gap audit & Round 1 conclusion (backfill) | complete |
 | A04 | claude-opus-5-thinking-high-fast | Updating sensitivity kernel, updater wiring & test suite | complete |
+| A17 | claude-fable-5-thinking-xhigh | Round 1 conclusion brief & full-suite verification (backfill) | complete |
 | A07 | claude-opus-5-thinking-high-fast | Rich CLI (modal/correlate/update), model spec format & workflow example | complete |
 
 ## Reference: FEMtools Core Capabilities
@@ -39,8 +40,8 @@ Build an open-source, solver-independent CAE platform inspired by FEMtools, with
 ## Round Status
 
 ### Round 1 — Initial Build & Baseline Exploration
-**Status:** IN PROGRESS  
-**Dispatched:** 6 subagents (2×fable, 2×opus-fast, 2×gpt-sol)
+**Status:** CONCLUDED — see Round Conclusions below (192/192 tests pass at `bae4b77`)  
+**Dispatched:** 6 subagents (2×fable, 2×opus-fast, 2×gpt-sol), plus backfill agents A01–A20
 
 | Agent | Model | Focus | Status |
 |-------|-------|-------|--------|
@@ -534,37 +535,93 @@ orchestrator to diff against the landed implementation in Round 2.
 
 ## Round Conclusions
 
-### Round 1 — Conclusion (DRAFT, pending R1-F1 / R1-O2 completion)
+### Round 1 — Conclusion (FINAL, recorded by A17)
 
-**Delivered.** Round 1 produced a working single-architecture skeleton of the platform:
-packaging/CI/benchmarks (R1-G1), boundary tests and numerical probes (R1-G2), a verified
-core FEM + modal solver — springs/trusses/planar beams, sparse assembly, dense + shift-invert
-eigensolvers, massless-DOF condensation, closed-form validation to 1e-9 (R1-O1), native
-schema-versioned model/result IO (A09), correlation and sensitivity-based updating modules
-(R1-O2, in flight), and the full spec stack: architecture, module spec, 35 quantified
-acceptance criteria with a machine-readable registry (R1-F1/F2/A01), plus a SOTA gap
-analysis (A03).
+**Recorded** 2026-08-26 at commit `bae4b77` on `cursor/femtools-industrial-7aa3`.
+Full `pytest`: **192 passed, 0 failed** (1.38 s, Python 3.12 / NumPy 2.5.2 /
+SciPy 1.18.1). During conclusion the tree was still live: an earlier run caught the
+in-flight CLI test emitting a progress line before its JSON (191 passed / 1 failed);
+`bae4b77` fixed it by routing diagnostics to stderr, restoring green.
 
-**Verified.** Modal solutions match analytic chains/bars/beams (≤0.2% worst case, most 1e-9);
-50 repeated eigensolves show zero drift; FD sensitivities match analytic derivatives to
-1.69e-9; modal benchmarks at 10/100/1000 DOF run in 0.7–1.8 ms median.
+**Implemented features.**
+- Core FEM: node-major DOF model with SPCs and lumped masses; spring / truss /
+  planar-beam elements; one-pass preallocated COO→CSR assembly with free/constrained
+  partitioning (R1-O1, A10).
+- Modal solver: one `ModalSolver` façade with dense and sparse shift-invert backends,
+  static condensation of massless DOFs, mass normalization, deterministic signs,
+  participation/effective masses, and a shift-invert LU cache; the former duplicate
+  `modal/eigen.py` is now a thin adapter over it (R1-O1, A08, A10).
+- Correlation: MAC / autoMAC / mass-weighted MAC, MSF, pseudo-orthogonality, COMAC,
+  sensor/DOF alignment with orientation signs, Hungarian pairing with MAC threshold and
+  frequency window/penalty, frequency-error metrics, schema-versioned JSON
+  `CorrelationReport` (A06, A08; R1-O2 variant preserved on
+  `cursor/r1o2-correlation-updating-e393`).
+- Updating: Fox–Kapoor eigenvalue, modal-superposition eigenvector, and MAC
+  sensitivities — vectorized and sparse-aware; affine `ScalingModel` (one eigensolve per
+  iteration); LM / Gauss–Newton updater with Tikhonov regularization, bounds, and
+  per-iteration MAC re-pairing (A04, R1-O2, A10).
+- IO: schema-versioned native YAML/JSON round trip for models, modal results, and test
+  data (A09); ASCII UFF/UNV dataset 55/58 reader (A12); minimal Nastran BDF reader
+  (GRID/CROD/MAT1 → `NeutralModel`, A18).
+- CLI: `modal` / `correlate` / `update` over the single correlation kernel,
+  machine-readable JSON on stdout with diagnostics on stderr, covered end to end
+  (R1-F1, A16, `bae4b77`).
+- Spec & QA stack: architecture doc, module spec MS-0..6, 35 quantified acceptance
+  criteria with a machine-readable registry, SOTA gap register GAP-01..15, boundary and
+  probe suites, benchmarks, packaging + push CI, README (R1-F1/F2, A01, A03, R1-G1/G2,
+  A11, A20).
+- Verification highlights: closed-form modal validation to 1e-9 (worst continuum case
+  0.2%); E2E model→modal→correlate→update→re-solve converges 22.86% → 0% frequency
+  error at MAC 1.0; 10-DOF/4-group twin recovery to machine precision; analytic vs FD
+  sensitivities agree to ≤ 1e-6; 50 repeated eigensolves with zero drift.
 
-**Main finding (A03 audit).** Parallel subagents created a split-brain core: two `Model`
-representations, duplicate `ModalResult`/eigensolver paths, and renamed seam symbols that
-left the package unimportable at several points during integration (GAP-01, P0). Beyond
-integration, the platform covers only the "analyze + shape-correlate + update-frequencies"
-slice of the FEMtools workflow: no industrial IO (GAP-03), no damping/FRF chain (GAP-04/05),
-no MPE (GAP-06), no pretest/TAM/expansion (GAP-07/08), optimization is a stub (GAP-12).
+**Remaining defects / open items.**
+- Uncommitted in-flight work at conclusion time: the MS-4 correction workflow package
+  (`workflow/` stages, gates, selection, correction, report) and the optimization
+  build-out (`optimization/` variables, responses, gradients, problem) exist only in the
+  shared working tree. Round 2 must land them atomically with tests and consumers.
+- The updater takes the analytic-Jacobian path only for frequency-only residuals; the
+  shape/MAC residual block still falls back to finite differences even though
+  `mac_sensitivity` is analytic — a cheap wiring win.
+- MS-3.5 Bayesian MAP updating and MS-3.6 automatic parameter selection (collinearity
+  screening) are unimplemented; optimization remains a stub pending the in-flight work
+  (GAP-12).
+- Industrial IO residue (GAP-03): no UNV 2411/2412 geometry, no UFF writing or binary
+  58b, BDF limited to GRID/CROD/MAT1 (no coordinate systems, large-field or continuation
+  cards), no OP2, no meshio bridge.
+- No damping models, FRF synthesis, harmonic response, or FRF correlation (GAP-04/05);
+  no modal parameter extraction from measured FRFs (GAP-06); no pretest planning, TAM
+  reduction (Guyan/IRS/SEREP), or mode-shape expansion (GAP-07/08).
+- Element library has no continuum elements (QUAD4/TET4/HEX8) and no 3-D beam.
+- GAP-01 (split-brain core) is resolved — one eigensolver, one neutral contract, one
+  correlation kernel — but the concurrency hazard that caused it persists: three broken
+  import states and one transient CLI regression were observed during Round 1 while
+  agents edited the shared tree. The "seams land atomically with consumers" rule stays
+  in force for Round 2.
 
-**Round 2 priorities (from `docs/SOTA_GAP_ANALYSIS.md` §6).**
-1. Unify the core: one `Model`/`ModalResult` contract, one eigensolver façade, green
-   `import openfemlab` + full suite in CI; seam changes must land atomically with consumers.
-2. Industrial reach: UFF/UNV (55/58/2411/2412) + Nastran BDF subset importers; meshio bridge.
-3. Dynamics chain: damping models, FRF synthesis, harmonic response.
-4. Updating depth: parameter target resolver, assembled dK/dp providers, wired scipy
-   optimization backend, node-mapping for test DOFs.
-5. Element growth: QUAD4/TET4/HEX8 minimum continuum set.
+**Performance baselines** (single BLAS thread, medians; reproduce via `benchmarks/` and
+`tests/probes/probe_performance_regression.py`, which gates on them).
+- Modal solve, spring chains: 10/100/1000 DOF at 0.669 / 1.180 / 1.815 ms cold (R1-G1);
+  repeated solves 1.17x / 1.11x / 1.14x faster with the factorization cache (A10).
+- Sparse assembly at 2,000 DOF: 26.302 → 19.331 ms (1.36x); repeated 1,600-DOF sparse
+  solve: 12.270 → 9.449 ms (1.30x).
+- Eigenvalue sensitivity, 240 DOF / 24 modes / 12 parameters: 1.829 → 0.678 ms (2.70x).
+- Five-iteration 100-DOF updating loop: 35.301 → 7.904 ms (4.47x) with exact vectorized
+  sensitivities.
 
-**Round 1 exit bar:** met on module content and spec coverage; **not yet met** on
-integration health (test suite must collect and pass end-to-end before Round 2 refactors
-begin).
+**Round 2 priorities.**
+1. Land the in-flight MS-4 workflow and optimization packages atomically with their
+   tests and consumers; wire the analytic MAC Jacobian into the updater's shape-residual
+   path.
+2. Industrial IO depth: UNV 2411/2412 geometry, UFF writing, broader BDF cards and
+   coordinate systems, meshio bridge (OP2 and binary 58b as stretch).
+3. Dynamics chain: damping models, FRF synthesis, harmonic response, FRF correlation,
+   then MPE from measured FRFs (GAP-04/05/06).
+4. Updating depth: Bayesian MAP (MS-3.5), automatic parameter selection (MS-3.6),
+   parameter target resolver and assembled dK/dp providers over real element groups.
+5. Element growth (QUAD4/TET4/HEX8 continuum set) and pretest/TAM/expansion
+   (GAP-07/08).
+
+**Round 1 exit bar: MET.** Module content, spec coverage, and integration health are all
+green — `import openfemlab` is clean, the full committed suite collects and passes end
+to end (**192 passed**), and repo-wide Ruff is clean on committed files.
