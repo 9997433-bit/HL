@@ -59,9 +59,13 @@ const ROUTES = [
   ['绘本 b1', '/#/books/b1'],
   ['绘本 b2', '/#/books/b2'],
   ['绘本 b3', '/#/books/b3'],
+  ['绘本 b4', '/#/books/b4'],
+  ['绘本 b5', '/#/books/b5'],
   ['成语列表', '/#/idioms'],
   ['成语 守株待兔', '/#/idioms/szdt'],
   ['成语 画蛇添足', '/#/idioms/hstz'],
+  ['成语 水滴石穿', '/#/idioms/sdsc'],
+  ['成语 举一反三', '/#/idioms/jyfs'],
   ['家长中心', '/#/parent'],
   ['未知路由回落', '/#/nope/nope']
 ]
@@ -260,7 +264,7 @@ await interact('FSRS：到期卡进入复习队列，未到期卡不进入', `/#
   return `持久化卡=${seeded.count}，到期“日”可见，未来“月”已排除`
 })
 
-await interact('100 字字表：分页渲染且所有字可达', '/#/learn', async (page) => {
+await interact('200 字字表：分页渲染且所有字可达', '/#/learn', async (page) => {
   const snapshot = () =>
     page.evaluate(() => {
       const text = document.body.innerText
@@ -280,7 +284,7 @@ await interact('100 字字表：分页渲染且所有字可达', '/#/learn', asy
     })
 
   const first = await snapshot()
-  if (first.total < 100) throw new Error(`字库规模只有 ${first.total}，Round 2 要求至少 100 字`)
+  if (first.total < 200) throw new Error(`字库规模只有 ${first.total}，Round 3 要求至少 200 字`)
   if (!first.chars.length) throw new Error('字表首屏没有渲染单字卡')
   if (first.chars.length >= first.total) {
     throw new Error(`首屏一次挂载 ${first.chars.length}/${first.total} 张卡片，未启用分页`)
@@ -292,7 +296,8 @@ await interact('100 字字表：分页渲染且所有字可达', '/#/learn', asy
   let unchanged = 0
   let previous = first.chars.join('|')
 
-  while (reached.size < first.total && turns < 20) {
+  // 字表按单元翻页，单元数会随字库增长；上限只是防死循环，留足余量即可。
+  while (reached.size < first.total && turns < 40) {
     const clicked = await page.evaluate(() => {
       const nextPattern = /下一页|下一批|加载更多|显示更多|查看更多|更多汉字/
       const controls = [...document.querySelectorAll('button, a')].filter((node) => {

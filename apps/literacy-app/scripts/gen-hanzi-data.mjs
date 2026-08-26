@@ -5,7 +5,7 @@
  * 为什么不直接用 hanzi-writer 默认的 CDN 加载？
  *   1. 本应用要求完全离线可用；
  *   2. 完整数据包有 9500+ 个字（几十 MB），全量打进 dist 不现实。
- * 裁剪之后只有一百多个字，几百 KB，随包发布即可。
+ * 裁剪之后是三百多个字、一两兆，随包发布即可。
  *
  * 文件名用码位（u82b1.json）而不是汉字本身，避免不同文件系统 / zip 工具
  * 处理非 ASCII 文件名时出现编码问题。
@@ -28,12 +28,27 @@ const require = createRequire(import.meta.url)
 const here = path.dirname(fileURLToPath(import.meta.url))
 const appDir = path.resolve(here, '..')
 const outDir = path.join(appDir, 'public', 'hanzi-data')
+const baselineFile = path.resolve(appDir, '..', '..', 'shared', 'data', 'common-hanzi.json')
 
 const isHan = (ch) => /\p{Script=Han}/u.test(ch)
 
+/**
+ * monorepo 共享字库。它是字表的事实基线，即使某个字暂时被移出课程单元，
+ * 笔顺数据也照样带上，免得别的 App 引用同一份基线时缺字。
+ */
+function baselineChars() {
+  try {
+    const doc = JSON.parse(fs.readFileSync(baselineFile, 'utf8'))
+    return (doc.characters ?? []).map((c) => c.character).filter(Boolean)
+  } catch {
+    return []
+  }
+}
+
 /** 课程字表：这些字必须有离线笔顺数据，缺一个就算构建失败。 */
 function requiredChars() {
-  return [...new Set(CHARACTERS.map((c) => c.char))].filter(isHan).sort()
+  const set = new Set([...CHARACTERS.map((c) => c.char), ...baselineChars()])
+  return [...set].filter(isHan).sort()
 }
 
 /**
@@ -69,6 +84,25 @@ function resolveDataDir() {
   } catch {
     return null
   }
+}
+
+/**
+ * 笔顺数据受 Arphic Public License 约束，再分发（含裁剪后的衍生数据）必须随附
+ * 许可证全文，因此每次重建输出目录都要把 ARPHICPL.TXT 一起放进去。
+ * 优先取上游包内的副本，包里缺失时退回仓库 shared/assets 的存档。
+ */
+function copyArphicLicense(dataDir) {
+  const candidates = [
+    path.join(dataDir, 'ARPHICPL.TXT'),
+    path.resolve(appDir, '..', '..', 'shared', 'assets', 'hanzi-writer-data', 'ARPHICPL.TXT'),
+  ]
+  const src = candidates.find((p) => fs.existsSync(p))
+  if (!src) {
+    console.error('[hanzi-data] 找不到 ARPHICPL.TXT，笔顺数据不得在缺失许可证的情况下分发。')
+    process.exitCode = 1
+    return
+  }
+  fs.copyFileSync(src, path.join(outDir, 'ARPHICPL.TXT'))
 }
 
 function main() {
@@ -110,6 +144,8 @@ function main() {
   // 索引文件让运行时可以先判断「本地有没有」，避免无谓的 404。
   // 刻意不写生成时间：这些文件是入库的，带时间戳会让每次构建都把工作区弄脏。
   fs.writeFileSync(path.join(outDir, 'index.json'), JSON.stringify({ chars: written }))
+
+  copyArphicLicense(dataDir)
 
   const kb = (bytes / 1024).toFixed(0)
   console.log(
