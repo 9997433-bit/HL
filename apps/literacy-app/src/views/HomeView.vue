@@ -39,6 +39,15 @@ const stations = computed(() => [
     lockHint: '先学会 4 个字就能玩'
   },
   {
+    to: '/games',
+    emoji: '🎲',
+    title: '识字小游戏',
+    desc: '迷宫、配对、找不同，只出学过的字',
+    color: 'var(--grape-400)',
+    done: null,
+    total: null
+  },
+  {
     to: '/radicals',
     emoji: '🧩',
     title: '偏旁部首',
