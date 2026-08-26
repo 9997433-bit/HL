@@ -1489,7 +1489,8 @@ class MainWindow(QMainWindow):
         self._collect_loudness()
         if self.recorder.is_running:
             self.status_recording.setText(
-                f"● Recording · {self.recorder.frame_count:,} frames · "
+                f"● Recording · {format_timecode(self.recorder.duration)} elapsed · "
+                f"{self.recorder.frame_count:,} frames · "
                 f"{self.recorder.sample_rate / 1000:g} kHz"
             )
         if not self.engine.has_clip:
@@ -1555,6 +1556,9 @@ class MainWindow(QMainWindow):
                 channels,
                 block_size=1024,
                 target_path=target,
+                description=f"{__app_name__} recording",
+                originator=__app_name__,
+                markers=self.markers,
             )
             self.recorder.start()
         except RecorderDeviceError as exc:
@@ -1566,6 +1570,9 @@ class MainWindow(QMainWindow):
                     channels,
                     block_size=1024,
                     target_path=target,
+                    description=f"{__app_name__} recording",
+                    originator=__app_name__,
+                    markers=self.markers,
                 )
                 self.recorder.start()
             except Exception as fallback_exc:  # noqa: BLE001 - report both backend failures
@@ -1618,7 +1625,8 @@ class MainWindow(QMainWindow):
             action.setEnabled(transport_enabled)
         if recording:
             self.status_recording.setText(
-                f"● Recording · 0 frames · {self.recorder.sample_rate / 1000:g} kHz"
+                f"● Recording · {format_timecode(0.0)} elapsed · 0 frames · "
+                f"{self.recorder.sample_rate / 1000:g} kHz · BWF"
             )
         else:
             self.status_recording.setText(f"Input: {self.recorder.name} · Ready")
