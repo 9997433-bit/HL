@@ -221,7 +221,7 @@ class ParameterSet:
             raise ValueError(
                 f"expected {len(self._parameters)} values, got {array.size}"
             )
-        for parameter, value in zip(self._parameters, array, strict=False):
+        for parameter, value in zip(self._parameters, array, strict=True):
             parameter.set_value(float(value))
 
     def design_values(self) -> np.ndarray:
@@ -247,7 +247,7 @@ class ParameterSet:
         free = self.free
         if array.size != len(free):
             raise ValueError(f"expected {len(free)} free values, got {array.size}")
-        for parameter, value in zip(free, array, strict=False):
+        for parameter, value in zip(free, array, strict=True):
             parameter.value = parameter.from_design(float(value))
         return self.as_dict()
 
@@ -258,7 +258,7 @@ class ParameterSet:
         if array.size != len(free):
             raise ValueError(f"expected {len(free)} free values, got {array.size}")
         physical = self.as_dict()
-        for parameter, value in zip(free, array, strict=False):
+        for parameter, value in zip(free, array, strict=True):
             physical[parameter.name] = parameter.from_design(float(value))
         return physical
 

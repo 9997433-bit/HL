@@ -170,7 +170,7 @@ class SensitivityResult:
     def table(self) -> str:
         header = f"{'response':<16}" + "".join(f"{name:>14}" for name in self.parameter_names)
         lines = [header, "-" * len(header)]
-        for label, row in zip(self.response_labels, self.matrix, strict=False):
+        for label, row in zip(self.response_labels, self.matrix, strict=True):
             lines.append(f"{label:<16}" + "".join(f"{value:14.6g}" for value in row))
         return "\n".join(lines)
 
@@ -248,7 +248,7 @@ def eigenvalue_sensitivity(
         raise ValueError("mode shapes must have positive generalised mass")
 
     sensitivity = np.zeros((phi.shape[1], len(dK)))
-    for k, (dk, dm) in enumerate(zip(dK, dM, strict=False)):
+    for k, (dk, dm) in enumerate(zip(dK, dM, strict=True)):
         values = np.zeros(phi.shape[1])
         if dk is not None:
             applied = dk @ phi
@@ -351,7 +351,7 @@ def mode_shape_sensitivity(
     selected_lambdas = lambdas[indices]
     out = np.zeros((len(dK), phi.shape[0], indices.size), dtype=phi.dtype)
     degenerate: set[int] = set()
-    for k, (dk, dm) in enumerate(zip(dK, dM, strict=False)):
+    for k, (dk, dm) in enumerate(zip(dK, dM, strict=True)):
         if dk is None and dm is None:
             continue
         residual = np.zeros_like(selected)

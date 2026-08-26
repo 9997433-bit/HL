@@ -72,7 +72,7 @@ class SpringMassChain:
         if ks.size != n or ms.size != n:
             raise ValueError("scale vectors must have one entry per spring / mass")
         K = np.zeros((n, n))
-        for scale, block in zip(ks, self.spring_matrices(), strict=False):
+        for scale, block in zip(ks, self.spring_matrices(), strict=True):
             K += scale * block
         M = np.diag(ms * self.masses)
         return K, M

@@ -143,7 +143,7 @@ def _optimal_assignment(score: np.ndarray, threshold: float) -> list[tuple[int, 
     rows, cols = linear_sum_assignment(-penalised)
     return [
         (int(r), int(c))
-        for r, c in zip(rows, cols, strict=False)
+        for r, c in zip(rows, cols, strict=True)
         if np.isfinite(score[r, c]) and score[r, c] >= threshold
     ]
 

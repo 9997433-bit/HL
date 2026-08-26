@@ -45,7 +45,14 @@ ModelCallable = Callable[[Mapping[str, float]], object]
 
 @dataclass
 class UpdatingOptions:
-    """Numerical settings of an updating run."""
+    """Numerical settings of an updating run.
+
+    ``mode_pairing`` selects how the target modes are matched to the model
+    modes at every iteration: ``"mac"`` is the greedy max-MAC pass classic
+    tools use, ``"optimal"`` is the Hungarian assignment maximising the total
+    MAC over all pairs, ``"frequency"`` pairs on frequency proximity, and
+    ``"order"`` freezes the pairing to the mode order.
+    """
 
     method: str = "levenberg-marquardt"
     max_iterations: int = 30
@@ -72,7 +79,7 @@ class UpdatingOptions:
             raise ValueError(f"unknown updating method {self.method!r}")
         if self.shape_residual not in {"mac", "difference"}:
             raise ValueError(f"unknown shape residual {self.shape_residual!r}")
-        if self.mode_pairing not in {"mac", "frequency", "order"}:
+        if self.mode_pairing not in {"mac", "optimal", "frequency", "order"}:
             raise ValueError(f"unknown mode pairing strategy {self.mode_pairing!r}")
         if self.max_iterations < 1:
             raise ValueError("max_iterations must be at least 1")
@@ -80,6 +87,11 @@ class UpdatingOptions:
     @property
     def is_gauss_newton(self) -> bool:
         return self.method in {"gauss-newton", "gn"}
+
+    @property
+    def pairing_method(self) -> str:
+        """The :func:`~openfemlab.correlation.pairing.pair_modes` method to use."""
+        return {"mac": "greedy", "optimal": "optimal"}.get(self.mode_pairing, "frequency")
 
 
 @dataclass
@@ -181,9 +193,11 @@ class ModelUpdater:
         **option_overrides: object,
     ) -> None:
         self.model = model
+        # The updater works on its own copy so that repeated runs always start
+        # from the same state and the caller's parameter objects stay intact.
         self.parameters = (
             parameters if isinstance(parameters, ParameterSet) else ParameterSet(parameters)
-        )
+        ).copy()
         self.target = ModalData(
             np.asarray(target_frequencies, dtype=float), target_shapes
         )
@@ -236,7 +250,7 @@ class ModelUpdater:
             fe_shapes=data.mode_shapes,
             test_frequencies=self.target.frequencies,
             fe_frequencies=data.frequencies,
-            method="greedy" if strategy == "mac" else "frequency",
+            method="frequency" if strategy == "frequency" else self.options.pairing_method,
             mac_threshold=self.options.mac_threshold,
             frequency_tolerance_pct=self.options.frequency_tolerance_pct,
             weights=self.dof_weights,
@@ -278,7 +292,7 @@ class ModelUpdater:
                 )
                 blocks.append(options.shape_weight * mode_weights * mac_terms)
             else:
-                for weight, (i, j) in zip(mode_weights, pairs, strict=False):
+                for weight, (i, j) in zip(mode_weights, pairs, strict=True):
                     phi_test = test_shapes[:, i]
                     phi_fe = fe_shapes[:, j]
                     scaled = phi_fe * modal_scale_factor(phi_test, phi_fe)
@@ -350,7 +364,7 @@ class ModelUpdater:
             )
         mode_weights = self._mode_weights(pairs)
         rows = []
-        for weight, (i, j) in zip(mode_weights, pairs, strict=False):
+        for weight, (i, j) in zip(mode_weights, pairs, strict=True):
             row = df_dp[j, :] / self.target.frequencies[i]
             rows.append(self.options.frequency_weight * weight * row)
         jacobian = np.array(rows, dtype=float)
@@ -371,7 +385,7 @@ class ModelUpdater:
             test_shapes=self.target.mode_shapes,
             fe_shapes=data.mode_shapes,
             weights=self.dof_weights,
-            method="greedy" if self.options.mode_pairing == "mac" else "frequency",
+            method=self.options.pairing_method,
         )
 
     def run(self) -> UpdatingResult:
