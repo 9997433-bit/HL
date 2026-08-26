@@ -94,6 +94,7 @@ onMounted(() => {
             🚀 继续冒险 · {{ nextPlanet.name }}
           </button>
           <RouterLink to="/progress" class="btn btn-ghost">🏆 我的成就</RouterLink>
+          <RouterLink to="/parent" class="btn btn-ghost">👨‍👩‍👧 家长中心</RouterLink>
         </div>
       </div>
       <MascotBot mood="idle" :size="128" class="hero-bot" />

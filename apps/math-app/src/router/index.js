@@ -50,6 +50,12 @@ const routes = [
     component: () => import('@/modules/progress/ProgressView.vue'),
     meta: { title: '成就墙' },
   },
+  {
+    path: '/parent',
+    name: 'parent',
+    component: () => import('@/modules/parent/ParentView.vue'),
+    meta: { title: '家长中心' },
+  },
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ]
 
