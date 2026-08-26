@@ -1,0 +1,22 @@
+{
+  "name": "hongen-edu-apps",
+  "version": "1.0.0",
+  "private": true,
+  "description": "洪恩式识字与数学教育应用 monorepo",
+  "workspaces": [
+    "apps/literacy-app",
+    "apps/math-app"
+  ],
+  "scripts": {
+    "setup": "bash scripts/setup.sh",
+    "build": "bash scripts/build-all.sh",
+    "build:all": "bash scripts/build-all.sh",
+    "test": "npm run test:literacy && npm run test:math",
+    "test:literacy": "bash scripts/test-literacy.sh",
+    "test:math": "bash scripts/test-math.sh"
+  },
+  "engines": {
+    "node": ">=20.11 <25",
+    "npm": ">=10"
+  }
+}
