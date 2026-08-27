@@ -17,15 +17,14 @@ Two modes:
 * ``--wall-clock``: ``NullOutput``'s own simulated device thread pulls blocks
   on a wall-clock schedule and the run takes the full requested duration.
 
-This is a headless *proxy*, not hardware playback-stability evidence.  The
-approved v1.0 acceptance policy nevertheless treats this software-pipeline
-proxy as formal evidence for SOTA checklist items C1/C3, and the emitted
-reports record both facts explicitly.
+This is a headless *proxy*, not hardware playback-stability evidence: the JSON
+always records ``formal_slo_verified: false`` (SOTA checklist items C1/C3 stay
+open until a real device run exists).
 
 Examples::
 
     python3 benchmarks/soak_playback.py                        # 30-minute soak
-    python3 benchmarks/soak_playback.py --duration-sec 60      # quick smoke
+    python3 benchmarks/soak_playback.py --duration-seconds 60  # quick smoke
     python3 benchmarks/soak_playback.py --output soak.json
 """
 
@@ -44,9 +43,6 @@ import numpy as np
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 AUDIO_STUDIO_ROOT = REPOSITORY_ROOT / "audio-studio"
-EVIDENCE_DIRECTORY = REPOSITORY_ROOT / ".agent_workspace" / "v1.0"
-CALLBACK_REPORT_NAME = "callback-timing-report.json"
-SOAK_REPORT_NAME = "soak-30min-report.json"
 if str(AUDIO_STUDIO_ROOT) not in sys.path:
     sys.path.insert(0, str(AUDIO_STUDIO_ROOT))
 
@@ -61,9 +57,7 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         description="Headless playback soak proxy (underruns, xruns, callback timing).",
     )
     parser.add_argument(
-        "--duration-sec",
         "--duration-seconds",
-        dest="duration_seconds",
         type=float,
         default=1_800.0,
         help="audio duration to play through the engine (default: 1800 = 30 minutes)",
@@ -120,38 +114,13 @@ def _tone(sample_rate: int, channels: int, seconds: float) -> AudioBuffer:
 
 def _timing_distribution(elapsed_ns: np.ndarray) -> dict[str, float]:
     elapsed_ms = elapsed_ns / 1_000_000.0
-    p50_ms = round(float(np.percentile(elapsed_ms, 50)), 6)
     return {
         "minimum_ms": round(float(elapsed_ms.min()), 6),
-        "p50_ms": p50_ms,
-        "median_ms": p50_ms,
+        "median_ms": round(float(np.median(elapsed_ms)), 6),
         "p95_ms": round(float(np.percentile(elapsed_ms, 95)), 6),
         "p99_ms": round(float(np.percentile(elapsed_ms, 99)), 6),
         "maximum_ms": round(float(elapsed_ms.max()), 6),
     }
-
-
-class _TimingNullOutput(NullOutput):
-    """Null backend that records the wall-clock callback duration in-place."""
-
-    def __init__(self, *, realtime: bool, maximum_callbacks: int) -> None:
-        super().__init__(realtime=realtime)
-        self._callback_timings_ns = np.empty(maximum_callbacks, dtype=np.int64)
-        self._callback_timing_count = 0
-
-    @property
-    def callback_timings_ns(self) -> np.ndarray:
-        return self._callback_timings_ns[: self._callback_timing_count]
-
-    def _render(self, n_frames: int) -> np.ndarray:
-        began = time.perf_counter_ns()
-        block = super()._render(n_frames)
-        elapsed = time.perf_counter_ns() - began
-        index = self._callback_timing_count
-        if index < self._callback_timings_ns.size:
-            self._callback_timings_ns[index] = elapsed
-            self._callback_timing_count = index + 1
-        return block
 
 
 def _progress(quiet: bool, message: str) -> None:
@@ -223,7 +192,7 @@ def _run_wall_clock(
 ) -> dict[str, Any]:
     """Let NullOutput's simulated device thread pace the whole run."""
     output = engine.output
-    assert isinstance(output, _TimingNullOutput)
+    assert isinstance(output, NullOutput)
     block = args.block_size
     period = block / args.sample_rate
     target_frames = total_blocks * block
@@ -244,23 +213,16 @@ def _run_wall_clock(
 
     frames_rendered = output.frames_rendered
     underrun_frames = engine.underrun_frames
-    callback_timings_ns = output.callback_timings_ns.copy()
-    callback_timing = _timing_distribution(callback_timings_ns)
     return {
-        "blocks_rendered": callback_timings_ns.size,
+        "blocks_rendered": frames_rendered // block,
         "frames_rendered": frames_rendered,
         "audio_seconds_rendered": round(frames_rendered / args.sample_rate, 3),
-        "underrun_blocks": int(underrun_frames > 0),
         "underrun_frames": underrun_frames,
         "underrun_frame_ratio": underrun_frames / frames_rendered,
         "wall_clock_seconds": round(wall_seconds, 3),
         "realtime_factor": round(
             frames_rendered / args.sample_rate / wall_seconds, 3
         ) if wall_seconds else None,
-        "callback_timing": callback_timing,
-        "callback_p99_block_utilization_percent": round(
-            callback_timing["p99_ms"] / (period * 1_000.0) * 100.0, 3
-        ),
     }
 
 
@@ -268,14 +230,8 @@ def run_soak(args: argparse.Namespace) -> dict[str, Any]:
     """Run the soak and return the JSON-serializable report."""
     mode = "wall-clock" if args.wall_clock else "accelerated"
     total_blocks = math.ceil(args.duration_seconds * args.sample_rate / args.block_size)
-    if total_blocks <= 0:
-        raise ValueError("duration_seconds must be positive")
-    output = _TimingNullOutput(
-        realtime=args.wall_clock,
-        maximum_callbacks=total_blocks + 8,
-    )
     engine = AudioEngine(
-        output,
+        NullOutput(realtime=args.wall_clock),
         block_size=args.block_size,
         ring_blocks=args.ring_blocks,
     )
@@ -299,58 +255,24 @@ def run_soak(args: argparse.Namespace) -> dict[str, Any]:
     finally:
         engine.shutdown()
 
-    playback_passed = measured["underrun_frame_ratio"] <= args.max_underrun_ratio
-    callback_timing = measured["callback_timing"]
-    callback_budget_ms = args.block_size / args.sample_rate * 1_000.0
-    callback_passed = (
-        callback_timing["p99_ms"] <= callback_budget_ms
-        and measured["underrun_frame_ratio"] <= args.max_underrun_ratio
-    )
+    passed = measured["underrun_frame_ratio"] <= args.max_underrun_ratio
     minutes = args.duration_seconds / 60.0
-    limitation = (
-        "NullOutput backend on a shared host; formally verifies the approved "
-        "headless software-pipeline proxy, not hardware-device behavior."
-    )
-    playback_result = {
+    result = {
         "slo_id": "playback-30m",
         "title": (
             f"{minutes:g}-minute {args.sample_rate / 1000:g}k/{args.block_size} "
             "playback soak (headless proxy)"
         ),
-        "status": "pass" if playback_passed else "fail",
-        "threshold_pass": playback_passed,
+        "status": "pass" if passed else "fail",
+        "threshold_pass": passed,
         "evidence": "headless-proxy",
-        "formal_slo_verified": True,
+        "formal_slo_verified": False,
         "measured": measured,
         "threshold": {"underrun_frame_ratio_max": args.max_underrun_ratio},
-        "limitation": limitation,
-    }
-    callback_result = {
-        "slo_id": "callback-p99",
-        "title": (
-            f"{args.sample_rate / 1000:g}k/{args.block_size} render callback "
-            "timing (headless proxy)"
+        "limitation": (
+            "NullOutput backend on a shared host; exercises the software "
+            "pipeline only and is not hardware playback-stability evidence."
         ),
-        "status": "pass" if callback_passed else "fail",
-        "threshold_pass": callback_passed,
-        "evidence": "headless-proxy",
-        "formal_slo_verified": True,
-        "measured": {
-            "callbacks_measured": measured["blocks_rendered"],
-            "callback_p50_ms": callback_timing["p50_ms"],
-            "callback_p99_ms": callback_timing["p99_ms"],
-            "callback_budget_ms": round(callback_budget_ms, 6),
-            "callback_p99_block_utilization_percent": measured[
-                "callback_p99_block_utilization_percent"
-            ],
-            "underrun_ratio": measured["underrun_frame_ratio"],
-            "underrun_frame_ratio": measured["underrun_frame_ratio"],
-        },
-        "threshold": {
-            "callback_p99_ms_max": round(callback_budget_ms, 6),
-            "underrun_frame_ratio_max": args.max_underrun_ratio,
-        },
-        "limitation": limitation,
     }
     return {
         "schema_version": 1,
@@ -369,39 +291,13 @@ def run_soak(args: argparse.Namespace) -> dict[str, Any]:
             "ring_blocks": args.ring_blocks,
             "source_seconds": args.source_seconds,
         },
-        "results": [playback_result, callback_result],
-        "summary": {
-            "proxy_passed": int(playback_passed) + int(callback_passed),
-            "proxy_failed": int(not playback_passed) + int(not callback_passed),
-            "formal_slos_verified": 2,
-        },
-    }
-
-
-def _report_for_slo(report: dict[str, Any], slo_id: str) -> dict[str, Any]:
-    """Return a standalone evidence report for one result in a combined run."""
-    result = next(item for item in report["results"] if item["slo_id"] == slo_id)
-    passed = result["status"] == "pass"
-    return {
-        "schema_version": report["schema_version"],
-        "harness": report["harness"],
-        "mode": report["mode"],
-        "evidence": result["evidence"],
-        "formal_slo_verified": result["formal_slo_verified"],
-        "environment": report["environment"],
-        "config": report["config"],
         "results": [result],
         "summary": {
             "proxy_passed": int(passed),
             "proxy_failed": int(not passed),
-            "formal_slos_verified": int(result["formal_slo_verified"]),
+            "formal_slos_verified": 0,
         },
     }
-
-
-def _write_report(report: dict[str, Any], path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -409,18 +305,11 @@ def main(argv: list[str] | None = None) -> int:
     report = run_soak(args)
     rendered = json.dumps(report, indent=2)
     print(rendered)
-    callback_report = _report_for_slo(report, "callback-p99")
-    soak_report = _report_for_slo(report, "playback-30m")
-    callback_path = EVIDENCE_DIRECTORY / CALLBACK_REPORT_NAME
-    soak_path = EVIDENCE_DIRECTORY / SOAK_REPORT_NAME
-    _write_report(callback_report, callback_path)
-    _write_report(soak_report, soak_path)
-    _progress(args.quiet, f"report written to {callback_path}")
-    _progress(args.quiet, f"report written to {soak_path}")
     if args.output is not None:
-        _write_report(report, args.output)
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(rendered + "\n", encoding="utf-8")
         _progress(args.quiet, f"report written to {args.output}")
-    return 0 if all(item["threshold_pass"] for item in report["results"]) else 1
+    return 0 if report["results"][0]["threshold_pass"] else 1
 
 
 if __name__ == "__main__":

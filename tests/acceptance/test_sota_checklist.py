@@ -77,27 +77,6 @@ def _require_direct_report(relative_path: str, required_ids: set[str] | None = N
     assert all(item.get("formal_slo_verified") is True for item in results)
 
 
-def _require_v1_proxy_or_direct(
-    proxy_relative_path: str,
-    direct_relative_path: str,
-    required_ids: set[str],
-) -> None:
-    proxy_path = REPOSITORY_ROOT / proxy_relative_path
-    if not proxy_path.is_file():
-        _require_direct_report(direct_relative_path, required_ids)
-        return
-
-    report = _load_json(proxy_path)
-    results = report.get("results", [])
-    assert report.get("evidence") == "headless-proxy"
-    assert report.get("formal_slo_verified") is True
-    assert required_ids <= {item.get("slo_id") for item in results}
-    assert results, "evidence report contains no measured results"
-    assert all(item.get("status") == "pass" for item in results)
-    assert all(item.get("evidence") == "headless-proxy" for item in results)
-    assert all(item.get("formal_slo_verified") is True for item in results)
-
-
 def _verify_ebu_3341_loudness(_tmp_path: Path) -> None:
     meter = LoudnessMeter(SAMPLE_RATE)
     for vector in TECH_3341_VECTORS:
@@ -292,11 +271,7 @@ def _verify_multitrack_32(_tmp_path: Path) -> None:
 
 
 def _verify_playback_stability(_tmp_path: Path) -> None:
-    _require_v1_proxy_or_direct(
-        ".agent_workspace/v1.0/soak-30min-report.json",
-        ".agent_workspace/round3/playback-stability-report.json",
-        {"playback-30m"},
-    )
+    _require_direct_report(".agent_workspace/round3/playback-stability-report.json", {"playback-30m"})
 
 
 def _verify_recording_stability(_tmp_path: Path) -> None:
@@ -308,11 +283,7 @@ def _verify_callback_discipline(_tmp_path: Path) -> None:
 
     source = inspect.getsource(AudioEngine.render_into)
     assert "_update_levels" not in source, "callback meter path still allocates NumPy arrays/tuples"
-    _require_v1_proxy_or_direct(
-        ".agent_workspace/v1.0/callback-timing-report.json",
-        ".agent_workspace/round3/callback-timing-report.json",
-        {"callback-p99"},
-    )
+    _require_direct_report(".agent_workspace/round3/callback-timing-report.json", {"callback-p99"})
 
 
 def _verify_roundtrip_latency(_tmp_path: Path) -> None:
