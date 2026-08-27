@@ -1,12 +1,12 @@
 /**
- * ROUND8_H4 — 拍照识字的识别精度基准。
+ * ROUND9_H2（承接 ROUND8_H4）—— 拍照识字的识别精度基准。
  *
  * scripts/test-ocr.mjs 守的是取字规则（哪些字符算字、哪些字讲得了），
  * 它给一段假文本就能跑；真正会悄悄退化的那一半——语言包换了、tesseract 升级了、
  * 预处理的对比度拉伸写反了——只有让引擎去认一张真图才看得见。
  * 这个脚本就是那张网，三段各守一处：
  *
- *   1. 引擎跑分：五张固定基准图（public/ocr/sample-photo.png +
+ *   1. 引擎跑分：九张固定基准图（public/ocr/sample-photo.png +
  *      scripts/fixtures/ocr/*.png）跑一遍 chi_sim，逐张算召回率、
  *      核对关键字、盯住误检和置信度。图一个字节都不变，分数掉了就是引擎侧退化。
  *   2. 预处理：utils/ocr.js 的 preprocess() 是 DOM 代码，这里用一个极小的
@@ -14,9 +14,18 @@
  *   3. 形近复核：认出来的字要能一路点进单字页的「考一考」，那道题的三个选项
  *      必须来自形近池（utils/distractors.js），不是随机抽的字。
  *
+ * ROUND8_H4 的五张图全是「摆好了拍」的印刷体，一个总分掩住了各类版面的差别：
+ * 平均分 100% 之下，手写字可能一个都认不出，谁也不知道。ROUND9_H2 把基准集
+ * 扩到九张、按 tier 分类，每一类单独定线，退化落在哪一类上一眼就能看出来：
+ *
+ *   print 印刷体 · warm-light 暖光 · inverted 反色 · blur 失焦
+ *   handwriting 手写 · low-light 低光 · busy-background 复杂背景 · perspective 斜拍
+ *
+ * 后四类是 R9 新增，REQUIRED_TIERS 钉住它们不许被悄悄删掉。
+ *
  * 基准图为什么不放 public/：见 scripts/gen-ocr-benchmark.mjs 的说明。
  * 浏览器里的整链（懒加载、Service Worker、点进单字页）由 scripts/smoke.mjs 覆盖，
- * 这里刻意只跑 Node，几百毫秒就能给出分数，挂在 npm test 上不心疼。
+ * 这里刻意只跑 Node，一秒出头就能给出分数，挂在 npm test 上不心疼。
  *
  * 用法：node scripts/test-ocr-accuracy.mjs [--json]
  */
@@ -38,17 +47,21 @@ const langDir = fileURLToPath(new URL('public/ocr/', appUrl)).replace(/\/$/, '')
 /**
  * 基准集。
  *
+ * tier    这张图代表的版面类别，分数按 tier 汇总（见 §输出）
+ * name    人读的图名
  * expect  图上印的字（去重后就是这张图的满分）
  * keyword 无论如何都得认出来的字：召回率还能靠别的字凑，这几个字丢了
- *         就意味着这类版面（小字 / 反色 / 失焦）整体塌了
+ *         就意味着这类版面（小字 / 反色 / 失焦 / 手写）整体塌了
  * recall  召回率下限，取实测值往下留一档余量（实测见 §结果）
  * conf    Tesseract 自报的置信度下限
+ * noise   误检额度，缺省用 MAX_NOISE；只有复杂背景那类才配得上更宽的额度
  *
  * 阈值只在换图或换语言包时才动，动之前先跑一遍 --json 把实测记进
- * .agent_workspace/acceptance-log-round8-h4.md。
+ * .agent_workspace/acceptance-log-round9-h2.md。
  */
 const BENCHMARK = [
   {
+    tier: 'print',
     name: '示例字卡 日月山水',
     file: `public/ocr/${OCR_PACK.sample}`,
     expect: '日月山水',
@@ -57,6 +70,7 @@ const BENCHMARK = [
     conf: 80
   },
   {
+    tier: 'print',
     name: '绘本内页 小字两行',
     file: 'scripts/fixtures/ocr/book-page.png',
     expect: '白云青山绿水花草鱼鸟人家',
@@ -65,6 +79,7 @@ const BENCHMARK = [
     conf: 70
   },
   {
+    tier: 'warm-light',
     name: '暖光字卡 偏黄低对比',
     file: 'scripts/fixtures/ocr/warm-light.png',
     expect: '上下左右',
@@ -73,6 +88,7 @@ const BENCHMARK = [
     conf: 45
   },
   {
+    tier: 'inverted',
     name: '黑板 深底白字',
     file: 'scripts/fixtures/ocr/blackboard.png',
     expect: '天地人和',
@@ -81,11 +97,53 @@ const BENCHMARK = [
     conf: 70
   },
   {
+    tier: 'blur',
     name: '便签 拍糊的小字',
     file: 'scripts/fixtures/ocr/blurry-note.png',
     expect: '今天我们一起读书写字画',
     keyword: '读书',
     recall: 0.7,
+    conf: 70
+  },
+  {
+    // 手写：没有可用的手写中文字体，基准图用逐字抖动逼近「写不齐」。
+    // 认不出真人手写是这套引擎的已知边界，这张守的是「模拟手写也别整页塌」。
+    tier: 'handwriting',
+    name: '作业本 手写四季',
+    file: 'scripts/fixtures/ocr/handwriting.png',
+    expect: '春夏秋冬',
+    keyword: '春',
+    recall: 0.75,
+    conf: 65
+  },
+  {
+    tier: 'low-light',
+    name: '夜里低光 深底暗字带噪点',
+    file: 'scripts/fixtures/ocr/low-light.png',
+    expect: '风雨雷电',
+    keyword: '风',
+    recall: 0.75,
+    conf: 70
+  },
+  {
+    // 花桌布 + 圆点 + 蜡笔：背景纹理本身就长得像笔画，误检额度给到 3。
+    // 这里放宽的是「认出图上没有的字」，召回率一分没让。
+    tier: 'busy-background',
+    name: '花桌布 复杂背景字卡',
+    file: 'scripts/fixtures/ocr/busy-bg.png',
+    expect: '红黄蓝绿',
+    keyword: '红',
+    recall: 0.75,
+    conf: 40,
+    noise: 3
+  },
+  {
+    tier: 'perspective',
+    name: '斜拍字卡 透视加手影',
+    file: 'scripts/fixtures/ocr/angled-card.png',
+    expect: '手口耳目',
+    keyword: '手',
+    recall: 0.75,
     conf: 70
   }
 ]
@@ -95,6 +153,28 @@ const OVERALL_RECALL = 0.9
 
 /** 一张图里认出来的、图上根本没有的字：偶尔一个是笔画粘连，成串出现就是引擎在瞎猜。 */
 const MAX_NOISE = 2
+
+/**
+ * 基准集的规模与覆盖下限。
+ *
+ * 光有总分不够：五张印刷体图也能跑出 100%，可孩子拍的是作业本上的手写字、
+ * 是天黑了没开灯的桌面、是花桌布上摆着的字卡。这两条钉住「扩样不许缩回去」——
+ * 删图、砍 tier 都会当场红灯，而不是等某天线上认不出来了才发现。
+ */
+const MIN_IMAGES = 8
+const REQUIRED_TIERS = ['handwriting', 'low-light', 'busy-background', 'perspective']
+
+/** tier 的中文名，只用于打分表和 --json 的可读性。 */
+const TIER_LABEL = {
+  print: '印刷体',
+  'warm-light': '暖光',
+  inverted: '反色',
+  blur: '失焦',
+  handwriting: '手写',
+  'low-light': '低光',
+  'busy-background': '复杂背景',
+  perspective: '斜拍'
+}
 
 /* ------------------------------------------------------------------ 跑分 */
 
@@ -163,8 +243,9 @@ for (const item of BENCHMARK) {
       assert.ok(!row.missed.includes(char), `关键字「${char}」没认出来`)
     }
     assert.ok(
-      row.noise.length <= MAX_NOISE,
-      `认出了 ${row.noise.length} 个图上没有的字：「${row.noise}」`
+      row.noise.length <= (item.noise ?? MAX_NOISE),
+      `认出了 ${row.noise.length} 个图上没有的字：「${row.noise}」` +
+        `（额度 ${item.noise ?? MAX_NOISE}）`
     )
     assert.ok(row.confidence >= item.conf, `置信度 ${row.confidence}（下限 ${item.conf}）`)
 
@@ -181,6 +262,23 @@ test('整套基准集的总召回率守住下限', () => {
     hit / total >= OVERALL_RECALL,
     `总召回率 ${(hit / total * 100).toFixed(1)}%（${hit}/${total}，下限 ${OVERALL_RECALL * 100}%）`
   )
+})
+
+test(`基准集不少于 ${MIN_IMAGES} 张，难拍的那几类一张都不许少`, () => {
+  assert.ok(
+    BENCHMARK.length >= MIN_IMAGES,
+    `基准集只剩 ${BENCHMARK.length} 张（下限 ${MIN_IMAGES}）`
+  )
+  const tiers = new Set(BENCHMARK.map((c) => c.tier))
+  const missing = REQUIRED_TIERS.filter((t) => !tiers.has(t))
+  assert.equal(
+    missing.length,
+    0,
+    `少了这些 tier：${missing.map((t) => `${TIER_LABEL[t] ?? t}(${t})`).join('、')}`
+  )
+  for (const item of BENCHMARK) {
+    assert.ok(TIER_LABEL[item.tier], `「${item.name}」的 tier「${item.tier}」没有登记中文名`)
+  }
 })
 
 /* -------------------------------------------------------------- 预处理 */
@@ -375,15 +473,38 @@ const hit = rows.reduce((n, r) => n + r.hit, 0)
 const total = rows.reduce((n, r) => n + r.total, 0)
 const overall = total ? hit / total : 0
 
+/** 按 tier 归并：总分掩住的那一类退化，只有分类分数看得见。 */
+const byTier = []
+for (const item of BENCHMARK) {
+  const bucket =
+    byTier.find((t) => t.tier === item.tier) ??
+    byTier[byTier.push({ tier: item.tier, label: TIER_LABEL[item.tier] ?? item.tier, images: 0, hit: 0, total: 0 }) - 1]
+  const row = rows.find((r) => r.item === item)
+  bucket.images += 1
+  bucket.hit += row?.hit ?? 0
+  bucket.total += row?.total ?? [...new Set(item.expect)].length
+}
+
 if (asJson) {
   console.log(
     JSON.stringify(
       {
-        marker: 'ROUND8_H4',
+        marker: 'ROUND9_H2',
+        supersedes: 'ROUND8_H4',
+        imageCount: rows.length,
         overallRecall: Number(overall.toFixed(4)),
         hit,
         total,
+        tiers: byTier.map((t) => ({
+          tier: t.tier,
+          label: t.label,
+          images: t.images,
+          recall: Number((t.total ? t.hit / t.total : 0).toFixed(4)),
+          hit: t.hit,
+          total: t.total
+        })),
         images: rows.map((r) => ({
+          tier: r.item.tier,
           name: r.name,
           file: r.item.file,
           recall: Number(r.recall.toFixed(4)),
@@ -406,13 +527,22 @@ if (asJson) {
   console.log('')
   for (const r of rows) {
     console.log(
-      `  ${r.name}：召回 ${r.hit}/${r.total}（${(r.recall * 100).toFixed(0)}%）` +
+      `  [${TIER_LABEL[r.item.tier] ?? r.item.tier}] ${r.name}：` +
+        `召回 ${r.hit}/${r.total}（${(r.recall * 100).toFixed(0)}%）` +
         ` · 置信度 ${r.confidence} · ${r.ms} ms` +
         `${r.missed ? ` · 丢字「${r.missed}」` : ''}${r.noise ? ` · 误检「${r.noise}」` : ''}`
     )
   }
+  console.log('')
+  for (const t of byTier) {
+    console.log(
+      `  ${t.label}（${t.images} 张）：${t.hit}/${t.total}` +
+        `（${(t.total ? t.hit / t.total * 100 : 0).toFixed(0)}%）`
+    )
+  }
   console.log(
-    `\n拍照识字精度基准：总召回 ${hit}/${total}（${(overall * 100).toFixed(1)}%）；` +
+    `\n拍照识字精度基准：${rows.length} 张图 / ${byTier.length} 类版面，` +
+      `总召回 ${hit}/${total}（${(overall * 100).toFixed(1)}%）；` +
       `${tests.length - failed} / ${tests.length} 项通过。`
   )
 }
