@@ -86,7 +86,6 @@ def _verify_ebu_3341_loudness(_tmp_path: Path) -> None:
 
 
 def _verify_ebu_3341_true_peak_vectors(_tmp_path: Path) -> None:
-<<<<<<< HEAD
     assert TECH_3341_TRUE_PEAK_VECTORS, "no Tech 3341 true-peak vectors are defined"
     for vector in TECH_3341_TRUE_PEAK_VECTORS:
         audio = synthesize_true_peak(vector)
@@ -96,17 +95,6 @@ def _verify_ebu_3341_true_peak_vectors(_tmp_path: Path) -> None:
             <= report.true_peak_dbtp
             <= vector.maximum_accepted_dbtp
         ), vector.case_id
-=======
-    from tools import ebu_vectors
-
-    vectors = getattr(ebu_vectors, "TECH_3341_TRUE_PEAK_VECTORS", ())
-    assert vectors, "no Tech 3341 true-peak vectors are defined"
-    for vector in vectors:
-        meter = LoudnessMeter(vector.sample_rate)
-        report = meter.analyze(synthesize_true_peak(vector), channels_last=True)
-        error = report.true_peak_dbtp - vector.expected_dbtp
-        assert -0.4 <= error <= 0.2, vector.case_id
->>>>>>> origin/cursor/v1.0-round-b-d5a5
 
 
 def _verify_ebu_3342_lra(_tmp_path: Path) -> None:
