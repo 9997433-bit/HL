@@ -5,9 +5,10 @@ baseline capabilities of Adobe Audition. This repository holds the Python MVP:
 a fast path to a working, testable product whose architecture is deliberately
 portable to a later C++/JUCE host.
 
-> **Alpha status:** the current release is a strong single-track analysis and
-> editing foundation, not an Adobe Audition replacement. The implemented and
-> missing workflows are listed explicitly below.
+> **Beta status:** v1.0.0-beta is a professional single-track editor with a
+> repair/mastering toolset, a VST3 host MVP and a multitrack MVP — not an
+> Adobe Audition replacement. The implemented and missing workflows are
+> listed explicitly below.
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
@@ -88,6 +89,22 @@ python -m audio_studio --wasapi-exclusive  # equivalent: sets the variable for y
 The active mode shows up in the status bar and the About box as
 `sounddevice (WASAPI exclusive)`.
 
+If the PortAudio library loaded by `sounddevice` already exposes an ASIO host
+API, Audio Studio can prefer its first output device:
+
+```bat
+set AUDIO_STUDIO_ASIO=1
+python -m audio_studio
+```
+
+This is Windows-only host selection, not an official ASIO integration. Audio
+Studio ships no Steinberg ASIO SDK, does not set `SD_ENABLE_ASIO`, and does not
+add an ASIO-enabled PortAudio binary. If the user's `sounddevice`/PortAudio
+runtime exposes no ASIO output, or its stream refuses the requested format, the
+backend falls back to the ordinary default device. An explicitly configured
+`SoundDeviceOutput(device=...)` always wins over the environment preference.
+The active backend label is `sounddevice (ASIO)`.
+
 ## Run
 
 ```bash
@@ -120,17 +137,35 @@ xvfb-run -a python -m audio_studio --null-audio --exit-after 5 track.wav
 python -m audio_studio.batch.cli --input "stems/*.wav" --output out/ --lufs -16
 audio-studio-batch --input "takes/**/*.flac" --output out/ \
     --lufs -16 --true-peak -1.0 --fade-in 0.05 --fade-out 0.5 --format wav
+audio-studio-batch --input "takes/*.wav" --output edited/ --macro edit.json
 ```
 
 Each matched file is decoded, run through the requested operations in order —
-`--gain-db`, then `--lufs` loudness normalisation (BS.1770 integrated, with an
-optional `--true-peak` ceiling), then `--fade-in`/`--fade-out` (`--fade-shape`
-picks the curve) — and re-encoded into `--output`, keeping its name.
+`--macro` first, `--gain-db`, then `--lufs` loudness normalisation (BS.1770
+integrated, with an optional `--true-peak` ceiling), then
+`--fade-in`/`--fade-out` (`--fade-shape` picks the curve) — and re-encoded into
+`--output`, keeping its name.
 `--format` converts the container and `--subtype` overrides the encoding
 (e.g. `PCM_16`, `FLOAT`). Progress is printed to stdout one line per file; the
-exit code is 0 when every file rendered, 1 when any failed, 2 when nothing
-matched. The same pipeline is scriptable from Python via
+exit code is 0 when every file rendered, 1 when any failed, 2 when the
+configuration is invalid or nothing matched. The same pipeline is scriptable from Python via
 `audio_studio.batch.BatchJob` and `run_batch`.
+
+An edit macro is the applied command branch of an `EditSession`, in exact frame
+coordinates with the source sample rate recorded in schema-v1 JSON:
+
+```python
+from audio_studio.batch import save_macro
+
+save_macro(session, "edit.json")
+```
+
+Gain, fade, silence, reverse, spectral edit, delete, trim, insert-silence and
+cut/paste command sequences round-trip. The batch input sample rate must match
+the macro. A paste of copied or external PCM cannot be made portable without
+embedding source audio, so serialization rejects it; a paste backed by an
+earlier cut in the same macro is supported and uses each batch input's own
+samples.
 
 ## Mastering exports
 
@@ -593,6 +628,7 @@ document a binding the build does not have.
 | `Ctrl+O` / `Ctrl+W` | Open / close file |
 | `Ctrl+S` / `Ctrl+Alt+S` | Save project / save project as… |
 | `Ctrl+Shift+O` | Open project |
+| `Ctrl+Shift+H` / `Ctrl+Alt+H` | Open project archive / save project archive as… |
 | `Ctrl+Shift+S` | Export as… |
 | `Ctrl+Q` | Exit |
 | `Ctrl+Z` / `Ctrl+Y` | Undo / redo (the platform's own Redo binding) |
@@ -652,6 +688,95 @@ See [`THIRD_PARTY_LICENSES.md`](../THIRD_PARTY_LICENSES.md) for versions,
 upstream license pointers, LGPL source/relinking obligations, FFmpeg build
 restrictions and the release checklist.
 
+## Delivery
+
+### Project files: `.hlproj` folders and `.hlprojz` archives
+
+A project saves as a `.hlproj` **directory**: `project.json`, a `media/` copy
+of every clip the session refers to, the take registry, and cached waveform
+overviews. That shape suits the application — media can be added without
+rewriting a container, and a save replaces one small JSON file — and it suits
+nothing else. Mailing a session, attaching it to a ticket or dropping it on a
+share all want one file.
+
+**File ▸ Save Project Archive As** (`Ctrl+Alt+H`) writes exactly that bundle
+as a zipped `.hlprojz`, and **File ▸ Open Project Archive** (`Ctrl+Shift+H`)
+opens one. The two representations carry the same `project.json` at the same
+schema version, so a session can move between them as often as you like and
+an older build still reads what comes out.
+
+- While an archive is open, its expanded bundle lives in a scratch directory —
+  that is where the media the engine plays actually sits. A plain **Save**
+  (`Ctrl+S`) rewrites that bundle and repacks the archive in place; **Save
+  Project As** to a folder converts the session back into a directory project;
+  opening a plain audio file releases the scratch copy.
+- Packing and unpacking both rename a finished temporary into place, so a
+  crash or a full disk mid-save cannot cost you the archive you already had,
+  and a reader never sees a half-extracted bundle at the real path.
+- `backups/` — the store's timestamped copies of `project.json`, local undo of
+  last resort — stays out of the archive. Pass `include_backups=True` to
+  `pack_project` if you want them.
+- Archives from elsewhere are treated as untrusted input: a member name that
+  is absolute, that traverses out of the bundle with `..`, or that is a
+  symlink fails the whole open rather than being quietly skipped.
+
+The same operations are available headlessly:
+
+```python
+from pathlib import Path
+
+from audio_studio.project import load_project_archive, pack_project, unpack_project
+
+pack_project(Path("session.hlproj"), Path("session.hlprojz"))
+root = unpack_project(Path("session.hlprojz"), Path("/tmp/work"))
+snapshot = load_project_archive(Path("session.hlprojz"), Path("/tmp/work2"))
+```
+
+`save_project_archive()` writes a session straight to an archive without
+leaving a directory behind. Round-trip coverage, atomicity under a failing
+write and the hostile-archive cases live in
+[`tests/test_hlprojz.py`](tests/test_hlprojz.py).
+
+### Desktop bundle
+
+```bash
+scripts/build-linux.sh --install-deps      # first run; installs PyInstaller
+scripts/build-linux.sh --clean             # afterwards
+```
+
+The result is `dist/audio-studio/`, a launcher plus its interpreter, Qt and the
+numerical stack (around 280 MB unpacked). The recipe is
+[`packaging/pyinstaller.spec`](../packaging/pyinstaller.spec); the script sets
+the paths it expects, then checks what came out.
+
+Those checks are the point of the script. A bundle is a distribution, and a
+distribution is where the license terms of everything inside it come due:
+
+- **One directory, never `--onefile`, and no UPX.** Qt, PySide6, Shiboken6 and
+  libsndfile reach the application under the LGPL, which is satisfied only
+  while a recipient can replace those libraries with their own compatible
+  build. `COLLECT` leaves every shared object beside the launcher where it can
+  be swapped; a one-file build would unpack to a throwaway directory on each
+  launch, and UPX rewrites a shared object so it is no longer a drop-in
+  target. The build fails if no Qt shared objects end up in the output.
+- **No pedalboard.** It is GPL-3.0, and bundling it relicenses the entire
+  artifact. The spec excludes it and the script refuses to build at all from
+  an environment where it is importable, unless `ALLOW_GPL=1` says a GPL
+  distribution is what you meant.
+- **The notices ship inside the bundle.** `licenses/THIRD_PARTY_LICENSES.md`
+  and `licenses/LGPL-RELINKING.txt` — the latter naming each LGPL component,
+  where its source is, how to replace it in this bundle, and the written
+  source offer — must travel with any binary that leaves the building. The
+  script will not finish without them.
+
+The bundle is host-specific: build on the oldest Linux you intend to support,
+and build the macOS and Windows artifacts on their own machines. PyInstaller
+itself is GPL-2.0-or-later with a bootloader exception that covers shipping
+the bootloader inside this MIT application; it is a build tool, declared as
+the `installer` extra, and is not a runtime dependency of what it produces.
+Before publishing anything, walk the release checklist at the end of
+[`THIRD_PARTY_LICENSES.md`](../THIRD_PARTY_LICENSES.md).
+
 ## Tests
 
 ```bash
@@ -672,12 +797,17 @@ above this package.
 
 ## Known limitations
 
-- Single visible track/clip. `TrackPanel` is reusable, but there is no finished
-  multitrack mixer, clip timeline, bus/send routing or automation workflow.
+- Single visible track/clip in the waveform workspace. `TrackPanel` is reusable,
+  but the multitrack side is an MVP: lanes, clips, faders, pans, mutes/solos and
+  submix buses work, and automation covers track volume only — breakpoints
+  joined by straight lines, drawn in the lane the `A` button opens under a
+  track's clips. There are no pan, send, clip-gain or plugin-parameter
+  envelopes, no touch/latch/write modes, and no recording of fader moves.
 - Waveform editing is wired through `EditSession`: cut, copy, paste, delete,
   silence, trim, gain, fade in/out, reverse, insert silence and unlimited
   undo/redo from the Edit menu. Save and reopen sessions as `.hlproj` directory
-  bundles (File ▸ Save/Open Project); undo history is not persisted — the saved
+  bundles or single-file `.hlprojz` archives (File ▸ Save/Open Project, or the
+  Archive commands beside them); undo history is not persisted — the saved
   document is the flattened edit result. Export remains available for one-off
   audio files.
 - Recording is an MVP path: PyAudio input supports mono/stereo crash-safe BWF
@@ -703,11 +833,11 @@ above this package.
   `SoundDeviceOutput` and `PyAudioOutput` retry with 512 and then 1024 frames
   when the device rejects it. On Windows, opt-in WASAPI exclusive mode
   (`--wasapi-exclusive` or `AUDIO_STUDIO_WASAPI_EXCLUSIVE=1`) additionally
-  bypasses the shared-mode mixer. This lowers callback latency but is not
-  certified low-latency monitoring: shared-mode host buffering still applies
-  unless exclusive mode is enabled, ASIO and per-host latency hints are not
-  wired up, the ASIO SDK is not shipped, and no hardware round-trip
-  measurements back the numbers.
+  bypasses the shared-mode mixer; `AUDIO_STUDIO_ASIO=1` prefers an ASIO device
+  already exposed by the user's PortAudio runtime. These lower-latency host
+  choices are not certified low-latency monitoring: the ASIO SDK and an
+  ASIO-enabled PortAudio build are not shipped, per-host latency hints are not
+  wired up, and no hardware round-trip measurements back the numbers.
 - On the first playback, the engine collects cyclic garbage and freezes the
   existing GC-tracked object graph until shutdown to keep old objects out of
   playback-time collections. Set `AUDIO_STUDIO_RT_GC=0` to disable this
@@ -741,31 +871,47 @@ above this package.
   edits can still consume substantial memory when the selected region itself
   is large, and saving an edit project flattens its audio.
 
-## Release notes — v0.1.0-alpha
+## Release notes — v1.0.0-beta
 
-The first tagged preview: a **single-track waveform editor and analyzer**, not
-yet a multitrack DAW.
+The professional-workstation beta. Everything the alpha sign-off planned for
+the v0.2 (workstation), v0.3 (VST3/repair/scale) and v1.0 (SOTA alignment)
+waves has been merged; this is a **professional single-track editor with a
+multitrack MVP**, positioned honestly rather than as Adobe Audition parity.
 
-- **Highlights:** streaming or in-memory playback over a lock-free SPSC ring;
-  ten undoable copy-on-write edit commands with storage-sharing undo, spectral
-  band attenuation and removal among them;
-  parametric EQ / gain / normalize / fade with a live preview rack;
-  calibrated spectral display; BS.1770-4 loudness and 4x true-peak metering;
-  bit-exact WAV null-test, EBU 3341/3342 compliance vectors and an SLO suite
-  shipped in-repo.
-- **Known limitations:** the section above is the authoritative list; loudness
-  compliance certification of the product meter against the full EBU vector
-  set is still in progress (an independent oracle, `tools/ebu_r128.py`, ships
-  alongside), and published performance numbers are headless proxies rather
-  than audio-device certification.
+- **Highlights since v0.1.0-alpha:** crash-safe BWF recording with numbered
+  takes; markers and regions; an offline batch CLI; compressor, true-peak
+  limiter, gate, delay and FDN reverb; LUFS loudness match; a sounddevice
+  backend and opt-in WASAPI exclusive mode; submix bus routing and per-track
+  gain-automation lanes in the multitrack session; a `.pk` peak cache;
+  true-peak metering certified against the EBU Tech 3341 vectors;
+  a three-slot VST3 host behind the
+  GPL-isolated `plugins` extra with a crash-safe scanner, per-slot state
+  persistence and preview-path plugin delay compensation; spectral selection
+  attenuate/delete; RF64/W64 streaming with a memory budget and sparse
+  streaming edits; De-Clip and spectral noise reduction completing the repair
+  suite; TPDF export dither and an SRC quality report; WCAG 2.2 AA contrast,
+  fractional HiDPI scaling and full keyboard coverage with an F1 shortcut
+  sheet; a 256-frame default block with real-time GC discipline and a
+  headless 30-minute soak harness.
+- **Known limitations:** the *Known limitations* section above is the
+  authoritative list. Headline gaps: the synthetic EBU 3341/3342 vectors
+  pass but there is no AES17 harness or real-material compliance evidence;
+  the in-app SRC path misses the VHQ mastering gates (the `mastering` extra
+  stages soxr, not yet selected); multitrack automation covers track gain
+  only and there is no mixer console; recording has no device/level control
+  or monitoring; custom-painted widgets are not screen-reader readable; and
+  all performance/soak numbers are headless proxies — no physical-device
+  round-trip or soak certification.
 - **System requirements:** Python ≥ 3.10 (3.12 is the verified baseline);
-  `numpy`, `scipy`, `soundfile`, `PySide6-Essentials`; optional `PyAudio`
-  (hardware input/output; falls back to simulated devices without it) and `ffmpeg`
-  (extended decode). On headless Linux install the Qt runtime libraries listed
-  under *Install*.
-- **Release gates:** three-platform CI (with the GUI smoke job) is green and
-  `THIRD_PARTY_LICENSES.md` is in place; the orchestrator cuts the tag once
-  the remaining Round 3 merges (multitrack session MVP, BS.1770 product
-  compliance) are either verified in or explicitly deferred. Full scope, the
-  deviations register and the v0.2 → v1.0 roadmap:
-  [`.agent_workspace/round3/fable-release-signoff.md`](../.agent_workspace/round3/fable-release-signoff.md).
+  `numpy`, `scipy`, `soundfile`, `PySide6-Essentials`; optional
+  `sounddevice`/`PyAudio` (hardware output/input; falls back to simulated
+  devices without them), `ffmpeg` (extended decode), `soxr` (`mastering`
+  extra) and `pedalboard` (`plugins` extra, GPL-3.0 — see the license
+  notice). On headless Linux install the Qt runtime libraries listed under
+  *Install*.
+- **Release gates:** the beta ships as a source tag once Audio CI is green on
+  the release HEAD; there is no installer, signing or SBOM yet. Honest
+  positioning, the full gap register and post-beta priorities:
+  [`.agent_workspace/v1.0/FINAL_RELEASE_SUMMARY.md`](../.agent_workspace/v1.0/FINAL_RELEASE_SUMMARY.md).
+  History for every wave, including the untagged 0.2.0/0.3.0 milestones:
+  [`CHANGELOG.md`](../CHANGELOG.md).

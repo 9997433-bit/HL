@@ -26,6 +26,10 @@ Tracks reach the master either directly or through one :class:`Bus`, which is
 as deep as the routing goes: a bus never sends to another bus, so the mixer
 resolves the whole graph in two passes and a cycle cannot be expressed.
 
+A track's fader can also be *automated*: :class:`GainAutomation` holds a list of
+:class:`AutomationPoint` breakpoints and the mixer interpolates between them per
+block, so a lane can ride its own level over the arrangement.
+
 Two properties of the summing path are load-bearing and are covered by tests:
 
 * a track at unity gain and centre pan performs **no arithmetic at all** on its
@@ -39,9 +43,9 @@ from __future__ import annotations
 
 import itertools
 import threading
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Final
+from typing import Any, Final
 
 import numpy as np
 
@@ -69,6 +73,21 @@ def gain_to_amplitude(gain_db: float) -> float:
     if value <= SILENCE_DB:
         return 0.0
     return 1.0 if value == 0.0 else db_to_amplitude(min(value, MAX_GAIN_DB))
+
+
+def gain_curve_to_amplitude(gain_db: np.ndarray) -> np.ndarray:
+    """:func:`gain_to_amplitude` over a whole array of fader positions.
+
+    Kept beside the scalar version and floored at the same place, so a
+    breakpoint parked at silence produces exact zeros rather than a value that
+    is merely very small.
+    """
+    values = np.asarray(gain_db, dtype=SAMPLE_DTYPE)
+    amplitude = np.power(
+        SAMPLE_DTYPE(10.0), np.minimum(values, SAMPLE_DTYPE(MAX_GAIN_DB)) / SAMPLE_DTYPE(20.0)
+    )
+    amplitude[values <= SILENCE_DB] = 0.0
+    return amplitude
 
 
 def pan_gains(pan: float) -> tuple[float, float]:
@@ -111,6 +130,243 @@ def conform_channels(block: np.ndarray, channels: int) -> np.ndarray:
     take = min(have, channels)
     out[:, :take] = block[:, :take]
     return out
+
+
+# -------------------------------------------------------------- automation
+
+
+@dataclass(frozen=True, slots=True)
+class AutomationPoint:
+    """One breakpoint on an automation curve: a frame and the value held there.
+
+    ``value`` is in the same units as the parameter being automated — for the
+    only curve that exists so far, :attr:`Track.automation`, that is the fader
+    position in dB, clamped to the range the fader itself accepts.
+    """
+
+    frame: int
+    value: float
+
+    def __post_init__(self) -> None:
+        set_ = object.__setattr__
+        set_(self, "frame", max(0, int(self.frame)))
+        set_(self, "value", float(min(max(float(self.value), SILENCE_DB), MAX_GAIN_DB)))
+
+    def moved_to(self, frame: int) -> AutomationPoint:
+        return AutomationPoint(frame, self.value)
+
+    def with_value(self, value: float) -> AutomationPoint:
+        return AutomationPoint(self.frame, value)
+
+    def to_json(self) -> list[float]:
+        """``[frame, value]`` — the compact pair the project bundle stores."""
+        return [int(self.frame), float(self.value)]
+
+
+class GainAutomation:
+    """A track's gain envelope: breakpoints joined by straight lines.
+
+    The curve is a sorted list of :class:`AutomationPoint`, at most one per
+    frame, and reading it is a plain linear interpolation. Outside the outermost
+    breakpoints the first and last values are *held* rather than extrapolated,
+    so adding a point in the middle of an arrangement cannot silently change
+    what happens at its edges.
+
+    An empty curve means "not automated": the track falls back to its static
+    fader. That distinction matters, because a curve flat at 0 dB is not the
+    same thing as no curve at all — the first one pins the lane at unity and
+    ignores the fader, the second one lets the fader through.
+    """
+
+    __slots__ = ("_notify", "_points")
+
+    def __init__(self, points: Iterable[AutomationPoint | tuple[int, float]] = ()) -> None:
+        self._points: tuple[AutomationPoint, ...] = _sorted_points(points)
+        self._notify: Callable[[], None] | None = None
+
+    # -- contents ----------------------------------------------------------
+
+    @property
+    def points(self) -> tuple[AutomationPoint, ...]:
+        return self._points
+
+    @property
+    def is_empty(self) -> bool:
+        return not self._points
+
+    @property
+    def n_frames(self) -> int:
+        """Frame of the last breakpoint; 0 when the curve is empty."""
+        return self._points[-1].frame if self._points else 0
+
+    def __len__(self) -> int:
+        return len(self._points)
+
+    def __iter__(self) -> Iterator[AutomationPoint]:
+        return iter(self._points)
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, GainAutomation):
+            return self._points == other._points
+        return NotImplemented
+
+    def __hash__(self) -> int:
+        return hash(self._points)
+
+    # -- editing -----------------------------------------------------------
+
+    def set_point(self, frame: int, value: float) -> AutomationPoint:
+        """Add a breakpoint, or move the one already sitting on ``frame``."""
+        point = AutomationPoint(frame, value)
+        kept = tuple(item for item in self._points if item.frame != point.frame)
+        self._replace(_sorted_points((*kept, point)))
+        return point
+
+    def set_points(self, points: Iterable[AutomationPoint | tuple[int, float]]) -> None:
+        self._replace(_sorted_points(points))
+
+    def move_point(self, frame: int, new_frame: int, value: float) -> AutomationPoint | None:
+        """Drag the breakpoint at ``frame`` to a new position and value."""
+        existing = self.point_at(frame)
+        if existing is None:
+            return None
+        kept = tuple(item for item in self._points if item.frame not in (frame, int(new_frame)))
+        moved = AutomationPoint(new_frame, value)
+        self._replace(_sorted_points((*kept, moved)))
+        return moved
+
+    def remove_point(self, frame: int) -> bool:
+        kept = tuple(item for item in self._points if item.frame != int(frame))
+        if len(kept) == len(self._points):
+            return False
+        self._replace(kept)
+        return True
+
+    def clear(self) -> None:
+        """Drop every breakpoint, handing the lane back to its static fader."""
+        if self._points:
+            self._replace(())
+
+    def line(self, start: int, end: int, start_value: float, end_value: float) -> None:
+        """Replace the curve with a straight two-point ramp."""
+        self._replace(
+            _sorted_points(
+                (AutomationPoint(start, start_value), AutomationPoint(end, end_value))
+            )
+        )
+
+    def flat(self, frames: Iterable[int], value: float) -> None:
+        """Replace the curve with points at ``frames``, all holding ``value``."""
+        self._replace(_sorted_points(AutomationPoint(frame, value) for frame in frames))
+
+    # -- lookup ------------------------------------------------------------
+
+    def point_at(self, frame: int) -> AutomationPoint | None:
+        return next((item for item in self._points if item.frame == int(frame)), None)
+
+    def nearest(self, frame: int, radius: int) -> AutomationPoint | None:
+        """The breakpoint within ``radius`` frames of ``frame``, if there is one."""
+        candidates = [
+            item for item in self._points if abs(item.frame - int(frame)) <= max(int(radius), 0)
+        ]
+        if not candidates:
+            return None
+        return min(candidates, key=lambda item: abs(item.frame - int(frame)))
+
+    def value_at(self, frame: int) -> float:
+        """Interpolated value at one frame; 0 dB when the curve is empty."""
+        if not self._points:
+            return 0.0
+        return float(self.values(int(frame), 1)[0])
+
+    def values(self, start: int, n_frames: int) -> np.ndarray:
+        """The curve sampled over ``[start, start + n_frames)``, in dB."""
+        count = max(int(n_frames), 0)
+        if not self._points:
+            return np.zeros(count, dtype=SAMPLE_DTYPE)
+        frames = np.arange(int(start), int(start) + count, dtype=np.float64)
+        breakpoints = np.fromiter(
+            (item.frame for item in self._points), dtype=np.float64, count=len(self._points)
+        )
+        levels = np.fromiter(
+            (item.value for item in self._points), dtype=np.float64, count=len(self._points)
+        )
+        return np.interp(frames, breakpoints, levels).astype(SAMPLE_DTYPE)
+
+    def amplitudes(self, start: int, n_frames: int) -> np.ndarray:
+        """The curve sampled as linear factors, ready to multiply a block by."""
+        return gain_curve_to_amplitude(self.values(start, n_frames))
+
+    @property
+    def silent(self) -> bool:
+        """True when every breakpoint sits at or below silence.
+
+        Interpolating between two silent points stays silent, so this is enough
+        to know the whole curve is: no sample can escape between them.
+        """
+        return bool(self._points) and all(item.value <= SILENCE_DB for item in self._points)
+
+    # -- serialization -----------------------------------------------------
+
+    def to_json(self) -> list[list[float]]:
+        return [point.to_json() for point in self._points]
+
+    @classmethod
+    def from_json(cls, raw: Any) -> GainAutomation:
+        """Read a curve back, accepting ``[frame, value]`` pairs or objects.
+
+        Anything that is not a readable breakpoint is skipped rather than
+        raising: a mangled point costs the arrangement one node, and refusing
+        the whole project over it would cost the user everything else.
+        """
+        if not isinstance(raw, Sequence) or isinstance(raw, str | bytes):
+            return cls()
+        points: list[AutomationPoint] = []
+        for item in raw:
+            if isinstance(item, Mapping):
+                frame, value = item.get("frame"), item.get("value")
+            elif isinstance(item, Sequence) and not isinstance(item, str | bytes):
+                if len(item) < 2:
+                    continue
+                frame, value = item[0], item[1]
+            else:
+                continue
+            try:
+                points.append(AutomationPoint(int(frame), float(value)))  # type: ignore[arg-type]
+            except (TypeError, ValueError):
+                continue
+        return cls(points)
+
+    # -- plumbing ----------------------------------------------------------
+
+    def _replace(self, points: tuple[AutomationPoint, ...]) -> None:
+        if points != self._points:
+            self._points = points
+            if self._notify is not None:
+                self._notify()
+
+    def _bind(self, notify: Callable[[], None] | None) -> None:
+        """Attach the owning track's invalidation hook (or detach on removal)."""
+        self._notify = notify
+
+    def __repr__(self) -> str:
+        if not self._points:
+            return "GainAutomation(off)"
+        return (
+            f"GainAutomation({len(self._points)} points, "
+            f"{self._points[0].value:+.1f}..{self._points[-1].value:+.1f} dB)"
+        )
+
+
+def _sorted_points(
+    points: Iterable[AutomationPoint | tuple[int, float]],
+) -> tuple[AutomationPoint, ...]:
+    """Coerce, de-duplicate by frame (last one wins) and order a set of points."""
+    by_frame: dict[int, AutomationPoint] = {}
+    for item in points:
+        point = item if isinstance(item, AutomationPoint) else AutomationPoint(*item)
+        by_frame[point.frame] = point
+    return tuple(by_frame[frame] for frame in sorted(by_frame))
 
 
 # ------------------------------------------------------------------- clips
@@ -370,6 +626,7 @@ class Track:
     """
 
     __slots__ = (
+        "_automation",
         "_clips",
         "_gain_db",
         "_mute",
@@ -392,6 +649,7 @@ class Track:
         mute: bool = False,
         solo: bool = False,
         send_to_bus: str | None = None,
+        automation: GainAutomation | Iterable[AutomationPoint | tuple[int, float]] = (),
     ) -> None:
         self._track_id = track_id or f"trk_{next(_track_counter):02d}"
         self._name = name or self._track_id
@@ -402,6 +660,10 @@ class Track:
         self._solo = bool(solo)
         self._send_to_bus = _bus_id_of(send_to_bus)
         self._notify: Callable[[], None] | None = None
+        self._automation = (
+            automation if isinstance(automation, GainAutomation) else GainAutomation(automation)
+        )
+        self._automation._bind(self._touch)  # noqa: SLF001 - the track owns its curve
 
     # -- identity ----------------------------------------------------------
 
@@ -442,6 +704,68 @@ class Track:
     @property
     def amplitude(self) -> float:
         return gain_to_amplitude(self._gain_db)
+
+    # -- automation --------------------------------------------------------
+
+    @property
+    def automation(self) -> GainAutomation:
+        """This lane's gain envelope. Empty means the static fader is in charge."""
+        return self._automation
+
+    @automation.setter
+    def automation(
+        self, value: GainAutomation | Iterable[AutomationPoint | tuple[int, float]] | None
+    ) -> None:
+        if isinstance(value, GainAutomation):
+            self._automation._bind(None)  # noqa: SLF001 - detach the old curve
+            self._automation = value
+            self._automation._bind(self._touch)  # noqa: SLF001 - and adopt the new one
+            self._touch()
+        else:
+            self._automation.set_points(value or ())
+
+    @property
+    def has_automation(self) -> bool:
+        return not self._automation.is_empty
+
+    @property
+    def silent(self) -> bool:
+        """True when nothing on this lane can reach the mix at any frame."""
+        if self._automation.is_empty:
+            return self.amplitude == 0.0
+        return self._automation.silent
+
+    def effective_gain_db(self, frame: int = 0) -> float:
+        """The fader position actually in force at ``frame``.
+
+        Automation *replaces* the fader rather than trimming it, which is what
+        makes the envelope readable: a breakpoint at -6 dB means the lane plays
+        at -6 dB, not at -6 dB below wherever the fader happens to be sitting.
+        """
+        if self._automation.is_empty:
+            return self._gain_db
+        return self._automation.value_at(frame)
+
+    def seed_automation(self, value: float | None = None) -> GainAutomation:
+        """Lay down a flat envelope so there is something to drag.
+
+        The breakpoints land on the clip boundaries — the frames an edit is
+        most likely to want a level change at — and all hold the fader's
+        current position, so switching automation on is inaudible. A lane with
+        nothing on it gets a plain two-point line instead.
+        """
+        level = self._gain_db if value is None else float(value)
+        edges = sorted({frame for clip in self._clips for frame in (clip.start, clip.end)})
+        if len(edges) < 2:
+            edges = [0, max(self.n_frames, 1)]
+        self._automation.flat(edges, level)
+        return self._automation
+
+    def gain_envelope(self, start: int, n_frames: int) -> np.ndarray | None:
+        """Per-frame linear gain for a block, or ``None`` when not automated."""
+        if self._automation.is_empty or n_frames <= 0:
+            return None
+        return self._automation.amplitudes(start, n_frames)
 
     @property
     def pan(self) -> float:
@@ -562,14 +886,30 @@ class Track:
 
     # -- rendering ---------------------------------------------------------
 
-    def apply_fader(self, block: np.ndarray) -> np.ndarray:
+    def apply_fader(self, block: np.ndarray, start: int | None = None) -> np.ndarray:
         """Scale a rendered block in place by this track's gain and pan.
 
         Unity gain at centre pan is a no-op by construction, not by rounding:
         the block is returned untouched so an unaltered track sums bit-exactly.
+
+        ``start`` is the block's first frame on the timeline. It is only needed
+        by an automated lane, whose envelope has to be sampled at the right
+        place; a caller that has no timeline position simply gets the static
+        fader, which is also what an un-automated lane gets either way.
         """
-        amplitude = self.amplitude
         left, right = pan_gains(self._pan)
+        envelope = None if start is None else self.gain_envelope(start, int(block.shape[0]))
+        if envelope is not None:
+            # Multiplying by an exact 1.0 is bit-transparent, so a curve parked
+            # at unity still nulls against its own source.
+            if block.shape[1] == 2 and (left != 1.0 or right != 1.0):
+                block[:, 0] *= envelope * SAMPLE_DTYPE(left)
+                block[:, 1] *= envelope * SAMPLE_DTYPE(right)
+            else:
+                block *= envelope[:, np.newaxis]
+            return block
+
+        amplitude = self.amplitude
         if block.shape[1] == 2 and (left != 1.0 or right != 1.0):
             block[:, 0] *= SAMPLE_DTYPE(amplitude * left)
             block[:, 1] *= SAMPLE_DTYPE(amplitude * right)
@@ -586,11 +926,11 @@ class Track:
             return out
         for clip in self._clips:
             clip.mix_into(out, start)
-        return out if pre_fader else self.apply_fader(out)
+        return out if pre_fader else self.apply_fader(out, int(start))
 
     def mix_into(self, out: np.ndarray, window_start: int) -> np.ndarray:
         """Add this lane, post-fader, into a shared summing buffer."""
-        if not self._clips or self.amplitude == 0.0:
+        if not self._clips or self.silent:
             return out
         out += self.render(window_start, int(out.shape[0]), int(out.shape[1]))
         return out
@@ -607,9 +947,14 @@ class Track:
 
     def __repr__(self) -> str:
         flags = "".join(("M" if self._mute else "", "S" if self._solo else ""))
+        gain = (
+            f"{len(self._automation)}-point auto"
+            if self.has_automation
+            else f"{self._gain_db:+.1f} dB"
+        )
         return (
             f"Track({self._track_id!r}, {self._name!r}, {len(self._clips)} clips, "
-            f"{self._gain_db:+.1f} dB, pan {self._pan:+.2f}{', ' + flags if flags else ''})"
+            f"{gain}, pan {self._pan:+.2f}{', ' + flags if flags else ''})"
         )
 
 
@@ -756,7 +1101,8 @@ class SessionMixer(BaseSampleSource):
     """Renders a :class:`MultitrackSession` as a plain sample source.
 
     Summing order is: each audible track's clips accumulate into a per-track
-    buffer, the track fader and pan scale it, the result is added to the buffer
+    buffer, the track fader (or its automation curve, interpolated across the
+    block being rendered) and pan scale it, the result is added to the buffer
     of the bus it is sent to (or straight to the master sum when it is not sent
     anywhere), each bus fader scales its submix into the master sum, and the
     master fader scales the total. Nothing about this needs the transport, so
@@ -1231,14 +1577,17 @@ class MultitrackSession:
 __all__ = [
     "MAX_GAIN_DB",
     "SILENCE_DB",
+    "AutomationPoint",
     "Bus",
     "Clip",
+    "GainAutomation",
     "MasterBus",
     "MultitrackSession",
     "SessionMixer",
     "SummingPoint",
     "Track",
     "conform_channels",
+    "gain_curve_to_amplitude",
     "gain_to_amplitude",
     "pan_gains",
 ]

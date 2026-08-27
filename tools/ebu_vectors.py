@@ -30,12 +30,12 @@ SAMPLE_RATE = 48_000
 TONE_FREQUENCY_HZ = 1_000.0
 
 #: Tech 3341 states +-0.1 LU on a loudness reading and Tech 3342 +-1 LU on a
-#: loudness range. True peak is allowed +0.2 / -0.4 dB, which this suite applies
-#: symmetrically at +-0.4 dB because a meter reading high is the safe direction
-#: and no vector here depends on catching that.
+#: loudness range. Its true-peak tolerance is asymmetric: a meter may under-read
+#: by 0.4 dB or over-read by 0.2 dB.
 TOLERANCE_LU = 0.1
 LRA_TOLERANCE_LU = 1.0
-TRUE_PEAK_TOLERANCE_DB = 0.4
+TRUE_PEAK_MAX_UNDERREAD_DB = 0.4
+TRUE_PEAK_MAX_OVERREAD_DB = 0.2
 
 #: Level used to mean digital silence in a segment list.
 SILENCE_DBFS = -math.inf
@@ -76,7 +76,16 @@ class TruePeakVector:
     phase_degrees: float
     expected_dbtp: float
     expected_sample_peak_dbfs: float
-    tolerance_db: float = TRUE_PEAK_TOLERANCE_DB
+    max_underread_db: float = TRUE_PEAK_MAX_UNDERREAD_DB
+    max_overread_db: float = TRUE_PEAK_MAX_OVERREAD_DB
+
+    @property
+    def minimum_accepted_dbtp(self) -> float:
+        return self.expected_dbtp - self.max_underread_db
+
+    @property
+    def maximum_accepted_dbtp(self) -> float:
+        return self.expected_dbtp + self.max_overread_db
 
 
 @dataclass(frozen=True)
@@ -190,6 +199,18 @@ TECH_3341_TRUE_PEAK_VECTORS = tuple(
         expected_sample_peak_dbfs=-9.03,
     )
     for rate in (44_100, 48_000, 96_000)
+) + (
+    TruePeakVector(
+        "3341-tp-quarter-phase-48000",
+        "12 kHz at -12 dBFS sampled 22.5 degrees off the peak, 48 kHz: "
+        "the sample peak is 20 log10(cos(22.5 degrees)) = 0.688 dB low",
+        48_000,
+        12_000.0,
+        -12.0,
+        22.5,
+        expected_dbtp=-12.0,
+        expected_sample_peak_dbfs=-12.6877,
+    ),
 )
 
 TECH_3342_VECTORS = (

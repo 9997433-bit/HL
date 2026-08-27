@@ -1,7 +1,180 @@
 # Changelog
 
 All notable changes are documented here. The project follows Keep a Changelog
-structure while it remains pre-1.0.
+structure. Versions 0.2.0 and 0.3.0 were internal development milestones
+merged to the release branch without their own tags; they are recorded here so
+the v1.0.0-beta diff against v0.1.0-alpha is fully accounted for.
+
+## [1.0.0-beta] - 2026-08-27
+
+The professional-workstation beta. This release closes the "v1.0 SOTA
+alignment" round planned at the alpha sign-off: mastering-grade export,
+the full repair suite, plugin delay compensation, accessibility, and soak
+tooling. It is a professional single-track editor with a multitrack MVP —
+not full Adobe Audition parity; the honest gap register lives in
+`.agent_workspace/v1.0/FINAL_RELEASE_SUMMARY.md`.
+
+Merged PRs: *v1.0 Round A — PDC, soak, NR, a11y, dither, DeClip* and the
+v1.0 Round B branches (track gain automation, EBU true-peak certification,
+SOTA acceptance re-grade, and this release preparation).
+
+### Added
+
+- **Plugin delay compensation (PDC).** The preview chain is padded to the
+  summed latency every loaded VST3 plugin reports, bypassed slots included, so
+  toggling a lookahead limiter or linear-phase EQ no longer moves the stream
+  in time. A PDC toggle in the plugin panel shows compensated versus raw
+  delay, and the delay of the built-in repair chain is measured from the
+  effect that causes it.
+- **Per-slot plugin state blobs.** `.hlproj` projects persist an opaque
+  base64 state chunk per plugin slot (pedalboard-native when available, a
+  parameter-dict fallback otherwise) and restore it best-effort on reopen.
+- **Spectral noise reduction.** A decision-directed Wiener noise reducer that
+  learns a per-bin noise profile from a selection or the head of the clip,
+  streams at one analysis window of latency, and has its own effect-rack
+  slot; `reduce_noise()` renders latency-free offline.
+- **DeClip.** Offline cubic-Hermite reconstruction of flat-topped clipped
+  peaks with a per-range repair report; untouched samples stay bit-exact.
+- **Export dither and SRC quality gates.** `save_audio()` applies TPDF dither
+  by default when reducing to PCM-16/24; `tools/src_report.py` measures the
+  96 kHz → 44.1 kHz SRC path (passband deviation, mirror suppression,
+  THD+N), records the SciPy baseline, and the `mastering` extra stages
+  optional soxr bindings.
+- **Recording take registry.** Completed recordings become numbered takes
+  (`Take 001`, …), listed under File ▸ Takes and reopenable; takes persist in
+  `.hlproj` bundles or an atomic `*.takes.json` sidecar, and project sessions
+  survive reopening a take.
+- **Accessibility.** WCAG 2.2 AA contrast enforced from the live palette by
+  test; a dedicated control-border grey and a 2 px focus ring; fractional
+  HiDPI via `--scale-factor` / `QT_SCALE_FACTOR` pass-through; every menu
+  command bound to a unique shortcut with a generated F1 shortcut sheet; the
+  meter's clip strip paints the word `CLIP` rather than relying on colour.
+- **Soak harness.** `benchmarks/soak_playback.py` runs a headless 30-minute
+  playback soak (accelerated mode for CI) and records underrun/xrun counts.
+- **Track gain automation.** Tracks carry a `GainAutomation` breakpoint curve
+  — sorted points, linear interpolation, edge values held — sampled per block
+  by the summing mixer. An empty curve leaves the static fader in charge; a
+  unity curve stays bit-transparent. `.hlproj` bundles persist the envelope
+  under the track's optional `automation` key, and the multitrack view grows
+  a per-track automation lane.
+- **EBU true-peak certification.** The product meter is certified against
+  the Tech 3341 true-peak vectors (full-scale 997 Hz tones and quarter-rate
+  45°-phase cases across 44.1–192 kHz), all inside the +0.2/−0.4 dB window.
+  The SOTA acceptance re-grade promotes A1-TP and E3 to hard passes,
+  realigns the B5/B8/D2 verifiers with the module paths that actually
+  landed, and tightens the remaining xfail reasons: the suite stands at
+  9 passed / 22 expected gaps, and `sota_claimed` remains false.
+
+### Changed
+
+- Meter level reduction moved off the device render callback onto the
+  telemetry consumer side, removing the last per-callback NumPy allocations.
+- `pyproject.toml` version 0.1.0 → 1.0.0-beta; development status classifier
+  Alpha → Beta.
+
+## [0.3.0] - 2026-08-26 (development milestone, untagged)
+
+The "VST3 and repair" round: plugin hosting, spectral selection editing, and
+large-file scale.
+
+Merged PRs: *v0.2/v0.3 continuation* (v0.3 portion), *VST3 panel, 256-block
+gc discipline, RF64 streaming*, and *VST3 scanner, streaming edit, WASAPI
+exclusive*.
+
+### Added
+
+- **VST3 hosting** behind the GPL-isolated optional `plugins` extra
+  (pedalboard, imported lazily in a single bridge module): a three-slot
+  plugin dock beside the effects rack, per-parameter sliders on the
+  normalised host scale, bypass/remove/reorder, and hosted plugins presented
+  as ordinary rack effects inserted ahead of the true-peak limiter.
+- **Pedalboard-free plugin scanner**: `audio_studio.plugins.scanner` reads
+  bundle layouts and `moduleinfo.json` without executing plugin code, caches
+  descriptions keyed on size+mtime, optionally probes in isolated
+  subprocesses, and doubles as a CLI.
+- **Spectral selection editing**: drag a time × frequency rectangle on the
+  spectral display, then attenuate (−12 dB) or delete the band through a
+  feathered STFT mask; both are ordinary undoable commands that restore the
+  original samples bit-exactly on undo.
+- **RF64 / Wave64 large-file support**: explicit header detection, 64-bit
+  safe frame counts, a memory budget guard (500 MB default) that routes
+  over-budget files to streaming instead of a late `MemoryError`, and RF64/W64
+  export.
+- **Sparse streaming edit session**: over-budget files open in a
+  `StreamingEditSession` where unchanged ranges stay file references and
+  edits materialise only the selected ranges as sparse overlay chunks, with
+  full undo.
+- **Opt-in WASAPI exclusive-mode output** on Windows
+  (`--wasapi-exclusive` / `AUDIO_STUDIO_WASAPI_EXCLUSIVE=1`), with automatic
+  fallback to shared mode when the device refuses.
+
+### Changed
+
+- **Low-latency playback discipline**: default device block lowered from
+  1024 to 256 frames (~5.3 ms at 48 kHz) with 512/1024 retry fallback, and a
+  first-playback GC collect+freeze (`AUDIO_STUDIO_RT_GC=0` to disable) to
+  keep old objects out of playback-time collections.
+
+## [0.2.0] - 2026-08-26 (development milestone, untagged)
+
+The "workstation" round: recording, markers, batch processing, dynamics, and
+the multitrack bus, plus the real-time discipline items deferred from the
+alpha (DEV-02/08/10/15/16/19).
+
+Merged PRs: *v0.2 workstation — recording, markers, batch processing*,
+*v0.2 dynamics — compressor, limiter, sounddevice backend*, *v0.2/v0.3
+continuation* (v0.2 portion), *engine telemetry triple-buffer*, and
+*multitrack bus routing MVP*.
+
+### Added
+
+- **Recording input MVP**: transport-integrated capture from PyAudio input
+  with a deterministic `NullRecorder` for headless systems, hardened into
+  crash-safe PCM-24 Broadcast Wave (BWF) recording with marker cues.
+- **Markers and regions**: `Marker`/`Region`/`MarkerList` in the Qt-free
+  core, persistence in `.hlproj` bundles, and a UI of menu commands, a
+  dockable list and coloured waveform flags with keyboard navigation.
+- **Offline batch processing**: `audio_studio.batch` pipeline and
+  `audio-studio-batch` CLI — glob input, gain, BS.1770 loudness
+  normalisation with an optional true-peak ceiling, fades, and format/subtype
+  conversion.
+- **Dynamics**: soft-knee lookahead compressor and dBTP brickwall true-peak
+  limiter with streaming/offline equivalence, plus streaming noise gate,
+  feedback delay and FDN reverb.
+- **Loudness Match**: LUFS normalisation as a rack effect and batch CLI
+  preset.
+- **sounddevice output backend** (PortAudio) preferred over PyAudio by
+  `create_output()`, reporting device under/overruns; `AUDIO_STUDIO_OUTPUT`
+  pins the backend.
+- **Multitrack bus routing MVP**: submix buses in the session model with
+  summing, project persistence and UI coverage.
+- **Engine telemetry**: triple-buffered, allocation-free level telemetry
+  publication from the render callback, covered by a render allocation
+  audit.
+- **Peak cache**: the waveform pyramid persists to a `.pk` sidecar
+  (~0.4% of the audio size) with mtime+size or content fingerprinting,
+  atomic writes, and `.hlproj` integration.
+
+### Changed
+
+- The live effect preview rack moved from the device render callback to the
+  feeder thread, so a heavy chain costs ring latency rather than dropouts.
+- Master volume and mute are ramped over 10 ms; the UI draws an interpolated
+  playhead instead of the block-quantised position.
+
+## Unreleased
+
+### Added
+
+- `.hlprojz` project archives: the `.hlproj` bundle stored as a single zip
+  file, at the same schema version, with atomic packing and unpacking and
+  validation of member names from untrusted archives. File ▸ Open Project
+  Archive (`Ctrl+Shift+H`) and File ▸ Save Project Archive As (`Ctrl+Alt+H`);
+  `audio_studio.project.archive` headlessly.
+- Desktop bundle scaffold: `packaging/pyinstaller.spec` and
+  `scripts/build-linux.sh`, building a one-directory artifact that keeps the
+  LGPL shared libraries replaceable, refuses to bundle GPL components, and
+  ships `LGPL-RELINKING.txt` beside the third-party notices.
 
 ## [0.1.0-alpha] - 2026-08-26
 

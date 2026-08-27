@@ -40,9 +40,11 @@ from audio_studio.ui.theme import PALETTE
 
 from tools.ebu_vectors import (
     SAMPLE_RATE,
+    TECH_3341_TRUE_PEAK_VECTORS,
     TECH_3341_VECTORS,
     TECH_3342_VECTORS,
     synthesize_segments,
+    synthesize_true_peak,
 )
 from tools.golden_audio import assert_bit_exact_wav
 
@@ -84,15 +86,27 @@ def _verify_ebu_3341_loudness(_tmp_path: Path) -> None:
 
 
 def _verify_ebu_3341_true_peak_vectors(_tmp_path: Path) -> None:
+<<<<<<< HEAD
+    assert TECH_3341_TRUE_PEAK_VECTORS, "no Tech 3341 true-peak vectors are defined"
+    for vector in TECH_3341_TRUE_PEAK_VECTORS:
+        audio = synthesize_true_peak(vector)
+        report = LoudnessMeter(vector.sample_rate).analyze(audio, channels_last=True)
+        assert (
+            vector.minimum_accepted_dbtp
+            <= report.true_peak_dbtp
+            <= vector.maximum_accepted_dbtp
+        ), vector.case_id
+=======
     from tools import ebu_vectors
 
     vectors = getattr(ebu_vectors, "TECH_3341_TRUE_PEAK_VECTORS", ())
     assert vectors, "no Tech 3341 true-peak vectors are defined"
-    meter = LoudnessMeter(SAMPLE_RATE)
     for vector in vectors:
-        report = meter.analyze(vector.samples, channels_last=True)
+        meter = LoudnessMeter(vector.sample_rate)
+        report = meter.analyze(synthesize_true_peak(vector), channels_last=True)
         error = report.true_peak_dbtp - vector.expected_dbtp
         assert -0.4 <= error <= 0.2, vector.case_id
+>>>>>>> origin/cursor/v1.0-round-b-d5a5
 
 
 def _verify_ebu_3342_lra(_tmp_path: Path) -> None:
@@ -236,10 +250,11 @@ def _verify_undo_redo_100_steps(_tmp_path: Path) -> None:
 
 
 def _verify_spectral_repairs(_tmp_path: Path) -> None:
-    from audio_studio.dsp import spectral
+    from audio_studio.dsp import repair, spectral
 
-    required = {"attenuate_selection", "delete_selection", "declick", "dehum"}
-    assert required <= set(dir(spectral))
+    assert {"declick", "dehum"} <= set(dir(repair)), "DeClick/DeHum repairs are missing"
+    required = {"attenuate_selection", "delete_selection"}
+    assert required <= set(dir(spectral)), "spectral selection editing is missing"
 
 
 def _verify_plugin_host(_tmp_path: Path) -> None:
@@ -261,7 +276,9 @@ def _verify_batch_loudness(_tmp_path: Path) -> None:
 
 
 def _verify_multitrack_32(_tmp_path: Path) -> None:
-    assert (AUDIO_STUDIO_ROOT / "audio_studio/core/multitrack.py").is_file()
+    from audio_studio.core import session
+
+    assert hasattr(session, "MultitrackSession"), "multitrack session model is missing"
     _require_direct_report(".agent_workspace/round3/multitrack-report.json", {"32-track"})
 
 
@@ -298,8 +315,10 @@ def _verify_ui_60fps(_tmp_path: Path) -> None:
 
 def _verify_workspace_persistence(_tmp_path: Path) -> None:
     source = (AUDIO_STUDIO_ROOT / "audio_studio/ui/main_window.py").read_text(encoding="utf-8")
-    assert "saveState(" in source and "restoreState(" in source
-    assert "editing_workspace" in source and "metering_workspace" in source
+    assert '"waveform"' in source and '"multitrack"' in source, "workspace switching is missing"
+    assert "saveState(" in source and "restoreState(" in source, (
+        "dock-layout persistence is missing"
+    )
 
 
 def _verify_keyboard_workflow(_tmp_path: Path) -> None:
@@ -377,7 +396,6 @@ CHECKLIST_CASES = (
         "P0",
         "EBU Tech 3341 true peak +0.2/-0.4 dB",
         _verify_ebu_3341_true_peak_vectors,
-        "Tech 3341 true-peak vectors have not been added",
     ),
     ChecklistCase("A2", "P0", "EBU Tech 3342 LRA ±1 LU", _verify_ebu_3342_lra),
     ChecklistCase("A3", "P0", "WAV 16/24/32f null round-trip", _verify_wav_null_roundtrip),
@@ -387,7 +405,8 @@ CHECKLIST_CASES = (
         "P0",
         "VHQ SRC stopband and THD+N",
         _verify_vhq_src_evidence,
-        "SRC has no VHQ mode or quality report",
+        "resample() has no quality parameter and the SRC report misses the "
+        "stopband/THD+N mastering thresholds",
     ),
     ChecklistCase(
         "A6",
@@ -401,7 +420,7 @@ CHECKLIST_CASES = (
         "P1",
         "TPDF dither spectrum",
         _verify_tpdf_dither,
-        "TPDF quantization and spectral evidence are missing",
+        "quantize_with_tpdf landed; the TPDF spectrum evidence report is missing",
     ),
     ChecklistCase(
         "A8",
@@ -429,7 +448,7 @@ CHECKLIST_CASES = (
         "P0",
         "4GB RF64 streaming under 1GB RSS",
         _verify_rf64_streaming,
-        "explicit RF64 streaming support/evidence is missing",
+        "RF64/W64 decode support landed; 4GB streaming under-1GB-RSS evidence is missing",
     ),
     ChecklistCase("B4", "P0", "100-step undo/redo", _verify_undo_redo_100_steps),
     ChecklistCase(
@@ -437,14 +456,14 @@ CHECKLIST_CASES = (
         "P1",
         "Spectral edit, DeClick, and DeHum",
         _verify_spectral_repairs,
-        "spectral repair operations are missing",
+        "DeClick/DeHum landed in dsp.repair; spectral selection editing is missing",
     ),
     ChecklistCase(
         "B6",
         "P1",
         "VST3/AU host, state, and PDC",
         _verify_plugin_host,
-        "plugin host and compatibility evidence are missing",
+        "plugin host package landed; VST3 compatibility/state/PDC evidence is missing",
     ),
     ChecklistCase(
         "B7",
@@ -458,14 +477,15 @@ CHECKLIST_CASES = (
         "P1",
         "32-track playback and automation",
         _verify_multitrack_32,
-        "only a synthetic mix proxy exists",
+        "MultitrackSession landed; 32-track playback/automation evidence is missing",
     ),
     ChecklistCase(
         "C1",
         "P0",
         "48k/256 30-minute playback stability",
         _verify_playback_stability,
-        "hardware playback stability evidence is missing",
+        "only an accelerated headless soak exists; hardware 30-minute playback "
+        "evidence is missing",
     ),
     ChecklistCase(
         "C2",
@@ -504,7 +524,8 @@ CHECKLIST_CASES = (
         "P0",
         "Dock presets and layout persistence",
         _verify_workspace_persistence,
-        "dock widgets exist but workspace presets/persistence do not",
+        "waveform/multitrack workspaces landed; dock-layout saveState/restoreState "
+        "persistence is missing",
     ),
     ChecklistCase(
         "D3",
@@ -518,7 +539,7 @@ CHECKLIST_CASES = (
         "P1",
         "WCAG AA, color-safe map, screen reader",
         _verify_accessibility,
-        "palette checks pass partially, but screen-reader evidence is missing",
+        "palette and colormap checks pass; screen-reader evidence is missing",
     ),
     ChecklistCase(
         "D5",
@@ -535,13 +556,7 @@ CHECKLIST_CASES = (
         _verify_cross_platform_golden,
         "no three-platform golden comparison artifact exists",
     ),
-    ChecklistCase(
-        "E3",
-        "P0",
-        "Third-party license inventory",
-        _verify_third_party_licenses,
-        "THIRD_PARTY_LICENSES.md is missing",
-    ),
+    ChecklistCase("E3", "P0", "Third-party license inventory", _verify_third_party_licenses),
     ChecklistCase(
         "E4",
         "P1",

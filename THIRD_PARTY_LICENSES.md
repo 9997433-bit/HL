@@ -87,6 +87,21 @@ Audio Studio uses LGPL components only through replaceable shared libraries:
   exact configure flags and license, and provide the matching source or a
   durable written source offer as required by that build's license.
 
+### The desktop bundle
+
+`packaging/pyinstaller.spec` and `scripts/build-linux.sh` build the desktop
+artifact, and three of their choices exist to keep the statements above true
+of a shipped binary rather than only of a source checkout: the bundle is a
+**one-directory** build, so every Qt, PySide6 and libsndfile shared object sits
+beside the launcher where a recipient can replace it; **UPX compression is
+disabled**, because a compressed shared object is no longer a drop-in
+replacement target; and nothing is statically linked. The build script fails
+rather than produce a bundle whose Qt libraries have gone missing, whose
+licence notices are absent, or that was built from an environment with
+pedalboard installed. The recipient-facing notice and written source offer
+ship inside the bundle as `licenses/LGPL-RELINKING.txt`
+(`packaging/LGPL-RELINKING.txt` in the tree).
+
 ## GPL and proprietary opt-ins
 
 ### pedalboard
@@ -140,6 +155,7 @@ These packages do not ship in the default application wheel.
 | pytest-cov | root pin `7.1.0` | MIT | [license](https://github.com/pytest-dev/pytest-cov/blob/master/LICENSE) |
 | mypy | `>=1.8`; root pin `2.3.1` | MIT | [license](https://github.com/python/mypy/blob/master/LICENSE) |
 | Ruff | `>=0.3`; root/CI pin `0.16.4` | MIT | [license](https://github.com/astral-sh/ruff/blob/main/LICENSE) |
+| PyInstaller | `[installer] >=6.3`; used only by `scripts/build-linux.sh` | GPL-2.0-or-later WITH a bootloader exception that permits shipping the bootloader inside a non-GPL application; the PyInstaller library itself is not bundled | [upstream](https://pyinstaller.org/) / [license and exception](https://github.com/pyinstaller/pyinstaller/blob/develop/COPYING.txt) |
 | build | root pin `1.5.0` | MIT | [license](https://github.com/pypa/build/blob/main/LICENSE) |
 | setuptools | build requirement `>=68` | MIT | [license](https://github.com/pypa/setuptools/blob/main/LICENSE) |
 | wheel | build requirement, unpinned | MIT | [license](https://github.com/pypa/wheel/blob/main/LICENSE.txt) |
@@ -178,6 +194,9 @@ Before publishing any binary artifact:
 - preserve every installed wheel/native `LICENSE*`, `COPYING*`, and
   `licenses/` file;
 - confirm Qt, Shiboken, libsndfile, and any soxr library remain replaceable;
+- ship `packaging/LGPL-RELINKING.txt` and this file inside the artifact
+  (`scripts/build-linux.sh` places both under `licenses/` and refuses to
+  finish without them);
 - record FFmpeg configure flags if FFmpeg is bundled at all.
 
 This inventory addresses the five mandatory items in

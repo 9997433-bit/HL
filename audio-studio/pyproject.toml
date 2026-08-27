@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "audio-studio"
-version = "0.1.0"
+version = "1.0.0-beta"
 description = "Professional audio editing and analysis workstation (Adobe Audition class MVP)"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -12,7 +12,7 @@ license = { text = "MIT" }
 authors = [{ name = "Audio Studio Team" }]
 keywords = ["audio", "dsp", "daw", "waveform", "spectrum", "editor"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Environment :: X11 Applications :: Qt",
     "Intended Audience :: End Users/Desktop",
     "Programming Language :: Python :: 3.10",
@@ -35,6 +35,10 @@ mastering = ["soxr>=1.1.0"]
 # JUCE/Rubber Band/FFTW). It is opt-in only and must never be bundled into an
 # MIT-licensed binary artifact. See THIRD_PARTY_LICENSES.md.
 plugins = ["pedalboard>=0.9.0"]
+# Build-time only: PyInstaller is GPL-2.0-or-later with a bootloader exception
+# that covers shipping the bootloader inside this MIT application. It is never
+# a runtime dependency of the bundle it produces.
+installer = ["pyinstaller>=6.3"]
 dev = [
     "pytest>=7.4",
     "pytest-qt>=4.2",

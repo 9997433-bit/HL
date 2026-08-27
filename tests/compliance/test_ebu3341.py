@@ -174,7 +174,7 @@ def test_true_peak_reference_vectors(vector) -> None:
     measured = meter.true_peak(audio, channels_last=True)
 
     assert sample_peak == pytest.approx(vector.expected_sample_peak_dbfs, abs=0.1)
-    assert measured == pytest.approx(vector.expected_dbtp, abs=vector.tolerance_db)
+    assert vector.minimum_accepted_dbtp <= measured <= vector.maximum_accepted_dbtp
     assert measured >= sample_peak - 1e-6
 
 
@@ -187,4 +187,5 @@ def test_a_true_peak_meter_reads_above_the_sample_peak_where_it_should() -> None
         audio = synthesize_true_peak(vector)
         measured = LoudnessMeter(vector.sample_rate).true_peak(audio, channels_last=True)
         sample_peak = 20.0 * np.log10(np.max(np.abs(audio)))
-        assert measured - sample_peak == pytest.approx(3.01, abs=0.4)
+        expected_isp_db = vector.expected_dbtp - vector.expected_sample_peak_dbfs
+        assert measured - sample_peak == pytest.approx(expected_isp_db, abs=0.4)

@@ -14,12 +14,11 @@ An explicit ``--lufs`` or ``--true-peak`` overrides the preset's value, so
 ``--preset broadcast --true-peak -2`` keeps the -23 LUFS target with a lower
 ceiling.
 
-Operations run in a fixed order on each file: ``--gain-db`` first, then the
-loudness normalisation, then the fades — so the fade tails are the last thing
-shaped and the normalisation measures the gain-adjusted signal. Progress is
-printed to stdout, one line per file. The exit code is ``0`` when every file
-rendered, ``1`` when at least one failed and ``2`` when nothing matched the
-input pattern at all.
+Operations run in a fixed order on each file: ``--macro`` first, then
+``--gain-db``, loudness normalisation and fades. Progress is printed to stdout,
+one line per file. The exit code is ``0`` when every file rendered, ``1`` when
+at least one failed and ``2`` when configuration is invalid or nothing matched
+the input pattern at all.
 """
 
 from __future__ import annotations
@@ -30,6 +29,7 @@ from collections.abc import Sequence
 
 from ..dsp.effects.fade import FadeShape
 from ..dsp.effects.loudness_effect import LOUDNESS_PRESETS
+from .macro import EditMacro
 from .pipeline import ApplyGain, BatchJob, Fade, NormalizeLoudness, Operation, run_batch
 
 __all__ = ["build_parser", "main"]
@@ -53,6 +53,12 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
         metavar="DIR",
         help="directory the processed files are written into (created on demand)",
+    )
+    parser.add_argument(
+        "--macro",
+        default=None,
+        metavar="FILE",
+        help="replay an EditSession JSON macro before the other operations",
     )
     parser.add_argument(
         "--lufs",
@@ -123,6 +129,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 def _operations(args: argparse.Namespace) -> tuple[Operation, ...]:
     operations: list[Operation] = []
+    if args.macro is not None:
+        operations.append(EditMacro.load(args.macro))
     if args.gain_db is not None:
         operations.append(ApplyGain(args.gain_db))
 
