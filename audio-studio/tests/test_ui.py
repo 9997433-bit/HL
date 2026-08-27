@@ -11,7 +11,7 @@ from PySide6.QtCore import Qt
 from audio_studio.core.engine import AudioEngine
 from audio_studio.core.loader import LoadedAudio
 from audio_studio.core.output import NullOutput
-from audio_studio.core.peaks import PeakPyramid
+from audio_studio.core.peaks import Envelope, PeakPyramid
 from audio_studio.core.types import TimeRange, TransportState
 from audio_studio.dsp.effects import EffectChain, ThreeBandEQ
 from audio_studio.dsp.repair import DeHumEffect
@@ -19,6 +19,7 @@ from audio_studio.ui.effect_rack import EffectRackPanel, default_preview_chain
 from audio_studio.ui.level_meter import FLOOR_DB, LevelMeter
 from audio_studio.ui.main_window import MainWindow
 from audio_studio.ui.spectrum_panel import SpectrumPanel
+from audio_studio.ui.theme import PALETTE
 from audio_studio.ui.waveform_view import MIN_VIEW_FRAMES, WaveformView
 
 pytestmark = pytest.mark.usefixtures("qapp")
@@ -133,6 +134,89 @@ def test_following_the_playhead_backwards_pages_once_too(waveform: WaveformView)
 
     assert len(scrolls) == 1
     assert waveform.view_start <= 13_100 <= waveform.view_start + waveform.view_frames
+
+
+@pytest.mark.parametrize(
+    ("name", "shape"),
+    [
+        ("measured", None),
+        # An RMS reading short of the nearer peak edge cannot come out of a
+        # min/max/RMS envelope — every sample in an all-positive block is at
+        # least the block minimum — but the split relies on it, so the
+        # clamping that makes the reliance safe needs a case of its own.
+        ("rms short of an all-positive envelope", (0.9, 0.95, 0.1)),
+        ("rms short of an all-negative envelope", (-0.95, -0.9, 0.1)),
+        ("rms wider than the envelope", (-0.05, 0.05, 0.9)),
+    ],
+)
+def test_the_peak_colour_never_bleeds_outside_the_envelope(
+    waveform: WaveformView,
+    monkeypatch: pytest.MonkeyPatch,
+    name: str,
+    shape: tuple[float, float, float] | None,
+) -> None:
+    """The peak band is drawn as the two segments the RMS band leaves bare.
+
+    Splitting it that way halves the fill, but it only stays faithful while
+    both segments are clamped into the envelope: an unclamped split paints the
+    gap between the envelope and an RMS band that falls short of it.
+    """
+    del name  # the parametrisation id carries it
+    if shape is not None:
+        low, high, level = shape
+        measured = PeakPyramid.envelope
+
+        def fixed(self: PeakPyramid, start: int, end: int, n_bins: int) -> Envelope:
+            column = np.ones(
+                (n_bins, measured(self, start, end, n_bins).n_channels), dtype=np.float32
+            )
+            return Envelope(column * low, column * high, column * level)
+
+        monkeypatch.setattr(PeakPyramid, "envelope", fixed)
+
+    waveform.set_view(0, waveform.n_frames)
+    image = waveform.grab().toImage()
+    rendered = np.array(
+        [
+            [image.pixel(x, y) & 0xFFFFFF for x in range(image.width())]
+            for y in range(image.height())
+        ]
+    )
+
+    peak_colour = PALETTE.color("waveform_peak").rgb() & 0xFFFFFF
+    rms_colour = PALETTE.color("waveform_rms").rgb() & 0xFFFFFF
+    envelope = waveform._pyramid.envelope(  # noqa: SLF001 - the drawing input
+        waveform.view_start, waveform.view_end, waveform.width()
+    )
+    rows = np.arange(image.height())[:, None]
+
+    seen_peak = False
+    for channel, rect in enumerate(waveform._channel_rects()):  # noqa: SLF001
+        mid = rect.center().y()
+        half = rect.height() / 2.0 - 2.0
+        highs = np.clip(envelope.maximum[:, channel], -1.0, 1.0) * half
+        lows = np.clip(envelope.minimum[:, channel], -1.0, 1.0) * half
+        band = np.clip(envelope.rms[:, channel], 0.0, 1.0) * half
+
+        lane = (rows >= int(rect.top())) & (rows < int(rect.bottom()))
+        inside_envelope = (rows >= (mid - highs).astype(int)[None, :]) & (
+            rows <= (mid - lows).astype(int)[None, :]
+        )
+        inside_band = (rows >= (mid - band).astype(int)[None, :]) & (
+            rows <= (mid + band).astype(int)[None, :]
+        )
+
+        peak_pixels = (rendered == peak_colour) & lane
+        seen_peak |= bool(peak_pixels.any())
+        assert not (peak_pixels & ~inside_envelope).any(), "peak colour outside the envelope"
+        assert not ((rendered == rms_colour) & lane & ~inside_band).any(), (
+            "RMS colour outside its band"
+        )
+
+    # An RMS band wider than the envelope legitimately hides the peak colour
+    # altogether; everywhere else its absence would mean nothing was drawn.
+    expect_peak = shape is None or max(abs(shape[0]), abs(shape[1])) > shape[2]
+    assert seen_peak is expect_peak
 
 
 def test_selection_is_clamped_and_announced(waveform: WaveformView) -> None:

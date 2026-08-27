@@ -601,17 +601,32 @@ class WaveformView(QWidget):
                 envelope.minimum[:, channel] <= -0.999
             )
 
-            y_low = mid - lows * half
-            y_high = mid - highs * half
-            y_rms_hi = mid - rms * half
-            y_rms_lo = mid + rms * half
+            y_low = (mid - lows * half).astype(int)
+            y_high = (mid - highs * half).astype(int)
+            y_rms_hi = (mid - rms * half).astype(int)
+            y_rms_lo = (mid + rms * half).astype(int)
+
+            # The RMS band is drawn over the peak band, so a peak column
+            # spanning the whole envelope rasterises every RMS pixel twice.
+            # Drawing the peak colour as only the two segments the RMS band
+            # leaves bare halves the fill for a pixel-identical image, and
+            # that is what keeps a re-render inside one frame at a 2× device
+            # pixel ratio. The band is clamped into the envelope first: an RMS
+            # reading short of the nearer peak edge — which a min/max/RMS
+            # envelope cannot produce, but a future one might — would
+            # otherwise let the peak colour bleed across the gap between them.
+            top_end = np.clip(y_rms_hi, y_high, y_low).tolist()
+            bottom_start = np.clip(y_rms_lo, y_high, y_low).tolist()
+            y_high_px, y_low_px = y_high.tolist(), y_low.tolist()
+            y_rms_hi_px, y_rms_lo_px = y_rms_hi.tolist(), y_rms_lo.tolist()
 
             painter.setPen(peak_pen)
-            for x in range(len(lows)):
-                painter.drawLine(x, int(y_high[x]), x, int(y_low[x]))
+            for x in range(len(y_low_px)):
+                painter.drawLine(x, y_high_px[x], x, top_end[x])
+                painter.drawLine(x, bottom_start[x], x, y_low_px[x])
             painter.setPen(rms_pen)
-            for x in range(len(rms)):
-                painter.drawLine(x, int(y_rms_hi[x]), x, int(y_rms_lo[x]))
+            for x in range(len(y_rms_hi_px)):
+                painter.drawLine(x, y_rms_hi_px[x], x, y_rms_lo_px[x])
             if clipped.any():
                 painter.setPen(clip_pen)
                 for x in np.flatnonzero(clipped):
