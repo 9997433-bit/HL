@@ -689,7 +689,6 @@ CHECKLIST_CASES = (
         "P0",
         "60-minute recording stability",
         _verify_recording_stability,
-        "hardware recording stability evidence is missing",
     ),
     ChecklistCase(
         "C3",
