@@ -1,20 +1,33 @@
 {
   "checks": {
-    "passband": false,
-    "stopband": false,
-    "thd_plus_n": false
+    "passband": true,
+    "stopband": true,
+    "thd_plus_n": true
   },
-  "generated_at_utc": "2026-08-26T23:50:10.333314+00:00",
+  "generated_at_utc": "2026-08-27T01:03:13.112677+00:00",
   "implementation": {
-    "backend": "scipy.signal.resample_poly",
-    "scipy_version": "1.18.1",
-    "window": "default Kaiser beta=5.0"
+    "backend": "soxr.resample",
+    "quality": "VHQ",
+    "soxr_version": "1.1.0"
   },
-  "passband_peak_deviation_db": 0.011462066032551045,
-  "recommendation": "Current SciPy SRC misses one or more offline mastering thresholds; install Audio Studio's mastering extra for the optional soxr backend.",
-  "schema_version": 1,
+  "passband_peak_deviation_db": 4.099465713455743e-05,
+  "recommendation": "Selected soxr SRC meets the measured offline mastering thresholds.",
+  "schema_version": 2,
+  "selection": "automatic",
   "source_sample_rate_hz": 96000,
-  "status": "fail",
+  "src_paths": {
+    "scipy": {
+      "backend": "scipy.signal.resample_poly",
+      "quality": "default Kaiser beta=5.0",
+      "scipy_version": "1.18.1"
+    },
+    "soxr": {
+      "backend": "soxr.resample",
+      "quality": "VHQ",
+      "soxr_version": "1.1.0"
+    }
+  },
+  "status": "pass",
   "stimulus": {
     "duration_seconds": 2.0,
     "kind": "logarithmic sine sweep",
@@ -28,9 +41,9 @@
     ],
     "thd_plus_n_tone_hz": 1000.0
   },
-  "stopband_mirror_dbfs": -31.22758874849776,
+  "stopband_mirror_dbfs": -160.31185368736655,
   "target_sample_rate_hz": 44100,
-  "thd_plus_n_dbfs": -88.56815544877892,
+  "thd_plus_n_dbfs": -155.36133224943924,
   "thresholds": {
     "passband_peak_deviation_db_max": 0.01,
     "stopband_mirror_dbfs_max": -120.0,
