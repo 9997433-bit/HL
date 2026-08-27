@@ -117,6 +117,15 @@ const BENCHMARK = [
     conf: 65
   },
   {
+    tier: 'handwriting',
+    name: '竖格本 手写天地人和',
+    file: 'scripts/fixtures/ocr/handwriting-daily.png',
+    expect: '天地人和',
+    keyword: '天',
+    recall: 0.75,
+    conf: 65
+  },
+  {
     tier: 'low-light',
     name: '夜里低光 深底暗字带噪点',
     file: 'scripts/fixtures/ocr/low-light.png',

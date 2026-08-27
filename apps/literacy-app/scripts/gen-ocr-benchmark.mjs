@@ -162,6 +162,24 @@ const SHEETS = [
     html: `<div class="sheet"><p>${handwritten('春夏秋冬')}</p></div>`
   },
   {
+    name: 'handwriting-daily',
+    // 第二张手写 tier：竖格本、墨绿笔，和作业本那张错开版面，探针要求 ≥2 张 handwriting 命名图。
+    body: `
+      body {
+        background:
+          repeating-linear-gradient(90deg, transparent 0 58px, #d8e4d0 58px 60px),
+          #f7faf5;
+        font-family: ${HEI};
+      }
+      .sheet { width: 540px; padding: 26px 30px }
+      p {
+        margin: 0; font-size: 72px; letter-spacing: 22px; color: #1a4d2e;
+        -webkit-text-stroke: 0.5px #1a4d2e;
+      }
+    `,
+    html: `<div class="sheet"><p>${handwritten('天地人和')}</p></div>`
+  },
+  {
     name: 'low-light',
     // 天黑了只开一盏小灯：整张压暗、字几乎融进背景，还盖着一层传感器噪点。
     //
