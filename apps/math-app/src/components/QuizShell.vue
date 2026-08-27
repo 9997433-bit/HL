@@ -73,7 +73,15 @@ const emit = defineEmits([
 ])
 
 const progress = useProgressStore()
-const { correct: fxCorrect, wrong: fxWrong, burst, flyStar, pop, enter } = useFeedback()
+const {
+  correct: fxCorrect,
+  wrong: fxWrong,
+  celebrate: fxCelebrate,
+  burst,
+  flyStar,
+  pop,
+  enter
+} = useFeedback()
 
 const total = computed(() => props.questions.length)
 
@@ -320,6 +328,8 @@ function finish() {
   })
   starsEarned.value += bonus
   showSummary.value = true
+  // 全对才放大庆祝：音效 + 加倍粒子 + 一串震动，都走共用反馈的降级规则
+  if (perfect) fxCelebrate(stageRef.value)
   emit('finished', { correct: correctCount.value, total: total.value, stars: starsEarned.value })
 }
 

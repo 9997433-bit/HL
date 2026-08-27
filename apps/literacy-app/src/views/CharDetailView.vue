@@ -26,11 +26,11 @@ import {
 import { useRouter } from 'vue-router'
 import gsap from 'gsap'
 import HanziStrokeBox from '@/components/HanziStrokeBox.vue'
-import StarBurst from '@/components/StarBurst.vue'
 import VoiceNotice from '@/components/VoiceNotice.vue'
 import { CHARACTERS, getCharacter, getLoadedCharacter, loadCharacter } from '@/data/characters.js'
 import { hasEtymology } from '@/data/etymology-index.js'
 import { RADICAL_MAP, getRadical } from '@/data/radicals.js'
+import { useFeedback } from '@/composables/useFeedback.js'
 import { useProgressStore } from '@/stores/progress.js'
 import { useSettingsStore } from '@/stores/settings.js'
 import { speak } from '@/utils/speech.js'
@@ -48,8 +48,9 @@ const EtymologyStage = defineAsyncComponent(() => import('@/components/Etymology
 const router = useRouter()
 const progress = useProgressStore()
 const settings = useSettingsStore()
+/** 听一听 / 考一考的正反馈：音效、星星粒子、震动都从这里出。 */
+const feedback = useFeedback()
 
-const burstRef = ref(null)
 const toast = ref('')
 
 /* ------------------------------------------------------------ 五步状态机 */
@@ -284,23 +285,22 @@ function playListen() {
   speak(item.value.char, { rate: settings.speechRate })
 }
 
-function onListenPick(option) {
+function onListenPick(option, event) {
   if (listenRevealed.value || done.listen) return
   const correct = option.char === decoded.value
   listenPick.value = option.char
   listenTries.value += 1
   progress.recordAnswer(decoded.value, correct)
   if (correct) {
-    sfx.correct()
-    burstRef.value?.burst()
+    // 一次答对才算连对：听错过再选中的，音高不往上走
+    feedback.correct(event?.currentTarget, { cueArg: listenTries.value === 1 ? 2 : 1 })
     listenRevealed.value = true
     done.listen = true
     stepAnnounce.value = `答对了，就是「${decoded.value}」。`
     scheduleAdvance('quiz', DELAY.answered)
     return
   }
-  sfx.wrong()
-  wobble('.opt.is-wrong')
+  feedback.wrong(event?.currentTarget)
   if (listenTries.value >= 2) {
     listenRevealed.value = true
     done.listen = true
@@ -324,7 +324,7 @@ function buildQuiz() {
   quizRevealed.value = false
 }
 
-function onQuizPick(option) {
+function onQuizPick(option, event) {
   if (quizRevealed.value) return
   const correct = option.char === decoded.value
   quizPick.value = option.char
@@ -332,12 +332,11 @@ function onQuizPick(option) {
   done.quiz = true
   progress.recordAnswer(decoded.value, correct)
   if (correct) {
-    sfx.correct()
-    burstRef.value?.burst()
+    // 听一听也答对了的话，考一考的音再往上抬一档
+    feedback.correct(event?.currentTarget, { cueArg: done.listen ? 3 : 1 })
     stepAnnounce.value = '意思也对上了！'
   } else {
-    sfx.wrong()
-    wobble('.opt.is-wrong')
+    feedback.wrong(event?.currentTarget)
     stepAnnounce.value = `「${decoded.value}」的意思是：${item.value.meaning}`
   }
   scheduleAdvance('reward', correct ? DELAY.answered : DELAY.revealed)
@@ -358,8 +357,7 @@ function settleReward() {
   // 这一趟里解锁的徽章都在 recentBadges 里，靠它比只看返回值更稳
   rewardBadges.value = [...progress.recentBadges].slice(0, 3)
   if (!rewardBadges.value.length && badges.length) rewardBadges.value = badges.slice(0, 3)
-  sfx.levelUp()
-  burstRef.value?.burst()
+  feedback.celebrate(panelRef.value)
 }
 
 const earnedStars = computed(() => Math.max(0, progress.stars - starsAtStart.value))
@@ -394,17 +392,6 @@ function resetFlow() {
 }
 
 /* ------------------------------------------------------------ 动效 */
-
-function wobble(selector) {
-  if (settings.reduceMotion) return
-  const node = panelRef.value?.querySelector(selector)
-  if (!node) return
-  gsap.fromTo(
-    node,
-    { x: -8 },
-    { x: 0, duration: 0.5, ease: 'elastic.out(1.1, 0.35)', clearProps: 'transform' }
-  )
-}
 
 /** 换步骤时面板整块弹进来，步骤条上的当前点跟着跳一下。 */
 async function playPhaseTransition() {
@@ -456,12 +443,12 @@ function flash(msg) {
   }, 2600)
 }
 
-function markKnown() {
+function markKnown(event) {
   const { justMastered } = progress.recordAnswer(decoded.value, true)
-  sfx.correct()
-  burstRef.value?.burst()
+  const anchor = event?.currentTarget ?? panelRef.value
+  if (justMastered) feedback.celebrate(anchor)
+  else feedback.correct(anchor)
   flash(justMastered ? '太厉害了，这个字已经掌握啦！🏆' : '记住啦！+1 ⭐')
-  if (justMastered) sfx.levelUp()
 }
 
 function onQuizSkip() {
@@ -474,10 +461,11 @@ function onQuizComplete({ mistakes }) {
   // 写完一遍才算「会写」，掌握度要靠它才能从「认识了」升到「会写了」。
   progress.markTraced(decoded.value)
   const { justMastered } = progress.recordAnswer(decoded.value, mistakes === 0)
-  if (mistakes === 0) burstRef.value?.burst()
   if (justMastered) {
-    sfx.levelUp()
+    feedback.celebrate(strokeBoxRef.value)
     flash('这个字已经掌握啦！🏆')
+  } else if (mistakes === 0) {
+    feedback.burst(strokeBoxRef.value)
   }
   done.intro = true
   done.trace = true
@@ -519,8 +507,6 @@ onBeforeUnmount(clearTimers)
 
 <template>
   <div v-if="item" class="page detail" :data-phase="phase">
-    <StarBurst ref="burstRef" />
-
     <!-- 五步进度条：既是导航，也是「现在在第几步」的说明 -->
     <nav ref="railRef" class="rail card" aria-label="单字学习五步">
       <ol class="rail__list">
@@ -646,7 +632,7 @@ onBeforeUnmount(clearTimers)
               type="button"
               :data-char="o.char"
               :disabled="listenRevealed"
-              @click="onListenPick(o)"
+              @click="onListenPick(o, $event)"
             >
               {{ o.char }}
             </button>
@@ -673,7 +659,7 @@ onBeforeUnmount(clearTimers)
               type="button"
               :data-char="o.char"
               :disabled="quizRevealed"
-              @click="onQuizPick(o)"
+              @click="onQuizPick(o, $event)"
             >
               {{ o.meaning }}
             </button>
@@ -813,7 +799,7 @@ onBeforeUnmount(clearTimers)
 
     <!-- 底部操作 -->
     <section class="actions">
-      <button class="btn btn--primary btn--lg btn--block" type="button" @click="markKnown">
+      <button class="btn btn--primary btn--lg btn--block" type="button" @click="markKnown($event)">
         👍 我认识这个字啦
       </button>
       <div class="actions__nav">

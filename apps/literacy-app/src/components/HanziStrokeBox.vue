@@ -21,7 +21,7 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { loadHanziWriter } from '@/utils/hanziWriter.js'
 import { charDataLoader } from '@/utils/hanziData.js'
-import { sfx } from '@/utils/sfx.js'
+import { useFeedback } from '@/composables/useFeedback.js'
 import { useSettingsStore } from '@/stores/settings.js'
 
 const props = defineProps({
@@ -35,6 +35,8 @@ const props = defineProps({
 const emit = defineEmits(['quiz-complete', 'quiz-mistake', 'quiz-skip', 'quiz-start', 'stroke-demo'])
 
 const settings = useSettingsStore()
+/** 描红的每一笔都从这里取反馈：笔音、错笔轻晃、写完撒星星，降级规则与答题一致。 */
+const feedback = useFeedback()
 
 const host = ref(null)
 const stage = ref(null)
@@ -131,7 +133,7 @@ async function build() {
 
 function play() {
   if (!writer) return
-  sfx.tap()
+  feedback.tap()
   mode.value = 'watch'
   quizResult.value = null
   try {
@@ -145,7 +147,7 @@ function play() {
 
 function loop() {
   if (!writer) return
-  sfx.tap()
+  feedback.tap()
   mode.value = 'watch'
   writer.loopCharacterAnimation()
 }
@@ -168,7 +170,7 @@ function runQuiz(from = 0) {
     quizStartStrokeNum: from,
     showHintAfterMisses: 2,
     onCorrectStroke({ strokeNum, strokesRemaining }) {
-      sfx.tap()
+      feedback.stroke(strokeNum)
       strokeMistakes.delete(strokeNum)
       hint.value = strokesRemaining > 0 ? `太棒了，还剩 ${strokesRemaining} 笔` : '完成啦！'
     },
@@ -181,12 +183,14 @@ function runQuiz(from = 0) {
         demonstrateStroke(strokeNum)
         return
       }
-      sfx.wrong()
+      // 田字格轻晃一下就够了，别把整页晃起来
+      feedback.wrong(stage.value, { shakeOptions: { distance: 6, duration: 300 } })
       hint.value = `第 ${strokeNum + 1} 笔再试一次～`
     },
     onComplete() {
-      sfx.correct()
       const total = mistakes.value
+      // 一笔不错的话音再高一档，星星也一起撒出来
+      feedback.correct(stage.value, { cueArg: total === 0 ? 3 : 1 })
       quizResult.value = { mistakes: total }
       hint.value = total === 0 ? '一笔不错，满分！' : `写完啦，错了 ${total} 次，再来一遍会更好！`
       mode.value = 'watch'
@@ -198,7 +202,7 @@ function runQuiz(from = 0) {
 
 function startQuiz() {
   if (!writer) return
-  sfx.tap()
+  feedback.tap()
   mode.value = 'quiz'
   quizResult.value = null
   resetQuizTally()
@@ -220,7 +224,7 @@ async function demonstrateStroke(strokeNum) {
   demoStroke.value = strokeNum
   demoCount.value += 1
   strokeMistakes.set(strokeNum, 0)
-  sfx.tap()
+  feedback.tap()
   hint.value = `第 ${strokeNum + 1} 笔连着错了 ${props.demoAfterMistakes} 次，先看我写一遍 ✍️`
   emit('stroke-demo', { strokeNum, demos: demoCount.value })
 
@@ -247,7 +251,7 @@ async function demonstrateStroke(strokeNum) {
  */
 function writeNextStroke() {
   if (!writer || mode.value !== 'quiz' || demoStroke.value >= 0) return
-  sfx.tap()
+  feedback.tap()
   assisted.value += 1
   const remaining = strokeCount.value ? Math.max(strokeCount.value - assisted.value, 0) : null
   writer.skipQuizStroke()
@@ -278,7 +282,7 @@ function exitQuiz() {
 /** 跳过通道：离开描红，不给掌握度记账，也不留半截笔画。 */
 function skipQuiz() {
   if (mode.value !== 'quiz') return
-  sfx.tap()
+  feedback.tap()
   exitQuiz()
   hint.value = '已经跳过描红，想练的时候再点「我来写」'
   emit('quiz-skip')

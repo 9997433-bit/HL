@@ -11,14 +11,13 @@
  * 会直接把答案念出来，那这局就没得玩了。
  */
 import { computed, onBeforeUnmount, ref } from 'vue'
-import StarBurst from '@/components/StarBurst.vue'
 import CelebrationOverlay from '@/components/CelebrationOverlay.vue'
 import { useCharPool } from '@/composables/useCharPool.js'
+import { useFeedback } from '@/composables/useFeedback.js'
 import { useProgressStore } from '@/stores/progress.js'
 import { useSettingsStore } from '@/stores/settings.js'
 import { speak, stopSpeaking } from '@/utils/speech.js'
 import { sample, shuffle } from '@/utils/random.js'
-import { sfx } from '@/utils/sfx.js'
 
 /** 难度只改「几对牌」，其余规则完全一样。 */
 const LEVELS = [
@@ -32,8 +31,8 @@ const FLIP_BACK_MS = 900
 
 const progress = useProgressStore()
 const settings = useSettingsStore()
-
-const burstRef = ref(null)
+/** 翻牌的正反馈：配上撒星星，配错轻晃一下，两者都带震动与降级。 */
+const feedback = useFeedback()
 
 const levelId = ref('easy')
 const level = computed(() => LEVELS.find((l) => l.id === levelId.value) ?? LEVELS[0])
@@ -45,6 +44,8 @@ const flipped = ref([]) // 当前翻开、还没判定的牌 index
 const flips = ref(0)
 const mistakes = ref(0)
 const locked = ref(false)
+/** 连着配对成功几次；音高跟着它一级级往上走。 */
+const matchStreak = ref(0)
 const celebrating = ref(false)
 const announcement = ref('')
 
@@ -58,7 +59,7 @@ const matchedCount = computed(() => cards.value.filter((c) => c.state === 'match
 const cleared = computed(() => cards.value.length > 0 && matchedCount.value === level.value.pairs)
 
 function chooseLevel(id) {
-  sfx.tap()
+  feedback.tap()
   levelId.value = id
 }
 
@@ -78,12 +79,13 @@ function deal() {
 }
 
 function start() {
-  sfx.tap()
+  feedback.tap()
   window.clearTimeout(flipTimer)
   celebrating.value = false
   phase.value = 'playing'
   flips.value = 0
   mistakes.value = 0
+  matchStreak.value = 0
   flipped.value = []
   locked.value = false
   deal()
@@ -99,7 +101,7 @@ function labelOf(card, index) {
   return card.state === 'matched' ? `${face}，已经配对` : face
 }
 
-function flip(index) {
+function flip(index, event) {
   if (locked.value || phase.value !== 'playing') return
   const card = cards.value[index]
   if (!card || card.state !== 'down') return
@@ -107,7 +109,7 @@ function flip(index) {
   card.state = 'up'
   flips.value += 1
   flipped.value.push(index)
-  sfx.tap()
+  feedback.tap()
   if (card.face === 'char') speak(card.char, { rate: settings.speechRate })
   announce(
     card.face === 'char'
@@ -119,25 +121,28 @@ function flip(index) {
 
   const [a, b] = flipped.value.map((i) => cards.value[i])
   const same = a.pairId === b.pairId && a.face !== b.face
-  if (same) settleMatch(a, b)
-  else settleMiss(a, b)
+  // 星星从刚翻中的这张牌上迸出来，比从屏幕中央撒更能指认「是这一对配上了」
+  const anchor = event?.currentTarget ?? null
+  if (same) settleMatch(a, b, anchor)
+  else settleMiss(a, b, anchor)
 }
 
-function settleMatch(a, b) {
+function settleMatch(a, b, anchor) {
   a.state = 'matched'
   b.state = 'matched'
   flipped.value = []
-  sfx.correct()
-  burstRef.value?.burst()
+  matchStreak.value += 1
+  feedback.correct(anchor, { cueArg: matchStreak.value })
   progress.recordAnswer(a.pairId, true)
   announce(`配上啦！「${a.char}」读作 ${a.pinyin}。已经配好 ${matchedCount.value} 对。`)
   if (cleared.value) window.setTimeout(finish, 600)
 }
 
-function settleMiss(a, b) {
+function settleMiss(a, b, anchor) {
   mistakes.value += 1
+  matchStreak.value = 0
   locked.value = true
-  sfx.wrong()
+  feedback.wrong(anchor)
   progress.recordAnswer(a.pairId, false)
   announce(
     `「${a.face === 'char' ? a.char : a.pinyin}」和「${b.face === 'char' ? b.char : b.pinyin}」` +
@@ -171,7 +176,6 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="page memory-game">
-    <StarBurst ref="burstRef" />
     <p class="sr-only" role="status" aria-live="polite" aria-atomic="true">{{ announcement }}</p>
 
     <!-- 开始页 -->
@@ -238,7 +242,7 @@ onBeforeUnmount(() => {
           :data-char="card.state === 'down' ? undefined : card.char"
           :disabled="card.state === 'matched'"
           :aria-label="labelOf(card, i)"
-          @click="flip(i)"
+          @click="flip(i, $event)"
         >
           <span v-if="card.state === 'down'" class="mcard__back" aria-hidden="true">❓</span>
           <span v-else-if="card.face === 'char'" class="mcard__char" aria-hidden="true">
@@ -260,7 +264,7 @@ onBeforeUnmount(() => {
       </p>
       <div class="intro__actions">
         <button class="btn btn--primary btn--lg" type="button" @click="start">再来一局 🔁</button>
-        <RouterLink class="btn btn--ghost btn--lg" to="/games" @click="sfx.tap()">
+        <RouterLink class="btn btn--ghost btn--lg" to="/games" @click="feedback.tap()">
           换个游戏 🎲
         </RouterLink>
       </div>

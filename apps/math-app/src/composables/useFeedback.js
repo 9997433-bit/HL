@@ -1,14 +1,42 @@
+import { getCurrentScope, onScopeDispose } from 'vue'
 import gsap from 'gsap'
+import { createFeedback } from '@shared/composables/useFeedback.js'
 import { sfx } from '@/utils/sound'
 import { reducedMotion as prefersReducedMotion } from '@/utils/motion'
 
 const unwrap = (target) => (target && target.$el) || target
 
+/** 数学的粒子是几何感更强的四角星，配色跟着霓虹主题走。 */
+const MATH_PARTICLES = {
+  glyphs: ['★', '✦', '✧', '✩'],
+  colors: ['#ffce4d', '#5ee7ff', '#ff7ac6', '#55e6a5'],
+  count: 14,
+  size: [8, 18],
+  spread: 130
+}
+
 /**
- * 全局答题反馈动画集合（GSAP）。
- * 所有函数都对 null / 未挂载元素安全，动画在 reduced-motion 下自动降级。
+ * 全局答题反馈集合。
+ *
+ * 音效 / 震动 / 粒子这三条通道跟识字共用 shared/composables/useFeedback.js，
+ * 两个 App 的降级行为因此完全一致；这里额外保留几个吃 GSAP 的数学专属动画
+ * （发光、飞星、入场、数字滚动）。所有函数都对 null / 未挂载元素安全，
+ * 动画在 reduced-motion 下自动降级。
  */
 export function useFeedback() {
+  const base = createFeedback({
+    sound: {
+      tap: () => sfx.tap(),
+      /** 连对越多音越高；cueArg 就是最新连对数。 */
+      correct: (streak) => sfx.streak(Number(streak) || 1),
+      wrong: () => sfx.wrong(),
+      star: () => sfx.star(),
+      celebrate: () => sfx.levelUp()
+    },
+    reducedMotion: prefersReducedMotion,
+    particles: MATH_PARTICLES
+  })
+
   function pop(target, { scale = 1.14 } = {}) {
     const el = unwrap(target)
     if (!el) return
@@ -21,11 +49,13 @@ export function useFeedback() {
   }
 
   /**
-   * 答对反馈。streak 可选，未传时仍播放第一档答对音；
+   * 答对反馈：音效 + 震动交给共用实现，发光留给 GSAP。
+   * streak 可选，未传时仍播放第一档答对音；
    * 玩法层只需在已有连击数时传入，不必为了音效维护额外状态。
+   * 粒子由玩法层显式调 burst()，这里不重复撒。
    */
   function correct(target, { sound = true, streak = 1 } = {}) {
-    if (sound) sfx.streak(streak)
+    base.correct(target, { sound, cueArg: streak, particles: false })
     const el = unwrap(target)
     if (!el || prefersReducedMotion()) return
     const tl = gsap.timeline()
@@ -43,7 +73,8 @@ export function useFeedback() {
   }
 
   function wrong(target, { sound = true } = {}) {
-    if (sound) sfx.wrong()
+    // 抖动这一路仍走 GSAP，共用实现只负责音效与震动
+    base.wrong(target, { sound, shake: false })
     const el = unwrap(target)
     if (!el || prefersReducedMotion()) return
     return gsap.fromTo(
@@ -58,39 +89,14 @@ export function useFeedback() {
     )
   }
 
-  /** 从元素中心迸发出一圈小星星（纯 DOM 粒子，用完自动移除）。 */
-  function burst(target, { count = 14, colors = ['#ffce4d', '#5ee7ff', '#ff7ac6', '#55e6a5'] } = {}) {
-    const el = unwrap(target)
-    if (!el || prefersReducedMotion() || typeof document === 'undefined') return
-    const rect = el.getBoundingClientRect()
-    const cx = rect.left + rect.width / 2
-    const cy = rect.top + rect.height / 2
-    const layer = document.createElement('div')
-    layer.style.cssText =
-      'position:fixed;inset:0;pointer-events:none;z-index:9999;contain:layout style paint;'
-    document.body.appendChild(layer)
+  /** 从元素中心迸发出一圈小星星（共用粒子实现，用完自动移除）。 */
+  function burst(target, options = {}) {
+    return base.burst(target, options)
+  }
 
-    for (let i = 0; i < count; i++) {
-      const dot = document.createElement('span')
-      const size = 8 + Math.random() * 10
-      dot.textContent = Math.random() > 0.45 ? '★' : '✦'
-      dot.style.cssText = `position:absolute;left:${cx}px;top:${cy}px;font-size:${size}px;color:${
-        colors[i % colors.length]
-      };will-change:transform,opacity;`
-      layer.appendChild(dot)
-      const angle = (Math.PI * 2 * i) / count + Math.random() * 0.5
-      const dist = 60 + Math.random() * 110
-      gsap.to(dot, {
-        x: Math.cos(angle) * dist,
-        y: Math.sin(angle) * dist - 30,
-        opacity: 0,
-        rotation: Math.random() * 360,
-        scale: 0.3,
-        duration: 0.7 + Math.random() * 0.4,
-        ease: 'power2.out',
-      })
-    }
-    gsap.delayedCall(1.3, () => layer.remove())
+  /** 通关 / 全对时的大庆祝：欢呼声 + 加倍粒子 + 一串震动。 */
+  function celebrate(target, options = {}) {
+    return base.celebrate(target, options)
   }
 
   /** 从起点元素飞一颗星星到终点元素（通常是顶部星星计数器）。 */
@@ -117,7 +123,7 @@ export function useFeedback() {
       ease: 'power2.inOut',
       onComplete: () => {
         star.remove()
-        sfx.star()
+        base.star(to, { particles: false })
         onArrive?.()
         gsap.fromTo(to, { scale: 1 }, { scale: 1.25, duration: 0.14, yoyo: true, repeat: 1 })
       },
@@ -145,5 +151,19 @@ export function useFeedback() {
     gsap.to(obj, { [key]: value, duration, ease: 'power2.out', snap: { [key]: 1 } })
   }
 
-  return { pop, correct, wrong, burst, flyStar, enter, countTo, prefersReducedMotion }
+  // 路由切走时把还挂在 body 上的粒子层收干净
+  if (getCurrentScope()) onScopeDispose(() => base.dispose())
+
+  return {
+    pop,
+    correct,
+    wrong,
+    burst,
+    celebrate,
+    flyStar,
+    enter,
+    countTo,
+    haptic: base.haptic,
+    prefersReducedMotion
+  }
 }
