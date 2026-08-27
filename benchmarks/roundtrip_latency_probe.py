@@ -44,6 +44,14 @@ report says so in ``physical_dac_adc: false`` and in its ``limitation`` field,
 and the margin it leaves under the 15 ms budget is wide enough that the missing
 converter delay does not decide the result.
 
+That ``false`` is not this file's assertion: ``benchmarks/usb_audio_probe.py``
+scans the kernel, the USB bus and PortAudio for a device, and the round trip
+records what it found under ``hardware``. ``physical_dac_adc`` is true only
+when that scan finds a physical device *and* the sink measured through is the
+one backed by it. ``--require-physical`` turns the same two conditions into a
+precondition: the run refuses to measure anything rather than publish a
+server-loopback number under a name that suggests converters.
+
 What the headline is
 --------------------
 The worst steady-state round trip of every measurement kept in the run, so no
@@ -89,6 +97,7 @@ Examples::
     python3 benchmarks/roundtrip_latency_probe.py
     python3 benchmarks/roundtrip_latency_probe.py --sessions 3 --emissions 6
     python3 benchmarks/roundtrip_latency_probe.py --sink my-null-sink --keep-sink
+    python3 benchmarks/roundtrip_latency_probe.py --require-physical --sink alsa_output.usb
 """
 
 from __future__ import annotations
@@ -259,6 +268,13 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         action="store_true",
         help="measure only the direct transport, not the AudioEngine render path",
     )
+    parser.add_argument(
+        "--require-physical",
+        action="store_true",
+        help="refuse to measure unless the host has a physical audio device and "
+        "the loopback runs through it, so a server-loopback number cannot be "
+        "published as hardware evidence by accident",
+    )
     parser.add_argument("--output", type=Path, default=DEFAULT_REPORT_PATH)
     parser.add_argument("--quiet", action="store_true", help="suppress progress on stderr")
     return parser.parse_args(argv)
@@ -350,6 +366,13 @@ class Loopback:
     created_by_probe: bool
     module_id: int | None = None
     server: str = "unknown"
+    #: The PulseAudio module behind the sink. ``module-alsa-card`` means a real
+    #: card is at the end of the loop; ``module-null-sink`` means there is not.
+    driver: str = "unknown"
+
+    @property
+    def sink_is_hardware(self) -> bool:
+        return "alsa" in self.driver and "null-sink" not in self.driver
 
     def unload(self) -> None:
         if self.module_id is not None:
@@ -387,14 +410,26 @@ def establish_loopback(requested_sink: str | None, sample_rate: int) -> Loopback
         sink = matches[0]
         if sink.monitor not in sources:
             raise ProbeError(f"sink {sink.name!r} exposes no monitor source")
-        return Loopback(sink.name, sink.monitor, sink.sample_spec, False, server=server)
+        return Loopback(
+            sink.name,
+            sink.monitor,
+            sink.sample_spec,
+            False,
+            server=server,
+            driver=sink.driver,
+        )
 
     existing = next((sink for sink in _sinks() if sink.name == PROBE_SINK_NAME), None)
     if existing is not None and existing.monitor in sources:
         # A previous run left its sink behind; reuse it rather than stacking
         # a second module of the same name on top.
         return Loopback(
-            existing.name, existing.monitor, existing.sample_spec, False, server=server
+            existing.name,
+            existing.monitor,
+            existing.sample_spec,
+            False,
+            server=server,
+            driver=existing.driver,
         )
 
     module_id = int(
@@ -412,7 +447,13 @@ def establish_loopback(requested_sink: str | None, sample_rate: int) -> Loopback
     if created is None:
         raise ProbeError("module-null-sink loaded but the sink did not appear")
     return Loopback(
-        created.name, created.monitor, created.sample_spec, True, module_id, server
+        created.name,
+        created.monitor,
+        created.sample_spec,
+        True,
+        module_id,
+        server,
+        created.driver,
     )
 
 
@@ -1136,6 +1177,42 @@ def _settling_summary(measurements: list[Measurement]) -> dict[str, Any]:
     return summary
 
 
+def describe_hardware(loopback: Loopback | None) -> dict[str, Any]:
+    """What ``benchmarks/usb_audio_probe.py`` finds on this host, and where it leaves the loop.
+
+    The two probes must not disagree about whether a converter was in the path,
+    so the round trip does not decide that for itself: it asks the device probe
+    and records the answer. ``physical_dac_adc`` then follows from two facts
+    rather than from an assumption — a physical device exists, and the sink
+    this run looped through is the one backed by it.
+    """
+    if str(REPOSITORY_ROOT) not in sys.path:
+        sys.path.insert(0, str(REPOSITORY_ROOT))
+    try:
+        from benchmarks.usb_audio_probe import detect_hardware
+    except Exception as error:  # noqa: BLE001 - an absent probe is a finding, not a crash
+        return {
+            "probe": "benchmarks/usb_audio_probe.py",
+            "available": False,
+            "physical_device_present": False,
+            "detail": f"the device probe could not be imported: {error}",
+            "loopback_sink_is_hardware": bool(loopback and loopback.sink_is_hardware),
+        }
+
+    evidence = detect_hardware()
+    return {
+        "probe": "benchmarks/usb_audio_probe.py",
+        "available": True,
+        "physical_device_present": evidence.present,
+        "detail": evidence.reason,
+        "kernel_cards": len(evidence.kernel.cards),
+        "usb_audio_interfaces": len(evidence.usb.interfaces),
+        "physical_devices": [device.name for device in evidence.physical_devices],
+        "loopback_sink_driver": loopback.driver if loopback else "unknown",
+        "loopback_sink_is_hardware": bool(loopback and loopback.sink_is_hardware),
+    }
+
+
 def build_report(
     args: argparse.Namespace,
     loopback: Loopback,
@@ -1143,7 +1220,14 @@ def build_report(
     controls: dict[str, Any],
     streaming_sink_latency: dict[str, int | None] | None = None,
     cold_start: dict[str, Any] | None = None,
+    hardware: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    hardware = hardware if hardware is not None else describe_hardware(loopback)
+    # A DAC and an ADC were in the loop only if this host has one and the sink
+    # measured through is the one backed by it. Anything less is a null sink.
+    physical_dac_adc = bool(
+        hardware.get("physical_device_present") and hardware.get("loopback_sink_is_hardware")
+    )
     every = [item for scenario in scenarios for item in scenario.measurements]
     measured = [item for item in every if not item.settling]
     latencies = [item.latency_ms for item in measured]
@@ -1219,8 +1303,13 @@ def build_report(
         "evidence": "hardware-loopback",
         # Said plainly, because "hardware-loopback" on a machine with no sound
         # card would otherwise imply converters that are not in this path.
-        "loopback_path": "pulseaudio-null-sink-monitor",
-        "physical_dac_adc": False,
+        "loopback_path": (
+            "hardware-sink-monitor" if physical_dac_adc else "pulseaudio-null-sink-monitor"
+        ),
+        "physical_dac_adc": physical_dac_adc,
+        # Where that answer came from, so the claim is traceable to a scan of
+        # the host rather than to this file's own opinion of it.
+        "hardware": hardware,
         "status": "pass" if passed else "fail",
         # The three fields the C4 verifier reads.
         "buffer_frames": args.buffer_frames,
@@ -1377,6 +1466,20 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[roundtrip-probe] {error}", file=sys.stderr)
         return 2
 
+    hardware = describe_hardware(loopback)
+    if args.require_physical and not (
+        hardware["physical_device_present"] and hardware["loopback_sink_is_hardware"]
+    ):
+        print(
+            "[roundtrip-probe] --require-physical: this run would not go through a "
+            f"converter, so nothing was measured. {hardware['detail']}; the sink "
+            f"{loopback.sink!r} is driven by {hardware['loopback_sink_driver']}.",
+            file=sys.stderr,
+        )
+        if not args.keep_sink:
+            loopback.unload()
+        return 2
+
     _progress(
         args.quiet,
         f"looping through sink {loopback.sink!r} ({loopback.sample_spec}) "
@@ -1444,7 +1547,7 @@ def main(argv: list[str] | None = None) -> int:
             ),
         }
         report = build_report(
-            args, loopback, scenarios, controls, streaming_latency, cold_start
+            args, loopback, scenarios, controls, streaming_latency, cold_start, hardware
         )
     except ProbeError as error:
         print(f"[roundtrip-probe] {error}", file=sys.stderr)
