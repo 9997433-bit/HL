@@ -41,6 +41,14 @@ const routes = [
     meta: { title: '算术恒星' },
   },
   {
+    // 速算冲刺：复用算术恒星的玩法壳，只把节奏调成「多题 + 短秒答窗口」
+    path: '/sprint',
+    name: 'sprint',
+    component: () => import('@/modules/arithmetic/ArithmeticView.vue'),
+    props: { mode: 'sprint' },
+    meta: { title: '速算冲刺' },
+  },
+  {
     path: '/column-arithmetic',
     name: 'column-arithmetic',
     component: () => import('@/modules/arithmetic/ColumnArithmeticView.vue'),

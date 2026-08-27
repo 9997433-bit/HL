@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import gsap from 'gsap'
 import { MODULE_MAP, MODULES } from '@/data/modules.js'
+import { TOPICS } from '@/data/topics.js'
 import { useProgressStore } from '@/stores/progress.js'
 import { useFeedback } from '@/composables/useFeedback'
 import { useMascotCoach } from '@/composables/useMascotCoach.js'
@@ -18,6 +19,7 @@ const { burst, enter, wrong, prefersReducedMotion } = useFeedback()
 const { line: coachLine, mood: coachMood, next: coachNext } = useMascotCoach('home')
 
 const planetRefs = ref([])
+const chapterRefs = ref([])
 
 const planets = computed(() =>
   MODULES.map((m) => {
@@ -29,6 +31,8 @@ const planets = computed(() =>
       unlocked,
       // 锁着的星球讲「为什么现在去不了」，解锁的讲「到了那儿干什么」
       line: unlocked ? m.story : m.lockedStory,
+      // 「还差几颗星」当场算：文案只负责说做什么能攒到，数字由存档说了算
+      starsShort: Math.max(0, m.starsToUnlock - progress.state.stars),
       mastery: Math.round(progress.moduleProgress(m.id) * 100),
     }
   }),
@@ -40,6 +44,17 @@ const nextPlanet = computed(
     planets.value.filter((p) => p.unlocked).at(-1) ??
     planets.value[0],
 )
+
+/** 航线上第一颗还锁着的星球：地图顶上那句「下一章怎么开」说的就是它。 */
+const nextLocked = computed(() => planets.value.find((p) => !p.unlocked) ?? null)
+
+/** 专题挑战：比较 / 速算 / 生活应用，三条不占星球位的专线。 */
+const topics = TOPICS
+
+function openTopic(topic) {
+  sound.click()
+  router.push(topic.route)
+}
 
 /** 今日冒险：每天 5 题的打卡任务，进度直接读 store。 */
 const daily = computed(() => progress.dailyQuest)
@@ -145,6 +160,24 @@ function playScene() {
       '-=0.35',
     )
     .add(() => burst(sceneOrbRef.value, { count: 18 }), '-=0.2')
+
+  // 章节轨上对应的那一格也一起亮起来：新开的是「第几章」要看得见
+  const chapterEl = chapterRefs.value.find((el) => el?.dataset?.chapter === scene.value.id)
+  if (chapterEl) {
+    sceneTl.fromTo(
+      chapterEl,
+      { filter: 'grayscale(1)', scale: 0.9 },
+      {
+        filter: 'grayscale(0)',
+        scale: 1,
+        duration: 0.5,
+        ease: 'back.out(2)',
+        overwrite: 'auto',
+        clearProps: 'filter,transform',
+      },
+      '-=0.5',
+    )
+  }
 
   // 地图上那颗球同步褪灰，孩子的视线自然从剧情条落回航线
   if (planetEl) {
@@ -281,6 +314,38 @@ onUnmounted(() => {
       </div>
     </section>
 
+    <section class="tool-deck topic-deck" aria-labelledby="topic-deck-title">
+      <div class="tool-deck-head">
+        <div>
+          <h3 id="topic-deck-title" class="panel-title">专题挑战</h3>
+          <p class="muted">想专门补哪一块就点哪一条，成绩照样记进对应的星球。</p>
+        </div>
+        <span class="chip">比较 · 速算 · 生活</span>
+      </div>
+      <div class="topic-grid">
+        <button
+          v-for="t in topics"
+          :key="t.id"
+          class="topic-card card"
+          :data-topic="t.id"
+          :data-route="t.route"
+          @click="openTopic(t)"
+        >
+          <div class="topic-top row">
+            <span class="topic-icon"><OpenMojiIcon :emoji="t.emoji" :size="30" /></span>
+            <div class="topic-titles">
+              <strong>{{ t.name }}</strong>
+              <span class="dim small">{{ t.tagline }}</span>
+            </div>
+          </div>
+          <p class="topic-blurb muted">{{ t.blurb }}</p>
+          <div class="skills">
+            <span v-for="s in t.skills" :key="s" class="chip">{{ s }}</span>
+          </div>
+        </button>
+      </div>
+    </section>
+
     <section
       v-if="scene"
       ref="sceneRef"
@@ -293,10 +358,11 @@ onUnmounted(() => {
         <OpenMojiIcon :emoji="scene.emoji" :size="44" />
       </span>
       <div ref="sceneBodyRef" class="unlock-body">
-        <p class="unlock-kicker">新星球解锁</p>
+        <p class="unlock-kicker">{{ scene.chapterName }} 解锁</p>
         <strong class="unlock-name">{{ scene.name }}</strong>
         <p class="unlock-line">{{ scene.unlockLine }}</p>
         <p class="unlock-story muted">{{ scene.story }}</p>
+        <p class="unlock-goal dim small">🎯 {{ scene.goal }}</p>
       </div>
       <div class="unlock-actions">
         <button class="btn btn--primary" @click="closeScene(true)">🚀 立刻出发</button>
@@ -317,10 +383,37 @@ onUnmounted(() => {
         <h3 class="panel-title"><OpenMojiIcon name="world-map" :size="20" /> 学习地图</h3>
         <span class="chip">收集星星解锁新星球</span>
       </div>
+      <p v-if="nextPlanet" class="map-chapter">
+        <span class="chapter-tag">{{ nextPlanet.chapterName }}</span>
+        <span class="dim small">🎯 {{ nextPlanet.goal }}</span>
+      </p>
       <p v-if="nextPlanet" class="map-story muted">
         <span aria-hidden="true">🛸</span>
         {{ nextPlanet.line }}
       </p>
+      <p v-if="nextLocked" class="map-unlock">
+        <span aria-hidden="true">🔒</span>
+        下一章「{{ nextLocked.chapterName }}」还差 {{ nextLocked.starsShort }} ⭐ ——
+        {{ nextLocked.unlockHint }}
+      </p>
+
+      <!-- 章节轨：六章一字排开，走到哪儿、下一章还差多少，一眼看完 -->
+      <ol class="chapter-rail" aria-label="章节进度">
+        <li
+          v-for="(p, i) in planets"
+          :key="`ch-${p.id}`"
+          :ref="(el) => (chapterRefs[i] = el)"
+          :data-chapter="p.id"
+          class="chapter-step"
+          :class="{ locked: !p.unlocked, current: p.id === nextPlanet?.id }"
+          :style="{ '--pc': p.color }"
+        >
+          <span class="chapter-no">{{ p.chapterNo }}</span>
+          <span class="chapter-name">{{ p.chapterName.split(' · ')[1] ?? p.name }}</span>
+          <span v-if="!p.unlocked" class="chapter-need dim">还差 {{ p.starsShort }} ⭐</span>
+          <span v-else class="chapter-need dim">{{ p.mastery }}%</span>
+        </li>
+      </ol>
 
       <div class="map-canvas">
         <svg class="orbit" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
@@ -345,9 +438,9 @@ onUnmounted(() => {
             '--pa': p.accent,
             animationDelay: `${i * 0.4}s`,
           }"
-          :aria-label="`${p.name}${p.unlocked ? '' : `（未解锁，需 ${p.starsToUnlock} 颗星）`}${
-            p.id === nextPlanet?.id ? '（推荐下一站）' : ''
-          }：${p.line}`"
+          :aria-label="`${p.chapterName}：${p.name}${
+            p.unlocked ? '' : `（未解锁，还差 ${p.starsShort} 颗星。${p.unlockHint}）`
+          }${p.id === nextPlanet?.id ? '（推荐下一站）' : ''}：${p.line}`"
           @click="open(p)"
         >
           <span class="planet-body">
@@ -355,8 +448,9 @@ onUnmounted(() => {
             <span v-if="p.stat.answered > 0" class="planet-badge">{{ p.mastery }}%</span>
           </span>
           <span class="planet-label">
+            <i class="planet-chapter">第 {{ p.chapterNo }} 章</i>
             <strong>{{ p.name }}</strong>
-            <em v-if="!p.unlocked">需 {{ p.starsToUnlock }} ⭐</em>
+            <em v-if="!p.unlocked">还差 {{ p.starsShort }} ⭐</em>
             <em v-else>{{ p.subtitle }}</em>
           </span>
         </button>
@@ -375,6 +469,7 @@ onUnmounted(() => {
         <div class="mod-top row">
           <span class="mod-emoji"><OpenMojiIcon :emoji="p.unlocked ? p.emoji : '🔒'" :size="32" /></span>
           <div class="mod-titles">
+            <span class="mod-chapter">{{ p.chapterName }}</span>
             <strong class="mod-name">{{ p.name }}</strong>
             <span class="mod-sub dim">{{ p.subtitle }}</span>
           </div>
@@ -384,6 +479,10 @@ onUnmounted(() => {
           <span aria-hidden="true">{{ p.unlocked ? '✨' : '🔒' }}</span>
           {{ p.line }}
         </p>
+        <p v-if="!p.unlocked" class="mod-hint">
+          解锁条件：还差 {{ p.starsShort }} ⭐ —— {{ p.unlockHint }}
+        </p>
+        <p v-else class="mod-goal dim small">🎯 {{ p.goal }}</p>
         <p v-if="p.unlocked" class="mod-blurb muted">{{ p.blurb }}</p>
         <div class="skills">
           <span v-for="s in p.skills" :key="s" class="chip">{{ s }}</span>
@@ -567,6 +666,60 @@ onUnmounted(() => {
   color: var(--text-soft);
 }
 
+.topic-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.topic-card {
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border-color: color-mix(in srgb, var(--brand) 30%, transparent);
+  background:
+    radial-gradient(90% 130% at 100% 0%, color-mix(in srgb, var(--neon-violet) 16%, transparent), transparent 58%),
+    linear-gradient(160deg, var(--surface), color-mix(in srgb, var(--cosmos-1) 92%, transparent));
+  transition: transform 0.16s ease, border-color 0.16s ease;
+}
+
+.topic-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--brand);
+}
+
+.topic-top {
+  gap: 10px;
+}
+
+.topic-icon {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(140deg, color-mix(in srgb, var(--brand) 28%, transparent), transparent);
+  border: 1px solid color-mix(in srgb, var(--brand) 40%, transparent);
+}
+
+.topic-titles {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.topic-titles strong {
+  font-size: 16px;
+}
+
+.topic-blurb {
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .stats-strip {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -662,9 +815,87 @@ onUnmounted(() => {
   margin-left: auto;
 }
 
+.map-chapter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.chapter-tag {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  color: var(--text-invert);
+  background: linear-gradient(135deg, var(--brand), var(--neon-violet));
+}
+
 .map-story {
   margin-bottom: 10px;
   font-size: 13px;
+}
+
+.map-unlock {
+  margin: -4px 0 10px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-soft);
+}
+
+/* ---- 章节轨 ---- */
+
+.chapter-rail {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+  margin-bottom: 12px;
+  list-style: none;
+}
+
+.chapter-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 4px;
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--pc) 34%, transparent);
+  background: color-mix(in srgb, var(--pc) 10%, transparent);
+  text-align: center;
+}
+
+.chapter-step.locked {
+  border-color: var(--surface-border);
+  background: var(--surface-sunken);
+  filter: grayscale(1);
+}
+
+.chapter-step.current {
+  border-color: var(--pc);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--pc) 40%, transparent);
+}
+
+.chapter-no {
+  font-size: 15px;
+  font-weight: 900;
+  color: var(--pc);
+}
+
+.chapter-step.locked .chapter-no {
+  color: var(--text-soft);
+}
+
+.chapter-name {
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.chapter-need {
+  font-size: 11px;
 }
 
 .map-canvas {
@@ -799,6 +1030,18 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
+.planet-chapter {
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  color: var(--pc);
+}
+
+.planet.locked .planet-chapter {
+  color: var(--text-soft);
+}
+
 .planet-label strong {
   font-size: 13px;
 }
@@ -840,6 +1083,22 @@ onUnmounted(() => {
   font-style: italic;
 }
 
+/* 解锁条件写成一句可执行的话，而不是只挂一个「需 N ⭐」的价签 */
+.mod-hint {
+  font-size: 12.5px;
+  line-height: 1.5;
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  background: var(--surface-sunken);
+  border: 1px dashed color-mix(in srgb, var(--pc) 45%, transparent);
+}
+
+.mod-goal {
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
 .mod-card.is-next {
   border-color: color-mix(in srgb, var(--pc) 55%, transparent);
   animation: card-breathe 2.8s ease-in-out infinite;
@@ -877,6 +1136,13 @@ onUnmounted(() => {
 .mod-titles {
   display: flex;
   flex-direction: column;
+}
+
+.mod-chapter {
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  color: var(--pc);
 }
 
 .mod-name {
@@ -977,13 +1243,19 @@ onUnmounted(() => {
     font-size: 24px;
   }
 
-  .tool-grid {
+  .tool-grid,
+  .topic-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .chapter-rail {
+    grid-template-columns: repeat(3, 1fr);
   }
 }
 
 @media (max-width: 560px) {
-  .stats-strip {
+  .stats-strip,
+  .topic-grid {
     grid-template-columns: repeat(2, 1fr);
   }
 

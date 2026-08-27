@@ -174,7 +174,15 @@ const browser = await puppeteer.launch({
     gray: getComputedStyle(document.querySelector('.planet.locked .planet-body')).filter,
     stories: [...document.querySelectorAll('.mod-story')].map((n) => n.innerText.trim()),
     mapStory: document.querySelector('.map-story')?.innerText.trim() ?? '',
-    scene: !!document.querySelector('.unlock-scene')
+    scene: !!document.querySelector('.unlock-scene'),
+    chapters: [...document.querySelectorAll('.chapter-step')].map((n) => n.innerText.trim()),
+    lockedChapters: document.querySelectorAll('.chapter-step.locked').length,
+    currentChapter: document.querySelector('.chapter-step.current')?.dataset.chapter ?? '',
+    chapterNames: [...document.querySelectorAll('.mod-chapter')].map((n) => n.innerText.trim()),
+    mapChapter: document.querySelector('.map-chapter')?.innerText.trim() ?? '',
+    mapUnlock: document.querySelector('.map-unlock')?.innerText.trim() ?? '',
+    hints: [...document.querySelectorAll('.mod-hint')].map((n) => n.innerText.trim()),
+    topics: [...document.querySelectorAll('.topic-card')].map((n) => n.dataset.route)
   }))
   check(initial.planets === 6, `地图上 ${initial.planets} 颗星球`)
   check(initial.locked === 5, `未解锁 ${initial.locked} 颗（新存档 0 星）`)
@@ -182,6 +190,30 @@ const browser = await puppeteer.launch({
   check(initial.stories.length === 6 && initial.stories.every((s) => s.length > 8), '六张卡片各有一句话剧情')
   check(initial.mapStory.length > 8, `地图剧情条：「${initial.mapStory}」`)
   check(!initial.scene, '新存档不弹解锁过场')
+
+  console.log('\n[数学] 章节叙事')
+  check(initial.chapters.length === 6, `章节轨 ${initial.chapters.length} 格`)
+  check(initial.lockedChapters === 5, `章节轨 ${initial.lockedChapters} 格灰着（新存档只开第 1 章）`)
+  check(initial.currentChapter === 'counting', `当前章节高亮在 ${initial.currentChapter}`)
+  check(
+    initial.chapterNames.length === 6 && initial.chapterNames.every((n) => /第.+章 · .+/.test(n)),
+    `六张卡片各带章节名，例：「${initial.chapterNames[1] ?? ''}」`
+  )
+  check(/第一章/.test(initial.mapChapter), `地图章节条：「${initial.mapChapter}」`)
+  check(
+    /还差 3 ⭐/.test(initial.mapUnlock) && initial.mapUnlock.length > 20,
+    `下一章解锁条件：「${initial.mapUnlock}」`
+  )
+  check(
+    initial.hints.length === 5 && initial.hints.every((h) => /还差 \d+ ⭐ —— .{6,}/.test(h)),
+    `五张锁着的卡片都写了解锁做法，例：「${initial.hints[0] ?? ''}」`
+  )
+
+  console.log('\n[数学] 专题入口')
+  check(
+    initial.topics.join(',') === '/compare,/sprint,/word-problems',
+    `首页专题卡片：${initial.topics.join(' / ')}`
+  )
 
   // 攒够 3 颗星：算术恒星该解锁，且过场没演过
   await page.evaluate(() => {
@@ -198,15 +230,23 @@ const browser = await puppeteer.launch({
     open: !!document.querySelector('.unlock-scene'),
     name: document.querySelector('.unlock-name')?.innerText.trim() ?? '',
     line: document.querySelector('.unlock-line')?.innerText.trim() ?? '',
+    kicker: document.querySelector('.unlock-kicker')?.innerText.trim() ?? '',
+    goal: document.querySelector('.unlock-goal')?.innerText.trim() ?? '',
     live: document.querySelector('.unlock-scene')?.getAttribute('aria-live') ?? '',
     highlighted: !!document.querySelector('.planet.is-unlocking'),
+    chapterOpen: !document
+      .querySelector('[data-chapter="arithmetic"]')
+      ?.classList.contains('locked'),
     seen: JSON.parse(localStorage.getItem('mathquest/progress')).seenPlanets
   }))
   check(scene.open, '攒够 3 颗星后弹出解锁过场')
   check(scene.name === '算术恒星', `过场主角：${scene.name}`)
   check(scene.line.length > 8, `过场台词：「${scene.line}」`)
+  check(/第二章 · .+解锁/.test(scene.kicker), `过场报的是章节：「${scene.kicker}」`)
+  check(scene.goal.length > 8, `过场写明本章目标：「${scene.goal}」`)
   check(scene.live === 'polite', '过场是 aria-live 播报区')
   check(scene.highlighted, '地图上那颗球同步高亮')
+  check(scene.chapterOpen, '章节轨上第 2 章同步不再灰着')
   check(!scene.seen.includes('arithmetic'), '收场之前不记账')
 
   await shoot(page, 'map-narrative-math.png')
@@ -225,6 +265,62 @@ const browser = await puppeteer.launch({
   check(
     !(await page.evaluate(() => !!document.querySelector('.unlock-scene'))),
     '刷新后不再重播同一段过场'
+  )
+
+  // 关掉动效后过场只是「不动」，不能变成「不演」：文案与按钮必须照样在
+  await page.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }])
+  await page.evaluate(() => {
+    const key = 'mathquest/progress'
+    const save = JSON.parse(localStorage.getItem(key))
+    save.seenPlanets = ['counting']
+    localStorage.setItem(key, JSON.stringify(save))
+  })
+  await page.reload({ waitUntil: 'networkidle2' })
+  await new Promise((r) => setTimeout(r, 2600))
+  const quiet = await page.evaluate(() => {
+    const el = document.querySelector('.unlock-scene')
+    if (!el) return null
+    const style = getComputedStyle(el)
+    return {
+      opacity: Number(style.opacity),
+      visibility: style.visibility,
+      line: document.querySelector('.unlock-line')?.innerText.trim() ?? '',
+      buttons: [...el.querySelectorAll('button')].map((b) => b.innerText.trim())
+    }
+  })
+  check(Boolean(quiet), '不动版照样弹出解锁过场')
+  check(quiet?.opacity === 1 && quiet?.visibility === 'visible', '不动版一次到位，不留半透明的中间态')
+  check((quiet?.line.length ?? 0) > 8, `不动版剧情照样完整：「${quiet?.line ?? ''}」`)
+  check(quiet?.buttons.length === 2, `不动版两个收场按钮都在：${quiet?.buttons.join(' / ')}`)
+  await page.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'no-preference' }])
+
+  // 三条专线得真能点开：入口摆在首页不算数，路由要落到能答题的一轮上
+  await page.goto(`${base}/#/compare`, { waitUntil: 'networkidle2' })
+  await new Promise((r) => setTimeout(r, 900))
+  check(
+    await page.evaluate(() => document.title.includes('比大小擂台')),
+    `/compare 打开「${await page.title()}」`
+  )
+
+  await page.goto(`${base}/#/sprint`, { waitUntil: 'networkidle2' })
+  await new Promise((r) => setTimeout(r, 900))
+  const sprint = await page.evaluate(() => ({
+    title: document.title,
+    banner: document.querySelector('.sprint-entry')?.innerText.trim() ?? '',
+    dots: document.querySelectorAll('.session-bar .dot').length
+  }))
+  check(sprint.title.includes('速算冲刺'), `/sprint 打开「${sprint.title}」`)
+  check(sprint.banner.includes('速算冲刺'), `速算说明条：「${sprint.banner.split('\n')[0]}」`)
+  check(sprint.dots === 15, `速算一轮 ${sprint.dots} 题（算术恒星是 10 题）`)
+
+  await page.goto(`${base}/#/progress`, { waitUntil: 'networkidle2' })
+  await new Promise((r) => setTimeout(r, 1200))
+  const progressTopics = await page.evaluate(() =>
+    [...document.querySelectorAll('.topic-link')].map((n) => n.getAttribute('href'))
+  )
+  check(
+    progressTopics.join(',') === '#/compare,#/sprint,#/word-problems',
+    `成就墙专题入口：${progressTopics.join(' / ')}`
   )
 
   await page.close()
