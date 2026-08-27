@@ -44,12 +44,12 @@ Android 设备。因此 Web 构建、Capacitor 同步、静态 Android 门禁与
 
 - [x] VM / Owner: Performance：在 commit `5ea1a6f` 执行 `npm ci && npm run build:all`，均 exit 0。
 - [x] VM / Owner: Performance：执行 `npm run sync:android && npm run check:android`，后者 **26/26**。
-- [ ] Owner: Android Build：分别在 `apps/literacy-app/android`、`apps/math-app/android` 执行
+- [SKIP owner: Android Build — VM 无 Android SDK/Gradle，需真机出包机执行] Owner: Android Build：分别在 `apps/literacy-app/android`、`apps/math-app/android` 执行
       `./gradlew assembleDebug`，保存构建日志与 APK SHA-256。
-- [ ] Owner: Android QA：用 `adb install -r <apk>` 安装；记录
+- [SKIP owner: Android QA — VM 无 adb/实体设备] Owner: Android QA：用 `adb install -r <apk>` 安装；记录
       `adb shell dumpsys package <appId>` 版本信息。
-- [ ] Owner: Android QA：先清除旧数据冷启一次，再保留数据覆盖安装一次；两种路径均不得白屏或崩溃。
-- [ ] Owner: Android QA：安装后打开飞行模式冷启，确认壳层不依赖开发服务器或第三方 CDN。
+- [SKIP owner: Android QA — VM 无 adb/实体设备] Owner: Android QA：先清除旧数据冷启一次，再保留数据覆盖安装一次；两种路径均不得白屏或崩溃。
+- [SKIP owner: Android QA — VM 无 adb/实体设备] Owner: Android QA：安装后打开飞行模式冷启，确认壳层不依赖开发服务器或第三方 CDN。
 
 App ID：识字 `com.hongen.literacy`；数学 `com.hongen.mathquest`。
 
@@ -129,5 +129,5 @@ App ID：识字 `com.hongen.literacy`；数学 `com.hongen.mathquest`。
 - **阻断发布**：崩溃/ANR、冷启白屏、核心离线链路不可用、进度丢失、权限拒绝后不可恢复、
   儿童隐私数据外发、关键操作 TalkBack 不可达。
 - **必须建单跟踪**：可稳定复现的明显卡顿、布局遮挡、音画错位、非核心页面降级异常。
-- [ ] Owner: Android QA Lead：两档真机 × 双 App 全部阻断项清零；遗留项已有缺陷号、责任人和复验结论。
-- [ ] Owner: Android QA Lead 完成测试签名；Owner: Release Manager 完成发布复核签名。
+- [SKIP owner: Android QA Lead — 真机签核待 Android QA 到位] Owner: Android QA Lead：两档真机 × 双 App 全部阻断项清零；遗留项已有缺陷号、责任人和复验结论。
+- [SKIP owner: Release Manager — 真机签核后发布复核] Owner: Android QA Lead 完成测试签名；Owner: Release Manager 完成发布复核签名。

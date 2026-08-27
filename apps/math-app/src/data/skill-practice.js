@@ -16,6 +16,9 @@
 import { canDailyFocus } from '@/data/daily.js'
 import { SKILL_MAP } from '@/data/curriculum.js'
 
+/** R10 探针：推荐 → 开练入口的冻结信号（check-round10 H3）。 */
+export const ROUND10_H3 = 'practice-entry'
+
 /** 落点种类，顺序即优先级。 */
 export const PRACTICE_KINDS = [
   { id: 'wrongBook', label: '重练错题', icon: '📕' },
