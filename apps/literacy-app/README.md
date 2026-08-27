@@ -30,11 +30,45 @@ npm run preview
 保证断网时核心字表仍能播放笔顺动画。笔顺数据受 Arphic Public License 约束,
 生成脚本会把 `ARPHICPL.TXT` 一并写入该目录随包分发,不要删除。
 
+`npm run gen:ocr` 把拍照识字要用的 Tesseract.js worker 与 wasm 内核从 `node_modules`
+复制到 `public/ocr/`（`prebuild` / `predev` 会自动跑）。这两个文件是生成物、不入库；
+同目录下入库的只有 chi_sim 语言包 `chi_sim.traineddata.gz` 和示例照片
+`sample-photo.png`（改图跑 `node scripts/gen-ocr-sample.mjs` 重画）。
+
 ## 离线使用
 
 生产构建会生成带版本号的 Service Worker 预缓存，覆盖 `index.html`、所有 Vite 资源、懒加载路由和完整 `hanzi-data` 目录。部署到 HTTPS 静态站点（本机可用 `localhost`）并至少联网打开一次；Service Worker 安装完成后即可断网刷新或重新打开。
 
+唯一不进预缓存的是拍照识字的引擎包（`public/ocr/` 下的 worker、wasm 内核、语言包，
+合计约 5.5 MB）：多数访客不会打开这一页，没必要让所有人一进门就下载它。
+`sw.js` 改成第一次真的去认字时才下载，下完写进 `literacy-app-ocr-pack` 缓存，
+之后断网照样能认字。这个缓存不带版本号，换版本时不会被 `activate` 清掉。
+
 Service Worker 不支持 `file://`，不能通过直接双击 `dist/index.html` 安装离线缓存。可在仓库根目录运行 `npm run build && npm run test:offline`，验证关闭 HTTP 服务后仍能启动详情页并读取笔顺数据。
+
+## 拍照识字
+
+`/ocr`。孩子在书上、路牌上、包装袋上遇到不认识的字，拍下来当场认，认出来的字
+直接接上字库讲解（拼音、释义、组词），点一下就进单字页看笔顺、听读音。
+
+- **取图三条路**：拍一张（`capture="environment"` 直接调后置摄像头）、相册选一张、
+  试一张示例。都落到同一个 `<input type="file">`，比 `getUserMedia` 少一层权限弹窗，
+  Android WebView 与桌面浏览器表现一致；没有摄像头也能完整走一遍流程。
+- **识别**：`src/utils/ocr.js`。先把照片缩到长边 1280 px、转灰度、把实际用到的
+  灰阶拉满 0–255（家里随手拍的书页通常偏黄且明暗不匀），再交给 Tesseract 的
+  chi_sim LSTM 模型。
+- **只讲字库里的字**：识别文本先过 `extractHanzi()` 去掉标点、拼音和噪声并去重，
+  再按 `CHARACTER_MAP` 分成「讲得了」和「还没进字库」两堆，后者如实列出来，
+  不硬编一段释义糊弄孩子。这两段是纯函数，`npm run test:ocr` 在 Node 里守住。
+- **隐私**：识别全程在本机 wasm 里跑，照片不上传、不落盘。
+
+`src/composables/useOcr.js` 把流水线包成 `idle → loading → reading → done/error`
+的状态机，并把 Tesseract 的英文进度（`loading language traineddata` 之类）
+翻成一句中文，界面上的文字和 `aria-live` 播报用的是同一句。
+
+wasm 内核只带 SIMD + LSTM 这一个变体：SIMD 从 Chrome 91 / Firefox 89 / Safari 16.4
+起就是标配，每多带一个变体就多 3.9 MB。更老的浏览器会在装引擎时失败，
+界面会明说「浏览器太旧」，其余功能不受影响。
 
 ## 字表与复习曲线
 
@@ -140,6 +174,7 @@ critical 与 serious 都必须为 0；`npm run test:acceptance` 已经接上这�
 | 字库学习(单元) | `/learn` | `LearnView` |
 | 单字详情·五步闭环(认→写→听→考→奖) | `/learn/:char` | `CharDetailView` |
 | 听音识字游戏 | `/game/listen` | `ListenGameView` |
+| 拍照识字(本地 OCR) | `/ocr`(`/camera` 重定向) | `CameraOcrView` |
 | 偏旁部首·字源 | `/radicals` | `RadicalsView` |
 | 分级绘本 | `/books` `/books/:id` | `BooksView` / `BookReadView` |
 | 成语启蒙 | `/idioms` `/idioms/:id` | `IdiomsView` / `IdiomDetailView` |
@@ -152,6 +187,8 @@ critical 与 serious 都必须为 0；`npm run test:acceptance` 已经接上这�
 - **Vue 3 + Vite 5 + Pinia + vue-router**(全路由懒加载)
 - **HanziWriter**: 笔顺动画与手写描红判定;数据经 `scripts/gen-hanzi-data.mjs` 离线化
 - **GSAP**: 学习环节转场与奖励动画
+- **Tesseract.js**(`src/utils/ocr.js`): 拍照识字的本地 OCR,worker / wasm 内核 / chi_sim
+  语言包全部同源托管,照片不出设备;引擎近 6 MB,只有真的开始认字才 `import()`
 - **Web Speech API**(`src/utils/speech.js`): zh-CN 朗读,零音频资产
 - **WebAudio 合成音效**(`src/utils/sfx.js`): 答题/奖励短音效,不打包音频文件
 - **localStorage 版本化持久化**: 进度全本地,家长中心可导出/导入 JSON 实现多端同步
@@ -174,9 +211,11 @@ src/
 
 ```bash
 npm run test:srs     # FSRS 调度纯函数单测
+npm run test:speech  # 跟读评测判分纯函数单测
+npm run test:ocr     # 拍照识字的取字与字库匹配规则单测
 npm run check:data   # 内容自检,不需要浏览器
 npm run smoke        # 无头 Chrome 跑完全部路由与关键交互(需先 build)
-npm test             # test:srs + check:data + build + smoke
+npm test             # test:srs + test:speech + test:ocr + check:data + build + check:bundle + smoke
 ```
 
 `check:data` 守住分级绘本最重要的那条约束——**正文只能用字表里已有的汉字**。
@@ -198,6 +237,11 @@ npm test             # test:srs + check:data + build + smoke
 Round 4 又加了三项闭环断言:五步状态机自动从「认一认」走到「领奖励」并记下闭环次数、
 在田字格里横着乱划三次会触发这一笔的自动示范且示范后能接着写完、
 学会第一个字就点亮「启蒙芽」且首页与家长中心都看得见。
+
+Round 7 加的拍照识字断言走的是真 wasm:进 `/ocr` 时不许有任何引擎请求,
+点「试一张示例」之后要认出示例图上「日月山水」里的至少三个字、
+每张结果卡都配上字库讲解、播报里说清认出几个字、
+worker 与语言包都确实下载过,最后还要能从结果卡点进单字页。
 
 `smoke` 依赖仓库根目录的 `puppeteer-core` 与系统里的 Chrome,
 CI 上跑不了时可以只跑 `check:data`。

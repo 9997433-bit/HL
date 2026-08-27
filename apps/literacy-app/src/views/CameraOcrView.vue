@@ -191,6 +191,7 @@ function say(char) {
           <RouterLink
             class="ocr__hit card--tap"
             :data-char="char"
+            :data-ready="lessons.has(char)"
             :to="`/learn/${encodeURIComponent(char)}`"
             @click="sfx.tap()"
           >

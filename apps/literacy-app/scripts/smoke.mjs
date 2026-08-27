@@ -1588,6 +1588,15 @@ await interact('拍照识字：示例照片认出字库里的字，引擎点了�
     { timeout: 90000 }
   )
 
+  // 讲解在单元详情包里，认出哪个字才去下哪一包，比识别本身晚一拍到
+  await page
+    .waitForFunction(
+      () =>
+        [...document.querySelectorAll('.ocr__hit')].every((n) => n.dataset.ready === 'true'),
+      { timeout: 10000 }
+    )
+    .catch(() => {})
+
   const out = await page.evaluate(() => ({
     phase: document.querySelector('.ocr')?.dataset.phase,
     hits: [...document.querySelectorAll('.ocr__hit')].map((n) => n.dataset.char),
