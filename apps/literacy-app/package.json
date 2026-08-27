@@ -11,6 +11,7 @@
     "gen:etymology": "node scripts/gen-etymology.mjs",
     "gen:books": "node scripts/gen-books.mjs",
     "gen:ocr": "node scripts/gen-ocr-assets.mjs",
+    "gen:ocr:benchmark": "node scripts/gen-ocr-benchmark.mjs",
     "predev": "npm run gen:hanzi && npm run gen:ocr",
     "dev": "vite",
     "prebuild": "npm run gen:hanzi && npm run gen:ocr",
@@ -19,10 +20,11 @@
     "test:srs": "node scripts/test-srs.mjs",
     "test:speech": "node scripts/test-speech-eval.mjs",
     "test:ocr": "node scripts/test-ocr.mjs",
+    "test:ocr:accuracy": "node scripts/test-ocr-accuracy.mjs",
     "check:data": "node scripts/check-data.mjs",
     "check:bundle": "node scripts/check-bundle.mjs",
     "smoke": "node scripts/smoke.mjs",
-    "test": "npm run test:srs && npm run test:speech && npm run test:ocr && npm run check:data && npm run build && npm run check:bundle && npm run smoke"
+    "test": "npm run test:srs && npm run test:speech && npm run test:ocr && npm run test:ocr:accuracy && npm run check:data && npm run build && npm run check:bundle && npm run smoke"
   },
   "dependencies": {
     "gsap": "^3.12.5",
