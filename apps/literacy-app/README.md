@@ -11,7 +11,9 @@
 课文按单元切包懒加载，并在家长中心加了学习计划（每日新字上限 + 单元选择）。
 Round 5 把字库扩到 1000 字 / 58 单元，并把整份字表改成脚本生成：
 `scripts/data/char-seed.txt` 是唯一真源，`npm run gen:corpus` 产出
-`src/data/char-index.js`、`src/data/chars/` 和 `shared/data/common-hanzi.json`。
+`src/data/char-index.js`、`src/data/unit-index.js`、`src/data/chars/` 和
+`shared/data/common-hanzi.json`。Round 6 按《通用规范汉字表》一级字表的字序
+续到 1820 字 / 99 单元，单元名录也一并由 seed 生成。
 终验实测见 `.agent_workspace/GLOBAL-SUMMARY-REPORT.md`。
 
 ## 快速开始
@@ -36,7 +38,7 @@ Service Worker 不支持 `file://`，不能通过直接双击 `dist/index.html` 
 
 ## 字表与复习曲线
 
-字表 1000 字 / 58 单元,分两层存放,规模由 `check:data` 与 `gen:hanzi` 双重守护:
+字表 1820 字 / 99 单元,分两层存放,规模由 `check:data` 与 `gen:hanzi` 双重守护:
 
 - `src/data/char-index.js` —— 每个字的拼音 / 声调 / 单元 / 部首 / 笔画 / 图标。
   首页地图、字表卡片、复习队列、家长报表都只用这一层,它随主包加载。
@@ -45,6 +47,8 @@ Service Worker 不支持 `file://`，不能通过直接双击 `dist/index.html` 
   `import()` 按需拉取,Vite 的 `manualChunks` 把它们切成 `chars-uN` 独立块,
   翻到哪个单元才下载哪一包。`npm run check:bundle` 会在 dist 上核对
   「首屏没有同步加载课文包」,防止有人一行 import 把上千个字的课文塞回主包。
+- `src/data/unit-index.js` —— 单元名录和每个单元详情包的 `import()` 加载器,
+  同样由 seed 生成,新增单元不必再手工登记到 `characters.js`。
 
 字表页一次只挂一个单元,底部按单元翻页,避免上百张卡片同时进 DOM。
 
