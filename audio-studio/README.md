@@ -5,9 +5,10 @@ baseline capabilities of Adobe Audition. This repository holds the Python MVP:
 a fast path to a working, testable product whose architecture is deliberately
 portable to a later C++/JUCE host.
 
-> **Alpha status:** the current release is a strong single-track analysis and
-> editing foundation, not an Adobe Audition replacement. The implemented and
-> missing workflows are listed explicitly below.
+> **Beta status:** v1.0.0-beta is a professional single-track editor with a
+> repair/mastering toolset, a VST3 host MVP and a multitrack MVP — not an
+> Adobe Audition replacement. The implemented and missing workflows are
+> listed explicitly below.
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
@@ -745,31 +746,44 @@ above this package.
   edits can still consume substantial memory when the selected region itself
   is large, and saving an edit project flattens its audio.
 
-## Release notes — v0.1.0-alpha
+## Release notes — v1.0.0-beta
 
-The first tagged preview: a **single-track waveform editor and analyzer**, not
-yet a multitrack DAW.
+The professional-workstation beta. Everything the alpha sign-off planned for
+the v0.2 (workstation), v0.3 (VST3/repair/scale) and v1.0 (SOTA alignment)
+waves has been merged; this is a **professional single-track editor with a
+multitrack MVP**, positioned honestly rather than as Adobe Audition parity.
 
-- **Highlights:** streaming or in-memory playback over a lock-free SPSC ring;
-  ten undoable copy-on-write edit commands with storage-sharing undo, spectral
-  band attenuation and removal among them;
-  parametric EQ / gain / normalize / fade with a live preview rack;
-  calibrated spectral display; BS.1770-4 loudness and 4x true-peak metering;
-  bit-exact WAV null-test, EBU 3341/3342 compliance vectors and an SLO suite
-  shipped in-repo.
-- **Known limitations:** the section above is the authoritative list; loudness
-  compliance certification of the product meter against the full EBU vector
-  set is still in progress (an independent oracle, `tools/ebu_r128.py`, ships
-  alongside), and published performance numbers are headless proxies rather
-  than audio-device certification.
+- **Highlights since v0.1.0-alpha:** crash-safe BWF recording with numbered
+  takes; markers and regions; an offline batch CLI; compressor, true-peak
+  limiter, gate, delay and FDN reverb; LUFS loudness match; a sounddevice
+  backend and opt-in WASAPI exclusive mode; submix bus routing in the
+  multitrack session; a `.pk` peak cache; a three-slot VST3 host behind the
+  GPL-isolated `plugins` extra with a crash-safe scanner, per-slot state
+  persistence and preview-path plugin delay compensation; spectral selection
+  attenuate/delete; RF64/W64 streaming with a memory budget and sparse
+  streaming edits; De-Clip and spectral noise reduction completing the repair
+  suite; TPDF export dither and an SRC quality report; WCAG 2.2 AA contrast,
+  fractional HiDPI scaling and full keyboard coverage with an F1 shortcut
+  sheet; a 256-frame default block with real-time GC discipline and a
+  headless 30-minute soak harness.
+- **Known limitations:** the *Known limitations* section above is the
+  authoritative list. Headline gaps: EBU vector coverage stops at 3341/3342
+  cases 1–3 and there is no AES17 harness; the in-app SRC path misses the VHQ
+  mastering gates (the `mastering` extra stages soxr, not yet selected);
+  multitrack has no automation lanes or mixer console; recording has no
+  device/level control or monitoring; custom-painted widgets are not
+  screen-reader readable; and all performance/soak numbers are headless
+  proxies — no physical-device round-trip or soak certification.
 - **System requirements:** Python ≥ 3.10 (3.12 is the verified baseline);
-  `numpy`, `scipy`, `soundfile`, `PySide6-Essentials`; optional `PyAudio`
-  (hardware input/output; falls back to simulated devices without it) and `ffmpeg`
-  (extended decode). On headless Linux install the Qt runtime libraries listed
-  under *Install*.
-- **Release gates:** three-platform CI (with the GUI smoke job) is green and
-  `THIRD_PARTY_LICENSES.md` is in place; the orchestrator cuts the tag once
-  the remaining Round 3 merges (multitrack session MVP, BS.1770 product
-  compliance) are either verified in or explicitly deferred. Full scope, the
-  deviations register and the v0.2 → v1.0 roadmap:
-  [`.agent_workspace/round3/fable-release-signoff.md`](../.agent_workspace/round3/fable-release-signoff.md).
+  `numpy`, `scipy`, `soundfile`, `PySide6-Essentials`; optional
+  `sounddevice`/`PyAudio` (hardware output/input; falls back to simulated
+  devices without them), `ffmpeg` (extended decode), `soxr` (`mastering`
+  extra) and `pedalboard` (`plugins` extra, GPL-3.0 — see the license
+  notice). On headless Linux install the Qt runtime libraries listed under
+  *Install*.
+- **Release gates:** the beta ships as a source tag once Audio CI is green on
+  the release HEAD; there is no installer, signing or SBOM yet. Honest
+  positioning, the full gap register and post-beta priorities:
+  [`.agent_workspace/v1.0/FINAL_RELEASE_SUMMARY.md`](../.agent_workspace/v1.0/FINAL_RELEASE_SUMMARY.md).
+  History for every wave, including the untagged 0.2.0/0.3.0 milestones:
+  [`CHANGELOG.md`](../CHANGELOG.md).

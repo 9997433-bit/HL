@@ -8,7 +8,7 @@ unit-testable head-lessly and remains portable to a future C++/JUCE host.
 
 from __future__ import annotations
 
-__version__ = "0.1.0"
+__version__ = "1.0.0-beta"
 __app_name__ = "Audio Studio"
 
 __all__ = ["__app_name__", "__version__"]

@@ -9,13 +9,16 @@ analysis workstation, benchmarked against Adobe Audition.
 | [`tests/`](tests/), [`benchmarks/`](benchmarks/), [`tools/`](tools/) | EBU 3341/3342 compliance vectors and oracle, bit-exact null tests, SLO suite, a 30-minute headless playback soak proxy (`benchmarks/soak_playback.py`), performance-regression and realtime escape-hatch gates |
 | [`.agent_workspace/`](.agent_workspace/) | Multi-agent coordination: architecture contract, SOTA audits, convergence reviews, release sign-off and roadmap |
 
-**Status:** working toward `v0.1.0-alpha` — a single-track waveform editor and
-analyzer (not yet a multitrack DAW). Release scope, known limitations and the
-post-MVP roadmap (v0.2 multitrack → v0.3 VST3/repair → v1.0 SOTA alignment)
-are defined in
-[`.agent_workspace/round3/fable-release-signoff.md`](.agent_workspace/round3/fable-release-signoff.md).
-Release history lives in [`CHANGELOG.md`](CHANGELOG.md); the project is MIT
-with third-party obligations tracked in
+**Status:** `v1.0.0-beta` — a professional single-track editor with a
+repair/mastering toolset, a VST3 host MVP and a multitrack MVP. This is a
+professional workstation beta, **not** full Adobe Audition parity; honest
+positioning and the remaining gap register are in
+[`.agent_workspace/v1.0/FINAL_RELEASE_SUMMARY.md`](.agent_workspace/v1.0/FINAL_RELEASE_SUMMARY.md)
+(the alpha-era scope and roadmap remain in
+[`.agent_workspace/round3/fable-release-signoff.md`](.agent_workspace/round3/fable-release-signoff.md)).
+Release history, including the untagged v0.2/v0.3 milestones, lives in
+[`CHANGELOG.md`](CHANGELOG.md); the project is MIT with third-party
+obligations tracked in
 [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md).
 
 Quick start:
