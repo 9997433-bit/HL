@@ -2,6 +2,7 @@
 
 #include "dic/image.hpp"
 #include "dic/shape_function.hpp"
+#include "dic/spline.hpp"
 
 namespace dic {
 
@@ -23,5 +24,13 @@ struct ICGNResult {
 // Gauss-Newton algorithm minimizing the ZNSSD criterion.
 ICGNResult icgnMatch(const Image& ref, const Image& def, int x0, int y0,
                      const Params& init, const ICGNOptions& opt);
+
+// Same IC-GN/ZNSSD solver, but sampling both images through prefiltered cubic
+// B-splines: the deformed intensities and the reference steepest-descent
+// gradients come from the same spline model (lower interpolation bias, and
+// gradients consistent with the interpolant).
+ICGNResult icgnMatchSpline(const BSplineImage& ref, const BSplineImage& def,
+                           int x0, int y0, const Params& init,
+                           const ICGNOptions& opt);
 
 }  // namespace dic

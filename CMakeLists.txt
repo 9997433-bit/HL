@@ -18,6 +18,7 @@ add_library(dic
   src/interpolation.cpp
   src/icgn.cpp
   src/correlation.cpp
+  src/spline.cpp
   src/strain.cpp
   src/synthetic.cpp)
 target_include_directories(dic PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -29,7 +30,7 @@ add_executable(dic_demo apps/dic_demo.cpp)
 target_link_libraries(dic_demo PRIVATE dic)
 
 enable_testing()
-foreach(t test_linalg test_interpolation test_icgn test_correlation test_strain test_bias test_parallel)
+foreach(t test_linalg test_interpolation test_icgn test_correlation test_strain test_bias test_parallel test_spline)
   add_executable(${t} tests/${t}.cpp)
   target_link_libraries(${t} PRIVATE dic)
   target_include_directories(${t} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)

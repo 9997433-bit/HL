@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "dic/interpolation.hpp"
+#include "dic/spline.hpp"
 
 namespace dic {
 
@@ -94,6 +95,17 @@ DICField correlate(const Image& ref, const Image& def, const ROI& roi,
       poi.y = ylo + r * opt.step;
     }
 
+  // Optional prefiltered B-spline models (built once, sampled read-only).
+  BSplineImage refS, defS;
+  if (opt.useBSpline) {
+    refS.build(ref);
+    defS.build(def);
+  }
+  auto matchAt = [&](int x, int y, const Params& init) -> ICGNResult {
+    if (opt.useBSpline) return icgnMatchSpline(refS, defS, x, y, init, opt.icgn);
+    return icgnMatch(ref, def, x, y, init, opt.icgn);
+  };
+
   // Path-independent mode: each point is solved from its own integer-pixel
   // guess, so the grid is embarrassingly parallel.
   if (opt.pathIndependent) {
@@ -109,7 +121,7 @@ DICField correlate(const Image& ref, const Image& def, const ROI& roi,
       Params init;
       init.u = du;
       init.v = dv;
-      const ICGNResult res = icgnMatch(ref, def, poi.x, poi.y, init, opt.icgn);
+      const ICGNResult res = matchAt(poi.x, poi.y, init);
       poi.params = res.params;
       poi.zncc = res.zncc;
       poi.iterations = res.iterations;
@@ -133,7 +145,7 @@ DICField correlate(const Image& ref, const Image& def, const ROI& roi,
     Params init;
     init.u = du;
     init.v = dv;
-    const ICGNResult res = icgnMatch(ref, def, seed.x, seed.y, init, opt.icgn);
+    const ICGNResult res = matchAt(seed.x, seed.y, init);
     seed.params = res.params;
     seed.zncc = res.zncc;
     seed.iterations = res.iterations;
@@ -160,7 +172,7 @@ DICField correlate(const Image& ref, const Image& def, const ROI& roi,
       visited[nIdx] = 1;
 
       POI& poi = field.at(nc, nr);
-      const ICGNResult res = icgnMatch(ref, def, poi.x, poi.y, seedParams, opt.icgn);
+      const ICGNResult res = matchAt(poi.x, poi.y, seedParams);
       poi.params = res.params;
       poi.zncc = res.zncc;
       poi.iterations = res.iterations;

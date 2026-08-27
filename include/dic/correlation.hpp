@@ -22,6 +22,9 @@ struct DICOptions {
   // false, a single seed is refined and its solution is propagated across
   // neighbors in ZNCC-priority order (reliability-guided DIC).
   bool pathIndependent = false;
+  // When true, sub-pixel refinement samples both images through prefiltered
+  // cubic B-splines (lower interpolation bias) instead of Keys bicubic.
+  bool useBSpline = false;
 };
 
 struct POI {

@@ -94,6 +94,27 @@ Image warpAffine(const Image& ref, const AffineField& field) {
   return out;
 }
 
+Image renderAffine(const SpecklePattern& pattern, int width, int height,
+                   const AffineField& field) {
+  const double a = 1.0 + field.A[0][0];
+  const double b = field.A[0][1];
+  const double cc = field.A[1][0];
+  const double d = 1.0 + field.A[1][1];
+  const double det = a * d - b * cc;
+  const double ia = d / det, ib = -b / det, ic = -cc / det, id = a / det;
+
+  Image out(width, height);
+  for (int y = 0; y < height; ++y)
+    for (int x = 0; x < width; ++x) {
+      const double px = x - field.center[0] - field.t[0];
+      const double py = y - field.center[1] - field.t[1];
+      const double rx = ia * px + ib * py + field.center[0];
+      const double ry = ic * px + id * py + field.center[1];
+      out.at(x, y) = std::clamp(pattern.eval(rx, ry), 0.0, 255.0);
+    }
+  return out;
+}
+
 Image warpField(const Image& ref,
                 const std::function<void(double, double, double&, double&)>& disp) {
   Image out(ref.width, ref.height);

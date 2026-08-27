@@ -61,6 +61,12 @@ struct AffineField {
 // exact backward mapping g(p) = f(X) with X + u(X) = p and bicubic sampling.
 Image warpAffine(const Image& ref, const AffineField& field);
 
+// Analytic (inverse-crime-free) affine deformation: the deformed image is the
+// continuous pattern evaluated at the back-mapped coordinate, with no image
+// interpolation in the generation path.
+Image renderAffine(const SpecklePattern& pattern, int width, int height,
+                   const AffineField& field);
+
 // Produce a deformed image under an arbitrary (reference-coordinate)
 // displacement field disp(x, y) -> (u, v). The backward mapping X + u(X) = p is
 // solved by fixed-point iteration (valid for smooth, small-gradient fields).

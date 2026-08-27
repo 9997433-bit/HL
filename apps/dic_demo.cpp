@@ -63,14 +63,17 @@ int main(int argc, char** argv) {
   std::string outDir = (argc > 1) ? argv[1] : ".";
 
   const int W = 512, H = 512;
-  Image ref = makeSpeckle(W, H, 45000, 1.2, 7u);
+  // Inverse-crime-free: build an analytic (non-saturating) speckle pattern and
+  // render both images from it directly (no shared interpolant).
+  const SpecklePattern pattern = makeSpecklePattern(W, H, 9000, 2.0, 7u, 25.0, 60.0);
+  Image ref = renderPattern(pattern, W, H, 0.0, 0.0);
 
   // Prescribed affine deformation: translation + strain about the image center.
   AffineField field;
   field.center = {W / 2.0, H / 2.0};
   field.t = {0.75, -0.40};
   field.A = {{{{0.010, 0.002}}, {{0.001, -0.006}}}};
-  Image def = warpAffine(ref, field);
+  Image def = renderAffine(pattern, W, H, field);
 
   DICOptions opt;
   opt.icgn.subsetRadius = 20;
@@ -82,6 +85,27 @@ int main(int argc, char** argv) {
   opt.pathIndependent = true;  // OpenMP-parallel, path-independent
 
   ROI roi{0, 0, W - 1, H - 1};
+
+  // Honest Keys-vs-B-spline comparison of full-field displacement RMS error.
+  auto rmsOf = [&](bool bspline) {
+    DICOptions o = opt;
+    o.useBSpline = bspline;
+    DICField ff = correlate(ref, def, roi, o);
+    int v = 0;
+    double s = 0.0;
+    for (const POI& p : ff.points) {
+      if (!p.valid) continue;
+      ++v;
+      double ug, vg;
+      field.displacement(p.x, p.y, ug, vg);
+      s += (p.params.u - ug) * (p.params.u - ug) + (p.params.v - vg) * (p.params.v - vg);
+    }
+    return std::sqrt(s / std::max(v, 1));
+  };
+  const double rmsKeys = rmsOf(false);
+  const double rmsBspline = rmsOf(true);
+
+  opt.useBSpline = true;
   const auto t0 = std::chrono::steady_clock::now();
   DICField f = correlate(ref, def, roi, opt);
   const auto t1 = std::chrono::steady_clock::now();
@@ -135,10 +159,13 @@ int main(int argc, char** argv) {
   std::printf("correlation time : %.1f ms (path-independent, OpenMP)\n", corrMs);
   std::printf("mean iterations  : %.1f\n", static_cast<double>(iters) / valid);
   std::printf("mean ZNCC        : %.6f\n", sZ / valid);
-  std::printf("--- displacement accuracy vs ground truth ---\n");
+  std::printf("--- displacement accuracy vs ground truth (honest analytic rendering) ---\n");
   std::printf("RMS error  u     : %.4f px\n", rmsU);
   std::printf("RMS error  v     : %.4f px\n", rmsV);
   std::printf("max  error |d|   : %.4f px\n", maxErr);
+  std::printf("--- interpolation comparison (full-field RMS |d| error) ---\n");
+  std::printf("Keys bicubic     : %.4f px\n", rmsKeys);
+  std::printf("cubic B-spline   : %.4f px\n", rmsBspline);
   const double a00 = field.A[0][0], a10 = field.A[1][0];
   const double gExx = a00 + 0.5 * (a00 * a00 + a10 * a10);
   std::printf("--- mean strain: raw gradient vs PLS Green-Lagrange vs truth ---\n");
