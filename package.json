@@ -30,6 +30,7 @@
     "sync:android:math": "bash scripts/sync-android.sh math",
     "test:a11y": "node scripts/axe-states.mjs",
     "test:acceptance": "bash scripts/acceptance.sh",
+    "test:lighthouse:ci": "ACCEPTANCE_MIN_LH_PERFORMANCE=0.95 node scripts/lighthouse-ci.mjs",
     "test:feedback": "node scripts/test-feedback.mjs",
     "test:literacy": "bash scripts/test-literacy.sh",
     "test:math": "bash scripts/test-math.sh",
@@ -45,6 +46,7 @@
     "@capacitor/cli": "^6.2.1",
     "@capacitor/core": "^6.2.1",
     "axe-core": "^4.13.0",
+    "lighthouse": "12.8.2",
     "puppeteer-core": "^25.9.0"
   }
 }
