@@ -257,6 +257,15 @@ await interact('FSRS：到期卡进入复习队列，未到期卡不进入', `/#
   if (!(await clickText(page, '要复习'))) {
     throw new Error('字表缺少“要复习”筛选入口')
   }
+  await page
+    .waitForFunction(
+      () =>
+        [...document.querySelectorAll('.cc')].some(
+          (node) => node.querySelector('.cc__char')?.textContent?.trim() === '日'
+        ),
+      { timeout: 3000 }
+    )
+    .catch(() => {})
 
   const visible = await page.evaluate(() =>
     [...document.querySelectorAll('.cc')]
@@ -1093,6 +1102,11 @@ await interact('徽章：学会第一个字就点亮，首页与家长中心都�
 })
 
 await interact('播报：答题与庆祝都有 aria-live', '/#/listen', async (page) => {
+  // 前面的路由与交互共用一个浏览器上下文；先清档重载，确保 b2 是首次读完，
+  // 否则 store 会正确地拒绝重复弹出“首次完成”庆祝，测试却会误报超时。
+  await page.evaluate(() => localStorage.clear())
+  await page.reload({ waitUntil: 'networkidle2' })
+  await new Promise((r) => setTimeout(r, 500))
   await clickText(page, '开始游戏')
   await new Promise((r) => setTimeout(r, 600))
 
