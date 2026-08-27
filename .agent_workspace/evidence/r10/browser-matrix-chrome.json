@@ -1,0 +1,79 @@
+{
+  "criterion": "SOTA C-6 browser matrix — Chrome actual run",
+  "generatedAt": "2026-08-27T14:42:06.769Z",
+  "chromePath": "/usr/local/bin/google-chrome",
+  "browserVersion": "Chrome/148.0.7778.96",
+  "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.0.0 Safari/537.36",
+  "results": [
+    {
+      "app": "快乐识字",
+      "appId": "literacy",
+      "profile": "desktop",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "route": "/privacy",
+      "title": "隐私政策 · 快乐识字",
+      "policySections": 6,
+      "externalRequests": 0,
+      "consoleErrors": 0,
+      "screenshot": "browser-matrix-literacy-desktop.png",
+      "status": "PASS"
+    },
+    {
+      "app": "快乐识字",
+      "appId": "literacy",
+      "profile": "mobile",
+      "viewport": {
+        "width": 390,
+        "height": 844,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      "route": "/privacy",
+      "title": "隐私政策 · 快乐识字",
+      "policySections": 6,
+      "externalRequests": 0,
+      "consoleErrors": 0,
+      "screenshot": "browser-matrix-literacy-mobile.png",
+      "status": "PASS"
+    },
+    {
+      "app": "MathQuest",
+      "appId": "math",
+      "profile": "desktop",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "route": "/privacy",
+      "title": "隐私政策 · 星际数学冒险",
+      "policySections": 6,
+      "externalRequests": 0,
+      "consoleErrors": 0,
+      "screenshot": "browser-matrix-math-desktop.png",
+      "status": "PASS"
+    },
+    {
+      "app": "MathQuest",
+      "appId": "math",
+      "profile": "mobile",
+      "viewport": {
+        "width": 390,
+        "height": 844,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      "route": "/privacy",
+      "title": "隐私政策 · 星际数学冒险",
+      "policySections": 6,
+      "externalRequests": 0,
+      "consoleErrors": 0,
+      "screenshot": "browser-matrix-math-mobile.png",
+      "status": "PASS"
+    }
+  ],
+  "passed": 4,
+  "total": 4
+}

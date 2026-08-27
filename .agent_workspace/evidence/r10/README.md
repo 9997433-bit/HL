@@ -19,3 +19,10 @@ npm run test:c6:chrome
 机读结果写入 `browser-matrix-chrome.json`，截图命名为
 `browser-matrix-{literacy|math}-{desktop|mobile}.png`。这里仅声称 Chrome 的实际
 结果；Edge、Firefox、macOS/iPadOS Safari 不在当前 Linux 环境内，未伪造为已测。
+
+## 本次结果
+
+- UTC：2026-08-27T14:42:06.769Z
+- 浏览器：Chrome 148.0.7778.96（Linux x86_64）
+- 结果：快乐识字 / MathQuest × desktop / mobile，共 **4/4 PASS**
+- 四个页面：控制台错误 0，跨来源 HTTP(S) 请求 0

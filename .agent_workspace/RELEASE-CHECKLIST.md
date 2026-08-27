@@ -53,7 +53,16 @@ Model slug: gpt-5.6-sol
 - [ ] Round 9 Lighthouse 证据进入独立的 `evidence/r9/`，不得覆盖 Round 8 原始 JSON。
 - [ ] 发布资产旁附 SHA256 清单；抽查下载后的 zip 哈希与清单一致。
 
-## 5. 发布批准门
+## 5. SOTA C-6 Chrome 实测
+
+- [x] Chrome 148.0.7778.96（Linux）访问双 App `/privacy`，桌面/移动视口共
+  4/4 PASS，控制台错误 0、跨来源 HTTP(S) 请求 0。
+- [x] 机读 JSON 与四张全页截图已冻结在
+  [`evidence/r10/`](evidence/r10/README.md)。
+- [ ] Edge、Firefox、macOS/iPadOS Safari 仍需在对应平台补齐；本分支不把未执行项
+  标为通过。
+
+## 6. 发布批准门
 
 - **工程门**：`check:round8` 8/8 不退化；Round 9 计划正式发布时还须 `check:round9` 8/8。
 - **内容门**：字源、剧情、儿歌、OCR、图谱抽查无版权混入、占位内容或明显模板错误。
