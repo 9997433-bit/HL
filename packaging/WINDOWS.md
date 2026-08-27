@@ -42,9 +42,28 @@ dispatch. It uploads the verified directory as
 ## Authenticode status
 
 The repository has no Authenticode signing certificate configured, and the
-workflow therefore produces an **unsigned** executable. A release is signed
-only when a release operator securely configures a Windows code-signing
-certificate (for example as a `SIGNING_CERTIFICATE` secret), adds an explicit
-`signtool` signing and verification step, and verifies the resulting
-signature. Merely setting a variable does not sign the artifact; the current
-script and workflow perform no Authenticode operation.
+workflow therefore produces an **unsigned** executable.
+
+`scripts/sign-windows-artifact.ps1` is the signing step, and it is a scaffold
+rather than a signature. Given `WINDOWS_SIGNING_CERT` — a `.pfx` path, or the
+thumbprint of a certificate in the store, with `WINDOWS_SIGNING_CERT_PASSWORD`
+for the former — it runs `signtool sign /fd SHA256` with an RFC 3161
+countersignature and only reports success after `signtool verify /pa` and
+`Get-AuthenticodeSignature` accept the file:
+
+```powershell
+$env:WINDOWS_SIGNING_CERT = "C:\keys\release.pfx"
+.\scripts\sign-windows-artifact.ps1 -RequireSignature dist\audio-studio\audio-studio.exe
+```
+
+Without a certificate the script still succeeds: it writes `SHA256SUMS` and a
+report at `.agent_workspace\v1.2\windows-signing-report.json` recording
+`signed: false` and why. `-RequireSignature` turns that state into a failure
+for a release job that must not ship unsigned, and
+`scripts\release-signing-manifest.sh` folds the report into the release-wide
+manifest.
+
+Setting a variable still does not sign anything. A release is signed only when
+an operator holds a real code-signing certificate — on an HSM or hardware token,
+as the CA/Browser Forum baseline requires — runs the script on Windows with it,
+and gets `signed: true` in the report.
