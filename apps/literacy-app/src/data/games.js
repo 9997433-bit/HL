@@ -30,5 +30,19 @@ export const GAMES = [
     route: '/games/spot',
     skill: 'discriminate',
     view: 'SpotGameView'
+  },
+  {
+    id: 'spell',
+    name: '拼音拼字',
+    route: '/games/spell',
+    skill: 'phonics',
+    view: 'SpellGameView'
+  },
+  {
+    id: 'catch',
+    name: '接字大冒险',
+    route: '/games/catch',
+    skill: 'attention',
+    view: 'CatchGameView'
   }
 ]

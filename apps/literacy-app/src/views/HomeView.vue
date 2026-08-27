@@ -8,7 +8,7 @@ import { useDailyQuestStore } from '@/stores/dailyQuest.js'
 import { useMascotCoach } from '@/composables/useMascotCoach.js'
 import { useProgressStore } from '@/stores/progress.js'
 import { useSettingsStore } from '@/stores/settings.js'
-import { BOOKS } from '@/data/books.js'
+import { TOTAL_BOOKS } from '@/data/book-index.js'
 import { TOTAL_ETYMOLOGY } from '@/data/etymology-index.js'
 import { TOTAL_IDIOMS } from '@/data/idiom-index.js'
 import { RADICALS } from '@/data/radicals.js'
@@ -82,7 +82,7 @@ const stations = computed(() => [
     desc: '只用学过的字，读完一整本',
     color: 'var(--leaf-400)',
     done: progress.booksFinished,
-    total: BOOKS.length,
+    total: TOTAL_BOOKS,
     unit: '本'
   },
   {

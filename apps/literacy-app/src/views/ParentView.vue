@@ -5,7 +5,7 @@ import ProgressRing from '@/components/ProgressRing.vue'
 import { FONT_SCALES, THEMES, useSettingsStore } from '@/stores/settings.js'
 import { MASTERY_THRESHOLD, useProgressStore } from '@/stores/progress.js'
 import { CHARACTERS, UNITS, charsOfUnit } from '@/data/characters.js'
-import { BOOKS } from '@/data/books.js'
+import { TOTAL_BOOKS } from '@/data/book-index.js'
 import { TOTAL_IDIOMS } from '@/data/idiom-index.js'
 import { sfx } from '@/utils/sfx.js'
 import { speak, voiceInfo } from '@/utils/audio.js'
@@ -302,7 +302,7 @@ function resetSettings() {
           </li>
         </ul>
         <div class="row">
-          <span class="pill">📖 绘本 {{ progress.booksFinished }}/{{ BOOKS.length }}</span>
+          <span class="pill">📖 绘本 {{ progress.booksFinished }}/{{ TOTAL_BOOKS }}</span>
           <span class="pill">🎭 成语 {{ progress.idiomsSeen }}/{{ TOTAL_IDIOMS }}</span>
           <span class="pill">🎧 游戏 {{ progress.game.plays }} 题 · 正确率 {{ progress.gameAccuracy }}%</span>
         </div>

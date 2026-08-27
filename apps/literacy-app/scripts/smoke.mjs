@@ -81,6 +81,8 @@ const ROUTES = [
   ['字迷宫', '/#/games/maze'],
   ['配对记忆', '/#/games/memory'],
   ['找不同', '/#/games/spot'],
+  ['拼音拼字', '/#/games/spell'],
+  ['接字大冒险', '/#/games/catch'],
   ['偏旁部首', '/#/radicals'],
   ['偏旁详情', '/#/radicals/shui'],
   ['绘本书架', '/#/books'],
