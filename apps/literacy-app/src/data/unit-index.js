@@ -1,5 +1,5 @@
 /**
- * 单元名录 —— 88 个单元的标题信息，以及每个单元详情包的加载器。
+ * 单元名录 —— 99 个单元的标题信息，以及每个单元详情包的加载器。
  *
  * 加载器写成显式的 import() 映射而不是 import.meta.glob，
  * 一来 Vite 能静态分析出每个单元一个块，二来 Node 脚本也能直接跑。
@@ -95,7 +95,18 @@ export const UNITS = [
   { id: 'u85', name: '识字湖畔', emoji: '🦢', color: 'var(--seed-sky)', desc: '九画的字，倒映在水里' },
   { id: 'u86', name: '识字竹林', emoji: '🎋', color: 'var(--seed-grape)', desc: '九画的字，风一吹沙沙响' },
   { id: 'u87', name: '识字麦田', emoji: '🌾', color: 'var(--seed-mint)', desc: '九画的字，一垄一垄金黄' },
-  { id: 'u88', name: '识字渔村', emoji: '🎣', color: 'var(--seed-coral)', desc: '九画的字，海风里认字' }
+  { id: 'u88', name: '识字渔村', emoji: '🎣', color: 'var(--seed-coral)', desc: '九画的字，海风里认字' },
+  { id: 'u89', name: '识字古镇', emoji: '🏘️', color: 'var(--seed-mango)', desc: '九画的字，青石板上慢慢走' },
+  { id: 'u90', name: '识字书院', emoji: '📚', color: 'var(--seed-leaf)', desc: '九十画的字，一句一句读' },
+  { id: 'u91', name: '识字驿站', emoji: '🐴', color: 'var(--seed-sky)', desc: '九十画的字，歇一歇再上路' },
+  { id: 'u92', name: '识字关口', emoji: '🚧', color: 'var(--seed-grape)', desc: '十画的字，闯一闯就过' },
+  { id: 'u93', name: '识字长桥', emoji: '🌁', color: 'var(--seed-mint)', desc: '十画的字，一步一栏杆' },
+  { id: 'u94', name: '识字高塔', emoji: '🗼', color: 'var(--seed-coral)', desc: '十画的字，一层一层往上' },
+  { id: 'u95', name: '识字宝库', emoji: '💎', color: 'var(--seed-mango)', desc: '十画的字，一件一件都是宝' },
+  { id: 'u96', name: '识字云梯', emoji: '🪜', color: 'var(--seed-leaf)', desc: '十画的字，一级一级踩上去' },
+  { id: 'u97', name: '识字银河', emoji: '🌠', color: 'var(--seed-sky)', desc: '十画的字，闪着光排成排' },
+  { id: 'u98', name: '识字彩门', emoji: '🎏', color: 'var(--seed-grape)', desc: '十画的字，走到这里已过千' },
+  { id: 'u99', name: '识字终点', emoji: '🏁', color: 'var(--seed-mint)', desc: '十画到十一画，一千八百字到啦' }
 ]
 
 export const DETAIL_LOADERS = {
@@ -186,5 +197,16 @@ export const DETAIL_LOADERS = {
   u85: () => import('./chars/u85.js'),
   u86: () => import('./chars/u86.js'),
   u87: () => import('./chars/u87.js'),
-  u88: () => import('./chars/u88.js')
+  u88: () => import('./chars/u88.js'),
+  u89: () => import('./chars/u89.js'),
+  u90: () => import('./chars/u90.js'),
+  u91: () => import('./chars/u91.js'),
+  u92: () => import('./chars/u92.js'),
+  u93: () => import('./chars/u93.js'),
+  u94: () => import('./chars/u94.js'),
+  u95: () => import('./chars/u95.js'),
+  u96: () => import('./chars/u96.js'),
+  u97: () => import('./chars/u97.js'),
+  u98: () => import('./chars/u98.js'),
+  u99: () => import('./chars/u99.js')
 }

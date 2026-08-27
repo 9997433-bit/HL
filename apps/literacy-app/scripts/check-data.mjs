@@ -40,7 +40,7 @@ const check = (ok, msg) => (ok ? notes.push(`✓ ${msg}`) : fails.push(`✗ ${ms
 const CHARACTERS = await loadAllCharacters()
 
 /* ----------------------------------------------------------------- 字表 */
-check(TOTAL_CHARACTERS >= 500, `字表 ${TOTAL_CHARACTERS} 个字（要求 ≥ 500）`)
+check(TOTAL_CHARACTERS >= 1800, `字表 ${TOTAL_CHARACTERS} 个字（要求 ≥ 1800）`)
 
 const noDetail = CHARACTERS.filter((c) => !c.meaning || !c.words || !c.sentence)
 check(
@@ -95,7 +95,7 @@ check(thinUnits.length === 0, `每个单元至少 5 个字${thinUnits.length ? `
  * 否则两边一分叉，孩子在不同入口看到的读音就会打架。
  */
 const baseline = JSON.parse(fs.readFileSync(baselineFile, 'utf8')).characters ?? []
-check(baseline.length >= 500, `共享字库基线 ${baseline.length} 个字（要求 ≥ 500）`)
+check(baseline.length >= 1800, `共享字库基线 ${baseline.length} 个字（要求 ≥ 1800）`)
 
 const missingFromTable = baseline.filter((b) => !CHARACTER_MAP.has(b.character))
 check(
