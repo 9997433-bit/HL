@@ -12,6 +12,7 @@ import { AGE_BAND_MODULES, bandOf } from '@/data/age-band.js'
 import { MODULES } from '@/data/modules.js'
 import { SKILLS } from '@/data/curriculum.js'
 import { ERROR_TAGS, errorTagInfo } from '@/data/errorTags.js'
+import { buildWeekPlan, weekPlanAdoption } from '@/data/week-plan.js'
 import { MASTERY_THRESHOLD } from '@/utils/mastery.js'
 import { useProgressStore } from '@/stores/progress.js'
 import { AGE_BANDS, THEMES, useSettingsStore } from '@/stores/settings.js'
@@ -156,6 +157,39 @@ const weakSkills = computed(() =>
       route: MODULES.find((m) => m.curriculumId === s.module)?.route ?? '/',
     })),
 )
+
+/* ---------------- 推荐理由与采纳痕迹 ---------------- */
+
+/**
+ * 家长侧看的是同一份周计划（data/week-plan.js），只是问题不一样：
+ * 孩子那边问「今天练什么」，家长这边问「凭什么推荐它、孩子到底练没练」。
+ *
+ * 两段都只读：计划是按当前存档现算的推演，痕迹是把存档里已有的记录
+ * （掌握度、错题欠账、星球最近游玩时间）按计划里的技能点重排一遍。
+ * 家长中心不替孩子预约功课，也不为了统计多记一笔数据。
+ */
+const weekPlan = computed(() =>
+  buildWeekPlan({
+    mastery: progress.state.mastery,
+    ageBand: settings.ageBand,
+    wrongBook: progress.state.wrongBook,
+  }),
+)
+
+const adoption = computed(() =>
+  weekPlanAdoption(weekPlan.value, {
+    mastery: progress.state.mastery,
+    wrongBook: progress.state.wrongBook,
+    modules: progress.state.modules,
+  }),
+)
+
+function lastPlayedText(at) {
+  if (!at) return '还没玩过'
+  const days = Math.floor((Date.now() - at) / 864e5)
+  if (days <= 0) return '今天玩过'
+  return days === 1 ? '昨天玩过' : `${days} 天前玩过`
+}
 
 /* ---------------- 错因统计 ---------------- */
 
@@ -510,6 +544,72 @@ function setTheme(theme) {
             </RouterLink>
           </li>
         </ul>
+      </section>
+
+      <!-- 推荐理由与采纳痕迹 -->
+      <section class="panel stack" data-parent-reco>
+        <h3 class="panel-title">📅 推荐理由与采纳痕迹</h3>
+        <p class="muted note">
+          技能图谱按孩子当前的掌握度排出这一周的练习计划：{{ weekPlan.stats.days }} 天
+          {{ weekPlan.stats.sessions }} 场，涉及 {{ weekPlan.stats.skills }} 个技能点。
+          下面先说「凭什么推荐它们」，再说这些技能点在存档里留下了什么痕迹。
+        </p>
+
+        <template v-if="adoption.total">
+          <h4 class="sub-title">凭什么推荐这些</h4>
+          <ul class="reasons">
+            <li
+              v-for="reason in adoption.byReason"
+              :key="reason.id"
+              class="reason-row"
+              :data-reco-reason-row="reason.id"
+            >
+              <div class="row-head">
+                <strong>{{ reason.label }}</strong>
+                <span class="chip">{{ reason.count }} 个技能 · {{ reason.sessions }} 场</span>
+              </div>
+              <p class="muted row-tip">{{ reason.hint }}</p>
+              <p class="muted row-tip">{{ reason.skills.join('、') }}</p>
+            </li>
+          </ul>
+
+          <h4 class="sub-title">采纳痕迹</h4>
+          <p class="muted note" data-adoption-summary>
+            计划里的 {{ adoption.total }} 个技能点，{{ adoption.touched }} 个在存档里查得到记录
+            （{{ adoption.touchedPercent }}%）：已过线 {{ adoption.passed }}、练过
+            {{ adoption.practiced }}、欠着错题 {{ adoption.owed }}、还没开练
+            {{ adoption.untouched }}。
+          </p>
+          <p class="muted note">
+            这是痕迹，不是因果：App 不记录孩子是不是照着推荐去练的，也不该为了统计去记。
+            这里只能看出被推荐的技能点动没动过——可能是照着练的，也可能是他自己逛到那颗星球上去了。
+          </p>
+          <ul class="adoption">
+            <li
+              v-for="row in adoption.rows"
+              :key="row.id"
+              class="adoption-row"
+              :data-adoption-row="row.id"
+              :data-adoption-state="row.state"
+            >
+              <div class="row-head">
+                <strong>{{ row.emoji }} {{ row.name }}</strong>
+                <span class="chip" :class="row.state">{{ row.stateLabel }}</span>
+              </div>
+              <p class="muted row-tip">
+                第 {{ row.days.join('、') }} 天安排 · {{ row.reasonLabel }}：{{ row.why }}
+              </p>
+              <p class="muted row-tip">
+                {{ row.trace }} · {{ row.moduleName }}{{ lastPlayedText(row.lastPlayedAt) }}
+              </p>
+            </li>
+          </ul>
+        </template>
+        <p v-else class="muted">
+          图上该练的技能点都过线了，这周没有需要安排的新功课，复习和自由练都行。
+        </p>
+
+        <RouterLink to="/skill-graph" class="btn btn-ghost">🕸️ 看看完整周计划</RouterLink>
       </section>
 
       <!-- 错因统计 -->
@@ -1052,6 +1152,57 @@ function setTheme(theme) {
 
 .weak-item span {
   font-size: 12px;
+}
+
+/* ---- 推荐理由与采纳痕迹 ---- */
+
+.reasons,
+.adoption {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.reason-row,
+.adoption-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.row-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.row-head strong {
+  font-size: 15px;
+}
+
+.row-tip {
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.chip.passed {
+  border-color: rgba(85, 230, 165, 0.5);
+  color: #55e6a5;
+}
+
+.chip.owed {
+  border-color: rgba(255, 120, 120, 0.5);
+  color: #ff8f8f;
+}
+
+.chip.practiced {
+  border-color: rgba(255, 206, 77, 0.5);
+  color: #ffce4d;
 }
 
 /* ---- 错因 ---- */
