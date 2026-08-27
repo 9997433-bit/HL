@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Direct headless evidence for SOTA B8: 32-track playback and automation.
 
 The harness builds 32 stereo tracks with distinct constant source levels and
