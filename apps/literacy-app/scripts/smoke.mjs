@@ -1146,6 +1146,57 @@ await interact('设计令牌：识字 App 用的是共享令牌层', '/#/', asyn
   return `共享令牌 --tap-hero=${tokens.shared}，--mango-500=${tokens.palette}，--text-soft=${tokens.textSoft}`
 })
 
+await interact('学伴：核心路由常驻，点一下换鼓励语并朗读', '/#/', async (page) => {
+  const visited = []
+  for (const [name, route] of [
+    ['首页', '/#/'],
+    ['字表', '/#/learn'],
+    ['小游戏', '/#/games'],
+    ['绘本', '/#/books'],
+    ['成语', '/#/idioms']
+  ]) {
+    await page.goto(base + route, { waitUntil: 'networkidle2', timeout: 20000 })
+    await page.waitForSelector('.mascot-dock button', { timeout: 8000 })
+    // 路由切换有淡入淡出，太早点会点在正在离场的那一只身上
+    await new Promise((r) => setTimeout(r, 700))
+
+    const before = await page.evaluate(() => {
+      // 朗读在无头环境里没有嗓音，换成记录调用，验的是「点了会说话」这条线
+      window.__spoken = []
+      const synth = window.speechSynthesis
+      if (synth && !synth.__patched) {
+        synth.__patched = true
+        synth.speak = (utter) => window.__spoken.push(utter.text)
+      }
+      const dock = document.querySelector('.mascot-dock')
+      const btn = dock.querySelector('button')
+      const bubble = dock.querySelector('[role="status"] p')
+      const box = btn.getBoundingClientRect()
+      return {
+        label: btn.getAttribute('aria-label') ?? '',
+        line: bubble?.innerText.trim() ?? '',
+        tap: Math.round(Math.min(box.width, box.height))
+      }
+    })
+    if (!before.label) throw new Error(`${name}：学伴按钮没有无障碍名称`)
+    if (before.tap < 44) throw new Error(`${name}：学伴命中区只有 ${before.tap}px`)
+    if (!before.line) throw new Error(`${name}：学伴气泡里没有鼓励语`)
+
+    await page.evaluate(() => document.querySelector('.mascot-dock button').click())
+    await new Promise((r) => setTimeout(r, 350))
+    const after = await page.evaluate(() => ({
+      line: document.querySelector('.mascot-dock [role="status"] p').innerText.trim(),
+      spoken: window.__spoken ?? []
+    }))
+    if (after.line === before.line) throw new Error(`${name}：点了学伴但鼓励语没换`)
+    if (!after.spoken.includes(after.line)) {
+      throw new Error(`${name}：气泡换成「${after.line}」却没有把它读出来`)
+    }
+    visited.push(name)
+  }
+  return `${visited.length} 条路由常驻学伴（${visited.join('、')}），点触换句并朗读`
+})
+
 /* ------------------------------------------------------------ 字源演变 */
 
 /** 等演变动画走到收尾状态，再把舞台上的东西数一遍。 */

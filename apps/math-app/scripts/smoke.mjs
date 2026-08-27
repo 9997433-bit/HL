@@ -424,6 +424,62 @@ await interact('今日冒险：5 题 · 刷新不换题 · 完成打卡', '/#/da
   return `刷新不换题「${before}」，答 ${answered} 题后打卡 done=${quest.done} 连续 ${quest.streak} 天`
 })
 
+await interact('小算陪跑：首页与今日冒险常驻，点一下换鼓励语并朗读', '/#/', async (page) => {
+  /** 无头环境没有中文嗓音，把 speak 换成记录，验的是「点了会说话」这条线。 */
+  const patchSpeech = () =>
+    page.evaluate(() => {
+      window.__spoken = []
+      const synth = window.speechSynthesis
+      if (synth) synth.speak = (utter) => window.__spoken.push(utter.text)
+    })
+
+  await page.waitForSelector('.hero-bot button.mascot', { timeout: 8000 })
+  await patchSpeech()
+  const homeBefore = await page.evaluate(() => {
+    const btn = document.querySelector('.hero-bot button.mascot')
+    const box = btn.getBoundingClientRect()
+    return {
+      label: btn.getAttribute('aria-label') ?? '',
+      line: document.querySelector('.hero-bot .bot-say')?.innerText.trim() ?? '',
+      tap: Math.round(Math.min(box.width, box.height)),
+    }
+  })
+  if (!homeBefore.label) throw new Error('首页小算按钮没有无障碍名称')
+  if (homeBefore.tap < 44) throw new Error(`首页小算命中区只有 ${homeBefore.tap}px`)
+  if (!homeBefore.line) throw new Error('首页小算没有鼓励语')
+
+  await page.evaluate(() => document.querySelector('.hero-bot button.mascot').click())
+  await sleep(350)
+  const homeAfter = await page.evaluate(() => ({
+    line: document.querySelector('.hero-bot .bot-say').innerText.trim(),
+    spoken: window.__spoken ?? [],
+  }))
+  if (homeAfter.line === homeBefore.line) throw new Error('点了首页小算但鼓励语没换')
+  if (!homeAfter.spoken.includes(homeAfter.line)) {
+    throw new Error(`首页气泡换成「${homeAfter.line}」却没有把它读出来`)
+  }
+
+  await page.goto(base + '/#/daily', { waitUntil: 'networkidle2' })
+  await page.waitForSelector('.stage-head button.mascot', { timeout: 8000 })
+  await sleep(500)
+  await patchSpeech()
+  const dailyBefore = await page.evaluate(
+    () => document.querySelector('.stage-head .say')?.innerText.trim() ?? '',
+  )
+  await page.evaluate(() => document.querySelector('.stage-head button.mascot').click())
+  await sleep(350)
+  const dailyAfter = await page.evaluate(() => ({
+    say: document.querySelector('.stage-head .say').innerText.trim(),
+    spoken: window.__spoken ?? [],
+  }))
+  if (dailyAfter.say === dailyBefore) throw new Error('点了答题页小算但台词没换')
+  if (!dailyAfter.spoken.includes(dailyAfter.say)) {
+    throw new Error(`答题页台词换成「${dailyAfter.say}」却没有把它读出来`)
+  }
+
+  return `首页「${homeAfter.line.slice(0, 12)}…」/ 今日冒险「${dailyAfter.say.slice(0, 12)}…」，两处都朗读`
+})
+
 await interact('比大小擂台：> < = 三个符号', '/#/compare', async (page) => {
   await page.waitForSelector('.opt.sym', { timeout: 8000 })
   const info = await page.evaluate(() => ({
