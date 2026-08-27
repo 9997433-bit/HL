@@ -1524,9 +1524,22 @@ def main(argv: list[str] | None = None) -> int:
                 )
             )
 
-        baseline = [item.delay_frames for item in scenarios[0].measurements]
-        baseline_frames = round(statistics.median(baseline)) if baseline else -1
-        baseline_ms = baseline_frames / args.sample_rate * 1000.0
+        steady = [
+            item for item in scenarios[0].measurements if not item.settling
+        ]
+        baseline_ms = (
+            statistics.median(item.latency_ms for item in steady) if steady else 0.0
+        )
+        # The injected-delay control re-measures one retained session with its
+        # capture pushed later, so its baseline has to be that session's own
+        # delay. A median across every session would make the control fail
+        # whenever one session ran at a different steady state from the rest,
+        # which says nothing about the arithmetic the control exists to check.
+        retained_session = scenarios[0].sessions_completed - 1
+        retained = [
+            item.delay_frames for item in steady if item.session == retained_session
+        ]
+        baseline_frames = round(statistics.median(retained)) if retained else -1
         streaming_latency: dict[str, int | None] = {}
         controls = {
             "silence": run_silence_control(
