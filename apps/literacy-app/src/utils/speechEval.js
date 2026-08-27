@@ -132,6 +132,35 @@ export function gradeOf(score) {
 }
 
 /**
+ * 学伴对话只看本轮已经在本机算出的结果，用固定规则回复，不发网络请求。
+ * 放在纯函数层，界面和 Node 单测可以共享同一套回复规则。
+ */
+export function companionReplyForResult(outcome) {
+  if (!outcome) return ''
+
+  if (outcome.mode === 'listen-only') {
+    if (outcome.grade?.id === 'fluent') return '你觉得很流利，真棒！现在试试不看拼音再读一遍。'
+    if (outcome.grade?.id === 'okay') return '找到卡住的地方就有进步啦。先听范读，再慢慢跟一句。'
+    return '没关系，我陪你再听一遍；一句一句来就会越来越顺。'
+  }
+
+  if (outcome.mode === 'recording') {
+    if (outcome.score >= 70) return '声音又清楚又完整！回放听一听，再试着读得更有节奏。'
+    return '我听见你开口啦！靠近一点麦克风，慢慢把整句读完。'
+  }
+
+  const missed = (outcome.chars ?? [])
+    .filter((item) => item.status === 'miss')
+    .map((item) => item.char)
+  if (missed.length) {
+    const focus = [...new Set(missed)].slice(0, 3).join('、')
+    return `大部分都跟上啦！再听听「${focus}」，把这${missed.length > 1 ? '几个字' : '个字'}慢慢读清楚。`
+  }
+  if (outcome.score >= 85) return '每个字都跟上啦！下一遍试试读出诗句的停顿。'
+  return '这一遍有进步！先听一句，再用同样的速度跟着读。'
+}
+
+/**
  * 一次跟读的完整结论，界面直接渲染它。
  * mode 决定了「这个分数是怎么来的」，界面要如实告诉孩子和家长。
  */
