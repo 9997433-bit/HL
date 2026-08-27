@@ -756,8 +756,10 @@ multitrack MVP**, positioned honestly rather than as Adobe Audition parity.
 - **Highlights since v0.1.0-alpha:** crash-safe BWF recording with numbered
   takes; markers and regions; an offline batch CLI; compressor, true-peak
   limiter, gate, delay and FDN reverb; LUFS loudness match; a sounddevice
-  backend and opt-in WASAPI exclusive mode; submix bus routing in the
-  multitrack session; a `.pk` peak cache; a three-slot VST3 host behind the
+  backend and opt-in WASAPI exclusive mode; submix bus routing and per-track
+  gain-automation lanes in the multitrack session; a `.pk` peak cache;
+  true-peak metering certified against the EBU Tech 3341 vectors;
+  a three-slot VST3 host behind the
   GPL-isolated `plugins` extra with a crash-safe scanner, per-slot state
   persistence and preview-path plugin delay compensation; spectral selection
   attenuate/delete; RF64/W64 streaming with a memory budget and sparse
@@ -767,13 +769,14 @@ multitrack MVP**, positioned honestly rather than as Adobe Audition parity.
   sheet; a 256-frame default block with real-time GC discipline and a
   headless 30-minute soak harness.
 - **Known limitations:** the *Known limitations* section above is the
-  authoritative list. Headline gaps: EBU vector coverage stops at 3341/3342
-  cases 1–3 and there is no AES17 harness; the in-app SRC path misses the VHQ
-  mastering gates (the `mastering` extra stages soxr, not yet selected);
-  multitrack has no automation lanes or mixer console; recording has no
-  device/level control or monitoring; custom-painted widgets are not
-  screen-reader readable; and all performance/soak numbers are headless
-  proxies — no physical-device round-trip or soak certification.
+  authoritative list. Headline gaps: the synthetic EBU 3341/3342 vectors
+  pass but there is no AES17 harness or real-material compliance evidence;
+  the in-app SRC path misses the VHQ mastering gates (the `mastering` extra
+  stages soxr, not yet selected); multitrack automation covers track gain
+  only and there is no mixer console; recording has no device/level control
+  or monitoring; custom-painted widgets are not screen-reader readable; and
+  all performance/soak numbers are headless proxies — no physical-device
+  round-trip or soak certification.
 - **System requirements:** Python ≥ 3.10 (3.12 is the verified baseline);
   `numpy`, `scipy`, `soundfile`, `PySide6-Essentials`; optional
   `sounddevice`/`PyAudio` (hardware output/input; falls back to simulated

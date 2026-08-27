@@ -14,8 +14,9 @@ tooling. It is a professional single-track editor with a multitrack MVP —
 not full Adobe Audition parity; the honest gap register lives in
 `.agent_workspace/v1.0/FINAL_RELEASE_SUMMARY.md`.
 
-Merged PRs: *v1.0 Round A — PDC, soak, NR, a11y, dither, DeClip* plus this
-release-preparation branch.
+Merged PRs: *v1.0 Round A — PDC, soak, NR, a11y, dither, DeClip* and the
+v1.0 Round B branches (track gain automation, EBU true-peak certification,
+SOTA acceptance re-grade, and this release preparation).
 
 ### Added
 
@@ -50,6 +51,19 @@ release-preparation branch.
   meter's clip strip paints the word `CLIP` rather than relying on colour.
 - **Soak harness.** `benchmarks/soak_playback.py` runs a headless 30-minute
   playback soak (accelerated mode for CI) and records underrun/xrun counts.
+- **Track gain automation.** Tracks carry a `GainAutomation` breakpoint curve
+  — sorted points, linear interpolation, edge values held — sampled per block
+  by the summing mixer. An empty curve leaves the static fader in charge; a
+  unity curve stays bit-transparent. `.hlproj` bundles persist the envelope
+  under the track's optional `automation` key, and the multitrack view grows
+  a per-track automation lane.
+- **EBU true-peak certification.** The product meter is certified against
+  the Tech 3341 true-peak vectors (full-scale 997 Hz tones and quarter-rate
+  45°-phase cases across 44.1–192 kHz), all inside the +0.2/−0.4 dB window.
+  The SOTA acceptance re-grade promotes A1-TP and E3 to hard passes,
+  realigns the B5/B8/D2 verifiers with the module paths that actually
+  landed, and tightens the remaining xfail reasons: the suite stands at
+  9 passed / 22 expected gaps, and `sota_claimed` remains false.
 
 ### Changed
 

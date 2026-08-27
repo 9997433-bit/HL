@@ -2,7 +2,9 @@
 
 Date: 2026-08-27
 Branch: `cursor/v1.0-round-b-b3cf` (release preparation, Round B)
-Baseline: alpha mainline at merge `e230762` (v1.0 Round A) plus this branch.
+Baseline: alpha mainline at merge `e230762` (v1.0 Round A) plus the v1.0
+Round B branches (automation, EBU true-peak certification, SOTA audit,
+release preparation).
 Prepared by: fable (release-preparation slot).
 
 ## 1. Positioning — read this first
@@ -30,8 +32,8 @@ What the beta honestly is:
   `plugins` extra, with a crash-safe scanner, per-slot state persistence and
   preview-path plugin delay compensation.
 - A **multitrack MVP**: track lanes, clips with envelopes, mute/solo,
-  submix buses and a summing mixer — a skeleton, not a production mixing
-  console.
+  submix buses, per-track gain-automation lanes and a summing mixer — a
+  skeleton, not a production mixing console.
 
 What it is not: a multitrack production environment with automation lanes
 and a mixer console, a certified low-latency monitoring system, a
@@ -48,8 +50,8 @@ capability summary:
 |---|---|---|
 | v0.2 workstation | workstation; dynamics; continuation (v0.2 part); telemetry; multitrack bus | Recording MVP → crash-safe BWF; markers/regions; batch CLI; compressor/limiter/gate/delay/reverb; loudness match; sounddevice backend; triple-buffered telemetry; peak `.pk` cache; feeder-thread preview; fader ramp; interpolated playhead; submix buses |
 | v0.3 VST3/repair/scale | continuation (v0.3 part); VST3 panel + GC + RF64; VST3 scanner + streaming edit + WASAPI | VST3 dock, scanner and three-slot rack (GPL-isolated extra); spectral selection attenuate/delete; RF64/W64 streaming with memory budget; sparse streaming edit session; 256-frame block + RT GC discipline; WASAPI exclusive opt-in |
-| v1.0 Round A | PDC, soak, NR, a11y, dither, DeClip | Plugin delay compensation + state blobs; spectral noise reduction; DeClip; TPDF dither + SRC quality report; take registry; WCAG 2.2 AA contrast, fractional HiDPI, full shortcut coverage; render-callback allocation cleanup; 30-minute headless soak harness |
-| v1.0 Round B (this branch) | release preparation | Version 1.0.0-beta, changelog, this summary, README release notes |
+| v1.0 Round A | PDC, soak, NR, a11y, dither, DeClip | Plugin delay compensation + state blobs; spectral noise reduction; DeClip; TPDF dither + SRC quality report; take registry; WCAG 2.2 AA contrast, fractional HiDPI, full shortcut coverage; render-callback allocation cleanup; 30-minute headless soak harness; Tech 3341 true-peak vectors |
+| v1.0 Round B | automation; TP certification; SOTA audit; release preparation | Per-track gain-automation lanes persisted in `.hlproj`; product true-peak certification against the Tech 3341 vectors; acceptance-suite re-grade (A1-TP and E3 promoted to hard passes); version 1.0.0-beta, changelog, this summary, README release notes |
 
 Against the Round 3 acceptance checklist recorded at the alpha
 (`.agent_workspace/round3/fable-sota-final-acceptance.md`, P0: 4 pass /
@@ -58,17 +60,28 @@ closed or materially advanced most of the hard failures: the true-peak
 limiter (A6), TPDF dither (A7), batch processing (B7), spectral repair
 tools (B5), VST3 hosting with PDC (B6), RF64 streaming (B3), a recording
 path (C2's functional prerequisite), callback allocation discipline (C3),
-keyboard workflow (D3), UI scaling (D5) and HiDPI (part of D1). The
-checklist itself has not been re-run and re-graded against this HEAD; that
-re-grade is the first post-beta acceptance task, and no "checklist passed"
-claim should be derived from this table.
+keyboard workflow (D3), UI scaling (D5) and HiDPI (part of D1).
+
+The Round B audit re-ran and re-graded the acceptance suite against the
+Round A merge (`.agent_workspace/v1.0/sota-audit-report.md`, merged from
+the Round B audit branch): 9 passed / 22 expected gaps / 0 XPASS, meaning
+**8 of 30 checklist items hard-pass (P0 8/20, P1 0/10)**, with A1-TP and
+E3 newly promoted. Several verifiers still under-credit landed features
+because they probe evidence artifacts or module paths that do not exist —
+the true-peak limiter, the batch loudness CLI and spectral selection
+editing are all shipped, but their items stay open pending evidence
+reports. Even granting those halves, the Round 1 acceptance rule (all P0
+pass + at most two P1 degradations) is far from met, which is exactly why
+this release is a beta and not a SOTA claim.
 
 ## 3. Verification state
 
 - The alpha carried a green three-platform CI (Linux full suite,
   macOS/Windows smoke, GUI smoke, performance probes) at `c908a7e`, and
   every subsequent wave was merged through the same Audio CI workflow.
-- The SOTA acceptance suite still reports `sota_claimed: false` by design.
+- The SOTA acceptance suite still reports `sota_claimed: false` by design;
+  the Round B re-grade stands at 9 passed / 22 expected gaps (8 of 30 items
+  hard-pass).
 - Performance evidence remains **headless proxy** evidence: the realtime
   SLO probe, the accelerated 30-minute soak
   (`.agent_workspace/soak/soak-30min-accelerated.json`) and the benchmark
@@ -83,18 +96,23 @@ claim should be derived from this table.
 These are the known, accepted gaps shipping inside v1.0.0-beta. Each one is
 disclosed in the README limitations; none is silently claimed as done.
 
-1. **Compliance matrix incomplete.** The product meter is certified against
-   EBU 3341/3342 cases 1–3 only; cases 4–9 (gating stress, absolute/relative
-   gate) and the 3341 true-peak vectors are not synthesized, and there is no
-   AES17 THD+N harness (`tools/aes17.py` does not exist). No broadcast
-   compliance certification may be claimed.
+1. **Compliance evidence incomplete.** The synthetic EBU matrix now passes
+   in CI — Tech 3341 cases 1–7 plus channel-weighting vectors and all seven
+   true-peak vectors, Tech 3342 cases 1–3 — but there is no AES17 THD+N
+   harness (`tools/aes17.py` does not exist), no real-material EBU vectors,
+   and most formal evidence artifacts the acceptance suite expects (TPDF
+   spectrum, callback timing, 4 GB RF64 RSS, and the rest of the audit's
+   missing-reports list) have not been generated. No broadcast compliance
+   certification may be claimed.
 2. **Mastering SRC not closed.** The measured SciPy resampling path misses
    the offline VHQ gates (mirror suppression / THD+N); the `mastering` extra
    stages soxr but the application does not yet select it. Final masters
    should preserve the source sample rate.
-3. **Multitrack is an MVP.** Buses, clip envelopes and mute/solo exist, but
-   there are no automation lanes, clip crossfades, comping or mixer console
-   view, and no 32-track real-time playback evidence on hardware.
+3. **Multitrack is an MVP.** Buses, clip envelopes, mute/solo and per-track
+   gain-automation lanes exist, but automation covers track gain only — no
+   multi-parameter automation, clip crossfades or comping — there is no
+   mixer console view, and no 32-track real-time playback evidence on
+   hardware.
 4. **Recording is an MVP.** No input-device selection or level control, no
    live monitoring, no punch or loop recording; input always runs on PyAudio
    regardless of the selected output backend.
@@ -132,7 +150,9 @@ cutting the tag:
 2. Release notes link to this document — the beta must not be announced as
    Audition parity or as SOTA-accepted.
 
-Post-beta priorities, in order: re-run and re-grade the 30-item acceptance
-checklist against beta HEAD; complete the EBU/AES vector matrix; integrate
-the soxr VHQ SRC path; hardware RTT + soak certification on all three
-platforms; multitrack automation and mixer console; installer + SBOM.
+Post-beta priorities, in order: generate the missing acceptance evidence
+reports (the audit's "Evidence reports still missing" list) and realign the
+remaining under-crediting verifiers; complete the AES17 and real-material
+EBU matrix; integrate the soxr VHQ SRC path; hardware RTT + soak
+certification on all three platforms; multi-parameter automation and a
+mixer console; installer + SBOM.
