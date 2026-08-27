@@ -21,10 +21,14 @@ Model slug: claude-fable-5
 
 ### 2.1 Lighthouse Perf ≥ 95
 
+> H6 机读：识字 98 / 100 / 100
+> H6 机读：数学 99 / 100 / 100
+> Lighthouse 12.8.2 · mobile / simulate；`test:acceptance` 同轮 axe 22/22 路由及 4×24 状态均为 `critical=0, serious=0`。原始报告：`evidence/r8/lighthouse-literacy-app.json`、`evidence/r8/lighthouse-math-app.json`。
+
 | App | P | A | BP | 判定 |
 |---|---:|---:|---:|---|
-| 识字 | `[待回填]` | `[待回填]` | `[待回填]` | |
-| 数学 | `[待回填]` | `[待回填]` | `[待回填]` | |
+| 识字 | 98 | 100 | 100 | PASS |
+| 数学 | 99 | 100 | 100 | PASS |
 
 ### 2.2 zip 体积
 
