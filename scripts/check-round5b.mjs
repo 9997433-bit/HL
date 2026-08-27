@@ -1,6 +1,10 @@
 /**
  * Round 5B Play Layer 硬门槛。
  * 标准：.agent_workspace/ROUND5B-ACCEPTANCE.md
+ *
+ * 这是源码契约门禁，不依赖构建产物。每个 P 项只记一次通过/失败，避免某一项
+ * 拆成多个探针后把 “6 项硬门槛” 的分母冲大。Round 5B 功能分支合并前 FAIL
+ * 是预期红灯；合并后必须 6/6。
  */
 
 import fs from 'node:fs'
@@ -12,7 +16,6 @@ const fails = []
 const notes = []
 
 const check = (ok, msg) => (ok ? notes.push(`✓ ${msg}`) : fails.push(`✗ ${msg}`))
-const exists = (...rel) => rel.some((p) => fs.existsSync(path.join(root, p)))
 const read = (rel) => {
   try {
     return fs.readFileSync(path.join(root, rel), 'utf8')
@@ -22,47 +25,103 @@ const read = (rel) => {
 }
 
 const countMatches = (src, re) => (src.match(re) || []).length
+const stripComments = (src) =>
+  src
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '')
+
+const walkSource = (rel) => {
+  const start = path.join(root, rel)
+  if (!fs.existsSync(start)) return []
+  const files = []
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name)
+      if (entry.isDirectory()) walk(full)
+      else if (/\.(?:js|mjs|ts|vue)$/.test(entry.name)) {
+        files.push(path.relative(root, full).split(path.sep).join('/'))
+      }
+    }
+  }
+  walk(start)
+  return files
+}
+
+const literacyFiles = walkSource('apps/literacy-app/src')
+const mathFiles = walkSource('apps/math-app/src')
+const source = (files) => stripComments(files.map(read).join('\n'))
+const sourceRefs = (files, marker) =>
+  files.filter((file) => file !== marker && stripComments(read(file)).includes('useFeedback'))
+
+const routeViews = (app, routerFile) => {
+  const router = stripComments(read(routerFile))
+  const matches = [...router.matchAll(/import\(\s*['"]@\/([^'"]+\.vue)['"]\s*\)/g)]
+  return [...new Set(matches.map((match) => `apps/${app}/src/${match[1]}`))]
+}
 
 /* P1 每日冒险 ≥3 任务 */
-const home = read('apps/literacy-app/src/views/HomeView.vue')
-const dailyStore = read('apps/literacy-app/src/stores/dailyQuest.js')
-const dailyComposable = read('apps/literacy-app/src/composables/useDailyQuest.js')
-const dailySrc = home + dailyStore + dailyComposable
-const dailyHits =
-  countMatches(dailySrc, /dailyQuest|daily-quest|今日冒险|todayQuest|DAILY_TASKS/i) +
-  (dailySrc.includes('tasks') && dailySrc.includes('completed') ? 1 : 0)
+const homeFile = 'apps/literacy-app/src/views/HomeView.vue'
+const home = stripComments(read(homeFile))
+const dailyFiles = literacyFiles.filter(
+  (file) => /(?:daily|quest|adventure)/i.test(path.basename(file)) && file !== homeFile
+)
+const dailySrc = source([homeFile, ...dailyFiles])
+const taskCategories = [
+  /学(?:习)?新字|new[-_ ]?char|learn[-_ ]?char/i,
+  /复习|review/i,
+  /绘本|成语|阅读|book|idiom|read/i,
+  /小游戏|game/i
+].filter((pattern) => pattern.test(dailySrc)).length
+const declaredTasks = countMatches(
+  source(dailyFiles),
+  /\b(?:id|key|type)\s*:\s*['"`][\w-]+['"`]/g
+)
+const dailyTaskCount = Math.max(taskCategories, declaredTasks)
+const dailyOnHome = /daily[-_ ]?quest|daily[-_ ]?adventure|今日(?:的)?(?:冒险|任务)/i.test(home)
+const dailyInteractive =
+  /type=["']checkbox|role=["']checkbox|aria-checked|toggle\w*(?:quest|task)|complete\w*(?:quest|task)|mark\w*complete/i.test(
+    dailySrc
+  )
+const dailyCelebration =
+  /confetti|celebrat|fireworks|burst|撒花|彩带|庆祝/i.test(dailySrc) &&
+  /completed|complete|完成/i.test(dailySrc)
 check(
-  dailyHits >= 2 && (dailySrc.includes('3') || countMatches(dailySrc, /tasks\s*[:=]\s*\[/g) >= 1),
-  dailyHits >= 2
-    ? 'P1 每日冒险 3 任务已接线'
-    : 'P1 每日冒险未接线 —— 由 r5b-daily-adventure 交付（首页 ≥3 项可勾选任务）'
+  dailyOnHome && dailyTaskCount >= 3 && dailyInteractive && dailyCelebration,
+  `P1 每日冒险：任务 ${dailyTaskCount}/3，首页=${dailyOnHome ? '已接线' : '未接线'}，` +
+    `勾选=${dailyInteractive ? '有' : '无'}，完成庆祝=${dailyCelebration ? '有' : '无'}`
 )
 
 /* P2 吉祥物陪跑 ≥5 路由 */
-const mascotFiles = [
-  'apps/literacy-app/src/components/MascotCompanion.vue',
-  'apps/math-app/src/components/MascotBot.vue'
-]
-const literacyRoutes = read('apps/literacy-app/src/router/index.js')
-const mathRoutes = read('apps/math-app/src/router/index.js')
-let mascotRouteRefs = 0
-for (const f of [
-  'apps/literacy-app/src/views/HomeView.vue',
-  'apps/literacy-app/src/views/LearnView.vue',
-  'apps/literacy-app/src/views/GamesView.vue',
-  'apps/literacy-app/src/views/BooksView.vue',
-  'apps/literacy-app/src/views/IdiomsView.vue',
-  'apps/math-app/src/modules/home/HomeView.vue',
-  'apps/math-app/src/modules/daily/DailyView.vue'
-]) {
-  const s = read(f)
-  if (/MascotCompanion|MascotBot/.test(s)) mascotRouteRefs++
+const mascotRoutes = {
+  literacy: routeViews('literacy-app', 'apps/literacy-app/src/router/index.js').filter((file) =>
+    /<MascotCompanion\b/.test(stripComments(read(file)))
+  ),
+  math: routeViews('math-app', 'apps/math-app/src/router/index.js').filter((file) =>
+    /<MascotBot\b/.test(stripComments(read(file)))
+  )
 }
+const mascotRouteRefs = mascotRoutes.literacy.length + mascotRoutes.math.length
+const mascotSources = {
+  literacy: source([
+    'apps/literacy-app/src/components/MascotCompanion.vue',
+    ...mascotRoutes.literacy
+  ]),
+  math: source(['apps/math-app/src/components/MascotBot.vue', ...mascotRoutes.math])
+}
+const interactiveMascots = Object.values(mascotSources).every(
+  (src) =>
+    /@click|role=["']button|<button\b/i.test(src) &&
+    /speak|speech|say|voice|encourag|语音|朗读|鼓励/i.test(src)
+)
 check(
-  exists(...mascotFiles) && mascotRouteRefs >= 5,
-  mascotRouteRefs >= 5
-    ? `P2 吉祥物陪跑 ${mascotRouteRefs} 处视图接线（要求 ≥ 5）`
-    : `P2 吉祥物陪跑 ${mascotRouteRefs}/5 —— 由 r5b-mascot-companion 扩面`
+  mascotRoutes.literacy.length > 0 &&
+    mascotRoutes.math.length > 0 &&
+    mascotRouteRefs >= 5 &&
+    interactiveMascots,
+  `P2 吉祥物陪跑：${mascotRouteRefs}/5 路由` +
+    `（识字 ${mascotRoutes.literacy.length}，数学 ${mascotRoutes.math.length}），` +
+    `点触语音/鼓励=${interactiveMascots ? '有' : '缺失'}`
 )
 
 /* P3 useFeedback */
@@ -71,61 +130,161 @@ const feedbackPaths = [
   'apps/literacy-app/src/composables/useFeedback.js',
   'apps/math-app/src/composables/useFeedback.js'
 ]
-const feedbackFile = feedbackPaths.find((p) => exists(p))
-let feedbackRefs = 0
-if (feedbackFile) {
-  const name = path.basename(feedbackFile, '.js')
-  for (const f of [
-    'apps/literacy-app/src',
-    'apps/math-app/src'
-  ]) {
-    const walk = (dir) => {
-      if (!fs.existsSync(path.join(root, dir))) return
-      for (const ent of fs.readdirSync(path.join(root, dir), { withFileTypes: true })) {
-        const rel = `${dir}/${ent.name}`
-        if (ent.isDirectory()) walk(rel)
-        else if (/\.(vue|js)$/.test(ent.name)) {
-          const s = read(rel)
-          if (s.includes(name) || s.includes('useFeedback')) feedbackRefs++
-        }
-      }
-    }
-    walk(f)
-  }
+const feedbackFiles = feedbackPaths.filter((file) => fs.existsSync(path.join(root, file)))
+const hasSharedFeedback = feedbackFiles.includes('shared/composables/useFeedback.js')
+const hasDualFeedback =
+  feedbackFiles.includes('apps/literacy-app/src/composables/useFeedback.js') &&
+  feedbackFiles.includes('apps/math-app/src/composables/useFeedback.js')
+const literacyFeedbackRefs = sourceRefs(
+  literacyFiles,
+  'apps/literacy-app/src/composables/useFeedback.js'
+)
+const mathFeedbackRefs = sourceRefs(mathFiles, 'apps/math-app/src/composables/useFeedback.js')
+const feedbackRefs = [...literacyFeedbackRefs, ...mathFeedbackRefs]
+const feedbackDefinitions = source(feedbackFiles)
+const feedbackCapabilities = {
+  particles: /particle|burst|confetti|star|星星|粒子/i.test(feedbackDefinitions),
+  haptics: /vibrat|haptic|navigator/i.test(feedbackDefinitions),
+  sound: /\bsfx\b|\bsound\b|\baudio\b/i.test(feedbackDefinitions),
+  reducedMotion: /reduceMotion|reducedMotion|prefers-reduced-motion/i.test(feedbackDefinitions)
 }
+const feedbackSurfaces = {
+  quiz: feedbackRefs.some((file) => /Quiz|Question|modules\/.+View\.vue$/i.test(file)),
+  game: feedbackRefs.some((file) => /(?:Game|Maze|Memory|Spot|Listen).*\.vue$/i.test(file)),
+  writing: feedbackRefs.some((file) => /(?:CharDetail|Writ|Trace|Stroke).*\.vue$/i.test(file))
+}
+const allFeedbackCapabilities = Object.values(feedbackCapabilities).every(Boolean)
+const allFeedbackSurfaces = Object.values(feedbackSurfaces).every(Boolean)
 check(
-  feedbackFile && feedbackRefs >= 3,
-  feedbackFile
-    ? `P3 useFeedback 已接线（${feedbackRefs} 处引用）`
-    : 'P3 useFeedback 未创建 —— 由 r5b-use-feedback 交付'
+  (hasSharedFeedback || hasDualFeedback) &&
+    literacyFeedbackRefs.length > 0 &&
+    mathFeedbackRefs.length > 0 &&
+    feedbackRefs.length >= 3 &&
+    allFeedbackCapabilities &&
+    allFeedbackSurfaces,
+  `P3 useFeedback：定义=${hasSharedFeedback ? 'shared' : hasDualFeedback ? '双 App' : '不完整'}，` +
+    `引用=${feedbackRefs.length}（识字 ${literacyFeedbackRefs.length}/数学 ${mathFeedbackRefs.length}），` +
+    `粒子/震动/音效/reduced-motion=${allFeedbackCapabilities ? '齐全' : '不全'}，` +
+    `Quiz/游戏/写字=${allFeedbackSurfaces ? '齐全' : '不全'}`
 )
 
 /* P4 地图叙事 */
-const learn = read('apps/literacy-app/src/views/LearnView.vue')
-const mathHome = read('apps/math-app/src/modules/home/HomeView.vue')
-const narrative =
-  /unlock|locked|剧情|故事|章节|chapterStory|planetStory/i.test(learn + mathHome)
+const mapCandidates = [
+  {
+    view: 'apps/literacy-app/src/views/LearnView.vue',
+    files: literacyFiles.filter((file) => /(?:unit|map|story|chapter|narrative)/i.test(file))
+  },
+  {
+    view: 'apps/math-app/src/modules/home/HomeView.vue',
+    files: mathFiles.filter((file) => /(?:modules|map|story|chapter|narrative)/i.test(file))
+  }
+]
+const mapNarrative = mapCandidates.find(({ view, files }) => {
+  const viewSrc = stripComments(read(view))
+  const allSrc = source([view, ...files])
+  const locked = /unlock|locked|is-locked|未解锁|解锁/i.test(viewSrc)
+  const greyed = /grayscale|gr[ae]y|灰显|is-locked|\.locked|opacity/i.test(viewSrc)
+  const storyInView =
+    /\b(?:story|narrative|chapter)\b|剧情|故事|章节/i.test(viewSrc) &&
+    /\{\{[^}]*(?:story|narrative|chapter)[^}]*\}\}|剧情|故事|章节/i.test(viewSrc)
+  const storyContent =
+    countMatches(allSrc, /\b(?:story|narrative|chapter(?:Story)?)\s*:/gi) > 0 ||
+    /剧情|故事|章节/.test(allSrc)
+  const transition = /transition|animation|gsap|useFeedback|enter\(/i.test(viewSrc)
+  const motionSafe =
+    /reduceMotion|reducedMotion|prefers-reduced-motion|useFeedback/i.test(viewSrc)
+  return locked && greyed && storyInView && storyContent && transition && motionSafe
+})
 check(
-  narrative,
-  narrative ? 'P4 地图叙事解锁已接线' : 'P4 地图叙事未接线 —— 由 r5b-map-narrative 交付'
+  Boolean(mapNarrative),
+  mapNarrative
+    ? `P4 地图叙事：${mapNarrative.view} 已接线锁定灰显、剧情、解锁过渡与动效降级`
+    : 'P4 地图叙事：未找到同时具备锁定灰显、剧情文案、解锁过渡与 reduced-motion 的地图'
 )
 
 /* P5 街机大厅 */
-const games = read('apps/literacy-app/src/views/GamesView.vue')
-const arcade = /arcade|街机|neon|game-hall|games-grid/i.test(games)
+const gamesFile = 'apps/literacy-app/src/views/GamesView.vue'
+const gamesSrc = source([
+  gamesFile,
+  ...literacyFiles.filter((file) => /(?:games|arcade)/i.test(path.basename(file)))
+])
+const gamesView = stripComments(read(gamesFile))
+const gameRoutes = new Set(
+  [...gamesSrc.matchAll(/\b(?:to|route)\s*:\s*['"]((?:\/listen|\/games\/)[^'"]*)['"]/g)].map(
+    (match) => match[1]
+  )
+)
+const gameCount = Math.max(
+  gameRoutes.size,
+  countMatches(gamesSrc, /\bid\s*:\s*['"][\w-]+['"]/g)
+)
+const gameDescriptions = countMatches(gamesSrc, /\b(?:desc|howToPlay|tagline)\s*:/g)
+const arcade = /arcade|街机|neon|霓虹|game-hall|pixel/i.test(gamesView)
+const cardGrid =
+  /display\s*:\s*grid|grid-template-(?:columns|rows)|class=["'][^"']*(?:grid|arcade)/i.test(
+    gamesView
+  )
+const descriptionsRendered =
+  /(?:g|game)\.(?:desc|howToPlay|tagline)|一句话玩法/i.test(gamesView)
 check(
-  arcade,
-  arcade ? 'P5 游戏大厅街机化已接线' : 'P5 游戏大厅未街机化 —— 由 r5b-games-arcade 交付'
+  arcade &&
+    cardGrid &&
+    gameCount > 0 &&
+    gameDescriptions >= gameCount &&
+    descriptionsRendered,
+  `P5 街机大厅：街机视觉=${arcade ? '有' : '无'}，卡片网格=${cardGrid ? '有' : '无'}，` +
+    `一句话玩法=${gameDescriptions}/${gameCount || '?'}`
 )
 
 /* P6 答对节奏 */
-const literacySfx = read('apps/literacy-app/src/utils/sfx.js')
-const mathSfx = read('apps/math-app/src/utils/sfx.js') + read('apps/math-app/src/audio/sfx.js')
-const rhythm =
-  /streak|combo|pitch|音高|连对/i.test(literacySfx + mathSfx + read('apps/literacy-app/src/composables/useFeedback.js') + read('apps/math-app/src/composables/useFeedback.js'))
+const rhythmState = (files, app) => {
+  const audioFiles = files.filter((file) =>
+    /(?:\/utils\/(?:audio|sfx|sound)|\/audio\/|\/composables\/useFeedback)\.(?:js|ts)$/i.test(
+      file
+    )
+  )
+  const answerFiles = files.filter((file) =>
+    /(?:Quiz|Question|Game|CharDetail|NumberSense|Arithmetic|Geometry|Logic|Sudoku|WordProblems).*\.vue$/i.test(
+      file
+    )
+  )
+  const audioSrc = source(audioFiles)
+  const answerSrc = source(answerFiles)
+  const tonalProgression = [
+    /(?:pitch|freq(?:uency)?|playbackRate)\s*[:=][^\n]*(?:streak|combo)/i,
+    /(?:streak|combo)[^\n]*(?:pitch|freq(?:uency)?|playbackRate|semitone|transpose)/i,
+    /(?:notes?|tones?|scale)\s*\[[^\]]*(?:streak|combo)/i,
+    /(?:streak|combo)(?:Pitch|Tone|Level|Step)\b/i
+  ].some((pattern) => pattern.test(audioSrc))
+  const thresholdBeat =
+    /if\s*\([^)]*(?:streak|combo)[^)]*(?:>=|>|%)[^)]*\)[\s\S]{0,180}(?:sfx|sound)\.(?:combo|celebrate|streak|correct)/i.test(
+      answerSrc
+    )
+  const wired =
+    /(?:sfx|sound)\.(?:correct|success|combo|streak|celebrate)\s*\([^)]*(?:streak|combo)/i.test(
+      answerSrc
+    ) ||
+    /(?:fxCorrect|feedback|correct)\s*\([^)]*\{[^}]*(?:streak|combo)/i.test(answerSrc) ||
+    thresholdBeat
+  return {
+    app,
+    progressive: tonalProgression || thresholdBeat,
+    wired,
+    audioFiles: audioFiles.length
+  }
+}
+const rhythm = [
+  rhythmState(literacyFiles, '识字'),
+  rhythmState(mathFiles, '数学')
+]
 check(
-  rhythm,
-  rhythm ? 'P6 答对音效节奏已接线' : 'P6 答对节奏未接线 —— 由 r5b-sfx-rhythm 交付'
+  rhythm.every((state) => state.progressive && state.wired),
+  `P6 答对节奏：${rhythm
+    .map(
+      (state) =>
+        `${state.app}[递进/节拍=${state.progressive ? '有' : '无'},答题接线=${state.wired ? '有' : '无'}]`
+    )
+    .join('，')}`
 )
 
 notes.forEach((n) => console.log(' ', n))
@@ -134,4 +293,7 @@ if (fails.length) {
   fails.forEach((f) => console.log(' ', f))
 }
 console.log(`\nRound 5B Play 门禁：${notes.length} 项通过，${fails.length} 项失败。`)
+if (fails.length) {
+  console.log('说明：Round 5B 功能分支尚未全部合并时 FAIL 属预期红灯；集成后必须 6/6。')
+}
 process.exit(fails.length ? 1 : 0)
