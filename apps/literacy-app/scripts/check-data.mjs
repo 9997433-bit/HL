@@ -22,6 +22,8 @@ import { TOTAL_IDIOMS } from '../src/data/idiom-index.js'
 import { RADICALS, getRadical } from '../src/data/radicals.js'
 import { ETYMOLOGY, ETYMOLOGY_KINDS } from '../src/data/etymology.js'
 import { ETYMOLOGY_CHARS } from '../src/data/etymology-index.js'
+import { POEMS, POEM_GLOSS, POEM_THEMES, charsInPoem, verifyPoemCoverage } from '../src/data/poems.js'
+import { TOTAL_POEMS } from '../src/data/poem-index.js'
 import { validateShape } from '../src/utils/etymologySketch.js'
 import { STREAK_CHORDS, streakChord } from '../src/utils/audio.js'
 

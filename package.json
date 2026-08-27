@@ -19,6 +19,7 @@
     "check:round5": "node scripts/check-round5.mjs",
     "check:round5b": "node scripts/check-round5b.mjs",
     "check:round6": "node scripts/check-round6.mjs",
+    "check:round7": "node scripts/check-round7.mjs",
     "check:android": "node scripts/check-android.mjs",
     "check:map-narrative": "node scripts/check-map-narrative.mjs",
     "gen:icons": "node scripts/gen-pwa-icons.mjs",
