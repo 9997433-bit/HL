@@ -95,7 +95,7 @@ function onScored(payload) {
       :key="poem.id"
       :lines="poem.lines"
       :title="poem.title"
-      :speech-enabled="settings.speechEnabled !== false"
+      :speech-enabled="settings.speechOn"
       @scored="onScored"
     />
 

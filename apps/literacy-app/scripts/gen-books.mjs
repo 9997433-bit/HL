@@ -43,8 +43,22 @@ const MAX_WORD = Math.max(...Object.keys(WORDS).map((w) => w.length))
 
 const errors = []
 
+/**
+ * 用字越界检查要独立于注音走一遍。
+ * 注音是按词切的，词典里有「尾巴」就不会去查「巴」，而「巴」根本不在字表里——
+ * 只靠注音那条路，越界字会从词条底下溜过去，一直漏到 verifyBookCoverage 才炸。
+ */
+function checkChars(text, where) {
+  for (const ch of text) {
+    if (PUNCT[ch] === undefined && !PINYIN.has(ch)) {
+      errors.push(`${where}：「${ch}」不在字表里（${text}）`)
+    }
+  }
+}
+
 /** 汉字串 → 音节串。词典最长匹配优先，退回单字本音。 */
 function toPinyin(text, where) {
+  checkChars(text, where)
   let out = ''
   let i = 0
   const pushSyllable = (s) => {

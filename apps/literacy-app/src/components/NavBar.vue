@@ -2,7 +2,7 @@
 /**
  * 底部主导航。
  *
- * 儿童端只放 5 个入口，图标大、命中区大（>= 64px），文字始终可见——
+ * 儿童端只放 6 个入口，图标大、命中区大（>= 64px），文字始终可见——
  * 这个年龄段还读不熟字，图标+文字双通道比纯图标可靠得多。
  * 家长中心不放在这里，避免孩子误入，入口在顶栏并有一道简单验证。
  */
@@ -17,10 +17,12 @@ const ITEMS = [
   { to: '/learn', name: 'learn', icon: 'pencil', label: '学字' },
   { to: '/listen', name: 'listen', icon: 'ear', label: '听音' },
   { to: '/books', name: 'books', icon: 'books', label: '绘本' },
-  { to: '/idioms', name: 'idioms', icon: 'lantern', label: '成语' }
+  { to: '/idioms', name: 'idioms', icon: 'lantern', label: '成语' },
+  { to: '/poems', name: 'poems', icon: 'scroll', label: '古诗', also: ['poem', 'follow-read'] }
 ]
 
-const isActive = (item) => route.name === item.name
+/** 详情页和跟读页也要让「古诗」这一格保持点亮，孩子才知道自己还在国学区里。 */
+const isActive = (item) => route.name === item.name || item.also?.includes(route.name)
 </script>
 
 <template>

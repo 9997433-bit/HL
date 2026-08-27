@@ -67,7 +67,6 @@ export const WORDS = {
   右边: ['yòu', 'bian'],
   那边: ['nà', 'bian'],
   这边: ['zhè', 'bian'],
-  尾巴: ['wěi', 'ba'],
 
   /* --- 「长」zhǎng / cháng --- */
   长大: ['zhǎng', 'dà'],
@@ -96,6 +95,8 @@ export const WORDS = {
   几种: ['jǐ', 'zhǒng'],
   多种: ['duō', 'zhǒng'],
   种下: ['zhòng', 'xià'],
+  种在: ['zhòng', 'zài'],
+  种到: ['zhòng', 'dào'],
   种花: ['zhòng', 'huā'],
   种树: ['zhòng', 'shù'],
   种田: ['zhòng', 'tián'],
@@ -125,6 +126,7 @@ export const WORDS = {
 
   /* --- 「只」zhī / zhǐ --- */
   只有: ['zhǐ', 'yǒu'],
+  只到: ['zhǐ', 'dào'],
   只能: ['zhǐ', 'néng'],
   只要: ['zhǐ', 'yào'],
   只会: ['zhǐ', 'huì'],
@@ -198,6 +200,9 @@ export const WORDS = {
   /* --- 「转」zhuǎn / zhuàn --- */
   转来转去: ['zhuàn', 'lái', 'zhuàn', 'qù'],
   转了: ['zhuàn', 'le'],
+  转一回: ['zhuàn', 'yī', 'huí'],
+  转一个: ['zhuàn', 'yī', 'gè'],
+  转过去: ['zhuǎn', 'guò', 'qù'],
   转圆: ['zhuàn', 'yuán'],
   转身: ['zhuǎn', 'shēn'],
   转过: ['zhuǎn', 'guò'],

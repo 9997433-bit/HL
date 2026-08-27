@@ -24,6 +24,7 @@ export function useMascotCoach(scene) {
       streak: progress.streakDays,
       books: progress.booksFinished,
       idioms: progress.idiomsSeen,
+      poems: progress.poemsRead,
       nextChar: progress.nextChar?.char ?? ''
     })
   )

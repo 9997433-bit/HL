@@ -296,7 +296,7 @@ export const LEVEL_5_BOOKS = [
     pages: [
       { emoji: '🐘', text: '小象的鼻很长，他不喜欢。', p: 'xiǎo xiàng de bí hěn cháng, tā bù xǐ huan.' },
       { emoji: '😕', text: '他说：我的鼻子长长的，真不好看。', p: 'tā shuō: wǒ de bí zǐ cháng cháng de, zhēn bù hǎo kàn.' },
-      { emoji: '🐒', text: '小猴说：我的尾巴也长长的，我用尾巴挂在树上。', p: 'xiǎo hóu shuō: wǒ de wěi ba yě cháng cháng de, wǒ yòng wěi ba guà zài shù shàng.' },
+      { emoji: '🐒', text: '小猴说：我的尾也长长的，我用尾挂在树上。', p: 'xiǎo hóu shuō: wǒ de wěi yě cháng cháng de, wǒ yòng wěi guà zài shù shàng.' },
       { emoji: '🙁', text: '但小象还是不喜欢他的鼻。', p: 'dàn xiǎo xiàng hái shì bù xǐ huan tā de bí.' },
       { emoji: '🏜️', text: '有一天，森林里的水没了。', p: 'yǒu yī tiān, sēn lín lǐ de shuǐ méi le.' },
       { emoji: '🔍', text: '大家找水，找了很久。', p: 'dà jiā zhǎo shuǐ, zhǎo le hěn jiǔ.' },

@@ -975,6 +975,8 @@ export const useProgressStore = defineStore('progress', () => {
     levelProgress,
     unitProgress,
     booksFinished,
+    poemsRead,
+    poemsFollowed,
     radicalsSeen,
     accuracy,
     streakDays,
@@ -1005,6 +1007,8 @@ export const useProgressStore = defineStore('progress', () => {
 
     markHeard,
     markTraced,
+    markPoemRead,
+    recordFollowRead,
     tickSecond,
     acknowledgeRest,
     celebrate,

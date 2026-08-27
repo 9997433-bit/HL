@@ -11,6 +11,7 @@ import { useSettingsStore } from '@/stores/settings.js'
 import { TOTAL_BOOKS } from '@/data/book-index.js'
 import { TOTAL_ETYMOLOGY } from '@/data/etymology-index.js'
 import { TOTAL_IDIOMS } from '@/data/idiom-index.js'
+import { TOTAL_POEMS } from '@/data/poem-index.js'
 import { RADICALS } from '@/data/radicals.js'
 import { sfx } from '@/utils/sfx.js'
 import OpenMojiIcon from '@shared/components/OpenMojiIcon.vue'
@@ -94,6 +95,26 @@ const stations = computed(() => [
     done: progress.idiomsSeen,
     total: TOTAL_IDIOMS,
     unit: '个'
+  },
+  {
+    to: '/poems',
+    emoji: '📜',
+    title: '古诗长廊',
+    desc: `${TOTAL_POEMS} 首古诗，逐字拼音，读完还能跟读打分`,
+    color: 'var(--mango-400)',
+    done: progress.poemsRead,
+    total: TOTAL_POEMS,
+    unit: '首'
+  },
+  {
+    to: '/follow-read',
+    emoji: '🎤',
+    title: '跟读评测',
+    desc: '听一遍范读，自己大声读，当场给你评一评',
+    color: 'var(--mint-400)',
+    done: progress.poemsFollowed,
+    total: null,
+    unit: '首练过'
   },
   {
     to: '/parent',

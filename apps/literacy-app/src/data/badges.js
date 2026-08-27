@@ -131,6 +131,17 @@ export const BADGES = [
     unit: '个',
     desc: '看懂 3 个成语小剧场',
     hint: '成语启蒙里每个故事只有四格'
+  },
+  {
+    id: 'little-poet',
+    name: '小诗人',
+    emoji: '📜',
+    tier: 'gold',
+    metric: 'poems',
+    goal: 3,
+    unit: '首',
+    desc: '跟读过 3 首古诗',
+    hint: '古诗长廊里点「跟着读」，听完范读自己读一遍'
   }
 ]
 

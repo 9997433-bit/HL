@@ -208,6 +208,82 @@ check(
 const idiomDupes = IDIOMS.map((i) => i.id).filter((v, i, a) => a.indexOf(v) !== i)
 check(idiomDupes.length === 0, `成语 id 无重复${idiomDupes.length ? `（${idiomDupes.join(',')}）` : ''}`)
 
+/* ----------------------------------------------------------------- 古诗 */
+check(POEMS.length >= 20, `古诗 ${POEMS.length} 首（要求 ≥ 20）`)
+
+check(
+  TOTAL_POEMS === POEMS.length,
+  `首页用的古诗总数索引与语料一致（poem-index=${TOTAL_POEMS}，语料=${POEMS.length}）`
+)
+
+const poemDupes = POEMS.map((p) => p.id).filter((v, i, a) => a.indexOf(v) !== i)
+check(poemDupes.length === 0, `古诗 id 无重复${poemDupes.length ? `（${poemDupes.join(',')}）` : ''}`)
+
+const poemTitleDupes = POEMS.map((p) => p.title).filter((v, i, a) => a.indexOf(v) !== i)
+check(
+  poemTitleDupes.length === 0,
+  `古诗标题无重复${poemTitleDupes.length ? `（${poemTitleDupes.join('、')}）` : ''}`
+)
+
+/**
+ * 古诗的正文改不得，所以约束不是「只许用已学字」，而是
+ * 「每个字要么已学，要么有注解」+「逐字拼音数量对得上」。
+ * 后一条错了不会报错，只会让跟读页的拼音整体错位一格，最难靠肉眼发现。
+ */
+const poemCoverage = verifyPoemCoverage()
+check(
+  poemCoverage.length === 0,
+  poemCoverage.length
+    ? `古诗逐字校验不过：${poemCoverage
+        .map(
+          (p) =>
+            `《${p.poem}》${p.unglossed.length ? `缺注解 ${p.unglossed.join('')}` : ''}${
+              p.misaligned.length ? ` 拼音错位 ${p.misaligned.join('/')}` : ''
+            }`
+        )
+        .join('；')}`
+    : '古诗正文逐字都有拼音，生字都有注解'
+)
+
+const poemMeta = POEMS.filter(
+  (p) =>
+    !p.title ||
+    !p.titlePinyin ||
+    !p.author ||
+    !p.dynasty ||
+    !p.emoji ||
+    !p.summary ||
+    !p.tip ||
+    p.palette?.length !== 2 ||
+    !POEM_THEMES.some((t) => t.id === p.theme)
+)
+check(
+  poemMeta.length === 0,
+  `每首诗都有标题/拼音/作者/朝代/主题/简介/提示和两色渐变${poemMeta.length ? `（${poemMeta.map((p) => p.id).join('、')}）` : ''}`
+)
+
+const poemNoSense = POEMS.filter((p) => p.lines.some((l) => !l.text || !l.pinyin || !l.sense))
+check(
+  poemNoSense.length === 0,
+  `每一句都有正文、拼音和白话${poemNoSense.length ? `（${poemNoSense.map((p) => `《${p.title}》`).join('')}）` : ''}`
+)
+
+// 长廊按主题分区，某个主题一首诗都没有的话，点进去就是空页面。
+const emptyThemes = POEM_THEMES.filter((t) => !POEMS.some((p) => p.theme === t.id))
+check(
+  emptyThemes.length === 0,
+  `每个主题分区都有诗${emptyThemes.length ? `（空：${emptyThemes.map((t) => t.name).join('、')}）` : ''}`
+)
+
+// 注解表留着用不到的条目不算错，但通常意味着诗被改过而注解忘了跟着删。
+const strayGloss = Object.keys(POEM_GLOSS).filter(
+  (ch) => !POEMS.some((p) => charsInPoem(p).includes(ch))
+)
+check(
+  strayGloss.length === 0,
+  `生字注解表里没有多余条目${strayGloss.length ? `（${strayGloss.join('')}）` : ''}`
+)
+
 const idiomName = (i) => i.word ?? i.idiom ?? i.id
 const idiomScenes = (i) => i.story ?? i.scenes ?? []
 

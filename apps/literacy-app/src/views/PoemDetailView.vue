@@ -88,7 +88,7 @@ async function readAloud() {
     readingIndex.value = i
     say.value = `读第 ${i + 1} 句`
     // eslint-disable-next-line no-await-in-loop
-    const ok = await speak(lines[i].text, { rate: settings.speechRate ?? 0.72 })
+    const ok = await speak(lines[i].text, { rate: Math.min(0.78, settings.speechRate) })
     if (!ok) break
   }
   readingIndex.value = -1
@@ -171,7 +171,7 @@ function onScored(payload) {
             @keydown.enter.prevent="tapGlyph(cell)"
             @keydown.space.prevent="tapGlyph(cell)"
           >
-            <small v-if="settings.showPinyin !== false" class="glyph__p">{{ cell.pinyin }}</small>
+            <small v-if="settings.showPinyin" class="glyph__p">{{ cell.pinyin }}</small>
             <span class="glyph__c">{{ cell.char }}</span>
           </span>
         </p>
@@ -218,7 +218,7 @@ function onScored(payload) {
       v-else
       :lines="poem.lines"
       :title="poem.title"
-      :speech-enabled="settings.speechEnabled !== false"
+      :speech-enabled="settings.speechOn"
       @scored="onScored"
     />
 
