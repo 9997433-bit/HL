@@ -220,19 +220,25 @@ export const useDailyQuestStore = defineStore('dailyQuest', () => {
     tasks.value.length ? Math.round((completedCount.value / tasks.value.length) * 100) : 0
   )
 
+  /** 达成时间由 store 自己记，什么时候都不会漏。 */
+  function stampDoneAt() {
+    for (const id of completedIds.value) {
+      if (!state.doneAt[id]) state.doneAt[id] = Date.now()
+    }
+  }
+
   /**
-   * 把「刚变成完成」的那些收一收：记下达成时间，并挑最新的一件交给卡片庆祝。
+   * 领走还没庆祝过的那一件，没有就返回 null。
    *
-   * 之所以不只靠 watch，是因为大多数任务是在别的页面上完成的——孩子读完绘本
-   * 再回到首页时，这张卡片才刚挂上来，那一刻也该有星星。
+   * 庆祝由卡片来领而不是 store 自己放，是因为大多数任务是在别的页面上完成的：
+   * 孩子读完绘本、看完成语，回到首页这张卡片才刚挂上来，那一刻才轮到星星。
+   * store 只记「哪些已经庆祝过了」，于是同一件事不会撒两次。
    */
   function flushCompletions() {
+    stampDoneAt()
     const now = completedIds.value
     const fresh = now.filter((id) => !state.cheered.includes(id))
     state.cheered = [...now]
-    for (const id of fresh) {
-      if (!state.doneAt[id]) state.doneAt[id] = Date.now()
-    }
     if (!fresh.length) return null
     const latest = fresh[fresh.length - 1]
     const task = tasks.value.find((t) => t.id === latest)
@@ -272,7 +278,7 @@ export const useDailyQuestStore = defineStore('dailyQuest', () => {
 
   // 先挂监听再发任务，翻天重置也就跟着落盘了。
   watch(() => JSON.stringify(state), persist, { flush: 'post' })
-  watch(completedIds, () => flushCompletions())
+  watch(completedIds, stampDoneAt)
   refresh()
 
   return {
