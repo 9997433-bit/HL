@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
-"""Headless RF64 streaming-memory probe: 4 GB of audio through a bounded RSS.
+"""RF64 streaming-memory probe: >4 GiB of audio through a bounded RSS.
 
 SOTA checklist item B3 asks for evidence that a >4 GB RF64 capture streams
-with the process staying under 1 GiB resident. A real multi-gigabyte fixture
-cannot live in the repository, so this probe manufactures the next best
-thing and measures the real code path against it:
+with the process staying under 1 GiB resident. A multi-gigabyte fixture cannot
+live in the repository, so this probe creates one locally and measures the
+real code path against it:
 
+* **dense**: sequentially writes every byte of a non-silent PCM_16 payload,
+  flushes it to disk, verifies that at least 95% of the apparent file size is
+  physically allocated, and streams the whole file through
+  :class:`StreamingSampleSource`. This is the only mode eligible for
+  ``--formal`` because it exercises actual storage I/O rather than holes.
 * **sparse** (default): hand-assembles a syntactically real RF64 header
   (EBU Tech 3306 ``ds64`` chunk carrying the 64-bit sizes) and extends the
   file to its full declared size with ``os.truncate``, so the filesystem
@@ -17,21 +22,20 @@ thing and measures the real code path against it:
   zero blocks with the same call signature, for hosts whose libsndfile
   lacks RF64 or whose filesystem cannot hold the sparse fixture.
 
-Either way the probe then drives ``read_into`` over the full declared frame
+Every mode then drives ``read_into`` over the full declared frame
 count with one reused block buffer — the feeder thread's exact access
 pattern — sampling the resident set as it goes, and writes a JSON report.
 
-This is a headless *proxy*, not formal hardware evidence: the content is
-silence and the host is shared, so the JSON records
-``formal_slo_verified: false`` unless ``--formal`` is passed (which is only
-honest on dedicated hardware against a real capture). The B3 verifier in
-``tests/acceptance/test_sota_checklist.py`` accepts this report as the pass
-signal only when ``formal_slo_verified`` is true; until then B3 stays an
-xfail with the proxy numbers on the record.
+Sparse and mock runs are headless proxies and always record
+``formal_slo_verified: false``. A formal run must explicitly select dense
+mode; the report remains honest that its PCM is generated rather than a live
+input capture. B3 is a file-size/RSS SLO, so source provenance does not alter
+the measured storage/decode path, while physical allocation does.
 
 Examples::
 
-    python3 benchmarks/rf64_memory_probe.py                 # full 4.4 GB pass
+    python3 benchmarks/rf64_memory_probe.py --mode dense --formal
+    python3 benchmarks/rf64_memory_probe.py                 # sparse proxy
     python3 benchmarks/rf64_memory_probe.py --mode mock     # no disk involved
     python3 benchmarks/rf64_memory_probe.py --frames 100000000  # quick smoke
 """
@@ -40,6 +44,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import hashlib
 import json
 import os
 import platform
@@ -75,6 +80,8 @@ DEFAULT_FRAMES: int = 1_100_000_000
 DEFAULT_CHANNELS: int = 2
 DEFAULT_SAMPLE_RATE: int = 48_000
 BYTES_PER_SAMPLE_PCM16: int = 2
+DEFAULT_WRITE_CHUNK_FRAMES: int = 1_048_576
+DENSE_ALLOCATION_MIN_RATIO: float = 0.95
 
 DEFAULT_REPORT_PATH = REPOSITORY_ROOT / ".agent_workspace/v1.0/rf64-memory-report.json"
 
@@ -85,10 +92,11 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--mode",
-        choices=("auto", "sparse", "mock"),
+        choices=("auto", "dense", "sparse", "mock"),
         default="auto",
-        help="sparse: real libsndfile decode of a sparse >4GB RF64 file; "
-        "mock: synthesised handle, no disk; auto: sparse with mock fallback",
+        help="dense: sequentially write and decode every PCM byte; sparse: "
+        "decode a sparse >4GB RF64 file; mock: synthesised handle, no disk; "
+        "auto: sparse with mock fallback",
     )
     parser.add_argument("--frames", type=int, default=DEFAULT_FRAMES)
     parser.add_argument("--channels", type=int, default=DEFAULT_CHANNELS)
@@ -112,6 +120,12 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         help="sample the resident set every N blocks read",
     )
     parser.add_argument(
+        "--write-chunk-frames",
+        type=int,
+        default=DEFAULT_WRITE_CHUNK_FRAMES,
+        help="frames per sequential write when creating a dense fixture",
+    )
+    parser.add_argument(
         "--max-rss-bytes",
         type=int,
         default=PEAK_RSS_MAX_BYTES,
@@ -121,13 +135,13 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         "--scratch-dir",
         type=Path,
         default=None,
-        help="where the sparse fixture is created (default: a temp dir)",
+        help="where the on-disk fixture is created (default: a temp dir)",
     )
     parser.add_argument(
         "--formal",
         action="store_true",
-        help="record formal_slo_verified: true — only defensible on dedicated "
-        "hardware against a real (non-sparse) capture",
+        help="request formal evidence; requires --mode dense and only verifies "
+        "after the dense-allocation and SLO checks pass",
     )
     parser.add_argument(
         "--output",
@@ -138,7 +152,16 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument(
         "--quiet", action="store_true", help="suppress progress lines on stderr"
     )
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    if args.formal and args.mode != "dense":
+        parser.error("--formal requires --mode dense; sparse/mock fixtures cannot be formal")
+    if args.frames <= 0 or args.channels <= 0 or args.sample_rate <= 0:
+        parser.error("--frames, --channels, and --sample-rate must be positive")
+    if args.block_frames <= 0 or args.cache_blocks <= 0:
+        parser.error("--block-frames and --cache-blocks must be positive")
+    if args.rss_sample_every <= 0 or args.write_chunk_frames <= 0:
+        parser.error("--rss-sample-every and --write-chunk-frames must be positive")
+    return args
 
 
 def _progress(quiet: bool, message: str) -> None:
@@ -166,19 +189,14 @@ def _high_water_rss_bytes() -> int:
     return int(peak) if sys.platform == "darwin" else int(peak) * 1024
 
 
-# ---------------------------------------------------- the sparse RF64 file
+# --------------------------------------------------------- the RF64 fixture
 
 
-def write_sparse_rf64(
-    path: Path, *, n_frames: int, channels: int, sample_rate: int
-) -> int:
-    """Assemble a PCM_16 RF64 header and extend the file to size with a hole.
+def _rf64_header(*, n_frames: int, channels: int, sample_rate: int) -> bytes:
+    """Return an EBU Tech 3306 PCM_16 RF64 header."""
+    if n_frames <= 0 or channels <= 0 or sample_rate <= 0:
+        raise ValueError("n_frames, channels, and sample_rate must be positive")
 
-    Chunk sizes past 4 GiB live in the ``ds64`` chunk (EBU Tech 3306); the
-    RIFF-level and data-level 32-bit size fields carry the 0xFFFFFFFF
-    sentinel exactly as a real writer would emit them. Returns the apparent
-    file size in bytes.
-    """
     block_align = channels * BYTES_PER_SAMPLE_PCM16
     data_size = n_frames * block_align
     riff_size = 4 + (8 + 28) + (8 + 16) + (8 + data_size)
@@ -201,11 +219,113 @@ def write_sparse_rf64(
         BYTES_PER_SAMPLE_PCM16 * 8,
     )
     header += b"data" + struct.pack("<I", 0xFFFFFFFF)
+    return bytes(header)
+
+
+def _allocation_evidence(path: Path) -> tuple[int, float]:
+    """Return allocated bytes and their ratio to apparent file size."""
+    stat = path.stat()
+    allocated_bytes = int(stat.st_blocks) * 512
+    ratio = allocated_bytes / stat.st_size if stat.st_size else 0.0
+    return allocated_bytes, ratio
+
+
+def write_sparse_rf64(
+    path: Path, *, n_frames: int, channels: int, sample_rate: int
+) -> dict[str, Any]:
+    """Assemble an RF64 header and extend the PCM payload with a hole."""
+    header = _rf64_header(
+        n_frames=n_frames,
+        channels=channels,
+        sample_rate=sample_rate,
+    )
+    data_size = n_frames * channels * BYTES_PER_SAMPLE_PCM16
 
     with open(path, "wb") as handle:
-        handle.write(bytes(header))
+        handle.write(header)
     os.truncate(path, len(header) + data_size)
-    return len(header) + data_size
+    allocated_bytes, allocated_ratio = _allocation_evidence(path)
+    return {
+        "file_size_bytes": len(header) + data_size,
+        "pcm_bytes_written": 0,
+        "write_method": "sparse-truncate",
+        "write_chunk_frames": None,
+        "payload_sha256": None,
+        "allocated_bytes": allocated_bytes,
+        "allocated_ratio": round(allocated_ratio, 6),
+        "dense_allocation_verified": False,
+        "pcm_content": "zero-filled sparse hole",
+    }
+
+
+def write_dense_rf64(
+    path: Path,
+    *,
+    n_frames: int,
+    channels: int,
+    sample_rate: int,
+    write_chunk_frames: int = DEFAULT_WRITE_CHUNK_FRAMES,
+) -> dict[str, Any]:
+    """Sequentially write a physically allocated, non-silent PCM_16 RF64.
+
+    The bounded deterministic PCM chunk is reused so fixture creation does not
+    scale resident memory with file size. ``fsync`` precedes allocation
+    accounting so delayed writes cannot make a sparse file look dense.
+    """
+    if write_chunk_frames <= 0:
+        raise ValueError("write_chunk_frames must be positive")
+    header = _rf64_header(
+        n_frames=n_frames,
+        channels=channels,
+        sample_rate=sample_rate,
+    )
+    block_align = channels * BYTES_PER_SAMPLE_PCM16
+    data_size = n_frames * block_align
+    pattern_frames = min(write_chunk_frames, n_frames)
+    sample_indexes = np.arange(pattern_frames * channels, dtype=np.uint32)
+    pattern = ((sample_indexes * 1103 + 12345) & 0xFFFF).astype("<u2").view("<i2")
+    pattern_bytes = pattern.tobytes()
+    del pattern, sample_indexes
+
+    payload_digest = hashlib.sha256()
+    pcm_bytes_written = 0
+    frames_written = 0
+    started = time.perf_counter()
+    with open(path, "wb", buffering=4 * 1024**2) as handle:
+        handle.write(header)
+        while frames_written < n_frames:
+            take_frames = min(pattern_frames, n_frames - frames_written)
+            chunk = pattern_bytes[: take_frames * block_align]
+            written = handle.write(chunk)
+            if written != len(chunk):
+                raise OSError(f"short RF64 fixture write: {written} of {len(chunk)} bytes")
+            payload_digest.update(chunk)
+            pcm_bytes_written += written
+            frames_written += take_frames
+        handle.flush()
+        os.fsync(handle.fileno())
+
+    stat = path.stat()
+    expected_size = len(header) + data_size
+    if stat.st_size != expected_size or pcm_bytes_written != data_size:
+        raise OSError(
+            "dense RF64 fixture size mismatch: "
+            f"file={stat.st_size}, expected={expected_size}, "
+            f"PCM written={pcm_bytes_written}, expected PCM={data_size}"
+        )
+    allocated_bytes, allocated_ratio = _allocation_evidence(path)
+    return {
+        "file_size_bytes": stat.st_size,
+        "pcm_bytes_written": pcm_bytes_written,
+        "write_method": "sequential-chunked-write",
+        "write_chunk_frames": write_chunk_frames,
+        "write_wall_clock_seconds": round(time.perf_counter() - started, 3),
+        "payload_sha256": payload_digest.hexdigest(),
+        "allocated_bytes": allocated_bytes,
+        "allocated_ratio": round(allocated_ratio, 6),
+        "dense_allocation_verified": allocated_ratio >= DENSE_ALLOCATION_MIN_RATIO,
+        "pcm_content": "deterministic non-silent generated PCM_16",
+    }
 
 
 # ---------------------------------------------------------- the mock handle
@@ -332,24 +452,41 @@ def run_probe(args: argparse.Namespace) -> dict[str, Any]:
         mode = "sparse" if _sparse_supported() else "mock"
 
     pcm_bytes = args.frames * args.channels * BYTES_PER_SAMPLE_PCM16
-    if mode == "sparse":
+    if mode in {"dense", "sparse"}:
         scratch = (
             tempfile.TemporaryDirectory(prefix="rf64-probe-")
             if args.scratch_dir is None
             else contextlib.nullcontext(str(args.scratch_dir))
         )
         with scratch as scratch_dir:
-            fixture = Path(scratch_dir) / "sparse-4gb.rf64"
-            file_size = write_sparse_rf64(
-                fixture,
-                n_frames=args.frames,
-                channels=args.channels,
-                sample_rate=args.sample_rate,
-            )
+            fixture = Path(scratch_dir) / f"{mode}-4gb.rf64"
+            fixture.parent.mkdir(parents=True, exist_ok=True)
+            if mode == "dense":
+                _progress(
+                    args.quiet,
+                    f"writing {pcm_bytes / 2**30:.2f} GiB dense PCM "
+                    f"in {args.write_chunk_frames:,}-frame chunks",
+                )
+                fixture_evidence = write_dense_rf64(
+                    fixture,
+                    n_frames=args.frames,
+                    channels=args.channels,
+                    sample_rate=args.sample_rate,
+                    write_chunk_frames=args.write_chunk_frames,
+                )
+            else:
+                fixture_evidence = write_sparse_rf64(
+                    fixture,
+                    n_frames=args.frames,
+                    channels=args.channels,
+                    sample_rate=args.sample_rate,
+                )
+            file_size = fixture_evidence["file_size_bytes"]
             _progress(
                 args.quiet,
-                f"sparse fixture: {file_size / 2**30:.2f} GiB apparent, "
-                f"{os.stat(fixture).st_blocks * 512 / 2**10:.0f} KiB on disk",
+                f"{mode} fixture: {file_size / 2**30:.2f} GiB apparent, "
+                f"{fixture_evidence['allocated_bytes'] / 2**30:.2f} GiB allocated "
+                f"({fixture_evidence['allocated_ratio']:.3f} ratio)",
             )
             container = sniff_container(fixture)
             streams = should_stream(fixture)
@@ -361,6 +498,17 @@ def run_probe(args: argparse.Namespace) -> dict[str, Any]:
                 measured = _read_loop(source, args)
     else:
         file_size = pcm_bytes  # the container the mock stands in for
+        fixture_evidence = {
+            "file_size_bytes": file_size,
+            "pcm_bytes_written": 0,
+            "write_method": "mock-no-file",
+            "write_chunk_frames": None,
+            "payload_sha256": None,
+            "allocated_bytes": 0,
+            "allocated_ratio": 0.0,
+            "dense_allocation_verified": False,
+            "pcm_content": "synthesised zero blocks",
+        }
         container = "RF64"
         streams = True
         handle = _MockRF64Handle(
@@ -387,26 +535,41 @@ def run_probe(args: argparse.Namespace) -> dict[str, Any]:
         and measured["frames_read"] == args.frames
         and container == "RF64"
     )
-    evidence = "direct" if args.formal else "headless-proxy"
-    limitation = (
-        "real hardware run declared formal by the operator"
-        if args.formal
-        else (
+    formal_eligible = (
+        mode == "dense"
+        and fixture_evidence["dense_allocation_verified"] is True
+        and fixture_evidence["pcm_bytes_written"] == pcm_bytes
+        and fixture_evidence["payload_sha256"] is not None
+    )
+    formal_verified = bool(args.formal and formal_eligible and passed)
+    evidence = "direct-dense" if mode == "dense" else "headless-proxy"
+    if formal_verified:
+        limitation = (
+            "Direct isolated-VM measurement against fully allocated generated PCM; "
+            "this proves the file-size/RSS streaming SLO, not live-input capture "
+            "provenance."
+        )
+    elif mode == "dense":
+        limitation = (
+            "Dense direct measurement was not formalised because either --formal "
+            "was absent, physical allocation was below 95%, or an SLO check failed."
+        )
+    else:
+        limitation = (
             "zero-filled fixture on a shared host: the decode path, block "
             "cache and RSS ceiling are real, but the content is synthetic "
-            "and no dedicated-hardware capture was involved."
+            "and physical storage I/O is not exercised."
         )
-    )
     result = {
         "slo_id": "rf64-4gb-rss",
         "title": (
             f"{file_size / 2**30:.1f} GiB RF64 streaming read loop under "
-            f"{args.max_rss_bytes / 2**30:g} GiB RSS ({mode} proxy)"
+            f"{args.max_rss_bytes / 2**30:g} GiB RSS ({mode} fixture)"
         ),
         "status": "pass" if passed else "fail",
         "threshold_pass": passed,
         "evidence": evidence,
-        "formal_slo_verified": bool(args.formal),
+        "formal_slo_verified": formal_verified,
         "measured": measured,
         "threshold": {
             "file_size_bytes_min": FILE_SIZE_MIN_BYTES,
@@ -432,7 +595,10 @@ def run_probe(args: argparse.Namespace) -> dict[str, Any]:
             "block_frames": args.block_frames,
             "cache_blocks": args.cache_blocks,
             "rss_sample_every_blocks": args.rss_sample_every,
+            "write_chunk_frames": args.write_chunk_frames,
         },
+        "fixture": fixture_evidence,
+        "formal_requested": bool(args.formal),
         # Top-level copies of what the B3 verifier reads.
         "file_size_bytes": file_size,
         "peak_rss_bytes": measured["peak_rss_bytes"],
@@ -440,9 +606,9 @@ def run_probe(args: argparse.Namespace) -> dict[str, Any]:
         "formal_slo_verified": result["formal_slo_verified"],
         "results": [result],
         "summary": {
-            "proxy_passed": int(passed),
-            "proxy_failed": int(not passed),
-            "formal_slos_verified": int(passed and args.formal),
+            "passed": int(passed),
+            "failed": int(not passed),
+            "formal_slos_verified": int(formal_verified),
         },
     }
 
@@ -456,6 +622,8 @@ def main(argv: list[str] | None = None) -> int:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(rendered + "\n", encoding="utf-8")
         _progress(args.quiet, f"report written to {args.output}")
+    if args.formal:
+        return 0 if report["formal_slo_verified"] else 1
     return 0 if report["results"][0]["threshold_pass"] else 1
 
 

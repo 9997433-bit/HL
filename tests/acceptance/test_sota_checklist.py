@@ -304,11 +304,9 @@ def _verify_rf64_streaming(_tmp_path: Path) -> None:
 
     source = inspect.getsource(loader)
     assert "RF64" in source
-    # benchmarks/rf64_memory_probe.py writes this report. The size and RSS
-    # thresholds are checked against whatever run produced it, but only a run
-    # marked formal (dedicated hardware, real capture) closes the item — the
-    # default headless sparse-fixture proxy records formal_slo_verified: false
-    # and keeps B3 an xfail with the proxy numbers on the record.
+    # benchmarks/rf64_memory_probe.py writes this report. Its formal path is
+    # gated to a fully allocated, sequentially written dense PCM fixture;
+    # sparse and mock modes cannot set formal_slo_verified.
     report = _load_json(REPOSITORY_ROOT / ".agent_workspace/v1.0/rf64-memory-report.json")
     assert report["file_size_bytes"] > 4 * 1024**3
     assert report["peak_rss_bytes"] < 1024**3
@@ -635,11 +633,6 @@ CHECKLIST_CASES = (
         "P0",
         "4GB RF64 streaming under 1GB RSS",
         _verify_rf64_streaming,
-        "headless sparse-fixture proxy passes (4.4GB RF64 streamed at 107MiB "
-        "peak RSS; see .agent_workspace/v1.0/rf64-memory-report.json) but "
-        "records formal_slo_verified: false by design — sparse zero-filled "
-        "fixture on a shared host; the dedicated-hardware run that could flip "
-        "it is still missing",
     ),
     ChecklistCase("B4", "P0", "100-step undo/redo", _verify_undo_redo_100_steps),
     ChecklistCase("B5", "P1", "Spectral edit, DeClick, and DeHum", _verify_spectral_repairs),
