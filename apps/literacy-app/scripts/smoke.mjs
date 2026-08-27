@@ -743,6 +743,7 @@ await interact('成语头图：跟着 data-theme 换色', '/#/idioms/szdt', asyn
 
 // 用 b3：前面的绘本用例已经把 b1 读完了，而「第一次读完」才发庆祝
 await interact('庆祝动画：可以立刻跳过', '/#/books/b3', async (page) => {
+  await page.waitForFunction(() => /下一页|读完啦/.test(document.body.innerText), { timeout: 10000 })
   for (let i = 0; i < 8; i++) {
     if (await clickText(page, '下一页')) continue
     if (await clickText(page, '读完啦')) break
@@ -1061,7 +1062,8 @@ await interact('徽章：学会第一个字就点亮，首页与家长中心都�
   if (!home.chip) throw new Error('首页顶部没有徽章数量')
 
   await page.goto(page.url().replace(/#.*$/, '#/parent'), { waitUntil: 'networkidle2' })
-  await new Promise((r) => setTimeout(r, 400))
+  // 家长中心是按需 chunk：机器忙的时候 400 毫秒未必挂得上来，等算术闸门真的出现
+  await page.waitForSelector('input[type="number"]', { timeout: 10000 })
   await page.evaluate(() => {
     const label = document.body.innerText.match(/(\d+)\s*\+\s*(\d+)/)
     const input = document.querySelector('input[type="number"]')
@@ -1072,7 +1074,9 @@ await interact('徽章：学会第一个字就点亮，首页与家长中心都�
   })
   await new Promise((r) => setTimeout(r, 200))
   await clickText(page, '进入')
-  await new Promise((r) => setTimeout(r, 400))
+  await page
+    .waitForFunction(() => document.body.innerText.includes('成就徽章墙'), { timeout: 10000 })
+    .catch(() => {})
 
   const parent = await page.evaluate(() => ({
     total: document.querySelectorAll('.badge').length,
@@ -1112,7 +1116,8 @@ await interact('播报：答题与庆祝都有 aria-live', '/#/listen', async (p
 
   // 庆祝浮层：读完一本没读过的绘本
   await page.goto(page.url().replace(/#.*$/, '#/books/b2'), { waitUntil: 'networkidle2' })
-  await new Promise((r) => setTimeout(r, 400))
+  // 绘本页也是按需 chunk：翻页按钮没挂上来就开始点，会一页都翻不到
+  await page.waitForFunction(() => /下一页|读完啦/.test(document.body.innerText), { timeout: 10000 })
   for (let i = 0; i < 8; i++) {
     if (await clickText(page, '下一页')) continue
     if (await clickText(page, '读完啦')) break
