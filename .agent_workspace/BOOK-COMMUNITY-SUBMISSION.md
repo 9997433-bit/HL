@@ -37,9 +37,9 @@
 |---|---|---|
 | S1 撰写 | 投稿人 | 一个 `submission.json`（本文档第三节的 schema） |
 | S2 自检 | 投稿人 | 本地跑第五节的三条命令，全绿才提 PR |
-| S3 机检 | CI | `gen:books` + `check:data` + `check:round8`，任一红灯自动打回 |
+| S3 机检 | CI | `check:submissions`（ajv）+ `gen:books` + `check:data`，任一红灯自动打回 |
 | S4 人审 | 维护者 | 第四节 B 类规则（教学性、语感、价值观），只看机器看不出来的 |
-| S5 合入 | 维护者 | JSON 追加进 `scripts/data/book-seed-l{N}.mjs`，重跑生成器提交生成物 |
+| S5 合入 | 维护者 | 一条 `npm run import:book -- <文件>`：归档 JSON、追加种子、重跑生成器 |
 
 S3 之前不占用任何人工时间，这是整个流程能规模化的前提。S4 只看四件事：
 句子读起来像不像话、情节有没有起承转合、有没有说教味、有没有价值观问题。
@@ -190,12 +190,12 @@ JSON Schema 只管得住形状。真正的内容约束（用字越界、多音�
 
 | 编号 | 规则 | 由谁执行 | 失败表现 |
 |---|---|---|---|
-| A-1 | JSON 通过 3.5 的 schema | CI（ajv） | 字段缺失 / 多字段 / 正文含非法字符 |
-| A-2 | 正文每个汉字都在 `char-index.js` 里 | `gen-books.mjs` 的 `checkChars` | `「囧」不在字表里` |
-| A-3 | `STRICT` 多音字被 `book-pinyin.mjs` 词条覆盖 | `gen-books.mjs` | `多音字「长」没有词条定音` |
-| A-4 | 书名在 132 本里唯一 | `gen-books.mjs` + `check-data.mjs` | `书名重复` |
-| A-5 | 页数 ≥ 该级下限 | `gen-books.mjs` 的 `MIN_PAGES` | `第 3 级要 ≥ 7 页，只有 6 页` |
-| A-6 | 书名本身也只用字表内的字 | `gen-books.mjs` 给书名注音时 | 同 A-2 |
+| A-1 | JSON 通过 3.5 的 schema | `import-book-submission.mjs`（ajv） | 字段缺失 / 多字段 / 正文含非法字符 |
+| A-2 | 正文每个汉字都在 `char-index.js` 里 | 导入器 + `gen-books.mjs`（同一份 `book-text.mjs`） | `「囧」不在字表里` |
+| A-3 | `STRICT` 多音字被 `book-pinyin.mjs` 词条覆盖 | 同上 | `多音字「长」没有词条定音` |
+| A-4 | 书名在 132 本里唯一 | 导入器 + `gen-books.mjs` + `check-data.mjs` | `书名重复` |
+| A-5 | 页数 ≥ 该级下限 | 导入器 + `gen-books.mjs` 的 `MIN_PAGES` | `第 3 级要 ≥ 7 页，只有 6 页` |
+| A-6 | 书名本身也只用字表内的字 | 导入器 + `gen-books.mjs` 给书名注音时 | 同 A-2 |
 | A-7 | 每页都有 emoji 和正文 | `check-data.mjs` | `每页都有插图和正文` 变红 |
 | A-8 | 生成后 `newChars` 全在字表里 | `check-data.mjs` | `绘本的重点字都在字表里` 变红 |
 | A-9 | 合入后每一级仍 ≥ 12 本、总数 ≥ 130 | `check-data.mjs` | 只在删书时才可能红 |
@@ -228,26 +228,29 @@ B-1 值得单独说一句：受字表限制写出来的句子很容易带一股�
 # 0. 一次性准备
 npm install
 
-# 1. 把 JSON 手工翻成种子条目，追加到对应分级的种子文件
-#    scripts/data/book-seed-l3.mjs  ←  { t, sub, cover, summary, pages: [[emoji, text], ...] }
+# 1. 只校验，不改仓库：A 类十条规则一次把全部反馈给齐
+node scripts/import-book-submission.mjs submission-xxx.json --dry-run
 
-# 2. 重新生成绘本数据（用字越界 / 多音字 / 页数 / 书名撞车都在这一步炸）
-cd apps/literacy-app && npm run gen:books
+# 2. 全绿之后真的合入：归档 JSON + 追加种子 + 重跑 gen:books（任一步失败整体回滚）
+npm run import:book -- submission-xxx.json
 
-# 3. 内容自检（61 项，必须 61/61）
-npm run check:data
+# 3. 内容自检（必须全绿）
+cd apps/literacy-app && npm run check:data
 
 # 4. 回到仓库根，确认没有踩到别的门禁
-cd ../.. && npm run check:round8
+cd ../.. && npm run test:literacy
 ```
 
-第 2 步的报错信息是逐条列出来的，`gen-books.mjs` 在有任何一条错误时**不写任何文件**，
-所以失败不会污染工作区。第 3 步末尾会打一行统计，把书本数、总页数、不重复用字数
+第 1 步和第 2 步用的是同一套判据（`apps/literacy-app/scripts/book-text.mjs`，
+和生成器共用），所以 `--dry-run` 说能过，`gen:books` 就不会翻脸。导入器在有任何
+一条 A 类红灯时**不写任何文件**，落盘中途出错也会把已改的文件还原，
+失败不会污染工作区。第 3 步末尾会打一行统计，把书本数、总页数、不重复用字数
 一起报出来，方便在 PR 描述里贴。
 
-PR 需要包含：投稿 JSON（放 `apps/literacy-app/scripts/data/submissions/` 下）、
+PR 需要包含：投稿 JSON（导入器会自动放到 `apps/literacy-app/scripts/data/submissions/`）、
 改动后的种子文件、以及**重跑生成器产生的全部生成物**（`src/data/books/l*.js`、
-`src/data/books/index.js`、`src/data/book-index.js`）。生成物不提交会让 CI 红。
+`src/data/books/extended.js`、`src/data/book-index.js`）。生成物不提交会让 CI 红。
+选 `CC-BY-4.0` 的投稿还会多一行 `THIRD_PARTY_NOTICES.md` 署名，一并提交。
 
 ---
 
@@ -255,57 +258,65 @@ PR 需要包含：投稿 JSON（放 `apps/literacy-app/scripts/data/submissions/
 
 ### 6.1 一份合格的投稿（L2）
 
+这份就是导入器的正向自检夹具
+（`apps/literacy-app/scripts/fixtures/submissions/valid-l2-xiaomaoheyueliang.json`），
+A 类十条规则全绿：
+
 ```json
 {
   "schema": "hongen-book/1",
   "level": 2,
-  "title": "小狗找影子",
-  "sub": "太阳一动它也动",
-  "cover": "🐕",
-  "summary": "小狗第一次发现地上跟着自己的黑影子，追了一上午也没追上。",
+  "title": "小猫和月亮",
+  "sub": "云走了它就回来",
+  "cover": "🌙",
+  "summary": "小猫夜里坐在门口看月亮，云把月亮盖住了，它一直等到月亮回来。",
   "pages": [
-    { "emoji": "🌞", "text": "太阳出来了，地上有一只小狗。" },
-    { "emoji": "🐕", "text": "小狗一走，地上有个黑东西也走。" },
-    { "emoji": "❓", "text": "小狗问：你是谁？" },
-    { "emoji": "🌳", "text": "黑东西不说话，只跟着走。" },
-    { "emoji": "🏃", "text": "小狗跑，它也跑，怎么也跑不掉。" },
-    { "emoji": "☁️", "text": "云来了，黑东西不见了。" },
-    { "emoji": "🌞", "text": "云走了，它又回来了。" },
-    { "emoji": "😊", "text": "小狗不问了，它们一起回家。" }
+    { "emoji": "🌙", "text": "夜里，小猫在门口看月亮。" },
+    { "emoji": "🌕", "text": "月亮圆圆的，很白很大。" },
+    { "emoji": "🐱", "text": "小猫问：月亮，你冷不冷？" },
+    { "emoji": "☁️", "text": "风来了，云把月亮盖住了。" },
+    { "emoji": "😿", "text": "小猫坐在门口，一直等。" },
+    { "emoji": "🌙", "text": "云走了，月亮回来了。" },
+    { "emoji": "🏠", "text": "妈妈叫小猫回家睡觉。" },
+    { "emoji": "💤", "text": "小猫说：月亮，明天见。" }
   ],
   "contributor": {
-    "name": "李四",
-    "contact": "lisi@example.com",
+    "name": "示例投稿人",
+    "contact": "submissions@example.com",
     "license": "CC0-1.0",
     "original": true
   },
-  "notes": "想让孩子自己猜出「影子」这个词，所以全文没写出来。"
+  "notes": "想让孩子自己数出月亮被云盖住的那几页，所以没有写「影子」「遮」这类字。"
 }
 ```
 
-翻成种子条目后长这样（这是维护者在 S5 做的事，投稿人也可以直接照这个格式提）：
+导入器翻出来的种子条目长这样（投稿人也可以直接照这个格式提）：
 
 ```js
 {
-  t: '小狗找影子',
-  sub: '太阳一动它也动',
-  cover: '🐕',
-  summary: '小狗第一次发现地上跟着自己的黑影子，追了一上午也没追上。',
+  t: '小猫和月亮',
+  sub: '云走了它就回来',
+  cover: '🌙',
+  summary: '小猫夜里坐在门口看月亮，云把月亮盖住了，它一直等到月亮回来。',
   pages: [
-    ['🌞', '太阳出来了，地上有一只小狗。'],
-    ['🐕', '小狗一走，地上有个黑东西也走。'],
-    ['❓', '小狗问：你是谁？'],
-    ['🌳', '黑东西不说话，只跟着走。'],
-    ['🏃', '小狗跑，它也跑，怎么也跑不掉。'],
-    ['☁️', '云来了，黑东西不见了。'],
-    ['🌞', '云走了，它又回来了。'],
-    ['😊', '小狗不问了，它们一起回家。']
+    ['🌙', '夜里，小猫在门口看月亮。'],
+    ['🌕', '月亮圆圆的，很白很大。'],
+    ['🐱', '小猫问：月亮，你冷不冷？'],
+    ['☁️', '风来了，云把月亮盖住了。'],
+    ['😿', '小猫坐在门口，一直等。'],
+    ['🌙', '云走了，月亮回来了。'],
+    ['🏠', '妈妈叫小猫回家睡觉。'],
+    ['💤', '小猫说：月亮，明天见。']
   ]
 }
 ```
 
-生成器会补上 `id: 'bx133'`、逐页拼音、`levelName: '第 2 级 · 太阳一动它也动'`、
+生成器会补上 `id: 'bx103'`、逐页拼音、`levelName: '第 2 级 · 云走了它就回来'`、
 按序号取的两色渐变，以及从正文里挑出来的 `newChars`。
+
+顺带一句字表的坑：1820 字是一份课程表，不是常用字全集——`出`、`着`、`得`、`谁`、
+`跟`、`掉` 这些看着最普通的字都不在里面。写之前先跑一次 `--dry-run`，比照着感觉写完
+再回头改省事得多。
 
 ### 6.2 一份会被退回的投稿及报错
 
@@ -322,7 +333,7 @@ PR 需要包含：投稿 JSON（放 `apps/literacy-app/scripts/data/submissions/
     { "emoji": "🐘", "text": "大象很大，它的鼻子很长。" },
     { "emoji": "🐜", "text": "蚂蚁很小，小得像一个点。" },
     { "emoji": "📏", "text": "我用尺子量一量：1 米。" },
-    { "emoji": "🌳", "text": "树很高，草很矮。" },
+    { "emoji": "🌳", "text": "草有三种，高的矮的都有。" },
     { "emoji": "🙋", "text": "我长大了也会很高。" },
     { "emoji": "😊", "text": "小朋友们要好好学习，天天向上！" }
   ],
@@ -330,33 +341,51 @@ PR 需要包含：投稿 JSON（放 `apps/literacy-app/scripts/data/submissions/
 }
 ```
 
-会收到这些反馈：
+这份 JSON 就是导入器的反面自检夹具（`apps/literacy-app/scripts/fixtures/submissions/rejected-l3-dadaxiaoxiao.json`），
+`node scripts/import-book-submission.mjs <文件> --dry-run` 逐字打出：
 
 ```
-A-1  ✗ 多了不允许的字段 id
-A-1  ✗ contributor.license 只接受 CC0-1.0 / CC-BY-4.0，收到 MIT
-A-1  ✗ pages[2].text 含非法字符：阿拉伯数字「1」与字母「米」以外的半角内容
-A-3  ✗ 多音字「长」没有词条定音（大象很大，它的鼻子很长。）
-A-3  ✗ 多音字「长」没有词条定音（我长大了也会很高。）
-A-4  ✗ 书名重复：《大大小小》已经是 b7
+A-1  ✗ pages 至少要 7 项
+A-1  ✗ 多了不允许的字段 id —— 这些字段由 gen-books.mjs 生成
+A-1  ✗ summary 长度要求 ≥ 15
+A-1  ✗ pages.2.text 含非法字符：正文只能用字表汉字和 ，。！？：、；…— 九个全角标点
+A-1  ✗ contributor.license 只接受 CC0-1.0 / CC-BY-4.0
+A-2  ✗ 《大大小小》第 2 页：「得」不在字表里（蚂蚁很小，小得像一个点。）
+A-2  ✗ 《大大小小》第 3 页：「1」不在字表里（我用尺子量一量：1 米。）
+A-2  ✗ 《大大小小》第 4 页：「矮」不在字表里（草有三种，高的矮的都有。）
+A-3  ✗ 《大大小小》第 4 页：多音字「种」没有词条定音（草有三种，高的矮的都有。）
+A-4  ✗ 书名重复：《大大小小》已经被现有书目占用
 A-5  ✗ 第 3 级要 ≥ 7 页，只有 6 页
-B-3  ✗ 末页「要好好学习，天天向上」是贴上去的口号，与前文无关
 ```
 
-其中 A-3 的修法是给 `book-pinyin.mjs` 加 `很长: ['hěn', 'cháng']` 和
-`长大: ['zhǎng', 'dà']` 两条词条；A-4 只能改书名。
+人审还会补一条 `B-3`：末页「要好好学习，天天向上」是贴上去的口号，与前文无关。
+
+其中 A-3 的修法是给 `book-pinyin.mjs` 加 `三种: ['sān', 'zhǒng']` 词条
+（`很长`、`长大` 这类常用多音词词典里已经有了，所以那两句反而不报错）；
+A-2 的「得 / 像 / 矮」只能换字，A-4 只能改书名。
 
 ---
 
-## 七、尚未落地的部分
+## 七、自动化落地情况（Round 10）
 
-本规范定义了格式与判据，但以下两件事目前仍是手工的，属于后续可做的工程项：
+规范初版留了两个手工缺口，Round 10 都已经补上：
 
 1. **`scripts/import-book-submission.mjs`** —— 读一个 `submission.json`，按 3.5 校验
-   形状，再自动追加到对应的 `book-seed-l{N}.mjs` 并调用 `gen:books`。做掉它之后
-   S5 的手工翻写就消失了。
-2. **CI 上的 ajv 校验步** —— 目前 A-1 靠人眼，A-2 到 A-10 已经被
-   `gen:books` + `check:data` 完整覆盖。补上 ajv 之后 S3 就是全自动的。
+   形状，再自动归档 JSON、追加到对应的 `book-seed-l{N}.mjs`、写 CC-BY 署名、
+   调用 `gen:books`。S5 的手工翻写没有了。
+2. **CI 上的 ajv 校验步** —— `npm run check:submissions` 已挂进 `scripts/test-literacy.sh`，
+   也就是 `npm test` 的必经之路。A-1 由 ajv 判，A-2 ~ A-6 复用生成器同一套
+   `book-text.mjs`，A-7 ~ A-10 仍由 `check:data` 守，S3 全自动。
 
-在这两件事落地之前，投稿人直接按 6.1 的种子格式提 PR 也一样受理——
-JSON 只是给自动化留的接口，不是给人为难的关卡。
+两条实现上的取舍值得记一笔：
+
+- **schema 不在代码里抄第二份。** 导入器启动时从本文件 3.5 那个 `json` 代码块里
+  把 schema 抠出来喂给 ajv，抠不到就直接报错退出。这样「文档改了、CI 还按老规矩
+  收稿」这种分叉根本没有存在的余地。
+- **门禁自己有看门狗。** 只校验 `scripts/data/submissions/` 下的存量投稿的话，
+  目录空着时这道门禁会一直绿，校验器什么时候悄悄坏掉都没人知道。所以
+  `--check-all` 还会跑 `apps/literacy-app/scripts/fixtures/submissions/` 下的两份夹具：
+  6.1 那本必须全绿，6.2 那本必须踩中 A-1/A-2/A-3/A-4/A-5，少踩一条就红。
+
+投稿人直接按 6.1 的种子格式提 PR 也一样受理——JSON 只是给自动化留的接口，
+不是给人为难的关卡。
