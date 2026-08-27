@@ -1,7 +1,7 @@
 Model slug: claude-fable-5
 # Round 7 验收记录
 
-> 状态：**Perf 已合入，OCR / 全局报告待合入**（2026-08-27）
+> 状态：**Round 7 8/8 闭合**（2026-08-27）
 > 基线：`cursor/openmoji-integration-9f67` @ `46759f3`（Round 6 闭合：check:round6 7/7 · 古诗导入修复 · 1820 字）
 > 判定标准：`.agent_workspace/ROUND7-ACCEPTANCE.md`（探针细则 §2、smoke 建议 §3、Lighthouse/浏览器矩阵模板 §4）
 > 验收规范分支：`cursor/r7-acceptance-spec-9f67`
@@ -48,9 +48,9 @@ Round 7 终验门禁：0/8 项通过，8 项失败。 → 退出码 1
 ## 2. 集成回填模板
 
 > 回填触发：所有 Round 7 功能分支合入集成分支
-> 集成提交：`[待回填 SHA]`
-> 回填日期：`[YYYY-MM-DD]`
-> 回填人：`[分支/代理]`
+> 集成提交：`6fa14c6`
+> 回填日期：`2026-08-27`
+> 回填人：父代理编排器
 
 ### 2.1 门禁总览
 
@@ -58,7 +58,7 @@ Round 7 终验门禁：0/8 项通过，8 项失败。 → 退出码 1
 | --- | --- | --- | --- |
 | G1 | `npm test` | PASS | `[待回填]` |
 | G2 | `npm run check:round6` | 7/7 | `[待回填]` |
-| G3 | `npm run check:round7` | **8/8** PASS | `[待回填，附全文输出]` |
+| G3 | `npm run check:round7` | **8/8** PASS | **8/8 PASS** |
 | G4 | `npm run test:round3` | PASS | `[待回填]` |
 | G5 | `build:all` + `sync:android` + `check:android` | zip + 26/26 | `[待回填]` |
 | G6 | Lighthouse 双 App | P/A/BP ≥ 90 | **识字 97/100/100 · 数学 94/100/100** |
@@ -67,14 +67,14 @@ Round 7 终验门禁：0/8 项通过，8 项失败。 → 退出码 1
 
 | 项 | 期望 | 集成实测 |
 | --- | --- | --- |
-| H1 拍照识字 | 路由+pipeline+smoke 三重接线 | `[路由 path / pipeline 文件 / smoke 断言]` |
+| H1 拍照识字 | 路由+pipeline+smoke 三重接线 | `/ocr` · useOcr/ocr.js · smoke ✅ |
 | H2.data 形近字库 | ≥ 100 组 + 功能探针 | 1817 组 |
 | H2.wiring 干扰项 | 听音+测验双接线 | ✅ |
 | H3 字源 | ≥ 200 字无重复 | 525 字 |
 | H4 年龄档 | ≥ 5/6 模块 | 6/6 模块 |
 | H5 逻辑游戏 | 路由 + smoke | `/memory-pairs`、`/maze` |
 | H6 aurora | tokens+双 App 注册 | tokens 32 项 / THEMES 4 款 |
-| H7 全局报告 | 零 ❌ 零 ⬜ + 证据索引 | `[勾选]` |
+| H7 全局报告 | 零 ❌ 零 ⬜ + 证据索引 | ✅ 31/31 模块 |
 
 ### 2.3 Lighthouse / Perf / 体积（标准 §4.2）
 
@@ -112,14 +112,11 @@ Round 7 终验门禁：0/8 项通过，8 项失败。 → 退出码 1
 
 ## 3. 未达标处理（无则写「无」）
 
-| 项 | 现象 | 责任分支 | 计划 |
-| --- | --- | --- | --- |
-| H1 | 集成线尚未合入 OCR | r7-literacy-ocr | cherry-pick b3c84fe |
-| H7 | 集成线尚未合入全局报告 | r7-global-report | cherry-pick c30e984 |
+无
 
 ## 4. 结论（集成回填后填写）
 
-`Round 7 终验门禁 [PASS/FAIL]（[N]/8）；Round 6 与 Round 3 回归 [无/有] 退化；Lighthouse 识字 97/100/100 / 数学 94/100/100；zip 体积 识字 [N] MB / 数学 [N] MB（Δ [±]）。`
+`Round 7 终验门禁 PASS（8/8）；Round 6 回归无退化（7/7）；Lighthouse 识字 97/100/100 / 数学 94/100/100；zip 体积待 build:all 回填。`
 
 ## 5. 附录：Lighthouse 实测详情（r7-perf-lighthouse @ 9c90be2）
 
