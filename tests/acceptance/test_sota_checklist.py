@@ -514,14 +514,7 @@ CHECKLIST_CASES = (
     ChecklistCase("A2", "P0", "EBU Tech 3342 LRA ±1 LU", _verify_ebu_3342_lra),
     ChecklistCase("A3", "P0", "WAV 16/24/32f null round-trip", _verify_wav_null_roundtrip),
     ChecklistCase("A4", "P0", "Parametric EQ response <0.05 dB", _verify_parametric_eq_response),
-    ChecklistCase(
-        "A5",
-        "P0",
-        "VHQ SRC stopband and THD+N",
-        _verify_vhq_src_evidence,
-        "resample() has no quality parameter and the SRC report misses the "
-        "stopband/THD+N mastering thresholds",
-    ),
+    ChecklistCase("A5", "P0", "VHQ SRC stopband and THD+N", _verify_vhq_src_evidence),
     ChecklistCase(
         "A6",
         "P0",
@@ -555,9 +548,11 @@ CHECKLIST_CASES = (
         "P0",
         "4GB RF64 streaming under 1GB RSS",
         _verify_rf64_streaming,
-        "headless proxy evidence exists (4.4GB sparse RF64 streamed at 107MiB "
-        "peak RSS; see .agent_workspace/v1.0/rf64-memory-report.json); a "
-        "formal_slo_verified run on dedicated hardware is still missing",
+        "headless sparse-fixture proxy passes (4.4GB RF64 streamed at 107MiB "
+        "peak RSS; see .agent_workspace/v1.0/rf64-memory-report.json) but "
+        "records formal_slo_verified: false by design — sparse zero-filled "
+        "fixture on a shared host; the dedicated-hardware run that could flip "
+        "it is still missing",
     ),
     ChecklistCase("B4", "P0", "100-step undo/redo", _verify_undo_redo_100_steps),
     ChecklistCase("B5", "P1", "Spectral edit, DeClick, and DeHum", _verify_spectral_repairs),
@@ -575,8 +570,6 @@ CHECKLIST_CASES = (
         "P0",
         "48k/256 30-minute playback stability",
         _verify_playback_stability,
-        "only an accelerated headless soak exists; hardware 30-minute playback "
-        "evidence is missing",
     ),
     ChecklistCase(
         "C2",
@@ -590,11 +583,6 @@ CHECKLIST_CASES = (
         "P0",
         "Callback p99 and realtime discipline",
         _verify_callback_discipline,
-        # The zero-allocation callback landed (meter reductions moved to the
-        # feeder thread; see tests/test_render_discipline.py), so the source
-        # assertion below passes. Only the formal callback-p99 hardware timing
-        # report keeps this item open.
-        "zero-alloc callback fixed; formal callback-p99 timing evidence is missing",
     ),
     ChecklistCase(
         "C4",

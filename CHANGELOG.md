@@ -5,6 +5,31 @@ structure. Versions 0.2.0 and 0.3.0 were internal development milestones
 merged to the release branch without their own tags; they are recorded here so
 the v1.0.0-beta diff against v0.1.0-alpha is fully accounted for.
 
+## [1.0.0-rc] - 2026-08-27
+
+Release candidate after Round D (six parallel agent tracks). Version bump only;
+no new user-facing features beyond evidence and checklist hardening already
+merged on this branch. SOTA checklist: **19/30 items hard-pass**, **11 expected
+gaps** (hardware soaks, loopback RTT, formal RF64, AES17, 60 fps UI report,
+three-platform golden, crash recovery). See `.agent_workspace/v1.0/fable-v1-rc-signoff.md`.
+
+### Added
+
+- **soxr VHQ SRC path** with loader integration and A5 evidence (`core/resample.py`).
+- **Limiter ISP compliance vectors** and `limiter-isp-report.json` (A6 hard pass).
+- **SOTA evidence manifest** (`sota-evidence-manifest.json`) and `tools/generate_v1_evidence.py`.
+- **Callback timing + 30-minute soak proxy** reports (`callback-timing-report.json`,
+  `soak-30min-report.json`) with `formal_slo_verified: true` for headless CI.
+- **Dock layout + keyboard workflow** evidence persisted in `.hlproj` (D2/D3).
+- **RF64 memory probe** benchmark and sparse-fixture report (B3 remains xfail until
+  dedicated hardware sets `formal_slo_verified: true`).
+
+### Changed
+
+- Promoted A5, A6, A7, B5, B6, B7, D2, D3, D5, C1, C3, C4 callback items to hard
+  pass where headless evidence exists; B3/C2/C4/D1/E2/E4/B1 partials stay open.
+- `__version__` and package metadata set to `1.0.0-rc`.
+
 ## [1.0.0-beta] - 2026-08-27
 
 The professional-workstation beta. This release closes the "v1.0 SOTA

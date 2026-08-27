@@ -1,6 +1,39 @@
-# Audio Studio v1.0.0-beta — Final Release Summary
+# Audio Studio v1.0.0-rc — Final Release Summary
 
 Date: 2026-08-27
+Branch: `cursor/v1.0-round-d-b3cf` merged to alpha
+Tag candidate: `v1.0.0-rc`
+
+## 1. Positioning
+
+**v1.0.0-rc is a professional audio workstation release candidate**, not Adobe
+Audition parity. SOTA checklist: **19/30 items pass**, **11 expected gaps**
+(hardware recording, loopback RTT, formal RF64, AES17, 60 fps UI report, etc.).
+
+## 2. Test evidence (Round D)
+
+| Suite | Result |
+|---|---|
+| Application | **1661 passed**, 13 skipped |
+| SOTA acceptance | **20 passed**, 11 xfailed (19/30 items + structural test) |
+| Full tree | ~1780 passed |
+
+## 3. Major capabilities (cumulative)
+
+Single/streaming edit, multitrack+bus+automation, full effect/repair chain,
+VST3 3-slot scanner+PDC, `.hlproj`/`.hlprojz`, recording/takes, batch+macros,
+soxr SRC, limiter ISP, accessibility/HiDPI, WASAPI/ASIO prefs, PyInstaller scaffold.
+
+## 4. Remaining for v1.0.0 formal / Audition-class
+
+Hardware soaks, loopback latency, formal RF64 capture, AES17, 60 fps certification,
+screen reader, signed installer — see `fable-v1-rc-signoff.md`.
+
+---
+
+_Previous beta summary sections below remain valid for historical context._
+
+# Audio Studio v1.0.0-beta — Final Release Summary (archived header)
 Branch: `cursor/v1.0-final-tag-b3cf` (Round C release signoff; final counts
 added to the Round B draft prepared on `cursor/v1.0-round-b-b3cf`)
 Baseline: consolidated v1.0.0-beta mainline at merge `478014f` (v1.0
