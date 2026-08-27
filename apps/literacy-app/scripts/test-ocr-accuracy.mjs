@@ -1,12 +1,12 @@
 /**
- * ROUND9_H2（承接 ROUND8_H4）—— 拍照识字的识别精度基准。
+ * ROUND10_H2（承接 ROUND9_H2 / ROUND8_H4）—— 拍照识字的识别精度基准。
  *
  * scripts/test-ocr.mjs 守的是取字规则（哪些字符算字、哪些字讲得了），
  * 它给一段假文本就能跑；真正会悄悄退化的那一半——语言包换了、tesseract 升级了、
  * 预处理的对比度拉伸写反了——只有让引擎去认一张真图才看得见。
  * 这个脚本就是那张网，三段各守一处：
  *
- *   1. 引擎跑分：九张固定基准图（public/ocr/sample-photo.png +
+ *   1. 引擎跑分：十三张固定基准图（public/ocr/sample-photo.png +
  *      scripts/fixtures/ocr/*.png）跑一遍 chi_sim，逐张算召回率、
  *      核对关键字、盯住误检和置信度。图一个字节都不变，分数掉了就是引擎侧退化。
  *   2. 预处理：utils/ocr.js 的 preprocess() 是 DOM 代码，这里用一个极小的
@@ -16,12 +16,21 @@
  *
  * ROUND8_H4 的五张图全是「摆好了拍」的印刷体，一个总分掩住了各类版面的差别：
  * 平均分 100% 之下，手写字可能一个都认不出，谁也不知道。ROUND9_H2 把基准集
- * 扩到九张、按 tier 分类，每一类单独定线，退化落在哪一类上一眼就能看出来：
+ * 扩到十张、按 tier 分类，每一类单独定线，退化落在哪一类上一眼就能看出来：
  *
  *   print 印刷体 · warm-light 暖光 · inverted 反色 · blur 失焦
  *   handwriting 手写 · low-light 低光 · busy-background 复杂背景 · perspective 斜拍
  *
- * 后四类是 R9 新增，REQUIRED_TIERS 钉住它们不许被悄悄删掉。
+ * 但这十张有一个共同的出身问题：全是浏览器渲染出来的。字形是系统字体画的、
+ * 噪点是我们自己撒的、模糊是 CSS filter 加的——它们守得住引擎侧退化，守不住
+ * 「真实世界长什么样」。十张合成图跑出总召回 100%，孩子拿手机拍小区告示牌
+ * 却可能一个字都对不上，这段差距在合成图上永远看不见。
+ *
+ * ROUND10_H2 补的就是这一段：real-photo tier 收三张**真人用手机拍的**照片
+ * （Wikimedia Commons，CC BY-SA，只裁剪缩放不做增强，见 gen-ocr-real-samples.mjs），
+ * 台阶立刻显形——同一句「小心地滑」，警示锥上的印刷体 4/4，墙上的喷漆模板字
+ * 只认得出 3/4，「滑」被读成「海」。这不是 bug，是这套离线引擎的真实边界，
+ * 现在它被写进阈值里，谁再改预处理都得先跟这条线对账。
  *
  * 基准图为什么不放 public/：见 scripts/gen-ocr-benchmark.mjs 的说明。
  * 浏览器里的整链（懒加载、Service Worker、点进单字页）由 scripts/smoke.mjs 覆盖，
@@ -42,7 +51,14 @@ import { extractHanzi, OCR_PACK, preprocess, splitByLibrary } from '../src/utils
 
 const asJson = process.argv.includes('--json')
 const appUrl = new URL('../', import.meta.url)
+const repoUrl = new URL('../../', appUrl)
 const langDir = fileURLToPath(new URL('public/ocr/', appUrl)).replace(/\/$/, '')
+
+/** 真实样张的出处 / 授权 / 裁剪框，和 real-*.png 一一对应（见 gen-ocr-real-samples.mjs）。 */
+const realSamples = JSON.parse(
+  await readFile(new URL('scripts/fixtures/ocr/real-samples.json', appUrl), 'utf8')
+)
+const notices = await readFile(new URL('THIRD_PARTY_NOTICES.md', repoUrl), 'utf8')
 
 /**
  * 基准集。
@@ -57,7 +73,7 @@ const langDir = fileURLToPath(new URL('public/ocr/', appUrl)).replace(/\/$/, '')
  * noise   误检额度，缺省用 MAX_NOISE；只有复杂背景那类才配得上更宽的额度
  *
  * 阈值只在换图或换语言包时才动，动之前先跑一遍 --json 把实测记进
- * .agent_workspace/acceptance-log-round9-h2.md。
+ * .agent_workspace/acceptance-log-round10-h2.md。
  */
 const BENCHMARK = [
   {
@@ -154,6 +170,39 @@ const BENCHMARK = [
     keyword: '手',
     recall: 0.75,
     conf: 70
+  },
+  {
+    // 以下三张是 ROUND10_H2 的真实照片，不是画出来的：Commons 上的 CC BY-SA 手机照，
+    // 只裁剪缩放、不做任何增强（gen-ocr-real-samples.mjs），阈值也就跟着真实水平走。
+    tier: 'real-photo',
+    name: '真实照片 绿化带告示牌「爱护花草」',
+    file: 'scripts/fixtures/ocr/real-park-sign.png',
+    expect: '爱护花草',
+    keyword: '花草',
+    recall: 0.75,
+    conf: 55
+  },
+  {
+    tier: 'real-photo',
+    name: '真实照片 商场警示锥「小心地滑」',
+    file: 'scripts/fixtures/ocr/real-floor-cone.png',
+    expect: '小心地滑',
+    keyword: '小心',
+    recall: 0.75,
+    conf: 60
+  },
+  {
+    // 同一句话、两种落地方式：警示锥上是印刷体，这张是墙上的喷漆模板字。
+    // 模板字的笔画被镂空条断开，「滑」稳定地被读成「海」——4 个字只认得出 3 个。
+    // 下限压到 0.5 不是放水，是承认这就是当前引擎在喷漆字上的真实水平；
+    // 哪天换了语言包能认出「滑」了，回来把线抬上去。
+    tier: 'real-photo',
+    name: '真实照片 水泥墙喷漆「小心地滑」',
+    file: 'scripts/fixtures/ocr/real-wall-stencil.png',
+    expect: '小心地滑',
+    keyword: '小心',
+    recall: 0.5,
+    conf: 45
   }
 ]
 
@@ -170,8 +219,25 @@ const MAX_NOISE = 2
  * 是天黑了没开灯的桌面、是花桌布上摆着的字卡。这两条钉住「扩样不许缩回去」——
  * 删图、砍 tier 都会当场红灯，而不是等某天线上认不出来了才发现。
  */
-const MIN_IMAGES = 8
-const REQUIRED_TIERS = ['handwriting', 'low-light', 'busy-background', 'perspective']
+const MIN_IMAGES = 12
+const REQUIRED_TIERS = [
+  'handwriting',
+  'low-light',
+  'busy-background',
+  'perspective',
+  'real-photo'
+]
+
+/**
+ * real-photo tier 单独的规模与分数下限。
+ *
+ * 这一类最容易被「省事」掉：真实照片要找授权、要核哈希、分数还不好看，
+ * 换谁都想删两张换回合成图。两条线拦着——张数（ROUND10_H2 门槛就是 ≥2 张）
+ * 和这一类自己的召回率，掉下去就说明真实场景的识别塌了，而不是总分里的一点噪声。
+ */
+const MIN_REAL_IMAGES = 2
+const REAL_TIER = 'real-photo'
+const REAL_TIER_RECALL = 0.75
 
 /** tier 的中文名，只用于打分表和 --json 的可读性。 */
 const TIER_LABEL = {
@@ -182,7 +248,8 @@ const TIER_LABEL = {
   handwriting: '手写',
   'low-light': '低光',
   'busy-background': '复杂背景',
-  perspective: '斜拍'
+  perspective: '斜拍',
+  'real-photo': '真实照片'
 }
 
 /* ------------------------------------------------------------------ 跑分 */
@@ -287,6 +354,57 @@ test(`基准集不少于 ${MIN_IMAGES} 张，难拍的那几类一张都不许�
   )
   for (const item of BENCHMARK) {
     assert.ok(TIER_LABEL[item.tier], `「${item.name}」的 tier「${item.tier}」没有登记中文名`)
+  }
+})
+
+test(`真实照片不少于 ${MIN_REAL_IMAGES} 张，这一类的召回率单独守线`, () => {
+  const real = BENCHMARK.filter((c) => c.tier === REAL_TIER)
+  assert.ok(
+    real.length >= MIN_REAL_IMAGES,
+    `真实照片只剩 ${real.length} 张（下限 ${MIN_REAL_IMAGES}）`
+  )
+  for (const item of real) {
+    assert.match(
+      item.file,
+      /\/real-[a-z0-9-]+\.png$/,
+      `「${item.name}」的文件名不是 real-*.png：${item.file}`
+    )
+  }
+  const picked = rows.filter((r) => r.item.tier === REAL_TIER)
+  assert.equal(picked.length, real.length, '有真实照片没跑到')
+  const hit = picked.reduce((n, r) => n + r.hit, 0)
+  const total = picked.reduce((n, r) => n + r.total, 0)
+  assert.ok(
+    hit / total >= REAL_TIER_RECALL,
+    `真实照片召回率 ${(hit / total * 100).toFixed(1)}%（${hit}/${total}，` +
+      `下限 ${REAL_TIER_RECALL * 100}%）`
+  )
+})
+
+test('每张真实照片都留着出处与授权，署名同步进 THIRD_PARTY_NOTICES', () => {
+  const declared = new Map(realSamples.samples.map((s) => [s.name, s]))
+  for (const item of BENCHMARK.filter((c) => c.tier === REAL_TIER)) {
+    const name = item.file.replace(/^.*\//, '').replace(/\.png$/, '')
+    const sample = declared.get(name)
+    assert.ok(sample, `「${name}.png」不在 fixtures/ocr/real-samples.json 里，出处不明`)
+    for (const field of ['page', 'file', 'author', 'license', 'licenseUrl', 'sha256']) {
+      assert.ok(sample[field], `「${name}」缺 ${field}——授权信息不齐就不能再分发`)
+    }
+    assert.equal(sample.text, item.expect, `「${name}」清单里的字和基准集对不上`)
+    // 裁剪框写死在清单里，图才可能一个字节都不变；顺手挡住 [0,0,1,1] 这种「没裁」
+    assert.equal(sample.crop.length, 4, `「${name}」的裁剪框不是四个数`)
+    assert.ok(
+      sample.crop[0] < sample.crop[2] && sample.crop[1] < sample.crop[3],
+      `「${name}」的裁剪框反了`
+    )
+    assert.ok(
+      notices.includes(sample.page),
+      `THIRD_PARTY_NOTICES.md 里没有「${name}」的出处链接，CC BY-SA 的署名义务没尽到`
+    )
+    assert.ok(
+      notices.includes(sample.author),
+      `THIRD_PARTY_NOTICES.md 里没有「${name}」的作者署名「${sample.author}」`
+    )
   }
 })
 
@@ -482,6 +600,13 @@ const hit = rows.reduce((n, r) => n + r.hit, 0)
 const total = rows.reduce((n, r) => n + r.total, 0)
 const overall = total ? hit / total : 0
 
+/** 真实样张在报表里要跟着授权走，别让人只看见分数、忘了这图是别人的。 */
+const licenseOf = (item) => {
+  const name = item.file.replace(/^.*\//, '').replace(/\.png$/, '')
+  const sample = realSamples.samples.find((s) => s.name === name)
+  return sample ? `${sample.license} · ${sample.author}` : '出处不明'
+}
+
 /** 按 tier 归并：总分掩住的那一类退化，只有分类分数看得见。 */
 const byTier = []
 for (const item of BENCHMARK) {
@@ -498,9 +623,10 @@ if (asJson) {
   console.log(
     JSON.stringify(
       {
-        marker: 'ROUND9_H2',
-        supersedes: 'ROUND8_H4',
+        marker: 'ROUND10_H2',
+        supersedes: 'ROUND9_H2',
         imageCount: rows.length,
+        realImageCount: rows.filter((r) => r.item.tier === REAL_TIER).length,
         overallRecall: Number(overall.toFixed(4)),
         hit,
         total,
@@ -516,6 +642,7 @@ if (asJson) {
           tier: r.item.tier,
           name: r.name,
           file: r.item.file,
+          ...(r.item.tier === REAL_TIER ? { license: licenseOf(r.item) } : {}),
           recall: Number(r.recall.toFixed(4)),
           hit: r.hit,
           total: r.total,
@@ -549,8 +676,16 @@ if (asJson) {
         `（${(t.total ? t.hit / t.total * 100 : 0).toFixed(0)}%）`
     )
   }
+  const real = rows.filter((r) => r.item.tier === REAL_TIER)
+  if (real.length) {
+    console.log('\n  真实样张出处（CC BY-SA，随仓库再分发需保留署名）：')
+    for (const r of real) {
+      console.log(`    ${r.item.file.replace(/^.*\//, '')} — ${licenseOf(r.item)}`)
+    }
+  }
   console.log(
-    `\n拍照识字精度基准：${rows.length} 张图 / ${byTier.length} 类版面，` +
+    `\n拍照识字精度基准：${rows.length} 张图 / ${byTier.length} 类版面` +
+      `（其中真实照片 ${real.length} 张），` +
       `总召回 ${hit}/${total}（${(overall * 100).toFixed(1)}%）；` +
       `${tests.length - failed} / ${tests.length} 项通过。`
   )

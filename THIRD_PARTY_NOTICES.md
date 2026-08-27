@@ -94,6 +94,27 @@ Apache-2.0 要求随附许可证与 NOTICE：许可证全文见「附录 B」指
   （通过 `@shared/components/OpenMojiIcon.vue` 打包进 dist）；署名见各 App 家长中心页脚。
   其余数据文件里的 emoji 字段会在有对应 SVG 时自动替换，缺映射时仍回退为系统 emoji。
 
+### OCR 真实样张（Wikimedia Commons 照片）— CC BY-SA 2.0 / 3.0 / 4.0
+
+- 位置：`apps/literacy-app/scripts/fixtures/ocr/real-*.png`，出处清单
+  `apps/literacy-app/scripts/fixtures/ocr/real-samples.json`（含原图 URL 与 sha256）。
+- 用途：拍照识字精度基准（`scripts/test-ocr-accuracy.mjs` 的 `real-photo` tier）的
+  测试输入。**不进 `public/`、不打进 dist、不随两个 zip 分发**，只存在于源码仓库。
+- 处理方式：由 `apps/literacy-app/scripts/gen-ocr-real-samples.mjs` 从原图裁剪、
+  等比缩小、另存为 PNG，未做任何画面增强或内容改动。裁剪与缩放构成演绎作品，
+  故本目录下的 `real-*.png` 按与各自原图**相同的 CC BY-SA 版本**再分发。
+- **署名（再分发本仓库源码时必须保留）**：
+
+  | 文件 | 原图 | 作者 | 许可证 |
+  |---|---|---|---|
+  | `real-park-sign.png` | [爱护花草 禁止踩踏 (54210037159).jpg](https://commons.wikimedia.org/wiki/File:%E7%88%B1%E6%8A%A4%E8%8A%B1%E8%8D%89_%E7%A6%81%E6%AD%A2%E8%B8%A9%E8%B8%8F_(54210037159).jpg) | メイド理世 | [CC BY-SA 2.0](https://creativecommons.org/licenses/by-sa/2.0) |
+  | `real-floor-cone.png` | [小心地滑，广东省广州市从化区创业路，2024年5月26日.jpg](https://commons.wikimedia.org/wiki/File:%E5%B0%8F%E5%BF%83%E5%9C%B0%E6%BB%91%EF%BC%8C%E5%B9%BF%E4%B8%9C%E7%9C%81%E5%B9%BF%E5%B7%9E%E5%B8%82%E4%BB%8E%E5%8C%96%E5%8C%BA%E5%88%9B%E4%B8%9A%E8%B7%AF%EF%BC%8C2024%E5%B9%B45%E6%9C%8826%E6%97%A5.jpg) | メイド理世 | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0) |
+  | `real-wall-stencil.png` | [小心地滑.jpeg](https://commons.wikimedia.org/wiki/File:%E5%B0%8F%E5%BF%83%E5%9C%B0%E6%BB%91.jpeg) | Richard923888 | [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0) |
+
+- 这张表不是写完就算：`test-ocr-accuracy.mjs` 会逐张核对清单里的出处链接与作者
+  是否出现在本文件里，漏一条当场红灯。换样张时先改 `real-samples.json`，
+  再跑 `npm run gen:ocr:real`，最后把新的署名补进这张表。
+
 ### Noto Sans SC 字体 — SIL OFL 1.1（仅许可证文本，未内置字体）
 
 - 上游：[google/fonts/ofl/notosanssc](https://github.com/google/fonts/tree/main/ofl/notosanssc)
@@ -131,6 +152,7 @@ Apache-2.0 要求随附许可证与 NOTICE：许可证全文见「附录 B」指
 | MIT | 保留版权与许可声明 | 本文件附录 A + 各包 LICENSE 保留在 node_modules / 本文件中 |
 | APL | 再分发附许可证全文；标明修改 | 两处 `ARPHICPL.TXT` 随数据分发；裁剪方式在第二节与生成脚本头注释中说明 |
 | CC BY-SA 4.0 | 署名；衍生同许可 | 署名文本见第三节；`LICENSE.txt` 在素材目录内 |
+| CC BY-SA 2.0 / 3.0（OCR 真实样张） | 署名；衍生同许可 | 署名表见第三节「OCR 真实样张」；裁剪后的 `real-*.png` 沿用原图许可，仅存在于源码仓库 |
 | OFL 1.1 | 字体随附许可证；不得单独出售 | 未内置字体；许可证文本已预置 |
 | GSAP Standard | 不得用于竞争性动画工具等 | 仅作应用内动画库使用 |
 | Apache-2.0（随产物分发） | 保留版权与 NOTICE；标明修改 | Tesseract.js / wasm 内核 / chi_sim 语言包均为未修改副本，声明见第一、二节 |
