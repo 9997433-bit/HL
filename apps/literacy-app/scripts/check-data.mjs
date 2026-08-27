@@ -22,6 +22,7 @@ import { TOTAL_IDIOMS } from '../src/data/idiom-index.js'
 import { RADICALS, getRadical } from '../src/data/radicals.js'
 import { ETYMOLOGY, ETYMOLOGY_KINDS } from '../src/data/etymology.js'
 import { ETYMOLOGY_CHARS } from '../src/data/etymology-index.js'
+import { DERIVED } from '../src/data/etymology-derived.js'
 import { SIMILAR_MAP } from '../src/data/similar-chars.js'
 import { POEMS, POEM_GLOSS, POEM_THEMES, charsInPoem, verifyPoemCoverage } from '../src/data/poems.js'
 import { TOTAL_POEMS } from '../src/data/poem-index.js'
@@ -316,7 +317,7 @@ check(badQuiz.length === 0, `成语情景题的正确答案下标都在选项范
  * 字源动画的第二帧直接用离线笔顺数据画，所以字源语料只能收字表里的字——
  * 收了字表外的字，那一帧就会在断网时开天窗。
  */
-check(ETYMOLOGY.length >= 50, `字源演变 ${ETYMOLOGY.length} 个字（要求 ≥ 50）`)
+check(ETYMOLOGY.length >= 200, `字源演变 ${ETYMOLOGY.length} 个字（要求 ≥ 200）`)
 
 const etyDupes = ETYMOLOGY.map((e) => e.c).filter((v, i, a) => a.indexOf(v) !== i)
 check(etyDupes.length === 0, `字源语料无重复字${etyDupes.length ? `（${etyDupes.join('')}）` : ''}`)
@@ -362,6 +363,30 @@ check(
 check(
   ETYMOLOGY_CHARS === ETYMOLOGY.map((e) => e.c).join(''),
   '单字页用的字源索引与语料逐字对齐'
+)
+
+/**
+ * 派生条目的零件是「形旁 + 声旁」，两个字形都会原样显示给孩子看。
+ * 形旁串了（比如种子里的字换了单元、部首跟着变了）不会报错，
+ * 只会让讲解和字形对不上号，所以这里逐条核一遍形旁。
+ */
+const partDrift = DERIVED.filter((e) => {
+  if (e.kind !== 'xing') return false
+  const glyph = getRadical(CHARACTER_MAP.get(e.c)?.radical)?.glyph
+  return e.parts?.[0]?.g !== glyph
+})
+check(
+  partDrift.length === 0,
+  `派生字源的形旁与字表部首一致${partDrift.length ? `（${partDrift.map((e) => e.c).join('')}，重跑 npm run gen:etymology）` : ''}`
+)
+
+// 讲解里引用的读音必须和字表拼音一致，不然孩子照着念就是错的
+const pinyinOff = DERIVED.filter(
+  (e) => e.kind === 'xing' && !e.evolve.includes(CHARACTER_MAP.get(e.c)?.pinyin ?? '\u0000')
+)
+check(
+  pinyinOff.length === 0,
+  `派生字源写的读音与字表一致${pinyinOff.length ? `（${pinyinOff.map((e) => e.c).join('')}）` : ''}`
 )
 
 // 每一类都得有几个字，不然「原来这一类字都长这样」的规律看不出来

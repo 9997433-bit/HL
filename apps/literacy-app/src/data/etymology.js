@@ -20,7 +20,14 @@
  *
  * 这里收的每个字都必须在字表里（`npm run check:data` 会核对），
  * 这样「写一写」那一帧一定有离线笔顺数据，断网也能演完整个动画。
+ *
+ * 本文件只放**手写**的那一批——有小图的象形 / 指事字，和故事各不相同的会意字。
+ * 形声字的讲法高度同构（形旁管意思 + 声旁管读音），一个一个抄没有意义，
+ * 它们由 scripts/gen-etymology.mjs 从 scripts/data/etymology-seed.txt 派生，
+ * 落在 etymology-derived.js，在文件末尾并进同一份 ETYMOLOGY。
  */
+
+import { DERIVED } from './etymology-derived.js'
 
 /** 四类字源的展示名。界面上的分类筛选也读它。 */
 export const ETYMOLOGY_KINDS = [
@@ -752,7 +759,13 @@ const COMPOUNDS = [
   }
 ]
 
-export const ETYMOLOGY = [...PICTURES, ...COMPOUNDS]
+/**
+ * 手写的那一批：每个字要么有一张自己的小图，要么有一段套不进模板的故事。
+ * 生成器要拿它去拼索引、去查重，所以单独导出。
+ */
+export const HANDWRITTEN = [...PICTURES, ...COMPOUNDS]
+
+export const ETYMOLOGY = [...HANDWRITTEN, ...DERIVED]
 
 export const ETYMOLOGY_MAP = new Map(ETYMOLOGY.map((e) => [e.c, e]))
 

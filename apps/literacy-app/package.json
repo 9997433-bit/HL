@@ -8,6 +8,7 @@
     "gen:hanzi": "node scripts/gen-hanzi-data.mjs",
     "gen:corpus": "node scripts/gen-char-corpus.mjs",
     "gen:similar": "node scripts/gen-similar-chars.mjs",
+    "gen:etymology": "node scripts/gen-etymology.mjs",
     "gen:books": "node scripts/gen-books.mjs",
     "predev": "npm run gen:hanzi",
     "dev": "vite",
