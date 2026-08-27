@@ -1462,8 +1462,12 @@ await interact('技能图谱：推荐下一步跟着掌握度与年龄档走，�
       })),
       goal: document.querySelector('[data-reco-goal]')?.dataset.recoGoal ?? '',
       path: [...document.querySelectorAll('[data-reco-step]')].map((el) => el.dataset.recoStep),
-      ringed: [...document.querySelectorAll('[data-skill-node][data-reco-rank]')].map(
-        (el) => el.dataset.skillNode,
+      // 图上描圈的推荐位：节点按布局顺序排在 DOM 里，只能按 id 对序号
+      ringed: Object.fromEntries(
+        [...document.querySelectorAll('[data-skill-node][data-reco-rank]')].map((el) => [
+          el.dataset.skillNode,
+          Number(el.dataset.recoRank),
+        ]),
       ),
       status: Object.fromEntries(
         [...document.querySelectorAll('[data-skill-node]')].map((el) => [
@@ -1474,6 +1478,13 @@ await interact('技能图谱：推荐下一步跟着掌握度与年龄档走，�
       readOnlyNote: document.querySelector('[data-reco-readonly]')?.innerText.trim() ?? '',
     }))
   }
+
+  /** 「技能:序号」按 id 排序拼成一行，图上和列表的 DOM 顺序不同，只能这么比。 */
+  const canonRanks = (map) =>
+    Object.keys(map)
+      .sort()
+      .map((id) => `${id}:${map[id]}`)
+      .join(',')
 
   /** 一份推荐自身必须成立的部分，三个档位都要过一遍。 */
   const audit = (band, view) => {
@@ -1492,10 +1503,10 @@ await interact('技能图谱：推荐下一步跟着掌握度与年龄档走，�
       if (item.text.length < 12) throw new Error(`${band} 档的「${item.id}」没有理由文案`)
       if (!item.href) throw new Error(`${band} 档的「${item.id}」没有去练的入口`)
     })
-    // 图上描圈的节点必须和列表一一对应，否则家长照着图走会走岔
-    if (view.ringed.join(',') !== view.items.map((i) => i.id).join(',')) {
-      throw new Error(`${band} 档图上描圈的是 ${view.ringed}，列表是 ${view.items.map((i) => i.id)}`)
-    }
+    // 图上描圈的节点必须和列表一一对应（连序号都要对上），否则家长照着图走会走岔
+    const ringed = canonRanks(view.ringed)
+    const listed = canonRanks(Object.fromEntries(view.items.map((item) => [item.id, item.rank])))
+    if (ringed !== listed) throw new Error(`${band} 档图上描圈的是 ${ringed}，列表是 ${listed}`)
     // 超前的技能不许插到本档技能前面
     const lastInBand = view.items.reduce(
       (last, item, index) => (item.reason === 'ahead' ? last : index),
@@ -1577,7 +1588,7 @@ await interact('技能图谱：推荐下一步跟着掌握度与年龄档走，�
   return (
     `L2 首推 ${mid.items[0].id}（${mid.items[0].reason}），` +
     `L1/L4 目标 ${low.goal}→${high.goal}、路线 ${low.path.length}→${high.path.length} 步，` +
-    `图上描圈 ${mid.ringed.length} 个与列表一致，掌握度未被改写`
+    `图上描圈 ${Object.keys(mid.ringed).length} 个与列表一致，掌握度未被改写`
   )
 })
 
