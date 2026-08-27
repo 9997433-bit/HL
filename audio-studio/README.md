@@ -814,10 +814,45 @@ scripts/sign-linux-artifact.sh dist/*.AppImage dist/*.deb
   signature per artifact which it then verifies. Without a key it still
   succeeds and records `signed: false` with the reason in
   `.agent_workspace/v1.1/linux-signing-report.json`; pass
-  `--require-signature` where an unsigned release is not acceptable. This
-  project holds no Apple Developer ID and no Authenticode certificate, so
-  nothing here codesigns or notarizes for macOS, or signs for Windows, and the
-  report says so rather than leaving it ambiguous.
+  `--require-signature` where an unsigned release is not acceptable.
+
+### Signing the other platforms
+
+Each platform is signed by its own tool on its own machine, and each writes the
+same shaped report so one document can describe a whole release:
+
+```bash
+scripts/sign-macos-artifact.sh --notarize dist/AudioStudio-1.1.0.dmg   # on a Mac
+pwsh -File scripts/sign-windows-artifact.ps1 dist\audio-studio.exe     # on Windows
+scripts/release-signing-manifest.sh                                    # anywhere
+```
+
+- **macOS.** With `MACOS_SIGNING_IDENTITY` (or `CODESIGN_IDENTITY`, which
+  `scripts/build-macos.sh` also reads) the script codesigns with the hardened
+  runtime and a secure timestamp and then verifies with
+  `codesign --verify --strict`; `--notarize` submits through `notarytool` with
+  a stored `--keychain-profile` and staples the ticket. A `.app` directory is
+  described by a digest over its file tree, since a directory has no content
+  hash of its own. Report:
+  `.agent_workspace/v1.2/macos-signing-report.json`.
+- **Windows.** With `WINDOWS_SIGNING_CERT` — a `.pfx` path or a certificate
+  thumbprint in the store — the script runs `signtool` with SHA-256 and an
+  RFC 3161 countersignature, then `signtool verify /pa`. Report:
+  `.agent_workspace/v1.2/windows-signing-report.json`.
+- **The release manifest.** `scripts/release-signing-manifest.sh` merges the
+  three reports into `.agent_workspace/v1.2/release-signing-manifest.json`,
+  listing `signed_platforms`, `unsigned_platforms` and `missing_reports`, and
+  `--require-all-signed` fails a release that is not signed everywhere. It
+  refuses a report filed under the wrong platform, and a report that claims a
+  signature while none of its artifacts was verified.
+
+None of this signs anything here. This project holds no GPG release key, no
+Apple Developer ID and no Authenticode certificate, so every script takes its
+unsigned path: it checksums the artifacts, records `signed: false` with the
+reason, and exits 0. A credential set on a host that cannot use it — a
+Developer ID off macOS, a certificate off Windows — is an error rather than a
+quietly unsigned build. See
+`.agent_workspace/v1.2/release-signing-evidence.md`.
 
 ## Tests
 

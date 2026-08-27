@@ -5,6 +5,34 @@ structure. Versions 0.2.0 and 0.3.0 were internal development milestones
 merged to the release branch without their own tags; they are recorded here so
 the v1.0.0-beta diff against v0.1.0-alpha is fully accounted for.
 
+## [Unreleased]
+
+### Added
+
+- **macOS and Windows signing scaffolds** (`scripts/sign-macos-artifact.sh`,
+  `scripts/sign-windows-artifact.ps1`) — codesign with the hardened runtime and
+  an optional `notarytool` submission on macOS, `signtool` with SHA-256 and an
+  RFC 3161 countersignature on Windows. Each reports a signature only after the
+  platform's own verifier accepts the artifact, and each refuses a credential
+  configured on a host that cannot use it instead of reporting a signature
+  nobody made.
+- **Release signing manifest** (`scripts/release-signing-manifest.sh`) —
+  merges the three per-platform reports into
+  `.agent_workspace/v1.2/release-signing-manifest.json` with
+  `signed_platforms`, `unsigned_platforms` and `missing_reports`;
+  `--require-all-signed` fails a release that is not signed everywhere. It
+  refuses a report filed under the wrong platform and one that claims
+  `signed: true` while no artifact was verified.
+- Contract tests in `tests/test_release_signing.py` and evidence in
+  `.agent_workspace/v1.2/release-signing-evidence.md`.
+
+### Unchanged, and stated plainly
+
+- Nothing this project publishes is signed on any platform. There is no GPG
+  release key, no Apple Developer ID and no Authenticode certificate, so every
+  signing script takes its unsigned path: checksums, `signed: false`, and the
+  reason. The published manifest records `fully_signed: false`.
+
 ## [1.1.0] - 2026-08-27
 
 Round G is the product-release round: the first build a user can download and
