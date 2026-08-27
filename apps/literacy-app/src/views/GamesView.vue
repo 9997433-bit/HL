@@ -336,7 +336,10 @@ const hostLine = computed(() =>
     var(--surface-sunken);
 }
 
+/* 没有对应 OpenMoji 素材时组件会退回 emoji 文本，字号要自己撑起来 */
 .machine__icon {
+  font-size: 40px;
+  line-height: 1;
   filter: drop-shadow(0 2px 6px color-mix(in srgb, var(--neon) 55%, transparent));
 }
 
