@@ -8,6 +8,7 @@ MIN_LH_PERFORMANCE="${ACCEPTANCE_MIN_LH_PERFORMANCE:-0.90}"
 MIN_LH_ACCESSIBILITY="${ACCEPTANCE_MIN_LH_ACCESSIBILITY:-0.90}"
 MIN_LH_BEST_PRACTICES="${ACCEPTANCE_MIN_LH_BEST_PRACTICES:-0.90}"
 PORT_BASE="${ACCEPTANCE_PORT_BASE:-43170}"
+EVIDENCE_DIR="${ACCEPTANCE_EVIDENCE_DIR:-}"
 FAILED=0
 TMP_DIR=""
 SERVER_PID=""
@@ -35,6 +36,11 @@ done
   fail "ACCEPTANCE_MAX_BUILD_SECONDS 必须是正整数。"
 [[ "$MAX_INITIAL_JS_GZIP_BYTES" =~ ^[1-9][0-9]*$ ]] ||
   fail "ACCEPTANCE_MAX_INITIAL_JS_GZIP_BYTES 必须是正整数。"
+
+if [[ -n "$EVIDENCE_DIR" ]]; then
+  [[ "$EVIDENCE_DIR" = /* ]] || EVIDENCE_DIR="$ROOT_DIR/$EVIDENCE_DIR"
+  mkdir -p "$EVIDENCE_DIR"
+fi
 
 find_chrome() {
   local candidate
@@ -242,7 +248,11 @@ run_lighthouse() {
   local slug report_path server_log
 
   slug="$(printf '%s' "$label" | tr '[:upper:] ' '[:lower:]-')"
-  report_path="$TMP_DIR/lighthouse-${slug}.json"
+  if [[ -n "$EVIDENCE_DIR" ]]; then
+    report_path="$EVIDENCE_DIR/lighthouse-${slug}.json"
+  else
+    report_path="$TMP_DIR/lighthouse-${slug}.json"
+  fi
   server_log="$TMP_DIR/server-${slug}.log"
   printf '\n[%s] Lighthouse（Performance/Accessibility/Best Practices）...\n' "$label"
 
@@ -291,6 +301,7 @@ NODE
   then
     FAILED=1
   fi
+  [[ -z "$EVIDENCE_DIR" ]] || printf '[%s] 原始报告: %s\n' "$label" "$report_path"
 
   kill "$SERVER_PID" 2>/dev/null || true
   wait "$SERVER_PID" 2>/dev/null || true
