@@ -1,0 +1,47 @@
+{
+  "name": "hongen-edu-apps",
+  "version": "1.0.0",
+  "private": true,
+  "description": "洪恩式识字与数学教育应用 monorepo",
+  "workspaces": [
+    "apps/literacy-app",
+    "apps/math-app"
+  ],
+  "scripts": {
+    "setup": "bash scripts/setup.sh",
+    "build": "bash scripts/build-all.sh",
+    "build:all": "bash scripts/build-all.sh",
+    "test": "npm run test:feedback && npm run test:literacy && npm run test:math",
+    "fetch:openmoji": "node scripts/fetch-openmoji.mjs",
+    "check:tokens": "node scripts/check-tokens.mjs",
+    "check:tokens:wiring": "node scripts/check-tokens.mjs --wiring-only",
+    "check:round4": "node scripts/check-round4.mjs",
+    "check:round5": "node scripts/check-round5.mjs",
+    "check:round5b": "node scripts/check-round5b.mjs",
+    "check:round6": "node scripts/check-round6.mjs",
+    "check:android": "node scripts/check-android.mjs",
+    "check:map-narrative": "node scripts/check-map-narrative.mjs",
+    "gen:icons": "node scripts/gen-pwa-icons.mjs",
+    "sync:android": "bash scripts/sync-android.sh all",
+    "sync:android:literacy": "bash scripts/sync-android.sh literacy",
+    "sync:android:math": "bash scripts/sync-android.sh math",
+    "test:a11y": "node scripts/axe-states.mjs",
+    "test:acceptance": "bash scripts/acceptance.sh",
+    "test:feedback": "node scripts/test-feedback.mjs",
+    "test:literacy": "bash scripts/test-literacy.sh",
+    "test:math": "bash scripts/test-math.sh",
+    "test:offline": "bash scripts/offline-smoke.sh",
+    "test:round3": "npm test && npm run test:offline && npm run test:acceptance"
+  },
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0 <25",
+    "npm": ">=10"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^6.2.1",
+    "@capacitor/cli": "^6.2.1",
+    "@capacitor/core": "^6.2.1",
+    "axe-core": "^4.13.0",
+    "puppeteer-core": "^25.9.0"
+  }
+}

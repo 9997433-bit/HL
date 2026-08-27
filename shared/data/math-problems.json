@@ -1,0 +1,925 @@
+{
+  "schemaVersion": 1,
+  "title": "儿童数学分级示例题库",
+  "language": "zh-Hans",
+  "ageRange": "4-10",
+  "license": "CC0-1.0",
+  "source": "本项目原创题目合并整理；未复制商业教材或题库",
+  "problems": [
+    {
+      "id": "count-001",
+      "type": "counting",
+      "prompt": "数一数：🍎🍎🍎，一共有几个苹果？",
+      "choices": [
+        2,
+        3,
+        4
+      ],
+      "answer": 3,
+      "explanation": "逐个点数：一、二、三。",
+      "difficulty": 1,
+      "hint": "一个一个地点数，或画点帮助思考。"
+    },
+    {
+      "id": "count-002",
+      "type": "counting",
+      "prompt": "数一数：⭐⭐⭐⭐⭐，一共有几颗星星？",
+      "choices": [
+        4,
+        5,
+        6
+      ],
+      "answer": 5,
+      "explanation": "从左到右数，共五颗。",
+      "difficulty": 1,
+      "hint": "一个一个地点数，或画点帮助思考。"
+    },
+    {
+      "id": "count-003",
+      "type": "counting",
+      "prompt": "盒子里有 8 块积木，拿出 2 块后，盒子里还看得到几块？",
+      "choices": [
+        6,
+        8,
+        10
+      ],
+      "answer": 6,
+      "explanation": "8 减 2 等于 6。",
+      "difficulty": 1,
+      "hint": "一个一个地点数，或画点帮助思考。"
+    },
+    {
+      "id": "compare-001",
+      "type": "comparison",
+      "prompt": "7 和 4，哪个数更大？",
+      "choices": [
+        4,
+        7,
+        "一样大"
+      ],
+      "answer": 7,
+      "explanation": "7 在数轴上位于 4 的右边。",
+      "difficulty": 1,
+      "hint": "把数量放在数轴上比较。"
+    },
+    {
+      "id": "compare-002",
+      "type": "comparison",
+      "prompt": "在 6 ○ 9 中应填哪个符号？",
+      "choices": [
+        "<",
+        "=",
+        ">"
+      ],
+      "answer": "<",
+      "explanation": "6 比 9 小，所以填小于号。",
+      "difficulty": 1,
+      "hint": "把数量放在数轴上比较。"
+    },
+    {
+      "id": "compare-003",
+      "type": "comparison",
+      "prompt": "12、18、15 中最大的数是哪个？",
+      "choices": [
+        12,
+        15,
+        18
+      ],
+      "answer": 18,
+      "explanation": "比较十位相同的数，再比较个位，18 最大。",
+      "difficulty": 2,
+      "hint": "把数量放在数轴上比较。"
+    },
+    {
+      "id": "addition-001",
+      "type": "addition",
+      "prompt": "3 + 5 = ?",
+      "choices": [
+        7,
+        8,
+        9
+      ],
+      "answer": 8,
+      "explanation": "从 5 接着数三个数：6、7、8。",
+      "difficulty": 1,
+      "hint": "可以接着数或先凑成整十。"
+    },
+    {
+      "id": "addition-002",
+      "type": "addition",
+      "prompt": "17 + 8 = ?",
+      "choices": [
+        24,
+        25,
+        26
+      ],
+      "answer": 25,
+      "explanation": "17 加 3 得 20，再加 5 得 25。",
+      "difficulty": 2,
+      "hint": "可以接着数或先凑成整十。"
+    },
+    {
+      "id": "addition-003",
+      "type": "addition",
+      "prompt": "46 + 37 = ?",
+      "choices": [
+        73,
+        83,
+        93
+      ],
+      "answer": 83,
+      "explanation": "个位 6 + 7 = 13，向十位进一，结果是 83。",
+      "difficulty": 3,
+      "hint": "可以接着数或先凑成整十。"
+    },
+    {
+      "id": "addition-004",
+      "type": "addition",
+      "prompt": "□ + 9 = 20，方框里应填几？",
+      "choices": [
+        9,
+        10,
+        11
+      ],
+      "answer": 11,
+      "explanation": "20 减 9 等于 11。",
+      "difficulty": 2,
+      "hint": "可以接着数或先凑成整十。"
+    },
+    {
+      "id": "subtraction-001",
+      "type": "subtraction",
+      "prompt": "9 - 4 = ?",
+      "choices": [
+        4,
+        5,
+        6
+      ],
+      "answer": 5,
+      "explanation": "从 9 倒数四个数，得到 5。",
+      "difficulty": 1,
+      "hint": "可以倒着数，或想对应的加法。"
+    },
+    {
+      "id": "subtraction-002",
+      "type": "subtraction",
+      "prompt": "23 - 7 = ?",
+      "choices": [
+        14,
+        16,
+        18
+      ],
+      "answer": 16,
+      "explanation": "23 先减 3 得 20，再减 4 得 16。",
+      "difficulty": 2,
+      "hint": "可以倒着数，或想对应的加法。"
+    },
+    {
+      "id": "subtraction-003",
+      "type": "subtraction",
+      "prompt": "70 - 28 = ?",
+      "choices": [
+        42,
+        48,
+        52
+      ],
+      "answer": 42,
+      "explanation": "70 减 20 得 50，再减 8 得 42。",
+      "difficulty": 3,
+      "hint": "可以倒着数，或想对应的加法。"
+    },
+    {
+      "id": "subtraction-004",
+      "type": "subtraction",
+      "prompt": "35 - □ = 19，方框里应填几？",
+      "choices": [
+        14,
+        16,
+        18
+      ],
+      "answer": 16,
+      "explanation": "35 减 19 等于 16。",
+      "difficulty": 2,
+      "hint": "可以倒着数，或想对应的加法。"
+    },
+    {
+      "id": "multiplication-001",
+      "type": "multiplication",
+      "prompt": "4 × 3 = ?",
+      "choices": [
+        7,
+        12,
+        14
+      ],
+      "answer": 12,
+      "explanation": "三个 4 相加：4 + 4 + 4 = 12。",
+      "difficulty": 2,
+      "hint": "把相同的数重复相加。"
+    },
+    {
+      "id": "multiplication-002",
+      "type": "multiplication",
+      "prompt": "7 × 6 = ?",
+      "choices": [
+        36,
+        42,
+        48
+      ],
+      "answer": 42,
+      "explanation": "六个 7 相加得到 42。",
+      "difficulty": 3,
+      "hint": "把相同的数重复相加。"
+    },
+    {
+      "id": "multiplication-003",
+      "type": "multiplication",
+      "prompt": "9 × □ = 45，方框里应填几？",
+      "choices": [
+        4,
+        5,
+        6
+      ],
+      "answer": 5,
+      "explanation": "45 里有五个 9。",
+      "difficulty": 3,
+      "hint": "把相同的数重复相加。"
+    },
+    {
+      "id": "division-001",
+      "type": "division",
+      "prompt": "12 个草莓平均放进 3 个盘子，每盘几个？",
+      "choices": [
+        3,
+        4,
+        6
+      ],
+      "answer": 4,
+      "explanation": "12 平均分成 3 份，每份是 4。",
+      "difficulty": 2,
+      "hint": "先想平均分，再用乘法检查。"
+    },
+    {
+      "id": "division-002",
+      "type": "division",
+      "prompt": "36 ÷ 6 = ?",
+      "choices": [
+        5,
+        6,
+        7
+      ],
+      "answer": 6,
+      "explanation": "因为 6 × 6 = 36，所以 36 ÷ 6 = 6。",
+      "difficulty": 3,
+      "hint": "先想平均分，再用乘法检查。"
+    },
+    {
+      "id": "division-003",
+      "type": "division",
+      "prompt": "□ ÷ 5 = 8，方框里应填几？",
+      "choices": [
+        35,
+        40,
+        45
+      ],
+      "answer": 40,
+      "explanation": "8 × 5 = 40。",
+      "difficulty": 3,
+      "hint": "先想平均分，再用乘法检查。"
+    },
+    {
+      "id": "pattern-001",
+      "type": "pattern",
+      "prompt": "找规律：2，4，6，8，下一项是？",
+      "choices": [
+        9,
+        10,
+        12
+      ],
+      "answer": 10,
+      "explanation": "每次增加 2。",
+      "difficulty": 1,
+      "hint": "观察相邻两项怎样变化。"
+    },
+    {
+      "id": "pattern-002",
+      "type": "pattern",
+      "prompt": "找规律：1，2，4，8，下一项是？",
+      "choices": [
+        10,
+        12,
+        16
+      ],
+      "answer": 16,
+      "explanation": "每一项都是前一项的 2 倍。",
+      "difficulty": 2,
+      "hint": "观察相邻两项怎样变化。"
+    },
+    {
+      "id": "pattern-003",
+      "type": "pattern",
+      "prompt": "找规律：20，17，14，11，下一项是？",
+      "choices": [
+        7,
+        8,
+        9
+      ],
+      "answer": 8,
+      "explanation": "每次减少 3。",
+      "difficulty": 2,
+      "hint": "观察相邻两项怎样变化。"
+    },
+    {
+      "id": "geometry-001",
+      "type": "geometry",
+      "prompt": "哪一种平面图形没有角？",
+      "choices": [
+        "三角形",
+        "正方形",
+        "圆形"
+      ],
+      "answer": "圆形",
+      "explanation": "圆形的边是弯曲的，没有顶点。",
+      "difficulty": 1,
+      "hint": "数清边、角或把各边长度相加。"
+    },
+    {
+      "id": "geometry-002",
+      "type": "geometry",
+      "prompt": "正方形有几条边？",
+      "choices": [
+        3,
+        4,
+        5
+      ],
+      "answer": 4,
+      "explanation": "正方形有四条一样长的边。",
+      "difficulty": 1,
+      "hint": "数清边、角或把各边长度相加。"
+    },
+    {
+      "id": "geometry-003",
+      "type": "geometry",
+      "prompt": "一个三角形有几个顶点？",
+      "choices": [
+        2,
+        3,
+        4
+      ],
+      "answer": 3,
+      "explanation": "三条边两两相交，形成三个顶点。",
+      "difficulty": 2,
+      "hint": "数清边、角或把各边长度相加。"
+    },
+    {
+      "id": "word-001",
+      "type": "word-problem",
+      "prompt": "树上原来有 6 只鸟，又飞来 3 只，现在有几只？",
+      "choices": [
+        3,
+        8,
+        9
+      ],
+      "answer": 9,
+      "explanation": "飞来的鸟使数量增加：6 + 3 = 9。",
+      "difficulty": 1,
+      "hint": "圈出已知数量和问题，再选择运算。"
+    },
+    {
+      "id": "word-002",
+      "type": "word-problem",
+      "prompt": "小明有 20 张贴纸，送给朋友 7 张，还剩几张？",
+      "choices": [
+        12,
+        13,
+        27
+      ],
+      "answer": 13,
+      "explanation": "送出后数量减少：20 - 7 = 13。",
+      "difficulty": 2,
+      "hint": "圈出已知数量和问题，再选择运算。"
+    },
+    {
+      "id": "word-003",
+      "type": "word-problem",
+      "prompt": "4 个小朋友每人拿 2 支彩笔，一共需要几支？",
+      "choices": [
+        6,
+        8,
+        10
+      ],
+      "answer": 8,
+      "explanation": "四个 2 相加，也就是 4 × 2 = 8。",
+      "difficulty": 2,
+      "hint": "圈出已知数量和问题，再选择运算。"
+    },
+    {
+      "id": "word-004",
+      "type": "word-problem",
+      "prompt": "班里有 18 个苹果，平均分给 6 个小组，每组几个？",
+      "choices": [
+        3,
+        4,
+        6
+      ],
+      "answer": 3,
+      "explanation": "平均分用除法：18 ÷ 6 = 3。",
+      "difficulty": 3,
+      "hint": "圈出已知数量和问题，再选择运算。"
+    },
+    {
+      "id": "supplement-count-001",
+      "type": "counting",
+      "difficulty": 1,
+      "prompt": "数一数：🍎🍎🍎 一共有几个苹果？",
+      "answer": 3,
+      "hint": "用手指一个一个地点。",
+      "explanation": "依次点数三个苹果，最后一个数是3。"
+    },
+    {
+      "id": "supplement-count-002",
+      "type": "counting",
+      "difficulty": 1,
+      "prompt": "数一数：⭐⭐⭐⭐⭐ 一共有几颗星？",
+      "answer": 5,
+      "hint": "从左到右数。",
+      "explanation": "从左到右数到5，所以有5颗星。"
+    },
+    {
+      "id": "supplement-count-003",
+      "type": "counting",
+      "difficulty": 1,
+      "prompt": "数字7后面的一个数是什么？",
+      "answer": 8,
+      "hint": "顺着数：6、7、……",
+      "explanation": "自然数顺序中，7后面是8。"
+    },
+    {
+      "id": "count-004",
+      "type": "counting",
+      "difficulty": 1,
+      "prompt": "数字10前面的一个数是什么？",
+      "answer": 9,
+      "hint": "倒着数：10、……",
+      "explanation": "自然数顺序中，10前面是9。"
+    },
+    {
+      "id": "count-005",
+      "type": "counting",
+      "difficulty": 1,
+      "prompt": "从2开始数三个数：2、3、__。",
+      "answer": 4,
+      "hint": "每次增加1。",
+      "explanation": "2后面是3，3后面是4。"
+    },
+    {
+      "id": "supplement-compare-001",
+      "type": "comparison",
+      "difficulty": 1,
+      "prompt": "5 __ 3，横线上应填 >、< 还是 =？",
+      "answer": ">",
+      "hint": "比较两边物品的数量。",
+      "explanation": "5比3大，所以填>。"
+    },
+    {
+      "id": "supplement-compare-002",
+      "type": "comparison",
+      "difficulty": 1,
+      "prompt": "2 __ 6，横线上应填 >、< 还是 =？",
+      "answer": "<",
+      "hint": "数轴上更靠左的数更小。",
+      "explanation": "2比6小，所以填<。"
+    },
+    {
+      "id": "supplement-compare-003",
+      "type": "comparison",
+      "difficulty": 1,
+      "prompt": "8 __ 8，横线上应填 >、< 还是 =？",
+      "answer": "=",
+      "hint": "两边是同一个数。",
+      "explanation": "8和8相等，所以填=。"
+    },
+    {
+      "id": "compare-004",
+      "type": "comparison",
+      "difficulty": 1,
+      "prompt": "4、9、6中最大的数是多少？",
+      "answer": 9,
+      "hint": "看哪个数在数轴上最靠右。",
+      "explanation": "9比4和6都大。"
+    },
+    {
+      "id": "compare-005",
+      "type": "comparison",
+      "difficulty": 1,
+      "prompt": "12、7、10中最小的数是多少？",
+      "answer": 7,
+      "hint": "逐个比较三个数。",
+      "explanation": "7比10和12都小。"
+    },
+    {
+      "id": "add-001",
+      "type": "addition",
+      "difficulty": 1,
+      "prompt": "1 + 2 = ?",
+      "answer": 3,
+      "hint": "从1开始再数2下。",
+      "explanation": "1再加2得到3。"
+    },
+    {
+      "id": "add-002",
+      "type": "addition",
+      "difficulty": 1,
+      "prompt": "3 + 4 = ?",
+      "answer": 7,
+      "hint": "可以画3个点和4个点。",
+      "explanation": "3和4合起来是7。"
+    },
+    {
+      "id": "add-003",
+      "type": "addition",
+      "difficulty": 1,
+      "prompt": "5 + 5 = ?",
+      "answer": 10,
+      "hint": "两个5合起来。",
+      "explanation": "5加5等于10。"
+    },
+    {
+      "id": "add-004",
+      "type": "addition",
+      "difficulty": 1,
+      "prompt": "0 + 8 = ?",
+      "answer": 8,
+      "hint": "没有增加任何东西。",
+      "explanation": "任何数加0仍是它自己。"
+    },
+    {
+      "id": "add-005",
+      "type": "addition",
+      "difficulty": 1,
+      "prompt": "6 + 3 = ?",
+      "answer": 9,
+      "hint": "从6接着数7、8、9。",
+      "explanation": "从6向后数3步到9。"
+    },
+    {
+      "id": "add-006",
+      "type": "addition",
+      "difficulty": 2,
+      "prompt": "9 + 7 = ?",
+      "answer": 16,
+      "hint": "先把7分成1和6，凑成10。",
+      "explanation": "9+1=10，再加6得16。"
+    },
+    {
+      "id": "add-007",
+      "type": "addition",
+      "difficulty": 2,
+      "prompt": "14 + 5 = ?",
+      "answer": 19,
+      "hint": "从14向后数5步。",
+      "explanation": "14加5等于19。"
+    },
+    {
+      "id": "add-008",
+      "type": "addition",
+      "difficulty": 2,
+      "prompt": "18 + 12 = ?",
+      "answer": 30,
+      "hint": "先算18+2，再加10。",
+      "explanation": "18+2=20，20+10=30。"
+    },
+    {
+      "id": "add-009",
+      "type": "addition",
+      "difficulty": 2,
+      "prompt": "27 + 16 = ?",
+      "answer": 43,
+      "hint": "个位和十位分别相加，注意进位。",
+      "explanation": "27+10=37，再加6得43。"
+    },
+    {
+      "id": "add-010",
+      "type": "addition",
+      "difficulty": 3,
+      "prompt": "48 + 35 = ?",
+      "answer": 83,
+      "hint": "先凑整：48+2=50。",
+      "explanation": "把35分成2和33，50+33=83。"
+    },
+    {
+      "id": "subtract-001",
+      "type": "subtraction",
+      "difficulty": 1,
+      "prompt": "5 - 2 = ?",
+      "answer": 3,
+      "hint": "5个物品拿走2个。",
+      "explanation": "5拿走2还剩3。"
+    },
+    {
+      "id": "subtract-002",
+      "type": "subtraction",
+      "difficulty": 1,
+      "prompt": "9 - 4 = ?",
+      "answer": 5,
+      "hint": "从9倒着数4步。",
+      "explanation": "9减4等于5。"
+    },
+    {
+      "id": "subtract-003",
+      "type": "subtraction",
+      "difficulty": 1,
+      "prompt": "7 - 0 = ?",
+      "answer": 7,
+      "hint": "一个也没有拿走。",
+      "explanation": "任何数减0仍是它自己。"
+    },
+    {
+      "id": "subtract-004",
+      "type": "subtraction",
+      "difficulty": 1,
+      "prompt": "10 - 6 = ?",
+      "answer": 4,
+      "hint": "想一想6加几等于10。",
+      "explanation": "6+4=10，所以10-6=4。"
+    },
+    {
+      "id": "subtract-005",
+      "type": "subtraction",
+      "difficulty": 1,
+      "prompt": "8 - 8 = ?",
+      "answer": 0,
+      "hint": "全部拿走后还剩多少？",
+      "explanation": "8个全部拿走，剩0个。"
+    },
+    {
+      "id": "subtract-006",
+      "type": "subtraction",
+      "difficulty": 2,
+      "prompt": "15 - 7 = ?",
+      "answer": 8,
+      "hint": "先减5到10，再减2。",
+      "explanation": "15-5=10，10-2=8。"
+    },
+    {
+      "id": "subtract-007",
+      "type": "subtraction",
+      "difficulty": 2,
+      "prompt": "20 - 9 = ?",
+      "answer": 11,
+      "hint": "先减10，再加回1。",
+      "explanation": "20-10=10，10+1=11。"
+    },
+    {
+      "id": "subtract-008",
+      "type": "subtraction",
+      "difficulty": 2,
+      "prompt": "34 - 12 = ?",
+      "answer": 22,
+      "hint": "先减10，再减2。",
+      "explanation": "34-10=24，24-2=22。"
+    },
+    {
+      "id": "subtract-009",
+      "type": "subtraction",
+      "difficulty": 2,
+      "prompt": "50 - 27 = ?",
+      "answer": 23,
+      "hint": "先减20，再减7。",
+      "explanation": "50-20=30，30-7=23。"
+    },
+    {
+      "id": "subtract-010",
+      "type": "subtraction",
+      "difficulty": 3,
+      "prompt": "83 - 46 = ?",
+      "answer": 37,
+      "hint": "可以先减40，再减6。",
+      "explanation": "83-40=43，43-6=37。"
+    },
+    {
+      "id": "multiply-001",
+      "type": "multiplication",
+      "difficulty": 2,
+      "prompt": "2 × 3 = ?",
+      "answer": 6,
+      "hint": "算两个3，或三个2。",
+      "explanation": "3+3=6，所以2×3=6。"
+    },
+    {
+      "id": "multiply-002",
+      "type": "multiplication",
+      "difficulty": 2,
+      "prompt": "4 × 5 = ?",
+      "answer": 20,
+      "hint": "四组，每组5个。",
+      "explanation": "5+5+5+5=20。"
+    },
+    {
+      "id": "multiply-003",
+      "type": "multiplication",
+      "difficulty": 2,
+      "prompt": "6 × 3 = ?",
+      "answer": 18,
+      "hint": "把6加三次。",
+      "explanation": "6+6+6=18。"
+    },
+    {
+      "id": "multiply-004",
+      "type": "multiplication",
+      "difficulty": 2,
+      "prompt": "7 × 8 = ?",
+      "answer": 56,
+      "hint": "想一想七八口诀。",
+      "explanation": "七八五十六。"
+    },
+    {
+      "id": "multiply-005",
+      "type": "multiplication",
+      "difficulty": 3,
+      "prompt": "9 × 6 = ?",
+      "answer": 54,
+      "hint": "可以算10×6再减6。",
+      "explanation": "60-6=54。"
+    },
+    {
+      "id": "divide-001",
+      "type": "division",
+      "difficulty": 2,
+      "prompt": "6 ÷ 2 = ?",
+      "answer": 3,
+      "hint": "把6平均分成2份。",
+      "explanation": "每份有3，所以6÷2=3。"
+    },
+    {
+      "id": "divide-002",
+      "type": "division",
+      "difficulty": 2,
+      "prompt": "12 ÷ 3 = ?",
+      "answer": 4,
+      "hint": "想3乘几等于12。",
+      "explanation": "3×4=12，所以12÷3=4。"
+    },
+    {
+      "id": "divide-003",
+      "type": "division",
+      "difficulty": 2,
+      "prompt": "20 ÷ 5 = ?",
+      "answer": 4,
+      "hint": "把20平均分成5份。",
+      "explanation": "每份4个。"
+    },
+    {
+      "id": "divide-004",
+      "type": "division",
+      "difficulty": 2,
+      "prompt": "24 ÷ 6 = ?",
+      "answer": 4,
+      "hint": "想六的乘法口诀。",
+      "explanation": "6×4=24，所以商是4。"
+    },
+    {
+      "id": "divide-005",
+      "type": "division",
+      "difficulty": 3,
+      "prompt": "45 ÷ 9 = ?",
+      "answer": 5,
+      "hint": "想9乘几等于45。",
+      "explanation": "9×5=45，所以45÷9=5。"
+    },
+    {
+      "id": "supplement-pattern-001",
+      "type": "pattern",
+      "difficulty": 1,
+      "prompt": "找规律：2、4、6、__。",
+      "answer": 8,
+      "hint": "每次增加2。",
+      "explanation": "6再加2得到8。"
+    },
+    {
+      "id": "supplement-pattern-002",
+      "type": "pattern",
+      "difficulty": 1,
+      "prompt": "找规律：1、3、5、__。",
+      "answer": 7,
+      "hint": "这些是连续的奇数。",
+      "explanation": "每次增加2，5后面是7。"
+    },
+    {
+      "id": "supplement-pattern-003",
+      "type": "pattern",
+      "difficulty": 2,
+      "prompt": "找规律：5、10、15、__。",
+      "answer": 20,
+      "hint": "每次增加5。",
+      "explanation": "15+5=20。"
+    },
+    {
+      "id": "pattern-004",
+      "type": "pattern",
+      "difficulty": 2,
+      "prompt": "找规律：30、25、20、__。",
+      "answer": 15,
+      "hint": "每次减少5。",
+      "explanation": "20-5=15。"
+    },
+    {
+      "id": "supplement-geometry-001",
+      "type": "geometry",
+      "difficulty": 1,
+      "prompt": "三角形有几条边？",
+      "answer": 3,
+      "hint": "沿图形边缘数一圈。",
+      "explanation": "三角形由3条边围成。"
+    },
+    {
+      "id": "supplement-geometry-002",
+      "type": "geometry",
+      "difficulty": 1,
+      "prompt": "正方形有几个角？",
+      "answer": 4,
+      "hint": "每两条边相遇形成一个角。",
+      "explanation": "正方形有4个角。"
+    },
+    {
+      "id": "supplement-geometry-003",
+      "type": "geometry",
+      "difficulty": 2,
+      "prompt": "一个长方形的长是5厘米，宽是3厘米，周长是多少厘米？",
+      "answer": 16,
+      "hint": "把四条边的长度相加。",
+      "explanation": "5+3+5+3=16厘米。"
+    },
+    {
+      "id": "supplement-word-001",
+      "type": "word-problem",
+      "difficulty": 1,
+      "prompt": "篮子里有3个苹果，又放进2个，现在有几个？",
+      "answer": 5,
+      "hint": "“又放进”表示增加。",
+      "explanation": "3+2=5个。"
+    },
+    {
+      "id": "supplement-word-002",
+      "type": "word-problem",
+      "difficulty": 1,
+      "prompt": "树上有8只鸟，飞走3只，还剩几只？",
+      "answer": 5,
+      "hint": "“飞走”表示减少。",
+      "explanation": "8-3=5只。"
+    },
+    {
+      "id": "supplement-word-003",
+      "type": "word-problem",
+      "difficulty": 2,
+      "prompt": "4个盒子里各有5支笔，一共有几支笔？",
+      "answer": 20,
+      "hint": "有4组，每组5支。",
+      "explanation": "4×5=20支。"
+    },
+    {
+      "id": "supplement-word-004",
+      "type": "word-problem",
+      "difficulty": 2,
+      "prompt": "妈妈把18颗糖平均分给3个孩子，每人几颗？",
+      "answer": 6,
+      "hint": "平均分要用除法。",
+      "explanation": "18÷3=6颗。"
+    },
+    {
+      "id": "word-005",
+      "type": "word-problem",
+      "difficulty": 2,
+      "prompt": "小明有12张卡片，小红比他多4张，小红有几张？",
+      "answer": 16,
+      "hint": "“多4张”表示加4。",
+      "explanation": "12+4=16张。"
+    },
+    {
+      "id": "word-006",
+      "type": "word-problem",
+      "difficulty": 2,
+      "prompt": "一辆车限坐20人，已经坐了13人，还能坐几人？",
+      "answer": 7,
+      "hint": "从总座位中减去已坐人数。",
+      "explanation": "20-13=7人。"
+    },
+    {
+      "id": "word-007",
+      "type": "word-problem",
+      "difficulty": 3,
+      "prompt": "一本书有60页，第一天读18页，第二天读22页，还剩几页？",
+      "answer": 20,
+      "hint": "先求两天共读多少页。",
+      "explanation": "18+22=40页，60-40=20页。"
+    },
+    {
+      "id": "word-008",
+      "type": "word-problem",
+      "difficulty": 3,
+      "prompt": "6排座位，每排8个，坐了39人，还空几个座位？",
+      "answer": 9,
+      "hint": "先求座位总数。",
+      "explanation": "6×8=48个座位，48-39=9个。"
+    }
+  ]
+}

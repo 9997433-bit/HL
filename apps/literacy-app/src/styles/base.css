@@ -1,0 +1,271 @@
+@import '@shared/styles/design-tokens.css'; /* 顺序固定：令牌 → 共享组件层 → App 本地 */
+@import '@shared/styles/components.css';
+@import './theme.css';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-round);
+  font-size: calc(16px * var(--font-scale));
+  line-height: var(--lh-base);
+  color: var(--text);
+  background: var(--bg-page-solid);
+  transition: background-color var(--dur-mid) ease, color var(--dur-mid) ease;
+}
+
+h1,
+h2,
+h3,
+h4,
+p,
+figure {
+  margin: 0;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+ul,
+ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+img,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+  border-radius: var(--radius-xs);
+}
+
+/* --------------------------------------------------------------------------
+   通用组件类
+   .btn / .card 及其变体来自 shared/styles/components.css，此处只放识字 App
+   自己的排版与布局工具类。
+   -------------------------------------------------------------------------- */
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+  font-size: calc(1.35rem * 1);
+  font-weight: 800;
+  color: var(--text-strong);
+  letter-spacing: 0.02em;
+}
+
+.section-title__emoji {
+  font-size: 1.5em;
+  line-height: 1;
+}
+
+.muted {
+  color: var(--text-soft);
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  border-radius: var(--radius-pill);
+  background: var(--brand-soft);
+  color: var(--text-strong);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.pill--accent {
+  background: var(--accent-soft);
+}
+
+/* 页面容器 */
+.page {
+  width: min(1080px, 100%);
+  margin: 0 auto;
+  padding: var(--gap-lg) var(--gap-md) 120px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-lg);
+}
+
+/*
+ * 学伴常驻位。
+ *
+ * 放在 .page 的最后，用 sticky 顶在底部导航上方：孩子从头翻到尾，墨墨一直
+ * 跟在页面左下角；真的滚到底了它就落回文档流，不会把最后一段内容压住。
+ */
+.mascot-dock {
+  position: sticky;
+  bottom: calc(84px + env(safe-area-inset-bottom));
+  z-index: 20;
+  align-self: flex-start;
+  max-width: 100%;
+  pointer-events: none;
+}
+
+.mascot-dock > * {
+  pointer-events: auto;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-md);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+  flex-wrap: wrap;
+}
+
+.grid-auto {
+  display: grid;
+  gap: var(--gap-md);
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+}
+
+/* 汉字展示的田字格 */
+.tianzige {
+  position: relative;
+  background: var(--surface-strong);
+  border: 3px solid var(--grid-line);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.tianzige::before,
+.tianzige::after {
+  content: '';
+  position: absolute;
+  background-image: linear-gradient(
+    to right,
+    var(--grid-line) 0 6px,
+    transparent 6px 12px
+  );
+  background-size: 12px 2px;
+}
+
+.tianzige::before {
+  left: 6%;
+  right: 6%;
+  top: 50%;
+  height: 2px;
+  transform: translateY(-1px);
+}
+
+.tianzige::after {
+  top: 6%;
+  bottom: 6%;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-1px);
+  background-image: linear-gradient(
+    to bottom,
+    var(--grid-line) 0 6px,
+    transparent 6px 12px
+  );
+  background-size: 2px 12px;
+}
+
+/* 路由过渡 */
+.fade-slide-enter-active,
+.fade-slide-leave-active {
+  transition: opacity var(--dur-mid) ease, transform var(--dur-mid) var(--ease-pop);
+}
+
+.fade-slide-enter-from {
+  opacity: 0;
+  transform: translateY(14px) scale(0.99);
+}
+
+.fade-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-8px) scale(0.995);
+  position: absolute;
+  inset: 0;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@keyframes float-y {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes wiggle {
+  0%,
+  100% {
+    transform: rotate(-2deg);
+  }
+  50% {
+    transform: rotate(2deg);
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.86);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}

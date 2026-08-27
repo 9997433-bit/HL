@@ -1,0 +1,237 @@
+@import '@shared/styles/design-tokens.css'; /* 顺序固定：令牌 → 共享组件层 → App 本地 */
+@import '@shared/styles/components.css';
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+}
+
+body {
+  font-family: var(--font-round);
+  background: var(--bg-page);
+  background-attachment: fixed;
+  color: var(--text-strong);
+  overflow-x: hidden;
+  user-select: none;
+}
+
+.app-root {
+  min-height: 100%;
+  position: relative;
+  z-index: 1;
+}
+
+/* 护眼模式:暖色降饱和滤镜 */
+.app-root.eye-care {
+  filter: saturate(0.75) sepia(0.12);
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+  color: inherit;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+ul {
+  list-style: none;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* ---------- 页面骨架 ---------- */
+
+.page {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 18px 20px 96px;
+}
+
+.page-title {
+  font-size: 28px;
+  margin-bottom: 4px;
+}
+
+.page-subtitle {
+  color: var(--text-soft);
+  font-size: 15px;
+  margin-bottom: 24px;
+}
+
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-soft);
+  font-size: 15px;
+  padding: 8px 0;
+  margin-bottom: 8px;
+}
+
+.back-btn:hover {
+  color: var(--text-strong);
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.spacer {
+  flex: 1;
+}
+
+/* ---------- 面板 ----------
+   基础形态（面色/描边/圆角/阴影/内边距）来自 shared/styles/components.css 的
+   .card；这里只叠加深空专属的星际渐变与顶缘高光。 */
+
+.card {
+  /* 装饰性深空渐变：--cosmos-1 属原始色板，仅用于这层背景纵深 */
+  background: linear-gradient(
+    160deg,
+    var(--surface) 0%,
+    color-mix(in srgb, var(--cosmos-1) 92%, transparent) 100%
+  );
+  box-shadow: var(--shadow-lg);
+  position: relative;
+  overflow: hidden;
+  backdrop-filter: none;
+}
+
+.card::after {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+}
+
+.panel-title {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+
+.muted {
+  color: var(--text);
+}
+
+.dim {
+  color: var(--text-soft);
+}
+
+/* ---------- 按钮 ----------
+   .btn / .btn--primary / .btn--ghost / .btn--sm / .btn--lg 全部来自
+   shared/styles/components.css；这里只保留深空专属的配色差异。 */
+
+/* 主按钮：共享层是同色相纵向渐变，深空版沿用青→紫的星际斜向渐变。 */
+.btn--primary {
+  background: linear-gradient(135deg, var(--brand), var(--accent));
+  box-shadow: var(--shadow-press), 0 10px 26px color-mix(in srgb, var(--brand) 28%, transparent);
+}
+
+/* ---------- 标签 ---------- */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: var(--text);
+}
+
+.chip-on {
+  background: linear-gradient(135deg, rgba(94, 231, 255, 0.28), rgba(155, 140, 255, 0.28));
+  border-color: rgba(94, 231, 255, 0.6);
+  color: var(--text-strong);
+}
+
+/* ---------- 其它 ---------- */
+
+.grid-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 18px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.page-enter-active,
+.page-leave-active {
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.page-enter-from {
+  opacity: 0;
+  transform: translateY(12px);
+}
+
+.page-leave-to {
+  opacity: 0;
+  transform: translateY(-12px);
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: 12px 14px 88px;
+  }
+
+  .card {
+    padding: var(--gap-md);
+    border-radius: var(--radius-md);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
