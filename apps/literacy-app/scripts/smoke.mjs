@@ -1103,7 +1103,9 @@ await interact('播报：答题与庆祝都有 aria-live', '/#/listen', async (p
   // 前面的路由与交互共用一个浏览器上下文；先清档重载，确保 b2 是首次读完，
   // 否则 store 会正确地拒绝重复弹出“首次完成”庆祝，测试却会误报超时。
   await page.evaluate(() => localStorage.clear())
-  await page.reload({ waitUntil: 'networkidle2' })
+  // 先离开 App，停掉每秒写学习时长的定时器，避免它在 reload 前把旧存档写回来。
+  await page.goto('about:blank')
+  await page.goto(`${base}/#/listen`, { waitUntil: 'networkidle2' })
   await new Promise((r) => setTimeout(r, 500))
   await clickText(page, '开始游戏')
   await new Promise((r) => setTimeout(r, 600))
