@@ -27,13 +27,21 @@ import { useRouter } from 'vue-router'
 import gsap from 'gsap'
 import HanziStrokeBox from '@/components/HanziStrokeBox.vue'
 import VoiceNotice from '@/components/VoiceNotice.vue'
-import { CHARACTERS, getCharacter, getLoadedCharacter, loadCharacter } from '@/data/characters.js'
+import {
+  CHARACTERS,
+  getCharacter,
+  getLoadedCharacter,
+  loadCharacter,
+  loadUnitDetails
+} from '@/data/characters.js'
 import { hasEtymology } from '@/data/etymology-index.js'
 import { RADICAL_MAP, getRadical } from '@/data/radicals.js'
 import { useFeedback } from '@/composables/useFeedback.js'
 import { useProgressStore } from '@/stores/progress.js'
 import { useSettingsStore } from '@/stores/settings.js'
 import { speak } from '@/utils/speech.js'
+import { similarDistractors } from '@/utils/distractors.js'
+import { shuffle } from '@/utils/random.js'
 import { sfx } from '@/utils/sfx.js'
 
 const props = defineProps({ char: { type: String, required: true } })
@@ -252,29 +260,18 @@ function heard() {
 
 /* --------------------------------------------------- 状态机：听一听 */
 
-const shuffle = (list) => {
-  const out = [...list]
-  for (let i = out.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[out[i], out[j]] = [out[j], out[i]]
-  }
-  return out
-}
-
-/** 干扰项优先取同一单元的字：同主题的字长得更像，才有分辨的价值。 */
-function distractors(count, exclude = () => false) {
-  const pool = CHARACTERS.filter((c) => c.char !== decoded.value && !exclude(c))
-  const near = pool.filter((c) => c.unit === item.value.unit)
-  return shuffle(near.length >= count ? near : pool).slice(0, count)
-}
-
 const listenOptions = ref([])
 const listenPick = ref('')
 const listenTries = ref(0)
 const listenRevealed = ref(false)
 
+/**
+ * 三个选项都走形近字库（data/similar-chars.js）：字形越接近，
+ * 「听一听」才真的在考听音，而不是考谁的轮廓最扎眼。
+ * 早先按「同一单元」取，同单元只保证主题相近，字形常常差得很远。
+ */
 function buildListen() {
-  listenOptions.value = shuffle([item.value, ...distractors(2)])
+  listenOptions.value = shuffle([item.value, ...similarDistractors(decoded.value, 2)])
   listenPick.value = ''
   listenTries.value = 0
   listenRevealed.value = false
@@ -317,11 +314,31 @@ const quizOptions = ref([])
 const quizPick = ref('')
 const quizRevealed = ref(false)
 
-function buildQuiz() {
-  const others = distractors(2, (c) => c.meaning === item.value.meaning)
-  quizOptions.value = shuffle([item.value, ...others])
-  quizPick.value = ''
-  quizRevealed.value = false
+/**
+ * 「考一考」考的是字义，所以三个选项得各自带一句释义。释义在单元详情包里，
+ * 而形近字往往散落在别的单元——先拿一批形近候选，把它们的详情包一起
+ * import() 回来，再挑出释义和正确答案不重样的两个。
+ *
+ * 包还没到之前先用手头已经加载过的字撑住选项，避免面板闪一下空白；
+ * 等待期间孩子翻到了别的字就直接放弃这次结果。
+ */
+async function buildQuiz() {
+  const char = decoded.value
+  const candidates = similarDistractors(char, 8)
+  const usable = (c) => c?.meaning && c.meaning !== item.value?.meaning
+
+  const settle = (list) => {
+    // 翻到别的字了，或者孩子已经答了：这次的结果作废，别把选项从脚下抽走
+    if (decoded.value !== char || !item.value || quizRevealed.value || done.quiz) return
+    quizOptions.value = shuffle([item.value, ...list.slice(0, 2)])
+    quizPick.value = ''
+    quizRevealed.value = false
+  }
+
+  settle(candidates.map((c) => getLoadedCharacter(c.char)).filter(usable))
+
+  await Promise.all([...new Set(candidates.map((c) => c.unit))].map((u) => loadUnitDetails(u)))
+  settle(candidates.map((c) => getLoadedCharacter(c.char)).filter(usable))
 }
 
 function onQuizPick(option, event) {

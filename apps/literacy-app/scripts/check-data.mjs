@@ -22,6 +22,7 @@ import { TOTAL_IDIOMS } from '../src/data/idiom-index.js'
 import { RADICALS, getRadical } from '../src/data/radicals.js'
 import { ETYMOLOGY, ETYMOLOGY_KINDS } from '../src/data/etymology.js'
 import { ETYMOLOGY_CHARS } from '../src/data/etymology-index.js'
+import { SIMILAR_MAP } from '../src/data/similar-chars.js'
 import { POEMS, POEM_GLOSS, POEM_THEMES, charsInPoem, verifyPoemCoverage } from '../src/data/poems.js'
 import { TOTAL_POEMS } from '../src/data/poem-index.js'
 import { validateShape } from '../src/utils/etymologySketch.js'
@@ -368,6 +369,38 @@ const thinKinds = ETYMOLOGY_KINDS.filter((k) => ETYMOLOGY.filter((e) => e.kind =
 check(
   thinKinds.length === 0,
   `象形/指事/会意/形声每类至少 5 个字${thinKinds.length ? `（${thinKinds.map((k) => k.name).join('、')}）` : ''}`
+)
+
+/* ----------------------------------------------------------------- 形近字
+ *
+ * 形近字库是生成物（scripts/gen-similar-chars.mjs），字表一改它就会走散：
+ * 库里留着已经删掉的字，选择题就会渲染出点不开的选项。
+ * 这里只验「有没有走散」和「覆盖够不够」，相似度本身由生成器负责。
+ */
+const similarCoverage = CHARACTERS.filter((c) => SIMILAR_MAP.has(c.char)).length
+check(
+  similarCoverage >= CHARACTERS.length * 0.95,
+  `形近字库覆盖 ${similarCoverage} / ${CHARACTERS.length} 个字（要求 ≥ 95%）`
+)
+
+const similarStray = []
+for (const [char, packed] of SIMILAR_MAP) {
+  if (!CHARACTER_MAP.has(char)) similarStray.push(char)
+  for (const other of packed) {
+    if (!CHARACTER_MAP.has(other)) similarStray.push(`${char}→${other}`)
+    if (other === char) similarStray.push(`${char}→自己`)
+  }
+}
+check(
+  similarStray.length === 0,
+  `形近字库里的字都在字表里${similarStray.length ? `（${similarStray.slice(0, 12).join('、')}${similarStray.length > 12 ? '…' : ''}，重跑 npm run gen:similar）` : ''}`
+)
+
+// 三选一 / 四选一各要 2–3 个干扰项，少于 3 个的字出题就会退回「随便找个字」。
+const similarThin = [...SIMILAR_MAP].filter(([, packed]) => packed.length < 3).map(([c]) => c)
+check(
+  similarThin.length <= CHARACTERS.length * 0.05,
+  `形近字不足 3 个的字只有 ${similarThin.length} 个（上限 ${Math.floor(CHARACTERS.length * 0.05)}）`
 )
 
 /* ------------------------------------------------------------- 偏旁部首 */
