@@ -334,7 +334,9 @@ def main() -> int:
 
     try:
         report = run_walkthrough(args.startup_timeout, args.focus_delay)
-    except Exception as exc:
+    # A harness must preserve unexpected UIA failures in its output artifact;
+    # otherwise automation errors can be mistaken for an absent run.
+    except Exception as exc:  # noqa: BLE001
         report = build_platform_report(
             generated_by=GENERATED_BY,
             target_platform="windows",

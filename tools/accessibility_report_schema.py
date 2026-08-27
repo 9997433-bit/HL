@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Shared schema for host-native screen-reader walkthrough reports.
 
 The canonical example is ``.agent_workspace/round3/accessibility-report.json``.
@@ -53,7 +52,7 @@ PLATFORM_READERS = {
 
 
 def validate_report_schema(report: dict[str, Any]) -> None:
-    """Raise ``ValueError`` when ``report`` violates the shared report shape."""
+    """Raise ``TypeError``/``ValueError`` for an invalid shared report shape."""
     expected = set(REPORT_SCHEMA)
     actual = set(report)
     if actual != expected:
@@ -65,9 +64,9 @@ def validate_report_schema(report: dict[str, Any]) -> None:
     for field, expected_type in REPORT_SCHEMA.items():
         value = report[field]
         if field == "screen_reader_platforms_passed" and isinstance(value, bool):
-            raise ValueError(f"{field} must be an integer, not bool")
+            raise TypeError(f"{field} must be an integer, not bool")
         if not isinstance(value, expected_type):
-            raise ValueError(
+            raise TypeError(
                 f"{field} must be {expected_type.__name__}, got {type(value).__name__}"
             )
 
@@ -88,10 +87,10 @@ def validate_report_schema(report: dict[str, Any]) -> None:
     by_platform: dict[str, dict[str, Any]] = {}
     for row in rows:
         if not isinstance(row, dict):
-            raise ValueError("every platform row must be an object")
+            raise TypeError("every platform row must be an object")
         for field, expected_type in PLATFORM_SCHEMA.items():
             if field not in row or not isinstance(row[field], expected_type):
-                raise ValueError(f"platform row has invalid {field}")
+                raise TypeError(f"platform row has invalid {field}")
         platform_name = row["platform"]
         if platform_name in by_platform:
             raise ValueError(f"duplicate platform row: {platform_name}")
