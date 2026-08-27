@@ -127,9 +127,14 @@ checksum manifest, and attaches exactly these files:
 
 - `audio-studio-linux.zip`
 - `audio-studio-windows.zip`
-- `audio-studio-macos.zip`
+- `audio-studio-macos-arm64.zip`
 - `audio-studio-sbom.json`
 - `SHA256SUMS`
+
+The macOS asset states its architecture because it can only be an arm64 build:
+`packaging/MACOS.md` covers why universal2 is not currently attainable, what
+the macOS build gates on, and what a recipient has to do with an unsigned,
+un-notarised bundle.
 
 The release is not created if any platform build, SBOM gate, expected-asset
 check, or checksum step fails. To verify downloaded assets, put all five files

@@ -93,6 +93,9 @@ jobs:
 
   build-macos:
     name: Build macOS bundle
+    # Apple silicon, and no universal2 wheels exist for numpy, scipy or
+    # soundfile, so this asset is arm64 and is named for it. The --expect-arch
+    # gate fails the build rather than let the name and the binary diverge.
     runs-on: macos-latest
     timeout-minutes: 30
     permissions:
@@ -114,19 +117,13 @@ jobs:
           python -m pip install "./audio-studio[installer]"
 
       - name: Build macOS bundle
-        run: >-
-          python -m PyInstaller
-          --noconfirm
-          --clean
-          --distpath dist
-          --workpath build/pyinstaller
-          packaging/pyinstaller.spec
+        run: scripts/build-macos.sh --install-deps --clean --expect-arch arm64
 
       - name: Prepare macOS release asset
         run: >-
           scripts/prepare-release-assets.sh
           --output-dir release-assets
-          --bundle macos dist/audio-studio
+          --bundle macos-arm64 dist/audio-studio
 
       - name: Upload macOS release asset
         uses: actions/upload-artifact@v4
@@ -166,7 +163,7 @@ jobs:
         run: |
           test -f release-assets/audio-studio-linux.zip
           test -f release-assets/audio-studio-windows.zip
-          test -f release-assets/audio-studio-macos.zip
+          test -f release-assets/audio-studio-macos-arm64.zip
           test -f release-assets/audio-studio-sbom.json
           test -f release-assets/SHA256SUMS
 
@@ -177,6 +174,6 @@ jobs:
           files: |
             release-assets/audio-studio-linux.zip
             release-assets/audio-studio-windows.zip
-            release-assets/audio-studio-macos.zip
+            release-assets/audio-studio-macos-arm64.zip
             release-assets/audio-studio-sbom.json
             release-assets/SHA256SUMS

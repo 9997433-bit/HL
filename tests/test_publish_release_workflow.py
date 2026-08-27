@@ -11,7 +11,7 @@ WORKFLOW_PATH = WORKFLOWS_DIR / "publish-release.yml"
 EXPECTED_ASSETS = {
     "release-assets/audio-studio-linux.zip",
     "release-assets/audio-studio-windows.zip",
-    "release-assets/audio-studio-macos.zip",
+    "release-assets/audio-studio-macos-arm64.zip",
     "release-assets/audio-studio-sbom.json",
     "release-assets/SHA256SUMS",
 }
@@ -64,7 +64,7 @@ def test_workflow_builds_all_platforms_and_prepares_assets() -> None:
     assert "scripts/build-linux.sh" in _commands(jobs["build-linux"])
     assert "tools/generate_sbom.py" in _commands(jobs["build-linux"])
     assert "scripts/build-windows.ps1" in _commands(jobs["build-windows"])
-    assert "python -m PyInstaller" in _commands(jobs["build-macos"])
+    assert "scripts/build-macos.sh" in _commands(jobs["build-macos"])
 
     artifact_names = {
         next(
