@@ -409,6 +409,9 @@ frequency-domain counterparts of the M2 gates AC-CORR-001/002.
 | AC-DYN-004 | P0 | FRAC/FDAC self-identity and invariance | self-FRAC = 1 ± 1e-12; scale change ≤ 1e-12; FDAC diagonal = 1 | MS-7.4 |
 | AC-DYN-005 | P1 | Synthesized FRF survives UFF-58 round trip | abscissa and ordinate recovered to ≤ 1e-9 rel.; FRAC = 1 | MS-7.4 |
 | AC-DYN-006 | P1 | SDM spring modification shifts frequencies | predicted f₁ increases; within 5 % rel. of full solve | MS-7.6 |
+| AC-DYN-007 | P1 | MBA couples modal substructures | sorted coupled f_r match `eigh(K, M)` to 1e-6 rel. | MS-7.7 |
+| AC-DYN-008 | P1 | FBA assembles component FRFs | drive-point rel. err ≤ 1e-8 vs coupled `direct_frf` | MS-7.8 |
+| AC-DYN-009 | P1 | SDM scan + tuned absorber | spring scan monotone; absorber f matches 2-DOF `eigh` to 1e-6 rel. | MS-7.6 |
 
 ### Details
 
@@ -439,6 +442,20 @@ frequency-domain counterparts of the M2 gates AC-CORR-001/002.
   the complex ordinates to ≤ 1e-9 relative, and correlates with the source at
   FRAC = 1, so measured and synthesized FRFs are interchangeable in the
   correlation pipeline.
+- **AC-DYN-006** (`oracle`) — A grounded spring on the 10-DOF chain raises the
+  first SDM-predicted frequency and stays within 5 % relative of a full
+  re-solve on the modified `K`.
+- **AC-DYN-007** (`oracle`) — Two single-mode substructures coupled through a
+  connection spring in the modal domain (`mba_couple`) reproduce the sorted
+  natural frequencies of the assembled `eigh(K, M)` problem to relative error
+  ≤ 1e-6 when every retained mode is kept.
+- **AC-DYN-008** (`oracle`) — Drive-point component receptances assembled with
+  `fba_assemble` match the coupled-system `direct_frf` drive-point line to
+  relative error ≤ 1e-8 on an off-resonance frequency grid.
+- **AC-DYN-009** (`oracle`) — `scan_stiffness_springs` raises the first-mode
+  frequency monotonically as added spring stiffness increases; `tuned_absorber_host_frequency_hz`
+  matches the lowest undamped root of the host–absorber 2-DOF model to relative
+  error ≤ 1e-6 (overdamped absorber damping falls back to the undamped solve).
 
 ---
 

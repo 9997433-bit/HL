@@ -70,7 +70,7 @@ FAMILY_TO_MODULE = {
     "PERF": "M1",
 }
 EXPECTED_CRITERIA_PER_FAMILY = {
-    "MODAL": 9,     "CORR": 11, "UPD": 13, "WORK": 6, "OPT": 4, "DYN": 6, "ELEM": 3,
+    "MODAL": 9,     "CORR": 11, "UPD": 13, "WORK": 6, "OPT": 4, "DYN": 9, "ELEM": 3,
     "IO": 8, "MPE": 8, "PRETEST": 6, "PERF": 5,
 }
 
@@ -222,6 +222,12 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P1", "contract", "MS-7.4", _DYN_SUITE, "verified"),
     _c("AC-DYN-006", "SDM spring modification shifts frequencies toward full solve",
        "P1", "oracle", "MS-7.6", _DYN_SUITE, "implemented"),
+    _c("AC-DYN-007", "MBA couples modal substructures to the full eigenproblem",
+       "P1", "oracle", "MS-7.7", _DYN_SUITE, "implemented"),
+    _c("AC-DYN-008", "FBA assembles component FRFs to the coupled direct FRF",
+       "P1", "oracle", "MS-7.8", _DYN_SUITE, "implemented"),
+    _c("AC-DYN-009", "SDM stiffness scan and tuned absorber frequency oracle",
+       "P1", "oracle", "MS-7.6", _DYN_SUITE, "implemented"),
     # --- M7 Element library (MS-8) --------------------------------------------
     _c("AC-ELEM-001", "Patch test exact to machine precision",
        "P0", "oracle", "MS-8.3", _ELEM_SUITE, "verified"),
@@ -305,7 +311,7 @@ def test_registry_inventory_matches_documented_scope():
         for family in EXPECTED_CRITERIA_PER_FAMILY
     }
     assert counts == EXPECTED_CRITERIA_PER_FAMILY
-    assert len(REGISTRY) == 79
+    assert len(REGISTRY) == 82
 
 
 def test_ids_unique():

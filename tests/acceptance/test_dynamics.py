@@ -382,3 +382,165 @@ def test_ac_dyn_006_sdm_spring_shift_matches_the_full_solve() -> None:
     full = ModalSolver.from_matrices(modified, M).solve(num_modes=5, sparse=False)
     assert predicted[0] > base.frequencies[0]
     assert predicted[0] == pytest.approx(full.frequencies[0], rel=0.05)
+
+
+# --------------------------------------------------------------- AC-DYN-007
+
+
+@criterion("AC-DYN-007")
+def test_mba_coupled_frequencies_match_the_full_eigenproblem() -> None:
+    """Two 1-DOF modal components coupled by a spring match ``eigh(K, M)``."""
+    from scipy.linalg import eigh
+
+    from openfemlab.solver.mba import ModalComponent, mba_couple
+
+    mass_left, mass_right = 1.0, 1.5
+    stiffness_left, stiffness_right = 120.0, 180.0
+    connection_stiffness = 60.0
+
+    omega_left = np.sqrt(stiffness_left / mass_left)
+    omega_right = np.sqrt(stiffness_right / mass_right)
+    left = ModalComponent(
+        frequencies_hz=np.array([omega_left / (2.0 * np.pi)]),
+        mode_shapes=np.array([[1.0 / np.sqrt(mass_left)]]),
+        modal_masses=np.array([1.0]),
+    )
+    right = ModalComponent(
+        frequencies_hz=np.array([omega_right / (2.0 * np.pi)]),
+        mode_shapes=np.array([[1.0 / np.sqrt(mass_right)]]),
+        modal_masses=np.array([1.0]),
+    )
+    coupled = mba_couple(
+        left,
+        right,
+        connection_stiffness=connection_stiffness,
+    )
+
+    stiffness = np.array(
+        [
+            [
+                stiffness_left + connection_stiffness,
+                -connection_stiffness,
+            ],
+            [
+                -connection_stiffness,
+                stiffness_right + connection_stiffness,
+            ],
+        ],
+        dtype=np.float64,
+    )
+    mass = np.diag([mass_left, mass_right])
+    eigenvalues = eigh(stiffness, mass, eigvals_only=True)
+    reference = np.sort(np.sqrt(eigenvalues) / (2.0 * np.pi))
+    assert np.sort(coupled.frequencies_hz) == pytest.approx(reference, rel=1e-6)
+
+
+# --------------------------------------------------------------- AC-DYN-008
+
+
+@criterion("AC-DYN-008")
+def test_fba_assembled_receptance_matches_the_coupled_direct_frf() -> None:
+    """Component drive-point FRFs assembled by FBA match ``direct_frf``."""
+    from openfemlab.solver.mba import fba_assemble
+
+    mass_left, mass_right = 2.0, 3.0
+    stiffness_left, stiffness_right = 400.0, 600.0
+    connection_stiffness = 150.0
+    frequencies = np.linspace(1.0, 25.0, 48)
+
+    left_modes = ModalSolver.from_matrices(
+        np.array([[stiffness_left]]),
+        np.array([[mass_left]]),
+    ).solve(num_modes=1, sparse=False)
+    right_modes = ModalSolver.from_matrices(
+        np.array([[stiffness_right]]),
+        np.array([[mass_right]]),
+    ).solve(num_modes=1, sparse=False)
+    left_frf = modal_frf(
+        frequencies,
+        left_modes,
+        0.0,
+        response_dofs=[0],
+        excitation_dofs=[0],
+    )
+    right_frf = modal_frf(
+        frequencies,
+        right_modes,
+        0.0,
+        response_dofs=[0],
+        excitation_dofs=[0],
+    )
+    assembled = fba_assemble(
+        left_frf,
+        right_frf,
+        left_dof=0,
+        right_dof=0,
+        stiffness=connection_stiffness,
+    )
+
+    coupled_stiffness = np.array(
+        [
+            [
+                stiffness_left + connection_stiffness,
+                -connection_stiffness,
+            ],
+            [
+                -connection_stiffness,
+                stiffness_right + connection_stiffness,
+            ],
+        ],
+        dtype=np.float64,
+    )
+    coupled_mass = np.diag([mass_left, mass_right])
+    reference = direct_frf(frequencies, coupled_stiffness, coupled_mass).drive_point(0)
+    assert _relative_error(assembled.drive_point(0), reference) <= ORACLE_TOLERANCE
+
+
+# --------------------------------------------------------------- AC-DYN-009
+
+
+@criterion("AC-DYN-009")
+def test_sdm_stiffness_scan_and_tuned_absorber_match_oracles() -> None:
+    """SDM spring scan is monotone; tuned absorber frequency matches 2-DOF ``eigh``."""
+    from scipy.linalg import eigh
+
+    from openfemlab.solver.sdm import (
+        TunedAbsorberModification,
+        scan_stiffness_springs,
+        tuned_absorber_host_frequency_hz,
+    )
+
+    K, M = _chain()
+    modes = _full_basis(K, M)
+    stiffness_values = [0.0, float(K[0, 0]) * 0.25, float(K[0, 0]) * 0.75]
+    scanned = scan_stiffness_springs(
+        K,
+        M,
+        modes.mode_shapes,
+        dof_index=0,
+        stiffness_values=stiffness_values,
+        num_modes=5,
+    )
+    assert scanned[0] < scanned[1] < scanned[2]
+
+    host_mass = 8.0
+    host_stiffness = 900.0
+    absorber = TunedAbsorberModification(
+        host_dof=0,
+        absorber_mass=0.5,
+        absorber_stiffness=120.0,
+        absorber_damping=0.001,
+    )
+    predicted = tuned_absorber_host_frequency_hz(host_mass, host_stiffness, absorber)
+    mass_matrix = np.diag([host_mass, absorber.absorber_mass])
+    stiffness_matrix = np.array(
+        [
+            [host_stiffness + absorber.absorber_stiffness, -absorber.absorber_stiffness],
+            [-absorber.absorber_stiffness, absorber.absorber_stiffness],
+        ],
+        dtype=np.float64,
+    )
+    undamped_reference = float(
+        np.sqrt(eigh(stiffness_matrix, mass_matrix, eigvals_only=True)[0]) / (2.0 * np.pi)
+    )
+    assert predicted == pytest.approx(undamped_reference, rel=1e-6)

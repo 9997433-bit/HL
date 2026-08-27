@@ -18,9 +18,22 @@ from ..exceptions import SolverError
 
 __all__ = [
     "PointModification",
+    "TunedAbsorberModification",
     "apply_point_modifications",
     "modified_frequencies_hz",
+    "scan_stiffness_springs",
+    "tuned_absorber_host_frequency_hz",
 ]
+
+
+@dataclass(frozen=True)
+class TunedAbsorberModification:
+    """Tuned mass-damper attached to a host DOF (SDM extension)."""
+
+    host_dof: int
+    absorber_mass: float
+    absorber_stiffness: float
+    absorber_damping: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -86,3 +99,68 @@ def modified_frequencies_hz(
         raise SolverError("the modified modal eigenproblem is singular") from exc
     eigenvalues = np.maximum(eigenvalues, 0.0)
     return np.sqrt(eigenvalues) / (2.0 * np.pi)
+
+
+def scan_stiffness_springs(
+    stiffness: npt.NDArray[np.floating],
+    mass: npt.NDArray[np.floating],
+    mode_shapes: npt.NDArray[np.floating],
+    dof_index: int,
+    stiffness_values: Sequence[float],
+    *,
+    mode_index: int = 0,
+    num_modes: int | None = None,
+) -> npt.NDArray[np.float64]:
+    """Fast SDM scan: first-mode frequency vs. added spring stiffness."""
+    values = [float(value) for value in stiffness_values]
+    if not values:
+        raise SolverError("stiffness_values must not be empty")
+    frequencies = []
+    for delta in values:
+        predicted = modified_frequencies_hz(
+            stiffness,
+            mass,
+            mode_shapes,
+            modifications=[PointModification(dof_index=int(dof_index), stiffness_delta=delta)],
+            num_modes=num_modes,
+        )
+        frequencies.append(predicted[mode_index])
+    return np.asarray(frequencies, dtype=np.float64)
+
+
+def tuned_absorber_host_frequency_hz(
+    host_mass: float,
+    host_stiffness: float,
+    absorber: TunedAbsorberModification,
+) -> float:
+    """Lowest natural frequency [Hz] of a host DOF with a tuned absorber."""
+    if host_mass <= 0.0 or host_stiffness <= 0.0:
+        raise SolverError("host_mass and host_stiffness must be positive")
+    if absorber.absorber_mass <= 0.0 or absorber.absorber_stiffness <= 0.0:
+        raise SolverError("absorber mass and stiffness must be positive")
+    mass = np.diag([float(host_mass), float(absorber.absorber_mass)])
+    stiffness = np.array(
+        [
+            [host_stiffness + absorber.absorber_stiffness, -absorber.absorber_stiffness],
+            [-absorber.absorber_stiffness, absorber.absorber_stiffness],
+        ],
+        dtype=np.float64,
+    )
+    if absorber.absorber_damping > 0.0:
+        damping = float(absorber.absorber_damping)
+        state = np.zeros((4, 4), dtype=np.float64)
+        state[:2, 2:] = np.eye(2)
+        state[:2, :2] = -np.linalg.solve(mass, stiffness)
+        state[2:, 2:] = -np.linalg.solve(
+            mass,
+            damping * np.array([[1.0, -1.0], [-1.0, 1.0]], dtype=np.float64),
+        )
+        values = np.linalg.eigvals(state)
+        imaginary = np.abs(np.imag(values))
+        oscillatory = imaginary[imaginary > 1e-8]
+        if oscillatory.size:
+            return float(np.min(oscillatory) / (2.0 * np.pi))
+    from scipy.linalg import eigh
+
+    eigenvalues = eigh(stiffness, mass, eigvals_only=True)
+    return float(np.sqrt(max(eigenvalues[0], 0.0)) / (2.0 * np.pi))

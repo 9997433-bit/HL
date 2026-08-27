@@ -744,17 +744,51 @@ def csf(reference, comparison) -> np.ndarray
 
 `openfemlab.solver.sdm` projects stiffness/mass increments onto a retained modal
 basis and resolves the modified natural frequencies without a full FE re-solve
-(AC-DYN-006).  Wave 2 adds MBA/FBA in MS-7.7/MS-7.8.
+(AC-DYN-006, AC-DYN-009).
+
+```python
+from openfemlab.solver.sdm import (
+    PointModification,
+    TunedAbsorberModification,
+    apply_point_modifications,
+    modified_frequencies_hz,
+    scan_stiffness_springs,
+    tuned_absorber_host_frequency_hz,
+)
+```
+
+- :func:`modified_frequencies_hz` — modal-basis eigenproblem after point
+  stiffness/mass deltas (AC-DYN-006).
+- :func:`scan_stiffness_springs` — fast first-mode frequency vs. added spring
+  stiffness at one DOF (AC-DYN-009).
+- :func:`tuned_absorber_host_frequency_hz` — lowest host frequency with a tuned
+  mass–spring–damper branch (AC-DYN-009).
 
 ### MS-7.7 Modal-Based Assembly (MBA)
 
-Specified for Round 7 Wave 2 — couples modal substructures at connection DOFs.
-Stub: :func:`openfemlab.solver.mba.mba_couple`.
+`openfemlab.solver.mba` couples retained modal bases of two substructures through
+a connection stiffness at paired interface DOFs (AC-DYN-007).
+
+```python
+from openfemlab.solver.mba import ModalComponent, mba_couple
+```
+
+:func:`mba_couple` concatenates the modal bases, projects the physical connection
+spring into modal coordinates, and solves the coupled generalized eigenproblem.
 
 ### MS-7.8 FRF-Based Assembly (FBA)
 
-Specified for Round 7 Wave 2 — assembles component FRFs through connection
-impedances.  Stub: :func:`openfemlab.solver.mba.fba_assemble`.
+`openfemlab.solver.mba` also assembles component receptances at connection DOFs
+through a spring impedance (AC-DYN-008).
+
+```python
+from openfemlab.solver.mba import fba_couple_receptances, fba_assemble
+```
+
+:func:`fba_couple_receptances` applies ``H = 1 / (Z_L + k - k²/(Z_R + k))`` with
+``Z = 1/H`` for each uncoupled drive-point receptance.
+:func:`fba_assemble` wraps two :class:`~openfemlab.solver.dynamics.FrequencyResponse`
+objects into one drive-point receptance line.
 
 ---
 
