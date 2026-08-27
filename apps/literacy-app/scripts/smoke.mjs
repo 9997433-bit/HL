@@ -1061,18 +1061,22 @@ await interact('徽章：学会第一个字就点亮，首页与家长中心都�
   if (!home.chip) throw new Error('首页顶部没有徽章数量')
 
   await page.goto(page.url().replace(/#.*$/, '#/parent'), { waitUntil: 'networkidle2' })
-  await new Promise((r) => setTimeout(r, 400))
-  await page.evaluate(() => {
-    const label = document.body.innerText.match(/(\d+)\s*\+\s*(\d+)/)
-    const input = document.querySelector('input[type="number"]')
-    if (!label || !input) return
+  await page.waitForSelector('#gate-answer', { timeout: 5000 })
+  const submitted = await page.evaluate(() => {
+    const label = document.querySelector('.gate__q')?.textContent.match(/(\d+)\s*\+\s*(\d+)/)
+    const input = document.querySelector('#gate-answer')
+    const form = input?.closest('form')
+    if (!label || !input || !form) return false
     const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
     setter.call(input, String(Number(label[1]) + Number(label[2])))
     input.dispatchEvent(new Event('input', { bubbles: true }))
+    form.requestSubmit()
+    return true
   })
-  await new Promise((r) => setTimeout(r, 200))
-  await clickText(page, '进入')
-  await new Promise((r) => setTimeout(r, 400))
+  if (!submitted) throw new Error('家长验证题或提交表单未渲染')
+  await page.waitForFunction(() => document.body.innerText.includes('成就徽章墙'), {
+    timeout: 5000
+  })
 
   const parent = await page.evaluate(() => ({
     total: document.querySelectorAll('.badge').length,
