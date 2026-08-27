@@ -102,6 +102,39 @@ def test_ensure_visible_pages_the_view_to_follow_the_playhead(waveform: Waveform
     assert waveform.view_start <= 45_000 <= waveform.view_start + waveform.view_frames
 
 
+def test_following_the_playhead_pages_once_instead_of_scrolling_every_frame(
+    waveform: WaveformView,
+) -> None:
+    """A flip must buy a whole page, or the refresh timer pays for a scroll.
+
+    Landing the playhead back on the edge it ran off re-arms the trigger for
+    the very next tick, and every scroll throws the waveform pixmap away — so
+    the regression this guards is not a wrong view but a 60 Hz repaint that
+    re-renders the whole waveform sixty times a second.
+    """
+    waveform.set_view(0, 10_000)
+    scrolls: list[int] = []
+    waveform.viewChanged.connect(lambda start, _frames: scrolls.append(start))
+
+    for frame in range(8_000, 16_000, 100):
+        waveform.set_playhead(frame, follow=True)
+
+    assert len(scrolls) == 1
+    assert waveform.view_start <= 15_900 <= waveform.view_start + waveform.view_frames
+
+
+def test_following_the_playhead_backwards_pages_once_too(waveform: WaveformView) -> None:
+    waveform.set_view(20_000, 10_000)
+    scrolls: list[int] = []
+    waveform.viewChanged.connect(lambda start, _frames: scrolls.append(start))
+
+    for frame in range(21_000, 13_000, -100):
+        waveform.set_playhead(frame, follow=True)
+
+    assert len(scrolls) == 1
+    assert waveform.view_start <= 13_100 <= waveform.view_start + waveform.view_frames
+
+
 def test_selection_is_clamped_and_announced(waveform: WaveformView) -> None:
     received: list[TimeRange | None] = []
     waveform.selectionChanged.connect(received.append)
