@@ -25,6 +25,8 @@
 | [Pinia](https://github.com/vuejs/pinia) | 2.x | MIT | Copyright (c) 2019-present Eduardo San Martin Morote | 双 App |
 | [GSAP](https://github.com/greensock/GSAP) | 3.x | [GSAP Standard License](https://gsap.com/standard-license) | Copyright (c) 2008-2026, GreenSock, Inc. | 双 App |
 | [Hanzi Writer](https://github.com/chanind/hanzi-writer) | 3.7.x | MIT | Copyright (c) 2014 David Chanin | 识字 App |
+| [Tesseract.js](https://github.com/naptha/tesseract.js) | 7.0.x | Apache-2.0 | Copyright (c) 2016 Kevin Kwok | 识字 App |
+| [tesseract.js-core](https://github.com/naptha/tesseract.js-core) | 7.0.x | Apache-2.0 | Copyright (c) 2016 Kevin Kwok；含 Tesseract OCR（Apache-2.0，Copyright Google Inc.）与 Leptonica（BSD-2-Clause）的 wasm 编译产物 | 识字 App |
 
 MIT 许可证全文见本文件「附录 A」，对上表全部 MIT 组件适用（版权行各自替换）。
 
@@ -32,6 +34,13 @@ MIT 许可证全文见本文件「附录 A」，对上表全部 MIT 组件适用
 [GSAP Standard License](https://gsap.com/standard-license) 免费提供（含商业使用），
 但该许可证禁止将 GSAP 用于构建与 GSAP 竞争的动画工具，并有其他条款。
 本项目仅将其作为应用内动画库使用，符合该许可证；升级 GSAP 版本时应复核许可证是否变更。
+
+**Tesseract.js 说明**：只有主线程那一小段（`createWorker`）会被 Vite 打进
+`dist/assets/`，且是懒加载块。真正干活的 `worker.min.js` 与 wasm 内核
+`tesseract-core-simd-lstm.wasm.js` 由 `apps/literacy-app/scripts/gen-ocr-assets.mjs`
+从 npm 包原样复制到 `public/ocr/`，作为独立文件随 dist 与 zip 分发（未修改）。
+Apache-2.0 要求随附许可证与 NOTICE：许可证全文见「附录 B」指向的上游地址，
+两个包的 `LICENSE` 文件保留在 `node_modules` 中。
 
 ## 二、随构建产物分发的第三方数据
 
@@ -53,6 +62,17 @@ MIT 许可证全文见本文件「附录 A」，对上表全部 MIT 组件适用
 - 运行时回退：本地缺字时识字 App 会从
   `https://cdn.jsdelivr.net/npm/hanzi-writer-data@2/` 拉取单字 JSON（同为 APL 数据）。
   课程字表全部离线内置，正常使用不触发该请求。
+
+### Tesseract chi_sim 语言包（简体中文 OCR 模型）— Apache-2.0
+
+- 上游：[tesseract-ocr/tessdata_fast](https://github.com/tesseract-ocr/tessdata_fast)，
+  经 [tessdata.projectnaptha.com](https://tessdata.projectnaptha.com/4.0.0_fast/) 分发的
+  gzip 副本。版权归 Google Inc. 及 Tesseract OCR 贡献者。
+- 许可证：**Apache-2.0**，与 Tesseract OCR 本体一致。
+- 本仓库的分发位置：`apps/literacy-app/public/ocr/chi_sim.traineddata.gz`
+  （1.7 MB，未修改的上游文件，入库以保证断网也能构建与识字）。
+- **义务**：随附 Apache-2.0 许可证（见「附录 B」）并保留版权声明；本文件即为声明载体。
+  未对模型做任何修改，无需附加修改说明。
 
 ## 三、仓库内第三方素材（当前未打入 App 产物）
 
@@ -113,6 +133,7 @@ MIT 许可证全文见本文件「附录 A」，对上表全部 MIT 组件适用
 | CC BY-SA 4.0 | 署名；衍生同许可 | 署名文本见第三节；`LICENSE.txt` 在素材目录内 |
 | OFL 1.1 | 字体随附许可证；不得单独出售 | 未内置字体；许可证文本已预置 |
 | GSAP Standard | 不得用于竞争性动画工具等 | 仅作应用内动画库使用 |
+| Apache-2.0（随产物分发） | 保留版权与 NOTICE；标明修改 | Tesseract.js / wasm 内核 / chi_sim 语言包均为未修改副本，声明见第一、二节 |
 
 ---
 
@@ -152,6 +173,7 @@ SOFTWARE.
 | CC BY-SA 4.0 | `shared/assets/openmoji/LICENSE.txt`，或 <https://creativecommons.org/licenses/by-sa/4.0/legalcode> |
 | SIL OFL 1.1 | `shared/assets/fonts/OFL-NotoSansSC.txt` |
 | GSAP Standard License | <https://gsap.com/standard-license>（随版本变化，升级时核对） |
+| Apache-2.0（Tesseract.js / wasm 内核 / chi_sim 语言包） | `node_modules/tesseract.js/LICENSE.md`、`node_modules/tesseract.js-core/LICENSE`，或 <https://www.apache.org/licenses/LICENSE-2.0> |
 | Apache-2.0（仅开发依赖） | <https://www.apache.org/licenses/LICENSE-2.0> |
 | MPL-2.0（仅开发依赖） | <https://www.mozilla.org/MPL/2.0/> |
 
