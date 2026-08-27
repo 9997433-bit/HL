@@ -4,7 +4,16 @@ import { computed } from 'vue'
 const props = defineProps({
   mood: { type: String, default: 'idle' }, // idle | happy | sad | think | cheer
   size: { type: Number, default: 96 },
+  /**
+   * 陪跑形态：整只机器人变成一个按钮，点它会 emit('tap')。
+   * 默认是纯装饰，答题壳里那只不该抢走键盘焦点。
+   */
+  interactive: { type: Boolean, default: false },
+  /** 陪跑形态下按钮的无障碍名称，讲清楚点了会发生什么。 */
+  tapLabel: { type: String, default: '点我，小算给你说句鼓励的话' },
 })
+
+defineEmits(['tap'])
 
 const bodyColor = computed(
   () =>
@@ -19,8 +28,23 @@ const bodyColor = computed(
 </script>
 
 <template>
-  <div class="mascot" :class="`mood-${mood}`" :style="{ width: `${size}px`, height: `${size}px` }">
-    <svg viewBox="0 0 120 120" :width="size" :height="size" role="img" aria-label="小机器人伙伴">
+  <component
+    :is="interactive ? 'button' : 'div'"
+    class="mascot"
+    :class="[`mood-${mood}`, { tappable: interactive }]"
+    :style="{ width: `${size}px`, height: `${size}px` }"
+    :type="interactive ? 'button' : undefined"
+    :aria-label="interactive ? tapLabel : undefined"
+    @click="interactive && $emit('tap')"
+  >
+    <svg
+      viewBox="0 0 120 120"
+      :width="size"
+      :height="size"
+      :role="interactive ? undefined : 'img'"
+      :aria-label="interactive ? undefined : '小机器人伙伴'"
+      :aria-hidden="interactive || undefined"
+    >
       <defs>
         <radialGradient :id="`glow-${mood}`" cx="50%" cy="40%">
           <stop offset="0%" :stop-color="bodyColor" stop-opacity="0.55" />
@@ -95,7 +119,7 @@ const bodyColor = computed(
       <circle cx="60" cy="95" r="3.5" fill="var(--cosmos-1)" opacity="0.55" />
       <circle cx="68" cy="95" r="3.5" fill="var(--cosmos-1)" opacity="0.55" />
     </svg>
-  </div>
+  </component>
 </template>
 
 <style scoped>
@@ -103,6 +127,19 @@ const bodyColor = computed(
   display: grid;
   place-items: center;
   animation: float 3.4s ease-in-out infinite;
+}
+
+.mascot.tappable {
+  padding: 0;
+  border: 0;
+  background: none;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.14s ease;
+}
+
+.mascot.tappable:active {
+  transform: scale(0.93);
 }
 
 .mood-cheer {
