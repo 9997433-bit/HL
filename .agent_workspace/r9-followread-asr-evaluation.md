@@ -1,7 +1,7 @@
 Model slug: gpt-5.6-sol-xhigh-fast
 # Round 9 · 跟读 v3 离线 ASR / 音素路线评估
 
-> 基线：`ec733bb`；评估日期：2026-08-27；范围：快乐识字 Web/PWA 与 Capacitor Android。  
+> 基线：`ec733bb`；评估日期：2026-08-27；范围：快乐识字 Web/PWA 与 Capacitor Android。
 > 结论先行：**用 sherpa-onnx + 中文流式 Zipformer/Paraformer 做第一轮离线 ASR 试验，Vosk 做轻量对照，whisper.cpp 只做准确率上限对照；不把任一通用 ASR 的汉字转写直接称为“音素评分”。** 真正面向儿童的声母、韵母、声调诊断，需要带声学后验的参考文本受限对齐、儿童语音标注集和置信度校准，不能靠“识别出了哪个汉字”反推后直接上线。
 
 ## 1. 现状、目标与关键边界
