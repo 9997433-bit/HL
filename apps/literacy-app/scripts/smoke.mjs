@@ -1128,31 +1128,35 @@ await interact('播报：答题与庆祝都有 aria-live', '/#/listen', async (p
 
   // 庆祝浮层：读完一本没读过的绘本
   await page.goto(page.url().replace(/#.*$/, '#/books/b2'), { waitUntil: 'networkidle2' })
-<<<<<<< HEAD
-  // 绘本页也是按需 chunk：翻页按钮没挂上来就开始点，会一页都翻不到
-  await page.waitForFunction(() => /下一页|读完啦/.test(document.body.innerText), { timeout: 10000 })
-=======
-  // 换 hash 不重新加载文档，goto 立刻就返回；绘本视图是按需 chunk，
-  // 机器忙的时候几百毫秒挂不上来，翻页按钮还不存在，整本书就会一页没翻完
+  // 绘本页是按需 chunk：换 hash 不重新加载文档，翻页按钮没挂上来会一页都翻不到
   await page.waitForSelector('.reader .spread', { timeout: 10000 })
->>>>>>> 9357d59 (test(识字 smoke): 绘本视图挂上来再翻页，修掉庆祝浮层探针的偶发失败)
+  const readCelebration = () =>
+    page.evaluate(() => {
+      const layer = document.querySelector('.cel')
+      if (!layer) return null
+      const live = layer.querySelector('[aria-live="polite"]')
+      return {
+        text: live?.innerText.trim() ?? '',
+        prohibited: !!layer.querySelector('span[aria-label]:not([role])')
+      }
+    })
+  let celebration = null
   for (let i = 0; i < 8; i++) {
     if (await clickText(page, '下一页')) {
-      // 翻到最后一页就发庆祝，而庆祝几秒后会自动收场：
-      // 一看见浮层就停手，别把剩下的空翻页耗在它的展示时间里
-      if (await page.$('.cel')) break
+      celebration = await readCelebration()
+      if (celebration) break
       continue
     }
-    if (await clickText(page, '读完啦')) break
+    if (await clickText(page, '读完啦')) {
+      celebration = await readCelebration()
+      break
+    }
     break
   }
-  await page.waitForSelector('.cel', { timeout: 5000 })
-  const celebration = await page.evaluate(() => {
-    const layer = document.querySelector('.cel')
-    if (!layer) return null
-    const live = layer.querySelector('[aria-live="polite"]')
-    return { text: live?.innerText.trim() ?? '', prohibited: !!layer.querySelector('span[aria-label]:not([role])') }
-  })
+  if (!celebration) {
+    await page.waitForSelector('.cel', { timeout: 5000 })
+    celebration = await readCelebration()
+  }
   if (!celebration) throw new Error('读完绘本没有弹出庆祝层')
   if (!celebration.text) throw new Error('庆祝层没有播报内容')
   if (!celebration.text.includes('跳过')) throw new Error('庆祝播报没有告诉用户可以跳过')
