@@ -12,6 +12,12 @@ header carries the send that decides which of those it lands on; the routing
 itself is the model's business, so the strip only reads and writes
 :attr:`~audio_studio.core.session.Track.send_to_bus`.
 
+Each track can also open an :class:`AutomationLane` under its clips: a strip of
+the same timeline showing the lane's gain envelope, where a click drops a
+breakpoint and a drag moves one. The curve belongs to the model
+(:attr:`~audio_studio.core.session.Track.automation`), so the mixer hears an
+edit the moment the mouse moves.
+
 Nothing here owns audio. The strips read
 :class:`~audio_studio.core.session.MultitrackSession` and write back to it
 through the same property setters a script would use, and the session's
@@ -59,6 +65,13 @@ MIN_STRIP_DB: float = -60.0
 
 #: Height of one bus strip in the bus row under the tracks.
 BUS_STRIP_HEIGHT: int = 28
+
+#: Height of the automation lane a track can open under its clips.
+AUTOMATION_LANE_HEIGHT: int = 40
+
+#: How close, in pixels, a click has to be to a breakpoint to grab it rather
+#: than to drop a new one.
+AUTOMATION_GRAB_PX: int = 6
 
 #: Combo entry, and its user data, for a track that goes straight to the master.
 MASTER_SEND_LABEL: str = "→ Mst"
@@ -304,10 +317,198 @@ class ClipLane(QWidget):
             painter.drawLine(x, int(top), x, int(bottom))
 
 
+class AutomationLane(QWidget):
+    """One track's gain envelope, editable against the shared timeline.
+
+    The lane is deliberately small: a click drops a breakpoint, a drag moves
+    one, a right-click deletes one, and the vertical axis runs from
+    :data:`MIN_STRIP_DB` to :data:`MAX_GAIN_DB` — the same span as the header's
+    fader, so a point level with the top of the lane means the same thing as a
+    fader pushed to the top of its travel.
+
+    There is no cached pixmap here. A curve is a handful of line segments, and
+    the whole point of the lane is that it repaints while the mouse is moving.
+    """
+
+    curveChanged = Signal()
+
+    def __init__(
+        self,
+        track: Track | None = None,
+        *,
+        color: str = CLIP_COLORS[0],
+        palette: Palette = PALETTE,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self._palette = palette
+        self._track = track
+        self._color = QColor(color)
+        self._view_start = 0
+        self._view_frames = 0
+        self._playhead = 0
+        self._dragging: int | None = None
+
+        self.setFixedHeight(AUTOMATION_LANE_HEIGHT)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.setCursor(Qt.CursorShape.CrossCursor)
+        self.setToolTip(
+            "Volume automation: click to add a point, drag to move it, "
+            "right-click to remove it"
+        )
+
+    # ------------------------------------------------------------- contents
+
+    @property
+    def track(self) -> Track | None:
+        return self._track
+
+    def set_track(self, track: Track | None) -> None:
+        self._track = track
+        self._dragging = None
+        self.update()
+
+    def set_view(self, view_start: int, view_frames: int) -> None:
+        self._view_start = max(0, int(view_start))
+        self._view_frames = max(0, int(view_frames))
+        self.update()
+
+    def set_playhead(self, frame: int) -> None:
+        if int(frame) != self._playhead:
+            self._playhead = int(frame)
+            self.update()
+
+    # -------------------------------------------------------------- mapping
+
+    def frame_to_x(self, frame: float) -> float:
+        if self._view_frames <= 0:
+            return 0.0
+        return (frame - self._view_start) * self.width() / self._view_frames
+
+    def x_to_frame(self, x: float) -> int:
+        if self._view_frames <= 0 or self.width() <= 0:
+            return 0
+        return max(0, int(self._view_start + x * self._view_frames / self.width()))
+
+    def db_to_y(self, value: float) -> float:
+        span = MAX_GAIN_DB - MIN_STRIP_DB
+        clamped = min(max(float(value), MIN_STRIP_DB), MAX_GAIN_DB)
+        usable = max(self.height() - 8, 1)
+        return 4.0 + (MAX_GAIN_DB - clamped) / span * usable
+
+    def y_to_db(self, y: float) -> float:
+        span = MAX_GAIN_DB - MIN_STRIP_DB
+        usable = max(self.height() - 8, 1)
+        ratio = min(max((float(y) - 4.0) / usable, 0.0), 1.0)
+        return MAX_GAIN_DB - ratio * span
+
+    # -------------------------------------------------------------- editing
+
+    def _grab_radius(self) -> int:
+        """The grab distance in frames, so it stays ``AUTOMATION_GRAB_PX`` wide."""
+        if self.width() <= 0:
+            return 0
+        return max(1, int(AUTOMATION_GRAB_PX * self._view_frames / self.width()))
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802 - Qt override
+        track = self._track
+        if track is None or self._view_frames <= 0:
+            return
+        frame = self.x_to_frame(event.position().x())
+        curve = track.automation
+
+        if event.button() == Qt.MouseButton.RightButton:
+            existing = curve.nearest(frame, self._grab_radius())
+            if existing is not None and curve.remove_point(existing.frame):
+                self.curveChanged.emit()
+                self.update()
+            return
+
+        if event.button() != Qt.MouseButton.LeftButton:
+            return
+
+        existing = curve.nearest(frame, self._grab_radius())
+        if existing is None:
+            existing = curve.set_point(frame, self.y_to_db(event.position().y()))
+            self.curveChanged.emit()
+        self._dragging = existing.frame
+        self.update()
+
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:  # noqa: N802 - Qt override
+        track = self._track
+        if self._dragging is None or track is None:
+            return
+        moved = track.automation.move_point(
+            self._dragging,
+            self.x_to_frame(event.position().x()),
+            self.y_to_db(event.position().y()),
+        )
+        if moved is not None:
+            self._dragging = moved.frame
+            self.curveChanged.emit()
+            self.update()
+
+    def mouseReleaseEvent(self, _event: QMouseEvent) -> None:  # noqa: N802 - Qt override
+        self._dragging = None
+
+    # ------------------------------------------------------------- painting
+
+    def paintEvent(self, _event: QPaintEvent) -> None:  # noqa: N802 - Qt override
+        painter = QPainter(self)
+        painter.fillRect(self.rect(), self._palette.color("meter_bg"))
+
+        unity = int(self.db_to_y(0.0))
+        painter.setPen(QPen(self._palette.color("waveform_grid"), 1))
+        painter.drawLine(0, unity, self.width(), unity)
+
+        track = self._track
+        if track is not None:
+            self._draw_curve(painter, track)
+
+        x = self.frame_to_x(self._playhead)
+        if 0 <= x <= self.width():
+            painter.setPen(QPen(self._palette.color("playhead"), 1))
+            painter.drawLine(int(x), 0, int(x), self.height())
+        painter.end()
+
+    def _draw_curve(self, painter: QPainter, track: Track) -> None:
+        points = track.automation.points
+        if not points:
+            # Nothing recorded yet: show where the static fader is sitting, so
+            # the lane reads as "flat at the current level" rather than empty.
+            y = int(self.db_to_y(track.gain_db))
+            pen = QPen(self._palette.color("text_dim"), 1)
+            pen.setStyle(Qt.PenStyle.DashLine)
+            painter.setPen(pen)
+            painter.drawLine(0, y, self.width(), y)
+            return
+
+        painter.setPen(QPen(self._color, 2))
+        vertices = [
+            (self.frame_to_x(point.frame), self.db_to_y(point.value)) for point in points
+        ]
+        first, last = vertices[0], vertices[-1]
+        # The value is held outside the outermost points, matching how the
+        # model reads the curve, so the drawing cannot imply a ramp the mixer
+        # is not going to play.
+        painter.drawLine(0, int(first[1]), int(first[0]), int(first[1]))
+        for (x0, y0), (x1, y1) in zip(vertices, vertices[1:], strict=False):
+            painter.drawLine(int(x0), int(y0), int(x1), int(y1))
+        painter.drawLine(int(last[0]), int(last[1]), self.width(), int(last[1]))
+
+        painter.setPen(QPen(self._color.lighter(140), 1))
+        painter.setBrush(self._color)
+        for (x, y), point in zip(vertices, points, strict=False):
+            if -4 <= x <= self.width() + 4:
+                painter.drawRect(QRectF(x - 2.5, y - 2.5, 5.0, 5.0))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+
+
 class TrackHeaderStrip(QWidget):
     """Track head: name, mute/solo, bus send, fader and pan for one lane."""
 
     changed = Signal()
+    automationToggled = Signal(bool)
 
     def __init__(
         self,
@@ -344,6 +545,11 @@ class TrackHeaderStrip(QWidget):
         self.solo_button.setFixedSize(24, 20)
         self.solo_button.setToolTip("Solo: mute every track that is not soloed")
 
+        self.automation_button = QPushButton("A")
+        self.automation_button.setCheckable(True)
+        self.automation_button.setFixedSize(24, 20)
+        self.automation_button.setToolTip("Show this track's volume automation lane")
+
         # Hidden until the session has somewhere to send to, so an arrangement
         # that never uses buses keeps the header it had before they existed.
         self.send_combo = QComboBox()
@@ -372,6 +578,7 @@ class TrackHeaderStrip(QWidget):
         top.setSpacing(4)
         top.addWidget(self.title, 1)
         top.addWidget(self.send_combo)
+        top.addWidget(self.automation_button)
         top.addWidget(self.mute_button)
         top.addWidget(self.solo_button)
 
@@ -396,6 +603,7 @@ class TrackHeaderStrip(QWidget):
 
         self.mute_button.toggled.connect(self._on_mute)
         self.solo_button.toggled.connect(self._on_solo)
+        self.automation_button.toggled.connect(self._on_automation)
         self.send_combo.currentIndexChanged.connect(self._on_send)
         self.gain_slider.valueChanged.connect(self._on_gain)
         self.pan_slider.valueChanged.connect(self._on_pan)
@@ -409,6 +617,14 @@ class TrackHeaderStrip(QWidget):
     def set_session(self, session: MultitrackSession | None) -> None:
         self._session = session
         self.refresh()
+
+    def set_automation_checked(self, checked: bool) -> None:
+        """Show the lane's automation state without re-emitting the toggle."""
+        self._syncing = True
+        try:
+            self.automation_button.setChecked(bool(checked))
+        finally:
+            self._syncing = False
 
     def refresh(self) -> None:
         """Pull the model's current state back into the widgets.
@@ -447,7 +663,14 @@ class TrackHeaderStrip(QWidget):
         self.send_combo.setCurrentIndex(max(index, 0))
 
     def _update_labels(self) -> None:
-        self.gain_label.setText(f"{self._track.gain_db:+.1f} dB")
+        # An automated lane takes its level from the curve, so the fader is
+        # shown as inert rather than left looking like it still does something.
+        automated = self._track.has_automation
+        self.gain_slider.setEnabled(not automated)
+        if automated:
+            self.gain_label.setText(f"{self._track.effective_gain_db(0):+.1f} auto")
+        else:
+            self.gain_label.setText(f"{self._track.gain_db:+.1f} dB")
         pan = self._track.pan
         if abs(pan) < 0.005:
             self.pan_label.setText("C")
@@ -466,6 +689,11 @@ class TrackHeaderStrip(QWidget):
             return
         self._track.solo = checked
         self.changed.emit()
+
+    def _on_automation(self, checked: bool) -> None:
+        if self._syncing:
+            return
+        self.automationToggled.emit(checked)
 
     def _on_send(self, index: int) -> None:
         if self._syncing or index < 0:
@@ -489,7 +717,7 @@ class TrackHeaderStrip(QWidget):
 
 
 class TrackStrip(QWidget):
-    """A track header and its clip lane, side by side."""
+    """A track header and its clip lane, with an optional automation lane under them."""
 
     seekRequested = Signal(int)
     changed = Signal()
@@ -511,30 +739,71 @@ class TrackStrip(QWidget):
             track, sample_rate=session.sample_rate if session is not None else 44_100
         )
         self.lane.set_session(session)
+        self.automation_lane = AutomationLane(track, color=color, palette=palette)
 
-        layout = QHBoxLayout(self)
+        lane_row = QHBoxLayout()
+        lane_row.setContentsMargins(0, 0, 0, 0)
+        lane_row.setSpacing(0)
+        lane_row.addWidget(self.header)
+        lane_row.addWidget(self.lane, 1)
+
+        self._automation_spacer = QFrame()
+        self._automation_spacer.setFixedWidth(HEADER_WIDTH)
+        self._automation_spacer.setStyleSheet(
+            f"background-color: {palette.surface}; border-right: 1px solid {palette.border};"
+        )
+        automation_row = QHBoxLayout()
+        automation_row.setContentsMargins(0, 0, 0, 0)
+        automation_row.setSpacing(0)
+        automation_row.addWidget(self._automation_spacer)
+        automation_row.addWidget(self.automation_lane, 1)
+
+        layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
-        layout.addWidget(self.header)
-        layout.addWidget(self.lane, 1)
-        self.setFixedHeight(LANE_HEIGHT)
+        layout.addLayout(lane_row)
+        layout.addLayout(automation_row)
 
         self.lane.seekRequested.connect(self.seekRequested)
         self.header.changed.connect(self.changed)
+        self.header.automationToggled.connect(self.set_automation_visible)
+        self.automation_lane.curveChanged.connect(self.changed)
+
+        # A track that already carries a curve — one just restored from a
+        # project, say — opens with its lane showing, so the automation is
+        # visible rather than silently in force.
+        self.set_automation_visible(track.has_automation)
 
     @property
     def track(self) -> Track:
         return self._track
 
+    @property
+    def automation_visible(self) -> bool:
+        return self.automation_lane.isVisibleTo(self)
+
+    def set_automation_visible(self, visible: bool) -> None:
+        """Open or close the automation lane, seeding a flat curve on first open."""
+        show = bool(visible)
+        if show and not self._track.has_automation:
+            self._track.seed_automation()
+        self.automation_lane.setVisible(show)
+        self._automation_spacer.setVisible(show)
+        self.header.set_automation_checked(show)
+        self.setFixedHeight(LANE_HEIGHT + (AUTOMATION_LANE_HEIGHT if show else 0))
+
     def set_view(self, view_start: int, view_frames: int) -> None:
         self.lane.set_view(view_start, view_frames)
+        self.automation_lane.set_view(view_start, view_frames)
 
     def set_playhead(self, frame: int) -> None:
         self.lane.set_playhead(frame)
+        self.automation_lane.set_playhead(frame)
 
     def refresh(self, revision: int) -> None:
         self.header.refresh()
         self.lane.set_revision(revision)
+        self.automation_lane.update()
 
 
 class BusStrip(QWidget):
@@ -758,6 +1027,7 @@ class MultitrackView(QWidget):
         self._view_frames = 0
         self._playhead = 0
         self._syncing = False
+        self._rebuilding = False
 
         self.ruler = TimeRuler(palette=palette)
         self.master_strip = MasterStrip(palette=palette)
@@ -860,7 +1130,13 @@ class MultitrackView(QWidget):
         Adding a bus rebuilds only the bus row: the lanes keep their cached
         waveform pixmaps, and their send selectors pick the new target up from
         :meth:`refresh` like any other model change.
+
+        A strip that edits the model while it is being built — an automation
+        lane seeding its curve, say — would otherwise see a half-populated
+        strip list, decide it is stale and start the rebuild over.
         """
+        if self._rebuilding:
+            return
         session = self._session
         if self._strips_are_stale(session):
             self.rebuild()
@@ -895,17 +1171,21 @@ class MultitrackView(QWidget):
         tracks = session.tracks if session is not None else ()
         self.placeholder.setVisible(not tracks)
 
-        for index, track in enumerate(tracks):
-            strip = TrackStrip(
-                track,
-                color=CLIP_COLORS[index % len(CLIP_COLORS)],
-                session=session,
-                palette=self._palette,
-            )
-            strip.seekRequested.connect(self.seekRequested)
-            strip.changed.connect(self._on_model_edited)
-            self._strip_layout.insertWidget(self._strip_layout.count() - 1, strip)
-            self._strips.append(strip)
+        self._rebuilding = True
+        try:
+            for index, track in enumerate(tracks):
+                strip = TrackStrip(
+                    track,
+                    color=CLIP_COLORS[index % len(CLIP_COLORS)],
+                    session=session,
+                    palette=self._palette,
+                )
+                strip.seekRequested.connect(self.seekRequested)
+                strip.changed.connect(self._on_model_edited)
+                self._strip_layout.insertWidget(self._strip_layout.count() - 1, strip)
+                self._strips.append(strip)
+        finally:
+            self._rebuilding = False
 
         self._rebuild_buses()
         self._apply_view()
@@ -1028,6 +1308,8 @@ class MultitrackView(QWidget):
 
 
 __all__ = [
+    "AUTOMATION_GRAB_PX",
+    "AUTOMATION_LANE_HEIGHT",
     "BUS_STRIP_HEIGHT",
     "CLIP_COLORS",
     "HEADER_WIDTH",
@@ -1035,6 +1317,7 @@ __all__ = [
     "MASTER_SEND_LABEL",
     "MAX_SUMMARY_FRAMES",
     "MIN_STRIP_DB",
+    "AutomationLane",
     "BusStrip",
     "ClipLane",
     "MasterStrip",

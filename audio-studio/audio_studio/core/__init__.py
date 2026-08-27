@@ -54,7 +54,16 @@ from .sample_source import (
     StreamingSampleSource,
     open_source,
 )
-from .session import Bus, Clip, MasterBus, MultitrackSession, SessionMixer, Track
+from .session import (
+    AutomationPoint,
+    Bus,
+    Clip,
+    GainAutomation,
+    MasterBus,
+    MultitrackSession,
+    SessionMixer,
+    Track,
+)
 from .sounddevice_output import SoundDeviceOutput
 from .sources import LoopSource, RegionSource
 from .telemetry import EngineTelemetry, LevelSnapshot
@@ -78,6 +87,7 @@ __all__ = [
     "AudioFormat",
     "AudioLoadError",
     "AudioOutput",
+    "AutomationPoint",
     "BaseSegment",
     "Bus",
     "Chunk",
@@ -90,6 +100,7 @@ __all__ = [
     "EngineTelemetry",
     "Envelope",
     "FadeCommand",
+    "GainAutomation",
     "GainCommand",
     "InsertSilenceCommand",
     "LevelReading",

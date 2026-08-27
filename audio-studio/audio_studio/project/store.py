@@ -7,9 +7,15 @@ reopened on another machine without chasing the original source files.
 The schema stays at version 1 while it grows: readers treat every key they do
 not recognise as absent, and every key added after the first release (the
 top-level ``markers`` array, the top-level ``plugins`` array, the per-media
-``peaks`` sidecar pointer and the multitrack ``buses`` array with its per-track
-``send_to_bus`` pointer, so far) is written only when it carries something, so a
-bundle saved by this build still opens in one that predates the addition.
+``peaks`` sidecar pointer, the multitrack ``buses`` array with its per-track
+``send_to_bus`` pointer and the per-track ``automation`` envelopes, so far) is
+written only when it carries something, so a bundle saved by this build still
+opens in one that predates the addition.
+
+Automation is stored as ``{"gain_db": [[frame, value], ...]}`` under a track's
+``automation`` key: compact pairs rather than named objects, because a ridden
+fader can run to thousands of breakpoints and the array is read back
+positionally either way.
 
 The ``plugins`` array records which VST3 bundle sits in which slot of the plugin
 rack: the path, the bypass flag, and — when the host could produce one — an
@@ -45,7 +51,7 @@ from ..core.loader import LoadedAudio, load_audio, save_audio
 from ..core.markers import MarkerList
 from ..core.peaks import PeakPyramid
 from ..core.sample_source import MemorySampleSource, SampleSource
-from ..core.session import Bus, MultitrackSession, Track
+from ..core.session import Bus, GainAutomation, MultitrackSession, Track
 from ..core.types import AudioBuffer, TimeRange
 
 SCHEMA_VERSION = 1
@@ -167,6 +173,19 @@ def _plugins_from_json(raw: Any) -> list[dict[str, Any]]:
         entries.append(entry)
     entries.sort(key=lambda entry: entry["slot"])
     return entries
+
+
+def _automation_from_json(raw: Any) -> GainAutomation:
+    """Read a track's ``automation`` section back into a gain envelope.
+
+    The section is keyed by parameter name so a later release can automate pan
+    or a send without moving the ones already written; a bundle that predates
+    automation, or one whose section holds a parameter this build does not know
+    about, simply comes back with an empty curve and a live fader.
+    """
+    if not isinstance(raw, Mapping):
+        return GainAutomation()
+    return GainAutomation.from_json(raw.get("gain_db"))
 
 
 def _write_wav(path: Path, source: SampleSource) -> np.ndarray:
@@ -339,6 +358,8 @@ class ProjectStore:
             # serializes byte-for-byte the way it did before buses existed.
             if track.send_to_bus:
                 track_json["send_to_bus"] = str(track.send_to_bus)
+            if track.has_automation:
+                track_json["automation"] = {"gain_db": track.automation.to_json()}
             tracks_json.append(track_json)
 
         payload: dict[str, Any] = {
@@ -459,6 +480,7 @@ def restore_multitrack(data: dict[str, Any], project_root: Path) -> MultitrackSe
                 mute=bool(track_data.get("mute", False)),
                 solo=bool(track_data.get("solo", False)),
                 send_to_bus=str(send_to) if send_to else None,
+                automation=_automation_from_json(track_data.get("automation")),
             )
         )
         for clip_data in track_data.get("clips", []):
