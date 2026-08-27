@@ -247,6 +247,25 @@ def _verify_tpdf_dither(_tmp_path: Path) -> None:
 def _verify_aes17_report(_tmp_path: Path) -> None:
     assert (REPOSITORY_ROOT / "tools/aes17.py").is_file()
     report = _load_json(REPOSITORY_ROOT / ".agent_workspace/round3/aes17-report.json")
+    cases = report["cases"]
+    assert len(cases) >= 5, "one measured path is not an AES17 survey"
+    for case in cases:
+        assert case["thd_plus_n_db"] <= case["thd_plus_n_limit_db"], case["case_id"]
+        assert case["status"] == "pass", case["case_id"]
+    # The dithered word-length reductions must sit on the closed-form TPDF
+    # figure from both sides — a reading far below theory means the analyzer
+    # is dropping residual, not that the dither is excellent.
+    theory_cases = [
+        case for case in cases if case.get("expected_thd_plus_n_db") is not None
+    ]
+    assert len(theory_cases) >= 2, "16- and 24-bit dither paths carry theory"
+    for case in theory_cases:
+        assert case["thd_plus_n_db"] == pytest.approx(
+            case["expected_thd_plus_n_db"], abs=1.0
+        ), case["case_id"]
+    # And the analyzer itself is validated: deliberate clipping must read as
+    # gross distortion, or every transparent figure above is meaningless.
+    assert report["analyzer_control"]["distortion_detected"] is True
     assert report["status"] == "pass"
 
 
@@ -256,6 +275,21 @@ def _verify_m1_m13_manifest(_tmp_path: Path) -> None:
     assert {item.get("id") for item in requirements} == {f"M{index}" for index in range(1, 14)}
     assert all(item.get("evidence") for item in requirements)
     assert all(item.get("status") == "pass" for item in requirements)
+
+    # The manifest is JSON anyone could edit, so the claims that most recently
+    # flipped it to pass are pinned to the code they cite: a reverted feature
+    # fails here instead of surviving behind a stale document.
+    from audio_studio.core import loader
+    from audio_studio.core.engine import AudioEngine
+    from audio_studio.dsp.correlation import CorrelationMeter, phase_correlation
+
+    assert callable(getattr(AudioEngine, "set_output", None)), "M1: device hot-swap"
+    assert callable(getattr(loader, "read_bext", None)), "M5: bext capture"
+    assert "bext" in inspect.signature(loader.save_audio).parameters, "M5: bext save"
+    assert CorrelationMeter is not None and callable(phase_correlation), (
+        "M7: phase correlation meter"
+    )
+    assert UI_REFRESH_MS <= 16, "M12: 60fps refresh timer"
 
 
 def _verify_formal_file_performance(_tmp_path: Path) -> None:
@@ -542,19 +576,12 @@ CHECKLIST_CASES = (
         _verify_true_peak_limiter,
     ),
     ChecklistCase("A7", "P1", "TPDF dither spectrum", _verify_tpdf_dither),
-    ChecklistCase(
-        "A8",
-        "P1",
-        "AES17 THD+N report",
-        _verify_aes17_report,
-        "AES17 measurement tool and report are missing",
-    ),
+    ChecklistCase("A8", "P1", "AES17 THD+N report", _verify_aes17_report),
     ChecklistCase(
         "B1",
         "P0",
         "M1-M13 demonstrated with evidence",
         _verify_m1_m13_manifest,
-        "the M1-M13 evidence manifest exists but M1/M5/M7/M12 remain partial",
     ),
     ChecklistCase(
         "B2",
