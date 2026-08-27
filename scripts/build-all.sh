@@ -59,10 +59,11 @@ build_app() {
   [[ -f "$build_dir/index.html" ]] ||
     fail "${label}构建未生成 dist/index.html。"
 
-  # 产物里打包了 MIT/GSAP/APL 组件，第三方声明必须随 zip 分发（合规项 C-2）。
-  [[ -f "$ROOT_DIR/THIRD_PARTY_NOTICES.md" ]] ||
-    fail "缺少 THIRD_PARTY_NOTICES.md，不能出包。"
-  cp "$ROOT_DIR/THIRD_PARTY_NOTICES.md" "$build_dir/THIRD_PARTY_NOTICES.md"
+  # 发行包同时带项目代码许可、内容边界与第三方义务，避免把 MIT 误套到课程数据。
+  for notice in LICENSE CONTENT_LICENSE.md THIRD_PARTY_NOTICES.md; do
+    [[ -f "$ROOT_DIR/$notice" ]] || fail "缺少 $notice，不能出包。"
+    cp "$ROOT_DIR/$notice" "$build_dir/$notice"
+  done
 
   printf '[%s] 打包 %s...\n' "$label" "$archive_name"
   create_archive "$build_dir" "$archive_path"

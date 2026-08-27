@@ -68,6 +68,7 @@ const ROUTES = [
   ['技能图谱', '/#/skill-graph'],
   ['成就墙', '/#/progress'],
   ['家长中心', '/#/parent'],
+  ['隐私政策', '/#/privacy'],
   ['未知路由回落', '/#/nope/nope'],
 ]
 

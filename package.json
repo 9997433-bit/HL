@@ -1,6 +1,7 @@
 {
   "name": "hongen-edu-apps",
   "version": "1.0.0",
+  "license": "MIT",
   "private": true,
   "description": "洪恩式识字与数学教育应用 monorepo",
   "workspaces": [

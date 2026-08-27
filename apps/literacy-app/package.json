@@ -1,7 +1,8 @@
 {
   "name": "literacy-app",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
+  "license": "MIT",
   "type": "module",
   "description": "开源儿童识字 Web 应用 — 单字学习 / 听音识字 / 偏旁部首 / 分级绘本 / 成语启蒙",
   "scripts": {

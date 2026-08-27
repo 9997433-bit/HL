@@ -10,16 +10,14 @@
 两者都是纯前端 Vite 应用：零账号、零遥测、零订阅墙，学习进度只保存在浏览器本机，
 支持 JSON 导出/导入。生产构建自带 Service Worker，安装一次后可完全断网使用。
 
-## 版本状态（Round 3 · SOTA 终验进行中）
+## 版本状态
 
-| 轮次 | 状态 | 交付要点 |
-|---|---|---|
-| Round 1 | ✅ 完成 | 双 App MVP、构建与打包流水线、验收标准与设计规范 |
-| Round 2 | ✅ 完成 | 识字 106 字 + FSRS 接线、数学 QuizShell + 包体瘦身（主包 gzip ~80KB）、双 App 离线 SW、axe critical = 0 |
-| Round 3 | 🔄 进行中 | 字库扩至 200 字、数学家长面板、axe serious 清零、设计令牌迁移、Lighthouse ≥ 90 终验、合规文档对齐 |
+当前发行候选版本为 **1.0.0**，根工作区、双 App npm manifest 与 Android
+`versionName` 使用同一版本。两款 App 均提供可直接访问的 `/privacy` 路由，
+说明本机学习记录、离线缓存以及识字 App 相机/麦克风权限的处理方式。
 
-终验门槛与实测数据见 `.agent_workspace/sota-acceptance-criteria.md` 与
-`.agent_workspace/GLOBAL-SUMMARY-REPORT.md`。
+终验门槛与实测数据见 `.agent_workspace/sota-acceptance-criteria.md`、
+`.agent_workspace/GLOBAL-SUMMARY-REPORT.md` 与 `.agent_workspace/evidence/`。
 
 ## 仓库结构
 
@@ -57,6 +55,11 @@ bash scripts/verify-resources.sh   # 共享资源与第三方声明合规检查
 
 ## 许可与合规
 
+- 本项目原创程序代码与技术文档采用根目录 [`LICENSE`](LICENSE) 中的
+  **MIT License**。
+- 课程文本、题目、数据与素材不自动适用 MIT；已明确授权的数据、其余原创内容边界
+  及第三方内容分别见 [`CONTENT_LICENSE.md`](CONTENT_LICENSE.md) 与
+  [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。
 - 第三方依赖、笔顺数据与素材的许可证义务集中记录在
   [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)，打包脚本会把它放进两个 zip。
 - 识字 App 随包分发的笔顺数据源自 `hanzi-writer-data`，受 Arphic Public License 约束，
