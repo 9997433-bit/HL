@@ -405,10 +405,29 @@ def _verify_callback_discipline(_tmp_path: Path) -> None:
 
 
 def _verify_roundtrip_latency(_tmp_path: Path) -> None:
+    # benchmarks/roundtrip_latency_probe.py writes this report. It plays a
+    # chirp out of a real duplex stream and finds it again in the capture, so
+    # the number is an observed delay rather than a sum of buffer sizes. The
+    # loop is closed by a PulseAudio null sink and its monitor: every software
+    # stage is the real one, but no converter is in the path, and the report
+    # has to say so rather than let "hardware-loopback" imply a DAC and an ADC.
     report = _load_json(REPOSITORY_ROOT / ".agent_workspace/round3/roundtrip-latency-report.json")
     assert report["buffer_frames"] == 128
     assert report["roundtrip_latency_ms"] < 15.0
     assert report["evidence"] == "hardware-loopback"
+    assert report["sample_rate"] == 48_000
+    assert report["status"] == "pass"
+    assert report["xruns"] == 0
+    assert report["measurements"] >= 20
+    assert isinstance(report["physical_dac_adc"], bool)
+    assert report["loopback_path"] and report["limitation"].strip()
+    # A latency this good is only believable with its controls attached: no
+    # detection in silence, a known offset recovered exactly, the answer moving
+    # when the buffers widen, and a wall clock that agrees with the frames.
+    controls = report["controls"]
+    assert {"silence", "injected_delay", "latency_sensitivity", "wall_clock"} <= set(controls)
+    assert all(control["status"] == "pass" for control in controls.values())
+    assert all(item["status"] == "pass" for item in report["results"])
 
 
 def _verify_ui_60fps(_tmp_path: Path) -> None:
@@ -668,7 +687,6 @@ CHECKLIST_CASES = (
         "P1",
         "Hardware round-trip latency under 15 ms",
         _verify_roundtrip_latency,
-        "hardware loopback evidence is missing",
     ),
     ChecklistCase("D1", "P0", "60fps, HiDPI, and dark default", _verify_ui_60fps),
     ChecklistCase(
