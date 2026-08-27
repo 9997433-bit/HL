@@ -411,6 +411,65 @@ await interact('逻辑迷宫：撞墙拦截 + 顺序收集 + 跟着提示通关'
   return `${start.size} 迷宫，撞墙被拦下，${moved} 步通关（${state.collected}），maze-condition=${store.mastery.toFixed(2)}`
 })
 
+/**
+ * 两个 Canvas 小游戏的动效降级：靠「点完立刻截一张画布 + 等它稳定后再截一张」
+ * 来判断中间有没有补间。正常档两张必须不一样（说明是逐帧动出来的），
+ * reduced-motion 档两张必须一模一样（说明一步到位、一帧都没动）。
+ */
+const canvasShot = (page, selector) =>
+  page.evaluate((sel) => document.querySelector(sel).toDataURL(), selector)
+
+const useReducedMotion = async (page) => {
+  await page.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }])
+  await page.reload({ waitUntil: 'networkidle2' })
+  await sleep(700)
+}
+
+await interact('配对记忆：reduced-motion 下翻牌一步到位', '/#/memory-pairs', async (page) => {
+  const flip = async () => {
+    await page.waitForSelector('[data-card-index="0"]')
+    await page.evaluate(() => document.querySelector('[data-card-index="0"]').click())
+    const immediate = await canvasShot(page, '.board-canvas')
+    await sleep(500)
+    return { immediate, settled: await canvasShot(page, '.board-canvas') }
+  }
+
+  const animated = await flip()
+  if (animated.immediate === animated.settled) throw new Error('动效开着却看不到翻牌补间')
+
+  await useReducedMotion(page)
+  const reduced = await flip()
+  if (reduced.immediate !== reduced.settled) throw new Error('reduced-motion 下翻牌仍在跑补间')
+  return '正常档逐帧翻牌，reduced-motion 档一帧落位'
+})
+
+await interact('逻辑迷宫：reduced-motion 下飞船一步到位', '/#/maze', async (page) => {
+  const posOf = () =>
+    page.evaluate(() => document.querySelector('[data-maze-pos]').dataset.mazePos)
+
+  /** 挨个方向试，直到真的走动一格，再比较两张画布。 */
+  const walk = async () => {
+    await page.waitForSelector('[data-maze-move="up"]')
+    for (const dir of ['up', 'right', 'down', 'left']) {
+      const before = await posOf()
+      await page.evaluate((d) => document.querySelector(`[data-maze-move="${d}"]`).click(), dir)
+      const immediate = await canvasShot(page, '.maze-canvas')
+      await sleep(500)
+      if ((await posOf()) === before) continue
+      return { immediate, settled: await canvasShot(page, '.maze-canvas') }
+    }
+    throw new Error('四个方向都走不动，迷宫把飞船封死了')
+  }
+
+  const animated = await walk()
+  if (animated.immediate === animated.settled) throw new Error('动效开着却看不到飞船补间')
+
+  await useReducedMotion(page)
+  const reduced = await walk()
+  if (reduced.immediate !== reduced.settled) throw new Error('reduced-motion 下飞船仍在跑补间')
+  return '正常档飞船滑行，reduced-motion 档直接落格'
+})
+
 await interact('分与合：移动弹珠并写入 compose-ten', '/#/compose-ten', async (page) => {
   await page.waitForSelector('[data-compose-check]')
   for (let guard = 0; guard < 10; guard++) {
