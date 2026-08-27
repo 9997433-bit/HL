@@ -1,6 +1,5 @@
 <script setup>
 import { onBeforeUnmount, ref, watch } from 'vue'
-import gsap from 'gsap'
 import { useProgressStore } from '@/stores/progress'
 import { sfx } from '@/utils/sound'
 
@@ -9,6 +8,7 @@ const current = ref(null)
 const card = ref(null)
 let timer = null
 let busy = false
+let cardAnimation = null
 
 function showNext() {
   if (busy) return
@@ -21,10 +21,12 @@ function showNext() {
   requestAnimationFrame(() => {
     const el = card.value
     if (el) {
-      gsap.fromTo(
-        el,
-        { y: -90, opacity: 0, scale: 0.85 },
-        { y: 0, opacity: 1, scale: 1, duration: 0.5, ease: 'back.out(1.8)' },
+      cardAnimation = el.animate?.(
+        [
+          { opacity: 0, transform: 'translateY(-90px) scale(.85)' },
+          { opacity: 1, transform: 'translateY(0) scale(1)' },
+        ],
+        { duration: 500, easing: 'cubic-bezier(.34,1.56,.64,1)' },
       )
     }
   })
@@ -41,7 +43,16 @@ function dismiss() {
     setTimeout(showNext, 250)
   }
   if (!el) return finish()
-  gsap.to(el, { y: -80, opacity: 0, duration: 0.3, ease: 'power2.in', onComplete: finish })
+  cardAnimation?.cancel()
+  cardAnimation = el.animate?.(
+    [
+      { opacity: 1, transform: 'translateY(0)' },
+      { opacity: 0, transform: 'translateY(-80px)' },
+    ],
+    { duration: 300, easing: 'ease-in', fill: 'forwards' },
+  )
+  if (!cardAnimation) return finish()
+  cardAnimation.finished.then(finish).catch(() => {})
 }
 
 watch(
@@ -52,7 +63,10 @@ watch(
   { immediate: true },
 )
 
-onBeforeUnmount(() => clearTimeout(timer))
+onBeforeUnmount(() => {
+  clearTimeout(timer)
+  cardAnimation?.cancel()
+})
 </script>
 
 <template>
