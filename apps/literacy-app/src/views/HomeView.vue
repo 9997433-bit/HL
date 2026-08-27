@@ -1,7 +1,9 @@
 <script setup>
 import { computed } from 'vue'
 import BadgeShelf from '@/components/BadgeShelf.vue'
+import DailyAdventure from '@/components/DailyAdventure.vue'
 import ProgressRing from '@/components/ProgressRing.vue'
+import { useDailyQuestStore } from '@/stores/dailyQuest.js'
 import { useProgressStore } from '@/stores/progress.js'
 import { useSettingsStore } from '@/stores/settings.js'
 import { BOOKS } from '@/data/books.js'
@@ -13,6 +15,7 @@ import OpenMojiIcon from '@shared/components/OpenMojiIcon.vue'
 
 const progress = useProgressStore()
 const settings = useSettingsStore()
+const dailyQuest = useDailyQuestStore()
 
 const nextChar = computed(() => progress.nextChar)
 
@@ -112,6 +115,9 @@ const stations = computed(() => [
           个字啦
         </h2>
         <div class="hero__chips">
+          <span class="pill pill--accent">
+            🗺️ 今日冒险 {{ dailyQuest.completedCount }}/{{ dailyQuest.tasks.length }}
+          </span>
           <span class="pill">🔥 连续 {{ progress.streakDays || 1 }} 天</span>
           <span class="pill pill--accent">🏆 掌握 {{ progress.masteredCount }} 字</span>
           <span class="pill">🎖️ 徽章 {{ progress.badgeCount }}/{{ progress.totalBadges }}</span>
@@ -138,6 +144,9 @@ const stations = computed(() => [
         sublabel="总进度"
       />
     </section>
+
+    <!-- 今日冒险：今天的三件小事 -->
+    <DailyAdventure />
 
     <!-- 学习地图 -->
     <section class="stack">
