@@ -33,6 +33,23 @@ __all__ = [
 
 Shapes = npt.NDArray[np.floating] | npt.NDArray[np.complexfloating]
 
+#: Use the accelerated kernel when ndof * ma * mb exceeds this threshold.
+_ACCEL_MAC_THRESHOLD = 50_000
+
+
+def _try_accel_mac(a: np.ndarray, b: np.ndarray, weights: Any) -> np.ndarray | None:
+    if weights is not None:
+        return None
+    if np.iscomplexobj(a) or np.iscomplexobj(b):
+        return None
+    if a.size < _ACCEL_MAC_THRESHOLD:
+        return None
+    try:
+        from openfemlab.accel import mac_real_unweighted
+    except ImportError:
+        return None
+    return mac_real_unweighted(a, b)
+
 
 def as_columns(shapes: Any, name: str = "shapes") -> np.ndarray:
     """Return ``shapes`` as a 2-D ``(ndof, m)`` array whose columns are modes."""
@@ -111,6 +128,9 @@ def mac(
     if a.shape[0] != b.shape[0]:
         raise ValueError(f"DOF mismatch: {a.shape[0]} vs {b.shape[0]}")
     w = prepare_weights(weights, a.shape[0])
+    accelerated = _try_accel_mac(a, b, w)
+    if accelerated is not None:
+        return accelerated.astype(np.float64, copy=False)
     wa = apply_weights(w, a)
     wb = apply_weights(w, b)
 

@@ -111,3 +111,28 @@ def test_ac_perf_002_sparse_iterative_modes_match_dense_reference():
     agreement = mac(iterative.mode_shapes, dense.mode_shapes)
     assert np.min(np.diag(agreement)) >= MAC_MINIMUM
     assert np.array_equal(np.argmax(agreement, axis=1), np.arange(REFERENCE_MODES))
+
+
+MAC_LARGE_DOFS = 5000
+MAC_LARGE_MODES = 20
+MAC_LARGE_TIME_LIMIT_SECONDS = 2.0
+
+
+@criterion("AC-PERF-003")
+def test_ac_perf_003_large_mac_matrix_is_fast_and_correct():
+    """5000×20 MAC stays within 2 s and matches the NumPy reference."""
+    rng = np.random.default_rng(42)
+    shapes_a = rng.standard_normal((MAC_LARGE_DOFS, MAC_LARGE_MODES))
+    shapes_b = rng.standard_normal((MAC_LARGE_DOFS, MAC_LARGE_MODES))
+
+    cross = shapes_a.T @ shapes_b
+    norm_a = np.sum(shapes_a * shapes_a, axis=0)
+    norm_b = np.sum(shapes_b * shapes_b, axis=0)
+    reference = np.clip((cross * cross) / np.outer(norm_a, norm_b), 0.0, 1.0)
+
+    started = time.perf_counter()
+    accelerated = mac(shapes_a, shapes_b)
+    elapsed = time.perf_counter() - started
+
+    assert elapsed <= MAC_LARGE_TIME_LIMIT_SECONDS
+    np.testing.assert_allclose(accelerated, reference, rtol=0.0, atol=1e-10)

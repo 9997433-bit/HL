@@ -8,6 +8,7 @@ registry rather than a dispatcher full of analysis code.
 from __future__ import annotations
 
 from . import (
+    bench,
     correlate,
     correlate_frf,
     modal,
@@ -25,6 +26,7 @@ COMMANDS = (
     wizard,
     project,
     serve,
+    bench,
     modal,
     correlate,
     correlate_frf,
@@ -34,6 +36,7 @@ COMMANDS = (
 
 __all__ = [
     "COMMANDS",
+    "bench",
     "correlate",
     "correlate_frf",
     "modal",

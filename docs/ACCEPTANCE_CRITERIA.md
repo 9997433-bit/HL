@@ -163,6 +163,7 @@ to honor the sparse matrix contract of MS-0.2 and MS-1.6.
 |----|-----|--------------------|-------------------|------|
 | AC-PERF-001 | P2 | 50k-DOF sparse modal solve never densifies a full operator | n = 50,000, k = 6; no full-order `toarray`; cold solve ≤ 120 s | MS-1.6 |
 | AC-PERF-002 | P2 | Iterative modal result matches the dense reference | frequency rel. err ≤ 1e-8; paired MAC ≥ 0.999 | MS-1.6 |
+| AC-PERF-003 | P2 | Large real MAC matrix matches reference within 2 s | 5000×20×20 unweighted MAC; max abs err ≤ 1e-10 | MS-1.6 |
 
 - **AC-PERF-001** (`contract`) — A procedurally assembled, deterministic
   tridiagonal spring-mass chain with 50,000 DOFs is solved for its six lowest

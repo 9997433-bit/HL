@@ -17,6 +17,27 @@ matching analytical sensitivities through :meth:`ScalingModel.sensitivity_functi
 Eigenvalue extraction goes through :class:`openfemlab.solver.modal.ModalSolver`
 when that solver is importable, and falls back to a direct dense
 ``scipy.linalg.eigh`` otherwise, so the updating stack stays usable on its own.
+
+Reanalysis
+----------
+An updating loop re-evaluates the same parameterisation hundreds of times, so
+the model is built to make the repeat cheap rather than the first call fast:
+
+* the affine sum is folded once onto a fixed sparsity pattern, after which a new
+  ``θ`` only rewrites the CSR ``data`` array — no pattern merge and no
+  re-assembly from the contributions (:class:`_AffineTerms`);
+* one :class:`~openfemlab.solver.modal.ModalSolver` instance is kept for the
+  lifetime of the model, so the DOF partition and label bookkeeping of
+  ``from_matrices`` are paid once instead of once per iteration, and the
+  solver's ``cache_factorization`` keeps the shift-invert LU alive across
+  repeated solves of the same matrices;
+* the eigensolution is memoised on ``θ``.  An updating iteration asks for the
+  modal data, the frequency sensitivities and the mode-shape sensitivities at
+  the same point — three requests, and with the cache one eigensolve.
+
+All three are on by default; ``reanalysis=False`` restores the
+assemble-and-solve-from-scratch behaviour, which is what the benchmarks compare
+against.
 """
 
 from __future__ import annotations
@@ -72,6 +93,131 @@ def _fix_signs(vectors: np.ndarray) -> np.ndarray:
     return vectors * signs
 
 
+# ------------------------------------------------------------------ reanalysis
+
+
+def _canonical_csr(matrix: Any) -> sp.csr_matrix:
+    """CSR with sorted, duplicate-free indices — what the alignment assumes."""
+    out = matrix.tocsr()
+    if not out.has_canonical_format:
+        out = out.copy()
+        out.sum_duplicates()
+        out.sort_indices()
+    return out
+
+
+def _entry_keys(indptr: np.ndarray, indices: np.ndarray, num_columns: int) -> np.ndarray:
+    """``row * n_cols + col`` per stored entry — increasing for a canonical CSR."""
+    counts = np.diff(indptr).astype(np.int64)
+    rows = np.repeat(np.arange(counts.size, dtype=np.int64), counts)
+    return rows * np.int64(num_columns) + indices.astype(np.int64)
+
+
+class _AffineTerms:
+    """``A(θ) = A_0 + Σ_j θ_j A_j`` evaluated on one fixed sparsity pattern.
+
+    The union of the patterns of ``A_0`` and every ``A_j`` is formed once and
+    each term is stored as a ``data`` array laid out on it.  Evaluating a new
+    ``θ`` is then a handful of AXPYs over ``nnz`` numbers sharing one set of
+    index arrays, where ``A_0 + Σ θ_j A_j`` merges the patterns afresh for every
+    term of every call.
+
+    Terms are accumulated in parameter order, one scaled term at a time, which
+    is the same sequence of floating-point operations the naive sum performs:
+    the fast path is not merely close to it but bitwise equal, so switching the
+    reanalysis on cannot move a converged updating run.
+    """
+
+    #: Above this DOF count a mixed dense/sparse group is left to the generic
+    #: path rather than folded into a dense ``n²`` buffer.
+    dense_fold_limit = 2000
+
+    def __init__(
+        self, base_data: np.ndarray, part_data: list[np.ndarray], template: Any
+    ) -> None:
+        self._base_data = base_data
+        self._part_data = part_data
+        self._template = template
+
+    @classmethod
+    def build(cls, base: Any, parts: Sequence[Any], size: int) -> _AffineTerms | None:
+        """Fold ``base`` and ``parts``; ``None`` when the group is not foldable."""
+        matrices = [base, *parts]
+        sparse = [sp.issparse(matrix) for matrix in matrices]
+        if all(sparse):
+            return cls._build_sparse([_canonical_csr(matrix) for matrix in matrices], size)
+        if not any(sparse):
+            return cls._build_dense(matrices, size)
+        # Mixing the two yields ``numpy.matrix`` from the generic sum anyway, so
+        # the fold is also what gives the caller a plain array back. An all-zero
+        # sparse term is the default base and costs nothing to densify; a
+        # populated one is only worth it while the dense buffer stays small.
+        zero_only = all(matrix.nnz == 0 for matrix in matrices if sp.issparse(matrix))
+        if not zero_only and size > cls.dense_fold_limit:
+            return None
+        return cls._build_dense(matrices, size)
+
+    @classmethod
+    def _build_sparse(cls, matrices: list[sp.csr_matrix], size: int) -> _AffineTerms:
+        # Summing ones keeps the union structural: no entry can cancel, so
+        # SciPy cannot prune one out of the result.
+        ones = [
+            sp.csr_matrix(
+                (np.ones(matrix.nnz), matrix.indices, matrix.indptr), shape=(size, size)
+            )
+            for matrix in matrices
+        ]
+        union = ones[0]
+        for other in ones[1:]:
+            union = union + other
+        pattern = _canonical_csr(union)
+        keys = _entry_keys(pattern.indptr, pattern.indices, size)
+        aligned = [cls._align(matrix, keys, size) for matrix in matrices]
+        template = sp.csr_matrix(
+            (np.zeros(pattern.indices.size), pattern.indices, pattern.indptr),
+            shape=(size, size),
+        )
+        return cls(aligned[0], aligned[1:], template)
+
+    @staticmethod
+    def _align(matrix: sp.csr_matrix, union_keys: np.ndarray, size: int) -> np.ndarray:
+        """``matrix.data`` scattered onto the union pattern, zero elsewhere."""
+        data = np.zeros(union_keys.size, dtype=float)
+        if matrix.nnz:
+            positions = np.searchsorted(
+                union_keys, _entry_keys(matrix.indptr, matrix.indices, size)
+            )
+            data[positions] = matrix.data
+        return data
+
+    @classmethod
+    def _build_dense(cls, matrices: Sequence[Any], size: int) -> _AffineTerms:
+        flat = [
+            np.ascontiguousarray(_dense(matrix), dtype=float).reshape(-1) for matrix in matrices
+        ]
+        return cls(flat[0], list(flat[1:]), (size, size))
+
+    @property
+    def is_sparse(self) -> bool:
+        return sp.issparse(self._template)
+
+    @property
+    def pattern_size(self) -> int:
+        """Entries the shared pattern stores (``n²`` for the dense fold)."""
+        return int(self._base_data.size)
+
+    def evaluate(self, coefficients: Sequence[float]) -> Any:
+        """``A(θ)``; a fresh matrix over the shared, never-recomputed pattern."""
+        data = self._base_data.copy()
+        for coefficient, part in zip(coefficients, self._part_data, strict=True):
+            data += coefficient * part
+        if not self.is_sparse:
+            return data.reshape(self._template)
+        return sp.csr_matrix(
+            (data, self._template.indices, self._template.indptr), shape=self._template.shape
+        )
+
+
 class ScalingModel:
     """FE model parameterised by stiffness and mass scaling factors.
 
@@ -97,6 +243,19 @@ class ScalingModel:
         ``True`` forces :class:`openfemlab.solver.modal.ModalSolver`, ``False``
         forces the local dense fallback, ``None`` (default) prefers the solver
         and falls back when it cannot be imported.
+    reanalysis:
+        Reuse work across ``θ`` (see the module docstring): the folded affine
+        pattern, one solver instance, and the eigensolution cache.  ``False``
+        assembles and solves from scratch on every call, which is what a
+        cold-start benchmark wants.
+    cache_factorization:
+        Let the reused solver keep its shift-invert factorization between solves
+        of the same matrices.  Ignored when ``reanalysis`` is off, since a
+        discarded solver has nothing to reuse.
+    sparse:
+        Backend the solver should use — ``None`` (default) leaves the choice to
+        :class:`~openfemlab.solver.modal.ModalSolver`, which takes the sparse
+        shift-invert path only when the problem is large enough to pay for it.
     """
 
     def __init__(
@@ -109,6 +268,9 @@ class ScalingModel:
         num_modes: int | None = None,
         dof_selection: Sequence[int] | np.ndarray | None = None,
         use_solver: bool | None = None,
+        reanalysis: bool = True,
+        cache_factorization: bool = True,
+        sparse: bool | None = None,
     ) -> None:
         stiffness_parts = dict(stiffness_parts or {})
         mass_parts = dict(mass_parts or {})
@@ -142,7 +304,31 @@ class ScalingModel:
             None if dof_selection is None else np.asarray(dof_selection, dtype=int)
         )
         self.use_solver = use_solver
+        self.reanalysis = bool(reanalysis)
+        self.cache_factorization = bool(cache_factorization)
+        self.sparse = sparse
+
+        #: Eigensolves actually performed, i.e. requests that missed the cache.
         self.n_solves = 0
+        #: Eigensolutions requested, cache hits included.
+        self.n_eigen_calls = 0
+        #: Assemblies actually performed, i.e. requests that missed the cache.
+        self.n_assemblies = 0
+
+        # The folds accumulate in each group's own order, which is the order the
+        # generic sum uses, so the two agree bit for bit.
+        self._stiffness_order = list(self.stiffness_parts)
+        self._mass_order = list(self.mass_parts)
+        self._affine_stiffness = _AffineTerms.build(
+            self.base_stiffness, list(self.stiffness_parts.values()), size
+        )
+        self._affine_mass = _AffineTerms.build(
+            self.base_mass, list(self.mass_parts.values()), size
+        )
+        self._solver: Any = None
+        self._solver_key: tuple[float, ...] | None = None
+        self._assembly_cache: tuple[tuple[float, ...], Any, Any] | None = None
+        self._eigen_cache: tuple[tuple[float, ...], np.ndarray, np.ndarray] | None = None
 
     # ------------------------------------------------------------- assembly
 
@@ -161,16 +347,57 @@ class ScalingModel:
             )
         return dict(zip(self.parameter_names, array.tolist(), strict=False))
 
+    def clear_cache(self) -> None:
+        """Drop the reused solver and everything memoised on ``θ``.
+
+        Needed only after the parameterisation itself is changed in place — the
+        caches key on ``θ``, not on the contributions.
+        """
+        self._solver = None
+        self._solver_key = None
+        self._assembly_cache = None
+        self._eigen_cache = None
+
     def assemble(self, values: Mapping[str, float] | Sequence[float] | np.ndarray):
-        """Return the assembled ``(K(θ), M(θ))``."""
+        """Return the assembled ``(K(θ), M(θ))``.
+
+        With ``reanalysis`` on the matrices are rebuilt on the pre-folded
+        sparsity pattern and the last result is memoised, so repeating a ``θ``
+        is free.  The cached pair is handed out as is and must not be modified
+        in place.
+        """
         theta = self._values(values)
-        K = self.base_stiffness
-        for name, part in self.stiffness_parts.items():
-            K = K + theta[name] * part
-        M = self.base_mass
-        for name, part in self.mass_parts.items():
-            M = M + theta[name] * part
+        key = tuple(theta[name] for name in self.parameter_names)
+        cached = self._assembly_cache
+        if self.reanalysis and cached is not None and cached[0] == key:
+            return cached[1], cached[2]
+
+        self.n_assemblies += 1
+        K = self._assemble_group(
+            self.base_stiffness, self.stiffness_parts, self._stiffness_order,
+            self._affine_stiffness, theta,
+        )
+        M = self._assemble_group(
+            self.base_mass, self.mass_parts, self._mass_order, self._affine_mass, theta
+        )
+        if self.reanalysis:
+            self._assembly_cache = (key, K, M)
         return K, M
+
+    def _assemble_group(
+        self,
+        base: Any,
+        parts: Mapping[str, Any],
+        order: Sequence[str],
+        folded: _AffineTerms | None,
+        theta: Mapping[str, float],
+    ) -> Any:
+        if self.reanalysis and folded is not None:
+            return folded.evaluate([theta[name] for name in order])
+        matrix = base
+        for name in order:
+            matrix = matrix + theta[name] * parts[name]
+        return matrix
 
     def derivatives(
         self, names: Sequence[str] | None = None
@@ -198,24 +425,60 @@ class ScalingModel:
             return None
         return ModalSolver
 
+    def _modal_solver(self, solver_class, K, M, key: tuple[float, ...]):
+        """The solver instance to use for ``θ``, built once and then refreshed.
+
+        Rebinding the matrices of the existing instance keeps the DOF partition
+        and the label bookkeeping ``from_matrices`` does; the caches it holds
+        describe the *old* matrices, so they go.
+        """
+        if not self.reanalysis:
+            return solver_class.from_matrices(K, M)
+        if self._solver is None:
+            self._solver = solver_class.from_matrices(K, M)
+            self._solver_key = key
+        elif self._solver_key != key:
+            self._solver.system.K = sp.csr_matrix(K)
+            self._solver.system.M = sp.csr_matrix(M)
+            self._solver.clear_cache()
+            self._solver_key = key
+        return self._solver
+
     def eigen(
         self, values: Mapping[str, float] | Sequence[float] | np.ndarray
     ) -> tuple[np.ndarray, np.ndarray]:
         """``(λ, Φ)`` with mass-normalised ``Φ`` over *all* model DOFs."""
-        K, M = self.assemble(values)
+        theta = self._values(values)
+        key = tuple(theta[name] for name in self.parameter_names)
+        self.n_eigen_calls += 1
+
+        cached = self._eigen_cache
+        if self.reanalysis and cached is not None and cached[0] == key:
+            return cached[1].copy(), cached[2].copy()
+
+        K, M = self.assemble(theta)
         self.n_solves += 1
 
         solver_class = self._solver_class()
         if solver_class is not None:
-            result = solver_class.from_matrices(K, M).solve(
-                num_modes=self.num_modes, normalization="mass", sparse=False
+            solver = self._modal_solver(solver_class, K, M, key)
+            result = solver.solve(
+                num_modes=self.num_modes,
+                normalization="mass",
+                sparse=self.sparse,
+                cache_factorization=self.cache_factorization and self.reanalysis,
             )
-            return result.eigenvalues, result.mode_shapes
+            eigenvalues, shapes = result.eigenvalues, result.mode_shapes
+        else:
+            eigenvalues, vectors = sla.eigh(_dense(K), _dense(M))
+            order = np.argsort(eigenvalues)[: self.num_modes]
+            eigenvalues = np.clip(eigenvalues[order], 0.0, None)
+            shapes = _fix_signs(vectors[:, order])
 
-        eigenvalues, vectors = sla.eigh(_dense(K), _dense(M))
-        order = np.argsort(eigenvalues)[: self.num_modes]
-        eigenvalues = np.clip(eigenvalues[order], 0.0, None)
-        return eigenvalues, _fix_signs(vectors[:, order])
+        if self.reanalysis:
+            self._eigen_cache = (key, eigenvalues, shapes)
+            return eigenvalues.copy(), shapes.copy()
+        return eigenvalues, shapes
 
     def _select(self, shapes: np.ndarray) -> np.ndarray:
         return shapes if self.dof_selection is None else shapes[self.dof_selection, :]
