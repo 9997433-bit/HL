@@ -247,7 +247,7 @@ def parse_target(target: str) -> ParameterTarget:
             f"target {target!r}: {domain} carry no updatable attribute {attribute!r} "
             f"(expected one of {sorted(set(table.values()))})"
         )
-    return ParameterTarget(domain=domain, key=key, attribute=resolved, raw_attribute=attribute)
+    return ParameterTarget(domain=domain, key=key, attribute=resolved)
 
 
 # ----------------------------------------------------------------- selection
