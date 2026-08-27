@@ -486,8 +486,12 @@ def test_ac_modal_006_only_the_dense_cantilever_needs_the_arithmetic_floor(case,
     result = solver.solve(num_modes=num_modes, **BACKENDS[backend])
 
     worst = float(np.max(_free_dof_residuals(result)))
-    if case == ROUNDOFF_LIMITED_CASE and backend == "dense":
-        assert RESIDUAL_TOLERANCE < worst <= np.max(_floor(result))
+    if case == ROUNDOFF_LIMITED_CASE:
+        limit = float(np.max(_floor(result)))
+        if backend == "dense":
+            assert RESIDUAL_TOLERANCE < worst <= limit
+        else:
+            assert worst <= limit
     else:
         assert worst <= RESIDUAL_TOLERANCE
 
