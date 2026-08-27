@@ -1,0 +1,76 @@
+name: macOS release bundle
+
+# A `v*` tag goes to publish-release.yml, which is deliberately the only
+# tag-triggered workflow and which builds macOS through the same
+# scripts/build-macos.sh as this file. This workflow covers the two cases that
+# one does not: producing a macOS bundle on demand between releases, and
+# proving on a real Apple silicon runner that a change to the macOS build path
+# still passes its licence gates before a tag depends on it.
+"on":
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/release-macos.yml"
+      - "packaging/audio_studio_main.py"
+      - "packaging/pyinstaller.spec"
+      - "scripts/build-macos.sh"
+
+permissions:
+  contents: read
+
+env:
+  # No Developer ID certificate exists on a hosted runner, so there is nothing
+  # to sign with and nothing to notarise. Set explicitly so that an unsigned
+  # bundle is a stated fact rather than an omission; packaging/MACOS.md has the
+  # procedure for signing on a machine that does hold an identity.
+  CODESIGN_IDENTITY: ""
+
+jobs:
+  build-macos:
+    name: Build macOS PyInstaller bundle
+    # macos-latest is Apple silicon, and numpy, scipy and soundfile publish no
+    # universal2 wheels, so this job can only produce an arm64 bundle. The
+    # --expect-arch gate below fails the build if what comes out stops matching
+    # the architecture in the artifact name.
+    runs-on: macos-latest
+    timeout-minutes: 40
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: audio-studio/pyproject.toml
+
+      - name: Install application and bundle dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "./audio-studio[installer]"
+
+      - name: Build macOS bundle
+        run: scripts/build-macos.sh --install-deps --expect-arch arm64
+
+      - name: Record what shipped
+        run: |
+          lipo -archs dist/audio-studio/audio-studio
+          codesign --display --verbose=2 dist/audio-studio/audio-studio 2>&1 || true
+          echo "::notice::The bundle is not notarised: notarisation needs an Apple ID and a Developer ID certificate this project does not have. Recipients clear the quarantine flag themselves; see packaging/MACOS.md."
+          echo "::notice::tools/generate_sbom.py inventories a Linux bundle (linux-sbom.json, .so patterns) and is deliberately not run here, so this bundle ships without an SBOM."
+
+      - name: Archive the bundle
+        # upload-artifact zips whatever it is given, which drops the executable
+        # bit and dereferences the symlinks inside the Qt frameworks; the
+        # downloaded tree would not run and could not be relinked. Tar first.
+        run: |
+          tar -czf audio-studio-macos-arm64.tar.gz -C dist audio-studio
+          shasum -a 256 audio-studio-macos-arm64.tar.gz
+
+      - name: Upload macOS bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: audio-studio-macos-arm64
+          path: audio-studio-macos-arm64.tar.gz
+          if-no-files-found: error
