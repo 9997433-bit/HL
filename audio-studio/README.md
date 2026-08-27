@@ -593,6 +593,7 @@ document a binding the build does not have.
 | `Ctrl+O` / `Ctrl+W` | Open / close file |
 | `Ctrl+S` / `Ctrl+Alt+S` | Save project / save project as… |
 | `Ctrl+Shift+O` | Open project |
+| `Ctrl+Shift+H` / `Ctrl+Alt+H` | Open project archive / save project archive as… |
 | `Ctrl+Shift+S` | Export as… |
 | `Ctrl+Q` | Exit |
 | `Ctrl+Z` / `Ctrl+Y` | Undo / redo (the platform's own Redo binding) |
@@ -652,6 +653,95 @@ See [`THIRD_PARTY_LICENSES.md`](../THIRD_PARTY_LICENSES.md) for versions,
 upstream license pointers, LGPL source/relinking obligations, FFmpeg build
 restrictions and the release checklist.
 
+## Delivery
+
+### Project files: `.hlproj` folders and `.hlprojz` archives
+
+A project saves as a `.hlproj` **directory**: `project.json`, a `media/` copy
+of every clip the session refers to, the take registry, and cached waveform
+overviews. That shape suits the application — media can be added without
+rewriting a container, and a save replaces one small JSON file — and it suits
+nothing else. Mailing a session, attaching it to a ticket or dropping it on a
+share all want one file.
+
+**File ▸ Save Project Archive As** (`Ctrl+Alt+H`) writes exactly that bundle
+as a zipped `.hlprojz`, and **File ▸ Open Project Archive** (`Ctrl+Shift+H`)
+opens one. The two representations carry the same `project.json` at the same
+schema version, so a session can move between them as often as you like and
+an older build still reads what comes out.
+
+- While an archive is open, its expanded bundle lives in a scratch directory —
+  that is where the media the engine plays actually sits. A plain **Save**
+  (`Ctrl+S`) rewrites that bundle and repacks the archive in place; **Save
+  Project As** to a folder converts the session back into a directory project;
+  opening a plain audio file releases the scratch copy.
+- Packing and unpacking both rename a finished temporary into place, so a
+  crash or a full disk mid-save cannot cost you the archive you already had,
+  and a reader never sees a half-extracted bundle at the real path.
+- `backups/` — the store's timestamped copies of `project.json`, local undo of
+  last resort — stays out of the archive. Pass `include_backups=True` to
+  `pack_project` if you want them.
+- Archives from elsewhere are treated as untrusted input: a member name that
+  is absolute, that traverses out of the bundle with `..`, or that is a
+  symlink fails the whole open rather than being quietly skipped.
+
+The same operations are available headlessly:
+
+```python
+from pathlib import Path
+
+from audio_studio.project import load_project_archive, pack_project, unpack_project
+
+pack_project(Path("session.hlproj"), Path("session.hlprojz"))
+root = unpack_project(Path("session.hlprojz"), Path("/tmp/work"))
+snapshot = load_project_archive(Path("session.hlprojz"), Path("/tmp/work2"))
+```
+
+`save_project_archive()` writes a session straight to an archive without
+leaving a directory behind. Round-trip coverage, atomicity under a failing
+write and the hostile-archive cases live in
+[`tests/test_hlprojz.py`](tests/test_hlprojz.py).
+
+### Desktop bundle
+
+```bash
+scripts/build-linux.sh --install-deps      # first run; installs PyInstaller
+scripts/build-linux.sh --clean             # afterwards
+```
+
+The result is `dist/audio-studio/`, a launcher plus its interpreter, Qt and the
+numerical stack (around 280 MB unpacked). The recipe is
+[`packaging/pyinstaller.spec`](../packaging/pyinstaller.spec); the script sets
+the paths it expects, then checks what came out.
+
+Those checks are the point of the script. A bundle is a distribution, and a
+distribution is where the license terms of everything inside it come due:
+
+- **One directory, never `--onefile`, and no UPX.** Qt, PySide6, Shiboken6 and
+  libsndfile reach the application under the LGPL, which is satisfied only
+  while a recipient can replace those libraries with their own compatible
+  build. `COLLECT` leaves every shared object beside the launcher where it can
+  be swapped; a one-file build would unpack to a throwaway directory on each
+  launch, and UPX rewrites a shared object so it is no longer a drop-in
+  target. The build fails if no Qt shared objects end up in the output.
+- **No pedalboard.** It is GPL-3.0, and bundling it relicenses the entire
+  artifact. The spec excludes it and the script refuses to build at all from
+  an environment where it is importable, unless `ALLOW_GPL=1` says a GPL
+  distribution is what you meant.
+- **The notices ship inside the bundle.** `licenses/THIRD_PARTY_LICENSES.md`
+  and `licenses/LGPL-RELINKING.txt` — the latter naming each LGPL component,
+  where its source is, how to replace it in this bundle, and the written
+  source offer — must travel with any binary that leaves the building. The
+  script will not finish without them.
+
+The bundle is host-specific: build on the oldest Linux you intend to support,
+and build the macOS and Windows artifacts on their own machines. PyInstaller
+itself is GPL-2.0-or-later with a bootloader exception that covers shipping
+the bootloader inside this MIT application; it is a build tool, declared as
+the `installer` extra, and is not a runtime dependency of what it produces.
+Before publishing anything, walk the release checklist at the end of
+[`THIRD_PARTY_LICENSES.md`](../THIRD_PARTY_LICENSES.md).
+
 ## Tests
 
 ```bash
@@ -677,7 +767,8 @@ above this package.
 - Waveform editing is wired through `EditSession`: cut, copy, paste, delete,
   silence, trim, gain, fade in/out, reverse, insert silence and unlimited
   undo/redo from the Edit menu. Save and reopen sessions as `.hlproj` directory
-  bundles (File ▸ Save/Open Project); undo history is not persisted — the saved
+  bundles or single-file `.hlprojz` archives (File ▸ Save/Open Project, or the
+  Archive commands beside them); undo history is not persisted — the saved
   document is the flattened edit result. Export remains available for one-off
   audio files.
 - Recording is an MVP path: PyAudio input supports mono/stereo crash-safe BWF

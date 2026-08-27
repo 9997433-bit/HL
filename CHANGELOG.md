@@ -3,6 +3,20 @@
 All notable changes are documented here. The project follows Keep a Changelog
 structure while it remains pre-1.0.
 
+## Unreleased
+
+### Added
+
+- `.hlprojz` project archives: the `.hlproj` bundle stored as a single zip
+  file, at the same schema version, with atomic packing and unpacking and
+  validation of member names from untrusted archives. File ▸ Open Project
+  Archive (`Ctrl+Shift+H`) and File ▸ Save Project Archive As (`Ctrl+Alt+H`);
+  `audio_studio.project.archive` headlessly.
+- Desktop bundle scaffold: `packaging/pyinstaller.spec` and
+  `scripts/build-linux.sh`, building a one-directory artifact that keeps the
+  LGPL shared libraries replaceable, refuses to bundle GPL components, and
+  ships `LGPL-RELINKING.txt` beside the third-party notices.
+
 ## [0.1.0-alpha] - 2026-08-26
 
 This alpha is the three-round Audio Studio MVP snapshot. It is a usable,
