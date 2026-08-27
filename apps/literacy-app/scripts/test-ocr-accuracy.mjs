@@ -1,5 +1,5 @@
 /**
- * ROUND10_H2（承接 ROUND9_H2 / ROUND8_H4）—— 拍照识字的识别精度基准。
+ * ROUND11_H2（承接 ROUND10_H2 / ROUND9_H2 / ROUND8_H4）—— 拍照识字的识别精度基准。
  *
  * scripts/test-ocr.mjs 守的是取字规则（哪些字符算字、哪些字讲得了），
  * 它给一段假文本就能跑；真正会悄悄退化的那一半——语言包换了、tesseract 升级了、
@@ -31,6 +31,19 @@
  * 台阶立刻显形——同一句「小心地滑」，警示锥上的印刷体 4/4，墙上的喷漆模板字
  * 只认得出 3/4，「滑」被读成「海」。这不是 bug，是这套离线引擎的真实边界，
  * 现在它被写进阈值里，谁再改预处理都得先跟这条线对账。
+ *
+ * ROUND11_H2 把这一类从三张扩到六张，并补上失败那一半的验收。
+ * 三张只够证明「真实照片认得出」，证不了「哪一类认不出」——R10 那三张全是
+ * 户外印刷标牌，同一种光、同一种字。新的三张各挑一类真实世界的字：
+ *
+ *   real-road-warning    马路三角警示牌，2001 年卡片机，画面自带压缩噪点
+ *   real-toilet-sign     商场墙上的金属立体字，字和墙几乎一个亮度
+ *   real-blackboard-press 真人粉笔写的落款，笔画有飞白（不是 JITTER 抖出来的）
+ *
+ * 另一半是话术：这套引擎在手写体、艺术字、褪色招牌上会稳定失手，
+ * 「认不出」是常态而不是异常。界面在这半边只说一句「没认出来」就是把锅甩给孩子，
+ * 所以这里加了一段断言，盯住 CameraOcrView 里那三条降级话术（光线 / 取景 / 换一张）
+ * 与它们的出口按钮还在——话术被删掉，跑分再好看也没用。
  *
  * 基准图为什么不放 public/：见 scripts/gen-ocr-benchmark.mjs 的说明。
  * 浏览器里的整链（懒加载、Service Worker、点进单字页）由 scripts/smoke.mjs 覆盖，
@@ -203,6 +216,40 @@ const BENCHMARK = [
     keyword: '小心',
     recall: 0.5,
     conf: 45
+  },
+  {
+    // ROUND11_H2 的三张。R10 那三张都是白天户外的印刷标牌，这三张各换一种真实条件：
+    // 老相机的压缩噪点、金属字与墙面几乎同亮度、真人粉笔的飞白。
+    tier: 'real-photo',
+    name: '真实照片 马路警示牌「小心行人」',
+    file: 'scripts/fixtures/ocr/real-road-warning.png',
+    expect: '小心行人',
+    keyword: '小心',
+    recall: 0.75,
+    conf: 70
+  },
+  {
+    // 金属立体字最难的不是字形而是对比度：字面和墙面反射同一盏射灯，
+    // 灰度直方图几乎重合，全靠 preprocess() 那一步把跨度拉满才认得出来。
+    tier: 'real-photo',
+    name: '真实照片 商场金属立体字「洗手间」',
+    file: 'scripts/fixtures/ocr/real-toilet-sign.png',
+    expect: '洗手间',
+    keyword: '手间',
+    recall: 0.66,
+    conf: 60
+  },
+  {
+    // 真人粉笔字。合成的 handwriting tier 是把印刷体逐字抖出来的，笔画仍然完整；
+    // 这张的飞白是粉笔真的没吃上墨的地方，断口位置不讲道理——
+    // 这是「手写」这一类里唯一一张没有作弊的图。
+    tier: 'real-photo',
+    name: '真实照片 黑板粉笔落款「中华书局」',
+    file: 'scripts/fixtures/ocr/real-blackboard-press.png',
+    expect: '中华书局',
+    keyword: '中华',
+    recall: 0.75,
+    conf: 60
   }
 ]
 
@@ -219,7 +266,7 @@ const MAX_NOISE = 2
  * 是天黑了没开灯的桌面、是花桌布上摆着的字卡。这两条钉住「扩样不许缩回去」——
  * 删图、砍 tier 都会当场红灯，而不是等某天线上认不出来了才发现。
  */
-const MIN_IMAGES = 12
+const MIN_IMAGES = 15
 const REQUIRED_TIERS = [
   'handwriting',
   'low-light',
@@ -232,10 +279,15 @@ const REQUIRED_TIERS = [
  * real-photo tier 单独的规模与分数下限。
  *
  * 这一类最容易被「省事」掉：真实照片要找授权、要核哈希、分数还不好看，
- * 换谁都想删两张换回合成图。两条线拦着——张数（ROUND10_H2 门槛就是 ≥2 张）
+ * 换谁都想删两张换回合成图。两条线拦着——张数（ROUND11_H2 把门槛从 2 抬到 5）
  * 和这一类自己的召回率，掉下去就说明真实场景的识别塌了，而不是总分里的一点噪声。
+ *
+ * 张数这条线有个便宜的绕法：从同一张原图上裁五个位置，数字立刻够了，
+ * 可光线、镜头、字体全是同一套，等于什么都没扩。MIN_REAL_SOURCES 堵的就是这条路——
+ * 五张真实样张必须来自五张**不同的原始照片**（按清单里的 page 去重）。
  */
-const MIN_REAL_IMAGES = 2
+const MIN_REAL_IMAGES = 5
+const MIN_REAL_SOURCES = 5
 const REAL_TIER = 'real-photo'
 const REAL_TIER_RECALL = 0.75
 
@@ -381,6 +433,22 @@ test(`真实照片不少于 ${MIN_REAL_IMAGES} 张，这一类的召回率单独
   )
 })
 
+test(`真实照片来自至少 ${MIN_REAL_SOURCES} 张不同的原图，不是一张图裁五刀`, () => {
+  const real = BENCHMARK.filter((c) => c.tier === REAL_TIER)
+  const declared = new Map(realSamples.samples.map((s) => [s.name, s]))
+  const pages = new Set()
+  for (const item of real) {
+    const name = item.file.replace(/^.*\//, '').replace(/\.png$/, '')
+    const page = declared.get(name)?.page
+    assert.ok(page, `「${name}」在清单里查不到 page，说不清它是从哪张照片裁的`)
+    pages.add(page)
+  }
+  assert.ok(
+    pages.size >= MIN_REAL_SOURCES,
+    `${real.length} 张真实样张只来自 ${pages.size} 张原图（下限 ${MIN_REAL_SOURCES}）`
+  )
+})
+
 test('每张真实照片都留着出处与授权，署名同步进 THIRD_PARTY_NOTICES', () => {
   const declared = new Map(realSamples.samples.map((s) => [s.name, s]))
   for (const item of BENCHMARK.filter((c) => c.tier === REAL_TIER)) {
@@ -406,6 +474,77 @@ test('每张真实照片都留着出处与授权，署名同步进 THIRD_PARTY_N
       `THIRD_PARTY_NOTICES.md 里没有「${name}」的作者署名「${sample.author}」`
     )
   }
+})
+
+/* -------------------------------------------------- 失败降级话术（界面侧） */
+
+/**
+ * ROUND11_H2 的另一半：认不出的时候界面说什么。
+ *
+ * 上面那堆阈值守的是「认得出多少」，可这套离线引擎在手写体、艺术字、
+ * 褪色招牌上会稳定失手——喷漆那张到今天也只有 3/4。既然失败是常态的一半，
+ * 那半边的文案就得跟跑分一样被守住：只说一句「没认出来」等于告诉孩子
+ * 是他拍得不好，而真正改得动的只有光线、取景，以及承认换一张更快。
+ *
+ * 这里读的是 CameraOcrView.vue 的源码而不是跑浏览器：话术被删、失败分支
+ * 被砍、出口按钮被拿掉，都是一次源码改动，Node 里一秒就能拦下。
+ * 渲染出来长什么样由 scripts/smoke.mjs 那条拍照识字用例覆盖。
+ */
+const cameraSource = await readFile(new URL('src/views/CameraOcrView.vue', appUrl), 'utf8')
+
+test('认不出时给的是三条能照做的话术：光线、取景、换一张', () => {
+  const tips = cameraSource.match(/const RETRY_TIPS\s*=\s*\[[\s\S]*?\n\]/)?.[0]
+  assert.ok(tips, 'CameraOcrView 里找不到 RETRY_TIPS——失败话术被删了')
+  const lines = [...tips.matchAll(/text:\s*'([^']+)'/g)].map((m) => m[1])
+  assert.ok(lines.length >= 3, `只剩 ${lines.length} 条降级话术（下限 3）`)
+  for (const [what, pattern] of [
+    ['光线', /光|亮|影|反光/],
+    ['取景', /凑近|近一点|占满|端稳|清楚/],
+    ['换一张', /换一张|换张|另一张/]
+  ]) {
+    assert.ok(lines.some((t) => pattern.test(t)), `三条话术里没有「${what}」这一条`)
+  }
+  // 把边界说破，孩子才不会对着同一张手写照片反复重拍
+  assert.ok(
+    /手写|艺术字|褪色/.test(lines.join('')),
+    '话术没有说明它认不了哪一类字，孩子只会以为是自己拍得不好'
+  )
+})
+
+test('三种失败都落到同一张降级卡上，并且卡里带得走的出口', () => {
+  for (const [what, pattern] of [
+    ['认了一场空', /const blank\s*=\s*computed/],
+    ['认得不准', /const shaky\s*=\s*computed/],
+    ['引擎出错', /phase\.value === 'error'/]
+  ]) {
+    assert.match(cameraSource, pattern, `失败分支「${what}」没了`)
+  }
+  assert.match(
+    cameraSource,
+    /const troubled\s*=\s*computed\([\s\S]*?blank\.value[\s\S]*?shaky\.value[\s\S]*?error/,
+    'troubled 没有把三种失败并到一起，会漏掉其中一种'
+  )
+  assert.match(cameraSource, /v-if="troubled"/, '降级卡没有挂到 troubled 上')
+  assert.match(cameraSource, /data-trouble=/, '降级卡缺 data-trouble，smoke 与读屏都定位不到它')
+  // 只讲道理不给出口等于把人堵在原地
+  assert.match(cameraSource, /再拍一张/, '降级卡里没有「再拍一张」')
+  assert.match(cameraSource, /试一张示例/, '降级卡里没有「试一张示例」这条自证路径')
+})
+
+test('低置信度的提醒线，跟真实样张的实测分数对得上', () => {
+  const line = Number(cameraSource.match(/const SHAKY_CONFIDENCE\s*=\s*(\d+)/)?.[1])
+  assert.ok(Number.isFinite(line), 'CameraOcrView 里找不到 SHAKY_CONFIDENCE')
+  const floors = BENCHMARK.filter((c) => c.tier === REAL_TIER).map((c) => c.conf)
+  // 提醒线要压在最难的那几张真实照片之上，否则喷漆字那种「认错了还挺自信」
+  // 的结果一句提醒都不会有；也不能高到把警示锥那种干干净净的照片也标成可疑
+  assert.ok(
+    line > Math.min(...floors),
+    `提醒线 ${line} 不高于最低的真实样张置信度下限 ${Math.min(...floors)}，等于从不提醒`
+  )
+  assert.ok(
+    line <= Math.max(...floors),
+    `提醒线 ${line} 高过所有真实样张的下限 ${Math.max(...floors)}，会把认对的也标成可疑`
+  )
 })
 
 /* -------------------------------------------------------------- 预处理 */
@@ -623,10 +762,18 @@ if (asJson) {
   console.log(
     JSON.stringify(
       {
-        marker: 'ROUND10_H2',
-        supersedes: 'ROUND9_H2',
+        marker: 'ROUND11_H2',
+        supersedes: 'ROUND10_H2',
         imageCount: rows.length,
         realImageCount: rows.filter((r) => r.item.tier === REAL_TIER).length,
+        realSourceCount: new Set(
+          BENCHMARK.filter((c) => c.tier === REAL_TIER).map(
+            (c) =>
+              realSamples.samples.find(
+                (s) => s.name === c.file.replace(/^.*\//, '').replace(/\.png$/, '')
+              )?.page
+          )
+        ).size,
         overallRecall: Number(overall.toFixed(4)),
         hit,
         total,
@@ -678,7 +825,7 @@ if (asJson) {
   }
   const real = rows.filter((r) => r.item.tier === REAL_TIER)
   if (real.length) {
-    console.log('\n  真实样张出处（CC BY-SA，随仓库再分发需保留署名）：')
+    console.log('\n  真实样张出处（CC BY-SA 的几张，随仓库再分发需保留署名）：')
     for (const r of real) {
       console.log(`    ${r.item.file.replace(/^.*\//, '')} — ${licenseOf(r.item)}`)
     }
