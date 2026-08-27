@@ -34,6 +34,8 @@ const APPS = [
       ['算术恒星', '/#/arithmetic'],
       ['形状卫星', '/#/geometry'],
       ['规律环带', '/#/logic'],
+      ['配对记忆', '/#/memory-pairs'],
+      ['逻辑迷宫', '/#/maze'],
       ['数独空间站', '/#/sudoku'],
       ['生活行星', '/#/word-problems'],
       ['成就墙', '/#/progress'],
