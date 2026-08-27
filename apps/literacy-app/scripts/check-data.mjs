@@ -28,6 +28,7 @@ import { POEMS, POEM_GLOSS, POEM_THEMES, charsInPoem, verifyPoemCoverage } from 
 import { TOTAL_POEMS } from '../src/data/poem-index.js'
 import { SONGS, SONG_THEMES, charsInSong, verifySongCoverage } from '../src/data/songs.js'
 import { TOTAL_SONGS } from '../src/data/song-index.js'
+import { TOTAL_UNIT_STORIES, hasUnitStory, unitStory } from '../src/data/unit-stories.js'
 import { validateShape } from '../src/utils/etymologySketch.js'
 import { STREAK_CHORDS, streakChord } from '../src/utils/audio.js'
 
@@ -343,6 +344,48 @@ check(
   `每个儿歌分区都有歌${emptySongThemes.length ? `（空：${emptySongThemes.map((t) => t.name).join('、')}）` : ''}`
 )
 
+/* ------------------------------------------------------------- 单元剧情 */
+const storyless = UNITS.filter((u) => !hasUnitStory(u))
+check(
+  storyless.length === 0,
+  `每个单元都有手写剧情，没有走兜底（${TOTAL_UNIT_STORIES} 条）${storyless.length ? `（缺：${storyless.map((u) => u.id).join('、')}）` : ''}`
+)
+
+const storyTexts = UNITS.map((u) => unitStory(u))
+const storyDupes = storyTexts.filter((v, i, a) => a.indexOf(v) !== i)
+check(
+  storyDupes.length === 0,
+  `单元剧情没有两站说同一句话${storyDupes.length ? `（${storyDupes[0]}）` : ''}`
+)
+
+// 地图上剧情只有一行的位置，太长会被截断，太短又交代不清这一站有什么。
+const badStoryLength = UNITS.filter((u) => {
+  const len = unitStory(u).length
+  return len < 12 || len > 44
+})
+check(
+  badStoryLength.length === 0,
+  `单元剧情长度都在 12–44 字之间${badStoryLength.length ? `（${badStoryLength.map((u) => u.id).join('、')}）` : ''}`
+)
+
+/**
+ * 剧情里用「」引起来的单字，必须真的收在这一站里。
+ * u59 之后的单元名是虚构地名，剧情靠点名几个字来告诉孩子这一站会遇上谁——
+ * 字表重排之后这些名字最容易变成谎话，而且没有任何报错。
+ */
+const strayStoryChars = []
+for (const unit of UNITS) {
+  const pack = await import(`../src/data/chars/${unit.id}.js`).then((m) => m.default).catch(() => null)
+  if (!pack) continue
+  const quoted = [...unitStory(unit).matchAll(/「(.)」/g)].map((m) => m[1])
+  const stray = quoted.filter((ch) => !pack[ch])
+  if (stray.length) strayStoryChars.push(`${unit.id}:${stray.join('')}`)
+}
+check(
+  strayStoryChars.length === 0,
+  `单元剧情点名的字都收在本单元里${strayStoryChars.length ? `（${strayStoryChars.join('、')}）` : ''}`
+)
+
 const idiomName = (i) => i.word ?? i.idiom ?? i.id
 const idiomScenes = (i) => i.story ?? i.scenes ?? []
 
@@ -519,7 +562,8 @@ console.log(
     `${new Set(BOOKS.flatMap(charsInBook)).size} 个不重复用字） / ${IDIOMS.length} 个成语 / ` +
     `${ETYMOLOGY.length} 个字有字源演变 / ${SONGS.length} 首儿歌（共 ` +
     `${SONGS.reduce((n, s) => n + s.lines.length, 0)} 句，` +
-    `${new Set(SONGS.flatMap(charsInSong)).size} 个不重复用字）`
+    `${new Set(SONGS.flatMap(charsInSong)).size} 个不重复用字） / ` +
+    `${TOTAL_UNIT_STORIES} 条单元剧情`
 )
 
 process.exit(fails.length ? 1 : 0)
