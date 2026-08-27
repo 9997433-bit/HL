@@ -46,6 +46,14 @@ class Effect(ABC):
     #: ``True`` when the effect needs the entire signal and cannot stream.
     is_offline_only: bool = False
 
+    #: Whether a *bypassed* instance still counts toward the constant a
+    #: delay-compensated path pads to. External plugin adapters set this:
+    #: their bypass is a live A/B toggle that must not move the stream in
+    #: time. Native latent processors leave it ``False`` — enabling one is a
+    #: reconfiguration, and padding every preview for a processor that is
+    #: switched off would cost all users its latency all the time.
+    compensate_when_bypassed: bool = False
+
     def __init__(self, enabled: bool = True, mix: float = 1.0) -> None:
         self.enabled = bool(enabled)
         self.mix = mix
@@ -94,6 +102,17 @@ class Effect(ABC):
 
     def reset(self) -> None:  # noqa: B027 - stateless effects legitimately do nothing
         """Clear streaming state without changing parameters."""
+
+    def latency_samples(self) -> int:
+        """Delay this effect imposes on the signal when it runs, in samples.
+
+        Native processors are latency-free by design (their filters are
+        causal, sample-aligned IIR/gain stages), so the default is ``0``.
+        A wrapped external plugin overrides this with whatever the plugin
+        reports; :class:`EffectChain` sums the figures so a host can pad the
+        rest of the path to match — plugin delay compensation.
+        """
+        return 0
 
     def parameters(self) -> dict[str, Any]:
         """Serialisable parameter snapshot, for presets and undo history."""
@@ -274,6 +293,41 @@ class EffectChain(Effect):
     def reset(self) -> None:
         for effect in self.effects:
             effect.reset()
+
+    def latency_samples(self, include_bypassed: bool = False) -> int:
+        """Summed member latency, in samples — the chain's own delay.
+
+        With the default ``include_bypassed=False`` this is the delay the
+        chain imposes *right now*: a bypassed member is skipped by
+        :meth:`process_block` and therefore delays nothing. With
+        ``include_bypassed=True``, bypassed members that ask for it
+        (:attr:`Effect.compensate_when_bypassed` — the external plugin
+        adapters) are counted as if they ran: the sum is then the constant a
+        delay-compensated path pads itself to, so that toggling a plugin's
+        bypass does not move the stream in time. Bypassed members that do
+        not opt in stay out of both sums — a disabled native processor costs
+        nothing, latency included.
+
+        A member whose report is unusable (``None``, a raising method, a
+        signature this contract does not know, a negative figure) counts as
+        zero rather than poisoning the sum, for the same reason the plugin
+        panel treats it that way: an unknown delay is at worst
+        uncompensated, never a crash.
+        """
+        total = 0
+        for effect in self.effects:
+            if not effect.enabled and not (
+                include_bypassed and effect.compensate_when_bypassed
+            ):
+                continue
+            if isinstance(effect, EffectChain):
+                total += effect.latency_samples(include_bypassed)
+                continue
+            try:
+                total += max(int(effect.latency_samples()), 0)
+            except (AttributeError, TypeError, ValueError):
+                continue
+        return total
 
     def parameters(self) -> dict[str, Any]:
         return {

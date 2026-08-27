@@ -23,6 +23,7 @@ dragging a selection re-analyses once rather than on every mouse move.
 
 from __future__ import annotations
 
+import html
 import tempfile
 from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
@@ -38,6 +39,8 @@ from PySide6.QtGui import (
     QKeySequence,
 )
 from PySide6.QtWidgets import (
+    QDialog,
+    QDialogButtonBox,
     QDockWidget,
     QFileDialog,
     QHBoxLayout,
@@ -45,6 +48,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
     QMessageBox,
+    QTextBrowser,
     QToolBar,
     QVBoxLayout,
     QWidget,
@@ -74,6 +78,9 @@ from ..core.recorder import (
     AudioRecorder,
     NullRecorder,
     RecorderDeviceError,
+    Take,
+    TakeRegistry,
+    TakeRegistryError,
     create_recorder,
 )
 from ..core.sample_source import MemorySampleSource, StreamingSampleSource
@@ -109,6 +116,42 @@ ANALYSIS_DEBOUNCE_MS: int = 250
 MAX_RECENT_FILES: int = 8
 
 
+def strip_mnemonic(text: str) -> str:
+    """``"Fade &In"`` → ``"Fade In"``, keeping a literal ``&&`` as one ``&``."""
+    return text.replace("&&", "\x00").replace("&", "").replace("\x00", "&")
+
+
+class ShortcutsDialog(QDialog):
+    """Help ▸ Keyboard Shortcuts — the menu bindings as a readable table.
+
+    Modeless on purpose: the point of the sheet is to try a shortcut while it
+    is on screen, which a modal dialog would swallow.
+    """
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Keyboard Shortcuts")
+        self.setObjectName("ShortcutsDialog")
+        self.resize(560, 640)
+
+        self.browser = QTextBrowser(self)
+        self.browser.setOpenExternalLinks(False)
+        self.browser.setAccessibleName("Keyboard shortcuts")
+        self.browser.setAccessibleDescription(
+            "Table of every menu command and the key that runs it"
+        )
+
+        self.buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close, self)
+        self.buttons.rejected.connect(self.reject)
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(self.browser, 1)
+        layout.addWidget(self.buttons)
+
+    def set_html(self, markup: str) -> None:
+        self.browser.setHtml(markup)
+
+
 class MainWindow(QMainWindow):
     """Hosts the engine and wires it to the editing widgets."""
 
@@ -124,6 +167,12 @@ class MainWindow(QMainWindow):
         self.preview = attach_preview(self.engine, self.effect_chain)
         self._recent: list[Path] = []
         self._recording_path: Path | None = None
+        self._shortcuts_dialog: ShortcutsDialog | None = None
+        untitled_take_dir = Path(tempfile.mkdtemp(prefix="audio-studio-session-"))
+        self.take_registry = TakeRegistry(
+            untitled_take_dir / "session.takes.json",
+            media_directory=untitled_take_dir / "takes",
+        )
 
         self.setWindowTitle(__app_name__)
         self.resize(1360, 780)
@@ -281,17 +330,23 @@ class MainWindow(QMainWindow):
             QKeySequence.StandardKey.Open,
             tip="Open an audio file",
         )
-        self.action_close = action("&Close", self.close_clip, QKeySequence.StandardKey.Close)
+        # Spelled out rather than taken from StandardKey.Close, whose primary
+        # binding here is Ctrl+F4; Ctrl+W is what the docs promise and what Qt
+        # turns into Cmd+W on macOS anyway.
+        self.action_close = action("&Close", self.close_clip, "Ctrl+W")
         self.action_export = action(
             "&Export As…",
             self.export_dialog,
             QKeySequence.StandardKey.SaveAs,
             tip="Write the clip (or the selection) to a new file",
         )
+        # Ctrl+S rather than Ctrl+Shift+S: the latter is the platform's
+        # Save As, which Export already owns, and two actions on one sequence
+        # make both of them ambiguous rather than one of them a synonym.
         self.action_save_project = action(
             "Save &Project",
             self.save_project,
-            "Ctrl+Shift+S",
+            QKeySequence.StandardKey.Save,
             tip="Save the session to an .hlproj project bundle",
         )
         self.action_save_project_as = action(
@@ -306,7 +361,9 @@ class MainWindow(QMainWindow):
             "Ctrl+Shift+O",
             tip="Open an .hlproj project bundle",
         )
-        self.action_quit = action("E&xit", self.close, QKeySequence.StandardKey.Quit)
+        # StandardKey.Quit resolves to nothing outside macOS, which would
+        # leave the one action nobody wants to hunt for in a menu unbound.
+        self.action_quit = action("E&xit", self.close, "Ctrl+Q")
 
         self.action_select_all = action(
             "Select &All",
@@ -445,11 +502,13 @@ class MainWindow(QMainWindow):
         self.action_remove_marker = action(
             "&Remove Marker",
             self.remove_selected_marker,
+            "Ctrl+Shift+Del",
             tip="Delete the marker selected in the Markers list",
         )
         self.action_clear_markers = action(
             "&Clear All Markers",
             self.clear_markers,
+            "Ctrl+Alt+M",
             tip="Remove every marker and region from the document",
         )
 
@@ -532,12 +591,31 @@ class MainWindow(QMainWindow):
         self.action_sel_only = action(
             "Play Selection &Only",
             self._on_play_selection_only,
+            "Shift+L",
             checkable=True,
             tip="Restrict the transport to the selected range",
         )
         self.action_sel_only.setChecked(True)
 
-        self.action_about = action("&About", self.show_about)
+        self.action_shortcuts = action(
+            "&Keyboard Shortcuts",
+            self.show_shortcuts,
+            QKeySequence.StandardKey.HelpContents,
+            tip="List every menu command and the key that runs it",
+        )
+        self.action_about = action("&About", self.show_about, "Shift+F1")
+
+        # The dock toggles are Qt's own actions, but they sit in the menus
+        # like any other command and are covered by the same rule: everything
+        # reachable from the menu bar is reachable from the keyboard.
+        for act, sequence in (
+            (self.spectrum_dock.toggleViewAction(), "Ctrl+Alt+1"),
+            (self.effects_dock.toggleViewAction(), "Ctrl+Alt+2"),
+            (self.plugin_dock.toggleViewAction(), "Ctrl+Alt+3"),
+            (self.markers_dock.toggleViewAction(), "Ctrl+Alt+4"),
+        ):
+            act.setShortcut(sequence)
+            self.addAction(act)
 
     def _build_menus(self) -> None:
         bar = self.menuBar()
@@ -546,6 +624,8 @@ class MainWindow(QMainWindow):
         file_menu.addAction(self.action_open)
         self.recent_menu = file_menu.addMenu("Open &Recent")
         self.recent_menu.setEnabled(False)
+        self.takes_menu = file_menu.addMenu("&Takes")
+        self._refresh_takes_menu()
         file_menu.addSeparator()
         file_menu.addAction(self.action_export)
         file_menu.addSeparator()
@@ -628,7 +708,10 @@ class MainWindow(QMainWindow):
         transport_menu.addAction(self.action_loop)
         transport_menu.addAction(self.action_sel_only)
 
-        bar.addMenu("&Help").addAction(self.action_about)
+        help_menu = bar.addMenu("&Help")
+        help_menu.addAction(self.action_shortcuts)
+        help_menu.addSeparator()
+        help_menu.addAction(self.action_about)
 
     def _build_toolbar(self) -> None:
         toolbar = QToolBar("Main")
@@ -690,6 +773,7 @@ class MainWindow(QMainWindow):
         self.spectrum_panel.deleteRequested.connect(self.spectral_delete)
         self.effect_rack.chainChanged.connect(self._on_chain_changed)
         self.plugin_panel.pluginChanged.connect(self._on_chain_changed)
+        self.plugin_panel.pdcToggled.connect(self._on_pdc_toggled)
 
         self.marker_panel.selectionChanged.connect(self._update_marker_actions)
         self.marker_panel.goToRequested.connect(self._on_seek)
@@ -713,7 +797,12 @@ class MainWindow(QMainWindow):
         if path:
             self.open_file(path)
 
-    def open_file(self, path: str | Path) -> bool:
+    def open_file(
+        self,
+        path: str | Path,
+        *,
+        preserve_take_registry: bool = False,
+    ) -> bool:
         """Load ``path`` into the editor; returns False and reports on failure.
 
         A file whose decoded form would blow the in-memory editing budget —
@@ -723,7 +812,10 @@ class MainWindow(QMainWindow):
         if not self._confirm_discard_unsaved(action="opening another file"):
             return False
         if should_stream(path, budget_bytes=DEFAULT_MEMORY_BUDGET_BYTES):
-            return self._open_file_streaming(path)
+            return self._open_file_streaming(
+                path,
+                preserve_take_registry=preserve_take_registry,
+            )
         try:
             clip = self.engine.load(path)
         except AudioLoadError as exc:
@@ -731,13 +823,21 @@ class MainWindow(QMainWindow):
             return False
         self._project_path = None
         self._project_dirty = False
+        if not preserve_take_registry:
+            self.take_registry = TakeRegistry(clip.path)
+            self._refresh_takes_menu()
         self._bind_edit_session(clip)
         self._remember_recent(clip.path)
         self._update_for_clip()
         self.statusBar().showMessage(f"Loaded {clip.name}", 4000)
         return True
 
-    def _open_file_streaming(self, path: str | Path) -> bool:
+    def _open_file_streaming(
+        self,
+        path: str | Path,
+        *,
+        preserve_take_registry: bool = False,
+    ) -> bool:
         """Open ``path`` through a sparse editable overlay, never decoding it whole."""
         source: StreamingSampleSource | None = None
         try:
@@ -762,6 +862,9 @@ class MainWindow(QMainWindow):
         )
         self._project_path = None
         self._project_dirty = False
+        if not preserve_take_registry:
+            self.take_registry = TakeRegistry(source.path)
+            self._refresh_takes_menu()
         self.set_markers(MarkerList())
         self._editor_clip = None
         self._remember_recent(source.path)
@@ -819,6 +922,47 @@ class MainWindow(QMainWindow):
             act.triggered.connect(lambda _checked=False, p=entry: self.open_file(p))
             self.recent_menu.addAction(act)
 
+    def _refresh_takes_menu(self) -> None:
+        """Rebuild File ▸ Takes from the durable session registry."""
+        self.takes_menu.clear()
+        takes = self.take_registry.takes
+        self.takes_menu.setEnabled(bool(takes))
+        if not takes:
+            empty = self.takes_menu.addAction("No takes recorded")
+            empty.setEnabled(False)
+            return
+        for take in reversed(takes):
+            action = self.takes_menu.addAction(
+                f"{take.name} — {take.path.name} ({format_timecode(take.duration)})"
+            )
+            action.setStatusTip(str(take.path))
+            action.triggered.connect(
+                lambda _checked=False, number=take.number: self.open_take(number)
+            )
+
+    def open_take(self, take: int | Take) -> bool:
+        """Reopen a registered take in the waveform editor."""
+        entry = self.take_registry.take(take if isinstance(take, int) else take.number)
+        if entry is None:
+            return False
+        if not entry.path.is_file():
+            QMessageBox.warning(
+                self,
+                "Take is unavailable",
+                f"{entry.name} is registered, but its audio file is missing:\n{entry.path}",
+            )
+            return False
+        project_path = self._project_path
+        if not self.open_file(entry.path, preserve_take_registry=True):
+            return False
+        # A take belongs to the open recording session. Opening its media as the
+        # waveform document must not turn that project into an untitled file.
+        if project_path is not None:
+            self._project_path = project_path
+            self._mark_project_dirty()
+        self.statusBar().showMessage(f"Opened {entry.name}", 4000)
+        return True
+
     def open_project_dialog(self) -> None:
         path = QFileDialog.getExistingDirectory(
             self,
@@ -848,6 +992,10 @@ class MainWindow(QMainWindow):
 
     def _apply_project(self, path: Path, snapshot: ProjectSnapshot) -> None:
         """Replace the current session with the contents of a project bundle."""
+        try:
+            take_registry = TakeRegistry(path)
+        except TakeRegistryError as exc:
+            raise ProjectLoadError(f"invalid take registry: {exc}") from exc
         self.engine.stop()
         self._clear_edit_session()
         self._editor_clip = None
@@ -875,6 +1023,8 @@ class MainWindow(QMainWindow):
             self.engine.set_source(None)
 
         self._project_path = path
+        self.take_registry = take_registry
+        self._refresh_takes_menu()
         self._mark_project_saved()
         self.set_view_mode(snapshot.view_mode)
         self.set_workspace(snapshot.workspace)
@@ -885,7 +1035,7 @@ class MainWindow(QMainWindow):
             return self.save_project_as()
         try:
             saved = self._write_project(self._project_path)
-        except OSError as exc:
+        except (OSError, TakeRegistryError) as exc:
             QMessageBox.critical(self, "Save failed", str(exc))
             return False
         self._project_path = saved
@@ -909,7 +1059,7 @@ class MainWindow(QMainWindow):
             return False
         try:
             saved = self._write_project(Path(path))
-        except OSError as exc:
+        except (OSError, TakeRegistryError) as exc:
             QMessageBox.critical(self, "Save failed", str(exc))
             return False
         self._project_path = saved
@@ -920,7 +1070,7 @@ class MainWindow(QMainWindow):
     def _write_project(self, path: Path) -> Path:
         playhead = self.engine.position if not self.is_playing_session else 0
         selection = self.engine.selection if not self.is_playing_session else None
-        return save_project(
+        saved = save_project(
             path,
             edit_session=self._edit_session,
             editor_clip=self._editor_clip,
@@ -932,6 +1082,9 @@ class MainWindow(QMainWindow):
             markers=self.markers,
             plugins=self.plugin_panel.project_state(),
         )
+        self.take_registry = self.take_registry.copy_to(saved)
+        self._refresh_takes_menu()
+        return saved
 
     def _has_unsaved_changes(self) -> bool:
         if self._project_dirty:
@@ -1807,10 +1960,8 @@ class MainWindow(QMainWindow):
         self.transport_bar.set_state(self.engine.state)
         sample_rate = self.engine.sample_rate or 48000
         channels = min(max(self.engine.n_channels, 1), 2)
-        with tempfile.NamedTemporaryFile(
-            prefix="audio-studio-recording-", suffix=".wav", delete=False
-        ) as pending:
-            target = Path(pending.name)
+        target = self.take_registry.next_take_path()
+        target.parent.mkdir(parents=True, exist_ok=True)
 
         try:
             self.recorder.open(
@@ -1855,6 +2006,7 @@ class MainWindow(QMainWindow):
 
     def _finish_recording(self) -> None:
         target = self._recording_path
+        project_path = self._project_path
         try:
             captured = self.recorder.stop()
         except (AudioLoadError, RecorderDeviceError, OSError) as exc:
@@ -1868,9 +2020,29 @@ class MainWindow(QMainWindow):
                 target.unlink(missing_ok=True)
             self.statusBar().showMessage("No audio was captured", 4000)
             return
-        if self.open_file(target):
+        try:
+            take = self.take_registry.register(
+                target,
+                sample_rate=captured.sample_rate,
+                channels=captured.n_channels,
+                frames=captured.n_frames,
+                metadata={"recorder": self.recorder.name},
+            )
+        except (OSError, TakeRegistryError, ValueError) as exc:
+            QMessageBox.warning(
+                self,
+                "Take metadata was not saved",
+                f"The recording is safe at {target}, but it could not be registered:\n{exc}",
+            )
+            take = None
+        self._refresh_takes_menu()
+        if self.open_file(target, preserve_take_registry=True):
+            if project_path is not None:
+                self._project_path = project_path
+                self._mark_project_dirty()
+            label = take.name if take is not None else target.name
             self.statusBar().showMessage(
-                f"Recorded {format_timecode(captured.duration)} to {target.name}", 5000
+                f"Recorded {label} · {format_timecode(captured.duration)}", 5000
             )
 
     def _set_recording_ui(self, recording: bool) -> None:
@@ -1966,11 +2138,93 @@ class MainWindow(QMainWindow):
         self.effect_rack.update_status()
         self.status_fx.setText(self.effect_rack.summary())
 
+    def _on_pdc_toggled(self, enabled: bool) -> None:
+        """Forward the panel's PDC preference to the preview insert.
+
+        The panel owns the toggle, the preview owns the delay line; the window
+        is the only object that holds both.
+        """
+        self.preview.pdc_enabled = bool(enabled)
+        self.statusBar().showMessage(
+            "Plugin delay compensation on"
+            if enabled
+            else "Plugin delay compensation off — latent plugins are heard late",
+            4000,
+        )
+
     def _scale_amplitude(self, factor: float) -> None:
         waveform = self.track_panel.waveform
         waveform.set_amplitude_scale(waveform.amplitude_scale * factor)
 
     # ----------------------------------------------------------- misc events
+
+    def shortcut_table(self) -> list[tuple[str, list[tuple[str, str]]]]:
+        """The menu bar as ``[(menu, [(command, keys), …]), …]``, in menu order.
+
+        Read back off the live :class:`QAction` objects instead of a
+        hand-written list, so the Help sheet cannot document a binding the
+        application does not have. Separators and the recent-files submenu
+        drop out: neither is a command with a key of its own.
+        """
+        table: list[tuple[str, list[tuple[str, str]]]] = []
+        for menu_action in self.menuBar().actions():
+            menu = menu_action.menu()
+            if menu is None:
+                continue
+            rows = [
+                (
+                    strip_mnemonic(act.text()),
+                    act.shortcut().toString(QKeySequence.SequenceFormat.NativeText),
+                )
+                for act in menu.actions()
+                if not act.isSeparator() and act.menu() is None
+            ]
+            if rows:
+                table.append((strip_mnemonic(menu_action.text()), rows))
+        return table
+
+    def shortcuts_html(self) -> str:
+        """The shortcut table as a document for :class:`QTextBrowser`.
+
+        Qt's rich text engine supports a subset of CSS and ignores class
+        selectors on table cells, so the colours are written inline.
+        """
+        p = PALETTE
+        rows: list[str] = []
+        for title, entries in self.shortcut_table():
+            rows.append(
+                f'<tr><th colspan="2" align="left" '
+                f'style="padding-top:12px; color:{p.accent};">{html.escape(title)}</th></tr>'
+            )
+            rows.extend(
+                f'<tr><td style="padding:2px 18px 2px 0;">{html.escape(command)}</td>'
+                f'<td style="padding:2px 0; color:{p.text_dim};"><b>{html.escape(keys)}</b></td>'
+                "</tr>"
+                for command, keys in entries
+            )
+        body = "\n".join(rows)
+        return (
+            f'<html><body style="color:{p.text}; background-color:{p.surface};">'
+            f"<h3>{html.escape(__app_name__)} keyboard shortcuts</h3>"
+            "<p>Every command in the menu bar, with the key that runs it. "
+            "Menus themselves are reachable with their underlined letter and "
+            "the Alt key.</p>"
+            f'<table cellspacing="0" width="100%">{body}</table>'
+            "</body></html>"
+        )
+
+    def show_shortcuts(self) -> ShortcutsDialog:
+        """Open (or re-raise) the keyboard shortcut sheet."""
+        dialog = self._shortcuts_dialog
+        if dialog is None:
+            dialog = ShortcutsDialog(self)
+            self._shortcuts_dialog = dialog
+        # Rebuilt on every open: Undo and Redo rename themselves after an edit.
+        dialog.set_html(self.shortcuts_html())
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
+        return dialog
 
     def show_about(self) -> None:
         QMessageBox.about(

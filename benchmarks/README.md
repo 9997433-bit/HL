@@ -41,6 +41,33 @@ measure STFT compute throughput rather than Qt paint cadence. Those limitations
 are explicit in every JSON result so a proxy pass cannot be mistaken for formal
 acceptance.
 
+## Playback soak proxy
+
+`benchmarks/soak_playback.py` plays a full session's worth of audio (default:
+30 minutes at 48 kHz / 256-frame blocks) through the real engine — feeder
+thread, ring buffer and the zero-allocation `render_into` device path — on the
+`NullOutput` backend, then reports underruns/xruns and callback timing as
+JSON:
+
+```bash
+python3 benchmarks/soak_playback.py                        # 30-minute soak
+python3 benchmarks/soak_playback.py --duration-seconds 60  # quick smoke
+python3 benchmarks/soak_playback.py --wall-clock           # paced in real time
+python3 benchmarks/soak_playback.py --output soak.json
+```
+
+The default accelerated mode acts as the device clock itself: before every
+block the feeder gets at most one block period of catch-up budget — the same
+real-time budget a hardware callback cycle would give it — so a feeder that
+could not keep a real device fed still shows up as underruns, without the run
+taking 30 wall-clock minutes. The run fails (exit code 1) when zero-filled
+frames exceed `--max-underrun-ratio` (default 0.1%).
+
+Like the SLO probes above, this is a headless **proxy**: it soaks the software
+pipeline for a full session of audio but is not hardware playback-stability
+evidence, so the report always records `formal_slo_verified: false` and the
+SOTA checklist items C1/C3 stay open until a real device run exists.
+
 ## EBU and golden tests
 
 ```bash

@@ -6,7 +6,7 @@ analysis workstation, benchmarked against Adobe Audition.
 | Where | What |
 |---|---|
 | [`audio-studio/`](audio-studio/) | The product: PySide6 waveform editor, streaming playback engine, undoable COW editing, EQ/gain/normalize/fade effects, spectral analysis and a BS.1770-4 loudness meter |
-| [`tests/`](tests/), [`benchmarks/`](benchmarks/), [`tools/`](tools/) | EBU 3341/3342 compliance vectors and oracle, bit-exact null tests, SLO suite, performance-regression and realtime escape-hatch gates |
+| [`tests/`](tests/), [`benchmarks/`](benchmarks/), [`tools/`](tools/) | EBU 3341/3342 compliance vectors and oracle, bit-exact null tests, SLO suite, a 30-minute headless playback soak proxy (`benchmarks/soak_playback.py`), performance-regression and realtime escape-hatch gates |
 | [`.agent_workspace/`](.agent_workspace/) | Multi-agent coordination: architecture contract, SOTA audits, convergence reviews, release sign-off and roadmap |
 
 **Status:** working toward `v0.1.0-alpha` — a single-track waveform editor and

@@ -32,6 +32,10 @@ CLIP_DB: float = -0.1
 #: Width reserved for the dB scale gutter.
 SCALE_WIDTH: float = 26.0
 
+#: Narrower than this and the clip strip cannot carry its label legibly, so a
+#: single-channel meter falls back to colour plus the accessible description.
+CLIP_LABEL_MIN_WIDTH: float = 22.0
+
 
 class LevelMeter(QWidget):
     """Multi-channel meter; click anywhere to reset the clip indicator."""
@@ -56,6 +60,8 @@ class LevelMeter(QWidget):
         self.setMinimumHeight(120)
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
         self.setToolTip("Output level (dBFS) — click to reset clip indicator")
+        self.setAccessibleName("Output level meter")
+        self._announce_clip_state()
 
     @property
     def channels(self) -> int:
@@ -97,6 +103,7 @@ class LevelMeter(QWidget):
 
             if amplitude >= 0.999:
                 self._clipped = True
+        self._announce_clip_state()
         self.update()
 
     def reset(self) -> None:
@@ -104,11 +111,28 @@ class LevelMeter(QWidget):
         self._peaks_db = [FLOOR_DB] * self._channels
         self._rms_db = [FLOOR_DB] * self._channels
         self._clipped = False
+        self._announce_clip_state()
         self.update()
 
     @property
     def clipped(self) -> bool:
         return self._clipped
+
+    def clip_indicator_text(self) -> str:
+        """The word painted across the clip strip, so red is not the only cue.
+
+        WCAG 2.2 SC 1.4.1: a user who cannot separate the strip's red from its
+        idle grey still has to be told that the output clipped.
+        """
+        return "CLIP" if self._clipped else ""
+
+    def _announce_clip_state(self) -> None:
+        """Keep the accessible description in step with the indicator."""
+        self.setAccessibleDescription(
+            "Output clipped — click the meter to reset the indicator"
+            if self._clipped
+            else "Output level in decibels relative to full scale; no clipping"
+        )
 
     @property
     def is_at_floor(self) -> bool:
@@ -117,6 +141,7 @@ class LevelMeter(QWidget):
 
     def mousePressEvent(self, _event: QMouseEvent) -> None:  # noqa: N802 - Qt override
         self._clipped = False
+        self._announce_clip_state()
         self.update()
 
     @staticmethod
@@ -127,7 +152,7 @@ class LevelMeter(QWidget):
         painter = QPainter(self)
         painter.fillRect(self.rect(), self._palette.color("meter_bg"))
 
-        clip_h = 8.0
+        clip_h = 10.0
         top = clip_h + 4.0
         bottom = float(self.height() - 4)
         track_h = max(bottom - top, 1.0)
@@ -188,4 +213,17 @@ class LevelMeter(QWidget):
         )
         painter.setPen(QPen(self._palette.color("border"), 1))
         painter.drawRect(clip_rect)
+
+        label = self.clip_indicator_text()
+        if label and clip_rect.width() >= CLIP_LABEL_MIN_WIDTH:
+            font = painter.font()
+            font.setPixelSize(8)
+            font.setBold(True)
+            painter.setFont(font)
+            painter.setPen(self._palette.color("meter_bg"))
+            painter.drawText(
+                clip_rect,
+                int(Qt.AlignmentFlag.AlignCenter),
+                label,
+            )
         painter.end()

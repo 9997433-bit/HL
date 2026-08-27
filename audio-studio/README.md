@@ -34,6 +34,7 @@ python -m venv .venv && source .venv/bin/activate
 pip install -e .                 # application + null-audio backend
 pip install -e ".[dev]"          # add tests, lint, and type checking
 pip install -e ".[audio,dev]"    # also add the optional hardware backends
+pip install -e ".[mastering]"    # add optional libsoxr bindings
 ```
 
 The `audio` extra installs two PortAudio bindings: `sounddevice`, which is the
@@ -103,6 +104,7 @@ Useful flags:
 | `--wasapi-exclusive` | Request WASAPI exclusive-mode output (Windows only, see above) |
 | `--offscreen` | Use Qt's offscreen platform plugin (headless smoke tests) |
 | `--exit-after N` | Quit after N seconds, for CI |
+| `--scale-factor F` | Scale the whole interface by F (1.0–2.0), see *Accessibility* |
 
 Headless smoke test:
 
@@ -129,6 +131,57 @@ picks the curve) — and re-encoded into `--output`, keeping its name.
 exit code is 0 when every file rendered, 1 when any failed, 2 when nothing
 matched. The same pipeline is scriptable from Python via
 `audio_studio.batch.BatchJob` and `run_batch`.
+
+## Mastering exports
+
+Audio Studio processes samples as float32. Exporting to `PCM_16` or `PCM_24`
+reduces that working precision, so `save_audio()` applies TPDF dither by
+default. Dither is added independently per sample/channel at ±1 target-format
+LSB and is not applied to floating-point or compressed subtypes. Leave it on
+for the final integer master; use `dither=False` only for a deliberate
+bit-exact round trip or when the material was already dithered at its final
+depth. Repeatedly dithering intermediate files raises their noise floor.
+
+The reproducible 96 kHz → 44.1 kHz SRC probe can be run from the repository
+root:
+
+```bash
+python tools/src_report.py
+```
+
+It writes `.agent_workspace/round3/src-quality-report.json`, reports passband
+sweep deviation, out-of-band sweep mirrors, and 1 kHz THD+N, and exits nonzero
+when any offline mastering gate is missed. The current
+`scipy.signal.resample_poly` default does miss those VHQ gates, so the
+`mastering` extra makes the latest Python `soxr` bindings available without
+adding an LGPL dependency to the default install. That extra does not silently
+change Audio Studio's current SciPy conversion path: preserve the source sample
+rate for a final master until a selectable soxr/VHQ path is integrated.
+
+## Repair and recording takes
+
+`DeClipEffect` reconstructs short, flat-topped peaks offline. It detects
+repeated samples on a clipping rail and fits a cubic Hermite spline between
+the intact values and slopes on either side; untouched samples remain bit for
+bit unchanged. Set `threshold` to the known rail when the source clipped below
+digital full scale:
+
+```python
+from audio_studio.dsp.repair import DeClipEffect
+
+cleaned = DeClipEffect(threshold=0.8).process(clipped, 48_000)
+```
+
+The effect is deliberately skipped by live preview because it needs future
+samples. `last_report` lists every detected range and whether it was repaired;
+edge plateaus and runs longer than `max_clip_ms` are reported but left alone.
+
+Every completed transport recording is assigned `Take 001`, `Take 002`, and so
+on. **File ▸ Takes** lists the current session's recordings and reopens one in
+the waveform editor. A saved project keeps `takes.json` and copied take audio
+inside its `.hlproj` directory. An unsaved or file-based session uses an atomic
+`*.takes.json` sidecar instead. The Qt-free API is
+`audio_studio.core.recorder.TakeRegistry`.
 
 ## VST3 plugins (optional `plugins` extra — not enabled by default)
 
@@ -171,14 +224,29 @@ of the status bar like any built-in effect. Like the rest of the rack they are
 *monitoring inserts*: they change what is heard and never rewrite the audio in
 memory until you render.
 
-The panel adds up the delay the loaded plugins report and shows the total under
-the slots. That figure is a warning, not a correction: **there is no plugin
-delay compensation yet**, so a plugin that reports latency is heard late.
-Bypassing one takes its delay out of the sum with it.
+Plugin latency is **compensated** on the preview path (PDC). The readout under
+the slots shows the constant the playback path is padded to — the sum of what
+every loaded plugin reports, bypassed slots included, because the preview
+inserts a matching delay wherever a latent plugin is bypassed
+(`audio_studio.dsp.preview.LatencyCompensator`, applied on the engine's feeder
+thread with the rest of the insert). That is what makes bypass a real A/B: the
+stream does not move in time when a lookahead limiter or linear-phase EQ is
+toggled, so a null test against the dry signal still aligns. The **PDC** button
+beside the readout turns the padding off; the readout then reports the
+uncompensated delay of the plugins actually running, which are heard late.
+Compensation covers the preview chain only (MVP): it does not shift the
+playhead readout, changing the padding mid-stream (a bypass toggle) re-primes
+the delay line with silence rather than resampling across the join, and a
+plugin that reports `0` — which includes pedalboard backends that compensate
+internally — needs and gets no padding.
 
-Saving a project records which bundle sits in which slot — paths only. Reopening
-it loads those bundles again with their own default settings; plugin parameter
-state is a backend-specific blob that is not written yet. A plugin the project
+Saving a project records which bundle sits in which slot, the bypass flag, and
+— when the host can produce one — an opaque per-slot **state blob**,
+base64-encoded in the bundle's `plugins` array. The blob is pedalboard's native
+state chunk when the installed build exposes one and a parameter-dict JSON
+fallback otherwise; reopening the project loads each bundle and applies its
+blob back, best-effort, so a plugin whose newer version rejects the old state
+simply keeps its defaults rather than failing the slot. A plugin the project
 names but this machine does not have leaves its slot empty and says so in the
 panel rather than failing the open. Without the extra installed, the panel says
 so in place, with the install command, instead of failing at the file dialog.
@@ -194,14 +262,21 @@ out = host.process_block(block, 48_000)   # planar (n_channels, n_samples)
 host.parameters()                          # {name: normalised value}
 host.set_parameter("Drive", 0.75)          # same scale parameters() reports
 host.latency_samples()                     # reported plugin delay, in samples
+blob = host.state_blob()                   # opaque settings snapshot (or None)
+host.restore_state(blob)                   # best-effort; False when refused
 
 # The same plugin as an ordinary Effect, for an EffectChain:
 chain.add(create_plugin_effect("/path/to/Plugin.vst3"))
+chain.latency_samples()                        # summed delay of what runs now
+chain.latency_samples(include_bypassed=True)   # the constant PDC pads to
 ```
 
 `PluginEffectAdapter` is the bridge between the two: it wraps a `PluginHost` as
 an `Effect`, adding the rack's `bypass`/`mix` controls and forwarding
 `prepare`/`reset`/`process_block` so the plugin's streaming state is its own.
+It also forwards `latency_samples`/`state_blob`/`restore_state`, and marks
+itself `compensate_when_bypassed` so the delay-compensated preview keeps
+padding for it while it is bypassed.
 
 ### Finding plugins
 
@@ -242,8 +317,9 @@ the first time a plugin is opened. Discovery never reaches it at all. The UI
 panel keeps that boundary too: it probes for the extra with
 `importlib.util.find_spec`, which locates the package without executing it.
 Without the extra installed, loading a plugin raises `PluginLoadError` with
-installation instructions. Projects remember plugin *paths* but not plugin
-parameter state, and there is no plugin delay compensation.
+installation instructions. Projects remember plugin paths, bypass flags and a
+best-effort per-slot state blob, and the preview path is plugin-delay
+compensated (both described under "In the application" above).
 
 **License notice.** pedalboard is GPL-3.0 (incorporating JUCE, Rubber Band
 and FFTW). Installing the `plugins` extra for private use does not change the
@@ -284,8 +360,9 @@ binary artifacts must not include it. See
   device under/overruns through `xruns`), `PyAudioOutput` (PortAudio via
   `PyAudio`) or `NullOutput` (simulated clock, plus a manually-pumped mode used
   by the tests).
-- Recording to WAV from mono or stereo `PyAudio` input, with a deterministic
-  silence/tone `NullRecorder` for headless systems and tests.
+- Crash-safe PCM-24 BWF recording from mono or stereo `PyAudio` input, with
+  marker cues, numbered session takes, and a deterministic silence/tone
+  `NullRecorder` for headless systems and tests.
 
 **Editing core** (`audio_studio.core.edit_session.EditSession`)
 
@@ -370,6 +447,16 @@ binary artifacts must not include it. See
   feedback delay, FDN reverb, peak/RMS/true-peak normalization, multiple fade
   curves, and RBJ parametric EQ with stateful block processing. Core dynamics
   and time/space effects have basic controls in the live rack.
+- Offline cubic reconstruction for hard-clipped peaks, alongside predictive
+  de-clicking and mains-hum detection/removal.
+- Repair suite (`audio_studio.dsp.repair`): de-hum, de-click, de-clip and
+  spectral noise reduction, all as ordinary rack effects. The noise reducer
+  learns a per-bin profile of the noise floor — from a dragged selection, or
+  from the head of the clip — and applies a decision-directed Wiener gain
+  floored at the requested reduction, so hiss drops by 24 dB by default while
+  the programme comes through at its own level. It streams, at one analysis
+  window of latency; `reduce_noise()` shifts that delay back out so a rendered
+  buffer lines up with the original sample for sample.
 - ITU-R BS.1770 K-weighted integrated loudness and EBU-style loudness range.
 - Cached spectrogram reduction/colorization and candidate-window true-peak
   evaluation keep common redraw and normalization paths bounded.
@@ -432,24 +519,118 @@ their size as a first-class concern rather than an accident:
   `.w64` writes Wave64) whenever the local libsndfile supports it, so a
   long-form bounce is not silently truncated at 4 GB.
 
+## Accessibility
+
+The editor targets **WCAG 2.2 level AA** for everything it draws itself, and
+the three claims below are enforced by `tests/test_accessibility.py` rather
+than asserted in prose: contrast is recomputed from the live palette, the
+shortcut audit walks the real menu bar, and the scale factor is checked
+end to end in a fresh interpreter.
+
+### Display scaling and HiDPI
+
+Qt 6 picks up the desktop's own scaling, but rounds the device pixel ratio to
+a whole number by default, which throws away a 125% or 150% setting. Audio
+Studio switches the rounding policy to `PassThrough` before the
+`QApplication` exists, so fractional display scales arrive intact, and adds an
+explicit override for the cases where the desktop reports the wrong thing —
+a 4K laptop panel driving an unscaled X session, or simply wanting bigger
+type:
+
+```bash
+python -m audio_studio --scale-factor 1.5   # 1.0–2.0, refused outside that
+QT_SCALE_FACTOR=1.25 python -m audio_studio # the same knob, from the session
+```
+
+The flag writes `QT_SCALE_FACTOR`, which Qt reads once while the application
+object is constructed; passing it explicitly overrides an inherited value,
+and omitting it leaves whatever the desktop session set alone. Everything in
+the interface is laid out in logical pixels — no pixel geometry is hard-coded
+against a physical display — so the waveform, the meters and the spectral
+display scale with the chrome.
+
+### Colour and contrast
+
+`audio_studio.ui.theme` documents a measured contrast ratio for every colour
+pair the interface actually puts on screen, and `theme.failing_pairs()` audits
+a palette against the WCAG floors:
+
+- **4.5:1** for normal-size text (SC 1.4.3). The tightest pair shipped is body
+  text on a pressed or checked button at 4.99:1; the rest run from 5.16:1 to
+  13.38:1.
+- **3:1** for graphics and control boundaries (SC 1.4.11): waveform ink,
+  meter segments, markers, playhead, and the outline that identifies a
+  control. Interactive controls are outlined in a dedicated `control_border`
+  grey held above 3:1 against every fill it is drawn over, rather than in the
+  quieter `border` hairline used to separate chrome panels.
+- Keyboard focus is a 2 px accent ring instead of Qt's default dotted
+  outline, which is nearly invisible on a dark fill (SC 2.4.11 / 2.4.13).
+
+Two colours were changed to meet that budget: `text_dim` was lightened so
+secondary labels clear 4.5:1 on every surface they appear on, and the
+selection fill was split in two — a selected menu row is now full-strength
+accent with an inverted near-black label (6.77:1), while the darker
+`accent_dim` fills pressed and checked buttons *under* unchanged body text
+(4.99:1). Colour is never the only channel for state (SC 1.4.1): the meter's
+clip strip paints the word `CLIP` when it lights up and says so in its
+accessible description, recording carries a `●` glyph and an elapsed-time
+readout, and a bypassed rack reads `FX bypassed` in the status bar.
+
+Known deviation: the chrome fills themselves (window → panel → control)
+differ by roughly 1.2:1. Depth is carried by luminance ordering, which is why
+controls get an explicit outline and a focus ring rather than being
+identified by their fill.
+
 ### Keyboard
+
+Every command in the menu bar has a shortcut and no sequence is bound twice —
+a test walks the menus and fails on either. **Help ▸ Keyboard Shortcuts**
+(`F1`) opens the full table, generated from the live actions so it cannot
+document a binding the build does not have.
 
 | Shortcut | Action |
 |---|---|
 | `Ctrl+O` / `Ctrl+W` | Open / close file |
-| `Space` | Play / pause |
-| `Esc` | Stop |
-| `Home` / `End` | Go to start / end of the playback region |
-| `L` | Toggle loop |
+| `Ctrl+S` / `Ctrl+Alt+S` | Save project / save project as… |
+| `Ctrl+Shift+O` | Open project |
+| `Ctrl+Shift+S` | Export as… |
+| `Ctrl+Q` | Exit |
+| `Ctrl+Z` / `Ctrl+Y` | Undo / redo (the platform's own Redo binding) |
+| `Ctrl+X` / `Ctrl+C` / `Ctrl+V` / `Del` | Cut / copy / paste / delete |
+| `Ctrl+Shift+M` / `Ctrl+T` | Silence / trim to selection |
+| `Ctrl+G` / `Ctrl+R` | Apply gain… / reverse |
+| `Ctrl+Shift+I` / `Ctrl+Shift+U` | Fade in / fade out |
+| `Ctrl+Shift+N` | Insert silence… |
 | `Ctrl+A` / `Ctrl+Shift+A` | Select all / deselect |
-| `Ctrl+=` / `Ctrl+-` / `Ctrl+0` | Zoom in / out / fit |
-| `Ctrl+Shift+0` | Zoom to selection |
-| `Ctrl+Up` / `Ctrl+Down` | Amplitude zoom |
 | `Ctrl+Alt+A` / `Ctrl+Alt+D` | Attenuate / delete the spectral selection |
 | `M` / `Shift+M` | Add a marker at the playhead / a region from the selection |
 | `Ctrl+Left` / `Ctrl+Right` | Go to the previous / next marker |
-| `F2` | Rename the marker selected in the Markers panel |
-| `Ctrl+Shift+S` | Export as… |
+| `F2` / `Ctrl+Shift+Del` | Rename / remove the selected marker |
+| `Ctrl+Alt+M` | Clear all markers and regions |
+| `Ctrl+=` / `Ctrl+-` / `Ctrl+0` | Zoom in / out / fit |
+| `Ctrl+Shift+0` | Zoom to selection |
+| `Ctrl+Up` / `Ctrl+Down` | Amplitude zoom |
+| `Alt+1` / `Alt+2` / `Alt+3` | Waveform / spectral / split layout |
+| `Alt+4` / `Ctrl+Shift+T` | Multitrack mode / add the clip as a track |
+| `Alt+=` / `Alt+-` | Multitrack zoom in / out |
+| `Ctrl+Alt+1`…`Ctrl+Alt+4` | Toggle the spectral, effects, plugin and marker docks |
+| `F5` | Re-run the spectral analysis |
+| `Space` / `Esc` | Play-pause / stop |
+| `Home` / `End` | Go to start / end of the playback region |
+| `L` / `Shift+L` | Toggle loop / play selection only |
+| `F1` / `Shift+F1` | Keyboard shortcuts / about |
+
+Menu bar titles carry Alt mnemonics (`Alt+F` for File, and so on), and every
+dialog is reachable and dismissable from the keyboard.
+
+### Not covered yet
+
+Screen-reader support is only what Qt provides by default: the shortcut sheet
+sets an accessible name and description, but the custom-painted widgets — the
+waveform, the spectrogram and the level meter — expose no accessible value or
+text alternative, so their content is unreadable to a screen reader. There is
+no high-contrast or light theme, no reduced-motion setting for the 30 Hz
+playhead, and no user-configurable font size beyond `--scale-factor`.
 
 ## Licensing and optional components
 
@@ -499,19 +680,25 @@ above this package.
   bundles (File ▸ Save/Open Project); undo history is not persisted — the saved
   document is the flattened edit result. Export remains available for one-off
   audio files.
-- Recording is an MVP path: PyAudio input supports mono/stereo capture to WAV,
-  but there is no input-device/level control, live monitoring, punch recording,
-  or Broadcast Wave Format (BWF) metadata yet.
+- Recording is an MVP path: PyAudio input supports mono/stereo crash-safe BWF
+  capture, cues, and numbered takes, but there is no input-device/level control,
+  live monitoring, comping, or punch recording.
 - Spectral selection editing covers attenuating and deleting a dragged
   rectangle. There is no healing brush, lasso or paintbrush selection, no
   spectral copy/paste, and the mask is rectangular in time as well as in
   frequency.
-- No complete repair suite (noise reduction remains). VST3 hosting is a
+- Repair covers hum, clicks, clipping and stationary broadband noise. Noise
+  reduction assumes the noise floor does not move: it will not follow a
+  fan that changes speed, and there is no capture-noise-print command in the
+  menus yet — the rack learns from the head of the clip, and a selection has
+  to be handed to `NoiseReduceEffect.learn_from()` from Python. VST3 hosting is a
   three-slot rack behind the optional `plugins` extra (View ▸ VST3 Plugins),
-  with a filesystem-only bundle scanner: no AU format, no plugin delay
-  compensation, no plugin editor windows, and projects remember plugin paths but
-  not plugin parameter state — see the roadmap in the release sign-off. Batch
-  processing is covered by the `audio_studio.batch` CLI above.
+  with a filesystem-only bundle scanner: no AU format and no plugin editor
+  windows. Plugin delay compensation covers the preview chain only (bypass
+  toggles stay time-aligned; the playhead readout is not shifted), and projects
+  remember plugin paths, bypass flags and a best-effort per-slot state blob —
+  see the roadmap in the release sign-off. Batch processing is covered by the
+  `audio_studio.batch` CLI above.
 - The default device block is now 256 frames (~5.3 ms at 48 kHz);
   `SoundDeviceOutput` and `PyAudioOutput` retry with 512 and then 1024 frames
   when the device rejects it. On Windows, opt-in WASAPI exclusive mode
@@ -539,10 +726,11 @@ above this package.
 - The SPSC ring is lock-free at the Python level but still executes under
   CPython/GIL scheduling; physical-device p99 timing and a long soak are not
   certified by headless tests.
-- Sample-rate conversion quality is unrated against the acceptance targets and
-  bit-depth reduction applies no TPDF dither yet — for mastering-grade exports
-  keep the source rate and float depth. Do not claim certified broadcast
-  compliance from the current alpha.
+- The measured SciPy SRC path misses the offline VHQ acceptance targets; the
+  `mastering` extra stages optional soxr bindings but does not yet select them
+  in the application. PCM-16/24 export now applies TPDF dither by default.
+  Preserve the source rate for final masters and do not claim certified
+  broadcast compliance from the current alpha.
 - Loop playback restarts from the region start without a crossfade, and the
   reported position is briefly clamped across the wrap.
 - Long files stream from disk and use sparse in-memory edit overlays. Their peak

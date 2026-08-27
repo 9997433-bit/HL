@@ -12,15 +12,22 @@ top-level ``markers`` array, the top-level ``plugins`` array, the per-media
 bundle saved by this build still opens in one that predates the addition.
 
 The ``plugins`` array records which VST3 bundle sits in which slot of the plugin
-rack — paths only. Plugin *parameter* state is a backend-specific blob that
-would have to survive plugin updates and machine moves to be worth writing, and
-the bundles themselves are properties of the machine rather than of the project,
-so a section that cannot be honoured (plugin uninstalled, no ``plugins`` extra
-here) is the UI's problem to report, not a reason to refuse the bundle.
+rack: the path, the bypass flag, and — when the host could produce one — an
+optional ``state`` key holding a base64-encoded opaque blob (the backend's
+native state chunk when it has one, a parameter-dict JSON fallback otherwise;
+see :meth:`audio_studio.plugins.host.PluginHost.state_blob`). The store treats
+the blob as ballast: it validates that the string decodes as base64 and carries
+it, and applying it back to a live plugin is the panel's best-effort job. The
+bundles themselves are properties of the machine rather than of the project, so
+a section that cannot be honoured (plugin uninstalled, no ``plugins`` extra
+here, a state blob the plugin no longer understands) is the UI's problem to
+report, not a reason to refuse the bundle.
 """
 
 from __future__ import annotations
 
+import base64
+import binascii
 import json
 import shutil
 from collections.abc import Mapping, Sequence
@@ -87,12 +94,31 @@ def _time_range_from_json(data: dict[str, int] | None) -> TimeRange | None:
     return TimeRange(int(data["start"]), int(data["end"]))
 
 
+def _plugin_state_b64(value: Any) -> str | None:
+    """``value`` as the base64 string the bundle stores, or ``None`` to omit it.
+
+    The store never decodes the blob into anything meaningful — it is the
+    plugin's own opaque state — but it does insist the string is base64, so a
+    truncated or hand-edited value is dropped at the boundary instead of being
+    carried around until a plugin chokes on it.
+    """
+    if not isinstance(value, str) or not value.strip():
+        return None
+    text = value.strip()
+    try:
+        base64.b64decode(text, validate=True)
+    except (binascii.Error, ValueError):
+        return None
+    return text
+
+
 def _plugins_to_json(entries: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
     """Normalise the plugin rack for the bundle: one entry per loaded slot.
 
     Entries without a path carry nothing a reader could act on and are dropped;
-    ``bypass`` is written only when it is set, so the common case serialises the
-    way it did before bypass was recorded.
+    ``bypass`` is written only when it is set and ``state`` only when it holds a
+    valid base64 blob, so the common case serialises the way it did before
+    either key was recorded.
     """
     out: list[dict[str, Any]] = []
     for entry in entries:
@@ -102,6 +128,9 @@ def _plugins_to_json(entries: Sequence[Mapping[str, Any]]) -> list[dict[str, Any
         item: dict[str, Any] = {"slot": int(entry.get("slot", len(out))), "path": path}
         if entry.get("bypass"):
             item["bypass"] = True
+        state = _plugin_state_b64(entry.get("state"))
+        if state is not None:
+            item["state"] = state
         out.append(item)
     return out
 
@@ -111,7 +140,8 @@ def _plugins_from_json(raw: Any) -> list[dict[str, Any]]:
 
     A malformed plugin entry is not worth refusing a project over: the audio,
     the arrangement and the markers are all still there, and the rack simply
-    comes back with one slot fewer.
+    comes back with one slot fewer. A malformed ``state`` value costs only
+    itself — the plugin still loads, at its own defaults.
     """
     if not isinstance(raw, list):
         return []
@@ -126,7 +156,15 @@ def _plugins_from_json(raw: Any) -> list[dict[str, Any]]:
             slot = int(item.get("slot", index))
         except (TypeError, ValueError):
             slot = index
-        entries.append({"slot": slot, "path": path, "bypass": bool(item.get("bypass", False))})
+        entry: dict[str, Any] = {
+            "slot": slot,
+            "path": path,
+            "bypass": bool(item.get("bypass", False)),
+        }
+        state = _plugin_state_b64(item.get("state"))
+        if state is not None:
+            entry["state"] = state
+        entries.append(entry)
     entries.sort(key=lambda entry: entry["slot"])
     return entries
 

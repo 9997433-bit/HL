@@ -9,8 +9,10 @@ installed.
 
 from __future__ import annotations
 
+import base64
 import importlib
 import importlib.util
+import json
 import sys
 from pathlib import Path
 from typing import Any
@@ -622,6 +624,15 @@ class TestLatencyReadout:
         panel.load_plugin("/plugins/Second.vst3")
 
         assert panel.total_latency_samples() == 256
+        assert panel.latency_label.text() == "Plugin latency: 256 samples (compensated)"
+
+    def test_with_pdc_off_the_readout_warns_instead(self, chain: EffectChain) -> None:
+        panel = PluginPanel(chain, loader=FakeLoader(latency=128))
+        panel.load_plugin("/plugins/First.vst3")
+        panel.load_plugin("/plugins/Second.vst3")
+
+        panel.set_pdc_enabled(False)
+
         assert panel.latency_label.text() == "Plugin latency: 256 samples (not compensated)"
 
     def test_a_bypassed_plugin_adds_no_delay(self, chain: EffectChain) -> None:
@@ -633,6 +644,9 @@ class TestLatencyReadout:
         panel.slots[0].bypass_button.setChecked(True)
 
         assert panel.total_latency_samples() == 128
+        # The compensated figure is the constant the path is padded to, so a
+        # bypassed slot stays in it — that is what makes the toggle seamless.
+        assert panel.compensated_latency_samples() == 256
 
     def test_removing_a_plugin_takes_its_delay_with_it(self, chain: EffectChain) -> None:
         panel = PluginPanel(chain, loader=FakeLoader(latency=64))
@@ -739,6 +753,11 @@ class TestScanBrowser:
 # -- project state -----------------------------------------------------------
 
 
+def placement(entries: list[dict]) -> list[dict]:
+    """The slot/path/bypass triple of each entry, with the state blob left out."""
+    return [{k: e[k] for k in ("slot", "path", "bypass")} for e in entries]
+
+
 class TestProjectState:
     def test_an_empty_rack_writes_nothing(self, rack: PluginPanel) -> None:
         assert rack.project_state() == []
@@ -748,10 +767,21 @@ class TestProjectState:
         rack.load_plugin("/plugins/Third.vst3", slot=2)
         rack.slots[2].bypass_button.setChecked(True)
 
-        assert rack.project_state() == [
+        assert placement(rack.project_state()) == [
             {"slot": 0, "path": "/plugins/First.vst3", "bypass": False},
             {"slot": 2, "path": "/plugins/Third.vst3", "bypass": True},
         ]
+
+    def test_it_records_each_plugin_s_state_blob(self, rack: PluginPanel) -> None:
+        """FakeHost has no native chunk, so the blob is its parameter JSON."""
+        rack.load_plugin("/plugins/First.vst3", slot=0)
+        loader = rack._loader  # noqa: SLF001 - the FakeLoader the fixture installed
+        loader.hosts["First"].set_parameter("drive", 0.9)
+
+        (entry,) = rack.project_state()
+
+        decoded = json.loads(base64.b64decode(entry["state"]).decode("utf-8"))
+        assert decoded == {"drive": 0.9, "mix": 1.0}
 
     def test_restoring_puts_the_plugins_back_where_they_were(
         self, rack: PluginPanel, chain: EffectChain
@@ -766,7 +796,29 @@ class TestProjectState:
         assert rack.slots[1].adapter is None
         assert plugin_names(chain) == ["First", "Third"]
         assert rack.slots[2].adapter.bypass
-        assert rack.project_state() == state
+        assert placement(rack.project_state()) == state
+
+    def test_restoring_applies_the_saved_state_blob(self, rack: PluginPanel) -> None:
+        blob = base64.b64encode(json.dumps({"drive": 0.8}).encode("utf-8")).decode("ascii")
+
+        rack.restore_project_state(
+            [{"slot": 0, "path": "/plugins/First.vst3", "state": blob}]
+        )
+
+        loader = rack._loader  # noqa: SLF001
+        assert loader.hosts["First"].parameters()["drive"] == pytest.approx(0.8)
+        # The freshly built parameter view shows the restored value, not the default.
+        assert rack.parameter_rows["drive"].value == pytest.approx(0.8)
+
+    def test_a_corrupt_state_blob_costs_only_itself(self, rack: PluginPanel) -> None:
+        """The slot still loads; the plugin just keeps its own defaults."""
+        loaded = rack.restore_project_state(
+            [{"slot": 0, "path": "/plugins/First.vst3", "state": "%%% not base64 %%%"}]
+        )
+
+        assert loaded == 1
+        loader = rack._loader  # noqa: SLF001
+        assert loader.hosts["First"].parameters() == {"drive": 0.25, "mix": 1.0}
 
     def test_restoring_replaces_whatever_was_loaded(self, rack: PluginPanel) -> None:
         rack.load_plugin("/plugins/Stale.vst3")
@@ -829,10 +881,15 @@ class TestProjectState:
         )
         snapshot = load_project(root)
 
-        assert snapshot.plugins == [
+        assert placement(snapshot.plugins) == [
             {"slot": 0, "path": "/plugins/First.vst3", "bypass": False},
             {"slot": 2, "path": "/plugins/Third.vst3", "bypass": True},
         ]
+        # The state blob survives the bundle byte for byte.
+        saved = {entry["slot"]: entry.get("state") for entry in rack.project_state()}
+        restored = {entry["slot"]: entry.get("state") for entry in snapshot.plugins}
+        assert restored == saved
+        assert all(state for state in restored.values())
 
     def test_a_bundle_without_plugins_restores_an_empty_rack(
         self, rack: PluginPanel, tmp_path: Path

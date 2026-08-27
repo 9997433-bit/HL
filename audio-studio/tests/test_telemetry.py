@@ -149,3 +149,87 @@ def test_publish_rejects_a_block_larger_than_its_workspace() -> None:
 
     with pytest.raises(ValueError, match="workspace"):
         telemetry.publish_block(np.zeros((5, 2), dtype=np.float32))
+
+
+def test_capture_block_alone_publishes_nothing() -> None:
+    telemetry = EngineTelemetry(2, block_size=4)
+
+    telemetry.capture_block(np.full((4, 2), 0.5, dtype=np.float32))
+
+    assert telemetry.read_levels().is_empty
+
+
+def test_publish_pending_measures_the_captured_block() -> None:
+    telemetry = EngineTelemetry(2, block_size=4)
+    block = np.array(
+        [
+            [1.0, 0.25],
+            [-0.5, -0.25],
+            [0.0, 0.25],
+            [0.5, -0.25],
+        ],
+        dtype=np.float32,
+    )
+    telemetry.capture_block(block)
+
+    assert telemetry.publish_pending() is True
+    snapshot = telemetry.read_levels()
+
+    assert not snapshot.is_empty
+    assert snapshot.peak == pytest.approx((1.0, 0.25))
+    assert snapshot.rms == pytest.approx((np.sqrt(0.375), 0.25))
+
+
+def test_publish_pending_without_a_fresh_capture_is_a_no_op() -> None:
+    telemetry = EngineTelemetry(1, block_size=4)
+
+    assert telemetry.publish_pending() is False
+
+    telemetry.capture_block(np.full((4, 1), 0.5, dtype=np.float32))
+    assert telemetry.publish_pending() is True
+    assert telemetry.publish_pending() is False  # already drained
+
+
+def test_clear_drops_a_pending_capture() -> None:
+    telemetry = EngineTelemetry(1, block_size=4)
+    telemetry.capture_block(np.full((4, 1), 0.5, dtype=np.float32))
+
+    telemetry.clear()
+
+    assert telemetry.publish_pending() is False
+    assert telemetry.read_levels().is_empty
+
+
+def test_capture_block_clamps_an_oversized_block() -> None:
+    telemetry = EngineTelemetry(1, block_size=4)
+    block = np.full((6, 1), 0.5, dtype=np.float32)
+    block[4:] = 1.0  # beyond the workspace: must not reach the meter
+
+    telemetry.capture_block(block)
+
+    assert telemetry.publish_pending() is True
+    assert telemetry.read_levels().peak[0] == pytest.approx(0.5)
+
+
+def test_capture_block_silently_drops_a_channel_mismatch() -> None:
+    telemetry = EngineTelemetry(2, block_size=4)
+
+    telemetry.capture_block(np.full((4, 3), 0.5, dtype=np.float32))
+
+    assert telemetry.publish_pending() is False
+
+
+def test_capture_and_publish_reuse_preallocated_buffers() -> None:
+    telemetry = EngineTelemetry(1, block_size=8)
+    capture_id = id(telemetry._capture)  # noqa: SLF001 - verifies the allocation contract
+    workspace_id = id(telemetry._workspace)  # noqa: SLF001
+    block = np.empty((8, 1), dtype=np.float32)
+
+    for value in np.linspace(0.1, 0.9, 9):
+        block.fill(value)
+        telemetry.capture_block(block)
+        assert telemetry.publish_pending() is True
+
+    assert id(telemetry._capture) == capture_id  # noqa: SLF001
+    assert id(telemetry._workspace) == workspace_id  # noqa: SLF001
+    assert telemetry.read_levels().peak[0] == pytest.approx(0.9)

@@ -111,7 +111,7 @@ def _verify_wav_null_roundtrip(tmp_path: Path) -> None:
         exported = tmp_path / f"exported-{subtype}.wav"
         sf.write(source, samples, SAMPLE_RATE, subtype=subtype)
         loaded = load_audio(source)
-        save_audio(exported, loaded.buffer, subtype=subtype)
+        save_audio(exported, loaded.buffer, subtype=subtype, dither=False)
         assert_bit_exact_wav(source, exported)
 
 
@@ -479,7 +479,11 @@ CHECKLIST_CASES = (
         "P0",
         "Callback p99 and realtime discipline",
         _verify_callback_discipline,
-        "callback metering allocates and only proxy timing exists",
+        # The zero-allocation callback landed (meter reductions moved to the
+        # feeder thread; see tests/test_render_discipline.py), so the source
+        # assertion below passes. Only the formal callback-p99 hardware timing
+        # report keeps this item open.
+        "zero-alloc callback fixed; formal callback-p99 timing evidence is missing",
     ),
     ChecklistCase(
         "C4",

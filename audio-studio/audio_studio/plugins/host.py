@@ -17,6 +17,7 @@ documented in :mod:`audio_studio.plugins.pedalboard_bridge` and in
 
 from __future__ import annotations
 
+import json
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
@@ -86,6 +87,57 @@ class PluginHost(ABC):
 
     def reset(self) -> None:  # noqa: B027 - hosts without state legitimately do nothing
         """Clear streaming state without changing parameters."""
+
+    # -- state persistence ---------------------------------------------------
+
+    def state_blob(self) -> bytes | None:
+        """Opaque snapshot of the plugin's settings, for project persistence.
+
+        The default serialises :meth:`parameters` as canonical JSON — the
+        portable fallback every host has. A backend with a native state
+        format (a VST3 state chunk, say) overrides this and returns that
+        instead, because the chunk captures settings the parameter list does
+        not (internal routing, sample data, unautomatable options).
+
+        Returns ``None`` when there is nothing worth writing — the caller
+        then simply omits the state from the project.
+        """
+        try:
+            return json.dumps(self.parameters(), sort_keys=True).encode("utf-8")
+        except (TypeError, ValueError):
+            # A parameter value JSON cannot express (an object, NaN with a
+            # strict encoder) means no portable snapshot, not an error.
+            return None
+
+    def restore_state(self, blob: bytes) -> bool:
+        """Apply a :meth:`state_blob` snapshot back to the plugin.
+
+        The default understands the parameter-dict JSON the default
+        :meth:`state_blob` writes: each entry is written through
+        :meth:`set_parameter`, and entries the plugin no longer has (or a
+        backend that cannot write at all) are skipped rather than raised —
+        restoring most of a preset beats refusing all of it.
+
+        Returns ``True`` when at least one parameter was applied, ``False``
+        when the blob was unreadable or nothing could be written. Never
+        raises: state restoration is best-effort by design, because the blob
+        was written by a possibly different plugin version on a possibly
+        different machine.
+        """
+        try:
+            decoded = json.loads(bytes(blob).decode("utf-8"))
+        except (TypeError, ValueError, UnicodeDecodeError):
+            return False
+        if not isinstance(decoded, dict):
+            return False
+        restored = False
+        for name, value in decoded.items():
+            try:
+                self.set_parameter(str(name), value)
+                restored = True
+            except (NotImplementedError, KeyError, TypeError, ValueError):
+                continue
+        return restored
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}({str(self.plugin_path)!r})"

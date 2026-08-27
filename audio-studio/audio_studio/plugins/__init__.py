@@ -13,8 +13,11 @@ host as an ordinary :class:`~audio_studio.dsp.effects.base.Effect`; the
 :class:`~audio_studio.ui.plugin_panel.PluginPanel` dock drives three such slots.
 :mod:`audio_studio.plugins.scanner` finds the bundles those slots can load,
 reading only the filesystem — a scan never loads plugin code and never touches
-pedalboard. Projects remember which bundles were loaded, by path; plugin
-parameter state is still not persisted.
+pedalboard. Projects remember which bundles were loaded, by path, plus an
+opaque per-slot state blob (:meth:`PluginHost.state_blob`) so a reopened
+project brings each plugin's settings back; a plugin's reported latency is
+compensated on the preview path
+(:class:`~audio_studio.dsp.preview.LatencyCompensator`).
 """
 
 from .adapter import PluginEffectAdapter, create_plugin_effect

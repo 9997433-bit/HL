@@ -160,15 +160,24 @@ class VST3PluginWrapper(PluginHost):
         ``process()`` and does not expose the raw JUCE figure in its public
         API, so ``0`` here means "already compensated upstream or unknown".
         The attribute probe keeps the wrapper forward-compatible with a
-        pedalboard release that starts reporting it.
+        pedalboard release that starts reporting it. A report that is not a
+        usable non-negative integer (``None``, a raising property, garbage)
+        also counts as ``0``: latency feeds the delay-compensation sum, where
+        an unknown figure must degrade to "uncompensated", never to a crash.
         """
         for attr in ("latency_samples", "latency"):
             value = getattr(self._plugin, attr, None)
             if value is None:
                 continue
             if callable(value):
-                value = value()
-            return int(value)
+                try:
+                    value = value()
+                except Exception:  # noqa: BLE001 - a broken probe is "unreported"
+                    continue
+            try:
+                return max(int(value), 0)
+            except (TypeError, ValueError):
+                continue
         return 0
 
     def parameters(self) -> dict[str, Any]:
@@ -201,3 +210,53 @@ class VST3PluginWrapper(PluginHost):
             parameter.raw_value = value
         else:
             setattr(self._plugin, name, value)
+
+    # -- state persistence ----------------------------------------------------
+
+    #: Attributes probed for a native state chunk, in preference order.
+    #: ``raw_state`` is what pedalboard calls its VST3/AU state bytes; the
+    #: plain ``state`` spelling keeps the probe forward-compatible.
+    _STATE_ATTRS = ("raw_state", "state")
+
+    def state_blob(self) -> bytes | None:
+        """The plugin's own state chunk when pedalboard exposes one.
+
+        A native chunk (``raw_state`` on recent pedalboard releases) captures
+        everything the plugin saves — including settings that never appear in
+        the parameter list — so it is preferred. A pedalboard build without
+        it falls back to the base class's parameter-dict JSON, which restores
+        the automatable parameters and nothing more.
+        """
+        for attr in self._STATE_ATTRS:
+            value = getattr(self._plugin, attr, None)
+            if callable(value):
+                try:
+                    value = value()
+                except Exception:  # noqa: BLE001 - probe must not break saving
+                    continue
+            if isinstance(value, (bytes, bytearray)) and value:
+                return bytes(value)
+        return super().state_blob()
+
+    def restore_state(self, blob: bytes) -> bool:
+        """Apply a saved blob, whichever format :meth:`state_blob` wrote it in.
+
+        The parameter-dict JSON fallback is tried first because it is
+        self-describing (a JSON object with known parameter names); anything
+        that is not that is treated as a native chunk and written back to the
+        attribute it was read from. Both paths are best-effort and never
+        raise — the blob may come from a different plugin version or a
+        machine with a different pedalboard build.
+        """
+        blob = bytes(blob)
+        if super().restore_state(blob):
+            return True
+        for attr in self._STATE_ATTRS:
+            if not hasattr(self._plugin, attr):
+                continue
+            try:
+                setattr(self._plugin, attr, blob)
+            except Exception:  # noqa: BLE001 - a rejected chunk is "not restored"
+                continue
+            return True
+        return False
