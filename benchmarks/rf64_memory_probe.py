@@ -225,7 +225,29 @@ def _rf64_header(*, n_frames: int, channels: int, sample_rate: int) -> bytes:
 def _allocation_evidence(path: Path) -> tuple[int, float]:
     """Return allocated bytes and their ratio to apparent file size."""
     stat = path.stat()
-    allocated_bytes = int(stat.st_blocks) * 512
+    if hasattr(stat, "st_blocks"):
+        allocated_bytes = int(stat.st_blocks) * 512
+    elif os.name == "nt":
+        # Windows exposes sparse/compressed allocation through this API rather
+        # than os.stat(). GetCompressedFileSizeW returns the physical byte
+        # count even when the file itself is not compressed.
+        import ctypes
+        from ctypes import wintypes
+
+        high = wintypes.DWORD()
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        get_size = kernel32.GetCompressedFileSizeW
+        get_size.argtypes = [wintypes.LPCWSTR, ctypes.POINTER(wintypes.DWORD)]
+        get_size.restype = wintypes.DWORD
+        ctypes.set_last_error(0)
+        low = get_size(str(path), ctypes.byref(high))
+        error = ctypes.get_last_error()
+        if low == 0xFFFFFFFF and error:
+            raise OSError(error, "GetCompressedFileSizeW failed", str(path))
+        allocated_bytes = (int(high.value) << 32) | int(low)
+    else:
+        # Unknown allocation is deliberately ineligible for formal evidence.
+        allocated_bytes = 0
     ratio = allocated_bytes / stat.st_size if stat.st_size else 0.0
     return allocated_bytes, ratio
 
