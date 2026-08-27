@@ -47,6 +47,7 @@ from .markers import Marker, MarkerItem, MarkerList, Region
 from .output import AudioOutput, NullOutput, OutputDeviceError, PyAudioOutput, create_output
 from .peaks import Envelope, PeakPyramid
 from .recorder import RecordingTake, Take, TakeRegistry, TakeRegistryError
+from .resample import resample_backend, resample_buffer, soxr_available
 from .ring_buffer import RingBuffer
 from .sample_source import (
     MemorySampleSource,
@@ -152,7 +153,10 @@ __all__ = [
     "probe",
     "probe_frames",
     "resample",
+    "resample_backend",
+    "resample_buffer",
     "save_audio",
     "should_stream",
+    "soxr_available",
     "supported_formats",
 ]

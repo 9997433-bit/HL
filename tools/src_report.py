@@ -1,19 +1,32 @@
-"""Measure the current SciPy sample-rate converter against mastering gates."""
+"""Measure Audio Studio's selected sample-rate converter against mastering gates."""
 
 from __future__ import annotations
 
 import argparse
 import json
 import math
+import os
+import sys
 from collections.abc import Sequence
 from datetime import UTC, datetime
+from importlib.metadata import PackageNotFoundError, version
 from itertools import pairwise
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import scipy
-from scipy.signal import resample_poly
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+AUDIO_STUDIO_ROOT = REPOSITORY_ROOT / "audio-studio"
+if str(AUDIO_STUDIO_ROOT) not in sys.path:
+    sys.path.insert(0, str(AUDIO_STUDIO_ROOT))
+
+from audio_studio.core.resample import (  # noqa: E402
+    resample_backend,
+    resample_buffer,
+    soxr_available,
+)
 
 SOURCE_RATE = 96_000
 TARGET_RATE = 44_100
@@ -27,6 +40,34 @@ MAX_THD_PLUS_N_DBFS = -130.0
 
 def _dbfs(value: float) -> float:
     return 20.0 * math.log10(max(float(value), np.finfo(np.float64).tiny))
+
+
+def _convert(samples: np.ndarray) -> np.ndarray:
+    return resample_buffer(samples, SOURCE_RATE, TARGET_RATE, quality="vhq")
+
+
+def _package_version(distribution: str) -> str:
+    try:
+        return version(distribution)
+    except PackageNotFoundError:  # pragma: no cover - import and metadata normally agree
+        return "unknown"
+
+
+def _src_paths() -> dict[str, dict[str, str]]:
+    paths = {
+        "scipy": {
+            "backend": "scipy.signal.resample_poly",
+            "scipy_version": scipy.__version__,
+            "quality": "default Kaiser beta=5.0",
+        }
+    }
+    if soxr_available():
+        paths["soxr"] = {
+            "backend": "soxr.resample",
+            "soxr_version": _package_version("soxr"),
+            "quality": "VHQ",
+        }
+    return paths
 
 
 def _log_sweep(
@@ -60,7 +101,7 @@ def _trim_edges(samples: np.ndarray, sample_rate: int) -> np.ndarray:
 
 def _passband_deviation_db(duration_seconds: float) -> float:
     source = _log_sweep(SOURCE_RATE, duration_seconds, 20.0, 20_000.0)
-    converted = resample_poly(source, TARGET_RATE, SOURCE_RATE)
+    converted = _convert(source)
     reference = _log_sweep(TARGET_RATE, duration_seconds, 20.0, 20_000.0)
     usable = min(converted.size, reference.size)
     converted = converted[:usable]
@@ -84,7 +125,7 @@ def _stopband_mirror_dbfs(duration_seconds: float) -> float:
     # mirror instead of testing one favorable frequency.
     source = _log_sweep(SOURCE_RATE, duration_seconds, 24_000.0, 46_000.0)
     converted = _trim_edges(
-        resample_poly(source, TARGET_RATE, SOURCE_RATE),
+        _convert(source),
         TARGET_RATE,
     )
     windows = np.array_split(converted, 32)
@@ -104,7 +145,7 @@ def _thd_plus_n_dbfs(duration_seconds: float) -> float:
     ) / SOURCE_RATE
     source = 0.9 * np.sin(2.0 * np.pi * 1_000.0 * source_time)
     converted = _trim_edges(
-        resample_poly(source, TARGET_RATE, SOURCE_RATE),
+        _convert(source),
         TARGET_RATE,
     )
 
@@ -127,10 +168,12 @@ def measure_src_quality(
     *,
     duration_seconds: float = DEFAULT_DURATION_SECONDS,
 ) -> dict[str, Any]:
-    """Measure SciPy's current 96 kHz to 44.1 kHz polyphase conversion."""
+    """Measure the selected 96 kHz to 44.1 kHz conversion path."""
     if duration_seconds <= 0.0:
         raise ValueError("duration_seconds must be positive")
 
+    backend = resample_backend()
+    paths = _src_paths()
     passband_deviation = _passband_deviation_db(duration_seconds)
     stopband_mirror = _stopband_mirror_dbfs(duration_seconds)
     thd_plus_n = _thd_plus_n_dbfs(duration_seconds)
@@ -140,15 +183,32 @@ def measure_src_quality(
         "thd_plus_n": thd_plus_n < MAX_THD_PLUS_N_DBFS,
     }
     status = "pass" if all(checks.values()) else "fail"
+    if status == "pass":
+        recommendation = (
+            f"Selected {backend} SRC meets the measured offline mastering thresholds."
+        )
+    elif backend == "scipy" and not soxr_available():
+        recommendation = (
+            "Selected SciPy SRC misses one or more offline mastering thresholds; "
+            "install Audio Studio's mastering extra for the optional soxr backend."
+        )
+    elif backend == "scipy":
+        recommendation = (
+            "Selected SciPy SRC misses one or more offline mastering thresholds; "
+            "unset AUDIO_STUDIO_SRC or set it to soxr to select the available VHQ path."
+        )
+    else:
+        recommendation = (
+            "Selected soxr VHQ SRC misses one or more offline mastering thresholds; "
+            "keep the source sample rate for the final master and inspect this report."
+        )
 
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "generated_at_utc": datetime.now(UTC).isoformat(),
-        "implementation": {
-            "backend": "scipy.signal.resample_poly",
-            "scipy_version": scipy.__version__,
-            "window": "default Kaiser beta=5.0",
-        },
+        "implementation": paths[backend],
+        "src_paths": paths,
+        "selection": os.environ.get("AUDIO_STUDIO_SRC", "automatic") or "automatic",
         "source_sample_rate_hz": SOURCE_RATE,
         "target_sample_rate_hz": TARGET_RATE,
         "stimulus": {
@@ -168,12 +228,7 @@ def measure_src_quality(
         },
         "checks": checks,
         "status": status,
-        "recommendation": (
-            "Current SciPy SRC misses one or more offline mastering thresholds; "
-            "install Audio Studio's mastering extra for the optional soxr backend."
-            if status == "fail"
-            else "Current SciPy SRC meets the measured offline mastering thresholds."
-        ),
+        "recommendation": recommendation,
     }
 
 
