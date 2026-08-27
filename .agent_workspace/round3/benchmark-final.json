@@ -1,0 +1,196 @@
+{
+  "configuration": {
+    "buffer_frames": 512,
+    "fft_iterations": 40,
+    "fft_size": 2048,
+    "fixtures_dir": "/tmp/audio-ci-agent-worktree/tests/fixtures",
+    "load_repetitions": 7
+  },
+  "environment": {
+    "platform": "Linux-6.12.94+-x86_64-with-glibc2.39",
+    "processor": "x86_64",
+    "python": "3.12.3"
+  },
+  "fft": {
+    "checksum": 757.122178,
+    "elapsed_seconds": 0.084708,
+    "fft_size": 2048,
+    "implementation": "stdlib radix-2 Cooley-Tukey",
+    "iterations": 40,
+    "samples_per_second": 967081.728,
+    "source": "/tmp/audio-ci-agent-worktree/tests/fixtures/clipping_48000hz.wav",
+    "transforms_per_second": 472.208
+  },
+  "file_loading": {
+    "aggregate": {
+      "file_count": 12,
+      "median_of_file_medians_ms": 0.019287,
+      "sum_of_file_medians_ms": 0.268508,
+      "total_bytes": 1289928
+    },
+    "files": [
+      {
+        "channels": 1,
+        "duration_seconds": 1.0,
+        "frames": 44100,
+        "median_ms": 0.022377,
+        "minimum_ms": 0.018229,
+        "path": "/tmp/audio-ci-agent-worktree/tests/fixtures/clipping_44100hz.wav",
+        "sample_rate_hz": 44100,
+        "size_bytes": 88244,
+        "throughput_mib_per_second": 3760.827
+      },
+      {
+        "channels": 1,
+        "duration_seconds": 1.0,
+        "frames": 48000,
+        "median_ms": 0.020479,
+        "minimum_ms": 0.018823,
+        "path": "/tmp/audio-ci-agent-worktree/tests/fixtures/clipping_48000hz.wav",
+        "sample_rate_hz": 48000,
+        "size_bytes": 96044,
+        "throughput_mib_per_second": 4472.616
+      },
+      {
+        "channels": 1,
+        "duration_seconds": 1.0,
+        "frames": 44100,
+        "median_ms": 0.019116,
+        "minimum_ms": 0.017955,
+        "path": "/tmp/audio-ci-agent-worktree/tests/fixtures/multi_frequency_44100hz.wav",
+        "sample_rate_hz": 44100,
+        "size_bytes": 88244,
+        "throughput_mib_per_second": 4402.387
+      },
+      {
+        "channels": 1,
+        "duration_seconds": 1.0,
+        "frames": 48000,
+        "median_ms": 0.019458,
+        "minimum_ms": 0.018649,
+        "path": "/tmp/audio-ci-agent-worktree/tests/fixtures/multi_frequency_48000hz.wav",
+        "sample_rate_hz": 48000,
+        "size_bytes": 96044,
+        "throughput_mib_per_second": 4707.303
+      },
+      {
+        "channels": 1,
+        "duration_seconds": 1.0,
+        "frames": 44100,
+        "median_ms": 0.017636,
+        "minimum_ms": 0.017151,
+        "path": "/tmp/audio-ci-agent-worktree/tests/fixtures/silence_44100hz.wav",
+        "sample_rate_hz": 44100,
+        "size_bytes": 88244,
+        "throughput_mib_per_second": 4771.832
+      },
+      {
+        "channels": 1,
+        "duration_seconds": 1.0,
+        "frames": 48000,
+        "median_ms": 0.01835,
+        "minimum_ms": 0.017931,
+        "path": "/tmp/audio-ci-agent-worktree/tests/fixtures/silence_48000hz.wav",
+        "sample_rate_hz": 48000,
+        "size_bytes": 96044,
+        "throughput_mib_per_second": 4991.537
+      },
+      {
+        "channels": 1,
+        "duration_seconds": 1.0,
+        "frames": 44100,
+        "median_ms": 0.018907,
+        "minimum_ms": 0.018042,
+        "path": "/tmp/audio-ci-agent-worktree/tests/fixtures/sine_sweep_44100hz.wav",
+        "sample_rate_hz": 44100,
+        "size_bytes": 88244,
+        "throughput_mib_per_second": 4451.052
+      },
+      {
+        "channels": 1,
+        "duration_seconds": 1.0,
+        "frames": 48000,
+        "median_ms": 0.020386,
+        "minimum_ms": 0.018744,
+        "path": "/tmp/audio-ci-agent-worktree/tests/fixtures/sine_sweep_48000hz.wav",
+        "sample_rate_hz": 48000,
+        "size_bytes": 96044,
+        "throughput_mib_per_second": 4493.02
+      },
+      {
+        "channels": 2,
+        "duration_seconds": 1.0,
+        "frames": 44100,
+        "median_ms": 0.042096,
+        "minimum_ms": 0.02147,
+        "path": "/tmp/audio-ci-agent-worktree/tests/fixtures/stereo_phase_90deg_44100hz.wav",
+        "sample_rate_hz": 44100,
+        "size_bytes": 176444,
+        "throughput_mib_per_second": 3997.295
+      },
+      {
+        "channels": 2,
+        "duration_seconds": 1.0,
+        "frames": 48000,
+        "median_ms": 0.032469,
+        "minimum_ms": 0.022842,
+        "path": "/tmp/audio-ci-agent-worktree/tests/fixtures/stereo_phase_90deg_48000hz.wav",
+        "sample_rate_hz": 48000,
+        "size_bytes": 192044,
+        "throughput_mib_per_second": 5640.686
+      },
+      {
+        "channels": 1,
+        "duration_seconds": 1.0,
+        "frames": 44100,
+        "median_ms": 0.01898,
+        "minimum_ms": 0.017859,
+        "path": "/tmp/audio-ci-agent-worktree/tests/fixtures/white_noise_44100hz.wav",
+        "sample_rate_hz": 44100,
+        "size_bytes": 88244,
+        "throughput_mib_per_second": 4433.932
+      },
+      {
+        "channels": 1,
+        "duration_seconds": 1.0,
+        "frames": 48000,
+        "median_ms": 0.018254,
+        "minimum_ms": 0.0179,
+        "path": "/tmp/audio-ci-agent-worktree/tests/fixtures/white_noise_48000hz.wav",
+        "sample_rate_hz": 48000,
+        "size_bytes": 96044,
+        "throughput_mib_per_second": 5017.788
+      }
+    ],
+    "repetitions_per_file": 7
+  },
+  "generated_at_utc": "2026-08-26T08:44:48.879095+00:00",
+  "memory": {
+    "estimated_payload_and_spectrum_bytes": 224768,
+    "process_peak_rss_bytes": 20037632,
+    "python_current_bytes": 276224,
+    "python_peak_bytes": 276780,
+    "workload": "load largest fixture and compute one FFT"
+  },
+  "playback_latency_estimate": {
+    "device_io_measured": false,
+    "estimates": [
+      {
+        "buffer_frames": 512,
+        "estimated_startup_ms": 11.629025,
+        "median_load_ms": 0.019048,
+        "output_buffer_ms": 11.609977,
+        "sample_rate_hz": 44100
+      },
+      {
+        "buffer_frames": 512,
+        "estimated_startup_ms": 10.686589,
+        "median_load_ms": 0.019922,
+        "output_buffer_ms": 10.666667,
+        "sample_rate_hz": 48000
+      }
+    ],
+    "method": "median validated file load + one output callback buffer"
+  },
+  "schema_version": 1
+}

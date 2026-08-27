@@ -1,0 +1,321 @@
+{
+  "artifact": "accessibility-report",
+  "checklist_item": "D4",
+  "generated_by": "tools/accessibility_walkthrough.py",
+  "generated_at": "2026-08-27T02:27:29+00:00",
+  "status": "pass",
+  "wcag_2_2_aa": "pass",
+  "wcag_evidence": {
+    "audit": "automated audit of the WCAG 2.2 AA success criteria that are machine-checkable in this codebase; not a human conformance review",
+    "contrast_pass": true,
+    "failing_pairs": [],
+    "text_pair_ratios": {
+      "text/window": 12.03,
+      "text/surface": 10.84,
+      "text/surface_alt": 9.62,
+      "text/border": 7.57,
+      "text/accent_dim": 4.99,
+      "text/meter_bg": 13.38,
+      "window/accent": 6.77,
+      "text_dim/window": 6.46,
+      "text_dim/surface": 5.82,
+      "text_dim/surface_alt": 5.16,
+      "text_dim/waveform_bg": 6.87,
+      "text_dim/meter_bg": 7.18,
+      "accent/meter_bg": 7.54,
+      "meter_bg/meter_high": 5.1
+    },
+    "minimum_text_ratio": 4.99,
+    "graphic_pair_ratios": {
+      "accent/window": 6.77,
+      "accent/surface": 6.11,
+      "accent/surface_alt": 5.41,
+      "control_border/window": 3.94,
+      "control_border/surface": 3.55,
+      "control_border/surface_alt": 3.15,
+      "waveform_peak/waveform_bg": 8.96,
+      "waveform_rms/waveform_bg": 11.84,
+      "selection_edge/waveform_bg": 10.92,
+      "playhead/waveform_bg": 10.01,
+      "cursor/waveform_bg": 12.8,
+      "marker/waveform_bg": 9.61,
+      "region/waveform_bg": 5.98,
+      "waveform_clip/waveform_bg": 6.01,
+      "meter_low/meter_bg": 6.75,
+      "meter_mid/meter_bg": 11.52,
+      "meter_high/meter_bg": 5.1
+    },
+    "minimum_graphic_ratio": 3.15,
+    "color_safe_colormap": true,
+    "success_criteria": {
+      "1.4.1 Use of Color": "clip state carries a CLIP label and accessible description, not colour alone (test_accessibility.py::TestStateIsNotColourAlone)",
+      "1.4.3 Contrast (Minimum)": "every text pair >= 4.5:1, measured above",
+      "1.4.4 Resize Text": "100-200% UI scaling via QT_SCALE_FACTOR (test_accessibility.py::TestScaleFactor, checklist D5)",
+      "1.4.11 Non-text Contrast": "every graphic pair >= 3:1, measured above",
+      "2.1.1 Keyboard": "every menu command keyboard-bound (test_accessibility.py::TestKeyboardReach, checklist D3)",
+      "2.4.7 Focus Visible": "2px accent focus ring in the stylesheet (test_accessibility.py::TestPaletteContrast)",
+      "4.1.2 Name, Role, Value": "verified over the live AT-SPI bus by this walkthrough and headlessly by tools/screen_reader_probe.py"
+    },
+    "unit_suites": [
+      "audio-studio/tests/test_accessibility.py",
+      "tests/acceptance/test_sota_checklist.py::test_sota_checklist_item[D4]"
+    ]
+  },
+  "screen_reader_platforms_passed": 1,
+  "platforms": [
+    {
+      "platform": "linux",
+      "screen_reader": "orca",
+      "screen_reader_version": "46.1",
+      "session": "live",
+      "status": "pass",
+      "evidence": {
+        "atspi_tree_nodes": 390,
+        "inventory": [
+          {
+            "control": "transport_bar",
+            "expected_name": "Transport controls",
+            "published_on_bus": true,
+            "atspi_roles": [
+              "filler"
+            ]
+          },
+          {
+            "control": "transport_bar.record_button",
+            "expected_name": "Record",
+            "published_on_bus": true,
+            "atspi_roles": [
+              "check box"
+            ]
+          },
+          {
+            "control": "transport_bar.play_button",
+            "expected_name": "Play or pause",
+            "published_on_bus": true,
+            "atspi_roles": [
+              "push button"
+            ]
+          },
+          {
+            "control": "transport_bar.stop_button",
+            "expected_name": "Stop",
+            "published_on_bus": true,
+            "atspi_roles": [
+              "menu item",
+              "push button"
+            ]
+          },
+          {
+            "control": "transport_bar.start_button",
+            "expected_name": "Go to start",
+            "published_on_bus": true,
+            "atspi_roles": [
+              "push button"
+            ]
+          },
+          {
+            "control": "transport_bar.end_button",
+            "expected_name": "Go to end",
+            "published_on_bus": true,
+            "atspi_roles": [
+              "push button"
+            ]
+          },
+          {
+            "control": "transport_bar.loop_button",
+            "expected_name": "Loop playback",
+            "published_on_bus": true,
+            "atspi_roles": [
+              "check box"
+            ]
+          },
+          {
+            "control": "transport_bar.volume_slider",
+            "expected_name": "Output gain",
+            "published_on_bus": true,
+            "atspi_roles": [
+              "slider"
+            ]
+          },
+          {
+            "control": "transport_bar.position_label",
+            "expected_name": "Playback position",
+            "published_on_bus": true,
+            "atspi_roles": [
+              "label"
+            ]
+          },
+          {
+            "control": "level_meter",
+            "expected_name": "Output level meter",
+            "published_on_bus": true,
+            "atspi_roles": [
+              "filler"
+            ]
+          },
+          {
+            "control": "track_panel",
+            "expected_name": "Waveform editor",
+            "published_on_bus": true,
+            "atspi_roles": [
+              "filler"
+            ]
+          },
+          {
+            "control": "track_panel.waveform",
+            "expected_name": "Waveform display",
+            "published_on_bus": true,
+            "atspi_roles": [
+              "filler"
+            ]
+          },
+          {
+            "control": "multitrack_view",
+            "expected_name": "Multitrack arranger",
+            "published_on_bus": true,
+            "atspi_roles": [
+              "filler"
+            ]
+          },
+          {
+            "control": "spectrum_panel",
+            "expected_name": "Spectral frequency display",
+            "published_on_bus": true,
+            "atspi_roles": [
+              "filler"
+            ]
+          },
+          {
+            "control": "effect_rack",
+            "expected_name": "Effects rack",
+            "published_on_bus": true,
+            "atspi_roles": [
+              "filler"
+            ]
+          },
+          {
+            "control": "plugin_panel",
+            "expected_name": "VST3 plugins",
+            "published_on_bus": true,
+            "atspi_roles": [
+              "filler"
+            ]
+          },
+          {
+            "control": "marker_panel",
+            "expected_name": "Markers",
+            "published_on_bus": true,
+            "atspi_roles": [
+              "menu item",
+              "panel",
+              "filler"
+            ]
+          },
+          {
+            "control": "marker_panel.tree",
+            "expected_name": "Marker and region list",
+            "published_on_bus": true,
+            "atspi_roles": [
+              "tree"
+            ]
+          }
+        ],
+        "focusable_controls": [
+          "Output gain",
+          "Waveform display",
+          "Mix (dry/wet)",
+          "Notch Q (narrowness)",
+          "Sensitivity",
+          "Reduction",
+          "Learn from head",
+          "Low shelf 100 Hz",
+          "Mid bell 1 kHz",
+          "High shelf 8 kHz",
+          "Threshold",
+          "Ratio",
+          "Gain",
+          "Time"
+        ],
+        "focus_events_recorded": 14,
+        "orca_speech_lines_captured": 60,
+        "orca_speech_samples": [
+          "Output gain horizontal slider 100.",
+          "Waveform display.",
+          "Notch Q (narrowness) Learn from head Low shelf 100 Hz Mid bell 1 kHz High shelf 8 kHz FX: 3-Band EQ \u2192 Gain",
+          "Mix (dry/wet) horizontal slider 1000.",
+          "Notch Q (narrowness)",
+          "Notch Q (narrowness) horizontal slider 300.",
+          "Sensitivity horizontal slider 600.",
+          "Noise Reduction panel.",
+          "Learn from head",
+          "Reduction horizontal slider 240.",
+          "Learn from head horizontal slider 3000.",
+          "Low shelf 100 Hz Mid bell 1 kHz High shelf 8 kHz",
+          "Low shelf 100 Hz horizontal slider 0.",
+          "Mid bell 1 kHz horizontal slider 0.",
+          "High shelf 8 kHz horizontal slider 0.",
+          "Threshold horizontal slider -180.",
+          "Ratio horizontal slider 40.",
+          "Gain horizontal slider 0.",
+          "Time  Space panel.",
+          "Time horizontal slider 2500.",
+          "Output gain horizontal slider 100.",
+          "Waveform display.",
+          "Notch Q (narrowness) Learn from head Low shelf 100 Hz Mid bell 1 kHz High shelf 8 kHz FX: 3-Band EQ \u2192 Gain",
+          "Mix (dry/wet) horizontal slider 1000.",
+          "Notch Q (narrowness)",
+          "Notch Q (narrowness) horizontal slider 300.",
+          "Sensitivity horizontal slider 600.",
+          "Noise Reduction panel.",
+          "Learn from head",
+          "Reduction horizontal slider 240.",
+          "Learn from head horizontal slider 3000.",
+          "Low shelf 100 Hz Mid bell 1 kHz High shelf 8 kHz",
+          "Low shelf 100 Hz horizontal slider 0.",
+          "Mid bell 1 kHz horizontal slider 0.",
+          "High shelf 8 kHz horizontal slider 0.",
+          "Threshold horizontal slider -180.",
+          "Ratio horizontal slider 40.",
+          "Gain horizontal slider 0.",
+          "Time  Space panel.",
+          "Time horizontal slider 2500."
+        ]
+      }
+    },
+    {
+      "platform": "windows",
+      "screen_reader": "nvda",
+      "session": null,
+      "status": "not-run",
+      "reason": "no Windows host in this environment; not claimed"
+    },
+    {
+      "platform": "macos",
+      "screen_reader": "voiceover",
+      "session": null,
+      "status": "not-run",
+      "reason": "no macOS host in this environment; not claimed"
+    }
+  ],
+  "methodology": "Isolated Xvfb display and private D-Bus session with a dedicated AT-SPI accessibility bus. The real MainWindow ran on the xcb platform with Qt's AT-SPI adaptor enabled. Orca 46.1 attached to the bus as a live screen reader with debug logging. A pyatspi client (the same client library Orca uses) verified every D4 inventory control publishes its accessible name over the bus and recorded focus events while the application walked keyboard focus through its focusable controls; Orca's debug log had to contain a SPEECH OUTPUT utterance naming every focused control. Transport buttons are deliberately NoFocus (their commands are global shortcuts), so they are verified via the bus tree walk rather than the focus walk.",
+  "environment": {
+    "display_server": "Xvfb (headless X11, :91)",
+    "window_manager": "none",
+    "qt_platform": "xcb",
+    "at_spi": "2.52.0-1build1",
+    "atspi_client_python": "/usr/bin/python3",
+    "session_isolation": "private dbus-daemon; AT_SPI_BUS_ADDRESS pinned"
+  },
+  "checks": {
+    "atspi_bus_publishes_every_inventory_name": true,
+    "atspi_semantic_roles_match": true,
+    "focus_events_observed_for_every_focusable_control": true,
+    "orca_spoke_every_focusable_control": true,
+    "orca_ran_throughout_the_walkthrough": true,
+    "wcag_contrast_audit_passes": true,
+    "color_safe_colormap_available": true
+  },
+  "limitations": "Live Orca session on Linux only: speech utterances were captured from Orca's debug log, which records exactly what Orca sends to speech-dispatcher; audible playback through audio hardware was not verified on this headless host. NVDA (Windows) and VoiceOver (macOS) were not run and are reported not-run. WCAG 2.2 AA is an automated audit of the machine-checkable success criteria, not a human conformance review.",
+  "headless_proxy_companion": ".agent_workspace/v1.0/screen-reader-evidence.json",
+  "unit_suite": "audio-studio/tests/test_accessibility.py::TestLiveScreenReaderReport"
+}

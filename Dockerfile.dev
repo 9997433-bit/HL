@@ -1,0 +1,38 @@
+# syntax=docker/dockerfile:1
+FROM python:3.12-slim-bookworm
+
+ARG USER_UID=1000
+ARG USER_GID=1000
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends \
+        build-essential \
+        ffmpeg \
+        libasound2-dev \
+        libsndfile1-dev \
+        pkg-config \
+        portaudio19-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN groupadd --gid "${USER_GID}" developer \
+    && useradd --create-home --uid "${USER_UID}" --gid "${USER_GID}" developer
+
+WORKDIR /workspace
+
+COPY requirements.txt requirements-dev.txt ./
+RUN python -m pip install --requirement requirements-dev.txt
+
+COPY --chown=developer:developer . .
+
+USER developer
+
+# No sound hardware is exposed by default. Linux users may pass /dev/snd and
+# the host audio group; Docker Desktop on macOS/Windows cannot directly expose
+# CoreAudio/WASAPI devices. See dev-environment.md for supported alternatives.
+CMD ["bash"]

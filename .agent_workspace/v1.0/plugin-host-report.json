@@ -1,0 +1,39 @@
+{
+  "artifact": "plugin-host-report",
+  "checklist_item": "B6",
+  "generated_by": "tools/generate_v1_evidence.py",
+  "status": "pass",
+  "evidence_type": "mock-host",
+  "backend_note": "in-process mock PluginHost implementations; the pedalboard VST3 backend is not exercised because no plugin binaries exist in CI \u2014 real-plugin compatibility evidence is still open",
+  "mock_plugins_passed": 3,
+  "plugins": [
+    {
+      "plugin": "MockLinearPhaseEQ.vst3",
+      "latency_samples": 37,
+      "load_and_process": "pass",
+      "state_restore": "pass"
+    },
+    {
+      "plugin": "MockLookaheadLimiter.vst3",
+      "latency_samples": 64,
+      "load_and_process": "pass",
+      "state_restore": "pass"
+    },
+    {
+      "plugin": "MockSaturator.vst3",
+      "latency_samples": 0,
+      "load_and_process": "pass",
+      "state_restore": "pass"
+    }
+  ],
+  "state_restore": "pass",
+  "pdc_null_test": "pass",
+  "pdc_max_null_error": 0.0,
+  "pdc_alignment_error": 0.0,
+  "unit_suites": [
+    "audio-studio/tests/test_vst3_host.py",
+    "audio-studio/tests/test_plugin_pdc.py",
+    "audio-studio/tests/test_plugin_scanner.py",
+    "audio-studio/tests/test_plugin_panel.py"
+  ]
+}

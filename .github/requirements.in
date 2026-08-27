@@ -1,0 +1,9 @@
+# Cross-platform dependencies used by the test matrix and headless GUI smoke job.
+numpy
+scipy
+soundfile
+PySide6-Essentials
+pytest
+pytest-qt
+PyYAML
+ruff

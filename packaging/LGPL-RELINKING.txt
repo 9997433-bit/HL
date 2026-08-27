@@ -1,0 +1,63 @@
+Audio Studio — LGPL components, relinking and source availability
+=================================================================
+
+This bundle is distributed under the MIT licence, and it uses several
+components that reach it under the GNU Lesser General Public License. The LGPL
+lets a work like this one use those components without becoming LGPL itself,
+on one condition that matters to you as a recipient: you must be able to
+replace the LGPL libraries with your own compatible build and keep using the
+application. This file describes how that is arranged and where the matching
+source is.
+
+The LGPL components in this bundle
+----------------------------------
+
+* Qt 6, PySide6 and Shiboken6 — LGPL-3.0-only (the licence this project
+  selects from Qt's LGPL/GPL/commercial offer).
+  Source: https://download.qt.io/archive/qt/ and
+  https://code.qt.io/cgit/pyside/pyside-setup.git/
+* libsndfile, loaded by the SoundFile package — LGPL-2.1-or-later.
+  Source: https://github.com/libsndfile/libsndfile/releases
+* libsoxr, when the optional resampler is present — LGPL-2.1-or-later.
+  Source: https://sourceforge.net/p/soxr/code/ci/master/tree/
+* libquadmath, when a NumPy or SciPy wheel brings it in —
+  LGPL-2.1-or-later.
+  Source: https://gcc.gnu.org/
+
+FFmpeg is not bundled. The application runs an independently installed
+`ffmpeg` executable as a separate process when one is present, and works
+without it.
+
+How to replace a library
+------------------------
+
+The application ships as a directory, not as a single self-extracting
+executable, precisely so that this works:
+
+1. Find the library beside the launcher — the shared objects live in the
+   bundle's `_internal/` directory (`libQt6Core.so.6`, `libsndfile.so.1`, and
+   so on; the exact names depend on the platform).
+2. Build or obtain a compatible version of the same library. "Compatible"
+   means the same soname and ABI: Qt 6.x minor releases keep binary
+   compatibility, so a stock distribution build of the same major version is
+   normally a drop-in.
+3. Replace the file in place, keeping the file name the launcher looks for.
+4. Run the launcher. Nothing else has to be rebuilt: none of these libraries
+   is statically linked into the executable, and no compression is applied to
+   them, so the dynamic loader picks up your copy as it stands.
+
+On Linux you can also point `LD_LIBRARY_PATH` at your own build before the
+bundled directory; on macOS the equivalent is `DYLD_LIBRARY_PATH`.
+
+Written offer
+-------------
+
+For any component above whose upstream download is not reachable, the
+distributor of this bundle will provide the complete corresponding source for
+the version shipped here, on a physical medium or by download, for no more
+than the cost of distribution, for three years from the date of this
+distribution. Direct the request to the distributor named in the release
+notes accompanying this bundle.
+
+Full component inventory, versions and licence pointers: see
+`THIRD_PARTY_LICENSES.md`, distributed beside this file.

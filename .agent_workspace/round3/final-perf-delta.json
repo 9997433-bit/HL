@@ -1,0 +1,155 @@
+{
+  "baseline_path": ".agent_workspace/round1/benchmark-baseline.json",
+  "comparison_valid": true,
+  "configuration": {
+    "baseline": {
+      "buffer_frames": 512,
+      "fft_iterations": 40,
+      "fft_size": 2048,
+      "load_repetitions": 7
+    },
+    "current": {
+      "buffer_frames": 512,
+      "fft_iterations": 40,
+      "fft_size": 2048,
+      "load_repetitions": 7
+    },
+    "matches": true
+  },
+  "current_path": ".agent_workspace/round3/benchmark-final.json",
+  "environment": {
+    "baseline": {
+      "platform": "Linux-6.12.94+-x86_64-with-glibc2.39",
+      "processor": "x86_64",
+      "python": "3.12.3"
+    },
+    "current": {
+      "platform": "Linux-6.12.94+-x86_64-with-glibc2.39",
+      "processor": "x86_64",
+      "python": "3.12.3"
+    },
+    "matches": true
+  },
+  "generated_at_utc": "2026-08-26T08:47:49.791144+00:00",
+  "metrics": [
+    {
+      "adverse_delta_percent": -0.2534133223003746,
+      "baseline": 0.019336,
+      "better": "lower",
+      "current": 0.019287,
+      "delta": -4.900000000000043e-05,
+      "delta_percent": -0.2534133223003746,
+      "label": "Median file-load time",
+      "path": "file_loading.aggregate.median_of_file_medians_ms",
+      "status": "stable",
+      "unit": "ms"
+    },
+    {
+      "adverse_delta_percent": -2.5573841882745625,
+      "baseline": 0.275555,
+      "better": "lower",
+      "current": 0.268508,
+      "delta": -0.00704699999999997,
+      "delta_percent": -2.5573841882745625,
+      "label": "Aggregate file-load time",
+      "path": "file_loading.aggregate.sum_of_file_medians_ms",
+      "status": "stable",
+      "unit": "ms"
+    },
+    {
+      "adverse_delta_percent": -0.10495654327392699,
+      "baseline": 0.084797,
+      "better": "lower",
+      "current": 0.084708,
+      "delta": -8.899999999999186e-05,
+      "delta_percent": -0.10495654327392699,
+      "label": "FFT elapsed time",
+      "path": "fft.elapsed_seconds",
+      "status": "stable",
+      "unit": "s"
+    },
+    {
+      "adverse_delta_percent": -0.10451225846115808,
+      "baseline": 471.715,
+      "better": "higher",
+      "current": 472.208,
+      "delta": 0.49300000000005184,
+      "delta_percent": 0.10451225846115808,
+      "label": "FFT throughput",
+      "path": "fft.transforms_per_second",
+      "status": "stable",
+      "unit": "transforms/s"
+    },
+    {
+      "adverse_delta_percent": -0.10440048016115511,
+      "baseline": 966073.143,
+      "better": "higher",
+      "current": 967081.728,
+      "delta": 1008.5849999999627,
+      "delta_percent": 0.10440048016115511,
+      "label": "FFT sample throughput",
+      "path": "fft.samples_per_second",
+      "status": "stable",
+      "unit": "samples/s"
+    },
+    {
+      "adverse_delta_percent": 0.018068153073392837,
+      "baseline": 276730.0,
+      "better": "lower",
+      "current": 276780.0,
+      "delta": 50.0,
+      "delta_percent": 0.018068153073392837,
+      "label": "Python peak allocation",
+      "path": "memory.python_peak_bytes",
+      "status": "stable",
+      "unit": "bytes"
+    },
+    {
+      "adverse_delta_percent": 0.08183306055646482,
+      "baseline": 20021248.0,
+      "better": "lower",
+      "current": 20037632.0,
+      "delta": 16384.0,
+      "delta_percent": 0.08183306055646482,
+      "label": "Process peak RSS",
+      "path": "memory.process_peak_rss_bytes",
+      "status": "stable",
+      "unit": "bytes"
+    },
+    {
+      "adverse_delta_percent": -0.0002923710336272555,
+      "baseline": 11.629059,
+      "better": "lower",
+      "current": 11.629025,
+      "delta": -3.399999999942338e-05,
+      "delta_percent": -0.0002923710336272555,
+      "label": "Startup latency @ 44100 Hz",
+      "path": "playback_latency_estimate.estimates[sample_rate_hz=44100].estimated_startup_ms",
+      "status": "stable",
+      "unit": "ms"
+    },
+    {
+      "adverse_delta_percent": 0.005483809053770596,
+      "baseline": 10.686003,
+      "better": "lower",
+      "current": 10.686589,
+      "delta": 0.0005860000000001975,
+      "delta_percent": 0.005483809053770596,
+      "label": "Startup latency @ 48000 Hz",
+      "path": "playback_latency_estimate.estimates[sample_rate_hz=48000].estimated_startup_ms",
+      "status": "stable",
+      "unit": "ms"
+    }
+  ],
+  "regression_threshold_percent": 10.0,
+  "schema_version": 1,
+  "summary": {
+    "improvement": 0,
+    "incomparable": 0,
+    "note": "Use tools/monitor-realtime.py for realtime Rust thresholds.",
+    "regression": 0,
+    "rust_escape_hatch_evaluated": false,
+    "stable": 9
+  },
+  "warnings": []
+}

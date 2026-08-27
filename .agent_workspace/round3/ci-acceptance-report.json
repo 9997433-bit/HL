@@ -1,0 +1,220 @@
+{
+  "binding_guard": {
+    "command": "! grep -rn PyQt6 audio-studio/",
+    "matches": [],
+    "status": "pass"
+  },
+  "caveats": [
+    "Xfails are audited product/evidence gaps, not acceptance passes.",
+    "Cloud/headless checks do not certify hardware audio or manual UI requirements.",
+    "sota_claimed remains false until every xfail is resolved and reviewed."
+  ],
+  "checklist": {
+    "automated_items": 30,
+    "cases": [
+      {
+        "case_id": "A1-LUFS",
+        "duration_seconds": 0.218,
+        "status": "passed"
+      },
+      {
+        "case_id": "A1-TP",
+        "detail": "Tech 3341 true-peak vectors have not been added",
+        "duration_seconds": 0.001,
+        "status": "xfail"
+      },
+      {
+        "case_id": "A2",
+        "duration_seconds": 0.182,
+        "status": "passed"
+      },
+      {
+        "case_id": "A3",
+        "duration_seconds": 0.01,
+        "status": "passed"
+      },
+      {
+        "case_id": "A4",
+        "duration_seconds": 0.001,
+        "status": "passed"
+      },
+      {
+        "case_id": "A5",
+        "detail": "SRC has no VHQ mode or quality report",
+        "duration_seconds": 0.001,
+        "status": "xfail"
+      },
+      {
+        "case_id": "A6",
+        "detail": "no true-peak limiter is implemented",
+        "duration_seconds": 0.001,
+        "status": "xfail"
+      },
+      {
+        "case_id": "A7",
+        "detail": "TPDF quantization and spectral evidence are missing",
+        "duration_seconds": 0.001,
+        "status": "xfail"
+      },
+      {
+        "case_id": "A8",
+        "detail": "AES17 measurement tool and report are missing",
+        "duration_seconds": 0.001,
+        "status": "xfail"
+      },
+      {
+        "case_id": "B1",
+        "detail": "no complete M1-M13 evidence manifest exists",
+        "duration_seconds": 0.001,
+        "status": "xfail"
+      },
+      {
+        "case_id": "B2",
+        "detail": "only shortened headless performance proxies exist",
+        "duration_seconds": 0.001,
+        "status": "xfail"
+      },
+      {
+        "case_id": "B3",
+        "detail": "explicit RF64 streaming support/evidence is missing",
+        "duration_seconds": 0.001,
+        "status": "xfail"
+      },
+      {
+        "case_id": "B4",
+        "duration_seconds": 0.023,
+        "status": "passed"
+      },
+      {
+        "case_id": "B5",
+        "detail": "spectral repair operations are missing",
+        "duration_seconds": 0.001,
+        "status": "xfail"
+      },
+      {
+        "case_id": "B6",
+        "detail": "plugin host and compatibility evidence are missing",
+        "duration_seconds": 0.001,
+        "status": "xfail"
+      },
+      {
+        "case_id": "B7",
+        "detail": "batch loudness workflow is missing",
+        "duration_seconds": 0.001,
+        "status": "xfail"
+      },
+      {
+        "case_id": "B8",
+        "detail": "only a synthetic mix proxy exists",
+        "duration_seconds": 0.001,
+        "status": "xfail"
+      },
+      {
+        "case_id": "C1",
+        "detail": "hardware playback stability evidence is missing",
+        "duration_seconds": 0.001,
+        "status": "xfail"
+      },
+      {
+        "case_id": "C2",
+        "detail": "hardware recording stability evidence is missing",
+        "duration_seconds": 0.001,
+        "status": "xfail"
+      },
+      {
+        "case_id": "C3",
+        "detail": "callback metering allocates and only proxy timing exists",
+        "duration_seconds": 0.001,
+        "status": "xfail"
+      },
+      {
+        "case_id": "C4",
+        "detail": "hardware loopback evidence is missing",
+        "duration_seconds": 0.001,
+        "status": "xfail"
+      },
+      {
+        "case_id": "D1",
+        "detail": "UI timer is 30Hz and no frame-time/HiDPI report exists",
+        "duration_seconds": 0.001,
+        "status": "xfail"
+      },
+      {
+        "case_id": "D2",
+        "detail": "dock widgets exist but workspace presets/persistence do not",
+        "duration_seconds": 0.001,
+        "status": "xfail"
+      },
+      {
+        "case_id": "D3",
+        "detail": "no keyboard-only workflow evidence exists",
+        "duration_seconds": 0.001,
+        "status": "xfail"
+      },
+      {
+        "case_id": "D4",
+        "detail": "palette checks pass partially, but screen-reader evidence is missing",
+        "duration_seconds": 0.001,
+        "status": "xfail"
+      },
+      {
+        "case_id": "D5",
+        "detail": "multi-scale UI evidence is missing",
+        "duration_seconds": 0.001,
+        "status": "xfail"
+      },
+      {
+        "case_id": "E1",
+        "duration_seconds": 0.001,
+        "status": "passed"
+      },
+      {
+        "case_id": "E2",
+        "detail": "no three-platform golden comparison artifact exists",
+        "duration_seconds": 0.001,
+        "status": "xfail"
+      },
+      {
+        "case_id": "E3",
+        "duration_seconds": 0.001,
+        "status": "passed"
+      },
+      {
+        "case_id": "E4",
+        "detail": "crash recovery implementation/evidence is missing",
+        "duration_seconds": 0.001,
+        "status": "xfail"
+      }
+    ],
+    "counting_note": "The combined Tech 3341 loudness/true-peak bullet is split into two independent checks, yielding 30 automated items.",
+    "source_top_level_bullets": 29,
+    "summary": {
+      "errors": 0,
+      "expected_gaps": 23,
+      "failed": 0,
+      "passed": 7,
+      "skipped": 0
+    }
+  },
+  "generated_at_utc": "2026-08-26T08:48:36.096325+00:00",
+  "git_revision": "c908a7e534cceff4aa693ae76bc1f4fb197e8135",
+  "pytest": {
+    "command": [
+      "/tmp/audio-ci-agent-worktree/audio-studio/.venv/bin/python",
+      "-m",
+      "pytest",
+      "-q",
+      "tests/acceptance/test_sota_checklist.py",
+      "--junitxml=/tmp/round3-acceptance-aerhg1a8/pytest.xml"
+    ],
+    "return_code": 0,
+    "status": "pass",
+    "stderr": "",
+    "stdout": "..x...xxxxxxx.xxxxxxxxxxxxx.xXx                                          [100%]\n7 passed, 23 xfailed, 1 xpassed in 1.53s\n"
+  },
+  "round": 3,
+  "schema_version": 1,
+  "scope": "CI repair and fable SOTA checklist acceptance automation",
+  "sota_claimed": false,
+  "validation_status": "pass"
+}

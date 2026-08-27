@@ -1,0 +1,181 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-26T07:36:04.036520+00:00",
+  "status": "degraded",
+  "development_ready": false,
+  "os": {
+    "system": "Linux",
+    "release": "6.12.94+",
+    "version": "#1 SMP PREEMPT_DYNAMIC Fri Aug 21 17:54:13 UTC 2026",
+    "machine": "x86_64",
+    "platform": "Linux-6.12.94+-x86_64-with-glibc2.39",
+    "distribution": {
+      "id": "ubuntu",
+      "name": "Ubuntu 24.04.4 LTS",
+      "version": "24.04"
+    },
+    "is_wsl": false,
+    "is_container": false
+  },
+  "python": {
+    "version": "3.12.3",
+    "implementation": "CPython",
+    "executable": "/workspace/.venv/bin/python",
+    "prefix": "/workspace/.venv",
+    "base_prefix": "/usr",
+    "in_virtual_environment": true,
+    "supported": true
+  },
+  "libraries": {
+    "numpy": {
+      "distribution": "numpy",
+      "module": "numpy",
+      "category": "runtime",
+      "required": true,
+      "installed": true,
+      "importable": true,
+      "version": "2.5.2",
+      "error": null
+    },
+    "scipy": {
+      "distribution": "scipy",
+      "module": "scipy",
+      "category": "runtime",
+      "required": true,
+      "installed": true,
+      "importable": true,
+      "version": "1.18.1",
+      "error": null
+    },
+    "sounddevice": {
+      "distribution": "sounddevice",
+      "module": "sounddevice",
+      "category": "runtime",
+      "required": true,
+      "installed": true,
+      "importable": true,
+      "version": "0.5.6",
+      "error": null
+    },
+    "soundfile": {
+      "distribution": "soundfile",
+      "module": "soundfile",
+      "category": "runtime",
+      "required": true,
+      "installed": true,
+      "importable": true,
+      "version": "0.14.0",
+      "error": null
+    },
+    "librosa": {
+      "distribution": "librosa",
+      "module": "librosa",
+      "category": "runtime",
+      "required": true,
+      "installed": true,
+      "importable": true,
+      "version": "1.0.0",
+      "error": null
+    },
+    "platformdirs": {
+      "distribution": "platformdirs",
+      "module": "platformdirs",
+      "category": "runtime",
+      "required": true,
+      "installed": true,
+      "importable": true,
+      "version": "4.11.4",
+      "error": null
+    },
+    "pytest": {
+      "distribution": "pytest",
+      "module": "pytest",
+      "category": "development",
+      "required": false,
+      "installed": true,
+      "importable": true,
+      "version": "9.1.1",
+      "error": null
+    },
+    "pytest-cov": {
+      "distribution": "pytest-cov",
+      "module": "pytest_cov",
+      "category": "development",
+      "required": false,
+      "installed": true,
+      "importable": true,
+      "version": "7.1.0",
+      "error": null
+    },
+    "mypy": {
+      "distribution": "mypy",
+      "module": "mypy",
+      "category": "development",
+      "required": false,
+      "installed": true,
+      "importable": true,
+      "version": "2.3.1",
+      "error": null
+    },
+    "ruff": {
+      "distribution": "ruff",
+      "module": "ruff",
+      "category": "development",
+      "required": false,
+      "installed": true,
+      "importable": true,
+      "version": "0.16.4",
+      "error": null
+    },
+    "build": {
+      "distribution": "build",
+      "module": "build",
+      "category": "development",
+      "required": false,
+      "installed": true,
+      "importable": true,
+      "version": "1.5.0",
+      "error": null
+    }
+  },
+  "audio": {
+    "portaudio": {
+      "library_available": true,
+      "library": "libportaudio.so.2",
+      "source": "system",
+      "pkg_config_version": "19"
+    },
+    "alsa": {
+      "applicable": true,
+      "library_available": true,
+      "library": "libasound.so.2",
+      "pkg_config_version": "1.2.11",
+      "proc_asound_available": false
+    },
+    "devices": {
+      "query_succeeded": true,
+      "count": 0,
+      "input_count": 0,
+      "output_count": 0,
+      "default_input": null,
+      "default_output": null,
+      "devices": [],
+      "error": null
+    }
+  },
+  "tools": {
+    "ffmpeg": {
+      "available": true,
+      "path": "/usr/bin/ffmpeg",
+      "version": "ffmpeg version 6.1.1-3ubuntu5 Copyright (c) 2000-2023 the FFmpeg developers",
+      "ffprobe_available": true
+    }
+  },
+  "missing_dependencies": [],
+  "platform_risks": [
+    {
+      "code": "no_audio_devices",
+      "detail": "No audio devices are visible; live capture/playback cannot be tested."
+    }
+  ]
+}

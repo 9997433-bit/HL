@@ -1,0 +1,8 @@
+# Runtime dependencies are pinned for repeatable desktop and CI environments.
+# Update these pins together after running the system probe and test suite.
+numpy==2.5.2
+scipy==1.18.1
+sounddevice==0.5.6
+soundfile==0.14.0
+librosa==1.0.0
+platformdirs==4.11.4

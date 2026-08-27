@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "harness": "benchmarks/soak_playback.py",
+  "mode": "accelerated",
+  "evidence": "headless-proxy",
+  "formal_slo_verified": true,
+  "environment": {
+    "python": "3.12.3",
+    "platform": "Linux-6.12.94+-x86_64-with-glibc2.39",
+    "processor": "x86_64"
+  },
+  "config": {
+    "duration_seconds": 5.0,
+    "sample_rate": 48000,
+    "block_size": 256,
+    "channels": 2,
+    "ring_blocks": 16,
+    "source_seconds": 30.0
+  },
+  "results": [
+    {
+      "slo_id": "callback-p99",
+      "title": "48k/256 render callback timing (headless proxy)",
+      "status": "pass",
+      "threshold_pass": true,
+      "evidence": "headless-proxy",
+      "formal_slo_verified": true,
+      "measured": {
+        "callbacks_measured": 938,
+        "callback_p50_ms": 0.002084,
+        "callback_p99_ms": 0.019824,
+        "callback_budget_ms": 5.333333,
+        "callback_p99_block_utilization_percent": 0.372,
+        "underrun_ratio": 0.0,
+        "underrun_frame_ratio": 0.0
+      },
+      "threshold": {
+        "callback_p99_ms_max": 5.333333,
+        "underrun_frame_ratio_max": 0.001
+      },
+      "limitation": "NullOutput backend on a shared host; formally verifies the approved headless software-pipeline proxy, not hardware-device behavior."
+    }
+  ],
+  "summary": {
+    "proxy_passed": 1,
+    "proxy_failed": 0,
+    "formal_slos_verified": 1
+  }
+}

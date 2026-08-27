@@ -1,0 +1,24 @@
+{
+  "artifact": "tpdf-spectrum-report",
+  "checklist_item": "A7",
+  "generated_by": "tools/generate_v1_evidence.py",
+  "status": "pass",
+  "method": "997 Hz sine at -60 dBFS, 2^18 samples at 48 kHz, quantized to 16 bits with quantize_with_tpdf; quantization-error spectrum via Welch PSD (nperseg=8192) against the undithered np.rint quantizer; silence-tail metrics mirror tests/test_dither.py",
+  "sample_rate": 48000,
+  "bit_depth": 16,
+  "error_rms_dbfs": -96.335,
+  "expected_error_rms_dbfs": -96.33,
+  "spectral_flatness": 0.9916,
+  "dithered_max_spur_above_median_db": 1.801,
+  "undithered_max_spur_above_median_db": 29.129,
+  "silence_tail_peak_lsb": 1.0,
+  "silence_tail_rms_dbfs": -96.3127,
+  "silence_tail_nonzero_samples": 2056,
+  "checks": {
+    "error_rms_within_1db_of_theory": true,
+    "error_spectrum_is_white": true,
+    "dither_removes_harmonic_spurs": true,
+    "silence_tail_noise_bounded_to_one_lsb": true
+  },
+  "unit_suite": "tests/test_dither.py"
+}

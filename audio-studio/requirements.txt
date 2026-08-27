@@ -1,0 +1,17 @@
+# Runtime dependencies for Audio Studio.
+numpy>=1.24
+scipy>=1.10
+soundfile>=0.12.1
+# Qt binding. PySide6-Essentials is the LGPL upstream binding the architecture
+# plan standardises on; the -Essentials wheel drops the WebEngine/3D modules
+# this application never loads.
+PySide6-Essentials>=6.6
+
+# Real-time device backends. Both are optional: the engine falls back to an
+# internal simulated clock when no hardware backend is importable, which keeps
+# the GUI and the test suite usable on headless machines. sounddevice is the
+# preferred output path (its wheels bundle PortAudio and expose WASAPI on
+# Windows); PyAudio still backs recording and remains selectable through
+# AUDIO_STUDIO_OUTPUT=pyaudio.
+sounddevice>=0.4.6
+PyAudio>=0.2.13

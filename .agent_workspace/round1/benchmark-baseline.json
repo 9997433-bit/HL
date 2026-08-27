@@ -1,0 +1,196 @@
+{
+  "configuration": {
+    "buffer_frames": 512,
+    "fft_iterations": 40,
+    "fft_size": 2048,
+    "fixtures_dir": "/workspace/tests/fixtures",
+    "load_repetitions": 7
+  },
+  "environment": {
+    "platform": "Linux-6.12.94+-x86_64-with-glibc2.39",
+    "processor": "x86_64",
+    "python": "3.12.3"
+  },
+  "fft": {
+    "checksum": 757.122178,
+    "elapsed_seconds": 0.084797,
+    "fft_size": 2048,
+    "implementation": "stdlib radix-2 Cooley-Tukey",
+    "iterations": 40,
+    "samples_per_second": 966073.143,
+    "source": "/workspace/tests/fixtures/clipping_48000hz.wav",
+    "transforms_per_second": 471.715
+  },
+  "file_loading": {
+    "aggregate": {
+      "file_count": 12,
+      "median_of_file_medians_ms": 0.019336,
+      "sum_of_file_medians_ms": 0.275555,
+      "total_bytes": 1289928
+    },
+    "files": [
+      {
+        "channels": 1,
+        "duration_seconds": 1.0,
+        "frames": 44100,
+        "median_ms": 0.043195,
+        "minimum_ms": 0.020833,
+        "path": "/workspace/tests/fixtures/clipping_44100hz.wav",
+        "sample_rate_hz": 44100,
+        "size_bytes": 88244,
+        "throughput_mib_per_second": 1948.282
+      },
+      {
+        "channels": 1,
+        "duration_seconds": 1.0,
+        "frames": 48000,
+        "median_ms": 0.01935,
+        "minimum_ms": 0.01801,
+        "path": "/workspace/tests/fixtures/clipping_48000hz.wav",
+        "sample_rate_hz": 48000,
+        "size_bytes": 96044,
+        "throughput_mib_per_second": 4733.576
+      },
+      {
+        "channels": 1,
+        "duration_seconds": 1.0,
+        "frames": 44100,
+        "median_ms": 0.017885,
+        "minimum_ms": 0.01728,
+        "path": "/workspace/tests/fixtures/multi_frequency_44100hz.wav",
+        "sample_rate_hz": 44100,
+        "size_bytes": 88244,
+        "throughput_mib_per_second": 4705.398
+      },
+      {
+        "channels": 1,
+        "duration_seconds": 1.0,
+        "frames": 48000,
+        "median_ms": 0.019549,
+        "minimum_ms": 0.01799,
+        "path": "/workspace/tests/fixtures/multi_frequency_48000hz.wav",
+        "sample_rate_hz": 48000,
+        "size_bytes": 96044,
+        "throughput_mib_per_second": 4685.39
+      },
+      {
+        "channels": 1,
+        "duration_seconds": 1.0,
+        "frames": 44100,
+        "median_ms": 0.017857,
+        "minimum_ms": 0.017121,
+        "path": "/workspace/tests/fixtures/silence_44100hz.wav",
+        "sample_rate_hz": 44100,
+        "size_bytes": 88244,
+        "throughput_mib_per_second": 4712.776
+      },
+      {
+        "channels": 1,
+        "duration_seconds": 1.0,
+        "frames": 48000,
+        "median_ms": 0.018025,
+        "minimum_ms": 0.017454,
+        "path": "/workspace/tests/fixtures/silence_48000hz.wav",
+        "sample_rate_hz": 48000,
+        "size_bytes": 96044,
+        "throughput_mib_per_second": 5081.537
+      },
+      {
+        "channels": 1,
+        "duration_seconds": 1.0,
+        "frames": 44100,
+        "median_ms": 0.017622,
+        "minimum_ms": 0.017068,
+        "path": "/workspace/tests/fixtures/sine_sweep_44100hz.wav",
+        "sample_rate_hz": 44100,
+        "size_bytes": 88244,
+        "throughput_mib_per_second": 4775.623
+      },
+      {
+        "channels": 1,
+        "duration_seconds": 1.0,
+        "frames": 48000,
+        "median_ms": 0.019323,
+        "minimum_ms": 0.018369,
+        "path": "/workspace/tests/fixtures/sine_sweep_48000hz.wav",
+        "sample_rate_hz": 48000,
+        "size_bytes": 96044,
+        "throughput_mib_per_second": 4740.19
+      },
+      {
+        "channels": 2,
+        "duration_seconds": 1.0,
+        "frames": 44100,
+        "median_ms": 0.036229,
+        "minimum_ms": 0.019153,
+        "path": "/workspace/tests/fixtures/stereo_phase_90deg_44100hz.wav",
+        "sample_rate_hz": 44100,
+        "size_bytes": 176444,
+        "throughput_mib_per_second": 4644.625
+      },
+      {
+        "channels": 2,
+        "duration_seconds": 1.0,
+        "frames": 48000,
+        "median_ms": 0.02794,
+        "minimum_ms": 0.019888,
+        "path": "/workspace/tests/fixtures/stereo_phase_90deg_48000hz.wav",
+        "sample_rate_hz": 48000,
+        "size_bytes": 192044,
+        "throughput_mib_per_second": 6555.026
+      },
+      {
+        "channels": 1,
+        "duration_seconds": 1.0,
+        "frames": 44100,
+        "median_ms": 0.020279,
+        "minimum_ms": 0.017775,
+        "path": "/workspace/tests/fixtures/white_noise_44100hz.wav",
+        "sample_rate_hz": 44100,
+        "size_bytes": 88244,
+        "throughput_mib_per_second": 4149.911
+      },
+      {
+        "channels": 1,
+        "duration_seconds": 1.0,
+        "frames": 48000,
+        "median_ms": 0.018301,
+        "minimum_ms": 0.016831,
+        "path": "/workspace/tests/fixtures/white_noise_48000hz.wav",
+        "sample_rate_hz": 48000,
+        "size_bytes": 96044,
+        "throughput_mib_per_second": 5004.901
+      }
+    ],
+    "repetitions_per_file": 7
+  },
+  "generated_at_utc": "2026-08-26T07:35:02.069730+00:00",
+  "memory": {
+    "estimated_payload_and_spectrum_bytes": 224768,
+    "process_peak_rss_bytes": 20021248,
+    "python_current_bytes": 276174,
+    "python_peak_bytes": 276730,
+    "workload": "load largest fixture and compute one FFT"
+  },
+  "playback_latency_estimate": {
+    "device_io_measured": false,
+    "estimates": [
+      {
+        "buffer_frames": 512,
+        "estimated_startup_ms": 11.629059,
+        "median_load_ms": 0.019082,
+        "output_buffer_ms": 11.609977,
+        "sample_rate_hz": 44100
+      },
+      {
+        "buffer_frames": 512,
+        "estimated_startup_ms": 10.686003,
+        "median_load_ms": 0.019336,
+        "output_buffer_ms": 10.666667,
+        "sample_rate_hz": 48000
+      }
+    ],
+    "method": "median validated file load + one output callback buffer"
+  },
+  "schema_version": 1
+}

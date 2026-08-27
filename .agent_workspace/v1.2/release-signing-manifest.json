@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "tool": "scripts/release-signing-manifest.sh",
+  "generated_at": "2026-08-27T05:03:11+00:00",
+  "release_version": "1.1.0",
+  "platform": {
+    "system": "Linux",
+    "machine": "x86_64",
+    "release": "6.12.94+"
+  },
+  "platforms": {
+    "linux": {
+      "report": ".agent_workspace/v1.1/linux-signing-report.json",
+      "present": true,
+      "signed": false,
+      "reason": "no SIGNING_KEY configured: artifacts are checksummed but unsigned",
+      "tool": "scripts/sign-linux-artifact.sh",
+      "generated_at": "2026-08-27T03:54:13+00:00",
+      "signing_method": "gpg-detached-armored",
+      "host_system": "Linux",
+      "notarized": false,
+      "artifact_count": 2,
+      "artifacts": [
+        {
+          "path": "dist/audio-studio-1.1.0-x86_64.AppImage",
+          "size_bytes": 102955512,
+          "sha256": "10273311a558939dcadca21bc2ebb7aa2c303badc2e12d3ede78d386476c61dd",
+          "signature": null,
+          "signature_verified": false
+        },
+        {
+          "path": "dist/audio-studio_1.1.0-1_amd64.deb",
+          "size_bytes": 84740004,
+          "sha256": "b8670a80e07888508713b631ca7e554877c3b4f5544bc2d3ef8bcb55d74896f8",
+          "signature": null,
+          "signature_verified": false
+        }
+      ]
+    },
+    "macos": {
+      "report": ".agent_workspace/v1.2/macos-signing-report.json",
+      "present": false,
+      "signed": false,
+      "reason": "no report at .agent_workspace/v1.2/macos-signing-report.json: nothing signed macos artifacts for this release",
+      "artifact_count": 0,
+      "artifacts": []
+    },
+    "windows": {
+      "report": ".agent_workspace/v1.2/windows-signing-report.json",
+      "present": false,
+      "signed": false,
+      "reason": "no report at .agent_workspace/v1.2/windows-signing-report.json: nothing signed windows artifacts for this release",
+      "artifact_count": 0,
+      "artifacts": []
+    }
+  },
+  "signed_platforms": [],
+  "unsigned_platforms": [
+    "linux"
+  ],
+  "missing_reports": [
+    "macos",
+    "windows"
+  ],
+  "fully_signed": false,
+  "artifact_count": 2,
+  "note": "Aggregated from the per-platform signing reports; this script signs nothing. A platform listed in unsigned_platforms was checksummed but not signed, and one in missing_reports was not signed here at all. This project holds no Apple Developer ID and no Authenticode certificate, so macOS and Windows artifacts are unsigned unless a release operator supplies those credentials."
+}

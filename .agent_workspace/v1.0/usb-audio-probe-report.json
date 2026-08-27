@@ -1,0 +1,326 @@
+{
+  "schema_version": 1,
+  "harness": "benchmarks/usb_audio_probe.py",
+  "checklist_item": "C4",
+  "evidence": "device-enumeration",
+  "status": "not-certified",
+  "physical_hardware_present": false,
+  "verdict": "no /dev/snd, no /proc/asound/cards: this host has no sound card, so nothing above the kernel can be a physical audio device",
+  "generated_at": "2026-08-27T03:58:53+00:00",
+  "counts": {
+    "kernel_cards": 0,
+    "usb_audio_interfaces": 0,
+    "portaudio_devices": 2,
+    "physical_devices": 0,
+    "physical_playback_devices": 0,
+    "physical_capture_devices": 0
+  },
+  "kernel": {
+    "applicable": true,
+    "platform": "Linux",
+    "dev_snd_present": false,
+    "dev_snd_nodes": [],
+    "pcm_nodes": [],
+    "proc_asound_present": false,
+    "sys_class_sound_present": false,
+    "cards": [],
+    "card_count": 0,
+    "detail": "no /dev/snd, no /proc/asound/cards: this host has no sound card, so nothing above the kernel can be a physical audio device"
+  },
+  "usb": {
+    "sysfs_available": false,
+    "audio_class_interfaces": [],
+    "audio_class_interface_count": 0,
+    "lsusb_available": false,
+    "lsusb_audio_lines": [],
+    "detail": "/sys/bus/usb/devices is not present: this container has no view of a USB bus, so a USB interface could not be seen even if one existed"
+  },
+  "portaudio": {
+    "available": true,
+    "sounddevice": "0.5.6",
+    "portaudio": "PortAudio V19.6.0-devel, revision 396fe4b6699ae929d3a685b3ef8a7e97396139a4",
+    "host_apis": [
+      {
+        "index": 0,
+        "name": "ALSA",
+        "device_count": 2,
+        "default_input_device": 1,
+        "default_output_device": 1
+      },
+      {
+        "index": 1,
+        "name": "OSS",
+        "device_count": 0,
+        "default_input_device": -1,
+        "default_output_device": -1
+      }
+    ],
+    "devices": [
+      {
+        "index": 0,
+        "name": "pulse",
+        "hostapi_index": 0,
+        "hostapi": "ALSA",
+        "max_input_channels": 32,
+        "max_output_channels": 32,
+        "default_samplerate": 44100.0,
+        "default_low_input_latency_ms": 8.6848,
+        "default_low_output_latency_ms": 8.6848,
+        "default_high_input_latency_ms": 34.8073,
+        "default_high_output_latency_ms": 34.8073,
+        "classification": "virtual",
+        "physical": false,
+        "reason": "'pulse' names a sound server or a virtual device",
+        "format_check": {
+          "sample_rate": 48000,
+          "dtype": "float32",
+          "input": {
+            "supported": true,
+            "channels": 2
+          },
+          "output": {
+            "supported": true,
+            "channels": 2
+          }
+        }
+      },
+      {
+        "index": 1,
+        "name": "default",
+        "hostapi_index": 0,
+        "hostapi": "ALSA",
+        "max_input_channels": 32,
+        "max_output_channels": 32,
+        "default_samplerate": 44100.0,
+        "default_low_input_latency_ms": 8.6848,
+        "default_low_output_latency_ms": 8.6848,
+        "default_high_input_latency_ms": 34.8073,
+        "default_high_output_latency_ms": 34.8073,
+        "classification": "alsa-plugin",
+        "physical": false,
+        "reason": "'default' is an ALSA plugin, not a card",
+        "format_check": {
+          "sample_rate": 48000,
+          "dtype": "float32",
+          "input": {
+            "supported": true,
+            "channels": 2
+          },
+          "output": {
+            "supported": true,
+            "channels": 2
+          }
+        }
+      }
+    ],
+    "device_count": 2,
+    "physical_device_count": 0,
+    "default_input_device": 1,
+    "default_output_device": 1,
+    "detail": "2 device(s) across 2 host API(s); 0 classified as physical"
+  },
+  "sound_server": {
+    "pulseaudio_available": true,
+    "server_version": "16.1",
+    "default_sink": "recording_soak",
+    "default_source": "recording_soak.monitor",
+    "sinks": [
+      {
+        "index": "1",
+        "name": "recording_soak",
+        "driver": "module-null-sink.c",
+        "sample_spec": "s16le 2ch 48000Hz",
+        "kind": "null-sink"
+      },
+      {
+        "index": "2",
+        "name": "loopback48",
+        "driver": "module-null-sink.c",
+        "sample_spec": "float32le 2ch 48000Hz",
+        "kind": "null-sink"
+      }
+    ],
+    "sources": [
+      {
+        "index": "1",
+        "name": "recording_soak.monitor",
+        "driver": "module-null-sink.c",
+        "sample_spec": "s16le 2ch 48000Hz",
+        "kind": "null-sink"
+      },
+      {
+        "index": "2",
+        "name": "loopback48.monitor",
+        "driver": "module-null-sink.c",
+        "sample_spec": "float32le 2ch 48000Hz",
+        "kind": "null-sink"
+      }
+    ],
+    "hardware_sink_count": 0,
+    "null_sink_count": 2,
+    "null_sink_only": true,
+    "detail": "2 sink(s), of which 2 are null sinks and 0 are backed by an ALSA card"
+  },
+  "c4_baseline_comparison": {
+    "report": ".agent_workspace/round3/roundtrip-latency-report.json",
+    "available": true,
+    "checklist_item": "C4",
+    "status": "pass",
+    "evidence": "hardware-loopback",
+    "loopback_path": "pulseaudio-null-sink-monitor",
+    "buffer_frames": 128,
+    "sample_rate": 48000,
+    "roundtrip_latency_ms": 8.0417,
+    "threshold_ms": 15.0,
+    "margin_ms": 6.9583,
+    "baseline_claims_physical_dac_adc": false,
+    "agrees_with_this_probe": true,
+    "pulseaudio_null_sink_only": true,
+    "signal_path": [
+      {
+        "stage": "application render path (AudioEngine ring buffer, feeder, gain)",
+        "measured_here": "present",
+        "on_physical_hardware": "present",
+        "note": "the engine-render scenario puts the product's own transport in the loop"
+      },
+      {
+        "stage": "PortAudio duplex callback",
+        "measured_here": "present",
+        "on_physical_hardware": "present",
+        "note": "same API, same 128-frame block, same float32 format"
+      },
+      {
+        "stage": "ALSA PCM device",
+        "measured_here": "present",
+        "on_physical_hardware": "present",
+        "note": "the plugin PCM here; the card's own PCM there"
+      },
+      {
+        "stage": "ALSA-to-PulseAudio plugin",
+        "measured_here": "present",
+        "on_physical_hardware": "optional",
+        "note": "present when the card is reached through the server, absent when opened directly"
+      },
+      {
+        "stage": "PulseAudio scheduler and mixer",
+        "measured_here": "present",
+        "on_physical_hardware": "optional",
+        "note": "as above"
+      },
+      {
+        "stage": "null-sink timer scheduling",
+        "measured_here": "present",
+        "on_physical_hardware": "absent",
+        "note": "a sink with no device behind it advances on a timer, not on interrupts"
+      },
+      {
+        "stage": "device interrupt cadence and DMA transfer",
+        "measured_here": "absent",
+        "on_physical_hardware": "present",
+        "note": "what the null sink's timer stands in for"
+      },
+      {
+        "stage": "USB isochronous transfer",
+        "measured_here": "absent",
+        "on_physical_hardware": "present",
+        "note": "for a USB interface; a PCI card substitutes its own bus transfer"
+      },
+      {
+        "stage": "digital-to-analogue converter and reconstruction filter",
+        "measured_here": "absent",
+        "on_physical_hardware": "present",
+        "note": "no converter exists on this host to measure"
+      },
+      {
+        "stage": "analogue output stage, cable and analogue input stage",
+        "measured_here": "absent",
+        "on_physical_hardware": "present",
+        "note": "the loop is closed inside the server instead of by a cable"
+      },
+      {
+        "stage": "analogue-to-digital converter and anti-alias filter",
+        "measured_here": "absent",
+        "on_physical_hardware": "present",
+        "note": "no converter exists on this host to measure"
+      }
+    ],
+    "stages_absent_from_this_host": [
+      "device interrupt cadence and DMA transfer",
+      "USB isochronous transfer",
+      "digital-to-analogue converter and reconstruction filter",
+      "analogue output stage, cable and analogue input stage",
+      "analogue-to-digital converter and anti-alias filter"
+    ],
+    "converter_overhead": {
+      "measured": false,
+      "estimate_ms": [
+        1.0,
+        3.0
+      ],
+      "source": "the estimate stated in benchmarks/roundtrip_latency_probe.py for typical converters; no converter on this host was measured",
+      "worst_case_roundtrip_with_estimate_ms": 11.0417,
+      "still_within_threshold": true,
+      "headroom_after_estimate_ms": 3.9583
+    },
+    "conclusion": "the baseline was measured through a sound-server loopback and this host has no converter to measure through, so C4 cannot be upgraded to hardware evidence here. The measurement stands for every software stage it contains; the converter path is unmeasured and is stated as such in both artifacts"
+  },
+  "certification": {
+    "certified_on_physical_hardware": false,
+    "blocking_reason": "no /dev/snd, no /proc/asound/cards: this host has no sound card, so nothing above the kernel can be a physical audio device",
+    "require_physical_requested": false,
+    "required_to_certify": [
+      "attach a class-compliant audio interface to a host that exposes /dev/snd, so the kernel binds a card",
+      "python3 benchmarks/usb_audio_probe.py --require-physical",
+      "python3 benchmarks/roundtrip_latency_probe.py --require-physical --device <the interface> --sink <its hardware sink>",
+      "publish both reports alongside the existing loopback evidence rather than in place of it"
+    ]
+  },
+  "observations": [
+    {
+      "id": "kernel-sound-card",
+      "title": "the kernel has bound a driver to a sound card",
+      "found": false,
+      "detail": "no /dev/snd, no /proc/asound/cards: this host has no sound card, so nothing above the kernel can be a physical audio device"
+    },
+    {
+      "id": "alsa-pcm-nodes",
+      "title": "/dev/snd exposes PCM device nodes",
+      "found": false,
+      "detail": "/dev/snd does not exist on this host"
+    },
+    {
+      "id": "usb-audio-class-interface",
+      "title": "a USB Audio class interface is attached",
+      "found": false,
+      "detail": "/sys/bus/usb/devices is not present: this container has no view of a USB bus, so a USB interface could not be seen even if one existed"
+    },
+    {
+      "id": "portaudio-physical-device",
+      "title": "PortAudio advertises a device backed by a card",
+      "found": false,
+      "detail": "2 device(s) across 2 host API(s); 0 classified as physical"
+    },
+    {
+      "id": "sound-server-hardware-sink",
+      "title": "the sound server has a sink backed by an ALSA card",
+      "found": false,
+      "detail": "2 sink(s), of which 2 are null sinks and 0 are backed by an ALSA card"
+    }
+  ],
+  "config": {
+    "sample_rate": 48000,
+    "channels": 2,
+    "buffer_frames_referenced": 128,
+    "sysroot": "/",
+    "baseline": ".agent_workspace/round3/roundtrip-latency-report.json"
+  },
+  "environment": {
+    "python": "3.12.3",
+    "platform": "Linux-6.12.94+-x86_64-with-glibc2.39",
+    "machine": "x86_64",
+    "processor": "x86_64",
+    "sounddevice": "0.5.6",
+    "portaudio": "PortAudio V19.6.0-devel, revision 396fe4b6699ae929d3a685b3ef8a7e97396139a4"
+  },
+  "limitation": "This is an inventory, not a measurement: it establishes what kind of audio device exists on the host and therefore what kind of evidence a latency run on it can be. It opens no stream and times nothing. No physical device was found: no /dev/snd, no card in /proc/asound, no USB audio class interface, and every PortAudio device is a plugin over PulseAudio's null sinks. Any latency measured on this host therefore excludes the DAC, the ADC, their filters and the analogue path, which is what the C4 report already states in physical_dac_adc: false. This probe corroborates that claim; it does not remove the limitation."
+}
