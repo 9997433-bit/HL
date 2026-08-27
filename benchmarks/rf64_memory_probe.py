@@ -374,7 +374,7 @@ def _mock_soundfile(handle: _MockRF64Handle):
     import soundfile as sf
 
     real = sf.SoundFile
-    sf.SoundFile = lambda path, mode="r": handle  # noqa: ARG005 - path unused
+    sf.SoundFile = lambda path, mode="r": handle
     try:
         yield
     finally:
