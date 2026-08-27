@@ -381,10 +381,27 @@ def _verify_roundtrip_latency(_tmp_path: Path) -> None:
 
 def _verify_ui_60fps(_tmp_path: Path) -> None:
     assert UI_REFRESH_MS <= 16
-    report = _load_json(REPOSITORY_ROOT / ".agent_workspace/round3/ui-frame-time-report.json")
+    # benchmarks/ui_frame_time_probe.py writes this report. It drives the real
+    # refresh-timer slot on the Qt offscreen platform, which rasterises through
+    # the same paint engine a visible window does; what it cannot see is the
+    # compositor, so the frame times are the cost of *producing* a frame rather
+    # than proof that a particular display then presents sixty of them.
+    report = _load_json(REPOSITORY_ROOT / ".agent_workspace/v1.0/ui-frame-time-report.json")
+    assert report["evidence"] == "headless-offscreen"
     assert report["p99_frame_ms"] < 16.0
     assert report["hidpi_2x"] == "pass"
     assert report["dark_theme_default"] is True
+    # A frame that waits on a busy neighbour is indistinguishable from a frame
+    # that works, so a contended run must not be read as a measurement.
+    assert report["contention"]["host_was_busy"] is False
+    # HiDPI is only demonstrated if a 2× run actually happened, and the
+    # headline p99 is only the worst case if every scenario is behind it.
+    assert {1.0, 2.0} <= set(report["config"]["scale_factors"])
+    assert report["results"], "evidence report contains no measured results"
+    assert all(item["status"] == "pass" for item in report["results"])
+    assert report["p99_frame_ms"] == max(
+        item["measured"]["p99_ms"] for item in report["results"]
+    )
 
 
 def _verify_workspace_persistence(_tmp_path: Path) -> None:
@@ -590,13 +607,7 @@ CHECKLIST_CASES = (
         _verify_roundtrip_latency,
         "hardware loopback evidence is missing",
     ),
-    ChecklistCase(
-        "D1",
-        "P0",
-        "60fps, HiDPI, and dark default",
-        _verify_ui_60fps,
-        "UI timer is 30Hz and no frame-time/HiDPI report exists",
-    ),
+    ChecklistCase("D1", "P0", "60fps, HiDPI, and dark default", _verify_ui_60fps),
     ChecklistCase(
         "D2",
         "P0",
