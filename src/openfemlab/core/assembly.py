@@ -96,6 +96,17 @@ def _assemble_elements(
     and duplicate element traversal costs that dominate assembly for large meshes
     of low-order elements.
     """
+    if stiffness:
+        from ..accel.assembly_rust import assemble_truss_stiffness_rust, use_rust_assembly
+
+        if use_rust_assembly():
+            rust_stiffness = assemble_truss_stiffness_rust(model)
+            if rust_stiffness is not None:
+                if not mass:
+                    return rust_stiffness, None
+                _, mass_matrix = _assemble_elements(model, stiffness=False, mass=True)
+                return rust_stiffness, mass_matrix
+
     elements = model.elements
     counts = np.fromiter(
         (element.num_dofs**2 for element in elements),

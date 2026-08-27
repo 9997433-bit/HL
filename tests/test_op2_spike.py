@@ -556,6 +556,34 @@ def test_phase3_reads_grids_elements_and_materials_into_a_neutral_model():
     assert model.meta["skipped_records"] == {}
 
 
+CBAR_PROPERTY_ID = 50
+
+
+def cbar_elements() -> list[_op2.CBar]:
+    """Two ``CBAR`` cards sharing one property id."""
+
+    return [
+        _op2.CBar(id=300, property_id=CBAR_PROPERTY_ID, grids=(11, 22), orientation=(0.0, 0.0, 1.0)),
+        _op2.CBar(id=400, property_id=CBAR_PROPERTY_ID, grids=(22, 33), orientation=(0.0, 1.0, 0.0)),
+    ]
+
+
+def test_phase3_reads_cbar_elements_into_beam2_blocks():
+    """Phase 3: ``GEOM2`` ``CBAR`` records import as ``BEAM2`` connectivity."""
+
+    content = _op2.geometry_file(rod_grids(), cbars=cbar_elements())
+
+    model = read_op2(io.BytesIO(content))
+
+    assert list(model.node_ids) == [11, 22, 33]
+    assert list(model.elements) == [ElementType.BEAM2]
+    np.testing.assert_array_equal(model.elements[ElementType.BEAM2], [[11, 22], [22, 33]])
+    np.testing.assert_array_equal(
+        model.element_property_ids[ElementType.BEAM2], [CBAR_PROPERTY_ID] * 2
+    )
+    assert model.meta["element_ids"] == {"beam2": [300, 400]}
+
+
 @pytest.mark.parametrize("word_size", [4, 8])
 @pytest.mark.parametrize("byte_order", ["<", ">"])
 def test_phase3_reads_the_same_model_from_every_framing_variant(word_size, byte_order):

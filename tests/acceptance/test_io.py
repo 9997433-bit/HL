@@ -786,3 +786,88 @@ def test_ac_io_012_abaqus_driver_reports_missing_executable(tmp_path, monkeypatc
     assert abaqus_driver.resolve_abaqus_executable("/opt/abaqus") == "/opt/abaqus"
     with pytest.raises(FormatError, match="no Abaqus executable"):
         abaqus_driver.run_abaqus(deck, executable=None)
+
+
+@criterion("AC-IO-013")
+def test_ac_io_013_op2_cbar_geometry_matches_the_bdf_of_the_same_model() -> None:
+    """OP2 ``CBAR`` ``GEOM2`` import agrees with the bulk-data reader."""
+    import io
+
+    from openfemlab.core.neutral import ElementType
+    from openfemlab.io.nastran import read_bdf
+    from openfemlab.io.op2 import read_op2
+    from tests import _op2
+
+    grids = [
+        _op2.Grid(id=11, xyz=(0.0, 0.0, 0.0)),
+        _op2.Grid(id=22, xyz=(1.0, 0.0, 0.0)),
+        _op2.Grid(id=33, xyz=(2.0, 0.5, 0.0)),
+    ]
+    cbars = [
+        _op2.CBar(id=300, property_id=50, grids=(11, 22), orientation=(0.0, 0.0, 1.0)),
+        _op2.CBar(id=400, property_id=50, grids=(22, 33), orientation=(0.0, 1.0, 0.0)),
+    ]
+    content = _op2.geometry_file(grids, cbars=cbars)
+    bdf_text = io.StringIO(
+        "\n".join(
+            [
+                "GRID,11,,0.,0.,0.",
+                "GRID,22,,1.,0.,0.",
+                "GRID,33,,2.,0.5,0.",
+                "CBAR,300,50,11,22,0.,0.,1.",
+                "CBAR,400,50,22,33,0.,1.,0.",
+            ]
+        )
+        + "\n"
+    )
+
+    bdf_model = read_bdf(bdf_text)
+    op2_model = read_op2(io.BytesIO(content))
+
+    np.testing.assert_array_equal(bdf_model.node_ids, op2_model.node_ids)
+    np.testing.assert_allclose(bdf_model.nodes, op2_model.nodes)
+    assert ElementType.BEAM2 in bdf_model.elements
+    for element_type in bdf_model.elements:
+        np.testing.assert_array_equal(
+            bdf_model.elements[element_type], op2_model.elements[element_type]
+        )
+        np.testing.assert_array_equal(
+            bdf_model.element_property_ids[element_type],
+            op2_model.element_property_ids[element_type],
+        )
+
+
+@criterion("AC-IO-014")
+def test_ac_io_014_corpus_sidecar_bdf_matches_op2_geometry(tmp_path) -> None:
+    """When a corpus OP2 has a sidecar BDF, geometry import agrees with bulk data."""
+    import sys
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    sys.path.insert(0, str(root / "scripts"))
+    from generate_op2_corpus import build_corpus  # noqa: E402
+
+    from openfemlab.io.nastran import read_bdf
+    from openfemlab.io.op2 import read_op2
+
+    corpus_dir = tmp_path / "corpus"
+    build_corpus(corpus_dir)
+    geometry_files = sorted(corpus_dir.glob("*_geometry.op2"))
+    assert geometry_files, "synthetic corpus must ship geometry sidecars"
+
+    for op2_path in geometry_files:
+        bdf_path = op2_path.with_suffix(".bdf")
+        assert bdf_path.is_file(), f"missing sidecar for {op2_path.name}"
+        bdf_model = read_bdf(bdf_path)
+        op2_model = read_op2(op2_path)
+        np.testing.assert_array_equal(bdf_model.node_ids, op2_model.node_ids)
+        np.testing.assert_allclose(bdf_model.nodes, op2_model.nodes)
+        assert list(bdf_model.elements) == list(op2_model.elements)
+        for element_type in bdf_model.elements:
+            np.testing.assert_array_equal(
+                bdf_model.elements[element_type], op2_model.elements[element_type]
+            )
+            np.testing.assert_array_equal(
+                bdf_model.element_property_ids[element_type],
+                op2_model.element_property_ids[element_type],
+            )

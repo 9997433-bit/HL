@@ -71,7 +71,7 @@ FAMILY_TO_MODULE = {
 }
 EXPECTED_CRITERIA_PER_FAMILY = {
     "MODAL": 9,     "CORR": 13, "UPD": 15, "WORK": 9, "OPT": 4, "DYN": 9, "ELEM": 3,
-    "IO": 12, "MPE": 8, "PRETEST": 9, "PERF": 5,
+    "IO": 14, "MPE": 8, "PRETEST": 9, "PERF": 6,
 }
 
 
@@ -137,6 +137,8 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P2", "property", "MS-1.6", _PERF_SUITE, "implemented"),
     _c("AC-PERF-005", "Modal benchmark stays within the CI gate budget",
        "P2", "contract", "MS-1.6", _PERF_SUITE, "implemented"),
+    _c("AC-PERF-006", "Rust truss stiffness matches the Python reference",
+       "P2", "property", "MS-1.6", _PERF_SUITE, "implemented"),
     # --- M2 Correlation (MS-2) ----------------------------------------------
     _c("AC-CORR-001", "Weighted MAC self-identity",
        "P0", "property", "MS-2.2", _CORR_SUITE, "verified"),
@@ -274,6 +276,10 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P2", "contract", "MS-9.7", _IO_SUITE, "implemented"),
     _c("AC-IO-012", "Abaqus driver stub resolves exe and typed failure",
        "P2", "contract", "MS-9.7", _IO_SUITE, "implemented"),
+    _c("AC-IO-013", "OP2 CBAR geometry import matches the BDF of the same model",
+       "P2", "contract", "MS-9.6", _IO_SUITE, "implemented"),
+    _c("AC-IO-014", "Corpus OP2 sidecar BDF geometry matches OP2 import",
+       "P2", "contract", "MS-9.6", _IO_SUITE, "implemented"),
     # --- M9 Modal parameter extraction (MS-10), GAP-06 -----------------------
     _c("AC-MPE-001", "LSCF pole recovery on synthesized FRFs",
        "P0", "oracle", "MS-10.2", _MPE_SUITE, "verified"),
@@ -339,7 +345,7 @@ def test_registry_inventory_matches_documented_scope():
         for family in EXPECTED_CRITERIA_PER_FAMILY
     }
     assert counts == EXPECTED_CRITERIA_PER_FAMILY
-    assert len(REGISTRY) == 96
+    assert len(REGISTRY) == 99
 
 
 def test_ids_unique():

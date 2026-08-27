@@ -225,3 +225,41 @@ def test_ac_perf_005_modal_benchmark_stays_within_ci_budget():
         )
     elapsed = time.perf_counter() - started
     assert elapsed <= BENCH_TIME_LIMIT_SECONDS
+
+
+RUST_TRUSS_STIFFNESS_RTOL = 1e-12
+
+
+@criterion("AC-PERF-006")
+def test_ac_perf_006_rust_truss_stiffness_matches_python_reference(monkeypatch):
+    """Rust rod assembly agrees with the Python reference when explicitly enabled."""
+    pytest.importorskip("openfemlab_asm")
+
+    from openfemlab.core.assembly import assemble_stiffness
+    from openfemlab.core.model import Material, Section
+    from openfemlab.mesh.simple import truss_from_arrays
+
+    material = Material(E=210e9, density=7800.0, name="steel")
+    section = Section(area=2.5e-4, name="rod")
+    coordinates = np.array(
+        [
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [1.0, 1.0, 0.0],
+            [0.0, 1.0, 0.5],
+        ],
+        dtype=float,
+    )
+    connectivity = np.array([[0, 1], [1, 2], [2, 3], [3, 0], [0, 2]], dtype=int)
+    model = truss_from_arrays(coordinates, connectivity, material, section)
+
+    monkeypatch.delenv("OPENFEMLAB_USE_RUST_ASM", raising=False)
+    reference = assemble_stiffness(model)
+
+    monkeypatch.setenv("OPENFEMLAB_USE_RUST_ASM", "1")
+    accelerated = assemble_stiffness(model)
+
+    difference = accelerated - reference
+    reference_norm = sp.linalg.norm(reference)
+    assert reference_norm > 0.0
+    assert sp.linalg.norm(difference) / reference_norm <= RUST_TRUSS_STIFFNESS_RTOL

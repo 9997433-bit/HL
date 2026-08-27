@@ -51,6 +51,7 @@ GRID_RECORD_KEY = (4501, 45, 1)
 
 #: ``GEOM2`` record key of the ``CROD`` card, and ``MPT``'s of ``MAT1``.
 CROD_RECORD_KEY = (3001, 30, 48)
+CBAR_RECORD_KEY = (2408, 24, 180)
 MAT1_RECORD_KEY = (103, 1, 77)
 CORD2R_RECORD_KEY = (2101, 21, 8)
 CORD2C_RECORD_KEY = (2001, 20, 9)
@@ -111,6 +112,16 @@ class Rod:
     id: int
     property_id: int
     grids: tuple[int, int]
+
+
+@dataclass(frozen=True)
+class CBar:
+    """A ``CBAR`` card as ``GEOM2`` writes it."""
+
+    id: int
+    property_id: int
+    grids: tuple[int, int]
+    orientation: tuple[float, float, float] = (0.0, 0.0, 1.0)
 
 
 @dataclass(frozen=True)
@@ -371,6 +382,21 @@ def geom2_block(
     return DataBlock(name="GEOM2", records=(record,), subtable_name="GEOM2S")
 
 
+def geom2_cbar_block(
+    elements: Iterable[CBar], *, key: tuple[int, int, int] = CBAR_RECORD_KEY
+) -> DataBlock:
+    """``GEOM2`` holding one ``CBAR`` record: 16 words per element."""
+
+    record: list[Token] = list(integers(*key))
+    for element in elements:
+        record += integers(element.id, element.property_id, *element.grids)
+        record += reals(*element.orientation)
+        record += integers(0)
+        record += reals(0.0, 0.0, 0.0, 0.0, 0.0)
+        record += integers(0, 0, 0)
+    return DataBlock(name="GEOM2", records=(record,), subtable_name="GEOM2S")
+
+
 def mpt_block(
     materials: Iterable[Mat1], *, key: tuple[int, int, int] = MAT1_RECORD_KEY
 ) -> DataBlock:
@@ -498,6 +524,7 @@ def geometry_file(
     rods: Iterable[Rod] = (),
     materials: Iterable[Mat1] = (),
     *,
+    cbars: Iterable[CBar] = (),
     cords: Iterable[Cord2R] = (),
     cord2c: Iterable[Cord2C] = (),
     cord1r: Iterable[Cord1R] = (),
@@ -513,8 +540,11 @@ def geometry_file(
         geom1_block(grids, cords=cords, cord2c=cord2c, cord1r=cord1r)
     ]
     rods = list(rods)
+    cbars = list(cbars)
     if rods:
         blocks.append(geom2_block(rods))
+    if cbars:
+        blocks.append(geom2_cbar_block(cbars))
     prods = list(properties)
     if prods:
         blocks.append(ept_block(prods))

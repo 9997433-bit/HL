@@ -18,6 +18,10 @@ sys.path.insert(0, str(ROOT / "tests"))
 import _op2 as op2_fixture  # noqa: E402
 
 
+def _write_sidecar_bdf(path: Path, lines: list[str]) -> None:
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def build_corpus(target: Path) -> list[Path]:
     target.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
@@ -34,6 +38,14 @@ def build_corpus(target: Path) -> list[Path]:
     path = target / "rod_geometry.op2"
     path.write_bytes(rod_geometry)
     written.append(path)
+    _write_sidecar_bdf(
+        path.with_suffix(".bdf"),
+        [
+            "GRID,11,,0.,0.,0.",
+            "GRID,22,,1.,0.,0.",
+            "CROD,100,40,11,22",
+        ],
+    )
 
     modes = [
         op2_fixture.Mode(number=1, frequency_hz=12.5, shape={11: (0.0, 0.0, 1.0, 0.0, 0.0, 0.0)})
@@ -59,6 +71,13 @@ def build_corpus(target: Path) -> list[Path]:
     path = target / "rotated_grid.op2"
     path.write_bytes(rotated)
     written.append(path)
+    _write_sidecar_bdf(
+        path.with_suffix(".bdf"),
+        [
+            "CORD2R,1,0,0.,0.,0.,0.,0.,1.,0.,1.,0.",
+            "GRID,11,1,1.,0.,0.",
+        ],
+    )
 
     shell_geometry = op2_fixture.write_op2(
         [
@@ -73,6 +92,14 @@ def build_corpus(target: Path) -> list[Path]:
     path = target / "shell_properties.op2"
     path.write_bytes(shell_geometry)
     written.append(path)
+    _write_sidecar_bdf(
+        path.with_suffix(".bdf"),
+        [
+            "GRID,11,,0.,0.,0.",
+            "PSHELL,10,7,0.0025",
+            "PSOLID,20,7",
+        ],
+    )
 
     quad_grids = [
         op2_fixture.Grid(id=11, xyz=(0.0, 0.0, 0.0)),
@@ -91,6 +118,41 @@ def build_corpus(target: Path) -> list[Path]:
     path = target / "quad4_geometry.op2"
     path.write_bytes(quad_geometry)
     written.append(path)
+    _write_sidecar_bdf(
+        path.with_suffix(".bdf"),
+        [
+            "GRID,11,,0.,0.,0.",
+            "GRID,22,,1.,0.,0.",
+            "GRID,33,,1.,1.,0.",
+            "GRID,44,,0.,1.,0.",
+            "CQUAD4,100,10,11,22,33,44",
+        ],
+    )
+
+    cbar_geometry = op2_fixture.geometry_file(
+        [
+            op2_fixture.Grid(id=11, xyz=(0.0, 0.0, 0.0)),
+            op2_fixture.Grid(id=22, xyz=(1.0, 0.0, 0.0)),
+            op2_fixture.Grid(id=33, xyz=(2.0, 0.5, 0.0)),
+        ],
+        cbars=[
+            op2_fixture.CBar(id=300, property_id=50, grids=(11, 22), orientation=(0.0, 0.0, 1.0)),
+            op2_fixture.CBar(id=400, property_id=50, grids=(22, 33), orientation=(0.0, 1.0, 0.0)),
+        ],
+    )
+    path = target / "cbar_geometry.op2"
+    path.write_bytes(cbar_geometry)
+    written.append(path)
+    _write_sidecar_bdf(
+        path.with_suffix(".bdf"),
+        [
+            "GRID,11,,0.,0.,0.",
+            "GRID,22,,1.,0.,0.",
+            "GRID,33,,2.,0.5,0.",
+            "CBAR,300,50,11,22,0.,0.,1.",
+            "CBAR,400,50,22,33,0.,1.,0.",
+        ],
+    )
     return written
 
 

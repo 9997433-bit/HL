@@ -195,6 +195,12 @@ frequencies agree to relative error `1e-8` and diagonal mode-shape MAC is at
 least `0.999` (AC-PERF-002). Both checks use the same `ModalSolver` facade and
 an explicit `sparse=True`/`False` override.
 
+When ``OPENFEMLAB_USE_RUST_ASM=1`` and the optional ``openfemlab_asm`` PyO3
+extension is installed, ``assemble_stiffness`` / ``assemble_system`` may assemble
+the stiffness matrix of an all-:class:`~openfemlab.core.elements.TrussElement`
+3D model through the Rust rod kernel; mass assembly and mixed-element models
+stay on the Python path (AC-PERF-006).
+
 ---
 
 ## 2. Module M2 — Correlation (`openfemlab.correlation`) (MS-2)
@@ -1204,8 +1210,10 @@ reader lives in `openfemlab.io.op2` over the record layer
   documented framing from a known model in both word sizes, both byte orders
   and both `PARAM,POST` forms — which validates the layouts against *our
   reading of the spec* — paired with an opt-in corpus test over real MSC and NX
-  output, skipped when the corpus path is unset. That second half is the one
-  still missing, and it is what keeps the reader experimental and unexported.
+  output, skipped when the corpus path is unset. Each geometry sample may ship a
+  same-stem ``.bdf`` sidecar; when present, ``tests/test_op2_corpus.py`` and
+  AC-IO-014 compare OP2 and bulk-data geometry import (AC-IO-013 pins ``CBAR``
+  parity in CI fixtures).
 - **BDF export and external drivers (MS-9.7).** ``write_bdf`` round-trips neutral
   geometry and accepts ``material_scales`` / ``property_scales`` for updated
   decks (AC-IO-010). ``openfemlab.io.drivers`` exposes Nastran, Ansys and Abaqus

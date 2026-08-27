@@ -166,6 +166,7 @@ to honor the sparse matrix contract of MS-0.2 and MS-1.6.
 | AC-PERF-003 | P2 | Accelerated MAC matches the reference and never slows it down | 5000×20×20 unweighted MAC; max abs err ≤ 1e-10; ≤ 2 s; ≤ 5× the written-out NumPy form | MS-1.6, MS-2.2 |
 | AC-PERF-004 | P2 | LOBPCG backend matches the dense modal reference | frequency rel. err ≤ 1e-8; paired MAC ≥ 0.999 | MS-1.6 |
 | AC-PERF-005 | P2 | Modal benchmark stays within the CI gate budget | 100- and 500-DOF chains, six modes, sparse solve; total ≤ 20 s | MS-1.6 |
+| AC-PERF-006 | P2 | Rust truss stiffness matches the Python reference | all-``TrussElement`` 3D model; relative Frobenius error ≤ 1e-12 with ``OPENFEMLAB_USE_RUST_ASM=1`` | MS-1.6 |
 
 - **AC-PERF-001** (`contract`) — A procedurally assembled, deterministic
   tridiagonal spring-mass chain with 50,000 DOFs is solved for its six lowest
@@ -197,6 +198,10 @@ to honor the sparse matrix contract of MS-0.2 and MS-1.6.
 - **AC-PERF-005** (`contract`) — Two sparse modal solves on 100- and 500-DOF
   spring chains (six modes each) complete within 20 s on the CI runner, matching
   the bounded benchmark invoked by `scripts/bench_ci_gate.py`.
+- **AC-PERF-006** (`property`) — When `OPENFEMLAB_USE_RUST_ASM=1` and the
+  optional `openfemlab_asm` extension is present, assembling an all-3D-truss
+  model through `assemble_stiffness` returns the same global `K` as the Python
+  reference path to relative Frobenius error `1e-12`.
 
 ---
 
@@ -585,6 +590,8 @@ run (AC-IO-003).
 | AC-IO-010 | P1 | BDF export applies material/property scalings | scaled MAT1/PSHELL values match factors | MS-9.7 |
 | AC-IO-011 | P2 | Ansys driver stub typed failure | missing exe raises FormatError | MS-9.7 |
 | AC-IO-012 | P2 | Abaqus driver stub typed failure | missing exe raises FormatError | MS-9.7 |
+| AC-IO-013 | P2 | OP2 CBAR geometry import matches the BDF of the same model | node labels, coordinates, connectivity and property ids bitwise equal | MS-9.6 |
+| AC-IO-014 | P2 | Corpus OP2 sidecar BDF geometry matches OP2 import | for each `*.op2` with a same-stem `.bdf`, geometry equals `read_bdf` | MS-9.6 |
 
 ### Details
 
