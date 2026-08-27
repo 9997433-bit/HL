@@ -1,7 +1,6 @@
 <script setup>
-/** 答对 / 通关时的 GSAP 星星爆炸。挂在页面上，由父组件调用 burst()。 */
+/** 答对 / 通关时的原生星星爆炸。挂在页面上，由父组件调用 burst()。 */
 import { onBeforeUnmount, ref } from 'vue'
-import gsap from 'gsap'
 
 const props = defineProps({
   emojis: { type: Array, default: () => ['⭐', '🌟', '✨', '🎉', '🏅'] },
@@ -9,7 +8,7 @@ const props = defineProps({
 })
 
 const layer = ref(null)
-let ctx = null
+const particles = new Set()
 
 function burst(origin) {
   const host = layer.value
@@ -29,37 +28,42 @@ function burst(origin) {
     nodes.push(el)
   }
 
-  ctx = gsap.context(() => {
-    nodes.forEach((el, i) => {
-      const angle = (Math.PI * 2 * i) / nodes.length + Math.random() * 0.4
-      const dist = 90 + Math.random() * 130
-      gsap.fromTo(
-        el,
-        { x: 0, y: 0, scale: 0.2, opacity: 0, rotation: 0 },
+  nodes.forEach((el, i) => {
+    particles.add(el)
+    const angle = (Math.PI * 2 * i) / nodes.length + Math.random() * 0.4
+    const dist = 90 + Math.random() * 130
+    const x = Math.cos(angle) * dist
+    const y = Math.sin(angle) * dist - 40
+    const fall = 140 + Math.random() * 80
+    const scale = 0.8 + Math.random() * 0.8
+    const rotate = (Math.random() - 0.5) * 360
+    const animation = el.animate?.(
+      [
+        { opacity: 0, transform: 'translate(0, 0) scale(.2) rotate(0)' },
         {
-          x: Math.cos(angle) * dist,
-          y: Math.sin(angle) * dist - 40,
-          scale: 0.8 + Math.random() * 0.8,
           opacity: 1,
-          rotation: (Math.random() - 0.5) * 360,
-          duration: 0.5 + Math.random() * 0.25,
-          ease: 'power2.out'
+          transform: `translate(${x}px, ${y}px) scale(${scale}) rotate(${rotate}deg)`,
+          offset: 0.42
+        },
+        {
+          opacity: 0,
+          transform: `translate(${x}px, ${y + fall}px) scale(${scale}) rotate(${rotate}deg)`
         }
-      )
-      gsap.to(el, {
-        y: `+=${140 + Math.random() * 80}`,
-        opacity: 0,
-        duration: 0.8,
-        delay: 0.4,
-        ease: 'power1.in',
-        onComplete: () => el.remove()
-      })
-    })
-  }, host)
+      ],
+      { duration: 1200 + Math.random() * 250, easing: 'ease-in', fill: 'forwards' }
+    )
+    const remove = () => {
+      particles.delete(el)
+      el.remove()
+    }
+    if (animation) animation.finished.then(remove).catch(remove)
+    else window.setTimeout(remove, 1500)
+  })
 }
 
 onBeforeUnmount(() => {
-  ctx?.revert()
+  for (const particle of particles) particle.remove()
+  particles.clear()
 })
 
 defineExpose({ burst })
