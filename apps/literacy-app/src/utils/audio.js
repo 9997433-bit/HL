@@ -85,6 +85,58 @@ function playStreak(streak = 1) {
   )
 }
 
+/* -------------------------------------------------------------------------
+   儿歌旋律
+   ------------------------------------------------------------------------- */
+
+/**
+ * 儿歌能用的音名表。
+ *
+ * 只到 C4–E5 一个八度多一点：再低这个年龄段的嗓子够不着，再高合成音会发尖。
+ * data/songs.js 的每个字配一个音名，`verifySongCoverage()` 会校验音名都在这张表里。
+ */
+export const NOTE_HZ = {
+  C4: 261.63,
+  D4: 293.66,
+  E4: 329.63,
+  F4: 349.23,
+  G4: 392,
+  A4: 440,
+  B4: 493.88,
+  C5: 523.25,
+  D5: 587.33,
+  E5: 659.25
+}
+
+/**
+ * 按谱子逐音播放一段旋律，返回每个音相对开始时刻的毫秒偏移。
+ *
+ * 返回时间表而不是逐音回调，是因为界面要做的是「唱到哪个字就高亮哪个字」：
+ * 拿着这张表用一个定时器推进比给每个音挂回调稳得多，静音时（家长关了音效）
+ * 时间表照样准确，高亮不会因此停摆。
+ *
+ * @param {string[]} notes 音名序列，不认识的音名当休止符跳过
+ * @param {{bpm?: number, gain?: number, holdLast?: number}} [opts]
+ *        holdLast 收尾音的拍数，默认 2 拍——每句最后一个字拖长一点才像唱歌。
+ * @returns {{offsets: number[], duration: number}} 逐音起始毫秒与总时长
+ */
+export function playMelody(notes = [], { bpm = 96, gain = 0.06, holdLast = 2 } = {}) {
+  const beat = 60 / Math.min(200, Math.max(40, bpm))
+  const offsets = []
+  let at = 0
+  notes.forEach((name, index) => {
+    const last = index === notes.length - 1
+    const beats = last ? holdLast : 1
+    const freq = NOTE_HZ[name]
+    if (freq) {
+      tone({ freq, duration: beat * beats * 0.92, type: 'triangle', gain, delay: at })
+    }
+    offsets.push(Math.round(at * 1000))
+    at += beat * beats
+  })
+  return { offsets, duration: Math.round(at * 1000) }
+}
+
 export const sfx = {
   tap: () => tone({ freq: 520, duration: 0.07, type: 'triangle', gain: 0.045 }),
   page: () => {

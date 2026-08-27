@@ -25,6 +25,7 @@ export function useMascotCoach(scene) {
       books: progress.booksFinished,
       idioms: progress.idiomsSeen,
       poems: progress.poemsRead,
+      songs: progress.songsSung,
       nextChar: progress.nextChar?.char ?? ''
     })
   )

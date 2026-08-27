@@ -40,6 +40,16 @@ const round6Routes = [
   ...(ROUND6_H4_SMOKE ? [['跟读评测（Round 6）', `/#${ROUND6_H4_SMOKE}`]] : [])
 ]
 
+/**
+ * Round 8 H2：儿歌小舞台。
+ * 路由是 `/songs/:id?`（歌单和展开的那一首共用一条），`findStaticRoute` 拿不到，
+ * 所以这里按前缀取它不带参数的形态。
+ */
+const ROUND8_H2_SMOKE = sourceRoutePaths
+  .map((route) => route.match(/^(\/(?:songs?|nursery|儿歌))(?:\/|$)/i)?.[1])
+  .find(Boolean)
+const round8Routes = ROUND8_H2_SMOKE ? [['儿歌小舞台（Round 8）', `/#${ROUND8_H2_SMOKE}`]] : []
+
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -98,6 +108,7 @@ const ROUTES = [
   ['成语 盲人摸象', '/#/idioms/mrmx'],
   ['成语 五颜六色', '/#/idioms/wyls'],
   ...round6Routes,
+  ...round8Routes,
   ['字源馆', '/#/etymology'],
   ['字源 日（象形）', `/#/etymology/${encodeURIComponent('日')}`],
   ['字源 明（会意）', `/#/etymology/${encodeURIComponent('明')}`],
@@ -1676,6 +1687,75 @@ if (ROUND6_H4_SMOKE) {
     if (!state.hasStatus) throw new Error('跟读结果缺少 aria-live/status 播报区域')
     return '评测文案、操作入口与无障碍状态播报均可见'
   })
+}
+
+if (ROUND8_H2_SMOKE) {
+  await interact(
+    'Round 8 H2：儿歌唱一遍，逐字高亮跟着走并记进进度',
+    `/#${ROUND8_H2_SMOKE}`,
+    async (page) => {
+      await page.evaluate(() => localStorage.clear())
+      await page.reload({ waitUntil: 'networkidle2', timeout: 20000 })
+      await new Promise((r) => setTimeout(r, 600))
+
+      const opened = await page.evaluate(() => {
+        const head = document.querySelector('.song__head')
+        if (!head) return false
+        head.click()
+        return true
+      })
+      if (!opened) throw new Error('儿歌页没有渲染出任何一首歌')
+      await page.waitForSelector('.lyrics__line', { timeout: 5000 })
+
+      const sheet = await page.evaluate(() => ({
+        lines: document.querySelectorAll('.lyrics__line').length,
+        chars: document.querySelectorAll('.cell__char').length,
+        pinyin: [...document.querySelectorAll('.cell__pinyin')].filter((n) => n.innerText.trim())
+          .length
+      }))
+      if (sheet.lines < 4) throw new Error(`展开的儿歌只有 ${sheet.lines} 句`)
+      if (sheet.chars < sheet.pinyin || sheet.pinyin === 0) {
+        throw new Error(`歌词逐字拼音没渲染出来（${sheet.pinyin} / ${sheet.chars}）`)
+      }
+
+      if (!(await clickText(page, '唱一唱'))) throw new Error('儿歌页缺少「唱一唱」控件')
+
+      // 逐字高亮是「唱到哪个字」的唯一可见证据，只看它亮起来不够——
+      // 还要看它真的往后走了，不然一个卡在第一个字的定时器也能骗过测试。
+      await page.waitForSelector('.cell.is-on', { timeout: 5000 })
+      const walked = await page.evaluate(async () => {
+        const at = () => {
+          const cells = [...document.querySelectorAll('.cell')]
+          return cells.findIndex((node) => node.classList.contains('is-on'))
+        }
+        const first = at()
+        for (let i = 0; i < 40; i += 1) {
+          await new Promise((r) => setTimeout(r, 200))
+          if (at() > first) return { first, later: at() }
+        }
+        return { first, later: at() }
+      })
+      if (walked.later <= walked.first) {
+        throw new Error(`高亮停在第 ${walked.first} 个字没有往下走`)
+      }
+
+      // 整首唱完才算「唱过」，中途停下不记账——等它自己走到头。
+      await page.waitForFunction(
+        () => /唱完啦|又唱了一遍/.test(document.querySelector('.player__status')?.innerText ?? ''),
+        { timeout: 60000 }
+      )
+      const done = await page.evaluate(() => ({
+        status: document.querySelector('.player__status')?.innerText.trim() ?? '',
+        shelf: document.body.innerText.replace(/\s+/g, ' ').match(/唱过 (\d+) \/ (\d+)/)?.[1] ?? '0',
+        stored: JSON.parse(localStorage.getItem('happy-literacy:v1') ?? '{}')?.songs ?? {}
+      }))
+      if (done.shelf !== '1') throw new Error(`唱完一首后计数是 ${done.shelf}，应为 1`)
+      const sung = Object.values(done.stored).filter((s) => s?.sung).length
+      if (sung !== 1) throw new Error(`存档里记下的已唱儿歌是 ${sung} 首，应为 1`)
+
+      return `${sheet.lines} 句 ${sheet.chars} 字，高亮第 ${walked.first} → ${walked.later} 个字，唱完记进存档`
+    }
+  )
 }
 
 await browser.close()

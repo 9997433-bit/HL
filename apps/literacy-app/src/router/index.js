@@ -129,6 +129,18 @@ const routes = [
     meta: { title: '读古诗', emoji: '📜' }
   },
   /**
+   * 儿歌小舞台。`:id` 可以不写——不写就是歌单，写了就直接展开那一首。
+   * 这一条不拆列表 / 详情：每首歌四句，展开后一屏放得下。
+   */
+  {
+    path: '/songs/:id?',
+    name: 'songs',
+    component: () => import('@/views/SongsView.vue'),
+    props: true,
+    meta: { title: '儿歌小舞台', emoji: '🎵' }
+  },
+  { path: '/song', redirect: '/songs' },
+  /**
    * 跟读评测。`:id` 可以不写——不写就自己挑一首生字最少的诗开始。
    * 这条路由和《古诗详情》的「跟着读」用的是同一个面板。
    */

@@ -97,6 +97,8 @@ function defaultState() {
     idioms: {},
     /** 古诗：{ 'jingyesi': { read, reads, follows, bestScore, lastAt } } */
     poems: {},
+    /** 儿歌：{ 'sg1': { sung, times, lastAt } } */
+    songs: {},
     radicals: {},
 
     /** 已解锁的徽章：{ 'first-step': { unlockedAt } }，定义见 data/badges.js。 */
@@ -161,6 +163,7 @@ function migrate(saved) {
     books: { ...(saved.books || {}) },
     idioms: { ...(saved.idioms || {}) },
     poems: { ...(saved.poems || {}) },
+    songs: { ...(saved.songs || {}) },
     radicals: { ...(saved.radicals || {}) },
     badges: { ...(saved.badges || {}) },
     seenUnits: Array.isArray(saved.seenUnits)
@@ -301,6 +304,8 @@ export const useProgressStore = defineStore('progress', () => {
   const poemsFollowed = computed(
     () => Object.values(state.poems ?? {}).filter((p) => (p?.follows ?? 0) > 0).length
   )
+  /** 儿歌同理：只数存档，七首歌的曲谱不该为了一个数字进首屏。 */
+  const songsSung = computed(() => Object.values(state.songs ?? {}).filter((s) => s?.sung).length)
   const radicalsSeen = computed(() => RADICALS.filter((r) => state.radicals[r.id]?.seen).length)
 
   const quizTotals = computed(() => {
@@ -711,6 +716,25 @@ export const useProgressStore = defineStore('progress', () => {
     return { follows: p.follows, bestScore: p.bestScore, badges: refreshBadges() }
   }
 
+  /**
+   * 唱完了一首儿歌。
+   *
+   * 「唱完」只由界面在整首播完时调用一次，中途停下不算——不然孩子点两下播放
+   * 就能刷满进度，那个数字对家长就没意义了。
+   */
+  function markSongSung(songId) {
+    if (!state.songs) state.songs = {}
+    const s = state.songs[songId] ?? (state.songs[songId] = { sung: false, times: 0 })
+    if (!s.sung) {
+      s.sung = true
+      addStars(2)
+      addXp(10)
+    }
+    s.times = (s.times ?? 0) + 1
+    s.lastAt = Date.now()
+    return s
+  }
+
   function markRadicalSeen(radicalId) {
     const r = state.radicals[radicalId] ?? (state.radicals[radicalId] = { seen: 0 })
     r.seen += 1
@@ -977,6 +1001,7 @@ export const useProgressStore = defineStore('progress', () => {
     booksFinished,
     poemsRead,
     poemsFollowed,
+    songsSung,
     radicalsSeen,
     accuracy,
     streakDays,
@@ -1009,6 +1034,7 @@ export const useProgressStore = defineStore('progress', () => {
     markTraced,
     markPoemRead,
     recordFollowRead,
+    markSongSung,
     tickSecond,
     acknowledgeRest,
     celebrate,
