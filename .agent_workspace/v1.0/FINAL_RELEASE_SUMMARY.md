@@ -1,4 +1,53 @@
-# Audio Studio v1.0.1 — SOTA Complete Release Summary
+# Audio Studio v1.1.0 — Product Release Summary
+
+Date: 2026-08-27
+Branch: `cursor/v1.0-round-g-b3cf` merged to alpha
+Tag: `v1.1.0`
+
+## 1. Positioning
+
+**v1.1.0 is the first product release with a distributable build.** A `v*` tag
+now produces a downloadable Linux bundle straight from CI — the PyInstaller
+one-directory bundle built by `scripts/build-linux.sh`, uploaded as the
+`audio-studio-linux-x64` artifact with a software bill of materials, on top of
+the 30/30 SOTA checklist closed at v1.0.1. Full signoff:
+`.agent_workspace/v1.1/fable-v1.1-product-signoff.md`.
+
+## 2. Round G deliverables
+
+- **Linux release workflow** (`.github/workflows/release-linux.yml`): builds
+  the bundle on every `v*` tag push (and manual dispatch), runs the LGPL
+  replaceability and GPL-exclusion gates from `scripts/build-linux.sh`, and
+  uploads the `audio-studio-linux-x64` CI artifact. Contract-tested by
+  `tests/test_release_workflow.py`.
+- **AppImage and deb built for real** (`scripts/package-appimage.sh`,
+  `scripts/package-deb.sh`): `audio-studio-1.1.0-x86_64.AppImage` smoke-run,
+  `audio-studio_1.1.0-1_amd64.deb` installed/run/purged on Ubuntu 24.04 —
+  hashes and transcripts in `../v1.1/linux-packaging-evidence.md`.
+- **SBOM** (`tools/generate_sbom.py`, `packaging/DISTRIBUTION.md`): CycloneDX
+  1.5 bundle SBOM (151 components), SPDX-shaped build-environment SBOM and a
+  pass-status build report, policy-checked by `tests/test_sbom.py`.
+- **Signing scaffold** (`scripts/sign-linux-artifact.sh`): `SHA256SUMS` plus
+  optional GPG detached signatures; today's artifacts are recorded
+  `signed: false` — checksums, no production key.
+
+## 3. Honest gaps
+
+- **No macOS or Windows installers.** Both platforms remain source installs
+  (`pip install`) verified by CI smoke lanes only.
+- **No Apple or Microsoft code signing.** No Developer ID signing or
+  notarization on macOS, no Authenticode on Windows; no certificates are
+  provisioned. The signing scaffold covers integrity, not platform trust —
+  Gatekeeper and SmartScreen will warn.
+- The Linux artifacts are x86_64 only and unsigned; the AppImage/deb were
+  built locally (CI publishes the raw bundle), nothing is attached to a
+  GitHub Release, and there is no reproducible-build attestation.
+
+---
+
+_Previous v1.0.1 summary below._
+
+# Audio Studio v1.0.1 — SOTA Complete Release Summary (archived header)
 
 Date: 2026-08-27
 Branch: `cursor/v1.0-round-f-b3cf` merged to alpha

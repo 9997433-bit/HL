@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "tool": "scripts/sign-linux-artifact.sh",
+  "generated_at": "2026-08-27T03:54:13+00:00",
+  "platform": {
+    "system": "Linux",
+    "machine": "x86_64",
+    "release": "6.12.94+"
+  },
+  "signing": {
+    "method": "gpg-detached-armored",
+    "key_requested": false,
+    "key_id": null,
+    "key_fingerprint": null,
+    "gpg_version": "gpg (GnuPG) 2.4.4"
+  },
+  "signed": false,
+  "reason": "no SIGNING_KEY configured: artifacts are checksummed but unsigned",
+  "manifest": {
+    "path": "dist/SHA256SUMS",
+    "size_bytes": 198,
+    "sha256": "b2c4a9006b3a97c32985846c0cc04a02bf905e25a4df476a3b5d16094308de32",
+    "signature": null,
+    "signature_verified": false
+  },
+  "artifacts": [
+    {
+      "path": "dist/audio-studio-1.1.0-x86_64.AppImage",
+      "size_bytes": 102955512,
+      "sha256": "10273311a558939dcadca21bc2ebb7aa2c303badc2e12d3ede78d386476c61dd",
+      "signature": null,
+      "signature_verified": false
+    },
+    {
+      "path": "dist/audio-studio_1.1.0-1_amd64.deb",
+      "size_bytes": 84740004,
+      "sha256": "b8670a80e07888508713b631ca7e554877c3b4f5544bc2d3ef8bcb55d74896f8",
+      "signature": null,
+      "signature_verified": false
+    }
+  ],
+  "artifact_count": 2,
+  "scope": {
+    "linux_gpg_detached_signature": false,
+    "macos_codesign": false,
+    "macos_notarization": false,
+    "windows_authenticode": false,
+    "note": "Linux GPG detached signing only. This project holds no Apple Developer ID and no Authenticode certificate, and no script here performs macOS codesigning or notarization or Windows signing."
+  }
+}

@@ -786,6 +786,39 @@ the `installer` extra, and is not a runtime dependency of what it produces.
 Before publishing anything, walk the release checklist at the end of
 [`THIRD_PARTY_LICENSES.md`](../THIRD_PARTY_LICENSES.md).
 
+### Distributable packages
+
+Three wrappers turn that bundle into something you can hand over, and each one
+re-runs the bundle's license gate on its own output — the notices, the
+separate LGPL shared objects, no pedalboard — because a packaging step is
+another chance to lose them:
+
+```bash
+scripts/package-appimage.sh --fetch-appimagetool   # dist/*.AppImage
+scripts/package-deb.sh                             # dist/*.deb
+scripts/sign-linux-artifact.sh dist/*.AppImage dist/*.deb
+```
+
+- **AppImage.** The AppDir at `dist/AudioStudio.AppDir` — `AppRun`, desktop
+  entry, icon, notices under `usr/share/doc` — is what the script guarantees;
+  turning it into a single file needs `appimagetool`, which it will use from
+  `PATH`, download with `--fetch-appimagetool`, or print the command for.
+  `--appdir-only` stops at the directory, `--require-appimage` refuses to.
+- **Debian package.** A skeleton, not a distribution-quality package: the
+  bundle installs under `/usr/lib/audio-studio` with a wrapper in `/usr/bin`,
+  a desktop entry, and `/usr/share/doc/audio-studio/copyright` alongside the
+  two notice files. It depends only on the X and GL libraries Qt needs from
+  the host. `--tree-only` stages without `dpkg-deb`.
+- **Signing.** Linux GPG only. The script always writes a `SHA256SUMS`
+  manifest and, when `SIGNING_KEY` names a key, an armoured detached
+  signature per artifact which it then verifies. Without a key it still
+  succeeds and records `signed: false` with the reason in
+  `.agent_workspace/v1.1/linux-signing-report.json`; pass
+  `--require-signature` where an unsigned release is not acceptable. This
+  project holds no Apple Developer ID and no Authenticode certificate, so
+  nothing here codesigns or notarizes for macOS, or signs for Windows, and the
+  report says so rather than leaving it ambiguous.
+
 ## Tests
 
 ```bash
