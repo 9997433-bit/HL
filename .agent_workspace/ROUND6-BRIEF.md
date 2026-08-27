@@ -49,3 +49,4 @@
 - 内容脚本化生成 + `check:data` / `check:content` 扩展
 - 字库/绘本扩量不得拖垮首屏（保持懒加载 + `check:bundle` 预算）
 - 分支 `cursor/<name>-9f67`；首行 Model slug
+- 数据契约与 API 边界见 `.agent_workspace/round6-architecture.md`（子代理 #1 交付）
