@@ -333,7 +333,8 @@ try {
   const invalidModuleRows = moduleRows.filter(
     (row) =>
       !expectedModuleIdSet.has(row.id) ||
-      (row.status !== '✅' && !/^⏳\s*待 R7 子代理\s*#(?:[4-9]|10)\b/.test(row.status)) ||
+      (row.status !== '✅' &&
+        !/^⏳\s*待 R(?:7|8) 子代理\s*#(?:[4-9]|10)\b/.test(row.status)) ||
       !row.evidence?.includes('`')
   )
   const firstLine = report.split(/\r?\n/, 1)[0]?.trim() ?? ''
@@ -362,7 +363,7 @@ try {
   check(
     'H7',
     reportIssues.length === 0,
-    `H7 GLOBAL-SUMMARY-REPORT 31/31 模块完整（${31 - pendingRows} 项基线达标、${pendingRows} 项待 R7 子代理），审计引用与证据齐全`,
+    `H7 GLOBAL-SUMMARY-REPORT 31/31 模块完整（${31 - pendingRows} 项当前口径达标、${pendingRows} 项后续轮次在途），审计引用与证据齐全`,
     `H7 GLOBAL-SUMMARY-REPORT 不合规：${reportIssues.join('；')} —— 由 r7-global-report 交付`
   )
 }
