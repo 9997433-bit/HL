@@ -1114,8 +1114,14 @@ await interact('播报：答题与庆祝都有 aria-live', '/#/listen', async (p
 
   // 庆祝浮层：读完一本没读过的绘本
   await page.goto(page.url().replace(/#.*$/, '#/books/b2'), { waitUntil: 'networkidle2' })
+<<<<<<< HEAD
   // 绘本页也是按需 chunk：翻页按钮没挂上来就开始点，会一页都翻不到
   await page.waitForFunction(() => /下一页|读完啦/.test(document.body.innerText), { timeout: 10000 })
+=======
+  // 换 hash 不重新加载文档，goto 立刻就返回；绘本视图是按需 chunk，
+  // 机器忙的时候几百毫秒挂不上来，翻页按钮还不存在，整本书就会一页没翻完
+  await page.waitForSelector('.reader .spread', { timeout: 10000 })
+>>>>>>> 9357d59 (test(识字 smoke): 绘本视图挂上来再翻页，修掉庆祝浮层探针的偶发失败)
   for (let i = 0; i < 8; i++) {
     if (await clickText(page, '下一页')) {
       // 翻到最后一页就发庆祝，而庆祝几秒后会自动收场：
