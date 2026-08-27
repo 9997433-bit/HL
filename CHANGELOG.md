@@ -8,9 +8,10 @@ the v1.0.0-beta diff against v0.1.0-alpha is fully accounted for.
 ## [1.1.0] - 2026-08-27
 
 Round G is the product-release round: the first build a user can download and
-run. A `v*` tag push now produces the Linux PyInstaller bundle in CI, with a
-software bill of materials and a signing scaffold. macOS and Windows remain
-source installs — no installers and no Apple/Microsoft code signing yet. See
+run. A `v*` tag push produces the Linux PyInstaller bundle in CI with an SBOM;
+the packaging wrappers built real, smoke-tested AppImage and deb artifacts;
+and a signing scaffold checksums every artifact. macOS and Windows remain
+source installs — no installers and no Apple/Microsoft code signing. See
 `.agent_workspace/v1.1/fable-v1.1-product-signoff.md`.
 
 ### Added
@@ -20,10 +21,25 @@ source installs — no installers and no Apple/Microsoft code signing yet. See
   through the LGPL-replaceability and GPL-exclusion gates of
   `scripts/build-linux.sh`, and uploads it as the `audio-studio-linux-x64` CI
   artifact. Contract-tested by `tests/test_release_workflow.py`.
-- **SBOM generation** in the release pipeline, shipping the dependency
-  inventory beside the bundle.
-- **Signing scaffold** — integrity artifacts (checksums/local signatures) in
-  the release flow; no Apple/Microsoft certificates are provisioned.
+- **AppImage and Debian packaging wrappers**
+  (`scripts/package-appimage.sh`, `scripts/package-deb.sh`) — both produced
+  working artifacts from a real bundle (`audio-studio-1.1.0-x86_64.AppImage`;
+  `audio-studio_1.1.0-1_amd64.deb` installed, run and purged cleanly), with
+  the shared license gate in `scripts/lib/linux-packaging.sh` and evidence in
+  `.agent_workspace/v1.1/linux-packaging-evidence.md`.
+- **SBOM generation** (`tools/generate_sbom.py`, guide in
+  `packaging/DISTRIBUTION.md`) — a CycloneDX 1.5 bundle-scoped SBOM
+  (151 components), an SPDX-shaped build-environment SBOM
+  (`packaging/SBOM.json`) and a build report with launcher hash and
+  distribution-gate results, all schema- and license-policy-checked by
+  `tests/test_sbom.py`.
+- **Signing scaffold** (`scripts/sign-linux-artifact.sh`) — writes
+  `SHA256SUMS` and optional GPG detached signatures with a machine-readable
+  report; current artifacts are honestly recorded as `signed: false` (no
+  production key, no Apple/Microsoft certificates).
+- **Cross-platform screen-reader harnesses**
+  (`tools/accessibility_walkthrough_macos.py`, `_windows.py`) sharing the
+  Linux walkthrough's report schema, ready to run where VoiceOver/NVDA exist.
 - **Physical audio device probe** (`benchmarks/usb_audio_probe.py`) — scans the
   kernel (`/dev/snd`, `/proc/asound/cards`, `/sys/class/sound`), the USB bus
   (audio class interfaces with their vendor/product strings), PortAudio and

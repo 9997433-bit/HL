@@ -20,9 +20,16 @@ the 30/30 SOTA checklist closed at v1.0.1. Full signoff:
   replaceability and GPL-exclusion gates from `scripts/build-linux.sh`, and
   uploads the `audio-studio-linux-x64` CI artifact. Contract-tested by
   `tests/test_release_workflow.py`.
-- **SBOM and signing scaffold** wired into the release pipeline so every
-  distributed artifact ships with its dependency inventory and an integrity
-  story (local checksums/signatures — no platform-vendor certificates yet).
+- **AppImage and deb built for real** (`scripts/package-appimage.sh`,
+  `scripts/package-deb.sh`): `audio-studio-1.1.0-x86_64.AppImage` smoke-run,
+  `audio-studio_1.1.0-1_amd64.deb` installed/run/purged on Ubuntu 24.04 —
+  hashes and transcripts in `../v1.1/linux-packaging-evidence.md`.
+- **SBOM** (`tools/generate_sbom.py`, `packaging/DISTRIBUTION.md`): CycloneDX
+  1.5 bundle SBOM (151 components), SPDX-shaped build-environment SBOM and a
+  pass-status build report, policy-checked by `tests/test_sbom.py`.
+- **Signing scaffold** (`scripts/sign-linux-artifact.sh`): `SHA256SUMS` plus
+  optional GPG detached signatures; today's artifacts are recorded
+  `signed: false` — checksums, no production key.
 
 ## 3. Honest gaps
 
@@ -32,8 +39,9 @@ the 30/30 SOTA checklist closed at v1.0.1. Full signoff:
   notarization on macOS, no Authenticode on Windows; no certificates are
   provisioned. The signing scaffold covers integrity, not platform trust —
   Gatekeeper and SmartScreen will warn.
-- The Linux bundle is x86_64 built on `ubuntu-latest`; no arm64 build and no
-  reproducible-build attestation.
+- The Linux artifacts are x86_64 only and unsigned; the AppImage/deb were
+  built locally (CI publishes the raw bundle), nothing is attached to a
+  GitHub Release, and there is no reproducible-build attestation.
 
 ---
 
