@@ -166,6 +166,6 @@ export default {
       { w: '甩开', p: 'shuǎi kāi' },
       { w: '甩动', p: 'shuǎi dòng' }
     ],
-    sentence: { text: '小狗高兴地甩着尾巴。', p: 'xiǎo gǒu gāo xìng dì shuǎi zhe wěi ba.' }
+    sentence: { text: '小狗一边跑一边甩尾巴。', p: 'xiǎo gǒu yì biān pǎo yì biān shuǎi wěi ba.' }
   }
 }

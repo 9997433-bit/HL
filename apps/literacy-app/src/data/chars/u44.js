@@ -27,10 +27,10 @@ export default {
   '粽': {
     meaning: '用叶子包的糯米。',
     words: [
-      { w: '粽子', p: 'zòng zǐ' },
+      { w: '粽子', p: 'zòng zi' },
       { w: '肉粽', p: 'ròu zòng' }
     ],
-    sentence: { text: '外婆包的粽子最香。', p: 'wài pó bāo de zòng zǐ zuì xiāng.' }
+    sentence: { text: '外婆包的粽子最香。', p: 'wài pó bāo de zòng zi zuì xiāng.' }
   },
   '团': {
     meaning: '圆圆的，也指聚在一起。',

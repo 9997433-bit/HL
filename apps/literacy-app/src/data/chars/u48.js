@@ -67,18 +67,18 @@ export default {
   '橘': {
     meaning: '黄黄的酸甜果子。',
     words: [
-      { w: '橘子', p: 'jú zǐ' },
+      { w: '橘子', p: 'jú zi' },
       { w: '蜜橘', p: 'mì jú' }
     ],
-    sentence: { text: '橘子皮很好剥。', p: 'jú zǐ pí hěn hǎo bāo.' }
+    sentence: { text: '橘子皮很好剥。', p: 'jú zi pí hěn hǎo bāo.' }
   },
   '柚': {
     meaning: '又大又圆的黄果子。',
     words: [
-      { w: '柚子', p: 'yòu zǐ' },
+      { w: '柚子', p: 'yòu zi' },
       { w: '蜜柚', p: 'mì yòu' }
     ],
-    sentence: { text: '中秋节我们吃柚子。', p: 'zhōng qiū jié wǒ men chī yòu zǐ.' }
+    sentence: { text: '中秋节我们吃柚子。', p: 'zhōng qiū jié wǒ men chī yòu zi.' }
   },
   '柿': {
     meaning: '红红的软果子。',
@@ -91,10 +91,10 @@ export default {
   '栗': {
     meaning: '外面带刺的硬果子。',
     words: [
-      { w: '栗子', p: 'lì zǐ' },
+      { w: '栗子', p: 'lì zi' },
       { w: '板栗', p: 'bǎn lì' }
     ],
-    sentence: { text: '冬天的糖炒栗子真香。', p: 'dōng tiān de táng chǎo lì zǐ zhēn xiāng.' }
+    sentence: { text: '冬天的糖炒栗子真香。', p: 'dōng tiān de táng chǎo lì zi zhēn xiāng.' }
   },
   '榆': {
     meaning: '北方常见的大树。',
@@ -158,7 +158,7 @@ export default {
       { w: '面粉', p: 'miàn fěn' },
       { w: '粉红', p: 'fěn hóng' }
     ],
-    sentence: { text: '她的裙子是粉红的。', p: 'tā de qún zǐ shì fěn hóng de.' }
+    sentence: { text: '她的裙子是粉红的。', p: 'tā de qún zi shì fěn hóng de.' }
   },
   '摘': {
     meaning: '把果子从树上取下来。',

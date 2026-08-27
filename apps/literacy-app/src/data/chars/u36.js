@@ -134,7 +134,7 @@ export default {
       { w: '运输', p: 'yùn shū' },
       { w: '搬运', p: 'bān yùn' }
     ],
-    sentence: { text: '工人把箱子运到楼上。', p: 'gōng rén bǎ xiāng zǐ yùn dào lóu shàng.' }
+    sentence: { text: '工人把箱子运到楼上。', p: 'gōng rén bǎ xiāng zi yùn dào lóu shàng.' }
   },
   '输': {
     meaning: '一路送过去。',

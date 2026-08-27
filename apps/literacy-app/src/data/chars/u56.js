@@ -110,7 +110,7 @@ export default {
       { w: '打破', p: 'dǎ pò' },
       { w: '破了', p: 'pò le' }
     ],
-    sentence: { text: '气球一下子破了。', p: 'qì qiú yí xià zǐ pò le.' }
+    sentence: { text: '气球一下子破了。', p: 'qì qiú yí xià zi pò le.' }
   },
   '挖': {
     meaning: '把土弄开。',

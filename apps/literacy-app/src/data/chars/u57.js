@@ -78,7 +78,7 @@ export default {
       { w: '害羞', p: 'hài xiū' },
       { w: '羞怯', p: 'xiū qiè' }
     ],
-    sentence: { text: '他害羞地低下了头。', p: 'tā hài xiū dì dī xià le tóu.' }
+    sentence: { text: '他很害羞，低下了头。', p: 'tā hěn hài xiū, dī xià le tóu.' }
   },
   '傲': {
     meaning: '看得起自己，也别看不起人。',

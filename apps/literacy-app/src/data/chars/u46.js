@@ -70,7 +70,7 @@ export default {
       { w: '火焰', p: 'huǒ yàn' },
       { w: '气焰', p: 'qì yàn' }
     ],
-    sentence: { text: '火焰一下子蹿高了。', p: 'huǒ yàn yí xià zǐ cuān gāo le.' }
+    sentence: { text: '火焰一下子蹿高了。', p: 'huǒ yàn yí xià zi cuān gāo le.' }
   },
   '深': {
     meaning: '从上到下很远。',

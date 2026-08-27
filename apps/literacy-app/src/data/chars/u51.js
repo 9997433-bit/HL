@@ -27,10 +27,10 @@ export default {
   '笛': {
     meaning: '竹子做的吹管。',
     words: [
-      { w: '笛子', p: 'dí zǐ' },
+      { w: '笛子', p: 'dí zi' },
       { w: '竹笛', p: 'zhú dí' }
     ],
-    sentence: { text: '他吹笛子真好听。', p: 'tā chuī dí zǐ zhēn hǎo tīng.' }
+    sentence: { text: '他吹笛子真好听。', p: 'tā chuī dí zi zhēn hǎo tīng.' }
   },
   '箫': {
     meaning: '又细又长的竹管。',

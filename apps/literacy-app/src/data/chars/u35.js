@@ -35,10 +35,10 @@ export default {
   '例': {
     meaning: '举出来的样子。',
     words: [
-      { w: '例子', p: 'lì zǐ' },
+      { w: '例子', p: 'lì zi' },
       { w: '举例', p: 'jǔ lì' }
     ],
-    sentence: { text: '老师举了一个例子。', p: 'lǎo shī jǔ le yí gè lì zǐ.' }
+    sentence: { text: '老师举了一个例子。', p: 'lǎo shī jǔ le yí gè lì zi.' }
   },
   '句': {
     meaning: '一句一句的话。',
