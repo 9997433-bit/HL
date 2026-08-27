@@ -60,34 +60,35 @@ function onToggle(task) {
   }
 }
 
-watch(
-  () => quest.justCompleted,
-  (event) => {
-    if (!event) return
-    announce.value = `「${event.title}」完成啦，今日冒险 ${quest.completedCount} / ${quest.tasks.length}`
-    sfx.star()
-    if (!settings.reduceMotion) burstLayer.value?.burst(originOf(event.id))
-    cheer.value = CHEERS[Math.floor(Math.random() * CHEERS.length)]
-    if (cheerTimer) clearTimeout(cheerTimer)
-    cheerTimer = window.setTimeout(() => {
-      cheer.value = ''
-    }, 2600)
-    // 三件齐活的大庆祝走全局浮层（天然可跳过），奖励每天只发一次。
-    if (quest.claimCelebration()) progress.grantDailyQuestBonus()
-  }
-)
+/** 领走还没庆祝过的那一件，撒星星、播报、让墨墨说句话。 */
+function celebrateFresh() {
+  const event = quest.flushCompletions()
+  if (!event) return
+  announce.value = `「${event.title}」完成啦，今日冒险 ${quest.completedCount} / ${quest.tasks.length}`
+  sfx.star()
+  if (!settings.reduceMotion) burstLayer.value?.burst(originOf(event.id))
+  cheer.value = CHEERS[Math.floor(Math.random() * CHEERS.length)]
+  if (cheerTimer) clearTimeout(cheerTimer)
+  cheerTimer = window.setTimeout(() => {
+    cheer.value = ''
+  }, 2600)
+  // 三件齐活的大庆祝走全局浮层（天然可跳过），奖励每天只发一次。
+  if (quest.claimCelebration()) progress.grantDailyQuestBonus()
+}
+
+watch(() => quest.completedIds, celebrateFresh)
 
 /** 页面开着过了一夜，回来时该换成新一天的任务。 */
 function onVisible() {
   if (document.hidden) return
   quest.refresh()
-  quest.flushCompletions()
+  celebrateFresh()
 }
 
 onMounted(() => {
   quest.refresh()
-  // 大多数任务是在别的页面上完成的，回到首页这一刻才轮到它们的星星。
-  quest.flushCompletions()
+  // 任务多半是在别的页面上完成的，回到首页这一刻才轮到它们的星星。
+  celebrateFresh()
   document.addEventListener('visibilitychange', onVisible)
 })
 
@@ -138,7 +139,8 @@ onBeforeUnmount(() => {
             {{ t.title }}
           </p>
           <p class="quest__desc muted">{{ t.desc }}</p>
-          <span class="quest__meter">
+          <!-- 做完就把进度条收起来：孩子自己勾的那些，数字反而说不清 -->
+          <span v-if="!t.done" class="quest__meter">
             <span class="quest__bar" aria-hidden="true">
               <span class="quest__fill" :style="{ width: `${t.percent}%` }" />
             </span>
