@@ -16,9 +16,10 @@ def load_script(relative_path: str) -> dict[str, object]:
 
 
 def test_modal_benchmark_model_has_sorted_positive_frequencies() -> None:
-    script = load_script("benchmarks/bench_modal.py")
-    stiffness, mass = script["build_spring_chain"](10)
-    frequencies = script["modal_frequencies"](stiffness, mass, modes=4)
+    from openfemlab.bench import build_spring_chain, modal_frequencies
+
+    stiffness, mass = build_spring_chain(10)
+    frequencies = modal_frequencies(stiffness, mass, modes=4)
 
     assert frequencies.shape == (4,)
     assert np.all(frequencies > 0.0)
