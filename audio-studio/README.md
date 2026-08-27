@@ -672,8 +672,12 @@ above this package.
 
 ## Known limitations
 
-- Single visible track/clip. `TrackPanel` is reusable, but there is no finished
-  multitrack mixer, clip timeline, bus/send routing or automation workflow.
+- Single visible track/clip in the waveform workspace. `TrackPanel` is reusable,
+  but the multitrack side is an MVP: lanes, clips, faders, pans, mutes/solos and
+  submix buses work, and automation covers track volume only — breakpoints
+  joined by straight lines, drawn in the lane the `A` button opens under a
+  track's clips. There are no pan, send, clip-gain or plugin-parameter
+  envelopes, no touch/latch/write modes, and no recording of fader moves.
 - Waveform editing is wired through `EditSession`: cut, copy, paste, delete,
   silence, trim, gain, fade in/out, reverse, insert silence and unlimited
   undo/redo from the Edit menu. Save and reopen sessions as `.hlproj` directory

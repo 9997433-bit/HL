@@ -66,8 +66,10 @@ MIN_STRIP_DB: float = -60.0
 #: Height of one bus strip in the bus row under the tracks.
 BUS_STRIP_HEIGHT: int = 28
 
-#: Height of the automation lane a track can open under its clips.
-AUTOMATION_LANE_HEIGHT: int = 40
+#: Height of the automation lane a track can open under its clips. The lane
+#: carries the fader's whole 84 dB of travel, so it needs enough pixels for a
+#: few dB to be worth dragging for.
+AUTOMATION_LANE_HEIGHT: int = 52
 
 #: How close, in pixels, a click has to be to a breakpoint to grab it rather
 #: than to drop a new one.
@@ -324,7 +326,9 @@ class AutomationLane(QWidget):
     one, a right-click deletes one, and the vertical axis runs from
     :data:`MIN_STRIP_DB` to :data:`MAX_GAIN_DB` — the same span as the header's
     fader, so a point level with the top of the lane means the same thing as a
-    fader pushed to the top of its travel.
+    fader pushed to the top of its travel. That whole range in this many pixels
+    is around two decibels per pixel: enough to draw a fade, not enough to trim
+    one, which is what a taller lane or a numeric entry would be for.
 
     There is no cached pixmap here. A curve is a handful of line segments, and
     the whole point of the lane is that it repaints while the mouse is moving.
@@ -498,7 +502,7 @@ class AutomationLane(QWidget):
 
         painter.setPen(QPen(self._color.lighter(140), 1))
         painter.setBrush(self._color)
-        for (x, y), point in zip(vertices, points, strict=False):
+        for x, y in vertices:
             if -4 <= x <= self.width() + 4:
                 painter.drawRect(QRectF(x - 2.5, y - 2.5, 5.0, 5.0))
         painter.setBrush(Qt.BrushStyle.NoBrush)
@@ -668,9 +672,14 @@ class TrackHeaderStrip(QWidget):
         automated = self._track.has_automation
         self.gain_slider.setEnabled(not automated)
         if automated:
-            self.gain_label.setText(f"{self._track.effective_gain_db(0):+.1f} auto")
+            self.gain_label.setText("auto")
+            self.gain_label.setToolTip(
+                f"Level comes from the automation lane, "
+                f"{self._track.effective_gain_db(0):+.1f} dB at the start"
+            )
         else:
             self.gain_label.setText(f"{self._track.gain_db:+.1f} dB")
+            self.gain_label.setToolTip("")
         pan = self._track.pan
         if abs(pan) < 0.005:
             self.pan_label.setText("C")
