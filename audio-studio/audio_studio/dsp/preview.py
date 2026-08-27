@@ -50,6 +50,31 @@ identical apart from where the work happens, which is why
 Whichever thread runs it, an effect that raises costs one dry block rather than
 the stream, and an offline-only effect (normalise, fades) is skipped rather
 than treated as an error.
+
+Plugin delay compensation (PDC)
+-------------------------------
+
+An external plugin that reports latency hands back audio that is late by that
+many samples. On its own that is only a constant offset — but the offset
+*changes* when the plugin is bypassed, because a bypassed member is skipped
+entirely: toggling bypass moves the stream in time, and an A/B against the dry
+signal no longer nulls.
+
+The preview therefore pads the path to a constant. Every block, the deficit
+between what the chain *would* delay with every member running
+(:meth:`EffectChain.latency_samples` with ``include_bypassed=True``) and what
+it delays right now is made up by a :class:`LatencyCompensator` — a plain FIFO
+delay appended after the chain. Bypassing a latent plugin swaps its delay for
+an equal compensation delay, so the null test still aligns; the plugins that
+*are* running are heard exactly as before.
+
+This is the MVP shape of PDC: it compensates the preview insert as a whole and
+runs wherever :meth:`EffectPreview.process_block` runs (the engine's feeder
+thread when the preview is bound to one). It does not shift the transport's
+playhead reporting, and changing the deficit mid-stream (a bypass toggle)
+re-primes the delay with silence rather than resampling across the join —
+audible as a one-off tick, never as drift. ``pdc_enabled = False`` restores
+the uncompensated behaviour.
 """
 
 from __future__ import annotations
@@ -61,9 +86,67 @@ import numpy as np
 
 from .effects.base import EffectChain
 
-__all__ = ["EffectPreview"]
+__all__ = ["EffectPreview", "LatencyCompensator"]
 
 RenderCallback = Callable[[int], np.ndarray]
+
+
+class LatencyCompensator:
+    """A FIFO delay that pads a streamed path to a target latency.
+
+    The delay length is set in whole samples with :meth:`set_delay` and applied
+    along axis 0 (time, for the ``(frames, channels)`` blocks the preview
+    streams; a 1-D mono block works the same). Changing the length re-primes
+    the line with silence — the stream stays sample-continuous *after* the
+    change, but the join itself is a hard edit, which is the honest MVP
+    behaviour for a toggle that by definition moves the signal in time.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> pdc = LatencyCompensator()
+    >>> pdc.set_delay(2)
+    >>> pdc.process(np.array([1.0, 2.0, 3.0], dtype=np.float32)).tolist()
+    [0.0, 0.0, 1.0]
+    >>> pdc.process(np.array([4.0, 5.0], dtype=np.float32)).tolist()
+    [2.0, 3.0]
+    """
+
+    def __init__(self, delay_samples: int = 0) -> None:
+        self._delay = max(int(delay_samples), 0)
+        self._tail: np.ndarray | None = None
+
+    @property
+    def delay_samples(self) -> int:
+        """Current delay length, in samples."""
+        return self._delay
+
+    def set_delay(self, samples: int) -> None:
+        """Resize the delay; a change drops the buffered tail and re-primes."""
+        samples = max(int(samples), 0)
+        if samples != self._delay:
+            self._delay = samples
+            self._tail = None
+
+    def reset(self) -> None:
+        """Forget buffered audio; the next block is delayed by fresh silence."""
+        self._tail = None
+
+    def process(self, block: np.ndarray) -> np.ndarray:
+        """Return ``block`` delayed by :attr:`delay_samples` along axis 0."""
+        if self._delay <= 0 or block.shape[0] == 0:
+            return block
+        tail_shape = (self._delay, *block.shape[1:])
+        if (
+            self._tail is None
+            or self._tail.shape != tail_shape
+            or self._tail.dtype != block.dtype
+        ):
+            # First block after a resize/format change: prime with silence.
+            self._tail = np.zeros(tail_shape, dtype=block.dtype)
+        joined = np.concatenate([self._tail, block], axis=0)
+        self._tail = joined[block.shape[0] :]
+        return joined[: block.shape[0]]
 
 
 class EffectPreview:
@@ -77,6 +160,10 @@ class EffectPreview:
     chain:
         Rack to run. Defaults to an empty chain, which is a pass-through until
         something is added to it.
+    pdc_enabled:
+        Whether plugin delay compensation pads the path to a constant latency
+        (see the module docstring). On by default; turning it off restores the
+        uncompensated behaviour where a bypass toggle moves the stream in time.
 
     Notes
     -----
@@ -89,7 +176,13 @@ class EffectPreview:
     or take the stream down.
     """
 
-    def __init__(self, output: Any, chain: EffectChain | None = None) -> None:
+    def __init__(
+        self,
+        output: Any,
+        chain: EffectChain | None = None,
+        *,
+        pdc_enabled: bool = True,
+    ) -> None:
         self._output = output
         self.chain = chain if chain is not None else EffectChain()
         self._callback: RenderCallback | None = None
@@ -97,6 +190,8 @@ class EffectPreview:
         self._processed_blocks = 0
         self._failed_blocks = 0
         self._last_error: Exception | None = None
+        self._pdc = LatencyCompensator()
+        self._pdc_enabled = bool(pdc_enabled)
 
     # -- introspection -----------------------------------------------------
 
@@ -132,6 +227,48 @@ class EffectPreview:
     def last_error(self) -> Exception | None:
         return self._last_error
 
+    # -- plugin delay compensation ------------------------------------------
+
+    @property
+    def pdc_enabled(self) -> bool:
+        """Whether the path is padded to a constant latency."""
+        return self._pdc_enabled
+
+    @pdc_enabled.setter
+    def pdc_enabled(self, enabled: bool) -> None:
+        enabled = bool(enabled)
+        if enabled == self._pdc_enabled:
+            return
+        self._pdc_enabled = enabled
+        # Turning compensation off drops the buffered tail (the stream jumps
+        # forward by the padding); turning it on re-primes with silence on the
+        # next block. Both are inherent to moving the signal in time.
+        self._pdc.set_delay(0)
+
+    def pdc_padding_samples(self) -> int:
+        """Silence currently inserted to hold the path's latency constant.
+
+        The deficit between the chain's full reported latency (every member,
+        bypassed or not) and what the members that are actually running
+        report. Zero when compensation is off, when nothing reports latency,
+        or when every latent member is active.
+        """
+        if not self._pdc_enabled:
+            return 0
+        reference = self.chain.latency_samples(include_bypassed=True)
+        active = self.chain.latency_samples() if self.is_active else 0
+        return max(reference - active, 0)
+
+    def latency_samples(self) -> int:
+        """Total delay the insert imposes on the stream right now, in samples.
+
+        With compensation on this is constant across bypass toggles — the
+        chain's full reported latency; with it off it is whatever the members
+        currently running report.
+        """
+        active = self.chain.latency_samples() if self.is_active else 0
+        return active + self.pdc_padding_samples()
+
     # -- AudioOutput surface ----------------------------------------------
 
     def open(
@@ -146,6 +283,7 @@ class EffectPreview:
         self._callback = callback
         self.chain.reset()
         self.chain.prepare(float(sample_rate), int(channels))
+        self._pdc.reset()
         self._bind_feeder(callback)
         kwargs = {} if block_size is None else {"block_size": block_size}
         self._output.open(sample_rate, channels, self.render, **kwargs)
@@ -177,18 +315,28 @@ class EffectPreview:
 
         Never raises: a failing effect is counted and its block passed through
         dry, because a wrong parameter must cost a block rather than the
-        stream.
+        stream. Delay compensation applies to every path out of here — wet,
+        bypassed and failed alike — because its whole point is that the
+        stream's timing does not depend on which of those happened.
         """
-        if not self.is_active or block.size == 0:
+        if block.size == 0:
             return block
-        try:
-            processed = self.chain.process_block(block, sample_rate, channels_last=True)
-        except Exception as exc:  # noqa: BLE001 - neither thread may see this raise
-            self._failed_blocks += 1
-            self._last_error = exc
-            return block
-        self._processed_blocks += 1
-        return np.asarray(processed, dtype=block.dtype)
+        out = block
+        if self.is_active:
+            try:
+                out = np.asarray(
+                    self.chain.process_block(block, sample_rate, channels_last=True),
+                    dtype=block.dtype,
+                )
+                self._processed_blocks += 1
+            except Exception as exc:  # noqa: BLE001 - neither thread may see this raise
+                self._failed_blocks += 1
+                self._last_error = exc
+                out = block
+        if not self._pdc_enabled:
+            return out
+        self._pdc.set_delay(self.pdc_padding_samples())
+        return self._pdc.process(out)
 
     # -- feeder binding ----------------------------------------------------
 

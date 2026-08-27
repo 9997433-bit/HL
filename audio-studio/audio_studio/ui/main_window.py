@@ -773,6 +773,7 @@ class MainWindow(QMainWindow):
         self.spectrum_panel.deleteRequested.connect(self.spectral_delete)
         self.effect_rack.chainChanged.connect(self._on_chain_changed)
         self.plugin_panel.pluginChanged.connect(self._on_chain_changed)
+        self.plugin_panel.pdcToggled.connect(self._on_pdc_toggled)
 
         self.marker_panel.selectionChanged.connect(self._update_marker_actions)
         self.marker_panel.goToRequested.connect(self._on_seek)
@@ -2136,6 +2137,20 @@ class MainWindow(QMainWindow):
         # summary names every member of it, so both paths re-read the same line.
         self.effect_rack.update_status()
         self.status_fx.setText(self.effect_rack.summary())
+
+    def _on_pdc_toggled(self, enabled: bool) -> None:
+        """Forward the panel's PDC preference to the preview insert.
+
+        The panel owns the toggle, the preview owns the delay line; the window
+        is the only object that holds both.
+        """
+        self.preview.pdc_enabled = bool(enabled)
+        self.statusBar().showMessage(
+            "Plugin delay compensation on"
+            if enabled
+            else "Plugin delay compensation off — latent plugins are heard late",
+            4000,
+        )
 
     def _scale_amplitude(self, factor: float) -> None:
         waveform = self.track_panel.waveform

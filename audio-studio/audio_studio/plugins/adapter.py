@@ -104,6 +104,14 @@ class PluginEffectAdapter(Effect):
         """
         self.host.set_parameter(name, value)
 
+    def state_blob(self) -> bytes | None:
+        """The host's opaque state snapshot, for project persistence."""
+        return self.host.state_blob()
+
+    def restore_state(self, blob: bytes) -> bool:
+        """Apply a saved :meth:`state_blob` back to the host; best-effort."""
+        return bool(self.host.restore_state(blob))
+
     # -- Effect ------------------------------------------------------------
 
     def prepare(self, sample_rate: float, n_channels: int) -> None:

@@ -23,10 +23,14 @@ and pedalboard is only reached inside
 actually loads a plugin. Without the extra the panel says so, in place, with the
 install command — a dialog the user cannot copy out of would be worse.
 
-*Latency is reported, not compensated.* The panel adds up what the loaded
-plugins report and shows the total, because a delay that is not compensated is
-at least one the user can see. Nothing shifts the preview to match it yet; a
-plugin that reports latency is heard late.
+*Latency is compensated on the preview, and the panel says by how much.* The
+readout under the slots shows the constant the playback path is padded to —
+the sum of what every loaded plugin reports, bypassed or not, because plugin
+delay compensation (see :mod:`audio_studio.dsp.preview`) holds the path there
+so a bypass toggle does not move the stream in time. The **PDC** toggle beside
+it turns the padding off (the panel emits :attr:`PluginPanel.pdcToggled`; the
+main window forwards it to the preview insert), and the readout then falls
+back to reporting the uncompensated delay of the plugins actually running.
 
 *Parameter scales are the plugin's business.* A host reports parameters as a
 ``{name: value}`` snapshot where the value is normally the 0–1 normalised host
@@ -39,6 +43,8 @@ the one last loaded or clicked.
 
 from __future__ import annotations
 
+import base64
+import binascii
 import importlib.util
 from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
@@ -339,6 +345,11 @@ class PluginPanel(QWidget):
     #: retuned.
     pluginChanged = Signal()
 
+    #: Emitted when the PDC toggle changes; carries the new enabled state.
+    #: The panel only *announces* the preference — whoever owns the
+    #: :class:`~audio_studio.dsp.preview.EffectPreview` applies it there.
+    pdcToggled = Signal(bool)
+
     def __init__(
         self,
         chain: EffectChain | None = None,
@@ -418,13 +429,32 @@ class PluginPanel(QWidget):
         return slot
 
     def _build_latency(self) -> QWidget:
+        self.pdc_button = QPushButton("PDC")
+        self.pdc_button.setCheckable(True)
+        self.pdc_button.setChecked(True)
+        self.pdc_button.setMaximumWidth(48)
+        self.pdc_button.setToolTip(
+            "Plugin delay compensation: pad the playback path to a constant "
+            "latency so bypassing a plugin does not move the stream in time"
+        )
+        self.pdc_button.toggled.connect(self._on_pdc)
+
         self.latency_label = QLabel()
         self.latency_label.setObjectName("SecondaryTimecode")
         self.latency_label.setToolTip(
-            "Sum of the delay the loaded plugins report. The preview is not "
-            "delay-compensated yet, so a plugin that reports latency is heard late"
+            "Delay the loaded plugins report. With PDC on it is the constant "
+            "the whole preview path is padded to (bypassed slots included); "
+            "with PDC off it is the uncompensated delay of the plugins "
+            "actually running, which are then heard late"
         )
-        return self.latency_label
+
+        row = QWidget()
+        layout = QHBoxLayout(row)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
+        layout.addWidget(self.pdc_button)
+        layout.addWidget(self.latency_label, 1)
+        return row
 
     def _build_parameters(self) -> QWidget:
         self.parameter_box = QGroupBox("Parameters")
@@ -708,6 +738,15 @@ class PluginPanel(QWidget):
 
     # -- latency -----------------------------------------------------------
 
+    @property
+    def pdc_enabled(self) -> bool:
+        """Whether the panel is asking for plugin delay compensation."""
+        return self.pdc_button.isChecked()
+
+    def set_pdc_enabled(self, enabled: bool) -> None:
+        """Move the PDC toggle; emits :attr:`pdcToggled` when it changes."""
+        self.pdc_button.setChecked(bool(enabled))
+
     def total_latency_samples(self) -> int:
         """Delay reported by the plugins that are actually in the path.
 
@@ -725,11 +764,36 @@ class PluginPanel(QWidget):
                 continue
         return total
 
+    def compensated_latency_samples(self) -> int:
+        """The constant PDC pads the playback path to, in samples.
+
+        Every loaded plugin counts, bypassed or not: compensation's whole
+        point is that toggling a bypass swaps plugin delay for an equal
+        padding delay, so the figure the listener experiences is this sum
+        regardless of which slots are active.
+        """
+        total = 0
+        for adapter in self.adapters:
+            try:
+                total += max(int(adapter.latency_samples()), 0)
+            except (AttributeError, TypeError, ValueError):
+                continue
+        return total
+
     def _latency_text(self) -> str:
+        if self.pdc_enabled:
+            total = self.compensated_latency_samples()
+            if total <= 0:
+                return "Plugin latency: 0 samples"
+            return f"Plugin latency: {total} samples (compensated)"
         total = self.total_latency_samples()
         if total <= 0:
             return "Plugin latency: 0 samples"
         return f"Plugin latency: {total} samples (not compensated)"
+
+    def _on_pdc(self, enabled: bool) -> None:
+        self._update_controls()
+        self.pdcToggled.emit(bool(enabled))
 
     # -- parameters --------------------------------------------------------
 
@@ -804,20 +868,31 @@ class PluginPanel(QWidget):
     def project_state(self) -> list[dict[str, Any]]:
         """What the ``.hlproj`` remembers: which bundle is in which slot.
 
-        Paths and the bypass flag only. A plugin's *parameter* state is a
-        backend-specific blob that would have to survive plugin updates and
-        machine moves to be worth writing, so a reopened project loads the
-        plugins with their own defaults until that lands.
+        Path, bypass flag and — when the host can produce one — an opaque
+        state blob, base64-encoded for the JSON bundle. The blob is the
+        backend's native state chunk when pedalboard exposes one, and the
+        parameter-dict JSON fallback otherwise; either way it is best-effort,
+        so a host that cannot serialise simply writes path and bypass the way
+        it always did.
         """
-        return [
-            {
+        entries: list[dict[str, Any]] = []
+        for slot in self.slots:
+            adapter = slot.adapter
+            if adapter is None:
+                continue
+            entry: dict[str, Any] = {
                 "slot": slot.index,
-                "path": str(slot.adapter.plugin_path),
-                "bypass": bool(slot.adapter.bypass),
+                "path": str(adapter.plugin_path),
+                "bypass": bool(adapter.bypass),
             }
-            for slot in self.slots
-            if slot.adapter is not None
-        ]
+            try:
+                blob = adapter.state_blob()
+            except Exception:  # noqa: BLE001 - a plugin that cannot save must not block the project
+                blob = None
+            if blob:
+                entry["state"] = base64.b64encode(blob).decode("ascii")
+            entries.append(entry)
+        return entries
 
     def restore_project_state(self, entries: Sequence[dict[str, Any]]) -> int:
         """Reload the plugins a project was saved with; returns how many opened.
@@ -825,7 +900,10 @@ class PluginPanel(QWidget):
         Plugins are a property of the machine, not of the project: a bundle may
         have been uninstalled, or the project may be open on a machine without
         the ``plugins`` extra. Every failure is counted and reported in the
-        message line, and the slots that did load still work.
+        message line, and the slots that did load still work. A saved state
+        blob is applied after the plugin opens, best-effort: a blob the plugin
+        no longer understands (different version, different backend) leaves the
+        plugin at its own defaults rather than failing the slot.
         """
         for slot in self.slots:
             self._detach(slot.adapter)
@@ -845,6 +923,7 @@ class PluginPanel(QWidget):
                 adapter = self.slots[index].adapter
                 if adapter is not None:
                     adapter.bypass = bool(entry.get("bypass", False))
+                    self._restore_adapter_state(adapter, entry.get("state"))
                 loaded += 1
             else:
                 missing.append(Path(path).name)
@@ -859,6 +938,20 @@ class PluginPanel(QWidget):
             )
         self.pluginChanged.emit()
         return loaded
+
+    @staticmethod
+    def _restore_adapter_state(adapter: PluginEffectAdapter, state: Any) -> bool:
+        """Best-effort application of a saved base64 state blob to ``adapter``."""
+        if not state:
+            return False
+        try:
+            blob = base64.b64decode(str(state), validate=True)
+        except (binascii.Error, ValueError):
+            return False
+        try:
+            return bool(adapter.restore_state(blob))
+        except Exception:  # noqa: BLE001 - stale state must not fail the slot it rode in on
+            return False
 
     # -- status ------------------------------------------------------------
 

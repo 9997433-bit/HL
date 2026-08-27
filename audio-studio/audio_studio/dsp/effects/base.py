@@ -95,6 +95,17 @@ class Effect(ABC):
     def reset(self) -> None:  # noqa: B027 - stateless effects legitimately do nothing
         """Clear streaming state without changing parameters."""
 
+    def latency_samples(self) -> int:
+        """Delay this effect imposes on the signal when it runs, in samples.
+
+        Native processors are latency-free by design (their filters are
+        causal, sample-aligned IIR/gain stages), so the default is ``0``.
+        A wrapped external plugin overrides this with whatever the plugin
+        reports; :class:`EffectChain` sums the figures so a host can pad the
+        rest of the path to match — plugin delay compensation.
+        """
+        return 0
+
     def parameters(self) -> dict[str, Any]:
         """Serialisable parameter snapshot, for presets and undo history."""
         return {"enabled": self.enabled, "mix": self.mix}
@@ -274,6 +285,34 @@ class EffectChain(Effect):
     def reset(self) -> None:
         for effect in self.effects:
             effect.reset()
+
+    def latency_samples(self, include_bypassed: bool = False) -> int:
+        """Summed member latency, in samples — the chain's own delay.
+
+        With the default ``include_bypassed=False`` this is the delay the
+        chain imposes *right now*: a bypassed member is skipped by
+        :meth:`process_block` and therefore delays nothing. With
+        ``include_bypassed=True`` it is the delay the chain would impose if
+        every member ran — the constant a delay-compensated path is padded
+        to, so that toggling a bypass does not move the stream in time.
+
+        A member whose report is unusable (``None``, a raising property, a
+        negative figure) counts as zero rather than poisoning the sum, for
+        the same reason the plugin panel treats it that way: an unknown
+        delay is at worst uncompensated, never a crash.
+        """
+        total = 0
+        for effect in self.effects:
+            if not include_bypassed and not effect.enabled:
+                continue
+            if isinstance(effect, EffectChain):
+                total += effect.latency_samples(include_bypassed)
+                continue
+            try:
+                total += max(int(effect.latency_samples()), 0)
+            except (AttributeError, TypeError, ValueError):
+                continue
+        return total
 
     def parameters(self) -> dict[str, Any]:
         return {

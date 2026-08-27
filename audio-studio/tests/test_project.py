@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import base64
 import json
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pytest
@@ -14,6 +16,7 @@ from audio_studio.core.markers import MarkerList
 from audio_studio.core.sample_source import MemorySampleSource
 from audio_studio.core.session import MultitrackSession, Track
 from audio_studio.core.types import TimeRange
+from audio_studio.plugins import PluginEffectAdapter, PluginHost
 from audio_studio.project.store import (
     ProjectLoadError,
     load_project,
@@ -221,6 +224,137 @@ class TestMarkerPersistence:
 
         with pytest.raises(ProjectLoadError, match="invalid markers"):
             load_project(root)
+
+
+class MockHost(PluginHost):
+    """A writable pass-through plugin host — no plugin binary, no Qt, no GPL."""
+
+    def __init__(
+        self,
+        path: str | Path = "/plugins/Mock.vst3",
+        parameters: dict[str, Any] | None = None,
+    ) -> None:
+        self._path = Path(path)
+        self._parameters = dict(
+            parameters if parameters is not None else {"drive": 0.25, "tone": 0.5}
+        )
+
+    @property
+    def name(self) -> str:
+        return self._path.stem
+
+    @property
+    def plugin_path(self) -> Path:
+        return self._path
+
+    def prepare(self, sample_rate: float, n_channels: int) -> None: ...
+
+    def process_block(self, block: np.ndarray, sample_rate: float) -> np.ndarray:
+        return block
+
+    def latency_samples(self) -> int:
+        return 0
+
+    def parameters(self) -> dict[str, Any]:
+        return dict(self._parameters)
+
+    def set_parameter(self, name: str, value: Any) -> None:
+        if name not in self._parameters:
+            raise KeyError(name)
+        self._parameters[name] = value
+
+
+class TestPluginStatePersistence:
+    """The optional base64 ``state`` blob rides the ``plugins`` array."""
+
+    @staticmethod
+    def _save(root: Path, plugins: list[dict[str, Any]]) -> None:
+        save_project(
+            root,
+            edit_session=None,
+            editor_clip=None,
+            multitrack=MultitrackSession(),
+            workspace="waveform",
+            view_mode="split",
+            playhead=0,
+            selection=None,
+            plugins=plugins,
+        )
+
+    @staticmethod
+    def _entry(adapter: PluginEffectAdapter, slot: int = 0) -> dict[str, Any]:
+        """The dict the plugin panel would write for ``adapter``."""
+        blob = adapter.state_blob()
+        assert blob is not None
+        return {
+            "slot": slot,
+            "path": str(adapter.plugin_path),
+            "bypass": adapter.bypass,
+            "state": base64.b64encode(blob).decode("ascii"),
+        }
+
+    def test_the_state_blob_round_trips_through_the_bundle(self, tmp_path: Path) -> None:
+        """Save a tweaked mock plugin, reopen, restore a fresh one from the blob."""
+        saved_host = MockHost(parameters={"drive": 0.9, "tone": 0.1})
+        root = tmp_path / "stateful.hlproj"
+        self._save(root, [self._entry(PluginEffectAdapter(saved_host))])
+
+        (restored,) = load_project(root).plugins
+        fresh = PluginEffectAdapter(MockHost())
+        assert fresh.restore_state(base64.b64decode(restored["state"])) is True
+
+        assert fresh.plugin_parameters() == {"drive": 0.9, "tone": 0.1}
+        assert restored["path"] == "/plugins/Mock.vst3"
+
+    def test_the_blob_is_stored_verbatim(self, tmp_path: Path) -> None:
+        adapter = PluginEffectAdapter(MockHost(parameters={"drive": 0.75}))
+        entry = self._entry(adapter)
+        root = tmp_path / "verbatim.hlproj"
+
+        self._save(root, [entry])
+
+        payload = json.loads((root / "project.json").read_text(encoding="utf-8"))
+        assert payload["plugins"][0]["state"] == entry["state"]
+        assert load_project(root).plugins[0]["state"] == entry["state"]
+
+    def test_an_entry_without_state_stays_without_it(self, tmp_path: Path) -> None:
+        """Pre-state projects (and hosts that cannot serialise) change nothing."""
+        root = tmp_path / "stateless.hlproj"
+        self._save(root, [{"slot": 0, "path": "/plugins/Old.vst3"}])
+
+        payload = json.loads((root / "project.json").read_text(encoding="utf-8"))
+        assert "state" not in payload["plugins"][0]
+        assert "state" not in load_project(root).plugins[0]
+
+    def test_a_blob_that_is_not_base64_is_dropped_at_save(self, tmp_path: Path) -> None:
+        root = tmp_path / "mangled.hlproj"
+        self._save(
+            root,
+            [{"slot": 0, "path": "/plugins/Mock.vst3", "state": "%%% not base64 %%%"}],
+        )
+
+        payload = json.loads((root / "project.json").read_text(encoding="utf-8"))
+        assert "state" not in payload["plugins"][0]
+
+    def test_a_hand_mangled_blob_is_dropped_at_load(self, tmp_path: Path) -> None:
+        """The plugin entry survives; only its unusable state is discarded."""
+        root = tmp_path / "edited.hlproj"
+        root.mkdir()
+        (root / "project.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "plugins": [
+                        {"slot": 0, "path": "/plugins/Mock.vst3", "state": "!!!"}
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        (entry,) = load_project(root).plugins
+        assert entry["path"] == "/plugins/Mock.vst3"
+        assert "state" not in entry
 
 
 def test_document_media_is_readable_wav(loaded_clip: LoadedAudio, tmp_path: Path) -> None:
