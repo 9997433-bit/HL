@@ -13,6 +13,8 @@
  * 招牌上那句话就是在讲这件事。
  */
 import { computed } from 'vue'
+import MascotCompanion from '@/components/MascotCompanion.vue'
+import { useMascotCoach } from '@/composables/useMascotCoach.js'
 import { useProgressStore } from '@/stores/progress.js'
 import { sfx } from '@/utils/sfx.js'
 import OpenMojiIcon from '@shared/components/OpenMojiIcon.vue'
@@ -21,6 +23,7 @@ const progress = useProgressStore()
 
 /** 出题需要凑够的干扰项数量；不到就先去学字，机器出不了整题。 */
 const MIN_CHARS = 4
+const { line: coachLine, mood: coachMood, next: coachNext } = useMascotCoach('games')
 
 const GAMES = [
   {
@@ -130,6 +133,16 @@ const hostLine = computed(() =>
       <RouterLink class="arcade__link" to="/learn">学汉字</RouterLink>
       认几个字，再回来玩。
     </p>
+
+    <MascotCompanion
+      class="mascot-dock"
+      :mood="coachMood"
+      :say="coachLine"
+      :size="72"
+      :speak-on-tap="false"
+      tap-hint="点我，换一句悄悄话"
+      @tap="coachNext"
+    />
   </div>
 </template>
 

@@ -128,6 +128,25 @@ svg {
   gap: var(--gap-lg);
 }
 
+/*
+ * 学伴常驻位。
+ *
+ * 放在 .page 的最后，用 sticky 顶在底部导航上方：孩子从头翻到尾，墨墨一直
+ * 跟在页面左下角；真的滚到底了它就落回文档流，不会把最后一段内容压住。
+ */
+.mascot-dock {
+  position: sticky;
+  bottom: calc(84px + env(safe-area-inset-bottom));
+  z-index: 20;
+  align-self: flex-start;
+  max-width: 100%;
+  pointer-events: none;
+}
+
+.mascot-dock > * {
+  pointer-events: auto;
+}
+
 .stack {
   display: flex;
   flex-direction: column;
