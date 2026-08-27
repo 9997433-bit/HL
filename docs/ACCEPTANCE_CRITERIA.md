@@ -353,6 +353,7 @@ to honor the sparse matrix contract of MS-0.2 and MS-1.6.
 | AC-WORK-007 | P1 | Geometry alignment CLI writes sensor map | `align` exit 0; JSON rows/labels/transform present | MS-2.1 |
 | AC-WORK-008 | P2 | Dashboard FRF overlay payload | `frf_overlay` block + `drawFrfOverlay` in viewer | MS-4.3 |
 | AC-WORK-009 | P2 | Dashboard stabilization diagram payload | `stabilization_diagram` block renders poles | MS-10.3 |
+| AC-WORK-010 | P1 | BDF/OP2 interchange correction loop exports updated BDF | OP2 geometry/frequency parity; update recovers twin; `write_bdf` scales MAT1 | MS-4.5 |
 
 ### Details
 
@@ -376,6 +377,14 @@ to honor the sparse matrix contract of MS-0.2 and MS-1.6.
   table (initial/final/bounds/σ_post where applicable), gate results,
   environment (package versions, seed), and per-stage wall time; it
   serializes to valid JSON.
+- **AC-WORK-009** (`contract`) — Dashboard payload builders expose
+  ``stabilization_diagram`` data consumed by ``drawStabilizationDiagram`` in the
+  static viewer (MS-10.3 poles).
+- **AC-WORK-010** (`contract`) — A rod-chain BDF imports through
+  ``read_bdf``/``neutral_to_model``, baseline modes match a synthetic OP2 built
+  from the same labels, a detuned twin drives ``update_model`` to recover the
+  stiffness factor, and ``write_bdf(material_scales=...)`` exports a deck whose
+  MAT1 field and re-solved correlation pass the MS-4.2 MAC gate.
 
 ---
 

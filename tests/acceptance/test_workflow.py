@@ -34,8 +34,8 @@ from __future__ import annotations
 
 import argparse
 import json
-from pathlib import Path
 import math
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -650,3 +650,186 @@ def test_ac_work_009_dashboard_html_supports_stabilization_diagram() -> None:
         encoding="utf-8"
     )
     assert "drawStabilizationDiagram" in html
+
+
+# --------------------------------------------------------------- AC-WORK-010
+
+
+ROD_BDF_INDUSTRIAL = """\
+GRID,11,,0.,0.,0.
+GRID,22,,1.,0.,0.
+GRID,33,,2.,0.,0.
+GRID,44,,3.,0.,0.
+MAT1,7,2.1+11,,0.3,7850.
+PROD,40,7,1.0-4
+CROD,100,40,11,22
+CROD,200,40,22,33
+CROD,300,40,33,44
+"""
+
+ROD_GRID_IDS = (11, 22, 33, 44)
+ROD_PROPERTY_ID = 40
+ROD_MATERIAL_ID = 7
+ROD_E_TRUTH_FACTOR = 0.85
+ROD_NUM_MODES = 3
+ROD_OP2_FREQUENCY_RTOL = 1e-5
+ROD_UPDATE_RTOL = 2e-2
+
+
+def _rod_bdf_model():
+    import io
+
+    from openfemlab.core.model import DOF, Material, Section
+    from openfemlab.io import neutral_to_model, read_bdf
+
+    neutral = read_bdf(io.StringIO(ROD_BDF_INDUSTRIAL))
+    fallback_material = Material(
+        E=float(neutral.materials[ROD_MATERIAL_ID].E),
+        density=float(neutral.materials[ROD_MATERIAL_ID].rho),
+        nu=float(neutral.materials[ROD_MATERIAL_ID].nu),
+    )
+    fallback_section = Section(area=1.0e-4)
+    model = neutral_to_model(
+        neutral,
+        dofs=(DOF.UX,),
+        material=fallback_material,
+        section=fallback_section,
+    )
+    model.fix_nodes([11], (DOF.UX,))
+    return neutral, model, fallback_material, fallback_section
+
+
+def _op2_modes_from_modal(model, result, grid_ids: tuple[int, ...]):
+    from tests import _op2
+
+    modes = []
+    for index, frequency in enumerate(result.frequencies, start=1):
+        shape: dict[int, tuple[float, ...]] = {}
+        for grid_id in grid_ids:
+            components = [0.0] * 6
+            for offset, dof in enumerate(model.dofs):
+                row = model.dof_index(grid_id, dof)
+                components[offset] = float(result.mode_shapes[row, index - 1])
+            shape[grid_id] = tuple(components)
+        modes.append(_op2.Mode(number=index, frequency_hz=float(frequency), shape=shape))
+    return modes
+
+
+@criterion("AC-WORK-010")
+def test_ac_work_010_bdf_op2_correction_loop_exports_updated_bdf(tmp_path) -> None:
+    """Industrial interchange loop: BDF → OP2 → correlate/update → export BDF."""
+    import io
+
+    from openfemlab import ModalSolver
+    from openfemlab.cli.analysis import as_modal_result
+    from openfemlab.core.dofs import DofMap, DofType
+    from openfemlab.core.model import DOF
+    from openfemlab.core.results import TestData
+    from openfemlab.correlation import correlate_modal_data
+    from openfemlab.io import neutral_to_model, read_bdf, write_bdf
+    from openfemlab.io.op2 import read_op2, read_op2_modes
+    from openfemlab.updating import Parameter, ParameterType, update_model
+    from openfemlab.updating.resolver import resolve_scaling_spec
+    from tests import _op2
+
+    neutral, model, fallback_material, fallback_section = _rod_bdf_model()
+    dof_map = DofMap([22, 33, 44], [int(DofType.UX)] * 3)
+    reference_e = float(model.elements[0].material.E)
+    parameter = Parameter(
+        "E.all",
+        "materials.*.E",
+        reference=reference_e,
+        lower=0.5,
+        upper=2.0,
+        kind=ParameterType.STIFFNESS,
+    )
+    spec = resolve_scaling_spec(
+        model,
+        [parameter],
+        num_modes=ROD_NUM_MODES,
+        use_solver=False,
+    )
+
+    nominal = ModalSolver(model).solve(num_modes=ROD_NUM_MODES)
+    truth = {parameter.name: ROD_E_TRUTH_FACTOR}
+    target = spec.scaling_model(truth)
+    measurement = TestData(
+        frequencies=target.frequencies,
+        shapes=target.mode_shapes,
+        dof_map=dof_map,
+    )
+
+    grids = [
+        _op2.Grid(id=11, xyz=(0.0, 0.0, 0.0)),
+        _op2.Grid(id=22, xyz=(1.0, 0.0, 0.0)),
+        _op2.Grid(id=33, xyz=(2.0, 0.0, 0.0)),
+        _op2.Grid(id=44, xyz=(3.0, 0.0, 0.0)),
+    ]
+    rods = [
+        _op2.Rod(id=100, property_id=ROD_PROPERTY_ID, grids=(11, 22)),
+        _op2.Rod(id=200, property_id=ROD_PROPERTY_ID, grids=(22, 33)),
+        _op2.Rod(id=300, property_id=ROD_PROPERTY_ID, grids=(33, 44)),
+    ]
+    materials = [_op2.Mat1(id=ROD_MATERIAL_ID, E=reference_e, nu=0.3, rho=7850.0)]
+    properties = [_op2.Prod(id=ROD_PROPERTY_ID, material_id=ROD_MATERIAL_ID, area=1.0e-4)]
+
+    geometry_bytes = _op2.geometry_file(
+        grids,
+        rods=rods,
+        materials=materials,
+        properties=properties,
+    )
+    op2_geometry = read_op2(io.BytesIO(geometry_bytes))
+    np.testing.assert_array_equal(op2_geometry.node_ids, neutral.node_ids)
+    np.testing.assert_allclose(op2_geometry.nodes, neutral.nodes)
+
+    modes_bytes = _op2.modes_file(
+        _op2_modes_from_modal(model, nominal, ROD_GRID_IDS),
+        grids=grids,
+    )
+    op2_modes = read_op2_modes(io.BytesIO(modes_bytes))
+    np.testing.assert_allclose(
+        op2_modes.frequencies,
+        nominal.frequencies,
+        rtol=ROD_OP2_FREQUENCY_RTOL,
+        atol=0.0,
+    )
+
+    baseline_report = correlate_modal_data(
+        as_modal_result(model, nominal),
+        measurement,
+        strict=False,
+    )
+    assert baseline_report.max_abs_freq_error_pct > FREQ_TOLERANCE_PCT
+
+    update_result = update_model(
+        spec.scaling_model,
+        spec.parameter_set(),
+        target.frequencies,
+        target.mode_shapes,
+    )
+    assert update_result.converged
+    assert update_result.parameters[parameter.name] == pytest.approx(
+        ROD_E_TRUTH_FACTOR,
+        rel=ROD_UPDATE_RTOL,
+    )
+
+    exported = tmp_path / "updated.bdf"
+    recovered_factor = float(update_result.parameters[parameter.name])
+    write_bdf(neutral, exported, material_scales={ROD_MATERIAL_ID: recovered_factor})
+    written = read_bdf(exported)
+    assert written.materials[ROD_MATERIAL_ID].E == pytest.approx(reference_e * recovered_factor)
+
+    final_model = neutral_to_model(
+        written,
+        dofs=(DOF.UX,),
+        material=fallback_material,
+        section=fallback_section,
+    )
+    final_model.fix_nodes([11], (DOF.UX,))
+    final_report = correlate_modal_data(
+        as_modal_result(final_model, ModalSolver(final_model).solve(num_modes=ROD_NUM_MODES)),
+        measurement,
+        strict=False,
+    )
+    assert final_report.min_mac >= MAC_MIN

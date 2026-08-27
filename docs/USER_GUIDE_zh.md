@@ -19,6 +19,8 @@ FE/试验相关性分析（correlation）与基于灵敏度的模型修正（mod
 | Optimization | 结构设计优化 | `optimization` 模块（scipy 后端） |
 | MPE | 从 FRF 提取模态参数 | `mpe` 模块：LSCF/LSFD、稳定图、`extract_modes` → `TestData` |
 
+**有意未覆盖（intentional gap）：** FEMtools DAQ 硬件采集与 ARTeMIS 专有接口不在 OpenFEMLab 范围内；试验数据通过 UFF/JSON 交换格式接入（见 `mpe`、`pretest.export_test`）。
+
 与 FEMtools 相同的核心理念是**求解器无关**：相关性与修正只依赖中性的模态数据交换
 格式（JSON/YAML 的模型、模态结果、试验数据文档），因此同一条工作流既可以驱动内置
 求解器，也可以对接外部 CAE 求解器适配层。与 FEMtools 不同的是，OpenFEMLab 面向
@@ -483,6 +485,23 @@ openfemlab correlate run/cantilever.updated.yaml run/measured.yaml \
 
 在 CI 中，把第 2、4 步作为质量闸门：门槛未过时命令以退出码 3 结束，流水线即失败；
 `--format json` 与 `-o` 产出的报告是 schema 版本化的，便于归档与比对。
+
+### 11.1 工业格式闭环（BDF / OP2）
+
+Round 8 增加了 bulk data 与 OP2 互通的端到端路径（AC-WORK-010）：
+
+```bash
+python examples/06_bdf_op2_industrial_loop.py
+```
+
+流程概要：
+
+1. `read_bdf` 导入杆系模型，`neutral_to_model` 转为可求解的 `Model`。
+2. 用 `tests/_op2.py` 生成的合成 OP2 验证几何/模态读回（CI 无需 Nastran 许可证）。
+3. 对 detuned twin 做相关与 `update_model`，再用 `write_bdf(material_scales=...)` 导出更新后的 MAT1。
+4. （可选）设置 `OPENFEMLAB_NASTRAN_EXE` 调用外部 Nastran；见 `openfemlab.io.drivers.nastran`。
+
+本地 Web 查看器支持 `openfemlab serve --desktop`（需 `pip install pywebview`）。
 
 ## 12. 延伸阅读
 

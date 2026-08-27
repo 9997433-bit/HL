@@ -561,6 +561,22 @@ validate**. This is the productized loop a user runs; M1–M3 are its engines.
 - Re-running the pipeline with identical inputs and seed must reproduce all
   reported numbers to 1e-12 relative (AC-WORK-002).
 
+### MS-4.5 Industrial interchange closure (Round 8)
+
+The product loop extends to Nastran bulk data and OP2 interchange:
+
+1. ``read_bdf`` → ``neutral_to_model`` → ``ModalSolver`` (nominal baseline).
+2. Synthetic OP2 geometry and modes (CI fixtures or external Nastran output)
+   round-trip through ``read_op2`` / ``read_op2_modes`` with label-preserving
+   geometry and frequency parity.
+3. Detuned twin modes drive ``update_model`` / correlation gates.
+4. ``write_bdf`` exports the updated deck with ``material_scales`` /
+   ``property_scales`` so the bulk-data reader reproduces the corrected model
+   (AC-WORK-010).
+
+External Nastran execution remains optional (`openfemlab.io.drivers.nastran`);
+the acceptance gate uses ``tests/_op2.py`` fixtures so CI needs no licence.
+
 ### MS-4.4 Public API
 
 ```python

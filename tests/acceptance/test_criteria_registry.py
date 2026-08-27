@@ -70,7 +70,7 @@ FAMILY_TO_MODULE = {
     "PERF": "M1",
 }
 EXPECTED_CRITERIA_PER_FAMILY = {
-    "MODAL": 9,     "CORR": 13, "UPD": 15, "WORK": 9, "OPT": 4, "DYN": 9, "ELEM": 3,
+    "MODAL": 9,     "CORR": 13, "UPD": 15, "WORK": 10, "OPT": 4, "DYN": 9, "ELEM": 3,
     "IO": 14, "MPE": 8, "PRETEST": 9, "PERF": 6,
 }
 
@@ -216,6 +216,8 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P2", "contract", "MS-4.3", _WORK_SUITE, "implemented"),
     _c("AC-WORK-009", "Dashboard renders stabilization diagram payloads",
        "P2", "contract", "MS-10.3", _WORK_SUITE, "implemented"),
+    _c("AC-WORK-010", "BDF/OP2 interchange correction loop exports updated BDF",
+       "P1", "contract", "MS-4.5", _WORK_SUITE, "implemented"),
     # --- M5 Optimization hook (MS-5) ------------------------------------------
     _c("AC-OPT-001", "Analytic gradients vs central FD",
        "P0", "oracle", "MS-5.1", _OPT_SUITE, "verified"),
@@ -345,7 +347,7 @@ def test_registry_inventory_matches_documented_scope():
         for family in EXPECTED_CRITERIA_PER_FAMILY
     }
     assert counts == EXPECTED_CRITERIA_PER_FAMILY
-    assert len(REGISTRY) == 99
+    assert len(REGISTRY) == 100
 
 
 def test_ids_unique():
