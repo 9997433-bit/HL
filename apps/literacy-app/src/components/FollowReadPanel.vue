@@ -2,9 +2,10 @@
 /**
  * 跟读面板：范读 → 跟读 → 当场给一句评价。
  *
- * 三档能力（recognition / recording / listen-only）由 useSpeechEval 判定，
- * 这里的职责是把每一档「能做到什么」明明白白摆在界面上——
- * 孩子读完之后看到的分数是怎么来的，不该靠猜。
+ * 四档能力（offline-asr / recognition / recording / listen-only）由 useSpeechEval
+ * 判定，对外仍归到三个 mode。这里的职责是把每一档「能做到什么」明明白白摆在
+ * 界面上——孩子读完之后看到的分数是怎么来的，不该靠猜；
+ * 离线评测包多大、装没装、删不删，也都由家长自己按。
  */
 import { computed, ref, watch } from 'vue'
 import { useSpeechEval } from '@/composables/useSpeechEval.js'
@@ -22,7 +23,9 @@ const emit = defineEmits(['scored'])
 
 const {
   phase,
+  tier,
   mode,
+  source,
   modeLabel,
   modeNote,
   result,
@@ -32,11 +35,19 @@ const {
   companionReply,
   canRecognize,
   allowRecognition,
+  offlineStatus,
+  offlineNote,
+  offlineProgress,
+  offlineModel,
+  offlineBusy,
   playReference,
   start,
   stop,
   selfAssess,
-  reset
+  reset,
+  checkOfflinePack,
+  downloadOfflinePack,
+  deleteOfflinePack
 } = useSpeechEval()
 
 /** 0..n-1 是逐句，'all' 是整首连读。 */
@@ -63,6 +74,14 @@ const allLinesDone = computed(() => doneCount.value >= props.lines.length)
 const say = ref('')
 
 const charMarks = computed(() => result.value?.chars ?? [])
+
+const SOURCE_TEXT = {
+  'offline-sherpa': '这台设备上的离线评测引擎（不联网）',
+  'web-speech': '浏览器的语音识别（可能联网）',
+  loudness: '只按有没有大声读完',
+  self: '你自己评的'
+}
+const sourceText = computed(() => SOURCE_TEXT[result.value?.source ?? ''] ?? '')
 
 watch(
   () => [cursor.value, whole.value],
@@ -112,6 +131,7 @@ function finish(scored) {
   if (scored.score !== null && scored.score >= 70) sfx.correct()
   emit('scored', {
     mode: scored.mode,
+    source: scored.source ?? source.value,
     score: scored.score,
     grade: scored.grade?.id ?? '',
     whole: whole.value,
@@ -130,10 +150,32 @@ function pickWhole() {
   sfx.tap()
   whole.value = true
 }
+
+/** 家长按钮：装、删、重查离线评测包。三个动作都不改隐私默认值。 */
+async function onOfflineInstall() {
+  sfx.tap()
+  await downloadOfflinePack()
+}
+
+async function onOfflineRemove() {
+  sfx.tap()
+  await deleteOfflinePack()
+}
+
+async function onOfflineRecheck() {
+  sfx.tap()
+  await checkOfflinePack()
+}
 </script>
 
 <template>
-  <section class="fr card" :data-mode="mode" :data-phase="phase">
+  <section
+    class="fr card"
+    :data-mode="mode"
+    :data-tier="tier"
+    :data-source="source"
+    :data-phase="phase"
+  >
     <header class="fr__head">
       <h3 class="section-title">
         <span class="section-title__emoji" aria-hidden="true">🎤</span>
@@ -143,6 +185,47 @@ function pickWhole() {
     </header>
 
     <p class="fr__mode muted">{{ modeNote }}</p>
+
+    <!-- 离线评测包：家长点了才下，装好了跟读就不用联网也能逐字评 -->
+    <div class="fr__pack" :data-status="offlineStatus" :data-model="offlineModel">
+      <p class="fr__pack-note muted">
+        离线评测包（{{ offlineStatus === 'ready' ? '已装好' : '未安装' }}）：{{ offlineNote }}
+        录音和离线评测都留在这台设备上，不上传。
+      </p>
+      <div
+        v-if="offlineStatus === 'installing'"
+        class="fr__pack-bar"
+        role="progressbar"
+        :aria-valuenow="offlineProgress"
+        aria-valuemin="0"
+        aria-valuemax="100"
+      >
+        <span class="fr__pack-fill" :style="{ width: `${offlineProgress}%` }" />
+      </div>
+      <div class="fr__pack-acts">
+        <button
+          v-if="offlineStatus !== 'ready'"
+          type="button"
+          class="btn fr__pack-get"
+          :disabled="offlineBusy"
+          @click="onOfflineInstall"
+        >
+          ⬇️ 下载离线评测包
+        </button>
+        <button
+          v-else
+          type="button"
+          class="btn fr__pack-del"
+          :disabled="offlineBusy"
+          @click="onOfflineRemove"
+        >
+          🗑️ 删掉离线评测包
+        </button>
+        <button type="button" class="btn fr__pack-recheck" :disabled="offlineBusy" @click="onOfflineRecheck">
+          🔄 重新检查
+        </button>
+      </div>
+    </div>
 
     <label v-if="canRecognize" class="fr__opt">
       <input v-model="allowRecognition" type="checkbox" />
@@ -244,6 +327,7 @@ function pickWhole() {
       </div>
       <p class="fr__tip">{{ result.grade?.tip }}</p>
       <p v-if="result.note" class="muted fr__note">{{ result.note }}</p>
+      <p v-if="sourceText" class="muted fr__source">这一分来自：{{ sourceText }}</p>
       <p v-if="result.heard" class="muted fr__heard">听到的是：{{ result.heard }}</p>
       <div v-if="recordingUrl" class="fr__playback">
         <p class="muted">听听自己刚才读的：</p>
@@ -280,6 +364,39 @@ function pickWhole() {
   gap: 8px;
   font-size: 0.8rem;
   color: var(--text-soft);
+}
+
+.fr__pack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: var(--gap-sm);
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--surface-border);
+}
+
+.fr__pack-note {
+  font-size: 0.78rem;
+  line-height: 1.6;
+}
+
+.fr__pack-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap-sm);
+}
+
+.fr__pack-bar {
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-border);
+  overflow: hidden;
+}
+
+.fr__pack-fill {
+  display: block;
+  height: 100%;
+  background: var(--mint-400);
 }
 
 .fr__picker {
@@ -417,6 +534,7 @@ function pickWhole() {
 
 .fr__note,
 .fr__heard,
+.fr__source,
 .fr__tip {
   font-size: 0.84rem;
   line-height: 1.6;
