@@ -540,6 +540,15 @@ def _verify_cross_platform_golden(_tmp_path: Path) -> None:
     assert set(platforms) == {"linux", "macos", "windows"}
     assert report["maximum_absolute_error"] <= 1e-9
     assert report["status"] == "pass"
+    # Three records generated on one host would satisfy everything above, so
+    # the runtimes have to show three different systems before this counts as
+    # a cross-platform comparison at all.
+    assert len({entry["runtime"]["system"] for entry in platforms.values()}) == 3
+    assert all(report["checks"].values()), report["checks"]
+    # The headline figure covers the float64 paths; the float32 audio paths
+    # carry their own per-vector bar and must clear it too.
+    assert report["vectors"], "the golden matrix compared no vectors"
+    assert all(vector["within_tolerance"] for vector in report["vectors"])
 
 
 def _verify_third_party_licenses(_tmp_path: Path) -> None:
@@ -551,10 +560,25 @@ def _verify_third_party_licenses(_tmp_path: Path) -> None:
 
 
 def _verify_crash_recovery(_tmp_path: Path) -> None:
+    from audio_studio.core import autosave
+
+    assert callable(getattr(autosave, "discover", None)), "crash recovery has no launch path"
+    assert callable(getattr(autosave.AutosaveJournal, "save", None))
+
     report = _load_json(REPOSITORY_ROOT / ".agent_workspace/round3/crash-recovery-report.json")
     assert report["termination"] == "kill -9"
     assert report["session_restored"] is True
     assert report["status"] == "pass"
+    # One kill is an anecdote, and a kill nothing survived would still report
+    # a termination. Every trial has to have died by the signal and come back.
+    assert report["trials_run"] >= 3
+    assert report["trials_passed"] == report["trials_run"]
+    assert report["every_worker_died_by_sigkill"] is True
+    assert 0 <= report["worst_case_edits_lost"] <= report["edit_loss_budget"]
+    # A launch that offers to recover a session which exited cleanly is not
+    # recovery, it is a prompt.
+    assert report["clean_exit_control"]["status"] == "pass"
+    assert report["clean_exit_control"]["recoverable_sessions"] == 0
 
 
 CHECKLIST_CASES = (
@@ -672,7 +696,6 @@ CHECKLIST_CASES = (
         "P0",
         "Cross-platform DSP golden consistency",
         _verify_cross_platform_golden,
-        "no three-platform golden comparison artifact exists",
     ),
     ChecklistCase("E3", "P0", "Third-party license inventory", _verify_third_party_licenses),
     ChecklistCase(
@@ -680,7 +703,6 @@ CHECKLIST_CASES = (
         "P1",
         "Crash auto-recovery",
         _verify_crash_recovery,
-        "crash recovery implementation/evidence is missing",
     ),
 )
 
