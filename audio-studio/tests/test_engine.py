@@ -10,7 +10,7 @@ import pytest
 
 from audio_studio.core.engine import AudioEngine
 from audio_studio.core.loader import LoadedAudio
-from audio_studio.core.output import NullOutput
+from audio_studio.core.output import NullOutput, OutputDeviceError
 from audio_studio.core.types import TimeRange, TransportState
 
 
@@ -271,3 +271,102 @@ def test_loading_a_new_clip_resets_the_transport(
     assert engine.state is TransportState.STOPPED
     assert engine.position == 0
     assert engine.selection is None
+
+
+class _DeadOutput(NullOutput):
+    """A backend standing in for a device that was just unplugged."""
+
+    name = "dead"
+
+    def _open_stream(self) -> None:
+        raise OutputDeviceError("device vanished")
+
+
+def test_hot_swap_output_while_stopped_keeps_the_session(
+    engine: AudioEngine, loaded_clip: LoadedAudio
+) -> None:
+    engine.set_clip(loaded_clip)
+    engine.seek(12_000)
+    replacement = NullOutput(realtime=False)
+
+    engine.set_output(replacement)
+
+    assert engine.output is replacement
+    assert engine.has_clip
+    assert engine.position == 12_000
+    assert engine.state is TransportState.STOPPED
+
+    engine.play()
+    rendered = pump(engine, blocks=1)
+    expected = loaded_clip.buffer.data[12_000 : 12_000 + engine.output.block_size]
+    assert np.allclose(rendered, expected, atol=1e-6)
+
+
+def test_hot_swap_output_mid_playback_resumes_from_the_playhead(
+    engine: AudioEngine, loaded_clip: LoadedAudio
+) -> None:
+    engine.set_clip(loaded_clip)
+    engine.play()
+    pump(engine, blocks=3)
+    playhead = engine.position
+    previous = engine.output
+    replacement = NullOutput(realtime=False)
+
+    engine.set_output(replacement)
+
+    assert engine.output is replacement
+    assert not previous.is_open, "the unplugged device must be released"
+    assert engine.is_playing, "playback resumes on the new device"
+
+    rendered = pump(engine, blocks=2)
+    expected = loaded_clip.buffer.data[playhead : playhead + 2 * engine.output.block_size]
+    assert np.allclose(rendered, expected, atol=1e-6)
+
+
+def test_hot_swap_to_a_dead_device_does_not_lose_the_session(
+    engine: AudioEngine, loaded_clip: LoadedAudio
+) -> None:
+    """The crash-safety half of hot-swap: a bad device fails, the engine lives."""
+    engine.set_clip(loaded_clip)
+    engine.play()
+    pump(engine, blocks=2)
+
+    with pytest.raises(OutputDeviceError):
+        engine.set_output(_DeadOutput(realtime=False))
+
+    # The failed resume leaves a stopped but fully consistent transport.
+    assert engine.state is TransportState.STOPPED
+    assert engine.has_clip
+    assert engine.n_frames > 0
+
+    # Swapping to a working device recovers playback outright.
+    engine.set_output(NullOutput(realtime=False))
+    engine.play()
+    assert engine.is_playing
+    assert pump(engine, blocks=1).shape[0] == engine.output.block_size
+
+
+def test_hot_swap_to_the_current_output_is_a_no_op(
+    engine: AudioEngine, loaded_clip: LoadedAudio
+) -> None:
+    engine.set_clip(loaded_clip)
+    engine.play()
+    pump(engine, blocks=1)
+
+    engine.set_output(engine.output)
+
+    assert engine.is_playing
+
+
+def test_hot_swap_without_resume_stays_stopped(
+    engine: AudioEngine, loaded_clip: LoadedAudio
+) -> None:
+    engine.set_clip(loaded_clip)
+    engine.play()
+    pump(engine, blocks=2)
+    playhead = engine.position
+
+    engine.set_output(NullOutput(realtime=False), resume=False)
+
+    assert engine.state is TransportState.STOPPED
+    assert engine.position == playhead

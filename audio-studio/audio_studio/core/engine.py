@@ -320,6 +320,38 @@ class AudioEngine:
     def output(self) -> AudioOutput:
         return self._output
 
+    def set_output(self, output: AudioOutput, *, resume: bool = True) -> None:
+        """Hot-swap the playback backend without losing the session.
+
+        Everything the transport knows survives the swap: the loaded source,
+        selection, loop mode, volume and playhead. When audio was playing and
+        ``resume`` is true, playback restarts on the new device from the
+        position the listener had actually reached (not from wherever the
+        feeder had buffered ahead to).
+
+        A new device that cannot be opened or started raises
+        :class:`OutputDeviceError` from the resume, exactly as :meth:`play`
+        would — but the engine itself stays consistent: it is left stopped at
+        the same playhead, and a further ``set_output`` (for example back to
+        the previous device, or to a :class:`NullOutput`) recovers playback.
+        """
+        if output is self._output:
+            return
+        playhead = self.position
+        was_playing = self.is_playing
+        self._teardown(join_feeder=True)
+        previous, self._output = self._output, output
+        with suppress(Exception):  # the old device may already be unplugged
+            previous.close()
+        with self._lock:
+            # The ring is sized for the old device's negotiated block size;
+            # the next play() rebuilds it against the new device.
+            self._ring = None
+        if self._source is not None:
+            self.seek(playhead)
+            if was_playing and resume:
+                self.play()
+
     def play(self) -> None:
         """Start or resume playback from the current playhead."""
         with self._lock:
