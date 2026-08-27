@@ -211,7 +211,7 @@ H3 = `/recommend|nextSkills|推荐|ROUND9_H3/i`（`skill-graph.js` +
 `SkillGraphView.vue` 拼接，基线已绿——别把 `nextSkills` 弄丢）&&
 `modules/skill-graph/SkillGraphView.vue` **存在于该绝对路径**（禁移动改名）&&
 `\bROUND9_H3_SMOKE\b`（math `smoke.mjs` 代码级常量）。R8 H3 同时在跑：
-`/skill-map` 动态路由 + `SKILL_NODES ≥ 10` + `SKILL_EDGES ≥ 1` + 视图联动
+`/skill-graph` 动态路由 + `SKILL_NODES ≥ 10` + `SKILL_EDGES ≥ 1` + 视图联动
 ageBand/progress——四条件全部不许退。
 
 ### 3.2 数据契约：`skill-graph.js` 追加 `recommendPath`（旧导出面冻结）
@@ -270,7 +270,8 @@ progress action（跳转到星球后照常由玩法页记账）。
   ③ 任意步的未掌握 deps 不出现在它之后（拓扑序断言）；
   ④ 两次同参调用深比较相等（确定性）；
   ⑤ `skill-graph.js` 源文本无 `Math.random`、无 store import。
-- math `smoke.mjs`：`const ROUND9_H3_SMOKE = '/skill-map'` + interact 段：断言
+- math `smoke.mjs`：`const ROUND9_H3_SMOKE = '/skill-graph'`（= 基线实际注册的
+  路由 path，math router L112）+ interact 段：断言
   `[data-reco-path]` 在场、至少 1 步、第一步链接可点且路由跳转成功、无控制台
   报错。R8 的技能图谱交互段保留。
 - 体积：`skill-graph.js` 仍只被 SkillGraphView（懒加载 chunk）与 Node 门禁引用，
