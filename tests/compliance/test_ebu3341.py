@@ -174,7 +174,7 @@ def test_true_peak_reference_vectors(vector) -> None:
     measured = meter.true_peak(audio, channels_last=True)
 
     assert sample_peak == pytest.approx(vector.expected_sample_peak_dbfs, abs=0.1)
-    assert measured == pytest.approx(vector.expected_dbtp, abs=vector.tolerance_db)
+    assert vector.minimum_accepted_dbtp <= measured <= vector.maximum_accepted_dbtp
     assert measured >= sample_peak - 1e-6
 
 

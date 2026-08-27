@@ -40,9 +40,11 @@ from audio_studio.ui.theme import PALETTE
 
 from tools.ebu_vectors import (
     SAMPLE_RATE,
+    TECH_3341_TRUE_PEAK_VECTORS,
     TECH_3341_VECTORS,
     TECH_3342_VECTORS,
     synthesize_segments,
+    synthesize_true_peak,
 )
 from tools.golden_audio import assert_bit_exact_wav
 
@@ -84,15 +86,15 @@ def _verify_ebu_3341_loudness(_tmp_path: Path) -> None:
 
 
 def _verify_ebu_3341_true_peak_vectors(_tmp_path: Path) -> None:
-    from tools import ebu_vectors
-
-    vectors = getattr(ebu_vectors, "TECH_3341_TRUE_PEAK_VECTORS", ())
-    assert vectors, "no Tech 3341 true-peak vectors are defined"
-    meter = LoudnessMeter(SAMPLE_RATE)
-    for vector in vectors:
-        report = meter.analyze(vector.samples, channels_last=True)
-        error = report.true_peak_dbtp - vector.expected_dbtp
-        assert -0.4 <= error <= 0.2, vector.case_id
+    assert TECH_3341_TRUE_PEAK_VECTORS, "no Tech 3341 true-peak vectors are defined"
+    for vector in TECH_3341_TRUE_PEAK_VECTORS:
+        audio = synthesize_true_peak(vector)
+        report = LoudnessMeter(vector.sample_rate).analyze(audio, channels_last=True)
+        assert (
+            vector.minimum_accepted_dbtp
+            <= report.true_peak_dbtp
+            <= vector.maximum_accepted_dbtp
+        ), vector.case_id
 
 
 def _verify_ebu_3342_lra(_tmp_path: Path) -> None:
@@ -377,7 +379,6 @@ CHECKLIST_CASES = (
         "P0",
         "EBU Tech 3341 true peak +0.2/-0.4 dB",
         _verify_ebu_3341_true_peak_vectors,
-        "Tech 3341 true-peak vectors have not been added",
     ),
     ChecklistCase("A2", "P0", "EBU Tech 3342 LRA ±1 LU", _verify_ebu_3342_lra),
     ChecklistCase("A3", "P0", "WAV 16/24/32f null round-trip", _verify_wav_null_roundtrip),
