@@ -52,8 +52,8 @@ import {
   weakestSkills,
 } from '../src/core/engine/adaptive.js'
 
-const MIN_TEMPLATES = 100
-const MIN_SCENES = 30
+const MIN_TEMPLATES = 185
+const MIN_SCENES = 40
 
 let failures = 0
 const fail = (msg) => {

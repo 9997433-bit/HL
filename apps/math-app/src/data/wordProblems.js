@@ -9,6 +9,7 @@
  *   2. SEMANTIC_TEMPLATES × SCENE_SKINS —— 语义模板负责数学结构（合并 / 剩余 /
  *      和倍 / 进一法……），场景皮肤只负责「在哪里、数的是什么」。两者做笛卡尔积，
  *      一个新语义或一张新皮肤就能整排地扩出母题，题面又不会读起来像同一道。
+ *      所以扩容是「加一行语义 / 加一张皮肤」，而不是一道一道往下抄。
  *
  * steps 表示解题步数，也是难度分档：1 = 一步题，2 = 两步题，>=3 = 进阶题
  * （和差倍、鸡兔同笼、相遇这类需要先转换再计算的题型）。
@@ -813,6 +814,50 @@ export const SCENE_SKINS = [
     place: '邮包里',
     holder: '包',
   },
+  {
+    id: 'market',
+    scene: '农夫市集',
+    emoji: '🍅',
+    item: '番茄',
+    unit: '个',
+    verb: '摘',
+    away: '送给邻居',
+    place: '菜筐里',
+    holder: '筐',
+  },
+  {
+    id: 'reef',
+    scene: '珊瑚礁',
+    emoji: '🐠',
+    item: '小丑鱼',
+    unit: '条',
+    verb: '捞',
+    away: '放回海里',
+    place: '观察缸里',
+    holder: '缸',
+  },
+  {
+    id: 'snow',
+    scene: '雪地营地',
+    emoji: '⛄',
+    item: '雪球',
+    unit: '个',
+    verb: '滚',
+    away: '送给伙伴',
+    place: '雪屋里',
+    holder: '筐',
+  },
+  {
+    id: 'mine',
+    scene: '水晶矿洞',
+    emoji: '💎',
+    item: '水晶',
+    unit: '块',
+    verb: '采',
+    away: '送给矿工',
+    place: '矿车里',
+    holder: '车',
+  },
 ]
 
 /**
@@ -874,6 +919,25 @@ export const SEMANTIC_TEMPLATES = [
         unit: s.unit,
         hint: '「多多少」就是用多的减去少的。',
         visual: { icon: s.emoji, groups: [x, y] },
+      }
+    },
+  },
+  {
+    id: 'fewer',
+    skill: 'wp-diff',
+    tag: '比多少',
+    steps: 1,
+    make(s) {
+      const [a, b] = pair()
+      const x = randInt(6, 20)
+      const less = randInt(2, 5)
+      return {
+        text: `${a}${s.verb}了 ${x} ${s.unit}${s.item}，${b}比${a}少${s.verb}了 ${less} ${s.unit}。${b}${s.verb}了多少${s.unit}？`,
+        equation: `${x} − ${less} = ?`,
+        answer: x - less,
+        unit: s.unit,
+        hint: '「比…少」要用减法：从多的那份里减掉相差的。',
+        visual: { icon: s.emoji, groups: [x, x - less] },
       }
     },
   },
@@ -1084,6 +1148,64 @@ export const SEMANTIC_TEMPLATES = [
       }
     },
   },
+  {
+    id: 'left-over',
+    skill: 'wp-share',
+    tag: '有余数',
+    steps: 2,
+    make(s) {
+      const per = randInt(3, 6)
+      const packs = randInt(2, 6)
+      const rest = randInt(1, per - 1)
+      const total = per * packs + rest
+      return {
+        text: `有 ${total} ${s.unit}${s.item}，每 ${per} ${s.unit}装一${s.holder}。装满若干${s.holder}后，还剩多少${s.unit}？`,
+        equation: `${total} ÷ ${per} = ${packs} …… ?`,
+        answer: rest,
+        unit: s.unit,
+        hint: `先看能装满几${s.holder}，凑不满一${s.holder}的那几${s.unit}就是剩下的。`,
+      }
+    },
+  },
+  {
+    id: 'unit-rate',
+    skill: 'wp-times',
+    tag: '归一',
+    steps: 2,
+    make(s) {
+      const n1 = randInt(2, 5)
+      const per = randInt(2, 9)
+      let n2 = randInt(2, 8)
+      // n2 撞上 n1 的话题目就白问了，往后挪一格（到顶就回到 2）
+      if (n2 === n1) n2 = n1 === 8 ? 2 : n1 + 1
+      return {
+        text: `${n1} ${s.holder}${s.item}一共 ${n1 * per} ${s.unit}。照这样计算，${n2} ${s.holder}一共有多少${s.unit}？`,
+        equation: `${n1 * per} ÷ ${n1} × ${n2} = ?`,
+        answer: per * n2,
+        unit: s.unit,
+        hint: `先求出 1 ${s.holder}有多少${s.unit}，再乘 ${n2}。`,
+      }
+    },
+  },
+  {
+    id: 'mean',
+    skill: 'wp-times',
+    tag: '平均数',
+    steps: 2,
+    make(s) {
+      const [a] = pair()
+      // 三天取成「avg−d, avg, avg+d」，d 至少 1，免得三天一样多变成送分题
+      const avg = randInt(4, 9)
+      const d = randInt(1, 3)
+      return {
+        text: `${a}三天分别${s.verb}了 ${avg - d}、${avg}、${avg + d} ${s.unit}${s.item}。平均每天${s.verb}多少${s.unit}？`,
+        equation: `(${avg - d} + ${avg} + ${avg + d}) ÷ 3 = ?`,
+        answer: avg,
+        unit: s.unit,
+        hint: '先把三天的加起来，再平均分成 3 天。',
+      }
+    },
+  },
 ]
 
 /** 语义模板 × 场景皮肤：每个组合都是一个独立母题，id 为 `语义-皮肤`。 */
@@ -1101,6 +1223,7 @@ const SKINNED = SEMANTIC_TEMPLATES.flatMap((semantic) =>
 
 export const WORD_PROBLEMS = [...CRAFTED, ...SKINNED]
 
+/** 母题总数。Round 6 内容门禁（scripts/check-round6.mjs H6）直接读这个值。 */
 export const WORD_PROBLEM_COUNT = WORD_PROBLEMS.length
 
 /** 按解题步数分档：一步 / 两步 / 进阶（>=3 步）。 */
