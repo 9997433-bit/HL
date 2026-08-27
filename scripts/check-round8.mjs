@@ -155,18 +155,28 @@ try {
     'apps/math-app/src/data/skills.js'
   )
   const dataSrc = dataFile ? stripComments(readIfExists(dataFile)) : ''
-  const nodeCount = (dataSrc.match(/\bid\s*:/g) || []).length
-  const hasEdges = /edges|links|prereq|requires|unlocks|parents?|children/i.test(dataSrc)
-  const graphData = nodeCount >= TARGET_SKILL_NODES && hasEdges
+  let nodeCount = (dataSrc.match(/\bid\s*:/g) || []).length
+  let edgeCount = 0
+  let graphData = nodeCount >= TARGET_SKILL_NODES && /edges|links|prereq|requires|unlocks|parents?|children/i.test(dataSrc)
+  if (dataFile?.endsWith('skill-graph.js')) {
+    try {
+      const mod = await import('../apps/math-app/src/data/skill-graph.js')
+      nodeCount = mod.SKILL_NODES?.length ?? nodeCount
+      edgeCount = mod.SKILL_EDGES?.length ?? 0
+      graphData = nodeCount >= TARGET_SKILL_NODES && edgeCount >= 1
+    } catch {
+      /* 静态计数兜底 */
+    }
+  }
   const viewSrc = viewRel && exists(viewRel) ? stripComments(readIfExists(viewRel)) : ''
   const viewWired = /skill|图谱/i.test(viewSrc) && /ageBand|AGE_BAND|progress|topics?|母题/i.test(viewSrc)
   check(
     'H3',
     Boolean(viewRel) && exists(viewRel) && graphData && viewWired,
-    `H3 技能图谱已接线（${graphEntry?.path} + ${dataFile ? path.basename(dataFile) : 'data'}：${nodeCount} 节点含边关系，视图联动进度/年龄档）`,
+    `H3 技能图谱已接线（${graphEntry?.path} + ${dataFile ? path.basename(dataFile) : 'data'}：${nodeCount} 节点 / ${edgeCount || '—'} 边，视图联动进度/年龄档）`,
     `H3 技能图谱未闭环：路由=${graphEntry?.path ?? '缺失'}，` +
       `视图=${viewRel && exists(viewRel) ? '有' : '缺失'}，` +
-      `数据=${dataFile ? `${path.basename(dataFile)}（节点 ${nodeCount}/${TARGET_SKILL_NODES}，边关系=${hasEdges ? '有' : '缺失'}）` : '缺失'}，` +
+      `数据=${dataFile ? `${path.basename(dataFile)}（节点 ${nodeCount}/${TARGET_SKILL_NODES}，边 ${edgeCount}）` : '缺失'}，` +
       `视图联动=${viewWired ? '有' : '缺失'} —— 由 r8-math-skillgraph 交付`
   )
 }
