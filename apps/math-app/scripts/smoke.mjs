@@ -1023,6 +1023,62 @@ await interact('数独空间站：切换 9×9 档位', '/#/sudoku', async (page)
   return `81 格 / 9 个数字键，空格 ${info.empty} → ${emptyAfter}`
 })
 
+await interact('年龄档：L1 与 L5 的起步难度贯穿六个玩法', '/#/', async (page) => {
+  /** [路由, 徽标里必须出现的默认难度, 高亮档位里必须出现的字样（没有档位按钮就传 null）] */
+  const CASES = {
+    L1: [
+      ['/#/number-sense', '数到 8', null],
+      ['/#/arithmetic', '10 以内加法', '10 以内'],
+      ['/#/geometry', '平面图形', '平面图形'],
+      ['/#/logic', '图案循环', null],
+      ['/#/word-problems', '一步应用题', '一步题'],
+      ['/#/sudoku', '4×4 简单', '4×4'],
+    ],
+    L5: [
+      ['/#/number-sense', '数到 60', null],
+      ['/#/arithmetic', '100 以内加减', '100 以内'],
+      ['/#/geometry', '平面 + 立体', '全部混合'],
+      ['/#/logic', '复合与交替规律', null],
+      ['/#/word-problems', '进阶多步题', '进阶题'],
+      ['/#/sudoku', '9×9 简单', '9×9'],
+    ],
+  }
+  const SUDOKU_CELLS = { L1: 16, L5: 81 }
+
+  const done = []
+  for (const [bandId, cases] of Object.entries(CASES)) {
+    await page.evaluate((band) => {
+      localStorage.setItem('mathquest/settings', JSON.stringify({ ageBand: band }))
+    }, bandId)
+    // 档位是 App 启动时从 localStorage 读进 store 的，改完要重新加载才生效
+    await page.reload({ waitUntil: 'networkidle2' })
+    await sleep(400)
+
+    for (const [path, hint, active] of cases) {
+      await page.goto(base + path, { waitUntil: 'networkidle2' })
+      await sleep(800)
+      const seen = await page.evaluate(() => ({
+        badge: document.querySelector('.band-badge')?.innerText.replace(/\s+/g, ' ').trim() ?? '',
+        on: [...document.querySelectorAll('.seg-btn.on')].map((b) => b.innerText.trim()).join(' / '),
+        cells: document.querySelectorAll('.cell').length,
+      }))
+      if (!seen.badge.includes(hint)) {
+        throw new Error(`${bandId} 下 ${path} 的年龄档徽标是「${seen.badge}」，应含「${hint}」`)
+      }
+      if (active && !seen.on.includes(active)) {
+        throw new Error(`${bandId} 下 ${path} 高亮的档位是「${seen.on}」，应含「${active}」`)
+      }
+      if (path === '/#/sudoku' && seen.cells !== SUDOKU_CELLS[bandId]) {
+        throw new Error(`${bandId} 下数独应有 ${SUDOKU_CELLS[bandId]} 格，实际 ${seen.cells}`)
+      }
+    }
+    done.push(`${bandId} 六个玩法全部跟档`)
+  }
+
+  await page.evaluate(() => localStorage.removeItem('mathquest/settings'))
+  return done.join('；')
+})
+
 /* ------------------------------------------------------------ 家长中心 */
 
 /** 读口算门上的题面并算出答案；进门后题面消失，返回 null。 */
