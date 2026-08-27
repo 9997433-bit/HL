@@ -218,21 +218,22 @@ if (etymologyFile) {
   pending('L-M6 字源动画 pipeline 未接线 —— 由 r5-literacy-idioms-etymology 交付（≥50 字）')
 }
 
-// M-M5 七巧板 / M-M13 分与合 / M-M11 竖式专题
+// M-M5 七巧板 / M-M13 分与合 / M-M11 竖式专题（按实际 Vue 路由落点探针）
 const manipulatives = [
-  ['M-M5 七巧板', ['apps/math-app/src/modules/tangram']],
-  ['M-M13 分与合', ['apps/math-app/src/modules/compose-ten', 'apps/math-app/src/modules/compose']],
-  ['M-M11 竖式专题', ['apps/math-app/src/modules/vertical', 'apps/math-app/src/modules/vertical-arithmetic']]
+  ['M-M5 七巧板', ['apps/math-app/src/modules/geometry/TangramView.vue', 'apps/math-app/src/modules/tangram']],
+  ['M-M13 分与合', ['apps/math-app/src/modules/number-sense/ComposeTenView.vue', 'apps/math-app/src/modules/compose-ten', 'apps/math-app/src/modules/compose']],
+  ['M-M11 竖式专题', ['apps/math-app/src/modules/arithmetic/ColumnArithmeticView.vue', 'apps/math-app/src/modules/vertical', 'apps/math-app/src/modules/vertical-arithmetic']]
 ]
-const modulesSrc = readIfExists('apps/math-app/src/data/modules.js')
+const routerSrc = readIfExists('apps/math-app/src/router/index.js')
 for (const [label, dirs] of manipulatives) {
   const found = existsAny(...dirs)
   if (found) {
-    const slug = path.basename(found)
-    if (modulesSrc.includes(slug)) notes.push(`✓ ${label} 已接线（${found}）`)
-    else pending(`${label} 目录存在但未注册进 modules.js —— 补齐后升级为硬门槛`)
+    const slug = path.basename(found, path.extname(found))
+    const wired = routerSrc.includes(slug)
+    if (wired) notes.push(`✓ ${label} 已接线（${found}）`)
+    else pending(`${label} 视图存在但未注册进 router —— 补齐后升级为硬门槛`)
   } else {
-    pending(`${label} 未接线 —— 由 r5-math-manipulatives 交付（期望 ${dirs[0]}/）`)
+    pending(`${label} 未接线 —— 由 r5-math-manipulatives 交付（期望 ${dirs[0]}）`)
   }
 }
 

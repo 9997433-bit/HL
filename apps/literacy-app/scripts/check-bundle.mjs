@@ -72,12 +72,19 @@ check(
   `首屏没有同步加载课文包${syncPacks.length ? `（${syncPacks.join('、')}）` : ''}`
 )
 
-// 例句原文在绘本里也可能出现，字义则只写在详情包里，用它判断有没有被顺手打包进来。
+// 短字义在成语/绘本里也可能撞车，用「字 + 字义 + 首组词拼音」的详情包指纹判断有没有被同步打包。
+function unitFingerprint(pack) {
+  const [char, entry] = Object.entries(pack)[0] ?? []
+  const word = entry?.words?.[0]
+  if (!char || !entry?.meaning || !word) return null
+  return `${char}:{meaning:"${entry.meaning}",words:[{w:"${word.w}",p:"${word.p}"`
+}
+
 const leaked = []
 for (const unit of UNITS) {
   const pack = await import(`../src/data/chars/${unit.id}.js`).then((m) => m.default)
-  const sample = Object.values(pack)[0]?.meaning
-  if (sample && entryCode.includes(sample)) leaked.push(unit.id)
+  const fingerprint = unitFingerprint(pack)
+  if (fingerprint && entryCode.includes(fingerprint)) leaked.push(unit.id)
 }
 check(
   leaked.length === 0,
