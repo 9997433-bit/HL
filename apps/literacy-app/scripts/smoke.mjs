@@ -173,6 +173,7 @@ const ROUTES = [
   ['字源 日（象形）', `/#/etymology/${encodeURIComponent('日')}`],
   ['字源 明（会意）', `/#/etymology/${encodeURIComponent('明')}`],
   ['家长中心', '/#/parent'],
+  ['隐私政策', '/#/privacy'],
   ['未知路由回落', '/#/nope/nope']
 ]
 

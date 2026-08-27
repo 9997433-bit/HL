@@ -136,6 +136,10 @@ const gateOk = computed(
           <component :is="Component" />
         </Transition>
       </RouterView>
+      <footer class="shell__footer">
+        <span>快乐识字 v1.0.0 · 学习记录保存在本机</span>
+        <RouterLink to="/privacy">隐私政策</RouterLink>
+      </footer>
     </main>
 
     <NavBar />
@@ -370,6 +374,31 @@ const gateOk = computed(
   flex: 1;
   display: flex;
   flex-direction: column;
+}
+
+.shell__footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--gap-sm);
+  width: min(1080px, calc(100% - 2 * var(--gap-md)));
+  margin: auto auto 96px;
+  color: var(--text-soft);
+  font-size: var(--fs-sm);
+  text-align: center;
+}
+
+.shell__footer a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap-min);
+  padding-inline: var(--gap-md);
+  border-radius: var(--radius-pill);
+  color: var(--accent);
+  font-weight: var(--fw-bold);
+  text-decoration: underline;
+  text-underline-offset: var(--gap-2xs);
 }
 
 /* ----------------------------------------------------------------- 浮层 */

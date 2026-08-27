@@ -1,15 +1,16 @@
-Model slug: gpt-5.6-sol-xhigh-fast
-# Round 9 发布清单
+Model slug: gpt-5.6-sol
+# Round 10 发布清单
 
 > 发布候选：`1.0.0`（根 `package.json` 当前版本）
-> 基线：`ec733bb` · 发布分支：`cursor/r9-global-release-9f67`
+> 基线：`d89c455` · 发布分支：`cursor/r10-global-release-9f67`
 > 原则：所有“阻断”项清零后才能公开发布；本清单不替代法律审查、应用商店审核或真机验收。
 
 ## 1. LICENSE 与第三方义务
 
 | 检查项 | 当前状态 | 发布动作 |
 |---|---|---|
-| 项目根 `LICENSE` | **阻断：仓库当前不存在** | 由权利人确定原创代码/内容许可后新增；不能把 `THIRD_PARTY_NOTICES.md` 或 OpenMoji 的 CC BY-SA 许可证误当作整个项目许可证 |
+| 项目根 `LICENSE` | ✅ | 原创程序代码与技术文档采用 MIT；课程内容与数据边界另见 `CONTENT_LICENSE.md` |
+| 双 App 隐私政策 | ✅ | 两款 App 均注册 `/privacy`，并从全局页脚可达；识字页单列相机、麦克风与在线语音识别边界 |
 | 第三方声明 | ✅ | `THIRD_PARTY_NOTICES.md` 随双 zip 分发；发布前复跑 `bash scripts/verify-resources.sh` |
 | OpenMoji | ✅ | 保留界面署名及 `shared/assets/openmoji/LICENSE.txt`；衍生 SVG 继续 CC BY-SA 4.0 |
 | 笔顺数据 | ✅ | 两处 `ARPHICPL.TXT` 随 APL 数据分发并保留裁剪/修改说明 |
@@ -18,7 +19,7 @@ Model slug: gpt-5.6-sol-xhigh-fast
 
 ## 2. 版本号与可追溯性
 
-- [ ] 确认公开版本采用 `1.0.0`；当前两个 App 的内部版本仍为 `0.1.0`，发布负责人须决定统一版本或明确内部版本策略。
+- [x] 公开版本采用 `1.0.0`；根/双 App `package.json`、lockfile与双 Android `versionName` 已统一。
 - [ ] 以最终发布 commit 创建不可变 tag `v1.0.0`，记录 commit SHA、构建机 Node/npm 版本与 UTC 时间。
 - [ ] 如版本改变，同步根/双 App `package.json`、lockfile、发行说明、zip 文件名或 manifest；禁止只改展示文案。
 - [ ] 从干净 checkout 按顺序运行 `npm test`、`npm run test:round3`、`npm run build:all`、`npm run sync:android`、`npm run check:android`、`npm run check:round8`。
@@ -58,5 +59,5 @@ Model slug: gpt-5.6-sol-xhigh-fast
 - **内容门**：字源、剧情、儿歌、OCR、图谱抽查无版权混入、占位内容或明显模板错误。
 - **设备门**：Web 离线冷启动、Android 至少一台真机的安装/升级/返回键/权限拒绝流程通过。
 - **安全与隐私门**：无账号、广告、遥测或意外第三方请求；依赖漏洞与 CSP/权限声明已复核。
-- **最终批准**：工程、内容、产品/法务分别签名；根 `LICENSE` 未落实时不得发布源代码或把
-  “开源”作为对外声明。
+- **最终批准**：根 `LICENSE` 已落实；正式发布仍须完成工程、内容、产品/法务签名以及
+  本清单中尚未勾选的 tag、真机与发行资产冻结项。

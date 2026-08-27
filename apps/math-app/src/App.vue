@@ -61,5 +61,36 @@ onBeforeUnmount(() => clearInterval(usageTimer))
         <component :is="Component" />
       </transition>
     </router-view>
+    <footer class="release-footer">
+      <span>MathQuest v1.0.0 · 学习记录保存在本机</span>
+      <RouterLink to="/privacy">隐私政策</RouterLink>
+    </footer>
   </div>
 </template>
+
+<style scoped>
+.release-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--gap-sm);
+  width: min(1080px, calc(100% - 2 * var(--gap-md)));
+  margin: 0 auto var(--gap-xl);
+  color: var(--text-soft);
+  font-size: var(--fs-sm);
+  text-align: center;
+}
+
+.release-footer a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap-min);
+  padding-inline: var(--gap-md);
+  border-radius: var(--radius-pill);
+  color: var(--accent);
+  font-weight: var(--fw-bold);
+  text-decoration: underline;
+  text-underline-offset: var(--gap-2xs);
+}
+</style>

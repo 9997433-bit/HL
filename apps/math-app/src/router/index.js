@@ -126,6 +126,12 @@ const routes = [
     component: () => import('@/modules/parent/ParentView.vue'),
     meta: { title: '家长中心' },
   },
+  {
+    path: '/privacy',
+    name: 'privacy',
+    component: () => import('@/modules/privacy/PrivacyView.vue'),
+    meta: { title: '隐私政策' },
+  },
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ]
 
