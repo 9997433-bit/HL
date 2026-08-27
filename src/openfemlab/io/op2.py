@@ -178,17 +178,23 @@ from openfemlab.core.results import ModalResult
 
 from ._common import FormatError
 from .op2_coordinates import (
+    GEOM1_CORD1R_RECORD,
+    GEOM1_CORD2C_RECORD,
     GEOM1_CORD2R_RECORD,
-    RectangularSystem,
+    CoordinateSystem,
+    read_cord1r_definitions,
+    read_cord2c_systems,
     read_cord2r_systems,
     require_defined_frames,
-    resolve_rectangular_systems,
+    resolve_coordinate_systems,
     transform_point_to_basic,
     transform_six_dof_to_basic,
 )
 from .op2_framing import OP2Block, OP2Format, read_op2_blocks
 
 __all__ = [
+    "GEOM1_CORD1R_RECORD",
+    "GEOM1_CORD2C_RECORD",
     "GEOM1_CORD2R_RECORD",
     "GEOM1_GRID_RECORDS",
     "GEOM2_ELEMENT_LAYOUTS",
@@ -244,8 +250,17 @@ _BLOCK_ORDER: tuple[ElementType, ...] = tuple(dict.fromkeys(GEOM2_ELEMENT_RECORD
 #: card the solver has a formulation for and this phase cannot unpack yet.
 #: :func:`read_op2` refuses such a record instead of skipping it: the element
 #: block would otherwise be absent from a model that looks complete.
-GEOM2_ELEMENT_LAYOUTS: dict[tuple[int, int, int], tuple[int, tuple[int, ...]]] = {
+GEOM2_ELEMENT_LAYOUTS: dict[tuple[int, int, int], tuple[int | tuple[int, ...], tuple[int, ...]]] = {
     (3001, 30, 48): (4, (2, 3)),  # CROD: EID, PID, G1, G2
+    (2408, 24, 180): (16, (2, 3)),  # CBAR
+    (2958, 51, 177): ((14, 15), (2, 3, 4, 5)),  # CQUAD4: NX 14 words, MSC 15
+    (5508, 55, 217): (12, (2, 3, 4, 5)),  # CTETRA
+    (7308, 73, 253): (22, (2, 3, 4, 5, 6, 7, 8, 9)),  # CHEXA
+}
+
+_GEOM2_MID_SIDE_WORDS: dict[ElementType, tuple[int, int]] = {
+    ElementType.TET4: (6, 12),
+    ElementType.HEX8: (10, 22),
 }
 
 #: ``MPT`` record key → words per entry, for the material cards Phase 3 reads.
@@ -323,10 +338,11 @@ _MODE_DOFS = (DofType.UX, DofType.UY, DofType.UZ, DofType.RX, DofType.RY, DofTyp
 class _Geom1Context:
     """Coordinate systems and ``GRID`` data read from ``GEOM1``."""
 
-    systems: dict[int, RectangularSystem]
+    systems: dict[int, CoordinateSystem]
     grid_cp: dict[int, int]
     grid_cd: dict[int, int]
     grids: dict[int, tuple[float, float, float]]
+    grid_local: dict[int, tuple[float, float, float]]
     skipped: int
 
 
@@ -644,12 +660,35 @@ def _entries(
     return integers.reshape(-1, entry_words), reals.reshape(-1, entry_words)
 
 
+def _geom2_entry_words(
+    key: tuple[int, int, int],
+    payload_words: int,
+    source_name: str | None,
+) -> int:
+    """Resolve the entry size of a ``GEOM2`` record, including dialect variants."""
+
+    entry_spec, _grid_words = GEOM2_ELEMENT_LAYOUTS[key]
+    candidates = (entry_spec,) if isinstance(entry_spec, int) else entry_spec
+    for entry_words in candidates:
+        if payload_words % entry_words == 0:
+            return entry_words
+    options = "/".join(str(value) for value in candidates)
+    raise FormatError(
+        f"{_where(source_name)}: GEOM2 record {key} holds {payload_words} words, "
+        f"which is not a multiple of any supported entry size ({options})"
+    )
+
+
 def _read_geom1(
     blocks: list[OP2Block], op2_format: OP2Format, source_name: str | None
 ) -> tuple[_Geom1Context, int]:
-    """Read ``CORD2R`` and ``GRID`` records, returning basic-frame coordinates."""
+    """Read coordinate systems and ``GRID`` records into the basic frame."""
 
-    raw_systems: dict[int, RectangularSystem] = {}
+    point_systems: dict[
+        int,
+        tuple[int, np.ndarray, np.ndarray, np.ndarray, str],
+    ] = {}
+    cord1r: dict[int, object] = {}
     skipped = 0
     grid_rows: list[tuple[int, int, int, np.ndarray]] = []
 
@@ -658,9 +697,17 @@ def _read_geom1(
             continue
         for key, integers, reals in _geometry_records(block, op2_format):
             if key == GEOM1_CORD2R_RECORD:
-                raw_systems.update(
+                point_systems.update(
                     read_cord2r_systems(integers, reals, source_name=source_name)
                 )
+                continue
+            if key == GEOM1_CORD2C_RECORD:
+                point_systems.update(
+                    read_cord2c_systems(integers, reals, source_name=source_name)
+                )
+                continue
+            if key == GEOM1_CORD1R_RECORD:
+                cord1r.update(read_cord1r_definitions(integers, source_name=source_name))
                 continue
             layout = GEOM1_GRID_RECORDS.get(key)
             if layout is None:
@@ -683,12 +730,28 @@ def _read_geom1(
                 location = coordinates[row, _GRID_LOCATION_WORD : _GRID_LOCATION_WORD + 3]
                 grid_rows.append((label, cp, cd, np.asarray(location, dtype=float)))
 
-    systems = resolve_rectangular_systems(raw_systems)
+    systems = resolve_coordinate_systems(point_systems, {}, {})
+    basic_for_cord1r: dict[int, tuple[float, float, float]] = {}
+    for label, cp, _cd, location in grid_rows:
+        if cp != 0:
+            continue
+        frame = systems[cp]
+        basic_for_cord1r[label] = tuple(
+            transform_point_to_basic(
+                location,
+                frame,
+                cylindrical=(frame.kind == "cylindrical"),
+            )
+        )
+    if cord1r:
+        systems = resolve_coordinate_systems(point_systems, cord1r, basic_for_cord1r)
+
     if grid_rows:
         frames = np.array([[cp, cd] for _label, cp, cd, _loc in grid_rows], dtype=int)
-        require_defined_frames(frames, raw_systems, source_name=source_name)
+        require_defined_frames(frames, set(systems), source_name=source_name)
 
     grids: dict[int, tuple[float, float, float]] = {}
+    grid_local: dict[int, tuple[float, float, float]] = {}
     grid_cp: dict[int, int] = {}
     grid_cd: dict[int, int] = {}
     for label, cp, cd, location in grid_rows:
@@ -696,7 +759,13 @@ def _read_geom1(
             raise FormatError(f"{_where(source_name)}: duplicate GRID id {label}")
         grid_cp[label] = cp
         grid_cd[label] = cd
-        basic = transform_point_to_basic(location, systems[cp])
+        grid_local[label] = (float(location[0]), float(location[1]), float(location[2]))
+        frame = systems[cp]
+        basic = transform_point_to_basic(
+            location,
+            frame,
+            cylindrical=(frame.kind == "cylindrical"),
+        )
         grids[label] = (float(basic[0]), float(basic[1]), float(basic[2]))
 
     context = _Geom1Context(
@@ -704,6 +773,7 @@ def _read_geom1(
         grid_cp=grid_cp,
         grid_cd=grid_cd,
         grids=grids,
+        grid_local=grid_local,
         skipped=skipped,
     )
     return context, skipped
@@ -742,8 +812,10 @@ def _read_elements(
                 skipped += 1
                 continue
             element_type = GEOM2_ELEMENT_RECORDS[key]
-            entry_words, grid_words = layout
+            entry_words = _geom2_entry_words(key, integers.size, source_name)
+            _entry_spec, grid_words = GEOM2_ELEMENT_LAYOUTS[key]
             rows, _ = _entries(key, "GEOM2", integers, reals, entry_words, source_name)
+            mid_side = _GEOM2_MID_SIDE_WORDS.get(element_type)
             for row in range(rows.shape[0]):
                 element_id = int(rows[row, 0])
                 previous = defined.get(element_id)
@@ -752,6 +824,14 @@ def _read_elements(
                         f"{_where(source_name)}: duplicate element id {element_id}, "
                         f"already defined as a {previous.value}"
                     )
+                if mid_side is not None:
+                    start, end = mid_side
+                    if any(int(rows[row, word]) != 0 for word in range(start, end)):
+                        raise FormatError(
+                            f"{_where(source_name)}: {element_type.value} element "
+                            f"{element_id} carries mid-side grids; only the linear "
+                            "form is supported"
+                        )
                 defined[element_id] = element_type
                 connectivity.setdefault(element_type, []).append(
                     tuple(int(rows[row, word]) for word in grid_words)
@@ -977,8 +1057,14 @@ def _read_eigenvectors(
         transformed = []
         for row, grid_id in enumerate(labels):
             cd = geom1.grid_cd.get(grid_id, 0)
+            frame = geom1.systems[cd]
+            kwargs = {}
+            if frame.kind == "cylindrical" and cd == geom1.grid_cp.get(grid_id, 0):
+                kwargs["cylindrical_position"] = np.asarray(
+                    geom1.grid_local[grid_id], dtype=float
+                )
             transformed.append(
-                transform_six_dof_to_basic(raw_vectors[row], geom1.systems[cd])
+                transform_six_dof_to_basic(raw_vectors[row], frame, **kwargs)
             )
         shapes[mode] = np.vstack(transformed).reshape(-1)
 

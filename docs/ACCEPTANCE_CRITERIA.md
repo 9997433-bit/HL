@@ -613,6 +613,7 @@ experiment against a modal model the test itself constructed.
 | AC-MPE-004 | P1 | Measurement path: UFF-58 → MPE → TestData → correlate | pipeline yields a `TestData` that pairs every mode at MAC ≥ 0.99 against the source model; `meta` carries provenance | MS-10.5 |
 | AC-MPE-005 | P1 | Noise robustness of the estimator | seeded 1 % noise: f within 0.1 %, ζ within 20 % rel., MAC ≥ 0.98; bitwise deterministic per seed | MS-10.2, MS-10.3 |
 | AC-MPE-006 | P2 | SSI-COV recovers operational modes from output-only data | both oracle modes within 0.6 Hz of the synthesized ambient record | MS-10.1 |
+| AC-MPE-007 | P0 | SSI-COV stabilization diagram separates physical poles | physical alignments stable ≥ 3 orders; auto-pick count exact; tolerance monotonicity | MS-10.3 |
 
 ### Details
 
@@ -649,6 +650,16 @@ experiment against a modal model the test itself constructed.
   shape MAC ≥ 0.98, and two runs on the same seeded input are
   bitwise-identical (the MS-10.1 determinism contract — the noise carries
   the seed, the estimator has none).
+- **AC-MPE-006** (`oracle`) — A two-mode ambient record synthesized with
+  `simulate_operational_response` is analysed with SSI-COV; both oracle
+  frequencies are recovered within 0.6 Hz.
+- **AC-MPE-007** (`property`) — The SSI-COV stabilization diagram over the
+  same oracle record separates physical from computational poles: only the
+  oracle modes form fully `stable` alignments over ≥ 3 consecutive orders,
+  the automatic pick returns exactly the oracle mode count, and tightening
+  any tolerance never promotes a pole to a more stable label.  The diagram
+  is exported through `ssi_cov_diagram` with schema
+  `openfemlab.mpe.stabilization/1`.
 
 ---
 

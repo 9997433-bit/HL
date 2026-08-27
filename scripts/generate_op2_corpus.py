@@ -73,6 +73,24 @@ def build_corpus(target: Path) -> list[Path]:
     path = target / "shell_properties.op2"
     path.write_bytes(shell_geometry)
     written.append(path)
+
+    quad_grids = [
+        op2_fixture.Grid(id=11, xyz=(0.0, 0.0, 0.0)),
+        op2_fixture.Grid(id=22, xyz=(1.0, 0.0, 0.0)),
+        op2_fixture.Grid(id=33, xyz=(1.0, 1.0, 0.0)),
+        op2_fixture.Grid(id=44, xyz=(0.0, 1.0, 0.0)),
+    ]
+    quad_geometry = op2_fixture.write_op2(
+        [
+            op2_fixture.geom1_block(quad_grids),
+            op2_fixture.geom2_quad4_block(
+                [op2_fixture.Quad4(id=100, property_id=10, grids=(11, 22, 33, 44))]
+            ),
+        ]
+    )
+    path = target / "quad4_geometry.op2"
+    path.write_bytes(quad_geometry)
+    written.append(path)
     return written
 
 

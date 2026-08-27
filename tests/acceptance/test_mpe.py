@@ -526,3 +526,82 @@ def test_ac_mpe_006_ssi_cov_recovers_operational_modes() -> None:
     frequencies = list(result.frequencies_hz)
     assert any(abs(value - 4.0) < 0.6 for value in frequencies)
     assert any(abs(value - 9.5) < 0.6 for value in frequencies)
+
+
+# --------------------------------------------------------------- AC-MPE-007
+
+SSI_FREQUENCIES = (4.0, 9.5)
+SSI_DAMPINGS = (0.015, 0.02)
+SSI_SHAPES = np.array([[1.0, 0.8], [1.2, -0.6], [0.7, 1.1]])
+SSI_FS = 200.0
+SSI_SAMPLES = 8192
+SSI_ORDERS = tuple(range(6, 24, 2))
+SSI_NUM_MODES = len(SSI_FREQUENCIES)
+
+
+def _ssi_record() -> np.ndarray:
+    from openfemlab.mpe.ssi import simulate_operational_response
+
+    return simulate_operational_response(
+        SSI_FREQUENCIES,
+        SSI_DAMPINGS,
+        SSI_SHAPES,
+        sampling_rate_hz=SSI_FS,
+        samples=SSI_SAMPLES,
+        seed=17,
+    )
+
+
+def _ssi_diagram(**tolerances):
+    from openfemlab.mpe import ssi_cov_diagram
+
+    return ssi_cov_diagram(
+        _ssi_record(),
+        SSI_FS,
+        SSI_ORDERS,
+        block_rows=25,
+        **tolerances,
+    )
+
+
+def _ssi_is_physical(frequency: float) -> bool:
+    truth = np.asarray(SSI_FREQUENCIES, dtype=float)
+    return bool(np.min(np.abs(truth - frequency) / truth) <= 1e-2)
+
+
+@criterion("AC-MPE-007")
+def test_ac_mpe_007_ssi_physical_poles_stabilize() -> None:
+    diagram = _ssi_diagram()
+    runs = np.zeros(SSI_NUM_MODES, dtype=int)
+    longest = np.zeros(SSI_NUM_MODES, dtype=int)
+    for level in diagram.poles:
+        seen = np.zeros(SSI_NUM_MODES, dtype=bool)
+        for pole in level:
+            if not _ssi_is_physical(pole.frequency_hz):
+                assert pole.label != "stable"
+                continue
+            index = int(
+                np.argmin([abs(pole.frequency_hz - truth) for truth in SSI_FREQUENCIES])
+            )
+            seen[index] = pole.label == "stable"
+        runs = np.where(seen, runs + 1, 0)
+        longest = np.maximum(longest, runs)
+    assert np.all(longest >= 3)
+
+
+@criterion("AC-MPE-007")
+def test_ac_mpe_007_ssi_select_returns_the_oracle_mode_count() -> None:
+    picked = _ssi_diagram().select(min_count=3)
+    assert len(picked) == SSI_NUM_MODES
+    assert all(pole.label == "stable" for pole in picked)
+
+
+@criterion("AC-MPE-007")
+def test_ac_mpe_007_ssi_tightening_tolerances_never_promotes_a_pole() -> None:
+    baseline = _ssi_diagram()
+    rank = {label: index for index, label in enumerate(POLE_LABELS)}
+    for tighter in ({"freq_tol": 1e-4}, {"damp_tol": 1e-3}, {"mac_tol": 0.999999}):
+        strict = _ssi_diagram(**tighter)
+        for loose_level, strict_level in zip(baseline.poles, strict.poles, strict=True):
+            for loose, tight in zip(loose_level, strict_level, strict=True):
+                assert rank[tight.label] <= rank[loose.label]

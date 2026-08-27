@@ -53,6 +53,9 @@ GRID_RECORD_KEY = (4501, 45, 1)
 CROD_RECORD_KEY = (3001, 30, 48)
 MAT1_RECORD_KEY = (103, 1, 77)
 CORD2R_RECORD_KEY = (2101, 21, 8)
+CORD2C_RECORD_KEY = (2001, 20, 9)
+CORD1R_RECORD_KEY = (1801, 18, 5)
+QUAD4_RECORD_KEY = (2958, 51, 177)
 PROD_RECORD_KEY = (902, 9, 29)
 PSHELL_RECORD_KEY = (2302, 23, 283)
 PSOLID_RECORD_KEY = (2402, 24, 281)
@@ -164,6 +167,36 @@ class Cord2R:
 
 
 @dataclass(frozen=True)
+class Cord2C:
+    """A ``CORD2C`` card with the same 13-word layout as ``CORD2R``."""
+
+    cid: int
+    origin: tuple[float, float, float]
+    z_point: tuple[float, float, float]
+    xz_point: tuple[float, float, float]
+    rid: int = 0
+
+
+@dataclass(frozen=True)
+class Cord1R:
+    """A ``CORD1R`` card referencing three ``GRID`` ids."""
+
+    cid: int
+    g1: int
+    g2: int
+    g3: int
+
+
+@dataclass(frozen=True)
+class Quad4:
+    """A ``CQUAD4`` card as ``GEOM2`` writes it."""
+
+    id: int
+    property_id: int
+    grids: tuple[int, int, int, int]
+
+
+@dataclass(frozen=True)
 class Mat1:
     """A ``MAT1`` card as ``MPT`` writes it, without its thermal fields."""
 
@@ -253,18 +286,62 @@ def cord2r_record(
     return record
 
 
+def cord2c_record(
+    systems: Iterable[Cord2C], *, key: tuple[int, int, int] = CORD2C_RECORD_KEY
+) -> list[Token]:
+    record: list[Token] = list(integers(*key))
+    for system in systems:
+        record += integers(system.cid, 0, 0, system.rid)
+        record += reals(*system.origin, *system.z_point, *system.xz_point)
+    return record
+
+
+def cord1r_record(
+    systems: Iterable[Cord1R], *, key: tuple[int, int, int] = CORD1R_RECORD_KEY
+) -> list[Token]:
+    record: list[Token] = list(integers(*key))
+    for system in systems:
+        record += integers(system.cid, 1, 1, system.g1, system.g2, system.g3)
+    return record
+
+
+def geom2_quad4_block(
+    elements: Iterable[Quad4],
+    *,
+    key: tuple[int, int, int] = QUAD4_RECORD_KEY,
+    entry_words: int = 14,
+) -> DataBlock:
+    record: list[Token] = list(integers(*key))
+    for element in elements:
+        record += integers(element.id, element.property_id, *element.grids)
+        record += reals(0.0)
+        record += integers(0, 0, 0)
+        record += reals(0.0, 0.0, 0.0, 0.0)
+        if entry_words == 15:
+            record += integers(0)
+    return DataBlock(name="GEOM2", records=(record,), subtable_name="GEOM2S")
+
+
 def geom1_block(
     grids: Iterable[Grid],
     *,
     cords: Iterable[Cord2R] = (),
+    cord2c: Iterable[Cord2C] = (),
+    cord1r: Iterable[Cord1R] = (),
     key: tuple[int, int, int] = GRID_RECORD_KEY,
 ) -> DataBlock:
-    """``GEOM1`` holding optional ``CORD2R`` and one ``GRID`` record."""
+    """``GEOM1`` holding optional coordinate systems and one ``GRID`` record."""
 
     records: list[Sequence[Token]] = []
     cords = list(cords)
     if cords:
         records.append(cord2r_record(cords))
+    cord2c = list(cord2c)
+    if cord2c:
+        records.append(cord2c_record(cord2c))
+    cord1r = list(cord1r)
+    if cord1r:
+        records.append(cord1r_record(cord1r))
     record: list[Token] = list(integers(*key))
     for grid in grids:
         record += integers(grid.id, grid.cp)
@@ -422,20 +499,19 @@ def geometry_file(
     materials: Iterable[Mat1] = (),
     *,
     cords: Iterable[Cord2R] = (),
+    cord2c: Iterable[Cord2C] = (),
+    cord1r: Iterable[Cord1R] = (),
     properties: Iterable[Prod] = (),
     pshells: Iterable[Pshell] = (),
     psolids: Iterable[Psolid] = (),
     extra_blocks: Sequence[DataBlock] = (),
     **file_options: object,
 ) -> bytes:
-    """A whole OP2 holding one model's geometry: ``GEOM1``, ``GEOM2``, ``MPT``.
+    """A whole OP2 holding one model's geometry: ``GEOM1``, ``GEOM2``, ``MPT``."""
 
-    The blocks a model does not need are left out entirely rather than written
-    empty, which is what a Nastran run does too.  ``file_options`` are passed
-    to :func:`write_op2`.
-    """
-
-    blocks: list[DataBlock] = [geom1_block(grids, cords=cords)]
+    blocks: list[DataBlock] = [
+        geom1_block(grids, cords=cords, cord2c=cord2c, cord1r=cord1r)
+    ]
     rods = list(rods)
     if rods:
         blocks.append(geom2_block(rods))

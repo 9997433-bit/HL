@@ -153,10 +153,12 @@ def test_every_readable_layout_belongs_to_a_known_element_card():
     """
 
     assert set(GEOM2_ELEMENT_LAYOUTS) <= set(GEOM2_ELEMENT_RECORDS)
-    for entry_words, grid_words in GEOM2_ELEMENT_LAYOUTS.values():
+    for entry_spec, grid_words in GEOM2_ELEMENT_LAYOUTS.values():
+        entry_words = entry_spec if isinstance(entry_spec, int) else max(entry_spec)
         assert len(set(grid_words)) == len(grid_words)
         assert all(2 <= word < entry_words for word in grid_words)
     assert GEOM2_ELEMENT_LAYOUTS[(3001, 30, 48)] == (4, (2, 3))
+    assert GEOM2_ELEMENT_LAYOUTS[(2958, 51, 177)][1] == (2, 3, 4, 5)
     assert MPT_MATERIAL_RECORDS[(103, 1, 77)] == 12
 
 
@@ -633,7 +635,7 @@ def test_phase3_refuses_an_element_card_whose_layout_it_cannot_unpack():
         ]
     )
 
-    with pytest.raises(FormatError, match="quad4"):
+    with pytest.raises(FormatError, match="not a multiple"):
         read_op2(io.BytesIO(content))
 
 
@@ -740,6 +742,54 @@ MAT1,7,2.5+8,,0.25,7.75+3
         from_bdf.properties[10].values["t"]
     )
     assert from_op2.properties[20] == from_bdf.properties[20]
+
+
+def test_phase3_reads_quad4_connectivity():
+    """Phase 3 unpacks ``CQUAD4`` ``GEOM2`` records."""
+
+    grids = [
+        _op2.Grid(id=11, xyz=(0.0, 0.0, 0.0)),
+        _op2.Grid(id=22, xyz=(1.0, 0.0, 0.0)),
+        _op2.Grid(id=33, xyz=(1.0, 1.0, 0.0)),
+        _op2.Grid(id=44, xyz=(0.0, 1.0, 0.0)),
+    ]
+    quads = [_op2.Quad4(id=100, property_id=10, grids=(11, 22, 33, 44))]
+    content = _op2.write_op2([_op2.geom1_block(grids), _op2.geom2_quad4_block(quads)])
+
+    model = read_op2(io.BytesIO(content))
+    assert list(model.elements[ElementType.QUAD4][0]) == [11, 22, 33, 44]
+
+
+def test_phase4_reads_cord1r_transformed_grid_coordinates():
+    """Phase 4 resolves ``CORD1R`` through three ``GRID`` locations."""
+    grids = [
+        _op2.Grid(id=11, xyz=(0.0, 0.0, 0.0)),
+        _op2.Grid(id=22, xyz=(0.0, 0.0, 1.0)),
+        _op2.Grid(id=33, xyz=(0.0, 1.0, 0.0)),
+        _op2.Grid(id=44, xyz=(1.0, 0.0, 0.0), cp=1),
+    ]
+    content = _op2.geometry_file(
+        grids,
+        cord1r=[_op2.Cord1R(cid=1, g1=11, g2=22, g3=33)],
+    )
+
+    model = read_op2(io.BytesIO(content))
+    assert model.nodes[3] == pytest.approx([0.0, 1.0, 0.0])
+
+
+def test_phase4_reads_cord2c_transformed_grid_coordinates():
+    """Phase 4 maps ``GRID`` locations written in cylindrical ``CP``."""
+    cord = _op2.Cord2C(
+        cid=1,
+        origin=(0.0, 0.0, 0.0),
+        z_point=(0.0, 0.0, 1.0),
+        xz_point=(0.0, 1.0, 0.0),
+    )
+    grids = [_op2.Grid(id=11, xyz=(1.0, 0.0, 0.0), cp=1, cd=0)]
+    content = _op2.geometry_file(grids, cord2c=[cord])
+
+    model = read_op2(io.BytesIO(content))
+    assert model.nodes[0] == pytest.approx([0.0, 1.0, 0.0], rel=1e-5, abs=1e-5)
 
 
 def test_phase3_rejects_a_record_that_does_not_divide_into_entries():

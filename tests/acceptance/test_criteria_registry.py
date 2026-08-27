@@ -71,7 +71,7 @@ FAMILY_TO_MODULE = {
 }
 EXPECTED_CRITERIA_PER_FAMILY = {
     "MODAL": 9, "CORR": 9, "UPD": 13, "WORK": 5, "OPT": 4, "DYN": 5, "ELEM": 3,
-    "IO": 7, "MPE": 6, "PRETEST": 5, "PERF": 5,
+    "IO": 7, "MPE": 7, "PRETEST": 5, "PERF": 5,
 }
 
 
@@ -249,6 +249,8 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P1", "property", "MS-10.2, MS-10.3", _MPE_SUITE, "verified"),
     _c("AC-MPE-006", "SSI-COV recovers operational modes from output-only data",
        "P2", "oracle", "MS-10.1", _MPE_SUITE, "implemented"),
+    _c("AC-MPE-007", "SSI-COV stabilization diagram separates physical poles",
+       "P0", "property", "MS-10.3", _MPE_SUITE, "implemented"),
     # --- M10 Pretest planning (MS-11) — spec-first, GAP-07 -------------------
     _c("AC-PRETEST-001", "EI leverage identities and det-FIM downdate",
        "P0", "property", "MS-11.2", _PRETEST_SUITE, "verified"),
@@ -289,7 +291,7 @@ def test_registry_inventory_matches_documented_scope():
         for family in EXPECTED_CRITERIA_PER_FAMILY
     }
     assert counts == EXPECTED_CRITERIA_PER_FAMILY
-    assert len(REGISTRY) == 71
+    assert len(REGISTRY) == 72
 
 
 def test_ids_unique():

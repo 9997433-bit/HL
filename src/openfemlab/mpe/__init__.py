@@ -29,6 +29,7 @@ from __future__ import annotations
 
 from .lscf import extract_modes, extract_shapes, fit_lscf, stabilization_diagram
 from .ssi import ssi_cov
+from .ssi_cov_kernel import ssi_cov_diagram
 from .types import MPEResult, PoleEstimate, StabilizationDiagram
 
 __all__ = [
@@ -39,5 +40,6 @@ __all__ = [
     "extract_shapes",
     "fit_lscf",
     "ssi_cov",
+    "ssi_cov_diagram",
     "stabilization_diagram",
 ]

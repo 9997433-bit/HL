@@ -26,7 +26,9 @@ __all__ = [
     "ssi_cov_extract",
 ]
 
-MAX_DAMPING_RATIO = 0.2
+#: SSI discrete poles carry more high-damping artefacts than LSCF roots; keep
+#: a tighter band so stabilization labels track structural modes only.
+MAX_DAMPING_RATIO = 0.06
 MIN_FREQUENCY_HZ = 0.05
 
 
@@ -236,6 +238,7 @@ def ssi_cov_diagram(
         orders=tuple(requested),
         poles=tuple(levels),
         settings={
+            "schema": "openfemlab.mpe.stabilization/1",
             "method": "SSI-COV",
             "block_rows": rows,
             "links": tuple(links),
@@ -294,5 +297,6 @@ def ssi_cov_extract(
             "block_rows": diagram.settings.get("block_rows"),
             "tolerances": diagram.settings.get("tolerances", {}),
             "min_count": min_count,
+            "stabilization_schema": diagram.settings.get("schema"),
         },
     )

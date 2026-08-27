@@ -1102,11 +1102,15 @@ reader lives in `openfemlab.io.op2` over the record layer
   Phase 4 adds the `CORD` coordinate-system cards that Phases 2 and 3 must
   **raise** on, since `GRID` carries `CP`/`CD` frames and OP2 eigenvectors are
   written in `CD` — the line `read_bdf` already draws for `GRID` and `read_unv`
-  draws for dataset 2420. Phase 2 draws it by reading the `GRID` records of
-  `GEOM1` for their frames alone and refusing a file where any is non-zero.
+  draws for dataset 2420. Phase 4 reads `CORD1R`, `CORD2R`, and `CORD2C` from
+  `GEOM1`, resolves them through `resolve_coordinate_systems`, and transforms
+  grid coordinates and eigenvectors into basic when requested. Phase 2 reads
+  `GEOM1` for `GRID` frames alone and refuses a file where any `CP`/`CD` is
+  non-zero.
 - **`read_op2` imports the geometry it can unpack and refuses the rest.** It
   reads `GRID` from `GEOM1`, the connectivity records listed in
-  `GEOM2_ELEMENT_LAYOUTS` from `GEOM2`, the material records of
+  `GEOM2_ELEMENT_LAYOUTS` from `GEOM2` (`CROD`, `CBAR`, `CQUAD4`, `CTETRA`,
+  `CHEXA` with MSC/NX dialect entry sizes), the material records of
   `MPT_MATERIAL_RECORDS` from `MPT`, and the `PROD` records of
   `EPT_PROPERTY_RECORDS` from `EPT`, and a rod model imports to the same
   `NeutralModel` `read_bdf` builds from the bulk data of the same run. Records
@@ -1315,6 +1319,14 @@ def extract_shapes(frf: FrequencyResponse, poles: Sequence[PoleEstimate], *,
 def extract_modes(frf: FrequencyResponse, orders: Sequence[int], *,
                   band: tuple[float, float] | None = None,
                   min_count: int = 3, **tolerances) -> MPEResult   # one-call driver
+
+def ssi_cov_diagram(responses: np.ndarray, sampling_rate_hz: float,
+                    orders: Sequence[int], *, block_rows: int | None = None,
+                    **tolerances) -> StabilizationDiagram   # SSI-COV MS-10.3
+
+def ssi_cov(responses: np.ndarray, sampling_rate_hz: float,
+            orders: Sequence[int], *, block_rows: int | None = None,
+            min_count: int = 3, **tolerances) -> MPEResult   # output-only driver
 ```
 
 ---
