@@ -104,6 +104,43 @@ the bundle you are about to publish:
    the hook for the written offer — archive the exact source versions of the
    shipped Qt, libsndfile, libsoxr and libquadmath builds with the release.
 
+## Publishing a GitHub release
+
+`.github/workflows/publish-release.yml` is the only workflow triggered by a
+`v*` tag. It builds the PyInstaller one-directory bundle independently on
+Linux, Windows, and macOS, then waits for all three builds before creating one
+GitHub Release for the tag.
+
+To publish, make sure the tag points at the reviewed release commit and push
+it to GitHub:
+
+```bash
+git tag -a v1.2.0 -m "Audio Studio v1.2.0"
+git push origin v1.2.0
+```
+
+The workflow runs the Linux distribution gates and generates the bundle-scoped
+CycloneDX SBOM from that exact Linux build. Each runner invokes
+`scripts/prepare-release-assets.sh` to create a host-native ZIP. The publish job
+downloads all build artifacts, invokes the same script to generate the final
+checksum manifest, and attaches exactly these files:
+
+- `audio-studio-linux.zip`
+- `audio-studio-windows.zip`
+- `audio-studio-macos-arm64.zip`
+- `audio-studio-sbom.json`
+- `SHA256SUMS`
+
+The macOS asset states its architecture because it can only be an arm64 build:
+`packaging/MACOS.md` covers why universal2 is not currently attainable, what
+the macOS build gates on, and what a recipient has to do with an unsigned,
+un-notarised bundle.
+
+The release is not created if any platform build, SBOM gate, expected-asset
+check, or checksum step fails. To verify downloaded assets, put all five files
+in one directory and run `sha256sum -c SHA256SUMS` (or an equivalent SHA-256
+checker on Windows).
+
 ## Shipping notices
 
 Publish, together with the binary directory or the archive made from it:

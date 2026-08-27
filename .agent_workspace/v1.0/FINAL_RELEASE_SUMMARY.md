@@ -1,4 +1,62 @@
-# Audio Studio v1.1.0 — Product Release Summary
+# Audio Studio v1.2.0 — Tri-Platform Release Summary
+
+Date: 2026-08-27
+Branch: `cursor/v1.0-round-h-b3cf` merged to alpha
+Tag: `v1.2.0`
+
+## 1. Positioning
+
+**v1.2.0 turns the single-platform CI artifact into a public tri-platform
+release.** One `v*` tag now builds the PyInstaller bundle independently on
+Linux, Windows and macOS runners and publishes a GitHub Release with all three
+ZIPs, the Linux SBOM and a `SHA256SUMS` manifest — no GitHub login needed to
+download. The engine is unchanged from v1.1.0 (application suite identical:
+1721 passed / 12 skipped; SOTA checklist 31/31). Full signoff:
+`../v1.2/fable-v1.2-product-signoff.md`.
+
+## 2. Round H deliverables
+
+- **Unified release publishing** (`.github/workflows/publish-release.yml`):
+  the only tag-triggered workflow — three platform build jobs, each through
+  its licence gates, then one publish job that verifies the five-asset set
+  before creating the GitHub Release. Contract-tested by
+  `tests/test_publish_release_workflow.py` and the expanded
+  `tests/test_release_workflow.py`.
+- **Windows build** (`scripts/build-windows.ps1`, `packaging/WINDOWS.md`) and
+  **macOS build** (`scripts/build-macos.sh`, `packaging/MACOS.md`, on-demand
+  lane in `release-macos.yml`): the Linux gates ported to each platform — GPL
+  exclusion, LGPL-replaceability object checks, bundled licence notices,
+  launcher smoke — plus `--expect-arch` on macOS so the `-arm64` asset name
+  cannot diverge from the binary.
+- **Signing scaffolds for all three platforms**
+  (`scripts/sign-macos-artifact.sh`, `scripts/sign-windows-artifact.ps1`,
+  Linux from v1.1.0) and a **release signing manifest**
+  (`scripts/release-signing-manifest.sh`) that aggregates the per-platform
+  reports; today it honestly records `fully_signed: false` —
+  `../v1.2/release-signing-manifest.json`, evidence in
+  `../v1.2/release-signing-evidence.md`.
+- **Hardware certification runbook** (`docs/HARDWARE_CERTIFICATION.md`,
+  `scripts/run-hardware-certification.sh`): the bench procedure that would
+  upgrade C4's server-loopback latency evidence to a physical USB interface —
+  the runbook, not the measurement.
+
+## 3. Honest gaps
+
+- **The pipeline has never run end-to-end.** No tag has been pushed since
+  `publish-release.yml` landed; the v1.2.0 tag is its first live run, and no
+  Windows or macOS bundle has ever been built anywhere (no such host here).
+- **Nothing is signed on any platform.** No GPG key, Developer ID or
+  Authenticode certificate exists; Gatekeeper and SmartScreen will warn.
+  The macOS asset is arm64-only, a bare directory (no `.app`/`.dmg`, not
+  notarized), and only the Linux bundle ships an SBOM.
+- The AppImage/deb wrappers remain local-build artifacts, and C4's published
+  latency evidence is still the server loopback.
+
+---
+
+_Previous v1.1.0 summary below._
+
+# Audio Studio v1.1.0 — Product Release Summary (archived header)
 
 Date: 2026-08-27
 Branch: `cursor/v1.0-round-g-b3cf` merged to alpha

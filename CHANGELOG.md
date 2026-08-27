@@ -5,6 +5,96 @@ structure. Versions 0.2.0 and 0.3.0 were internal development milestones
 merged to the release branch without their own tags; they are recorded here so
 the v1.0.0-beta diff against v0.1.0-alpha is fully accounted for.
 
+## [1.2.0] - 2026-08-27
+
+Round H is the tri-platform CI release round: one `v*` tag now builds the
+PyInstaller bundle on Linux, Windows and macOS runners and publishes a GitHub
+Release holding all three ZIPs, the Linux SBOM and a checksum manifest —
+no GitHub login needed to download, unlike the CI-artifact distribution of
+v1.1.0. Signing scaffolds now exist for all three platforms and a release-level
+manifest aggregates their reports; nothing is signed on any platform, and the
+manifest says so. The engine is unchanged from v1.1.0. See
+`.agent_workspace/v1.2/fable-v1.2-product-signoff.md`.
+
+### Added
+
+- **Unified release publishing** (`.github/workflows/publish-release.yml`) —
+  the only tag-triggered workflow: a `v*` tag builds the one-directory bundle
+  independently on `ubuntu-latest`, `windows-latest` and `macos-latest`, runs
+  each platform's licence gates, names the assets deterministically through
+  `scripts/prepare-release-assets.sh`, verifies the complete five-asset set
+  (`audio-studio-linux.zip`, `audio-studio-windows.zip`,
+  `audio-studio-macos-arm64.zip`, `audio-studio-sbom.json`, `SHA256SUMS`) and
+  creates the GitHub Release only when every platform build passed.
+  Contract-tested by `tests/test_publish_release_workflow.py` and the expanded
+  `tests/test_release_workflow.py`; not yet exercised end-to-end — the first
+  run is the `v1.2.0` tag push itself.
+- **Windows distributable build** (`scripts/build-windows.ps1`, guide in
+  `packaging/WINDOWS.md`) — `scripts/build-linux.sh`'s PowerShell counterpart:
+  PyInstaller one-directory bundle with the same gates (GPL pedalboard refused
+  in environment and output, separate `Qt6Core.dll` proving the LGPL objects
+  replaceable, licence notices inside `_internal/licenses/`, launcher
+  `--version` smoke run). Runs only on Windows; no Windows host exists here,
+  so its first real execution is the release workflow's `windows-latest` job.
+- **macOS distributable build** (`scripts/build-macos.sh`, guide in
+  `packaging/MACOS.md`, on-demand/PR-gated CI lane in
+  `.github/workflows/release-macos.yml`) — same gates with the Darwin object
+  patterns (`libQt6Core*.dylib`, `QtCore.framework`, `libpyside6*`,
+  `libshiboken6*`), plus `--expect-arch` so the artifact name and the binary
+  architecture cannot diverge. The released asset is **arm64 only** (numpy,
+  scipy and soundfile publish no universal2 wheels), deliberately ships as a
+  plain directory rather than an unsigned `.app`/`.dmg` Gatekeeper would
+  refuse outright, and ships without an SBOM (`tools/generate_sbom.py` is
+  Linux-scoped) — both stated in the job log rather than omitted.
+- **Release asset preparation** (`scripts/prepare-release-assets.sh`) —
+  deterministic ZIP naming via Python's zipfile so Linux, macOS and Git Bash
+  on Windows behave identically, plus the `SHA256SUMS` manifest a downloader
+  verifies with `sha256sum -c`.
+- **macOS and Windows signing scaffolds** (`scripts/sign-macos-artifact.sh`,
+  `scripts/sign-windows-artifact.ps1`) — codesign with the hardened runtime and
+  an optional `notarytool` submission on macOS, `signtool` with SHA-256 and an
+  RFC 3161 countersignature on Windows. Each reports a signature only after the
+  platform's own verifier accepts the artifact, and each refuses a credential
+  configured on a host that cannot use it instead of reporting a signature
+  nobody made.
+- **Release signing manifest** (`scripts/release-signing-manifest.sh`) —
+  merges the three per-platform reports into
+  `.agent_workspace/v1.2/release-signing-manifest.json` with
+  `signed_platforms`, `unsigned_platforms` and `missing_reports`;
+  `--require-all-signed` fails a release that is not signed everywhere. It
+  refuses a report filed under the wrong platform and one that claims
+  `signed: true` while no artifact was verified.
+- Contract tests in `tests/test_release_signing.py` and evidence in
+  `.agent_workspace/v1.2/release-signing-evidence.md`.
+- **Hardware certification runbook** (`docs/HARDWARE_CERTIFICATION.md`,
+  automated as `scripts/run-hardware-certification.sh`) — the bench procedure
+  that would upgrade C4's server-loopback latency evidence to a physical USB
+  interface measurement, gated by `--require-physical` on both probes so it
+  refuses honestly when no converter is present. Contract-tested by
+  `tests/test_hardware_certification_docs.py`; no physical interface exists on
+  this VM, so C4's evidence is unchanged.
+
+### Changed
+
+- `__version__` and package metadata set to `1.2.0`. No engine, DSP or UI
+  changes: the application suite is identical to v1.1.0.
+- `.github/workflows/release-linux.yml` and the short-lived
+  `release-windows.yml` are folded into `publish-release.yml`, so exactly one
+  workflow responds to a release tag. `release-macos.yml` remains for
+  on-demand macOS bundles and PR validation of the macOS build path — it is
+  not tag-triggered.
+- `scripts/sign-linux-artifact.sh` reports now carry `target_platform: linux`
+  so `release-signing-manifest.sh` can refuse a report filed under the wrong
+  platform; the macOS scaffold and the manifest aggregator share their report
+  vocabulary through the new `scripts/lib/release-signing.sh`.
+
+### Unchanged, and stated plainly
+
+- Nothing this project publishes is signed on any platform. There is no GPG
+  release key, no Apple Developer ID and no Authenticode certificate, so every
+  signing script takes its unsigned path: checksums, `signed: false`, and the
+  reason. The published manifest records `fully_signed: false`.
+
 ## [1.1.0] - 2026-08-27
 
 Round G is the product-release round: the first build a user can download and
