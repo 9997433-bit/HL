@@ -77,8 +77,8 @@ const declaredTasks = countMatches(
   source(dailyFiles),
   /\b(?:id|key|type)\s*:\s*['"`][\w-]+['"`]/g
 )
-const dailyTaskCount = Math.max(taskCategories, declaredTasks)
 const dailyOnHome = /daily[-_ ]?quest|daily[-_ ]?adventure|今日(?:的)?(?:冒险|任务)/i.test(home)
+const dailyTaskCount = Math.max(dailyOnHome ? taskCategories : 0, declaredTasks)
 const dailyInteractive =
   /type=["']checkbox|role=["']checkbox|aria-checked|toggle\w*(?:quest|task)|complete\w*(?:quest|task)|mark\w*complete/i.test(
     dailySrc
@@ -103,11 +103,8 @@ const mascotRoutes = {
 }
 const mascotRouteRefs = mascotRoutes.literacy.length + mascotRoutes.math.length
 const mascotSources = {
-  literacy: source([
-    'apps/literacy-app/src/components/MascotCompanion.vue',
-    ...mascotRoutes.literacy
-  ]),
-  math: source(['apps/math-app/src/components/MascotBot.vue', ...mascotRoutes.math])
+  literacy: stripComments(read('apps/literacy-app/src/components/MascotCompanion.vue')),
+  math: stripComments(read('apps/math-app/src/components/MascotBot.vue'))
 }
 const interactiveMascots = Object.values(mascotSources).every(
   (src) =>
@@ -206,7 +203,9 @@ check(
 const gamesFile = 'apps/literacy-app/src/views/GamesView.vue'
 const gamesSrc = source([
   gamesFile,
-  ...literacyFiles.filter((file) => /(?:games|arcade)/i.test(path.basename(file)))
+  ...literacyFiles.filter(
+    (file) => file !== gamesFile && /(?:games|arcade)/i.test(path.basename(file))
+  )
 ])
 const gamesView = stripComments(read(gamesFile))
 const gameRoutes = new Set(
@@ -221,9 +220,9 @@ const gameCount = Math.max(
 const gameDescriptions = countMatches(gamesSrc, /\b(?:desc|howToPlay|tagline)\s*:/g)
 const arcade = /arcade|街机|neon|霓虹|game-hall|pixel/i.test(gamesView)
 const cardGrid =
-  /display\s*:\s*grid|grid-template-(?:columns|rows)|class=["'][^"']*(?:grid|arcade)/i.test(
+  /\.(?:games__(?:grid|list)|games-grid|arcade-grid|game-grid)\s*\{[^}]*display\s*:\s*grid/i.test(
     gamesView
-  )
+  ) || /class=["'][^"']*(?:games-grid|arcade-grid|game-grid)[^"']*["']/i.test(gamesView)
 const descriptionsRendered =
   /(?:g|game)\.(?:desc|howToPlay|tagline)|一句话玩法/i.test(gamesView)
 check(
