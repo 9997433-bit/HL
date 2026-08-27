@@ -71,6 +71,8 @@ const ROUTES = [
   ['未知路由回落', '/#/nope/nope'],
 ]
 
+const ROUND9_H3_SMOKE = '/skill-graph'
+
 const IGNORE = [/Failed to load resource/i, /net::ERR_/i, /favicon/i, /AudioContext/i]
 
 const browser = await puppeteer.launch({
@@ -1432,7 +1434,7 @@ await interact('技能图谱：依赖成图、状态跟着存档走、只读不�
  * 排序要跟着年龄档动、判读不许跟着年龄档动，
  * 而且从头到尾不能往 progress 里写一个字节——它是建议，不是打卡。
  */
-await interact('技能图谱：推荐下一步跟着掌握度与年龄档走，且只读', '/#/skill-graph', async (page) => {
+await interact('技能图谱：推荐下一步跟着掌握度与年龄档走，且只读', `/#${ROUND9_H3_SMOKE}`, async (page) => {
   const SEED_MASTERY = { 'count-to-5': 0.95, 'count-to-10': 0.9, 'add-within-10': 0.4 }
   const skillMap = Object.fromEntries(SKILLS.map((s) => [s.id, s]))
   const MASTERED = new Set(
