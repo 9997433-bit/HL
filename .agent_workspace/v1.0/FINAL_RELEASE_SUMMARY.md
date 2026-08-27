@@ -1,11 +1,13 @@
 # Audio Studio v1.0.0-beta — Final Release Summary
 
 Date: 2026-08-27
-Branch: `cursor/v1.0-round-b-b3cf` (release preparation, Round B)
-Baseline: alpha mainline at merge `e230762` (v1.0 Round A) plus the v1.0
-Round B branches (automation, EBU true-peak certification, SOTA audit,
-release preparation).
-Prepared by: fable (release-preparation slot).
+Branch: `cursor/v1.0-final-tag-b3cf` (Round C release signoff; final counts
+added to the Round B draft prepared on `cursor/v1.0-round-b-b3cf`)
+Baseline: consolidated v1.0.0-beta mainline at merge `478014f` (v1.0
+Round A + Round B, PR #17) plus the Round C conflict-marker repair in
+`tests/acceptance/test_sota_checklist.py`.
+Prepared by: fable (release-preparation slot; Round C final signoff in
+`fable-v1-beta-signoff.md` beside this file).
 
 ## 1. Positioning — read this first
 
@@ -42,16 +44,16 @@ application. Those are the remaining gaps in §4.
 
 ## 2. Delivered since v0.1.0-alpha
 
-Eight PR merges landed between the alpha changelog entry and this branch.
-Full detail is in `CHANGELOG.md` (sections 0.2.0, 0.3.0, 1.0.0-beta);
-capability summary:
+Eleven PR merges landed between the alpha changelog entry and the
+consolidated v1.0.0-beta mainline. Full detail is in `CHANGELOG.md`
+(sections 0.2.0, 0.3.0, 1.0.0-beta); capability summary:
 
 | Wave | Merged PRs | Capabilities |
 |---|---|---|
 | v0.2 workstation | workstation; dynamics; continuation (v0.2 part); telemetry; multitrack bus | Recording MVP → crash-safe BWF; markers/regions; batch CLI; compressor/limiter/gate/delay/reverb; loudness match; sounddevice backend; triple-buffered telemetry; peak `.pk` cache; feeder-thread preview; fader ramp; interpolated playhead; submix buses |
 | v0.3 VST3/repair/scale | continuation (v0.3 part); VST3 panel + GC + RF64; VST3 scanner + streaming edit + WASAPI | VST3 dock, scanner and three-slot rack (GPL-isolated extra); spectral selection attenuate/delete; RF64/W64 streaming with memory budget; sparse streaming edit session; 256-frame block + RT GC discipline; WASAPI exclusive opt-in |
 | v1.0 Round A | PDC, soak, NR, a11y, dither, DeClip | Plugin delay compensation + state blobs; spectral noise reduction; DeClip; TPDF dither + SRC quality report; take registry; WCAG 2.2 AA contrast, fractional HiDPI, full shortcut coverage; render-callback allocation cleanup; 30-minute headless soak harness; Tech 3341 true-peak vectors |
-| v1.0 Round B | automation; TP certification; SOTA audit; release preparation | Per-track gain-automation lanes persisted in `.hlproj`; product true-peak certification against the Tech 3341 vectors; acceptance-suite re-grade (A1-TP and E3 promoted to hard passes); version 1.0.0-beta, changelog, this summary, README release notes |
+| v1.0 Round B | automation; TP certification; SOTA audit + ASIO + macros; hlprojz archive + installer; consolidation | Per-track gain-automation lanes persisted in `.hlproj`; product true-peak certification against the Tech 3341 vectors; acceptance-suite re-grade (A1-TP and E3 promoted to hard passes); opt-in ASIO host selection (no SDK bundled); reusable JSON edit macros in the batch CLI; single-file `.hlprojz` project archives; PyInstaller desktop-bundle scaffold with the LGPL relinking notices wired into the build; version 1.0.0-beta, changelog, this summary, README release notes |
 
 Against the Round 3 acceptance checklist recorded at the alpha
 (`.agent_workspace/round3/fable-sota-final-acceptance.md`, P0: 4 pass /
@@ -86,10 +88,20 @@ this release is a beta and not a SOTA claim.
   SLO probe, the accelerated 30-minute soak
   (`.agent_workspace/soak/soak-30min-accelerated.json`) and the benchmark
   deltas were produced on cloud vCPUs without a physical audio device.
-- This release-preparation branch changed version metadata and
-  documentation only; Ruff was run on the edited Python file. The full test
-  suite was not re-run on this branch per the release-preparation
-  instructions — the beta tag must be cut from a HEAD with a green CI run.
+- **Final counts (Round C, on the consolidated HEAD plus the
+  conflict-marker repair):** the application suite passes **1624 tests**
+  (13 skipped: Windows-only WASAPI-exclusive paths and optional-dependency
+  cases); the full tree — application, repository compliance/acceptance and
+  benchmark gates together — stands at **1723 passed / 13 skipped /
+  22 xfailed**; the SOTA acceptance suite reports **9 passed / 22 expected
+  gaps / 0 XPASS** (8 of 30 checklist items hard-pass; the ninth pytest pass
+  is the structural count test).
+- The consolidation merge itself (`478014f`) briefly broke CI: unresolved
+  merge-conflict markers in `tests/acceptance/test_sota_checklist.py`
+  failed test collection on every platform. Round C removed them (a
+  12-line deletion keeping the mainline verifier) on
+  `cursor/v1.0-final-tag-b3cf`, where Audio CI is green. The v1.0.0-beta
+  tag must be cut from a HEAD that includes this repair.
 
 ## 4. Remaining P1 gaps
 
@@ -135,10 +147,12 @@ disclosed in the README limitations; none is silently claimed as done.
    (the saved document is flattened), there is no crash auto-recovery for
    edit sessions (recording is crash-safe; projects are not), and dock
    layout / workspace presets are not persisted across restarts.
-10. **No distribution artifacts.** No installer, code signing or
-    notarization, and no per-platform SBOM/license bundle; the release is a
-    source tag. `THIRD_PARTY_LICENSES.md` defines the obligations an
-    installer must satisfy before one is shipped.
+10. **No published distribution artifacts.** A PyInstaller one-directory
+    bundle scaffold landed (`packaging/pyinstaller.spec`,
+    `scripts/build-linux.sh`, LGPL relinking notices, GPL exclusion), but no
+    built, signed or notarized installer is published and there is no
+    per-platform SBOM; the release is a source tag. `THIRD_PARTY_LICENSES.md`
+    defines the obligations an installer must satisfy before one is shipped.
 
 ## 5. Release verdict
 
