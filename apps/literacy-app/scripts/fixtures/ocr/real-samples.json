@@ -1,5 +1,5 @@
 {
-  "$comment": "ROUND10_H2 真实样张清单。改这个文件之后要跑 npm run gen:ocr:real 重画，再跑 npm run test:ocr:accuracy 回填阈值。字段说明见 scripts/gen-ocr-real-samples.mjs。",
+  "$comment": "ROUND11_H2 真实样张清单（承接 ROUND10_H2 的三张，扩到六张）。改这个文件之后要跑 npm run gen:ocr:real 重画，再跑 npm run test:ocr:accuracy 回填阈值。字段说明见 scripts/gen-ocr-real-samples.mjs。",
   "samples": [
     {
       "name": "real-park-sign",
@@ -42,6 +42,48 @@
       "sha256": "93a3ee98f0370a4bbd10c789c66155950bd28fe044e97fbf5cec23bc094c020a",
       "crop": [0.155, 0.28, 0.905, 0.53],
       "width": 600
+    },
+    {
+      "name": "real-road-warning",
+      "text": "小心行人",
+      "scene": "马路边的三角警示牌，2001 年的卡片机拍的，画面本身就带压缩噪点",
+      "commons": "File:Watch out for pedestrians! 小心行人 (6269606152).jpg",
+      "page": "https://commons.wikimedia.org/wiki/File:Watch_out_for_pedestrians!_%E5%B0%8F%E5%BF%83%E8%A1%8C%E4%BA%BA_(6269606152).jpg",
+      "file": "https://upload.wikimedia.org/wikipedia/commons/0/03/Watch_out_for_pedestrians%21_%E5%B0%8F%E5%BF%83%E8%A1%8C%E4%BA%BA_%286269606152%29.jpg",
+      "author": "Joybot",
+      "license": "CC BY-SA 2.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0",
+      "sha256": "44241ae19b300af82d0fadc901005afce9e3d98f85c2f55937e2e841ac723aac",
+      "crop": [0.336, 0.645, 0.672, 0.771],
+      "width": 320
+    },
+    {
+      "name": "real-toilet-sign",
+      "text": "洗手间",
+      "scene": "商场墙上的金属立体字，浅灰墙面加射灯，字和墙几乎一个亮度",
+      "commons": "File:洗手间，2024年7月1日.jpg",
+      "page": "https://commons.wikimedia.org/wiki/File:%E6%B4%97%E6%89%8B%E9%97%B4%EF%BC%8C2024%E5%B9%B47%E6%9C%881%E6%97%A5.jpg",
+      "file": "https://upload.wikimedia.org/wikipedia/commons/1/17/%E6%B4%97%E6%89%8B%E9%97%B4%EF%BC%8C2024%E5%B9%B47%E6%9C%881%E6%97%A5.jpg",
+      "author": "メイド理世",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sha256": "cf4cd5ef8badb7bb74ce80227a0e5af39e2cf0f85b2dda542007313eacb03948",
+      "crop": [0.445, 0.365, 0.545, 0.428],
+      "width": 240
+    },
+    {
+      "name": "real-blackboard-press",
+      "text": "中华书局",
+      "scene": "校园里那块抄诗的黑板，真人用粉笔写的落款，笔画有飞白",
+      "commons": "File:华东师大图书馆前黑板.jpg",
+      "page": "https://commons.wikimedia.org/wiki/File:%E5%8D%8E%E4%B8%9C%E5%B8%88%E5%A4%A7%E5%9B%BE%E4%B9%A6%E9%A6%86%E5%89%8D%E9%BB%91%E6%9D%BF.jpg",
+      "file": "https://upload.wikimedia.org/wikipedia/commons/e/e9/%E5%8D%8E%E4%B8%9C%E5%B8%88%E5%A4%A7%E5%9B%BE%E4%B9%A6%E9%A6%86%E5%89%8D%E9%BB%91%E6%9D%BF.jpg",
+      "author": "Lt2818",
+      "license": "CC0 1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0",
+      "sha256": "2c3e2d00e7d45360dcdbf9387b730aa8b294f0a2a61ec98e6c6f61ead6130772",
+      "crop": [0.452, 0.583, 0.53, 0.616],
+      "width": 240
     }
   ]
 }
