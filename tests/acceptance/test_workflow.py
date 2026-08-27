@@ -32,6 +32,7 @@ stage gate can be driven into either branch on demand.
 
 from __future__ import annotations
 
+import argparse
 import json
 import math
 
@@ -567,3 +568,46 @@ def test_ac_work_006_side_by_side_mode_plot_returns_axes() -> None:
     )
     assert figure is not None
     assert len(axes) == 2
+
+
+# --------------------------------------------------------------- AC-WORK-007
+
+
+@criterion("AC-WORK-007")
+def test_ac_work_007_align_cli_writes_sensor_map_json(tmp_path) -> None:
+    from openfemlab.cli.commands.align import run
+    from openfemlab.cli.console import Reporter
+
+    model_csv = tmp_path / "model.csv"
+    sensor_csv = tmp_path / "sensors.csv"
+    output = tmp_path / "map.json"
+    model_coords = np.array(
+        [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [2.0, 0.0, 0.0]],
+        dtype=np.float64,
+    )
+    sensor_coords = model_coords + np.array([0.05, 0.02, -0.01])
+    model_csv.write_text(
+        "\n".join(f"{x},{y},{z}" for x, y, z in model_coords) + "\n",
+        encoding="utf-8",
+    )
+    sensor_csv.write_text(
+        "\n".join(f"{x},{y},{z},ch{i}" for i, (x, y, z) in enumerate(sensor_coords))
+        + "\n",
+        encoding="utf-8",
+    )
+    exit_code = run(
+        argparse.Namespace(
+            model_coords=str(model_csv),
+            sensor_coords=str(sensor_csv),
+            output=str(output),
+            max_distance=0.2,
+            reference_model=str(model_csv),
+            reference_sensors=str(sensor_csv),
+        ),
+        Reporter(quiet=True),
+    )
+    assert exit_code == 0
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert payload["rows"] == [0, 1, 2]
+    assert payload["labels"] == ["ch0", "ch1", "ch2"]
+    assert "rigid_transform" in payload

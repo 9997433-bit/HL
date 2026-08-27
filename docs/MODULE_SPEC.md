@@ -220,6 +220,10 @@ set `(f_e, Φ_e)`, generally observed on a reduced sensor DOF set.
   carried by the reduction rather than applied by every consumer. Adequacy
   requirement: an acceptable TAM keeps exact test modes pseudo-orthogonal
   (AC-CORR-009).
+- **Geometry alignment** (`openfemlab.correlation.geometry`): estimate a rigid
+  transform between test sensor coordinates and FE node positions, then map
+  each sensor to the nearest node within a distance gate (AC-CORR-013,
+  AC-WORK-007).
 
 ### MS-2.2 MAC — Modal Assurance Criterion
 
@@ -259,6 +263,14 @@ MAC(i, j) = |φ_a,iᴴ φ_e,j|² / ( (φ_a,iᴴ φ_a,i) (φ_e,jᴴ φ_e,j) )
   (AC-CORR-003).
 - Output: `ModePairing` with `pairs: list[(i_a, j_e, mac, dfreq_pct)]`,
   `unpaired_analysis`, `unpaired_test`.
+
+### MS-2.7 Double-root pairing
+
+When two or more modes share nearly the same natural frequency (repeated or
+closely spaced roots), a global MAC assignment can swap branches.  The
+clustered pairing path (`pair_modes_clustered`) groups modes into frequency
+clusters on each side, matches clusters by centre frequency, and runs optimal
+MAC assignment inside each matched cluster (AC-CORR-012).
 
 ### MS-2.4 Frequency error and scalar metrics
 
@@ -1506,6 +1518,23 @@ so competing layouts are compared on numbers rather than adjectives:
 `openfemlab.pretest.mass_loading` estimates first-order frequency reduction from
 a point accelerometer mass at a candidate sensor DOF (AC-PRETEST-006).
 
+### MS-11.7 Iterative Guyan pretest and MAC pruning
+
+`openfemlab.pretest.placement` extends EI placement with:
+
+- `prune_sensors_by_automac` — remove redundant sensors until the AutoMAC
+  off-diagonal peak falls below a threshold (AC-PRETEST-008).
+- `iterative_guyan_placement` — refine EI selections using Guyan-expanded
+  mode shapes (AC-PRETEST-009).
+- `rank_excitation_dofs` — modal-kinetic-energy ranking for exciter or hanging
+  points (AC-PRETEST-007).
+
+### MS-11.8 Test-model export
+
+`openfemlab.pretest.export_test` writes a reduced experimental modal model as
+UFF dataset-55 modes plus optional rigid-transform metadata in the UFF id lines
+and a sidecar JSON file (AC-IO-009).
+
 ### MS-11.5 Public API
 
 ```python
@@ -1531,6 +1560,10 @@ def select_sensors(shapes, num_sensors, *, mass=None,
                    candidates=None, keep=(),
                    method: str = "ei") -> PlacementResult
 def modal_kinetic_energy(shapes, mass) -> np.ndarray            # (n, m)
+def rank_excitation_dofs(shapes, mass, *, mode_index=None) -> tuple[np.ndarray, np.ndarray]
+def prune_sensors_by_automac(shapes, selected, *, threshold=0.15) -> tuple[int, ...]
+def iterative_guyan_placement(stiffness, shapes, num_sensors, *, mass=None,
+                              candidates=None, keep=(), max_iterations=4) -> PlacementResult
 def placement_quality(shapes, selected) -> PlacementQuality
 def to_sensor_map(placement, *, labels=None) -> SensorMap       # MS-2.1 bridge
 ```

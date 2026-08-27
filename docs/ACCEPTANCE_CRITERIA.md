@@ -215,6 +215,8 @@ to honor the sparse matrix contract of MS-0.2 and MS-1.6.
 | AC-CORR-009 | P1 | TAM pseudo-orthogonality | \|POC\| diag ≥ 0.99, off-diag ≤ 0.10 | MS-2.1, MS-2.2 |
 | AC-CORR-010 | P1 | SAC/CSAC/CSF FRF correlation metrics | line metrics in [0, 1]; match dynamics kernels | MS-7.4 |
 | AC-CORR-011 | P1 | CORTHOG localizes orthogonality defects | argmin CORTHOG = corrupted DOF; others ≥ 0.9 | MS-2.2 |
+| AC-CORR-012 | P0 | Clustered pairing resolves double-root swaps | swapped double-root twins paired with MAC ≥ 0.95 | MS-2.7 |
+| AC-CORR-013 | P1 | Rigid geometry alignment maps sensors | recovered R,t to 1e-6; nearest-node indices exact | MS-2.1 |
 
 ### Details
 
@@ -341,6 +343,7 @@ to honor the sparse matrix contract of MS-0.2 and MS-1.6.
 | AC-WORK-004 | P0 | Failed gate halts with typed reason | stage + machine-readable reason; no silent partial PASS | MS-4.1 |
 | AC-WORK-005 | P0 | CorrectionReport schema & versioning | schema_version "1.0"; required keys; JSON-serializable | MS-4.3 |
 | AC-WORK-006 | P2 | Side-by-side mode-shape plotting helper | `plot_modes_side_by_side` returns figure and two axes | MS-4.3 |
+| AC-WORK-007 | P1 | Geometry alignment CLI writes sensor map | `align` exit 0; JSON rows/labels/transform present | MS-2.1 |
 
 ### Details
 
@@ -574,6 +577,7 @@ run (AC-IO-003).
 | AC-IO-006 | P2 | OP2 EPT PROD area import | `NeutralModel.properties[pid].values["A"]` matches the fixture | MS-9.6 |
 | AC-IO-007 | P2 | OP2 EPT PSHELL/PSOLID import | thickness and material id match the BDF reader | MS-9.6 |
 | AC-IO-008 | P1 | BDF export round trip preserves geometry | node ids, coordinates and connectivity bitwise equal | MS-9.6, MS-9.7 |
+| AC-IO-009 | P1 | Test model export round-trips through UFF-55 | frequencies/shapes recovered to ≤ 1e-6; Euler meta in id lines | MS-11.8 |
 
 ### Details
 
@@ -707,6 +711,9 @@ with no promoted row.
 | AC-PRETEST-004 | P0 | Determinism, constraints, and typed failures | `s < m` / rank-deficient candidates raise `PretestError`; `keep` rows never eliminated; reruns bitwise identical | MS-11.2, MS-11.5 |
 | AC-PRETEST-005 | P2 | MKE ranking matches the closed-form chain | mode-1 MKE strictly increasing toward the free end, argmax = tip; `mass = c·I` changes no EI selection | MS-11.3 |
 | AC-PRETEST-006 | P1 | Accelerometer mass lowers predicted frequencies | shifted f < baseline f at sensor DOF | MS-11.6 |
+| AC-PRETEST-007 | P1 | Exciter MKE ranking peaks at free end | mode-1 argmax at tip DOF | MS-11.3 |
+| AC-PRETEST-008 | P1 | MAC pruning lowers AutoMAC off-diagonal | pruned layout off-diagonal ≤ threshold | MS-11.7 |
+| AC-PRETEST-009 | P1 | Iterative Guyan matches or improves EI | refined auto-MAC ≤ baseline + 0.02 | MS-11.7 |
 
 ### Details
 

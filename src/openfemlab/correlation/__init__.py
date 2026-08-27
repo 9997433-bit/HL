@@ -46,6 +46,13 @@ from .align import (
     selection_matrix,
 )
 from .frf import FRFCorrelation, frf_correlation
+from .geometry import (
+    GeometryAlignment,
+    apply_rigid_transform,
+    estimate_rigid_transform,
+    map_sensors_to_nodes,
+    rotation_matrix_to_euler_xyz_deg,
+)
 from .mac import (
     auto_mac,
     automac,
@@ -62,7 +69,7 @@ from .metrics import (
     frequency_error_matrix,
     relative_frequency_error,
 )
-from .pairing import ModePair, ModePairing, pair_modes
+from .pairing import ModePair, ModePairing, pair_modes, pair_modes_clustered
 from .reduction import (
     ReductionBasis,
     expand_shapes,
@@ -108,7 +115,12 @@ __all__ = [
     "frequency_difference",
     "frequency_error_matrix",
     "relative_frequency_error",
-    # FRF metrics (kernels implemented in openfemlab.solver.dynamics)
+    # geometry alignment
+    "GeometryAlignment",
+    "apply_rigid_transform",
+    "estimate_rigid_transform",
+    "map_sensors_to_nodes",
+    "rotation_matrix_to_euler_xyz_deg",
     "FRFCorrelation",
     "fdac",
     "frac",
@@ -117,6 +129,7 @@ __all__ = [
     "ModePair",
     "ModePairing",
     "pair_modes",
+    "pair_modes_clustered",
     # reduction / expansion
     "ReductionBasis",
     "expand_shapes",

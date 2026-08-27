@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
+import numpy.typing as npt
 
 from .mac import mac
 from .metrics import frequency_error_matrix
@@ -41,6 +42,7 @@ __all__ = [
     "ModePair",
     "ModePairing",
     "pair_modes",
+    "pair_modes_clustered",
 ]
 
 
@@ -321,4 +323,99 @@ def pair_modes(
         unpaired_fe=[j for j in range(n_fe) if j not in paired_fe],
         mac_matrix=macs,
         method=method if use_shapes else "frequency",
+    )
+
+
+def _cluster_indices(frequencies: npt.NDArray[np.float64], tolerance_pct: float) -> list[list[int]]:
+    """Group mode indices whose frequencies lie within ``tolerance_pct`` of a cluster member."""
+    if frequencies.size == 0:
+        return []
+    order = np.argsort(frequencies)
+    clusters: list[list[int]] = []
+    current = [int(order[0])]
+    for index in order[1:]:
+        reference = frequencies[current[-1]]
+        relative = abs(frequencies[index] - reference) / max(reference, 1e-12) * 100.0
+        if relative <= tolerance_pct:
+            current.append(int(index))
+        else:
+            clusters.append(current)
+            current = [int(index)]
+    clusters.append(current)
+    return clusters
+
+
+def pair_modes_clustered(
+    test_shapes: Any,
+    fe_shapes: Any,
+    test_frequencies: Any,
+    fe_frequencies: Any,
+    *,
+    cluster_tolerance_pct: float = 1.0,
+    mac_threshold: float = 0.0,
+    freq_penalty: float = 0.1,
+) -> ModePairing:
+    """Pair modes with frequency clustering for near-duplicate (double-root) bands.
+
+    Modes are grouped into frequency clusters on each side.  Clusters are matched
+    by nearest centre frequency, then optimal MAC assignment runs inside each
+    matched cluster pair (MS-2.7, AC-CORR-012).
+    """
+    if cluster_tolerance_pct < 0.0:
+        raise ValueError("cluster_tolerance_pct must be non-negative")
+    test_freq = np.asarray(test_frequencies, dtype=float).ravel()
+    fe_freq = np.asarray(fe_frequencies, dtype=float).ravel()
+    macs = mac(test_shapes, fe_shapes)
+    n_test, n_fe = macs.shape
+
+    test_clusters = _cluster_indices(test_freq, cluster_tolerance_pct)
+    fe_clusters = _cluster_indices(fe_freq, cluster_tolerance_pct)
+
+    assignments: list[tuple[int, int]] = []
+    minimum_mac = max(float(mac_threshold), 100.0 * np.finfo(float).eps)
+    available_fe = list(fe_clusters)
+
+    for test_cluster in test_clusters:
+        if not available_fe:
+            break
+        centre_test = float(np.mean(test_freq[test_cluster]))
+        fe_cluster = min(
+            available_fe,
+            key=lambda cluster: abs(float(np.mean(fe_freq[cluster])) - centre_test),
+        )
+        available_fe.remove(fe_cluster)
+        sub = macs[np.ix_(test_cluster, fe_cluster)]
+        score = np.array(sub, dtype=float, copy=True)
+        if freq_penalty > 0.0:
+            distance = np.abs(
+                frequency_error_matrix(test_freq[test_cluster], fe_freq[fe_cluster])
+            ) / 100.0
+            score = score - freq_penalty * distance
+        score[sub < minimum_mac] = -np.inf
+        local = _optimal_assignment(score, -np.inf)
+        for row, col in local:
+            test_index = test_cluster[row]
+            fe_index = fe_cluster[col]
+            if macs[test_index, fe_index] >= minimum_mac:
+                assignments.append((test_index, fe_index))
+
+    assignments.sort(key=lambda pair: pair[0])
+    pairs = [
+        ModePair(
+            test_index=r,
+            fe_index=c,
+            mac=float(macs[r, c]),
+            test_frequency=float(test_freq[r]),
+            fe_frequency=float(fe_freq[c]),
+        )
+        for r, c in assignments
+    ]
+    paired_test = {pair.test_index for pair in pairs}
+    paired_fe = {pair.fe_index for pair in pairs}
+    return ModePairing(
+        pairs=pairs,
+        unpaired_test=[index for index in range(n_test) if index not in paired_test],
+        unpaired_fe=[index for index in range(n_fe) if index not in paired_fe],
+        mac_matrix=macs,
+        method="clustered",
     )

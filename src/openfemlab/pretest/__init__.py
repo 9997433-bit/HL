@@ -15,13 +15,17 @@ The module is **specified ahead of its implementation** (GAP-07, spec-first):
 """
 
 from ..exceptions import PretestError
+from .export_test import export_test_model, test_data_to_uff_modes, write_transform_meta
 from .mass_loading import accelerometer_frequency_shift, effective_modal_mass_at_dof
 from .placement import (
     PlacementQuality,
     PlacementResult,
     ei_leverage,
+    iterative_guyan_placement,
     modal_kinetic_energy,
     placement_quality,
+    prune_sensors_by_automac,
+    rank_excitation_dofs,
     select_sensors,
     to_sensor_map,
 )
@@ -29,12 +33,18 @@ from .placement import (
 __all__ = [
     "accelerometer_frequency_shift",
     "effective_modal_mass_at_dof",
+    "export_test_model",
     "PlacementQuality",
     "PlacementResult",
     "PretestError",
     "ei_leverage",
+    "iterative_guyan_placement",
     "modal_kinetic_energy",
     "placement_quality",
+    "prune_sensors_by_automac",
+    "rank_excitation_dofs",
     "select_sensors",
+    "test_data_to_uff_modes",
     "to_sensor_map",
+    "write_transform_meta",
 ]

@@ -21,6 +21,9 @@ __all__ = [
     "ei_leverage",
     "select_sensors",
     "modal_kinetic_energy",
+    "rank_excitation_dofs",
+    "prune_sensors_by_automac",
+    "iterative_guyan_placement",
     "placement_quality",
     "to_sensor_map",
 ]
@@ -215,6 +218,107 @@ def modal_kinetic_energy(shapes: Any, mass: Any) -> npt.NDArray[np.float64]:
     else:
         raise ValueError("mass must be a scalar, diagonal vector, or square matrix")
     return (diagonal[:, np.newaxis] * phi * phi).astype(float, copy=False)
+
+
+def rank_excitation_dofs(
+    shapes: Any,
+    mass: Any,
+    *,
+    mode_index: int | None = None,
+) -> tuple[npt.NDArray[np.intp], npt.NDArray[np.float64]]:
+    """Rank DOF rows for exciter or hanging-point placement by MKE (MS-11.3 ADPR)."""
+    phi = _as_shapes(shapes)
+    mke = modal_kinetic_energy(phi, mass)
+    if mode_index is not None:
+        scores = mke[:, int(mode_index)]
+    else:
+        scores = np.sum(mke, axis=1)
+    order = np.argsort(scores)[::-1].astype(np.intp, copy=False)
+    return order, scores.astype(float, copy=False)
+
+
+def prune_sensors_by_automac(
+    shapes: Any,
+    selected: Sequence[int],
+    *,
+    threshold: float = 0.15,
+) -> tuple[int, ...]:
+    """Remove sensors until the AutoMAC off-diagonal peak falls below ``threshold``."""
+    phi = _as_shapes(shapes)
+    rows = [int(row) for row in selected]
+    minimum_sensors = phi.shape[1]
+    if len(rows) < minimum_sensors:
+        raise PretestError(
+            f"cannot prune below {minimum_sensors} sensors for {minimum_sensors} target modes"
+        )
+    while len(rows) > minimum_sensors:
+        quality = placement_quality(phi, rows)
+        if quality.automac_off_diagonal <= float(threshold):
+            break
+        best_row: int | None = None
+        best_off = float("inf")
+        for row in rows:
+            trial = [item for item in rows if item != row]
+            trial_quality = placement_quality(phi, trial)
+            if trial_quality.automac_off_diagonal < best_off:
+                best_off = trial_quality.automac_off_diagonal
+                best_row = row
+        if best_row is None:
+            break
+        rows.remove(best_row)
+    return tuple(sorted(rows))
+
+
+def iterative_guyan_placement(
+    stiffness: Any,
+    shapes: Any,
+    num_sensors: int,
+    *,
+    mass: Any = None,
+    candidates: Sequence[int] | None = None,
+    keep: Sequence[int] = (),
+    max_iterations: int = 4,
+) -> PlacementResult:
+    """EI placement refined with Guyan-expanded shapes (MS-11.7 iterative pretest)."""
+    from openfemlab.correlation.reduction import guyan_reduction
+
+    phi = _as_shapes(shapes)
+    pool = (
+        tuple(range(phi.shape[0]))
+        if candidates is None
+        else tuple(int(row) for row in candidates)
+    )
+    placement = select_sensors(
+        phi,
+        num_sensors,
+        mass=mass,
+        candidates=pool,
+        keep=keep,
+    )
+    best = placement
+    for _ in range(int(max_iterations)):
+        basis = guyan_reduction(stiffness, best.selected)
+        expanded = basis.expand(basis.reduce_shapes(phi))
+        candidate = select_sensors(
+            expanded,
+            num_sensors,
+            mass=mass,
+            candidates=pool,
+            keep=keep,
+        )
+        if candidate.quality.automac_off_diagonal <= best.quality.automac_off_diagonal:
+            best = candidate
+            break
+        best = candidate
+    return PlacementResult(
+        selected=best.selected,
+        eliminated=best.eliminated,
+        leverage=best.leverage,
+        det_fim=best.det_fim,
+        det_history=best.det_history,
+        quality=best.quality,
+        diagnostics={**best.diagnostics, "iterative_guyan": True},
+    )
 
 
 def placement_quality(shapes: Any, selected: Sequence[int]) -> PlacementQuality:

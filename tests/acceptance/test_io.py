@@ -63,7 +63,7 @@ from openfemlab.io import (
 from openfemlab.mesh.simple import bar_mesh, hex_block_mesh, quad_plate_mesh, tet_block_mesh
 from openfemlab.solver.modal import ModalSolver
 
-from ._support import criterion
+from ._support import criterion, fixture_matrices, load_fixture
 
 #: Gate of AC-IO-003 on the modal spectrum. The matrices come back bitwise
 #: identical, so this only leaves room for the eigensolver itself.
@@ -690,3 +690,42 @@ def test_ac_io_008_bdf_export_round_trip_preserves_geometry(tmp_path) -> None:
     for element_type, connectivity in source.elements.items():
         assert element_type in recovered.elements
         assert np.array_equal(recovered.elements[element_type], connectivity)
+
+
+@criterion("AC-IO-009")
+def test_ac_io_009_export_test_model_round_trips_uff_modes(tmp_path) -> None:
+    """Reduced test models export to UFF-55 and recover frequencies and shapes."""
+    from openfemlab import ModalSolver
+    from openfemlab.core.dofs import DofMap, DofType
+    from openfemlab.core.results import TestData
+    from openfemlab.io.uff import read_uff_modes
+    from openfemlab.pretest.export_test import export_test_model
+
+    stiffness, mass = fixture_matrices(load_fixture("ten_dof_chain"))
+    result = ModalSolver.from_matrices(stiffness, mass).solve(num_modes=3, sparse=False)
+    shapes = np.asarray(result.mode_shapes, dtype=float)
+    frequencies = np.asarray(result.frequencies, dtype=float)
+    dof_map = DofMap(
+        node_ids=np.arange(shapes.shape[0], dtype=np.int64) + 100,
+        dof_types=np.full(shapes.shape[0], DofType.UY, dtype=np.int64),
+    )
+    transform = {
+        "rotation_euler_xyz_deg": [1.0, -2.0, 3.5],
+        "translation": [0.01, 0.02, -0.03],
+        "rotation_matrix": np.eye(3).tolist(),
+    }
+    test_data = TestData(
+        frequencies=frequencies,
+        shapes=shapes,
+        dof_map=dof_map,
+        meta={"rigid_transform": transform},
+    )
+    path = tmp_path / "test_model.unv"
+    export_test_model(test_data, path)
+    recovered = read_uff_modes(path)
+    assert len(recovered) == frequencies.size
+    for index, mode in enumerate(recovered):
+        assert mode.frequency_hz == pytest.approx(frequencies[index], abs=1e-6)
+        assert mode.values.shape == (shapes.shape[0], 1)
+        assert mode.values[:, 0] == pytest.approx(shapes[:, index], abs=1e-5)
+    assert "EulerXYZdeg=" in recovered[-1].id_lines[1]

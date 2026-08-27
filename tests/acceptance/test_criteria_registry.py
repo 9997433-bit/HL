@@ -70,8 +70,8 @@ FAMILY_TO_MODULE = {
     "PERF": "M1",
 }
 EXPECTED_CRITERIA_PER_FAMILY = {
-    "MODAL": 9,     "CORR": 11, "UPD": 13, "WORK": 6, "OPT": 4, "DYN": 9, "ELEM": 3,
-    "IO": 8, "MPE": 8, "PRETEST": 6, "PERF": 5,
+    "MODAL": 9,     "CORR": 13, "UPD": 13, "WORK": 7, "OPT": 4, "DYN": 9, "ELEM": 3,
+    "IO": 9, "MPE": 8, "PRETEST": 9, "PERF": 5,
 }
 
 
@@ -160,6 +160,10 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P1", "property", "MS-7.4", _CORR_SUITE, "implemented"),
     _c("AC-CORR-011", "CORTHOG localizes paired-mode orthogonality defects",
        "P1", "twin", "MS-2.2", _CORR_SUITE, "implemented"),
+    _c("AC-CORR-012", "Clustered pairing resolves double-root mode swaps",
+       "P0", "twin", "MS-2.7", _CORR_SUITE, "implemented"),
+    _c("AC-CORR-013", "Rigid geometry alignment maps sensors to nearest nodes",
+       "P1", "oracle", "MS-2.1", _CORR_SUITE, "implemented"),
     # --- M3 Model updating (MS-3) --------------------------------------------
     _c("AC-UPD-001", "Eigenvalue sensitivity vs central FD",
        "P0", "oracle", "MS-3.3", _UPD_SUITE, "verified"),
@@ -200,6 +204,8 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P0", "contract", "MS-4.3", _WORK_SUITE, "verified"),
     _c("AC-WORK-006", "Side-by-side mode-shape plotting helper",
        "P2", "contract", "MS-4.3", _WORK_SUITE, "implemented"),
+    _c("AC-WORK-007", "Geometry alignment CLI writes a sensor-map JSON artifact",
+       "P1", "contract", "MS-2.1", _WORK_SUITE, "implemented"),
     # --- M5 Optimization hook (MS-5) ------------------------------------------
     _c("AC-OPT-001", "Analytic gradients vs central FD",
        "P0", "oracle", "MS-5.1", _OPT_SUITE, "verified"),
@@ -252,6 +258,8 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P2", "contract", "MS-9.6", _IO_SUITE, "implemented"),
     _c("AC-IO-008", "BDF export round trip preserves neutral geometry",
        "P1", "contract", "MS-9.6", _IO_SUITE, "implemented"),
+    _c("AC-IO-009", "Test model export round-trips through UFF-55",
+       "P1", "contract", "MS-11.8", _IO_SUITE, "implemented"),
     # --- M9 Modal parameter extraction (MS-10), GAP-06 -----------------------
     _c("AC-MPE-001", "LSCF pole recovery on synthesized FRFs",
        "P0", "oracle", "MS-10.2", _MPE_SUITE, "verified"),
@@ -282,6 +290,12 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P2", "oracle", "MS-11.3", _PRETEST_SUITE, "verified"),
     _c("AC-PRETEST-006", "Accelerometer mass lowers predicted frequencies",
        "P1", "oracle", "MS-11.6", _PRETEST_SUITE, "implemented"),
+    _c("AC-PRETEST-007", "Exciter MKE ranking peaks at the free end for mode 1",
+       "P1", "oracle", "MS-11.3", _PRETEST_SUITE, "implemented"),
+    _c("AC-PRETEST-008", "MAC pruning lowers AutoMAC off-diagonal below threshold",
+       "P1", "property", "MS-11.7", _PRETEST_SUITE, "implemented"),
+    _c("AC-PRETEST-009", "Iterative Guyan placement matches or improves EI quality",
+       "P1", "twin", "MS-11.7", _PRETEST_SUITE, "implemented"),
 )
 
 _BY_ID = {c.test_id: c for c in REGISTRY}
@@ -311,7 +325,7 @@ def test_registry_inventory_matches_documented_scope():
         for family in EXPECTED_CRITERIA_PER_FAMILY
     }
     assert counts == EXPECTED_CRITERIA_PER_FAMILY
-    assert len(REGISTRY) == 82
+    assert len(REGISTRY) == 89
 
 
 def test_ids_unique():

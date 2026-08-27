@@ -74,6 +74,7 @@ from openfemlab.correlation import (
     normalized_frequency_residual,
     orthogonality,
     pair_modes,
+    pair_modes_clustered,
     relative_frequency_error,
     serep_basis,
     tam_mass,
@@ -1462,3 +1463,76 @@ def test_ac_corr_011_corthog_localizes_the_perturbed_dof() -> None:
     assert values[FAULTY_DOF] < 0.5
     healthy = np.delete(values, FAULTY_DOF)
     assert np.min(healthy) > 0.9
+
+
+# --------------------------------------------------------------- AC-CORR-012
+
+
+@criterion("AC-CORR-012")
+def test_ac_corr_012_clustered_pairing_resolves_double_root_swaps() -> None:
+    """Near-duplicate frequencies are paired inside frequency clusters."""
+    analysis, _ = _fixture_modes("ten_dof_chain")
+    fe_shapes = analysis[:, :3]
+    test_shapes = fe_shapes.copy()
+    test_shapes[:, [0, 1]] = test_shapes[:, [1, 0]]
+    fe_freq = np.array([10.0, 10.03, 28.0])
+    test_freq = np.array([10.01, 10.04, 28.0])
+
+    pairing = pair_modes_clustered(
+        test_shapes,
+        fe_shapes,
+        test_freq,
+        fe_freq,
+        cluster_tolerance_pct=1.0,
+        mac_threshold=0.9,
+    )
+    assert len(pairing) == 3
+    assert pairing.pairs[0].fe_index == 1
+    assert pairing.pairs[1].fe_index == 0
+    assert pairing.pairs[0].mac >= 0.95
+    assert pairing.pairs[1].mac >= 0.95
+
+
+# --------------------------------------------------------------- AC-CORR-013
+
+
+@criterion("AC-CORR-013")
+def test_ac_corr_013_rigid_transform_and_nearest_node_mapping() -> None:
+    from openfemlab.correlation.geometry import (
+        apply_rigid_transform,
+        estimate_rigid_transform,
+        map_sensors_to_nodes,
+    )
+
+    model_coords = np.array(
+        [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [2.0, 0.0, 0.0], [3.0, 0.0, 0.0]],
+        dtype=np.float64,
+    )
+    angle = np.deg2rad(12.0)
+    rotation = np.array(
+        [
+            [np.cos(angle), -np.sin(angle), 0.0],
+            [np.sin(angle), np.cos(angle), 0.0],
+            [0.0, 0.0, 1.0],
+        ],
+        dtype=np.float64,
+    )
+    translation = np.array([0.1, -0.05, 0.2], dtype=np.float64)
+    sensor_coords = apply_rigid_transform(model_coords, rotation, translation)
+    recovered_rotation, recovered_translation = estimate_rigid_transform(
+        model_coords,
+        sensor_coords,
+    )
+    assert recovered_rotation == pytest.approx(rotation, abs=1e-6)
+    assert recovered_translation == pytest.approx(translation, abs=1e-6)
+
+    alignment = map_sensors_to_nodes(
+        model_coords,
+        sensor_coords,
+        max_distance=0.25,
+        reference_sensor_coords=sensor_coords,
+        reference_model_coords=model_coords,
+    )
+    assert np.all(alignment.matched_mask)
+    assert alignment.node_indices.tolist() == [0, 1, 2, 3]
+    assert np.max(alignment.distances) <= 1e-9

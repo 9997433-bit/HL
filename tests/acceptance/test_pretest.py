@@ -16,8 +16,11 @@ import pytest
 from openfemlab.exceptions import PretestError
 from openfemlab.pretest import (
     ei_leverage,
+    iterative_guyan_placement,
     modal_kinetic_energy,
     placement_quality,
+    prune_sensors_by_automac,
+    rank_excitation_dofs,
     select_sensors,
     to_sensor_map,
 )
@@ -248,6 +251,50 @@ def test_ac_pretest_006_accelerometer_mass_lowers_the_predicted_frequency() -> N
         accelerometer_mass=0.05,
     )
     assert shifted[0] < base_frequency
+
+
+# ---------------------------------------------------------------- AC-PRETEST-007
+
+
+@criterion("AC-PRETEST-007")
+def test_ac_pretest_007_exciter_ranking_puts_mode_one_kinetic_peak_at_the_tip() -> None:
+    shapes = _chain_modes(1)
+    _, mass = fixture_matrices(load_fixture("ten_dof_chain"))
+    order, scores = rank_excitation_dofs(shapes, np.diag(mass), mode_index=0)
+    assert int(order[0]) == shapes.shape[0] - 1
+    assert scores[order[0]] > scores[order[1]]
+
+
+# ---------------------------------------------------------------- AC-PRETEST-008
+
+
+@criterion("AC-PRETEST-008")
+def test_ac_pretest_008_mac_pruning_reduces_automac_off_diagonal() -> None:
+    shapes = _chain_modes(4)
+    initial = tuple(range(shapes.shape[0]))
+    pruned = prune_sensors_by_automac(shapes, initial, threshold=0.12)
+    assert len(pruned) >= shapes.shape[1]
+    quality = placement_quality(shapes, pruned)
+    assert quality.automac_off_diagonal <= 0.12
+
+
+# ---------------------------------------------------------------- AC-PRETEST-009
+
+
+@criterion("AC-PRETEST-009")
+def test_ac_pretest_009_iterative_guyan_improves_or_matches_ei_quality() -> None:
+    stiffness, mass = fixture_matrices(load_fixture("ten_dof_chain"))
+    shapes = _chain_modes(4)
+    baseline = select_sensors(shapes, 5, mass=np.diag(mass))
+    refined = iterative_guyan_placement(
+        stiffness,
+        shapes,
+        5,
+        mass=np.diag(mass),
+        max_iterations=3,
+    )
+    assert refined.quality.automac_off_diagonal <= baseline.quality.automac_off_diagonal + 0.02
+    assert len(refined.selected) == 5
 
 
 # ---------------------------------------------------------------- helpers
