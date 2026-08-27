@@ -197,7 +197,35 @@ def _verify_vhq_src_evidence(_tmp_path: Path) -> None:
 def _verify_true_peak_limiter(_tmp_path: Path) -> None:
     from audio_studio.dsp import effects
 
-    assert hasattr(effects, "TruePeakLimiter")
+    assert hasattr(effects, "LimiterEffect")
+
+    report_path = REPOSITORY_ROOT / ".agent_workspace/v1.0/limiter-isp-report.json"
+    if report_path.is_file():
+        report = _load_json(report_path)
+    else:
+        # tests/compliance/test_limiter_isp.py publishes that report. Measuring
+        # inline when it has not run keeps A6 an assertion about the limiter
+        # rather than an assertion about a file being present.
+        from tools.limiter_isp import measure_all
+
+        report = measure_all()
+
+    assert report["status"] == "pass"
+    tolerance = report["thresholds"]["ceiling_tolerance_db"]
+    cases = report["cases"]
+    assert len(cases) >= 4, "one tone is not evidence of a ceiling"
+    assert any(case["expected_isp_overshoot_db"] >= 3.0 for case in cases), (
+        "no case reaches the worst inter-sample overshoot a sinusoid can produce"
+    )
+    for case in cases:
+        assert case["input_true_peak_dbtp"] > case["ceiling_dbtp"], case["case_id"]
+        assert case["measured_isp_overshoot_db"] == pytest.approx(
+            case["expected_isp_overshoot_db"], abs=0.01
+        ), case["case_id"]
+        assert case["output_true_peak_dbtp"] <= case["ceiling_dbtp"] + tolerance, case["case_id"]
+        assert (
+            case["output_true_peak_reference_dbtp"] <= case["ceiling_dbtp"] + tolerance
+        ), case["case_id"]
 
 
 def _verify_tpdf_dither(_tmp_path: Path) -> None:
@@ -457,7 +485,6 @@ CHECKLIST_CASES = (
         "P0",
         "True-peak limiter ISP ceiling",
         _verify_true_peak_limiter,
-        "no true-peak limiter is implemented",
     ),
     ChecklistCase(
         "A7",
@@ -492,7 +519,9 @@ CHECKLIST_CASES = (
         "P0",
         "4GB RF64 streaming under 1GB RSS",
         _verify_rf64_streaming,
-        "RF64/W64 decode support landed; 4GB streaming under-1GB-RSS evidence is missing",
+        "headless proxy evidence exists (4.4GB sparse RF64 streamed at 107MiB "
+        "peak RSS; see .agent_workspace/v1.0/rf64-memory-report.json); a "
+        "formal_slo_verified run on dedicated hardware is still missing",
     ),
     ChecklistCase("B4", "P0", "100-step undo/redo", _verify_undo_redo_100_steps),
     ChecklistCase(
