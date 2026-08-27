@@ -11,6 +11,7 @@ fail here rather than quietly move the published number.
 
 from __future__ import annotations
 
+import itertools
 import json
 import math
 from pathlib import Path
@@ -97,13 +98,30 @@ def test_every_measurement_is_a_real_detection(report: dict) -> None:
         )
 
 
-def test_the_run_glitched_nowhere(report: dict) -> None:
+def test_the_kept_sessions_glitched_nowhere(report: dict) -> None:
     assert report["xruns"] == 0
     for result in report["results"]:
         assert result["status"] == "pass"
         assert result["xruns"] == 0
         assert not result["discarded_emissions"]
         assert result["measured"]["max_ms"] < report["threshold_ms"]
+        sessions = result["sessions"]
+        assert sessions["completed"] == sessions["requested"]
+        assert sessions["attempted"] == sessions["completed"] + sessions["discarded_for_xruns"]
+
+
+def test_any_session_thrown_out_is_published_with_its_numbers(report: dict) -> None:
+    """Retrying a glitched stream is only honest if the discarded one is shown."""
+    discarded = report["sessions_discarded_for_xruns"]
+    published = [
+        entry for result in report["results"] for entry in result["glitched_sessions"]
+    ]
+    assert discarded == len(published)
+    for entry in published:
+        assert entry["xruns"] > 0
+        assert entry["reason"].strip()
+        # Including what it measured, so a reader can see what was left out.
+        assert entry["measured"]
 
 
 def test_controls_are_present_and_passing(report: dict) -> None:
@@ -244,5 +262,5 @@ def test_emission_schedule_keeps_chirps_off_block_boundaries() -> None:
     # to whole buffers could not hide behind a block-aligned chirp.
     assert all(offset % 128 for offset in measured)
     # And they are far enough apart that no search window can catch its neighbour.
-    gaps = [second - first for first, second in zip(measured, measured[1:], strict=False)]
+    gaps = [second - first for first, second in itertools.pairwise(measured)]
     assert min(gaps) > (probe.SEARCH_BEFORE_SECONDS + probe.SEARCH_AFTER_SECONDS) * SAMPLE_RATE

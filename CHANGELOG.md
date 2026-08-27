@@ -18,12 +18,12 @@ the v1.0.0-beta diff against v0.1.0-alpha is fully accounted for.
 - **Round-trip latency probe** (`benchmarks/roundtrip_latency_probe.py`,
   `.agent_workspace/round3/roundtrip-latency-report.json`) — a chirp played out
   of a full-duplex PortAudio stream and found again in the capture by
-  cross-correlation: **5.396 ms** worst of 80 measurements at 128 frames and
-  48 kHz, no xruns, against a 15 ms budget. The loop is closed by a PulseAudio
-  null sink and its monitor (no converters in the path, stated in the report),
-  and the number ships with four controls: silence, a recovered known offset,
-  buffer-width sensitivity, and a wall-clock cross-check. **C4 hard pass**
-  (server loopback; not a measurement on an audio interface).
+  cross-correlation: **8.167 ms** worst of 80 measurements (median 5.396 ms) at
+  128 frames and 48 kHz, no xruns, against a 15 ms budget. The loop is closed
+  by a PulseAudio null sink and its monitor (no converters in the path, stated
+  in the report), and the number ships with four controls: silence, a recovered
+  known offset, buffer-width sensitivity, and a wall-clock cross-check. **C4
+  hard pass** (server loopback; not a measurement on an audio interface).
 
 ## [1.0.0] - 2026-08-27
 

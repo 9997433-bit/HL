@@ -46,12 +46,23 @@ converter delay does not decide the result.
 
 What the headline is
 --------------------
-The worst steady-state round trip of every measurement in the run, so no
-scenario or session can be averaged out of the number C4 is graded on. Two
-things sit outside it and are reported rather than dropped: the very first
-stream on a sink the probe has just created, which consistently runs a few
-milliseconds longer than everything after it (``cold_start``), and the chirps
-emitted inside each session's warm-up window (``startup_settling``).
+The worst steady-state round trip of every measurement kept in the run, so no
+scenario or session can be averaged out of the number C4 is graded on. Three
+sets of measurements sit outside it, and every one of them is published with
+its numbers rather than dropped:
+
+* ``cold_start`` — the very first stream on a sink the probe has just created,
+  which consistently runs several milliseconds longer than everything after it.
+* ``startup_settling`` — the chirps emitted inside each session's warm-up
+  window, before the stream the server has just accepted has settled.
+* ``glitched_sessions`` — sessions whose stream underran. An underrun is not a
+  slower audio path but a different one: the plugin recovers by restarting with
+  full buffers, and every measurement after the glitch sits some ten
+  milliseconds higher for the rest of that stream. Timing the recovery would
+  not be timing the loop, so the session is retried, and the discarded one is
+  reported alongside the reason. A host that cannot produce clean streams
+  within ``--max-retries`` fails the run rather than retrying until it is
+  lucky.
 
 Why the measurement can be trusted
 ----------------------------------
@@ -121,6 +132,11 @@ DEFAULT_SESSIONS: int = 5
 
 #: Chirps per session, spaced far enough apart that no two overlap in flight.
 DEFAULT_EMISSIONS: int = 8
+
+#: Replacement sessions a scenario may run when a stream underruns. Small on
+#: purpose: a host that cannot hold a 128-frame buffer often enough to produce
+#: five clean streams should fail the item, not grind until it gets lucky.
+DEFAULT_MAX_RETRIES: int = 3
 EMISSION_SPACING_SECONDS: float = 0.25
 
 #: Audio played at the head of every session before the measured emissions
@@ -195,6 +211,14 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         help="independent duplex streams to open, each measured on its own",
     )
     parser.add_argument("--emissions", type=int, default=DEFAULT_EMISSIONS)
+    parser.add_argument(
+        "--max-retries",
+        type=int,
+        default=DEFAULT_MAX_RETRIES,
+        help="extra sessions a scenario may run to replace ones whose stream "
+        f"underran (default {DEFAULT_MAX_RETRIES}); every discarded session is "
+        "still published with its numbers",
+    )
     parser.add_argument(
         "--warmup-seconds",
         type=float,
@@ -423,7 +447,7 @@ def _sink_latency_usec(sink_name: str) -> dict[str, int | None]:
 
 def chirp(sample_rate: int, seconds: float = CHIRP_SECONDS) -> np.ndarray:
     """A Hann-windowed linear sweep, the thing we listen for coming back."""
-    n_frames = max(8, int(round(seconds * sample_rate)))
+    n_frames = max(8, round(seconds * sample_rate))
     t = np.arange(n_frames, dtype=np.float64) / sample_rate
     rate = (CHIRP_END_HZ - CHIRP_START_HZ) / (n_frames / sample_rate)
     sweep = np.sin(2.0 * np.pi * (CHIRP_START_HZ * t + 0.5 * rate * t * t))
@@ -497,12 +521,12 @@ def _emission_schedule(
     boundary could hide a delay that had been rounded to whole blocks somewhere
     in the path.
     """
-    spacing = int(round(EMISSION_SPACING_SECONDS * sample_rate))
-    warmup_frames = int(round(warmup_seconds * sample_rate))
+    spacing = round(EMISSION_SPACING_SECONDS * sample_rate)
+    warmup_frames = round(warmup_seconds * sample_rate)
     settling = [
-        int(round(seconds * sample_rate)) + buffer_frames // 3
+        round(seconds * sample_rate) + buffer_frames // 3
         for seconds in SETTLING_EMISSION_SECONDS
-        if int(round(seconds * sample_rate)) + spacing < warmup_frames
+        if round(seconds * sample_rate) + spacing < warmup_frames
     ]
     first = warmup_frames + buffer_frames // 3
     measured = [first + index * spacing + index * 7 for index in range(emissions)]
@@ -724,6 +748,12 @@ class ScenarioResult:
     reported_latency_ms: list[float] = field(default_factory=list)
     reported_roundtrip_ms: list[float] = field(default_factory=list)
     last_session: Session | None = None
+    #: Sessions thrown out because the stream glitched, with what they
+    #: measured. Kept in the report: a discarded session that is not shown is
+    #: indistinguishable from one that never happened.
+    glitched_sessions: list[dict[str, Any]] = field(default_factory=list)
+    sessions_attempted: int = 0
+    sessions_completed: int = 0
 
 
 def measure_session(
@@ -807,33 +837,64 @@ def run_scenario(
     scenario: str,
     description: str,
 ) -> ScenarioResult:
+    """Collect ``--sessions`` clean sessions, retrying the ones that glitch.
+
+    A stream that underran is not a slower audio path, it is a different one:
+    the plugin recovers by restarting with its buffers full, and every
+    measurement after the glitch sits some ten milliseconds higher for the rest
+    of that stream. Latency measured through it would be reporting the recovery
+    rather than the loop, so the session is retried — and the discarded one is
+    published anyway, numbers and all, under ``glitched_sessions``.
+    """
     result = ScenarioResult(scenario=scenario, description=description)
-    for index in range(args.sessions):
+    index = 0
+    while index < args.sessions and result.sessions_attempted < args.sessions + args.max_retries:
+        result.sessions_attempted += 1
         session = run_session(args, device, probe, scenario=scenario)
-        result.last_session = session
         measurements, discarded = measure_session(session, probe, args.sample_rate, index)
+        latencies = [item.latency_ms for item in measurements if not item.settling]
+        settling = [item.latency_ms for item in measurements if item.settling]
+        summary = (
+            f"{len(latencies)} detections, "
+            f"median {statistics.median(latencies):.3f} ms, "
+            f"worst {max(latencies):.3f} ms"
+            if latencies
+            else "no confident detections"
+        )
+
+        if session.xruns:
+            result.glitched_sessions.append(
+                {
+                    "attempt": result.sessions_attempted,
+                    "xruns": session.xruns,
+                    "stream_status_flags": sorted(set(session.status_flags)),
+                    "measured": _summarise(latencies) if latencies else {},
+                    "reason": (
+                        "the stream underran; after recovery the path stays "
+                        "several milliseconds longer for the rest of the "
+                        "session, so this measures the recovery and not the loop"
+                    ),
+                }
+            )
+            _progress(args.quiet, f"{scenario} attempt {result.sessions_attempted} discarded: "
+                      f"{summary}, xruns {session.xruns}")
+            continue
+
+        result.last_session = session
         result.measurements.extend(measurements)
         result.discarded.extend(discarded)
-        result.xruns += session.xruns
         result.status_flags.extend(session.status_flags)
         result.reported_latency_ms.append(round(sum(session.reported_latency) * 1000.0, 3))
         if session.reported_roundtrip_ms is not None:
             result.reported_roundtrip_ms.append(session.reported_roundtrip_ms)
-        latencies = [item.latency_ms for item in measurements if not item.settling]
-        settling = [item.latency_ms for item in measurements if item.settling]
+        index += 1
         _progress(
             args.quiet,
-            f"{scenario} session {index + 1}/{args.sessions}: "
-            + (
-                f"{len(latencies)} detections, "
-                f"median {statistics.median(latencies):.3f} ms, "
-                f"worst {max(latencies):.3f} ms"
-                if latencies
-                else "no confident detections"
-            )
-            + (f", settling {min(settling):.3f}-{max(settling):.3f} ms" if settling else "")
-            + f", xruns {session.xruns}",
+            f"{scenario} session {index}/{args.sessions}: "
+            + summary
+            + (f", settling {min(settling):.3f}-{max(settling):.3f} ms" if settling else ""),
         )
+    result.sessions_completed = index
     return result
 
 
@@ -1094,13 +1155,15 @@ def build_report(
     controls_passed = all(
         control.get("status") == "pass" for control in controls.values()
     )
-    # The headline is the worst round trip anywhere in the run, so no scenario
-    # or session can be averaged out of the number C4 is graded on.
+    complete = all(scenario.sessions_completed == args.sessions for scenario in scenarios)
+    # The headline is the worst round trip in every session that was kept, so
+    # no scenario or session can be averaged out of the number C4 is graded on.
     headline = overall["max_ms"]
     passed = (
         headline < args.threshold_ms
         and xruns == 0
         and controls_passed
+        and complete
         and all(scenario.measurements for scenario in scenarios)
     )
 
@@ -1119,12 +1182,20 @@ def build_report(
                     if scenario_latencies
                     and summary["max_ms"] < args.threshold_ms
                     and scenario.xruns == 0
+                    and scenario.sessions_completed == args.sessions
                     else "fail"
                 ),
                 "evidence": "hardware-loopback",
                 "measured": summary,
                 "settling": _settling_summary(scenario.measurements),
                 "xruns": scenario.xruns,
+                "sessions": {
+                    "requested": args.sessions,
+                    "completed": scenario.sessions_completed,
+                    "attempted": scenario.sessions_attempted,
+                    "discarded_for_xruns": len(scenario.glitched_sessions),
+                },
+                "glitched_sessions": scenario.glitched_sessions,
                 "stream_status_flags": sorted(set(scenario.status_flags)),
                 "discarded_emissions": scenario.discarded,
                 # PortAudio reports the buffers it configured, not the delay it
@@ -1162,6 +1233,9 @@ def build_report(
         "latency": overall,
         "startup_settling": _settling_summary(every),
         "cold_start": cold_start or {},
+        "sessions_discarded_for_xruns": sum(
+            len(scenario.glitched_sessions) for scenario in scenarios
+        ),
         # What PortAudio configured, as opposed to what the signal took. The
         # observed round trip cannot exceed this, so a ceiling under the budget
         # means the result does not depend on catching a lucky alignment.
@@ -1186,9 +1260,12 @@ def build_report(
             "source": loopback.source,
             "sample_spec": loopback.sample_spec,
             "created_by_probe": loopback.created_by_probe,
-            # Sampled while a stream was attached. An idle null sink reports
-            # its two-second timer block, which describes nothing a playing
-            # stream experiences.
+            # Sampled while a stream was attached; an idle null sink reports
+            # its two-second timer block instead. Only ``configured`` means
+            # anything here — it should match the latency asked for. A null
+            # sink derives its ``latency`` from a timer with no device behind
+            # it and reports a figure its own monitor loop contradicts, which
+            # is why the round trip is measured rather than read off it.
             "sink_latency_while_streaming_usec": streaming_sink_latency or {},
         },
         "config": {
@@ -1202,10 +1279,14 @@ def build_report(
             "chirp_ms": round(CHIRP_SECONDS * 1000.0, 3),
             "chirp_hz": [CHIRP_START_HZ, CHIRP_END_HZ],
             "min_peak_to_sidelobe": MIN_PEAK_TO_SIDELOBE,
+            "max_retries": args.max_retries,
             "headline": (
-                "worst (maximum) steady-state round trip across every scenario; the "
-                "first stream on the new sink is measured separately under cold_start "
-                "and the warm-up emissions under startup_settling"
+                "worst (maximum) steady-state round trip across every scenario. "
+                "Three sets of measurements sit outside it and are published "
+                "rather than dropped: the first stream on the new sink "
+                "(cold_start), the chirps inside each session's warm-up window "
+                "(startup_settling), and any session whose stream underran "
+                "(glitched_sessions, per scenario)"
             ),
         },
         "controls": controls,
