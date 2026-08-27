@@ -1,0 +1,41 @@
+{
+  "artifact": "batch-loudness-report",
+  "checklist_item": "B7",
+  "generated_by": "tools/generate_v1_evidence.py",
+  "status": "pass",
+  "cli": "python -m audio_studio.batch.cli --input /tmp/tmpe9rx0d4s/in/*.wav --output /tmp/tmpe9rx0d4s/out --lufs -16 --format flac",
+  "exit_code": 0,
+  "input_files": 10,
+  "input_levels_dbfs": [
+    -30.0,
+    -28.0,
+    -26.0,
+    -24.0,
+    -22.0,
+    -20.0,
+    -18.0,
+    -16.0,
+    -14.0,
+    -12.0
+  ],
+  "output_files": 10,
+  "output_format": "flac",
+  "target_lufs": -16.0,
+  "integrated_lufs": [
+    -16.0,
+    -16.0,
+    -16.0,
+    -16.0,
+    -16.0,
+    -16.0,
+    -16.0,
+    -16.0,
+    -16.0,
+    -16.0
+  ],
+  "max_abs_error_lu": 0.0,
+  "unit_suites": [
+    "audio-studio/tests/test_batch.py",
+    "audio-studio/tests/test_loudness_effect.py"
+  ]
+}
