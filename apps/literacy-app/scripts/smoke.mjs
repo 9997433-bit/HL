@@ -1112,7 +1112,9 @@ await interact('播报：答题与庆祝都有 aria-live', '/#/listen', async (p
 
   // 庆祝浮层：读完一本没读过的绘本
   await page.goto(page.url().replace(/#.*$/, '#/books/b2'), { waitUntil: 'networkidle2' })
-  await new Promise((r) => setTimeout(r, 400))
+  // 只换 hash 不会重新加载文档，networkidle2 立刻就返回了，而绘本路由是异步分块：
+  // 等书页真的挂上来再翻页，否则「下一页」还落在上一个视图上。
+  await page.waitForSelector('.reader', { timeout: 5000 })
   for (let i = 0; i < 8; i++) {
     if (await clickText(page, '下一页')) continue
     if (await clickText(page, '读完啦')) break
