@@ -786,6 +786,18 @@ class PasteCommand(EditCommand):
     def inserted_range(self) -> TimeRange:
         return TimeRange(self._at, self._at + self._inserted)
 
+    @property
+    def at(self) -> int:
+        return self._at
+
+    @property
+    def payload(self) -> AudioDocument:
+        return self._payload
+
+    @property
+    def replacing(self) -> TimeRange | None:
+        return self._replaced_range
+
     def apply(self, document: AudioDocument) -> AudioDocument:
         if self._payload.n_frames == 0:
             raise EditError(f"{self.label}: nothing on the clipboard")
@@ -815,6 +827,14 @@ class InsertSilenceCommand(EditCommand):
     def __init__(self, at: int, n_frames: int) -> None:
         self._at = int(at)
         self._n_frames = int(n_frames)
+
+    @property
+    def at(self) -> int:
+        return self._at
+
+    @property
+    def n_frames(self) -> int:
+        return self._n_frames
 
     def apply(self, document: AudioDocument) -> AudioDocument:
         if self._n_frames <= 0:
@@ -941,6 +961,10 @@ class SpectralEditCommand(_RangeCommand):
         return self._gain_db
 
     @property
+    def fft_size(self) -> int:
+        return self._fft_size
+
+    @property
     def removes(self) -> bool:
         """True when the band is zeroed rather than merely turned down."""
         return self._gain_db == -math.inf
@@ -971,6 +995,10 @@ class TrimCommand(EditCommand):
         self._range = rng
         self._head: AudioDocument | None = None
         self._tail: AudioDocument | None = None
+
+    @property
+    def range(self) -> TimeRange:
+        return self._range
 
     def apply(self, document: AudioDocument) -> AudioDocument:
         clipped = self._range.clamped(document.n_frames)
@@ -1054,6 +1082,11 @@ class UndoStack:
 
     def labels(self) -> list[str]:
         return [entry.label for entry in self._entries]
+
+    @property
+    def applied_commands(self) -> tuple[EditCommand, ...]:
+        """Commands that produce the current revision, in execution order."""
+        return tuple(entry.command for entry in self._entries[: self._index])
 
     def push(self, command: EditCommand, before: AudioDocument, after: AudioDocument) -> None:
         """Record an already-applied command, discarding any redo branch."""

@@ -15,6 +15,12 @@ exclusive stream takes over the device and can be refused outright. When the
 device rejects the exclusive stream the backend falls back to an ordinary
 shared-mode stream instead of failing playback.
 
+``AUDIO_STUDIO_ASIO=1`` makes an output device already exposed by PortAudio's
+ASIO host API the first choice on Windows. Audio Studio does not bundle or use
+the official ASIO SDK; this is only host selection over the PortAudio library
+loaded by ``sounddevice``. If that library exposes no ASIO output, or the
+preferred stream cannot open, the ordinary default-device ladder is unchanged.
+
 The module is imported lazily by :func:`audio_studio.core.output.create_output`;
 importing it never imports ``sounddevice`` itself, so it stays safe to ship on a
 machine that has no PortAudio at all.
@@ -37,17 +43,73 @@ from .output import (
     _quiet_native_stderr,
 )
 
-__all__ = ["SoundDeviceOutput"]
+__all__ = ["ASIO_ENV_VAR", "SoundDeviceOutput"]
+
+#: Windows-only opt-in for preferring an ASIO output already exposed by the
+#: PortAudio library loaded by sounddevice. This does not enable or bundle an
+#: ASIO SDK or set sounddevice's own ``SD_ENABLE_ASIO`` loader switch.
+ASIO_ENV_VAR = "AUDIO_STUDIO_ASIO"
 
 
-def _device_uses_wasapi(sd: Any, device: int | str | None) -> bool:
-    """Best-effort check that ``device`` is served by the WASAPI host API."""
+def _device_uses_host_api(sd: Any, device: int | str | None, name: str) -> bool:
+    """Best-effort check that ``device`` is served by the named host API."""
     try:
         info = sd.query_devices(device, kind="output")
         host_api = sd.query_hostapis(int(info["hostapi"]))
-        return "wasapi" in str(host_api["name"]).lower()
+        return name.lower() in str(host_api["name"]).lower()
     except Exception:  # noqa: BLE001 - an unknown host API stays in shared mode
         return False
+
+
+def _device_uses_wasapi(sd: Any, device: int | str | None) -> bool:
+    return _device_uses_host_api(sd, device, "wasapi")
+
+
+def _asio_output_device(sd: Any) -> int | None:
+    """Return the first usable output on a PortAudio ASIO host API.
+
+    PortAudio host dictionaries normally name a ``default_output_device``.
+    Some binding/build combinations omit that key, so enumeration is retained
+    as a fallback. Every failure is treated as "ASIO unavailable" and leaves
+    the normal default-device path intact.
+    """
+    try:
+        host_apis = tuple(sd.query_hostapis())
+        devices = tuple(sd.query_devices())
+    except Exception:  # noqa: BLE001 - device enumeration is best-effort
+        return None
+
+    asio_hosts = {
+        index
+        for index, host_api in enumerate(host_apis)
+        if "asio" in str(host_api.get("name", "")).lower()
+    }
+    if not asio_hosts:
+        return None
+
+    candidates: list[int] = []
+    for index in asio_hosts:
+        default = host_apis[index].get("default_output_device", -1)
+        try:
+            default_index = int(default)
+        except (TypeError, ValueError):
+            continue
+        if default_index >= 0:
+            candidates.append(default_index)
+    candidates.extend(index for index in range(len(devices)) if index not in candidates)
+
+    for index in candidates:
+        if index < 0 or index >= len(devices):
+            continue
+        info = devices[index]
+        try:
+            host_index = int(info.get("hostapi", -1))
+            output_channels = int(info.get("max_output_channels", 0))
+        except (TypeError, ValueError):
+            continue
+        if host_index in asio_hosts and output_channels > 0:
+            return index
+    return None
 
 
 class SoundDeviceOutput(AudioOutput):
@@ -58,13 +120,16 @@ class SoundDeviceOutput(AudioOutput):
         self._device = device
         self._exclusive = exclusive
         self._exclusive_active = False
+        self._asio_active = False
         self._stream: Any | None = None
         self._underflows = 0
         self._overflows = 0
 
     @property
     def name(self) -> str:  # type: ignore[override]
-        """Backend label; carries the WASAPI mode when the stream runs exclusive."""
+        """Backend label; carries the selected low-latency host mode."""
+        if self._asio_active:
+            return "sounddevice (ASIO)"
         if self._exclusive_active:
             return "sounddevice (WASAPI exclusive)"
         return "sounddevice"
@@ -106,7 +171,16 @@ class SoundDeviceOutput(AudioOutput):
                     return latency
         return super().latency
 
-    def _wasapi_exclusive_enabled(self, sd: Any) -> bool:
+    def _device_candidates(self, sd: Any) -> tuple[int | str | None, ...]:
+        """Preferred ASIO output followed by the configured/default device."""
+        if self._device is not None:
+            return (self._device,)
+        if sys.platform != "win32" or os.environ.get(ASIO_ENV_VAR, "").strip() != "1":
+            return (None,)
+        asio_device = _asio_output_device(sd)
+        return (asio_device, None) if asio_device is not None else (None,)
+
+    def _wasapi_exclusive_enabled(self, sd: Any, device: int | str | None) -> bool:
         """True when every gate for WASAPI exclusive mode is open.
 
         The mode engages only when it was requested at construction time, the
@@ -117,11 +191,13 @@ class SoundDeviceOutput(AudioOutput):
             return False
         if os.environ.get(WASAPI_EXCLUSIVE_ENV_VAR, "").strip() != "1":
             return False
-        return _device_uses_wasapi(sd, self._device)
+        return _device_uses_wasapi(sd, device)
 
-    def _extra_settings_candidates(self, sd: Any) -> tuple[Any, ...]:
+    def _extra_settings_candidates(
+        self, sd: Any, device: int | str | None
+    ) -> tuple[Any, ...]:
         """Host-API ladder: WASAPI exclusive first when engaged, then shared."""
-        if not self._wasapi_exclusive_enabled(sd):
+        if not self._wasapi_exclusive_enabled(sd, device):
             return (None,)
         try:
             settings = sd.WasapiSettings(exclusive=True)
@@ -138,32 +214,39 @@ class SoundDeviceOutput(AudioOutput):
         self._underflows = 0
         self._overflows = 0
         self._exclusive_active = False
+        self._asio_active = False
         requested = self._block_size
         last_error: Exception | None = None
         try:
             with _quiet_native_stderr():
-                for extra_settings in self._extra_settings_candidates(sd):
-                    stream_kwargs: dict[str, Any] = {}
-                    if extra_settings is not None:
-                        stream_kwargs["extra_settings"] = extra_settings
-                    for block_size in _block_size_candidates(requested):
-                        self._block_size = block_size
-                        try:
-                            self._stream = sd.OutputStream(
-                                samplerate=self._sample_rate,
-                                channels=self._channels,
-                                dtype="float32",
-                                blocksize=block_size,
-                                device=self._device,
-                                callback=self._sounddevice_callback,
-                                **stream_kwargs,
+                for device in self._device_candidates(sd):
+                    for extra_settings in self._extra_settings_candidates(sd, device):
+                        stream_kwargs: dict[str, Any] = {}
+                        if extra_settings is not None:
+                            stream_kwargs["extra_settings"] = extra_settings
+                        for block_size in _block_size_candidates(requested):
+                            self._block_size = block_size
+                            try:
+                                self._stream = sd.OutputStream(
+                                    samplerate=self._sample_rate,
+                                    channels=self._channels,
+                                    dtype="float32",
+                                    blocksize=block_size,
+                                    device=device,
+                                    callback=self._sounddevice_callback,
+                                    **stream_kwargs,
+                                )
+                            except Exception as exc:  # noqa: BLE001 - try next candidate
+                                last_error = exc
+                                self._teardown()
+                                continue
+                            self._exclusive_active = extra_settings is not None
+                            self._asio_active = (
+                                self._device is None
+                                and device is not None
+                                and _device_uses_host_api(sd, device, "asio")
                             )
-                        except Exception as exc:  # noqa: BLE001 - try the next safe size
-                            last_error = exc
-                            self._teardown()
-                            continue
-                        self._exclusive_active = extra_settings is not None
-                        return
+                            return
         except Exception as exc:  # noqa: BLE001
             last_error = exc
         self._block_size = requested

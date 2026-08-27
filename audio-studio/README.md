@@ -89,6 +89,22 @@ python -m audio_studio --wasapi-exclusive  # equivalent: sets the variable for y
 The active mode shows up in the status bar and the About box as
 `sounddevice (WASAPI exclusive)`.
 
+If the PortAudio library loaded by `sounddevice` already exposes an ASIO host
+API, Audio Studio can prefer its first output device:
+
+```bat
+set AUDIO_STUDIO_ASIO=1
+python -m audio_studio
+```
+
+This is Windows-only host selection, not an official ASIO integration. Audio
+Studio ships no Steinberg ASIO SDK, does not set `SD_ENABLE_ASIO`, and does not
+add an ASIO-enabled PortAudio binary. If the user's `sounddevice`/PortAudio
+runtime exposes no ASIO output, or its stream refuses the requested format, the
+backend falls back to the ordinary default device. An explicitly configured
+`SoundDeviceOutput(device=...)` always wins over the environment preference.
+The active backend label is `sounddevice (ASIO)`.
+
 ## Run
 
 ```bash
@@ -121,17 +137,35 @@ xvfb-run -a python -m audio_studio --null-audio --exit-after 5 track.wav
 python -m audio_studio.batch.cli --input "stems/*.wav" --output out/ --lufs -16
 audio-studio-batch --input "takes/**/*.flac" --output out/ \
     --lufs -16 --true-peak -1.0 --fade-in 0.05 --fade-out 0.5 --format wav
+audio-studio-batch --input "takes/*.wav" --output edited/ --macro edit.json
 ```
 
 Each matched file is decoded, run through the requested operations in order —
-`--gain-db`, then `--lufs` loudness normalisation (BS.1770 integrated, with an
-optional `--true-peak` ceiling), then `--fade-in`/`--fade-out` (`--fade-shape`
-picks the curve) — and re-encoded into `--output`, keeping its name.
+`--macro` first, `--gain-db`, then `--lufs` loudness normalisation (BS.1770
+integrated, with an optional `--true-peak` ceiling), then
+`--fade-in`/`--fade-out` (`--fade-shape` picks the curve) — and re-encoded into
+`--output`, keeping its name.
 `--format` converts the container and `--subtype` overrides the encoding
 (e.g. `PCM_16`, `FLOAT`). Progress is printed to stdout one line per file; the
-exit code is 0 when every file rendered, 1 when any failed, 2 when nothing
-matched. The same pipeline is scriptable from Python via
+exit code is 0 when every file rendered, 1 when any failed, 2 when the
+configuration is invalid or nothing matched. The same pipeline is scriptable from Python via
 `audio_studio.batch.BatchJob` and `run_batch`.
+
+An edit macro is the applied command branch of an `EditSession`, in exact frame
+coordinates with the source sample rate recorded in schema-v1 JSON:
+
+```python
+from audio_studio.batch import save_macro
+
+save_macro(session, "edit.json")
+```
+
+Gain, fade, silence, reverse, spectral edit, delete, trim, insert-silence and
+cut/paste command sequences round-trip. The batch input sample rate must match
+the macro. A paste of copied or external PCM cannot be made portable without
+embedding source audio, so serialization rejects it; a paste backed by an
+earlier cut in the same macro is supported and uses each batch input's own
+samples.
 
 ## Mastering exports
 
@@ -708,11 +742,11 @@ above this package.
   `SoundDeviceOutput` and `PyAudioOutput` retry with 512 and then 1024 frames
   when the device rejects it. On Windows, opt-in WASAPI exclusive mode
   (`--wasapi-exclusive` or `AUDIO_STUDIO_WASAPI_EXCLUSIVE=1`) additionally
-  bypasses the shared-mode mixer. This lowers callback latency but is not
-  certified low-latency monitoring: shared-mode host buffering still applies
-  unless exclusive mode is enabled, ASIO and per-host latency hints are not
-  wired up, the ASIO SDK is not shipped, and no hardware round-trip
-  measurements back the numbers.
+  bypasses the shared-mode mixer; `AUDIO_STUDIO_ASIO=1` prefers an ASIO device
+  already exposed by the user's PortAudio runtime. These lower-latency host
+  choices are not certified low-latency monitoring: the ASIO SDK and an
+  ASIO-enabled PortAudio build are not shipped, per-host latency hints are not
+  wired up, and no hardware round-trip measurements back the numbers.
 - On the first playback, the engine collects cyclic garbage and freezes the
   existing GC-tracked object graph until shutdown to keep old objects out of
   playback-time collections. Set `AUDIO_STUDIO_RT_GC=0` to disable this
