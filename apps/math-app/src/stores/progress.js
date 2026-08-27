@@ -83,6 +83,12 @@ function defaultState() {
     counters: { arithmeticHardCorrect: 0, sudokuSolved: 0, perfectRuns: 0, dailyQuests: 0 },
     dailyQuest: emptyDailyQuest(),
     achievements: {},
+    /**
+     * 解锁过场已经演给孩子看过的星球 id。
+     * null 表示这份存档还没记过，读档时按「当前已解锁的都算看过」补一次，
+     * 老玩家不会一进首页就被几段过场轮番轰炸。
+     */
+    seenPlanets: null,
     settings: { sound: true, animations: true },
     history: [],
     /** 'YYYY-MM-DD' -> { seconds, answered, correct, stars }，家长页时长曲线的数据源 */
@@ -186,6 +192,9 @@ function mergeState(saved) {
       total: DAILY_SIZE,
     },
     achievements: { ...(saved.achievements || {}) },
+    seenPlanets: Array.isArray(saved.seenPlanets)
+      ? saved.seenPlanets.filter((id) => typeof id === 'string')
+      : null,
     settings: { ...base.settings, ...(saved.settings || {}) },
     history: Array.isArray(saved.history) ? saved.history.slice(0, 40) : [],
     daily: mergeDaily(saved.daily),
@@ -285,6 +294,30 @@ export const useProgressStore = defineStore('progress', () => {
   const isModuleUnlocked = (moduleId) => {
     const mod = MODULES.find((m) => m.id === moduleId)
     return !mod || state.stars >= mod.starsToUnlock
+  }
+
+  // ---------- 地图叙事 ----------
+
+  /**
+   * 存档里没有记录时，把「此刻已解锁」的星球一次性记成看过。
+   * 读档补记、整档导入与清档后都要走一遍，否则解锁过场会对着老进度重放。
+   */
+  function ensureSeenPlanets() {
+    if (Array.isArray(state.seenPlanets)) return
+    state.seenPlanets = MODULES.filter((m) => state.stars >= m.starsToUnlock).map((m) => m.id)
+  }
+
+  /** 已经解锁、但过场还没演过的第一颗星球；没有就是 null。 */
+  const pendingPlanetUnlock = computed(() => {
+    const seen = new Set(state.seenPlanets ?? [])
+    return MODULES.find((m) => state.stars >= m.starsToUnlock && !seen.has(m.id))?.id ?? null
+  })
+
+  /** 过场演完（或被跳过）后调用，同一颗星球不会再演第二次。 */
+  function markPlanetSeen(moduleId) {
+    if (!moduleId) return
+    if (!Array.isArray(state.seenPlanets)) state.seenPlanets = []
+    if (!state.seenPlanets.includes(moduleId)) state.seenPlanets.push(moduleId)
   }
 
   // ---------- 内部工具 ----------
@@ -604,6 +637,7 @@ export const useProgressStore = defineStore('progress', () => {
 
   function resetAll() {
     Object.assign(state, defaultState())
+    ensureSeenPlanets()
     pendingUnlocks.value = []
     combo.value = 0
     persist()
@@ -660,6 +694,7 @@ export const useProgressStore = defineStore('progress', () => {
     }
 
     Object.assign(state, mergeState(payload))
+    ensureSeenPlanets()
     pendingUnlocks.value = []
     combo.value = 0
     persist()
@@ -700,6 +735,8 @@ export const useProgressStore = defineStore('progress', () => {
     )
   }
 
+  ensureSeenPlanets()
+
   watch(() => JSON.stringify(state), persist)
 
   return {
@@ -732,6 +769,9 @@ export const useProgressStore = defineStore('progress', () => {
     lockedAchievements,
     isModuleUnlocked,
     moduleStat,
+    // 地图叙事
+    pendingPlanetUnlock,
+    markPlanetSeen,
     // 使用时长
     todaySeconds,
     todayMinutes,
