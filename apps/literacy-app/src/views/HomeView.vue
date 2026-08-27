@@ -1,9 +1,11 @@
 <script setup>
 import { computed } from 'vue'
 import BadgeShelf from '@/components/BadgeShelf.vue'
+import DailyQuestCard from '@/components/DailyQuestCard.vue'
 import MascotCompanion from '@/components/MascotCompanion.vue'
 import ProgressRing from '@/components/ProgressRing.vue'
 import { useMascotCoach } from '@/composables/useMascotCoach.js'
+import { useDailyQuestStore } from '@/stores/dailyQuest.js'
 import { useProgressStore } from '@/stores/progress.js'
 import { useSettingsStore } from '@/stores/settings.js'
 import { BOOKS } from '@/data/books.js'
@@ -15,6 +17,7 @@ import OpenMojiIcon from '@shared/components/OpenMojiIcon.vue'
 
 const progress = useProgressStore()
 const settings = useSettingsStore()
+const dailyQuest = useDailyQuestStore()
 
 /** 墨墨在每条核心路由上都跟着，首页这组台词讲今天要做什么。 */
 const { line: coachLine, mood: coachMood, next: coachNext } = useMascotCoach('home')
@@ -117,6 +120,9 @@ const stations = computed(() => [
           个字啦
         </h2>
         <div class="hero__chips">
+          <span class="pill pill--accent">
+            🗺️ 今日冒险 {{ dailyQuest.completedCount }}/{{ dailyQuest.tasks.length }}
+          </span>
           <span class="pill">🔥 连续 {{ progress.streakDays || 1 }} 天</span>
           <span class="pill pill--accent">🏆 掌握 {{ progress.masteredCount }} 字</span>
           <span class="pill">🎖️ 徽章 {{ progress.badgeCount }}/{{ progress.totalBadges }}</span>
@@ -143,6 +149,9 @@ const stations = computed(() => [
         sublabel="总进度"
       />
     </section>
+
+    <!-- 今日冒险：今天的三件小事 -->
+    <DailyQuestCard />
 
     <!-- 学习地图 -->
     <section class="stack">

@@ -1,8 +1,8 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import gsap from 'gsap'
-import { MODULES } from '@/data/modules.js'
+import { MODULE_MAP, MODULES } from '@/data/modules.js'
 import { useProgressStore } from '@/stores/progress.js'
 import { useFeedback } from '@/composables/useFeedback'
 import { useMascotCoach } from '@/composables/useMascotCoach.js'
@@ -12,7 +12,7 @@ import OpenMojiIcon from '@shared/components/OpenMojiIcon.vue'
 
 const router = useRouter()
 const progress = useProgressStore()
-const { enter, wrong } = useFeedback()
+const { burst, enter, wrong, prefersReducedMotion } = useFeedback()
 
 /** 小算在首页常驻：气泡里挂着一句和今天进度有关的话，点它换下一句并读出来。 */
 const { line: coachLine, mood: coachMood, next: coachNext } = useMascotCoach('home')
@@ -22,10 +22,13 @@ const planetRefs = ref([])
 const planets = computed(() =>
   MODULES.map((m) => {
     const stat = progress.moduleStat(m.id)
+    const unlocked = progress.isModuleUnlocked(m.id)
     return {
       ...m,
       stat,
-      unlocked: progress.isModuleUnlocked(m.id),
+      unlocked,
+      // 锁着的星球讲「为什么现在去不了」，解锁的讲「到了那儿干什么」
+      line: unlocked ? m.story : m.lockedStory,
       mastery: Math.round(progress.moduleProgress(m.id) * 100),
     }
   }),
@@ -89,6 +92,96 @@ function open(planet) {
   router.push(planet.route)
 }
 
+/* ------------------------------------------------------------ 解锁过场 */
+
+/**
+ * 星球从「锁着」变成「能去」是这张地图上最值得庆祝的一刻，
+ * 可它多半发生在别的页面——答对最后一题的瞬间——孩子回到地图时
+ * 只会看到一颗默默变亮的球。这里把那一刻补演一遍：星球先亮相，
+ * 再讲一句剧情，由孩子自己按「出发」收场。不设自动消失，
+ * 免得他正好低头看键盘就错过了。
+ *
+ * 演过的星球记进存档（markPlanetSeen），刷新不会重播。
+ */
+const scene = ref(null)
+const sceneRef = ref(null)
+const sceneOrbRef = ref(null)
+const sceneBodyRef = ref(null)
+let sceneTl = null
+
+function beginScene() {
+  const id = progress.pendingPlanetUnlock
+  if (!id || scene.value) return
+  const mod = MODULE_MAP[id]
+  if (!mod) {
+    progress.markPlanetSeen(id)
+    return
+  }
+  scene.value = mod
+  nextTick(playScene)
+}
+
+function playScene() {
+  const root = sceneRef.value
+  if (!root) return
+  const planetEl = planetRefs.value.find((el) => el?.dataset?.id === scene.value.id)
+  sound.combo()
+  // 不动版：剧情条照样完整呈现，只是一次到位，不做位移与缩放
+  if (prefersReducedMotion()) return
+
+  sceneTl = gsap.timeline()
+  sceneTl
+    .fromTo(root, { autoAlpha: 0, y: -18 }, { autoAlpha: 1, y: 0, duration: 0.4, ease: 'power2.out' })
+    .fromTo(
+      sceneOrbRef.value,
+      { scale: 0, rotate: -140, filter: 'grayscale(1)' },
+      { scale: 1, rotate: 0, filter: 'grayscale(0)', duration: 0.7, ease: 'back.out(1.8)' },
+      '-=0.15',
+    )
+    .fromTo(
+      sceneBodyRef.value?.children ?? [],
+      { autoAlpha: 0, y: 12 },
+      { autoAlpha: 1, y: 0, duration: 0.34, stagger: 0.09, ease: 'power2.out' },
+      '-=0.35',
+    )
+    .add(() => burst(sceneOrbRef.value, { count: 18 }), '-=0.2')
+
+  // 地图上那颗球同步褪灰，孩子的视线自然从剧情条落回航线
+  if (planetEl) {
+    sceneTl.fromTo(
+      planetEl,
+      { filter: 'grayscale(1)', scale: 0.82 },
+      {
+        filter: 'grayscale(0)',
+        scale: 1,
+        duration: 0.6,
+        ease: 'back.out(2)',
+        overwrite: 'auto',
+        clearProps: 'filter,transform',
+      },
+      '-=0.6',
+    )
+  }
+}
+
+/** 收场：记账、清场，若一次解锁了好几颗就接着演下一颗。 */
+function closeScene(go = false) {
+  const mod = scene.value
+  if (!mod) return
+  sceneTl?.kill()
+  sceneTl = null
+  sound.click()
+  progress.markPlanetSeen(mod.id)
+  scene.value = null
+  if (go) router.push(mod.route)
+  else nextTick(beginScene)
+}
+
+watch(() => progress.pendingPlanetUnlock, beginScene)
+
+/** 让星球入场动画先跑完，过场才不会和它抢同一颗球的 transform。 */
+let sceneCue = null
+
 onMounted(() => {
   enter('.stat-pill', { stagger: 0.05 })
   gsap.fromTo(
@@ -97,6 +190,14 @@ onMounted(() => {
     { scale: 1, opacity: 1, duration: 0.55, stagger: 0.09, ease: 'back.out(1.7)' },
   )
   gsap.fromTo('.orbit-path', { strokeDashoffset: 400 }, { strokeDashoffset: 0, duration: 2.2, ease: 'power2.out' })
+  sceneCue = gsap.delayedCall(1.1, beginScene)
+})
+
+onUnmounted(() => {
+  sceneCue?.kill()
+  sceneTl?.kill()
+  sceneCue = null
+  sceneTl = null
 })
 </script>
 
@@ -180,6 +281,29 @@ onMounted(() => {
       </div>
     </section>
 
+    <section
+      v-if="scene"
+      ref="sceneRef"
+      class="unlock-scene card"
+      :style="{ '--pc': scene.color, '--pa': scene.accent }"
+      role="status"
+      aria-live="polite"
+    >
+      <span ref="sceneOrbRef" class="unlock-orb" aria-hidden="true">
+        <OpenMojiIcon :emoji="scene.emoji" :size="44" />
+      </span>
+      <div ref="sceneBodyRef" class="unlock-body">
+        <p class="unlock-kicker">新星球解锁</p>
+        <strong class="unlock-name">{{ scene.name }}</strong>
+        <p class="unlock-line">{{ scene.unlockLine }}</p>
+        <p class="unlock-story muted">{{ scene.story }}</p>
+      </div>
+      <div class="unlock-actions">
+        <button class="btn btn--primary" @click="closeScene(true)">🚀 立刻出发</button>
+        <button class="btn btn--ghost" @click="closeScene(false)">待会儿再去</button>
+      </div>
+    </section>
+
     <section class="stats-strip">
       <div v-for="t in totals" :key="t.label" class="stat-pill">
         <span class="stat-icon"><OpenMojiIcon :emoji="t.icon" :size="22" /></span>
@@ -193,6 +317,10 @@ onMounted(() => {
         <h3 class="panel-title"><OpenMojiIcon name="world-map" :size="20" /> 学习地图</h3>
         <span class="chip">收集星星解锁新星球</span>
       </div>
+      <p v-if="nextPlanet" class="map-story muted">
+        <span aria-hidden="true">🛸</span>
+        {{ nextPlanet.line }}
+      </p>
 
       <div class="map-canvas">
         <svg class="orbit" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
@@ -205,7 +333,11 @@ onMounted(() => {
           :ref="(el) => (planetRefs[i] = el)"
           :data-id="p.id"
           class="planet"
-          :class="{ locked: !p.unlocked, 'is-next': p.id === nextPlanet?.id }"
+          :class="{
+            locked: !p.unlocked,
+            'is-next': p.id === nextPlanet?.id,
+            'is-unlocking': p.id === scene?.id,
+          }"
           :style="{
             left: `${p.node.x}%`,
             top: `${p.node.y}%`,
@@ -213,9 +345,9 @@ onMounted(() => {
             '--pa': p.accent,
             animationDelay: `${i * 0.4}s`,
           }"
-          :aria-label="`${p.name}${p.unlocked ? '' : '（未解锁）'}${
+          :aria-label="`${p.name}${p.unlocked ? '' : `（未解锁，需 ${p.starsToUnlock} 颗星）`}${
             p.id === nextPlanet?.id ? '（推荐下一站）' : ''
-          }`"
+          }：${p.line}`"
           @click="open(p)"
         >
           <span class="planet-body">
@@ -248,7 +380,11 @@ onMounted(() => {
           </div>
           <span v-if="p.id === nextPlanet?.id" class="chip next-chip">推荐下一站</span>
         </div>
-        <p class="mod-blurb muted">{{ p.blurb }}</p>
+        <p class="mod-story">
+          <span aria-hidden="true">{{ p.unlocked ? '✨' : '🔒' }}</span>
+          {{ p.line }}
+        </p>
+        <p v-if="p.unlocked" class="mod-blurb muted">{{ p.blurb }}</p>
         <div class="skills">
           <span v-for="s in p.skills" :key="s" class="chip">{{ s }}</span>
         </div>
@@ -461,12 +597,74 @@ onMounted(() => {
   font-size: 12px;
 }
 
+.unlock-scene {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border-color: color-mix(in srgb, var(--pc) 55%, transparent);
+  background:
+    radial-gradient(90% 160% at 0% 50%, color-mix(in srgb, var(--pc) 26%, transparent), transparent 62%),
+    linear-gradient(140deg, var(--surface), color-mix(in srgb, var(--cosmos-1) 92%, transparent));
+}
+
+.unlock-orb {
+  flex: none;
+  width: 78px;
+  height: 78px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(140deg, var(--pc), var(--pa));
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--pc) 26%, transparent);
+}
+
+.unlock-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.unlock-kicker {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: var(--pc);
+}
+
+.unlock-name {
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.unlock-line {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.unlock-story {
+  font-size: 13px;
+}
+
+.unlock-actions {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .map-head {
   margin-bottom: 8px;
 }
 
 .map-head .chip {
   margin-left: auto;
+}
+
+.map-story {
+  margin-bottom: 10px;
+  font-size: 13px;
 }
 
 .map-canvas {
@@ -537,9 +735,22 @@ onMounted(() => {
   transform: scale(1.1);
 }
 
+/* 未解锁 = 整颗球退成灰调：一眼看得出「这儿还没开」，但轮廓仍留在航线上 */
 .planet.locked .planet-body {
   background: linear-gradient(140deg, var(--surface-strong), var(--surface-sunken));
-  filter: saturate(0.4);
+  filter: grayscale(1) brightness(0.85);
+}
+
+.planet.locked .planet-label strong {
+  color: var(--text-soft);
+}
+
+/* 正在演过场的那颗球先跳出灰调，和剧情条对上号 */
+.planet.is-unlocking .planet-body {
+  filter: none;
+  box-shadow:
+    0 0 0 8px color-mix(in srgb, var(--pc) 42%, transparent),
+    0 0 34px 10px color-mix(in srgb, var(--pc) 40%, transparent);
 }
 
 /* 推荐下一站的星球「呼吸」：只动光晕，不动 transform，免得和 bob 打架 */
@@ -614,7 +825,19 @@ onMounted(() => {
 }
 
 .mod-card.locked {
-  opacity: 0.55;
+  opacity: 0.62;
+  filter: grayscale(0.9);
+}
+
+.mod-story {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text-strong);
+}
+
+.mod-card.locked .mod-story {
+  color: var(--text-soft);
+  font-style: italic;
 }
 
 .mod-card.is-next {
@@ -711,6 +934,21 @@ onMounted(() => {
 
   .mod-card.is-next {
     box-shadow: 0 0 18px 1px color-mix(in srgb, var(--pc) 28%, transparent);
+  }
+}
+
+@media (max-width: 720px) {
+  .unlock-scene {
+    flex-wrap: wrap;
+  }
+
+  .unlock-actions {
+    flex-direction: row;
+    width: 100%;
+  }
+
+  .unlock-actions .btn {
+    flex: 1;
   }
 }
 

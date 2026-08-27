@@ -12,6 +12,8 @@ import { sfx as audioSfx, setSoundEnabled } from './audio.js'
 
 export const sfx = {
   ...audioSfx,
+  /** 公共连对入口：调用方传入最新 streak，音高会逐级递进。 */
+  streak: audioSfx.streak,
   /** 旧名字：升级 / 通关的欢呼声。 */
   levelUp: audioSfx.celebrate
 }
