@@ -33,6 +33,11 @@ Model slug: claude-fable-5
 | literacy-app.zip | `[待回填]` |
 | math-app.zip | `[待回填]` |
 
+### 2.3 H4 拍照识字精度
+
+见片段 `.agent_workspace/acceptance-log-round8-h4.md`：五张固定基准图总召回
+**35/35（100%）**，阈值总召回 ≥ 90%；复跑 `npm --prefix apps/literacy-app run test:ocr:accuracy`。
+
 ## 3. 结论
 
 `Round 8 深度门禁 [PASS/FAIL]（[N]/8）；Round 7/6 回归 [无/有] 退化。`
