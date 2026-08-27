@@ -2,18 +2,29 @@
 
 Inspired by modern engineering dashboards (clear hierarchy, status badges,
 tabular MAC data) rather than raw JSON dumps.
+
+The MAC matrix is drawn twice over, best renderer first: a Matplotlib heatmap
+inlined as a base64 PNG when Matplotlib is installed, and a coloured HTML table
+otherwise.  Both are embedded in the document itself, so a report stays a
+single file you can mail or attach to a review.
 """
 
 from __future__ import annotations
 
+import base64
 import html
+import io
 import json
 from pathlib import Path
 from typing import Any, Literal
 
-__all__ = ["detect_report_kind", "write_html_report"]
+__all__ = ["detect_report_kind", "write_html_report", "write_html_report_from_path"]
 
 ReportKind = Literal["correlation", "correction", "unknown"]
+
+#: Above this size the HTML table drops the per-cell numbers, which stop being
+#: readable long before the colours do.
+_TABLE_VALUE_LIMIT = 14
 
 _CSS = """
 :root {
@@ -95,11 +106,31 @@ def detect_report_kind(payload: dict[str, Any]) -> ReportKind:
     return "unknown"
 
 
-def write_html_report(payload: dict[str, Any], destination: str | Path) -> ReportKind:
-    """Write a browser-ready HTML report and return the detected kind."""
+def write_html_report(
+    payload: dict[str, Any],
+    destination: str | Path,
+    *,
+    embed_plots: bool | None = None,
+) -> ReportKind:
+    """Write a browser-ready HTML report and return the detected kind.
+
+    Parameters
+    ----------
+    embed_plots:
+        ``None`` (default) draws the MAC matrix with Matplotlib when it is
+        installed and falls back to the coloured HTML table when it is not.
+        ``True`` requires Matplotlib and raises
+        :class:`~openfemlab.exceptions.MissingDependencyError` without it;
+        ``False`` always writes the table.
+    """
+    if embed_plots:
+        from ..viz.plotting import require_matplotlib
+
+        require_matplotlib()
+
     kind = detect_report_kind(payload)
     if kind == "correlation":
-        body = _correlation_body(payload)
+        body = _correlation_body(payload, embed_png=embed_plots is not False)
         title = "OpenFEMLab — Correlation Report"
     elif kind == "correction":
         body = _correction_body(payload)
@@ -113,10 +144,15 @@ def write_html_report(payload: dict[str, Any], destination: str | Path) -> Repor
     return kind
 
 
-def write_html_report_from_path(source: str | Path, destination: str | Path) -> ReportKind:
+def write_html_report_from_path(
+    source: str | Path,
+    destination: str | Path,
+    *,
+    embed_plots: bool | None = None,
+) -> ReportKind:
     path = Path(source)
     payload = json.loads(path.read_text(encoding="utf-8"))
-    return write_html_report(payload, destination)
+    return write_html_report(payload, destination, embed_plots=embed_plots)
 
 
 def _page(title: str, body: str) -> str:
@@ -175,9 +211,9 @@ def _pairs_table(pairs: list[Any]) -> str:
     )
 
 
-def _mac_heatmap(matrix: list[list[float]] | None) -> str:
-    if not matrix:
-        return ""
+def _mac_table(matrix: list[list[float]]) -> str:
+    """Coloured HTML table — the renderer that needs no dependency at all."""
+    show_values = len(matrix) <= _TABLE_VALUE_LIMIT and len(matrix[0]) <= _TABLE_VALUE_LIMIT
     rows = []
     for i, row in enumerate(matrix):
         cells = []
@@ -187,21 +223,65 @@ def _mac_heatmap(matrix: list[list[float]] | None) -> str:
             green = int(1 + t * (231 - 1))
             blue = int(84 + t * (37 - 84))
             fg = "#111" if t >= 0.5 else "#fff"
+            text = f"{float(value):.2f}" if show_values else ""
             cells.append(
-                f"<td style=\"background:rgb({red},{green},{blue});color:{fg}\">"
-                f"{float(value):.2f}</td>"
+                f"<td style=\"background:rgb({red},{green},{blue});color:{fg}\""
+                f" title=\"{float(value):.4f}\">{text}</td>"
             )
         rows.append(f"<tr><td class=\"label\">{i + 1}</td>{''.join(cells)}</tr>")
     header = "".join(f"<th>{j + 1}</th>" for j in range(len(matrix[0])))
     return (
-        "<section><h2>MAC matrix</h2>"
         "<table><thead><tr><th></th>" + header + "</tr></thead><tbody>"
         + "".join(rows)
-        + "</tbody></table></section>"
+        + "</tbody></table>"
     )
 
 
-def _correlation_body(payload: dict[str, Any]) -> str:
+def _mac_png(matrix: list[list[float]]) -> str:
+    """Matplotlib heatmap as an inline base64 PNG, or ``""`` without Matplotlib.
+
+    Deliberately routed around ``pyplot``: a report writer must not install a
+    GUI backend or leave figures on the global stack, so the figure is built
+    against the Agg canvas directly and closed with the function.
+    """
+    try:
+        from matplotlib.backends.backend_agg import FigureCanvasAgg
+        from matplotlib.figure import Figure
+
+        from ..viz.plotting import plot_mac_matrix
+    except ImportError:
+        return ""
+
+    size = max(len(matrix), len(matrix[0]))
+    figure = Figure(figsize=(5.6, 4.6), dpi=140, layout="constrained")
+    FigureCanvasAgg(figure)
+    axes = plot_mac_matrix(
+        matrix,
+        ax=figure.add_subplot(111),
+        annotate=size <= _TABLE_VALUE_LIMIT,
+        title="MAC — test vs FE",
+    )
+    axes.set_ylabel("Test mode")
+    axes.set_xlabel("FE mode")
+    buffer = io.BytesIO()
+    figure.savefig(buffer, format="png")
+    encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
+    return (
+        f"<img src=\"data:image/png;base64,{encoded}\" alt=\"MAC matrix heatmap\" "
+        "style=\"max-width:100%;height:auto\">"
+    )
+
+
+def _mac_section(matrix: list[list[float]] | None, *, embed_png: bool) -> str:
+    if not matrix or not matrix[0]:
+        return ""
+    body = _mac_png(matrix) if embed_png else ""
+    if not body:
+        body = _mac_table(matrix)
+    return f"<section><h2>MAC matrix</h2>{body}</section>"
+
+
+def _correlation_body(payload: dict[str, Any], *, embed_png: bool) -> str:
     summary = payload.get("summary") or {}
     status_class = "pass" if float(summary.get("min_mac", 0)) >= 0.7 else "fail"
     return (
@@ -212,7 +292,7 @@ def _correlation_body(payload: dict[str, Any]) -> str:
         + "<section><h2>Mode pairing</h2>"
         + _pairs_table(payload.get("pairs") or [])
         + "</section>"
-        + _mac_heatmap(payload.get("mac_matrix"))
+        + _mac_section(payload.get("mac_matrix"), embed_png=embed_png)
     )
 
 

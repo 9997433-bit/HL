@@ -36,7 +36,16 @@ def add_parser(subparsers: argparse._SubParsersAction) -> argparse.ArgumentParse
         action="store_true",
         help="open the report in the default browser after writing (best-effort)",
     )
-    parser.set_defaults(func=run)
+    parser.add_argument(
+        "--no-plots",
+        dest="plots",
+        action="store_false",
+        help=(
+            "render the MAC matrix as an HTML table instead of an embedded "
+            "Matplotlib PNG (the default when matplotlib is missing anyway)"
+        ),
+    )
+    parser.set_defaults(func=run, plots=None)
     return parser
 
 
@@ -51,7 +60,7 @@ def run(args: argparse.Namespace, reporter: Reporter) -> int:
         return 1
 
     destination = Path(args.output)
-    kind = write_html_report(payload, destination)
+    kind = write_html_report(payload, destination, embed_plots=args.plots)
     reporter.success(f"Wrote {kind} report → {destination}")
     reporter.hint("Share the HTML file or open it locally for review.")
 
