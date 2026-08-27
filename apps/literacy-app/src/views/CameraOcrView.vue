@@ -12,6 +12,12 @@
  * 认出来的字分两堆摆：字库里有的可以点进单字页看拼音、释义、笔顺；
  * 字库里没有的如实列出来，不硬编一段释义糊弄孩子。
  *
+ * 认不出来的时候（ROUND11_H2）：这套离线引擎在手写体、艺术字、断笔喷漆字上
+ * 会稳定地失手，基准集里那张喷漆「小心地滑」到今天也只认得出 3 个字。
+ * 所以「没认出来」不是异常分支，是常态的一半。界面在这半边不能只丢一句
+ * 「没认出来」把锅甩回给孩子——RETRY_TIPS 那三条对应现场真正改得动的三件事：
+ * 光线、取景、换一张。低置信度也单独说一声，免得孩子把「认错了」当成「就是这个字」。
+ *
  * 引擎近 6 MB，只有真的给了图才 import()，进这一页本身不下载任何 wasm。
  */
 import { computed, onMounted, ref, shallowRef, watch } from 'vue'
@@ -43,6 +49,49 @@ const STEPS = [
   { icon: '🔍', text: '等它认几秒钟，第一次要先把认字引擎装好' },
   { icon: '📖', text: '认出字库里的字就能点进去，看拼音、听读音、写笔顺' }
 ]
+
+/**
+ * 认不出时给的三条路，按「改了最可能有用」排：
+ * 先调光线（暗和反光是最常见的原因），再调取景，最后承认换一张更快。
+ * 第三条特意把边界说破——手写体和艺术字它现在真的认不出来，
+ * 让孩子在同一张照片上反复重拍才是真的耽误时间。
+ */
+const RETRY_TIPS = [
+  { icon: '💡', text: '换个亮一点的地方，别让手影或者灯的反光压在字上' },
+  { icon: '🔍', text: '把镜头凑近，让那几个字占满大半个画面，端稳一秒再拍' },
+  { icon: '↩️', text: '还认不出就换一张：手写体、艺术字和褪色的招牌，它现在确实认不了' }
+]
+
+/** 认得出但把握不大：分数低于这条线就先提醒一句，别让孩子把认错的字当真。 */
+const SHAKY_CONFIDENCE = 60
+
+/** 引擎跑完了，一个字都没落进结果里——最需要那三条话术的就是这一格。 */
+const blank = computed(
+  () => phase.value === 'done' && !known.value.length && !unknown.value.length
+)
+
+/** 认出了字，但置信度不高：照片多半太暗、太糊或者字太小。 */
+const shaky = computed(
+  () =>
+    phase.value === 'done' &&
+    Boolean(known.value.length || unknown.value.length) &&
+    (result.value?.confidence ?? 100) < SHAKY_CONFIDENCE
+)
+
+/** 三种失败摆同一组话术：认了一场空、认得不准、引擎自己出错。 */
+const troubled = computed(() => blank.value || shaky.value || phase.value === 'error')
+
+const troubleTitle = computed(() => {
+  if (phase.value === 'error') return '这次没认成'
+  if (blank.value) return '这张照片里一个字都没认出来'
+  return '认出来了，但把握不大'
+})
+
+const troubleDesc = computed(() => {
+  if (phase.value === 'error') return hint.value
+  if (blank.value) return '不是你拍得不好——光线、角度和字体它都挑。试试下面三条：'
+  return `把握只有 ${result.value?.confidence ?? 0} 分，下面这几个字可能认错了。想更准一点：`
+})
 
 onMounted(checkPack)
 
@@ -186,6 +235,35 @@ function say(char) {
       <p class="sr-only ocr__live" aria-live="polite">{{ hint }}</p>
     </section>
 
+    <!--
+      认不出的那一半。三种失败共用一张卡：认了一场空、认得不准、引擎出错。
+      话术之外还要给出口，所以卡底下坐着「再拍一张」和「试一张示例」——
+      示例那条是给「是不是这台设备坏了」留的自证路径。
+    -->
+    <section
+      v-if="troubled"
+      class="card card--sunken ocr__trouble"
+      :data-trouble="phase === 'error' ? 'error' : blank ? 'blank' : 'shaky'"
+      role="status"
+    >
+      <h3 class="ocr__trouble-title">
+        <span aria-hidden="true">🤔</span> {{ troubleTitle }}
+      </h3>
+      <p class="ocr__trouble-desc">{{ troubleDesc }}</p>
+      <ul class="ocr__tips">
+        <li v-for="tip in RETRY_TIPS" :key="tip.text" class="ocr__tip">
+          <span class="ocr__tip-icon" aria-hidden="true">{{ tip.icon }}</span>
+          <span>{{ tip.text }}</span>
+        </li>
+      </ul>
+      <div class="ocr__trouble-acts">
+        <button class="btn btn--primary" :disabled="busy" @click="pick(cameraInput)">
+          再拍一张
+        </button>
+        <button class="btn" :disabled="busy" @click="useSample">试一张示例</button>
+      </div>
+    </section>
+
     <section v-if="phase === 'done'" class="stack ocr__out">
       <h3 class="section-title">
         <OpenMojiIcon class="section-title__emoji" name="open-book" :size="22" />
@@ -219,8 +297,8 @@ function say(char) {
         </li>
       </ul>
 
-      <p v-else class="card card--sunken ocr__empty">
-        这张照片里没认出字库里的字。把镜头凑近一点、让字更大更清楚，再拍一次试试。
+      <p v-else-if="unknown.length" class="card card--sunken ocr__empty">
+        认出来的字都还没进字库，暂时讲不了。换一张有常用字的照片试试，比如书本或者路牌。
       </p>
 
       <p v-if="unknown.length" class="card card--sunken ocr__miss">
@@ -389,6 +467,56 @@ function say(char) {
   .ocr__bar-fill {
     transition: none;
   }
+}
+
+/* -------------------------------------------------------------- 认不出时 */
+
+.ocr__trouble {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-xs);
+  border-left: 4px solid var(--coral-400);
+}
+
+.ocr__trouble-title {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-black);
+  color: var(--text-strong);
+}
+
+.ocr__trouble-desc {
+  line-height: var(--lh-loose);
+  color: var(--text);
+}
+
+.ocr__tips {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-2xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ocr__tip {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--gap-xs);
+  line-height: var(--lh-base);
+  color: var(--text);
+}
+
+.ocr__tip-icon {
+  flex: none;
+  font-size: 1.1rem;
+  line-height: 1.4;
+}
+
+.ocr__trouble-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap-xs);
+  margin-top: var(--gap-2xs);
 }
 
 /* ------------------------------------------------------------------ 结果 */

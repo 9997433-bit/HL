@@ -94,7 +94,7 @@ Apache-2.0 要求随附许可证与 NOTICE：许可证全文见「附录 B」指
   （通过 `@shared/components/OpenMojiIcon.vue` 打包进 dist）；署名见各 App 家长中心页脚。
   其余数据文件里的 emoji 字段会在有对应 SVG 时自动替换，缺映射时仍回退为系统 emoji。
 
-### OCR 真实样张（Wikimedia Commons 照片）— CC BY-SA 2.0 / 3.0 / 4.0
+### OCR 真实样张（Wikimedia Commons 照片）— CC BY-SA 2.0 / 3.0 / 4.0 与 CC0 1.0
 
 - 位置：`apps/literacy-app/scripts/fixtures/ocr/real-*.png`，出处清单
   `apps/literacy-app/scripts/fixtures/ocr/real-samples.json`（含原图 URL 与 sha256）。
@@ -102,7 +102,8 @@ Apache-2.0 要求随附许可证与 NOTICE：许可证全文见「附录 B」指
   测试输入。**不进 `public/`、不打进 dist、不随两个 zip 分发**，只存在于源码仓库。
 - 处理方式：由 `apps/literacy-app/scripts/gen-ocr-real-samples.mjs` 从原图裁剪、
   等比缩小、另存为 PNG，未做任何画面增强或内容改动。裁剪与缩放构成演绎作品，
-  故本目录下的 `real-*.png` 按与各自原图**相同的 CC BY-SA 版本**再分发。
+  故本目录下的 `real-*.png` 按与各自原图**相同的许可证**再分发：CC BY-SA 的几张
+  沿用同版本 CC BY-SA，CC0 的那张仍为 CC0（署名非义务，但照样列出来）。
 - **署名（再分发本仓库源码时必须保留）**：
 
   | 文件 | 原图 | 作者 | 许可证 |
@@ -110,6 +111,9 @@ Apache-2.0 要求随附许可证与 NOTICE：许可证全文见「附录 B」指
   | `real-park-sign.png` | [爱护花草 禁止踩踏 (54210037159).jpg](https://commons.wikimedia.org/wiki/File:%E7%88%B1%E6%8A%A4%E8%8A%B1%E8%8D%89_%E7%A6%81%E6%AD%A2%E8%B8%A9%E8%B8%8F_(54210037159).jpg) | メイド理世 | [CC BY-SA 2.0](https://creativecommons.org/licenses/by-sa/2.0) |
   | `real-floor-cone.png` | [小心地滑，广东省广州市从化区创业路，2024年5月26日.jpg](https://commons.wikimedia.org/wiki/File:%E5%B0%8F%E5%BF%83%E5%9C%B0%E6%BB%91%EF%BC%8C%E5%B9%BF%E4%B8%9C%E7%9C%81%E5%B9%BF%E5%B7%9E%E5%B8%82%E4%BB%8E%E5%8C%96%E5%8C%BA%E5%88%9B%E4%B8%9A%E8%B7%AF%EF%BC%8C2024%E5%B9%B45%E6%9C%8826%E6%97%A5.jpg) | メイド理世 | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0) |
   | `real-wall-stencil.png` | [小心地滑.jpeg](https://commons.wikimedia.org/wiki/File:%E5%B0%8F%E5%BF%83%E5%9C%B0%E6%BB%91.jpeg) | Richard923888 | [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0) |
+  | `real-road-warning.png` | [Watch out for pedestrians! 小心行人 (6269606152).jpg](https://commons.wikimedia.org/wiki/File:Watch_out_for_pedestrians!_%E5%B0%8F%E5%BF%83%E8%A1%8C%E4%BA%BA_(6269606152).jpg) | Joybot | [CC BY-SA 2.0](https://creativecommons.org/licenses/by-sa/2.0) |
+  | `real-toilet-sign.png` | [洗手间，2024年7月1日.jpg](https://commons.wikimedia.org/wiki/File:%E6%B4%97%E6%89%8B%E9%97%B4%EF%BC%8C2024%E5%B9%B47%E6%9C%881%E6%97%A5.jpg) | メイド理世 | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0) |
+  | `real-blackboard-press.png` | [华东师大图书馆前黑板.jpg](https://commons.wikimedia.org/wiki/File:%E5%8D%8E%E4%B8%9C%E5%B8%88%E5%A4%A7%E5%9B%BE%E4%B9%A6%E9%A6%86%E5%89%8D%E9%BB%91%E6%9D%BF.jpg) | Lt2818 | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0) |
 
 - 这张表不是写完就算：`test-ocr-accuracy.mjs` 会逐张核对清单里的出处链接与作者
   是否出现在本文件里，漏一条当场红灯。换样张时先改 `real-samples.json`，
