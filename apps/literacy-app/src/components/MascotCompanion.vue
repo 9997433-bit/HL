@@ -279,7 +279,9 @@ watch(
     </button>
 
     <div v-if="say || replies.length" ref="bubble" class="mascot__bubble">
-      <p v-if="say" role="status" aria-live="polite">{{ say }}</p>
+      <div v-if="say" role="status" aria-live="polite">
+        <p>{{ say }}</p>
+      </div>
       <small v-if="tapHint" class="mascot__hint">{{ tapHint }}</small>
       <div v-if="replies.length" class="mascot__quick" role="group" aria-label="学伴对话选项">
         <button
