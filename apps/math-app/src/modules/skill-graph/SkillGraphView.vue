@@ -20,6 +20,7 @@ import {
   buildSkillGraph,
 } from '@/data/skill-graph.js'
 import { practiceEntry, wrongCountsBySkill } from '@/data/skill-practice.js'
+import { buildWeekPlan, SESSION_MINUTES } from '@/data/week-plan.js'
 import { useProgressStore } from '@/stores/progress.js'
 import { useSettingsStore } from '@/stores/settings.js'
 import { sound } from '@/utils/sound.js'
@@ -102,6 +103,19 @@ const recoItems = computed(() =>
     hint: RECOMMEND_REASON_MAP[item.reason].hint,
     entry: practiceEntry(item, { wrongCounts: wrongCounts.value }),
   })),
+)
+
+/**
+ * 周计划：把上面这份推荐往后滚一周（见 data/week-plan.js）。
+ * 和推荐一样只读——里面的掌握度是「照着练大概会到哪儿」的推演值，
+ * 页面上必须标成预计，不能让家长把它当成孩子已经拿到的成绩。
+ */
+const weekPlan = computed(() =>
+  buildWeekPlan({
+    mastery: progress.state.mastery,
+    ageBand: settings.ageBand,
+    wrongBook: progress.state.wrongBook,
+  }),
 )
 
 function select(node) {
@@ -394,6 +408,95 @@ function toggleBandOnly() {
           </li>
         </ol>
       </div>
+    </section>
+
+    <section class="week card" aria-labelledby="week-title" data-week-plan>
+      <div class="next-head row">
+        <h3 id="week-title" class="panel-title">这一周怎么练</h3>
+        <span class="spacer" />
+        <span class="chip tiny dim" data-week-readonly>推演计划 · 不写进度</span>
+      </div>
+      <p class="muted small">
+        把上面的推荐往后滚 {{ weekPlan.stats.days }} 天：假设每天照着练一场
+        （{{ SESSION_MINUTES }} 分钟上下、五道题），练到过线的技能就从后面几天里退场，
+        被它挡着的新技能补上来。所以这不是把今天的建议抄七遍。
+      </p>
+      <p class="muted small" data-week-projected-note>
+        百分比里「预计」的那一半是推演出来的，不是成绩：孩子练没练、练成什么样，
+        仍旧只看玩法页记下的那份进度。这一页照旧一个字节都不写。
+      </p>
+
+      <div class="week-reasons">
+        <span
+          v-for="reason in weekPlan.stats.byReason"
+          :key="reason.id"
+          class="chip tiny"
+          :data-week-reason-chip="reason.id"
+          :title="reason.hint"
+        >
+          {{ reason.label }} {{ reason.count }} 个
+        </span>
+      </div>
+
+      <ol class="week-list">
+        <li
+          v-for="day in weekPlan.days"
+          :key="day.dateKey"
+          class="week-day"
+          :class="{ today: day.today, rest: day.rest }"
+          :data-week-day="day.day"
+          :data-week-date="day.dateKey"
+          :data-week-rest="day.rest ? '1' : '0'"
+        >
+          <div class="day-head">
+            <strong>{{ day.label }}</strong>
+            <span class="dim small">{{ day.weekday }} · {{ day.dateKey }}</span>
+            <span class="spacer" />
+            <span v-if="!day.rest" class="dim small">约 {{ day.minutes }} 分钟</span>
+          </div>
+
+          <p v-if="day.rest" class="dim small">{{ day.note }}</p>
+
+          <div
+            v-for="skill in day.skills"
+            :key="skill.id"
+            class="week-skill"
+            :data-week-skill="skill.id"
+            :data-week-reason="skill.reason"
+          >
+            <span class="node-emoji" aria-hidden="true">{{ skill.emoji }}</span>
+            <div class="week-titles">
+              <strong>
+                {{ skill.name }}
+                <em class="reason" :class="skill.reason" :title="skill.reasonHint">
+                  {{ skill.reasonLabel }}
+                </em>
+              </strong>
+              <span class="dim small">{{ skill.moduleName }} · {{ skill.why }}</span>
+              <span class="dim small" :data-week-projected="skill.projectedPercent">
+                {{ skill.percent }}% → 预计 {{ skill.projectedPercent }}%
+                <em v-if="skill.willPass" class="pass" data-week-pass>预计这天过线</em>
+              </span>
+            </div>
+            <RouterLink
+              v-if="day.today"
+              class="btn btn--primary btn--sm"
+              :to="skill.entry.to"
+              :data-week-entry="skill.entry.kind"
+              :data-week-entry-skill="skill.id"
+            >
+              {{ skill.entry.label }} →
+            </RouterLink>
+            <span v-else class="dim small week-later">到那天去{{ skill.moduleName }}练</span>
+          </div>
+        </li>
+      </ol>
+
+      <p class="muted small" data-week-summary>
+        整周 {{ weekPlan.stats.sessions }} 场 · {{ weekPlan.stats.skills }} 个技能 ·
+        约 {{ weekPlan.stats.minutes }} 分钟，照着练预计有
+        {{ weekPlan.stats.passing }} 个能过线。家长中心能看到这份计划的推荐理由和采纳痕迹。
+      </p>
     </section>
 
     <div class="foot-links">
@@ -808,6 +911,73 @@ function toggleBandOnly() {
   background: rgba(255, 255, 255, 0.1);
   font-size: 10px;
   font-weight: 900;
+}
+
+/* ---------- 周计划 ---------- */
+
+.week-reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.week-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.week-day {
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.week-day.today {
+  border-color: rgba(94, 231, 255, 0.45);
+}
+
+.week-day.rest {
+  border-style: dashed;
+}
+
+.day-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.week-skill {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.1);
+}
+
+.week-titles {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.week-later {
+  flex: none;
+}
+
+.pass {
+  margin-left: 6px;
+  font-style: normal;
+  font-weight: 800;
+  color: #55e6a5;
 }
 
 .foot-links {
