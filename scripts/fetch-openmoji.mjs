@@ -49,6 +49,7 @@ const ICONS = {
   'japanese-beginner': '1F238',
   'green-book': '1F4D7',
   microphone: '1F3A4',
+  camera: '1F4F7',
 }
 
 const force = process.argv.includes('--force')

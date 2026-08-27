@@ -10,22 +10,25 @@
     "gen:similar": "node scripts/gen-similar-chars.mjs",
     "gen:etymology": "node scripts/gen-etymology.mjs",
     "gen:books": "node scripts/gen-books.mjs",
-    "predev": "npm run gen:hanzi",
+    "gen:ocr": "node scripts/gen-ocr-assets.mjs",
+    "predev": "npm run gen:hanzi && npm run gen:ocr",
     "dev": "vite",
-    "prebuild": "npm run gen:hanzi",
+    "prebuild": "npm run gen:hanzi && npm run gen:ocr",
     "build": "vite build",
     "preview": "vite preview --port 4173",
     "test:srs": "node scripts/test-srs.mjs",
     "test:speech": "node scripts/test-speech-eval.mjs",
+    "test:ocr": "node scripts/test-ocr.mjs",
     "check:data": "node scripts/check-data.mjs",
     "check:bundle": "node scripts/check-bundle.mjs",
     "smoke": "node scripts/smoke.mjs",
-    "test": "npm run test:srs && npm run test:speech && npm run check:data && npm run build && npm run check:bundle && npm run smoke"
+    "test": "npm run test:srs && npm run test:speech && npm run test:ocr && npm run check:data && npm run build && npm run check:bundle && npm run smoke"
   },
   "dependencies": {
     "gsap": "^3.12.5",
     "hanzi-writer": "^3.7.3",
     "pinia": "^2.2.6",
+    "tesseract.js": "^7.0.0",
     "vue": "^3.5.13",
     "vue-router": "^4.4.5"
   },

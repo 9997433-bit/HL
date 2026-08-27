@@ -30,8 +30,12 @@ async function collectFiles(directory) {
  * Injects every emitted file into public/sw.js after Vite has copied publicDir.
  * This includes lazy route chunks and public assets that Rollup's bundle does
  * not expose (for example literacy-app's complete hanzi-data directory).
+ *
+ * `exclude` takes regexes matched against dist-relative paths. Use it for large
+ * optional payloads that would otherwise be downloaded during install even for
+ * visitors who never open the feature — those belong in a runtime cache.
  */
-export function offlinePrecache({ serviceWorker = 'sw.js' } = {}) {
+export function offlinePrecache({ serviceWorker = 'sw.js', exclude = [] } = {}) {
   let config
 
   return {
@@ -43,7 +47,9 @@ export function offlinePrecache({ serviceWorker = 'sw.js' } = {}) {
     async closeBundle() {
       const outputDirectory = resolve(config.root, config.build.outDir)
       const serviceWorkerPath = join(outputDirectory, serviceWorker)
-      const files = (await collectFiles(outputDirectory)).filter((file) => file !== serviceWorker)
+      const files = (await collectFiles(outputDirectory)).filter(
+        (file) => file !== serviceWorker && !exclude.some((pattern) => pattern.test(file)),
+      )
       const hash = createHash('sha256')
 
       for (const file of files) {

@@ -47,6 +47,7 @@ export const EMOJI_TO_OPENMOJI = {
   '🧮': 'abacus',
   '🗣️': 'microphone',
   '🎤': 'microphone',
+  '📷': 'camera',
 }
 
 export const OPENMOJI_ATTRIBUTION =

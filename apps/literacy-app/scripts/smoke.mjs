@@ -77,6 +77,7 @@ const ROUTES = [
   ['单字详情 说', `/#/learn/${encodeURIComponent('说')}`],
   ['听音识字', '/#/listen'],
   ['听音识字(旧路径)', '/#/game/listen'],
+  ['拍照识字', '/#/ocr'],
   ['小游戏大厅', '/#/games'],
   ['字迷宫', '/#/games/maze'],
   ['配对记忆', '/#/games/memory'],
@@ -1562,6 +1563,64 @@ await interact(
     return `点开前 0 个请求，点开后加载 ${asked.length} 个分块（${asked.join('、')}）并演完`
   }
 )
+
+await interact('拍照识字：示例照片认出字库里的字，引擎点了才下载', '/#/ocr', async (page) => {
+  // worker / wasm 内核 / 语言包合起来 5.5 MB，只有真的去认字才准下载
+  const isEnginePart = (url) => /\/ocr\/(?:worker\.min|tesseract-core|chi_sim)/.test(url)
+  const asked = []
+  page.on('request', (r) => {
+    if (isEnginePart(r.url())) asked.push(r.url().split('/').pop())
+  })
+
+  await page.reload({ waitUntil: 'networkidle2', timeout: 20000 })
+  await page.waitForSelector('.ocr[data-phase="idle"]', { timeout: 8000 })
+  await new Promise((r) => setTimeout(r, 500))
+  if (asked.length) throw new Error(`还没开始认字就下载了引擎：${asked.join('、')}`)
+
+  const ready = await page.evaluate(
+    () => document.querySelector('.ocr__pack')?.dataset.ready === 'true'
+  )
+  if (!ready) throw new Error('识字包清单没读到，public/ocr/ 少东西（跑一遍 npm run gen:ocr）')
+
+  if (!(await clickText(page, '试一张示例'))) throw new Error('拍照识字缺少「试一张示例」入口')
+  await page.waitForFunction(
+    () => ['done', 'error'].includes(document.querySelector('.ocr')?.dataset.phase),
+    { timeout: 90000 }
+  )
+
+  const out = await page.evaluate(() => ({
+    phase: document.querySelector('.ocr')?.dataset.phase,
+    hits: [...document.querySelectorAll('.ocr__hit')].map((n) => n.dataset.char),
+    meanings: [...document.querySelectorAll('.ocr__hit-meaning')].map((n) => n.innerText.trim()),
+    live: document.querySelector('.ocr__live')?.innerText.trim() ?? ''
+  }))
+  if (out.phase !== 'done') throw new Error('示例照片没认成，OCR 流水线断在半路')
+
+  // 示例图印的就是这四个字，认得出三个才算这条链路真的通了
+  const wanted = ['日', '月', '山', '水'].filter((c) => out.hits.includes(c))
+  if (wanted.length < 3) {
+    throw new Error(`示例图里的日月山水只认出 ${wanted.join('') || '零个'}`)
+  }
+  if (out.meanings.some((text) => !text || text.includes('正在翻'))) {
+    throw new Error('认出来的字没有配上字库讲解')
+  }
+  if (!/认出了\s*\d+\s*个字/.test(out.live)) throw new Error(`认完没有播报结果：「${out.live}」`)
+
+  for (const part of ['worker.min.js', 'chi_sim.traineddata.gz']) {
+    if (!asked.some((f) => f === part)) throw new Error(`认字过程中没有请求 ${part}`)
+  }
+  if (!asked.some((f) => /^tesseract-core/.test(f))) throw new Error('认字过程中没有加载 wasm 内核')
+
+  // 认出来的字要能一路点进单字页，不然「认出来了」也没下文
+  await page.evaluate(() => document.querySelector('.ocr__hit').click())
+  await page.waitForFunction(
+    (char) => location.hash === `#/learn/${encodeURIComponent(char)}`,
+    { timeout: 5000 },
+    out.hits[0]
+  )
+
+  return `点开前 0 个引擎请求 → 认出「${out.hits.join('')}」（下了 ${asked.length} 个文件），可点进单字页`
+})
 
 await interact('单字页：笔顺数据可用', `/#/learn/${encodeURIComponent('日')}`, async (page) => {
   await new Promise((r) => setTimeout(r, 1500))
