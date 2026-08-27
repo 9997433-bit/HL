@@ -2,13 +2,15 @@
  * 技能图谱 —— 把 curriculum.js 的技能点和它们的 deps 铺成一张画得出来的图。
  *
  * 这里不新增任何「技能」事实：节点来自 curriculum.SKILLS，连线来自 deps，
- * 星球元数据来自 modules.js，母题条数来自 wordProblems.js。图谱只做两件事：
+ * 星球元数据来自 modules.js，母题条数来自 wordProblems.js。图谱只做三件事：
  *
  *   1. 布局 —— 按「模块泳道 × 依赖深度」算出每个节点的坐标，视图照着摆就行；
- *   2. 判读 —— 把一份 mastery 存档和一个年龄档翻译成节点状态，供只读展示。
+ *   2. 判读 —— 把一份 mastery 存档和一个年龄档翻译成节点状态，供只读展示；
+ *   3. 推荐 —— 由掌握度与年龄档共同排出「接下来练哪几个」和「通往目标的路线」。
  *
- * 判读全是纯函数，图谱页只看不写：孩子的掌握度只能由玩法页经 progress store 写入，
- * 图谱上点一下不该让进度动，否则「看一眼图谱」就变成了刷进度的捷径。
+ * 三件事全是纯函数，图谱页只看不写：孩子的掌握度只能由玩法页经 progress store 写入，
+ * 图谱上点一下不该让进度动，否则「看一眼图谱」就变成了刷进度的捷径。推荐同理，
+ * 它只是把存档重新排了个序，既不预约也不落盘，换个档位再看又是另一份建议。
  */
 import { SKILLS, SKILL_MAP } from './curriculum.js'
 import { MODULES } from './modules.js'
@@ -51,6 +53,33 @@ function depthOf(id, trail = new Set()) {
   depthCache.set(id, depth)
   return depth
 }
+
+/* ------------------------------------------------------------------ 下游影响 */
+
+/** 技能 id → 直接后继（把它当前置的那些技能）。 */
+const NEXT_IDS = SKILLS.reduce((acc, skill) => {
+  for (const dep of skill.deps ?? []) (acc[dep] ??= []).push(skill.id)
+  return acc
+}, {})
+
+/** 某个技能的全部下游技能；成环时按已走过的节点截断，只求算得出来。 */
+function descendantsOf(id, trail = new Set()) {
+  if (trail.has(id)) return new Set()
+  trail.add(id)
+  const out = new Set()
+  for (const next of NEXT_IDS[id] ?? []) {
+    out.add(next)
+    for (const deep of descendantsOf(next, trail)) out.add(deep)
+  }
+  trail.delete(id)
+  return out
+}
+
+/**
+ * 技能 id → 下游闭包大小。推荐排序拿它当「练熟这一点的收益」：
+ * 挡着五个技能的点数，比挡着零个技能的描红更值得先练。
+ */
+const REACH = Object.fromEntries(SKILLS.map((skill) => [skill.id, descendantsOf(skill.id).size]))
 
 /* ------------------------------------------------------------------ 节点与泳道 */
 
@@ -102,6 +131,10 @@ function buildLayout() {
         emoji: planet?.emoji ?? '✨',
         color: planet?.color ?? '#5ee7ff',
         deps: [...(skill.deps ?? [])],
+        /** 直接后继：练熟这一点，紧接着能开的是它们。 */
+        nextIds: [...(NEXT_IDS[skill.id] ?? [])],
+        /** 下游总共有多少技能被它挡着。 */
+        reach: REACH[skill.id] ?? 0,
         depth: col,
         wordProblems: WORD_PROBLEMS_BY_SKILL[skill.id] ?? 0,
         x: PAD_X + col * COL_W,
@@ -203,18 +236,10 @@ const bandRank = (id) => {
   return index < 0 ? DEFAULT_RANK : index
 }
 
-/**
- * 把存档翻译成一张可渲染的图。
- *
- * @param {{ mastery?: Record<string, number>, ageBand?: string }} input
- *   mastery 直接传 progress store 的那份，ageBand 传 settings.ageBand。
- * @returns 节点/连线/泳道都带上了状态，外加一份统计与「接下来练什么」的建议。
- */
-export function buildSkillGraph({ mastery = {}, ageBand = DEFAULT_AGE_BAND } = {}) {
-  const rank = bandRank(ageBand)
+/** 给静态节点补上「这份存档下它是什么状态、在不在本档」。 */
+function decorate(mastery, rank) {
   const bandId = AGE_BAND_IDS[rank]
-
-  const nodes = SKILL_NODES.map((node) => {
+  return SKILL_NODES.map((node) => {
     const value = mastery[node.id] ?? 0
     return {
       ...node,
@@ -227,6 +252,20 @@ export function buildSkillGraph({ mastery = {}, ageBand = DEFAULT_AGE_BAND } = {
       focus: node.level === bandId,
     }
   })
+}
+
+/**
+ * 把存档翻译成一张可渲染的图。
+ *
+ * @param {{ mastery?: Record<string, number>, ageBand?: string }} input
+ *   mastery 直接传 progress store 的那份，ageBand 传 settings.ageBand。
+ * @returns 节点/连线/泳道都带上了状态，外加一份统计与一份只读推荐。
+ */
+export function buildSkillGraph({ mastery = {}, ageBand = DEFAULT_AGE_BAND } = {}) {
+  const rank = bandRank(ageBand)
+  const bandId = AGE_BAND_IDS[rank]
+
+  const nodes = decorate(mastery, rank)
   const statusOf = Object.fromEntries(nodes.map((node) => [node.id, node.status]))
 
   const edges = SKILL_EDGES.map((edge) => ({
@@ -251,6 +290,8 @@ export function buildSkillGraph({ mastery = {}, ageBand = DEFAULT_AGE_BAND } = {
     ...tally(nodes.filter((node) => node.module === lane.module)),
   }))
 
+  const reco = recommend({ nodes, ageBand: bandId })
+
   return {
     band: bandId,
     nodes,
@@ -258,20 +299,146 @@ export function buildSkillGraph({ mastery = {}, ageBand = DEFAULT_AGE_BAND } = {
     lanes,
     size: GRAPH_SIZE,
     stats: { ...tally(nodes), inBand: tally(nodes.filter((node) => node.inBand)) },
-    next: nextSkills(nodes),
+    reco,
+    next: reco.items,
   }
 }
 
+/* ------------------------------------------------------------------ 推荐 */
+
 /**
- * 「接下来练什么」：先补练过但没过线的，再开前置已通的新技能；
- * 本档内的排在超前的前面，同等条件下越靠依赖链上游、掌握度越低的越先练。
+ * 推荐理由。每条建议都得说得出「为什么是它」，家长才敢照着练；
+ * 顺序即优先级，也是图例的展示顺序。
  */
-export function nextSkills(nodes, limit = 4) {
-  const score = (node) => (node.status === 'learning' ? 0 : 1) + (node.inBand ? 0 : 4)
-  return nodes
+export const RECOMMEND_REASONS = [
+  { id: 'finish', label: '差一点', hint: '练过但还没过线，补几题最快见效' },
+  { id: 'base', label: '补基础', hint: '低于当前年龄档、还欠着的底子' },
+  { id: 'focus', label: '本档主推', hint: '正好是这个年龄档该练的新技能' },
+  { id: 'ahead', label: '超前挑战', hint: '超出当前年龄档，学有余力再看' },
+]
+
+export const RECOMMEND_REASON_MAP = Object.fromEntries(RECOMMEND_REASONS.map((r) => [r.id, r]))
+
+/** 各理由的起评分，差距要拉得够开：补基础永远排在超前挑战前面。 */
+const REASON_BASE = { finish: 48, base: 34, focus: 30, ahead: 12 }
+
+function reasonOf(node, rank) {
+  // 练过就没有「新不新」可言了，先把手上这个补完，别摊子铺得到处都是
+  if (node.status === 'learning') return 'finish'
+  const gap = rankOf(node.level) - rank
+  if (gap > 0) return 'ahead'
+  return gap < 0 ? 'base' : 'focus'
+}
+
+function scoreOf(node, reason, rank) {
+  const gap = rankOf(node.level) - rank
+  let score = REASON_BASE[reason]
+  // 越接近阈值，补完它的把握越大
+  if (node.status === 'learning') score += Math.round((node.mastery / MASTERY_THRESHOLD) * 12)
+  // 超前一档扣一截，别把三岁的孩子推去背乘法口诀
+  if (gap > 0) score -= gap * 6
+  // 挡着的后续技能越多，练熟它越划算；封顶免得长链一家独大
+  score += Math.min(node.reach, 6) * 2
+  // 同等条件下先练靠上游的
+  return score - node.depth
+}
+
+function whyOf(node, reason, bandId) {
+  if (reason === 'finish') return `已练到 ${node.percent}%，再补几题就过线`
+  if (reason === 'base') return `${node.level} 的底子，补上了后面才走得动`
+  if (reason === 'focus') return `${bandId} 该练的新技能，前置都通了`
+  return `超出 ${bandId}，学有余力再挑战`
+}
+
+/**
+ * 通往某个技能的补课路线：把它自己和所有还没过线的前置按依赖顺序排出来。
+ * 已过线的前置不会出现在路线上——这是「还要练几步」，不是族谱。
+ */
+export function recommendPath(id, mastery = {}) {
+  const steps = []
+  const seen = new Set()
+  const walk = (skillId) => {
+    if (seen.has(skillId)) return
+    seen.add(skillId)
+    const node = SKILL_NODE_MAP[skillId]
+    if (!node || (mastery[skillId] ?? 0) >= MASTERY_THRESHOLD) return
+    node.deps.forEach(walk)
+    steps.push(node)
+  }
+  walk(id)
+  return steps
+}
+
+/**
+ * 目标技能：本档里还没拿下、最靠依赖链下游的那个。
+ * 挑最下游是因为它最能代表「这条线打通了」，路线上的每一步都顺带补掉。
+ */
+function pickGoal(nodes, rank) {
+  const pending = nodes.filter((node) => node.status !== 'mastered' && rankOf(node.level) <= rank)
+  if (!pending.length) return null
+  const focus = pending.filter((node) => rankOf(node.level) === rank)
+  const pool = focus.length ? focus : pending
+  return [...pool].sort(
+    (a, b) => b.depth - a.depth || b.reach - a.reach || a.id.localeCompare(b.id),
+  )[0]
+}
+
+/**
+ * 只读推荐：掌握度决定「哪些能练、补到哪儿了」，年龄档决定「先练哪个」。
+ *
+ * 同一份存档换个档位，推荐顺序会变，但节点状态一个都不会变——判读归 skillStatus，
+ * 推荐只是重新排序。这里不写 progress、不预约、不落盘，刷新一次重算一次。
+ *
+ * @param {{ mastery?: Record<string, number>, ageBand?: string, limit?: number,
+ *           nodes?: Array }} input
+ *   nodes 是 buildSkillGraph 已经判读好的节点，传进来只为省一次重算。
+ * @returns {{ band: string, items: Array, goal: object|null, path: Array }}
+ */
+export function recommend({
+  mastery = {},
+  ageBand = DEFAULT_AGE_BAND,
+  limit = 4,
+  nodes = null,
+} = {}) {
+  const rank = bandRank(ageBand)
+  const bandId = AGE_BAND_IDS[rank]
+  const list = nodes ?? decorate(mastery, rank)
+  const masteryOf = nodes
+    ? Object.fromEntries(nodes.map((node) => [node.id, node.mastery]))
+    : mastery
+
+  const items = list
+    // 待解锁的练不了，已掌握的不用再排队，推荐只从这两种状态里挑
     .filter((node) => node.status === 'learning' || node.status === 'ready')
+    .map((node) => {
+      const reason = reasonOf(node, rank)
+      return {
+        ...node,
+        reason,
+        reasonLabel: RECOMMEND_REASON_MAP[reason].label,
+        why: whyOf(node, reason, bandId),
+        score: scoreOf(node, reason, rank),
+      }
+    })
     .sort(
-      (a, b) => score(a) - score(b) || a.depth - b.depth || a.mastery - b.mastery,
+      (a, b) =>
+        b.score - a.score || a.depth - b.depth || a.mastery - b.mastery || a.id.localeCompare(b.id),
     )
     .slice(0, limit)
+
+  const byId = Object.fromEntries(list.map((node) => [node.id, node]))
+  const goal = pickGoal(list, rank)
+  const path = goal
+    ? recommendPath(goal.id, masteryOf).map((step, index) => ({
+        ...(byId[step.id] ?? step),
+        step: index + 1,
+      }))
+    : []
+
+  return { band: bandId, items, goal, path }
+}
+
+/** 「接下来练什么」的短名，返回的就是 recommend().items；传数组按默认档排序。 */
+export function nextSkills(input = {}, limit = 4) {
+  return recommend(Array.isArray(input) ? { nodes: input, limit } : { ...input, limit }).items
 }

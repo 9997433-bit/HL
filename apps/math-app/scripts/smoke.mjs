@@ -1426,6 +1426,161 @@ await interact('技能图谱：依赖成图、状态跟着存档走、只读不�
   )
 })
 
+/**
+ * ROUND9_H3_SMOKE — 技能图谱的「推荐下一步」：
+ * 推荐只能从存档里长出来（练过没过线的先补、待解锁的不许上榜），
+ * 排序要跟着年龄档动、判读不许跟着年龄档动，
+ * 而且从头到尾不能往 progress 里写一个字节——它是建议，不是打卡。
+ */
+await interact('技能图谱：推荐下一步跟着掌握度与年龄档走，且只读', '/#/skill-graph', async (page) => {
+  const SEED_MASTERY = { 'count-to-5': 0.95, 'count-to-10': 0.9, 'add-within-10': 0.4 }
+  const skillMap = Object.fromEntries(SKILLS.map((s) => [s.id, s]))
+  const MASTERED = new Set(
+    Object.entries(SEED_MASTERY)
+      .filter(([, value]) => value >= 0.8)
+      .map(([id]) => id),
+  )
+
+  const load = async (band) => {
+    await page.evaluate(
+      (mastery, ageBand) => {
+        localStorage.setItem('mathquest/progress', JSON.stringify({ stars: 5, mastery }))
+        localStorage.setItem('mathquest/settings', JSON.stringify({ ageBand }))
+      },
+      SEED_MASTERY,
+      band,
+    )
+    await page.reload({ waitUntil: 'networkidle2' })
+    await sleep(700)
+    return page.evaluate(() => ({
+      items: [...document.querySelectorAll('[data-reco-item]')].map((el) => ({
+        id: el.dataset.recoItem,
+        reason: el.dataset.recoReason,
+        rank: Number(el.dataset.recoRank),
+        text: el.innerText.replace(/\s+/g, ' ').trim(),
+        href: el.querySelector('a')?.getAttribute('href') ?? '',
+      })),
+      goal: document.querySelector('[data-reco-goal]')?.dataset.recoGoal ?? '',
+      path: [...document.querySelectorAll('[data-reco-step]')].map((el) => el.dataset.recoStep),
+      ringed: [...document.querySelectorAll('[data-skill-node][data-reco-rank]')].map(
+        (el) => el.dataset.skillNode,
+      ),
+      status: Object.fromEntries(
+        [...document.querySelectorAll('[data-skill-node]')].map((el) => [
+          el.dataset.skillNode,
+          el.dataset.skillStatus,
+        ]),
+      ),
+      readOnlyNote: document.querySelector('[data-reco-readonly]')?.innerText.trim() ?? '',
+    }))
+  }
+
+  /** 一份推荐自身必须成立的部分，三个档位都要过一遍。 */
+  const audit = (band, view) => {
+    if (!view.items.length) throw new Error(`${band} 档没有给出任何推荐`)
+    if (view.items.length > 4) throw new Error(`${band} 档一口气推了 ${view.items.length} 条`)
+    if (!view.readOnlyNote.includes('不写进度')) {
+      throw new Error(`${band} 档的推荐位没有标明只读：「${view.readOnlyNote}」`)
+    }
+    view.items.forEach((item, index) => {
+      const status = view.status[item.id]
+      if (status !== 'learning' && status !== 'ready') {
+        throw new Error(`${band} 档推荐了 ${status} 的「${item.id}」，只能推能立刻练的`)
+      }
+      if (item.rank !== index + 1) throw new Error(`${band} 档推荐位的序号乱了：${item.rank}`)
+      if (!item.reason) throw new Error(`${band} 档的「${item.id}」没有给出推荐理由`)
+      if (item.text.length < 12) throw new Error(`${band} 档的「${item.id}」没有理由文案`)
+      if (!item.href) throw new Error(`${band} 档的「${item.id}」没有去练的入口`)
+    })
+    // 图上描圈的节点必须和列表一一对应，否则家长照着图走会走岔
+    if (view.ringed.join(',') !== view.items.map((i) => i.id).join(',')) {
+      throw new Error(`${band} 档图上描圈的是 ${view.ringed}，列表是 ${view.items.map((i) => i.id)}`)
+    }
+    // 超前的技能不许插到本档技能前面
+    const lastInBand = view.items.reduce(
+      (last, item, index) => (item.reason === 'ahead' ? last : index),
+      -1,
+    )
+    const firstAhead = view.items.findIndex((item) => item.reason === 'ahead')
+    if (firstAhead >= 0 && firstAhead < lastInBand) {
+      throw new Error(`${band} 档把超前技能「${view.items[firstAhead].id}」排到了本档技能前面`)
+    }
+
+    if (!view.goal) throw new Error(`${band} 档没有给出本档目标`)
+    if (!view.path.length) throw new Error(`${band} 档的目标「${view.goal}」没有路线`)
+    if (view.path.at(-1) !== view.goal) {
+      throw new Error(`${band} 档路线的终点是「${view.path.at(-1)}」，目标却是「${view.goal}」`)
+    }
+    const walked = new Set(MASTERED)
+    for (const id of view.path) {
+      if (MASTERED.has(id)) throw new Error(`${band} 档的路线里混进了已掌握的「${id}」`)
+      for (const dep of skillMap[id]?.deps ?? []) {
+        if (!walked.has(dep)) {
+          throw new Error(`${band} 档路线上「${id}」排在了它的前置「${dep}」前面`)
+        }
+      }
+      walked.add(id)
+    }
+  }
+
+  const mid = await load('L2')
+  audit('L2', mid)
+  // 练过没过线的那个最该补，它必须占住第一条
+  if (mid.items[0].id !== 'add-within-10' || mid.items[0].reason !== 'finish') {
+    throw new Error(`存档里 add-within-10 练到 40%，推荐首条却是 ${mid.items[0].id}/${mid.items[0].reason}`)
+  }
+  if (!mid.items[0].href.includes('/arithmetic')) {
+    throw new Error(`「去练」应指向算术恒星，实际 ${mid.items[0].href}`)
+  }
+
+  const low = await load('L1')
+  audit('L1', low)
+  const high = await load('L4')
+  audit('L4', high)
+
+  // 年龄档只换排法，不换判读
+  const reasonOf = (view, id) => view.items.find((item) => item.id === id)?.reason ?? '(未上榜)'
+  if (reasonOf(low, 'shape-2d') === reasonOf(high, 'shape-2d')) {
+    throw new Error(`L1 与 L4 对 shape-2d 给的理由一样（${reasonOf(low, 'shape-2d')}），推荐没跟着档位动`)
+  }
+  if (low.goal === high.goal) throw new Error(`L1 与 L4 的本档目标都是「${low.goal}」`)
+  if (high.path.length <= low.path.length) {
+    throw new Error(`L4 的路线 ${high.path.length} 步，不该短于 L1 的 ${low.path.length} 步`)
+  }
+  const statusLine = (view) => Object.entries(view.status).map(([k, v]) => `${k}:${v}`).join(',')
+  if (statusLine(low) !== statusLine(high)) {
+    throw new Error('切换年龄档改变了技能状态，推荐污染了判读')
+  }
+
+  // 点推荐位、点节点、点筛选，逛完一圈存档必须一个字节都没动
+  await page.click('[data-skill-node="add-within-10"]')
+  await sleep(200)
+  await page.click('[data-band-filter]')
+  await sleep(200)
+  const after = await page.evaluate(
+    () => JSON.parse(localStorage.getItem('mathquest/progress') || '{}'),
+  )
+  for (const [id, value] of Object.entries(SEED_MASTERY)) {
+    if (after.mastery?.[id] !== value) {
+      throw new Error(`推荐把「${id}」的掌握度改成了 ${after.mastery?.[id]}`)
+    }
+  }
+  if (Object.keys(after.mastery ?? {}).length !== Object.keys(SEED_MASTERY).length) {
+    throw new Error('推荐往掌握度里塞了新的技能点')
+  }
+  if (after.stars !== 5) throw new Error(`推荐把星星改成了 ${after.stars}`)
+
+  await page.evaluate(() => {
+    localStorage.removeItem('mathquest/settings')
+    localStorage.removeItem('mathquest/progress')
+  })
+  return (
+    `L2 首推 ${mid.items[0].id}（${mid.items[0].reason}），` +
+    `L1/L4 目标 ${low.goal}→${high.goal}、路线 ${low.path.length}→${high.path.length} 步，` +
+    `图上描圈 ${mid.ringed.length} 个与列表一致，掌握度未被改写`
+  )
+})
+
 /* ------------------------------------------------------------ 家长中心 */
 
 /** 读口算门上的题面并算出答案；进门后题面消失，返回 null。 */

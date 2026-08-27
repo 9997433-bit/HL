@@ -23,10 +23,13 @@ import { isKnownSkill, SKILLS, SKILL_MAP, skillsOfModule } from '../src/data/cur
 import {
   buildSkillGraph,
   GRAPH_SIZE,
+  RECOMMEND_REASON_MAP,
   SKILL_EDGES,
   SKILL_LANES,
   SKILL_NODES,
   SKILL_NODE_MAP,
+  recommend,
+  recommendPath,
 } from '../src/data/skill-graph.js'
 import {
   arithmeticSkill,
@@ -426,6 +429,92 @@ console.log(
   if (advice[0]?.id !== 'add-within-10') {
     fail(`建议第一条应是练过没过线的 add-within-10，实际 ${advice[0]?.id}`)
   }
+
+  /**
+   * 推荐路径：图谱要回答的不只是「现在能练什么」，还有「照着练下去能拿下什么」。
+   * 推荐只许由掌握度和年龄档两个输入决定，且一个字节都不许写回存档——
+   * 这里连传进去的 mastery 对象有没有被顺手改过都要验，免得推荐变成隐形的进度写入。
+   */
+  const RECO_SEED = { 'count-to-5': 0.95, 'count-to-10': 0.9, 'add-within-10': 0.4 }
+  const frozen = JSON.stringify(RECO_SEED)
+  const views = Object.fromEntries(
+    AGE_BANDS.map((band) => [band.id, recommend({ mastery: RECO_SEED, ageBand: band.id })]),
+  )
+  if (JSON.stringify(RECO_SEED) !== frozen) fail('recommend 改写了传进去的掌握度存档')
+
+  for (const [bandId, view] of Object.entries(views)) {
+    if (!view.items.length) fail(`${bandId} 档没有推荐出任何可练的技能`)
+    if (view.items.length > 4) fail(`${bandId} 档一口气推了 ${view.items.length} 条`)
+    for (const item of view.items) {
+      if (item.status !== 'learning' && item.status !== 'ready') {
+        fail(`${bandId} 档推荐了 ${item.status} 的「${item.id}」`)
+      }
+      if (!RECOMMEND_REASON_MAP[item.reason]) fail(`「${item.id}」的推荐理由 ${item.reason} 不认识`)
+      if (!item.why) fail(`「${item.id}」没有给出推荐理由文案`)
+    }
+    const scores = view.items.map((item) => item.score)
+    if (scores.some((s, i) => i && s > scores[i - 1])) {
+      fail(`${bandId} 档的推荐没有按分数从高到低排：${scores.join(',')}`)
+    }
+    // 超前技能不许插到本档技能前面
+    const lastInBand = view.items.reduce((last, item, i) => (item.reason === 'ahead' ? last : i), -1)
+    const firstAhead = view.items.findIndex((item) => item.reason === 'ahead')
+    if (firstAhead >= 0 && firstAhead < lastInBand) {
+      fail(`${bandId} 档把超前技能「${view.items[firstAhead].id}」排在了本档技能前面`)
+    }
+
+    // 路线：终点是目标，途中不含已掌握的技能，且每一步的前置都在它之前补齐
+    if (!view.goal) fail(`${bandId} 档没有给出本档目标`)
+    if (view.path.at(-1)?.id !== view.goal?.id) {
+      fail(`${bandId} 档路线终点「${view.path.at(-1)?.id}」与目标「${view.goal?.id}」对不上`)
+    }
+    const walked = new Set(
+      Object.entries(RECO_SEED)
+        .filter(([, v]) => v >= MASTERY_THRESHOLD)
+        .map(([id]) => id),
+    )
+    for (const step of view.path) {
+      if (walked.has(step.id)) fail(`${bandId} 档路线里混进了已掌握的「${step.id}」`)
+      for (const dep of SKILL_MAP[step.id].deps ?? []) {
+        if (!walked.has(dep)) fail(`${bandId} 档路线上「${step.id}」排在了前置「${dep}」前面`)
+      }
+      walked.add(step.id)
+    }
+  }
+
+  // 年龄档只换排法：同一份存档换档位，推荐会变，状态一个都不许变
+  if (views.L1.items[0].id !== 'add-within-10' || views.L1.items[0].reason !== 'finish') {
+    fail(`练过没过线的技能没有排在推荐第一位，实际 ${views.L1.items[0].id}`)
+  }
+  const reasonOf = (bandId, id) => views[bandId].items.find((i) => i.id === id)?.reason
+  if (reasonOf('L1', 'shape-2d') !== 'focus' || reasonOf('L4', 'shape-2d') !== 'base') {
+    fail(
+      `L1 该把 shape-2d 判成本档主推、L4 该判成补基础，实际 ${reasonOf('L1', 'shape-2d')}/${reasonOf('L4', 'shape-2d')}`,
+    )
+  }
+  if (views.L1.goal.id === views.L4.goal.id) fail('L1 与 L4 的本档目标不该是同一个技能')
+  const bandStatuses = Object.values(views).map((view) =>
+    recommendPath(view.goal.id, RECO_SEED)
+      .map((n) => n.id)
+      .join(','),
+  )
+  if (new Set(bandStatuses).size < 2) fail('各档位的推荐路线完全一样，年龄档没有参与推荐')
+
+  // 全部练熟后不该再有推荐，也不该硬凑一个目标出来
+  const finished = recommend({
+    mastery: Object.fromEntries(SKILLS.map((s) => [s.id, 1])),
+    ageBand: 'L5',
+  })
+  if (finished.items.length || finished.goal || finished.path.length) {
+    fail('技能全部掌握后推荐位没有清空')
+  }
+
+  console.log(
+    `技能图谱推荐：首推 ${views.L2.items[0].name}（${views.L2.items[0].reasonLabel}），` +
+      `L1–L5 目标 ${AGE_BANDS.map(
+        (b) => `${b.id}→${views[b.id].goal.name} ${views[b.id].path.length} 步`,
+      ).join('，')}`,
+  )
 
   console.log(
     `技能图谱：${SKILL_NODES.length} 节点 / ${SKILL_EDGES.length} 连线 / ${SKILL_LANES.length} 条泳道，` +
