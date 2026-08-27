@@ -163,6 +163,24 @@ function tidyPinyin(text) {
   return out.replace(/\s+([.,!?:;])/g, '$1').replace(/\s+/g, ' ').trim()
 }
 
+/**
+ * 名词后缀「子」读轻声（箱子 xiāng zi），标注器只在词典里收了的词上做对，
+ * 「裤子」「笛子」这类没收进去的就会退回本音 zǐ。这是一条稳定的普通话规则，
+ * 在这里统一补上；「子」当实词讲（莲子的籽、石子的小石头）的词列在例外里。
+ */
+const ZI_KEEPS_TONE = new Set(['莲子', '石子', '瓜子', '种子', '亲子'])
+function neutralizeZi(text, pinyin) {
+  const chars = [...text].filter((c) => /\p{Script=Han}/u.test(c))
+  const tokens = pinyin.split(' ')
+  if (chars.length !== tokens.length) return pinyin
+  chars.forEach((c, i) => {
+    if (c !== '子' || i === 0) return
+    if (ZI_KEEPS_TONE.has(chars[i - 1] + '子')) return
+    tokens[i] = tokens[i].replace(/^zǐ/, 'zi')
+  })
+  return tokens.join(' ')
+}
+
 /* ------------------------------------------------------------------- 生成 */
 
 const jsString = (s) => `'${s.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`
@@ -279,7 +297,9 @@ const warns = []
 const entries = new Map()
 
 const cachedPinyin = (text) => {
-  if (tools && !cache.pinyin[text]) cache.pinyin[text] = tidyPinyin(tools.pinyin(text))
+  if (tools && !cache.pinyin[text]) {
+    cache.pinyin[text] = neutralizeZi(text, tidyPinyin(tools.pinyin(text)))
+  }
   return cache.pinyin[text] ?? null
 }
 

@@ -70,7 +70,7 @@ export default {
       { w: '救人', p: 'jiù rén' },
       { w: '急救', p: 'jí jiù' }
     ],
-    sentence: { text: '救护车一下子开到了。', p: 'jiù hù chē yí xià zǐ kāi dào le.' }
+    sentence: { text: '救护车一下子开到了。', p: 'jiù hù chē yí xià zi kāi dào le.' }
   },
   '护': {
     meaning: '好好照看着。',
@@ -163,7 +163,7 @@ export default {
   '梳': {
     meaning: '把头发理顺。',
     words: [
-      { w: '梳子', p: 'shū zǐ' },
+      { w: '梳子', p: 'shū zi' },
       { w: '梳头', p: 'shū tóu' }
     ],
     sentence: { text: '早上我自己梳头。', p: 'zǎo shàng wǒ zì jǐ shū tóu.' }

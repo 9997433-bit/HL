@@ -35,18 +35,18 @@ export default {
   '裤': {
     meaning: '两条腿穿的。',
     words: [
-      { w: '裤子', p: 'kù zǐ' },
+      { w: '裤子', p: 'kù zi' },
       { w: '短裤', p: 'duǎn kù' }
     ],
-    sentence: { text: '我穿上了新裤子。', p: 'wǒ chuān shàng le xīn kù zǐ.' }
+    sentence: { text: '我穿上了新裤子。', p: 'wǒ chuān shàng le xīn kù zi.' }
   },
   '裙': {
     meaning: '一片一片的女孩衣裳。',
     words: [
-      { w: '裙子', p: 'qún zǐ' },
+      { w: '裙子', p: 'qún zi' },
       { w: '长裙', p: 'cháng qún' }
     ],
-    sentence: { text: '妹妹的裙子上有小花。', p: 'mèi mei de qún zǐ shàng yǒu xiǎo huā.' }
+    sentence: { text: '妹妹的裙子上有小花。', p: 'mèi mei de qún zi shàng yǒu xiǎo huā.' }
   },
   '袜': {
     meaning: '穿在脚上的。',
@@ -67,23 +67,23 @@ export default {
   '扣': {
     meaning: '把衣服合上的小圆片。',
     words: [
-      { w: '扣子', p: 'kòu zǐ' },
+      { w: '扣子', p: 'kòu zi' },
       { w: '纽扣', p: 'niǔ kòu' }
     ],
-    sentence: { text: '请把扣子扣好。', p: 'qǐng bǎ kòu zǐ kòu hǎo.' }
+    sentence: { text: '请把扣子扣好。', p: 'qǐng bǎ kòu zi kòu hǎo.' }
   },
   '领': {
     meaning: '衣服的脖子那圈。',
     words: [
       { w: '衣领', p: 'yī lǐng' },
-      { w: '领子', p: 'lǐng zǐ' }
+      { w: '领子', p: 'lǐng zi' }
     ],
     sentence: { text: '他把衣领翻好。', p: 'tā bǎ yī lǐng fān hǎo.' }
   },
   '袖': {
     meaning: '衣服上装胳膊的地方。',
     words: [
-      { w: '袖子', p: 'xiù zǐ' },
+      { w: '袖子', p: 'xiù zi' },
       { w: '长袖', p: 'cháng xiù' }
     ],
     sentence: { text: '天冷了，穿长袖吧。', p: 'tiān lěng le, chuān cháng xiù ba.' }
@@ -115,7 +115,7 @@ export default {
   '绸': {
     meaning: '又滑又亮的布。',
     words: [
-      { w: '绸子', p: 'chóu zǐ' },
+      { w: '绸子', p: 'chóu zi' },
       { w: '丝绸', p: 'sī chóu' }
     ],
     sentence: { text: '这条丝绸真光滑。', p: 'zhè tiáo sī chóu zhēn guāng huá.' }
@@ -150,7 +150,7 @@ export default {
       { w: '补上', p: 'bǔ shàng' },
       { w: '缝补', p: 'féng bǔ' }
     ],
-    sentence: { text: '裤子破了，补一块布。', p: 'kù zǐ pò le, bǔ yí kuài bù.' }
+    sentence: { text: '裤子破了，补一块布。', p: 'kù zi pò le, bǔ yí kuài bù.' }
   },
   '织': {
     meaning: '把线来回穿成布。',

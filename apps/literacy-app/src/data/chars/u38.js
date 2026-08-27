@@ -70,7 +70,7 @@ export default {
       { w: '潮水', p: 'cháo shuǐ' },
       { w: '潮湿', p: 'cháo shī' }
     ],
-    sentence: { text: '潮水一下子涌上沙滩。', p: 'cháo shuǐ yí xià zǐ yǒng shàng shā tān.' }
+    sentence: { text: '潮水一下子涌上沙滩。', p: 'cháo shuǐ yí xià zi yǒng shàng shā tān.' }
   },
   '旱': {
     meaning: '很久不下雨。',
@@ -150,7 +150,7 @@ export default {
       { w: '飞溅', p: 'fēi jiàn' },
       { w: '溅湿', p: 'jiàn shī' }
     ],
-    sentence: { text: '雨水溅湿了鞋子。', p: 'yǔ shuǐ jiàn shī le xié zǐ.' }
+    sentence: { text: '雨水溅湿了鞋子。', p: 'yǔ shuǐ jiàn shī le xié zi.' }
   },
   '淹': {
     meaning: '水盖过了头顶。',

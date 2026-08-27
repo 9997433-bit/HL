@@ -14,7 +14,7 @@ export default {
       { w: '蒸熟', p: 'zhēng shú' },
       { w: '蒸汽', p: 'zhēng qì' }
     ],
-    sentence: { text: '锅里蒸着一屉包子。', p: 'guō lǐ zhēng zhe yí tì bāo zǐ.' }
+    sentence: { text: '锅里蒸着一屉包子。', p: 'guō lǐ zhēng zhe yí tì bāo zi.' }
   },
   '炸': {
     meaning: '放进热油里弄熟。',
@@ -110,7 +110,7 @@ export default {
       { w: '米醋', p: 'mǐ cù' },
       { w: '吃醋', p: 'chī cù' }
     ],
-    sentence: { text: '饺子蘸点醋更好吃。', p: 'jiǎo zǐ zhàn diǎn cù gèng hǎo chī.' }
+    sentence: { text: '饺子蘸点醋更好吃。', p: 'jiǎo zi zhàn diǎn cù gèng hǎo chī.' }
   },
   '洒': {
     meaning: '把水或粉撒出去。',

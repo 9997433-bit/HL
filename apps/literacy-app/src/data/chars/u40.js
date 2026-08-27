@@ -19,18 +19,18 @@ export default {
   '锯': {
     meaning: '一来一回把木头分开。',
     words: [
-      { w: '锯子', p: 'jù zǐ' },
+      { w: '锯子', p: 'jù zi' },
       { w: '电锯', p: 'diàn jù' }
     ],
-    sentence: { text: '木工用锯子锯木板。', p: 'mù gōng yòng jù zǐ jù mù bǎn.' }
+    sentence: { text: '木工用锯子锯木板。', p: 'mù gōng yòng jù zi jù mù bǎn.' }
   },
   '锤': {
     meaning: '敲钉子的铁头。',
     words: [
-      { w: '锤子', p: 'chuí zǐ' },
+      { w: '锤子', p: 'chuí zi' },
       { w: '铁锤', p: 'tiě chuí' }
     ],
-    sentence: { text: '请把锤子递给我。', p: 'qǐng bǎ chuí zǐ dì gěi wǒ.' }
+    sentence: { text: '请把锤子递给我。', p: 'qǐng bǎ chuí zi dì gěi wǒ.' }
   },
   '钉': {
     meaning: '又细又尖的小铁条。',
@@ -83,10 +83,10 @@ export default {
   '链': {
     meaning: '一环扣一环。',
     words: [
-      { w: '链子', p: 'liàn zǐ' },
+      { w: '链子', p: 'liàn zi' },
       { w: '铁链', p: 'tiě liàn' }
     ],
-    sentence: { text: '自行车的链子掉了。', p: 'zì xíng chē de liàn zǐ diào le.' }
+    sentence: { text: '自行车的链子掉了。', p: 'zì xíng chē de liàn zi diào le.' }
   },
   '锁': {
     meaning: '把门关牢的东西。',
@@ -139,10 +139,10 @@ export default {
   '箱': {
     meaning: '方方的大盒子。',
     words: [
-      { w: '箱子', p: 'xiāng zǐ' },
+      { w: '箱子', p: 'xiāng zi' },
       { w: '书箱', p: 'shū xiāng' }
     ],
-    sentence: { text: '箱子里装满了图书。', p: 'xiāng zǐ lǐ zhuāng mǎn le tú shū.' }
+    sentence: { text: '箱子里装满了图书。', p: 'xiāng zi lǐ zhuāng mǎn le tú shū.' }
   },
   '柜': {
     meaning: '放东西的大格子。',
