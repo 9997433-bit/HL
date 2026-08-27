@@ -563,8 +563,18 @@ def cbar_elements() -> list[_op2.CBar]:
     """Two ``CBAR`` cards sharing one property id."""
 
     return [
-        _op2.CBar(id=300, property_id=CBAR_PROPERTY_ID, grids=(11, 22), orientation=(0.0, 0.0, 1.0)),
-        _op2.CBar(id=400, property_id=CBAR_PROPERTY_ID, grids=(22, 33), orientation=(0.0, 1.0, 0.0)),
+        _op2.CBar(
+            id=300,
+            property_id=CBAR_PROPERTY_ID,
+            grids=(11, 22),
+            orientation=(0.0, 0.0, 1.0),
+        ),
+        _op2.CBar(
+            id=400,
+            property_id=CBAR_PROPERTY_ID,
+            grids=(22, 33),
+            orientation=(0.0, 1.0, 0.0),
+        ),
     ]
 
 
