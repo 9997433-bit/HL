@@ -2,7 +2,7 @@
 /**
  * 跟读面板：范读 → 跟读 → 当场给一句评价。
  *
- * 三档能力（逐字评测 / 录音回放 / 自己听一听）由 useSpeechEval 判定，
+ * 三档能力（recognition / recording / listen-only）由 useSpeechEval 判定，
  * 这里的职责是把每一档「能做到什么」明明白白摆在界面上——
  * 孩子读完之后看到的分数是怎么来的，不该靠猜。
  */
@@ -29,6 +29,7 @@ const {
   error,
   level,
   recordingUrl,
+  companionReply,
   canRecognize,
   allowRecognition,
   playReference,
@@ -83,7 +84,7 @@ async function onStart() {
   const ok = await start(current.value.text)
   if (!ok) return
   say.value =
-    mode.value === 'selfcheck'
+    mode.value === 'listen-only'
       ? '大声读出来，读完点「我读完了」'
       : '正在听你读，读完点「我读完了」'
 }
@@ -91,7 +92,7 @@ async function onStart() {
 async function onStop() {
   sfx.tap()
   const scored = await stop()
-  if (mode.value === 'selfcheck') {
+  if (mode.value === 'listen-only') {
     say.value = '读完啦，你觉得自己读得怎么样？'
     return
   }
@@ -114,7 +115,8 @@ function finish(scored) {
     score: scored.score,
     grade: scored.grade?.id ?? '',
     whole: whole.value,
-    index: whole.value ? -1 : cursor.value
+    index: whole.value ? -1 : cursor.value,
+    companionReply: companionReply.value
   })
 }
 
@@ -189,7 +191,7 @@ function pickWhole() {
     </div>
 
     <!-- 录音时的音量条：孩子看得见自己的声音，比一句「请说话」有用得多 -->
-    <div v-if="phase === 'recording' && mode !== 'selfcheck'" class="fr__meter" aria-hidden="true">
+    <div v-if="phase === 'recording' && mode !== 'listen-only'" class="fr__meter" aria-hidden="true">
       <span class="fr__meter-fill" :style="{ width: `${Math.round(level * 100)}%` }" />
     </div>
 
@@ -218,7 +220,7 @@ function pickWhole() {
     <p v-if="error" class="fr__err">{{ error }}</p>
 
     <!-- 自评档：没有麦克风就不假装打分，让孩子自己说读得怎么样 -->
-    <div v-if="mode === 'selfcheck' && phase === 'result' && !result" class="fr__self">
+    <div v-if="mode === 'listen-only' && phase === 'result' && !result" class="fr__self">
       <p class="muted">读得怎么样？自己选一个：</p>
       <div class="fr__self-row">
         <button type="button" class="btn fr__self-btn" @click="onSelfAssess('fluent')">

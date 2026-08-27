@@ -9,12 +9,12 @@
  *
  *   识别档（recognition）  浏览器有 SpeechRecognition：把听到的字和原文对齐，
  *                          逐字标出念对 / 念漏，分数就是对齐后的相似度。
- *   响度档（loudness）      只有麦克风、没有识别：判不了念得对不对，
+ *   录音档（recording）     只有麦克风、没有识别：判不了念得对不对，
  *                          只判「有没有认真开口」——有没有出声、读了多久、声音够不够。
  *                          这一档封顶 85 分，永远不会给出「满分」这种它其实不知道的结论。
  *
- * 两档之外还有第三种情况：连麦克风都没有。那时候不算分，只放录音让孩子自己听
- * （见 composables 里的 mode='listen'），界面上也不显示分数。
+ * 两档之外还有第三种情况：连麦克风都没有。那时候不算分，只放范读让孩子自己跟读
+ * （见 composables 里的 mode='listen-only'），界面上也不显示分数。
  */
 
 /** 分档：分数 → 给孩子看的评价。阈值按「宁可鼓励也不打击」调。 */
@@ -136,10 +136,12 @@ export function gradeOf(score) {
  * mode 决定了「这个分数是怎么来的」，界面要如实告诉孩子和家长。
  */
 export function evaluate({ mode = 'recognition', reference = '', heard = '', sample } = {}) {
-  if (mode === 'loudness') {
+  // loudness 是 v1 的内部名称，继续接受它以兼容已有进度与独立调用；
+  // v2 对外统一使用三档契约里的 recording。
+  if (mode === 'recording' || mode === 'loudness') {
     const score = scoreFromLoudness(sample)
     return {
-      mode,
+      mode: 'recording',
       score,
       grade: gradeOf(score),
       chars: [...normalizeTranscript(reference)].map((char) => ({ char, status: 'unknown' })),

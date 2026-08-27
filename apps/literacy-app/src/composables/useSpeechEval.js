@@ -1,5 +1,5 @@
 /**
- * 跟读评测 v1：范读 → 孩子跟读 → 当场给一句评价。
+ * 跟读评测 v2：范读 → 孩子跟读 → 当场给一句评价与离线学伴回复。
  *
  * 这一层只负责和浏览器打交道（朗读、录音、识别、回放），算分规则在
  * utils/speechEval.js 里，那份是纯函数，可以脱离浏览器单独验。
@@ -7,9 +7,9 @@
  * 设备能力差得很远，所以按三档降级，界面上如实说明这一档能做到什么：
  *
  *   recognition  有 SpeechRecognition：听清孩子念了什么，逐字标出念对念漏。
- *   loudness     只有麦克风：录下来、按响度和时长给一个「有没有认真读完」的分，
+ *   recording    只有麦克风：录下来、按响度和时长给一个「有没有认真读完」的分，
  *                并把录音放回去让孩子自己听——这一档听不出字，分数封顶 85。
- *   selfcheck    连麦克风都没有（或家长不允许）：只放范读，读完由孩子自己选
+ *   listen-only  连麦克风都没有（或家长不允许）：只放范读，读完由孩子自己选
  *                「很流利 / 有点卡 / 还要再来」，不假装打分。
  *
  * 隐私：录音只存在内存里的 Blob，页面一关就没了，不写盘也不上传。
@@ -39,8 +39,37 @@ function micSupported() {
 
 export const MODE_LABELS = {
   recognition: '逐字评测',
-  loudness: '录音回放',
-  selfcheck: '自己听一听'
+  recording: '录音回放',
+  'listen-only': '只听范读'
+}
+
+/**
+ * 学伴对话只看本轮已经在本机算出的结果，用固定规则回复，不发网络请求。
+ * 单独导出，既方便界面复用，也让回复规则能在 Node 里做单元测试。
+ */
+export function companionReplyForResult(outcome) {
+  if (!outcome) return ''
+
+  if (outcome.mode === 'listen-only') {
+    if (outcome.grade?.id === 'fluent') return '你觉得很流利，真棒！现在试试不看拼音再读一遍。'
+    if (outcome.grade?.id === 'okay') return '找到卡住的地方就有进步啦。先听范读，再慢慢跟一句。'
+    return '没关系，我陪你再听一遍；一句一句来就会越来越顺。'
+  }
+
+  if (outcome.mode === 'recording') {
+    if (outcome.score >= 70) return '声音又清楚又完整！回放听一听，再试着读得更有节奏。'
+    return '我听见你开口啦！靠近一点麦克风，慢慢把整句读完。'
+  }
+
+  const missed = (outcome.chars ?? [])
+    .filter((item) => item.status === 'miss')
+    .map((item) => item.char)
+  if (missed.length) {
+    const focus = [...new Set(missed)].slice(0, 3).join('、')
+    return `大部分都跟上啦！再听听「${focus}」，把这${missed.length > 1 ? '几个字' : '个字'}慢慢读清楚。`
+  }
+  if (outcome.score >= 85) return '每个字都跟上啦！下一遍试试读出诗句的停顿。'
+  return '这一遍有进步！先听一句，再用同样的速度跟着读。'
 }
 
 export function useSpeechEval(options = {}) {
@@ -64,21 +93,22 @@ export function useSpeechEval(options = {}) {
 
   const mode = computed(() => {
     if (canRecognize.value && allowRecognition.value) return 'recognition'
-    if (canRecord.value && !micDenied.value) return 'loudness'
-    return 'selfcheck'
+    if (canRecord.value && !micDenied.value) return 'recording'
+    return 'listen-only'
   })
 
   const modeLabel = computed(() => MODE_LABELS[mode.value])
 
   const modeNote = computed(() => {
     if (mode.value === 'recognition') return '会听清你念的每一个字，念漏了会标出来。'
-    if (mode.value === 'loudness') return '会把你读的录下来放给你听，并看看有没有大声读完。'
+    if (mode.value === 'recording') return '会把你读的录下来放给你听，并看看有没有大声读完。'
     return micDenied.value
       ? '没拿到麦克风，先跟着范读读出声，读完自己评一评。'
       : '这台设备没有麦克风，先跟着范读读出声，读完自己评一评。'
   })
 
   const busy = computed(() => phase.value === 'demo' || phase.value === 'recording')
+  const companionReply = computed(() => companionReplyForResult(result.value))
 
   /* ------------------------------------------------------------ 运行时句柄 */
 
@@ -181,7 +211,7 @@ export function useSpeechEval(options = {}) {
     if (mode.value === 'recognition') {
       result.value = evaluate({ mode: 'recognition', reference, heard: heardText })
     } else {
-      result.value = evaluate({ mode: 'loudness', reference, sample: loudnessSample() })
+      result.value = evaluate({ mode: 'recording', reference, sample: loudnessSample() })
     }
     phase.value = 'result'
   }
@@ -204,7 +234,7 @@ export function useSpeechEval(options = {}) {
     elapsed.value = 0
     cancelSpeech()
 
-    if (mode.value === 'selfcheck') {
+    if (mode.value === 'listen-only') {
       // 没有麦克风就不假装在录，直接进「读完了自己评」的状态
       phase.value = 'recording'
       startedAt = Date.now()
@@ -290,7 +320,7 @@ export function useSpeechEval(options = {}) {
     phase.value = 'scoring'
     const reference = currentReference
 
-    if (mode.value === 'selfcheck') {
+    if (mode.value === 'listen-only') {
       teardown()
       phase.value = 'result'
       result.value = null
@@ -335,7 +365,7 @@ export function useSpeechEval(options = {}) {
     }
     const choice = CHOICES[choiceId] ?? CHOICES.again
     result.value = {
-      mode: 'selfcheck',
+      mode: 'listen-only',
       score: null,
       grade: { id: choiceId, label: choice.label, emoji: choice.emoji, tip: choice.tip },
       chars: [],
@@ -372,6 +402,7 @@ export function useSpeechEval(options = {}) {
     elapsed,
     recordingUrl,
     busy,
+    companionReply,
     canRecognize,
     canRecord,
     micDenied,
