@@ -186,12 +186,21 @@ python tools/src_report.py
 
 It writes `.agent_workspace/round3/src-quality-report.json`, reports passband
 sweep deviation, out-of-band sweep mirrors, and 1 kHz THD+N, and exits nonzero
-when any offline mastering gate is missed. The current
-`scipy.signal.resample_poly` default does miss those VHQ gates, so the
-`mastering` extra makes the latest Python `soxr` bindings available without
-adding an LGPL dependency to the default install. That extra does not silently
-change Audio Studio's current SciPy conversion path: preserve the source sample
-rate for a final master until a selectable soxr/VHQ path is integrated.
+when any offline mastering gate is missed. With the `mastering` extra installed,
+Audio Studio automatically uses `soxr` VHQ for offline conversion; otherwise it
+falls back to `scipy.signal.resample_poly`. The report records the selected path
+and every available path. Selection can be pinned for reproducible comparisons:
+
+```bash
+AUDIO_STUDIO_SRC=soxr  python tools/src_report.py  # VHQ when the extra is installed
+AUDIO_STUDIO_SRC=scipy python tools/src_report.py  # force the built-in fallback
+```
+
+`audio_studio.core.resample.resample_buffer()` exposes `quality="vhq"` by
+default (QQ/LQ/MQ/HQ/VHQ are accepted), and `loader.resample()` forwards the
+same option. Requesting soxr without the optional extra remains operational by
+falling back to SciPy. The SciPy path is suitable for preview and general
+editing but only the measured soxr VHQ path is held to the mastering gates.
 
 ## Repair and recording takes
 
@@ -856,11 +865,11 @@ above this package.
 - The SPSC ring is lock-free at the Python level but still executes under
   CPython/GIL scheduling; physical-device p99 timing and a long soak are not
   certified by headless tests.
-- The measured SciPy SRC path misses the offline VHQ acceptance targets; the
-  `mastering` extra stages optional soxr bindings but does not yet select them
-  in the application. PCM-16/24 export now applies TPDF dither by default.
-  Preserve the source rate for final masters and do not claim certified
-  broadcast compliance from the current alpha.
+- The optional `mastering` extra selects soxr VHQ for offline SRC and meets the
+  measured mastering gates. Without it Audio Studio stays operational through
+  the lower-quality SciPy fallback; `AUDIO_STUDIO_SRC` can pin either path.
+  PCM-16/24 export applies TPDF dither by default. These synthetic gates do not
+  by themselves certify broadcast compliance.
 - Loop playback restarts from the region start without a crossfade, and the
   reported position is briefly clamped across the wrap.
 - Long files stream from disk and use sparse in-memory edit overlays. Their peak
@@ -899,9 +908,9 @@ multitrack MVP**, positioned honestly rather than as Adobe Audition parity.
 - **Known limitations:** the *Known limitations* section above is the
   authoritative list. Headline gaps: the synthetic EBU 3341/3342 vectors
   pass but there is no AES17 harness or real-material compliance evidence;
-  the in-app SRC path misses the VHQ mastering gates (the `mastering` extra
-  stages soxr, not yet selected); multitrack automation covers track gain
-  only and there is no mixer console; recording has no device/level control
+  the optional soxr VHQ SRC path is synthetic-test qualified but not a
+  broadcast certification; multitrack automation covers track gain only and
+  there is no mixer console; recording has no device/level control
   or monitoring; custom-painted widgets are not screen-reader readable; and
   all performance/soak numbers are headless proxies — no physical-device
   round-trip or soak certification.

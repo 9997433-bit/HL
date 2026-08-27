@@ -1,4 +1,4 @@
-"""Regression tests for the reproducible SciPy SRC quality report."""
+"""Regression tests for the reproducible selectable SRC quality report."""
 
 from __future__ import annotations
 
@@ -23,7 +23,13 @@ def test_src_report_measures_sweeps_against_mastering_thresholds(
     stimulus = src_report["stimulus"]
     checks = src_report["checks"]
 
-    assert implementation["backend"] == "scipy.signal.resample_poly"
+    assert implementation["backend"] in {
+        "scipy.signal.resample_poly",
+        "soxr.resample",
+    }
+    assert src_report["src_paths"]["scipy"]["backend"] == "scipy.signal.resample_poly"
+    if implementation["backend"] == "soxr.resample":
+        assert src_report["src_paths"]["soxr"]["quality"] == "VHQ"
     assert stimulus["kind"] == "logarithmic sine sweep"
     assert src_report["source_sample_rate_hz"] == 96_000
     assert src_report["target_sample_rate_hz"] == 44_100
@@ -39,11 +45,17 @@ def test_src_report_measures_sweeps_against_mastering_thresholds(
     assert src_report["status"] == expected_status
 
 
-def test_current_scipy_default_fails_offline_mastering_gate(
+def test_report_explains_selected_path_result(
     src_report: dict[str, object],
 ) -> None:
-    assert src_report["status"] == "fail"
-    assert "optional soxr backend" in src_report["recommendation"]
+    backend = src_report["implementation"]["backend"]
+    if backend == "scipy.signal.resample_poly":
+        assert src_report["status"] == "fail"
+        assert "soxr" in src_report["recommendation"]
+    else:
+        assert backend == "soxr.resample"
+        assert src_report["status"] == "pass"
+        assert "meets" in src_report["recommendation"]
 
 
 def test_src_report_json_round_trip(

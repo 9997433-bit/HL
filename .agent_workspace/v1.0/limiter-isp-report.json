@@ -1,0 +1,255 @@
+{
+  "cases": [
+    {
+      "case_id": "quarter-rate-48k",
+      "ceiling_dbtp": -1.0,
+      "channels": 1,
+      "checks": {
+        "ceiling_held_by_product_meter": true,
+        "ceiling_held_by_reference": true,
+        "output_not_over_attenuated": true,
+        "stimulus_exceeds_ceiling": true,
+        "stimulus_overshoot_matches_theory": true
+      },
+      "detector_oversample": 4,
+      "expected_isp_overshoot_db": 3.0102999566398116,
+      "gain_reduction_db": 1.0367708293306075,
+      "headroom_below_ceiling_db": 0.249999104001144,
+      "input_sample_peak_dbfs": -3.010299956630063,
+      "input_true_peak_dbtp": 9.351729644270402e-06,
+      "measured_isp_overshoot_db": 3.0103093083597074,
+      "output_sample_peak_dbfs": -4.2630672771355025,
+      "output_true_peak_dbtp": -1.249999104001144,
+      "output_true_peak_reference_dbtp": -1.2527575100513288,
+      "sample_rate_hz": 48000,
+      "status": "pass",
+      "tone_fraction_of_nyquist": 0.5,
+      "tone_hz": 12000.0
+    },
+    {
+      "case_id": "quarter-rate-44k1-hot",
+      "ceiling_dbtp": -1.0,
+      "channels": 1,
+      "checks": {
+        "ceiling_held_by_product_meter": true,
+        "ceiling_held_by_reference": true,
+        "output_not_over_attenuated": true,
+        "stimulus_exceeds_ceiling": true,
+        "stimulus_overshoot_matches_theory": true
+      },
+      "detector_oversample": 4,
+      "expected_isp_overshoot_db": 3.0102999566398116,
+      "gain_reduction_db": 6.071659594143876,
+      "headroom_below_ceiling_db": 0.24999970185410048,
+      "input_sample_peak_dbfs": 2.9897000433699366,
+      "input_true_peak_dbtp": 6.000001393842984,
+      "measured_isp_overshoot_db": 3.0103013504730476,
+      "output_sample_peak_dbfs": -4.263060146643355,
+      "output_true_peak_dbtp": -1.2499997018541005,
+      "output_true_peak_reference_dbtp": -1.252757793146933,
+      "sample_rate_hz": 44100,
+      "status": "pass",
+      "tone_fraction_of_nyquist": 0.5,
+      "tone_hz": 11025.0
+    },
+    {
+      "case_id": "sixth-rate-96k",
+      "ceiling_dbtp": -0.1,
+      "channels": 1,
+      "checks": {
+        "ceiling_held_by_product_meter": true,
+        "ceiling_held_by_reference": true,
+        "output_not_over_attenuated": true,
+        "stimulus_exceeds_ceiling": true,
+        "stimulus_overshoot_matches_theory": true
+      },
+      "detector_oversample": 4,
+      "expected_isp_overshoot_db": 1.2493873660829988,
+      "gain_reduction_db": 0.2813535541213261,
+      "headroom_below_ceiling_db": 0.24044852442258122,
+      "input_sample_peak_dbfs": -1.249387366067372,
+      "input_true_peak_dbtp": 1.3690372702952679e-06,
+      "measured_isp_overshoot_db": 1.2493887351046422,
+      "output_sample_peak_dbfs": -1.5898413041799198,
+      "output_true_peak_dbtp": -0.3499997759514729,
+      "output_true_peak_reference_dbtp": -0.3404485244225812,
+      "sample_rate_hz": 96000,
+      "status": "pass",
+      "tone_fraction_of_nyquist": 0.3333333333333333,
+      "tone_hz": 16000.0
+    },
+    {
+      "case_id": "third-rate-48k",
+      "ceiling_dbtp": -0.3,
+      "channels": 1,
+      "checks": {
+        "ceiling_held_by_product_meter": true,
+        "ceiling_held_by_reference": true,
+        "output_not_over_attenuated": true,
+        "stimulus_exceeds_ceiling": true,
+        "stimulus_overshoot_matches_theory": true
+      },
+      "detector_oversample": 4,
+      "expected_isp_overshoot_db": 1.2493873660829988,
+      "gain_reduction_db": 0.4588878226662727,
+      "headroom_below_ceiling_db": 0.2500001080666427,
+      "input_sample_peak_dbfs": -1.249387366067372,
+      "input_true_peak_dbtp": 6.554683840780391e-06,
+      "measured_isp_overshoot_db": 1.2493939207512128,
+      "output_sample_peak_dbfs": -1.8088716617682155,
+      "output_true_peak_dbtp": -0.5500001080666427,
+      "output_true_peak_reference_dbtp": -0.5594794547121357,
+      "sample_rate_hz": 48000,
+      "status": "pass",
+      "tone_fraction_of_nyquist": 0.6666666666666666,
+      "tone_hz": 16000.0
+    },
+    {
+      "case_id": "0p6-nyquist-96k",
+      "ceiling_dbtp": -1.0,
+      "channels": 1,
+      "checks": {
+        "ceiling_held_by_product_meter": true,
+        "ceiling_held_by_reference": true,
+        "output_not_over_attenuated": true,
+        "stimulus_exceeds_ceiling": true,
+        "stimulus_overshoot_matches_theory": true
+      },
+      "detector_oversample": 4,
+      "expected_isp_overshoot_db": 0.4358734890997429,
+      "gain_reduction_db": 11.240299515867191,
+      "headroom_below_ceiling_db": 0.23312068102428984,
+      "input_sample_peak_dbfs": 11.564126510919744,
+      "input_true_peak_dbtp": 12.000001435580227,
+      "measured_isp_overshoot_db": 0.4358749246604834,
+      "output_sample_peak_dbfs": -1.6690706957137988,
+      "output_true_peak_dbtp": -1.2499997018541005,
+      "output_true_peak_reference_dbtp": -1.2331206810242898,
+      "sample_rate_hz": 96000,
+      "status": "pass",
+      "tone_fraction_of_nyquist": 0.6,
+      "tone_hz": 28800.0
+    },
+    {
+      "case_id": "0p75-nyquist-44k1",
+      "ceiling_dbtp": -2.0,
+      "channels": 1,
+      "checks": {
+        "ceiling_held_by_product_meter": true,
+        "ceiling_held_by_reference": true,
+        "output_not_over_attenuated": true,
+        "stimulus_exceeds_ceiling": true,
+        "stimulus_overshoot_matches_theory": true
+      },
+      "detector_oversample": 8,
+      "expected_isp_overshoot_db": 0.6876930815810872,
+      "gain_reduction_db": 4.343627357593674,
+      "headroom_below_ceiling_db": 0.18709504142960176,
+      "input_sample_peak_dbfs": 2.312306918430313,
+      "input_true_peak_dbtp": 3.000039961004642,
+      "measured_isp_overshoot_db": 0.6877330425743291,
+      "output_sample_peak_dbfs": -2.8748237535767265,
+      "output_true_peak_dbtp": -2.307396541928318,
+      "output_true_peak_reference_dbtp": -2.1870950414296018,
+      "sample_rate_hz": 44100,
+      "status": "pass",
+      "tone_fraction_of_nyquist": 0.75,
+      "tone_hz": 16537.5
+    },
+    {
+      "case_id": "0p8-nyquist-48k",
+      "ceiling_dbtp": -1.0,
+      "channels": 1,
+      "checks": {
+        "ceiling_held_by_product_meter": true,
+        "ceiling_held_by_reference": true,
+        "output_not_over_attenuated": true,
+        "stimulus_exceeds_ceiling": true,
+        "stimulus_overshoot_matches_theory": true
+      },
+      "detector_oversample": 8,
+      "expected_isp_overshoot_db": 0.4358734890997429,
+      "gain_reduction_db": 0.9594536428956864,
+      "headroom_below_ceiling_db": 0.1602849364494714,
+      "input_sample_peak_dbfs": -0.4358734890890802,
+      "input_true_peak_dbtp": 1.8676107875691546e-05,
+      "measured_isp_overshoot_db": 0.4358921651969559,
+      "output_sample_peak_dbfs": -1.5961789437619565,
+      "output_true_peak_dbtp": -1.5961787431036967,
+      "output_true_peak_reference_dbtp": -1.1602849364494714,
+      "sample_rate_hz": 48000,
+      "status": "pass",
+      "tone_fraction_of_nyquist": 0.8,
+      "tone_hz": 19200.0
+    },
+    {
+      "case_id": "quarter-rate-48k-stereo",
+      "ceiling_dbtp": -1.0,
+      "channels": 2,
+      "checks": {
+        "ceiling_held_by_product_meter": true,
+        "ceiling_held_by_reference": true,
+        "output_not_over_attenuated": true,
+        "stimulus_exceeds_ceiling": true,
+        "stimulus_overshoot_matches_theory": true
+      },
+      "detector_oversample": 4,
+      "expected_isp_overshoot_db": 3.0102999566398116,
+      "gain_reduction_db": 1.0367708293306075,
+      "headroom_below_ceiling_db": 0.249999104001144,
+      "input_sample_peak_dbfs": -3.010299956630063,
+      "input_true_peak_dbtp": 9.351729644270402e-06,
+      "measured_isp_overshoot_db": 3.0103093083597074,
+      "output_sample_peak_dbfs": -4.2630672771355025,
+      "output_true_peak_dbtp": -1.249999104001144,
+      "output_true_peak_reference_dbtp": -1.2527575100513288,
+      "sample_rate_hz": 48000,
+      "status": "pass",
+      "tone_fraction_of_nyquist": 0.5,
+      "tone_hz": 12000.0
+    }
+  ],
+  "component": "audio_studio.dsp.effects.dynamics.LimiterEffect",
+  "detector_oversample_sensitivity": {
+    "case_id": "0p8-nyquist-48k",
+    "ceiling_dbtp": -1.0,
+    "note": "The 4x detector BS.1770-4 gives as a minimum under-reads tones above 70% of Nyquist, and the limiter leaks above its ceiling by the same amount. Cases up there set oversample=8, which the readings here show is enough; the shipped default stays 4x.",
+    "readings": [
+      {
+        "detector_oversample": 4,
+        "error_above_ceiling_db": 0.1858991552978898,
+        "output_true_peak_reference_dbtp": -0.8141008447021102
+      },
+      {
+        "detector_oversample": 8,
+        "error_above_ceiling_db": -0.1602849364494714,
+        "output_true_peak_reference_dbtp": -1.1602849364494714
+      },
+      {
+        "detector_oversample": 16,
+        "error_above_ceiling_db": -0.1602849364494714,
+        "output_true_peak_reference_dbtp": -1.1602849364494714
+      }
+    ],
+    "tone_fraction_of_nyquist": 0.8
+  },
+  "generated_at_utc": "2026-08-27T01:09:45.543016+00:00",
+  "largest_headroom_db": 0.2500001080666427,
+  "measurement": {
+    "numpy_version": "2.5.2",
+    "product_meter": "audio_studio.dsp.util.true_peak_level",
+    "product_meter_oversample": 4,
+    "reference_meter": "whole-signal FFT band-limited reconstruction",
+    "reference_meter_oversample": 32,
+    "stimulus": "raised-cosine-gated sinusoid on a crest-straddling sample grid",
+    "stimulus_fade_ms": 10.0
+  },
+  "schema_version": 1,
+  "status": "pass",
+  "thresholds": {
+    "ceiling_tolerance_db": 0.05,
+    "max_undershoot_db": 1.0,
+    "near_nyquist_fraction": 0.7
+  },
+  "worst_case_headroom_db": 0.1602849364494714
+}

@@ -19,11 +19,22 @@ integrated loudness — never runs on the Qt thread while the user waits.
 Loudness is measured on a worker and collected by the same 30 Hz tick that
 drives the playhead; the spectrogram is coalesced behind a short timer so that
 dragging a selection re-analyses once rather than on every mouse move.
+
+Where the docks sit is part of the session, so it travels in the project
+bundle: :meth:`MainWindow.layout_state` packs Qt's ``saveState`` blob, the
+window geometry and the dock visibilities into a
+:class:`~audio_studio.project.store.LayoutState`, and a project that carries
+one restores it on open. A window opened without a project falls back to the
+last layout the application quit with, kept in :class:`QSettings` — so the
+arrangement survives a restart whether or not the work was a named project.
 """
 
 from __future__ import annotations
 
+import base64
+import binascii
 import html
+import json
 import shutil
 import tempfile
 from collections.abc import Iterator
@@ -33,7 +44,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import numpy as np
-from PySide6.QtCore import Qt, QTimer, Slot
+from PySide6.QtCore import QByteArray, QSettings, Qt, QTimer, Slot
 from PySide6.QtGui import (
     QAction,
     QActionGroup,
@@ -101,6 +112,7 @@ from ..project.archive import (
     unpack_project,
 )
 from ..project.store import (
+    LayoutState,
     ProjectLoadError,
     ProjectSnapshot,
     load_project,
@@ -127,10 +139,36 @@ ANALYSIS_DEBOUNCE_MS: int = 250
 
 MAX_RECENT_FILES: int = 8
 
+#: Where the last-quit dock arrangement lives between runs. One key rather
+#: than one per dock: the layout is only ever written and read as a whole, and
+#: a half-applied arrangement is worse than the default one.
+LAYOUT_SETTINGS_KEY: str = "ui/layout"
+
+#: Bumped when a change to the window would make an older blob restore into
+#: something wrong rather than into nothing. Qt's own ``restoreState`` version
+#: argument does the checking; a mismatch is reported as a refusal, which the
+#: window already treats as "keep the defaults".
+LAYOUT_STATE_VERSION: int = 1
+
 
 def strip_mnemonic(text: str) -> str:
     """``"Fade &In"`` → ``"Fade In"``, keeping a literal ``&&`` as one ``&``."""
     return text.replace("&&", "\x00").replace("&", "").replace("\x00", "&")
+
+
+def _encode_qt_blob(data: QByteArray) -> str:
+    """One of Qt's opaque state blobs as the base64 a project bundle stores."""
+    return base64.b64encode(bytes(data.data())).decode("ascii")
+
+
+def _decode_qt_blob(text: str | None) -> QByteArray | None:
+    """The inverse of :func:`_encode_qt_blob`, or ``None`` for anything unusable."""
+    if not text:
+        return None
+    try:
+        return QByteArray(base64.b64decode(text, validate=True))
+    except (binascii.Error, ValueError):
+        return None
 
 
 class ShortcutsDialog(QDialog):
@@ -171,8 +209,13 @@ class MainWindow(QMainWindow):
         self,
         engine: AudioEngine | None = None,
         recorder: AudioRecorder | None = None,
+        settings: QSettings | None = None,
     ) -> None:
         super().__init__()
+        # No settings object means no cross-run layout memory: the window is
+        # then exactly as constructed, which is what the widget tests want and
+        # what a second window inside one process should get.
+        self.settings = settings
         self.effect_chain = default_preview_chain()
         self.engine = engine if engine is not None else AudioEngine()
         self.recorder = recorder if recorder is not None else create_recorder()
@@ -243,6 +286,7 @@ class MainWindow(QMainWindow):
         self._refresh_timer.start()
 
         self._update_for_clip()
+        self.restore_layout_settings()
 
     # ----------------------------------------------------------- composition
 
@@ -1101,6 +1145,10 @@ class MainWindow(QMainWindow):
         self.take_registry = take_registry
         self._refresh_takes_menu()
         self._mark_project_saved()
+        # Ahead of the view mode, which owns the spectral dock's visibility:
+        # a bundle's layout and its view mode agree, so this only decides
+        # which of the two writes that one flag last.
+        self.apply_layout_state(snapshot.layout)
         self.set_view_mode(snapshot.view_mode)
         self.set_workspace(snapshot.workspace)
         self._update_for_clip()
@@ -1266,6 +1314,7 @@ class MainWindow(QMainWindow):
             selection=selection,
             markers=self.markers,
             plugins=self.plugin_panel.project_state(),
+            layout=self.layout_state(),
         )
         self.take_registry = self.take_registry.copy_to(saved)
         self._refresh_takes_menu()
@@ -1870,6 +1919,95 @@ class MainWindow(QMainWindow):
     def view_mode(self) -> str:
         return getattr(self, "_view_mode", "split")
 
+    # --------------------------------------------------------- dock layout
+
+    def dock_widgets(self) -> dict[str, QDockWidget]:
+        """Every dock, keyed by the object name a saved layout refers to.
+
+        Qt's state blob addresses docks by object name, so a dock without one
+        cannot be restored and is left out of the map rather than saved under
+        a key nothing will match on the way back.
+        """
+        return {
+            dock.objectName(): dock
+            for dock in self.findChildren(QDockWidget)
+            if dock.objectName()
+        }
+
+    def dock_visibility(self) -> dict[str, bool]:
+        """Which docks are on screen, by object name.
+
+        Read from ``isHidden`` rather than ``isVisible`` so the answer is the
+        dock's own state and not the window's: a layout captured before the
+        window is shown has to describe the arrangement, not the fact that
+        nothing is on screen yet.
+        """
+        return {name: not dock.isHidden() for name, dock in self.dock_widgets().items()}
+
+    def layout_state(self) -> LayoutState:
+        """The current dock arrangement, ready to go into a project bundle."""
+        return LayoutState(
+            window_state=_encode_qt_blob(self.saveState(LAYOUT_STATE_VERSION)),
+            geometry=_encode_qt_blob(self.saveGeometry()),
+            docks=self.dock_visibility(),
+        )
+
+    def apply_layout_state(self, state: LayoutState | None) -> bool:
+        """Restore a saved arrangement; returns False when nothing was applied.
+
+        Qt refuses a state blob it does not recognise — one written by a newer
+        build, or against a different set of object names — and says so by
+        returning False rather than by raising. The dock visibilities are
+        applied either way: they are the part of the layout that does not
+        depend on Qt accepting the blob.
+        """
+        if state is None or state.is_empty:
+            return False
+        applied = False
+        geometry = _decode_qt_blob(state.geometry)
+        if geometry is not None and self.restoreGeometry(geometry):
+            applied = True
+        window_state = _decode_qt_blob(state.window_state)
+        if window_state is not None and self.restoreState(window_state, LAYOUT_STATE_VERSION):
+            applied = True
+        docks = self.dock_widgets()
+        for name, shown in state.docks.items():
+            dock = docks.get(name)
+            if dock is None:
+                continue
+            dock.setVisible(bool(shown))
+            applied = True
+        return applied
+
+    def save_layout_settings(self) -> bool:
+        """Remember this arrangement as the one a fresh window should open with."""
+        settings = self.settings
+        if settings is None:
+            return False
+        payload = json.dumps(self.layout_state().to_json(), sort_keys=True)
+        settings.setValue(LAYOUT_SETTINGS_KEY, payload)
+        settings.sync()
+        return True
+
+    def restore_layout_settings(self) -> bool:
+        """Apply the arrangement the application last quit with, if there is one.
+
+        This is the no-project path: a bundle carries its own layout and
+        overrides whatever this restored, but a window that opens on nothing
+        should still look the way the user left it.
+        """
+        settings = self.settings
+        if settings is None:
+            return False
+        raw = settings.value(LAYOUT_SETTINGS_KEY)
+        if not isinstance(raw, str) or not raw.strip():
+            return False
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError:
+            return False
+        return self.apply_layout_state(LayoutState.from_json(payload))
+
     # ----------------------------------------------------------- workspaces
 
     @property
@@ -2285,6 +2423,10 @@ class MainWindow(QMainWindow):
 
     def _on_selection_changed(self, selection: TimeRange | None) -> None:
         self.engine.set_selection(selection)
+        # Cut, Trim, the fades and the rest are only offered over a range, so
+        # they follow the selection rather than waiting for the next edit —
+        # otherwise Select All leaves every one of them greyed out.
+        self._update_edit_actions()
         self._update_marker_actions()
         # Coalesce: a drag emits a selection per mouse move, and each one would
         # otherwise start a transform over the range.
@@ -2442,6 +2584,9 @@ class MainWindow(QMainWindow):
         if not self._confirm_discard_unsaved(action="closing"):
             event.ignore()
             return
+        # Written before anything is torn down, so the arrangement recorded is
+        # the one that was on screen rather than whatever a shutdown leaves.
+        self.save_layout_settings()
         self._refresh_timer.stop()
         self._analysis_timer.stop()
         self.recorder.close()

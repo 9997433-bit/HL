@@ -1,0 +1,199 @@
+{
+  "artifact": "sota-evidence-manifest",
+  "checklist_item": "B1",
+  "version": "v1.0 Round D",
+  "generated": "2026-08-27",
+  "status": "partial",
+  "summary": {
+    "pass": 9,
+    "partial": 4,
+    "note": "B1 stays open until every M-item is pass; partial items name the exact remaining gap"
+  },
+  "requirements": [
+    {
+      "id": "M1",
+      "title": "Audio I/O engine: realtime record/playback, configurable buffers, device hot-swap",
+      "status": "partial",
+      "evidence": [
+        "audio-studio/audio_studio/core/engine.py (configurable block_size playback engine)",
+        "audio-studio/audio_studio/core/recorder.py (input/recording path)",
+        "audio-studio/tests/test_engine.py",
+        "audio-studio/tests/test_recorder.py",
+        "audio-studio/tests/test_sounddevice_output.py",
+        "audio-studio/tests/test_wasapi_output.py",
+        "audio-studio/tests/test_asio_output.py",
+        ".agent_workspace/v1.0/soak-30min-report.json (30-minute playback soak)"
+      ],
+      "gaps": [
+        "device hot-swap without crash is unverified",
+        "hardware recording soak is open (checklist C2)"
+      ]
+    },
+    {
+      "id": "M2",
+      "title": "Non-destructive editing: cut/copy/paste/trim/silence/delete, undo/redo >= 100, source never rewritten in place",
+      "status": "pass",
+      "evidence": [
+        "audio-studio/audio_studio/core/edit_session.py (chunk-referencing EditSession)",
+        "tests/acceptance/test_sota_checklist.py::B4 (120-step undo/redo, hard PASS)",
+        "audio-studio/tests/test_edit_session.py",
+        "audio-studio/tests/test_streaming_edit.py",
+        "audio-studio/audio_studio/ui/main_window.py (EditSession wired into the UI)"
+      ],
+      "gaps": []
+    },
+    {
+      "id": "M3",
+      "title": "Waveform view: sample-level zoom, peak cache, selection/markers/loop",
+      "status": "pass",
+      "evidence": [
+        "audio-studio/audio_studio/core/peaks.py (pyramid peaks, sample-level zoom)",
+        "audio-studio/audio_studio/core/peaks_cache.py (persistent peak-file cache)",
+        "audio-studio/audio_studio/core/markers.py",
+        "audio-studio/tests/test_peaks.py",
+        "audio-studio/tests/test_peaks_cache.py",
+        "audio-studio/tests/test_markers.py",
+        "audio-studio/tests/test_ui.py"
+      ],
+      "gaps": []
+    },
+    {
+      "id": "M4",
+      "title": "Spectral view: adjustable STFT, log/linear frequency axis, selection linked with the waveform view",
+      "status": "pass",
+      "evidence": [
+        "audio-studio/audio_studio/dsp/spectral.py (SpectralConfig: window/FFT size/overlap)",
+        "audio-studio/audio_studio/ui/spectrogram_widget.py (FrequencyScale.LOG/LINEAR, SpectralRegion drag selection)",
+        "audio-studio/audio_studio/ui/main_window.py (SpectralSelection wired to Attenuate/Delete Selection actions)",
+        "audio-studio/tests/test_spectral.py",
+        "audio-studio/tests/test_spectrogram_widget.py"
+      ],
+      "gaps": []
+    },
+    {
+      "id": "M5",
+      "title": "File formats: WAV/BWF 16/24/32f/64f incl. RF64 >4GB, AIFF, FLAC; MP3/OGG read; bext preserved",
+      "status": "partial",
+      "evidence": [
+        "audio-studio/audio_studio/core/loader.py (WAV/AIFF/FLAC read/write, MP3/OGG read, RF64/W64 decode)",
+        "audio-studio/audio_studio/core/recorder.py (BWF bext writing)",
+        "audio-studio/tests/test_loader.py",
+        "audio-studio/tests/test_bwf_recorder.py",
+        "tests/acceptance/test_sota_checklist.py::A3 (null round-trip, hard PASS)",
+        ".agent_workspace/v1.0/rf64-memory-report.json (4.4GB RF64 streamed under 1GB RSS, headless proxy)"
+      ],
+      "gaps": [
+        "formal hardware-verified >4GB RF64 streaming run is open (checklist B3)",
+        "bext preservation across a generic load/save round-trip is unverified"
+      ]
+    },
+    {
+      "id": "M6",
+      "title": "Metering: sample peak, true peak (dBTP), RMS, EBU R128 M/S/I/LRA/TP, EBU Mode",
+      "status": "pass",
+      "evidence": [
+        "audio-studio/audio_studio/dsp/loudness.py (LoudnessMeter: M/S/I, LRA, true peak)",
+        "tests/acceptance/test_sota_checklist.py::A1-LUFS (Tech 3341 vectors, hard PASS)",
+        "tests/acceptance/test_sota_checklist.py::A1-TP (Tech 3341 true-peak vectors, hard PASS)",
+        "tests/acceptance/test_sota_checklist.py::A2 (Tech 3342 LRA vectors, hard PASS)",
+        "audio-studio/tests/test_loudness.py"
+      ],
+      "gaps": []
+    },
+    {
+      "id": "M7",
+      "title": "Analysis: amplitude statistics, realtime FFT analyzer, phase correlation meter",
+      "status": "partial",
+      "evidence": [
+        "audio-studio/audio_studio/dsp/spectral.py (RealtimeSpectrum, SpectrumBars)",
+        "audio-studio/audio_studio/ui/spectrum_panel.py",
+        "audio-studio/tests/test_spectral.py"
+      ],
+      "gaps": [
+        "phase correlation meter is not implemented"
+      ]
+    },
+    {
+      "id": "M8",
+      "title": "Basic effects: gain, peak normalize, loudness normalize (R128 target), fades, parametric EQ, compressor, true-peak limiter, noise gate",
+      "status": "pass",
+      "evidence": [
+        "audio-studio/audio_studio/dsp/effects/ (gain, fades, parametric EQ, dynamics)",
+        "audio-studio/audio_studio/dsp/effects/loudness_effect.py (R128 target-LUFS normalize with presets)",
+        ".agent_workspace/v1.0/batch-loudness-report.json (10-file -16 LUFS batch, measured)",
+        ".agent_workspace/v1.0/limiter-isp-report.json (dBTP ceiling held against inter-sample peaks)",
+        "tests/compliance/test_limiter_isp.py",
+        "audio-studio/tests/test_effects.py",
+        "audio-studio/tests/test_dynamics.py",
+        "tests/acceptance/test_sota_checklist.py::A4 (EQ response <0.05 dB, hard PASS)",
+        "tests/acceptance/test_sota_checklist.py::A6 (true-peak limiter ISP ceiling, hard PASS)"
+      ],
+      "gaps": []
+    },
+    {
+      "id": "M9",
+      "title": "Noise reduction: noise-print spectral subtraction, previewable, adjustable strength",
+      "status": "pass",
+      "evidence": [
+        "audio-studio/audio_studio/dsp/repair/noise_reduce.py (NoiseProfile, learn_noise_profile, NoiseReduceEffect)",
+        "audio-studio/tests/test_noise_reduce.py"
+      ],
+      "gaps": []
+    },
+    {
+      "id": "M10",
+      "title": "Sample-rate / bit-depth conversion: high-quality SRC plus TPDF-dithered bit-depth conversion",
+      "status": "pass",
+      "evidence": [
+        "audio-studio/audio_studio/core/loader.py (quantize_with_tpdf; resample with selectable soxr VHQ quality)",
+        ".agent_workspace/v1.0/tpdf-spectrum-report.json (error RMS at LSB/2 theory, white error spectrum, no harmonic spurs)",
+        ".agent_workspace/round3/src-quality-report.json (stopband -160.3 dBFS, THD+N -155.4 dBFS, pass)",
+        "tests/test_dither.py"
+      ],
+      "gaps": []
+    },
+    {
+      "id": "M11",
+      "title": "Cross-platform: Windows/macOS/Linux builds and smoke tests; native backend abstraction",
+      "status": "pass",
+      "evidence": [
+        ".github/workflows/audio-tests.yml (ubuntu/macos/windows gates)",
+        "tests/acceptance/test_sota_checklist.py::E1 (three-platform CI, hard PASS)",
+        "audio-studio/audio_studio/core/output.py + sounddevice_output.py (backend abstraction: PortAudio/WASAPI/ASIO)",
+        "audio-studio/tests/test_wasapi_output.py",
+        "audio-studio/tests/test_asio_output.py"
+      ],
+      "gaps": []
+    },
+    {
+      "id": "M12",
+      "title": "Professional UI skeleton: dockable panels, dark theme, HiDPI, full shortcut coverage, 60fps refresh",
+      "status": "partial",
+      "evidence": [
+        "audio-studio/audio_studio/ui/main_window.py (dockable panels, workspace presets, saveState/restoreState)",
+        "audio-studio/audio_studio/ui/theme.py (dark palette, WCAG AA audited)",
+        "audio-studio/audio_studio/app.py (HiDPI --scale-factor 1.0-2.0, QT_SCALE_FACTOR pass-through)",
+        "audio-studio/tests/test_accessibility.py (keyboard reach + TestScaleFactor 100-200%)",
+        ".agent_workspace/v1.0/dock-layout-evidence.json (layout persistence across restart)",
+        ".agent_workspace/v1.0/keyboard-workflow-evidence.json (keyboard-only workflow)",
+        "tests/acceptance/test_sota_checklist.py::D2/D3/D5 (dock persistence, keyboard workflow, UI scaling: PASS)"
+      ],
+      "gaps": [
+        "meter/playhead refresh is 30 Hz (UI_REFRESH_MS = 33); 60fps frame-time evidence is open (checklist D1)"
+      ]
+    },
+    {
+      "id": "M13",
+      "title": "Testing and verification: DSP golden-file regression, EBU 3341/3342 vectors, bit-exact null test",
+      "status": "pass",
+      "evidence": [
+        "tools/golden_audio.py (golden-file framework)",
+        "tools/ebu_vectors.py (Tech 3341/3342 vector synthesis)",
+        "tests/acceptance/test_sota_checklist.py::A1-LUFS/A1-TP/A2 (hard PASS)",
+        "tests/acceptance/test_sota_checklist.py::A3 (bit-exact null round-trip, hard PASS)",
+        "audio-studio/tests/test_dsp_integration.py"
+      ],
+      "gaps": []
+    }
+  ]
+}

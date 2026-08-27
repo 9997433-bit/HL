@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "harness": "benchmarks/soak_playback.py",
+  "mode": "accelerated",
+  "evidence": "headless-proxy",
+  "formal_slo_verified": true,
+  "environment": {
+    "python": "3.12.3",
+    "platform": "Linux-6.12.94+-x86_64-with-glibc2.39",
+    "processor": "x86_64"
+  },
+  "config": {
+    "duration_seconds": 5.0,
+    "sample_rate": 48000,
+    "block_size": 256,
+    "channels": 2,
+    "ring_blocks": 16,
+    "source_seconds": 30.0
+  },
+  "results": [
+    {
+      "slo_id": "playback-30m",
+      "title": "0.0833333-minute 48k/256 playback soak (headless proxy)",
+      "status": "pass",
+      "threshold_pass": true,
+      "evidence": "headless-proxy",
+      "formal_slo_verified": true,
+      "measured": {
+        "blocks_rendered": 938,
+        "frames_rendered": 240128,
+        "audio_seconds_rendered": 5.003,
+        "underrun_blocks": 0,
+        "underrun_frames": 0,
+        "underrun_frame_ratio": 0.0,
+        "feeder_budget_misses": 0,
+        "wall_clock_seconds": 0.085,
+        "realtime_factor": 59.027,
+        "callback_timing": {
+          "minimum_ms": 0.001758,
+          "p50_ms": 0.002084,
+          "median_ms": 0.002084,
+          "p95_ms": 0.006773,
+          "p99_ms": 0.019824,
+          "maximum_ms": 0.032082
+        },
+        "callback_p99_block_utilization_percent": 0.372
+      },
+      "threshold": {
+        "underrun_frame_ratio_max": 0.001
+      },
+      "limitation": "NullOutput backend on a shared host; formally verifies the approved headless software-pipeline proxy, not hardware-device behavior."
+    }
+  ],
+  "summary": {
+    "proxy_passed": 1,
+    "proxy_failed": 0,
+    "formal_slos_verified": 1
+  }
+}

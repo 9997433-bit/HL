@@ -1,0 +1,63 @@
+{
+  "arrangement_under_test": {
+    "EffectsDock": false,
+    "MarkersDock": true,
+    "PluginDock": true,
+    "SpectrumDock": true
+  },
+  "checks": [
+    {
+      "check": "project-bundle",
+      "detail": "docks recorded in .hlproj ui.layout and restored on open",
+      "expected": {
+        "EffectsDock": false,
+        "MarkersDock": true,
+        "PluginDock": true,
+        "SpectrumDock": true
+      },
+      "reopened": true,
+      "restored": {
+        "EffectsDock": false,
+        "MarkersDock": true,
+        "PluginDock": true,
+        "SpectrumDock": true
+      },
+      "status": "pass"
+    },
+    {
+      "check": "application-restart",
+      "detail": "layout written on quit and reapplied by a window with no project",
+      "expected": {
+        "EffectsDock": false,
+        "MarkersDock": true,
+        "PluginDock": true,
+        "SpectrumDock": true
+      },
+      "restored": {
+        "EffectsDock": false,
+        "MarkersDock": true,
+        "PluginDock": true,
+        "SpectrumDock": true
+      },
+      "status": "pass"
+    }
+  ],
+  "default_arrangement": {
+    "EffectsDock": true,
+    "MarkersDock": false,
+    "PluginDock": true,
+    "SpectrumDock": true
+  },
+  "generated_at": "2026-08-27T01:21:34.905596+00:00",
+  "generated_by": "audio-studio/tests/test_ui_persistence.py",
+  "item": "D2",
+  "mechanism": {
+    "project_key": "ui.layout",
+    "save": "QMainWindow.saveState/saveGeometry + per-dock visibility",
+    "settings_key": "ui/layout"
+  },
+  "platform": "qt-offscreen",
+  "state_blob_bytes": 328,
+  "status": "pass",
+  "title": "Dock presets and layout persistence"
+}

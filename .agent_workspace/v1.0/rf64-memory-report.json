@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "harness": "benchmarks/rf64_memory_probe.py",
+  "checklist_item": "B3",
+  "mode": "sparse",
+  "environment": {
+    "python": "3.12.3",
+    "platform": "Linux-6.12.94+-x86_64-with-glibc2.39",
+    "processor": "x86_64"
+  },
+  "config": {
+    "frames": 1100000000,
+    "channels": 2,
+    "sample_rate": 48000,
+    "subtype": "PCM_16",
+    "block_frames": 65536,
+    "cache_blocks": 8,
+    "rss_sample_every_blocks": 64
+  },
+  "file_size_bytes": 4400000080,
+  "peak_rss_bytes": 112504832,
+  "status": "pass",
+  "formal_slo_verified": false,
+  "results": [
+    {
+      "slo_id": "rf64-4gb-rss",
+      "title": "4.1 GiB RF64 streaming read loop under 1 GiB RSS (sparse proxy)",
+      "status": "pass",
+      "threshold_pass": true,
+      "evidence": "headless-proxy",
+      "formal_slo_verified": false,
+      "measured": {
+        "n_frames": 1100000000,
+        "frames_read": 1100000000,
+        "blocks_read": 16785,
+        "audio_hours_read": 6.366,
+        "baseline_rss_bytes": 107311104,
+        "peak_rss_bytes": 112504832,
+        "peak_rss_mib": 107.3,
+        "rss_growth_bytes": 5193728,
+        "wall_clock_seconds": 7.407,
+        "realtime_factor": 3093.9,
+        "container": "RF64",
+        "should_stream": true,
+        "file_size_bytes": 4400000080
+      },
+      "threshold": {
+        "file_size_bytes_min": 4294967296,
+        "peak_rss_bytes_max": 1073741824
+      },
+      "limitation": "zero-filled fixture on a shared host: the decode path, block cache and RSS ceiling are real, but the content is synthetic and no dedicated-hardware capture was involved."
+    }
+  ],
+  "summary": {
+    "proxy_passed": 1,
+    "proxy_failed": 0,
+    "formal_slos_verified": 0
+  }
+}

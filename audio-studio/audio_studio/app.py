@@ -114,7 +114,7 @@ def main(argv: list[str] | None = None) -> int:
     apply_scale_factor(args.scale_factor)
 
     # Imported after the platform plugin is chosen so Qt picks it up.
-    from PySide6.QtCore import QTimer
+    from PySide6.QtCore import QSettings, QTimer
     from PySide6.QtWidgets import QApplication
 
     from .core.engine import AudioEngine
@@ -133,7 +133,11 @@ def main(argv: list[str] | None = None) -> int:
 
     output = NullOutput() if args.null_audio else create_output()
     engine = AudioEngine(output)
-    window = MainWindow(engine)
+    # QSettings reads the organisation and application names set above, so it
+    # cannot be built any earlier. Handing it to the window is what gives the
+    # dock arrangement a memory across runs; a window built without one (the
+    # widget tests, a second window in one process) simply has none.
+    window = MainWindow(engine, settings=QSettings())
     window.show()
 
     if args.file:

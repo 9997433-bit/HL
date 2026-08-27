@@ -22,6 +22,7 @@ from pathlib import Path
 import numpy as np
 import soundfile as sf
 
+from .resample import resample_buffer
 from .types import SAMPLE_DTYPE, AudioBuffer, AudioFormat
 
 #: Extensions offered in the file dialog and accepted by :func:`load_audio`.
@@ -250,22 +251,25 @@ def _decode_with_ffmpeg(
     return data, sample_rate, audio_format
 
 
-def resample(buffer: AudioBuffer, target_sample_rate: int) -> AudioBuffer:
-    """Polyphase sample-rate conversion preserving the channel layout."""
+def resample(
+    buffer: AudioBuffer,
+    target_sample_rate: int,
+    *,
+    quality: str = "vhq",
+) -> AudioBuffer:
+    """Convert ``buffer`` with the selected offline SRC backend."""
     if target_sample_rate <= 0:
         raise ValueError(f"target_sample_rate must be positive, got {target_sample_rate}")
     if buffer.sample_rate == target_sample_rate or buffer.n_frames == 0:
         return AudioBuffer(buffer.data, target_sample_rate)
 
-    from math import gcd
-
-    from scipy.signal import resample_poly
-
-    divisor = gcd(int(buffer.sample_rate), int(target_sample_rate))
-    up = target_sample_rate // divisor
-    down = buffer.sample_rate // divisor
-    converted = resample_poly(buffer.data, up, down, axis=0)
-    return AudioBuffer(np.ascontiguousarray(converted, dtype=SAMPLE_DTYPE), target_sample_rate)
+    converted = resample_buffer(
+        buffer.data,
+        buffer.sample_rate,
+        target_sample_rate,
+        quality=quality,
+    )
+    return AudioBuffer(converted, target_sample_rate)
 
 
 def quantize_with_tpdf(

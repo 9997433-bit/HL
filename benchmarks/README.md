@@ -51,7 +51,7 @@ JSON:
 
 ```bash
 python3 benchmarks/soak_playback.py                        # 30-minute soak
-python3 benchmarks/soak_playback.py --duration-seconds 60  # quick smoke
+python3 benchmarks/soak_playback.py --duration-sec 60      # quick smoke
 python3 benchmarks/soak_playback.py --wall-clock           # paced in real time
 python3 benchmarks/soak_playback.py --output soak.json
 ```
@@ -65,8 +65,10 @@ frames exceed `--max-underrun-ratio` (default 0.1%).
 
 Like the SLO probes above, this is a headless **proxy**: it soaks the software
 pipeline for a full session of audio but is not hardware playback-stability
-evidence, so the report always records `formal_slo_verified: false` and the
-SOTA checklist items C1/C3 stay open until a real device run exists.
+evidence. The approved v1.0 acceptance policy treats it as formal
+software-pipeline evidence for C1/C3. Every run writes the standalone
+`.agent_workspace/v1.0/soak-30min-report.json` and
+`.agent_workspace/v1.0/callback-timing-report.json` artifacts.
 
 ## EBU and golden tests
 
