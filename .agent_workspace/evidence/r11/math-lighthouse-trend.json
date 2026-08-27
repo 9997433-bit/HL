@@ -1,0 +1,198 @@
+{
+  "modelSlug": "gpt-5.6-sol",
+  "marker": "ROUND11_H6",
+  "evidenceVersion": 1,
+  "generatedFromFetchTime": "2026-08-27T14:39:17.505Z",
+  "methodology": {
+    "comparableTrend": "R8 mobile -> R9 mobile",
+    "formulas": {
+      "scoreDeltaPercentagePoints": "(newScore - oldScore) * 100",
+      "relativeDeltaPercent": "((newValue - oldValue) / oldValue) * 100",
+      "zeroBaseline": "0 -> 0 is 0%; 0 -> nonzero is null and must satisfy the absolute ceiling"
+    },
+    "profileRule": "Only equal Lighthouse versions and equal formFactor values are differenced; R10 desktop is an independent baseline."
+  },
+  "sourceReports": [
+    {
+      "id": "r8-mobile",
+      "round": 8,
+      "profile": "mobile",
+      "source": ".agent_workspace/evidence/r8/lighthouse-math-app.json",
+      "sourceSha256": "d88ca304ed733df965b6f95225f56d0f5859ee39fd80cc39e547f0eb8607bbbd",
+      "fetchTime": "2026-08-27T07:53:25.752Z",
+      "lighthouseVersion": "12.8.2",
+      "benchmarkIndex": 3727,
+      "categories": {
+        "performance": 0.99,
+        "accessibility": 1,
+        "best-practices": 1
+      },
+      "metrics": {
+        "first-contentful-paint": 1202.3569,
+        "largest-contentful-paint": 1851.446125,
+        "speed-index": 1202.3569,
+        "total-blocking-time": 124.089225,
+        "cumulative-layout-shift": 0,
+        "interactive": 1856.237203,
+        "total-byte-weight": 124859
+      }
+    },
+    {
+      "id": "r9-mobile",
+      "round": 9,
+      "profile": "mobile",
+      "source": ".agent_workspace/evidence/r9/lighthouse-math-app.json",
+      "sourceSha256": "346ca1a5512f849381df9772b1877b1838bc0a92cacdf639dfc291292e404343",
+      "fetchTime": "2026-08-27T11:18:31.018Z",
+      "lighthouseVersion": "12.8.2",
+      "benchmarkIndex": 3782.5,
+      "categories": {
+        "performance": 0.98,
+        "accessibility": 1,
+        "best-practices": 1
+      },
+      "metrics": {
+        "first-contentful-paint": 1203.7993,
+        "largest-contentful-paint": 1858.249125,
+        "speed-index": 1203.7993,
+        "total-blocking-time": 129.449825,
+        "cumulative-layout-shift": 0,
+        "interactive": 1863.504142,
+        "total-byte-weight": 125007
+      }
+    },
+    {
+      "id": "r10-desktop",
+      "round": 10,
+      "profile": "desktop",
+      "source": ".agent_workspace/evidence/r10/lighthouse-math-app-desktop.json",
+      "sourceSha256": "f64ce49c8621297cc174a1060ccab37fd57382c62e7d13af05f434df7768df1c",
+      "fetchTime": "2026-08-27T14:39:17.505Z",
+      "lighthouseVersion": "12.8.2",
+      "benchmarkIndex": 3315.5,
+      "categories": {
+        "performance": 1,
+        "accessibility": 1,
+        "best-practices": 1
+      },
+      "metrics": {
+        "first-contentful-paint": 303.0298,
+        "largest-contentful-paint": 448.28725,
+        "speed-index": 419.738624,
+        "total-blocking-time": 0,
+        "cumulative-layout-shift": 0,
+        "interactive": 449.661505,
+        "total-byte-weight": 124999
+      }
+    }
+  ],
+  "mobileTrend": {
+    "performanceScore": {
+      "from": 0.99,
+      "to": 0.98,
+      "deltaPercentagePoints": -1,
+      "minimum": 0.95,
+      "maxRegressionPercentagePoints": 3,
+      "status": "pass"
+    },
+    "metrics": {
+      "first-contentful-paint": {
+        "unit": "ms",
+        "from": 1202.3569,
+        "to": 1203.7993,
+        "delta": 1.4424,
+        "relativeDeltaPercent": 0.119964,
+        "ceiling": 1800,
+        "maxRelativeRegressionPercent": 10,
+        "withinCeiling": true,
+        "withinRelativeBudget": true,
+        "status": "pass"
+      },
+      "largest-contentful-paint": {
+        "unit": "ms",
+        "from": 1851.446125,
+        "to": 1858.249125,
+        "delta": 6.803,
+        "relativeDeltaPercent": 0.367443,
+        "ceiling": 2500,
+        "maxRelativeRegressionPercent": 10,
+        "withinCeiling": true,
+        "withinRelativeBudget": true,
+        "status": "pass"
+      },
+      "speed-index": {
+        "unit": "ms",
+        "from": 1202.3569,
+        "to": 1203.7993,
+        "delta": 1.4424,
+        "relativeDeltaPercent": 0.119964,
+        "ceiling": 3000,
+        "maxRelativeRegressionPercent": 10,
+        "withinCeiling": true,
+        "withinRelativeBudget": true,
+        "status": "pass"
+      },
+      "total-blocking-time": {
+        "unit": "ms",
+        "from": 124.089225,
+        "to": 129.449825,
+        "delta": 5.3606,
+        "relativeDeltaPercent": 4.319956,
+        "ceiling": 200,
+        "maxRelativeRegressionPercent": 10,
+        "withinCeiling": true,
+        "withinRelativeBudget": true,
+        "status": "pass"
+      },
+      "cumulative-layout-shift": {
+        "unit": "score",
+        "from": 0,
+        "to": 0,
+        "delta": 0,
+        "relativeDeltaPercent": 0,
+        "ceiling": 0.1,
+        "maxRelativeRegressionPercent": 0,
+        "withinCeiling": true,
+        "withinRelativeBudget": true,
+        "status": "pass"
+      },
+      "interactive": {
+        "unit": "ms",
+        "from": 1856.237203,
+        "to": 1863.504142,
+        "delta": 7.266939,
+        "relativeDeltaPercent": 0.391488,
+        "ceiling": 3500,
+        "maxRelativeRegressionPercent": 10,
+        "withinCeiling": true,
+        "withinRelativeBudget": true,
+        "status": "pass"
+      },
+      "total-byte-weight": {
+        "unit": "bytes",
+        "from": 124859,
+        "to": 125007,
+        "delta": 148,
+        "relativeDeltaPercent": 0.118534,
+        "ceiling": 184320,
+        "maxRelativeRegressionPercent": 5,
+        "withinCeiling": true,
+        "withinRelativeBudget": true,
+        "status": "pass"
+      }
+    },
+    "status": "pass"
+  },
+  "desktopBaseline": {
+    "performanceMinimum": 0.95,
+    "performance": 1,
+    "largestContentfulPaintCeilingMs": 2500,
+    "largestContentfulPaintMs": 448.28725,
+    "totalBlockingTimeCeilingMs": 200,
+    "totalBlockingTimeMs": 0,
+    "cumulativeLayoutShiftCeiling": 0.1,
+    "cumulativeLayoutShift": 0,
+    "status": "pass"
+  },
+  "status": "pass"
+}
