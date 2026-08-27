@@ -72,6 +72,7 @@ const ROUTES = [
 ]
 
 const ROUND9_H3_SMOKE = '/skill-graph'
+const ROUND10_H3_SMOKE = '/skill-graph'
 
 const IGNORE = [/Failed to load resource/i, /net::ERR_/i, /favicon/i, /AudioContext/i]
 
@@ -1461,6 +1462,7 @@ await interact('技能图谱：推荐下一步跟着掌握度与年龄档走，�
         rank: Number(el.dataset.recoRank),
         text: el.innerText.replace(/\s+/g, ' ').trim(),
         href: el.querySelector('a')?.getAttribute('href') ?? '',
+        planetHref: el.querySelector('[data-reco-planet]')?.getAttribute('href') ?? '',
       })),
       goal: document.querySelector('[data-reco-goal]')?.dataset.recoGoal ?? '',
       path: [...document.querySelectorAll('[data-reco-step]')].map((el) => el.dataset.recoStep),
@@ -1542,8 +1544,10 @@ await interact('技能图谱：推荐下一步跟着掌握度与年龄档走，�
   if (mid.items[0].id !== 'add-within-10' || mid.items[0].reason !== 'finish') {
     throw new Error(`存档里 add-within-10 练到 40%，推荐首条却是 ${mid.items[0].id}/${mid.items[0].reason}`)
   }
-  if (!mid.items[0].href.includes('/arithmetic')) {
-    throw new Error(`「去练」应指向算术恒星，实际 ${mid.items[0].href}`)
+  // R10 起首选入口改成了「日冒险专项 / 错题重练」（见 ROUND10_H3_SMOKE），
+  // 回星球的那条退成次入口，这里验的仍是「推荐认得它属于算术恒星」
+  if (!mid.items[0].planetHref.includes('/arithmetic')) {
+    throw new Error(`「去算术恒星」入口不对：${mid.items[0].planetHref || '没有链接'}`)
   }
 
   const low = await load('L1')
@@ -1591,6 +1595,217 @@ await interact('技能图谱：推荐下一步跟着掌握度与年龄档走，�
     `L2 首推 ${mid.items[0].id}（${mid.items[0].reason}），` +
     `L1/L4 目标 ${low.goal}→${high.goal}、路线 ${low.path.length}→${high.path.length} 步，` +
     `图上描圈 ${Object.keys(mid.ringed).length} 个与列表一致，掌握度未被改写`
+  )
+})
+
+/**
+ * ROUND10_H3_SMOKE — 推荐 → 开练的闭环：
+ * 图谱推荐排完序之后，「去练」必须落到真能练这一点的地方，而不是把孩子丢回星球首页。
+ * 空错题本时可出题的技能落到「日冒险专项」（题目按日期 + 技能定死，刷新不换题、
+ * 不占当天打卡），出不了题的落回它自己的星球；一旦欠下错题，同一条推荐立刻改走
+ * 「错题重练」，点进去的错题本只列这一个技能的题。
+ */
+await interact('推荐闭环：一键落到日冒险专项 / 错题重练', `/#${ROUND10_H3_SMOKE}`, async (page) => {
+  const SEED_MASTERY = { 'count-to-5': 0.95, 'count-to-10': 0.9, 'add-within-10': 0.4 }
+  const FOCUS = 'add-within-10'
+
+  const readEntries = () =>
+    page.evaluate(() =>
+      [...document.querySelectorAll('[data-reco-item]')].map((el) => {
+        const cta = el.querySelector('[data-reco-entry]')
+        return {
+          id: el.dataset.recoItem,
+          kind: cta?.dataset.recoEntry ?? '',
+          href: cta?.getAttribute('href') ?? '',
+          label: cta?.innerText.replace(/\s+/g, ' ').trim() ?? '',
+          hint: el.querySelector('[data-reco-entry-hint]')?.innerText.trim() ?? '',
+          planetHref: el.querySelector('[data-reco-planet]')?.getAttribute('href') ?? '',
+        }
+      }),
+    )
+  const store = () =>
+    page.evaluate(() => JSON.parse(localStorage.getItem('mathquest/progress') || '{}'))
+
+  await page.evaluate((mastery) => {
+    localStorage.setItem('mathquest/progress', JSON.stringify({ stars: 5, mastery }))
+    localStorage.setItem('mathquest/settings', JSON.stringify({ ageBand: 'L2' }))
+  }, SEED_MASTERY)
+  await page.reload({ waitUntil: 'networkidle2' })
+  await sleep(700)
+
+  /* ---- 一、空错题本：能出题的落到日冒险，出不了题的落回星球 ---- */
+  const fresh = await readEntries()
+  if (!fresh.length) throw new Error('推荐位一条建议都没有，谈不上开练入口')
+  for (const entry of fresh) {
+    if (!['daily', 'wrongBook', 'planet'].includes(entry.kind)) {
+      throw new Error(`「${entry.id}」的落点是 ${entry.kind || '空'}，只认这三种`)
+    }
+    if (!entry.href) throw new Error(`「${entry.id}」的开练入口没有链接`)
+    if (!entry.label || !entry.hint) throw new Error(`「${entry.id}」的入口没有文案`)
+    if (entry.kind !== 'planet' && !entry.planetHref) {
+      throw new Error(`「${entry.id}」深链到了 ${entry.kind}，却没留回星球的次入口`)
+    }
+  }
+  if (fresh.some((entry) => entry.kind === 'wrongBook')) {
+    throw new Error('错题本还是空的，却有推荐落到了错题重练')
+  }
+
+  const daily = fresh.find((entry) => entry.id === FOCUS)
+  if (daily?.kind !== 'daily') throw new Error(`${FOCUS} 的落点应是日冒险，实际 ${daily?.kind}`)
+  if (daily.href !== `#/daily?focus=${FOCUS}`) {
+    throw new Error(`日冒险入口应带上技能点，实际 ${daily.href}`)
+  }
+  const planet = fresh.find((entry) => entry.kind === 'planet')
+  if (!planet) throw new Error('每日冒险出不了的技能没有落回星球')
+  if (planet.href.includes('/daily') || planet.href.includes('/progress')) {
+    throw new Error(`星球落点指到了 ${planet.href}`)
+  }
+
+  // 只是把图看一遍、把落点算出来，存档一个字节都不该动
+  const beforeClick = await store()
+  if (JSON.stringify(beforeClick.mastery) !== JSON.stringify(SEED_MASTERY)) {
+    throw new Error('算开练入口时改写了掌握度')
+  }
+  if (Object.keys(beforeClick.wrongBook ?? {}).length) throw new Error('算入口时凭空写出了错题')
+
+  /* ---- 二、点进日冒险专项：只出这一个技能的题，刷新不换题，不占打卡 ---- */
+  await page.evaluate((skill) => document.querySelector(`[data-reco-entry-skill="${skill}"]`).click(), FOCUS)
+  await sleep(900)
+  const landed = await page.evaluate(() => location.hash)
+  if (landed !== `#/daily?focus=${FOCUS}`) throw new Error(`点「去练」跳到了 ${landed}`)
+
+  const readFocus = () =>
+    page.evaluate(() => ({
+      chip: document.querySelector('[data-daily-focus]')?.dataset.dailyFocus ?? '',
+      note: document.body.innerText.includes('不占今天的打卡'),
+      prompt: document.querySelector('.quiz-prompt')?.innerText.replace(/\s+/g, ' ').trim() ?? '',
+    }))
+  const first = await readFocus()
+  if (first.chip !== FOCUS) throw new Error(`专项页没有标出练的是哪一点：${first.chip || '空'}`)
+  if (!first.note) throw new Error('专项冒险没有说明它不占当天打卡')
+  if (!first.prompt) throw new Error('专项冒险没有渲染题目')
+
+  await page.reload({ waitUntil: 'networkidle2' })
+  await sleep(700)
+  const again = await readFocus()
+  if (again.prompt !== first.prompt) {
+    throw new Error(`专项冒险刷新后换题了：「${first.prompt}」→「${again.prompt}」`)
+  }
+
+  // 故意答错两道：它们会进错题本，正好把下一段的落点从日冒险换成错题重练
+  const missOnce = () =>
+    page.evaluate(() => {
+      const terms = [...document.querySelectorAll('.equation .term')].map((e) =>
+        Number(e.innerText),
+      )
+      const sign = document.querySelector('.equation .sign')?.innerText ?? '+'
+      const answer = sign === '+' ? terms[0] + terms[1] : terms[0] - terms[1]
+      if (!Number.isInteger(answer)) return null
+      const wrong = [...document.querySelectorAll('.opt')].find(
+        (b) => Number(b.innerText) !== answer && !b.disabled,
+      )
+      if (!wrong) return null
+      wrong.click()
+      return { answer, chosen: Number(wrong.innerText) }
+    })
+
+  const missed = []
+  for (let i = 0; i < 2; i++) {
+    const miss = await missOnce()
+    if (!miss) throw new Error(`专项冒险第 ${i + 1} 题不是可判定的算式题`)
+    missed.push(miss)
+    await sleep(1800)
+  }
+
+  const afterPractice = await store()
+  const book = Object.values(afterPractice.wrongBook ?? {})
+  if (book.length !== missed.length) {
+    throw new Error(`答错 ${missed.length} 题，错题本却收了 ${book.length} 条`)
+  }
+  if (book.some((entry) => entry.skill !== FOCUS)) {
+    throw new Error(`专项冒险记到了别的技能：${book.map((e) => e.skill).join('、')}`)
+  }
+  if (afterPractice.mastery?.[FOCUS] === SEED_MASTERY[FOCUS]) {
+    throw new Error('答了专项题，掌握度却一点没动')
+  }
+  const strayed = Object.keys(afterPractice.mastery ?? {}).filter((id) => !(id in SEED_MASTERY))
+  if (strayed.length) throw new Error(`专项冒险练到了别的技能：${strayed.join('、')}`)
+  if (afterPractice.dailyQuest?.done || afterPractice.dailyQuest?.completedAt) {
+    throw new Error(`专项练习不该占今天的打卡：${JSON.stringify(afterPractice.dailyQuest)}`)
+  }
+
+  /* ---- 三、欠下错题后，同一条推荐改走错题重练 ---- */
+  await page.goto(base + `/#${ROUND10_H3_SMOKE}`, { waitUntil: 'networkidle2' })
+  await sleep(800)
+  const owedEntries = await readEntries()
+  const owed = owedEntries.find((entry) => entry.id === FOCUS)
+  if (owed?.kind !== 'wrongBook') {
+    throw new Error(`欠着 ${book.length} 道错题，${FOCUS} 的落点却是 ${owed?.kind}`)
+  }
+  if (owed.href !== `#/progress?wrong=${FOCUS}`) {
+    throw new Error(`错题重练入口应带上技能点，实际 ${owed.href}`)
+  }
+  if (!owed.label.includes(String(book.length))) {
+    throw new Error(`入口没有说明欠着几道：「${owed.label}」`)
+  }
+
+  await page.evaluate((skill) => document.querySelector(`[data-reco-entry-skill="${skill}"]`).click(), FOCUS)
+  await sleep(900)
+  const atBook = await page.evaluate(() => ({
+    hash: location.hash,
+    filter: document.querySelector('[data-wrong-filter]')?.dataset.wrongFilter ?? '',
+    shown: document.querySelectorAll('.wb-item').length,
+    retryFirst: !!document.querySelector('[data-wrong-retry-first]'),
+  }))
+  if (atBook.hash !== `#/progress?wrong=${FOCUS}`) throw new Error(`错题入口跳到了 ${atBook.hash}`)
+  if (atBook.filter !== FOCUS) throw new Error(`错题本没有按技能筛选：${atBook.filter || '空'}`)
+  if (atBook.shown !== book.length) {
+    throw new Error(`筛选后应列出 ${book.length} 道，实际 ${atBook.shown}`)
+  }
+  if (!atBook.retryFirst) throw new Error('筛选后没有「从第一道开始重练」的入口')
+
+  // 一键重练：列表按最近错的排，打开的就是最后错的那道；答对该把它放走
+  const latest = [...book].sort((a, b) => (b.lastAt ?? 0) - (a.lastAt ?? 0))[0]
+  await page.evaluate(() => document.querySelector('[data-wrong-retry-first]').click())
+  await sleep(400)
+  const solved = await page.evaluate((answer) => {
+    const opt = [...document.querySelectorAll('.wb-opt')].find(
+      (b) => Number(b.innerText) === answer && !b.disabled,
+    )
+    if (!opt) return false
+    opt.click()
+    return true
+  }, latest.answer)
+  if (!solved) throw new Error('重练面板里没有正确选项')
+  await sleep(600)
+  const cleared = await page.evaluate(
+    () => Object.keys(JSON.parse(localStorage.getItem('mathquest/progress') || '{}').wrongBook ?? {}).length,
+  )
+  if (cleared !== book.length - 1) {
+    throw new Error(`重练答对后错题应剩 ${book.length - 1} 道，实际 ${cleared}`)
+  }
+  const stillShown = await page.evaluate(() => document.querySelectorAll('.wb-item').length)
+  if (stillShown !== cleared) {
+    throw new Error(`筛选下的列表应剩 ${cleared} 条，实际 ${stillShown}`)
+  }
+
+  await page.evaluate(() => document.querySelector('[data-wrong-filter-clear]').click())
+  await sleep(400)
+  const unfiltered = await page.evaluate(() => ({
+    hash: location.hash,
+    filter: !!document.querySelector('[data-wrong-filter]'),
+  }))
+  if (unfiltered.hash.includes('wrong=')) throw new Error(`清筛选后地址仍是 ${unfiltered.hash}`)
+  if (unfiltered.filter) throw new Error('清了筛选，筛选条还在')
+
+  await page.evaluate(() => {
+    localStorage.removeItem('mathquest/settings')
+    localStorage.removeItem('mathquest/progress')
+  })
+  return (
+    `空错题本时 ${FOCUS} 落到日冒险专项（刷新不换题、不占打卡），` +
+    `「${planet.id}」落回星球 ${planet.href}；欠下 ${book.length} 道错题后同一条推荐改走` +
+    `错题重练，筛选列出 ${atBook.shown} 道、重练答对后剩 ${cleared} 道`
   )
 })
 
