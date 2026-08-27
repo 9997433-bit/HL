@@ -2,8 +2,10 @@
 
 The supported subset is one connectivity card per element block the solver
 formulates, plus the grid, material and property cards those need: ``GRID``,
-``CROD``, ``CBAR``, ``CQUAD4``, ``CTETRA``, ``CHEXA``, ``MAT1``, ``PSHELL``
-and ``PSOLID``.  Cards may be written in free field or in small fixed field
+``CROD``, ``CBAR``, ``CQUAD4``, ``CTETRA``, ``CHEXA``, ``MAT1``, ``PROD``,
+``PSHELL`` and ``PSOLID``.  ``RBE2`` and ``RBE3`` cards are preserved in
+``NeutralModel.meta`` for round-trip export.  Cards may be written in free
+field or in small fixed field
 and may run onto continuation lines; unsupported cards are skipped, together
 with their continuations.  ``GRID`` coordinates must use the basic coordinate
 system because coordinate-system cards are outside this subset.
@@ -52,8 +54,11 @@ _ELEMENT_CARDS: dict[str, tuple[ElementType, int]] = {
 #: can be checked this way.
 _HAS_FIXED_GRID_COUNT = frozenset({"CTETRA", "CHEXA"})
 
-_PROPERTY_CARDS = frozenset({"PSHELL", "PSOLID"})
-_SUPPORTED_CARDS = frozenset({"GRID", "MAT1"}) | set(_ELEMENT_CARDS) | _PROPERTY_CARDS
+_PROPERTY_CARDS = frozenset({"PSHELL", "PSOLID", "PROD"})
+_BULK_PRESERVE_CARDS = frozenset({"RBE2", "RBE3"})
+_SUPPORTED_CARDS = (
+    frozenset({"GRID", "MAT1"}) | set(_ELEMENT_CARDS) | _PROPERTY_CARDS | _BULK_PRESERVE_CARDS
+)
 
 #: Block order of the emitted connectivity, so two files that declare the same
 #: elements in a different order still produce identical models.
@@ -70,12 +75,13 @@ def read_bdf(source: str | PathLike[str] | TextIO) -> NeutralModel:
     """Read a minimal ASCII BDF model into a :class:`NeutralModel`.
 
     ``PSHELL`` and ``PSOLID`` land in ``properties``, the shell carrying its
-    thickness as ``t`` so :func:`~openfemlab.io.neutral_convert.to_model` binds
-    a ``CQUAD4`` at the thickness the file states.  The property ids of the
-    other cards are still retained in ``element_property_ids``, but their
-    definitions are absent: a rod's section comes from ``PROD`` and a bar's
-    from ``PBAR``, both outside this reader's subset, so a ``CROD`` or ``CBAR``
-    mesh needs ``section=`` when it is converted.
+    ``t`` thickness so :func:`~openfemlab.io.neutral_convert.to_model` binds a
+    ``CQUAD4`` at the thickness the file states.  ``PROD`` rod sections are also
+    imported into ``properties`` with an ``A`` entry.  ``RBE2`` and ``RBE3`` rigid
+    links are preserved in ``meta["bdf_preserve"]`` for lossless round-trip even
+    though they are not yet expanded into solver constraints.  Other property cards
+    such as ``PBAR`` remain outside this reader's subset, so a ``CBAR`` mesh needs
+    ``section=`` when it is converted.
     """
 
     text, source_name = _read_text(source)
@@ -86,6 +92,7 @@ def read_bdf(source: str | PathLike[str] | TextIO) -> NeutralModel:
     element_cards: dict[int, str] = {}
     materials: dict[int, NeutralMaterial] = {}
     properties: dict[int, NeutralProperty] = {}
+    bulk_preserve: list[list[str]] = []
 
     for line_number, fields in _iter_cards(text):
         card = fields[0].upper()
@@ -121,15 +128,24 @@ def read_bdf(source: str | PathLike[str] | TextIO) -> NeutralModel:
                 property_ids.setdefault(element_type, []).append(property_id)
                 element_ids.setdefault(element_type, []).append(element_id)
             elif card in _PROPERTY_CARDS:
-                property_ = _parse_pshell(fields) if card == "PSHELL" else _parse_psolid(fields)
+                if card == "PSHELL":
+                    property_ = _parse_pshell(fields)
+                elif card == "PSOLID":
+                    property_ = _parse_psolid(fields)
+                else:
+                    property_ = _parse_prod(fields)
                 if property_.id in properties:
                     raise FormatError(f"duplicate property id {property_.id}")
                 properties[property_.id] = property_
-            else:
+            elif card in _BULK_PRESERVE_CARDS:
+                bulk_preserve.append(fields)
+            elif card == "MAT1":
                 material = _parse_mat1(fields)
                 if material.id in materials:
                     raise FormatError(f"duplicate MAT1 id {material.id}")
                 materials[material.id] = material
+            else:
+                raise FormatError(f"unsupported card {card!r}")
         except FormatError as exc:
             raise FormatError(
                 f"invalid BDF {card} card on line {line_number}: {exc}"
@@ -166,6 +182,8 @@ def read_bdf(source: str | PathLike[str] | TextIO) -> NeutralModel:
     }
     if source_name is not None:
         meta["source"] = source_name
+    if bulk_preserve:
+        meta["bdf_preserve"] = bulk_preserve
     return NeutralModel(
         nodes=node_coordinates,
         node_ids=node_ids,
@@ -352,6 +370,20 @@ def _parse_psolid(fields: list[str]) -> NeutralProperty:
     return NeutralProperty(id=property_id, material_id=material_id, name="PSOLID")
 
 
+def _parse_prod(fields: list[str]) -> NeutralProperty:
+    property_id = _positive_integer(_required(fields, 1, "PID"), "PROD PID")
+    material_id = _positive_integer(_required(fields, 2, "MID"), "PROD MID")
+    area = _float(_required(fields, 3, "A"), "PROD A")
+    if area <= 0.0:
+        raise FormatError("PROD A must be positive")
+    return NeutralProperty(
+        id=property_id,
+        material_id=material_id,
+        values={"A": area},
+        name="PROD",
+    )
+
+
 def _parse_mat1(fields: list[str]) -> NeutralMaterial:
     material_id = _positive_integer(_required(fields, 1, "MID"), "MAT1 MID")
     youngs_modulus = _optional_float(fields, 2, "MAT1 E")
@@ -460,6 +492,14 @@ def write_bdf(
         thickness_scale = (
             1.0 if property_scales is None else float(property_scales.get(property_id, 1.0))
         )
+        if property_.name == "PROD":
+            area = property_.values.get("A")
+            if area is None:
+                continue
+            lines.append(
+                f"PROD,{property_id},{property_.material_id},{area:g}"
+            )
+            continue
         thickness = property_.values.get("t")
         if thickness is not None:
             lines.append(
@@ -467,6 +507,8 @@ def write_bdf(
             )
         else:
             lines.append(f"PSOLID,{property_id},{property_.material_id}")
+    for fields in model.meta.get("bdf_preserve", ()):
+        lines.append(",".join(str(field) for field in fields))
     for index, node_id in enumerate(model.node_ids):
         x, y, z = model.nodes[index]
         lines.append(f"GRID,{int(node_id)},,{x:g},{y:g},{z:g}")

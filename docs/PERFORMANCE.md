@@ -55,6 +55,27 @@ pip install 'openfemlab[cli]'     # Rich 彩色输出
 openfemlab bench modal --sizes 100,1000,5000 --repeats 3
 ```
 
+## 50k-DOF sparse modal benchmark
+
+AC-PERF-001 is enforced in `tests/acceptance/test_performance.py`: a
+procedurally generated **50,000-DOF** chain extracts six modes without ever
+materialising a full dense operator, and finishes within **120 s** on CI
+hardware.
+
+Reproduce locally (pin BLAS threads for comparable timings):
+
+```bash
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 \
+  python -m pytest tests/acceptance/test_performance.py::test_ac_perf_001_50k_sparse_modal_solve_never_densifies -q
+
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 \
+  openfemlab bench modal --sizes 100,1000,5000,50000 --repeats 3
+```
+
+The acceptance test uses a fixed sparse pattern; the bench CLI reports wall
+time vs DOF count for regression tracking.  Record Python, NumPy/SciPy, BLAS,
+CPU, and thread settings when publishing numbers.
+
 ## 修正重分析
 
 `ScalingModel` 在参数仅缩放刚度/质量块时：

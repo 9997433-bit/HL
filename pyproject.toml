@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "openfemlab"
-version = "0.1.0"
+version = "0.2.0b1"
 description = "Open-source, solver-independent CAE platform for modal analysis, FE-test correlation, and sensitivity-based model updating (FEMtools-inspired)."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -19,7 +19,7 @@ keywords = [
     "CAE",
 ]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",

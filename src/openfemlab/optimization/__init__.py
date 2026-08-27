@@ -37,6 +37,12 @@ from .backends import (
     get_backend,
     kkt_residual,
 )
+from .doe import (
+    DesignOfExperimentsResult,
+    factorial_design_vectors,
+    run_factorial_screen,
+    run_lhs_screen,
+)
 from .gradients import (
     GradientCheck,
     MatrixDerivativeProvider,
@@ -68,6 +74,7 @@ from .sizing import (
 from .variables import DesignSpace, ShapeVariable
 
 __all__ = [
+    "DesignOfExperimentsResult",
     "Constraint",
     "DesignSpace",
     "DesignState",
@@ -88,9 +95,12 @@ __all__ = [
     "available_backends",
     "check_gradient",
     "compile_sizing_problem",
+    "factorial_design_vectors",
     "finite_difference_gradient",
     "frequency_floor",
     "get_backend",
+    "run_factorial_screen",
+    "run_lhs_screen",
     "kkt_residual",
     "minimize_sizing",
     "modal_frequency_gradients",

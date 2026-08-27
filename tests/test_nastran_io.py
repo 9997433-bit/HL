@@ -77,7 +77,6 @@ def test_unsupported_cards_are_ignored() -> None:
             """BEGIN BULK
 PARAM,POST,-1
 GRID,1,,1.,2.,3.
-PROD,4,9,0.005
 ENDDATA
 """
         )
@@ -86,6 +85,43 @@ ENDDATA
     assert model.n_nodes == 1
     assert model.n_elements == 0
     assert model.materials == {}
+
+
+def test_prod_property_is_imported() -> None:
+    model = read_bdf(
+        StringIO(
+            """BEGIN BULK
+MAT1,9,2.0+11,,0.3,7800.
+PROD,4,9,0.005
+GRID,1,,0.,0.,0.
+GRID,2,,1.,0.,0.
+CROD,10,4,1,2
+ENDDATA
+"""
+        )
+    )
+    assert model.properties[4].values["A"] == pytest.approx(0.005)
+    assert model.properties[4].material_id == 9
+
+
+def test_rbe2_cards_are_preserved_for_round_trip(tmp_path: Path) -> None:
+    from openfemlab.io.nastran import write_bdf
+
+    source = StringIO(
+        """BEGIN BULK
+GRID,1,,0.,0.,0.
+GRID,2,,1.,0.,0.
+GRID,3,,2.,0.,0.
+RBE2,100,1,123456,2,3
+ENDDATA
+"""
+    )
+    model = read_bdf(source)
+    assert model.meta["bdf_preserve"] == [["RBE2", "100", "1", "123456", "2", "3"]]
+    path = tmp_path / "with_rbe.bdf"
+    write_bdf(model, path)
+    recovered = read_bdf(path)
+    assert recovered.meta.get("bdf_preserve") == model.meta["bdf_preserve"]
 
 
 def test_crod_rejects_unknown_grid_reference() -> None:

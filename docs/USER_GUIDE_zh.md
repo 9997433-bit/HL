@@ -6,7 +6,8 @@ FE/试验相关性分析（correlation）与基于灵敏度的模型修正（mod
 相关 → 修正 → 验证），但采用 MIT 许可证、纯 Python 实现，并为 CI 自动化设计了
 机器可读的报告与退出码。
 
-> 项目目前处于 alpha 阶段，API 与交换格式在首个稳定版之前可能变化。
+> 项目目前处于 **beta** 阶段（`0.2.0b1`）。`0.2.x` 内核心工作流 schema 与 CLI
+> 闸门行为视为稳定；详见 [`STABILITY.md`](STABILITY.md) 与 [`MIGRATION.md`](MIGRATION.md)。
 
 ## 1. OpenFEMLab 与 FEMtools 对照
 
@@ -548,7 +549,43 @@ python examples/06_bdf_op2_industrial_loop.py
 3. 对 detuned twin 做相关与 `update_model`，再用 `write_bdf(material_scales=...)` 导出更新后的 MAT1。
 4. （可选）设置 `OPENFEMLAB_NASTRAN_EXE`（或 `NASTRAN_EXE` / `NASTRAN`）调用外部
    Nastran；未找到可执行文件时 `run_nastran` 抛出类型化的 `FormatError`（AC-IO-015）。
-   见 `openfemlab.io.drivers.nastran`。
+   见 `openfemlab.io.drivers.nastran` 与 `examples/07_external_nastran_loop.py`。
+
+BDF 子集在 Round 9 扩展：**`PROD`** 杆截面导入、`RBE2`/`RBE3` 保真 round-trip
+（存入 `meta["bdf_preserve"]`，尚未装配进求解器约束）。
+
+### 11.2 向导菜单（pipeline / SDM）
+
+`openfemlab wizard` 在 beta 中新增：
+
+| 选项 | 命令 |
+|------|------|
+| 8 — 六阶段修正流水线 | `openfemlab pipeline run <config.yaml> --strict` |
+| 9 — SDM 刚度弹簧扫描 | `openfemlab sdm scan <model.yaml>` |
+
+### 11.3 SSI 运行模态（输出-only）
+
+```bash
+python examples/08_ssi_oma.py
+```
+
+`openfemlab.mpe.ssi_cov` 对合成环境振动记录做 SSI-COV 辨识（AC-MPE-006/007）。
+与 LSCF 不同，SSI 不需要已知激励，适合桥梁/建筑 ambient 监测场景。
+
+### 11.4 DOE 筛选 → 优化设计空间
+
+```bash
+python examples/09_doe_sizing_screen.py
+```
+
+`openfemlab.optimization.run_factorial_screen` 将 `uq.doe` 全因子网格映射为
+`DesignSpace` 设计向量，筛选结果可直接接入 `minimize_sizing`。
+
+### 11.5 Web 查看器动画
+
+`openfemlab serve --file report.json --open`（或 `--desktop`）打开的结果查看器
+提供 **「动画」** 复选框：对当前模态振型做客户端正弦相位调制，便于演示而不
+改变 JSON 报告内容。实现见 `openfemlab/dashboard/static/index.html`。
 
 本地 Web 查看器支持 `openfemlab serve --desktop`（需 `pip install pywebview`）。
 
@@ -558,4 +595,6 @@ python examples/06_bdf_op2_industrial_loop.py
 - [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) —— 模块边界与数据流
 - [`docs/MODULE_SPEC.md`](MODULE_SPEC.md) —— 各模块的行为规格
 - [`docs/SOTA_GAP_ANALYSIS.md`](SOTA_GAP_ANALYSIS.md) —— 与 FEMtools 及 2026 SOTA 的差距分析
+- [`docs/STABILITY.md`](STABILITY.md) —— Beta 稳定性政策
+- [`docs/MIGRATION.md`](MIGRATION.md) —— 0.1 alpha → 0.2 beta 迁移
 - `examples/01_cantilever_modal.py`、`examples/02_model_updating_workflow.py` —— 可运行示例

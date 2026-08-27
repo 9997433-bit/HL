@@ -22,7 +22,9 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "opt5": "Build an HTML report from a JSON artifact",
         "opt6": "Open the Web results dashboard (serve)",
         "opt7": "Initialize a CAE project workspace",
-        "opt8": "Show command cheat sheet",
+        "opt8": "Run the six-stage correction pipeline",
+        "opt9": "SDM stiffness spring scan",
+        "opt10": "Show command cheat sheet",
         "opt0": "Exit",
         "goodbye": "Goodbye.",
         "choice": "Choice",
@@ -35,6 +37,8 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "report_json": "Report JSON path",
         "html_out": "HTML output path",
         "project_dir": "Project directory [.]",
+        "pipeline_config": "Pipeline configuration path",
+        "sdm_model": "Model spec for SDM scan",
         "running": "Running: openfemlab {}",
         "unknown": "Unknown choice: {choice!r}",
         "cheat_heading": "CLI cheat sheet",
@@ -49,7 +53,9 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "opt5": "由 JSON 生成 HTML 报告",
         "opt6": "打开 Web 结果查看器（serve）",
         "opt7": "初始化 CAE 项目工作区",
-        "opt8": "命令速查表",
+        "opt8": "六阶段修正流水线（pipeline）",
+        "opt9": "SDM 刚度弹簧扫描",
+        "opt10": "命令速查表",
         "opt0": "退出",
         "goodbye": "再见。",
         "choice": "选项",
@@ -62,6 +68,8 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "report_json": "报告 JSON 路径",
         "html_out": "HTML 输出路径",
         "project_dir": "项目目录 [.]",
+        "pipeline_config": "流水线配置路径",
+        "sdm_model": "SDM 扫描模型规格",
         "running": "正在运行: openfemlab {}",
         "unknown": "未知选项: {choice!r}",
         "cheat_heading": "命令速查",
@@ -77,6 +85,8 @@ _CHEAT_SHEET = [
     "openfemlab report report.json -o report.html --open",
     "openfemlab serve --root . --file reports/corr.json --open",
     "openfemlab update updating.yaml -o model.updated.yaml",
+    "openfemlab pipeline run pipeline.yaml --strict",
+    "openfemlab sdm scan model.yaml",
     "openfemlab correlate-frf measured.unv model.yaml",
     "openfemlab info",
     "pip install 'openfemlab[cli,plot,io]'",
@@ -125,6 +135,8 @@ def run(args: argparse.Namespace, reporter: Reporter) -> int:
         reporter.line(f"  6  {msg['opt6']}")
         reporter.line(f"  7  {msg['opt7']}")
         reporter.line(f"  8  {msg['opt8']}")
+        reporter.line(f"  9  {msg['opt9']}")
+        reporter.line(f" 10  {msg['opt10']}")
         reporter.line(f"  0  {msg['opt0']}")
         choice = _prompt(msg["choice"], reporter)
 
@@ -174,6 +186,16 @@ def run(args: argparse.Namespace, reporter: Reporter) -> int:
             directory = _prompt(msg["project_dir"], reporter) or "."
             return _delegate(["project", "init", directory], reporter, msg)
         if choice == "8":
+            config = _prompt(msg["pipeline_config"], reporter)
+            if not config:
+                continue
+            return _delegate(["pipeline", "run", config, "--strict"], reporter, msg)
+        if choice == "9":
+            model = _prompt(msg["sdm_model"], reporter)
+            if not model:
+                continue
+            return _delegate(["sdm", "scan", model], reporter, msg)
+        if choice == "10":
             _cheat_sheet(reporter, msg)
             continue
         reporter.warning(msg["unknown"].format(choice=choice))

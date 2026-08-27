@@ -1,3 +1,43 @@
+# OpenFEMLab vs FEMtools — SOTA Gap Analysis (Round 9 refresh)
+
+**Auditor:** Cloud Agent · **Date:** 2026-08-27 UTC  
+**Snapshot:** branch `cursor/round9-product-hardening-7aa3`, release **`0.2.0b1`**  
+**Registry:** **104/104** acceptance criteria `verified` (Round 8 Wave 4 promotion)  
+**Companion documents:** `ARCHITECTURE.md`, `MODULE_SPEC.md`, `ACCEPTANCE_CRITERIA.md`,
+`STABILITY.md`, `MIGRATION.md`.
+
+---
+
+## Round 9 executive summary
+
+OpenFEMLab now ships a **beta-grade** FEMtools-style workflow: model import,
+modal analysis, correlation, updating, optimization screening, MPE (LSCF + SSI-COV),
+pretest, pipeline automation, and industrial BDF/OP2 interchange.  Remaining gaps
+are intentional (DAQ hardware, ARTeMIS) or explicitly deferred (RBE rigid links in
+the solver, full external solver parity).
+
+| Priority | Theme | Round 9 outcome |
+|----------|-------|-----------------|
+| P0 | Trust to deploy | `STABILITY.md`, `MIGRATION.md`, version `0.2.0b1`, README beta |
+| P1 | Industrial I/O | `PROD`/`RBE2`/`RBE3` BDF, external Nastran driver example, OP2 corpus docs |
+| P2 | Product UX | `wizard` pipeline/SDM menus, 50k bench documentation, beta classifiers |
+| P3 | Differentiation | SSI/OMA example, DOE→optimization bridge, dashboard animation docs |
+
+### Gap register — current status (selected)
+
+| ID | Was | Now |
+|----|-----|-----|
+| GAP-01 | Dual model contracts | **Closed** — `neutral_to_model` + rich `Model` for analysis |
+| GAP-03 | No UFF/BDF | **Closed** — UFF-55/58, BDF subset + OP2 reader (AC-IO-001..016) |
+| GAP-06 | No MPE | **Closed (FRF + OMA)** — LSCF + SSI-COV (AC-MPE-001..008) |
+| GAP-07/08 | No pretest / SEREP | **Closed** — pretest EI/MKE, Guyan/IRS/SEREP (AC-PRETEST, AC-CORR) |
+| GAP-13 | 50k scale | **Closed** — AC-PERF-001 verified; see `PERFORMANCE.md` |
+| GAP-15 | No plotting / dashboard | **Closed** — Matplotlib helpers + Web dashboard (AC-WORK-007) |
+| — | RBE in solver | **Partial** — BDF preserve only; not assembled as constraints |
+| — | External Nastran OP2 loop | **Partial** — driver + synthetic OP2 CI; licence-local batch optional |
+
+---
+
 # OpenFEMLab vs FEMtools — SOTA Gap Analysis (Round 1 Audit)
 
 **Auditor:** A03 (backfill) · **Date:** 2026-08-26 07:08 UTC

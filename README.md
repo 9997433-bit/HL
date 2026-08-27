@@ -4,8 +4,9 @@ OpenFEMLab is an open-source, solver-independent Python toolkit for structural
 dynamics. It connects finite-element modal analysis, FE/test correlation, and
 sensitivity-based model updating in a reproducible CAE workflow.
 
-The project is currently alpha software. Its APIs and interchange schemas may
-change before the first stable release.
+The project is **beta** software (`0.2.0b1`).  Core workflow schemas and CLI
+gate behaviour are stable within the `0.2.x` line; see
+[`docs/STABILITY.md`](docs/STABILITY.md) and [`docs/MIGRATION.md`](docs/MIGRATION.md).
 
 ## Features
 
@@ -58,8 +59,9 @@ change before the first stable release.
 - Read support for ASCII UFF/UNV dataset 55 mode shapes and dataset 58
   functions/FRFs.
 - A dependency-free Nastran BDF reader for the supported `GRID`, `CROD`,
-  `CBAR`, `CQUAD4`, `CTETRA`, `CHEXA`, `MAT1`, `PSHELL` and `PSOLID` subset in
-  free-field and small fixed-field form, continuation lines included.
+  `CBAR`, `CQUAD4`, `CTETRA`, `CHEXA`, `MAT1`, `PROD`, `PSHELL` and `PSOLID`
+  subset in free-field and small fixed-field form, continuation lines included.
+  `RBE2`/`RBE3` cards round-trip via preserved bulk data.
 - A `meshio` bridge (optional `[io]` extra) converting mesh files to and from
   the neutral model for the `vertex`/`line`/`triangle`/`quad`/`tetra`/
   `hexahedron` cell types.
@@ -96,6 +98,16 @@ from openfemlab.io import read_meshio, write_meshio
 model = read_meshio("bracket.msh")
 write_meshio(model, "bracket.vtu")
 ```
+
+[`examples/06_bdf_op2_industrial_loop.py`](examples/06_bdf_op2_industrial_loop.py)
+demonstrates the BDF → OP2 → correlate → update → export loop.
+[`examples/07_external_nastran_loop.py`](examples/07_external_nastran_loop.py)
+optionally invokes an external Nastran binary when
+`OPENFEMLAB_NASTRAN_EXE` is set.
+[`examples/08_ssi_oma.py`](examples/08_ssi_oma.py) and
+[`examples/09_doe_sizing_screen.py`](examples/09_doe_sizing_screen.py) cover
+SSI-COV operational modal analysis and DOE screening into the optimization
+design space.
 
 [`examples/04_imported_shell_modal.py`](examples/04_imported_shell_modal.py)
 shows the complete analysis path for a QUAD4 plate:
