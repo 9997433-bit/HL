@@ -524,12 +524,27 @@ def _verify_accessibility(_tmp_path: Path) -> None:
     # assistive-technology session, so it cannot count a platform as passed.
     assert proxy["live_screen_reader_session"] is False
     assert proxy["screen_reader_platforms_passed"] == 0
-    # Only a live NVDA/VoiceOver/Orca walkthrough (the round3 direct report)
-    # closes the item; until it exists D4 stays an xfail with the proxy on
-    # the record.
+    # tools/accessibility_walkthrough.py closes the item with a live session:
+    # Orca attached to the real MainWindow over a dedicated AT-SPI bus, a
+    # pyatspi client verified the inventory names on the bus, and Orca's
+    # debug log had to contain a spoken utterance naming every focusable
+    # control.  NVDA and VoiceOver were not run and must say so.
     report = _load_json(REPOSITORY_ROOT / ".agent_workspace/round3/accessibility-report.json")
     assert report["wcag_2_2_aa"] == "pass"
     assert report["screen_reader_platforms_passed"] >= 1
+    assert report["checks"] and all(report["checks"].values())
+    passed = [entry for entry in report["platforms"] if entry["status"] == "pass"]
+    assert len(passed) == report["screen_reader_platforms_passed"]
+    assert all(entry["session"] == "live" for entry in passed)
+    unrun = [entry for entry in report["platforms"] if entry["status"] != "pass"]
+    assert all(entry["status"] == "not-run" for entry in unrun)
+    orca = next(entry for entry in passed if entry["screen_reader"] == "orca")
+    evidence = orca["evidence"]
+    assert len(evidence["inventory"]) >= 15
+    assert all(entry["published_on_bus"] for entry in evidence["inventory"])
+    assert evidence["focusable_controls"] and evidence["orca_speech_lines_captured"] > 0
+    spoken = "\n".join(evidence["orca_speech_samples"])
+    assert all(name in spoken for name in evidence["focusable_controls"])
 
 
 def _verify_ui_scaling(_tmp_path: Path) -> None:
@@ -706,9 +721,6 @@ CHECKLIST_CASES = (
         "P1",
         "WCAG AA, color-safe map, screen reader",
         _verify_accessibility,
-        "palette, colormap, and the headless accessible-name/role proxy pass "
-        "(.agent_workspace/v1.0/screen-reader-evidence.json); a live "
-        "NVDA/VoiceOver/Orca session is still missing",
     ),
     ChecklistCase("D5", "P1", "UI scaling from 100% to 200%", _verify_ui_scaling),
     ChecklistCase("E1", "P0", "Three-platform CI gates", _verify_three_platform_ci),
