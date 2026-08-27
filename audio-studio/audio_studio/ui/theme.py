@@ -30,6 +30,7 @@ SC 1.4.3 *Contrast (Minimum)*:
 | `text_dim`   | `waveform_bg` |  6.87  | time-ruler and lane annotations      |
 | `text_dim`   | `meter_bg`    |  7.18  | meter scale legend                   |
 | `accent`     | `meter_bg`    |  7.54  | the 22 px timecode readout           |
+| `meter_bg`   | `meter_high`  |  5.10  | the CLIP label on a lit clip strip   |
 
 Pairs that carry **graphics and control boundaries** must reach 3:1,
 SC 1.4.11 *Non-text Contrast*:
@@ -156,6 +157,7 @@ TEXT_PAIRS: tuple[tuple[str, str], ...] = (
     ("text_dim", "waveform_bg"),
     ("text_dim", "meter_bg"),
     ("accent", "meter_bg"),
+    ("meter_bg", "meter_high"),
 )
 
 #: Ink and control boundaries that must stay legible; 3:1 (SC 1.4.11).

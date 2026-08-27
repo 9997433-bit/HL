@@ -28,6 +28,7 @@ from audio_studio.app import (
 from audio_studio.core.engine import AudioEngine
 from audio_studio.core.output import NullOutput
 from audio_studio.ui import theme
+from audio_studio.ui.level_meter import LevelMeter
 from audio_studio.ui.main_window import MainWindow, strip_mnemonic
 from audio_studio.ui.theme import (
     GRAPHIC_PAIRS,
@@ -172,6 +173,42 @@ def _menu_actions(window: MainWindow) -> list:
                 continue
             seen.setdefault(id(act), act)
     return list(seen.values())
+
+
+class TestStateIsNotColourAlone:
+    """SC 1.4.1: red on its own does not tell a user the output clipped."""
+
+    def test_the_clip_strip_gains_a_word_when_it_lights_up(self, qapp) -> None:
+        meter = LevelMeter(channels=2)
+        assert meter.clip_indicator_text() == ""
+
+        meter.update_levels((1.0, 1.0))
+
+        assert meter.clipped
+        assert meter.clip_indicator_text() == "CLIP"
+
+    def test_the_accessible_description_follows_the_indicator(self, qapp) -> None:
+        meter = LevelMeter(channels=2)
+        assert "no clipping" in meter.accessibleDescription()
+
+        meter.update_levels((1.0, 1.0))
+        assert "clipped" in meter.accessibleDescription()
+
+        meter.reset()
+        assert "no clipping" in meter.accessibleDescription()
+        assert meter.accessibleName() == "Output level meter"
+
+    def test_a_clipped_meter_still_paints(self, qapp) -> None:
+        from PySide6.QtGui import QPixmap
+
+        meter = LevelMeter(channels=2)
+        meter.resize(60, 200)
+        meter.update_levels((1.0, 1.0))
+
+        target = QPixmap(meter.size())
+        meter.render(target)
+
+        assert not target.isNull()
 
 
 class TestKeyboardReach:

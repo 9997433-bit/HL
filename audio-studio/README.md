@@ -571,8 +571,10 @@ secondary labels clear 4.5:1 on every surface they appear on, and the
 selection fill was split in two — a selected menu row is now full-strength
 accent with an inverted near-black label (6.77:1), while the darker
 `accent_dim` fills pressed and checked buttons *under* unchanged body text
-(4.99:1). Colour is never the only channel for state: recording, clipping and
-bypass each carry a glyph or a text label as well (SC 1.4.1).
+(4.99:1). Colour is never the only channel for state (SC 1.4.1): the meter's
+clip strip paints the word `CLIP` when it lights up and says so in its
+accessible description, recording carries a `●` glyph and an elapsed-time
+readout, and a bypassed rack reads `FX bypassed` in the status bar.
 
 Known deviation: the chrome fills themselves (window → panel → control)
 differ by roughly 1.2:1. Depth is carried by luminance ordering, which is why
