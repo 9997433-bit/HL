@@ -4,25 +4,56 @@
  *
  * 题目由日期决定（见 data/daily.js），刷新页面不会换题；
  * 完成情况写在 progress.dailyQuest 上，首页的 CTA 直接读它。
+ *
+ * 还有一种进法：技能图谱的推荐位带着 `?focus=<技能点>` 跳进来，这时出的是
+ * 只练那一个技能的**专项冒险**，题目同样由「日期 + 技能」定死，刷新不换题。
+ * 专项冒险不算今天的打卡——打卡认的是那份覆盖五类题的常规冒险，
+ * 拿一份自己挑难度的专项题去顶，连续天数就不再是同一回事了。
  */
-import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import MascotBot from '@/components/MascotBot.vue'
 import QuizShell from '@/components/QuizShell.vue'
 import { useMascotCoach } from '@/composables/useMascotCoach.js'
 import { useProgressStore } from '@/stores/progress.js'
 import { COMPARE_NAME } from '@/data/compare.js'
-import { buildDailyQuestions, DAILY_PERFECT_BONUS, dailyDateKey } from '@/data/daily.js'
+import {
+  buildDailyQuestions,
+  buildFocusDailyQuestions,
+  canDailyFocus,
+  DAILY_PERFECT_BONUS,
+  dailyDateKey,
+} from '@/data/daily.js'
+import { SKILL_MAP } from '@/data/curriculum.js'
 
 const MODULE_ID = 'daily'
 
+const route = useRoute()
 const router = useRouter()
 const progress = useProgressStore()
 
 const dateKey = dailyDateKey()
-const questions = ref(buildDailyQuestions(dateKey))
+/** 认不出的技能点当没传：宁可回到常规冒险，也不要给孩子一页空题。 */
+const focusSkill = computed(() => {
+  const id = String(route.query.focus ?? '')
+  return canDailyFocus(id) ? id : ''
+})
+const focusName = computed(() => SKILL_MAP[focusSkill.value]?.name ?? '')
+
+const buildQuestions = () =>
+  focusSkill.value
+    ? buildFocusDailyQuestions({ skill: focusSkill.value, dateKey })
+    : buildDailyQuestions(dateKey)
+
 const inputMode = ref('choice')
 const finished = ref(false)
+const questions = ref(buildQuestions())
+
+// 从一条推荐直接换到另一条时路由不重建组件，题目得跟着 focus 换
+watch(focusSkill, () => {
+  finished.value = false
+  questions.value = buildQuestions()
+})
 
 /**
  * 小算在答题时也陪着：答题壳里那只机器人换成可点触的陪跑形态，
@@ -41,11 +72,14 @@ const dateLabel = computed(() => dateKey.replaceAll('-', ' / '))
 onMounted(() => progress.startDailyQuest())
 
 function onGraded({ correct }) {
-  if (!finished.value) progress.recordDailyStep(correct)
+  if (focusSkill.value || finished.value) return
+  progress.recordDailyStep(correct)
 }
 
 function onFinished({ correct }) {
   finished.value = true
+  // 专项冒险的星星与掌握度照记（QuizShell 负责），但不动今天的打卡
+  if (focusSkill.value) return
   progress.finishDailyQuest({ correct })
 }
 </script>
@@ -56,20 +90,24 @@ function onFinished({ correct }) {
       ref="quiz"
       v-model:inputMode="inputMode"
       :module-id="MODULE_ID"
-      module-name="今日冒险"
+      :module-name="focusSkill ? `${focusName}专项` : '今日冒险'"
       :questions="questions"
       :allow-mode-toggle="false"
       :perfect-bonus="DAILY_PERFECT_BONUS"
       :hint-labels="['💡 提示', '💡 再提示（少 1⭐）']"
-      :prompts="[
-        '今天的 5 道题，慢慢来 🙂',
-        '做完就能点亮今天的打卡。',
-        '每天 5 题，坚持比做得快更重要。',
-      ]"
+      :prompts="
+        focusSkill
+          ? [
+              `这一轮只练${focusName}，慢慢来 🙂`,
+              '专攻一个点，比东练一题西练一题见效快。',
+              '做完再回图谱看看，这一点亮了几分。',
+            ]
+          : ['今天的 5 道题，慢慢来 🙂', '做完就能点亮今天的打卡。', '每天 5 题，坚持比做得快更重要。']
+      "
       @graded="onGraded"
       @finished="onFinished"
       @home="router.push('/')"
-      @replay="router.push('/')"
+      @replay="router.push(focusSkill ? '/skill-graph' : '/')"
     >
       <template #mascot="{ mood }">
         <MascotBot
@@ -83,9 +121,18 @@ function onFinished({ correct }) {
 
       <template #controls>
         <span class="chip">🗓️ {{ dateLabel }}</span>
-        <span class="chip">📋 今日 {{ quest.done }}/{{ quest.total }}</span>
-        <span v-if="quest.streak > 0" class="chip">🔥 连续 {{ quest.streak }} 天</span>
-        <span v-if="quest.completed" class="chip done">✅ 今天已完成</span>
+        <template v-if="focusSkill">
+          <span class="chip focus" :data-daily-focus="focusSkill">
+            🎯 {{ focusName }} 专项 {{ questions.length }} 题
+          </span>
+          <span class="chip dim-chip">专项练习不占今天的打卡</span>
+          <RouterLink class="btn btn--ghost btn--sm" to="/skill-graph">🧭 回技能图谱</RouterLink>
+        </template>
+        <template v-else>
+          <span class="chip">📋 今日 {{ quest.done }}/{{ quest.total }}</span>
+          <span v-if="quest.streak > 0" class="chip">🔥 连续 {{ quest.streak }} 天</span>
+          <span v-if="quest.completed" class="chip done">✅ 今天已完成</span>
+        </template>
       </template>
 
       <template #head-extra="{ question }">
@@ -145,6 +192,16 @@ function onFinished({ correct }) {
 .chip.done {
   color: var(--green);
   border-color: color-mix(in srgb, var(--green) 55%, transparent);
+}
+
+.chip.focus {
+  color: var(--cyan);
+  border-color: color-mix(in srgb, var(--cyan) 55%, transparent);
+}
+
+.chip.dim-chip {
+  color: var(--ink-soft);
+  font-size: 12px;
 }
 
 .chip.label {

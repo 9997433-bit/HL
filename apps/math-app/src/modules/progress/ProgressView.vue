@@ -1,6 +1,6 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, nextTick, onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import gsap from 'gsap'
 import MascotBot from '@/components/MascotBot.vue'
 import WrongBook from '@/components/WrongBook.vue'
@@ -14,9 +14,22 @@ import { sound } from '@/utils/sound'
 
 const AVATARS = ['🧑‍🚀', '👩‍🚀', '🤖', '👽', '🐱', '🦊', '🐼', '🦖']
 
+const route = useRoute()
 const router = useRouter()
 const progress = useProgressStore()
 const settings = useSettingsStore()
+
+/**
+ * 技能图谱的推荐位带着 `?wrong=<技能点>` 跳进来时，错题本只列这一个技能的题。
+ * 筛选只活在地址栏里，清掉就恢复全部，错题本本身一条都不动。
+ */
+const wrongSkill = computed(() => String(route.query.wrong ?? ''))
+
+function clearWrongSkill() {
+  const query = { ...route.query }
+  delete query.wrong
+  router.replace({ path: route.path, query })
+}
 const { burst, pop, wrong } = useFeedback()
 
 const filter = ref('all') // all | unlocked | locked
@@ -159,13 +172,18 @@ function exportReport() {
   URL.revokeObjectURL(url)
 }
 
-onMounted(() => {
+onMounted(async () => {
   gsap.fromTo(
     '.ach',
     { opacity: 0, scale: 0.8, y: 14 },
     { opacity: 1, scale: 1, y: 0, duration: 0.38, stagger: 0.035, ease: 'back.out(2)' },
   )
   gsap.fromTo('.ring-fill', { strokeDasharray: '0, 251' }, { strokeDasharray: ringDash.value, duration: 1.1, ease: 'power2.out' })
+
+  // 带着技能筛选进来的话，直接把错题本推到眼前——它排在成就墙下面很远的地方
+  if (!wrongSkill.value) return
+  await nextTick()
+  document.getElementById('wrong-book')?.scrollIntoView({ block: 'start', behavior: 'smooth' })
 })
 </script>
 
@@ -360,7 +378,7 @@ onMounted(() => {
     </section>
 
     <!-- 错题本 -->
-    <WrongBook />
+    <WrongBook :skill="wrongSkill" @clear-skill="clearWrongSkill" />
 
     <!-- 最近表现 -->
     <section v-if="spark" class="card">

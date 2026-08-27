@@ -20,16 +20,21 @@ const EQUAL_RATE = 0.25
 
 /**
  * 生成一道比大小题。
+ *
+ * floor 抬高的是取值下限：图谱推荐「20以内比大小」时，两个数都得真的过 10，
+ * 否则出出来的还是 10 以内的题，练的也就不是它。
+ *
  * @param {Function} rng createRng() 返回的随机流
- * @param {{ ceiling?: number, icons?: Array<{icon: string, name: string}> }} opts
+ * @param {{ ceiling?: number, floor?: number, icons?: Array<{icon: string, name: string}> }} opts
  */
-export function makeCompareQuestion(rng, { ceiling = 10, icons = [] } = {}) {
+export function makeCompareQuestion(rng, { ceiling = 10, floor = 1, icons = [] } = {}) {
+  const low = Math.max(1, Math.min(floor, ceiling - 1))
   const cargo = icons.length ? rng.sample(icons) : null
-  const left = rng.int(1, ceiling)
+  const left = rng.int(low, ceiling)
   let right = left
   if (!rng.chance(EQUAL_RATE)) {
     // 数值域至少有 2 个数，循环必定在几次内取到不同值；guard 只是兜底
-    for (let guard = 0; guard < 20 && right === left; guard++) right = rng.int(1, ceiling)
+    for (let guard = 0; guard < 20 && right === left; guard++) right = rng.int(low, ceiling)
     if (right === left) right = left === ceiling ? left - 1 : left + 1
   }
 
