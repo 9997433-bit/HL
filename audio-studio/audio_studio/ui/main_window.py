@@ -16,7 +16,7 @@ heard without touching the audio in memory.
 
 Analysis that costs real time — the spectrogram transform, the BS.1770
 integrated loudness — never runs on the Qt thread while the user waits.
-Loudness is measured on a worker and collected by the same 30 Hz tick that
+Loudness is measured on a worker and collected by the same 60 Hz tick that
 drives the playhead; the spectrogram is coalesced behind a short timer so that
 dragging a selection re-analyses once rather than on every mouse move.
 
@@ -130,8 +130,11 @@ from .theme import PALETTE, stylesheet
 from .track_panel import TrackPanel
 from .transport_bar import TransportBar
 
-#: UI refresh rate for the playhead and the meters.
-UI_REFRESH_MS: int = 33
+#: UI refresh period for the playhead and the meters: 16 ms, one 60 Hz frame.
+#: What makes 60 Hz affordable is that an ordinary tick repaints the playhead
+#: over a cached waveform pixmap rather than re-rendering the waveform itself.
+#: ``benchmarks/ui_frame_time_probe.py`` measures the tick against this budget.
+UI_REFRESH_MS: int = 16
 
 #: Delay before a changed selection is re-analysed, in milliseconds. Long
 #: enough that a drag produces one transform, short enough to feel immediate.
@@ -2225,7 +2228,7 @@ class MainWindow(QMainWindow):
         )
 
     def _on_tick(self) -> None:
-        """Poll the engine 30×/s: the audio threads never touch Qt objects."""
+        """Poll the engine 60×/s: the audio threads never touch Qt objects."""
         self._collect_loudness()
         if self.recorder.is_running:
             self.status_recording.setText(
