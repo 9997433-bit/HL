@@ -46,6 +46,45 @@ function tone({ freq = 440, duration = 0.16, type = 'sine', gain = 0.07, delay =
   osc.stop(start + duration + 0.02)
 }
 
+/**
+ * 连对音阶与数学 App 保持同一走向。第 7 档封顶，长连击不会无限升高。
+ * 每一档的收尾音严格递增，孩子不用看数字也能听出连对在累积。
+ */
+export const STREAK_CHORDS = [
+  [523.25, 659.25, 783.99],
+  [587.33, 739.99, 880],
+  [659.25, 830.61, 987.77],
+  [698.46, 880, 1046.5],
+  [783.99, 987.77, 1174.66],
+  [880, 1108.73, 1318.51],
+  [1046.5, 1318.51, 1567.98]
+]
+
+function streakIndex(streak = 1) {
+  const value = Number(streak)
+  const count = Number.isFinite(value) ? Math.floor(value) : 1
+  return Math.min(STREAK_CHORDS.length, Math.max(1, count)) - 1
+}
+
+/** 把任意 streak 值归一到安全音域，便于独立验证谱面。 */
+export function streakChord(streak = 1) {
+  return STREAK_CHORDS[streakIndex(streak)]
+}
+
+function playStreak(streak = 1) {
+  const index = streakIndex(streak)
+  const gap = 0.09 - index * 0.005
+  streakChord(streak).forEach((freq, noteIndex, notes) =>
+    tone({
+      freq,
+      duration: noteIndex === notes.length - 1 ? 0.22 : 0.14,
+      type: noteIndex % 2 ? 'sine' : 'triangle',
+      gain: noteIndex === notes.length - 1 ? 0.055 : 0.05,
+      delay: noteIndex * gap
+    })
+  )
+}
+
 export const sfx = {
   tap: () => tone({ freq: 520, duration: 0.07, type: 'triangle', gain: 0.045 }),
   page: () => {
@@ -55,11 +94,9 @@ export const sfx = {
   /** 每写完一笔的轻脆反馈，笔序越靠后音越高。 */
   stroke: (index = 0) =>
     tone({ freq: 480 + index * 40, duration: 0.08, type: 'sine', gain: 0.05 }),
-  correct: () => {
-    tone({ freq: 660, duration: 0.14 })
-    tone({ freq: 880, duration: 0.16, delay: 0.09 })
-    tone({ freq: 1180, duration: 0.22, delay: 0.18, gain: 0.055 })
-  },
+  correct: () => playStreak(1),
+  /** 连对越多音高越高、节拍越紧；供答题链路传入最新 streak。 */
+  streak: (count) => playStreak(count),
   wrong: () => {
     tone({ freq: 240, duration: 0.16, type: 'sawtooth', gain: 0.045 })
     tone({ freq: 175, duration: 0.22, type: 'sawtooth', gain: 0.045, delay: 0.09 })

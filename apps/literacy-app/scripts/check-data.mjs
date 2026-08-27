@@ -22,6 +22,7 @@ import { RADICALS, getRadical } from '../src/data/radicals.js'
 import { ETYMOLOGY, ETYMOLOGY_KINDS } from '../src/data/etymology.js'
 import { ETYMOLOGY_CHARS } from '../src/data/etymology-index.js'
 import { validateShape } from '../src/utils/etymologySketch.js'
+import { STREAK_CHORDS, streakChord } from '../src/utils/audio.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const baselineFile = path.resolve(here, '..', '..', '..', 'shared', 'data', 'common-hanzi.json')
@@ -284,6 +285,19 @@ const badExample = RADICALS.flatMap((r) =>
   (r.chars ?? []).filter((c) => !CHARACTERS.some((x) => x.char === c)).map((c) => `${r.name}:${c}`)
 )
 check(badExample.length === 0, `部首的「学过的字」示例都在字表里${badExample.length ? `（${badExample.join(', ')}）` : ''}`)
+
+/* ------------------------------------------------------------- 答对音效 */
+const streakEndings = STREAK_CHORDS.map((chord) => chord[chord.length - 1])
+check(
+  streakEndings.every((freq, index) => index === 0 || freq > streakEndings[index - 1]),
+  `连对音效 ${STREAK_CHORDS.length} 档收尾音逐级升高`
+)
+check(
+  streakChord(0) === STREAK_CHORDS[0] &&
+    streakChord(Number.NaN) === STREAK_CHORDS[0] &&
+    streakChord(999) === STREAK_CHORDS[STREAK_CHORDS.length - 1],
+  '连对音效把异常值与长连击限制在安全音域'
+)
 
 /* ----------------------------------------------------------------- 输出 */
 notes.forEach((n) => console.log(' ', n))

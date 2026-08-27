@@ -201,7 +201,8 @@ function grade(value, anchor) {
     })
     // 这道题原本欠在错题本里：答对就把它放出去，比多给一颗星更有成就感
     const redeemed = progress.clearWrong(keyOf(q))
-    fxCorrect(anchor)
+    // recordAnswer 已把本题计入 combo，音效因此能随连续答对逐级升高。
+    fxCorrect(anchor, { streak: progress.combo })
     burst(anchor, { count: 16 + Math.min(10, progress.combo * 2) })
     flyStar(anchor)
     mood.value = 'cheer'
