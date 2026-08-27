@@ -1,0 +1,116 @@
+{
+  "schema_version": 1,
+  "harness": "benchmarks/one_hour_file_perf.py",
+  "checklist_item": "B2",
+  "evidence": "direct-headless",
+  "formal_slo_verified": true,
+  "environment": {
+    "python": "3.12.3",
+    "platform": "Linux-6.12.94+-x86_64-with-glibc2.39",
+    "processor": "x86_64",
+    "qt_platform": "xcb",
+    "clock": "time.perf_counter"
+  },
+  "fixture": {
+    "path": "/tmp/one-hour-file-perf-qp16dfrs/one-hour-48k-stereo-pcm16.wav",
+    "duration_seconds": 3600.0,
+    "n_frames": 172800000,
+    "sample_rate": 48000,
+    "channels": 2,
+    "subtype": "PCM_16",
+    "content": "deterministic allocated dual-tone PCM",
+    "file_size_bytes": 691200044,
+    "allocated_bytes": 691204096,
+    "allocated_ratio": 1.000006,
+    "peak_sidecar_bytes": 27000175,
+    "setup_seconds_excluded_from_slos": 0.351201
+  },
+  "results": [
+    {
+      "slo_id": "waveform-open",
+      "title": "Open one-hour WAV and render waveform",
+      "status": "pass",
+      "threshold_pass": true,
+      "evidence": "direct-headless",
+      "formal_slo_verified": true,
+      "measured": {
+        "elapsed_seconds": 0.020635,
+        "source_frames": 172800000,
+        "cached_waveform_frames": 172800000,
+        "peak_cache_levels": 1,
+        "render_width_px": 1280,
+        "render_height_px": 480,
+        "waveform_peak": 0.23995972,
+        "headless_paint_completed": true
+      },
+      "threshold": {
+        "elapsed_seconds_max": 3.0
+      },
+      "scope": "Streaming open, peak-sidecar restore, 1280\u00d7480 headless Qt paint",
+      "limitation": "Headless Qt on a shared Linux host measures the complete software path, including paint, but excludes a physical display and monitor latency."
+    },
+    {
+      "slo_id": "spectrogram-first-frame",
+      "title": "Render first spectrogram viewport from one-hour WAV",
+      "status": "pass",
+      "threshold_pass": true,
+      "evidence": "direct-headless",
+      "formal_slo_verified": true,
+      "measured": {
+        "elapsed_seconds": 0.104282,
+        "source_frames": 172800000,
+        "viewport_frames": 1440000,
+        "viewport_seconds": 30.0,
+        "spectrogram_columns": 2813,
+        "render_width_px": 1280,
+        "render_height_px": 720,
+        "headless_paint_completed": true
+      },
+      "threshold": {
+        "elapsed_seconds_max": 2.0
+      },
+      "scope": "Read/analyze first 30s viewport and complete a 1280\u00d7720 headless Qt paint",
+      "limitation": "Headless Qt on a shared Linux host measures the complete software path, including paint, but excludes a physical display and monitor latency."
+    },
+    {
+      "slo_id": "offline-eq-normalize",
+      "title": "Offline EQ plus peak normalization over one-hour WAV",
+      "status": "pass",
+      "threshold_pass": true,
+      "evidence": "direct-headless",
+      "formal_slo_verified": true,
+      "measured": {
+        "elapsed_seconds": 5.048315,
+        "source_frames": 172800000,
+        "frames_eq_processed": 172800000,
+        "frames_normalized": 172800000,
+        "block_frames": 1048576,
+        "eq": {
+          "type": "ThreeBandEQ",
+          "low_gain_db": 1.5,
+          "mid_frequency_hz": 1800.0,
+          "mid_gain_db": -2.0,
+          "high_gain_db": 0.75
+        },
+        "normalize": {
+          "type": "NormalizeEffect",
+          "mode": "peak",
+          "target_dbfs": -1.0,
+          "applied_gain_db": 11.780697,
+          "output_peak_dbfs": -1.0
+        },
+        "output_checksum": 0.07327938
+      },
+      "threshold": {
+        "elapsed_seconds_max": 30.0
+      },
+      "scope": "Every frame through StreamingSampleSource + ThreeBandEQ, then the complete render through NormalizeEffect",
+      "limitation": "The full file is decoded and processed, but the benchmark discards the rendered float buffer instead of timing final container encoding."
+    }
+  ],
+  "summary": {
+    "passed": 3,
+    "failed": 0,
+    "formal_slos_verified": 3
+  }
+}

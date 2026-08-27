@@ -61,10 +61,12 @@ class TrackHeader(QWidget):
         self.mute_button.setCheckable(True)
         self.mute_button.setFixedSize(28, 24)
         self.mute_button.setToolTip("Mute")
+        self.mute_button.setAccessibleName("Mute track")
         self.solo_button = QPushButton("S")
         self.solo_button.setCheckable(True)
         self.solo_button.setFixedSize(28, 24)
         self.solo_button.setToolTip("Solo (single-track MVP: no-op)")
+        self.solo_button.setAccessibleName("Solo track")
         self.solo_button.setEnabled(False)
 
         buttons = QHBoxLayout()
@@ -111,6 +113,7 @@ class TrackPanel(QWidget):
 
     def __init__(self, parent: QWidget | None = None, palette: Palette = PALETTE) -> None:
         super().__init__(parent)
+        self.setAccessibleName("Waveform editor")
         self.header = TrackHeader(palette=palette)
         self.ruler = TimeRuler(palette=palette)
         self.waveform = WaveformView(palette=palette)

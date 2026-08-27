@@ -1,0 +1,323 @@
+{
+  "schema_version": 1,
+  "harness": "benchmarks/ui_frame_time_probe.py",
+  "checklist_item": "D1",
+  "evidence": "headless-offscreen",
+  "environment": {
+    "python": "3.12.3",
+    "platform": "Linux-6.12.94+-x86_64-with-glibc2.39",
+    "processor": "x86_64",
+    "qt_platform_plugin": "offscreen",
+    "pyside6": "6.11.2"
+  },
+  "config": {
+    "refresh_timer_ms": 16,
+    "frame_budget_ms": 16.667,
+    "p99_budget_ms": 16.0,
+    "viewport": [
+      1920,
+      1080
+    ],
+    "frames_per_repetition": 900,
+    "repetitions_per_scenario": 3,
+    "repetition_reported": "lowest p99 (timeit's minimum-is-least-contended rule)",
+    "warmup_frames": 180,
+    "clip_seconds": 60.0,
+    "sample_rate": 48000,
+    "scale_factors": [
+      1.0,
+      2.0
+    ]
+  },
+  "p99_frame_ms": 6.214,
+  "hidpi_2x": "pass",
+  "dark_theme_default": true,
+  "status": "pass",
+  "worst_case": {
+    "slo_id": "ui-frame-playhead-with-follow-scroll-2x",
+    "p99_ms": 6.214,
+    "max_ms": 16.047
+  },
+  "cpu_p99_frame_ms": 6.531,
+  "contention": {
+    "worst_p99_wall_ms": 6.214,
+    "worst_p99_cpu_ms": 6.531,
+    "wall_over_cpu": 0.951,
+    "peak_load_per_cpu": 0.248,
+    "host_was_busy": false
+  },
+  "hidpi": {
+    "status": "pass",
+    "checks": {
+      "logical_layout_unchanged": true,
+      "backing_store_doubled": true,
+      "widget_reports_ratio_2": true,
+      "pixmap_tagged_ratio_2": true,
+      "frame_budget_held_at_2x": true
+    },
+    "logical_size": [
+      1363,
+      611
+    ],
+    "device_size": [
+      2726,
+      1222
+    ],
+    "worst_p99_ms": 6.214
+  },
+  "theme": {
+    "status": "pass",
+    "checks": {
+      "styled_at_construction": true,
+      "wearing_the_default_palette": true,
+      "every_surface_is_dark": true,
+      "text_clears_wcag_aa_on_it": true
+    },
+    "surface_luminance": {
+      "window": 0.01222,
+      "surface": 0.01904,
+      "surface_alt": 0.02786,
+      "waveform_bg": 0.00847,
+      "meter_bg": 0.00593
+    },
+    "brightest_surface_luminance": 0.02786,
+    "text_on_window_contrast": 12.033
+  },
+  "runs": [
+    {
+      "scale_factor": 1.0,
+      "geometry": {
+        "window_logical": [
+          1920,
+          1080
+        ],
+        "waveform_logical": [
+          1363,
+          611
+        ],
+        "waveform_device": [
+          1363,
+          611
+        ],
+        "widget_device_pixel_ratio": 1.0,
+        "pixmap_device_pixel_ratio": 1.0
+      },
+      "refresh_timer_ms": 16,
+      "host_load": {
+        "available": true,
+        "cpu_count": 4,
+        "load_average": [
+          0.89,
+          0.89,
+          0.75
+        ],
+        "load_per_cpu": 0.223
+      }
+    },
+    {
+      "scale_factor": 2.0,
+      "geometry": {
+        "window_logical": [
+          1920,
+          1080
+        ],
+        "waveform_logical": [
+          1363,
+          611
+        ],
+        "waveform_device": [
+          2726,
+          1222
+        ],
+        "widget_device_pixel_ratio": 2.0,
+        "pixmap_device_pixel_ratio": 2.0
+      },
+      "refresh_timer_ms": 16,
+      "host_load": {
+        "available": true,
+        "cpu_count": 4,
+        "load_average": [
+          0.99,
+          0.92,
+          0.77
+        ],
+        "load_per_cpu": 0.248
+      }
+    }
+  ],
+  "results": [
+    {
+      "slo_id": "ui-frame-playhead-over-fitted-view-1x",
+      "title": "whole clip in view; the playhead animates over a cached waveform at 1\u00d7 device pixel ratio",
+      "status": "pass",
+      "evidence": "headless-offscreen",
+      "scale_factor": 1.0,
+      "measured": {
+        "frames": 900,
+        "mean_ms": 2.336,
+        "p50_ms": 2.321,
+        "p95_ms": 2.61,
+        "p99_ms": 2.738,
+        "max_ms": 3.06,
+        "over_budget_frames": 0,
+        "cpu_mean_ms": 2.604,
+        "cpu_p99_ms": 2.935,
+        "cpu_max_ms": 3.238,
+        "repeats": 3,
+        "repeat_p99_ms": [
+          2.82,
+          2.835,
+          2.738
+        ]
+      },
+      "threshold": {
+        "p99_ms_max": 16.0
+      }
+    },
+    {
+      "slo_id": "ui-frame-playhead-with-follow-scroll-1x",
+      "title": "2 s of audio in view with the view following playback, so the page flips and the waveform re-renders inside the run at 1\u00d7 device pixel ratio",
+      "status": "pass",
+      "evidence": "headless-offscreen",
+      "scale_factor": 1.0,
+      "measured": {
+        "frames": 900,
+        "mean_ms": 2.415,
+        "p50_ms": 2.342,
+        "p95_ms": 2.615,
+        "p99_ms": 3.055,
+        "max_ms": 11.185,
+        "over_budget_frames": 0,
+        "cpu_mean_ms": 2.674,
+        "cpu_p99_ms": 3.25,
+        "cpu_max_ms": 12.068,
+        "repeats": 3,
+        "repeat_p99_ms": [
+          3.135,
+          3.085,
+          3.055
+        ]
+      },
+      "threshold": {
+        "p99_ms_max": 16.0
+      }
+    },
+    {
+      "slo_id": "ui-frame-multitrack-workspace-1x",
+      "title": "the multitrack strips driving the playhead instead of the waveform view at 1\u00d7 device pixel ratio",
+      "status": "pass",
+      "evidence": "headless-offscreen",
+      "scale_factor": 1.0,
+      "measured": {
+        "frames": 900,
+        "mean_ms": 0.827,
+        "p50_ms": 0.804,
+        "p95_ms": 1.035,
+        "p99_ms": 1.096,
+        "max_ms": 1.333,
+        "over_budget_frames": 0,
+        "cpu_mean_ms": 1.066,
+        "cpu_p99_ms": 1.582,
+        "cpu_max_ms": 1.678,
+        "repeats": 3,
+        "repeat_p99_ms": [
+          1.096,
+          1.106,
+          1.115
+        ]
+      },
+      "threshold": {
+        "p99_ms_max": 16.0
+      }
+    },
+    {
+      "slo_id": "ui-frame-playhead-over-fitted-view-2x",
+      "title": "whole clip in view; the playhead animates over a cached waveform at 2\u00d7 device pixel ratio",
+      "status": "pass",
+      "evidence": "headless-offscreen",
+      "scale_factor": 2.0,
+      "measured": {
+        "frames": 900,
+        "mean_ms": 5.301,
+        "p50_ms": 5.295,
+        "p95_ms": 5.591,
+        "p99_ms": 5.934,
+        "max_ms": 6.437,
+        "over_budget_frames": 0,
+        "cpu_mean_ms": 5.767,
+        "cpu_p99_ms": 6.135,
+        "cpu_max_ms": 6.38,
+        "repeats": 3,
+        "repeat_p99_ms": [
+          5.934,
+          5.987,
+          6.097
+        ]
+      },
+      "threshold": {
+        "p99_ms_max": 16.0
+      }
+    },
+    {
+      "slo_id": "ui-frame-playhead-with-follow-scroll-2x",
+      "title": "2 s of audio in view with the view following playback, so the page flips and the waveform re-renders inside the run at 2\u00d7 device pixel ratio",
+      "status": "pass",
+      "evidence": "headless-offscreen",
+      "scale_factor": 2.0,
+      "measured": {
+        "frames": 900,
+        "mean_ms": 5.485,
+        "p50_ms": 5.34,
+        "p95_ms": 5.889,
+        "p99_ms": 6.214,
+        "max_ms": 16.047,
+        "over_budget_frames": 0,
+        "cpu_mean_ms": 5.956,
+        "cpu_p99_ms": 6.531,
+        "cpu_max_ms": 16.94,
+        "repeats": 3,
+        "repeat_p99_ms": [
+          6.214,
+          6.447,
+          6.41
+        ]
+      },
+      "threshold": {
+        "p99_ms_max": 16.0
+      }
+    },
+    {
+      "slo_id": "ui-frame-multitrack-workspace-2x",
+      "title": "the multitrack strips driving the playhead instead of the waveform view at 2\u00d7 device pixel ratio",
+      "status": "pass",
+      "evidence": "headless-offscreen",
+      "scale_factor": 2.0,
+      "measured": {
+        "frames": 900,
+        "mean_ms": 1.521,
+        "p50_ms": 1.496,
+        "p95_ms": 1.72,
+        "p99_ms": 1.802,
+        "max_ms": 2.02,
+        "over_budget_frames": 0,
+        "cpu_mean_ms": 1.812,
+        "cpu_p99_ms": 2.26,
+        "cpu_max_ms": 2.518,
+        "repeats": 3,
+        "repeat_p99_ms": [
+          1.802,
+          1.847,
+          1.807
+        ]
+      },
+      "threshold": {
+        "p99_ms_max": 16.0
+      }
+    }
+  ],
+  "summary": {
+    "scenarios_passed": 6,
+    "scenarios_failed": 0
+  },
+  "limitation": "Offscreen rendering on a shared cloud VM. Qt Widgets rasterise into a backing store the same way with or without a compositor, so the per-frame CPU cost measured here is the real one, but no frame is ever presented to a display: vsync, swap intervals and GPU compositing are outside this evidence. The host is also slower than the desktop hardware the product targets, which makes these numbers pessimistic rather than flattering."
+}

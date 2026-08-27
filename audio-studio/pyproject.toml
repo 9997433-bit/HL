@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "audio-studio"
-version = "1.0.0-rc"
+version = "1.0.0"
 description = "Professional audio editing and analysis workstation (Adobe Audition class MVP)"
 readme = "README.md"
 requires-python = ">=3.10"

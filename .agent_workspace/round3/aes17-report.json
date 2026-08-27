@@ -1,0 +1,132 @@
+{
+  "analyzer_control": {
+    "case_id": "analyzer-control-clipped",
+    "component": "hard clip at 70 % of peak (deliberate distortion)",
+    "distortion_detected": true,
+    "minimum_expected_db": -30.0,
+    "status": "pass",
+    "thd_plus_n_db": -17.23017618386701
+  },
+  "artifact": "aes17-report",
+  "cases": [
+    {
+      "case_id": "gain-stage-48k",
+      "checks": {
+        "fundamental_at_stimulus_level": true,
+        "meets_limit": true
+      },
+      "component": "audio_studio.dsp.effects.GainEffect (+3 dB then -3 dB)",
+      "expected_thd_plus_n_db": null,
+      "fundamental_dbfs": -1.000000073264523,
+      "residual_rms_dbfs": -152.70619835419126,
+      "sample_rate_hz": 48000,
+      "status": "pass",
+      "stimulus_level_dbfs": -1.0,
+      "thd_plus_n_db": -148.69589832428693,
+      "thd_plus_n_limit_db": -120.0
+    },
+    {
+      "case_id": "eq-peaking-48k",
+      "checks": {
+        "fundamental_at_stimulus_level": true,
+        "meets_limit": true
+      },
+      "component": "audio_studio.dsp.effects.ParametricEQ (peaking 10 kHz +2 dB Q1)",
+      "expected_thd_plus_n_db": null,
+      "fundamental_dbfs": -0.9852634618906148,
+      "residual_rms_dbfs": -154.34607321884326,
+      "sample_rate_hz": 48000,
+      "status": "pass",
+      "stimulus_level_dbfs": -1.0,
+      "thd_plus_n_db": -150.35050980031284,
+      "thd_plus_n_limit_db": -110.0
+    },
+    {
+      "case_id": "limiter-transparent-48k",
+      "checks": {
+        "fundamental_at_stimulus_level": true,
+        "meets_limit": true
+      },
+      "component": "audio_studio.dsp.effects.LimiterEffect (ceiling -0.5 dBTP, untouched)",
+      "expected_thd_plus_n_db": null,
+      "fundamental_dbfs": -6.000000003141686,
+      "residual_rms_dbfs": -162.7577523767862,
+      "sample_rate_hz": 48000,
+      "status": "pass",
+      "stimulus_level_dbfs": -6.0,
+      "thd_plus_n_db": -153.7474524170047,
+      "thd_plus_n_limit_db": -110.0
+    },
+    {
+      "case_id": "pcm24-tpdf-48k",
+      "checks": {
+        "fundamental_at_stimulus_level": true,
+        "matches_dither_theory": true,
+        "meets_limit": true
+      },
+      "component": "audio_studio.core.loader.quantize_with_tpdf (24 bit)",
+      "expected_thd_plus_n_db": -141.28025554028758,
+      "fundamental_dbfs": -1.0000000047104496,
+      "residual_rms_dbfs": -145.02987042688017,
+      "sample_rate_hz": 48000,
+      "status": "pass",
+      "stimulus_level_dbfs": -1.0,
+      "thd_plus_n_db": -141.0195704655299,
+      "thd_plus_n_limit_db": -138.0
+    },
+    {
+      "case_id": "pcm16-tpdf-44k1",
+      "checks": {
+        "fundamental_at_stimulus_level": true,
+        "matches_dither_theory": true,
+        "meets_limit": true
+      },
+      "component": "audio_studio.core.loader.quantize_with_tpdf (16 bit)",
+      "expected_thd_plus_n_db": -92.74742975497311,
+      "fundamental_dbfs": -0.9999990512301846,
+      "residual_rms_dbfs": -96.77455601491403,
+      "sample_rate_hz": 44100,
+      "status": "pass",
+      "stimulus_level_dbfs": -1.0,
+      "thd_plus_n_db": -92.76425700704402,
+      "thd_plus_n_limit_db": -91.0
+    },
+    {
+      "case_id": "export-roundtrip-pcm24-96k",
+      "checks": {
+        "fundamental_at_stimulus_level": true,
+        "matches_dither_theory": true,
+        "meets_limit": true
+      },
+      "component": "audio_studio.core.loader.save_audio/load_audio (PCM_24, dithered)",
+      "expected_thd_plus_n_db": -144.2905554969274,
+      "fundamental_dbfs": -1.0000000035015244,
+      "residual_rms_dbfs": -148.06157624578842,
+      "sample_rate_hz": 96000,
+      "status": "pass",
+      "stimulus_level_dbfs": -1.0,
+      "thd_plus_n_db": -144.05127628564708,
+      "thd_plus_n_limit_db": -140.0
+    }
+  ],
+  "checklist_item": "A8",
+  "generated_at_utc": "2026-08-27T01:47:33.874646+00:00",
+  "measurement": {
+    "analysis_window_seconds": 1.0,
+    "bandwidth": "20 Hz - 20 kHz applied on the residual spectrum (Parseval)",
+    "notch": "least-squares 997 Hz sin/cos/DC fit subtracted (zero-width)",
+    "numpy_version": "2.5.2",
+    "stimulus": "997 Hz raised-cosine-gated sine",
+    "stimulus_total_seconds": 1.4
+  },
+  "schema_version": 1,
+  "scope": "software signal paths only: gain stage, parametric EQ, transparent limiter, TPDF word-length reduction, dithered PCM export round trip. No converter or electrical measurement is claimed.",
+  "standard": "AES17 THD+N method (997 Hz, notch, 20 Hz - 20 kHz bandwidth)",
+  "status": "pass",
+  "thresholds": {
+    "control_minimum_thd_db": -30.0,
+    "fundamental_tolerance_db": 0.1,
+    "theory_tolerance_db": 1.0
+  },
+  "worst_thd_plus_n_margin_db": 1.7642570070440229
+}

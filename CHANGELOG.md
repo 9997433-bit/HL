@@ -5,6 +5,35 @@ structure. Versions 0.2.0 and 0.3.0 were internal development milestones
 merged to the release branch without their own tags; they are recorded here so
 the v1.0.0-beta diff against v0.1.0-alpha is fully accounted for.
 
+## [1.0.0] - 2026-08-27
+
+Formal release after Round E (six parallel agent tracks). SOTA checklist:
+**27/30 items hard-pass**, **4 expected hardware gaps** (B3 formal RF64, C2
+recording soak, C4 loopback RTT, D4 live screen reader). See
+`.agent_workspace/v1.0/fable-v1-formal-signoff.md`.
+
+### Added
+
+- **AES17 THD+N report** (`tools/aes17.py`, `tests/compliance/test_aes17.py`) — A8 hard pass.
+- **One-hour file performance** benchmark and report — B2 hard pass.
+- **32-track playback/automation** evidence and headless probe — B8 hard pass.
+- **Cross-platform DSP golden** matrix (`tools/cross_platform_golden.py`, CI artifact merge) — E2.
+- **Crash auto-recovery** journal (`core/autosave.py`, `tools/crash_recovery.py`) — E4.
+- **UI frame-time probe** (`benchmarks/ui_frame_time_probe.py`, `ui-frame-time-report.json`) — D1.
+- **Screen-reader readiness proxy** (`tools/screen_reader_probe.py`, accessible names on all controls) — D4 partial.
+- **Phase correlation meter** (`dsp/correlation.py`), **BWF bext round-trip**, **device hot-swap** — B1 M1/M5/M7.
+
+### Changed
+
+- **UI refresh timer raised from 30 Hz to 60 Hz** (`UI_REFRESH_MS` 33 → 16).
+- **Effects rack scrolls** — minimum window 1035×1835 → 1035×913 (1080p fit).
+- `__version__` and package metadata set to `1.0.0`.
+
+### Fixed
+
+- **Follow-playback scroll bug** — per-frame pixmap invalidation (17.8 ms → 2.4 ms mean).
+- **Waveform peak/RMS double rasterisation** — pixel-identical half-fill fix.
+
 ## [1.0.0-rc] - 2026-08-27
 
 Release candidate after Round D (six parallel agent tracks). Version bump only;

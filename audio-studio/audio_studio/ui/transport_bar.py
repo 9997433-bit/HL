@@ -25,9 +25,15 @@ GLYPH_LOOP = "⟲"
 GLYPH_RECORD = "●"
 
 
-def _button(text: str, tooltip: str, *, checkable: bool = False) -> QPushButton:
+def _button(
+    text: str, tooltip: str, accessible_name: str, *, checkable: bool = False
+) -> QPushButton:
     button = QPushButton(text)
     button.setToolTip(tooltip)
+    # The glyph is decoration. Without an explicit name a screen reader
+    # announces the button as its text — "▶" — which is noise, not a command.
+    button.setAccessibleName(accessible_name)
+    button.setAccessibleDescription(tooltip)
     button.setCheckable(checkable)
     button.setFixedSize(44, 32)
     button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
@@ -47,34 +53,46 @@ class TransportBar(QWidget):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self.setAccessibleName("Transport controls")
         self._duration = 0.0
         self._selection_text = "—"
         self._has_clip = False
 
-        self.record_button = _button(GLYPH_RECORD, "Start recording", checkable=True)
+        self.record_button = _button(
+            GLYPH_RECORD, "Start recording", "Record", checkable=True
+        )
         self.record_button.setObjectName("RecordButton")
         self.record_button.setStyleSheet("color: #ef5350;")
-        self.play_button = _button(GLYPH_PLAY, "Play / Pause (Space)")
-        self.stop_button = _button(GLYPH_STOP, "Stop (Esc)")
-        self.start_button = _button(GLYPH_START, "Go to start (Home)")
-        self.end_button = _button(GLYPH_END, "Go to end (End)")
-        self.loop_button = _button(GLYPH_LOOP, "Loop playback (L)", checkable=True)
+        self.play_button = _button(GLYPH_PLAY, "Play / Pause (Space)", "Play or pause")
+        self.stop_button = _button(GLYPH_STOP, "Stop (Esc)", "Stop")
+        self.start_button = _button(GLYPH_START, "Go to start (Home)", "Go to start")
+        self.end_button = _button(GLYPH_END, "Go to end (End)", "Go to end")
+        self.loop_button = _button(
+            GLYPH_LOOP, "Loop playback (L)", "Loop playback", checkable=True
+        )
 
         self.position_label = QLabel(format_timecode(0.0))
         self.position_label.setObjectName("TimecodeDisplay")
+        self.position_label.setAccessibleName("Playback position")
         self.position_label.setMinimumWidth(140)
         self.position_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.duration_label = QLabel("of 00:00.000")
         self.duration_label.setObjectName("SecondaryTimecode")
+        self.duration_label.setAccessibleName("Clip duration")
         self.selection_label = QLabel("Sel —")
         self.selection_label.setObjectName("SecondaryTimecode")
+        self.selection_label.setAccessibleName("Selection extent")
 
         self.volume_slider = QSlider(Qt.Orientation.Horizontal)
         self.volume_slider.setRange(0, 150)
         self.volume_slider.setValue(100)
         self.volume_slider.setFixedWidth(120)
         self.volume_slider.setToolTip("Output gain")
+        self.volume_slider.setAccessibleName("Output gain")
+        self.volume_slider.setAccessibleDescription(
+            "Playback output gain from 0% to 150%"
+        )
         self.volume_label = QLabel("100%")
         self.volume_label.setObjectName("SecondaryTimecode")
         self.volume_label.setFixedWidth(42)

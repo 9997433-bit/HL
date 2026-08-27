@@ -77,6 +77,10 @@ class WaveformView(QWidget):
 
     def __init__(self, parent: QWidget | None = None, palette: Palette = PALETTE) -> None:
         super().__init__(parent)
+        self.setAccessibleName("Waveform display")
+        self.setAccessibleDescription(
+            "Scrollable, zoomable waveform canvas; audio selection and playhead"
+        )
         self._palette = palette
 
         self._pyramid: PeakPyramid | None = None
@@ -244,14 +248,22 @@ class WaveformView(QWidget):
         self.set_view(start, self._view_frames)
 
     def ensure_visible(self, frame: int, *, margin: float = 0.1) -> None:
-        """Scroll so ``frame`` sits inside the view, page-flipping when it runs off."""
+        """Scroll so ``frame`` sits inside the view, page-flipping when it runs off.
+
+        A flip lands ``frame`` a margin inside the edge it is *travelling
+        from*, so the next flip is a whole page away. Landing it on the edge it
+        just ran off would re-arm the trigger on the following frame, turning
+        the page flip into a per-frame scroll — and every scroll throws the
+        waveform pixmap away, so the view would re-render from the peak pyramid
+        on every single tick of the refresh timer.
+        """
         if not self.has_clip or self._view_frames <= 0:
             return
         pad = int(self._view_frames * margin)
         if frame < self._view_start + pad:
-            self.set_view(frame - pad, self._view_frames)
+            self.set_view(frame + pad - self._view_frames, self._view_frames)
         elif frame > self.view_end - pad:
-            self.set_view(frame - self._view_frames + pad, self._view_frames)
+            self.set_view(frame - pad, self._view_frames)
 
     @property
     def amplitude_scale(self) -> float:
@@ -301,7 +313,7 @@ class WaveformView(QWidget):
         """Move the playhead to ``frame``, which may be fractional.
 
         A fraction of a frame is far below a pixel at any useful zoom, but it
-        is what lets a 30 Hz repaint interpolate between device blocks instead
+        is what lets a 60 Hz repaint interpolate between device blocks instead
         of stepping between them.
         """
         frame = float(max(0.0, min(float(frame), float(self._n_frames))))
@@ -589,17 +601,32 @@ class WaveformView(QWidget):
                 envelope.minimum[:, channel] <= -0.999
             )
 
-            y_low = mid - lows * half
-            y_high = mid - highs * half
-            y_rms_hi = mid - rms * half
-            y_rms_lo = mid + rms * half
+            y_low = (mid - lows * half).astype(int)
+            y_high = (mid - highs * half).astype(int)
+            y_rms_hi = (mid - rms * half).astype(int)
+            y_rms_lo = (mid + rms * half).astype(int)
+
+            # The RMS band is drawn over the peak band, so a peak column
+            # spanning the whole envelope rasterises every RMS pixel twice.
+            # Drawing the peak colour as only the two segments the RMS band
+            # leaves bare halves the fill for a pixel-identical image, and
+            # that is what keeps a re-render inside one frame at a 2× device
+            # pixel ratio. The band is clamped into the envelope first: an RMS
+            # reading short of the nearer peak edge — which a min/max/RMS
+            # envelope cannot produce, but a future one might — would
+            # otherwise let the peak colour bleed across the gap between them.
+            top_end = np.clip(y_rms_hi, y_high, y_low).tolist()
+            bottom_start = np.clip(y_rms_lo, y_high, y_low).tolist()
+            y_high_px, y_low_px = y_high.tolist(), y_low.tolist()
+            y_rms_hi_px, y_rms_lo_px = y_rms_hi.tolist(), y_rms_lo.tolist()
 
             painter.setPen(peak_pen)
-            for x in range(len(lows)):
-                painter.drawLine(x, int(y_high[x]), x, int(y_low[x]))
+            for x in range(len(y_low_px)):
+                painter.drawLine(x, y_high_px[x], x, top_end[x])
+                painter.drawLine(x, bottom_start[x], x, y_low_px[x])
             painter.setPen(rms_pen)
-            for x in range(len(rms)):
-                painter.drawLine(x, int(y_rms_hi[x]), x, int(y_rms_lo[x]))
+            for x in range(len(y_rms_hi_px)):
+                painter.drawLine(x, y_rms_hi_px[x], x, y_rms_lo_px[x])
             if clipped.any():
                 painter.setPen(clip_pen)
                 for x in np.flatnonzero(clipped):

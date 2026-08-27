@@ -392,7 +392,7 @@ binary artifacts must not include it. See
   it reflects what is audible rather than how far the feeder has run ahead.
   `position` moves once per device block; `position_interpolated` walks the
   last block off against the wall clock and returns a fractional frame, which
-  is what the UI draws so a 30 Hz repaint glides instead of stepping.
+  is what the UI draws so a 60 Hz repaint glides instead of stepping.
 - Master volume and mute are ramped over 10 ms rather than applied as a step,
   so moving the fader during playback cannot click.
 - An optional per-block insert (`set_stream_processor`) runs on the feeder
@@ -674,7 +674,7 @@ Screen-reader support is only what Qt provides by default: the shortcut sheet
 sets an accessible name and description, but the custom-painted widgets — the
 waveform, the spectrogram and the level meter — expose no accessible value or
 text alternative, so their content is unreadable to a screen reader. There is
-no high-contrast or light theme, no reduced-motion setting for the 30 Hz
+no high-contrast or light theme, no reduced-motion setting for the 60 Hz
 playhead, and no user-configurable font size beyond `--scale-factor`.
 
 ## Licensing and optional components

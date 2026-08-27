@@ -12,7 +12,9 @@ files too large to decode whole lives in :mod:`.large_file`.
 
 from __future__ import annotations
 
+import os
 import shutil
+import struct
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -87,6 +89,10 @@ class LoadedAudio:
     buffer: AudioBuffer
     audio_format: AudioFormat
     path: Path
+    #: Raw BWF broadcast-extension chunk payload, byte-for-byte as it appeared
+    #: in the source file, or ``None`` when the source carried none. Pass it
+    #: back to :func:`save_audio` to preserve it across an edit round trip.
+    bext: bytes | None = None
 
     @property
     def name(self) -> str:
@@ -173,11 +179,78 @@ def probe_frames(path: str | Path) -> int:
     return int(info.frames)
 
 
+def read_bext(path: str | Path) -> bytes | None:
+    """Raw ``bext`` chunk payload of a Broadcast Wave file, or ``None``.
+
+    libsndfile decodes the samples but does not surface the broadcast
+    extension, so the chunk is read straight out of the RIFF structure. Only
+    chunk headers are touched — a multi-gigabyte data chunk is seeked over,
+    not read. An RF64 whose ``data`` precedes ``bext`` with the 0xFFFFFFFF
+    placeholder size cannot be skipped without its ``ds64`` table and reports
+    ``None``; every writer this application meets (including its own recorder)
+    puts ``bext`` first.
+    """
+    try:
+        with Path(path).open("rb") as stream:
+            header = stream.read(12)
+            if (
+                len(header) != 12
+                or header[:4] not in (b"RIFF", b"RF64", b"BW64")
+                or header[8:12] != b"WAVE"
+            ):
+                return None
+            while True:
+                chunk_header = stream.read(8)
+                if len(chunk_header) != 8:
+                    return None
+                chunk_id, chunk_size = struct.unpack("<4sI", chunk_header)
+                if chunk_id == b"bext":
+                    payload = stream.read(chunk_size)
+                    return payload if len(payload) == chunk_size else None
+                if chunk_size == 0xFFFFFFFF:
+                    return None  # 64-bit chunk: the real size lives in ds64
+                stream.seek(chunk_size + (chunk_size & 1), os.SEEK_CUR)
+    except OSError:
+        return None
+
+
+def _append_bext(path: Path, payload: bytes) -> None:
+    """Attach a ``bext`` chunk to an already-written RIFF/WAVE file.
+
+    The chunk goes after the existing chunks (RIFF mandates ``fmt `` before
+    ``data`` but fixes no position for ``bext``) and the RIFF size is
+    re-stated to cover it.
+    """
+    with path.open("r+b") as stream:
+        header = stream.read(12)
+        if len(header) != 12 or header[:4] != b"RIFF" or header[8:12] != b"WAVE":
+            raise AudioLoadError(
+                f"Cannot attach bext metadata to {path}: not a RIFF/WAVE file"
+            )
+        stream.seek(0, os.SEEK_END)
+        end = stream.tell()
+        start_pad = end & 1
+        chunk = b"bext" + struct.pack("<I", len(payload)) + payload
+        chunk += b"\0" if len(payload) & 1 else b""
+        if end + start_pad + len(chunk) - 8 > 0xFFFFFFFF:
+            raise AudioLoadError(
+                f"Cannot attach bext metadata to {path}: RIFF size would overflow"
+            )
+        if start_pad:
+            stream.write(b"\0")
+        stream.write(chunk)
+        total = end + start_pad + len(chunk)
+        stream.seek(4)
+        stream.write(struct.pack("<I", total - 8))
+
+
 def load_audio(path: str | Path, *, target_sample_rate: int | None = None) -> LoadedAudio:
     """Decode ``path`` into a float32 :class:`AudioBuffer`.
 
     ``target_sample_rate`` resamples the result, which the engine uses when a
-    file's rate does not match the open output device.
+    file's rate does not match the open output device. Broadcast Wave sources
+    additionally have their ``bext`` chunk captured on :attr:`LoadedAudio.bext`
+    so an edit round trip can hand it back to :func:`save_audio`.
     """
     path = Path(path)
     if not path.exists():
@@ -192,7 +265,9 @@ def load_audio(path: str | Path, *, target_sample_rate: int | None = None) -> Lo
     buffer = AudioBuffer(np.ascontiguousarray(data, dtype=SAMPLE_DTYPE), int(sample_rate))
     if target_sample_rate and target_sample_rate != buffer.sample_rate:
         buffer = resample(buffer, target_sample_rate)
-    return LoadedAudio(buffer=buffer, audio_format=audio_format, path=path)
+    return LoadedAudio(
+        buffer=buffer, audio_format=audio_format, path=path, bext=read_bext(path)
+    )
 
 
 def _decode_with_ffmpeg(
@@ -306,6 +381,7 @@ def save_audio(
     *,
     subtype: str | None = None,
     dither: bool = True,
+    bext: bytes | None = None,
 ) -> Path:
     """Encode ``buffer`` to ``path``; the container follows the extension.
 
@@ -313,8 +389,16 @@ def save_audio(
     float32 samples are reduced to the integer target depth. Set
     ``dither=False`` for a deliberate bit-exact/no-op integer round trip.
     Dither is ignored for floating-point and compressed subtypes.
+
+    ``bext`` attaches a Broadcast Wave extension chunk, byte-for-byte —
+    normally the payload :func:`load_audio` captured from the source, so that
+    editing a BWF does not silently strip its provenance. Only WAV targets can
+    hold the chunk; asking for it on any other container raises ``ValueError``
+    rather than dropping metadata the caller said to keep.
     """
     path = Path(path)
+    if bext is not None and path.suffix.lower() not in (".wav", ".wave"):
+        raise ValueError(f"bext metadata requires a WAV target, not {path.suffix!r}")
     path.parent.mkdir(parents=True, exist_ok=True)
     chosen = subtype or _EXT_TO_SUBTYPE_DEFAULT.get(path.suffix.lower(), "PCM_24")
     output = buffer.data
@@ -325,6 +409,8 @@ def save_audio(
         sf.write(str(path), output, buffer.sample_rate, subtype=chosen)
     except Exception as exc:  # noqa: BLE001 - normalised into AudioLoadError
         raise AudioLoadError(f"Cannot write {path}: {exc}") from exc
+    if bext is not None:
+        _append_bext(path, bext)
     return path
 
 

@@ -247,6 +247,25 @@ def _verify_tpdf_dither(_tmp_path: Path) -> None:
 def _verify_aes17_report(_tmp_path: Path) -> None:
     assert (REPOSITORY_ROOT / "tools/aes17.py").is_file()
     report = _load_json(REPOSITORY_ROOT / ".agent_workspace/round3/aes17-report.json")
+    cases = report["cases"]
+    assert len(cases) >= 5, "one measured path is not an AES17 survey"
+    for case in cases:
+        assert case["thd_plus_n_db"] <= case["thd_plus_n_limit_db"], case["case_id"]
+        assert case["status"] == "pass", case["case_id"]
+    # The dithered word-length reductions must sit on the closed-form TPDF
+    # figure from both sides — a reading far below theory means the analyzer
+    # is dropping residual, not that the dither is excellent.
+    theory_cases = [
+        case for case in cases if case.get("expected_thd_plus_n_db") is not None
+    ]
+    assert len(theory_cases) >= 2, "16- and 24-bit dither paths carry theory"
+    for case in theory_cases:
+        assert case["thd_plus_n_db"] == pytest.approx(
+            case["expected_thd_plus_n_db"], abs=1.0
+        ), case["case_id"]
+    # And the analyzer itself is validated: deliberate clipping must read as
+    # gross distortion, or every transparent figure above is meaningless.
+    assert report["analyzer_control"]["distortion_detected"] is True
     assert report["status"] == "pass"
 
 
@@ -256,6 +275,21 @@ def _verify_m1_m13_manifest(_tmp_path: Path) -> None:
     assert {item.get("id") for item in requirements} == {f"M{index}" for index in range(1, 14)}
     assert all(item.get("evidence") for item in requirements)
     assert all(item.get("status") == "pass" for item in requirements)
+
+    # The manifest is JSON anyone could edit, so the claims that most recently
+    # flipped it to pass are pinned to the code they cite: a reverted feature
+    # fails here instead of surviving behind a stale document.
+    from audio_studio.core import loader
+    from audio_studio.core.engine import AudioEngine
+    from audio_studio.dsp.correlation import CorrelationMeter, phase_correlation
+
+    assert callable(getattr(AudioEngine, "set_output", None)), "M1: device hot-swap"
+    assert callable(getattr(loader, "read_bext", None)), "M5: bext capture"
+    assert "bext" in inspect.signature(loader.save_audio).parameters, "M5: bext save"
+    assert CorrelationMeter is not None and callable(phase_correlation), (
+        "M7: phase correlation meter"
+    )
+    assert UI_REFRESH_MS <= 16, "M12: 60fps refresh timer"
 
 
 def _verify_formal_file_performance(_tmp_path: Path) -> None:
@@ -381,10 +415,27 @@ def _verify_roundtrip_latency(_tmp_path: Path) -> None:
 
 def _verify_ui_60fps(_tmp_path: Path) -> None:
     assert UI_REFRESH_MS <= 16
-    report = _load_json(REPOSITORY_ROOT / ".agent_workspace/round3/ui-frame-time-report.json")
+    # benchmarks/ui_frame_time_probe.py writes this report. It drives the real
+    # refresh-timer slot on the Qt offscreen platform, which rasterises through
+    # the same paint engine a visible window does; what it cannot see is the
+    # compositor, so the frame times are the cost of *producing* a frame rather
+    # than proof that a particular display then presents sixty of them.
+    report = _load_json(REPOSITORY_ROOT / ".agent_workspace/v1.0/ui-frame-time-report.json")
+    assert report["evidence"] == "headless-offscreen"
     assert report["p99_frame_ms"] < 16.0
     assert report["hidpi_2x"] == "pass"
     assert report["dark_theme_default"] is True
+    # A frame that waits on a busy neighbour is indistinguishable from a frame
+    # that works, so a contended run must not be read as a measurement.
+    assert report["contention"]["host_was_busy"] is False
+    # HiDPI is only demonstrated if a 2× run actually happened, and the
+    # headline p99 is only the worst case if every scenario is behind it.
+    assert {1.0, 2.0} <= set(report["config"]["scale_factors"])
+    assert report["results"], "evidence report contains no measured results"
+    assert all(item["status"] == "pass" for item in report["results"])
+    assert report["p99_frame_ms"] == max(
+        item["measured"]["p99_ms"] for item in report["results"]
+    )
 
 
 def _verify_workspace_persistence(_tmp_path: Path) -> None:
@@ -439,6 +490,26 @@ def _contrast_ratio(foreground: str, background: str) -> float:
 def _verify_accessibility(_tmp_path: Path) -> None:
     assert _contrast_ratio(PALETTE.text, PALETTE.window) >= 4.5
     assert "viridis" in COLORMAP_NAMES
+    # tools/screen_reader_probe.py writes the headless proxy: accessible
+    # names/roles introspected over the main-window controls with
+    # QAccessible.queryAccessibleInterface — the tree the platform bridges
+    # (UIA, NSAccessibility, AT-SPI) hand to NVDA, VoiceOver and Orca.
+    proxy = _load_json(REPOSITORY_ROOT / ".agent_workspace/v1.0/screen-reader-evidence.json")
+    assert proxy["evidence"] == "headless-proxy"
+    assert proxy["status"] == "pass"
+    controls = proxy["controls"]
+    assert len(controls) >= 15, "the control inventory is too thin to be evidence"
+    assert all(entry["status"] == "pass" for entry in controls)
+    assert all(entry["accessible_name"] for entry in controls)
+    assert all(entry["role"] not in ("", "none", "NoRole") for entry in controls)
+    assert proxy["checks"] and all(proxy["checks"].values())
+    # The proxy is honest about what it is not: introspection is not an
+    # assistive-technology session, so it cannot count a platform as passed.
+    assert proxy["live_screen_reader_session"] is False
+    assert proxy["screen_reader_platforms_passed"] == 0
+    # Only a live NVDA/VoiceOver/Orca walkthrough (the round3 direct report)
+    # closes the item; until it exists D4 stays an xfail with the proxy on
+    # the record.
     report = _load_json(REPOSITORY_ROOT / ".agent_workspace/round3/accessibility-report.json")
     assert report["wcag_2_2_aa"] == "pass"
     assert report["screen_reader_platforms_passed"] >= 1
@@ -486,6 +557,15 @@ def _verify_cross_platform_golden(_tmp_path: Path) -> None:
     assert set(platforms) == {"linux", "macos", "windows"}
     assert report["maximum_absolute_error"] <= 1e-9
     assert report["status"] == "pass"
+    # Three records generated on one host would satisfy everything above, so
+    # the runtimes have to show three different systems before this counts as
+    # a cross-platform comparison at all.
+    assert len({entry["runtime"]["system"] for entry in platforms.values()}) == 3
+    assert all(report["checks"].values()), report["checks"]
+    # The headline figure covers the float64 paths; the float32 audio paths
+    # carry their own per-vector bar and must clear it too.
+    assert report["vectors"], "the golden matrix compared no vectors"
+    assert all(vector["within_tolerance"] for vector in report["vectors"])
 
 
 def _verify_third_party_licenses(_tmp_path: Path) -> None:
@@ -497,10 +577,25 @@ def _verify_third_party_licenses(_tmp_path: Path) -> None:
 
 
 def _verify_crash_recovery(_tmp_path: Path) -> None:
+    from audio_studio.core import autosave
+
+    assert callable(getattr(autosave, "discover", None)), "crash recovery has no launch path"
+    assert callable(getattr(autosave.AutosaveJournal, "save", None))
+
     report = _load_json(REPOSITORY_ROOT / ".agent_workspace/round3/crash-recovery-report.json")
     assert report["termination"] == "kill -9"
     assert report["session_restored"] is True
     assert report["status"] == "pass"
+    # One kill is an anecdote, and a kill nothing survived would still report
+    # a termination. Every trial has to have died by the signal and come back.
+    assert report["trials_run"] >= 3
+    assert report["trials_passed"] == report["trials_run"]
+    assert report["every_worker_died_by_sigkill"] is True
+    assert 0 <= report["worst_case_edits_lost"] <= report["edit_loss_budget"]
+    # A launch that offers to recover a session which exited cleanly is not
+    # recovery, it is a prompt.
+    assert report["clean_exit_control"]["status"] == "pass"
+    assert report["clean_exit_control"]["recoverable_sessions"] == 0
 
 
 CHECKLIST_CASES = (
@@ -522,26 +617,18 @@ CHECKLIST_CASES = (
         _verify_true_peak_limiter,
     ),
     ChecklistCase("A7", "P1", "TPDF dither spectrum", _verify_tpdf_dither),
-    ChecklistCase(
-        "A8",
-        "P1",
-        "AES17 THD+N report",
-        _verify_aes17_report,
-        "AES17 measurement tool and report are missing",
-    ),
+    ChecklistCase("A8", "P1", "AES17 THD+N report", _verify_aes17_report),
     ChecklistCase(
         "B1",
         "P0",
         "M1-M13 demonstrated with evidence",
         _verify_m1_m13_manifest,
-        "the M1-M13 evidence manifest exists but M1/M5/M7/M12 remain partial",
     ),
     ChecklistCase(
         "B2",
         "P0",
         "One-hour file performance",
         _verify_formal_file_performance,
-        "only shortened headless performance proxies exist",
     ),
     ChecklistCase(
         "B3",
@@ -563,7 +650,6 @@ CHECKLIST_CASES = (
         "P1",
         "32-track playback and automation",
         _verify_multitrack_32,
-        "MultitrackSession landed; 32-track playback/automation evidence is missing",
     ),
     ChecklistCase(
         "C1",
@@ -591,13 +677,7 @@ CHECKLIST_CASES = (
         _verify_roundtrip_latency,
         "hardware loopback evidence is missing",
     ),
-    ChecklistCase(
-        "D1",
-        "P0",
-        "60fps, HiDPI, and dark default",
-        _verify_ui_60fps,
-        "UI timer is 30Hz and no frame-time/HiDPI report exists",
-    ),
+    ChecklistCase("D1", "P0", "60fps, HiDPI, and dark default", _verify_ui_60fps),
     ChecklistCase(
         "D2",
         "P0",
@@ -615,7 +695,9 @@ CHECKLIST_CASES = (
         "P1",
         "WCAG AA, color-safe map, screen reader",
         _verify_accessibility,
-        "palette and colormap checks pass; screen-reader evidence is missing",
+        "palette, colormap, and the headless accessible-name/role proxy pass "
+        "(.agent_workspace/v1.0/screen-reader-evidence.json); a live "
+        "NVDA/VoiceOver/Orca session is still missing",
     ),
     ChecklistCase("D5", "P1", "UI scaling from 100% to 200%", _verify_ui_scaling),
     ChecklistCase("E1", "P0", "Three-platform CI gates", _verify_three_platform_ci),
@@ -624,7 +706,6 @@ CHECKLIST_CASES = (
         "P0",
         "Cross-platform DSP golden consistency",
         _verify_cross_platform_golden,
-        "no three-platform golden comparison artifact exists",
     ),
     ChecklistCase("E3", "P0", "Third-party license inventory", _verify_third_party_licenses),
     ChecklistCase(
@@ -632,7 +713,6 @@ CHECKLIST_CASES = (
         "P1",
         "Crash auto-recovery",
         _verify_crash_recovery,
-        "crash recovery implementation/evidence is missing",
     ),
 )
 
