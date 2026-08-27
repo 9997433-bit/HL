@@ -37,7 +37,8 @@
     "test:literacy": "bash scripts/test-literacy.sh",
     "test:math": "bash scripts/test-math.sh",
     "test:offline": "bash scripts/offline-smoke.sh",
-    "test:round3": "npm test && npm run test:offline && npm run test:acceptance"
+    "test:round3": "npm test && npm run test:offline && npm run test:acceptance",
+    "test:c6:chrome": "node scripts/browser-matrix-chrome.mjs"
   },
   "engines": {
     "node": "^20.19.0 || >=22.12.0 <25",
