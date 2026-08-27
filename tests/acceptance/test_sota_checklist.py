@@ -563,7 +563,6 @@ CHECKLIST_CASES = (
         "P1",
         "32-track playback and automation",
         _verify_multitrack_32,
-        "MultitrackSession landed; 32-track playback/automation evidence is missing",
     ),
     ChecklistCase(
         "C1",
