@@ -17,6 +17,8 @@
     "check:tokens:wiring": "node scripts/check-tokens.mjs --wiring-only",
     "check:round4": "node scripts/check-round4.mjs",
     "check:round5": "node scripts/check-round5.mjs",
+    "check:round5b": "node scripts/check-round5b.mjs",
+    "check:round6": "node scripts/check-round6.mjs",
     "test:a11y": "node scripts/axe-states.mjs",
     "test:acceptance": "bash scripts/acceptance.sh",
     "test:literacy": "bash scripts/test-literacy.sh",

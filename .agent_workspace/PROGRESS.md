@@ -30,7 +30,9 @@
 | Round 2 | ✅ 完成 | 10子代理合并；识字106字+FSRS；数学QuizShell+瘦身；离线SW |
 | Round 3 | 🔄 收尾中 | SOTA 打磨；200字/家长中心/axe0/a11y/NOTICES/tokens/OpenMoji |
 | Round 4 | ✅ **已闭合** | 500字+状态机+错题本+自适应+Lighthouse；check:round4 全绿 |
-| Round 5 | 🔄 **进行中** | 1000字/30绘本/60成语/100母题/教具/小游戏（见 ROUND5-BRIEF.md） |
+| Round 5 | ✅ **已闭合** | 1000字/30绘本/60成语/118母题/字源65/教具/3小游戏；check:round5 12/12 |
+| Round 5B | 🔄 **进行中** | Play Layer：每日冒险/吉祥物/useFeedback/街机大厅（见 ROUND5B-BRIEF.md） |
+| Round 6 | 🔄 **进行中** | 1800字/130绘本/古诗20/跟读/185母题（见 ROUND6-BRIEF.md） |
 
 ## 并发规则（已更新）
 **每轮固定 10 个子代理并发，缺了立马补。**
