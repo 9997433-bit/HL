@@ -425,7 +425,16 @@ class ScalingModel:
             return None
         return ModalSolver
 
-    def _modal_solver(self, solver_class, K, M, key: tuple[float, ...]):
+    @property
+    def modal_solver(self):
+        """The reused :class:`~openfemlab.solver.modal.ModalSolver`, if one exists.
+
+        ``None`` until the first solve, and always ``None`` for a model running
+        on the dense fallback or with ``reanalysis=False``.
+        """
+        return self._solver
+
+    def _reused_solver(self, solver_class, K, M, key: tuple[float, ...]):
         """The solver instance to use for ``θ``, built once and then refreshed.
 
         Rebinding the matrices of the existing instance keeps the DOF partition
@@ -461,7 +470,7 @@ class ScalingModel:
 
         solver_class = self._solver_class()
         if solver_class is not None:
-            solver = self._modal_solver(solver_class, K, M, key)
+            solver = self._reused_solver(solver_class, K, M, key)
             result = solver.solve(
                 num_modes=self.num_modes,
                 normalization="mass",
