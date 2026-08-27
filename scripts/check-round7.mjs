@@ -97,14 +97,67 @@ check(
 
 /* H7 全局报告 */
 const report = read('.agent_workspace/GLOBAL-SUMMARY-REPORT.md')
-const badRows = (report.match(/\|[^|\n]*❌[^|\n]*\|/g) || []).length
+const expectedModuleIds = [
+  ...Array.from({ length: 15 }, (_, index) => `L-M${index + 1}`),
+  ...Array.from({ length: 16 }, (_, index) => `M-M${index + 1}`)
+]
+const expectedModuleIdSet = new Set(expectedModuleIds)
+const moduleRows = report
+  .split(/\r?\n/)
+  .map((line) => line.trim())
+  .filter((line) => /^\|\s*[LM]-M\d+\s*\|/.test(line))
+  .map((line) => {
+    const cells = line
+      .split('|')
+      .slice(1, -1)
+      .map((cell) => cell.trim())
+    return { id: cells[0], status: cells[2], evidence: cells[3] }
+  })
+const moduleIdCounts = new Map()
+for (const row of moduleRows) {
+  moduleIdCounts.set(row.id, (moduleIdCounts.get(row.id) ?? 0) + 1)
+}
+const missingModuleIds = expectedModuleIds.filter((id) => !moduleIdCounts.has(id))
+const duplicateModuleIds = [...moduleIdCounts]
+  .filter(([id, count]) => expectedModuleIdSet.has(id) && count !== 1)
+  .map(([id]) => id)
+const unexpectedModuleIds = moduleRows
+  .map((row) => row.id)
+  .filter((id) => !expectedModuleIdSet.has(id))
+const invalidModuleRows = moduleRows.filter(
+  (row) =>
+    !expectedModuleIdSet.has(row.id) ||
+    (row.status !== '✅' && !/^⏳\s*待 R7 子代理\s*#(?:[4-9]|10)\b/.test(row.status)) ||
+    !row.evidence?.includes('`')
+)
+const firstLine = report.split(/\r?\n/, 1)[0]?.trim() ?? ''
+const modelSlugOk = /^Model slug:\s*[a-z0-9][a-z0-9.-]*$/i.test(firstLine)
+const auditRefsOk =
+  report.includes('round6-hongen-module-audit.md') &&
+  report.includes('round7-hongen-module-audit.md')
+const placeholders = report.match(/待回填|TODO|TBD|\[P\/F\]|⬜/gi) ?? []
+const redCrosses = report.match(/❌/g) ?? []
+const reportIssues = []
+if (report.length <= 4000) reportIssues.push(`正文过短（${report.length}/4000 字符）`)
+if (!modelSlugOk) reportIssues.push('首行缺少合法 Model slug')
+if (!auditRefsOk) reportIssues.push('未同时引用 Round 6 / Round 7 审计')
+if (moduleRows.length !== expectedModuleIds.length) {
+  reportIssues.push(`模块行 ${moduleRows.length}/${expectedModuleIds.length}`)
+}
+if (missingModuleIds.length) reportIssues.push(`缺模块 ${missingModuleIds.join('、')}`)
+if (duplicateModuleIds.length) reportIssues.push(`重复模块 ${duplicateModuleIds.join('、')}`)
+if (unexpectedModuleIds.length) reportIssues.push(`未知模块 ${unexpectedModuleIds.join('、')}`)
+if (invalidModuleRows.length) {
+  reportIssues.push(`状态或证据不合规 ${invalidModuleRows.map((row) => row.id).join('、')}`)
+}
+if (redCrosses.length) reportIssues.push(`仍含 ${redCrosses.length} 个红叉`)
+if (placeholders.length) reportIssues.push(`仍含 ${placeholders.length} 个占位符`)
+const pendingRows = moduleRows.filter((row) => row.status.startsWith('⏳')).length
 check(
-  report.length > 500 && badRows === 0,
-  report.length > 500
-    ? badRows === 0
-      ? 'H7 GLOBAL-SUMMARY-REPORT 全表无 ❌'
-      : `H7 GLOBAL-SUMMARY-REPORT 仍有 ${badRows} 行 ❌`
-    : 'H7 GLOBAL-SUMMARY-REPORT 未生成 —— 由 r7-global-report 交付'
+  reportIssues.length === 0,
+  reportIssues.length === 0
+    ? `H7 GLOBAL-SUMMARY-REPORT 31/31 模块完整（${31 - pendingRows} 项基线达标、${pendingRows} 项待 R7 子代理），审计引用与证据齐全`
+    : `H7 GLOBAL-SUMMARY-REPORT 不合规：${reportIssues.join('；')}`
 )
 
 notes.forEach((n) => console.log(' ', n))
