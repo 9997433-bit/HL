@@ -186,3 +186,42 @@ def test_index_ships_the_three_js_viewer():
     assert "three.module.js" in page
     assert "/api/geometry" in page
     assert "viewer-canvas" in page
+
+
+def test_desktop_available_reports_optional_dependency() -> None:
+    from openfemlab.dashboard import desktop_available
+
+    assert isinstance(desktop_available(), bool)
+
+
+def test_serve_dashboard_desktop_path(monkeypatch, tmp_path: Path) -> None:
+    opened: list[str] = []
+
+    def fake_open(url: str, *, title: str = "OpenFEMLab") -> None:
+        opened.append(url)
+
+    monkeypatch.setattr("openfemlab.dashboard.desktop.open_desktop_window", fake_open)
+
+    port = 18770
+    serve_dashboard(host="127.0.0.1", port=port, root=tmp_path, desktop=True)
+
+    assert opened == [f"http://127.0.0.1:{port}/"]
+
+
+def test_open_desktop_window_raises_without_pywebview(monkeypatch) -> None:
+    import builtins
+
+    from openfemlab.dashboard.desktop import open_desktop_window
+    from openfemlab.exceptions import OpenFEMLabError
+
+    real_import = builtins.__import__
+
+    def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "webview":
+            raise ImportError("pywebview not installed")
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+
+    with pytest.raises(OpenFEMLabError, match="pywebview"):
+        open_desktop_window("http://127.0.0.1:8765/")

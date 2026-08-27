@@ -70,8 +70,8 @@ FAMILY_TO_MODULE = {
     "PERF": "M1",
 }
 EXPECTED_CRITERIA_PER_FAMILY = {
-    "MODAL": 9, "CORR": 9, "UPD": 12, "WORK": 5, "OPT": 4, "DYN": 5, "ELEM": 3,
-    "IO": 5, "MPE": 6, "PRETEST": 5, "PERF": 5,
+    "MODAL": 9, "CORR": 9, "UPD": 13, "WORK": 5, "OPT": 4, "DYN": 5, "ELEM": 3,
+    "IO": 6, "MPE": 6, "PRETEST": 5, "PERF": 5,
 }
 
 
@@ -181,6 +181,8 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P2", "twin", "MS-3.1", _UPD_SUITE, "implemented"),
     _c("AC-UPD-011", "Monte Carlo propagation matches the linear oracle",
        "P2", "oracle", "MS-3.5", _UPD_SUITE, "implemented"),
+    _c("AC-UPD-012", "DOE factorial and LHS cover bounded factor grids",
+       "P2", "contract", "MS-3.5", _UPD_SUITE, "implemented"),
     # --- M4 Simulation correction workflow (MS-4) -----------------------------
     _c("AC-WORK-001", "End-to-end correction passes gates",
        "P0", "twin", "MS-4.1, MS-4.2", _WORK_SUITE, "verified"),
@@ -230,6 +232,8 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P2", "contract", "MS-9.6", _IO_SUITE, "implemented"),
     _c("AC-IO-005", "OP2 readers are exported from openfemlab.io",
        "P2", "contract", "MS-9.6", "tests/acceptance/test_io_export.py", "implemented"),
+    _c("AC-IO-006", "OP2 EPT PROD area import",
+       "P2", "contract", "MS-9.6", _IO_SUITE, "implemented"),
     # --- M9 Modal parameter extraction (MS-10), GAP-06 -----------------------
     _c("AC-MPE-001", "LSCF pole recovery on synthesized FRFs",
        "P0", "oracle", "MS-10.2", _MPE_SUITE, "verified"),
@@ -283,7 +287,7 @@ def test_registry_inventory_matches_documented_scope():
         for family in EXPECTED_CRITERIA_PER_FAMILY
     }
     assert counts == EXPECTED_CRITERIA_PER_FAMILY
-    assert len(REGISTRY) == 68
+    assert len(REGISTRY) == 70
 
 
 def test_ids_unique():

@@ -53,6 +53,7 @@ GRID_RECORD_KEY = (4501, 45, 1)
 CROD_RECORD_KEY = (3001, 30, 48)
 MAT1_RECORD_KEY = (103, 1, 77)
 CORD2R_RECORD_KEY = (2101, 21, 8)
+PROD_RECORD_KEY = (902, 9, 29)
 
 
 # ------------------------------------------------------------------- words
@@ -108,6 +109,18 @@ class Rod:
 
 
 @dataclass(frozen=True)
+class Prod:
+    """A ``PROD`` card as ``EPT`` writes it."""
+
+    id: int
+    material_id: int
+    area: float
+    j: float = 0.0
+    c: float = 0.0
+    nsm: float = 0.0
+
+
+@dataclass(frozen=True)
 class Cord2R:
     """A ``CORD2R`` card as ``GEOM1`` writes it — three points in the ``RID`` frame."""
 
@@ -146,6 +159,18 @@ class Mode:
     @property
     def radians(self) -> float:
         return 2.0 * math.pi * self.frequency_hz
+
+
+def ept_block(
+    properties: Iterable[Prod], *, key: tuple[int, int, int] = PROD_RECORD_KEY
+) -> DataBlock:
+    """``EPT`` holding one ``PROD`` record per property."""
+
+    record: list[Token] = list(integers(*key))
+    for prop in properties:
+        record += integers(prop.id, prop.material_id)
+        record += reals(prop.area, prop.j, prop.c, prop.nsm)
+    return DataBlock(name="EPT", records=(record,), subtable_name="EPTS")
 
 
 def cord2r_record(
@@ -329,6 +354,7 @@ def geometry_file(
     materials: Iterable[Mat1] = (),
     *,
     cords: Iterable[Cord2R] = (),
+    properties: Iterable[Prod] = (),
     extra_blocks: Sequence[DataBlock] = (),
     **file_options: object,
 ) -> bytes:
@@ -343,6 +369,9 @@ def geometry_file(
     rods = list(rods)
     if rods:
         blocks.append(geom2_block(rods))
+    prods = list(properties)
+    if prods:
+        blocks.append(ept_block(prods))
     materials = list(materials)
     if materials:
         blocks.append(mpt_block(materials))

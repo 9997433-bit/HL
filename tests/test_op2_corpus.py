@@ -36,17 +36,17 @@ def test_corpus_op2_lists_tables(path: Path) -> None:
 
 @pytest.mark.parametrize("path", _corpus_files())
 def test_corpus_op2_reads_modes_when_present(path: Path) -> None:
-    names = {entry.name for entry in list_op2_tables(path)}
+    names = set(list_op2_tables(path))
     if "LAMA" not in names:
         pytest.skip(f"{path.name} has no LAMA block")
     result = read_op2_modes(path)
-    assert result.frequencies_hz.size > 0
+    assert result.frequencies.size > 0
 
 
 @pytest.mark.parametrize("path", _corpus_files())
 def test_corpus_op2_reads_geometry_when_present(path: Path) -> None:
-    names = {entry.name for entry in list_op2_tables(path)}
+    names = set(list_op2_tables(path))
     if "GEOM1" not in names:
         pytest.skip(f"{path.name} has no GEOM1 block")
     model = read_op2(path)
-    assert model.nodes
+    assert model.nodes.size > 0

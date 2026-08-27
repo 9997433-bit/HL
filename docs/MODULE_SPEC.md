@@ -1070,7 +1070,7 @@ reader lives in `openfemlab.io.op2` over the record layer
 |---|---|---|---|
 | `list_op2_tables(source)` | 1 | implemented | the file's data blocks, in file order |
 | `read_op2_modes(source)` | 2 | implemented | `ModalResult` from `LAMA` + `BOUGV1`/`OUGV1`/`OUG1` |
-| `read_op2(source)` | 3 | implemented for `GRID`, `CROD` and `MAT1` | `NeutralModel` from `GEOM1`/`GEOM2`/`MPT` |
+| `read_op2(source)` | 3 | implemented for `GRID`, `CROD`, `MAT1`, `PROD` | `NeutralModel` from `GEOM1`/`GEOM2`/`EPT`/`MPT` |
 
 - **Nothing is re-exported from `openfemlab.io`.** A name in that namespace
   advertises a *supported* reader; these stay reachable only as
@@ -1106,16 +1106,17 @@ reader lives in `openfemlab.io.op2` over the record layer
   `GEOM1` for their frames alone and refusing a file where any is non-zero.
 - **`read_op2` imports the geometry it can unpack and refuses the rest.** It
   reads `GRID` from `GEOM1`, the connectivity records listed in
-  `GEOM2_ELEMENT_LAYOUTS` from `GEOM2` and the material records of
-  `MPT_MATERIAL_RECORDS` from `MPT`, and a rod model imports to the same
+  `GEOM2_ELEMENT_LAYOUTS` from `GEOM2`, the material records of
+  `MPT_MATERIAL_RECORDS` from `MPT`, and the `PROD` records of
+  `EPT_PROPERTY_RECORDS` from `EPT`, and a rod model imports to the same
   `NeutralModel` `read_bdf` builds from the bulk data of the same run. Records
   outside the subset are stepped over and counted per block in
   `meta["skipped_records"]` (MS-9.3), with one exception: a `GEOM2` record
   whose card is in `GEOM2_ELEMENT_RECORDS` but whose word layout is not in
   `GEOM2_ELEMENT_LAYOUTS` raises, since dropping it would return a model that
   looks complete and has lost an element block. Extending the subset is one
-  table entry per card plus the tests that pin its layout; `EPT` is the
-  remaining increment.
+  table entry per card plus the tests that pin its layout; `PSHELL` and
+  `PSOLID` are the remaining property increments.
 - **Record keys are stable, record contents are not.** `GEOM2` records are
   addressed by a three-integer key (`CQUAD4` is `(2958, 51, 177)`), but MSC
   writes 15 words per `CQUAD4` entry where NX writes 14. Every unpack must

@@ -110,6 +110,7 @@ def serve_dashboard(
     port: int = 8765,
     root: str | Path = ".",
     open_browser: bool = False,
+    desktop: bool = False,
     preset_file: str | None = None,
     preset_model: str | None = None,
 ) -> None:
@@ -134,6 +135,19 @@ def serve_dashboard(
         }
     )
     url = f"http://{host}:{port}/" + (f"?{query}" if query else "")
+
+    if desktop:
+        from .desktop import open_desktop_window, run_dashboard_in_thread
+
+        run_dashboard_in_thread(server)
+        print(f"OpenFEMLab desktop dashboard at {url}")
+        print(f"Project root: {root_path}")
+        try:
+            open_desktop_window(url)
+        finally:
+            server.shutdown()
+            server.server_close()
+        return
 
     if open_browser:
         import webbrowser

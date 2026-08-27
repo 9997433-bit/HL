@@ -110,8 +110,8 @@ implemented*: :func:`read_op2` reads ``GRID`` from ``GEOM1``, ``CROD`` from
 :data:`GEOM2_ELEMENT_LAYOUTS` or :data:`MPT_MATERIAL_RECORDS` plus the tests
 that pin its word layout, and until a card has both, a record carrying it is
 *refused* rather than dropped — a model quietly missing its elements is worse
-than one that did not import.  The ``EPT`` property tables are the remaining
-increment.
+than one that did not import.  ``EPT`` reads ``PROD``; ``PSHELL`` and
+``PSOLID`` are the remaining property increments.
 
 **Phase 4 — coordinate systems.**  ``CORD1R``/``CORD2R`` and the ``CP``/``CD``
 fields, which Phases 2 and 3 must reject rather than ignore (see below).
@@ -173,7 +173,7 @@ from typing import BinaryIO, NamedTuple
 import numpy as np
 
 from openfemlab.core.dofs import DofMap, DofType
-from openfemlab.core.neutral import ElementType, NeutralMaterial, NeutralModel
+from openfemlab.core.neutral import ElementType, NeutralMaterial, NeutralModel, NeutralProperty
 from openfemlab.core.results import ModalResult
 
 from ._common import FormatError
@@ -193,6 +193,7 @@ __all__ = [
     "GEOM1_GRID_RECORDS",
     "GEOM2_ELEMENT_LAYOUTS",
     "GEOM2_ELEMENT_RECORDS",
+    "EPT_PROPERTY_RECORDS",
     "MPT_MATERIAL_RECORDS",
     "OP2_GEOMETRY_TABLES",
     "OP2_MODE_TABLES",
@@ -254,6 +255,13 @@ GEOM2_ELEMENT_LAYOUTS: dict[tuple[int, int, int], tuple[int, tuple[int, ...]]] =
 MPT_MATERIAL_RECORDS: dict[tuple[int, int, int], int] = {
     (103, 1, 77): 12,  # MAT1
 }
+
+#: ``EPT`` record key → words per entry for property cards Phase 3 reads.
+EPT_PROPERTY_RECORDS: dict[tuple[int, int, int], int] = {
+    (902, 9, 29): 6,  # PROD: PID, MID, A, J, C, NSM
+}
+
+_PROD_AREA_WORD = 2
 
 #: The words of a ``MAT1`` entry :class:`~openfemlab.core.neutral.NeutralMaterial`
 #: has a home for; the rest are thermal and allowable data no module consumes.
@@ -333,9 +341,9 @@ def read_op2(source: str | PathLike[str] | BinaryIO) -> NeutralModel:
     record that is refused instead of skipped is a ``GEOM2`` record whose card
     *is* in :data:`GEOM2_ELEMENT_RECORDS` but whose word layout this increment
     does not unpack: dropping it would return a model that looks complete and
-    has lost its elements.  ``EPT`` is not read at all yet, so a rod's ``PROD``
-    survives only as the property id on the element — which is also all the
-    ASCII reader keeps of it.
+    has lost its elements.  ``EPT`` reads the property records of
+    :data:`EPT_PROPERTY_RECORDS` — currently ``PROD`` area — while unknown
+    property cards are skipped and counted like other out-of-subset records.
 
     Parameters
     ----------
@@ -376,6 +384,7 @@ def read_op2(source: str | PathLike[str] | BinaryIO) -> NeutralModel:
         blocks, op2_format, source_name
     )
     materials, mpt_skipped = _read_materials(blocks, op2_format, source_name)
+    properties, ept_skipped = _read_properties(blocks, op2_format, source_name)
 
     referenced = {grid for rows in connectivity.values() for row in rows for grid in row}
     unknown = sorted(referenced - grids.keys())
@@ -396,9 +405,7 @@ def read_op2(source: str | PathLike[str] | BinaryIO) -> NeutralModel:
         for name, count in (
             ("GEOM1", geom1_skipped),
             ("GEOM2", geom2_skipped),
-            # The property tables are the remaining Phase 3 increment, so every
-            # record of an EPT block is a record this reader did not read.
-            ("EPT", sum(_countable_records(block) for block in blocks if block.name == "EPT")),
+            ("EPT", ept_skipped),
             ("MPT", mpt_skipped),
         )
         if count
@@ -428,6 +435,7 @@ def read_op2(source: str | PathLike[str] | BinaryIO) -> NeutralModel:
             for element_type in elements
         },
         materials=materials,
+        properties=properties,
         meta=meta,
     )
 
@@ -780,6 +788,39 @@ def _read_materials(
                     rho=float(values[row, _MAT1_DENSITY_WORD]),
                 )
     return materials, skipped
+
+
+def _read_properties(
+    blocks: list[OP2Block], op2_format: OP2Format, source_name: str | None
+) -> tuple[dict[int, NeutralProperty], int]:
+    """The ``EPT`` property cards by id, and unread records in that block."""
+
+    properties: dict[int, NeutralProperty] = {}
+    skipped = 0
+    for block in blocks:
+        if block.name != "EPT":
+            continue
+        for key, integers, reals in _geometry_records(block, op2_format):
+            entry_words = EPT_PROPERTY_RECORDS.get(key)
+            if entry_words is None:
+                skipped += 1
+                continue
+            labels, values = _entries(key, "EPT", integers, reals, entry_words, source_name)
+            for row in range(labels.shape[0]):
+                property_id = int(labels[row, 0])
+                material_id = int(labels[row, 1])
+                if property_id in properties:
+                    raise FormatError(
+                        f"{_where(source_name)}: duplicate PROD id {property_id}"
+                    )
+                area = float(values[row, _PROD_AREA_WORD])
+                properties[property_id] = NeutralProperty(
+                    id=property_id,
+                    material_id=material_id,
+                    values={"A": area, "area": area},
+                    name="PROD",
+                )
+    return properties, skipped
 
 
 def _iter_subtables(

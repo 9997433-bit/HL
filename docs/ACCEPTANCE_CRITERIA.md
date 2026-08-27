@@ -273,6 +273,7 @@ to honor the sparse matrix contract of MS-0.2 and MS-1.6.
 | AC-UPD-009 | P2 | FRF residual recovers a damped twin | ‖θ* − θ_true‖_∞ ≤ 1e-2 from noisy FRFs; held-out FRAC ≥ 0.99 | MS-3.2, MS-7.3 |
 | AC-UPD-010 | P2 | Parameter resolver builds a twin-recoverable scaling model | dotted `materials.<name>.E` target; ‖θ* − θ_true‖_∞ ≤ 1e-3 | MS-3.1 |
 | AC-UPD-011 | P2 | Monte Carlo propagation matches the linear oracle | E/ρ mean within 5 % rel.; std > 0 on 512 samples | MS-3.5 |
+| AC-UPD-012 | P2 | DOE factorial and LHS cover bounded factor grids | full factorial count = ∏ levels; LHS count and sampler tag exact | MS-3.5 |
 
 ### Details
 
@@ -549,6 +550,7 @@ run (AC-IO-003).
 | AC-IO-003 | P0 | Imported mesh assembles as the hand-built model | `K`, `M`, DOF partition and mass identical; f₁ within 1 % of the bar oracle | MS-9.4 |
 | AC-IO-004 | P2 | OP2 geometry import matches the BDF of the same model | node labels, coordinates, connectivity and property ids bitwise equal | MS-9.6 |
 | AC-IO-005 | P2 | OP2 readers are exported from `openfemlab.io` | `list_op2_tables`, `read_op2`, `read_op2_modes` in namespace and `__all__` | MS-9.6 |
+| AC-IO-006 | P2 | OP2 EPT PROD area import | `NeutralModel.properties[pid].values["A"]` matches the fixture | MS-9.6 |
 
 ### Details
 

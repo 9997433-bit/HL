@@ -56,6 +56,11 @@ def add_parser(subparsers: argparse._SubParsersAction) -> argparse.ArgumentParse
         help="relative model spec path whose geometry backs the 3D mode-shape viewer",
     )
     parser.add_argument(
+        "--desktop",
+        action="store_true",
+        help="open the dashboard in a native window (requires pywebview)",
+    )
+    parser.add_argument(
         "--open",
         action="store_true",
         help="open the dashboard in the default browser",
@@ -84,6 +89,7 @@ def run(args: argparse.Namespace, reporter: Reporter) -> int:
             port=args.port,
             root=root,
             open_browser=args.open,
+            desktop=args.desktop,
             preset_file=preset,
             preset_model=args.model,
         )

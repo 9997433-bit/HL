@@ -517,6 +517,12 @@ def rod_materials() -> list[_op2.Mat1]:
     return [_op2.Mat1(id=7, E=2.5e8, G=1.0e8, nu=0.25, rho=7.75e3)]
 
 
+def rod_properties() -> list[_op2.Prod]:
+    """The fixture's ``PROD`` for the shared rod property id."""
+
+    return [_op2.Prod(id=ROD_PROPERTY_ID, material_id=7, area=1.0e-4)]
+
+
 def test_phase3_reads_grids_elements_and_materials_into_a_neutral_model():
     """Phase 3: ``GEOM1`` grids, ``GEOM2`` connectivity and ``MPT`` materials.
 
@@ -640,6 +646,11 @@ def test_phase3_skips_and_counts_the_records_outside_its_subset():
     """
 
     unknown_geom2 = _op2.geom2_block(rod_elements(), key=(2608, 26, 60))
+    unknown_ept = _op2.DataBlock(
+        name="EPT",
+        records=(_op2.integers(2002, 20, 246, 40, 7, 0.1),),
+        subtable_name="EPTS",
+    )
     content = _op2.write_op2(
         [
             _op2.geom1_block(rod_grids()),
@@ -648,7 +659,7 @@ def test_phase3_skips_and_counts_the_records_outside_its_subset():
                 records=(*_op2.geom2_block(rod_elements()).records, *unknown_geom2.records),
                 subtable_name="GEOM2S",
             ),
-            _op2.DataBlock(name="EPT", records=(_op2.integers(902, 9, 29, 40, 7),)),
+            unknown_ept,
             _op2.mpt_block(rod_materials()),
         ]
     )
@@ -658,6 +669,23 @@ def test_phase3_skips_and_counts_the_records_outside_its_subset():
     assert model.meta["skipped_records"] == {"GEOM2": 1, "EPT": 1}
     np.testing.assert_array_equal(model.elements[ElementType.ROD2], [[11, 22], [22, 33]])
     assert model.properties == {}
+
+
+def test_phase3_reads_prod_from_ept():
+    """Phase 3: ``EPT`` ``PROD`` area lands in ``NeutralModel.properties``."""
+
+    content = _op2.geometry_file(
+        rod_grids(), rod_elements(), rod_materials(), properties=rod_properties()
+    )
+
+    model = read_op2(io.BytesIO(content))
+
+    prop = model.properties[ROD_PROPERTY_ID]
+    assert prop.name == "PROD"
+    assert prop.material_id == 7
+    assert prop.values["A"] == pytest.approx(1.0e-4)
+    assert prop.values["area"] == pytest.approx(1.0e-4)
+    assert model.meta["tables"] == ("GEOM1", "GEOM2", "EPT", "MPT")
 
 
 def test_phase3_rejects_a_record_that_does_not_divide_into_entries():

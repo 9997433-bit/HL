@@ -1572,3 +1572,27 @@ def test_ac_upd_011_monte_carlo_propagation_matches_linear_oracle() -> None:
     result = monte_carlo_run(evaluate, nominal, uncertainties, 512, seed=11)
     assert result.mean[0] == pytest.approx(210e9 / 7800.0, rel=0.05)
     assert result.std[0] > 0.0
+
+
+@criterion("AC-UPD-012")
+def test_ac_upd_012_doe_factorial_and_lhs_cover_bounded_factors() -> None:
+    from openfemlab.uq import doe_box_run, doe_lhs_run
+
+    nominal = {"bias": 1.0}
+
+    def evaluate(theta: dict[str, float]) -> np.ndarray:
+        return np.array([theta["a"] * theta["b"] + theta["bias"]])
+
+    box = doe_box_run(evaluate, nominal, {"a": [1.0, 2.0], "b": [3.0, 4.0]})
+    assert box.samples.shape == (4, 1)
+    assert box.diagnostics["sampler"] == "full_factorial"
+
+    lhs = doe_lhs_run(
+        evaluate,
+        nominal,
+        {"a": (0.0, 1.0), "b": (0.0, 1.0)},
+        count=16,
+        seed=5,
+    )
+    assert lhs.samples.shape == (16, 1)
+    assert lhs.diagnostics["sampler"] == "lhs_box"

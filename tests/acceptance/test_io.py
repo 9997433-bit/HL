@@ -596,3 +596,29 @@ def test_ac_io_004_op2_geometry_matches_the_bdf_of_the_same_model() -> None:
             bdf_model.element_property_ids[element_type],
             op2_model.element_property_ids[element_type],
         )
+
+
+@criterion("AC-IO-006")
+def test_ac_io_006_op2_reads_prod_properties() -> None:
+    """``EPT`` ``PROD`` cards populate ``NeutralModel.properties``."""
+    import io
+
+    from openfemlab.io.op2 import read_op2
+    from tests import _op2
+
+    content = _op2.geometry_file(
+        [
+            _op2.Grid(id=11, xyz=(0.0, 0.0, 0.0)),
+            _op2.Grid(id=22, xyz=(1.0, 0.0, 0.0)),
+        ],
+        [_op2.Rod(id=100, property_id=40, grids=(11, 22))],
+        [_op2.Mat1(id=7, E=2.0e11, nu=0.3, rho=7800.0)],
+        properties=[_op2.Prod(id=40, material_id=7, area=2.5e-4)],
+    )
+
+    model = read_op2(io.BytesIO(content))
+    prop = model.properties[40]
+
+    assert prop.name == "PROD"
+    assert prop.material_id == 7
+    assert prop.values["A"] == pytest.approx(2.5e-4)
