@@ -282,7 +282,7 @@ function choose(opt) {
     score.value += 1
     streak.value += 1
     bestStreak.value = Math.max(bestStreak.value, streak.value)
-    sfx.correct()
+    sfx.streak(streak.value)
     burstRef.value?.burst()
     animateRight(opt.char)
     announce(

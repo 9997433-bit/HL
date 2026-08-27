@@ -20,8 +20,12 @@ export function useFeedback() {
     )
   }
 
-  function correct(target, { sound = true } = {}) {
-    if (sound) sfx.correct()
+  /**
+   * 答对反馈。streak 可选，未传时仍播放第一档答对音；
+   * 玩法层只需在已有连击数时传入，不必为了音效维护额外状态。
+   */
+  function correct(target, { sound = true, streak = 1 } = {}) {
+    if (sound) sfx.streak(streak)
     const el = unwrap(target)
     if (!el || prefersReducedMotion()) return
     const tl = gsap.timeline()

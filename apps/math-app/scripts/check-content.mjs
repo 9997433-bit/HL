@@ -41,7 +41,7 @@ import {
   DAILY_TEMPLATE_IDS,
 } from '../src/data/daily.js'
 import { ERROR_TAGS } from '../src/data/errorTags.js'
-import { CUES, noteToFreq } from '../src/utils/sound.js'
+import { CUES, noteToFreq, STREAK_CUES, streakCue } from '../src/utils/sound.js'
 import { updateMastery, MASTERY_THRESHOLD } from '../src/utils/mastery.js'
 import { VISUAL_DEMOS } from '../src/data/visualDemos.js'
 import {
@@ -362,6 +362,15 @@ for (const [name, cue] of Object.entries(CUES)) {
   }
 }
 console.log(`音效谱面 ${Object.keys(CUES).length} 段共 ${noteCount} 个音：音名全部可解析`)
+
+const streakEndings = STREAK_CUES.map((cue) => noteToFreq(cue.notes[cue.notes.length - 1]))
+if (streakEndings.some((freq, index) => index > 0 && freq <= streakEndings[index - 1])) {
+  fail('连对音效的收尾音没有逐级升高')
+}
+if (streakCue(0) !== STREAK_CUES[0] || streakCue(999) !== STREAK_CUES[STREAK_CUES.length - 1]) {
+  fail('连对音效没有在安全音域内封顶')
+}
+console.log(`连对音效 ${STREAK_CUES.length} 档：音高递进并在最高档封顶`)
 
 /* 自适应引擎：用固定种子跑，结论必须每次都一样 */
 
