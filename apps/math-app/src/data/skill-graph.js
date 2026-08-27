@@ -306,10 +306,7 @@ export function buildSkillGraph({ mastery = {}, ageBand = DEFAULT_AGE_BAND } = {
 
 /* ------------------------------------------------------------------ 推荐 */
 
-/**
- * 推荐理由。每条建议都得说得出「为什么是它」，家长才敢照着练；
- * 顺序即优先级，也是图例的展示顺序。
- */
+/** 推荐理由：每条建议都得说得出「为什么是它」，家长才敢照着练。顺序即优先级。 */
 export const RECOMMEND_REASONS = [
   { id: 'finish', label: '差一点', hint: '练过但还没过线，补几题最快见效' },
   { id: 'base', label: '补基础', hint: '低于当前年龄档、还欠着的底子' },
