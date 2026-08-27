@@ -22,7 +22,12 @@ Model slug: gpt-5.6-sol
 - [x] 公开版本采用 `1.0.0`；根/双 App `package.json`、lockfile与双 Android `versionName` 已统一。
 - [ ] 以最终发布 commit 创建不可变 tag `v1.0.0`，记录 commit SHA、构建机 Node/npm 版本与 UTC 时间。
 - [ ] 如版本改变，同步根/双 App `package.json`、lockfile、发行说明、zip 文件名或 manifest；禁止只改展示文案。
-- [ ] 从干净 checkout 按顺序运行 `npm test`、`npm run test:round3`、`npm run build:all`、`npm run sync:android`、`npm run check:android`、`npm run check:round8`。
+- [x] 2026-08-27 在本分支运行 `npm test`、`npm run test:round3` 与
+  `npm run build:all`，三项退出码均为 0；`test:round3` 内含离线与完整 acceptance。
+- [x] `npm run check:round9` 为 8/8；`check:round10` 的 H7（发布就绪）与
+  H8（Round 9 不退化）均 PASS。其余 H1–H6 由对应 Round 10 功能分支集成后统一验收。
+- [ ] 最终集成分支继续运行 `npm run sync:android`、`npm run check:android` 与完整
+  `npm run check:round10` 8/8。
 - [ ] 校验两个 zip 可解压、CRC 正常、单包低于 10 MiB，并在发行说明中登记字节数和 SHA256。
 
 ## 3. 对外声明草案
