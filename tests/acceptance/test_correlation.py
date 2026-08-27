@@ -1422,3 +1422,43 @@ def test_ac_corr_008_a_non_finite_value_anywhere_else_fails_loudly():
     report.meta["headroom_db"] = float("inf")
     with pytest.raises(ValueError, match="not JSON compliant"):
         report.to_json()
+
+
+# --------------------------------------------------------------- AC-CORR-010
+
+
+@criterion("AC-CORR-010")
+def test_ac_corr_010_sac_csac_csf_metrics_match_the_dynamics_kernel() -> None:
+    """SAC/CSAC/CSF line metrics ride in the FRF correlation block."""
+    from openfemlab.correlation.frf import frf_correlation
+    from openfemlab.solver.dynamics import csac, csf, sac
+
+    frequencies = np.linspace(1.0, 20.0, 32)
+    reference = np.exp(1j * frequencies[:, None] * 0.05) * (1.0 + 0.1j * frequencies[:, None])
+    comparison = reference * (1.02 + 0.01j)
+    result = frf_correlation(reference, comparison, frequencies=frequencies)
+    assert result.sac is not None and result.csac is not None and result.csf is not None
+    assert np.all(result.sac >= 0.0)
+    assert np.all(result.sac <= 1.0 + 1e-12)
+    assert np.allclose(result.sac, sac(reference, comparison))
+    assert np.allclose(result.csac, csac(reference, comparison))
+    assert np.allclose(result.csf, csf(reference, comparison))
+
+
+# --------------------------------------------------------------- AC-CORR-011
+
+
+@criterion("AC-CORR-011")
+def test_ac_corr_011_corthog_localizes_the_perturbed_dof() -> None:
+    """Coordinate orthogonality drops on the DOF that was perturbed in the twin."""
+    from openfemlab.correlation.mac import corthog
+
+    analysis, _ = _fixture_modes("ten_dof_chain")
+    analysis = analysis[:, :6]
+    perturbed = analysis.copy()
+    perturbed[FAULTY_DOF, :] = np.random.default_rng(0).standard_normal(analysis.shape[1])
+    values = corthog(analysis, perturbed)
+    assert int(np.argmin(values)) == FAULTY_DOF
+    assert values[FAULTY_DOF] < 0.5
+    healthy = np.delete(values, FAULTY_DOF)
+    assert np.min(healthy) > 0.9

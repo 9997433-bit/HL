@@ -12,6 +12,7 @@ from .plotting import (
     plot_frf_overlay,
     plot_mac_matrix,
     plot_mode_shape,
+    plot_modes_side_by_side,
     plot_stabilization_diagram,
     require_matplotlib,
 )
@@ -21,6 +22,7 @@ __all__ = [
     "plot_frf_overlay",
     "plot_mac_matrix",
     "plot_mode_shape",
+    "plot_modes_side_by_side",
     "plot_stabilization_diagram",
     "require_matplotlib",
 ]

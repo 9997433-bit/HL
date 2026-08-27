@@ -28,6 +28,7 @@ accelerance are converted by the caller.
 from __future__ import annotations
 
 from .lscf import extract_modes, extract_shapes, fit_lscf, stabilization_diagram
+from .rbpe import RigidBodyProperties, from_lumped_masses, rbpe_from_frf
 from .ssi import ssi_cov
 from .ssi_cov_kernel import ssi_cov_diagram
 from .types import MPEResult, PoleEstimate, StabilizationDiagram
@@ -42,4 +43,7 @@ __all__ = [
     "ssi_cov",
     "ssi_cov_diagram",
     "stabilization_diagram",
+    "RigidBodyProperties",
+    "from_lumped_masses",
+    "rbpe_from_frf",
 ]

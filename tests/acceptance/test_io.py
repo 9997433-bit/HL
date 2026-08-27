@@ -660,3 +660,33 @@ def test_ac_io_007_op2_reads_pshell_and_psolid_properties() -> None:
         bdf_model.properties[10].values["t"]
     )
     assert op2_model.properties[20] == bdf_model.properties[20]
+
+
+@criterion("AC-IO-008")
+def test_ac_io_008_bdf_export_round_trip_preserves_geometry(tmp_path) -> None:
+    """``write_bdf`` followed by ``read_bdf`` recovers nodes and connectivity."""
+    import io
+
+    from openfemlab.io.nastran import read_bdf, write_bdf
+
+    bdf_text = io.StringIO(
+        "\n".join(
+            [
+                "GRID,11,,0.,0.,0.",
+                "GRID,22,,1.,0.,0.",
+                "GRID,33,,2.,0.,0.",
+                "CROD,100,40,11,22",
+                "CROD,200,40,22,33",
+            ]
+        )
+        + "\n"
+    )
+    source = read_bdf(bdf_text)
+    path = tmp_path / "exported.bdf"
+    write_bdf(source, path)
+    recovered = read_bdf(path)
+    assert np.array_equal(recovered.node_ids, source.node_ids)
+    assert np.allclose(recovered.nodes, source.nodes)
+    for element_type, connectivity in source.elements.items():
+        assert element_type in recovered.elements
+        assert np.array_equal(recovered.elements[element_type], connectivity)

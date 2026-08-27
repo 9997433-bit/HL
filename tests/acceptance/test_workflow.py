@@ -543,3 +543,27 @@ def test_ac_work_003_the_held_out_blocks_travel_in_the_report():
     assert holdout["baseline"] is not None
     assert holdout["final"] is not None
     assert holdout["final"]["summary"]["n_paired"] == 1
+
+
+# --------------------------------------------------------------- AC-WORK-006
+
+
+@criterion("AC-WORK-006")
+def test_ac_work_006_side_by_side_mode_plot_returns_axes() -> None:
+    from openfemlab import ModalSolver
+    from openfemlab.mesh.simple import spring_mass_chain
+    from openfemlab.viz.plotting import plot_modes_side_by_side, require_matplotlib
+
+    require_matplotlib()
+    model = spring_mass_chain(num_masses=4, stiffness=1.0, mass=1.0, fixed_end=False)
+    result = ModalSolver(model).solve(num_modes=2)
+    figure, axes = plot_modes_side_by_side(
+        model,
+        result.mode_shapes[:, 0],
+        model,
+        result.mode_shapes[:, 1],
+        title_a="mode 1",
+        title_b="mode 2",
+    )
+    assert figure is not None
+    assert len(axes) == 2

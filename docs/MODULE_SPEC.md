@@ -735,7 +735,26 @@ def harmonic_response(frequencies, K, M, C=None, *, load, free_dofs=None,
 
 def frac(reference, comparison, *, axis: int = 0)
 def fdac(reference, comparison) -> np.ndarray
+def sac(reference, comparison) -> np.ndarray
+def csac(reference, comparison) -> np.ndarray
+def csf(reference, comparison) -> np.ndarray
 ```
+
+### MS-7.6 Structural Dynamics Modification (SDM)
+
+`openfemlab.solver.sdm` projects stiffness/mass increments onto a retained modal
+basis and resolves the modified natural frequencies without a full FE re-solve
+(AC-DYN-006).  Wave 2 adds MBA/FBA in MS-7.7/MS-7.8.
+
+### MS-7.7 Modal-Based Assembly (MBA)
+
+Specified for Round 7 Wave 2 — couples modal substructures at connection DOFs.
+Stub: :func:`openfemlab.solver.mba.mba_couple`.
+
+### MS-7.8 FRF-Based Assembly (FBA)
+
+Specified for Round 7 Wave 2 — assembles component FRFs through connection
+impedances.  Stub: :func:`openfemlab.solver.mba.fba_assemble`.
 
 ---
 
@@ -1135,6 +1154,9 @@ reader lives in `openfemlab.io.op2` over the record layer
   reading of the spec* — paired with an opt-in corpus test over real MSC and NX
   output, skipped when the corpus path is unset. That second half is the one
   still missing, and it is what keeps the reader experimental and unexported.
+- **BDF export and external drivers (MS-9.7).** ``write_bdf`` round-trips neutral
+  geometry; ``openfemlab.io.drivers.nastran`` runs a Nastran executable when
+  ``OPENFEMLAB_NASTRAN_EXE`` is set (AC-IO-008).
 - **`pyNastran` (BSD-3) belongs on the dev side, not behind the MS-9.3 optional
   seam.** It would cover all of this today, but OP2 is the format an
   FE-correlation platform is judged on, and the Phase 1-2 subset is small over
@@ -1329,6 +1351,12 @@ def ssi_cov(responses: np.ndarray, sampling_rate_hz: float,
             min_count: int = 3, **tolerances) -> MPEResult   # output-only driver
 ```
 
+### MS-10.7 Rigid-body property extraction (RBPE subset)
+
+`openfemlab.mpe.rbpe.from_lumped_masses` recovers total mass, center of gravity
+and the lumped inertia tensor from nodal masses (AC-MPE-008).  FRF-based RBPE
+is specified for Wave 2.
+
 ---
 
 ## 11. Module M10 — Pretest Planning and Sensor Placement (`openfemlab.pretest`) (MS-11)
@@ -1438,6 +1466,11 @@ so competing layouts are compared on numbers rather than adjectives:
   0.50, auto-MAC 0.012 vs 0.13 — the same verdict the Guyan-TAM gate reaches
   on that pair, while a contiguous five-channel layout `(0..4)` aliases the
   target modes at auto-MAC 0.91. Pinned by AC-PRETEST-003.
+
+### MS-11.6 Accelerometer mass loading
+
+`openfemlab.pretest.mass_loading` estimates first-order frequency reduction from
+a point accelerometer mass at a candidate sensor DOF (AC-PRETEST-006).
 
 ### MS-11.5 Public API
 

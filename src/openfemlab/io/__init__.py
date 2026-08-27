@@ -49,7 +49,7 @@ from ._native import (
     write_test_data,
 )
 from .meshio_bridge import from_meshio, read_meshio, to_meshio, write_meshio
-from .nastran import read_bdf, read_nastran
+from .nastran import read_bdf, read_nastran, write_bdf
 from .neutral_convert import (
     SUPPORTED_ELEMENT_TYPES,
     infer_dofs,
@@ -138,6 +138,7 @@ __all__ = [
     "write_meshio",
     "read_bdf",
     "read_nastran",
+    "write_bdf",
     "SUPPORTED_ELEMENT_TYPES",
     "neutral_to_model",
     "infer_dofs",

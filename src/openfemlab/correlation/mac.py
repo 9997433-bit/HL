@@ -24,6 +24,7 @@ __all__ = [
     "auto_mac",
     "automac",
     "comac",
+    "corthog",
     "mac",
     "mac_matrix",
     "mac_value",
@@ -282,4 +283,55 @@ def comac(
     out = np.zeros(a.shape[0], dtype=np.float64)
     nonzero = denominator > 0.0
     out[nonzero] = numerator[nonzero] ** 2 / denominator[nonzero]
+    return np.clip(out, 0.0, 1.0)
+
+
+def corthog(
+    shapes_a: Shapes,
+    shapes_b: Shapes,
+    pairing: ModePairing | None = None,
+    weights: Any = None,
+) -> npt.NDArray[np.float64]:
+    """Coordinate orthogonality check — per-DOF paired-mode product (MS-2.2).
+
+    Like COMAC but accumulates the real paired product ``Re(φ_a φ_b*)`` (optionally
+    mass-weighted on the diagonal of ``weights``) instead of the MAC magnitude
+    product.  Low values localize DOFs where orthogonality between paired modes
+    breaks down.
+    """
+    a = as_columns(shapes_a, "shapes_a")
+    b = as_columns(shapes_b, "shapes_b")
+    if a.shape[0] != b.shape[0]:
+        raise ValueError(f"DOF mismatch: {a.shape[0]} vs {b.shape[0]}")
+    diagonal = None
+    if weights is not None:
+        w = prepare_weights(weights, a.shape[0])
+        diagonal = np.asarray(np.diag(w) if w.ndim == 2 else w, dtype=np.float64)
+    if pairing is None:
+        if a.shape != b.shape:
+            raise ValueError("CORTHOG requires equal-shape, column-paired sets")
+        columns = [(i, i) for i in range(a.shape[1])]
+    else:
+        columns = [(pair.test_index, pair.fe_index) for pair in pairing.pairs]
+    if not columns:
+        return np.zeros(a.shape[0], dtype=np.float64)
+
+    numerator = np.zeros(a.shape[0], dtype=np.float64)
+    sum_a = np.zeros(a.shape[0], dtype=np.float64)
+    sum_b = np.zeros(a.shape[0], dtype=np.float64)
+    for i, j in columns:
+        phi_a = a[:, i]
+        phi_b = b[:, j] * modal_scale_factor(phi_a, b[:, j])
+        if diagonal is not None:
+            numerator += np.real(phi_a * np.conj(phi_b)) * diagonal
+            sum_a += np.abs(phi_a) ** 2 * diagonal
+            sum_b += np.abs(phi_b) ** 2 * diagonal
+        else:
+            numerator += np.real(phi_a * np.conj(phi_b))
+            sum_a += np.abs(phi_a) ** 2
+            sum_b += np.abs(phi_b) ** 2
+    denominator = np.sqrt(sum_a * sum_b)
+    out = np.zeros(a.shape[0], dtype=np.float64)
+    nonzero = denominator > 0.0
+    out[nonzero] = np.abs(numerator[nonzero]) / denominator[nonzero]
     return np.clip(out, 0.0, 1.0)

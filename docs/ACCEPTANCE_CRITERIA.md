@@ -213,6 +213,8 @@ to honor the sparse matrix contract of MS-0.2 and MS-1.6.
 | AC-CORR-007 | P0 | MAC range and complex-shape support | values in [0, 1]; Hermitian identity holds | MS-2.2 |
 | AC-CORR-008 | P0 | CorrelationReport JSON round-trip | serialize→parse→equal (arrays ≤ 1e-15) | MS-2.6 |
 | AC-CORR-009 | P1 | TAM pseudo-orthogonality | \|POC\| diag ≥ 0.99, off-diag ≤ 0.10 | MS-2.1, MS-2.2 |
+| AC-CORR-010 | P1 | SAC/CSAC/CSF FRF correlation metrics | line metrics in [0, 1]; match dynamics kernels | MS-7.4 |
+| AC-CORR-011 | P1 | CORTHOG localizes orthogonality defects | argmin CORTHOG = corrupted DOF; others ≥ 0.9 | MS-2.2 |
 
 ### Details
 
@@ -338,6 +340,7 @@ to honor the sparse matrix contract of MS-0.2 and MS-1.6.
 | AC-WORK-003 | P1 | Held-out validation detects overfitting | reserved targets evaluated at S6; overfit run fails gate | MS-4.1 |
 | AC-WORK-004 | P0 | Failed gate halts with typed reason | stage + machine-readable reason; no silent partial PASS | MS-4.1 |
 | AC-WORK-005 | P0 | CorrectionReport schema & versioning | schema_version "1.0"; required keys; JSON-serializable | MS-4.3 |
+| AC-WORK-006 | P2 | Side-by-side mode-shape plotting helper | `plot_modes_side_by_side` returns figure and two axes | MS-4.3 |
 
 ### Details
 
@@ -405,6 +408,7 @@ frequency-domain counterparts of the M2 gates AC-CORR-001/002.
 | AC-DYN-003 | P0 | Proportional damping ⇒ real modes | MPC ≥ 1 − 1e-8; ζ_r matches `α/(2ω_r) + βω_r/2` to 1e-10 | MS-7.2 |
 | AC-DYN-004 | P0 | FRAC/FDAC self-identity and invariance | self-FRAC = 1 ± 1e-12; scale change ≤ 1e-12; FDAC diagonal = 1 | MS-7.4 |
 | AC-DYN-005 | P1 | Synthesized FRF survives UFF-58 round trip | abscissa and ordinate recovered to ≤ 1e-9 rel.; FRAC = 1 | MS-7.4 |
+| AC-DYN-006 | P1 | SDM spring modification shifts frequencies | predicted f₁ increases; within 5 % rel. of full solve | MS-7.6 |
 
 ### Details
 
@@ -552,6 +556,7 @@ run (AC-IO-003).
 | AC-IO-005 | P2 | OP2 readers are exported from `openfemlab.io` | `list_op2_tables`, `read_op2`, `read_op2_modes` in namespace and `__all__` | MS-9.6 |
 | AC-IO-006 | P2 | OP2 EPT PROD area import | `NeutralModel.properties[pid].values["A"]` matches the fixture | MS-9.6 |
 | AC-IO-007 | P2 | OP2 EPT PSHELL/PSOLID import | thickness and material id match the BDF reader | MS-9.6 |
+| AC-IO-008 | P1 | BDF export round trip preserves geometry | node ids, coordinates and connectivity bitwise equal | MS-9.6, MS-9.7 |
 
 ### Details
 
@@ -614,6 +619,7 @@ experiment against a modal model the test itself constructed.
 | AC-MPE-005 | P1 | Noise robustness of the estimator | seeded 1 % noise: f within 0.1 %, ζ within 20 % rel., MAC ≥ 0.98; bitwise deterministic per seed | MS-10.2, MS-10.3 |
 | AC-MPE-006 | P2 | SSI-COV recovers operational modes from output-only data | both oracle modes within 0.6 Hz of the synthesized ambient record | MS-10.1 |
 | AC-MPE-007 | P0 | SSI-COV stabilization diagram separates physical poles | physical alignments stable ≥ 3 orders; auto-pick count exact; tolerance monotonicity | MS-10.3 |
+| AC-MPE-008 | P2 | RBPE lumped-mass properties | total mass and CG match closed form; inertia tensor present | MS-10.7 |
 
 ### Details
 
@@ -683,6 +689,7 @@ with no promoted row.
 | AC-PRETEST-003 | P1 | Quality metrics separate layouts consistently with AC-CORR-009 | `(1,3,5,7,9)` beats `(0,2,5,7,9)` on all four metrics; EI det ≥ both; contiguous `(0..4)` auto-MAC ≥ 0.9 while EI ≤ 0.10 | MS-11.4 |
 | AC-PRETEST-004 | P0 | Determinism, constraints, and typed failures | `s < m` / rank-deficient candidates raise `PretestError`; `keep` rows never eliminated; reruns bitwise identical | MS-11.2, MS-11.5 |
 | AC-PRETEST-005 | P2 | MKE ranking matches the closed-form chain | mode-1 MKE strictly increasing toward the free end, argmax = tip; `mass = c·I` changes no EI selection | MS-11.3 |
+| AC-PRETEST-006 | P1 | Accelerometer mass lowers predicted frequencies | shifted f < baseline f at sensor DOF | MS-11.6 |
 
 ### Details
 

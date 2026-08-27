@@ -433,4 +433,63 @@ def _float(token: str, name: str) -> float:
 
 read_nastran = read_bdf
 
-__all__ = ["read_bdf", "read_nastran"]
+
+def write_bdf(
+    model: NeutralModel,
+    destination: str | PathLike[str] | TextIO,
+    *,
+    title: str = "OpenFEMLab export",
+) -> None:
+    """Write a minimal ASCII BDF from a :class:`NeutralModel` (MS-9.6 export).
+
+    Emits ``GRID``, ``MAT1``, ``PSHELL``/``PSOLID``, and connectivity cards
+    present in the model.  Rods and bars without ``PROD``/``PBAR`` sections are
+    still written with property ids so geometry round-trips; section data must
+    be supplied again on import when converting to an internal model.
+    """
+    lines = [f"TITLE = {title}", "BEGIN BULK"]
+    for material_id, material in sorted(model.materials.items()):
+        lines.append(
+            f"MAT1,{material_id},{material.E:g},{material.rho:g},,{material.nu:g}"
+        )
+    for property_id, property_ in sorted(model.properties.items()):
+        thickness = property_.values.get("t")
+        if thickness is not None:
+            lines.append(
+                f"PSHELL,{property_id},{property_.material_id},{thickness:g}"
+            )
+        else:
+            lines.append(f"PSOLID,{property_id},{property_.material_id}")
+    for index, node_id in enumerate(model.node_ids):
+        x, y, z = model.nodes[index]
+        lines.append(f"GRID,{int(node_id)},,{x:g},{y:g},{z:g}")
+    element_id = 1
+    card_map = {
+        ElementType.ROD2: "CROD",
+        ElementType.BEAM2: "CBAR",
+        ElementType.QUAD4: "CQUAD4",
+        ElementType.TET4: "CTETRA",
+        ElementType.HEX8: "CHEXA",
+    }
+    for element_type in _BLOCK_ORDER:
+        connectivity = model.elements.get(element_type)
+        if connectivity is None or connectivity.size == 0:
+            continue
+        card = card_map.get(element_type)
+        if card is None:
+            continue
+        property_ids = model.element_property_ids.get(element_type)
+        for row_index, nodes in enumerate(np.asarray(connectivity, dtype=np.int64)):
+            pid = int(property_ids[row_index]) if property_ids is not None else 1
+            node_list = ",".join(str(int(node_id)) for node_id in nodes)
+            lines.append(f"{card},{element_id},{pid},{node_list}")
+            element_id += 1
+    lines.append("ENDDATA")
+    payload = "\n".join(lines) + "\n"
+    if isinstance(destination, (str, PathLike)):
+        Path(destination).write_text(payload, encoding="utf-8")
+    else:
+        destination.write(payload)
+
+
+__all__ = ["read_bdf", "read_nastran", "write_bdf"]

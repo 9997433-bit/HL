@@ -15,6 +15,7 @@ The module is **specified ahead of its implementation** (GAP-07, spec-first):
 """
 
 from ..exceptions import PretestError
+from .mass_loading import accelerometer_frequency_shift, effective_modal_mass_at_dof
 from .placement import (
     PlacementQuality,
     PlacementResult,
@@ -26,6 +27,8 @@ from .placement import (
 )
 
 __all__ = [
+    "accelerometer_frequency_shift",
+    "effective_modal_mass_at_dof",
     "PlacementQuality",
     "PlacementResult",
     "PretestError",

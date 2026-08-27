@@ -1092,6 +1092,45 @@ def fdac(reference, comparison) -> np.ndarray:
     return _safe_ratio(numerator, denominator)
 
 
+def sac(reference, comparison) -> np.ndarray:
+    """Spectral Assurance Criterion — amplitude-only FRAC per frequency line.
+
+    At each frequency, correlates the *amplitude* shapes ``|H(f, :)|`` across
+  channels (FEMtools SAC).  Returns ``(n_frequencies,)`` values in ``[0, 1]``.
+    """
+    magnitude_a = np.abs(np.asarray(reference, dtype=complex))
+    magnitude_b = np.abs(np.asarray(comparison, dtype=complex))
+    if magnitude_a.shape != magnitude_b.shape:
+        raise SolverError(
+            f"SAC needs matching shapes, got {magnitude_a.shape} and {magnitude_b.shape}"
+        )
+    return np.atleast_1d(
+        np.asarray(frac(magnitude_a, magnitude_b, axis=1), dtype=np.float64)
+    )
+
+
+def csac(reference, comparison) -> np.ndarray:
+    """Complex Spectral Assurance Criterion per frequency line (FEMtools CSAC = FRAC).
+
+    At each frequency, correlates the complex channel vector ``H(f, :)``.  This
+    is the line-wise FRAC that FEMtools labels CSAC.
+    """
+    a = np.asarray(reference, dtype=complex)
+    b = np.asarray(comparison, dtype=complex)
+    if a.shape != b.shape:
+        raise SolverError(f"CSAC needs matching shapes, got {a.shape} and {b.shape}")
+    return np.atleast_1d(np.asarray(frac(a, b, axis=1), dtype=np.float64))
+
+
+def csf(reference, comparison) -> np.ndarray:
+    """Correlation Spectral Function — FDAC diagonal (shape agreement per line).
+
+    Entry ``csf[f]`` is the FDAC diagonal at frequency line ``f`` (FEMtools CSF).
+    """
+    matrix = fdac(reference, comparison)
+    return np.asarray(np.diag(matrix), dtype=np.float64)
+
+
 # ==================================================================== helpers
 
 

@@ -596,6 +596,19 @@ def test_ac_mpe_007_ssi_select_returns_the_oracle_mode_count() -> None:
     assert all(pole.label == "stable" for pole in picked)
 
 
+@criterion("AC-MPE-008")
+def test_ac_mpe_008_rbpe_recovers_total_mass_and_center_of_gravity() -> None:
+    from openfemlab.mpe.rbpe import from_lumped_masses
+
+    nodes = np.array([[0.0, 0.0, 0.0], [2.0, 0.0, 0.0], [1.0, 1.0, 0.0]])
+    masses = np.array([1.0, 3.0, 2.0])
+    props = from_lumped_masses(nodes, masses)
+    assert props.total_mass == 6.0
+    assert props.center_of_gravity == pytest.approx([1.3333333333, 0.3333333333, 0.0])
+    assert props.inertia_tensor is not None
+    assert np.all(np.diag(props.inertia_tensor) > 0.0)
+
+
 @criterion("AC-MPE-007")
 def test_ac_mpe_007_ssi_tightening_tolerances_never_promotes_a_pole() -> None:
     baseline = _ssi_diagram()

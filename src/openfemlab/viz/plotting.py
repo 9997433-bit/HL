@@ -16,6 +16,7 @@ __all__ = [
     "plot_frf_overlay",
     "plot_mac_matrix",
     "plot_mode_shape",
+    "plot_modes_side_by_side",
     "plot_stabilization_diagram",
     "require_matplotlib",
 ]
@@ -207,6 +208,25 @@ def plot_mode_shape(
         ax.set_title(title)
     ax.legend()
     return ax
+
+
+def plot_modes_side_by_side(
+    model_a: Any,
+    shape_a: Any,
+    model_b: Any,
+    shape_b: Any,
+    *,
+    scale: float = 1.0,
+    title_a: str | None = "Reference",
+    title_b: str | None = "Comparison",
+) -> tuple[Any, tuple[Any, Any]]:
+    """Side-by-side undeformed/deformed mode plots (FEMtools-style overlay prep)."""
+    pyplot = require_matplotlib()
+    figure, axes = pyplot.subplots(1, 2, subplot_kw={"projection": "3d"})
+    plot_mode_shape(model_a, shape_a, scale=scale, ax=axes[0], title=title_a)
+    plot_mode_shape(model_b, shape_b, scale=scale, ax=axes[1], title=title_b)
+    figure.tight_layout()
+    return figure, axes
 
 
 _LABEL_COLORS = {

@@ -356,3 +356,29 @@ def test_synthesized_frf_round_trips_through_the_uff_58_reader(tmp_path) -> None
     )
     assert _relative_error(recovered.values, line) <= ROUND_TRIP_TOLERANCE
     assert frac(line, recovered.values) == pytest.approx(1.0, abs=1e-12)
+
+
+# --------------------------------------------------------------- AC-DYN-006
+
+
+@criterion("AC-DYN-006")
+def test_ac_dyn_006_sdm_spring_shift_matches_the_full_solve() -> None:
+    """A grounded spring raises the first frequency toward the re-solved model."""
+    from openfemlab import ModalSolver
+    from openfemlab.solver.sdm import PointModification, modified_frequencies_hz
+
+    K, M = _chain()
+    base = ModalSolver.from_matrices(K, M).solve(num_modes=5, sparse=False)
+    stiffness_delta = float(K[0, 0]) * 0.5
+    predicted = modified_frequencies_hz(
+        K,
+        M,
+        base.mode_shapes,
+        modifications=[PointModification(dof_index=0, stiffness_delta=stiffness_delta)],
+        num_modes=5,
+    )
+    modified = K.copy()
+    modified[0, 0] += stiffness_delta
+    full = ModalSolver.from_matrices(modified, M).solve(num_modes=5, sparse=False)
+    assert predicted[0] > base.frequencies[0]
+    assert predicted[0] == pytest.approx(full.frequencies[0], rel=0.05)

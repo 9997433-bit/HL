@@ -20,8 +20,11 @@ from typing import Any
 import numpy as np
 import numpy.typing as npt
 
+from ..solver.dynamics import csac as csac_values
+from ..solver.dynamics import csf as csf_values
 from ..solver.dynamics import fdac as fdac_matrix
 from ..solver.dynamics import frac as frac_values
+from ..solver.dynamics import sac as sac_values
 
 __all__ = [
     "FRFCorrelation",
@@ -49,6 +52,9 @@ class FRFCorrelation:
     frequencies: FloatArray
     frac: FloatArray
     fdac: FloatArray | None = None
+    sac: FloatArray | None = None
+    csac: FloatArray | None = None
+    csf: FloatArray | None = None
     channels: tuple[str, ...] | None = None
     response_type: str = "receptance"
     excitation: str | None = None
@@ -134,6 +140,9 @@ class FRFCorrelation:
             "min_fdac_diagonal": self.min_fdac_diagonal,
             "frequencies": self.frequencies.tolist(),
             "frac": self.frac.tolist(),
+            "sac": None if self.sac is None else self.sac.tolist(),
+            "csac": None if self.csac is None else self.csac.tolist(),
+            "csf": None if self.csf is None else self.csf.tolist(),
             "channels": None if self.channels is None else list(self.channels),
             "fdac": None if self.fdac is None else self.fdac.tolist(),
             "meta": dict(self.meta),
@@ -144,10 +153,16 @@ class FRFCorrelation:
         """Inverse of :meth:`as_dict`; the reported scalars are recomputed."""
         channels = payload["channels"]
         fdac = payload["fdac"]
+        sac = payload.get("sac")
+        csac = payload.get("csac")
+        csf = payload.get("csf")
         return cls(
             frequencies=np.asarray(payload["frequencies"], dtype=np.float64),
             frac=np.asarray(payload["frac"], dtype=np.float64),
             fdac=None if fdac is None else np.asarray(fdac, dtype=np.float64),
+            sac=None if sac is None else np.asarray(sac, dtype=np.float64),
+            csac=None if csac is None else np.asarray(csac, dtype=np.float64),
+            csf=None if csf is None else np.asarray(csf, dtype=np.float64),
             channels=None if channels is None else tuple(str(label) for label in channels),
             response_type=str(payload["response_type"]),
             excitation=payload["excitation"],
@@ -179,6 +194,7 @@ def frf_correlation(
     frequencies: Any = None,
     channels: Any = None,
     response_type: str | None = None,
+    with_sac: bool = True,
     with_fdac: bool = True,
     meta: dict[str, Any] | None = None,
 ) -> FRFCorrelation:
@@ -213,11 +229,23 @@ def frf_correlation(
     line = _resolve_frequencies(frequencies, ref_line, cmp_line, ref.shape[0])
     kind = _resolve_response_type(response_type, ref_type, cmp_type)
     labels = _resolve_channels(channels, ref_labels, cmp_labels, ref.shape[1])
+    sac_line = (
+        np.atleast_1d(np.asarray(sac_values(ref, cmp_), dtype=np.float64)) if with_sac else None
+    )
+    csac_line = (
+        np.atleast_1d(np.asarray(csac_values(ref, cmp_), dtype=np.float64)) if with_sac else None
+    )
+    csf_line = (
+        np.atleast_1d(np.asarray(csf_values(ref, cmp_), dtype=np.float64)) if with_sac else None
+    )
 
     return FRFCorrelation(
         frequencies=line,
         frac=np.atleast_1d(np.asarray(frac_values(ref, cmp_, axis=0), dtype=np.float64)),
         fdac=fdac_matrix(ref, cmp_) if with_fdac else None,
+        sac=sac_line,
+        csac=csac_line,
+        csf=csf_line,
         channels=labels,
         response_type=kind,
         excitation=None if excitation_dof is None else f"dof {int(excitation_dof)}",

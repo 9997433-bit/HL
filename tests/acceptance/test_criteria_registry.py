@@ -70,8 +70,8 @@ FAMILY_TO_MODULE = {
     "PERF": "M1",
 }
 EXPECTED_CRITERIA_PER_FAMILY = {
-    "MODAL": 9, "CORR": 9, "UPD": 13, "WORK": 5, "OPT": 4, "DYN": 5, "ELEM": 3,
-    "IO": 7, "MPE": 7, "PRETEST": 5, "PERF": 5,
+    "MODAL": 9,     "CORR": 11, "UPD": 13, "WORK": 6, "OPT": 4, "DYN": 6, "ELEM": 3,
+    "IO": 8, "MPE": 8, "PRETEST": 6, "PERF": 5,
 }
 
 
@@ -156,6 +156,10 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P0", "contract", "MS-2.6", _CORR_SUITE, "verified"),
     _c("AC-CORR-009", "TAM pseudo-orthogonality",
        "P1", "twin", "MS-2.1, MS-2.2", _CORR_SUITE, "verified"),
+    _c("AC-CORR-010", "SAC/CSAC/CSF FRF correlation metrics",
+       "P1", "property", "MS-7.4", _CORR_SUITE, "implemented"),
+    _c("AC-CORR-011", "CORTHOG localizes paired-mode orthogonality defects",
+       "P1", "twin", "MS-2.2", _CORR_SUITE, "implemented"),
     # --- M3 Model updating (MS-3) --------------------------------------------
     _c("AC-UPD-001", "Eigenvalue sensitivity vs central FD",
        "P0", "oracle", "MS-3.3", _UPD_SUITE, "verified"),
@@ -194,6 +198,8 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P0", "contract", "MS-4.1", _WORK_SUITE, "verified"),
     _c("AC-WORK-005", "CorrectionReport schema & versioning",
        "P0", "contract", "MS-4.3", _WORK_SUITE, "verified"),
+    _c("AC-WORK-006", "Side-by-side mode-shape plotting helper",
+       "P2", "contract", "MS-4.3", _WORK_SUITE, "implemented"),
     # --- M5 Optimization hook (MS-5) ------------------------------------------
     _c("AC-OPT-001", "Analytic gradients vs central FD",
        "P0", "oracle", "MS-5.1", _OPT_SUITE, "verified"),
@@ -214,6 +220,8 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P0", "property", "MS-7.4", _DYN_SUITE, "verified"),
     _c("AC-DYN-005", "Synthesized FRF survives the UFF-58 round trip",
        "P1", "contract", "MS-7.4", _DYN_SUITE, "verified"),
+    _c("AC-DYN-006", "SDM spring modification shifts frequencies toward full solve",
+       "P1", "oracle", "MS-7.6", _DYN_SUITE, "implemented"),
     # --- M7 Element library (MS-8) --------------------------------------------
     _c("AC-ELEM-001", "Patch test exact to machine precision",
        "P0", "oracle", "MS-8.3", _ELEM_SUITE, "verified"),
@@ -236,6 +244,8 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P2", "contract", "MS-9.6", _IO_SUITE, "implemented"),
     _c("AC-IO-007", "OP2 EPT PSHELL and PSOLID import",
        "P2", "contract", "MS-9.6", _IO_SUITE, "implemented"),
+    _c("AC-IO-008", "BDF export round trip preserves neutral geometry",
+       "P1", "contract", "MS-9.6", _IO_SUITE, "implemented"),
     # --- M9 Modal parameter extraction (MS-10), GAP-06 -----------------------
     _c("AC-MPE-001", "LSCF pole recovery on synthesized FRFs",
        "P0", "oracle", "MS-10.2", _MPE_SUITE, "verified"),
@@ -251,6 +261,8 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P2", "oracle", "MS-10.1", _MPE_SUITE, "implemented"),
     _c("AC-MPE-007", "SSI-COV stabilization diagram separates physical poles",
        "P0", "property", "MS-10.3", _MPE_SUITE, "implemented"),
+    _c("AC-MPE-008", "RBPE lumped-mass properties match the model total",
+       "P2", "oracle", "MS-10.7", _MPE_SUITE, "implemented"),
     # --- M10 Pretest planning (MS-11) — spec-first, GAP-07 -------------------
     _c("AC-PRETEST-001", "EI leverage identities and det-FIM downdate",
        "P0", "property", "MS-11.2", _PRETEST_SUITE, "verified"),
@@ -262,6 +274,8 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P0", "contract", "MS-11.2, MS-11.5", _PRETEST_SUITE, "verified"),
     _c("AC-PRETEST-005", "MKE ranking matches the closed-form chain",
        "P2", "oracle", "MS-11.3", _PRETEST_SUITE, "verified"),
+    _c("AC-PRETEST-006", "Accelerometer mass lowers predicted frequencies",
+       "P1", "oracle", "MS-11.6", _PRETEST_SUITE, "implemented"),
 )
 
 _BY_ID = {c.test_id: c for c in REGISTRY}
@@ -291,7 +305,7 @@ def test_registry_inventory_matches_documented_scope():
         for family in EXPECTED_CRITERIA_PER_FAMILY
     }
     assert counts == EXPECTED_CRITERIA_PER_FAMILY
-    assert len(REGISTRY) == 72
+    assert len(REGISTRY) == 79
 
 
 def test_ids_unique():

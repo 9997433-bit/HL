@@ -229,6 +229,27 @@ def test_ac_pretest_005_uniform_mass_scaling_is_selection_invariant():
     assert baseline.selected == scaled.selected
 
 
+# ---------------------------------------------------------------- AC-PRETEST-006
+
+
+@criterion("AC-PRETEST-006")
+def test_ac_pretest_006_accelerometer_mass_lowers_the_predicted_frequency() -> None:
+    from openfemlab.pretest.mass_loading import accelerometer_frequency_shift
+
+    shapes = _chain_modes(1)
+    _, mass = fixture_matrices(load_fixture("ten_dof_chain"))
+    modal_mass = float(shapes[:, 0].T @ mass @ shapes[:, 0])
+    base_frequency = 4.0
+    shifted = accelerometer_frequency_shift(
+        [base_frequency],
+        shapes,
+        dof_index=shapes.shape[0] - 1,
+        modal_masses=[modal_mass],
+        accelerometer_mass=0.05,
+    )
+    assert shifted[0] < base_frequency
+
+
 # ---------------------------------------------------------------- helpers
 
 
