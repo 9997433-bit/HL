@@ -5,6 +5,9 @@
  * 一页一句，光注音就是上千个音节，手抄一定会漂。所以正文只手写汉字，
  * 拼音、重点字、配色、分级名全部在这里算出来，再落成 src/data 下的数据文件。
  *
+ * 用字表、标点表和切词注音在 ./book-text.mjs，投稿导入器共用同一份，
+ * 免得「导入前说能过、重跑生成器却炸」。
+ *
  * 三条硬约束，任何一条不满足都直接退出、不写文件：
  *   1. 正文只能用字表（char-index.js）里的字，一个越界字都不许有；
  *   2. 多音字必须被 book-pinyin.mjs 的词条覆盖，不许拿本音蒙；
@@ -17,86 +20,16 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { CHAR_INDEX } from '../src/data/char-index.js'
 import { CORE_BOOKS } from '../src/data/books/core.js'
-import { STRICT, WORDS } from './data/book-pinyin.mjs'
+import { MIN_PAGES, PUNCT, toPinyin as pinyinOf } from './book-text.mjs'
 import { BOOK_SEED } from './data/book-seed.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const dataDir = path.resolve(here, '..', 'src', 'data')
 
-const PINYIN = new Map(CHAR_INDEX.map((c) => [c.char, c.pinyin]))
-
-const PUNCT = {
-  '，': ',',
-  '。': '.',
-  '！': '!',
-  '？': '?',
-  '：': ':',
-  '、': ',',
-  '；': ';',
-  '…': '…',
-  '—': '—'
-}
-
-const MAX_WORD = Math.max(...Object.keys(WORDS).map((w) => w.length))
-
 const errors = []
 
-/**
- * 用字越界检查要独立于注音走一遍。
- * 注音是按词切的，词典里有「尾巴」就不会去查「巴」，而「巴」根本不在字表里——
- * 只靠注音那条路，越界字会从词条底下溜过去，一直漏到 verifyBookCoverage 才炸。
- */
-function checkChars(text, where) {
-  for (const ch of text) {
-    if (PUNCT[ch] === undefined && !PINYIN.has(ch)) {
-      errors.push(`${where}：「${ch}」不在字表里（${text}）`)
-    }
-  }
-}
-
-/** 汉字串 → 音节串。词典最长匹配优先，退回单字本音。 */
-function toPinyin(text, where) {
-  checkChars(text, where)
-  let out = ''
-  let i = 0
-  const pushSyllable = (s) => {
-    out += out ? ` ${s}` : s
-  }
-  while (i < text.length) {
-    const ch = text[i]
-    if (PUNCT[ch] !== undefined) {
-      out += PUNCT[ch]
-      i += 1
-      continue
-    }
-    let hit = null
-    for (let len = Math.min(MAX_WORD, text.length - i); len >= 1; len -= 1) {
-      const word = text.slice(i, i + len)
-      if (WORDS[word]) {
-        hit = { word, syllables: WORDS[word] }
-        break
-      }
-    }
-    if (hit) {
-      hit.syllables.forEach(pushSyllable)
-      i += hit.word.length
-      continue
-    }
-    if (!PINYIN.has(ch)) {
-      errors.push(`${where}：「${ch}」不在字表里（${text}）`)
-      i += 1
-      continue
-    }
-    if (STRICT.has(ch)) {
-      errors.push(`${where}：多音字「${ch}」没有词条定音（${text}）`)
-    }
-    pushSyllable(PINYIN.get(ch))
-    i += 1
-  }
-  return out
-}
+const toPinyin = (text, where) => pinyinOf(text, where, errors)
 
 /* 重点字挑「这本书里出现的、不算烂熟的字」，太常见的虚词挑出来没意义。 */
 const TOO_COMMON = new Set(
@@ -138,8 +71,6 @@ const PALETTES = [
   ['#ffe0c2', '#c8ebff'],
   ['#c8ebff', '#ffe6b3']
 ]
-
-const MIN_PAGES = { 1: 5, 2: 6, 3: 7, 4: 8, 5: 9, 6: 10 }
 
 const usedIds = new Set(CORE_BOOKS.map((b) => b.id))
 const usedTitles = new Set(CORE_BOOKS.map((b) => b.title))
