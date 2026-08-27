@@ -139,9 +139,38 @@ critical 与 serious 都必须为 0；`npm run test:acceptance` 已经接上这�
 | 偏旁部首·字源 | `/radicals` | `RadicalsView` |
 | 分级绘本 | `/books` `/books/:id` | `BooksView` / `BookReadView` |
 | 成语启蒙 | `/idioms` `/idioms/:id` | `IdiomsView` / `IdiomDetailView` |
+| 古诗长廊 | `/poems` `/poems/:id` | `PoemsView` / `PoemDetailView` |
+| 跟读评测 | `/follow-read` `/follow-read/:id` | `FollowReadView` |
 | 家长中心(报表/设置/进度导入导出) | `/parent` | `ParentView` |
 
 采用 hash 路由,打包后可在任意子目录静态托管；离线缓存要求 HTTPS 或 `localhost`。
+
+## 古诗与跟读评测
+
+`src/data/poems.js` 收了 24 首学前到小学低段最常背的古诗，每首都有逐字拼音、
+逐句白话和一句跟读提示。古诗的正文改不得，所以这里没有沿用分级绘本那条
+「只许用已学字」的硬约束，换成一条同样能自动化守住、但对古诗成立的约束：
+
+> 正文里的每个字，要么已经在字表里，要么在 `POEM_GLOSS` 里有拼音和一句话解释。
+
+`verifyPoemCoverage()` 逐字校验这一条，顺带核对每句的拼音音节数和汉字数对不对得上
+（错位一格不会报错，只会让跟读页的拼音整体串行，最难靠肉眼发现）。
+「这首诗里孩子有几个生字」因此永远是算出来的——字表补上哪个字，它就自动退场。
+
+跟读评测按设备能力分三档，界面上如实说明这一档能做到什么：
+
+| 档位 | 条件 | 能做什么 |
+|------|------|----------|
+| `recognition` | 有 `SpeechRecognition`，且家长在跟读页显式打开 | 听清念了什么，逐字标出念对/念漏 |
+| `loudness` | 只有麦克风 | 录下来放回去给孩子听，按响度与时长评「有没有认真读完」，**封顶 85 分** |
+| `selfcheck` | 没有麦克风或被拒绝 | 只放范读，读完由孩子自己选「很流利/有点卡/还要再来」，不打分 |
+
+算分规则在 `src/utils/speechEval.js`，是一组不碰浏览器 API 的纯函数，
+由 `npm run test:speech` 单独验（漏字只扣漏掉的那几个字、多读的字只轻罚、
+响度档没出声就是 0 分）。浏览器那一半在 `src/composables/useSpeechEval.js`。
+
+隐私：录音只存在内存里的 Blob，页面一关就没了，不写盘也不上传。
+识别在部分浏览器上会把音频送到厂商的在线服务，所以它默认关着，要家长手动打开。
 
 ## 技术栈
 
@@ -159,8 +188,8 @@ src/
 ├── main.js / App.vue        # 应用壳
 ├── router/index.js          # hash 路由,懒加载
 ├── stores/                  # progress(进度/星星/每日统计) · settings(家长设置)
-├── utils/                   # speech · sfx · audio · hanziWriter · hanziData · srs(FSRS-lite,已接入复习队列)
-├── data/                    # characters / books / idioms / radicals / badges — 全部数据驱动
+├── utils/                   # speech · speechEval · sfx · audio · hanziWriter · hanziData · srs(FSRS-lite,已接入复习队列)
+├── data/                    # characters / books / idioms / poems / radicals / badges — 全部数据驱动
 ├── components/              # HanziStrokeBox · BadgeShelf · ProgressRing · AppHeader · BottomNav · BreakReminder
 ├── views/                   # 各路由页面
 └── styles/                  # base.css(引入共享设计令牌+通用组件类) · theme.css(仅识字独有的 --art-tint)
@@ -170,9 +199,10 @@ src/
 
 ```bash
 npm run test:srs     # FSRS 调度纯函数单测
+npm run test:speech  # 跟读评测算分纯函数单测
 npm run check:data   # 内容自检,不需要浏览器
 npm run smoke        # 无头 Chrome 跑完全部路由与关键交互(需先 build)
-npm test             # test:srs + check:data + build + smoke
+npm test             # test:srs + test:speech + check:data + build + check:bundle + smoke
 ```
 
 `check:data` 守住分级绘本最重要的那条约束——**正文只能用字表里已有的汉字**。
@@ -194,6 +224,12 @@ npm test             # test:srs + check:data + build + smoke
 Round 4 又加了三项闭环断言:五步状态机自动从「认一认」走到「领奖励」并记下闭环次数、
 在田字格里横着乱划三次会触发这一笔的自动示范且示范后能接着写完、
 学会第一个字就点亮「启蒙芽」且首页与家长中心都看得见。
+
+Round 6 补了古诗与跟读三条:每首诗逐字拼音是否对齐、点生字弹不弹注解卡;
+没有麦克风时降级到范读+自评(不打分、不写「最好成绩」);
+注入一个只念出「床前月光」的假识别引擎,漏掉的「明」要被单独标成 miss 且分数不归零。
+后一条验的是「识别结果 → 逐字对齐 → 分数 → 存档」这条线接没接对,
+不是识别引擎本身准不准——无头 Chrome 里既没有麦克风也没有识别引擎。
 
 `smoke` 依赖仓库根目录的 `puppeteer-core` 与系统里的 Chrome,
 CI 上跑不了时可以只跑 `check:data`。
