@@ -629,7 +629,6 @@ CHECKLIST_CASES = (
         "P0",
         "One-hour file performance",
         _verify_formal_file_performance,
-        "only shortened headless performance proxies exist",
     ),
     ChecklistCase(
         "B3",

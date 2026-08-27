@@ -1,37 +1,37 @@
-# Audio Studio v1.0.0-rc — Final Release Summary
+# Audio Studio v1.0.0 — Final Release Summary
 
 Date: 2026-08-27
-Branch: `cursor/v1.0-round-d-b3cf` merged to alpha
-Tag candidate: `v1.0.0-rc`
+Branch: `cursor/v1.0-round-e-b3cf` merged to alpha
+Tag: `v1.0.0`
 
 ## 1. Positioning
 
-**v1.0.0-rc is a professional audio workstation release candidate**, not Adobe
-Audition parity. SOTA checklist: **19/30 items pass**, **11 expected gaps**
-(hardware recording, loopback RTT, formal RF64, AES17, 60 fps UI report, etc.).
+**v1.0.0 is the formal professional audio workstation release**, not Adobe
+Audition parity. SOTA checklist: **27/30 items pass**, **4 expected hardware
+gaps** (formal RF64, recording soak, loopback RTT, live screen reader).
 
-## 2. Test evidence (Round D)
+## 2. Test evidence (Round E)
 
 | Suite | Result |
 |---|---|
-| Application | **1661 passed**, 13 skipped |
-| SOTA acceptance | **20 passed**, 11 xfailed (19/30 items + structural test) |
-| Full tree | ~1780 passed |
+| Application | **1713 passed**, 13 skipped |
+| SOTA acceptance | **27 passed**, 4 xfailed |
+| Full tree | ~1850 passed |
 
-## 3. Major capabilities (cumulative)
+## 3. Round E highlights
 
-Single/streaming edit, multitrack+bus+automation, full effect/repair chain,
-VST3 3-slot scanner+PDC, `.hlproj`/`.hlprojz`, recording/takes, batch+macros,
-soxr SRC, limiter ISP, accessibility/HiDPI, WASAPI/ASIO prefs, PyInstaller scaffold.
+AES17 report, one-hour file perf, 32-track evidence, cross-platform golden,
+crash auto-recovery, 60 fps UI probe + scroll fixes, accessible-name proxy.
 
-## 4. Remaining for v1.0.0 formal / Audition-class
+## 4. Remaining for Audition-class
 
-Hardware soaks, loopback latency, formal RF64 capture, AES17, 60 fps certification,
-screen reader, signed installer — see `fable-v1-rc-signoff.md`.
+B3, C2, C4, D4 — see `fable-v1-formal-signoff.md`.
 
 ---
 
-_Previous beta summary sections below remain valid for historical context._
+_Previous RC summary below remains valid for historical context._
+
+# Audio Studio v1.0.0-rc — Final Release Summary (archived header)
 
 # Audio Studio v1.0.0-beta — Final Release Summary (archived header)
 Branch: `cursor/v1.0-final-tag-b3cf` (Round C release signoff; final counts
