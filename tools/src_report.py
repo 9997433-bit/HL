@@ -22,7 +22,7 @@ AUDIO_STUDIO_ROOT = REPOSITORY_ROOT / "audio-studio"
 if str(AUDIO_STUDIO_ROOT) not in sys.path:
     sys.path.insert(0, str(AUDIO_STUDIO_ROOT))
 
-from audio_studio.core.resample import (  # noqa: E402
+from audio_studio.core.resample import (
     resample_backend,
     resample_buffer,
     soxr_available,
