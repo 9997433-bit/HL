@@ -147,6 +147,12 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.exit_after is not None:
         QTimer.singleShot(int(args.exit_after * 1000), app.quit)
+    elif not args.file:
+        # Only an interactive launch with nothing else to open asks about a
+        # crashed session: a smoke run on a timer has no one to answer the
+        # question, and a launch that names a file has already been told what
+        # to open.
+        window.offer_crash_recovery()
 
     try:
         return app.exec()

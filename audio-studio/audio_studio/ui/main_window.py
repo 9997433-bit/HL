@@ -16,7 +16,7 @@ heard without touching the audio in memory.
 
 Analysis that costs real time — the spectrogram transform, the BS.1770
 integrated loudness — never runs on the Qt thread while the user waits.
-Loudness is measured on a worker and collected by the same 30 Hz tick that
+Loudness is measured on a worker and collected by the same 60 Hz tick that
 drives the playhead; the spectrogram is coalesced behind a short timer so that
 dragging a selection re-analyses once rather than on every mouse move.
 
@@ -42,6 +42,7 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from contextlib import contextmanager
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from typing import Any
 
 import numpy as np
 from PySide6.QtCore import QByteArray, QSettings, Qt, QTimer, Slot
@@ -71,6 +72,8 @@ from PySide6.QtWidgets import (
 
 from .. import __app_name__, __version__
 from ..core import peaks_cache
+from ..core.autosave import DEFAULT_INTERVAL_S as AUTOSAVE_INTERVAL_S
+from ..core.autosave import AutosaveJournal, discover
 from ..core.edit_session import (
     SPECTRAL_ATTENUATION_DB,
     EditError,
@@ -130,8 +133,11 @@ from .theme import PALETTE, stylesheet
 from .track_panel import TrackPanel
 from .transport_bar import TransportBar
 
-#: UI refresh rate for the playhead and the meters.
-UI_REFRESH_MS: int = 33
+#: UI refresh period for the playhead and the meters: 16 ms, one 60 Hz frame.
+#: What makes 60 Hz affordable is that a tick repaints the playhead over a
+#: cached waveform pixmap rather than re-rendering the waveform itself;
+#: ``benchmarks/ui_frame_time_probe.py`` measures the tick against this budget.
+UI_REFRESH_MS: int = 16
 
 #: Delay before a changed selection is re-analysed, in milliseconds. Long
 #: enough that a drag produces one transform, short enough to feel immediate.
@@ -284,6 +290,15 @@ class MainWindow(QMainWindow):
         self._refresh_timer.setInterval(UI_REFRESH_MS)
         self._refresh_timer.timeout.connect(self._on_tick)
         self._refresh_timer.start()
+
+        # Autosave runs on the GUI thread rather than on the journal's own
+        # timer thread, because a snapshot has to read widgets — the plugin
+        # rack and the dock arrangement — that only this thread may touch.
+        self._autosave = AutosaveJournal(interval_s=AUTOSAVE_INTERVAL_S)
+        self._autosave_timer = QTimer(self)
+        self._autosave_timer.setInterval(int(AUTOSAVE_INTERVAL_S * 1000))
+        self._autosave_timer.timeout.connect(self._autosave_tick)
+        self._autosave_timer.start()
 
         self._update_for_clip()
         self.restore_layout_settings()
@@ -1320,6 +1335,87 @@ class MainWindow(QMainWindow):
         self._refresh_takes_menu()
         return saved
 
+    # ------------------------------------------------------------- autosave
+
+    def _autosave_snapshot(self) -> dict[str, Any]:
+        """The session as the autosave journal wants it, gathered on this thread."""
+        playhead = self.engine.position if not self.is_playing_session else 0
+        selection = self.engine.selection if not self.is_playing_session else None
+        return {
+            "edit_session": self._edit_session,
+            "editor_clip": self._editor_clip,
+            "multitrack": self.session,
+            "workspace": self._workspace,
+            "view_mode": self.view_mode,
+            "playhead": playhead,
+            "selection": selection,
+            "markers": self.markers,
+            "plugins": self.plugin_panel.project_state(),
+            "layout": self.layout_state(),
+        }
+
+    @Slot()
+    def _autosave_tick(self) -> None:
+        """Snapshot the session if it holds work a crash would destroy.
+
+        A saved, unmodified session is already on disk under its own name, so
+        autosaving it would burn I/O to duplicate it. An autosave that fails
+        is recorded on the journal and retried at the next interval: it is a
+        safety net, and a safety net that interrupts the user is not one.
+        """
+        if not self._has_unsaved_changes():
+            return
+        self._autosave.project_path = self._archive_path or self._project_path
+        try:
+            self._autosave.save(self._autosave_snapshot)
+        except (OSError, ValueError) as error:  # pragma: no cover - disk faults
+            self._autosave.last_error = error
+
+    def offer_crash_recovery(self) -> bool:
+        """Offer back a session that a previous run never got to save.
+
+        Called after the window is up, on an interactive launch. Each
+        abandoned journal is either restored or dropped, so a snapshot the
+        user declines does not follow them into every future launch.
+        """
+        try:
+            candidates = discover()
+        except OSError:  # pragma: no cover - unreadable state directory
+            return False
+
+        for crashed in candidates:
+            if not crashed.verify():
+                # Nothing usable survived; keeping it would only mean asking
+                # about it again at every launch.
+                crashed.discard()
+                continue
+            origin = crashed.entry.project_path or "an unsaved session"
+            reply = QMessageBox.question(
+                self,
+                "Recover unsaved work",
+                f"{__app_name__} closed unexpectedly while working on {origin}.\n\n"
+                f"Reopen the autosave from {crashed.entry.saved_at_utc}?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes,
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                crashed.discard()
+                continue
+            if not self._open_project(crashed.bundle):
+                continue
+            # The bundle is the journal's scratch copy. Point the window back
+            # at the file the work came from — or at nothing, for work that was
+            # never saved — so that Save does not write into the autosave
+            # directory, and mark it dirty, because it is.
+            self._project_path = (
+                Path(crashed.entry.project_path) if crashed.entry.project_path else None
+            )
+            self._mark_project_dirty()
+            crashed.discard()
+            self.statusBar().showMessage("Recovered unsaved work from the last session", 6000)
+            return True
+        return False
+
     def _has_unsaved_changes(self) -> bool:
         if self._project_dirty:
             return True
@@ -2225,7 +2321,7 @@ class MainWindow(QMainWindow):
         )
 
     def _on_tick(self) -> None:
-        """Poll the engine 30×/s: the audio threads never touch Qt objects."""
+        """Poll the engine 60×/s: the audio threads never touch Qt objects."""
         self._collect_loudness()
         if self.recorder.is_running:
             self.status_recording.setText(
@@ -2589,6 +2685,10 @@ class MainWindow(QMainWindow):
         self.save_layout_settings()
         self._refresh_timer.stop()
         self._analysis_timer.stop()
+        # A journal left behind is what marks a session as crashed, so a
+        # window that closes on purpose has to take its own away.
+        self._autosave_timer.stop()
+        self._autosave.release()
         self.recorder.close()
         self.engine.shutdown()
         self._loudness_pool.shutdown(wait=False, cancel_futures=True)
