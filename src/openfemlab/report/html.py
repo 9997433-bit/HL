@@ -1,0 +1,366 @@
+"""Self-contained HTML reports for CLI and browser review.
+
+Inspired by modern engineering dashboards (clear hierarchy, status badges,
+tabular MAC data) rather than raw JSON dumps.
+
+The MAC matrix is drawn twice over, best renderer first: a Matplotlib heatmap
+inlined as a base64 PNG when Matplotlib is installed, and a coloured HTML table
+otherwise.  Both are embedded in the document itself, so a report stays a
+single file you can mail or attach to a review.
+"""
+
+from __future__ import annotations
+
+import base64
+import html
+import io
+import json
+from pathlib import Path
+from typing import Any, Literal
+
+__all__ = ["detect_report_kind", "write_html_report", "write_html_report_from_path"]
+
+ReportKind = Literal["correlation", "correction", "unknown"]
+
+#: Above this size the HTML table drops the per-cell numbers, which stop being
+#: readable long before the colours do.
+_TABLE_VALUE_LIMIT = 14
+
+_CSS = """
+:root {
+  --bg: #f6f8fa;
+  --card: #ffffff;
+  --text: #1f2328;
+  --muted: #656d76;
+  --border: #d0d7de;
+  --accent: #0969da;
+  --pass: #1a7f37;
+  --fail: #cf222e;
+  --warn: #9a6700;
+}
+* { box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--bg);
+  margin: 0;
+  padding: 1.5rem;
+}
+main { max-width: 960px; margin: 0 auto; }
+h1 { font-size: 1.5rem; margin: 0 0 0.25rem; }
+.subtitle { color: var(--muted); margin-bottom: 1.5rem; }
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
+  margin: 1rem 0 1.5rem;
+}
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+}
+.card label {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.card strong { font-size: 1.25rem; }
+.badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.badge.pass { background: #dafbe1; color: var(--pass); }
+.badge.fail { background: #ffebe9; color: var(--fail); }
+section {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1rem;
+}
+section h2 { font-size: 1rem; margin: 0 0 0.75rem; }
+table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+th, td { border: 1px solid var(--border); padding: 0.35rem 0.5rem; text-align: right; }
+th { background: #f6f8fa; font-weight: 600; }
+td.label { text-align: left; }
+footer { color: var(--muted); font-size: 0.8rem; margin-top: 2rem; }
+"""
+
+
+def detect_report_kind(payload: dict[str, Any]) -> ReportKind:
+    version = str(payload.get("schema_version", ""))
+    if "baseline_correlation" in payload or payload.get("status") in ("PASS", "FAIL"):
+        return "correction"
+    if "summary" in payload and "pairs" in payload:
+        return "correlation"
+    if version.startswith("1.") and "mac_matrix" in payload:
+        return "correlation"
+    return "unknown"
+
+
+def write_html_report(
+    payload: dict[str, Any],
+    destination: str | Path,
+    *,
+    embed_plots: bool | None = None,
+) -> ReportKind:
+    """Write a browser-ready HTML report and return the detected kind.
+
+    Parameters
+    ----------
+    embed_plots:
+        ``None`` (default) draws the MAC matrix with Matplotlib when it is
+        installed and falls back to the coloured HTML table when it is not.
+        ``True`` requires Matplotlib and raises
+        :class:`~openfemlab.exceptions.MissingDependencyError` without it;
+        ``False`` always writes the table.
+    """
+    if embed_plots:
+        from ..viz.plotting import require_matplotlib
+
+        require_matplotlib()
+
+    kind = detect_report_kind(payload)
+    if kind == "correlation":
+        body = _correlation_body(payload, embed_png=embed_plots is not False)
+        title = "OpenFEMLab — Correlation Report"
+    elif kind == "correction":
+        body = _correction_body(payload)
+        title = "OpenFEMLab — Correction Report"
+    else:
+        body = _generic_body(payload)
+        title = "OpenFEMLab — Report"
+    document = _page(title, body)
+    path = Path(destination)
+    path.write_text(document, encoding="utf-8")
+    return kind
+
+
+def write_html_report_from_path(
+    source: str | Path,
+    destination: str | Path,
+    *,
+    embed_plots: bool | None = None,
+) -> ReportKind:
+    path = Path(source)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return write_html_report(payload, destination, embed_plots=embed_plots)
+
+
+def _page(title: str, body: str) -> str:
+    return (
+        "<!DOCTYPE html><html lang=\"en\"><head>"
+        f"<meta charset=\"utf-8\"><title>{html.escape(title)}</title>"
+        f"<style>{_CSS}</style></head><body><main>"
+        f"{body}"
+        "<footer>Generated by OpenFEMLab — open-source structural dynamics toolkit.</footer>"
+        "</main></body></html>"
+    )
+
+
+def _esc(value: Any) -> str:
+    return html.escape(str(value))
+
+
+def _summary_cards(summary: dict[str, Any]) -> str:
+    items = [
+        ("Mean MAC", summary.get("mean_mac")),
+        ("Min MAC", summary.get("min_mac")),
+        ("Max |Δf| %", summary.get("max_abs_freq_error_pct")),
+        ("Paired modes", summary.get("num_pairs")),
+    ]
+    cards = []
+    for label, value in items:
+        if value is None:
+            continue
+        cards.append(
+            f"<div class=\"card\"><label>{_esc(label)}</label>"
+            f"<strong>{_esc(value)}</strong></div>"
+        )
+    return f"<div class=\"cards\">{''.join(cards)}</div>" if cards else ""
+
+
+def _pairs_table(pairs: list[Any]) -> str:
+    if not pairs:
+        return "<p>No mode pairs recorded.</p>"
+    rows = []
+    for pair in pairs:
+        if isinstance(pair, dict):
+            test_i = pair.get("test_index", pair.get("test"))
+            fe_i = pair.get("fe_index", pair.get("fe"))
+            mac = pair.get("mac")
+            df = pair.get("freq_error_pct", pair.get("frequency_error_pct"))
+        else:
+            test_i, fe_i = pair[0], pair[1]
+            mac, df = "", ""
+        rows.append(
+            f"<tr><td class=\"label\">Test {_esc(test_i)} → FE {_esc(fe_i)}</td>"
+            f"<td>{_esc(mac)}</td><td>{_esc(df)}</td></tr>"
+        )
+    return (
+        "<table><thead><tr><th class=\"label\">Pair</th><th>MAC</th><th>Δf %</th></tr></thead>"
+        f"<tbody>{''.join(rows)}</tbody></table>"
+    )
+
+
+def _mac_table(matrix: list[list[float]]) -> str:
+    """Coloured HTML table — the renderer that needs no dependency at all."""
+    show_values = len(matrix) <= _TABLE_VALUE_LIMIT and len(matrix[0]) <= _TABLE_VALUE_LIMIT
+    rows = []
+    for i, row in enumerate(matrix):
+        cells = []
+        for value in row:
+            t = max(0.0, min(1.0, float(value)))
+            red = int(68 + t * (253 - 68))
+            green = int(1 + t * (231 - 1))
+            blue = int(84 + t * (37 - 84))
+            fg = "#111" if t >= 0.5 else "#fff"
+            text = f"{float(value):.2f}" if show_values else ""
+            cells.append(
+                f"<td style=\"background:rgb({red},{green},{blue});color:{fg}\""
+                f" title=\"{float(value):.4f}\">{text}</td>"
+            )
+        rows.append(f"<tr><td class=\"label\">{i + 1}</td>{''.join(cells)}</tr>")
+    header = "".join(f"<th>{j + 1}</th>" for j in range(len(matrix[0])))
+    return (
+        "<table><thead><tr><th></th>" + header + "</tr></thead><tbody>"
+        + "".join(rows)
+        + "</tbody></table>"
+    )
+
+
+def _mac_png(matrix: list[list[float]]) -> str:
+    """Matplotlib heatmap as an inline base64 PNG, or ``""`` without Matplotlib.
+
+    Deliberately routed around ``pyplot``: a report writer must not install a
+    GUI backend or leave figures on the global stack, so the figure is built
+    against the Agg canvas directly and closed with the function.
+    """
+    try:
+        from matplotlib.backends.backend_agg import FigureCanvasAgg
+        from matplotlib.figure import Figure
+
+        from ..viz.plotting import plot_mac_matrix
+    except ImportError:
+        return ""
+
+    size = max(len(matrix), len(matrix[0]))
+    figure = Figure(figsize=(5.6, 4.6), dpi=140, layout="constrained")
+    FigureCanvasAgg(figure)
+    axes = plot_mac_matrix(
+        matrix,
+        ax=figure.add_subplot(111),
+        annotate=size <= _TABLE_VALUE_LIMIT,
+        title="MAC — test vs FE",
+    )
+    axes.set_ylabel("Test mode")
+    axes.set_xlabel("FE mode")
+    buffer = io.BytesIO()
+    figure.savefig(buffer, format="png")
+    encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
+    return (
+        f"<img src=\"data:image/png;base64,{encoded}\" alt=\"MAC matrix heatmap\" "
+        "style=\"max-width:100%;height:auto\">"
+    )
+
+
+def _mac_section(matrix: list[list[float]] | None, *, embed_png: bool) -> str:
+    if not matrix or not matrix[0]:
+        return ""
+    body = _mac_png(matrix) if embed_png else ""
+    if not body:
+        body = _mac_table(matrix)
+    return f"<section><h2>MAC matrix</h2>{body}</section>"
+
+
+def _correlation_body(payload: dict[str, Any], *, embed_png: bool) -> str:
+    summary = payload.get("summary") or {}
+    status_class = "pass" if float(summary.get("min_mac", 0)) >= 0.7 else "fail"
+    return (
+        f"<h1>Modal correlation</h1>"
+        f"<p class=\"subtitle\">Schema {_esc(payload.get('schema_version', ''))} · "
+        f"<span class=\"badge {status_class}\">review</span></p>"
+        + _summary_cards(summary)
+        + "<section><h2>Mode pairing</h2>"
+        + _pairs_table(payload.get("pairs") or [])
+        + "</section>"
+        + _mac_section(payload.get("mac_matrix"), embed_png=embed_png)
+    )
+
+
+def _correction_body(payload: dict[str, Any]) -> str:
+    status = str(payload.get("status", "UNKNOWN"))
+    badge = "pass" if status == "PASS" else "fail"
+    stages = payload.get("stages") or []
+    stage_rows = []
+    for stage in stages:
+        name = stage.get("stage", stage.get("name", ""))
+        st = stage.get("status", "")
+        stage_rows.append(
+            f"<tr><td class=\"label\">{_esc(name)}</td><td>{_esc(st)}</td></tr>"
+        )
+    baseline = payload.get("baseline_correlation") or {}
+    final = payload.get("final_correlation") or {}
+    b_sum = baseline.get("summary") or {}
+    f_sum = final.get("summary") or {}
+    compare = (
+        "<section><h2>Correlation before → after</h2>"
+        "<table><thead><tr><th class=\"label\">Metric</th>"
+        "<th>Baseline</th><th>Final</th></tr></thead><tbody>"
+        f"<tr><td class=\"label\">Min MAC</td><td>{_esc(b_sum.get('min_mac'))}</td>"
+        f"<td>{_esc(f_sum.get('min_mac'))}</td></tr>"
+        f"<tr><td class=\"label\">Max |Δf| %</td>"
+        f"<td>{_esc(b_sum.get('max_abs_freq_error_pct'))}</td>"
+        f"<td>{_esc(f_sum.get('max_abs_freq_error_pct'))}</td></tr>"
+        "</tbody></table></section>"
+    )
+    params = payload.get("parameters") or []
+    param_rows = []
+    for entry in params:
+        if not entry.get("selected", True):
+            continue
+        param_rows.append(
+            f"<tr><td class=\"label\">{_esc(entry.get('name'))}</td>"
+            f"<td>{_esc(entry.get('initial'))}</td>"
+            f"<td>{_esc(entry.get('final'))}</td>"
+            f"<td>{_esc(entry.get('change_pct'))}</td></tr>"
+        )
+    params_table = ""
+    if param_rows:
+        params_table = (
+            "<section><h2>Parameter changes</h2>"
+            "<table><thead><tr><th class=\"label\">Name</th><th>Initial</th>"
+            "<th>Final</th><th>Change %</th></tr></thead><tbody>"
+            + "".join(param_rows)
+            + "</tbody></table></section>"
+        )
+    return (
+        f"<h1>Model correction</h1>"
+        f"<p class=\"subtitle\"><span class=\"badge {badge}\">{_esc(status)}</span></p>"
+        + "<section><h2>Pipeline stages</h2>"
+        + (
+            "<table><tbody>" + "".join(stage_rows) + "</tbody></table>"
+            if stage_rows
+            else "<p>No stage records.</p>"
+        )
+        + "</section>"
+        + compare
+        + params_table
+    )
+
+
+def _generic_body(payload: dict[str, Any]) -> str:
+    pretty = html.escape(json.dumps(payload, indent=2, ensure_ascii=False))
+    return (
+        "<h1>Report</h1>"
+        "<p class=\"subtitle\">Unknown schema — showing JSON.</p>"
+        f"<section><pre>{pretty}</pre></section>"
+    )

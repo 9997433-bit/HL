@@ -1,0 +1,53 @@
+# Synthetic FE/test modal pair. Experimental vectors deliberately omit node_2
+# and use arbitrary scaling/sign so correlation code must align DOFs and use MAC.
+name: synthetic_modal_correlation
+mode_shape_layout: modes_by_dof
+analytical:
+  dof_labels:
+    - node_1:x
+    - node_2:x
+    - node_3:x
+    - node_4:x
+  frequencies_hz:
+    - 10.0
+    - 20.0
+    - 30.0
+  mode_shapes:
+    - [0.5, 0.5, 0.5, 0.5]
+    - [0.6532814824381883, 0.2705980500730985, -0.2705980500730985, -0.6532814824381883]
+    - [0.5, -0.5, -0.5, 0.5]
+experimental:
+  dof_labels:
+    - node_1:x
+    - node_3:x
+    - node_4:x
+  frequencies_hz:
+    - 10.1
+    - 19.8
+    - 30.6
+  mode_shapes:
+    - [1.0, 1.0, 1.0]
+    - [-0.8166018530477354, 0.3382475625913731, 0.8166018530477354]
+    - [0.4, -0.4, 0.4]
+expected:
+  paired_mode_indices:
+    - [0, 0]
+    - [1, 1]
+    - [2, 2]
+  shared_dof_labels:
+    - node_1:x
+    - node_3:x
+    - node_4:x
+  analytical_dofs_missing_from_test:
+    - node_2:x
+  mac_diagonal:
+    - 1.0
+    - 1.0
+    - 1.0
+  relative_frequency_error_percent:
+    - 1.0
+    - -1.0
+    - 2.0
+tolerances:
+  mac_absolute: 1.0e-12
+  frequency_error_percent_absolute: 1.0e-12
