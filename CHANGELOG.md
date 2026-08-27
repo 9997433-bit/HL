@@ -5,6 +5,30 @@ structure. Versions 0.2.0 and 0.3.0 were internal development milestones
 merged to the release branch without their own tags; they are recorded here so
 the v1.0.0-beta diff against v0.1.0-alpha is fully accounted for.
 
+## [1.1.0] - 2026-08-27
+
+Round G is the product-release round: the first build a user can download and
+run. A `v*` tag push now produces the Linux PyInstaller bundle in CI, with a
+software bill of materials and a signing scaffold. macOS and Windows remain
+source installs — no installers and no Apple/Microsoft code signing yet. See
+`.agent_workspace/v1.1/fable-v1.1-product-signoff.md`.
+
+### Added
+
+- **Linux release workflow** (`.github/workflows/release-linux.yml`) — builds
+  the one-directory PyInstaller bundle on every `v*` tag (and manual dispatch)
+  through the LGPL-replaceability and GPL-exclusion gates of
+  `scripts/build-linux.sh`, and uploads it as the `audio-studio-linux-x64` CI
+  artifact. Contract-tested by `tests/test_release_workflow.py`.
+- **SBOM generation** in the release pipeline, shipping the dependency
+  inventory beside the bundle.
+- **Signing scaffold** — integrity artifacts (checksums/local signatures) in
+  the release flow; no Apple/Microsoft certificates are provisioned.
+
+### Changed
+
+- `__version__` and package metadata set to `1.1.0`.
+
 ## [1.0.1] - 2026-08-27
 
 Round F closes the four remaining SOTA checklist items with **real measured evidence**

@@ -1,4 +1,45 @@
-# Audio Studio v1.0.1 — SOTA Complete Release Summary
+# Audio Studio v1.1.0 — Product Release Summary
+
+Date: 2026-08-27
+Branch: `cursor/v1.0-round-g-b3cf` merged to alpha
+Tag: `v1.1.0`
+
+## 1. Positioning
+
+**v1.1.0 is the first product release with a distributable build.** A `v*` tag
+now produces a downloadable Linux bundle straight from CI — the PyInstaller
+one-directory bundle built by `scripts/build-linux.sh`, uploaded as the
+`audio-studio-linux-x64` artifact with a software bill of materials, on top of
+the 30/30 SOTA checklist closed at v1.0.1. Full signoff:
+`.agent_workspace/v1.1/fable-v1.1-product-signoff.md`.
+
+## 2. Round G deliverables
+
+- **Linux release workflow** (`.github/workflows/release-linux.yml`): builds
+  the bundle on every `v*` tag push (and manual dispatch), runs the LGPL
+  replaceability and GPL-exclusion gates from `scripts/build-linux.sh`, and
+  uploads the `audio-studio-linux-x64` CI artifact. Contract-tested by
+  `tests/test_release_workflow.py`.
+- **SBOM and signing scaffold** wired into the release pipeline so every
+  distributed artifact ships with its dependency inventory and an integrity
+  story (local checksums/signatures — no platform-vendor certificates yet).
+
+## 3. Honest gaps
+
+- **No macOS or Windows installers.** Both platforms remain source installs
+  (`pip install`) verified by CI smoke lanes only.
+- **No Apple or Microsoft code signing.** No Developer ID signing or
+  notarization on macOS, no Authenticode on Windows; no certificates are
+  provisioned. The signing scaffold covers integrity, not platform trust —
+  Gatekeeper and SmartScreen will warn.
+- The Linux bundle is x86_64 built on `ubuntu-latest`; no arm64 build and no
+  reproducible-build attestation.
+
+---
+
+_Previous v1.0.1 summary below._
+
+# Audio Studio v1.0.1 — SOTA Complete Release Summary (archived header)
 
 Date: 2026-08-27
 Branch: `cursor/v1.0-round-f-b3cf` merged to alpha
