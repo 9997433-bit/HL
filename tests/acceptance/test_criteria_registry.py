@@ -131,8 +131,8 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P2", "contract", "MS-1.6", _PERF_SUITE, "verified"),
     _c("AC-PERF-002", "Iterative modal result matches the dense reference",
        "P2", "property", "MS-1.6", _PERF_SUITE, "verified"),
-    _c("AC-PERF-003", "Large real MAC matrix matches reference quickly",
-       "P2", "property", "MS-1.6", _PERF_SUITE, "implemented"),
+    _c("AC-PERF-003", "Accelerated MAC matches the reference and never slows it down",
+       "P2", "property", "MS-1.6, MS-2.2", _PERF_SUITE, "implemented"),
     # --- M2 Correlation (MS-2) ----------------------------------------------
     _c("AC-CORR-001", "Weighted MAC self-identity",
        "P0", "property", "MS-2.2", _CORR_SUITE, "verified"),

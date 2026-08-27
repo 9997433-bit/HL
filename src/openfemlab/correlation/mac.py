@@ -33,20 +33,32 @@ __all__ = [
 
 Shapes = npt.NDArray[np.floating] | npt.NDArray[np.complexfloating]
 
-#: Use the accelerated kernel when ndof * ma * mb exceeds this threshold.
-_ACCEL_MAC_THRESHOLD = 50_000
+#: Multiply-accumulates (``ndof * ma * mb``) above which :mod:`openfemlab.accel`
+#: is worth consulting. Below it the generic route below is already dominated
+#: by call overhead, and the dispatch would cost more than the kernel saves.
+ACCEL_MAC_MIN_WORK = 1_000_000
 
 
-def _try_accel_mac(a: np.ndarray, b: np.ndarray, weights: Any) -> np.ndarray | None:
+def accelerated_mac(a: np.ndarray, b: np.ndarray, weights: Any) -> np.ndarray | None:
+    """MAC from :mod:`openfemlab.accel`, or ``None`` to use the generic route.
+
+    The accelerated kernels cover exactly one case — real, unweighted, and
+    already ``float64`` — and only earn their dispatch on a large problem. The
+    ``float64`` requirement is not incidental: the generic route below carries
+    a narrower input dtype through the product, so accelerating a ``float32``
+    correlation would silently change its arithmetic as well as its speed.
+    """
     if weights is not None:
         return None
-    if np.iscomplexobj(a) or np.iscomplexobj(b):
+    if a.dtype != np.float64 or b.dtype != np.float64:
         return None
-    if a.size < _ACCEL_MAC_THRESHOLD:
+    if a.shape[0] * a.shape[1] * b.shape[1] < ACCEL_MAC_MIN_WORK:
         return None
     try:
-        from openfemlab.accel import mac_real_unweighted
-    except ImportError:
+        from openfemlab.accel.mac import mac_real_unweighted, numba_available
+    except ImportError:  # pragma: no cover - the subpackage ships with the wheel
+        return None
+    if not numba_available():
         return None
     return mac_real_unweighted(a, b)
 
@@ -122,15 +134,22 @@ def mac(
     -------
     Real matrix ``(ma, mb)`` with values in ``[0, 1]``; invariant to scaling
     and sign/phase of either set.
+
+    Notes
+    -----
+    A large real, unweighted correlation is handed to
+    :func:`accelerated_mac` when the optional ``accel`` extra is installed.
+    That route is a specialization, not a different metric: it agrees with the
+    generic one to floating-point rounding and raises the same errors.
     """
     a = as_columns(shapes_a, "shapes_a")
     b = as_columns(shapes_b, "shapes_b")
     if a.shape[0] != b.shape[0]:
         raise ValueError(f"DOF mismatch: {a.shape[0]} vs {b.shape[0]}")
     w = prepare_weights(weights, a.shape[0])
-    accelerated = _try_accel_mac(a, b, w)
+    accelerated = accelerated_mac(a, b, w)
     if accelerated is not None:
-        return accelerated.astype(np.float64, copy=False)
+        return accelerated
     wa = apply_weights(w, a)
     wb = apply_weights(w, b)
 

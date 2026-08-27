@@ -163,7 +163,7 @@ to honor the sparse matrix contract of MS-0.2 and MS-1.6.
 |----|-----|--------------------|-------------------|------|
 | AC-PERF-001 | P2 | 50k-DOF sparse modal solve never densifies a full operator | n = 50,000, k = 6; no full-order `toarray`; cold solve ≤ 120 s | MS-1.6 |
 | AC-PERF-002 | P2 | Iterative modal result matches the dense reference | frequency rel. err ≤ 1e-8; paired MAC ≥ 0.999 | MS-1.6 |
-| AC-PERF-003 | P2 | Large real MAC matrix matches reference within 2 s | 5000×20×20 unweighted MAC; max abs err ≤ 1e-10 | MS-1.6 |
+| AC-PERF-003 | P2 | Accelerated MAC matches the reference and never slows it down | 5000×20×20 unweighted MAC; max abs err ≤ 1e-10; ≤ 2 s; ≤ 5× the written-out NumPy form | MS-1.6, MS-2.2 |
 
 - **AC-PERF-001** (`contract`) — A procedurally assembled, deterministic
   tridiagonal spring-mass chain with 50,000 DOFs is solved for its six lowest
@@ -177,6 +177,17 @@ to honor the sparse matrix contract of MS-0.2 and MS-1.6.
   facade return the same ordered band: maximum relative frequency error is
   `1e-8` and every diagonal entry of their unweighted MAC matrix is at least
   `0.999`, with the diagonal as the unique best pairing.
+- **AC-PERF-003** (`property`) — A 5,000-DOF, 20-mode real and unweighted
+  correlation through `mac()` — the size at which the optional `accel` extra
+  of `openfemlab.accel` takes over — agrees with the MAC written out from its
+  definition to `1e-10` absolute and returns within 2 s. The wall-clock
+  envelope is only a hang tripwire; the binding half of the criterion is that
+  the dispatched route stays within **5×** of that written-out NumPy form,
+  measured as the best of five runs after a warm-up. A specialization that is
+  slower than the general code it bypasses fails the criterion even though it
+  computes the right answer, which a pure correctness-and-timeout gate cannot
+  express: the correlation is milliseconds of arithmetic, so an accelerator a
+  hundred times too slow still fits inside 2 s.
 
 ---
 
@@ -694,7 +705,7 @@ with no promoted row.
 registry (one entry per criterion: ID, title, module, spec anchor, priority,
 verification method, planned test reference, status).
 
-The current inventory is **60 criteria**: M1 = 11 (`MODAL` = 9, `PERF` = 2),
+The current inventory is **61 criteria**: M1 = 12 (`MODAL` = 9, `PERF` = 3),
 M2 = 9, M3 = 10, M4 = 5, M5 = 4, M6 = 5, M7 = 3, M8 = 3, M9 = 5, and
 M10 = 5. The two suffixed M3 rows (`AC-UPD-006a` / `AC-UPD-006b`) are
 distinct criteria under one dense base number.
@@ -704,8 +715,11 @@ A121). The third wave — promoted at Round 2 sign-off — closed module **M8**
 (AC-IO-001..003), putting every Round-1/2 row on the CI gate. Round 3 closed
 **M9** (AC-MPE-001..005), **M10** (AC-PRETEST-001..005), the cross-cutting
 **PERF** family (AC-PERF-001..002), and **AC-UPD-009** (FRF updating residual).
-The inventory reads **60 `verified`, 0 `implemented`, 0 `specified`** — every
-registered criterion is on the CI gate.
+The inventory reads **60 `verified`, 1 `implemented`, 0 `specified`**. The one
+unpromoted row is `AC-PERF-003`, landed with the optional acceleration layer;
+it is promoted once the `gates` job has run it green on the default branch,
+which is also what keeps its timing ratio out of the reproducibility gate
+until that ratio has a CI history to be judged against.
 
 The registry tests enforce:
 

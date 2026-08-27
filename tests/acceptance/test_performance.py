@@ -113,26 +113,68 @@ def test_ac_perf_002_sparse_iterative_modes_match_dense_reference():
     assert np.array_equal(np.argmax(agreement, axis=1), np.arange(REFERENCE_MODES))
 
 
-MAC_LARGE_DOFS = 5000
+MAC_LARGE_DOFS = 5_000
 MAC_LARGE_MODES = 20
 MAC_LARGE_TIME_LIMIT_SECONDS = 2.0
+MAC_LARGE_SLOWDOWN_LIMIT = 5.0
+MAC_TIMING_REPEATS = 5
 
 
-@criterion("AC-PERF-003")
-def test_ac_perf_003_large_mac_matrix_is_fast_and_correct():
-    """5000×20 MAC stays within 2 s and matches the NumPy reference."""
-    rng = np.random.default_rng(42)
-    shapes_a = rng.standard_normal((MAC_LARGE_DOFS, MAC_LARGE_MODES))
-    shapes_b = rng.standard_normal((MAC_LARGE_DOFS, MAC_LARGE_MODES))
+def textbook_mac(shapes_a: np.ndarray, shapes_b: np.ndarray) -> np.ndarray:
+    """``|Φ_aᵀ Φ_b|² / (‖φ_a‖² ‖φ_b‖²)`` written out, as the gate's oracle.
 
+    Deliberately a second implementation rather than a call into the package:
+    AC-PERF-003 asks whether the shipped dispatch still computes the MAC, so it
+    must not be checked against the code whose dispatch is under test.
+    """
     cross = shapes_a.T @ shapes_b
     norm_a = np.sum(shapes_a * shapes_a, axis=0)
     norm_b = np.sum(shapes_b * shapes_b, axis=0)
-    reference = np.clip((cross * cross) / np.outer(norm_a, norm_b), 0.0, 1.0)
+    return np.clip((cross * cross) / np.outer(norm_a, norm_b), 0.0, 1.0)
+
+
+def fastest_seconds(call, repeats: int = MAC_TIMING_REPEATS) -> float:
+    """Shortest of ``repeats`` timed runs, after one untimed warm-up.
+
+    The warm-up keeps one-off costs — a Numba compilation, a first-touch page
+    fault — out of a measurement that is about steady-state throughput, and
+    taking the minimum rejects the upward noise of a shared CI runner.
+    """
+    call()
+    return min(_timed(call) for _ in range(repeats))
+
+
+def _timed(call) -> float:
+    started = time.perf_counter()
+    call()
+    return time.perf_counter() - started
+
+
+@criterion("AC-PERF-003")
+def test_ac_perf_003_large_mac_stays_fast_and_matches_the_reference():
+    """A 5000×20 MAC matches the oracle, fits in 2 s, and beats no-dispatch.
+
+    The slowdown bound is the part with teeth. The wall-clock envelope only
+    catches a hang: this correlation is milliseconds of arithmetic, so a
+    kernel a hundred times slower than plain NumPy still lands inside 2 s. A
+    ratio against the oracle is what actually holds the accelerated route to
+    being an acceleration.
+    """
+    rng = np.random.default_rng(42)
+    shapes_a = rng.standard_normal((MAC_LARGE_DOFS, MAC_LARGE_MODES))
+    shapes_b = rng.standard_normal((MAC_LARGE_DOFS, MAC_LARGE_MODES))
+    reference = textbook_mac(shapes_a, shapes_b)
 
     started = time.perf_counter()
-    accelerated = mac(shapes_a, shapes_b)
-    elapsed = time.perf_counter() - started
+    correlation = mac(shapes_a, shapes_b)
+    cold_elapsed = time.perf_counter() - started
 
-    assert elapsed <= MAC_LARGE_TIME_LIMIT_SECONDS
-    np.testing.assert_allclose(accelerated, reference, rtol=0.0, atol=1e-10)
+    assert cold_elapsed <= MAC_LARGE_TIME_LIMIT_SECONDS
+    np.testing.assert_allclose(correlation, reference, rtol=0.0, atol=1e-10)
+
+    shipped = fastest_seconds(lambda: mac(shapes_a, shapes_b))
+    oracle = fastest_seconds(lambda: textbook_mac(shapes_a, shapes_b))
+    assert shipped <= MAC_LARGE_SLOWDOWN_LIMIT * oracle, (
+        f"mac() took {shipped * 1e3:.3f} ms against {oracle * 1e3:.3f} ms for the "
+        f"same correlation written out — the dispatch is a pessimization"
+    )
