@@ -21,7 +21,6 @@ from audio_studio.core.sample_source import MemorySampleSource
 from audio_studio.core.session import MultitrackSession, Track
 from audio_studio.core.types import TimeRange
 from audio_studio.project.archive import (
-    ARCHIVE_SUFFIX,
     ProjectArchiveError,
     archive_path_for,
     is_archive,
