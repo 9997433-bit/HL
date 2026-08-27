@@ -92,7 +92,8 @@ class StabilizationDiagram:
                 "tolerances, widen the order range, or pick poles explicitly"
             )
         picked = sorted(selected.values(), key=lambda p: (p.frequency_hz, p.damping_ratio))
-        return tuple(picked)
+        freq_tol = float(self.settings.get("tolerances", {}).get("freq_tol", 0.01))
+        return _deduplicate_by_frequency(picked, freq_tol)
 
     # ------------------------------------------------------------- internals
 
@@ -135,6 +136,28 @@ class StabilizationDiagram:
                 break
             level, index = level - 1, parent
         return level, index
+
+
+def _relative_frequency_gap(left_hz: float, right_hz: float) -> float:
+    scale = max(abs(left_hz), abs(right_hz), 1.0)
+    return abs(left_hz - right_hz) / scale
+
+
+def _deduplicate_by_frequency(
+    poles: tuple[PoleEstimate, ...], freq_tol: float
+) -> tuple[PoleEstimate, ...]:
+    """Drop picked poles that repeat the same physical root within ``freq_tol``."""
+    if len(poles) <= 1:
+        return poles
+    unique: list[PoleEstimate] = []
+    for pole in poles:
+        if any(
+            _relative_frequency_gap(pole.frequency_hz, kept.frequency_hz) <= freq_tol
+            for kept in unique
+        ):
+            continue
+        unique.append(pole)
+    return tuple(unique)
 
 
 @dataclass(frozen=True)
