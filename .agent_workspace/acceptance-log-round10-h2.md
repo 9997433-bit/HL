@@ -124,10 +124,12 @@ tesseract 当成了版面框。把裁剪框收进矩形内侧，同一张图立�
 
 | 命令 | 结果 |
 |---|---|
-| `npm run test:literacy`（即 `npm test` 的识字段） | **全绿**（含 `test:ocr:accuracy` 25/25、生产构建、bundle 门禁、浏览器 smoke） |
+| `npm run test:literacy`（即 `npm test` 的识字段） | **全绿，exit 0**（含 `test:ocr:accuracy` 25/25、生产构建、bundle 门禁、浏览器 smoke） |
 | └ `test:ocr:accuracy` | 25/25，总召回 66/67（98.5%），单图 22–138 ms |
 | └ `test:ocr` | 7/7（取字规则，未改动） |
 | └ `check:data` | 71/71（1820 字 / 99 单元 / 132 本绘本，未改动） |
+| └ `smoke` | 163 条路由 + 34 项交互，0 项有问题（含「拍照识字：示例照片认出『日月山水』，引擎点了才下载」） |
+| └ `check:bundle` | 4/4，首屏 JS 322 KB（预算 420 KB）——真实样张不进 `public/`，包体一字节未增 |
 | `npm run check:round10` | **H2 PASS**（真样张 3 张 + `ROUND10_H2`）、H8 PASS；其余 6 项按编排属他人分支的预期红灯（2/8，基线是 1/8） |
 | `npm run check:round9` | **8/8**，无退化 |
 | `npm run gen:ocr:real`（删 `.cache/` 从零重跑） | 三张 PNG 与入库版本 sha256 逐字节一致 |
