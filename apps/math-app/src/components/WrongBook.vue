@@ -6,8 +6,12 @@
  * 所以重做不需要回到原玩法重新抽题，也不会抽到「另一道同类题」。
  * 重做只调 progress.retryWrong()：更新掌握度、答对移出错题本，
  * 不动总题数与正确率——复盘不该把主统计冲淡。
+ *
+ * skill 是可选的技能点筛选：技能图谱的推荐位跳进来时（/progress?wrong=<技能点>）
+ * 只列这一个技能欠着的题，孩子不用在几十条里自己找。筛选只影响这个列表，
+ * 不改错题本本身，清掉筛选就又是全部。
  */
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useProgressStore } from '@/stores/progress.js'
 import { errorTagInfo } from '@/data/errorTags.js'
 import { MODULE_MAP } from '@/data/modules.js'
@@ -15,6 +19,13 @@ import { SKILLS, SKILL_MAP } from '@/data/curriculum.js'
 import { weakestSkills } from '@/core/engine/adaptive.js'
 import { shuffle } from '@/utils/random'
 import { sound } from '@/utils/sound'
+
+const props = defineProps({
+  /** 只看这个技能点的错题；空串表示不筛选。 */
+  skill: { type: String, default: '' },
+})
+
+const emit = defineEmits(['clear-skill'])
 
 const progress = useProgressStore()
 
@@ -33,12 +44,20 @@ const shuffled = ref([])
 /** 这次重做已经试错过的答案，禁掉避免连点同一个把 attempts 刷上天。 */
 const tried = ref([])
 
+/** 筛选中的技能点：认不出的 id 一律当没筛，否则页面会变成一片空白。 */
+const focusSkill = computed(() => (SKILL_MAP[props.skill] ? props.skill : ''))
+const focusName = computed(() => SKILL_MAP[focusSkill.value]?.name ?? '')
+
 const items = computed(() => {
-  const list = progress.wrongList
+  const all = progress.wrongList
+  const list = focusSkill.value ? all.filter((e) => e.skill === focusSkill.value) : all
   return sortBy.value === 'most'
     ? [...list].sort((a, b) => b.attempts - a.attempts || b.lastAt - a.lastAt)
     : list
 })
+
+/** 筛选的技能一换就收起展开的那道题，免得停留在已经被筛掉的条目上。 */
+watch(focusSkill, () => close())
 
 const active = computed(() => items.value.find((e) => e.id === activeId.value) ?? null)
 
@@ -117,10 +136,15 @@ function clearAll() {
   close()
   sound.click()
 }
+
+function clearFilter() {
+  sound.click()
+  emit('clear-skill')
+}
 </script>
 
 <template>
-  <section class="card wrong-book">
+  <section id="wrong-book" class="card wrong-book" data-wrong-book>
     <header class="wb-head">
       <h3 class="panel-title">📕 错题本</h3>
       <span class="chip">{{ progress.wrongCount }} 道待攻克</span>
@@ -148,8 +172,32 @@ function clearAll() {
       </template>
     </header>
 
+    <p
+      v-if="focusSkill"
+      class="wb-filter"
+      :data-wrong-filter="focusSkill"
+      :data-wrong-filter-count="items.length"
+    >
+      <span class="chip tiny">🎯 只看「{{ focusName }}」· {{ items.length }} 道</span>
+      <button
+        v-if="items.length && activeId === null"
+        class="btn btn--primary btn--sm"
+        data-wrong-retry-first
+        @click="open(items[0])"
+      >
+        🔁 从第一道开始重练
+      </button>
+      <button class="btn btn--ghost btn--sm" data-wrong-filter-clear @click="clearFilter">
+        显示全部
+      </button>
+    </p>
+
     <p v-if="!progress.wrongCount" class="muted wb-empty">
       错题本是空的，答错的题会自动收进来，重做答对就放它走 ✨
+    </p>
+
+    <p v-else-if="!items.length" class="muted wb-empty">
+      「{{ focusName }}」这一点已经没有欠着的错题了，去技能图谱看看下一步练什么 ✨
     </p>
 
     <template v-else>
@@ -272,6 +320,13 @@ function clearAll() {
 .wb-empty,
 .wb-advice {
   font-size: 14px;
+}
+
+.wb-filter {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .wb-list {

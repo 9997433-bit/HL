@@ -77,9 +77,15 @@ import { COMPARE_SYMBOLS, compareQuestion, compareSymbol } from '../src/data/com
 import {
   buildDailyQuestion,
   buildDailyQuestions,
+  buildFocusDailyQuestion,
+  buildFocusDailyQuestions,
+  canDailyFocus,
+  DAILY_FOCUS_SKILLS,
   DAILY_SIZE,
   DAILY_TEMPLATE_IDS,
+  dailyFocusSeed,
 } from '../src/data/daily.js'
+import { practiceEntries, practiceEntry, wrongCountsBySkill } from '../src/data/skill-practice.js'
 import { ERROR_TAGS } from '../src/data/errorTags.js'
 import { CUES, noteToFreq, STREAK_CUES, streakCue } from '../src/utils/sound.js'
 import { updateMastery, MASTERY_THRESHOLD } from '../src/utils/mastery.js'
@@ -672,6 +678,151 @@ if (questionId('daily-add', '2026-01-01#1') !== 'daily-add:2026-01-01#1') {
   console.log(
     `每日冒险 ${DAYS} 天共 ${checked} 道：同日可复现、跨日不重样，` +
       `题型顺序 ${DAILY_TEMPLATE_IDS.join(' → ')}`,
+  )
+}
+
+/**
+ * 专项冒险：图谱推荐「先补这一点」，点下去开出来的 5 道题就必须真的练在这一点上。
+ * 一道题落到哪个技能由 skill-mapping 裁决，所以这里逐题验它的裁决结果——
+ * 取值窗口只要有一处没夹住，孩子练的就是另一个技能，而掌握度还会记到推荐的那个上。
+ */
+{
+  const DAYS = 120
+  const start = Date.UTC(2026, 0, 1)
+  let checked = 0
+
+  if (DAILY_FOCUS_SKILLS.length < 8) {
+    fail(`每日冒险只能专练 ${DAILY_FOCUS_SKILLS.length} 个技能点，覆盖面太窄`)
+  }
+  for (const skill of DAILY_FOCUS_SKILLS) {
+    if (!isKnownSkill(skill)) fail(`专项冒险声称能练图谱外的技能点「${skill}」`)
+  }
+  if (canDailyFocus('sudoku-9')) fail('数独技能不该被当成每日冒险能出的题')
+  if (buildFocusDailyQuestions({ skill: 'sudoku-9' }).length) {
+    fail('出不了题的技能应返回空题组，而不是硬凑')
+  }
+  if (buildFocusDailyQuestion(0, { skill: '不存在的技能' }) !== null) {
+    fail('认不出的技能点应返回 null')
+  }
+
+  for (const skill of DAILY_FOCUS_SKILLS) {
+    for (let d = 0; d < DAYS; d++) {
+      const dateKey = new Date(start + d * 864e5).toISOString().slice(0, 10)
+      const first = buildFocusDailyQuestions({ skill, dateKey })
+      const second = buildFocusDailyQuestions({ skill, dateKey })
+
+      if (first.length !== DAILY_SIZE) {
+        fail(`${skill} ${dateKey} 的专项冒险有 ${first.length} 题，应为 ${DAILY_SIZE}`)
+      }
+      if (JSON.stringify(first) !== JSON.stringify(second)) {
+        fail(`${skill} ${dateKey} 的专项冒险两次生成不一致，刷新就换题`)
+      }
+
+      first.forEach((q, slot) => {
+        const seed = dailyFocusSeed(skill, dateKey, slot)
+        if (q.seed !== seed) fail(`${q.id} 的种子应为 ${seed}，实际 ${q.seed}`)
+        if (q.id !== `${q.templateId}:${seed}`) fail(`${q.id} 的 id 没有带上种子`)
+        if (q.focusSkill !== skill) fail(`${q.id} 没有标出它属于哪次专项`)
+        if (q.skill !== skill) fail(`${skill} 的专项题 ${q.id} 却记到了「${q.skill}」`)
+        if (!q.options.includes(q.answer)) fail(`${q.id} 选项里没有正确答案 ${q.answer}`)
+        if (new Set(q.options).size !== q.options.length) fail(`${q.id} 选项有重复`)
+        if (typeof q.answer === 'number' && (!Number.isInteger(q.answer) || q.answer < 0)) {
+          fail(`${q.id} 的答案不是自然数：${q.answer}`)
+        }
+        if (/NaN|undefined/.test(q.prompt)) fail(`${q.id} 题干渲染异常：${q.prompt}`)
+        if (!q.hints?.length || q.hints.some((h) => /NaN|undefined|-\d/.test(h))) {
+          fail(`${q.id} 的提示文案异常：${q.hints?.join(' / ')}`)
+        }
+        checked++
+      })
+
+      if (new Set(first.map((q) => q.id)).size !== first.length) {
+        fail(`${skill} ${dateKey} 的专项冒险出现重复题目 id`)
+      }
+    }
+  }
+
+  // 换一天要换题，换技能更要换题；否则「专项」只是换了个标题
+  const sameDay = (skill) =>
+    buildFocusDailyQuestions({ skill, dateKey: '2026-05-04' })
+      .map((q) => q.prompt)
+      .join('|')
+  if (sameDay('add-carry-20') === sameDay('add-within-10')) {
+    fail('同一天里两个技能的专项冒险出了同一套题')
+  }
+  if (
+    sameDay('add-carry-20') ===
+    buildFocusDailyQuestions({ skill: 'add-carry-20', dateKey: '2026-05-05' })
+      .map((q) => q.prompt)
+      .join('|')
+  ) {
+    fail('相邻两天的专项冒险题目完全相同')
+  }
+  // 专项冒险和当天的常规冒险各走各的种子，不该互相顶掉
+  const regular = new Set(buildDailyQuestions('2026-05-04').map((q) => q.id))
+  if (buildFocusDailyQuestions({ skill: 'add-carry-20', dateKey: '2026-05-04' }).some((q) => regular.has(q.id))) {
+    fail('专项冒险的题目 id 撞上了当天常规冒险的题')
+  }
+
+  console.log(
+    `专项冒险 ${DAILY_FOCUS_SKILLS.length} 个技能 × ${DAYS} 天共 ${checked} 道：` +
+      `逐题落回本技能、同日可复现、与常规冒险互不覆盖`,
+  )
+}
+
+/**
+ * 推荐 → 开练入口：推荐排完序之后，「去练」得落到真能练这一点的地方。
+ * 落点只由推荐项和错题本快照决定，且和推荐一样是只读的。
+ */
+{
+  const RECO_SEED = { 'count-to-5': 0.95, 'count-to-10': 0.9, 'add-within-10': 0.4 }
+  const view = recommend({ mastery: RECO_SEED, ageBand: 'L2' })
+
+  const clean = practiceEntries(view.items, { wrongBook: {} })
+  if (clean.length !== view.items.length) fail('有推荐项算不出开练入口')
+  for (const [index, entry] of clean.entries()) {
+    const item = view.items[index]
+    if (entry.skill !== item.id) fail(`第 ${index + 1} 条入口指向了别的技能「${entry.skill}」`)
+    if (!entry.label || !entry.hint) fail(`「${entry.skill}」的入口没有文案`)
+    if (!entry.to?.path) fail(`「${entry.skill}」的入口没有落点路由`)
+    const want = canDailyFocus(item.id) ? 'daily' : 'planet'
+    if (entry.kind !== want) fail(`空错题本下「${item.id}」的落点应是 ${want}，实际 ${entry.kind}`)
+    if (entry.kind === 'daily' && entry.to.query?.focus !== item.id) {
+      fail(`「${item.id}」的日冒险入口没有带上技能：${JSON.stringify(entry.to.query)}`)
+    }
+    if (entry.kind === 'planet' && entry.to.path !== item.route) {
+      fail(`「${item.id}」的星球入口指向 ${entry.to.path}，应为 ${item.route}`)
+    }
+  }
+
+  // 欠着错题就先还账：同一条推荐的落点从日冒险换成错题重练
+  const owed = {
+    'arithmetic:7+3': { skill: 'add-within-10', attempts: 2 },
+    'arithmetic:8+2': { skill: 'add-within-10', attempts: 1 },
+    'daily:no-skill': { attempts: 1 },
+  }
+  const counts = wrongCountsBySkill(owed)
+  if (counts['add-within-10'] !== 2) fail(`错题欠账应按技能算出 2 道，实际 ${counts['add-within-10']}`)
+  if (Object.keys(counts).length !== 1) fail('没有技能点的错题不该被算进任何技能的欠账')
+
+  const owedEntry = practiceEntry(
+    view.items.find((item) => item.id === 'add-within-10'),
+    { wrongBook: owed },
+  )
+  if (owedEntry.kind !== 'wrongBook') fail(`欠着错题时落点应是错题本，实际 ${owedEntry.kind}`)
+  if (owedEntry.to.query?.wrong !== 'add-within-10') fail('错题重练入口没有带上技能点')
+  if (owedEntry.wrongCount !== 2) fail(`错题重练入口应显示 2 道，实际 ${owedEntry.wrongCount}`)
+  if (owedEntry.planet.route !== '/arithmetic') fail('错题落点丢了它自己的星球入口')
+
+  if (JSON.stringify(RECO_SEED) !== JSON.stringify({ 'count-to-5': 0.95, 'count-to-10': 0.9, 'add-within-10': 0.4 })) {
+    fail('算开练入口时改写了掌握度存档')
+  }
+  if (practiceEntry(null) !== null) fail('没有技能点的推荐项不该算出入口')
+
+  const kinds = clean.map((entry) => entry.kind)
+  console.log(
+    `开练入口：L2 首条「${view.items[0].name}」落到 ${clean[0].kind}（${clean[0].label}），` +
+      `欠账时改走错题本 ${owedEntry.wrongCount} 道，本档落点 ${kinds.join(' / ')}`,
   )
 }
 

@@ -4,10 +4,12 @@
  *
  * 页面本身不出题也不写进度：掌握度来自 progress store，年龄档来自 settings store，
  * 节点状态与「推荐下一步」都由 data/skill-graph.js 的纯函数算出来。想练某个技能，
- * 从详情卡或推荐位跳去对应星球，成绩仍旧记在那颗星球名下。
+ * 从详情卡或推荐位跳去对应玩法，成绩仍旧记在那颗星球名下。
  *
  * 推荐同样是只读的：它不预约、不落盘，也不往 progress 里写任何东西，
- * 只是把同一份存档按当前年龄档重新排了个序。
+ * 只是把同一份存档按当前年龄档重新排了个序。「去练」也只是一条链接：
+ * 落到错题重练还是日冒险专项，由 data/skill-practice.js 现算（见那里的说明），
+ * 点之前图谱不会因为算过这个落点而多写一个字节。
  */
 import { computed, ref } from 'vue'
 import { bandOf } from '@/data/age-band.js'
@@ -17,6 +19,7 @@ import {
   STATUS_MAP,
   buildSkillGraph,
 } from '@/data/skill-graph.js'
+import { practiceEntry, wrongCountsBySkill } from '@/data/skill-practice.js'
 import { useProgressStore } from '@/stores/progress.js'
 import { useSettingsStore } from '@/stores/settings.js'
 import { sound } from '@/utils/sound.js'
@@ -90,10 +93,14 @@ const detail = computed(() => {
 /** 推荐下一步：掌握度决定「能练什么、补到哪儿了」，年龄档决定「先练哪个」。 */
 const reco = computed(() => graph.value.reco)
 
+/** 错题欠账按技能点归拢一次，推荐位的落点和详情卡都读它。 */
+const wrongCounts = computed(() => wrongCountsBySkill(progress.state.wrongBook))
+
 const recoItems = computed(() =>
   reco.value.items.map((item) => ({
     ...item,
     hint: RECOMMEND_REASON_MAP[item.reason].hint,
+    entry: practiceEntry(item, { wrongCounts: wrongCounts.value }),
   })),
 )
 
@@ -316,6 +323,10 @@ function toggleBandOnly() {
         按「掌握度 × {{ band.id }} 年龄档」现算：先补练过没过线的，再补本档欠着的底子，
         超前的排最后。换个档位再看，就是另一份建议。
       </p>
+      <p class="muted small">
+        「去练」直接落到能练这一点的地方：还欠着错题就去错题本重做，
+        每日冒险出得了这类题就开一份当天固定的专项冒险，都不行才回星球。
+      </p>
       <ul class="next-list">
         <li
           v-for="(item, index) in recoItems"
@@ -336,8 +347,28 @@ function toggleBandOnly() {
             <span class="dim small">
               {{ item.moduleName }} · {{ item.level }} 档 · {{ item.why }}
             </span>
+            <span class="dim small" :data-reco-entry-hint="item.entry.kind">
+              {{ item.entry.hint }}
+            </span>
           </div>
-          <RouterLink class="btn btn--ghost btn--sm" :to="item.route">去练 →</RouterLink>
+          <div class="next-actions">
+            <RouterLink
+              class="btn btn--primary btn--sm"
+              :to="item.entry.to"
+              :data-reco-entry="item.entry.kind"
+              :data-reco-entry-skill="item.id"
+            >
+              {{ item.entry.label }} →
+            </RouterLink>
+            <RouterLink
+              v-if="item.entry.kind !== 'planet'"
+              class="btn btn--ghost btn--sm"
+              :to="item.route"
+              :data-reco-planet="item.id"
+            >
+              去{{ item.moduleName }}
+            </RouterLink>
+          </div>
         </li>
         <li v-if="!recoItems.length" class="dim">整张图都练完了，去成就墙看看战绩吧。</li>
       </ul>
@@ -667,6 +698,7 @@ function toggleBandOnly() {
 .next-row {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
   padding: 8px 12px;
   border-radius: var(--radius-sm);
@@ -677,6 +709,14 @@ function toggleBandOnly() {
   flex: 1;
   display: flex;
   flex-direction: column;
+}
+
+.next-actions {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
 }
 
 .reco-no {

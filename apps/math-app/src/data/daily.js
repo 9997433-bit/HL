@@ -5,6 +5,11 @@
  * 题目 id 是 `${templateId}:${seed}`。所以同一天、同一台设备刷新页面，
  * 甚至换一台设备，看到的都是同一套题——孩子做到一半被打断也能接着做完，
  * 家长也能拿着题目 id 复现孩子今天到底做了什么。
+ *
+ * 除了这份「今天的 5 题」，同一批模板还能按技能点开一份**专项冒险**：
+ * 技能图谱推荐「先补 20 以内进位加」，就用 `${日期}#${技能}#${slot}` 当种子
+ * 生成 5 道只练这一点的题（见 buildFocusDailyQuestions）。种子里带着技能，
+ * 所以专项冒险同样是「同一天同一套题」，且和当天的常规 5 题互不覆盖。
  */
 import { createRng, numericOptions, questionId } from '@/utils/random.js'
 import { arithmeticSkill, countingSkill } from '@/data/skill-mapping.js'
@@ -29,9 +34,48 @@ export const dailyDateKey = (date = new Date()) => date.toISOString().slice(0, 1
 
 export const dailySeed = (dateKey, slot) => `${dateKey}#${slot}`
 
-const addQuestion = (rng) => {
-  const a = rng.int(2, 9)
-  const b = rng.int(2, 11)
+/**
+ * 专项冒险的取值窗口：每个技能一条，取完的数必须让 skill-mapping 判回这个技能，
+ * 否则「去练 20 以内进位加」出的却是 10 以内的题，练了也不算在那一点上。
+ * 没有窗口的技能走原来的默认取值，也就是常规每日冒险的老样子。
+ */
+const ADD_FOCUS = {
+  'add-within-10': (rng) => {
+    const a = rng.int(1, 8)
+    return [a, rng.int(1, 10 - a)]
+  },
+  // 两个加数都压成一位数、和又必须过 10，凑十这一步就绕不过去
+  'add-carry-20': (rng) => {
+    const a = rng.int(4, 9)
+    return [a, rng.int(11 - a, 9)]
+  },
+}
+
+const SUB_FOCUS = {
+  'sub-within-10': (rng) => {
+    const a = rng.int(4, 10)
+    return [a, rng.int(1, a - 1)]
+  },
+  // 减数的个位大于被减数的个位，才是真的退位减
+  'sub-borrow-20': (rng) => {
+    const a = rng.int(11, 18)
+    return [a, rng.int((a % 10) + 1, 9)]
+  },
+}
+
+const COUNT_FOCUS = {
+  'count-to-5': [3, 5],
+  'count-to-10': [6, 10],
+  'count-to-20': [11, 20],
+}
+
+const COMPARE_FOCUS = {
+  'compare-to-10': { floor: 1, ceiling: 10 },
+  'compare-to-20': { floor: 11, ceiling: 20 },
+}
+
+const addQuestion = (rng, skill) => {
+  const [a, b] = ADD_FOCUS[skill]?.(rng) ?? [rng.int(2, 9), rng.int(2, 11)]
   const answer = a + b
   const toTen = 10 - a
   const hints = [`从 ${a} 开始，往后数 ${b} 步。`]
@@ -53,9 +97,13 @@ const addQuestion = (rng) => {
   }
 }
 
-const subQuestion = (rng) => {
+const defaultSubTerms = (rng) => {
   const a = rng.int(6, 20)
-  const b = rng.int(2, a - 1)
+  return [a, rng.int(2, a - 1)]
+}
+
+const subQuestion = (rng, skill) => {
+  const [a, b] = SUB_FOCUS[skill]?.(rng) ?? defaultSubTerms(rng)
   const answer = a - b
   const ones = a % 10
   const hints = [`从 ${a} 开始，往前数 ${b} 步。`]
@@ -77,9 +125,10 @@ const subQuestion = (rng) => {
   }
 }
 
-const countQuestion = (rng) => {
+const countQuestion = (rng, skill) => {
   const cargo = rng.sample(ICONS)
-  const answer = rng.int(5, 14)
+  const [low, high] = COUNT_FOCUS[skill] ?? [5, 14]
+  const answer = rng.int(low, high)
   return {
     type: 'count',
     cargo,
@@ -115,18 +164,32 @@ const seqQuestion = (rng) => {
   }
 }
 
-const compareItem = (rng) => {
-  const q = makeCompareQuestion(rng, { ceiling: 20, icons: ICONS })
+const compareItem = (rng, skill) => {
+  const range = COMPARE_FOCUS[skill] ?? { ceiling: 20 }
+  const q = makeCompareQuestion(rng, { ...range, icons: ICONS })
   return { ...q, answer: q.target, hints: [q.hint], errorTags: () => ['reversed'] }
 }
 
-/** 题序固定：每天都按同样的顺序走完 5 类题，孩子知道会遇到什么。 */
+/**
+ * 题序固定：每天都按同样的顺序走完 5 类题，孩子知道会遇到什么。
+ * skills 是这类题能专练的技能点，专项冒险靠它把「技能 → 模板」认回来。
+ */
 const TEMPLATES = [
-  { id: 'daily-count', label: '数一数', build: countQuestion },
-  { id: 'daily-add', label: '加法', build: addQuestion },
-  { id: 'daily-compare', label: '比大小', build: compareItem },
-  { id: 'daily-sub', label: '减法', build: subQuestion },
-  { id: 'daily-seq', label: '数序', build: seqQuestion },
+  {
+    id: 'daily-count',
+    label: '数一数',
+    build: countQuestion,
+    skills: ['count-to-5', 'count-to-10', 'count-to-20'],
+  },
+  { id: 'daily-add', label: '加法', build: addQuestion, skills: ['add-within-10', 'add-carry-20'] },
+  {
+    id: 'daily-compare',
+    label: '比大小',
+    build: compareItem,
+    skills: ['compare-to-10', 'compare-to-20'],
+  },
+  { id: 'daily-sub', label: '减法', build: subQuestion, skills: ['sub-within-10', 'sub-borrow-20'] },
+  { id: 'daily-seq', label: '数序', build: seqQuestion, skills: ['number-order'] },
 ]
 
 export const DAILY_TEMPLATE_IDS = TEMPLATES.map((t) => t.id)
@@ -148,4 +211,50 @@ export function buildDailyQuestion(slot, dateKey = dailyDateKey()) {
 /** 某一天的完整 5 题。 */
 export function buildDailyQuestions(dateKey = dailyDateKey()) {
   return Array.from({ length: DAILY_SIZE }, (_, slot) => buildDailyQuestion(slot, dateKey))
+}
+
+/* --------------------------------------------------------- 专项冒险 */
+
+/** 技能点 → 能出这道技能的题的模板。 */
+const FOCUS_TEMPLATE = Object.fromEntries(
+  TEMPLATES.flatMap((tpl) => (tpl.skills ?? []).map((skill) => [skill, tpl])),
+)
+
+/** 每日冒险的题型能专练的技能点；图谱推荐到这些技能才给得出「日冒险开练」。 */
+export const DAILY_FOCUS_SKILLS = Object.keys(FOCUS_TEMPLATE)
+
+export const canDailyFocus = (skill) => Object.hasOwn(FOCUS_TEMPLATE, skill)
+
+/** 专项冒险的种子：日期 + 技能 + 题号，三者任一变了才换题。 */
+export const dailyFocusSeed = (skill, dateKey, slot) => `${dateKey}#${skill}#${slot}`
+
+/**
+ * 按技能出第 slot 道专项题；技能出不了题时返回 null，由调用方回落到常规冒险。
+ */
+export function buildFocusDailyQuestion(slot, { skill, dateKey = dailyDateKey() } = {}) {
+  const tpl = FOCUS_TEMPLATE[skill]
+  if (!tpl) return null
+  const seed = dailyFocusSeed(skill, dateKey, slot)
+  return {
+    ...tpl.build(createRng(seed), skill),
+    id: questionId(tpl.id, seed),
+    templateId: tpl.id,
+    label: tpl.label,
+    focusSkill: skill,
+    seed,
+    slot,
+  }
+}
+
+/**
+ * 一份专项冒险：题量与每日冒险一致，5 道题全部落在同一个技能点上。
+ * 认不出的技能返回空数组——推荐位不会给出这种入口，真给了也不该硬凑题。
+ */
+export function buildFocusDailyQuestions({
+  skill,
+  dateKey = dailyDateKey(),
+  size = DAILY_SIZE,
+} = {}) {
+  if (!canDailyFocus(skill)) return []
+  return Array.from({ length: size }, (_, slot) => buildFocusDailyQuestion(slot, { skill, dateKey }))
 }
