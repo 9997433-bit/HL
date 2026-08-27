@@ -24,10 +24,23 @@ source installs — no installers and no Apple/Microsoft code signing yet. See
   inventory beside the bundle.
 - **Signing scaffold** — integrity artifacts (checksums/local signatures) in
   the release flow; no Apple/Microsoft certificates are provisioned.
+- **Physical audio device probe** (`benchmarks/usb_audio_probe.py`) — scans the
+  kernel (`/dev/snd`, `/proc/asound/cards`, `/sys/class/sound`), the USB bus
+  (audio class interfaces with their vendor/product strings), PortAudio and
+  PulseAudio, and publishes
+  `.agent_workspace/v1.0/usb-audio-probe-report.json`. On this VM it finds no
+  card, no USB audio interface and null sinks only, which corroborates the C4
+  report's `physical_dac_adc: false` instead of leaving it as an assertion.
+  `--require-physical` exits 1 for a hardware runner.
 
 ### Changed
 
 - `__version__` and package metadata set to `1.1.0`.
+- **Round-trip latency probe** now derives `physical_dac_adc` from the device
+  probe and the driver behind the sink it looped through, records that scan
+  under `hardware`, and accepts `--require-physical` to refuse measuring a loop
+  with no converter in it (exit 2) rather than publishing a server-loopback
+  number under a hardware-sounding name.
 
 ## [1.0.1] - 2026-08-27
 

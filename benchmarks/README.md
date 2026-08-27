@@ -70,6 +70,47 @@ software-pipeline evidence for C1/C3. Every run writes the standalone
 `.agent_workspace/v1.0/soak-30min-report.json` and
 `.agent_workspace/v1.0/callback-timing-report.json` artifacts.
 
+## Hardware audio certification path
+
+Two probes stand behind checklist item C4, and they answer different questions.
+
+`benchmarks/roundtrip_latency_probe.py` measures the play-to-capture round trip
+over a real duplex stream at 128 frames / 48 kHz. `benchmarks/usb_audio_probe.py`
+establishes what kind of device that measurement went through:
+
+```bash
+python3 benchmarks/usb_audio_probe.py                    # inventory, exit 0
+python3 benchmarks/usb_audio_probe.py --require-physical # gate, exit 1 with no card
+python3 benchmarks/roundtrip_latency_probe.py --require-physical
+```
+
+The device probe reads four layers and publishes all of them to
+`.agent_workspace/v1.0/usb-audio-probe-report.json`: the kernel (`/dev/snd`,
+`/proc/asound/cards`, `/sys/class/sound`, with each card's bus resolved from
+sysfs), the USB bus (interfaces whose `bInterfaceClass` is `01`, with the
+vendor, product and manufacturer strings of the device behind them), PortAudio
+(every device with host API, channel counts, default latencies and whether
+48 kHz `float32` is accepted) and PulseAudio's sinks and sources with their
+drivers. A device is counted physical only when the kernel has bound a card
+**and** PortAudio advertises a name that addresses it, so no plugin over a null
+sink can be mistaken for a converter.
+
+On this VM the answer is negative — no `/dev/snd`, no card, no USB audio
+interface, and PulseAudio running on null sinks alone — so the report is
+published with `physical_hardware_present: false` and
+`status: "not-certified"`. That is not a failure of the run: it is the reason
+the C4 number is server-loopback evidence, and the report says which stages of
+the signal path (DAC, ADC, their filters, the analogue path, the device
+interrupt cadence and USB transfer) no measurement taken here can contain. It
+compares itself against the published C4 baseline and checks the two artifacts
+agree about the same host; the converter overhead quoted alongside the margin
+is labelled an estimate, because nothing here measured one.
+
+`--require-physical` is the flag a hardware runner should gate on. On the
+round-trip probe it refuses to measure unless a physical device exists *and*
+the sink being looped through is the one backed by it, which is also how that
+report's `physical_dac_adc` field is now decided.
+
 ## EBU and golden tests
 
 ```bash
