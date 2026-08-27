@@ -17,7 +17,8 @@ import { useProgressStore } from './progress.js'
 export const THEMES = [
   { id: 'sunny', name: '明亮童趣', emoji: '🌞', desc: '色彩鲜艳，白天使用' },
   { id: 'care', name: '护眼模式', emoji: '🍃', desc: '暖纸色低蓝光，久看不累' },
-  { id: 'night', name: '夜间模式', emoji: '🌙', desc: '睡前故事时间' }
+  { id: 'night', name: '夜间模式', emoji: '🌙', desc: '睡前故事时间' },
+  { id: 'aurora', name: '极光模式', emoji: '🌌', desc: '青紫极光，沉浸探索' }
 ]
 
 export const FONT_SCALES = [

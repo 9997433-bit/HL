@@ -2,7 +2,7 @@
    识字 App 主题补充层
    ==========================================================================
    颜色、排印、间距、动效等令牌全部来自 shared/styles/design-tokens.css，
-   由 base.css 在本文件之前 @import。主题切换（sunny / care / night）、字号
+   由 base.css 在本文件之前 @import。主题切换（sunny / care / night / aurora）、字号
    档位与动效降级也都在那里，识字 App 不再自带一份拷贝——两份拷贝各自漂移
    过一次，护眼模式的正文灰就是这样掉到 4.2:1 的。
 
@@ -23,4 +23,8 @@
 
 :root[data-theme='night'] {
   --art-tint: 22%;
+}
+
+:root[data-theme='aurora'] {
+  --art-tint: 28%;
 }

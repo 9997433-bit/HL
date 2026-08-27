@@ -17,7 +17,14 @@ export const AGE_BANDS = [
   { id: 'L5', name: '10–12 岁', desc: '两步应用题与数独' }
 ]
 
+/** 双 App 共用 aurora 令牌；数学 App 保留 cosmos 作为默认品牌主题。 */
+export const THEMES = [
+  { id: 'cosmos', name: '深空模式', emoji: '🚀', desc: '经典蓝紫星空' },
+  { id: 'aurora', name: '极光模式', emoji: '🌌', desc: '青绿极光与柔和紫光' }
+]
+
 const DEFAULTS = {
+  theme: 'cosmos',
   soundOn: true,
   eyeCare: false,          // 护眼模式:降低饱和度/暖色滤镜(CSS 类切换)
   ageBand: 'L2',           // L1-L5,影响默认推荐模块与生成器参数
@@ -35,6 +42,7 @@ function sanitize(saved) {
   const goal = Number(out.dailyGoal)
   out.dailyGoal = Number.isFinite(goal) ? Math.min(50, Math.max(1, Math.round(goal))) : DEFAULTS.dailyGoal
   out.ageBand = AGE_BANDS.some((band) => band.id === out.ageBand) ? out.ageBand : DEFAULTS.ageBand
+  out.theme = THEMES.some((theme) => theme.id === out.theme) ? out.theme : DEFAULTS.theme
   out.soundOn = !!out.soundOn
   out.eyeCare = !!out.eyeCare
   out.breakReminder = !!out.breakReminder
