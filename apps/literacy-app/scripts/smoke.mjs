@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url'
 import puppeteer from 'puppeteer-core'
 
 import { BOOKS } from '../src/data/books.js'
+import { POEMS } from '../src/data/poems.js'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const DIST = join(ROOT, 'dist')
@@ -97,6 +98,11 @@ const ROUTES = [
   ['成语 盲人摸象', '/#/idioms/mrmx'],
   ['成语 五颜六色', '/#/idioms/wyls'],
   ...round6Routes,
+  ['古诗长廊', '/#/poems'],
+  // 古诗也从数据表生成：24 首里漏测某一首，多半就是那一首的拼音对不上字数。
+  ...POEMS.map((p) => [`古诗《${p.title}》`, `/#/poems/${p.id}`]),
+  ['跟读评测(自动挑诗)', '/#/follow-read'],
+  ['跟读评测 静夜思', '/#/follow-read/jingyesi'],
   ['字源馆', '/#/etymology'],
   ['字源 日（象形）', `/#/etymology/${encodeURIComponent('日')}`],
   ['字源 明（会意）', `/#/etymology/${encodeURIComponent('明')}`],
@@ -1322,6 +1328,205 @@ await interact('徽章：学会第一个字就点亮，首页与家长中心都�
   return `首页点亮 ${home.lit} 枚；家长中心共 ${parent.total} 枚（点亮 ${parent.lit}，${parent.locked} 枚带进度条）`
 })
 
+/* ------------------------------------------------------- 古诗与跟读评测 */
+
+await interact('古诗：逐字拼音对齐，点生字弹注解', '/#/poems/jingyesi', async (page) => {
+  await page.waitForSelector('.verse__line', { timeout: 8000 })
+
+  const verse = await page.evaluate(() =>
+    [...document.querySelectorAll('.verse__line')].map((line) => {
+      const cells = [...line.querySelectorAll('.glyph')]
+      return {
+        chars: cells.filter((c) => !c.classList.contains('glyph--punct')).length,
+        pinyin: cells.filter(
+          (c) => !c.classList.contains('glyph--punct') && c.querySelector('.glyph__p')?.innerText.trim()
+        ).length,
+        news: cells.filter((c) => c.classList.contains('glyph--new')).length
+      }
+    })
+  )
+  if (verse.length !== 4) throw new Error(`《静夜思》应当是 4 句，渲染出 ${verse.length} 句`)
+  for (const [i, line] of verse.entries()) {
+    if (line.chars !== 5) throw new Error(`第 ${i + 1} 句是 ${line.chars} 个字，五言诗应当 5 个`)
+    if (line.pinyin !== line.chars) {
+      throw new Error(`第 ${i + 1} 句 ${line.chars} 字只标了 ${line.pinyin} 个拼音，逐字拼音错位了`)
+    }
+  }
+  // 「望」「低」还不在字表里，正文里要标成生字，点开当场给注解
+  const flagged = verse.reduce((n, l) => n + l.news, 0)
+  if (flagged < 1) throw new Error('这首诗里有没学过的字，正文却一个生字都没标出来')
+
+  const tapped = await page.evaluate(() => {
+    const g = [...document.querySelectorAll('.glyph--new')][0]
+    if (!g) return ''
+    g.click()
+    return g.querySelector('.glyph__c')?.innerText.trim() ?? ''
+  })
+  await new Promise((r) => setTimeout(r, 300))
+  const peek = await page.evaluate(
+    () => document.querySelector('.peek')?.innerText.replace(/\s+/g, ' ').trim() ?? ''
+  )
+  if (!peek.includes(tapped)) throw new Error(`点生字「${tapped}」没有弹出拼音注解卡`)
+
+  // 「讲一讲」里要能看到这首诗的生字表
+  const switched = await clickText(page, '讲一讲')
+  await new Promise((r) => setTimeout(r, 300))
+  const news = await page.evaluate(() => document.querySelectorAll('.news__item').length)
+  if (!switched || news < 1) throw new Error(`切到「讲一讲」后生字表是空的（${news} 条）`)
+
+  return `4 句逐字拼音对齐，标出 ${flagged} 个生字，点「${tapped}」弹出：${peek}`
+})
+
+await interact(
+  '跟读评测：没有麦克风时降级成范读 + 自评，并记进进度',
+  '/#/follow-read/jingyesi',
+  async (page) => {
+    await page.evaluate(() => localStorage.clear())
+    // 无头环境本来就拿不到麦克风；这里显式拿掉，把「没有麦克风」这条降级路走实
+    await page.evaluateOnNewDocument(() => {
+      Object.defineProperty(navigator, 'mediaDevices', { value: undefined, configurable: true })
+      const synth = window.speechSynthesis
+      if (synth) {
+        window.__spoken = []
+        synth.speak = (utter) => {
+          window.__spoken.push(utter.text)
+          setTimeout(() => utter.onend?.(), 20)
+        }
+      }
+    })
+    await page.reload({ waitUntil: 'networkidle2', timeout: 20000 })
+    await page.waitForSelector('.fr', { timeout: 10000 })
+
+    const mode = await page.evaluate(() => document.querySelector('.fr')?.dataset.mode)
+    if (mode !== 'selfcheck') throw new Error(`没有麦克风时应当降到自评档，实际 mode=${mode}`)
+    const note = await page.evaluate(() => document.querySelector('.fr__mode')?.innerText ?? '')
+    if (!note.includes('麦克风')) throw new Error(`降级了却没告诉用户为什么：「${note}」`)
+
+    // 范读：走的是 Web Speech API，读的必须是这一句的原文
+    if (!(await clickText(page, '听我读一遍'))) throw new Error('跟读面板缺少范读入口')
+    await page.waitForFunction(() => (window.__spoken ?? []).length > 0, { timeout: 8000 })
+    const spoken = await page.evaluate(() => window.__spoken)
+    if (!spoken.some((t) => t.includes('床前明月光'))) {
+      throw new Error(`范读读的不是这一句：「${spoken.join('|')}」`)
+    }
+
+    if (!(await clickText(page, '我来读'))) throw new Error('跟读面板缺少「我来读」')
+    const recording = await page.evaluate(() => document.querySelector('.fr')?.dataset.phase)
+    if (recording !== 'recording') throw new Error(`点了「我来读」还停在 ${recording}`)
+
+    if (!(await clickText(page, '我读完了'))) throw new Error('跟读中没有「我读完了」出口')
+    await page.waitForSelector('.fr__self', { timeout: 6000 })
+
+    // 自评档不打分，只让孩子自己评一句——不该凭空造一个分数出来
+    if (!(await clickText(page, '很流利'))) throw new Error('自评档没有给出自评选项')
+    await page.waitForSelector('.fr__result', { timeout: 6000 })
+    const result = await page.evaluate(() => {
+      const box = document.querySelector('.fr__result')
+      return {
+        score: box?.dataset.score ?? '',
+        grade: box?.dataset.grade ?? '',
+        text: box?.innerText.replace(/\s+/g, ' ').trim() ?? '',
+        live: document.querySelector('.fr .sr-only[aria-live="polite"]')?.innerText.trim() ?? ''
+      }
+    })
+    if (result.score !== '') throw new Error(`自评档不该给分，却显示了 ${result.score}`)
+    if (result.grade !== 'fluent') throw new Error(`自评结果没对上：${result.grade}`)
+    if (!result.live) throw new Error('跟读结果没有 aria-live 播报')
+
+    const saved = await page.evaluate(
+      () => JSON.parse(localStorage.getItem('happy-literacy:v1') ?? '{}').poems?.jingyesi ?? null
+    )
+    if (!saved) throw new Error('跟读完一遍没有写进存档')
+    if ((saved.follows ?? 0) < 1) throw new Error(`存档里跟读次数是 ${saved.follows}`)
+    if (saved.bestScore != null) throw new Error('自评档不该写入「最好成绩」')
+
+    return `自评档：范读「${spoken[0].slice(0, 5)}…」→ 读完 → 自评「很流利」，存档 follows=${saved.follows}`
+  }
+)
+
+await interact(
+  '跟读评测：能识别时逐字判分，念漏的字会标出来',
+  '/#/follow-read/jingyesi',
+  async (page) => {
+    await page.evaluate(() => localStorage.clear())
+    // 无头 Chrome 既没有麦克风也没有识别引擎，两样都注入假的，
+    // 验的是「识别结果 → 逐字对齐 → 分数」这条线接没接对，不是识别引擎本身准不准。
+    await page.evaluateOnNewDocument(() => {
+      // 假麦克风：用 WebAudio 造一条真的 MediaStream，MediaRecorder 能录它
+      const fakeStream = () => {
+        const Ctx = window.AudioContext ?? window.webkitAudioContext
+        return new Ctx().createMediaStreamDestination().stream
+      }
+      Object.defineProperty(navigator, 'mediaDevices', {
+        value: { getUserMedia: async () => fakeStream() },
+        configurable: true
+      })
+      // 假识别：故意漏掉「明」，逐字标记里它应当是唯一一个 miss
+      window.SpeechRecognition = class {
+        start() {
+          setTimeout(() => {
+            this.onresult?.({ results: [[{ transcript: '床前月光' }]] })
+          }, 120)
+        }
+        stop() {}
+      }
+      const synth = window.speechSynthesis
+      if (synth) {
+        window.__spoken = []
+        synth.speak = (utter) => {
+          window.__spoken.push(utter.text)
+          setTimeout(() => utter.onend?.(), 20)
+        }
+      }
+    })
+    await page.reload({ waitUntil: 'networkidle2', timeout: 20000 })
+    await page.waitForSelector('.fr__opt input', { timeout: 10000 })
+
+    // 识别可能联网，默认关着；家长打开之后才升到逐字评测档
+    await page.evaluate(() => document.querySelector('.fr__opt input').click())
+    await page.waitForFunction(
+      () => document.querySelector('.fr')?.dataset.mode === 'recognition',
+      { timeout: 5000 }
+    )
+
+    if (!(await clickText(page, '我来读'))) throw new Error('识别档点不到「我来读」')
+    await new Promise((r) => setTimeout(r, 500))
+    if (!(await clickText(page, '我读完了'))) throw new Error('识别档点不到「我读完了」')
+    await page.waitForSelector('.fr__result', { timeout: 8000 })
+
+    const scored = await page.evaluate(() => {
+      const box = document.querySelector('.fr__result')
+      const marks = [...document.querySelectorAll('.fr__glyph')].map((g) => ({
+        char: g.innerText.trim(),
+        status: g.dataset.status
+      }))
+      return {
+        score: Number(box?.dataset.score ?? -1),
+        grade: box?.dataset.grade ?? '',
+        marks,
+        heard: document.querySelector('.fr__heard')?.innerText ?? ''
+      }
+    })
+
+    if (scored.marks.length !== 5) throw new Error(`逐字标记应当有 5 个字，实际 ${scored.marks.length}`)
+    const missed = scored.marks.filter((m) => m.status === 'miss').map((m) => m.char)
+    if (missed.join('') !== '明') throw new Error(`念漏的应当只有「明」，实际标出 ${missed.join('') || '无'}`)
+    if (!(scored.score > 0 && scored.score < 100)) {
+      throw new Error(`漏一个字应当扣分但不该归零，实际 ${scored.score}`)
+    }
+    if (!scored.heard.includes('床前月光')) throw new Error(`没有把听到的内容回显：「${scored.heard}」`)
+
+    const saved = await page.evaluate(
+      () => JSON.parse(localStorage.getItem('happy-literacy:v1') ?? '{}').poems?.jingyesi ?? null
+    )
+    if ((saved?.bestScore ?? 0) !== scored.score) {
+      throw new Error(`最好成绩没写进存档（存档 ${saved?.bestScore}，本次 ${scored.score}）`)
+    }
+
+    return `识别到「${scored.heard}」→ ${scored.score} 分（${scored.grade}），漏字「${missed.join('')}」被标出`
+  }
+)
+
 await interact('播报：答题有 aria-live', '/#/listen', async (page) => {
   await clickText(page, '开始游戏')
   await new Promise((r) => setTimeout(r, 600))
@@ -1372,7 +1577,8 @@ await interact('学伴：核心路由常驻，点一下换鼓励语并朗读', '
     ['字表', '/#/learn'],
     ['小游戏', '/#/games'],
     ['绘本', '/#/books'],
-    ['成语', '/#/idioms']
+    ['成语', '/#/idioms'],
+    ['古诗', '/#/poems']
   ]) {
     await page.goto(base + route, { waitUntil: 'networkidle2', timeout: 20000 })
     await page.waitForSelector('.mascot-dock button', { timeout: 8000 })

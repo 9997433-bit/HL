@@ -19,6 +19,14 @@ import { BOOKS, charsInBook, verifyBookCoverage } from '../src/data/books.js'
 import { BOOK_IDS, TOTAL_BOOKS } from '../src/data/book-index.js'
 import { IDIOMS } from '../src/data/idioms.js'
 import { TOTAL_IDIOMS } from '../src/data/idiom-index.js'
+import {
+  POEMS,
+  POEM_GLOSS,
+  POEM_THEMES,
+  charsInPoem,
+  verifyPoemCoverage
+} from '../src/data/poems.js'
+import { TOTAL_POEMS } from '../src/data/poem-index.js'
 import { RADICALS, getRadical } from '../src/data/radicals.js'
 import { ETYMOLOGY, ETYMOLOGY_KINDS } from '../src/data/etymology.js'
 import { ETYMOLOGY_CHARS } from '../src/data/etymology-index.js'
@@ -402,6 +410,9 @@ console.log(
   `\n统计：${TOTAL_CHARACTERS} 字 / ${UNITS.length} 单元 / ${RADICALS.length} 偏旁 / ` +
     `${BOOKS.length} 本绘本（共 ${BOOKS.reduce((n, b) => n + b.pages.length, 0)} 页，` +
     `${new Set(BOOKS.flatMap(charsInBook)).size} 个不重复用字） / ${IDIOMS.length} 个成语 / ` +
+    `${POEMS.length} 首古诗（共 ${POEMS.reduce((n, p) => n + p.lines.length, 0)} 句，` +
+    `${new Set(POEMS.flatMap(charsInPoem)).size} 个不重复用字，` +
+    `${Object.keys(POEM_GLOSS).length} 个生字带注解） / ` +
     `${ETYMOLOGY.length} 个字有字源演变`
 )
 
