@@ -119,7 +119,7 @@ try {
           }))
           const externalRequests = requests.filter((requestUrl) => {
             const parsed = new URL(requestUrl)
-            return parsed.origin !== origin
+            return ['http:', 'https:'].includes(parsed.protocol) && parsed.origin !== origin
           })
 
           if (!facts.h1.includes('隐私政策')) throw new Error(`标题异常: ${facts.h1}`)
