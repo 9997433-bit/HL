@@ -6,10 +6,10 @@
  * 每首歌四句，展开后一屏就放得下，多跳一次页面反而打断了「挑一首就唱」。
  * `:id` 只是为了能把某一首直接分享/收藏成链接。
  *
- * 唱的时候没有音频文件可放，人声和伴奏是分开合成的：
- * 旋律走 `playMelody()`（振荡器实时合成），范读走系统朗读。所以这里给了两个
- * 按钮而不是一个「播放」——它们本来就是两件事，孩子可以只听调子跟着哼，
- * 也可以只听一句一句的字音。没装中文语音的机器上第二个按钮会自己说明情况。
+ * ROUND10_H5 给前三首歌接入项目自制 Ogg 旋律：优先播放静态文件，加载或解码失败
+ * 就自动退回 `playMelody()` 的 WebAudio 合成音。范读仍走系统朗读，所以这里保留
+ * 「唱一唱」和「跟我读」两个入口。静态旋律与合成旋律共用同一张逐字时间表，
+ * 切换音源不会让歌词高亮错拍。
  *
  * ROUND9_H1 —— 儿歌 v2 的歌词-旋律同步动画。v1 只有「唱到的那个字亮一下」，
  * 试下来有三个说不清的地方，v2 各补一件事：
@@ -60,11 +60,15 @@ const beat = ref(0)
 /** 进度条：已经唱了多少毫秒 / 这一首（含预备拍）一共多少毫秒。 */
 const played = ref(0)
 const totalMs = ref(0)
+/** 当前伴奏来源；暴露到 data 属性，便于 smoke 同时验证文件优先和合成降级。 */
+const playbackSource = ref('') // '' | 'file' | 'synth'
 
 /** 所有待清理的定时器。换歌、离开页面、点「停一停」都要一次全清掉。 */
 let timers = []
 let raf = 0
 let startedAt = 0
+let recordedAudio = null
+let synthFallbackStarted = false
 
 function clearTimers() {
   timers.forEach((t) => clearTimeout(t))
@@ -75,6 +79,40 @@ function clearTimers() {
 
 function later(fn, ms) {
   timers.push(setTimeout(fn, ms))
+}
+
+/**
+ * 只算旋律时间，不发声。算法与 playMelody() 一致：普通字一拍，句末拖两拍。
+ * 文件伴奏也走这份时间表，因此不需要为了拿 offsets 偷播一遍合成音。
+ */
+function timingOf(notes, bpm) {
+  const secondsPerBeat = 60 / Math.min(200, Math.max(40, bpm))
+  const offsets = []
+  let at = 0
+  notes.forEach((_, index) => {
+    offsets.push(Math.round(at * 1000))
+    at += secondsPerBeat * (index === notes.length - 1 ? 2 : 1)
+  })
+  return { offsets, duration: Math.round(at * 1000) }
+}
+
+function timelineOf(song) {
+  const beatMs = Math.round(60000 / song.bpm)
+  const lead = COUNT_IN_BEATS * beatMs
+  let at = lead
+  const lines = song.lines.map((line, lineIndex) => {
+    const timing = timingOf(line.notes, song.bpm)
+    const row = {
+      line,
+      lineIndex,
+      start: at,
+      end: at + timing.duration,
+      offsets: timing.offsets
+    }
+    at += timing.duration + Math.round(beatMs / 2)
+    return row
+  })
+  return { beatMs, lead, lines, total: at }
 }
 
 /** 家长中心的「减少动态」和系统的 prefers-reduced-motion，任意一个开着就不动。 */
@@ -152,11 +190,97 @@ const atLine = computed(() => (activeLine.value >= 0 ? activeLine.value + 1 : 0)
 /** 先推还没唱过的第一首，全唱过了就推第一首再来一遍。 */
 const suggestion = computed(() => list.value.find((s) => !s.sung) ?? list.value[0] ?? null)
 
+function disposeRecordedAudio() {
+  const audio = recordedAudio
+  recordedAudio = null
+  if (!audio) return
+  audio.onerror = null
+  try {
+    audio.pause?.()
+    audio.removeAttribute?.('src')
+    audio.load?.()
+  } catch {
+    // 部分旧 WebView 在尚未加载元数据时不允许重置 currentSrc；暂停成功就够了。
+  }
+}
+
+/** 从当前时刻接上合成旋律；通常在文件 play() 一开始被拒时触发。 */
+function startSynthFallback(song, timeline) {
+  if (synthFallbackStarted || mode.value !== 'sing') return
+  synthFallbackStarted = true
+  playbackSource.value = 'synth'
+  const elapsed = Math.max(0, performance.now() - startedAt)
+  timeline.lines.forEach((row) => {
+    if (row.end <= elapsed) return
+    playMelody(row.line.notes, {
+      bpm: song.bpm,
+      startAt: Math.max(0, row.start - elapsed)
+    })
+  })
+}
+
+/**
+ * 在点击手势内先静音启动文件，保住移动浏览器的 autoplay 授权；预备拍数完后归零、
+ * 打开音量。文件不可用时立即接上合成旋律，视觉时间轴无需重排。
+ */
+function startRecordedMelody(song, timeline) {
+  if (!song.audio || !settings.soundOn || typeof Audio === 'undefined') return false
+
+  let audio
+  try {
+    audio = new Audio(new URL(song.audio, document.baseURI).href)
+    audio.preload = 'auto'
+    audio.volume = 0
+  } catch {
+    return false
+  }
+
+  recordedAudio = audio
+  const fallback = () => {
+    if (recordedAudio !== audio || mode.value !== 'sing') return
+    disposeRecordedAudio()
+    startSynthFallback(song, timeline)
+    status.value = '本地旋律没有成功播放，已自动换成合成旋律。'
+  }
+  audio.onerror = fallback
+
+  try {
+    const playing = audio.play()
+    if (playing?.then) {
+      playing
+        .then(() => {
+          if (recordedAudio === audio && mode.value === 'sing') playbackSource.value = 'file'
+        })
+        .catch(fallback)
+    } else {
+      playbackSource.value = 'file'
+    }
+  } catch {
+    fallback()
+  }
+
+  later(() => {
+    if (recordedAudio !== audio || mode.value !== 'sing') return
+    try {
+      audio.currentTime = 0
+      audio.volume = 1
+      playbackSource.value = 'file'
+      if (audio.paused) audio.play()?.catch?.(fallback)
+    } catch {
+      fallback()
+    }
+  }, timeline.lead)
+  return true
+}
+
 function stop({ quiet = false } = {}) {
   clearTimers()
   cancelSpeech()
+  disposeRecordedAudio()
   // 整首歌的音符是一次排进时间轴的，清定时器只停得住高亮，停不住声音。
   stopAllTones()
+  synthFallbackStarted = false
+  playbackSource.value = ''
   mode.value = ''
   activeLine.value = -1
   activeChar.value = -1
@@ -190,8 +314,8 @@ function tickProgress() {
 /**
  * 唱一遍：先数三拍预备，再逐句放旋律，跟着音符逐字高亮。
  *
- * 高亮不是靠给每个音挂回调，而是拿 `playMelody()` 返回的时间表排定时器——
- * 家长把音效关掉时旋律不响，时间表照样准，字还是会一个一个亮过去。
+ * 高亮不是靠给每个音挂回调，而是按与谱面相同的节拍排定时器——静态文件和
+ * `playMelody()` 的合成降级共用它。家长把音效关掉时，字也照样一个一个亮过去。
  *
  * 预备拍是 v2 加的：v1 点完按钮立刻出声，孩子反应过来时第一句已经过去了。
  * 现在这三拍只敲拍子不出旋律，数完再开唱，跟合唱团起拍是一个道理。
@@ -202,8 +326,9 @@ function sing() {
   stop({ quiet: true })
   mode.value = 'sing'
 
-  const beatMs = Math.round(60000 / song.bpm)
-  const lead = COUNT_IN_BEATS * beatMs
+  const timeline = timelineOf(song)
+  const { beatMs, lead } = timeline
+  startedAt = performance.now()
   countIn.value = COUNT_IN_BEATS
   status.value = `预备…数完 ${COUNT_IN_BEATS} 拍，《${song.title}》就开始。`
   for (let i = 0; i < COUNT_IN_BEATS; i += 1) {
@@ -214,15 +339,15 @@ function sing() {
     }, i * beatMs)
   }
 
-  let at = lead
-  song.lines.forEach((line, lineIndex) => {
-    const lineStart = at
-    const { offsets, duration } = playMelody(line.notes, { bpm: song.bpm, startAt: lineStart })
+  timeline.lines.forEach(({ line, lineIndex, start: lineStart, offsets }) => {
     later(() => {
       countIn.value = 0
       activeLine.value = lineIndex
       activeChar.value = 0
-      if (lineIndex === 0) status.value = `开始唱《${song.title}》，看着亮起来的字跟着哼。`
+      if (lineIndex === 0) {
+        const source = playbackSource.value === 'file' ? '本地旋律' : '合成旋律'
+        status.value = `开始唱《${song.title}》，${source}响起时跟着亮起来的字哼。`
+      }
     }, lineStart)
     offsets.forEach((offset, charIndex) => {
       later(() => {
@@ -230,17 +355,19 @@ function sing() {
         beat.value += 1
       }, lineStart + offset)
     })
-    // 句与句之间留半拍，孩子才来得及换气。
-    at += duration + Math.round(beatMs / 2)
   })
 
-  totalMs.value = at
+  totalMs.value = timeline.total
   played.value = 0
-  startedAt = performance.now()
+  if (!startRecordedMelody(song, timeline)) startSynthFallback(song, timeline)
   raf = requestAnimationFrame(tickProgress)
 
   later(() => {
     played.value = totalMs.value
+    disposeRecordedAudio()
+    stopAllTones()
+    playbackSource.value = ''
+    synthFallbackStarted = false
     activeLine.value = -1
     activeChar.value = -1
     countIn.value = 0
@@ -251,7 +378,7 @@ function sing() {
         ? `《${song.title}》又唱了一遍，一共唱过 ${record.times} 次。`
         : `《${song.title}》唱完啦，得到 2 颗星星。`
     sfx.celebrate()
-  }, at)
+  }, timeline.total)
 }
 
 /** 跟我读：一句一句念歌词，念完一句再念下一句。 */
@@ -303,7 +430,7 @@ onBeforeUnmount(() => stop({ quiet: true }))
         </h2>
         <p class="muted">
           {{ SONGS.length }} 首为这套字表新写的儿歌，歌词里的字都是学过的。
-          调子和字音是当场合成的，不用联网也能唱；唱到哪个字哪个字亮，
+          前三首带自制离线旋律，其余歌曲现场合成；唱到哪个字哪个字亮，
           音越高字抬得越高。
         </p>
         <button
@@ -318,7 +445,7 @@ onBeforeUnmount(() => stop({ quiet: true }))
       <span class="pill">唱过 {{ progress.songsSung }} / {{ SONGS.length }}</span>
     </section>
 
-    <VoiceNotice fallback="没有朗读声也能唱：调子是现场合成的，照样响。" compact />
+    <VoiceNotice fallback="没有朗读声也能唱：本地旋律和合成旋律都能离线播放。" compact />
 
     <div class="tabs" role="group" aria-label="按主题挑儿歌">
       <button
@@ -364,8 +491,17 @@ onBeforeUnmount(() => stop({ quiet: true }))
           class="player"
           :class="{ 'player--quiet': reduced, 'player--live': mode === 'sing' }"
           data-song-sync="v2"
+          :data-song-audio="s.audio ? 'file' : 'synth'"
+          :data-playback-source="mode === 'sing' ? playbackSource : ''"
         >
           <p class="player__tip">💡 {{ s.tip }}</p>
+          <p class="player__source">
+            {{
+              s.audio
+                ? '🎧 本地 Ogg 旋律 · 播放失败会自动切换合成音'
+                : '🎹 WebAudio 合成旋律'
+            }}
+          </p>
 
           <div class="track">
             <div
@@ -593,6 +729,17 @@ onBeforeUnmount(() => stop({ quiet: true }))
   margin: 0;
   font-size: 0.82rem;
   color: rgba(61, 47, 31, 0.85);
+}
+
+.player__source {
+  align-self: flex-start;
+  margin: 0;
+  padding: 3px 9px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.66);
+  color: rgba(61, 47, 31, 0.78);
+  font-size: 0.72rem;
+  font-weight: 700;
 }
 
 /* ---------------------------------------- ROUND9_H1 歌词-旋律同步（儿歌 v2） */
