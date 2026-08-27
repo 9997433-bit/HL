@@ -59,6 +59,8 @@ const ROUTES = [
   ['字迷宫', '/#/games/maze'],
   ['配对记忆', '/#/games/memory'],
   ['找不同', '/#/games/spot'],
+  ['拼音拼字', '/#/games/spell'],
+  ['接字大冒险', '/#/games/catch'],
   ['偏旁部首', '/#/radicals'],
   ['偏旁详情', '/#/radicals/shui'],
   ['绘本书架', '/#/books'],
@@ -699,6 +701,199 @@ await interact('找不同：找出唯一不同的字，键盘连过 3 关', '/#/
   if (score < solved) throw new Error(`连过 ${solved} 关但计分只有 ${score}`)
 
   return `键盘连过 ${solved} 关，计分 ${score}`
+})
+
+await interact('拼音拼字：只用键盘拼完一关', '/#/games/spell', async (page) => {
+  if (!(await clickText(page, '开始拼'))) throw new Error('拼音拼字缺少「开始拼」入口')
+  await page.waitForSelector('.spell__key', { timeout: 8000 })
+
+  // 题面上的拼音是带调的，牌面是不带调的；对照之前先把调去掉
+  const readRound = () =>
+    page.evaluate(() => {
+      const TONES = {
+        ā: 'a', á: 'a', ǎ: 'a', à: 'a',
+        ē: 'e', é: 'e', ě: 'e', è: 'e',
+        ī: 'i', í: 'i', ǐ: 'i', ì: 'i',
+        ō: 'o', ó: 'o', ǒ: 'o', ò: 'o',
+        ū: 'u', ú: 'u', ǔ: 'u', ù: 'u',
+        ǖ: 'ü', ǘ: 'ü', ǚ: 'ü', ǜ: 'ü'
+      }
+      const pinyin = document.querySelector('.quest__pinyin')?.textContent.trim() ?? ''
+      return {
+        char: document.querySelector('.quest__char')?.textContent.trim() ?? '',
+        answer: [...pinyin]
+          .map((ch) => TONES[ch] ?? ch.toLowerCase())
+          .filter((ch) => /[a-zü]/.test(ch)),
+        slots: document.querySelectorAll('.spell__slot').length,
+        keys: [...document.querySelectorAll('.spell__key')].map((node) => node.dataset.letter)
+      }
+    })
+
+  const first = await readRound()
+  if (!first.answer.length) throw new Error('题面上没有拼音，拼不出来')
+  if (first.slots !== first.answer.length) {
+    throw new Error(`「${first.char}」有 ${first.answer.length} 个字母，却摆了 ${first.slots} 个格子`)
+  }
+  if (first.keys.length <= first.answer.length) {
+    throw new Error('字母牌里没有混干扰牌，把牌全按一遍就能过关')
+  }
+
+  // 先摆一张错牌：答案里用不上的那张，必须被拒收
+  const wrong = first.keys.find((letter) => !first.answer.includes(letter))
+  if (!wrong) throw new Error('找不到干扰牌')
+  await page.evaluate((letter) => {
+    document.querySelector(`.spell__key[data-letter="${letter}"]`)?.click()
+  }, wrong)
+  await new Promise((r) => setTimeout(r, 250))
+  const refused = await page.evaluate(
+    () => document.querySelector('.spell__slots')?.dataset.filled === '0'
+  )
+  if (!refused) throw new Error('摆错的字母也被放进了格子里')
+
+  // 再只用键盘拼完：聚焦牌、回车摆牌
+  for (const letter of first.answer) {
+    const ok = await page.evaluate((want) => {
+      const node = [...document.querySelectorAll('.spell__key')].find(
+        (btn) => btn.dataset.letter === want && !btn.disabled
+      )
+      if (!node) return false
+      node.focus()
+      return document.activeElement === node
+    }, letter)
+    if (!ok) throw new Error(`牌面上找不到还没用过的「${letter}」`)
+    await page.keyboard.press('Enter')
+    await new Promise((r) => setTimeout(r, 180))
+  }
+
+  const said = await page.evaluate(
+    () => document.querySelector('.spell-game .sr-only[aria-live="polite"]')?.innerText ?? ''
+  )
+  if (!/拼对啦/.test(said)) throw new Error(`拼完整个拼音没有判对：「${said}」`)
+
+  // 判对后要自己接上下一关
+  await page.waitForFunction(() => /第\s*2\s*\/\s*\d+\s*关/.test(document.body.innerText), {
+    timeout: 6000
+  })
+  const score = await page.evaluate(() =>
+    Number(document.body.innerText.match(/⭐\s*(\d+)/)?.[1] ?? 0)
+  )
+  if (score < 1) throw new Error('拼对一关但计分还是 0')
+
+  return `键盘拼出「${first.char}」= ${first.answer.join('')}（${first.keys.length} 张牌，含干扰牌），错牌被拒收`
+})
+
+await interact('接字大冒险：键盘挪篮子接住目标字', '/#/games/catch', async (page) => {
+  if (!(await clickText(page, '开始接字'))) throw new Error('接字大冒险缺少「开始接字」入口')
+  await page.waitForSelector('.catch__field', { timeout: 8000 })
+
+  const readField = () =>
+    page.evaluate(() => {
+      const stage = document.querySelector('.catch')
+      return {
+        alive: !!stage,
+        lane: Number(stage?.dataset.lane ?? -1),
+        basket: !!document.querySelector('.catch__basket'),
+        score: Number(stage?.dataset.score ?? 0),
+        lives: Number(stage?.dataset.lives ?? 0),
+        items: [...document.querySelectorAll('.catch__item')].map((node) => ({
+          char: node.dataset.char,
+          lane: Number(node.dataset.lane),
+          row: Number(node.dataset.row),
+          target: node.dataset.target === 'true'
+        }))
+      }
+    })
+
+  const opening = await readField()
+  if (!opening.basket) throw new Error('轨道上没有篮子')
+  if (opening.lives !== 3) throw new Error(`开局应当有 3 颗心，实际 ${opening.lives}`)
+
+  const focused = await page.evaluate(
+    () => document.activeElement?.classList.contains('catch') ?? false
+  )
+  if (!focused) throw new Error('开局焦点没有落到轨道上，键盘挪不动篮子')
+
+  // 一直跟着最靠下的那个目标字挪篮子，接住一个就够证明这条链路是通的
+  let moves = 0
+  let caught = 0
+  for (let step = 0; step < 80 && !caught; step += 1) {
+    const field = await readField()
+    if (field.score >= 1) {
+      caught = field.score
+      break
+    }
+    if (!field.alive) throw new Error('还没接到目标字，牌面就没了（多半是心用完了）')
+
+    const chase = field.items.filter((it) => it.target).sort((a, b) => b.row - a.row)[0]
+    // 目标字之前先落到篮子里的干扰字，要提前躲开，别把心浪费掉
+    const danger = field.items
+      .filter((it) => !it.target && it.lane === field.lane)
+      .sort((a, b) => b.row - a.row)[0]
+
+    let key = null
+    if (chase && chase.lane !== field.lane && (!danger || danger.row <= chase.row)) {
+      key = chase.lane > field.lane ? 'ArrowRight' : 'ArrowLeft'
+    } else if (danger && (!chase || chase.lane !== field.lane || danger.row > chase.row)) {
+      key = field.lane < 3 ? 'ArrowRight' : 'ArrowLeft'
+    }
+
+    if (key) {
+      await page.keyboard.press(key)
+      moves += 1
+      continue
+    }
+    await new Promise((r) => setTimeout(r, 200))
+  }
+
+  if (!caught) throw new Error(`挪了 ${moves} 次篮子也没接到目标字`)
+  const said = await page.evaluate(
+    () => document.querySelector('.catch-game .sr-only[aria-live="polite"]')?.innerText ?? ''
+  )
+  if (!/接住|这一波/.test(said)) throw new Error(`接住之后没有播报：「${said}」`)
+
+  return `键盘挪 ${moves} 次篮子接住 ${caught} 个目标字`
+})
+
+await interact('接字大冒险：减少动效时节拍放慢且不做过渡', '/#/games/catch', async (page) => {
+  await page.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }])
+  await page.reload({ waitUntil: 'networkidle2', timeout: 20000 })
+  await new Promise((r) => setTimeout(r, 400))
+
+  const noticed = await page.evaluate(
+    () => document.querySelector('.catch__calm')?.dataset.quiet === 'true'
+  )
+  if (!noticed) throw new Error('系统要求减少动态，开始页却没有说明节奏已经放慢')
+
+  if (!(await clickText(page, '开始接字'))) throw new Error('减少动效下进不去游戏')
+  await page.waitForSelector('.catch__field', { timeout: 8000 })
+  await page.waitForSelector('.catch__item', { timeout: 8000 })
+
+  const quiet = await page.evaluate(() => {
+    const stage = document.querySelector('.catch')
+    const item = document.querySelector('.catch__item')
+    const basket = document.querySelector('.catch__basket')
+    return {
+      flagged: stage?.classList.contains('catch--quiet') ?? false,
+      item: item ? getComputedStyle(item).transitionProperty : 'none',
+      basket: basket ? getComputedStyle(basket).transitionProperty : 'none'
+    }
+  })
+  if (!quiet.flagged) throw new Error('减少动态时舞台没有切到安静模式')
+  if (quiet.item !== 'none') throw new Error(`掉落的字还挂着过渡：${quiet.item}`)
+  if (quiet.basket !== 'none') throw new Error(`篮子还挂着过渡：${quiet.basket}`)
+
+  // 慢节拍下一拍要 1.25 秒，600 毫秒内不该出现两次下落
+  const before = await page.evaluate(() =>
+    [...document.querySelectorAll('.catch__item')].map((n) => `${n.dataset.char}:${n.dataset.row}`)
+  )
+  await new Promise((r) => setTimeout(r, 600))
+  const after = await page.evaluate(() =>
+    [...document.querySelectorAll('.catch__item')].map((n) => `${n.dataset.char}:${n.dataset.row}`)
+  )
+  const dropped = after.filter((sig) => !before.includes(sig)).length
+  if (dropped > 2) throw new Error(`慢节拍 600ms 内掉了 ${dropped} 格，节奏没有放慢`)
+
+  return `安静模式：字与篮子都无过渡，600ms 内只挪 ${dropped} 格`
 })
 
 await interact('绘本：逐句朗读高亮 + 点字发音', '/#/books/b1', async (page) => {
