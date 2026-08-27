@@ -163,9 +163,15 @@
         "tests/acceptance/test_sota_checklist.py::E1 (three-platform CI, hard PASS)",
         "audio-studio/audio_studio/core/output.py + sounddevice_output.py (backend abstraction: PortAudio/WASAPI/ASIO)",
         "audio-studio/tests/test_wasapi_output.py",
-        "audio-studio/tests/test_asio_output.py"
+        "audio-studio/tests/test_asio_output.py",
+        "tools/accessibility_walkthrough_windows.py (Windows UIA/NVDA Speech Viewer host harness with honest prerequisite gate)",
+        "tools/accessibility_walkthrough_macos.py (macOS VoiceOver/AX API gated roadmap stub)"
       ],
-      "gaps": []
+      "gaps": [],
+      "notes": [
+        "cross-platform assistive-technology roadmap: run the Windows harness on an interactive Windows + NVDA host; complete the documented AX focus driver and supported/operator-confirmed utterance capture before the macOS harness may claim VoiceOver evidence",
+        "the committed D4 report currently counts only the live Linux/Orca run; the Windows and macOS harnesses do not turn UIA/AX inspection or an unsupported host into a screen-reader pass"
+      ]
     },
     {
       "id": "M12",
