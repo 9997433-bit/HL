@@ -35,6 +35,10 @@ mastering = ["soxr>=1.1.0"]
 # JUCE/Rubber Band/FFTW). It is opt-in only and must never be bundled into an
 # MIT-licensed binary artifact. See THIRD_PARTY_LICENSES.md.
 plugins = ["pedalboard>=0.9.0"]
+# Build-time only: PyInstaller is GPL-2.0-or-later with a bootloader exception
+# that covers shipping the bootloader inside this MIT application. It is never
+# a runtime dependency of the bundle it produces.
+installer = ["pyinstaller>=6.3"]
 dev = [
     "pytest>=7.4",
     "pytest-qt>=4.2",
