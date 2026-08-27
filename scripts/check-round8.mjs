@@ -177,7 +177,7 @@ try {
   const ocrTest = stripComments(readIfExists('apps/literacy-app/scripts/test-ocr.mjs'))
   const benchSrc = accSrc || (/\bROUND8_H4\b/.test(ocrTest) ? ocrTest : '')
   const recogOk = /recogni[sz]e|createWorker|tesseract|ocr/i.test(benchSrc)
-  const metricOk = /accuracy|正确率|命中率/i.test(benchSrc)
+  const metricOk = /accuracy|正确率|命中率|recall|召回率/i.test(benchSrc)
   const gateOk = /process\.exit|assert/i.test(benchSrc)
   const hasBenchmark = Boolean(benchSrc) && recogOk && metricOk && gateOk
   const quizWired = (() => {
