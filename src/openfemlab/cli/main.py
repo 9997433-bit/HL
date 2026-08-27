@@ -38,12 +38,15 @@ def build_parser() -> argparse.ArgumentParser:
         epilog=(
             "getting started:\n"
             "  openfemlab quickstart          # 60-second demo, no input files\n"
-            "  openfemlab wizard              # interactive menu\n"
+            "  openfemlab wizard --lang zh    # interactive menu (Chinese)\n"
+            "  openfemlab project init        # CAE workspace scaffold\n"
+            "  openfemlab serve --open        # local Web results viewer\n"
             "\n"
             "examples:\n"
             "  openfemlab modal cantilever.yaml -n 8\n"
             "  openfemlab correlate cantilever.yaml measured.yaml -o corr.json --format json\n"
             "  openfemlab report corr.json -o corr.html --open\n"
+            "  openfemlab serve --file corr.json --open\n"
             "  openfemlab update updating.yaml -o cantilever.updated.yaml"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,

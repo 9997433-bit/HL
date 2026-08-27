@@ -11,7 +11,13 @@ from openfemlab.core.elements import SpringElement
 from openfemlab.core.model import Model
 from openfemlab.core.results import ModalResult
 from openfemlab.exceptions import MissingDependencyError
-from openfemlab.viz import plot_mac_matrix, plot_mode_shape, plotting
+from openfemlab.viz import (
+    plot_frf_overlay,
+    plot_mac_matrix,
+    plot_mode_shape,
+    plot_stabilization_diagram,
+    plotting,
+)
 
 
 @pytest.fixture
@@ -132,3 +138,65 @@ def test_plot_mode_shape_accepts_existing_2d_axes(pyplot: Any) -> None:
 def test_plot_mode_shape_rejects_dof_mismatch() -> None:
     with pytest.raises(ValueError, match="3 DOFs but the model has 4"):
         plot_mode_shape(_two_node_model(), np.zeros(3))
+
+
+def test_plot_stabilization_diagram_scatters_poles(pyplot: Any) -> None:
+    import openfemlab.mpe as mpe
+    from openfemlab.solver.dynamics import modal_frf
+
+    line = np.linspace(0.05, 30.0, 200)
+    shapes = np.array([[1.0, 1.0], [1.5, -0.8], [0.6, 0.9]])
+    frf = modal_frf(
+        line,
+        (2.0 * np.pi * np.array([3.0, 7.0]), shapes),
+        np.array([0.02, 0.015]),
+        response_dofs=[0, 1, 2],
+        excitation_dofs=[0],
+    )
+    diagram = mpe.stabilization_diagram(frf, range(4, 9), band=(1.0, 12.0))
+
+    ax = plot_stabilization_diagram(diagram, show_legend=False)
+
+    assert len(ax.collections) > 0
+    assert ax.get_xlabel() == "Model order"
+    assert ax.get_ylabel() == "Frequency [Hz]"
+
+
+def test_plot_frf_overlay_plots_two_curves(pyplot: Any) -> None:
+    from openfemlab.solver.dynamics import FrequencyResponse, modal_frf
+
+    line = np.linspace(1.0, 20.0, 50)
+    shapes = np.array([[1.0], [0.5]])
+    measured = modal_frf(
+        line,
+        (2.0 * np.pi * np.array([5.0]), shapes),
+        np.array([0.02]),
+        response_dofs=[0, 1],
+        excitation_dofs=[0],
+    )
+    synthesized = FrequencyResponse(
+        measured.frequencies,
+        measured.data * 1.05,
+        measured.response_dofs,
+        measured.excitation_dofs,
+    )
+
+    ax = plot_frf_overlay(measured, synthesized, yscale="linear")
+
+    assert len(ax.lines) == 2
+    assert ax.get_yscale() == "linear"
+
+
+def test_plot_frf_overlay_accepts_tuple_pair(pyplot: Any) -> None:
+    frequencies = np.linspace(1.0, 10.0, 20)
+    measured = frequencies, np.exp(1.0j * frequencies)
+    synthesized = frequencies, np.exp(1.0j * frequencies) * 0.9
+
+    ax = plot_frf_overlay(measured, synthesized, yscale="linear")
+
+    assert len(ax.lines) == 2
+
+
+def test_plot_frf_overlay_rejects_mismatched_frequency_lines() -> None:
+    with pytest.raises(ValueError, match="same frequency line"):
+        plot_frf_overlay((np.linspace(1, 2, 3), np.ones(3)), (np.linspace(1, 3, 4), np.ones(4)))

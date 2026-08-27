@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpenFEMLab — 结果查看器</title>
+  <style>
+    :root {
+      --bg: #f6f8fa;
+      --card: #ffffff;
+      --text: #1f2328;
+      --muted: #656d76;
+      --border: #d0d7de;
+      --accent: #0969da;
+      --pass: #1a7f37;
+      --fail: #cf222e;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      line-height: 1.5;
+      color: var(--text);
+      background: var(--bg);
+      margin: 0;
+      padding: 1.25rem;
+    }
+    main { max-width: 1100px; margin: 0 auto; }
+    h1 { font-size: 1.4rem; margin: 0 0 0.25rem; }
+    .subtitle { color: var(--muted); margin-bottom: 1rem; }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+      margin-bottom: 1rem;
+      padding: 0.75rem 1rem;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .toolbar label { font-size: 0.875rem; color: var(--muted); }
+    .toolbar input[type="text"] {
+      flex: 1;
+      min-width: 200px;
+      padding: 0.35rem 0.5rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+    }
+    button {
+      padding: 0.4rem 0.85rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button.secondary { background: var(--card); color: var(--text); }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 0.75rem;
+      margin: 1rem 0;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.65rem 0.85rem;
+    }
+    .card label {
+      display: block;
+      font-size: 0.7rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .card strong { font-size: 1.15rem; }
+    section {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.15rem;
+      margin-bottom: 1rem;
+    }
+    section h2 { font-size: 1rem; margin: 0 0 0.75rem; }
+    table.data { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    table.data th, table.data td {
+      border: 1px solid var(--border);
+      padding: 0.3rem 0.45rem;
+      text-align: right;
+    }
+    table.data th { background: #f6f8fa; font-weight: 600; }
+    table.data td.label { text-align: left; }
+    .mac-grid { border-collapse: collapse; font-size: 0.75rem; margin: 0 auto; }
+    .mac-grid td {
+      width: 2.2rem;
+      height: 2.2rem;
+      text-align: center;
+      border: 1px solid var(--border);
+      color: #111;
+    }
+    .badge {
+      display: inline-block;
+      padding: 0.12rem 0.45rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .badge.pass { background: #dafbe1; color: var(--pass); }
+    .badge.fail { background: #ffebe9; color: var(--fail); }
+    .error {
+      color: var(--fail);
+      padding: 0.75rem;
+      background: #ffebe9;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+    }
+    footer { color: var(--muted); font-size: 0.8rem; margin-top: 2rem; }
+    #content:empty::before {
+      content: "上传或加载 correlation / correction JSON 以查看 MAC 热力图与摘要。";
+      color: var(--muted);
+      display: block;
+      padding: 2rem;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>OpenFEMLab 结果查看器</h1>
+    <p class="subtitle">对标 CAE 后处理：模态相关 · 模型修正 · MAC 矩阵</p>
+
+    <div class="toolbar">
+      <label for="file-input">本地 JSON</label>
+      <input type="file" id="file-input" accept=".json,application/json">
+      <label for="path-input">或服务器路径</label>
+      <input type="text" id="path-input" placeholder="reports/corr.json（相对项目根）">
+      <button type="button" id="load-btn">加载</button>
+      <button type="button" class="secondary" id="sample-btn">示例说明</button>
+    </div>
+
+    <div id="error" class="error" hidden></div>
+    <div id="content"></div>
+
+    <footer>OpenFEMLab — 本地 Web 查看器（无外网依赖）</footer>
+  </main>
+  <script>
+    const content = document.getElementById("content");
+    const errorBox = document.getElementById("error");
+
+    function esc(s) {
+      const d = document.createElement("div");
+      d.textContent = String(s ?? "");
+      return d.innerHTML;
+    }
+
+    function macColor(v) {
+      const t = Math.max(0, Math.min(1, Number(v)));
+      const r = Math.round(68 + t * (253 - 68));
+      const g = Math.round(1 + t * (231 - 1));
+      const b = Math.round(84 + t * (37 - 84));
+      return `rgb(${r},${g},${b})`;
+    }
+
+    function summaryCards(summary) {
+      if (!summary) return "";
+      const items = [
+        ["平均 MAC", summary.mean_mac],
+        ["最小 MAC", summary.min_mac],
+        ["最大 |Δf| %", summary.max_abs_freq_error_pct],
+        ["配对模态数", summary.num_pairs ?? summary.n_paired],
+      ];
+      const cards = items
+        .filter(([, v]) => v != null)
+        .map(([label, value]) =>
+          `<div class="card"><label>${esc(label)}</label><strong>${esc(value)}</strong></div>`
+        );
+      return cards.length ? `<div class="cards">${cards.join("")}</div>` : "";
+    }
+
+    function pairsTable(pairs) {
+      if (!pairs || !pairs.length) return "<p>无模态配对记录。</p>";
+      const rows = pairs.map((pair) => {
+        const test_i = pair.test_index ?? pair.test ?? pair[0];
+        const fe_i = pair.fe_index ?? pair.fe ?? pair[1];
+        const mac = pair.mac ?? "";
+        const df = pair.freq_error_pct ?? pair.frequency_error_pct ?? "";
+        return `<tr><td class="label">试验 ${esc(test_i)} → FE ${esc(fe_i)}</td>
+          <td>${esc(mac)}</td><td>${esc(df)}</td></tr>`;
+      });
+      return `<table class="data"><thead><tr>
+        <th class="label">配对</th><th>MAC</th><th>Δf %</th></tr></thead>
+        <tbody>${rows.join("")}</tbody></table>`;
+    }
+
+    function macHeatmap(matrix) {
+      if (!matrix || !matrix.length) return "";
+      const rows = matrix.map((row, i) => {
+        const cells = row.map((v, j) => {
+          const bg = macColor(v);
+          const fg = Number(v) < 0.5 ? "#fff" : "#111";
+          return `<td style="background:${bg};color:${fg}">${Number(v).toFixed(2)}</td>`;
+        });
+        return `<tr><td class="label">${i + 1}</td>${cells.join("")}</tr>`;
+      });
+      const cols = matrix[0].length;
+      const header = Array.from({ length: cols }, (_, j) => `<th>${j + 1}</th>`).join("");
+      return `<section><h2>MAC 矩阵</h2>
+        <table class="mac-grid"><thead><tr><th></th>${header}</tr></thead>
+        <tbody>${rows.join("")}</tbody></table></section>`;
+    }
+
+    function renderCorrelation(payload) {
+      const summary = payload.summary || {};
+      const minMac = Number(summary.min_mac ?? 0);
+      const badge = minMac >= 0.7 ? "pass" : "fail";
+      return `
+        <h1>模态相关性</h1>
+        <p class="subtitle">Schema ${esc(payload.schema_version || "")}
+          <span class="badge ${badge}">审阅</span></p>
+        ${summaryCards(summary)}
+        <section><h2>模态配对</h2>${pairsTable(payload.pairs)}</section>
+        ${macHeatmap(payload.mac_matrix)}
+      `;
+    }
+
+    function renderCorrection(payload) {
+      const status = payload.status || "UNKNOWN";
+      const badge = status === "PASS" ? "pass" : "fail";
+      const baseline = (payload.baseline_correlation || {}).summary || {};
+      const final = (payload.final_correlation || {}).summary || {};
+      return `
+        <h1>模型修正</h1>
+        <p class="subtitle"><span class="badge ${badge}">${esc(status)}</span></p>
+        <section><h2>相关指标对比</h2>
+          <table class="data"><thead><tr>
+            <th class="label">指标</th><th>修正前</th><th>修正后</th></tr></thead>
+          <tbody>
+            <tr><td class="label">最小 MAC</td>
+              <td>${esc(baseline.min_mac)}</td><td>${esc(final.min_mac)}</td></tr>
+            <tr><td class="label">最大 |Δf| %</td>
+              <td>${esc(baseline.max_abs_freq_error_pct)}</td>
+              <td>${esc(final.max_abs_freq_error_pct)}</td></tr>
+          </tbody></table></section>
+        ${summaryCards(final)}
+      `;
+    }
+
+    function detectKind(payload) {
+      if (payload.baseline_correlation || payload.status === "PASS" || payload.status === "FAIL")
+        return "correction";
+      if (payload.summary && payload.pairs) return "correlation";
+      if (String(payload.schema_version || "").startsWith("1.") && "mac_matrix" in payload)
+        return "correlation";
+      return "unknown";
+    }
+
+    function showError(msg) {
+      errorBox.textContent = msg;
+      errorBox.hidden = false;
+    }
+
+    function clearError() {
+      errorBox.hidden = true;
+      errorBox.textContent = "";
+    }
+
+    function render(payload) {
+      clearError();
+      const kind = detectKind(payload);
+      if (kind === "correlation") content.innerHTML = renderCorrelation(payload);
+      else if (kind === "correction") content.innerHTML = renderCorrection(payload);
+      else content.innerHTML = `<section><h2>JSON</h2><pre>${esc(JSON.stringify(payload, null, 2))}</pre></section>`;
+    }
+
+    document.getElementById("file-input").addEventListener("change", (ev) => {
+      const file = ev.target.files[0];
+      if (!file) return;
+      file.text().then((text) => {
+        try { render(JSON.parse(text)); }
+        catch (e) { showError("无法解析 JSON: " + e.message); }
+      });
+    });
+
+    document.getElementById("load-btn").addEventListener("click", async () => {
+      const path = document.getElementById("path-input").value.trim();
+      if (!path) { showError("请输入相对项目根的路径"); return; }
+      try {
+        const res = await fetch("/api/report?path=" + encodeURIComponent(path));
+        const body = await res.json();
+        if (!res.ok) throw new Error(body.error || res.statusText);
+        render(body);
+      } catch (e) { showError(e.message); }
+    });
+
+    document.getElementById("sample-btn").addEventListener("click", () => {
+      showError("先运行: openfemlab correlate model.yaml measured.yaml -o reports/corr.json --format json");
+    });
+
+    const params = new URLSearchParams(location.search);
+    const preset = params.get("file");
+    if (preset) {
+      document.getElementById("path-input").value = preset;
+      document.getElementById("load-btn").click();
+    }
+  </script>
+</body>
+</html>

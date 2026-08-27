@@ -12,12 +12,12 @@ FE/试验相关性分析（correlation）与基于灵敏度的模型修正（mod
 
 | FEMtools 模块 | 功能 | OpenFEMLab 对应 |
 |---|---|---|
-| Framework | 脚本 + 桌面 CAE 自动化环境 | Python API + `openfemlab` 命令行（无图形界面） |
+| Framework | 脚本 + 桌面 CAE 自动化环境 | Python API + `openfemlab` CLI + `serve` 本地 Web 查看器 |
 | Dynamics | 动响应仿真、结构修改 | `solver` 模块：模态提取、阻尼、复模态、FRF 合成 |
-| Pretest & Correlation | 模态预试验、FE/试验相关（MAC、COMAC） | `correlation` 模块：MAC / COMAC / FRAC / FDAC、模态配对、缩聚与扩展 |
+| Pretest & Correlation | 模态预试验、FE/试验相关（MAC、COMAC） | `pretest`（传感器布置 EI/MKE）+ `correlation` 模块 |
 | Model Updating | 基于灵敏度的迭代修正（频率、振型、FRF） | `updating` 模块：Gauss-Newton / Levenberg-Marquardt、贝叶斯 MAP、参数诊断 |
 | Optimization | 结构设计优化 | `optimization` 模块（scipy 后端） |
-| MPE | 从 FRF 提取模态参数 | 暂未提供；可直接读取 UFF/UNV 数据集 55（振型）与 58（FRF）测试数据 |
+| MPE | 从 FRF 提取模态参数 | `mpe` 模块：LSCF/LSFD、稳定图、`extract_modes` → `TestData` |
 
 与 FEMtools 相同的核心理念是**求解器无关**：相关性与修正只依赖中性的模态数据交换
 格式（JSON/YAML 的模型、模态结果、试验数据文档），因此同一条工作流既可以驱动内置
@@ -85,16 +85,52 @@ for mode, frequency in enumerate(result.frequencies, start=1):
 
 ## 4. 命令行总览
 
-`openfemlab` 提供四条分析命令，对应平台的四个层次，另有两条辅助命令：
+`openfemlab` 提供分析命令（对标主流 CAE「项目 → 分析 → 后处理」），以及上手与查看工具：
 
 | 命令 | 作用 |
 |---|---|
+| `quickstart` | 零文件 60 秒演示（模态 → 相关 → 修正） |
+| `wizard` | 交互菜单；`--lang zh` 中文步骤向导 |
+| `project init` | 创建 `models/`、`measurements/`、`reports/` 工作区 |
+| `serve`（`gui`） | 本地 Web 结果查看器（MAC 热力图、摘要卡片） |
 | `modal` | 对模型规格文件做实模态分析 |
 | `correlate` | FE 模态与实测模态的相关性报告（MAC、频率偏差、COMAC） |
 | `correlate-frf` | 实测 FRF 与模型合成 FRF 的频域相关（FRAC、FDAC） |
 | `update` | 由配置文件驱动的灵敏度模型修正 |
+| `report` | 将相关/修正 JSON 渲染为自包含 HTML |
 | `version` | 打印版本号 |
 | `info` | 平台与模块总览 |
+
+### 4.1 像市面仿真软件一样上手
+
+1. **创建工作区**（类似 Nastran/ANSYS 项目文件夹）：
+
+```bash
+openfemlab project init my-wing --name wing-study
+cd my-wing
+```
+
+2. **向导式流程**（分析 → 相关 → 修正 → 查看）：
+
+```bash
+openfemlab wizard --lang zh
+```
+
+3. **浏览器查看结果**（后处理面板，无需上传云端）：
+
+```bash
+openfemlab correlate models/cantilever.yaml measurements/test.yaml \
+  -o reports/corr.json --format json
+openfemlab serve --root . --file reports/corr.json --open
+```
+
+也可先生成静态 HTML：`openfemlab report reports/corr.json -o reports/corr.html --open`。
+
+4. **绘图**（需 `pip install 'openfemlab[plot]'`）：
+
+```python
+from openfemlab.viz import plot_mac_matrix, plot_stabilization_diagram, plot_frf_overlay
+```
 
 全局选项（写在子命令之前）：`-q/--quiet` 只打印结果，`--no-color` 关闭 rich 彩色
 输出，`--traceback` 出错时抛出完整回溯（便于调试）。各分析命令都支持

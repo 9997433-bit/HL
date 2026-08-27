@@ -11,7 +11,13 @@ import numpy as np
 
 from openfemlab.exceptions import MissingDependencyError
 
-__all__ = ["plot_mac_matrix", "plot_mode_shape", "require_matplotlib"]
+__all__ = [
+    "plot_frf_overlay",
+    "plot_mac_matrix",
+    "plot_mode_shape",
+    "plot_stabilization_diagram",
+    "require_matplotlib",
+]
 
 _MATPLOTLIB_EXTRA = "openfemlab[plot]"
 
@@ -200,6 +206,139 @@ def plot_mode_shape(
         ax.set_title(title)
     ax.legend()
     return ax
+
+
+_LABEL_COLORS = {
+    "new": "0.55",
+    "freq": "#e6a700",
+    "damp": "#cf222e",
+    "stable": "#1a7f37",
+}
+
+
+def plot_stabilization_diagram(
+    diagram: Any,
+    *,
+    ax: Any | None = None,
+    title: str | None = "Stabilization diagram",
+    show_legend: bool = True,
+) -> Any:
+    """Plot pole frequency vs model order (standard MPE stabilization chart).
+
+    Parameters
+    ----------
+    diagram:
+        A :class:`~openfemlab.mpe.StabilizationDiagram` or compatible object
+        exposing ``orders`` and ``poles`` (per-order pole tuples with
+        ``frequency_hz`` and ``label``).
+    """
+    orders = tuple(getattr(diagram, "orders", ()))
+    pole_levels = tuple(getattr(diagram, "poles", ()))
+    if not orders or not pole_levels:
+        raise ValueError("stabilization diagram must contain at least one model order")
+
+    pyplot = require_matplotlib()
+    if ax is None:
+        _, ax = pyplot.subplots()
+
+    plotted_labels: set[str] = set()
+    for level, order in enumerate(orders):
+        for pole in pole_levels[level]:
+            label = str(getattr(pole, "label", "new"))
+            color = _LABEL_COLORS.get(label, "C0")
+            marker = "o" if label == "stable" else "."
+            size = 36 if label == "stable" else 18
+            legend_label = label if label not in plotted_labels and show_legend else None
+            ax.scatter(
+                order,
+                float(pole.frequency_hz),
+                c=color,
+                marker=marker,
+                s=size,
+                label=legend_label,
+                alpha=0.85,
+            )
+            if legend_label is not None:
+                plotted_labels.add(label)
+
+    ax.set_xlabel("Model order")
+    ax.set_ylabel("Frequency [Hz]")
+    if title:
+        ax.set_title(title)
+    if show_legend and plotted_labels:
+        ax.legend(title="Pole label", loc="best")
+    return ax
+
+
+def plot_frf_overlay(
+    measured: Any,
+    synthesized: Any,
+    *,
+    response_index: int = 0,
+    excitation_index: int = 0,
+    ax: Any | None = None,
+    yscale: str = "log",
+    title: str | None = "FRF overlay",
+    measured_label: str = "Measured",
+    synthesized_label: str = "Synthesized",
+) -> Any:
+    """Overlay measured and synthesized FRF magnitude on one frequency axis.
+
+    Each operand may be a :class:`~openfemlab.solver.dynamics.FrequencyResponse`
+    or a ``(frequencies, complex_values)`` pair for one channel.
+    """
+    freq_m, values_m = _frf_channel(measured, response_index, excitation_index, "measured")
+    freq_s, values_s = _frf_channel(synthesized, response_index, excitation_index, "synthesized")
+    if freq_m.shape != freq_s.shape or not np.allclose(freq_m, freq_s):
+        raise ValueError("measured and synthesized FRFs must share the same frequency line")
+
+    magnitude_m = np.abs(values_m)
+    magnitude_s = np.abs(values_s)
+    if not np.all(np.isfinite(magnitude_m)) or not np.all(np.isfinite(magnitude_s)):
+        raise ValueError("FRF magnitudes must be finite")
+
+    pyplot = require_matplotlib()
+    if ax is None:
+        _, ax = pyplot.subplots()
+
+    ax.plot(freq_m, magnitude_m, label=measured_label, color="C0", linewidth=1.6)
+    ax.plot(freq_s, magnitude_s, label=synthesized_label, color="C1", linewidth=1.2, linestyle="--")
+    ax.set_xlabel("Frequency [Hz]")
+    ax.set_ylabel("|FRF|")
+    ax.set_yscale(yscale)
+    if title:
+        ax.set_title(title)
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    return ax
+
+
+def _frf_channel(
+    operand: Any,
+    response_index: int,
+    excitation_index: int,
+    name: str,
+) -> tuple[np.ndarray, np.ndarray]:
+    if hasattr(operand, "frequencies") and hasattr(operand, "data"):
+        frequencies = np.asarray(operand.frequencies, dtype=float).ravel()
+        data = np.asarray(operand.data)
+        if data.ndim != 3:
+            raise ValueError(f"{name} FRF data must be (frequencies, responses, excitations)")
+        values = data[:, response_index, excitation_index]
+        return frequencies, np.asarray(values, dtype=complex).ravel()
+
+    if isinstance(operand, tuple) and len(operand) == 2:
+        frequencies = np.asarray(operand[0], dtype=float).ravel()
+        values = np.asarray(operand[1])
+        if values.ndim != 1:
+            raise ValueError(f"{name} channel values must be one-dimensional")
+        if frequencies.size != values.size:
+            raise ValueError(f"{name} frequencies and values length mismatch")
+        return frequencies, np.asarray(values, dtype=complex).ravel()
+
+    raise TypeError(
+        f"{name} operand must be a FrequencyResponse or (frequencies, complex_values) pair"
+    )
 
 
 def _as_mac_matrix(matrix: Any) -> np.ndarray:

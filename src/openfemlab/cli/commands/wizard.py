@@ -3,12 +3,84 @@
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
 
 from ..console import Reporter
 
 NAME = "wizard"
 HELP = "guided menu for modal analysis, correlation, and HTML reports"
+
+_MESSAGES: dict[str, dict[str, str]] = {
+    "en": {
+        "heading": "OpenFEMLab wizard",
+        "pick": "Pick a workflow — empty input cancels.",
+        "opt1": "Run the 60-second quickstart demo",
+        "opt2": "Modal analysis (YAML/JSON model file)",
+        "opt3": "Correlate model vs measured modal data",
+        "opt4": "Update model parameters from measurements",
+        "opt5": "Build an HTML report from a JSON artifact",
+        "opt6": "Open the Web results dashboard (serve)",
+        "opt7": "Initialize a CAE project workspace",
+        "opt8": "Show command cheat sheet",
+        "opt0": "Exit",
+        "goodbye": "Goodbye.",
+        "choice": "Choice",
+        "model_path": "Model spec path",
+        "modes": "Number of modes [6]",
+        "test_path": "Measured data path",
+        "corr_out": "Save correlation JSON (optional)",
+        "update_spec": "Updating spec path",
+        "update_out": "Output model spec (optional)",
+        "report_json": "Report JSON path",
+        "html_out": "HTML output path",
+        "project_dir": "Project directory [.]",
+        "running": "Running: openfemlab {}",
+        "unknown": "Unknown choice: {choice!r}",
+        "cheat_heading": "CLI cheat sheet",
+    },
+    "zh": {
+        "heading": "OpenFEMLab 向导",
+        "pick": "选择工作流 — 留空取消。",
+        "opt1": "60 秒快速演示（quickstart）",
+        "opt2": "模态分析（YAML/JSON 模型文件）",
+        "opt3": "相关分析：模型 vs 实测模态",
+        "opt4": "模型修正：根据测量更新参数",
+        "opt5": "由 JSON 生成 HTML 报告",
+        "opt6": "打开 Web 结果查看器（serve）",
+        "opt7": "初始化 CAE 项目工作区",
+        "opt8": "命令速查表",
+        "opt0": "退出",
+        "goodbye": "再见。",
+        "choice": "选项",
+        "model_path": "模型规格路径",
+        "modes": "模态阶数 [6]",
+        "test_path": "实测数据路径",
+        "corr_out": "保存相关 JSON（可选）",
+        "update_spec": "修正配置路径",
+        "update_out": "输出模型规格（可选）",
+        "report_json": "报告 JSON 路径",
+        "html_out": "HTML 输出路径",
+        "project_dir": "项目目录 [.]",
+        "running": "正在运行: openfemlab {}",
+        "unknown": "未知选项: {choice!r}",
+        "cheat_heading": "命令速查",
+    },
+}
+
+_CHEAT_SHEET = [
+    "openfemlab quickstart",
+    "openfemlab project init",
+    "openfemlab modal model.yaml -n 8",
+    "openfemlab correlate model.yaml measured.yaml",
+    "openfemlab correlate model.yaml measured.yaml -o report.json --format json",
+    "openfemlab report report.json -o report.html --open",
+    "openfemlab serve --root . --file reports/corr.json --open",
+    "openfemlab update updating.yaml -o model.updated.yaml",
+    "openfemlab correlate-frf measured.unv model.yaml",
+    "openfemlab info",
+    "pip install 'openfemlab[cli,plot,io]'",
+]
 
 
 def add_parser(subparsers: argparse._SubParsersAction) -> argparse.ArgumentParser:
@@ -21,68 +93,90 @@ def add_parser(subparsers: argparse._SubParsersAction) -> argparse.ArgumentParse
             "stay unchanged."
         ),
     )
+    parser.add_argument(
+        "--lang",
+        choices=("en", "zh"),
+        default=_default_lang(),
+        help="menu language (default: en, or zh when LANG is Chinese)",
+    )
     parser.set_defaults(func=run)
     return parser
 
 
+def _default_lang() -> str:
+    lang = os.environ.get("LANG", "").lower()
+    if lang.startswith("zh"):
+        return "zh"
+    return "en"
+
+
 def run(args: argparse.Namespace, reporter: Reporter) -> int:
-    reporter.heading("OpenFEMLab wizard")
-    reporter.note("Pick a workflow — empty input cancels.")
+    msg = _MESSAGES[args.lang]
+    reporter.heading(msg["heading"])
+    reporter.note(msg["pick"])
 
     while True:
         reporter.line()
-        reporter.line("  1  Run the 60-second quickstart demo")
-        reporter.line("  2  Modal analysis (YAML/JSON model file)")
-        reporter.line("  3  Correlate model vs measured modal data")
-        reporter.line("  4  Update model parameters from measurements")
-        reporter.line("  5  Build an HTML report from a JSON artifact")
-        reporter.line("  6  Show command cheat sheet")
-        reporter.line("  0  Exit")
-        choice = _prompt("Choice", reporter)
+        reporter.line(f"  1  {msg['opt1']}")
+        reporter.line(f"  2  {msg['opt2']}")
+        reporter.line(f"  3  {msg['opt3']}")
+        reporter.line(f"  4  {msg['opt4']}")
+        reporter.line(f"  5  {msg['opt5']}")
+        reporter.line(f"  6  {msg['opt6']}")
+        reporter.line(f"  7  {msg['opt7']}")
+        reporter.line(f"  8  {msg['opt8']}")
+        reporter.line(f"  0  {msg['opt0']}")
+        choice = _prompt(msg["choice"], reporter)
 
         if choice in ("0", "q", "quit", "exit"):
-            reporter.success("Goodbye.")
+            reporter.success(msg["goodbye"])
             return 0
         if choice == "1":
-            return _delegate(["quickstart"], reporter)
+            return _delegate(["quickstart"], reporter, msg)
         if choice == "2":
-            model = _prompt("Model spec path", reporter)
+            model = _prompt(msg["model_path"], reporter)
             if not model:
                 continue
-            modes = _prompt("Number of modes [6]", reporter) or "6"
-            return _delegate(["modal", model, "-n", modes], reporter)
+            modes = _prompt(msg["modes"], reporter) or "6"
+            return _delegate(["modal", model, "-n", modes], reporter, msg)
         if choice == "3":
-            model = _prompt("Model spec path", reporter)
-            test = _prompt("Measured data path", reporter)
+            model = _prompt(msg["model_path"], reporter)
+            test = _prompt(msg["test_path"], reporter)
             if not model or not test:
                 continue
-            out = _prompt("Save correlation JSON (optional)", reporter)
+            out = _prompt(msg["corr_out"], reporter)
             cmd = ["correlate", model, test, "--format", "json"]
             if out:
                 cmd.extend(["-o", out])
-            code = _delegate(cmd, reporter)
+            code = _delegate(cmd, reporter, msg)
             if code == 0 and out:
                 reporter.hint(f"openfemlab report {out} -o {Path(out).stem}.html")
+                reporter.hint(f"openfemlab serve --file {out} --open")
             return code
         if choice == "4":
-            spec = _prompt("Updating spec path", reporter)
+            spec = _prompt(msg["update_spec"], reporter)
             if not spec:
                 continue
-            out = _prompt("Output model spec (optional)", reporter)
+            out = _prompt(msg["update_out"], reporter)
             cmd = ["update", spec]
             if out:
                 cmd.extend(["-o", out])
-            return _delegate(cmd, reporter)
+            return _delegate(cmd, reporter, msg)
         if choice == "5":
-            source = _prompt("Report JSON path", reporter)
+            source = _prompt(msg["report_json"], reporter)
             if not source:
                 continue
-            dest = _prompt("HTML output path", reporter) or f"{Path(source).stem}.html"
-            return _delegate(["report", source, "-o", dest], reporter)
+            dest = _prompt(msg["html_out"], reporter) or f"{Path(source).stem}.html"
+            return _delegate(["report", source, "-o", dest], reporter, msg)
         if choice == "6":
-            _cheat_sheet(reporter)
+            return _delegate(["serve", "--open"], reporter, msg)
+        if choice == "7":
+            directory = _prompt(msg["project_dir"], reporter) or "."
+            return _delegate(["project", "init", directory], reporter, msg)
+        if choice == "8":
+            _cheat_sheet(reporter, msg)
             continue
-        reporter.warning(f"Unknown choice: {choice!r}")
+        reporter.warning(msg["unknown"].format(choice=choice))
 
 
 def _prompt(label: str, reporter: Reporter) -> str:
@@ -94,25 +188,14 @@ def _prompt(label: str, reporter: Reporter) -> str:
         return ""
 
 
-def _delegate(argv: list[str], reporter: Reporter) -> int:
+def _delegate(argv: list[str], reporter: Reporter, msg: dict[str, str]) -> int:
     from ..main import main as cli_main
 
-    reporter.note(f"Running: openfemlab {' '.join(argv)}")
+    reporter.note(msg["running"].format(" ".join(argv)))
     return int(cli_main(argv))
 
 
-def _cheat_sheet(reporter: Reporter) -> None:
-    reporter.heading("CLI cheat sheet")
-    lines = [
-        "openfemlab quickstart",
-        "openfemlab modal model.yaml -n 8",
-        "openfemlab correlate model.yaml measured.yaml",
-        "openfemlab correlate model.yaml measured.yaml -o report.json --format json",
-        "openfemlab report report.json -o report.html",
-        "openfemlab update updating.yaml -o model.updated.yaml",
-        "openfemlab correlate-frf measured.unv model.yaml",
-        "openfemlab info",
-        "pip install 'openfemlab[cli,plot,io]'  # rich + matplotlib + meshio",
-    ]
-    for line in lines:
+def _cheat_sheet(reporter: Reporter, msg: dict[str, str]) -> None:
+    reporter.heading(msg["cheat_heading"])
+    for line in _CHEAT_SHEET:
         reporter.line(f"  {line}")
