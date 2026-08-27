@@ -59,6 +59,8 @@ const ROUTES = [
   ['七巧板实验室', '/#/tangram'],
   ['数形演示中心', '/#/visual-demos'],
   ['规律环带', '/#/logic'],
+  ['配对记忆', '/#/memory-pairs'],
+  ['逻辑迷宫', '/#/maze'],
   ['数独空间站', '/#/sudoku'],
   ['生活行星', '/#/word-problems'],
   ['成就墙', '/#/progress'],
@@ -282,6 +284,131 @@ await interact('七巧板：Canvas + 7 块选择与旋转', '/#/tangram', async 
   )
   if (selected !== 'true') throw new Error('点选拼板后没有进入选中态')
   return `Canvas 就绪，拼板 ${before.pieces} 块，初始归位 ${before.solved}`
+})
+
+await interact('配对记忆：Canvas 牌桌 + 配错回盖 + 整副配完', '/#/memory-pairs', async (page) => {
+  await page.waitForSelector('canvas[data-memory-cards]')
+  const deck = await page.evaluate(() => ({
+    cards: Number(document.querySelector('canvas[data-memory-cards]')?.dataset.memoryCards ?? 0),
+    hits: document.querySelectorAll('[data-card-index]').length,
+    pairs: [...document.querySelectorAll('[data-card-index]')].map((b) => b.dataset.cardPair),
+    labelled: [...document.querySelectorAll('[data-card-index]')].every((b) =>
+      (b.getAttribute('aria-label') ?? '').length > 4,
+    ),
+  }))
+  if (!deck.cards || deck.hits !== deck.cards) {
+    throw new Error(`牌桌 ${deck.cards} 张卡，命中层只有 ${deck.hits} 个按钮`)
+  }
+  if (!deck.labelled) throw new Error('有卡片按钮没有无障碍名称')
+
+  const groups = new Map()
+  deck.pairs.forEach((pairId, index) => {
+    if (!groups.has(pairId)) groups.set(pairId, [])
+    groups.get(pairId).push(index)
+  })
+  const couples = [...groups.values()]
+  if (couples.length !== deck.cards / 2) throw new Error(`卡片没有两两成对：${couples.length} 组`)
+
+  const clickCard = (index) =>
+    page.evaluate((i) => document.querySelector(`[data-card-index="${i}"]`).click(), index)
+  const stateOf = (index) =>
+    page.evaluate(
+      (i) => document.querySelector(`[data-card-index="${i}"]`).dataset.cardState,
+      index,
+    )
+
+  // 先故意配错一对：两张牌必须自己盖回去，且这期间不能再翻牌
+  await clickCard(couples[0][0])
+  await clickCard(couples[1][0])
+  await sleep(250)
+  const midFlip = await stateOf(couples[0][0])
+  if (midFlip === 'down') throw new Error('翻开的卡片没有进入翻开态')
+  await sleep(1400)
+  const afterMiss = await Promise.all([stateOf(couples[0][0]), stateOf(couples[1][0])])
+  if (afterMiss.some((s) => s !== 'down')) throw new Error(`配错后没有盖回去：${afterMiss}`)
+
+  for (const [a, b] of couples) {
+    await clickCard(a)
+    await clickCard(b)
+    await sleep(160)
+  }
+  await sleep(600)
+
+  const result = await page.evaluate(() => {
+    const store = JSON.parse(localStorage.getItem('mathquest/progress') || '{}')
+    return {
+      matched: document.querySelector('[data-memory-matched]')?.innerText.trim() ?? '',
+      summary: document.body.innerText.includes('配对记忆完成'),
+      answered: store.modules?.['memory-pairs']?.answered ?? 0,
+      classify: store.mastery?.classify ?? 0,
+    }
+  })
+  if (!result.summary) throw new Error(`全部配完后没有出现总结卡：${result.matched}`)
+  if (result.answered < couples.length) {
+    throw new Error(`只记了 ${result.answered} 次作答，应至少 ${couples.length} 次`)
+  }
+  if (!(result.classify > 0)) throw new Error('配对记忆没有写入 classify 掌握度')
+  return `${deck.cards} 张卡 / ${couples.length} 对，配错自动回盖，${result.matched}，classify=${result.classify.toFixed(2)}`
+})
+
+await interact('逻辑迷宫：撞墙拦截 + 顺序收集 + 跟着提示通关', '/#/maze', async (page) => {
+  await page.waitForSelector('canvas[data-maze-size]')
+  const DIR = { 上: 'up', 下: 'down', 左: 'left', 右: 'right' }
+  const read = () =>
+    page.evaluate(() => ({
+      size: document.querySelector('[data-maze-size]')?.dataset.mazeSize ?? '',
+      pos: document.querySelector('[data-maze-pos]')?.dataset.mazePos ?? '',
+      collected: document.querySelector('[data-maze-collected]')?.innerText.trim() ?? '',
+      status: document.querySelector('[data-maze-status]')?.innerText.trim() ?? '',
+      next: !!document.querySelector('[data-maze-next]'),
+    }))
+  const press = (dir) =>
+    page.evaluate((d) => document.querySelector(`[data-maze-move="${d}"]`).click(), dir)
+
+  const start = await read()
+  const [cols, rows] = start.size.split('x').map(Number)
+  if (!(cols >= 5 && rows >= 5)) throw new Error(`迷宫尺寸不对：${start.size}`)
+  if (start.pos !== `0,${rows - 1}`) throw new Error(`飞船没有停在左下角发射台：${start.pos}`)
+
+  // 左下角至少有两面外墙，往左/往下一定撞墙且位置不能变
+  await press('left')
+  await sleep(200)
+  const bumped = await read()
+  if (bumped.pos !== start.pos) throw new Error(`撞墙后飞船还是动了：${start.pos} → ${bumped.pos}`)
+  if (!/墙/.test(bumped.status)) throw new Error(`撞墙没有给出提示：${bumped.status}`)
+
+  // 跟着提示一路开到空间站：提示文案里写着下一步该往哪走
+  let moved = 0
+  let guard = 0
+  let state = bumped
+  while (!state.next && guard++ < 400) {
+    await page.evaluate(() => document.querySelector('[data-maze-hint]').click())
+    await sleep(60)
+    const status = await page.evaluate(
+      () => document.querySelector('[data-maze-status]')?.innerText ?? '',
+    )
+    const dir = DIR[status.match(/先往(.)走/)?.[1]]
+    if (!dir) throw new Error(`提示没给出方向：${status}`)
+    await press(dir)
+    moved++
+    await sleep(60)
+    state = await read()
+  }
+  if (!state.next) throw new Error(`走了 ${moved} 步仍没通关：${state.status}`)
+  if (!/通关/.test(state.status)) throw new Error(`通关文案不对：${state.status}`)
+
+  const store = await page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem('mathquest/progress') || '{}')
+    return { answered: s.modules?.maze?.answered ?? 0, mastery: s.mastery?.['maze-condition'] ?? 0 }
+  })
+  if (!(store.mastery > 0)) throw new Error('通关后没有写入 maze-condition 掌握度')
+
+  await page.evaluate(() => document.querySelector('[data-maze-next]').click())
+  await sleep(500)
+  const stage2 = await read()
+  if (stage2.next) throw new Error('点了下一关但还停在通关面板上')
+  if (stage2.pos !== `0,${rows - 1}`) throw new Error(`第二关没有回到发射台：${stage2.pos}`)
+  return `${start.size} 迷宫，撞墙被拦下，${moved} 步通关（${state.collected}），maze-condition=${store.mastery.toFixed(2)}`
 })
 
 await interact('分与合：移动弹珠并写入 compose-ten', '/#/compose-ten', async (page) => {
