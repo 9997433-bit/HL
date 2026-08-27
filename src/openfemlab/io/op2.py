@@ -165,6 +165,7 @@ the MSC DMAP documentation.
 from __future__ import annotations
 
 from collections.abc import Iterator
+from dataclasses import dataclass
 from os import PathLike
 from pathlib import Path
 from typing import BinaryIO, NamedTuple
@@ -176,9 +177,19 @@ from openfemlab.core.neutral import ElementType, NeutralMaterial, NeutralModel
 from openfemlab.core.results import ModalResult
 
 from ._common import FormatError
+from .op2_coordinates import (
+    GEOM1_CORD2R_RECORD,
+    RectangularSystem,
+    read_cord2r_systems,
+    require_defined_frames,
+    resolve_rectangular_systems,
+    transform_point_to_basic,
+    transform_six_dof_to_basic,
+)
 from .op2_framing import OP2Block, OP2Format, read_op2_blocks
 
 __all__ = [
+    "GEOM1_CORD2R_RECORD",
     "GEOM1_GRID_RECORDS",
     "GEOM2_ELEMENT_LAYOUTS",
     "GEOM2_ELEMENT_RECORDS",
@@ -297,6 +308,17 @@ _SORT2_CODES = frozenset({2, 3, 6})
 _MODE_DOFS = (DofType.UX, DofType.UY, DofType.UZ, DofType.RX, DofType.RY, DofType.RZ)
 
 
+@dataclass(frozen=True)
+class _Geom1Context:
+    """Coordinate systems and ``GRID`` data read from ``GEOM1``."""
+
+    systems: dict[int, RectangularSystem]
+    grid_cp: dict[int, int]
+    grid_cd: dict[int, int]
+    grids: dict[int, tuple[float, float, float]]
+    skipped: int
+
+
 def read_op2(source: str | PathLike[str] | BinaryIO) -> NeutralModel:
     """Read the geometry of an OP2 file into a ``NeutralModel`` — Phase 3.
 
@@ -340,10 +362,11 @@ def read_op2(source: str | PathLike[str] | BinaryIO) -> NeutralModel:
             f"data blocks are {', '.join(names) or '(none)'}"
         )
 
-    # Grids first: a dialect this phase cannot unpack has to be named as such,
-    # rather than reported as the unreadable record length it also is.
-    grids, geom1_skipped = _read_grids(blocks, op2_format, source_name)
-    _reject_non_basic_frames(blocks, op2_format, source_name)
+    # Grids and coordinate systems first: a dialect this phase cannot unpack
+    # has to be named as such, rather than reported as the unreadable record
+    # length it also is.
+    geom1, geom1_skipped = _read_geom1(blocks, op2_format, source_name)
+    grids = geom1.grids
     if not grids:
         raise FormatError(
             f"{_where(source_name)}: the GEOM1 table holds no GRID records, so the "
@@ -453,11 +476,11 @@ def read_op2_modes(source: str | PathLike[str] | BinaryIO) -> ModalResult:
             f"{', '.join(OP2_MODE_TABLES[1:])}; its data blocks are {', '.join(names)}"
         )
 
-    _reject_non_basic_frames(blocks, op2_format, source_name)
+    geom1 = _read_geom1(blocks, op2_format, source_name)[0]
 
     table = _read_lama(eigenvalue_table, op2_format, source_name)
     grids, shapes_by_mode, subcases = _read_eigenvectors(
-        displacements, op2_format, source_name
+        displacements, op2_format, source_name, geom1
     )
     if len(subcases) > 1:
         listed = ", ".join(str(subcase) for subcase in sorted(subcases))
@@ -609,22 +632,29 @@ def _entries(
     return integers.reshape(-1, entry_words), reals.reshape(-1, entry_words)
 
 
-def _read_grids(
+def _read_geom1(
     blocks: list[OP2Block], op2_format: OP2Format, source_name: str | None
-) -> tuple[dict[int, tuple[float, float, float]], int]:
-    """``GRID`` label → basic-frame coordinates in file order, and skipped records."""
+) -> tuple[_Geom1Context, int]:
+    """Read ``CORD2R`` and ``GRID`` records, returning basic-frame coordinates."""
 
-    grids: dict[int, tuple[float, float, float]] = {}
+    raw_systems: dict[int, RectangularSystem] = {}
     skipped = 0
+    grid_rows: list[tuple[int, int, int, np.ndarray]] = []
+
     for block in blocks:
         if block.name != "GEOM1":
             continue
         for key, integers, reals in _geometry_records(block, op2_format):
+            if key == GEOM1_CORD2R_RECORD:
+                raw_systems.update(
+                    read_cord2r_systems(integers, reals, source_name=source_name)
+                )
+                continue
             layout = GEOM1_GRID_RECORDS.get(key)
             if layout is None:
                 skipped += 1
                 continue
-            entry_words = layout[0]
+            entry_words, cp_word, cd_word = layout
             if entry_words != _GRID_BASIC_ENTRY_WORDS:
                 raise FormatError(
                     f"{_where(source_name)}: GEOM1 record {key} writes the GRID location "
@@ -636,11 +666,35 @@ def _read_grids(
             )
             for row in range(labels.shape[0]):
                 label = int(labels[row, 0])
-                if label in grids:
-                    raise FormatError(f"{_where(source_name)}: duplicate GRID id {label}")
+                cp = int(labels[row, cp_word])
+                cd = int(labels[row, cd_word])
                 location = coordinates[row, _GRID_LOCATION_WORD : _GRID_LOCATION_WORD + 3]
-                grids[label] = (float(location[0]), float(location[1]), float(location[2]))
-    return grids, skipped
+                grid_rows.append((label, cp, cd, np.asarray(location, dtype=float)))
+
+    systems = resolve_rectangular_systems(raw_systems)
+    if grid_rows:
+        frames = np.array([[cp, cd] for _label, cp, cd, _loc in grid_rows], dtype=int)
+        require_defined_frames(frames, raw_systems, source_name=source_name)
+
+    grids: dict[int, tuple[float, float, float]] = {}
+    grid_cp: dict[int, int] = {}
+    grid_cd: dict[int, int] = {}
+    for label, cp, cd, location in grid_rows:
+        if label in grids:
+            raise FormatError(f"{_where(source_name)}: duplicate GRID id {label}")
+        grid_cp[label] = cp
+        grid_cd[label] = cd
+        basic = transform_point_to_basic(location, systems[cp])
+        grids[label] = (float(basic[0]), float(basic[1]), float(basic[2]))
+
+    context = _Geom1Context(
+        systems=systems,
+        grid_cp=grid_cp,
+        grid_cd=grid_cd,
+        grids=grids,
+        skipped=skipped,
+    )
+    return context, skipped
 
 
 def _read_elements(
@@ -787,7 +841,10 @@ def _read_lama(
 
 
 def _read_eigenvectors(
-    block: OP2Block, op2_format: OP2Format, source_name: str | None
+    block: OP2Block,
+    op2_format: OP2Format,
+    source_name: str | None,
+    geom1: _Geom1Context,
 ) -> tuple[list[int], dict[int, np.ndarray], set[int]]:
     """The grid labels, one flattened shape per mode, and the subcases seen."""
 
@@ -836,7 +893,14 @@ def _read_eigenvectors(
             raise FormatError(
                 f"{_where(source_name)}: {block.name} holds mode {mode} more than once"
             )
-        shapes[mode] = np.asarray(reals[:, 2:8], dtype=np.float64).reshape(-1)
+        raw_vectors = np.asarray(reals[:, 2:8], dtype=np.float64)
+        transformed = []
+        for row, grid_id in enumerate(labels):
+            cd = geom1.grid_cd.get(grid_id, 0)
+            transformed.append(
+                transform_six_dof_to_basic(raw_vectors[row], geom1.systems[cd])
+            )
+        shapes[mode] = np.vstack(transformed).reshape(-1)
 
     if grids is None or not shapes:
         raise FormatError(
@@ -892,49 +956,3 @@ def _check_ident(
             f"per entry; a real eigenvector at a grid point is {_REAL_EIGENVECTOR_WORDS}"
         )
     return mode, device_code, num_wide
-
-
-def _reject_non_basic_frames(
-    blocks: list[OP2Block], op2_format: OP2Format, source_name: str | None
-) -> None:
-    """Refuse a model whose ``GRID`` cards name a non-basic ``CP``/``CD``.
-
-    A grid's location is written in its ``CP`` frame and its eigenvector in its
-    ``CD`` one, so a file with any non-zero frame and no ``CORD`` transform
-    imports as silently rotated coordinates and shapes — which is why Phases 2
-    and 3 both come through here.  Phase 4 reads the transforms; until then
-    this is a refusal, the same line the ASCII reader draws.
-    """
-
-    for block in blocks:
-        if block.name != "GEOM1":
-            continue
-        for record in block.records:
-            words = op2_format.ints(record)
-            if words.size < 3:
-                continue
-            key = (int(words[0]), int(words[1]), int(words[2]))
-            layout = GEOM1_GRID_RECORDS.get(key)
-            if layout is None:
-                continue
-            entry_words, cp_word, cd_word = layout
-            body = words[3:]
-            if body.size == 0:
-                continue
-            if body.size % entry_words:
-                raise FormatError(
-                    f"{_where(source_name)}: GEOM1 record {key} holds {body.size} words, "
-                    f"which is not a multiple of its {entry_words}-word GRID entry"
-                )
-            entries = body.reshape(-1, entry_words)
-            frames = entries[:, [cp_word, cd_word]]
-            offending = entries[np.any(frames != 0, axis=1), 0]
-            if offending.size:
-                listed = ", ".join(str(int(value)) for value in offending[:5])
-                more = ", ..." if offending.size > 5 else ""
-                raise FormatError(
-                    f"{_where(source_name)}: GRID {listed}{more} define or output in a "
-                    "non-basic coordinate system (CP/CD), and an OP2 writes locations in "
-                    "CP and eigenvectors in CD; reading the CORD transforms is MS-9.6 "
-                    "Phase 4, so importing this file would rotate it silently"
-                )

@@ -52,6 +52,7 @@ GRID_RECORD_KEY = (4501, 45, 1)
 #: ``GEOM2`` record key of the ``CROD`` card, and ``MPT``'s of ``MAT1``.
 CROD_RECORD_KEY = (3001, 30, 48)
 MAT1_RECORD_KEY = (103, 1, 77)
+CORD2R_RECORD_KEY = (2101, 21, 8)
 
 
 # ------------------------------------------------------------------- words
@@ -107,6 +108,17 @@ class Rod:
 
 
 @dataclass(frozen=True)
+class Cord2R:
+    """A ``CORD2R`` card as ``GEOM1`` writes it — three points in the ``RID`` frame."""
+
+    cid: int
+    origin: tuple[float, float, float]
+    z_point: tuple[float, float, float]
+    xz_point: tuple[float, float, float]
+    rid: int = 0
+
+
+@dataclass(frozen=True)
 class Mat1:
     """A ``MAT1`` card as ``MPT`` writes it, without its thermal fields."""
 
@@ -136,15 +148,37 @@ class Mode:
         return 2.0 * math.pi * self.frequency_hz
 
 
-def geom1_block(grids: Iterable[Grid], *, key: tuple[int, int, int] = GRID_RECORD_KEY) -> DataBlock:
-    """``GEOM1`` holding one ``GRID`` record: ``(ID, CP, X, Y, Z, CD, PS, SEID)``."""
+def cord2r_record(
+    systems: Iterable[Cord2R], *, key: tuple[int, int, int] = CORD2R_RECORD_KEY
+) -> list[Token]:
+    """One ``GEOM1`` record body for ``CORD2R`` entries."""
 
+    record: list[Token] = list(integers(*key))
+    for system in systems:
+        record += integers(system.cid, 0, 0, system.rid)
+        record += reals(*system.origin, *system.z_point, *system.xz_point)
+    return record
+
+
+def geom1_block(
+    grids: Iterable[Grid],
+    *,
+    cords: Iterable[Cord2R] = (),
+    key: tuple[int, int, int] = GRID_RECORD_KEY,
+) -> DataBlock:
+    """``GEOM1`` holding optional ``CORD2R`` and one ``GRID`` record."""
+
+    records: list[Sequence[Token]] = []
+    cords = list(cords)
+    if cords:
+        records.append(cord2r_record(cords))
     record: list[Token] = list(integers(*key))
     for grid in grids:
         record += integers(grid.id, grid.cp)
         record += reals(*grid.xyz)
         record += integers(grid.cd, grid.ps, grid.seid)
-    return DataBlock(name="GEOM1", records=(record,), subtable_name="GEOM1S")
+    records.append(record)
+    return DataBlock(name="GEOM1", records=tuple(records), subtable_name="GEOM1S")
 
 
 #: ``GEOM2`` record key of the ``CROD`` card and its word layout.
@@ -294,6 +328,7 @@ def geometry_file(
     rods: Iterable[Rod] = (),
     materials: Iterable[Mat1] = (),
     *,
+    cords: Iterable[Cord2R] = (),
     extra_blocks: Sequence[DataBlock] = (),
     **file_options: object,
 ) -> bytes:
@@ -304,7 +339,7 @@ def geometry_file(
     to :func:`write_op2`.
     """
 
-    blocks: list[DataBlock] = [geom1_block(grids)]
+    blocks: list[DataBlock] = [geom1_block(grids, cords=cords)]
     rods = list(rods)
     if rods:
         blocks.append(geom2_block(rods))
@@ -319,6 +354,7 @@ def modes_file(
     modes: Sequence[Mode],
     *,
     grids: Iterable[Grid] | None = None,
+    cords: Iterable[Cord2R] = (),
     eigenvector_table: str = "OUGV1",
     extra_blocks: Sequence[DataBlock] = (),
     **eigenvector_options: object,
@@ -337,7 +373,7 @@ def modes_file(
     }
     blocks: list[DataBlock] = []
     if grids is not None:
-        blocks.append(geom1_block(grids))
+        blocks.append(geom1_block(grids, cords=cords))
     blocks.append(lama_block(modes))
     blocks.append(
         eigenvector_block(modes, name=eigenvector_table, **eigenvector_options)  # type: ignore[arg-type]

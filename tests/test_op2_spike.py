@@ -388,18 +388,55 @@ def test_phase2_rejects_complex_and_sort2_output(options, message):
 
 
 @pytest.mark.parametrize("frame", [{"cp": 3}, {"cd": 7}])
-def test_phase2_rejects_non_basic_grid_coordinate_systems(frame):
-    """``CP``/``CD`` are wrong coordinates, not missing metadata.
-
-    OP2 eigenvectors are written in each grid's ``CD`` frame, so until Phase 4
-    reads the ``CORD`` cards a non-zero frame must raise — the line
-    ``read_bdf`` already draws for ``GRID``.
-    """
+def test_phase2_rejects_undefined_grid_coordinate_systems(frame):
+    """``CP``/``CD`` without a ``CORD2R`` definition must raise."""
 
     content = _op2.modes_file(chain_modes(), grids=basic_grids(**frame))
 
-    with pytest.raises(FormatError, match="non-basic coordinate system"):
+    with pytest.raises(FormatError, match="reference coordinate system"):
         read_op2_modes(io.BytesIO(content))
+
+
+def test_phase4_reads_cord2r_transformed_grid_coordinates():
+    """Phase 4 maps ``GRID`` locations written in ``CP`` into the basic frame."""
+    cord = _op2.Cord2R(
+        cid=1,
+        origin=(0.0, 0.0, 0.0),
+        z_point=(0.0, 0.0, 1.0),
+        xz_point=(0.0, 1.0, 0.0),
+    )
+    grids = [
+        _op2.Grid(id=11, xyz=(1.0, 0.0, 0.0), cp=1, cd=0),
+        _op2.Grid(id=22, xyz=(2.0, 0.0, 0.0), cp=1, cd=0),
+        _op2.Grid(id=33, xyz=(3.0, 0.0, 0.0), cp=1, cd=0),
+    ]
+    content = _op2.geometry_file(grids, cords=[cord])
+
+    geometry = read_op2(io.BytesIO(content))
+    assert geometry.node_ids.tolist() == list(GRID_LABELS)
+    assert geometry.nodes[0] == pytest.approx([0.0, 1.0, 0.0])
+    assert geometry.nodes[1] == pytest.approx([0.0, 2.0, 0.0])
+
+
+def test_phase4_reads_cord2r_transformed_eigenvectors():
+    """Phase 4 maps eigenvectors written in each grid's ``CD`` frame."""
+    cord = _op2.Cord2R(
+        cid=1,
+        origin=(0.0, 0.0, 0.0),
+        z_point=(0.0, 0.0, 1.0),
+        xz_point=(0.0, 1.0, 0.0),
+    )
+    grids = [_op2.Grid(id=11, xyz=(0.0, 0.0, 0.0), cp=0, cd=1)]
+    modes = [
+        _op2.Mode(
+            number=1,
+            frequency_hz=10.0,
+            shape={11: (1.0, 0.0, 0.0, 0.0, 0.0, 0.0)},
+        )
+    ]
+    content = _op2.modes_file(modes, grids=grids, cords=[cord])
+    result = read_op2_modes(io.BytesIO(content))
+    assert result.shapes[:, 0] == pytest.approx([0.0, 1.0, 0.0, 0.0, 0.0, 0.0])
 
 
 def test_phase2_names_the_tables_a_file_without_modes_does_have():
@@ -564,17 +601,12 @@ def test_phase3_geometry_matches_the_bdf_of_the_same_model():
 
 
 @pytest.mark.parametrize("frame", [{"cp": 3}, {"cd": 7}])
-def test_phase3_rejects_non_basic_grid_coordinate_systems(frame):
-    """Phase 3: ``CP``/``CD`` are wrong coordinates, not missing metadata.
-
-    Until Phase 4 reads the ``CORD`` cards, a non-zero frame must raise, the
-    line ``read_bdf`` already draws for ``GRID`` — as Phase 2 already does for
-    the eigenvectors written in ``CD``.
-    """
+def test_phase3_rejects_undefined_grid_coordinate_systems(frame):
+    """Phase 3: ``CP``/``CD`` without ``CORD2R`` must raise."""
 
     content = _op2.geometry_file(rod_grids(**frame), rod_elements())
 
-    with pytest.raises(FormatError, match="non-basic coordinate system"):
+    with pytest.raises(FormatError, match="reference coordinate system"):
         read_op2(io.BytesIO(content))
 
 
