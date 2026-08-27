@@ -139,7 +139,7 @@ int main(int argc, char** argv) {
   std::printf("RMS error  u     : %.4f px\n", rmsU);
   std::printf("RMS error  v     : %.4f px\n", rmsV);
   std::printf("max  error |d|   : %.4f px\n", maxErr);
-  const double a00 = field.A[0][0], a01 = field.A[0][1], a10 = field.A[1][0];
+  const double a00 = field.A[0][0], a10 = field.A[1][0];
   const double gExx = a00 + 0.5 * (a00 * a00 + a10 * a10);
   std::printf("--- mean strain: raw gradient vs PLS Green-Lagrange vs truth ---\n");
   std::printf("exx (raw)        : %+.5f\n", sExx / valid);

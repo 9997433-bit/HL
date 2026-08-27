@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <random>
 
 #include "dic/interpolation.hpp"
@@ -56,6 +57,30 @@ Image warpAffine(const Image& ref, const AffineField& field) {
       const double py = y - field.center[1] - field.t[1];
       const double rx = ia * px + ib * py + field.center[0];
       const double ry = ic * px + id * py + field.center[1];
+      out.at(x, y) = bicubic(ref, rx, ry);
+    }
+  return out;
+}
+
+Image warpField(const Image& ref,
+                const std::function<void(double, double, double&, double&)>& disp) {
+  Image out(ref.width, ref.height);
+  for (int y = 0; y < ref.height; ++y)
+    for (int x = 0; x < ref.width; ++x) {
+      // Solve X + u(X) = p by fixed-point iteration X <- p - u(X).
+      double rx = x, ry = y;
+      for (int it = 0; it < 20; ++it) {
+        double u, v;
+        disp(rx, ry, u, v);
+        const double nx = x - u, ny = y - v;
+        if (std::fabs(nx - rx) < 1e-6 && std::fabs(ny - ry) < 1e-6) {
+          rx = nx;
+          ry = ny;
+          break;
+        }
+        rx = nx;
+        ry = ny;
+      }
       out.at(x, y) = bicubic(ref, rx, ry);
     }
   return out;

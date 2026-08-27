@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstdint>
+#include <functional>
 
 #include "dic/image.hpp"
 
@@ -30,5 +31,11 @@ struct AffineField {
 // Produce a deformed image from a reference image under an affine field, using
 // exact backward mapping g(p) = f(X) with X + u(X) = p and bicubic sampling.
 Image warpAffine(const Image& ref, const AffineField& field);
+
+// Produce a deformed image under an arbitrary (reference-coordinate)
+// displacement field disp(x, y) -> (u, v). The backward mapping X + u(X) = p is
+// solved by fixed-point iteration (valid for smooth, small-gradient fields).
+Image warpField(const Image& ref,
+                const std::function<void(double, double, double&, double&)>& disp);
 
 }  // namespace dic
