@@ -2,6 +2,10 @@
 /**
  * 算术恒星 · 口算闯关。
  * 题目生成、数轴、错因归因留在这里；答题流程（选项/键盘/判题/星星/进度条）交给 QuizShell。
+ *
+ * mode='sprint' 是路由 /sprint 的「速算冲刺」专题：同一套题库与判题，
+ * 只把节奏调紧——一轮多出 5 题、秒答窗口从 6 秒收到 3 秒。成绩仍记在
+ * 算术恒星名下，专题练的和星球练的是同一份掌握度。
  */
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
@@ -12,9 +16,18 @@ import { numericOptions, randInt, sample } from '@/utils/random'
 import { arithmeticSkill } from '@/data/skill-mapping.js'
 import { sound } from '@/utils/sound'
 
-const ROUND_SIZE = 10
 const MODULE_ID = 'arithmetic'
-const SPEED_BONUS_MS = 6000
+
+const props = defineProps({
+  mode: { type: String, default: 'quest' },
+})
+
+const isSprint = computed(() => props.mode === 'sprint')
+const roundSize = computed(() => (isSprint.value ? 15 : 10))
+const speedBonusMs = computed(() => (isSprint.value ? 3000 : 6000))
+const roundName = computed(() =>
+  isSprint.value ? `速算冲刺 · ${level.value} 以内` : `算术恒星 · ${level.value} 以内`,
+)
 
 const router = useRouter()
 const progress = useProgressStore()
@@ -137,7 +150,7 @@ function buildQuestion() {
   }
 }
 
-const questions = ref(Array.from({ length: ROUND_SIZE }, buildQuestion))
+const questions = ref(Array.from({ length: roundSize.value }, buildQuestion))
 const currentIndex = ref(0)
 
 function newRound() {
@@ -150,7 +163,7 @@ function newRound() {
   }
   comboBest.value = 0
   currentIndex.value = 0
-  questions.value = Array.from({ length: ROUND_SIZE }, buildQuestion)
+  questions.value = Array.from({ length: roundSize.value }, buildQuestion)
 }
 
 watch([level, op], newRound)
@@ -221,7 +234,16 @@ function setOp(id) {
 
 <template>
   <main class="page stack">
-    <section class="card tool-entry">
+    <section v-if="isSprint" class="card tool-entry sprint-entry">
+      <div>
+        <strong>⚡ 速算冲刺</strong>
+        <span class="muted">
+          一轮 {{ roundSize }} 题，3 秒内答对多拿一颗星；练累了回算术恒星慢慢算
+        </span>
+      </div>
+      <RouterLink class="btn btn--ghost btn--sm" to="/arithmetic">回算术恒星 →</RouterLink>
+    </section>
+    <section v-else class="card tool-entry">
       <div>
         <strong>🧮 竖式工坊</strong>
         <span class="muted">逐位练习进位与借位，错误会按原因归类</span>
@@ -232,15 +254,19 @@ function setOp(id) {
     <QuizShell
       v-model:inputMode="inputMode"
       :module-id="MODULE_ID"
-      :module-name="`算术恒星 · ${level} 以内`"
+      :module-name="roundName"
       :questions="questions"
-      :speed-bonus-ms="SPEED_BONUS_MS"
+      :speed-bonus-ms="speedBonusMs"
       :perfect-bonus="4"
       :show-answer-slot="false"
       :difficulty-steps="LEVEL_STEPS"
       :difficulty="level"
       :hint-labels="['💡 提示', '💡 再提示（少 1⭐）']"
-      :prompts="['算一算，答案是多少？', '看清符号再作答 🙂', '心里默算一遍，再选答案。']"
+      :prompts="
+        isSprint
+          ? ['快！答案是多少？', '别停，下一题来了 ⚡', '想到就选，越快星星越多。']
+          : ['算一算，答案是多少？', '看清符号再作答 🙂', '心里默算一遍，再选答案。']
+      "
       @advance="currentIndex = $event"
       @adapt="onAdapt"
       @graded="onGraded"
@@ -341,6 +367,13 @@ function setOp(id) {
   gap: 14px;
   padding: 13px 16px;
   border-color: rgba(255, 206, 77, 0.38);
+}
+
+.sprint-entry {
+  border-color: color-mix(in srgb, var(--neon-orange) 52%, transparent);
+  background:
+    radial-gradient(80% 160% at 0% 50%, color-mix(in srgb, var(--neon-orange) 20%, transparent), transparent 62%),
+    var(--surface);
 }
 
 .tool-entry > div {

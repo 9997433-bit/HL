@@ -6,6 +6,7 @@ import MascotBot from '@/components/MascotBot.vue'
 import WrongBook from '@/components/WrongBook.vue'
 import { ACHIEVEMENTS } from '@/data/achievements'
 import { moduleInfo, MODULES } from '@/data/modules.js'
+import { TOPICS } from '@/data/topics.js'
 import { useProgressStore } from '@/stores/progress.js'
 import { useSettingsStore } from '@/stores/settings.js'
 import { useFeedback } from '@/composables/useFeedback'
@@ -51,6 +52,18 @@ const moduleRows = computed(() =>
 )
 
 const maxAnswered = computed(() => Math.max(1, ...moduleRows.value.map((r) => r.answered)))
+
+/**
+ * 专题挑战入口：成绩记在各自对应的星球名下，所以这里顺手把那颗星球的
+ * 掌握度显出来——家长一眼能看出「练了这条专线，哪块指标在动」。
+ */
+const topicRows = computed(() =>
+  TOPICS.map((t) => ({
+    ...t,
+    recordName: moduleInfo(t.record)?.name ?? t.record,
+    mastery: Math.round(progress.moduleProgress(t.record) * 100),
+  })),
+)
 
 /** 最近 12 次练习的得分曲线。 */
 const spark = computed(() => {
@@ -323,6 +336,25 @@ onMounted(() => {
           </div>
           <span class="chip">⭐ {{ m.stars }}</span>
           <RouterLink :to="m.route" class="btn btn--ghost btn--sm">练习</RouterLink>
+        </li>
+      </ul>
+    </section>
+
+    <!-- 专题挑战 -->
+    <section class="card">
+      <h3 class="panel-title">🎯 专题挑战</h3>
+      <p class="dim tiny">比较、速算、生活应用三条专线，练的还是星球里的那份掌握度。</p>
+      <ul class="mod-list">
+        <li v-for="t in topicRows" :key="t.id" class="mod-row topic-row">
+          <span class="mod-emoji">{{ t.emoji }}</span>
+          <div class="mod-body">
+            <div class="mod-top">
+              <strong>{{ t.name }}</strong>
+              <span class="dim tiny">{{ t.tagline }} · 计入{{ t.recordName }} {{ t.mastery }}%</span>
+            </div>
+            <p class="dim tiny">{{ t.blurb }}</p>
+          </div>
+          <RouterLink :to="t.route" class="btn btn--ghost btn--sm topic-link">开练</RouterLink>
         </li>
       </ul>
     </section>
@@ -676,6 +708,10 @@ onMounted(() => {
 .mod-emoji {
   font-size: 26px;
   flex: none;
+}
+
+.topic-row {
+  border-color: color-mix(in srgb, var(--brand) 30%, transparent);
 }
 
 .mod-body {
