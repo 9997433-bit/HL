@@ -35,9 +35,10 @@ executable by itself or remove wheel licence files from `_internal`.
 
 ## CI artifact
 
-`.github/workflows/release-windows.yml` runs on `v*` tags and by manual
-dispatch. It uploads the verified directory as
-`audio-studio-windows-x64`.
+`.github/workflows/publish-release.yml` runs on `v*` tags. Its
+`windows-latest` job builds and verifies the bundle with this same script,
+zips it as `audio-studio-windows.zip`, and attaches it to the GitHub Release
+alongside the other platforms' assets and the `SHA256SUMS` manifest.
 
 ## Authenticode status
 

@@ -115,8 +115,8 @@ To publish, make sure the tag points at the reviewed release commit and push
 it to GitHub:
 
 ```bash
-git tag -a v1.1.0 -m "Audio Studio v1.1.0"
-git push origin v1.1.0
+git tag -a v1.2.0 -m "Audio Studio v1.2.0"
+git push origin v1.2.0
 ```
 
 The workflow runs the Linux distribution gates and generates the bundle-scoped
