@@ -13,6 +13,7 @@ from audio_studio.core.loader import (
     file_dialog_filter,
     load_audio,
     probe,
+    read_bext,
     resample,
     save_audio,
     supported_formats,
@@ -99,3 +100,73 @@ def test_format_advertising_is_consistent() -> None:
 
     assert formats[".wav"] and formats[".flac"]
     assert "*.mp3" in file_dialog_filter()
+
+
+def _record_bwf(target: Path) -> None:
+    """Produce a genuine Broadcast Wave file through the product recorder."""
+    from audio_studio.core.recorder import NullRecorder
+
+    recorder = NullRecorder(realtime=False, tone_frequency=440.0)
+    recorder.open(
+        48_000,
+        1,
+        target_path=target,
+        description="bext round trip",
+        originator="Audio Studio Tests",
+        flush_interval=0,
+    )
+    recorder.start()
+    recorder.pump(4_096)
+    recorder.stop()
+    recorder.close()
+
+
+def test_load_captures_the_bext_chunk_of_a_broadcast_wave(tmp_path: Path) -> None:
+    source = tmp_path / "take.wav"
+    _record_bwf(source)
+
+    clip = load_audio(source)
+
+    assert clip.bext is not None
+    assert clip.bext == read_bext(source)
+    assert clip.bext[:256].rstrip(b"\0") == b"bext round trip"
+    assert clip.bext[256:288].rstrip(b"\0") == b"Audio Studio Tests"
+
+
+def test_bext_survives_a_generic_load_save_round_trip(tmp_path: Path) -> None:
+    """M5: editing a BWF must not silently strip its broadcast extension."""
+    source = tmp_path / "take.wav"
+    _record_bwf(source)
+    original = load_audio(source)
+
+    exported = tmp_path / "edited.wav"
+    save_audio(exported, original.buffer, subtype="PCM_24", dither=False, bext=original.bext)
+    round_tripped = load_audio(exported)
+
+    assert round_tripped.bext == original.bext, "bext payload must survive byte-for-byte"
+    assert round_tripped.buffer.n_frames == original.buffer.n_frames
+    assert np.allclose(round_tripped.buffer.data, original.buffer.data, atol=1e-6)
+
+
+def test_files_without_bext_report_none_and_round_trip_cleanly(
+    wav_path: Path, tmp_path: Path
+) -> None:
+    clip = load_audio(wav_path)
+    assert clip.bext is None
+
+    target = tmp_path / "plain.wav"
+    save_audio(target, clip.buffer, subtype="PCM_16", bext=clip.bext)
+    assert read_bext(target) is None
+
+
+def test_bext_on_a_non_wav_target_is_refused_not_dropped(tmp_path: Path) -> None:
+    tone = make_tone(330.0, duration=0.1, channels=1)
+
+    with pytest.raises(ValueError, match="WAV target"):
+        save_audio(tmp_path / "out.flac", tone, bext=b"\0" * 602)
+
+
+def test_read_bext_rejects_non_riff_files(tmp_path: Path, flac_path: Path) -> None:
+    assert read_bext(flac_path) is None
+    missing = tmp_path / "missing.wav"
+    assert read_bext(missing) is None
