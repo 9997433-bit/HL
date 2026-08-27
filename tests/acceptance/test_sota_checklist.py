@@ -234,10 +234,16 @@ def _verify_rf64_streaming(_tmp_path: Path) -> None:
 
     source = inspect.getsource(loader)
     assert "RF64" in source
-    report = _load_json(REPOSITORY_ROOT / ".agent_workspace/round3/rf64-streaming-report.json")
+    # benchmarks/rf64_memory_probe.py writes this report. The size and RSS
+    # thresholds are checked against whatever run produced it, but only a run
+    # marked formal (dedicated hardware, real capture) closes the item — the
+    # default headless sparse-fixture proxy records formal_slo_verified: false
+    # and keeps B3 an xfail with the proxy numbers on the record.
+    report = _load_json(REPOSITORY_ROOT / ".agent_workspace/v1.0/rf64-memory-report.json")
     assert report["file_size_bytes"] > 4 * 1024**3
     assert report["peak_rss_bytes"] < 1024**3
     assert report["status"] == "pass"
+    assert report["formal_slo_verified"] is True
 
 
 def _verify_undo_redo_100_steps(_tmp_path: Path) -> None:
@@ -336,13 +342,34 @@ def _verify_workspace_persistence(_tmp_path: Path) -> None:
     assert "saveState(" in source and "restoreState(" in source, (
         "dock-layout persistence is missing"
     )
+    report = _load_json(REPOSITORY_ROOT / ".agent_workspace/v1.0/dock-layout-evidence.json")
+    assert report["status"] == "pass"
+    # An arrangement identical to the default would round-trip through a
+    # store that dropped every byte of it, so the evidence has to show the
+    # two differing before it shows them matching.
+    assert report["default_arrangement"] != report["arrangement_under_test"]
+    assert report["state_blob_bytes"] > 0
+    checks = {item["check"]: item for item in report["checks"]}
+    assert {"project-bundle", "application-restart"} <= set(checks)
+    for check in checks.values():
+        assert check["status"] == "pass", check["check"]
+        assert check["restored"] == report["arrangement_under_test"]
 
 
 def _verify_keyboard_workflow(_tmp_path: Path) -> None:
-    report = _load_json(REPOSITORY_ROOT / ".agent_workspace/round3/keyboard-workflow-report.json")
-    assert report["steps"] == ["open", "select", "apply-effect", "export"]
-    assert report["mouse_events"] == 0
+    report = _load_json(REPOSITORY_ROOT / ".agent_workspace/v1.0/keyboard-workflow-evidence.json")
     assert report["status"] == "pass"
+    assert report["steps"] == ["open", "select", "cut", "undo", "export"]
+    assert report["mouse_events"] == 0
+    keystrokes = report["keystrokes"]
+    assert [entry["step"] for entry in keystrokes] == report["steps"]
+    assert all(entry["triggered"] and entry["keys"] for entry in keystrokes)
+    measurements = report["measurements"]
+    # The undone cut has to leave the document byte-identical to the file that
+    # was opened, or the chain proves only that five keys were pressed.
+    assert measurements["frames_after_cut"] == 0
+    assert measurements["frames_after_undo"] == measurements["source_frames"]
+    assert measurements["export_matches_source"] is True
 
 
 def _relative_luminance(hex_color: str) -> float:
@@ -541,15 +568,12 @@ CHECKLIST_CASES = (
         "P0",
         "Dock presets and layout persistence",
         _verify_workspace_persistence,
-        "waveform/multitrack workspaces landed; dock-layout saveState/restoreState "
-        "persistence is missing",
     ),
     ChecklistCase(
         "D3",
         "P0",
         "Keyboard-only end-to-end workflow",
         _verify_keyboard_workflow,
-        "no keyboard-only workflow evidence exists",
     ),
     ChecklistCase(
         "D4",
