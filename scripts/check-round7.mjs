@@ -340,7 +340,7 @@ try {
   const modelSlugOk = /^Model slug:\s*[a-z0-9][a-z0-9.-]*$/i.test(firstLine)
   const auditRefsOk =
     report.includes('round6-hongen-module-audit.md') &&
-    report.includes('round7-hongen-module-audit.md')
+    report.includes('round7-hongen-final-audit.md')
   const placeholders = report.match(/待回填|TODO|TBD|\[P\/F\]|⬜/gi) ?? []
   const redCrosses = report.match(/❌/g) ?? []
   const reportIssues = []

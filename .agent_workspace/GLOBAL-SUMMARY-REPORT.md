@@ -11,7 +11,7 @@ Model slug: gpt-5.6-sol
 - Round 6 fresh code walk：`.agent_workspace/round6-hongen-module-audit.md`。该审计记录
   Round 6 开工前的 31 项基线、源码证据和 R7 归属；本报告用 Round 6 集成后的
   `check:round6` 与当前源码更新其中的内容计数。
-- Round 7 终验审计：`.agent_workspace/round7-hongen-module-audit.md`。该文件由
+- Round 7 终验审计：`.agent_workspace/round7-hongen-final-audit.md`。该文件由
   `cursor/r7-module-audit-9f67`（子代理 #2）交付；合入前，本报告对其负责复核的项目
   保留明确的「待 R7 子代理」状态，合入后应以该审计的逐文件结论替换在途标记。
 - 验收契约：`.agent_workspace/ROUND6-ACCEPTANCE.md`、
@@ -40,7 +40,7 @@ Model slug: gpt-5.6-sol
 | L-M11 | 程序化动画、开源表情与吉祥物陪跑，不复制商业 IP | ✅ | `MascotCompanion.vue`、`unit-stories.js`、`sfx.js` 与 `OpenMojiAttribution.vue` | R6 审计 L-M11；资源声明 |
 | L-M12 | 不含听音在内至少 5 款字表内小游戏，均可从大厅进入 | ✅ | `data/games.js` 注册 maze、memory、spot、spell、catch 共 5 款且路由精确接线 | R6 H5 及 R6 审计 L-M12 |
 | L-M13 | 家长门、防沉迷、JSON 导入导出、自选单元与每日目标 | ✅ | `ParentView.vue` 的家长门和导入导出；`settings.js` 的 `planUnits` 与每日设置 | R6 审计 L-M13 |
-| L-M14 | 星星、10 枚三档徽章、每日任务与可跳过庆祝 | ✅ | `badges.js`、`BadgeShelf.vue`、`dailyQuest.js` 与 `CelebrationLayer.vue` | R6 审计 L-M14 |
+| L-M14 | 星星、11 枚三档徽章、每日任务与可跳过庆祝 | ✅ | `badges.js`、`BadgeShelf.vue`、`dailyQuest.js` 与 `CelebrationLayer.vue` | R6 审计 L-M14 |
 | L-M15 | 离线全功能、axe 0/0、首屏受预算保护、双浏览器性能达线 | ⏳ 待 R7 子代理 #9 | `public/sw.js`、`offline-smoke.sh`、`axe-states.mjs`、`check-bundle.mjs` 已在场；最终 Lighthouse 由性能分支定标 | R6 审计 L-M15；R7 G6 |
 
 识字基线内容水位：1820 字、132 本绘本、60 条成语、24 首古诗、5 款新增小游戏；
@@ -80,14 +80,14 @@ Model slug: gpt-5.6-sol
 | D-4 | 四主题、字号档与 reduced-motion 统一持久化 | ⏳ 待 R7 子代理 #8 | 基线主题系统由 `settings.js` 持久化；aurora 与四主题对比度由 R7 H6 闭合 |
 | D-5 | FSRS 调度和记忆热力图向家长透明 | ✅ | `srs.js`、识字 `progress.js` 与家长热力图 |
 | D-6 | 庆祝可跳过，动画可系统级降级 | ✅ | `CelebrationLayer.vue`、`CelebrationOverlay.vue` 与 `prefers-reduced-motion` 样式 |
-| D-7 | 双 App 可离线 zip，单包保持 10 MB 级以下 | ⏳ 待 R7 子代理 #10 | `build-all.sh` 负责打包和 CRC；本轮实测大小写入 `acceptance-log-round6.md` |
+| D-7 | 双 App 可离线 zip，单包保持 10 MB 级以下 | ✅ | `build-all.sh` 打包和 CRC 通过；本轮为 2,891,785 B / 435,723 B，详见 `acceptance-log-round6.md` |
 
 ## 5. 证据包索引
 
 | 证据 | 路径 / 命令 | 用途 |
 |---|---|---|
 | Round 6 审计 | `.agent_workspace/round6-hongen-module-audit.md` | 31 项历史基线、源码 walk 与 R7 缺口来源 |
-| Round 7 审计 | `.agent_workspace/round7-hongen-module-audit.md` | 功能分支合入后的最终逐项复核 |
+| Round 7 审计 | `.agent_workspace/round7-hongen-final-audit.md` | 功能分支合入后的最终逐项复核 |
 | Round 6 验收日志 | `.agent_workspace/acceptance-log-round6.md` | 7/7 内容门禁、回归、zip、Android 实测 |
 | Round 7 自动门禁 | `npm run check:round7` | OCR、形近干扰、字源、年龄档、逻辑游戏、aurora、全局报告 |
 | 全链回归 | `npm test` 与 `npm run test:round3` | 单测、内容、构建、浏览器 smoke、离线、acceptance |
