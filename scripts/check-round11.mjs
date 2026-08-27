@@ -49,10 +49,11 @@ const mathSmoke = readStripped('apps/math-app/scripts/smoke.mjs')
   let freezeOk = false
   try {
     const j = JSON.parse(manifest)
-    freezeOk =
+    freezeOk = Boolean(
       Array.isArray(j.freezeChecklist) &&
-      j.freezeChecklist.length >= 3 &&
-      (j.sha256 || j.license || j.modelId)
+        j.freezeChecklist.length >= 3 &&
+        (j.sha256 || j.license || j.modelId)
+    )
   } catch {
     freezeOk = /freezeChecklist|sha256|Go.?No.?Go/i.test(manifest)
   }
