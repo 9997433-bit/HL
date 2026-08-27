@@ -207,8 +207,12 @@ const etymologyFile = existsAny(
 if (etymologyFile) {
   try {
     const mod = await import(`../${etymologyFile}`)
-    const chars = mod.ETYMOLOGY_CHARS ?? mod.default ?? []
-    const n = Array.isArray(chars) ? chars.length : Object.keys(chars).length
+    const n =
+      mod.TOTAL_ETYMOLOGY ??
+      (Array.isArray(mod.ETYMOLOGY) ? mod.ETYMOLOGY.length : null) ??
+      (typeof mod.ETYMOLOGY_CHARS === 'string' ? [...mod.ETYMOLOGY_CHARS].length : null) ??
+      (Array.isArray(mod.ETYMOLOGY_CHARS) ? mod.ETYMOLOGY_CHARS.length : null) ??
+      (mod.default && typeof mod.default === 'object' ? Object.keys(mod.default).length : 0)
     if (n >= TARGET_ETYMOLOGY) notes.push(`✓ L-M6 字源动画 ${n} 字（要求 ≥ ${TARGET_ETYMOLOGY}）`)
     else pending(`L-M6 字源动画 ${n}/${TARGET_ETYMOLOGY} 字 —— 由 r5-literacy-idioms-etymology 补足`)
   } catch (err) {

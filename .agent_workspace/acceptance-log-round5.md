@@ -1,6 +1,6 @@
 # Round 5 验收记录
 
-> 状态：**六项硬门槛全绿** — `check:round5` 8/8 PASS；探针仅剩 L-M6 字源动画待交付。
+> 状态：**Round 5 全闭合** — `check:round5` 12/12 PASS（含 L-M6 字源 65 字）。
 > 判定标准：`.agent_workspace/ROUND5-ACCEPTANCE.md`
 
 记录日期：2026-08-27
@@ -11,7 +11,7 @@
 | # | 门禁 | 命令 | 结果 | 备注 |
 | --- | --- | --- | --- | --- |
 | G1 | 全量单测 | `npm test` | PASS | 含识字 smoke 58 单元翻页 |
-| G2 | Round 5 硬门槛 | `npm run check:round5` | **6/6** | H1–H6 全绿 |
+| G2 | Round 5 硬门槛 | `npm run check:round5` | **12/12** | H1–H6 + 探针全绿 |
 | G3 | Round 3 全链 | `npm run test:round3` | PASS | [R5 回归门禁](bc-0e8710a4) 基线 |
 | G4 | 出包 | `npm run build:all` | PASS | zip 见 §4 |
 | G5 | Lighthouse | `npm run test:acceptance` | PASS | 识字/数学 96/100/100（回归分支） |
