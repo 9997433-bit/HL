@@ -46,6 +46,14 @@ class Effect(ABC):
     #: ``True`` when the effect needs the entire signal and cannot stream.
     is_offline_only: bool = False
 
+    #: Whether a *bypassed* instance still counts toward the constant a
+    #: delay-compensated path pads to. External plugin adapters set this:
+    #: their bypass is a live A/B toggle that must not move the stream in
+    #: time. Native latent processors leave it ``False`` — enabling one is a
+    #: reconfiguration, and padding every preview for a processor that is
+    #: switched off would cost all users its latency all the time.
+    compensate_when_bypassed: bool = False
+
     def __init__(self, enabled: bool = True, mix: float = 1.0) -> None:
         self.enabled = bool(enabled)
         self.mix = mix
@@ -292,18 +300,25 @@ class EffectChain(Effect):
         With the default ``include_bypassed=False`` this is the delay the
         chain imposes *right now*: a bypassed member is skipped by
         :meth:`process_block` and therefore delays nothing. With
-        ``include_bypassed=True`` it is the delay the chain would impose if
-        every member ran — the constant a delay-compensated path is padded
-        to, so that toggling a bypass does not move the stream in time.
+        ``include_bypassed=True``, bypassed members that ask for it
+        (:attr:`Effect.compensate_when_bypassed` — the external plugin
+        adapters) are counted as if they ran: the sum is then the constant a
+        delay-compensated path pads itself to, so that toggling a plugin's
+        bypass does not move the stream in time. Bypassed members that do
+        not opt in stay out of both sums — a disabled native processor costs
+        nothing, latency included.
 
-        A member whose report is unusable (``None``, a raising property, a
-        negative figure) counts as zero rather than poisoning the sum, for
-        the same reason the plugin panel treats it that way: an unknown
-        delay is at worst uncompensated, never a crash.
+        A member whose report is unusable (``None``, a raising method, a
+        signature this contract does not know, a negative figure) counts as
+        zero rather than poisoning the sum, for the same reason the plugin
+        panel treats it that way: an unknown delay is at worst
+        uncompensated, never a crash.
         """
         total = 0
         for effect in self.effects:
-            if not include_bypassed and not effect.enabled:
+            if not effect.enabled and not (
+                include_bypassed and effect.compensate_when_bypassed
+            ):
                 continue
             if isinstance(effect, EffectChain):
                 total += effect.latency_samples(include_bypassed)

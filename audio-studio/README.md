@@ -224,14 +224,29 @@ of the status bar like any built-in effect. Like the rest of the rack they are
 *monitoring inserts*: they change what is heard and never rewrite the audio in
 memory until you render.
 
-The panel adds up the delay the loaded plugins report and shows the total under
-the slots. That figure is a warning, not a correction: **there is no plugin
-delay compensation yet**, so a plugin that reports latency is heard late.
-Bypassing one takes its delay out of the sum with it.
+Plugin latency is **compensated** on the preview path (PDC). The readout under
+the slots shows the constant the playback path is padded to — the sum of what
+every loaded plugin reports, bypassed slots included, because the preview
+inserts a matching delay wherever a latent plugin is bypassed
+(`audio_studio.dsp.preview.LatencyCompensator`, applied on the engine's feeder
+thread with the rest of the insert). That is what makes bypass a real A/B: the
+stream does not move in time when a lookahead limiter or linear-phase EQ is
+toggled, so a null test against the dry signal still aligns. The **PDC** button
+beside the readout turns the padding off; the readout then reports the
+uncompensated delay of the plugins actually running, which are heard late.
+Compensation covers the preview chain only (MVP): it does not shift the
+playhead readout, changing the padding mid-stream (a bypass toggle) re-primes
+the delay line with silence rather than resampling across the join, and a
+plugin that reports `0` — which includes pedalboard backends that compensate
+internally — needs and gets no padding.
 
-Saving a project records which bundle sits in which slot — paths only. Reopening
-it loads those bundles again with their own default settings; plugin parameter
-state is a backend-specific blob that is not written yet. A plugin the project
+Saving a project records which bundle sits in which slot, the bypass flag, and
+— when the host can produce one — an opaque per-slot **state blob**,
+base64-encoded in the bundle's `plugins` array. The blob is pedalboard's native
+state chunk when the installed build exposes one and a parameter-dict JSON
+fallback otherwise; reopening the project loads each bundle and applies its
+blob back, best-effort, so a plugin whose newer version rejects the old state
+simply keeps its defaults rather than failing the slot. A plugin the project
 names but this machine does not have leaves its slot empty and says so in the
 panel rather than failing the open. Without the extra installed, the panel says
 so in place, with the install command, instead of failing at the file dialog.
@@ -247,14 +262,21 @@ out = host.process_block(block, 48_000)   # planar (n_channels, n_samples)
 host.parameters()                          # {name: normalised value}
 host.set_parameter("Drive", 0.75)          # same scale parameters() reports
 host.latency_samples()                     # reported plugin delay, in samples
+blob = host.state_blob()                   # opaque settings snapshot (or None)
+host.restore_state(blob)                   # best-effort; False when refused
 
 # The same plugin as an ordinary Effect, for an EffectChain:
 chain.add(create_plugin_effect("/path/to/Plugin.vst3"))
+chain.latency_samples()                        # summed delay of what runs now
+chain.latency_samples(include_bypassed=True)   # the constant PDC pads to
 ```
 
 `PluginEffectAdapter` is the bridge between the two: it wraps a `PluginHost` as
 an `Effect`, adding the rack's `bypass`/`mix` controls and forwarding
 `prepare`/`reset`/`process_block` so the plugin's streaming state is its own.
+It also forwards `latency_samples`/`state_blob`/`restore_state`, and marks
+itself `compensate_when_bypassed` so the delay-compensated preview keeps
+padding for it while it is bypassed.
 
 ### Finding plugins
 
@@ -295,8 +317,9 @@ the first time a plugin is opened. Discovery never reaches it at all. The UI
 panel keeps that boundary too: it probes for the extra with
 `importlib.util.find_spec`, which locates the package without executing it.
 Without the extra installed, loading a plugin raises `PluginLoadError` with
-installation instructions. Projects remember plugin *paths* but not plugin
-parameter state, and there is no plugin delay compensation.
+installation instructions. Projects remember plugin paths, bypass flags and a
+best-effort per-slot state blob, and the preview path is plugin-delay
+compensated (both described under "In the application" above).
 
 **License notice.** pedalboard is GPL-3.0 (incorporating JUCE, Rubber Band
 and FFTW). Installing the `plugins` extra for private use does not change the
@@ -668,10 +691,12 @@ above this package.
   menus yet — the rack learns from the head of the clip, and a selection has
   to be handed to `NoiseReduceEffect.learn_from()` from Python. VST3 hosting is a
   three-slot rack behind the optional `plugins` extra (View ▸ VST3 Plugins),
-  with a filesystem-only bundle scanner: no AU format, no plugin delay
-  compensation, no plugin editor windows, and projects remember plugin paths but
-  not plugin parameter state — see the roadmap in the release sign-off. Batch
-  processing is covered by the `audio_studio.batch` CLI above.
+  with a filesystem-only bundle scanner: no AU format and no plugin editor
+  windows. Plugin delay compensation covers the preview chain only (bypass
+  toggles stay time-aligned; the playhead readout is not shifted), and projects
+  remember plugin paths, bypass flags and a best-effort per-slot state blob —
+  see the roadmap in the release sign-off. Batch processing is covered by the
+  `audio_studio.batch` CLI above.
 - The default device block is now 256 frames (~5.3 ms at 48 kHz);
   `SoundDeviceOutput` and `PyAudioOutput` retry with 512 and then 1024 frames
   when the device rejects it. On Windows, opt-in WASAPI exclusive mode

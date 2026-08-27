@@ -67,6 +67,11 @@ class PluginEffectAdapter(Effect):
     1.0
     """
 
+    #: A plugin's bypass is a live A/B toggle: the delay-compensated preview
+    #: keeps padding for a bypassed plugin so toggling it does not move the
+    #: stream in time. See :meth:`EffectChain.latency_samples`.
+    compensate_when_bypassed = True
+
     def __init__(self, host: PluginHost, enabled: bool = True, mix: float = 1.0) -> None:
         super().__init__(enabled=enabled, mix=mix)
         self.host = host

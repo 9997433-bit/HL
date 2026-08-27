@@ -61,12 +61,15 @@ entirely: toggling bypass moves the stream in time, and an A/B against the dry
 signal no longer nulls.
 
 The preview therefore pads the path to a constant. Every block, the deficit
-between what the chain *would* delay with every member running
-(:meth:`EffectChain.latency_samples` with ``include_bypassed=True``) and what
-it delays right now is made up by a :class:`LatencyCompensator` — a plain FIFO
+between what the chain *would* delay with the bypassed plugins running too
+(:meth:`EffectChain.latency_samples` with ``include_bypassed=True``, which
+counts bypassed members only when they opt in via
+``Effect.compensate_when_bypassed`` — the plugin adapters do) and what it
+delays right now is made up by a :class:`LatencyCompensator` — a plain FIFO
 delay appended after the chain. Bypassing a latent plugin swaps its delay for
 an equal compensation delay, so the null test still aligns; the plugins that
-*are* running are heard exactly as before.
+*are* running are heard exactly as before, and a *native* latent processor
+that is switched off keeps costing nothing.
 
 This is the MVP shape of PDC: it compensates the preview insert as a whole and
 runs wherever :meth:`EffectPreview.process_block` runs (the engine's feeder
@@ -248,10 +251,11 @@ class EffectPreview:
     def pdc_padding_samples(self) -> int:
         """Silence currently inserted to hold the path's latency constant.
 
-        The deficit between the chain's full reported latency (every member,
-        bypassed or not) and what the members that are actually running
-        report. Zero when compensation is off, when nothing reports latency,
-        or when every latent member is active.
+        The deficit between the chain's compensated reference latency
+        (running members plus bypassed members that opt in — the plugin
+        adapters) and what the members actually running report. Zero when
+        compensation is off, when nothing reports latency, or when every
+        latent member is active.
         """
         if not self._pdc_enabled:
             return 0
