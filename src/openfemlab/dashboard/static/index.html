@@ -124,6 +124,14 @@
       height: 9rem;
       color: var(--muted);
     }
+    .chart-canvas {
+      width: 100%;
+      max-width: 900px;
+      height: 280px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #fff;
+    }
     .viewer-controls {
       display: flex;
       flex-wrap: wrap;
@@ -645,7 +653,7 @@
       const summary = payload.summary || {};
       const minMac = Number(summary.min_mac ?? 0);
       const badge = minMac >= 0.7 ? "pass" : "fail";
-      return `
+      let html = `
         <h1>模态相关性</h1>
         <p class="subtitle">Schema ${esc(payload.schema_version || "")}
           <span class="badge ${badge}">审阅</span></p>
@@ -653,6 +661,104 @@
         <section><h2>模态配对</h2>${pairsTable(payload.pairs)}</section>
         ${macHeatmap(payload.mac_matrix, payload.pairs)}
       `;
+      if (payload.frf_overlay) html += renderFrfOverlay(payload.frf_overlay);
+      return html;
+    }
+
+    function renderFrfOverlay(block) {
+      const id = "frf-overlay-canvas";
+      return `
+        <section><h2>FRF 叠加</h2>
+          <canvas id="${id}" class="chart-canvas" width="880" height="280"></canvas>
+        </section>`;
+    }
+
+    function drawFrfOverlay(canvas, block) {
+      if (!canvas || !block) return;
+      const ctx = canvas.getContext("2d");
+      const width = canvas.width;
+      const height = canvas.height;
+      ctx.clearRect(0, 0, width, height);
+      const freqs = block.frequencies || [];
+      const measured = block.measured_magnitude || [];
+      const synthesized = block.synthesized_magnitude || [];
+      if (!freqs.length) return;
+      const pad = 40;
+      const xmin = Math.min(...freqs);
+      const xmax = Math.max(...freqs);
+      const ymax = Math.max(...measured, ...synthesized, 1e-12);
+      const ymin = Math.min(...measured, ...synthesized, ymax * 1e-4);
+      const xscale = (value) => pad + ((value - xmin) / (xmax - xmin || 1)) * (width - 2 * pad);
+      const yscale = (value) => height - pad - ((Math.log10(value) - Math.log10(ymin)) / (Math.log10(ymax) - Math.log10(ymin) || 1)) * (height - 2 * pad);
+      ctx.strokeStyle = "#d0d7de";
+      ctx.beginPath();
+      ctx.moveTo(pad, pad);
+      ctx.lineTo(pad, height - pad);
+      ctx.lineTo(width - pad, height - pad);
+      ctx.stroke();
+      function plot(values, color, dash) {
+        ctx.strokeStyle = color;
+        ctx.setLineDash(dash);
+        ctx.beginPath();
+        values.forEach((value, index) => {
+          const x = xscale(freqs[index]);
+          const y = yscale(Math.max(value, ymin));
+          if (index === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      plot(measured, "#0969da", []);
+      plot(synthesized, "#cf222e", [6, 4]);
+      ctx.fillStyle = "#656d76";
+      ctx.font = "12px sans-serif";
+      ctx.fillText(block.measured_label || "Measured", pad + 8, pad + 14);
+      ctx.fillText(block.synthesized_label || "Synthesized", pad + 8, pad + 30);
+    }
+
+    function renderStabilizationDiagram(block) {
+      const id = "stab-diagram-canvas";
+      return `
+        <section><h2>稳定图</h2>
+          <canvas id="${id}" class="chart-canvas" width="880" height="280"></canvas>
+        </section>`;
+    }
+
+    function drawStabilizationDiagram(canvas, block) {
+      if (!canvas || !block) return;
+      const ctx = canvas.getContext("2d");
+      const width = canvas.width;
+      const height = canvas.height;
+      ctx.clearRect(0, 0, width, height);
+      const orders = block.orders || [];
+      const poles = block.poles || [];
+      if (!orders.length) return;
+      const pad = 40;
+      const freqs = [];
+      poles.forEach((level) => level.forEach((pole) => freqs.push(Number(pole.frequency_hz))));
+      const xmin = Math.min(...orders);
+      const xmax = Math.max(...orders);
+      const ymin = Math.min(...freqs, 0);
+      const ymax = Math.max(...freqs, 1);
+      const colors = { stable: "#1a7f37", damp: "#bf8700", freq: "#8250df", new: "#656d76" };
+      ctx.strokeStyle = "#d0d7de";
+      ctx.beginPath();
+      ctx.moveTo(pad, pad);
+      ctx.lineTo(pad, height - pad);
+      ctx.lineTo(width - pad, height - pad);
+      ctx.stroke();
+      poles.forEach((level, levelIndex) => {
+        const order = orders[levelIndex];
+        level.forEach((pole) => {
+          const x = pad + ((order - xmin) / (xmax - xmin || 1)) * (width - 2 * pad);
+          const y = height - pad - ((pole.frequency_hz - ymin) / (ymax - ymin || 1)) * (height - 2 * pad);
+          ctx.fillStyle = colors[pole.label] || colors.new;
+          ctx.beginPath();
+          ctx.arc(x, y, pole.label === "stable" ? 5 : 3, 0, Math.PI * 2);
+          ctx.fill();
+        });
+      });
     }
 
     function renderCorrection(payload) {
@@ -738,8 +844,21 @@
       else if (kind === "modal" && state.modes) body = renderModal(payload, state.modes);
       else body = `<section><h2>JSON</h2><pre>${esc(JSON.stringify(payload, null, 2))}</pre></section>`;
 
+      if (payload.stabilization_diagram) {
+        body = `<h1>模态参数提取</h1>${renderStabilizationDiagram(payload.stabilization_diagram)}` + body;
+      }
+      if (payload.frf_overlay && kind !== "correlation") {
+        body += renderFrfOverlay(payload.frf_overlay);
+      }
+
       if (state.modes) body += viewerSection(state.modes);
       content.innerHTML = body;
+
+      drawFrfOverlay(document.getElementById("frf-overlay-canvas"), payload.frf_overlay);
+      drawStabilizationDiagram(
+        document.getElementById("stab-diagram-canvas"),
+        payload.stabilization_diagram
+      );
 
       if (state.modes && !state.geometry) {
         showNotice("已检测到振型向量：填入模型 spec 路径并点击“加载几何”即可显示三维振型。");

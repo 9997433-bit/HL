@@ -70,8 +70,8 @@ FAMILY_TO_MODULE = {
     "PERF": "M1",
 }
 EXPECTED_CRITERIA_PER_FAMILY = {
-    "MODAL": 9,     "CORR": 13, "UPD": 13, "WORK": 7, "OPT": 4, "DYN": 9, "ELEM": 3,
-    "IO": 9, "MPE": 8, "PRETEST": 9, "PERF": 5,
+    "MODAL": 9,     "CORR": 13, "UPD": 15, "WORK": 9, "OPT": 4, "DYN": 9, "ELEM": 3,
+    "IO": 12, "MPE": 8, "PRETEST": 9, "PERF": 5,
 }
 
 
@@ -191,6 +191,10 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P2", "oracle", "MS-3.5", _UPD_SUITE, "implemented"),
     _c("AC-UPD-012", "DOE factorial and LHS cover bounded factor grids",
        "P2", "contract", "MS-3.5", _UPD_SUITE, "implemented"),
+    _c("AC-UPD-013", "Harmonic force identification recovers known ODS load",
+       "P1", "oracle", "MS-3.2", _UPD_SUITE, "implemented"),
+    _c("AC-UPD-014", "MMU joint update recovers shared stiffness factors",
+       "P1", "twin", "MS-3.2", _UPD_SUITE, "implemented"),
     # --- M4 Simulation correction workflow (MS-4) -----------------------------
     _c("AC-WORK-001", "End-to-end correction passes gates",
        "P0", "twin", "MS-4.1, MS-4.2", _WORK_SUITE, "verified"),
@@ -206,6 +210,10 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P2", "contract", "MS-4.3", _WORK_SUITE, "implemented"),
     _c("AC-WORK-007", "Geometry alignment CLI writes a sensor-map JSON artifact",
        "P1", "contract", "MS-2.1", _WORK_SUITE, "implemented"),
+    _c("AC-WORK-008", "Dashboard renders FRF overlay payloads",
+       "P2", "contract", "MS-4.3", _WORK_SUITE, "implemented"),
+    _c("AC-WORK-009", "Dashboard renders stabilization diagram payloads",
+       "P2", "contract", "MS-10.3", _WORK_SUITE, "implemented"),
     # --- M5 Optimization hook (MS-5) ------------------------------------------
     _c("AC-OPT-001", "Analytic gradients vs central FD",
        "P0", "oracle", "MS-5.1", _OPT_SUITE, "verified"),
@@ -260,6 +268,12 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P1", "contract", "MS-9.6", _IO_SUITE, "implemented"),
     _c("AC-IO-009", "Test model export round-trips through UFF-55",
        "P1", "contract", "MS-11.8", _IO_SUITE, "implemented"),
+    _c("AC-IO-010", "BDF export applies updated material and property scalings",
+       "P1", "contract", "MS-9.7", _IO_SUITE, "implemented"),
+    _c("AC-IO-011", "Ansys driver stub resolves exe and typed failure",
+       "P2", "contract", "MS-9.7", _IO_SUITE, "implemented"),
+    _c("AC-IO-012", "Abaqus driver stub resolves exe and typed failure",
+       "P2", "contract", "MS-9.7", _IO_SUITE, "implemented"),
     # --- M9 Modal parameter extraction (MS-10), GAP-06 -----------------------
     _c("AC-MPE-001", "LSCF pole recovery on synthesized FRFs",
        "P0", "oracle", "MS-10.2", _MPE_SUITE, "verified"),
@@ -325,7 +339,7 @@ def test_registry_inventory_matches_documented_scope():
         for family in EXPECTED_CRITERIA_PER_FAMILY
     }
     assert counts == EXPECTED_CRITERIA_PER_FAMILY
-    assert len(REGISTRY) == 89
+    assert len(REGISTRY) == 96
 
 
 def test_ids_unique():

@@ -35,6 +35,7 @@ from .bayesian import (
     precision_matrix,
     update_model_bayesian,
 )
+from .force_id import identify_harmonic_forces
 from .frf import (
     FRF_WEIGHTINGS,
     FRFResidual,
@@ -43,6 +44,7 @@ from .frf import (
     FRFUpdatingResult,
     update_model_frf,
 )
+from .mmu import MMUComponent, mmu_frequency_residual, update_model_mmu
 from .parameters import Parameter, ParameterSet, ParameterType, UpdatableParameter
 from .resolver import (
     NonAffineTargetError,
@@ -102,6 +104,7 @@ __all__ = [
     "ScalingSpec",
     "SensitivityResult",
     "TargetError",
+    "MMUComponent",
     "UpdatableParameter",
     "UpdatingOptions",
     "UpdatingResult",
@@ -111,8 +114,10 @@ __all__ = [
     "eigenvalue_to_frequency_sensitivity",
     "finite_difference_jacobian",
     "frequency_sensitivity",
+    "identify_harmonic_forces",
     "mac_sensitivity",
     "map_step",
+    "mmu_frequency_residual",
     "modal_sensitivity",
     "mode_shape_sensitivity",
     "parameters_from_mapping",
@@ -128,4 +133,5 @@ __all__ = [
     "update_model",
     "update_model_bayesian",
     "update_model_frf",
+    "update_model_mmu",
 ]

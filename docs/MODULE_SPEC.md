@@ -375,6 +375,12 @@ Re-pairing (MS-2.3) is executed every iteration — mode switching during
 updating must not corrupt the residual ordering. The FRF block needs no
 pairing: measured and synthesized lines are matched by frequency.
 
+4. **Harmonic force identification** (Round 7 Wave 4, AC-UPD-013): given an ODS
+   vector ``u`` and model receptance ``H(w)``, recover ``f = H⁺ u``.
+5. **MMU joint residuals** (Round 7 Wave 4, AC-UPD-014): stack frequency/shape
+   residuals from multiple submodels or mode subsets sharing the same ``θ`` via
+   :func:`openfemlab.updating.mmu.update_model_mmu`.
+
 ### MS-3.3 Sensitivities
 
 - **Eigenvalue sensitivity** (mass-normalized `φ_i`, simple eigenvalues):
@@ -1201,8 +1207,10 @@ reader lives in `openfemlab.io.op2` over the record layer
   output, skipped when the corpus path is unset. That second half is the one
   still missing, and it is what keeps the reader experimental and unexported.
 - **BDF export and external drivers (MS-9.7).** ``write_bdf`` round-trips neutral
-  geometry; ``openfemlab.io.drivers.nastran`` runs a Nastran executable when
-  ``OPENFEMLAB_NASTRAN_EXE`` is set (AC-IO-008).
+  geometry and accepts ``material_scales`` / ``property_scales`` for updated
+  decks (AC-IO-010). ``openfemlab.io.drivers`` exposes Nastran, Ansys and Abaqus
+  batch stubs controlled by ``OPENFEMLAB_*_EXE`` environment variables
+  (AC-IO-008, AC-IO-011, AC-IO-012).
 - **`pyNastran` (BSD-3) belongs on the dev side, not behind the MS-9.3 optional
   seam.** It would cover all of this today, but OP2 is the format an
   FE-correlation platform is judged on, and the Phase 1-2 subset is small over

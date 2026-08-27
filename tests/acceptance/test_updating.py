@@ -1596,3 +1596,44 @@ def test_ac_upd_012_doe_factorial_and_lhs_cover_bounded_factors() -> None:
     )
     assert lhs.samples.shape == (16, 1)
     assert lhs.diagnostics["sampler"] == "lhs_box"
+
+
+# --------------------------------------------------------------- AC-UPD-013
+
+
+@criterion("AC-UPD-013")
+def test_ac_upd_013_harmonic_force_id_recovers_the_applied_load() -> None:
+    from openfemlab.updating import identify_harmonic_forces
+
+    stiffness, mass = fixture_matrices(load_fixture("two_dof_analytic"))
+    force = np.array([1.0 + 0.0j, 0.35 + 0.0j])
+    frequency = 8.0
+    receptance = direct_frf([frequency], stiffness, mass).data[0]
+    ods = receptance @ force
+    recovered = identify_harmonic_forces(ods, receptance)
+    assert recovered == pytest.approx(force, rel=1e-6)
+
+
+# --------------------------------------------------------------- AC-UPD-014
+
+
+@criterion("AC-UPD-014")
+def test_ac_upd_014_mmu_joint_update_recovers_stiffness_factors() -> None:
+    from openfemlab.updating import MMUComponent, update_model_mmu
+
+    free, truth = TWINS["stiffness"]
+    model = _scaling_model()
+    target = _twin_target(model, truth)
+    components = (
+        MMUComponent(model, target.select([0, 1, 2])),
+        MMUComponent(model, target.select([3, 4, 5])),
+    )
+    result = update_model_mmu(
+        components,
+        _twin_parameters(free),
+        sensitivity_function=model.sensitivity_function(list(free)),
+        max_iterations=MAX_UPDATING_ITERATIONS,
+    )
+    error = max(abs(result.parameters[name] - truth[name]) for name in free)
+    assert result.converged, result.message
+    assert error <= RECOVERY_TOLERANCE

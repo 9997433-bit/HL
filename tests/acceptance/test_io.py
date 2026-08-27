@@ -729,3 +729,60 @@ def test_ac_io_009_export_test_model_round_trips_uff_modes(tmp_path) -> None:
         assert mode.values.shape == (shapes.shape[0], 1)
         assert mode.values[:, 0] == pytest.approx(shapes[:, index], abs=1e-5)
     assert "EulerXYZdeg=" in recovered[-1].id_lines[1]
+
+
+@criterion("AC-IO-010")
+def test_ac_io_010_write_bdf_applies_material_scales(tmp_path) -> None:
+    """Updated material scalings appear in exported MAT1 cards."""
+    import io
+
+    from openfemlab.io.nastran import read_bdf, write_bdf
+
+    bdf_text = io.StringIO(
+        "\n".join(
+            [
+                "MAT1,40,400.,7800.,,0.3",
+                "PSHELL,10,40,0.02",
+                "GRID,11,,0.,0.,0.",
+                "GRID,22,,1.,0.,0.",
+                "CROD,100,10,11,22",
+            ]
+        )
+        + "\n"
+    )
+    source = read_bdf(bdf_text)
+    path = tmp_path / "scaled.bdf"
+    write_bdf(source, path, material_scales={40: 1.25}, property_scales={10: 0.9})
+    recovered = read_bdf(path)
+    assert recovered.materials[40].E == pytest.approx(400.0 * 1.25)
+    assert recovered.properties[10].values["t"] == pytest.approx(0.02 * 0.9)
+
+
+@criterion("AC-IO-011")
+def test_ac_io_011_ansys_driver_reports_missing_executable(tmp_path, monkeypatch) -> None:
+    from openfemlab.io import FormatError
+    from openfemlab.io.drivers import ansys as ansys_driver
+
+    for key in ("OPENFEMLAB_ANSYS_EXE", "ANSYS_EXE", "ANSYS242", "ANSYS"):
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.setattr(ansys_driver.shutil, "which", lambda _name: None)
+    deck = tmp_path / "model.inp"
+    deck.write_text("*HEADING\n", encoding="utf-8")
+    assert ansys_driver.resolve_ansys_executable("/nonexistent/ansys") == "/nonexistent/ansys"
+    with pytest.raises(FormatError, match="no Ansys executable"):
+        ansys_driver.run_ansys(deck, executable=None)
+
+
+@criterion("AC-IO-012")
+def test_ac_io_012_abaqus_driver_reports_missing_executable(tmp_path, monkeypatch) -> None:
+    from openfemlab.io import FormatError
+    from openfemlab.io.drivers import abaqus as abaqus_driver
+
+    for key in ("OPENFEMLAB_ABAQUS_EXE", "ABAQUS_EXE", "ABAQUS"):
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.setattr(abaqus_driver.shutil, "which", lambda _name: None)
+    deck = tmp_path / "model.inp"
+    deck.write_text("*HEADING\n", encoding="utf-8")
+    assert abaqus_driver.resolve_abaqus_executable("/opt/abaqus") == "/opt/abaqus"
+    with pytest.raises(FormatError, match="no Abaqus executable"):
+        abaqus_driver.run_abaqus(deck, executable=None)

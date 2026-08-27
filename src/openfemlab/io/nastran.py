@@ -439,24 +439,31 @@ def write_bdf(
     destination: str | PathLike[str] | TextIO,
     *,
     title: str = "OpenFEMLab export",
+    material_scales: dict[int, float] | None = None,
+    property_scales: dict[int, float] | None = None,
 ) -> None:
     """Write a minimal ASCII BDF from a :class:`NeutralModel` (MS-9.6 export).
 
     Emits ``GRID``, ``MAT1``, ``PSHELL``/``PSOLID``, and connectivity cards
-    present in the model.  Rods and bars without ``PROD``/``PBAR`` sections are
-    still written with property ids so geometry round-trips; section data must
-    be supplied again on import when converting to an internal model.
+    present in the model.  Optional ``material_scales`` and ``property_scales``
+    multiply exported ``MAT1`` moduli and shell thickness values respectively
+    (AC-IO-010).
     """
     lines = [f"TITLE = {title}", "BEGIN BULK"]
     for material_id, material in sorted(model.materials.items()):
+        scale = 1.0 if material_scales is None else float(material_scales.get(material_id, 1.0))
+        modulus = material.E * scale
         lines.append(
-            f"MAT1,{material_id},{material.E:g},{material.rho:g},,{material.nu:g}"
+            f"MAT1,{material_id},{modulus:g},,{material.nu:g},{material.rho:g}"
         )
     for property_id, property_ in sorted(model.properties.items()):
+        thickness_scale = (
+            1.0 if property_scales is None else float(property_scales.get(property_id, 1.0))
+        )
         thickness = property_.values.get("t")
         if thickness is not None:
             lines.append(
-                f"PSHELL,{property_id},{property_.material_id},{thickness:g}"
+                f"PSHELL,{property_id},{property_.material_id},{thickness * thickness_scale:g}"
             )
         else:
             lines.append(f"PSOLID,{property_id},{property_.material_id}")

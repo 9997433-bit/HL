@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from os import PathLike
 from pathlib import Path
 
-from ..exceptions import FormatError
+from .._common import FormatError
 
 __all__ = [
     "NastranRunResult",

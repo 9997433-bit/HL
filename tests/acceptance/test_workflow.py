@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from pathlib import Path
 import math
 
 import numpy as np
@@ -611,3 +612,41 @@ def test_ac_work_007_align_cli_writes_sensor_map_json(tmp_path) -> None:
     assert payload["rows"] == [0, 1, 2]
     assert payload["labels"] == ["ch0", "ch1", "ch2"]
     assert "rigid_transform" in payload
+
+
+@criterion("AC-WORK-008")
+def test_ac_work_008_dashboard_html_supports_frf_overlay() -> None:
+    from openfemlab.dashboard.payloads import frf_overlay_payload
+
+    block = frf_overlay_payload(
+        [1.0, 2.0, 3.0],
+        [1.0 + 0.0j, 0.5 + 0.0j, 0.25 + 0.0j],
+        [0.9 + 0.0j, 0.45 + 0.0j, 0.2 + 0.0j],
+    )
+    assert block["measured_magnitude"] == pytest.approx([1.0, 0.5, 0.25])
+    html = (Path(__file__).resolve().parents[2] / "src/openfemlab/dashboard/static/index.html").read_text(
+        encoding="utf-8"
+    )
+    assert "drawFrfOverlay" in html
+    assert "frf_overlay" in html
+
+
+@criterion("AC-WORK-009")
+def test_ac_work_009_dashboard_html_supports_stabilization_diagram() -> None:
+    from openfemlab.dashboard.payloads import stabilization_diagram_payload
+    from openfemlab.mpe.types import PoleEstimate, StabilizationDiagram
+
+    diagram = StabilizationDiagram(
+        orders=(4, 6),
+        poles=(
+            (PoleEstimate(10.0, 0.01, complex(-0.5, 62.8), 4, label="stable"),),
+            (PoleEstimate(10.1, 0.011, complex(-0.55, 63.0), 6, label="stable"),),
+        ),
+    )
+    block = stabilization_diagram_payload(diagram)
+    assert block["orders"] == [4, 6]
+    assert block["poles"][0][0]["label"] == "stable"
+    html = (Path(__file__).resolve().parents[2] / "src/openfemlab/dashboard/static/index.html").read_text(
+        encoding="utf-8"
+    )
+    assert "drawStabilizationDiagram" in html

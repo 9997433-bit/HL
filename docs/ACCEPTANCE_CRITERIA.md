@@ -278,6 +278,8 @@ to honor the sparse matrix contract of MS-0.2 and MS-1.6.
 | AC-UPD-010 | P2 | Parameter resolver builds a twin-recoverable scaling model | dotted `materials.<name>.E` target; ‖θ* − θ_true‖_∞ ≤ 1e-3 | MS-3.1 |
 | AC-UPD-011 | P2 | Monte Carlo propagation matches the linear oracle | E/ρ mean within 5 % rel.; std > 0 on 512 samples | MS-3.5 |
 | AC-UPD-012 | P2 | DOE factorial and LHS cover bounded factor grids | full factorial count = ∏ levels; LHS count and sampler tag exact | MS-3.5 |
+| AC-UPD-013 | P1 | Harmonic force ID from ODS + receptance | recovered force rel. err ≤ 1e-6 vs known load | MS-3.2 |
+| AC-UPD-014 | P1 | MMU joint update recovers stiffness factors | same gates as AC-UPD-003 stiffness twin | MS-3.2 |
 
 ### Details
 
@@ -344,6 +346,8 @@ to honor the sparse matrix contract of MS-0.2 and MS-1.6.
 | AC-WORK-005 | P0 | CorrectionReport schema & versioning | schema_version "1.0"; required keys; JSON-serializable | MS-4.3 |
 | AC-WORK-006 | P2 | Side-by-side mode-shape plotting helper | `plot_modes_side_by_side` returns figure and two axes | MS-4.3 |
 | AC-WORK-007 | P1 | Geometry alignment CLI writes sensor map | `align` exit 0; JSON rows/labels/transform present | MS-2.1 |
+| AC-WORK-008 | P2 | Dashboard FRF overlay payload | `frf_overlay` block + `drawFrfOverlay` in viewer | MS-4.3 |
+| AC-WORK-009 | P2 | Dashboard stabilization diagram payload | `stabilization_diagram` block renders poles | MS-10.3 |
 
 ### Details
 
@@ -578,6 +582,9 @@ run (AC-IO-003).
 | AC-IO-007 | P2 | OP2 EPT PSHELL/PSOLID import | thickness and material id match the BDF reader | MS-9.6 |
 | AC-IO-008 | P1 | BDF export round trip preserves geometry | node ids, coordinates and connectivity bitwise equal | MS-9.6, MS-9.7 |
 | AC-IO-009 | P1 | Test model export round-trips through UFF-55 | frequencies/shapes recovered to ≤ 1e-6; Euler meta in id lines | MS-11.8 |
+| AC-IO-010 | P1 | BDF export applies material/property scalings | scaled MAT1/PSHELL values match factors | MS-9.7 |
+| AC-IO-011 | P2 | Ansys driver stub typed failure | missing exe raises FormatError | MS-9.7 |
+| AC-IO-012 | P2 | Abaqus driver stub typed failure | missing exe raises FormatError | MS-9.7 |
 
 ### Details
 
