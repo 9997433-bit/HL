@@ -4,6 +4,7 @@ import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router'
 import './styles/base.css'
+import { registerServiceWorkerAfterStartup } from '@shared/utils/registerServiceWorker.js'
 
 if (import.meta.env.DEV) {
   // 绘本正文只能用字表里已有的字，写新绘本时如果越界要立刻发现。
@@ -15,13 +16,6 @@ if (import.meta.env.DEV) {
   })
 }
 
-if (import.meta.env.PROD && 'serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    const baseUrl = new URL(import.meta.env.BASE_URL, document.baseURI)
-    navigator.serviceWorker
-      .register(new URL('sw.js', baseUrl), { scope: baseUrl.href })
-      .catch((error) => console.warn('[offline] Service Worker 注册失败：', error))
-  })
-}
+if (import.meta.env.PROD) registerServiceWorkerAfterStartup(import.meta.env.BASE_URL)
 
 createApp(App).use(createPinia()).use(router).mount('#app')

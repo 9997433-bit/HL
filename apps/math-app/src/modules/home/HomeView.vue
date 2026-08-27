@@ -1,19 +1,29 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import gsap from 'gsap'
 import { MODULE_MAP, MODULES } from '@/data/modules.js'
 import { TOPICS } from '@/data/topics.js'
 import { useProgressStore } from '@/stores/progress.js'
-import { useFeedback } from '@/composables/useFeedback'
 import { useMascotCoach } from '@/composables/useMascotCoach.js'
 import MascotBot from '@/components/MascotBot.vue'
 import { sound } from '@/utils/sound'
+import { reducedMotion as prefersReducedMotion } from '@/utils/motion'
+import { createFeedback } from '@shared/composables/useFeedback.js'
 import OpenMojiIcon from '@shared/components/OpenMojiIcon.vue'
 
 const router = useRouter()
 const progress = useProgressStore()
-const { burst, enter, wrong, prefersReducedMotion } = useFeedback()
+const feedback = createFeedback({
+  reducedMotion: prefersReducedMotion,
+  particles: {
+    glyphs: ['★', '✦', '✧', '✩'],
+    colors: ['#ffce4d', '#5ee7ff', '#ff7ac6', '#55e6a5'],
+    count: 14,
+    size: [8, 18],
+    spread: 130,
+  },
+})
+const { burst, wrong } = feedback
 
 /** 小算在首页常驻：气泡里挂着一句和今天进度有关的话，点它换下一句并读出来。 */
 const { line: coachLine, mood: coachMood, next: coachNext } = useMascotCoach('home')
@@ -122,7 +132,22 @@ const scene = ref(null)
 const sceneRef = ref(null)
 const sceneOrbRef = ref(null)
 const sceneBodyRef = ref(null)
-let sceneTl = null
+const activeAnimations = new Set()
+
+function animate(target, keyframes, options) {
+  if (!target?.animate || prefersReducedMotion()) return null
+  const animation = target.animate(keyframes, options)
+  activeAnimations.add(animation)
+  animation.finished
+    .catch(() => {})
+    .finally(() => activeAnimations.delete(animation))
+  return animation
+}
+
+function clearAnimations() {
+  for (const animation of activeAnimations) animation.cancel()
+  activeAnimations.clear()
+}
 
 function beginScene() {
   const id = progress.pendingPlanetUnlock
@@ -144,55 +169,68 @@ function playScene() {
   // 不动版：剧情条照样完整呈现，只是一次到位，不做位移与缩放
   if (prefersReducedMotion()) return
 
-  sceneTl = gsap.timeline()
-  sceneTl
-    .fromTo(root, { autoAlpha: 0, y: -18 }, { autoAlpha: 1, y: 0, duration: 0.4, ease: 'power2.out' })
-    .fromTo(
-      sceneOrbRef.value,
-      { scale: 0, rotate: -140, filter: 'grayscale(1)' },
-      { scale: 1, rotate: 0, filter: 'grayscale(0)', duration: 0.7, ease: 'back.out(1.8)' },
-      '-=0.15',
+  animate(
+    root,
+    [
+      { opacity: 0, transform: 'translateY(-18px)' },
+      { opacity: 1, transform: 'translateY(0)' },
+    ],
+    { duration: 400, easing: 'ease-out', fill: 'backwards' },
+  )
+  animate(
+    sceneOrbRef.value,
+    [
+      { filter: 'grayscale(1)', transform: 'scale(0) rotate(-140deg)' },
+      { filter: 'grayscale(0)', transform: 'scale(1) rotate(0)' },
+    ],
+    {
+      delay: 250,
+      duration: 700,
+      easing: 'cubic-bezier(.34,1.56,.64,1)',
+      fill: 'backwards',
+    },
+  )
+  ;[...(sceneBodyRef.value?.children ?? [])].forEach((child, index) => {
+    animate(
+      child,
+      [
+        { opacity: 0, transform: 'translateY(12px)' },
+        { opacity: 1, transform: 'translateY(0)' },
+      ],
+      {
+        delay: 600 + index * 90,
+        duration: 340,
+        easing: 'ease-out',
+        fill: 'backwards',
+      },
     )
-    .fromTo(
-      sceneBodyRef.value?.children ?? [],
-      { autoAlpha: 0, y: 12 },
-      { autoAlpha: 1, y: 0, duration: 0.34, stagger: 0.09, ease: 'power2.out' },
-      '-=0.35',
-    )
-    .add(() => burst(sceneOrbRef.value, { count: 18 }), '-=0.2')
+  })
+  window.setTimeout(() => {
+    if (scene.value) burst(sceneOrbRef.value, { count: 18 })
+  }, 760)
 
   // 章节轨上对应的那一格也一起亮起来：新开的是「第几章」要看得见
   const chapterEl = chapterRefs.value.find((el) => el?.dataset?.chapter === scene.value.id)
   if (chapterEl) {
-    sceneTl.fromTo(
+    animate(
       chapterEl,
-      { filter: 'grayscale(1)', scale: 0.9 },
-      {
-        filter: 'grayscale(0)',
-        scale: 1,
-        duration: 0.5,
-        ease: 'back.out(2)',
-        overwrite: 'auto',
-        clearProps: 'filter,transform',
-      },
-      '-=0.5',
+      [
+        { filter: 'grayscale(1)', transform: 'scale(.9)' },
+        { filter: 'grayscale(0)', transform: 'scale(1)' },
+      ],
+      { delay: 650, duration: 500, easing: 'cubic-bezier(.34,1.56,.64,1)' },
     )
   }
 
   // 地图上那颗球同步褪灰，孩子的视线自然从剧情条落回航线
   if (planetEl) {
-    sceneTl.fromTo(
+    animate(
       planetEl,
-      { filter: 'grayscale(1)', scale: 0.82 },
-      {
-        filter: 'grayscale(0)',
-        scale: 1,
-        duration: 0.6,
-        ease: 'back.out(2)',
-        overwrite: 'auto',
-        clearProps: 'filter,transform',
-      },
-      '-=0.6',
+      [
+        { filter: 'grayscale(1)', transform: 'translate(-50%, -50%) scale(.82)' },
+        { filter: 'grayscale(0)', transform: 'translate(-50%, -50%) scale(1)' },
+      ],
+      { delay: 600, duration: 600, easing: 'cubic-bezier(.34,1.56,.64,1)' },
     )
   }
 }
@@ -201,8 +239,7 @@ function playScene() {
 function closeScene(go = false) {
   const mod = scene.value
   if (!mod) return
-  sceneTl?.kill()
-  sceneTl = null
+  clearAnimations()
   sound.click()
   progress.markPlanetSeen(mod.id)
   scene.value = null
@@ -216,21 +253,44 @@ watch(() => progress.pendingPlanetUnlock, beginScene)
 let sceneCue = null
 
 onMounted(() => {
-  enter('.stat-pill', { stagger: 0.05 })
-  gsap.fromTo(
-    planetRefs.value.filter(Boolean),
-    { scale: 0, opacity: 0 },
-    { scale: 1, opacity: 1, duration: 0.55, stagger: 0.09, ease: 'back.out(1.7)' },
+  document.querySelectorAll('.stat-pill').forEach((element, index) => {
+    animate(
+      element,
+      [
+        { opacity: 0, transform: 'translateY(18px)' },
+        { opacity: 1, transform: 'translateY(0)' },
+      ],
+      { delay: index * 50, duration: 420, easing: 'ease-out', fill: 'backwards' },
+    )
+  })
+  planetRefs.value.filter(Boolean).forEach((element, index) => {
+    animate(
+      element,
+      [
+        { opacity: 0, transform: 'translate(-50%, -50%) scale(0)' },
+        { opacity: 1, transform: 'translate(-50%, -50%) scale(1)' },
+      ],
+      {
+        delay: index * 90,
+        duration: 550,
+        easing: 'cubic-bezier(.34,1.56,.64,1)',
+        fill: 'backwards',
+      },
+    )
+  })
+  animate(
+    document.querySelector('.orbit-path'),
+    [{ strokeDashoffset: 400 }, { strokeDashoffset: 0 }],
+    { duration: 2200, easing: 'ease-out' },
   )
-  gsap.fromTo('.orbit-path', { strokeDashoffset: 400 }, { strokeDashoffset: 0, duration: 2.2, ease: 'power2.out' })
-  sceneCue = gsap.delayedCall(1.1, beginScene)
+  sceneCue = window.setTimeout(beginScene, 1100)
 })
 
 onUnmounted(() => {
-  sceneCue?.kill()
-  sceneTl?.kill()
+  if (sceneCue) clearTimeout(sceneCue)
+  clearAnimations()
+  feedback.dispose()
   sceneCue = null
-  sceneTl = null
 })
 </script>
 
@@ -1086,8 +1146,8 @@ onUnmounted(() => {
 }
 
 .mod-card.locked {
-  opacity: 0.62;
   filter: grayscale(0.9);
+  border-style: dashed;
 }
 
 .mod-story {

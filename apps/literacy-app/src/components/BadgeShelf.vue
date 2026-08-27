@@ -9,7 +9,6 @@
  * 孩子才知道往哪儿使劲，家长也能拿它当这周的小目标。
  */
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import gsap from 'gsap'
 import { BADGE_TIERS } from '@/data/badges.js'
 import { useProgressStore } from '@/stores/progress.js'
 import { useSettingsStore } from '@/stores/settings.js'
@@ -49,18 +48,20 @@ function pop(selector) {
   if (settings.reduceMotion) return
   const nodes = gridRef.value?.querySelectorAll(selector)
   if (!nodes?.length) return
-  gsap.fromTo(
-    nodes,
-    { scale: 0.7, autoAlpha: 0 },
-    {
-      scale: 1,
-      autoAlpha: 1,
-      duration: 0.5,
-      stagger: 0.06,
-      ease: 'back.out(2)',
-      clearProps: 'opacity,visibility,transform'
-    }
-  )
+  nodes.forEach((node, index) => {
+    node.animate?.(
+      [
+        { opacity: 0, transform: 'scale(0.7)' },
+        { opacity: 1, transform: 'scale(1)' }
+      ],
+      {
+        delay: index * 60,
+        duration: 500,
+        easing: 'cubic-bezier(.34,1.56,.64,1)',
+        fill: 'backwards'
+      }
+    )
+  })
 }
 
 onMounted(() => pop('.badge'))

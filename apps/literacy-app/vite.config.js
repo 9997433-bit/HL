@@ -1,41 +1,8 @@
 import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
+import { inlineEntryCss } from '../../scripts/vite-critical-css-plugin.mjs'
 import { offlinePrecache } from '../../scripts/vite-offline-plugin.mjs'
-
-/**
- * The app shell stylesheet is required before Vue can paint anything useful.
- * Vite normally emits it as a blocking <link>; putting that small critical
- * asset directly in index.html removes a network round-trip while route CSS
- * remains split and lazy.
- */
-function inlineEntryCss() {
-  return {
-    name: 'inline-entry-css',
-    apply: 'build',
-    enforce: 'post',
-    generateBundle(_options, bundle) {
-      for (const output of Object.values(bundle)) {
-        if (output.type !== 'asset' || !output.fileName.endsWith('.html')) continue
-
-        let html = String(output.source)
-        html = html.replace(
-          /<link rel="stylesheet" crossorigin href="([^"]+\.css)">/g,
-          (link, href) => {
-            const fileName = href.replace(/^\.?\//, '')
-            const stylesheet = bundle[fileName]
-            if (stylesheet?.type !== 'asset') return link
-
-            const css = String(stylesheet.source).replace(/<\/style/gi, '<\\/style')
-            delete bundle[fileName]
-            return `<style data-critical>${css}</style>`
-          }
-        )
-        output.source = html
-      }
-    }
-  }
-}
 
 export default defineConfig({
   base: './',

@@ -1,11 +1,12 @@
 import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
+import { inlineEntryCss } from '../../scripts/vite-critical-css-plugin.mjs'
 import { offlinePrecache } from '../../scripts/vite-offline-plugin.mjs'
 
 export default defineConfig({
   base: './',
-  plugins: [vue(), offlinePrecache()],
+  plugins: [vue(), inlineEntryCss(), offlinePrecache()],
   resolve: {
     alias: {
       '@shared': fileURLToPath(new URL('../../shared', import.meta.url)),

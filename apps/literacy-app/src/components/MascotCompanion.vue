@@ -5,11 +5,10 @@
  * 用内联 SVG 而不是 emoji/图片：可以跟着主题变色、可以逐部件做动画，
  * 而且不增加任何素材体积。
  *
- * mood 控制表情，GSAP 负责三层动作：
+ * mood 控制表情，浏览器原生 Web Animations 负责三层动作：
  *   1) 常驻呼吸浮动；2) 随机眨眼；3) mood 切换时的一次性反应动作。
  */
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { gsap } from 'gsap'
 import { sfx, speak } from '@/utils/audio.js'
 
 const props = defineProps({
@@ -35,6 +34,23 @@ const bubble = ref(null)
 
 let idleTween = null
 let blinkTimer = null
+const activeAnimations = new Set()
+
+function animate(target, keyframes, options) {
+  const animation = target?.animate?.(keyframes, options)
+  if (!animation) return null
+  activeAnimations.add(animation)
+  animation.finished
+    .catch(() => {})
+    .finally(() => activeAnimations.delete(animation))
+  return animation
+}
+
+function stopAnimations(target) {
+  for (const animation of activeAnimations) {
+    if (animation.effect?.target === target) animation.cancel()
+  }
+}
 
 /** 各心情下的嘴形路径与眼睛缩放。 */
 const FACES = {
@@ -60,10 +76,17 @@ const buttonLabel = computed(() => {
 function blink() {
   const targets = [eyeL.value, eyeR.value].filter(Boolean)
   if (targets.length && props.mood !== 'sleep') {
-    gsap
-      .timeline()
-      .to(targets, { scaleY: 0.08, duration: 0.07, transformOrigin: 'center' })
-      .to(targets, { scaleY: face.value.eyeScale, duration: 0.1 })
+    for (const target of targets) {
+      animate(
+        target,
+        [
+          { transform: `scaleY(${face.value.eyeScale})` },
+          { transform: 'scaleY(0.08)', offset: 0.42 },
+          { transform: `scaleY(${face.value.eyeScale})` }
+        ],
+        { duration: 170, easing: 'ease-in-out' }
+      )
+    }
   }
   blinkTimer = window.setTimeout(blink, 2200 + Math.random() * 3200)
 }
@@ -71,38 +94,59 @@ function blink() {
 /** mood 变化时来一个短反应，让学伴显得在「回应」孩子。 */
 function react(mood) {
   if (!body.value) return
-  gsap.killTweensOf(body.value)
-  const tl = gsap.timeline()
+  stopAnimations(body.value)
 
   if (mood === 'happy' || mood === 'cheer') {
-    tl.to(body.value, { y: -14, scaleX: 0.94, scaleY: 1.08, duration: 0.18, ease: 'power2.out' })
-      .to(body.value, { y: 0, scaleX: 1.06, scaleY: 0.94, duration: 0.16, ease: 'power2.in' })
-      .to(body.value, { scaleX: 1, scaleY: 1, duration: 0.3, ease: 'elastic.out(1, 0.4)' })
-    if (mood === 'cheer') {
-      tl.to(body.value, { rotate: -8, duration: 0.12 }, 0)
-        .to(body.value, { rotate: 8, duration: 0.16 }, 0.12)
-        .to(body.value, { rotate: 0, duration: 0.2 }, 0.28)
-    }
+    const rotate = mood === 'cheer'
+    animate(
+      body.value,
+      [
+        { transform: 'translateY(0) scale(1) rotate(0)' },
+        {
+          transform: `translateY(-14px) scale(.94, 1.08) rotate(${rotate ? '-8deg' : '0'})`,
+          offset: 0.28
+        },
+        {
+          transform: `translateY(0) scale(1.06, .94) rotate(${rotate ? '8deg' : '0'})`,
+          offset: 0.53
+        },
+        { transform: 'translateY(0) scale(1) rotate(0)' }
+      ],
+      { duration: 640, easing: 'cubic-bezier(.34,1.56,.64,1)' }
+    )
   } else if (mood === 'sad') {
-    tl.to(body.value, { y: 6, scaleY: 0.93, duration: 0.22, ease: 'power2.out' }).to(body.value, {
-      y: 0,
-      scaleY: 1,
-      duration: 0.45,
-      ease: 'power2.out'
-    })
+    animate(
+      body.value,
+      [
+        { transform: 'translateY(0) scaleY(1)' },
+        { transform: 'translateY(6px) scaleY(.93)', offset: 0.33 },
+        { transform: 'translateY(0) scaleY(1)' }
+      ],
+      { duration: 670, easing: 'ease-out' }
+    )
   } else if (mood === 'think') {
-    tl.to(body.value, { rotate: -6, duration: 0.3, ease: 'sine.inOut' })
-      .to(body.value, { rotate: 4, duration: 0.4, ease: 'sine.inOut' })
-      .to(body.value, { rotate: 0, duration: 0.3, ease: 'sine.inOut' })
+    animate(
+      body.value,
+      [
+        { transform: 'rotate(0)' },
+        { transform: 'rotate(-6deg)', offset: 0.3 },
+        { transform: 'rotate(4deg)', offset: 0.7 },
+        { transform: 'rotate(0)' }
+      ],
+      { duration: 1000, easing: 'ease-in-out' }
+    )
   }
 }
 
 function popBubble() {
   if (!bubble.value) return
-  gsap.fromTo(
+  animate(
     bubble.value,
-    { scale: 0.7, opacity: 0, y: 8 },
-    { scale: 1, opacity: 1, y: 0, duration: 0.4, ease: 'back.out(2)' }
+    [
+      { opacity: 0, transform: 'translateY(8px) scale(.7)' },
+      { opacity: 1, transform: 'translateY(0) scale(1)' }
+    ],
+    { duration: 400, easing: 'cubic-bezier(.34,1.56,.64,1)' }
   )
 }
 
@@ -117,25 +161,36 @@ function onTap() {
 
 onMounted(() => {
   if (body.value) {
-    idleTween = gsap.to(body.value, {
-      y: -6,
-      duration: 1.8,
-      ease: 'sine.inOut',
-      repeat: -1,
-      yoyo: true
-    })
+    idleTween = animate(
+      body.value,
+      [{ transform: 'translateY(0)' }, { transform: 'translateY(-6px)' }],
+      {
+        duration: 1800,
+        easing: 'ease-in-out',
+        iterations: Infinity,
+        direction: 'alternate'
+      }
+    )
   }
   if (root.value) {
-    gsap.from(root.value, { scale: 0.6, opacity: 0, duration: 0.6, ease: 'back.out(1.7)' })
+    animate(
+      root.value,
+      [
+        { opacity: 0, transform: 'scale(.6)' },
+        { opacity: 1, transform: 'scale(1)' }
+      ],
+      { duration: 600, easing: 'cubic-bezier(.34,1.56,.64,1)' }
+    )
   }
   blink()
   if (props.say) popBubble()
 })
 
 onBeforeUnmount(() => {
-  idleTween?.kill()
+  idleTween?.cancel()
   if (blinkTimer) clearTimeout(blinkTimer)
-  gsap.killTweensOf([body.value, eyeL.value, eyeR.value, bubble.value].filter(Boolean))
+  for (const animation of activeAnimations) animation.cancel()
+  activeAnimations.clear()
 })
 
 watch(() => props.mood, react)
