@@ -322,7 +322,7 @@ class TakeRegistry:
             ],
         }
         self.metadata_path.parent.mkdir(parents=True, exist_ok=True)
-        pending = tempfile.NamedTemporaryFile(
+        pending = tempfile.NamedTemporaryFile(  # noqa: SIM115 - closed after fsync/rename
             mode="w",
             encoding="utf-8",
             prefix=f".{self.metadata_path.name}.",

@@ -152,7 +152,7 @@ class _PulseMonitor:
         self._previous_source_env = os.environ.get("PULSE_SOURCE")
         self.server_started_by_harness = False
 
-    def __enter__(self) -> _PulseMonitor:
+    def __enter__(self) -> _PulseMonitor:  # noqa: PYI034 - Python 3.10 has no typing.Self
         if _command(["pactl", "info"], check=False).returncode != 0:
             _command(["pulseaudio", "--start", "--exit-idle-time=-1"])
             self.server_started_by_harness = True
