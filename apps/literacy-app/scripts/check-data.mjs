@@ -16,6 +16,7 @@ import {
   loadAllCharacters
 } from '../src/data/characters.js'
 import { BOOKS, charsInBook, verifyBookCoverage } from '../src/data/books.js'
+import { BOOK_IDS, TOTAL_BOOKS } from '../src/data/book-index.js'
 import { IDIOMS } from '../src/data/idioms.js'
 import { TOTAL_IDIOMS } from '../src/data/idiom-index.js'
 import { RADICALS, getRadical } from '../src/data/radicals.js'
@@ -112,19 +113,32 @@ check(
 )
 
 /* ----------------------------------------------------------------- 绘本 */
-check(BOOKS.length >= 30, `绘本 ${BOOKS.length} 本（要求 ≥ 30）`)
+check(BOOKS.length >= 130, `绘本 ${BOOKS.length} 本（要求 ≥ 130）`)
 
 const bookDupes = BOOKS.map((b) => b.id).filter((v, i, a) => a.indexOf(v) !== i)
 check(bookDupes.length === 0, `绘本 id 无重复${bookDupes.length ? `（${bookDupes.join(',')}）` : ''}`)
 
-const levels = [...new Set(BOOKS.map((b) => b.level))].sort((a, b) => a - b)
-check(levels.length >= 3, `绘本覆盖 ${levels.length} 个分级（要求 ≥ 3）：L${levels.join(' / L')}`)
+// 书架上一眼扫过去全是同名的书，孩子分不清读过哪本。
+const bookTitleDupes = BOOKS.map((b) => b.title).filter((v, i, a) => a.indexOf(v) !== i)
+check(
+  bookTitleDupes.length === 0,
+  `绘本书名无重复${bookTitleDupes.length ? `（${bookTitleDupes.join('、')}）` : ''}`
+)
 
-// 分级只有在每一级都读得到书的时候才有意义，空档会让书架上出现断层。
-const thinLevels = levels.filter((l) => BOOKS.filter((b) => b.level === l).length < 3)
+const levels = [...new Set(BOOKS.map((b) => b.level))].sort((a, b) => a - b)
+check(levels.length >= 6, `绘本覆盖 ${levels.length} 个分级（要求 ≥ 6）：L${levels.join(' / L')}`)
+
+// 分级只有在每一级都读得饱的时候才有意义，空档会让书架上出现断层。
+const thinLevels = levels.filter((l) => BOOKS.filter((b) => b.level === l).length < 12)
 check(
   thinLevels.length === 0,
-  `每个分级至少 3 本书${thinLevels.length ? `（偏少：L${thinLevels.join('、L')}）` : ''}`
+  `每个分级至少 12 本书${thinLevels.length ? `（偏少：L${thinLevels.join('、L')}）` : ''}`
+)
+
+// 轻量索引是首页和 progress store 的唯一数据源，跟正文对不上就会显示错的分母。
+check(
+  TOTAL_BOOKS === BOOKS.length && BOOK_IDS.join(',') === BOOKS.map((b) => b.id).join(','),
+  `绘本轻量索引与书目一致（book-index=${TOTAL_BOOKS}，书目=${BOOKS.length}）`
 )
 
 const coverage = verifyBookCoverage()

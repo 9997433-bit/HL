@@ -17,7 +17,7 @@ import {
   UNITS
 } from '@/data/characters.js'
 import { BADGES, TOTAL_BADGES } from '@/data/badges.js'
-import { BOOKS } from '@/data/books.js'
+import { BOOK_IDS } from '@/data/book-index.js'
 import { RADICALS } from '@/data/radicals.js'
 import { setSoundEnabled, setSpeechEnabled } from '@/utils/audio.js'
 import { RATING, createCard, dueCards, retention, schedule } from '@/utils/srs.js'
@@ -278,7 +278,11 @@ export const useProgressStore = defineStore('progress', () => {
     if (!state.seenUnits.includes(unitId)) state.seenUnits.push(unitId)
   }
 
-  const booksFinished = computed(() => BOOKS.filter((b) => state.books[b.id]?.finishedAt).length)
+  /**
+   * 数「读完几本」只要 id，不要正文。绘本一百多本以后，从 books.js import
+   * 会把每一页的句子和拼音都拽进首屏，所以这里走轻量索引。
+   */
+  const booksFinished = computed(() => BOOK_IDS.filter((id) => state.books[id]?.finishedAt).length)
   /**
    * 「学过几条成语」直接数存档，不去比对 IDIOMS。
    *
