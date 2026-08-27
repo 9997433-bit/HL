@@ -1,6 +1,6 @@
 {
   "dispatch": "QTest.keySequence delivered to the main window, run by QAction shortcuts",
-  "generated_at": "2026-08-27T01:42:14.694629+00:00",
+  "generated_at": "2026-08-27T01:21:19.506799+00:00",
   "generated_by": "audio-studio/tests/test_keyboard_workflow.py",
   "item": "D3",
   "keystrokes": [
