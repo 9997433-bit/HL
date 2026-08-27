@@ -94,6 +94,30 @@ DICField correlate(const Image& ref, const Image& def, const ROI& roi,
       poi.y = ylo + r * opt.step;
     }
 
+  // Path-independent mode: each point is solved from its own integer-pixel
+  // guess, so the grid is embarrassingly parallel.
+  if (opt.pathIndependent) {
+    const int nPts = static_cast<int>(field.points.size());
+#ifdef _OPENMP
+#pragma omp parallel for schedule(dynamic, 16)
+#endif
+    for (int i = 0; i < nPts; ++i) {
+      POI& poi = field.points[i];
+      int du, dv;
+      double z;
+      integerGuess(ref, def, poi.x, poi.y, R, opt.searchRadius, du, dv, z);
+      Params init;
+      init.u = du;
+      init.v = dv;
+      const ICGNResult res = icgnMatch(ref, def, poi.x, poi.y, init, opt.icgn);
+      poi.params = res.params;
+      poi.zncc = res.zncc;
+      poi.iterations = res.iterations;
+      poi.valid = res.converged && res.zncc >= opt.znccThreshold;
+    }
+    return field;
+  }
+
   std::vector<char> visited(field.points.size(), 0);
   std::priority_queue<QueueItem> pq;
 

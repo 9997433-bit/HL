@@ -11,19 +11,25 @@ endif()
 
 add_compile_options(-O3 -Wall -Wextra)
 
+find_package(OpenMP QUIET)
+
 add_library(dic
   src/image.cpp
   src/interpolation.cpp
   src/icgn.cpp
   src/correlation.cpp
+  src/strain.cpp
   src/synthetic.cpp)
 target_include_directories(dic PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+if(OpenMP_CXX_FOUND)
+  target_link_libraries(dic PUBLIC OpenMP::OpenMP_CXX)
+endif()
 
 add_executable(dic_demo apps/dic_demo.cpp)
 target_link_libraries(dic_demo PRIVATE dic)
 
 enable_testing()
-foreach(t test_linalg test_interpolation test_icgn test_correlation)
+foreach(t test_linalg test_interpolation test_icgn test_correlation test_strain test_bias test_parallel)
   add_executable(${t} tests/${t}.cpp)
   target_link_libraries(${t} PRIVATE dic)
   target_include_directories(${t} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)

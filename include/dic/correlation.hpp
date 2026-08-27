@@ -17,6 +17,11 @@ struct DICOptions {
   int step = 5;                // grid spacing in pixels
   int searchRadius = 8;        // integer initial-guess search range (pixels)
   double znccThreshold = 0.8;  // minimum ZNCC to accept a point
+  // When true, every point is solved independently from its own integer-pixel
+  // ZNCC search, enabling OpenMP parallelism (path-independent DIC). When
+  // false, a single seed is refined and its solution is propagated across
+  // neighbors in ZNCC-priority order (reliability-guided DIC).
+  bool pathIndependent = false;
 };
 
 struct POI {

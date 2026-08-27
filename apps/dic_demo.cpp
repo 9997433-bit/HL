@@ -1,3 +1,4 @@
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <string>
@@ -5,6 +6,7 @@
 
 #include "dic/correlation.hpp"
 #include "dic/image.hpp"
+#include "dic/strain.hpp"
 #include "dic/synthetic.hpp"
 
 using namespace dic;
@@ -77,16 +79,25 @@ int main(int argc, char** argv) {
   opt.step = 8;
   opt.searchRadius = 6;
   opt.znccThreshold = 0.9;
+  opt.pathIndependent = true;  // OpenMP-parallel, path-independent
 
   ROI roi{0, 0, W - 1, H - 1};
+  const auto t0 = std::chrono::steady_clock::now();
   DICField f = correlate(ref, def, roi, opt);
+  const auto t1 = std::chrono::steady_clock::now();
+  const double corrMs = std::chrono::duration<double, std::milli>(t1 - t0).count();
+  StrainField strain = computeStrain(f, 2);
 
   // Accuracy against the analytic ground-truth field.
   int valid = 0, total = 0, iters = 0;
   double sU = 0, sV = 0, maxErr = 0, sZ = 0;
   double sExx = 0, sEyy = 0, sExy = 0;
   std::vector<double> uField(f.points.size()), vField(f.points.size());
+  std::vector<double> exxField(f.points.size());
   std::vector<char> mask(f.points.size(), 0);
+  std::vector<char> strainMask(f.points.size(), 0);
+  double sExxG = 0.0;
+  int nStrain = 0;
   for (size_t i = 0; i < f.points.size(); ++i) {
     const POI& p = f.points[i];
     ++total;
@@ -106,6 +117,12 @@ int main(int argc, char** argv) {
     uField[i] = p.params.u;
     vField[i] = p.params.v;
     mask[i] = 1;
+    if (strain.points[i].valid) {
+      exxField[i] = strain.points[i].Exx;
+      strainMask[i] = 1;
+      sExxG += strain.points[i].Exx;
+      ++nStrain;
+    }
   }
 
   const double rmsU = std::sqrt(sU / valid), rmsV = std::sqrt(sV / valid);
@@ -115,23 +132,29 @@ int main(int argc, char** argv) {
   std::printf("grid points      : %d valid / %d total (%.1f%%)\n", valid, total,
               100.0 * valid / total);
   std::printf("subset radius    : %d px   step: %d px\n", opt.icgn.subsetRadius, opt.step);
+  std::printf("correlation time : %.1f ms (path-independent, OpenMP)\n", corrMs);
   std::printf("mean iterations  : %.1f\n", static_cast<double>(iters) / valid);
   std::printf("mean ZNCC        : %.6f\n", sZ / valid);
   std::printf("--- displacement accuracy vs ground truth ---\n");
   std::printf("RMS error  u     : %.4f px\n", rmsU);
   std::printf("RMS error  v     : %.4f px\n", rmsV);
   std::printf("max  error |d|   : %.4f px\n", maxErr);
-  std::printf("--- mean strain (measured vs prescribed) ---\n");
-  std::printf("exx  : %+.5f  (%.5f)\n", sExx / valid, field.A[0][0]);
-  std::printf("eyy  : %+.5f  (%.5f)\n", sEyy / valid, field.A[1][1]);
-  std::printf("exy  : %+.5f  (%.5f)\n", sExy / valid,
+  const double a00 = field.A[0][0], a01 = field.A[0][1], a10 = field.A[1][0];
+  const double gExx = a00 + 0.5 * (a00 * a00 + a10 * a10);
+  std::printf("--- mean strain: raw gradient vs PLS Green-Lagrange vs truth ---\n");
+  std::printf("exx (raw)        : %+.5f\n", sExx / valid);
+  std::printf("Exx (PLS window) : %+.5f   truth(GL): %+.5f\n", sExxG / nStrain, gExx);
+  std::printf("eyy (raw)        : %+.5f  (%.5f)\n", sEyy / valid, field.A[1][1]);
+  std::printf("exy (raw)        : %+.5f  (%.5f)\n", sExy / valid,
               0.5 * (field.A[0][1] + field.A[1][0]));
 
   writePGM(outDir + "/reference.pgm", ref, 0, 255);
   writePGM(outDir + "/deformed.pgm", def, 0, 255);
   writeHeatmapPPM(outDir + "/u_field.ppm", uField, mask, f.cols, f.rows, 0.0, 1.5, 6);
   writeHeatmapPPM(outDir + "/v_field.ppm", vField, mask, f.cols, f.rows, -1.5, 1.0, 6);
-  std::printf("wrote reference.pgm, deformed.pgm, u_field.ppm, v_field.ppm to %s\n",
+  writeHeatmapPPM(outDir + "/exx_field.ppm", exxField, strainMask, f.cols, f.rows,
+                  0.004, 0.016, 6);
+  std::printf("wrote reference.pgm, deformed.pgm, u_field.ppm, v_field.ppm, exx_field.ppm to %s\n",
               outDir.c_str());
   return 0;
 }
