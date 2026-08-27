@@ -576,7 +576,7 @@ def run_benchmark(args: argparse.Namespace, scratch: Path) -> dict[str, Any]:
             "python": platform.python_version(),
             "platform": platform.platform(),
             "processor": platform.processor() or "unknown",
-            "qt_platform": os.environ.get("QT_QPA_PLATFORM", "default"),
+            "qt_platform": application.platformName(),
             "clock": "time.perf_counter",
         },
         "fixture": fixture,
