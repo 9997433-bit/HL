@@ -5,6 +5,31 @@ structure. Versions 0.2.0 and 0.3.0 were internal development milestones
 merged to the release branch without their own tags; they are recorded here so
 the v1.0.0-beta diff against v0.1.0-alpha is fully accounted for.
 
+## [Unreleased]
+
+### Added
+
+- **UI frame-time probe** (`benchmarks/ui_frame_time_probe.py`) and
+  `ui-frame-time-report.json`: frame times for three scenarios at a 1× and a 2×
+  device pixel ratio, plus the HiDPI backing-store and dark-default checks.
+  SOTA checklist **D1 is now a hard pass** (worst p99 6.2 ms against 16 ms).
+
+### Changed
+
+- **UI refresh timer raised from 30 Hz to 60 Hz** (`UI_REFRESH_MS` 33 → 16).
+- **Effects rack scrolls**, so the window's minimum size hint drops from
+  1035×1835 to 1035×913 and the application fits a 1080p display again.
+
+### Fixed
+
+- **Follow-playback re-rendered the waveform on every tick.** `ensure_visible`
+  landed the playhead on the edge whose trigger it had just fired, so the page
+  flip degenerated into a per-frame scroll and every scroll threw away the
+  waveform pixmap. Mean frame time at a zoomed-in follow: 17.8 ms → 2.4 ms.
+- **The waveform peak band was rasterised under the RMS band**, drawing every
+  RMS pixel twice. The peak colour is now the two segments the RMS band leaves
+  bare, for a pixel-identical image.
+
 ## [1.0.0-rc] - 2026-08-27
 
 Release candidate after Round D (six parallel agent tracks). Version bump only;
