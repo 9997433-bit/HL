@@ -134,8 +134,8 @@ from .track_panel import TrackPanel
 from .transport_bar import TransportBar
 
 #: UI refresh period for the playhead and the meters: 16 ms, one 60 Hz frame.
-#: What makes 60 Hz affordable is that a tick repaints the playhead over a
-#: cached waveform pixmap rather than re-rendering the waveform itself;
+#: What makes 60 Hz affordable is that an ordinary tick repaints the playhead
+#: over a cached waveform pixmap rather than re-rendering the waveform itself.
 #: ``benchmarks/ui_frame_time_probe.py`` measures the tick against this budget.
 UI_REFRESH_MS: int = 16
 

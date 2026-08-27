@@ -313,7 +313,7 @@ class WaveformView(QWidget):
         """Move the playhead to ``frame``, which may be fractional.
 
         A fraction of a frame is far below a pixel at any useful zoom, but it
-        is what lets a 30 Hz repaint interpolate between device blocks instead
+        is what lets a 60 Hz repaint interpolate between device blocks instead
         of stepping between them.
         """
         frame = float(max(0.0, min(float(frame), float(self._n_frames))))

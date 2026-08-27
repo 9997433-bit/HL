@@ -6,7 +6,7 @@ timescale and the device's:
 * a fader move is spread over a few milliseconds instead of landing as a step,
   because a step in the waveform is a click;
 * the playhead the UI draws is interpolated between device callbacks, so a
-  30 Hz repaint does not show a 20 ms staircase;
+  60 Hz repaint does not show a 20 ms staircase;
 * the effect rack runs on the feeder thread, ahead of the ring buffer, so a
   chain that runs long costs latency rather than a dropout.
 
