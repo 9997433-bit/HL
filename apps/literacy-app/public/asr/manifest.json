@@ -1,0 +1,25 @@
+{
+  "schema": "literacy-asr-pack/1",
+  "engine": "sherpa-onnx",
+  "runtime": "wasm-worker",
+  "available": false,
+  "modelId": "sherpa-onnx-streaming-zipformer-zh",
+  "modelVersion": "unfrozen",
+  "license": "",
+  "files": [],
+  "note": "R10 spike：接线已完成，模型未随版本分发。available=false 时 utils/offlineAsr.js 直接判这一档不可用，跟读留在录音档。",
+  "candidate": {
+    "family": "sherpa-onnx 中文流式 Zipformer（zh-14M 档）",
+    "upstream": "https://k2-fsa.github.io/sherpa/onnx/wasm/index.html",
+    "androidReference": "https://k2-fsa.github.io/sherpa/onnx/android/apk-cn.html",
+    "runtimeLicense": "Apache-2.0（框架）",
+    "modelLicense": "逐模型另查，未核对前不得写进 THIRD_PARTY_NOTICES.md"
+  },
+  "freezeChecklist": [
+    "冻结模型下载 URL、SHA-256、tokens 与量化档，并自托管到 public/asr/models/",
+    "把每个文件写进 files[]：path / role（wasm-glue|wasm-binary|model|tokens）/ bytes / sha256",
+    "整包压缩下载 ≤ 60 MiB，且不得进入首屏 precache",
+    "补 THIRD_PARTY_NOTICES.md 与 SBOM，模型换版视为评分规则变更",
+    "跑完儿童冻结集与低端 Android 真机基准，达标后才把 available 置为 true"
+  ]
+}

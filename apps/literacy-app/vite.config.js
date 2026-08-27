@@ -13,8 +13,14 @@ export default defineConfig({
      * 拍照识字的 wasm 内核 + 语言包近 6 MB。放进预缓存等于每个访客一进门就下载
      * 一个多半用不上的大件，所以这三个文件留给 sw.js 里的按需缓存：
      * 第一次真的去认字才下载，下载完照样离线可用。
+     *
+     * 跟读的离线评测包（asr/models/）同理，而且更严：它由家长点「下载」才取，
+     * 逐文件校验 sha256 后存进 utils/offlineAsr.js 自己的版本化缓存，
+     * 混进 precache 会让每个访客都替一个可选功能买单。
      */
-    offlinePrecache({ exclude: [/^ocr\/(?:worker\.min|tesseract-core|chi_sim)/] })
+    offlinePrecache({
+      exclude: [/^ocr\/(?:worker\.min|tesseract-core|chi_sim)/, /^asr\/models\//]
+    })
   ],
   resolve: {
     alias: {

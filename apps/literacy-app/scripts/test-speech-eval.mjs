@@ -1,5 +1,15 @@
 import assert from 'node:assert/strict'
 import {
+  OFFLINE_ASR,
+  chooseTier,
+  floatToPcm16,
+  modeOfTier,
+  packCacheName,
+  parseManifest,
+  resampleTo16k,
+  sourceOfTier
+} from '../src/utils/offlineAsr.js'
+import {
   GRADES,
   LOUDNESS_SCORE_CAP,
   alignChars,
@@ -154,6 +164,75 @@ test('离线学伴按档位和漏字给出短回复', () => {
     }),
     /回放/
   )
+})
+
+/* ------------------------------------------- v3 离线 ASR 接线层（ROUND10_H1） */
+
+const goodManifest = () => ({
+  schema: OFFLINE_ASR.schema,
+  engine: 'sherpa-onnx',
+  available: true,
+  modelId: 'streaming-zipformer-zh',
+  modelVersion: '2026-01-01',
+  license: 'Apache-2.0',
+  files: [
+    { path: 'models/glue.js', role: 'wasm-glue', bytes: 1024, sha256: 'a'.repeat(64) },
+    { path: 'models/engine.wasm', role: 'wasm-binary', bytes: 2048, sha256: 'b'.repeat(64) }
+  ]
+})
+
+test('离线评测包清单必须冻结哈希、许可证和可用标记，否则整包不装', () => {
+  const ok = parseManifest(goodManifest())
+  assert.equal(ok.bytes, 3072)
+  assert.equal(packCacheName(ok), `${OFFLINE_ASR.cachePrefix}streaming-zipformer-zh-2026-01-01`)
+
+  const reject = (mutate, hint) => {
+    const draft = goodManifest()
+    mutate(draft)
+    assert.throws(() => parseManifest(draft), new RegExp(hint), `${hint} 应当被拒绝`)
+  }
+  reject((m) => (m.available = false), '还没有冻结')
+  reject((m) => (m.license = ''), '许可证')
+  reject((m) => (m.files[0].sha256 = 'not-a-hash'), 'sha256')
+  reject((m) => (m.files[0].path = 'https://cdn.example.com/glue.js'), '相对路径')
+  reject((m) => (m.files[0].path = '../../secret.js'), '相对路径')
+  reject((m) => (m.files = m.files.slice(1)), '胶水脚本')
+  reject((m) => (m.files[1].bytes = OFFLINE_ASR.maxPackBytes), '60 MiB')
+})
+
+test('四档降级：离线优先，引擎失败只降到录音档，绝不改用可能联网的浏览器识别', () => {
+  const base = { canRecognize: true, allowRecognition: true, canRecord: true }
+  assert.equal(chooseTier({ ...base, offlineReady: true }), 'offline-asr')
+  assert.equal(chooseTier({ ...base, offlineReady: false }), 'recognition')
+  assert.equal(chooseTier({ ...base, allowRecognition: false }), 'recording')
+  assert.equal(chooseTier({ ...base, offlineReady: true, offlineFault: true }), 'recording')
+  assert.equal(
+    chooseTier({ ...base, offlineReady: true, offlineFault: true, micDenied: true }),
+    'listen-only'
+  )
+  assert.equal(chooseTier({ canRecord: false }), 'listen-only')
+})
+
+test('四档映射回三档 mode，并各自记下这一分是谁给的', () => {
+  assert.equal(modeOfTier('offline-asr'), 'recognition')
+  for (const tier of ['recognition', 'recording', 'listen-only']) {
+    assert.equal(modeOfTier(tier), tier, `${tier} 的对外 mode 不该被改写`)
+  }
+  assert.equal(sourceOfTier('offline-asr'), 'offline-sherpa')
+  assert.equal(sourceOfTier('recognition'), 'web-speech')
+  assert.equal(sourceOfTier('recording'), 'loudness')
+  assert.equal(sourceOfTier('listen-only'), 'self')
+})
+
+test('采音管线：重采样到 16k 且 Int16 不溢出', () => {
+  const input = Float32Array.from({ length: 480 }, (_, i) => Math.sin(i / 8))
+  const out = resampleTo16k(input, 48000)
+  assert.equal(out.length, 160)
+  assert.equal(resampleTo16k(input, 16000).length, 480)
+  assert.ok(Math.abs(out[0] - input[0]) < 1e-6, '首采样点应当对齐')
+
+  const pcm = floatToPcm16(Float32Array.from([0, 1, -1, 2, -2, 0.5]))
+  assert.deepEqual([...pcm], [0, 32767, -32768, 32767, -32768, 16384])
 })
 
 let passed = 0
