@@ -3,33 +3,49 @@ Model slug: gpt-5.6-sol-xhigh-fast
 
 > 本清单记录人工真机终验步骤，不代表尚未执行的项目已经通过。每个设备、每个 App
 > 必须逐项勾选并附证据；模拟器不能替代真机签核。
+>
+> Round 10 把 Cursor Cloud VM 可执行项与必须上真机的 owner 项分开记录；VM 结果不能
+> 冒充真机签核。自动化证据归档于 `evidence/r10/`，真机证据由 Android QA 补入
+> `evidence/r10/android/`。
 
 ## 1. 测试记录
 
 | 字段 | 低档机 / 旧系统 | 中高档机 / 新系统 |
 |---|---|---|
-| 测试日期、测试人 | `[待填]` | `[待填]` |
-| 品牌、型号 | `[待填]` | `[待填]` |
-| SoC / RAM / 可用存储 | `[待填]` | `[待填]` |
-| Android 版本 / API | `[待填，建议 Android 8–10]` | `[待填，建议 Android 13+]` |
-| Android System WebView 版本 | `[待填]` | `[待填]` |
-| 屏幕尺寸、分辨率、DPI | `[待填]` | `[待填]` |
-| App commit / APK SHA-256 | `[待填]` | `[待填]` |
-| 识字 / 数学版本号 | `[待填]` | `[待填]` |
+| 测试日期、测试人 | 未执行；Owner: Android QA（真机到位后记录） | 未执行；Owner: Android QA（真机到位后记录） |
+| 品牌、型号 | Owner: Android QA；要求一台仍受支持的低档旧机 | Owner: Android QA；要求一台 Android 13+ 中高档机 |
+| SoC / RAM / 可用存储 | Owner: Android QA；从系统页与 `adb shell` 双重记录 | Owner: Android QA；从系统页与 `adb shell` 双重记录 |
+| Android 版本 / API | Owner: Android QA；目标 Android 8–10 | Owner: Android QA；目标 Android 13+ |
+| Android System WebView 版本 | Owner: Android QA；从应用详情页记录完整版本 | Owner: Android QA；从应用详情页记录完整版本 |
+| 屏幕尺寸、分辨率、DPI | Owner: Android QA；记录物理尺寸与 `wm size/density` | Owner: Android QA；记录物理尺寸与 `wm size/density` |
+| App commit / APK SHA-256 | 测量基线为本分支 HEAD；APK 由 Android Build 出包后冻结 SHA-256 | 测量基线为本分支 HEAD；使用同一组冻结 APK |
+| 识字 / 数学版本号 | 当前 package 版本均为 `0.1.0`；Owner: Release 冻结 Android versionName/code | 当前 package 版本均为 `0.1.0`；Owner: Release 冻结 Android versionName/code |
+
+### 1.1 Cursor Cloud VM 能力与实测边界
+
+VM：Linux x86_64、4 vCPU、15 GiB RAM；Node `v22.14.0`、npm `10.9.7`、
+Google Chrome `148.0.7778.96`、OpenJDK `21.0.10`。仓库内双 App Gradle wrapper
+存在，但 VM 无 `adb`、系统 Gradle、`ANDROID_HOME` / `ANDROID_SDK_ROOT`，也未连接
+Android 设备。因此 Web 构建、Capacitor 同步、静态 Android 门禁与 desktop Lighthouse
+可在 VM 实测；APK 编译、安装、WebView、权限、触控、音频、温升和内存只能由真机 owner
+签核。
 
 ## 2. 出包与安装前置
 
-- [ ] 在待验 commit 执行 `npm ci && npm run build:all`。
-- [ ] 执行 `npm run sync:android && npm run check:android`，结果全绿。
-- [ ] 分别在 `apps/literacy-app/android`、`apps/math-app/android` 执行
+- [ ] VM / Owner: Performance：在待验 commit 执行 `npm ci && npm run build:all` 并归档结果。
+- [ ] VM / Owner: Performance：执行 `npm run sync:android && npm run check:android`，结果全绿。
+- [ ] Owner: Android Build：分别在 `apps/literacy-app/android`、`apps/math-app/android` 执行
       `./gradlew assembleDebug`，保存构建日志与 APK SHA-256。
-- [ ] 用 `adb install -r <apk>` 安装；记录 `adb shell dumpsys package <appId>` 版本信息。
-- [ ] 先清除旧数据冷启一次，再保留数据覆盖安装一次；两种路径均不得白屏或崩溃。
-- [ ] 安装后打开飞行模式冷启，确认壳层不依赖开发服务器或第三方 CDN。
+- [ ] Owner: Android QA：用 `adb install -r <apk>` 安装；记录
+      `adb shell dumpsys package <appId>` 版本信息。
+- [ ] Owner: Android QA：先清除旧数据冷启一次，再保留数据覆盖安装一次；两种路径均不得白屏或崩溃。
+- [ ] Owner: Android QA：安装后打开飞行模式冷启，确认壳层不依赖开发服务器或第三方 CDN。
 
 App ID：识字 `com.hongen.literacy`；数学 `com.hongen.mathquest`。
 
 ## 3. 双 App 通用项（每台设备各执行一次）
+
+> Owner: Android QA。以下均依赖实体 Android 设备；保持未勾选，直至两台设备分别附证。
 
 | 检查项 | 识字 | 数学 | 证据 / 缺陷号 |
 |---|:---:|:---:|---|
@@ -49,6 +65,8 @@ App ID：识字 `com.hongen.literacy`；数学 `com.hongen.mathquest`。
 
 ## 4. 识字 App 专项
 
+> Owner: Literacy QA + Android QA；相机、麦克风、WebView 与触控项不得用桌面浏览器代签。
+
 - [ ] 首页地图 → 字表 → 单字详情 → 描红 → 完成反馈闭环；新增高单元字也可进入。
 - [ ] 听音识字正确/错误各答一次，语音、动画、震动不重叠，复习记录正确。
 - [ ] 儿歌播放、暂停、切歌和歌词同步正常；锁屏/后台后不会继续异常叠播。
@@ -61,6 +79,8 @@ App ID：识字 `com.hongen.literacy`；数学 `com.hongen.mathquest`。
 
 ## 5. 数学 App 专项
 
+> Owner: Math QA + Android QA；拖拽、高 DPI、系统返回键与进程恢复必须在实体设备执行。
+
 - [ ] 学习地图、每日任务、数量、算术、几何、规律、数独、应用题路由均可进入和返回。
 - [ ] 点击、拖拽、键盘输入类题目各完成一题；错误反馈后可重试且答案不会提前泄露。
 - [ ] 数形演示、分与合、竖式、七巧板在窄屏和高 DPI 下不溢出，拖拽跟手。
@@ -70,6 +90,8 @@ App ID：识字 `com.hongen.literacy`；数学 `com.hongen.mathquest`。
 - [ ] 飞行模式强杀后重启，已安装题库和进度链路可正常使用。
 
 ## 6. 性能与诊断留档
+
+> Owner: Android Performance QA。desktop Lighthouse 只覆盖 Web 档，不替代以下设备档证据。
 
 - [ ] 每台设备保存双 App 冷启动录像各 1 份，画面含系统时间或计时器。
 - [ ] 保存 `adb logcat` 冷启动与 15 分钟走查片段；筛查 `FATAL EXCEPTION`、`ANR`、
@@ -81,7 +103,7 @@ App ID：识字 `com.hongen.literacy`；数学 `com.hongen.mathquest`。
 建议归档：
 
 ```text
-.agent_workspace/evidence/r9/android/
+.agent_workspace/evidence/r10/android/
   <device-slug>/
     device-info.txt
     literacy-cold-start.mp4
@@ -97,5 +119,5 @@ App ID：识字 `com.hongen.literacy`；数学 `com.hongen.mathquest`。
 - **阻断发布**：崩溃/ANR、冷启白屏、核心离线链路不可用、进度丢失、权限拒绝后不可恢复、
   儿童隐私数据外发、关键操作 TalkBack 不可达。
 - **必须建单跟踪**：可稳定复现的明显卡顿、布局遮挡、音画错位、非核心页面降级异常。
-- [ ] 两档真机 × 双 App 全部阻断项清零；遗留项已有缺陷号、责任人和复验结论。
-- [ ] 测试人签名：`[待填]`；发布复核人签名：`[待填]`。
+- [ ] Owner: Android QA Lead：两档真机 × 双 App 全部阻断项清零；遗留项已有缺陷号、责任人和复验结论。
+- [ ] Owner: Android QA Lead 完成测试签名；Owner: Release Manager 完成发布复核签名。

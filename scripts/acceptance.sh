@@ -7,6 +7,7 @@ MAX_INITIAL_JS_GZIP_BYTES="${ACCEPTANCE_MAX_INITIAL_JS_GZIP_BYTES:-256000}"
 MIN_LH_PERFORMANCE="${ACCEPTANCE_MIN_LH_PERFORMANCE:-0.95}"
 MIN_LH_ACCESSIBILITY="${ACCEPTANCE_MIN_LH_ACCESSIBILITY:-0.90}"
 MIN_LH_BEST_PRACTICES="${ACCEPTANCE_MIN_LH_BEST_PRACTICES:-0.90}"
+LIGHTHOUSE_PROFILE="${ACCEPTANCE_LH_PROFILE:-mobile}"
 PORT_BASE="${ACCEPTANCE_PORT_BASE:-43170}"
 EVIDENCE_DIR="${ACCEPTANCE_EVIDENCE_DIR:-}"
 FAILED=0
@@ -36,6 +37,8 @@ done
   fail "ACCEPTANCE_MAX_BUILD_SECONDS 必须是正整数。"
 [[ "$MAX_INITIAL_JS_GZIP_BYTES" =~ ^[1-9][0-9]*$ ]] ||
   fail "ACCEPTANCE_MAX_INITIAL_JS_GZIP_BYTES 必须是正整数。"
+[[ "$LIGHTHOUSE_PROFILE" == "mobile" || "$LIGHTHOUSE_PROFILE" == "desktop" ]] ||
+  fail "ACCEPTANCE_LH_PROFILE 必须是 mobile 或 desktop。"
 
 if [[ -n "$EVIDENCE_DIR" ]]; then
   [[ "$EVIDENCE_DIR" = /* ]] || EVIDENCE_DIR="$ROOT_DIR/$EVIDENCE_DIR"
@@ -245,16 +248,25 @@ run_lighthouse() {
   local port="$3"
   local lighthouse_bin="$4"
   local chrome_path="$5"
-  local slug report_path server_log
+  local slug report_name report_path server_log
+  local -a profile_args
 
   slug="$(printf '%s' "$label" | tr '[:upper:] ' '[:lower:]-')"
-  if [[ -n "$EVIDENCE_DIR" ]]; then
-    report_path="$EVIDENCE_DIR/lighthouse-${slug}.json"
+  if [[ "$LIGHTHOUSE_PROFILE" == "desktop" ]]; then
+    report_name="lighthouse-${slug}-desktop.json"
+    profile_args=(--preset=desktop)
   else
-    report_path="$TMP_DIR/lighthouse-${slug}.json"
+    report_name="lighthouse-${slug}.json"
+    profile_args=(--form-factor=mobile)
+  fi
+  if [[ -n "$EVIDENCE_DIR" ]]; then
+    report_path="$EVIDENCE_DIR/$report_name"
+  else
+    report_path="$TMP_DIR/$report_name"
   fi
   server_log="$TMP_DIR/server-${slug}.log"
-  printf '\n[%s] Lighthouse（Performance/Accessibility/Best Practices）...\n' "$label"
+  printf '\n[%s] Lighthouse %s（Performance/Accessibility/Best Practices）...\n' \
+    "$label" "$LIGHTHOUSE_PROFILE"
 
   if ! start_static_server "$dist_dir" "$port" "$server_log"; then
     FAILED=1
@@ -266,7 +278,7 @@ run_lighthouse() {
     --output=json \
     --output-path="$report_path" \
     --only-categories=performance,accessibility,best-practices \
-    --form-factor=mobile \
+    "${profile_args[@]}" \
     --throttling-method=simulate \
     --chrome-flags="--headless=new --no-sandbox --disable-dev-shm-usage --mute-audio"; then
     printf '[%s] FAIL Lighthouse 执行失败。\n' "$label" >&2
