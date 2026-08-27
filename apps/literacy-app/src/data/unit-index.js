@@ -1,5 +1,5 @@
 /**
- * 单元名录 —— 73 个单元的标题信息，以及每个单元详情包的加载器。
+ * 单元名录 —— 88 个单元的标题信息，以及每个单元详情包的加载器。
  *
  * 加载器写成显式的 import() 映射而不是 import.meta.glob，
  * 一来 Vite 能静态分析出每个单元一个块，二来 Node 脚本也能直接跑。
@@ -80,7 +80,22 @@ export const UNITS = [
   { id: 'u70', name: '识字岛屿', emoji: '🏝️', color: 'var(--seed-coral)', desc: '六七画的字，一座连一座' },
   { id: 'u71', name: '识字山洞', emoji: '🕳️', color: 'var(--seed-mango)', desc: '七画的字，一探究竟' },
   { id: 'u72', name: '识字瀑布', emoji: '💦', color: 'var(--seed-leaf)', desc: '七画的字，哗啦啦落下来' },
-  { id: 'u73', name: '识字峡谷', emoji: '🧗', color: 'var(--seed-sky)', desc: '七画的字，一步步往上爬' }
+  { id: 'u73', name: '识字峡谷', emoji: '🧗', color: 'var(--seed-sky)', desc: '七画的字，一步步往上爬' },
+  { id: 'u74', name: '识字雪原', emoji: '❄️', color: 'var(--seed-grape)', desc: '七画的字，一片白茫茫' },
+  { id: 'u75', name: '识字火山', emoji: '🌋', color: 'var(--seed-mint)', desc: '七画的字，热气腾腾' },
+  { id: 'u76', name: '识字星空', emoji: '🌌', color: 'var(--seed-coral)', desc: '七画的字，一颗颗亮起来' },
+  { id: 'u77', name: '识字月亮', emoji: '🌕', color: 'var(--seed-mango)', desc: '七八画的字，月光下慢慢读' },
+  { id: 'u78', name: '识字彩虹', emoji: '🌈', color: 'var(--seed-leaf)', desc: '八画的字，七色排排站' },
+  { id: 'u79', name: '识字云端', emoji: '☁️', color: 'var(--seed-sky)', desc: '八画的字，轻轻飘起来' },
+  { id: 'u80', name: '识字城堡', emoji: '🏰', color: 'var(--seed-grape)', desc: '八画的字，一砖一瓦砌起来' },
+  { id: 'u81', name: '识字集市', emoji: '🛍️', color: 'var(--seed-mint)', desc: '八画的字，热热闹闹一大片' },
+  { id: 'u82', name: '识字花园', emoji: '🌷', color: 'var(--seed-coral)', desc: '八画的字，一朵朵开出来' },
+  { id: 'u83', name: '识字果园', emoji: '🍑', color: 'var(--seed-mango)', desc: '八画的字，一树一树的果子' },
+  { id: 'u84', name: '识字牧场', emoji: '🐄', color: 'var(--seed-leaf)', desc: '八九画的字，慢慢悠悠' },
+  { id: 'u85', name: '识字湖畔', emoji: '🦢', color: 'var(--seed-sky)', desc: '九画的字，倒映在水里' },
+  { id: 'u86', name: '识字竹林', emoji: '🎋', color: 'var(--seed-grape)', desc: '九画的字，风一吹沙沙响' },
+  { id: 'u87', name: '识字麦田', emoji: '🌾', color: 'var(--seed-mint)', desc: '九画的字，一垄一垄金黄' },
+  { id: 'u88', name: '识字渔村', emoji: '🎣', color: 'var(--seed-coral)', desc: '九画的字，海风里认字' }
 ]
 
 export const DETAIL_LOADERS = {
@@ -156,5 +171,20 @@ export const DETAIL_LOADERS = {
   u70: () => import('./chars/u70.js'),
   u71: () => import('./chars/u71.js'),
   u72: () => import('./chars/u72.js'),
-  u73: () => import('./chars/u73.js')
+  u73: () => import('./chars/u73.js'),
+  u74: () => import('./chars/u74.js'),
+  u75: () => import('./chars/u75.js'),
+  u76: () => import('./chars/u76.js'),
+  u77: () => import('./chars/u77.js'),
+  u78: () => import('./chars/u78.js'),
+  u79: () => import('./chars/u79.js'),
+  u80: () => import('./chars/u80.js'),
+  u81: () => import('./chars/u81.js'),
+  u82: () => import('./chars/u82.js'),
+  u83: () => import('./chars/u83.js'),
+  u84: () => import('./chars/u84.js'),
+  u85: () => import('./chars/u85.js'),
+  u86: () => import('./chars/u86.js'),
+  u87: () => import('./chars/u87.js'),
+  u88: () => import('./chars/u88.js')
 }
