@@ -105,6 +105,13 @@ const routes = [
     meta: { title: '生活行星' },
   },
   {
+    // 技能图谱：只读展示技能依赖 DAG 与掌握度，练习仍回各星球
+    path: '/skill-graph',
+    name: 'skill-graph',
+    component: () => import('@/modules/skill-graph/SkillGraphView.vue'),
+    meta: { title: '技能图谱' },
+  },
+  {
     path: '/progress',
     name: 'progress',
     component: () => import('@/modules/progress/ProgressView.vue'),

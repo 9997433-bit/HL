@@ -12,6 +12,8 @@ import { tmpdir } from 'node:os'
 import { extname, join, normalize } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import puppeteer from 'puppeteer-core'
+// 技能图谱的断言对着课程表算期望值，别在这儿抄一份会过期的数字
+import { SKILLS } from '../src/data/curriculum.js'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const DIST = join(ROOT, 'dist')
@@ -63,6 +65,7 @@ const ROUTES = [
   ['逻辑迷宫', '/#/maze'],
   ['数独空间站', '/#/sudoku'],
   ['生活行星', '/#/word-problems'],
+  ['技能图谱', '/#/skill-graph'],
   ['成就墙', '/#/progress'],
   ['家长中心', '/#/parent'],
   ['未知路由回落', '/#/nope/nope'],
@@ -1263,6 +1266,164 @@ await interact('年龄档：L1 与 L5 的起步难度贯穿六个玩法', '/#/',
 
   await page.evaluate(() => localStorage.removeItem('mathquest/settings'))
   return done.join('；')
+})
+
+/* ---------------------------------------------------------- 技能图谱 */
+
+/**
+ * ROUND8_H3_SMOKE — 技能图谱是只读视图：
+ * 图上的节点与连线必须和 curriculum 一一对应，状态必须由存档里的掌握度推出来，
+ * 年龄档只改「本档该会」的标注、不改状态，逛一圈也不能把进度写脏。
+ */
+await interact('技能图谱：依赖成图、状态跟着存档走、只读不写进度', '/#/skill-graph', async (page) => {
+  const SEED_MASTERY = { 'count-to-5': 0.95, 'count-to-10': 0.9, 'add-within-10': 0.4 }
+  const expectedNodes = SKILLS.length
+  const expectedEdges = SKILLS.reduce((sum, s) => sum + (s.deps?.length ?? 0), 0)
+  const inBandCount = (band) => {
+    const rank = ['L1', 'L2', 'L3', 'L4', 'L5'].indexOf(band)
+    return SKILLS.filter((s) => ['L1', 'L2', 'L3', 'L4', 'L5'].indexOf(s.level) <= rank).length
+  }
+
+  const load = async (band) => {
+    await page.evaluate(
+      (mastery, ageBand) => {
+        localStorage.setItem('mathquest/progress', JSON.stringify({ stars: 5, mastery }))
+        localStorage.setItem('mathquest/settings', JSON.stringify({ ageBand }))
+      },
+      SEED_MASTERY,
+      band,
+    )
+    await page.reload({ waitUntil: 'networkidle2' })
+    await sleep(700)
+  }
+
+  await load('L2')
+
+  const shape = await page.evaluate(() => ({
+    nodes: document.querySelectorAll('[data-skill-node]').length,
+    edges: document.querySelectorAll('[data-skill-edge]').length,
+    lanes: document.querySelectorAll('[data-skill-lane]').length,
+    openEdges: document.querySelectorAll('[data-skill-edge].open').length,
+    mastered: document.querySelector('[data-graph-stat="mastered"]')?.innerText ?? '',
+  }))
+  if (shape.nodes !== expectedNodes) {
+    throw new Error(`图上有 ${shape.nodes} 个技能节点，课程表里是 ${expectedNodes} 个`)
+  }
+  if (shape.edges !== expectedEdges) {
+    throw new Error(`图上有 ${shape.edges} 条依赖连线，课程表里是 ${expectedEdges} 条`)
+  }
+  if (shape.lanes !== 6) throw new Error(`应有 6 条星球泳道，实际 ${shape.lanes}`)
+  if (!shape.mastered.includes(`2/${expectedNodes}`)) {
+    throw new Error(`概览里的已掌握数是「${shape.mastered}」，存档里达标的是 2 个`)
+  }
+  if (shape.openEdges < 1) throw new Error('前置已达标，却没有一条连线被点亮')
+
+  const statusOf = (id) =>
+    page.evaluate(
+      (skill) => document.querySelector(`[data-skill-node="${skill}"]`)?.dataset.skillStatus ?? '',
+      id,
+    )
+  const WANT = {
+    'count-to-5': 'mastered',
+    'count-to-10': 'mastered',
+    'count-to-20': 'ready',
+    'add-within-10': 'learning',
+    'sub-within-10': 'locked',
+  }
+  for (const [id, want] of Object.entries(WANT)) {
+    const got = await statusOf(id)
+    if (got !== want) throw new Error(`「${id}」的状态是 ${got || '空'}，按存档应该是 ${want}`)
+  }
+
+  // 点节点只展开详情：前置、后继与去练入口都要真的渲染出来
+  await page.click('[data-skill-node="count-to-20"]')
+  await sleep(300)
+  const detail = await page.evaluate(() => {
+    const panel = document.querySelector('[data-skill-detail]')
+    return {
+      text: panel?.innerText.replace(/\s+/g, ' ') ?? '',
+      deps: [...document.querySelectorAll('[data-skill-dep]')].map((el) => el.dataset.skillDep),
+      link: panel?.querySelector('a')?.getAttribute('href') ?? '',
+    }
+  })
+  if (!detail.text.includes('20以内点数')) throw new Error('详情卡没有显示选中的技能名')
+  if (!detail.deps.includes('count-to-10')) {
+    throw new Error(`详情卡的前置是 ${detail.deps.join('、') || '空'}，应含 count-to-10`)
+  }
+  if (!detail.link.includes('/number-sense')) {
+    throw new Error(`「去练」应指向数量星云，实际 ${detail.link || '没有链接'}`)
+  }
+
+  // 年龄档只影响「本档该会」的标注，节点状态一个都不许变
+  const bandView = async (band) => {
+    await load(band)
+    return page.evaluate(() => ({
+      inBand: document.querySelectorAll('[data-in-band="1"]').length,
+      statuses: [...document.querySelectorAll('[data-skill-node]')]
+        .map((el) => `${el.dataset.skillNode}:${el.dataset.skillStatus}`)
+        .join(','),
+    }))
+  }
+  const low = await bandView('L1')
+  const high = await bandView('L5')
+  if (low.inBand !== inBandCount('L1')) {
+    throw new Error(`L1 档标为本档的有 ${low.inBand} 个，课程表里是 ${inBandCount('L1')} 个`)
+  }
+  if (high.inBand !== expectedNodes) {
+    throw new Error(`L5 档应覆盖全部 ${expectedNodes} 个技能，实际 ${high.inBand} 个`)
+  }
+  if (low.statuses !== high.statuses) throw new Error('切换年龄档改变了技能状态，图谱判读被污染')
+
+  // 「只看本档」是页面内的筛选：压暗超前技能，但不写回家长中心的档位
+  await load('L1')
+  await page.click('[data-band-filter]')
+  await sleep(300)
+  const filtered = await page.evaluate(() => ({
+    faded: document.querySelectorAll('[data-skill-node].faded').length,
+    band: JSON.parse(localStorage.getItem('mathquest/settings') || '{}').ageBand,
+  }))
+  if (filtered.faded !== expectedNodes - inBandCount('L1')) {
+    throw new Error(
+      `只看 L1 应压暗 ${expectedNodes - inBandCount('L1')} 个超前技能，实际 ${filtered.faded} 个`,
+    )
+  }
+  if (filtered.band !== 'L1') throw new Error(`筛选改写了家长中心的档位：${filtered.band}`)
+
+  await page.click('[data-band-filter]')
+  await sleep(200)
+  await page.click('[data-module-filter="arithmetic"]')
+  await sleep(300)
+  const byModule = await page.evaluate(() => ({
+    faded: document.querySelectorAll('[data-skill-node].faded').length,
+    total: document.querySelectorAll('[data-skill-node]').length,
+  }))
+  const arithmeticSkills = SKILLS.filter((s) => s.module === 'arithmetic').length
+  if (byModule.faded !== byModule.total - arithmeticSkills) {
+    throw new Error(
+      `按算术恒星筛选后压暗了 ${byModule.faded} 个，应为 ${byModule.total - arithmeticSkills} 个`,
+    )
+  }
+
+  // 逛完一圈，存档里的掌握度必须原封不动
+  const after = await page.evaluate(
+    () => JSON.parse(localStorage.getItem('mathquest/progress') || '{}').mastery,
+  )
+  for (const [id, value] of Object.entries(SEED_MASTERY)) {
+    if (after?.[id] !== value) throw new Error(`图谱把「${id}」的掌握度改成了 ${after?.[id]}`)
+  }
+  if (Object.keys(after ?? {}).length !== Object.keys(SEED_MASTERY).length) {
+    throw new Error('图谱往掌握度里塞了新的技能点')
+  }
+
+  await page.evaluate(() => {
+    localStorage.removeItem('mathquest/settings')
+    localStorage.removeItem('mathquest/progress')
+  })
+  return (
+    `${shape.nodes} 节点 / ${shape.edges} 连线 / ${shape.lanes} 泳道，` +
+    `本档覆盖 L1 ${low.inBand} → L5 ${high.inBand}，` +
+    `只看本档压暗 ${filtered.faded} 个、按星球筛选压暗 ${byModule.faded} 个，掌握度未被改写`
+  )
 })
 
 /* ------------------------------------------------------------ 家长中心 */
