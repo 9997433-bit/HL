@@ -41,12 +41,12 @@
 | `pipeline` 子命令或文档化一键脚本 | AC-WORK-011（待定） |
 | OP2 corpus MSC/NX 目录约定强化 | 文档 + corpus 测试 |
 
-### Wave 4 — 验收 promotion 与文档全绿
+### Wave 4 — 验收 promotion 与文档全绿 ✅
 
 | 任务 | 验收 |
 |------|------|
-| Round 7 遗留 `implemented` → `verified` | registry CI |
-| FEMtools 对照表状态列 | USER_GUIDE 全绿 |
+| Round 7 遗留 `implemented` → `verified` | 44 条 AC 经 `promote_verified.py --all-implemented --run --apply` 提升；registry **104/104 verified** |
+| FEMtools 对照表状态列 | USER_GUIDE §1 全绿 + 八项差距表 |
 
 ---
 

@@ -10,14 +10,29 @@ FE/试验相关性分析（correlation）与基于灵敏度的模型修正（mod
 
 ## 1. OpenFEMLab 与 FEMtools 对照
 
-| FEMtools 模块 | 功能 | OpenFEMLab 对应 |
-|---|---|---|
-| Framework | 脚本 + 桌面 CAE 自动化环境 | Python API + `openfemlab` CLI + `serve` 本地 Web 查看器 |
-| Dynamics | 动响应仿真、结构修改 | `solver` 模块：模态提取、阻尼、复模态、FRF 合成 |
-| Pretest & Correlation | 模态预试验、FE/试验相关（MAC、COMAC） | `pretest`（传感器布置 EI/MKE）+ `correlation` 模块 |
-| Model Updating | 基于灵敏度的迭代修正（频率、振型、FRF） | `updating` 模块：Gauss-Newton / Levenberg-Marquardt、贝叶斯 MAP、参数诊断 |
-| Optimization | 结构设计优化 | `optimization` 模块（scipy 后端） |
-| MPE | 从 FRF 提取模态参数 | `mpe` 模块：LSCF/LSFD、稳定图、`extract_modes` → `TestData` |
+| FEMtools 模块 | 功能 | OpenFEMLab 对应 | 验收状态 |
+|---|---|---|---|
+| Framework | 脚本 + 桌面 CAE 自动化环境 | Python API + `openfemlab` CLI + `serve` 本地 Web 查看器 | ✅ verified（AC-WORK-010/011、AC-IO-008/015/016） |
+| Dynamics | 动响应仿真、结构修改 | `solver` 模块：模态提取、阻尼、复模态、FRF 合成、SDM/MBA/FBA | ✅ verified（AC-DYN-006…010） |
+| Pretest & Correlation | 模态预试验、FE/试验相关（MAC、COMAC） | `pretest`（传感器布置 EI/MKE）+ `correlation` 模块 | ✅ verified（AC-PRETEST-006…009、AC-CORR-010…013） |
+| Model Updating | 基于灵敏度的迭代修正（频率、振型、FRF） | `updating` 模块：Gauss-Newton / Levenberg-Marquardt、贝叶斯 MAP、参数诊断 | ✅ verified（AC-UPD-010…014） |
+| Optimization | 结构设计优化 | `optimization` 模块（scipy 后端） | ✅ verified（AC-OPT-001…004） |
+| MPE | 从 FRF 提取模态参数 | `mpe` 模块：LSCF/LSFD、稳定图、`extract_modes` → `TestData` | ✅ verified（AC-MPE-001…008） |
+
+**Round 7 八项差距（2026-08）** — 每项至少有一条 P0/P1 验收准则经 CI 门禁验证：
+
+| # | 差距维度 | 代表 AC | 状态 |
+|---|----------|---------|------|
+| 1 | Dynamics（SDM/MBA/FBA） | AC-DYN-006 | ✅ verified |
+| 2 | Framework（驱动 + 桌面） | AC-WORK-010 | ✅ verified |
+| 3 | Pretest 全套件 | AC-PRETEST-006 | ✅ verified |
+| 4 | Correlation 全套件 | AC-CORR-010 | ✅ verified |
+| 5 | Updating 工业扩展 | AC-UPD-013 | ✅ verified |
+| 6 | 选配（RBPE 等） | AC-MPE-001 / AC-MPE-008 | ✅ verified |
+| 7 | 规模与格式 | AC-PERF-006 | ✅ verified |
+| 8 | 可视化 | AC-WORK-007 | ✅ verified |
+
+Registry 当前 **104/104** 条 AC 均为 `verified`（Round 8 Wave 4，`promote_verified.py --all-implemented`）。
 
 **有意未覆盖（intentional gap）：** FEMtools DAQ 硬件采集与 ARTeMIS 专有接口不在 OpenFEMLab 范围内；试验数据通过 UFF/JSON 交换格式接入（见 `mpe`、`pretest.export_test`）。
 
@@ -519,7 +534,8 @@ openfemlab correlate run/cantilever.updated.yaml run/measured.yaml \
 
 ### 11.1 工业格式闭环（BDF / OP2）
 
-Round 8 增加了 bulk data 与 OP2 互通的端到端路径（AC-WORK-010）：
+Round 8 增加了 bulk data 与 OP2 互通的端到端路径（AC-WORK-010，**verified**），
+并完成 FEMtools 八项差距的 registry 全量 promotion（Wave 4）。
 
 ```bash
 python examples/06_bdf_op2_industrial_loop.py
