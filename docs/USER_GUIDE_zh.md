@@ -96,6 +96,7 @@ for mode, frequency in enumerate(result.frequencies, start=1):
 | `project init` | 创建 `models/`、`measurements/`、`reports/` 工作区 |
 | `serve`（`gui`） | 本地 Web 结果查看器（MAC 热力图、摘要卡片） |
 | `modal` | 对模型规格文件做实模态分析 |
+| `sdm scan` | 在模态域扫描附加弹簧刚度对固有频率的影响（SDM 快速重分析） |
 | `correlate` | FE 模态与实测模态的相关性报告（MAC、频率偏差、COMAC） |
 | `correlate-frf` | 实测 FRF 与模型合成 FRF 的频域相关（FRAC、FDAC） |
 | `update` | 由配置文件驱动的灵敏度模型修正 |
@@ -344,6 +345,23 @@ openfemlab modal cantilever.yaml -n 6 --normalization mass -o modes.yaml
 | `--sparse` / `--dense` | 强制 Lanczos 稀疏路径或 LAPACK 稠密路径（默认自动选择） |
 | `-o/--output PATH` | 写出完整模态结果（频率、振型、DOF 映射），可直接作为 `correlate` 的 FE 侧输入 |
 
+### 7.1 SDM 刚度扫描：`openfemlab sdm scan`
+
+FEMtools Dynamics 的 SDM（Structural Dynamics Modification）可在保留模态基下
+预测附加弹簧如何改变固有频率，而无需完整重装配。OpenFEMLab 提供 CLI 封装：
+
+```bash
+openfemlab sdm scan chain.yaml --dof-index 0 --stiffness 0,0.5,1.0 -n 5 --format json
+```
+
+| 选项 | 含义 |
+|---|---|
+| `--dof-index I` | 附加弹簧所在自由 DOF 索引（从 0 起） |
+| `--stiffness VALUES` | 逗号分隔的附加刚度序列 |
+| `-n/--modes N` | SDM 保留的模态数（默认 6） |
+| `--mode-index I` | 报告哪一阶模态的频率（默认 0，最低阶） |
+| `--format table\|json\|yaml` | 输出格式（默认 table） |
+
 ## 8. FE/试验相关：`openfemlab correlate`
 
 ```bash
@@ -499,7 +517,9 @@ python examples/06_bdf_op2_industrial_loop.py
 1. `read_bdf` 导入杆系模型，`neutral_to_model` 转为可求解的 `Model`。
 2. 用 `tests/_op2.py` 生成的合成 OP2 验证几何/模态读回（CI 无需 Nastran 许可证）。
 3. 对 detuned twin 做相关与 `update_model`，再用 `write_bdf(material_scales=...)` 导出更新后的 MAT1。
-4. （可选）设置 `OPENFEMLAB_NASTRAN_EXE` 调用外部 Nastran；见 `openfemlab.io.drivers.nastran`。
+4. （可选）设置 `OPENFEMLAB_NASTRAN_EXE`（或 `NASTRAN_EXE` / `NASTRAN`）调用外部
+   Nastran；未找到可执行文件时 `run_nastran` 抛出类型化的 `FormatError`（AC-IO-015）。
+   见 `openfemlab.io.drivers.nastran`。
 
 本地 Web 查看器支持 `openfemlab serve --desktop`（需 `pip install pywebview`）。
 

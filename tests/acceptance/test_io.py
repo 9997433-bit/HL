@@ -871,3 +871,18 @@ def test_ac_io_014_corpus_sidecar_bdf_matches_op2_geometry(tmp_path) -> None:
                 bdf_model.element_property_ids[element_type],
                 op2_model.element_property_ids[element_type],
             )
+
+
+@criterion("AC-IO-015")
+def test_ac_io_015_nastran_driver_reports_missing_executable(tmp_path, monkeypatch) -> None:
+    from openfemlab.io import FormatError
+    from openfemlab.io.drivers import nastran as nastran_driver
+
+    for key in ("OPENFEMLAB_NASTRAN_EXE", "NASTRAN_EXE", "NASTRAN"):
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.setattr(nastran_driver.shutil, "which", lambda _name: None)
+    deck = tmp_path / "model.bdf"
+    deck.write_text("GRID,11,,0.,0.,0.\n", encoding="utf-8")
+    assert nastran_driver.resolve_nastran_executable("/opt/nastran") == "/opt/nastran"
+    with pytest.raises(FormatError, match="no Nastran executable"):
+        nastran_driver.run_nastran(deck, executable=None)

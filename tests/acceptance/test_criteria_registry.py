@@ -70,8 +70,8 @@ FAMILY_TO_MODULE = {
     "PERF": "M1",
 }
 EXPECTED_CRITERIA_PER_FAMILY = {
-    "MODAL": 9,     "CORR": 13, "UPD": 15, "WORK": 10, "OPT": 4, "DYN": 9, "ELEM": 3,
-    "IO": 14, "MPE": 8, "PRETEST": 9, "PERF": 6,
+    "MODAL": 9,     "CORR": 13, "UPD": 15, "WORK": 10, "OPT": 4, "DYN": 10, "ELEM": 3,
+    "IO": 15, "MPE": 8, "PRETEST": 9, "PERF": 6,
 }
 
 
@@ -246,6 +246,8 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P1", "oracle", "MS-7.8", _DYN_SUITE, "implemented"),
     _c("AC-DYN-009", "SDM stiffness scan and tuned absorber frequency oracle",
        "P1", "oracle", "MS-7.6", _DYN_SUITE, "implemented"),
+    _c("AC-DYN-010", "SDM stiffness scan CLI matches library oracle",
+       "P1", "contract", "MS-7.6", _DYN_SUITE, "implemented"),
     # --- M7 Element library (MS-8) --------------------------------------------
     _c("AC-ELEM-001", "Patch test exact to machine precision",
        "P0", "oracle", "MS-8.3", _ELEM_SUITE, "verified"),
@@ -282,6 +284,8 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P2", "contract", "MS-9.6", _IO_SUITE, "implemented"),
     _c("AC-IO-014", "Corpus OP2 sidecar BDF geometry matches OP2 import",
        "P2", "contract", "MS-9.6", _IO_SUITE, "implemented"),
+    _c("AC-IO-015", "Nastran driver stub resolves exe and typed failure",
+       "P2", "contract", "MS-9.7", _IO_SUITE, "implemented"),
     # --- M9 Modal parameter extraction (MS-10), GAP-06 -----------------------
     _c("AC-MPE-001", "LSCF pole recovery on synthesized FRFs",
        "P0", "oracle", "MS-10.2", _MPE_SUITE, "verified"),
@@ -347,7 +351,7 @@ def test_registry_inventory_matches_documented_scope():
         for family in EXPECTED_CRITERIA_PER_FAMILY
     }
     assert counts == EXPECTED_CRITERIA_PER_FAMILY
-    assert len(REGISTRY) == 100
+    assert len(REGISTRY) == 102
 
 
 def test_ids_unique():

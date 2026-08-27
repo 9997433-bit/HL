@@ -433,6 +433,7 @@ frequency-domain counterparts of the M2 gates AC-CORR-001/002.
 | AC-DYN-007 | P1 | MBA couples modal substructures | sorted coupled f_r match `eigh(K, M)` to 1e-6 rel. | MS-7.7 |
 | AC-DYN-008 | P1 | FBA assembles component FRFs | drive-point rel. err ≤ 1e-8 vs coupled `direct_frf` | MS-7.8 |
 | AC-DYN-009 | P1 | SDM scan + tuned absorber | spring scan monotone; absorber f matches 2-DOF `eigh` to 1e-6 rel. | MS-7.6 |
+| AC-DYN-010 | P1 | SDM stiffness scan CLI | JSON output matches `scan_stiffness_springs` to 1e-10 rel. | MS-7.6 |
 
 ### Details
 
@@ -477,6 +478,9 @@ frequency-domain counterparts of the M2 gates AC-CORR-001/002.
   frequency monotonically as added spring stiffness increases; `tuned_absorber_host_frequency_hz`
   matches the lowest undamped root of the host–absorber 2-DOF model to relative
   error ≤ 1e-6 (overdamped absorber damping falls back to the undamped solve).
+- **AC-DYN-010** (`contract`) — `openfemlab sdm scan` on the 10-DOF chain
+  fixture reports the same scanned frequencies as `scan_stiffness_springs` to
+  relative error ≤ 1e-10 in JSON output.
 
 ---
 
@@ -601,6 +605,7 @@ run (AC-IO-003).
 | AC-IO-012 | P2 | Abaqus driver stub typed failure | missing exe raises FormatError | MS-9.7 |
 | AC-IO-013 | P2 | OP2 CBAR geometry import matches the BDF of the same model | node labels, coordinates, connectivity and property ids bitwise equal | MS-9.6 |
 | AC-IO-014 | P2 | Corpus OP2 sidecar BDF geometry matches OP2 import | for each `*.op2` with a same-stem `.bdf`, geometry equals `read_bdf` | MS-9.6 |
+| AC-IO-015 | P2 | Nastran driver stub typed failure | missing exe raises FormatError | MS-9.7 |
 
 ### Details
 

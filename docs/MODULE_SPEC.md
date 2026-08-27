@@ -803,6 +803,9 @@ from openfemlab.solver.sdm import (
   stiffness at one DOF (AC-DYN-009).
 - :func:`tuned_absorber_host_frequency_hz` — lowest host frequency with a tuned
   mass–spring–damper branch (AC-DYN-009).
+- ``openfemlab sdm scan`` — CLI wrapper that assembles a model spec, retains a
+  modal basis and prints a stiffness–frequency scan table or JSON document
+  (AC-DYN-010).
 
 ### MS-7.7 Modal-Based Assembly (MBA)
 
@@ -1234,7 +1237,7 @@ reader lives in `openfemlab.io.op2` over the record layer
   geometry and accepts ``material_scales`` / ``property_scales`` for updated
   decks (AC-IO-010). ``openfemlab.io.drivers`` exposes Nastran, Ansys and Abaqus
   batch stubs controlled by ``OPENFEMLAB_*_EXE`` environment variables
-  (AC-IO-008, AC-IO-011, AC-IO-012).
+  (AC-IO-008, AC-IO-011, AC-IO-012, AC-IO-015).
 - **`pyNastran` (BSD-3) belongs on the dev side, not behind the MS-9.3 optional
   seam.** It would cover all of this today, but OP2 is the format an
   FE-correlation platform is judged on, and the Phase 1-2 subset is small over

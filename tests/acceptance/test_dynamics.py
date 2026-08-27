@@ -26,6 +26,8 @@ untruncated ``Z(w)^-1`` reference rather than against a previous run.
 
 from __future__ import annotations
 
+import json
+
 import numpy as np
 import pytest
 
@@ -544,3 +546,63 @@ def test_sdm_stiffness_scan_and_tuned_absorber_match_oracles() -> None:
         np.sqrt(eigh(stiffness_matrix, mass_matrix, eigvals_only=True)[0]) / (2.0 * np.pi)
     )
     assert predicted == pytest.approx(undamped_reference, rel=1e-6)
+
+
+# --------------------------------------------------------------- AC-DYN-010
+
+
+@criterion("AC-DYN-010")
+def test_sdm_scan_cli_matches_library_oracle(tmp_path, capsys) -> None:
+    """``openfemlab sdm scan`` JSON output matches ``scan_stiffness_springs``."""
+    from openfemlab.cli.main import main
+    from openfemlab.io import write_data
+    from openfemlab.solver.sdm import scan_stiffness_springs
+
+    spec = {
+        "name": "sdm_scan_chain",
+        "mesh": {
+            "type": "chain",
+            "num_masses": 10,
+            "stiffness": 1.0,
+            "mass": 1.0,
+            "fixed_start": True,
+            "fixed_end": False,
+        },
+    }
+    model_path = tmp_path / "chain.yaml"
+    write_data(spec, model_path)
+
+    K, M = _chain()
+    modes = _full_basis(K, M)
+    stiffness_values = [0.0, float(K[0, 0]) * 0.25, float(K[0, 0]) * 0.75]
+    oracle = scan_stiffness_springs(
+        K,
+        M,
+        modes.mode_shapes,
+        dof_index=0,
+        stiffness_values=stiffness_values,
+        num_modes=5,
+    )
+
+    assert (
+        main(
+            [
+                "--no-color",
+                "sdm",
+                "scan",
+                str(model_path),
+                "--dof-index",
+                "0",
+                "--stiffness",
+                ",".join(str(value) for value in stiffness_values),
+                "-n",
+                "5",
+                "--format",
+                "json",
+            ]
+        )
+        == 0
+    )
+    report = json.loads(capsys.readouterr().out)
+    scanned = [point["frequency_hz"] for point in report["scan"]]
+    assert scanned == pytest.approx(oracle.tolist(), rel=1e-10)
