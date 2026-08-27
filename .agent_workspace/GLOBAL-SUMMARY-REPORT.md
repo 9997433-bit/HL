@@ -83,7 +83,7 @@ Model slug: gpt-5.6-sol-xhigh-fast
 | D-4 | 四主题、字号档与 reduced-motion 统一持久化 | ⏳ 待 R8 子代理 #9 | aurora 已在双 App 注册且 `design-tokens.css` 有完整 token；四主题原始 axe 证据待归档 |
 | D-5 | FSRS 调度和记忆热力图向家长透明 | ✅ | `srs.js`、识字 `progress.js` 与家长热力图 |
 | D-6 | 庆祝可跳过，动画可系统级降级 | ✅ | `CelebrationLayer.vue`、`CelebrationOverlay.vue` 与 `prefers-reduced-motion` 样式 |
-| D-7 | 双 App 可离线 zip，单包保持 10 MiB 以下 | ✅ | `build-all.sh` 打包并校验 CRC；最近集成实测见 `acceptance-log-round7.md` |
+| D-7 | 双 App 可离线 zip，单包保持 10 MiB 以下 | ✅ | `build-all.sh` 打包并校验 CRC；R8 报告分支实测 6,228,970 B / 455,047 B，见 `acceptance-log-round8.md` |
 
 ## 5. 证据包索引
 
@@ -105,7 +105,9 @@ Model slug: gpt-5.6-sol-xhigh-fast
 31 个洪恩模块行齐全：24 项达到 Round 8 当前口径，7 项明确绑定 R8 功能子代理。
 Round 7 的 OCR v1、形近干扰、字源 200、年龄档联动、数学逻辑游戏、aurora 与
 Perf 90 均已闭合；本报告把更高的 Round 8 目标单独标记，不能借往轮结果提前宣布终验。
-最终声明必须同时满足：
+本报告分支实测 Round 6 为 7/7、Round 7 为 8/8、构建与 Android 26/26 通过；
+`npm test` 仍被基线的学伴 43px 命中区与数形演示初始阶段 smoke 断言阻断，详见
+`acceptance-log-round8.md` §3。因此当前不声明全链终验通过，最终声明必须同时满足：
 
 1. `npm run check:round6` 保持 7/7；
 2. `npm run check:round7` 保持 8/8；
