@@ -1390,6 +1390,19 @@ await interact('学伴：核心路由常驻，点一下换鼓励语并朗读', '
     await page.waitForSelector('.mascot-dock button', { timeout: 8000 })
     // 路由切换有淡入淡出，太早点会点在正在离场的那一只身上
     await new Promise((r) => setTimeout(r, 700))
+    /**
+     * 学伴入场是一段 600ms 的 scale(.6) → scale(1)，而它要等路由分块加载完才挂上来。
+     * 机器慢一点（字表、绘本这两条重路由上最明显）时，固定等 700ms 量到的就是动画
+     * 中途的尺寸——72px 的命中区会被量成 43px，断言假红。等入场动画自己跑完再量：
+     * 常驻的呼吸动画 iterations 是 Infinity，finished 永远不会兑现，得挑出来跳过。
+     */
+    await page.evaluate(async () => {
+      const dock = document.querySelector('.mascot-dock')
+      const entrances = dock
+        .getAnimations({ subtree: true })
+        .filter((animation) => animation.effect?.getComputedTiming().iterations !== Infinity)
+      await Promise.all(entrances.map((animation) => animation.finished.catch(() => {})))
+    })
 
     const before = await page.evaluate(() => {
       // 朗读在无头环境里没有嗓音，换成记录调用，验的是「点了会说话」这条线
