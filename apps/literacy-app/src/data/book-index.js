@@ -36,6 +36,26 @@ export const BOOK_IDS = [
   'b10',
   'b11',
   'b12',
+  'bx21',
+  'bx22',
+  'bx23',
+  'bx24',
+  'bx25',
+  'bx26',
+  'bx27',
+  'bx28',
+  'bx29',
+  'bx30',
+  'bx31',
+  'bx32',
+  'bx33',
+  'bx34',
+  'bx35',
+  'bx36',
+  'bx37',
+  'bx38',
+  'bx39',
+  'bx40',
   'b4',
   'b5',
   'b13',
@@ -58,4 +78,4 @@ export const BOOK_IDS = [
   'b30'
 ]
 
-export const TOTAL_BOOKS = 50
+export const TOTAL_BOOKS = 70

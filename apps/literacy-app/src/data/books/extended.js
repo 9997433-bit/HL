@@ -3,7 +3,9 @@
  */
 
 import { LEVEL_1_BOOKS } from './l1.js'
+import { LEVEL_2_BOOKS } from './l2.js'
 
 export const EXTENDED_BOOKS = [
-  ...LEVEL_1_BOOKS
+  ...LEVEL_1_BOOKS,
+  ...LEVEL_2_BOOKS
 ]

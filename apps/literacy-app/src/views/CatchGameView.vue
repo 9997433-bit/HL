@@ -355,6 +355,8 @@ onBeforeUnmount(() => {
         :aria-label="stageLabel"
         :data-lane="lane"
         :data-wave="wave"
+        :data-lives="lives"
+        :data-score="score"
         @keydown="onKeydown"
       >
         <div
