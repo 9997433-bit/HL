@@ -8,3 +8,6 @@ npm-debug.log*
 
 # 种子候选提案器下载的 IDS 拆字数据，几 MB，用完就能扔
 scripts/data/.cache/
+
+# gen-ocr-real-samples.mjs 缓存的 Commons 原图，入库的只有裁剪后的 real-*.png
+.cache/

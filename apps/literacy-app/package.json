@@ -12,6 +12,7 @@
     "gen:books": "node scripts/gen-books.mjs",
     "gen:ocr": "node scripts/gen-ocr-assets.mjs",
     "gen:ocr:benchmark": "node scripts/gen-ocr-benchmark.mjs",
+    "gen:ocr:real": "node scripts/gen-ocr-real-samples.mjs",
     "predev": "npm run gen:hanzi && npm run gen:ocr",
     "dev": "vite",
     "prebuild": "npm run gen:hanzi && npm run gen:ocr",
