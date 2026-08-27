@@ -296,6 +296,7 @@ _SORT2_CODES = frozenset({2, 3, 6})
 #: The six components of a real eigenvector entry, in file order.
 _MODE_DOFS = (DofType.UX, DofType.UY, DofType.UZ, DofType.RX, DofType.RY, DofType.RZ)
 
+
 def read_op2(source: str | PathLike[str] | BinaryIO) -> NeutralModel:
     """Read the geometry of an OP2 file into a ``NeutralModel`` — Phase 3.
 
@@ -898,10 +899,11 @@ def _reject_non_basic_frames(
 ) -> None:
     """Refuse a model whose ``GRID`` cards name a non-basic ``CP``/``CD``.
 
-    Eigenvectors are written in each grid's ``CD`` frame, so a file with any
-    non-zero frame and no ``CORD`` transform imports as silently rotated
-    shapes.  Phase 4 reads the transforms; until then this is a refusal, the
-    same line the ASCII reader draws.
+    A grid's location is written in its ``CP`` frame and its eigenvector in its
+    ``CD`` one, so a file with any non-zero frame and no ``CORD`` transform
+    imports as silently rotated coordinates and shapes — which is why Phases 2
+    and 3 both come through here.  Phase 4 reads the transforms; until then
+    this is a refusal, the same line the ASCII reader draws.
     """
 
     for block in blocks:
@@ -932,7 +934,7 @@ def _reject_non_basic_frames(
                 more = ", ..." if offending.size > 5 else ""
                 raise FormatError(
                     f"{_where(source_name)}: GRID {listed}{more} define or output in a "
-                    "non-basic coordinate system (CP/CD), and OP2 eigenvectors are written "
-                    "in CD; reading the CORD transforms is MS-9.6 Phase 4, so importing "
-                    "these modes would rotate them silently"
+                    "non-basic coordinate system (CP/CD), and an OP2 writes locations in "
+                    "CP and eigenvectors in CD; reading the CORD transforms is MS-9.6 "
+                    "Phase 4, so importing this file would rotate it silently"
                 )
