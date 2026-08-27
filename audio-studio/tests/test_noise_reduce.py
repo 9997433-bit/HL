@@ -360,15 +360,13 @@ def test_the_whole_repair_suite_combines_into_one_chain() -> None:
     damaged[30_000] += 0.7
     damaged[45_000] += 0.7
 
-    chain = EffectChain(
-        [DeHumEffect(frequency=50.0), DeClickEffect(), NoiseReduceEffect()]
-    )
+    reducer = NoiseReduceEffect()
+    chain = EffectChain([DeHumEffect(frequency=50.0), DeClickEffect(), reducer])
     cleaned = chain.process(damaged, SR)
 
-    # The chain delays by the noise reducer's window, so the measurement has to
-    # be shifted back the amount the chain reports.
-    latency = chain.latency_samples()
-    settled = cleaned[latency:]
+    # Notching and interpolating are sample-aligned, so the only delay in the
+    # chain is the noise reducer's window; the measurement shifts back by it.
+    settled = cleaned[reducer.latency_samples() :]
 
     assert tone_level(settled[BODY], 50.0) < 0.002
     assert tone_level(settled[BODY], 440.0) == pytest.approx(0.3, rel=0.03)
