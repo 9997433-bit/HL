@@ -2,18 +2,24 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import gsap from 'gsap'
+import AgeBandBadge from '@/components/AgeBandBadge.vue'
 import MascotBot from '@/components/MascotBot.vue'
 import SessionBar from '@/components/SessionBar.vue'
 import RoundSummary from '@/components/RoundSummary.vue'
 import { useProgressStore } from '@/stores/progress.js'
+import { useAgeBand } from '@/composables/useAgeBand'
 import { useFeedback } from '@/composables/useFeedback'
 import { createRng, numericOptions, questionId, sample } from '@/utils/random'
 import { sound } from '@/utils/sound'
 import { countingSkill } from '@/data/skill-mapping.js'
 import { COMPARE_NAME, makeCompareQuestion } from '@/data/compare.js'
+import { COUNTING_QUESTION_IDS } from '@/data/age-band.js'
 
 const ROUND_SIZE = 8
 const MODULE_ID = 'counting'
+
+/** 雷达上超过这个数量，星星就密到数不清了，再高的年龄档也不往上加。 */
+const RADAR_CAP = 24
 
 /** mode='compare' 时整轮只出比大小题（路由 /compare 的比大小擂台）。 */
 const props = defineProps({
@@ -25,7 +31,11 @@ const roundName = computed(() => (compareOnly.value ? '比大小擂台' : '数�
 
 const router = useRouter()
 const progress = useProgressStore()
+const band = useAgeBand(() => startRound())
 const { correct: fxCorrect, wrong: fxWrong, burst, flyStar, pop, enter } = useFeedback()
+
+/** 家长中心选的年龄档决定数到多大、出哪几种题；孩子做的这一轮不会中途变。 */
+const tuning = computed(() => band.value.defaults.counting)
 
 const CARGO = [
   { icon: '💎', name: '能量水晶' },
@@ -38,21 +48,35 @@ const CARGO = [
   { icon: '🍄', name: '星球蘑菇' },
 ]
 
+/** 按年龄档给的权重抽题型：低龄多装货、多点数，高龄多数序、多比大小。 */
+function pickType(rng, mix) {
+  const total = COUNTING_QUESTION_IDS.reduce((sum, key) => sum + (mix[key] ?? 0), 0)
+  let roll = rng() * total
+  for (const key of COUNTING_QUESTION_IDS) {
+    roll -= mix[key] ?? 0
+    if (roll < 0) return key
+  }
+  return 'count'
+}
+
 /**
  * 出一道题。所有随机都取自 seed 派生的随机流，
  * 题目 id 里带着 seed，凭 id 就能把同一道题原样重建出来（家长端讲评、回归测试都靠它）。
- * 每题最大难度随轮次上升：先 1–10，后 1–20。
+ * 数值上限、公差和题型配比都来自年龄档；每轮前 3 题还会再降一档热身。
  */
 function makeQuestion(index, seed) {
   const rng = createRng(seed)
   const cargo = rng.sample(CARGO)
-  const ceiling = index < 3 ? 10 : 20
-  const roll = compareOnly.value ? 1 : rng()
+  const { ceilings, dragCap, steps, mix } = tuning.value
+  const ceiling = index < 3 ? ceilings[0] : ceilings[1]
+  const type = compareOnly.value ? 'compare' : pickType(rng, mix)
   const withId = (q) => ({ ...q, id: questionId(q.type, seed), seed })
 
-  if (roll < 0.46) {
-    const target = rng.int(index < 3 ? 2 : 5, ceiling)
-    const poolSize = Math.min(20, target + rng.int(3, 6))
+  if (type === 'drag') {
+    // 货物要一个个点进货舱，数量再多也得停在 dragCap，不然低龄的孩子点到手酸
+    const top = Math.min(ceiling, dragCap)
+    const target = rng.int(Math.min(index < 3 ? 2 : 5, top - 1), top)
+    const poolSize = target + rng.int(3, 6)
     return withId({
       type: 'drag',
       cargo,
@@ -65,22 +89,23 @@ function makeQuestion(index, seed) {
     })
   }
 
-  if (roll < 0.68) {
-    const target = rng.int(3, ceiling)
+  if (type === 'count') {
+    const top = Math.min(ceiling, RADAR_CAP)
+    const target = rng.int(Math.min(3, top), top)
     return withId({
       type: 'count',
       cargo,
       target,
       prompt: `雷达上有几个${cargo.name}？`,
-      options: numericOptions(target, { count: 4, spread: 3, min: 1, max: 20, rng }),
+      options: numericOptions(target, { count: 4, spread: 3, min: 1, max: top, rng }),
       hint: '用手指点着一个一个数，别数漏也别数重复。',
       stars: target >= 11 ? 2 : 1,
       xp: 10 + target,
     })
   }
 
-  if (roll < 0.85) {
-    const step = rng.chance(0.7) ? 1 : rng.sample([2, 2, 5])
+  if (type === 'seq') {
+    const step = rng.sample(steps)
     const start = rng.int(1, Math.max(1, ceiling - step * 4))
     const seq = [0, 1, 2, 3, 4].map((i) => start + i * step)
     const blank = rng.int(1, 3)
@@ -95,7 +120,7 @@ function makeQuestion(index, seed) {
         count: 4,
         spread: Math.max(2, step + 1),
         min: 1,
-        max: 40,
+        max: seq[seq.length - 1] + step,
         rng,
       }),
       hint: '看看相邻两个数差了多少，规律就出来了。',
@@ -306,7 +331,8 @@ function finish() {
 
 function startRound() {
   // 每轮一个母种子，第 i 题的种子是「母种子-i」：同一轮的题目集合可以整轮复现
-  roundSeed.value = `${props.mode}-${Date.now().toString(36)}`
+  // 种子里带上年龄档，换档之后重开的一轮不会和上一轮撞题
+  roundSeed.value = `${props.mode}-${band.value.id}-${Date.now().toString(36)}`
   questions.value = Array.from({ length: ROUND_SIZE }, (_, i) =>
     makeQuestion(i, `${roundSeed.value}-${i}`),
   )
@@ -368,6 +394,7 @@ onBeforeUnmount(() => {
     </section>
 
     <section class="card bar-panel">
+      <AgeBandBadge module="counting" />
       <SessionBar
         :index="index"
         :total="ROUND_SIZE"
@@ -604,7 +631,15 @@ onBeforeUnmount(() => {
 }
 
 .bar-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
   padding: 14px 18px;
+}
+
+.bar-panel > :last-child {
+  width: 100%;
 }
 
 .stage {

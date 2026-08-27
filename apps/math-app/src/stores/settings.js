@@ -2,20 +2,16 @@
  * 设置 store — 音效开关 / 护眼模式 / 年龄档 / 防沉迷时长,localStorage 持久化。
  */
 import { defineStore } from 'pinia'
+import { AGE_BAND_IDS, DEFAULT_AGE_BAND } from '@/data/age-band.js'
 
 const STORAGE_KEY = 'mathquest/settings'
 
 /**
  * 年龄档 —— 家长在家长中心里选，决定各玩法进来时的默认难度。
  * 孩子在玩法页里仍然可以自己切档，这里只是「从哪儿起步」。
+ * 档位清单和它在六个玩法里对应的默认难度都写在 data/age-band.js。
  */
-export const AGE_BANDS = [
-  { id: 'L1', name: '3–4 岁', desc: '点数与图形认知' },
-  { id: 'L2', name: '4–6 岁', desc: '10 以内加减' },
-  { id: 'L3', name: '6–8 岁', desc: '20 以内进位退位' },
-  { id: 'L4', name: '8–10 岁', desc: '100 以内与乘除' },
-  { id: 'L5', name: '10–12 岁', desc: '两步应用题与数独' }
-]
+export { AGE_BANDS } from '@/data/age-band.js'
 
 /** 双 App 共用 aurora 令牌；数学 App 保留 cosmos 作为默认品牌主题。 */
 export const THEMES = [
@@ -27,7 +23,7 @@ const DEFAULTS = {
   theme: 'cosmos',
   soundOn: true,
   eyeCare: false,          // 护眼模式:降低饱和度/暖色滤镜(CSS 类切换)
-  ageBand: 'L2',           // L1-L5,影响默认推荐模块与生成器参数
+  ageBand: DEFAULT_AGE_BAND, // L1-L5,驱动六个玩法的默认难度
   dailyGoal: 5,            // 每日冒险题数,对标都都"每日 5 题"
   dailyLimitMinutes: 20,   // 每日建议时长(分钟),0 表示不限制
   breakReminder: true,     // 到点后弹出护眼休息提醒
@@ -41,7 +37,7 @@ function sanitize(saved) {
   out.dailyLimitMinutes = Number.isFinite(limit) ? Math.min(120, Math.max(0, Math.round(limit))) : DEFAULTS.dailyLimitMinutes
   const goal = Number(out.dailyGoal)
   out.dailyGoal = Number.isFinite(goal) ? Math.min(50, Math.max(1, Math.round(goal))) : DEFAULTS.dailyGoal
-  out.ageBand = AGE_BANDS.some((band) => band.id === out.ageBand) ? out.ageBand : DEFAULTS.ageBand
+  out.ageBand = AGE_BAND_IDS.includes(out.ageBand) ? out.ageBand : DEFAULTS.ageBand
   out.theme = THEMES.some((theme) => theme.id === out.theme) ? out.theme : DEFAULTS.theme
   out.soundOn = !!out.soundOn
   out.eyeCare = !!out.eyeCare

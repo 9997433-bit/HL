@@ -7,8 +7,18 @@ import {
   SEMANTIC_TEMPLATES,
   WORD_PROBLEMS,
   WORD_PROBLEM_TAGS,
+  WORD_PROBLEM_TIERS,
   problemsOfTier,
 } from '../src/data/wordProblems.js'
+import {
+  AGE_BANDS,
+  AGE_BAND_MODULES,
+  COUNTING_QUESTION_IDS,
+  DEFAULT_AGE_BAND,
+  GEOMETRY_QUESTION_IDS,
+  LOGIC_PATTERN_IDS,
+  bandOf,
+} from '../src/data/age-band.js'
 import { isKnownSkill, SKILL_MAP, skillsOfModule } from '../src/data/curriculum.js'
 import {
   arithmeticSkill,
@@ -104,6 +114,90 @@ console.log(
 
 for (const tierId of ['one', 'two', 'multi']) {
   if (problemsOfTier(tierId).length === 0) fail(`难度档「${tierId}」一道母题都没有`)
+}
+
+/**
+ * 年龄档 L1–L5：六个玩法的默认难度必须填齐，每个值都得是对应玩法真认得的档位，
+ * 而且档位越高不能反而越简单——否则家长把档往上调，孩子做的题却变容易了。
+ */
+{
+  const SUDOKU_DIFFICULTIES = ['easy', 'normal', 'hard'] // SudokuView 的 DIFFICULTIES
+  const ARITHMETIC_LEVELS = [10, 20, 100] // ArithmeticView 的 LEVELS
+  const ARITHMETIC_OPS = ['add', 'sub', 'mix']
+  const GEOMETRY_SCOPES = ['2d', '3d', 'all']
+  const PLANE_ONLY = ['sides', 'odd'] // GeometryView 在立体范围下会去掉这两种
+  const tierIds = WORD_PROBLEM_TIERS.map((t) => t.id)
+  const moduleKeys = AGE_BAND_MODULES.map((m) => m.key)
+
+  if (AGE_BANDS.length !== 5) fail(`年龄档应有 L1–L5 共 5 档，实际 ${AGE_BANDS.length} 档`)
+  if (!AGE_BANDS.some((b) => b.id === DEFAULT_AGE_BAND)) fail(`默认档位 ${DEFAULT_AGE_BAND} 不在表里`)
+  if (bandOf('不存在的档位').id !== DEFAULT_AGE_BAND) fail('bandOf 遇到未知档位没有回落到默认档')
+
+  for (const band of AGE_BANDS) {
+    const d = band.defaults
+    const at = `年龄档 ${band.id}`
+    if (!band.name || !band.desc) fail(`${at} 缺少名称或说明`)
+    for (const key of moduleKeys) {
+      if (!band.hints?.[key]) fail(`${at} 缺少「${key}」的难度说明`)
+    }
+
+    const { ceilings, dragCap, steps, mix } = d.counting
+    if (!(ceilings?.length === 2 && ceilings[0] >= 3 && ceilings[1] >= ceilings[0])) {
+      fail(`${at} 数量星云的数值上限不合理：${JSON.stringify(ceilings)}`)
+    }
+    if (!(dragCap >= 5)) fail(`${at} 装货题上限 ${dragCap} 太小，凑不出题`)
+    if (!steps?.length || steps.some((s) => !Number.isInteger(s) || s < 1)) {
+      fail(`${at} 数序题的公差不合法：${JSON.stringify(steps)}`)
+    }
+    const mixKeys = Object.keys(mix)
+    if (mixKeys.some((k) => !COUNTING_QUESTION_IDS.includes(k))) {
+      fail(`${at} 题型权重里有未知题型：${mixKeys.join('、')}`)
+    }
+    for (const id of COUNTING_QUESTION_IDS) {
+      if (!(mix[id] > 0)) fail(`${at} 没给题型「${id}」权重，这一档永远抽不到它`)
+    }
+
+    if (!GEOMETRY_SCOPES.includes(d.geometry.scope)) fail(`${at} 图形范围不合法：${d.geometry.scope}`)
+    if (!d.geometry.makers.length) fail(`${at} 形状卫星一种题型都没开`)
+    for (const id of d.geometry.makers) {
+      if (!GEOMETRY_QUESTION_IDS.includes(id)) fail(`${at} 形状卫星有未知题型：${id}`)
+    }
+    if (d.geometry.scope === '3d' && d.geometry.makers.every((id) => PLANE_ONLY.includes(id))) {
+      fail(`${at} 立体范围下所有题型都会被过滤掉，出不了题`)
+    }
+
+    if (!d.logic.length) fail(`${at} 规律环带一种题型都没开`)
+    for (const id of d.logic) {
+      if (!LOGIC_PATTERN_IDS.includes(id)) fail(`${at} 规律环带有未知题型：${id}`)
+    }
+
+    if (!ARITHMETIC_LEVELS.includes(d.arithmetic.level)) {
+      fail(`${at} 口算档位 ${d.arithmetic.level} 不在 ${ARITHMETIC_LEVELS.join('/')} 里`)
+    }
+    if (!ARITHMETIC_OPS.includes(d.arithmetic.op)) fail(`${at} 口算运算类型不合法：${d.arithmetic.op}`)
+    if (!tierIds.includes(d.word)) fail(`${at} 应用题难度档「${d.word}」不存在`)
+    if (!problemsOfTier(d.word).length) fail(`${at} 应用题难度档「${d.word}」一道母题都没有`)
+    if (!SUDOKU_SIZES.includes(d.sudoku.size)) fail(`${at} 数独棋盘 ${d.sudoku.size} 不存在`)
+    if (!SUDOKU_DIFFICULTIES.includes(d.sudoku.difficulty)) {
+      fail(`${at} 数独挖洞档「${d.sudoku.difficulty}」不存在`)
+    }
+  }
+
+  for (let i = 1; i < AGE_BANDS.length; i++) {
+    const prev = AGE_BANDS[i - 1]
+    const cur = AGE_BANDS[i]
+    const worse = (key, get) => {
+      if (get(cur) < get(prev)) fail(`${cur.id} 的${key}反而低于 ${prev.id}`)
+    }
+    worse('数量上限', (b) => b.defaults.counting.ceilings[1])
+    worse('口算档位', (b) => b.defaults.arithmetic.level)
+    worse('数独棋盘', (b) => b.defaults.sudoku.size)
+  }
+
+  console.log(
+    `年龄档 ${AGE_BANDS.map((b) => b.id).join('/')}：` +
+      `各驱动 ${moduleKeys.length} 个玩法的默认难度，档位越高越难`,
+  )
 }
 
 /* 数形演示注册表：每类必须完整走完「实物 → 图形 → 算式」三段。 */

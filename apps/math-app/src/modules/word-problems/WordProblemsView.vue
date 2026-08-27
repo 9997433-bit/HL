@@ -6,7 +6,9 @@
  */
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import AgeBandBadge from '@/components/AgeBandBadge.vue'
 import QuizShell from '@/components/QuizShell.vue'
+import { useAgeBand } from '@/composables/useAgeBand'
 import {
   WORD_PROBLEMS,
   WORD_PROBLEM_TIERS,
@@ -20,7 +22,14 @@ const MODULE_ID = 'word'
 
 const router = useRouter()
 
-const tier = ref('all')
+/** 家长中心选的年龄档决定进来时停在一步题、两步题还是进阶题。 */
+const band = useAgeBand((next) => {
+  // 档位没变就自己换一轮题，变了交给下面的 watch(tier)
+  if (tier.value === next.defaults.word) newRound()
+  else tier.value = next.defaults.word
+})
+
+const tier = ref(band.value.defaults.word)
 const inputMode = ref('choice')
 
 const bank = computed(() => problemsOfTier(tier.value))
@@ -107,6 +116,7 @@ function setTier(id) {
             {{ t.label }}
           </button>
         </div>
+        <AgeBandBadge module="word" />
         <span class="chip">📚 母题 {{ bank.length }} / {{ WORD_PROBLEMS.length }} 道</span>
       </template>
 
