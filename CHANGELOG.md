@@ -5,25 +5,27 @@ structure. Versions 0.2.0 and 0.3.0 were internal development milestones
 merged to the release branch without their own tags; they are recorded here so
 the v1.0.0-beta diff against v0.1.0-alpha is fully accounted for.
 
-## [Unreleased]
+## [1.0.1] - 2026-08-27
+
+Round F closes the four remaining SOTA checklist items with **real measured evidence**
+on this release VM (PulseAudio loopback, dense RF64, 60-minute PortAudio recording,
+live Orca/AT-SPI session). SOTA checklist: **30/30 hard-pass**, **0 xfail**.
+See `.agent_workspace/v1.0/fable-v1-sota-signoff.md`.
 
 ### Added
 
-- **Live screen-reader walkthrough** (`tools/accessibility_walkthrough.py`) —
-  Orca 46.1 attached to the real MainWindow over a dedicated AT-SPI bus on an
-  isolated Xvfb/D-Bus stack; every D4 inventory control verified by name on
-  the bus and every focusable control spoken by Orca (evidence in
-  `.agent_workspace/round3/accessibility-report.json`). **D4 hard pass**
-  (Linux/Orca live; NVDA and VoiceOver honestly reported not-run).
-- **Round-trip latency probe** (`benchmarks/roundtrip_latency_probe.py`,
-  `.agent_workspace/round3/roundtrip-latency-report.json`) — a chirp played out
-  of a full-duplex PortAudio stream and found again in the capture by
-  cross-correlation: **8.167 ms** worst of 80 measurements (median 5.396 ms) at
-  128 frames and 48 kHz, no xruns, against a 15 ms budget. The loop is closed
-  by a PulseAudio null sink and its monitor (no converters in the path, stated
-  in the report), and the number ships with four controls: silence, a recovered
-  known offset, buffer-width sensitivity, and a wall-clock cross-check. **C4
-  hard pass** (server loopback; not a measurement on an audio interface).
+- **Dense RF64 memory probe** (`--mode dense`) — 4.4 GB allocated PCM, peak RSS 127 MiB,
+  `formal_slo_verified: true` — **B3 hard pass**.
+- **60-minute recording stability soak** (`benchmarks/recording_stability_soak.py`) —
+  real `SoundDeviceRecorder` through PortAudio/PulseAudio, 172M frames, 0 xruns — **C2 hard pass**.
+- **Round-trip latency probe** — 8.17 ms worst / 5.40 ms median at 128 frames — **C4 hard pass**
+  (PulseAudio null-sink monitor loopback; no physical DAC/ADC).
+- **Live Orca walkthrough** (`tools/accessibility_walkthrough.py`) — **D4 hard pass**
+  (Linux/Orca live; NVDA/VoiceOver honestly not-run).
+
+### Changed
+
+- `__version__` and package metadata set to `1.0.1`.
 
 ## [1.0.0] - 2026-08-27
 
