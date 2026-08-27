@@ -96,6 +96,157 @@ export function similarity(reference, heard) {
   return Math.max(0, Math.min(1, recall - penalty))
 }
 
+/*
+ * ROUND9_H4：跟读 v3 的纯函数探针。
+ *
+ * 这不是“从声音判音素”的声学模型，只把离线 ASR 的汉字结果映射为可解释的
+ * 拼音近似标记。调用方必须继续把它称为诊断线索，不能把 tone/near 当作确定错误。
+ * 真正的音素评分仍需拿声学后验做受限对齐，路线与上线门槛见评估文档。
+ */
+const PINYIN_TONES = {
+  ā: 1, á: 2, ǎ: 3, à: 4,
+  ē: 1, é: 2, ě: 3, è: 4,
+  ī: 1, í: 2, ǐ: 3, ì: 4,
+  ō: 1, ó: 2, ǒ: 3, ò: 4,
+  ū: 1, ú: 2, ǔ: 3, ù: 4,
+  ǖ: 1, ǘ: 2, ǚ: 3, ǜ: 4,
+  ń: 2, ň: 3, ǹ: 4, ḿ: 2
+}
+const PINYIN_BASE = {
+  ā: 'a', á: 'a', ǎ: 'a', à: 'a',
+  ē: 'e', é: 'e', ě: 'e', è: 'e', ê: 'e',
+  ī: 'i', í: 'i', ǐ: 'i', ì: 'i',
+  ō: 'o', ó: 'o', ǒ: 'o', ò: 'o',
+  ū: 'u', ú: 'u', ǔ: 'u', ù: 'u',
+  ǖ: 'ü', ǘ: 'ü', ǚ: 'ü', ǜ: 'ü',
+  ń: 'n', ň: 'n', ǹ: 'n', ḿ: 'm'
+}
+const PINYIN_INITIALS = [
+  'zh', 'ch', 'sh',
+  'b', 'p', 'm', 'f', 'd', 't', 'n', 'l',
+  'g', 'k', 'h', 'j', 'q', 'x', 'r', 'z', 'c', 's'
+]
+
+function pinyinParts(value) {
+  const raw = String(value ?? '').trim().toLowerCase().replace(/u:/g, 'ü').replace(/v/g, 'ü')
+  if (!raw) return null
+
+  // lookupPinyin 应返回单音节；遇到多音候选时不猜上下文，只取调用方排在首位的读音。
+  const syllable = raw.split(/[\s,;/|]+/, 1)[0]
+  const numbered = syllable.match(/([1-5])$/)
+  let tone = numbered ? Number(numbered[1]) : 5
+  let base = ''
+  for (const char of syllable.replace(/[1-5]$/, '')) {
+    if (PINYIN_TONES[char]) tone = PINYIN_TONES[char]
+    base += PINYIN_BASE[char] ?? char
+  }
+  base = [...base].filter((char) => /[a-zü]/.test(char)).join('')
+  if (!base) return null
+
+  const initial = PINYIN_INITIALS.find((candidate) => base.startsWith(candidate)) ?? ''
+  return { raw: syllable, base, tone, initial, final: base.slice(initial.length) }
+}
+
+function alignedHeardChars(reference, heard) {
+  const ref = [...normalizeTranscript(reference)]
+  const got = [...normalizeTranscript(heard)]
+  const d = Array.from({ length: ref.length + 1 }, (_, i) =>
+    Array.from({ length: got.length + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0))
+  )
+
+  for (let i = 1; i <= ref.length; i += 1) {
+    for (let j = 1; j <= got.length; j += 1) {
+      const cost = ref[i - 1] === got[j - 1] ? 0 : 1
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost)
+    }
+  }
+
+  const aligned = new Array(ref.length).fill('')
+  let i = ref.length
+  let j = got.length
+  while (i > 0 && j > 0) {
+    const cost = ref[i - 1] === got[j - 1] ? 0 : 1
+    if (d[i][j] === d[i - 1][j - 1] + cost) {
+      aligned[i - 1] = got[j - 1]
+      i -= 1
+      j -= 1
+    } else if (d[i][j] === d[i - 1][j] + 1) {
+      i -= 1
+    } else {
+      j -= 1
+    }
+  }
+  return { ref, aligned, extra: Math.max(0, got.length - ref.length) }
+}
+
+function safePinyinLookup(lookupPinyin, char) {
+  if (typeof lookupPinyin !== 'function' || !char) return null
+  try {
+    return pinyinParts(lookupPinyin(char))
+  } catch {
+    return null
+  }
+}
+
+/**
+ * 用 ASR 转写字的拼音关系给原文逐字打“候选诊断”标记。
+ *
+ * hit：同字，或不同字但拼音与声调完全相同；tone：音节相同、声调不同；
+ * near：声母或韵母相同；miss：漏字、查不到拼音或差异较大。
+ * lookupPinyin 由调用方注入，纯函数层不依赖课程字库。
+ */
+export function phonemeMarks(reference, heard, lookupPinyin) {
+  const { ref, aligned, extra } = alignedHeardChars(reference, heard)
+  const chars = ref.map((char, index) => {
+    const heardAs = aligned[index]
+    if (char === heardAs) return { char, status: 'hit' }
+    if (!heardAs) return { char, status: 'miss' }
+
+    const expected = safePinyinLookup(lookupPinyin, char)
+    const actual = safePinyinLookup(lookupPinyin, heardAs)
+    if (!expected || !actual) return { char, status: 'miss', heardAs }
+
+    let status = 'miss'
+    if (expected.base === actual.base && expected.tone === actual.tone) status = 'hit'
+    else if (expected.base === actual.base) status = 'tone'
+    else if (
+      (expected.initial && expected.initial === actual.initial) ||
+      (expected.final && expected.final === actual.final)
+    ) status = 'near'
+
+    return {
+      char,
+      status,
+      heardAs,
+      expectedPinyin: expected.raw,
+      heardPinyin: actual.raw
+    }
+  })
+
+  return {
+    chars,
+    hits: chars.filter((item) => item.status === 'hit').length,
+    toneErrors: chars.filter((item) => item.status === 'tone').length,
+    nearMisses: chars.filter((item) => item.status === 'near').length,
+    misses: chars.filter((item) => item.status === 'miss').length,
+    total: chars.length,
+    extra
+  }
+}
+
+/**
+ * 转写代理相似度：hit=1、tone=0.5、near=0.25，多读轻罚沿用 v1。
+ * 返回值只能用于 PoC 排序；没有声学后验时不得展示成“音素准确率”。
+ */
+export function similarityV2(reference, heard, lookupPinyin) {
+  const detail = phonemeMarks(reference, heard, lookupPinyin)
+  if (!detail.total) return 0
+  const weighted =
+    (detail.hits + detail.toneErrors * 0.5 + detail.nearMisses * 0.25) / detail.total
+  const penalty = Math.min(0.2, (detail.extra / detail.total) * 0.3)
+  return Math.max(0, Math.min(1, weighted - penalty))
+}
+
 const clampScore = (n) => Math.max(0, Math.min(100, Math.round(n)))
 
 /** 识别档得分：相似度直接映射成百分数。 */

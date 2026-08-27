@@ -7,9 +7,11 @@ import {
   evaluate,
   gradeOf,
   normalizeTranscript,
+  phonemeMarks,
   scoreFromLoudness,
   scoreFromSimilarity,
-  similarity
+  similarity,
+  similarityV2
 } from '../src/utils/speechEval.js'
 
 const tests = []
@@ -43,6 +45,38 @@ test('多念出来的字只轻罚，不会把一遍好的跟读判成不及格',
   const score = scoreFromSimilarity(similarity(REF, '床前明月光读完啦'))
   assert.ok(score >= 80, `多读三个字后得 ${score} 分，罚得太重`)
   assert.ok(score < 100, '多读了字还给满分，等于不看多读')
+})
+
+test('v3 转写代理能区分声调候选、近音候选和同音字', () => {
+  const pinyin = new Map([
+    ['妈', 'mā'],
+    ['马', 'mǎ'],
+    ['山', 'shān'],
+    ['三', 'sān'],
+    ['他', 'tā'],
+    ['她', 'tā']
+  ])
+  const detail = phonemeMarks('妈山他', '马三她', (char) => pinyin.get(char))
+
+  assert.deepEqual(detail.chars.map((item) => item.status), ['tone', 'near', 'hit'])
+  assert.equal(detail.toneErrors, 1)
+  assert.equal(detail.nearMisses, 1)
+  assert.equal(detail.hits, 1)
+  assert.equal(similarityV2('妈山他', '马三她', (char) => pinyin.get(char)), 1.75 / 3)
+})
+
+test('v3 转写代理对漏字和未知拼音保守判 miss，多读仍沿用轻罚', () => {
+  const pinyin = new Map([
+    ['妈', 'ma1'],
+    ['马', 'ma3'],
+    ['好', 'hao3']
+  ])
+  const lookup = (char) => pinyin.get(char)
+  const detail = phonemeMarks('妈龘', '马大', lookup)
+
+  assert.deepEqual(detail.chars.map((item) => item.status), ['tone', 'miss'])
+  assert.equal(detail.misses, 1)
+  assert.equal(similarityV2('妈妈', '妈妈好好', lookup), 0.8)
 })
 
 test('念的完全是别的内容判 0 分', () => {
