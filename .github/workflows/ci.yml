@@ -50,3 +50,5 @@ jobs:
         run: python -m pytest tests/acceptance/test_registry_ci.py
       - name: Acceptance suites
         run: python -m pytest -m acceptance
+      - name: Modal benchmark budget
+        run: python scripts/bench_ci_gate.py

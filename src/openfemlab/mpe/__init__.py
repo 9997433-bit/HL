@@ -10,7 +10,9 @@ Surface (MS-10.6): the LSCF / poly-reference curve fitter (:func:`fit_lscf`),
 the stabilization diagram over model orders
 (:func:`stabilization_diagram`), LSFD residue/shape estimation
 (:func:`extract_shapes`), the one-call driver (:func:`extract_modes`), and
-the ``MPEResult.to_test_data`` bridge into the M2 correlation input.
+the ``MPEResult.to_test_data`` bridge into the M2 correlation input.  The
+output-only :func:`ssi_cov` API is reserved explicitly and currently raises
+``NotImplementedError`` until its numerical backend lands.
 
 The estimators are direct solves over the measured lines, so they take no
 seed and identical inputs produce bitwise-identical results (MS-10.1). Input
@@ -26,6 +28,7 @@ accelerance are converted by the caller.
 from __future__ import annotations
 
 from .lscf import extract_modes, extract_shapes, fit_lscf, stabilization_diagram
+from .ssi import ssi_cov
 from .types import MPEResult, PoleEstimate, StabilizationDiagram
 
 __all__ = [
@@ -35,5 +38,6 @@ __all__ = [
     "extract_modes",
     "extract_shapes",
     "fit_lscf",
+    "ssi_cov",
     "stabilization_diagram",
 ]
