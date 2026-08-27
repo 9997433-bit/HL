@@ -311,6 +311,16 @@ onUnmounted(() => {
           <strong>竖式工坊</strong>
           <small>进位 / 借位错因专练</small>
         </RouterLink>
+        <RouterLink class="tool-card card memory" to="/memory-pairs">
+          <span class="tool-icon">🃏</span>
+          <strong>配对记忆</strong>
+          <small>Canvas 记忆矩阵</small>
+        </RouterLink>
+        <RouterLink class="tool-card card maze" to="/maze">
+          <span class="tool-icon">🌀</span>
+          <strong>逻辑迷宫</strong>
+          <small>按顺序收能量块</small>
+        </RouterLink>
       </div>
     </section>
 
@@ -652,6 +662,14 @@ onUnmounted(() => {
 
 .tool-card.column {
   --tool-color: var(--star);
+}
+
+.tool-card.memory {
+  --tool-color: var(--neon-cyan);
+}
+
+.tool-card.maze {
+  --tool-color: var(--success);
 }
 
 .tool-icon {

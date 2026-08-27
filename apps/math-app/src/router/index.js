@@ -79,6 +79,20 @@ const routes = [
     meta: { title: '规律环带' },
   },
   {
+    // 配对记忆：Canvas 记忆矩阵，低龄档同图配对、高龄档同类配对
+    path: '/memory-pairs',
+    name: 'memory-pairs',
+    component: () => import('@/modules/logic/MemoryPairsView.vue'),
+    meta: { title: '配对记忆' },
+  },
+  {
+    // 逻辑迷宫：Canvas 条件迷宫，按编号顺序收齐能量块才能通关
+    path: '/maze',
+    name: 'maze',
+    component: () => import('@/modules/logic/MazeView.vue'),
+    meta: { title: '逻辑迷宫' },
+  },
+  {
     path: '/sudoku',
     name: 'sudoku',
     component: () => import('@/modules/sudoku/SudokuView.vue'),

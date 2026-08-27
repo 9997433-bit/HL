@@ -27,6 +27,25 @@ import {
   specOf,
 } from '../src/core/engine/sudoku.js'
 import {
+  buildMazeStage,
+  canMove,
+  DIRECTION_MAP,
+  hintDirection,
+  MAZE_LEVELS,
+  nextObjective,
+  rateRun,
+  samePos,
+  solveMaze,
+  step,
+} from '../src/core/engine/maze.js'
+import {
+  buildMemoryDeck,
+  isMatch,
+  MEMORY_LEVELS,
+  matchReason,
+  maxPairs,
+} from '../src/core/engine/memory-pairs.js'
+import {
   createRng,
   numericOptions,
   parseQuestionId,
@@ -342,6 +361,142 @@ if (questionId('daily-add', '2026-01-01#1') !== 'daily-add:2026-01-01#1') {
     `每日冒险 ${DAYS} 天共 ${checked} 道：同日可复现、跨日不重样，` +
       `题型顺序 ${DAILY_TEMPLATE_IDS.join(' → ')}`,
   )
+}
+
+/* 条件迷宫：每一档都要能生成、能走通，而且只跟着提示走就一定能通关 */
+{
+  if (!isKnownSkill('maze-condition')) fail('逻辑迷宫记的技能点 maze-condition 不在图谱里')
+  let stages = 0
+  let walked = 0
+  for (const [bandId, config] of Object.entries(MAZE_LEVELS)) {
+    for (let i = 0; i < 40; i++) {
+      const seed = `${bandId}-${i}`
+      const stage = buildMazeStage({ ...config, seed })
+      if (!stage) {
+        fail(`${bandId} 第 ${i} 座迷宫编排失败`)
+        continue
+      }
+      stages++
+
+      const again = buildMazeStage({ ...config, seed })
+      if (JSON.stringify(stage) !== JSON.stringify(again)) {
+        fail(`${bandId} 第 ${i} 座迷宫同种子两次生成不一致`)
+      }
+      if (stage.checkpoints.length !== config.checkpoints) {
+        fail(`${bandId} 第 ${i} 座迷宫只放下 ${stage.checkpoints.length} 个能量块`)
+      }
+      const marks = new Set(stage.checkpoints.map((c) => `${c.x},${c.y}`))
+      if (marks.size !== stage.checkpoints.length) fail(`${bandId} 第 ${i} 座迷宫能量块重叠`)
+      if (marks.has(`${stage.start.x},${stage.start.y}`)) fail(`${bandId} 能量块压在发射台上`)
+      if (marks.has(`${stage.goal.x},${stage.goal.y}`)) fail(`${bandId} 能量块压在空间站上`)
+      if (!(stage.optimalSteps > 0)) fail(`${bandId} 第 ${i} 座迷宫最短步数为 ${stage.optimalSteps}`)
+
+      // 完美迷宫：任意一格都必须能从起点走到
+      const unreachable = []
+      for (let y = 0; y < config.rows; y++) {
+        for (let x = 0; x < config.cols; x++) {
+          if (!solveMaze(stage.maze, stage.start, { x, y })) unreachable.push(`${x},${y}`)
+        }
+      }
+      if (unreachable.length) fail(`${bandId} 第 ${i} 座迷宫有 ${unreachable.length} 格走不到`)
+
+      // 只跟着提示走：必须按顺序收齐能量块，并在最短步数内到达终点
+      let at = { ...stage.start }
+      let collected = 0
+      let steps = 0
+      const cap = stage.optimalSteps + 4
+      while (steps < cap && !(collected === stage.checkpoints.length && samePos(at, stage.goal))) {
+        const dir = hintDirection(stage, at, collected)
+        if (!dir) {
+          fail(`${bandId} 第 ${i} 座迷宫在 ${at.x},${at.y} 给不出提示`)
+          break
+        }
+        if (!canMove(stage.maze, at, dir)) {
+          fail(`${bandId} 第 ${i} 座迷宫的提示指向墙：${DIRECTION_MAP[dir].name}`)
+          break
+        }
+        at = step(at, dir)
+        steps++
+        const target = nextObjective(stage, collected)
+        if (target.kind === 'checkpoint' && samePos(at, target)) collected++
+      }
+      if (collected !== stage.checkpoints.length || !samePos(at, stage.goal)) {
+        fail(`${bandId} 第 ${i} 座迷宫跟着提示走 ${steps} 步也没通关`)
+      } else if (steps !== stage.optimalSteps) {
+        fail(`${bandId} 第 ${i} 座迷宫提示路线 ${steps} 步，最短是 ${stage.optimalSteps} 步`)
+      }
+      walked += steps
+
+      if (rateRun(stage, { steps: stage.optimalSteps, hints: 0 }) !== 3) {
+        fail(`${bandId} 走出最短路线却没给满星`)
+      }
+      if (rateRun(stage, { steps: stage.optimalSteps * 3, hints: 4 }) !== 1) {
+        fail(`${bandId} 绕远又狂用提示还不止 1 星`)
+      }
+    }
+  }
+  console.log(
+    `条件迷宫 ${stages} 座（5 档 × 40）：每格可达、能量块按序可收，` +
+      `跟提示共走 ${walked} 步全部按最短路线通关`,
+  )
+}
+
+/* 配对记忆：牌堆必须两两成对，同类档的每一对都得真的同类 */
+{
+  if (!isKnownSkill('classify')) fail('配对记忆记的技能点 classify 不在图谱里')
+  let decks = 0
+  for (const [bandId, config] of Object.entries(MEMORY_LEVELS)) {
+    if (config.pairs > maxPairs(config.mode)) {
+      fail(`${bandId} 要 ${config.pairs} 对，${config.mode} 档最多只有 ${maxPairs(config.mode)} 对`)
+    }
+    for (let i = 0; i < 200; i++) {
+      const seed = `${bandId}-${i}`
+      const deck = buildMemoryDeck({ ...config, seed })
+      decks++
+
+      if (JSON.stringify(deck) !== JSON.stringify(buildMemoryDeck({ ...config, seed }))) {
+        fail(`${bandId} 第 ${i} 副牌同种子两次生成不一致`)
+      }
+      if (deck.cards.length !== config.pairs * 2) {
+        fail(`${bandId} 第 ${i} 副牌有 ${deck.cards.length} 张，应为 ${config.pairs * 2} 张`)
+      }
+      if (new Set(deck.cards.map((c) => c.id)).size !== deck.cards.length) {
+        fail(`${bandId} 第 ${i} 副牌出现重复卡片 id`)
+      }
+      if (deck.grid.cols * deck.grid.rows < deck.cards.length) {
+        fail(`${bandId} 第 ${i} 副牌的网格摆不下 ${deck.cards.length} 张卡`)
+      }
+
+      const byPair = new Map()
+      for (const card of deck.cards) {
+        if (!card.glyph || !card.label || !card.groupName) fail(`${bandId} 第 ${i} 副牌有残缺卡片`)
+        byPair.set(card.pairId, [...(byPair.get(card.pairId) ?? []), card])
+      }
+      if (byPair.size !== config.pairs) fail(`${bandId} 第 ${i} 副牌凑出 ${byPair.size} 对`)
+      for (const [pairId, faces] of byPair) {
+        if (faces.length !== 2) fail(`${bandId} 第 ${i} 副牌的 ${pairId} 有 ${faces.length} 张`)
+        const [a, b] = faces
+        if (!isMatch(a, b)) fail(`${bandId} 第 ${i} 副牌的 ${pairId} 自己配不上`)
+        if (a.group !== b.group) fail(`${bandId} 第 ${i} 副牌的 ${pairId} 跨类了`)
+        if (config.mode === 'category' && a.glyph === b.glyph) {
+          fail(`${bandId} 同类档的 ${pairId} 是两张一样的牌`)
+        }
+        if (config.mode === 'same' && a.glyph !== b.glyph) {
+          fail(`${bandId} 同图档的 ${pairId} 是两张不同的牌`)
+        }
+        if (/NaN|undefined/.test(matchReason(a, b, deck.mode))) {
+          fail(`${bandId} 第 ${i} 副牌的配对讲解渲染异常`)
+        }
+      }
+
+      // 不同对的牌不能被判成一对，否则随便点两张都能配上
+      const first = deck.cards[0]
+      const stranger = deck.cards.find((c) => c.pairId !== first.pairId)
+      if (isMatch(first, stranger)) fail(`${bandId} 第 ${i} 副牌把不同对的牌判成了一对`)
+      if (isMatch(first, first)) fail('同一张牌不该跟自己配成一对')
+    }
+  }
+  console.log(`配对记忆 ${decks} 副牌（5 档 × 200）：两两成对、同类档确为同类、可按种子复现`)
 }
 
 for (const [id, info] of Object.entries(ERROR_TAGS)) {

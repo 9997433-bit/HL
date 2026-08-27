@@ -117,6 +117,8 @@ export const SIDE_MODULES = {
   daily: { id: 'daily', name: '今日冒险', icon: '🗓️', route: '/daily' },
   compare: { id: 'compare', name: '比大小擂台', icon: '⚖️', route: '/compare' },
   sprint: { id: 'sprint', name: '速算冲刺', icon: '⚡', route: '/sprint' },
+  'memory-pairs': { id: 'memory-pairs', name: '配对记忆', icon: '🃏', route: '/memory-pairs' },
+  maze: { id: 'maze', name: '逻辑迷宫', icon: '🌀', route: '/maze' },
 }
 
 /** 玩法 id → 展示信息，星球与非星球玩法都能查到。 */
