@@ -1,7 +1,7 @@
 Model slug: gpt-sol
 # Round 5B 验收记录
 
-> 状态：**合并进行中** — 功能 4/6 已绿（P1/P3/P4/P5）；P2 路由够但缺语音；P6 数学节拍探针待补
+> 状态：**5/6 已绿** — 仅 P6 数学节拍探针待对齐
 > 判定标准：`.agent_workspace/ROUND5B-ACCEPTANCE.md`
 
 记录日期：2026-08-27
@@ -14,7 +14,7 @@ Model slug: gpt-sol
 | --- | --- | --- | --- | --- |
 | G1 | 全量单测 | `npm test` | **PASS** | 识字 + 数学全绿 |
 | G2 | Round 5 不退化 | `npm run check:round5` | **PASS 12/12** | 0 pending / 0 fail |
-| G3 | Round 5B Play | `npm run check:round5b` | **4/6** | P2 点触语音、P6 数学节拍待 [R5B 吉祥物](bc-859cfdec) / 音效探针对齐 |
+| G3 | Round 5B Play | `npm run check:round5b` | **5/6** | 仅 P6 数学递进/节拍待补 |
 | G4 | Round 3 全链 | `npm run test:round3` | **PASS** | 离线双 App、axe 全绿；本机无 Lighthouse CLI，脚本按约定 SKIP |
 
 ## 1. Lighthouse 基线

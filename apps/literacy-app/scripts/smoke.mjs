@@ -1125,47 +1125,7 @@ await interact('播报：答题有 aria-live', '/#/listen', async (page) => {
   )
   if (!/答对了|正确答案/.test(answered)) throw new Error(`作答后没有播报对错：「${answered}」`)
 
-<<<<<<< HEAD
   return `答题播报「${region.slice(0, 14)}…」，作答反馈「${answered.slice(0, 18)}…」`
-=======
-  // 庆祝浮层：读完一本没读过的绘本
-  await page.goto(page.url().replace(/#.*$/, '#/books/b2'), { waitUntil: 'networkidle2' })
-  await page.waitForSelector('.reader .pill', { timeout: 8000 })
-  await new Promise((r) => setTimeout(r, 400))
-
-  /**
-   * 按「页码有没有真的前进」来翻页，而不是数点击次数：机器忙起来的时候
-   * 一次点击可能落在翻页动画里，固定次数的循环会在半路上就把书放下。
-   */
-  const readerPage = () =>
-    page.evaluate(() => {
-      const m = document.querySelector('.reader .pill')?.innerText.match(/(\d+)\s*\/\s*(\d+)/)
-      return m ? { at: Number(m[1]), total: Number(m[2]) } : null
-    })
-  let spread = await readerPage()
-  if (!spread) throw new Error('绘本页没有渲染页码')
-  for (let i = 0; i < 24 && spread.at < spread.total; i++) {
-    await clickText(page, '下一页')
-    spread = (await readerPage()) ?? spread
-  }
-  if (spread.at !== spread.total) {
-    throw new Error(`没有翻到最后一页：停在 ${spread.at} / ${spread.total}`)
-  }
-  await clickText(page, '读完啦')
-  await page.waitForSelector('.cel', { timeout: 5000 })
-  const celebration = await page.evaluate(() => {
-    const layer = document.querySelector('.cel')
-    if (!layer) return null
-    const live = layer.querySelector('[aria-live="polite"]')
-    return { text: live?.innerText.trim() ?? '', prohibited: !!layer.querySelector('span[aria-label]:not([role])') }
-  })
-  if (!celebration) throw new Error('读完绘本没有弹出庆祝层')
-  if (!celebration.text) throw new Error('庆祝层没有播报内容')
-  if (!celebration.text.includes('跳过')) throw new Error('庆祝播报没有告诉用户可以跳过')
-  if (celebration.prohibited) throw new Error('庆祝层里有 span 直接挂 aria-label（axe aria-prohibited-attr）')
-
-  return `答题播报「${region.slice(0, 14)}…」，庆祝播报「${celebration.text.slice(0, 18)}…」`
->>>>>>> 39e1cbd (test(识字): 冒烟里的家长门与翻页改成等状态，慢机器上不再假失败)
 })
 
 await interact('设计令牌：识字 App 用的是共享令牌层', '/#/', async (page) => {
