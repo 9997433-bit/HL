@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "harness": "benchmarks/multitrack_32.py",
+  "checklist_item": "B8",
+  "environment": {
+    "python": "3.12.3",
+    "platform": "Linux-6.12.94+-x86_64-with-glibc2.39",
+    "processor": "x86_64"
+  },
+  "config": {
+    "tracks": 32,
+    "sample_rate": 48000,
+    "channels": 2,
+    "frames": 16384,
+    "block_size": 256,
+    "ring_blocks": 16
+  },
+  "results": [
+    {
+      "slo_id": "32-track",
+      "title": "32-track headless playback with sampled gain automation",
+      "status": "pass",
+      "threshold_pass": true,
+      "evidence": "direct-headless",
+      "formal_slo_verified": true,
+      "measured": {
+        "tracks_built": 32,
+        "automated_tracks": 32,
+        "clips_built": 32,
+        "automation_samples_checked": 352,
+        "automation_max_abs_error_db": 2.235447063014817e-07,
+        "mix_max_abs_error": 3.644556524629028e-08,
+        "blocks_rendered": 64,
+        "backend": "null",
+        "frames_delivered": 16384,
+        "frames_pulled": 16384,
+        "underrun_frames": 0,
+        "wall_clock_seconds": 0.05141,
+        "realtime_factor": 6.639
+      },
+      "threshold": {
+        "tracks_min": 32,
+        "automated_tracks": 32,
+        "frames_delivered": 16384,
+        "underrun_frames_max": 0,
+        "automation_max_abs_error_db": 2e-05,
+        "mix_max_abs_error": 2e-06
+      },
+      "method": "Production SessionMixer and AudioEngine playback into deterministic NullOutput; automation and stereo output compared with an independent float64 piecewise-linear reference."
+    }
+  ],
+  "summary": {
+    "passed": 1,
+    "failed": 0,
+    "formal_slos_verified": 1
+  }
+}
