@@ -17,8 +17,15 @@ roadmap items A6/A8 (P5/P6) are updated with the remaining scope. Notably, the n
 `test_bias` still generates its deformed images through `warpAffine` — the same-interpolant
 path this audit flags as an inverse crime — and reads a max bias of **0.0038 px**, whereas
 the analytic-rendering harness (§1.3) measures the true peak bias at **0.0166 px**: a direct,
-4× quantification of how much that validation style understates systematic error. (Minor:
-`7781755` also introduced an unused-variable warning `a01` in `apps/dic_demo.cpp`.)
+4× quantification of how much that validation style understates systematic error.
+
+A further commit `97c230a` then added three primitives that are groundwork for roadmap items
+but do not change engine behavior yet: `bicubicWithGrad` (analytic bicubic derivative —
+toward the C3/A1 spline-consistent gradients, not yet wired into IC-GN, which still uses
+central differences), `solveDense` (general N×N solver — toward the A3 12-parameter system),
+and `warpField` (arbitrary smooth displacement fields via fixed-point backward mapping —
+toward A2's heterogeneous-field tests, though it still samples through the matcher's bicubic,
+so the inverse-crime finding C1 stands). All 7 tests re-verified passing at `97c230a`.
 
 ---
 
