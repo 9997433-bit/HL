@@ -16,7 +16,10 @@ in-memory clip, a file being streamed off disk, and an
 :class:`~audio_studio.core.edit_session.EditSession` document mid-edit. An
 optional per-block insert — the live effect rack — runs on the feeder as well,
 so a rack deep enough to miss a deadline costs latency instead of a dropout;
-see :meth:`AudioEngine.set_stream_processor`.
+see :meth:`AudioEngine.set_stream_processor`. The level meter follows the same
+rule: the device callback only copies its finished block into the telemetry's
+preallocated capture buffer, and the feeder runs the peak/RMS reductions and
+publishes them, keeping every NumPy reduction off the device thread.
 
 The playhead is derived as ``frames_queued - frames_still_in_ring`` so it
 reports what the listener is actually hearing rather than how far the feeder
@@ -507,8 +510,30 @@ class AudioEngine:
 
     @property
     def levels(self) -> LevelSnapshot:
-        """Most recent per-channel peak/RMS reading from the device thread."""
+        """Most recent per-channel peak/RMS meter reading.
+
+        The device callback only captures its rendered block; the feeder
+        thread measures and publishes it a moment later, so a reading trails
+        the newest callback by up to one feeder tick.
+        """
         return self._telemetry.read_levels()
+
+    @property
+    def buffered_frames(self) -> int:
+        """Frames decoded and queued ahead of the device callback."""
+        ring = self._ring
+        return ring.available_read if ring is not None else 0
+
+    @property
+    def underrun_frames(self) -> int:
+        """Frames the device callback zero-filled because the feeder fell behind.
+
+        Counted since the current pass opened its ring buffer; the soak
+        harness and health displays read this instead of reaching into the
+        ring directly.
+        """
+        ring = self._ring
+        return ring.underrun_frames if ring is not None else 0
 
     @property
     def volume_ramp_ms(self) -> float:
@@ -580,7 +605,7 @@ class AudioEngine:
     # ------------------------------------------------------------ device I/O
 
     def render(self, n_frames: int) -> np.ndarray:
-        """Device callback: drain the ring buffer, apply gain, publish levels.
+        """Device callback: drain the ring buffer, apply gain, capture levels.
 
         Allocates the block it returns, because the backend owns the result
         afterwards. A backend that can supply its own buffer should call
@@ -598,7 +623,10 @@ class AudioEngine:
         Returns the number of real frames; anything beyond that is silence the
         ring buffer could not cover. Nothing here allocates, takes a lock or
         touches the filesystem — the three things a real-time callback must not
-        do — because the feeder thread has already done all of them.
+        do — because the feeder thread has already done all of them. Even the
+        level meter obeys that split: the callback only copies the rendered
+        block into the telemetry's preallocated capture buffer, and the feeder
+        thread runs the NumPy peak/RMS reductions and publishes them.
         """
         ring = self._ring
         if ring is None or self._state is not TransportState.PLAYING:
@@ -607,7 +635,7 @@ class AudioEngine:
 
         delivered = ring.read_into(out)
         self._apply_gain(out)
-        self._update_levels(out)
+        self._telemetry.capture_block(out)
         if delivered:
             # Only a real block re-anchors the interpolator; an underrun would
             # otherwise restart the clock and stall the playhead.
@@ -668,9 +696,6 @@ class AudioEngine:
         np.multiply(self._ramp_index[:n], SAMPLE_DTYPE(self._gain_step), out=curve)
         curve += SAMPLE_DTYPE(self._gain)
         return curve
-
-    def _update_levels(self, block: np.ndarray) -> None:
-        self._telemetry.publish_block(block)
 
     def _prepare_stream(self) -> None:
         """Open the device for the source's format, resampling only if forced."""
@@ -783,6 +808,11 @@ class AudioEngine:
         idle = max(self._block_size / max(self.sample_rate, 1) / 4.0, 0.001)
         while not self._feeder_stop.is_set():
             produced = self._pump_once()
+            # Measure and publish whatever block the device captured last.
+            # Running the meter reductions here keeps them off the device
+            # thread; the ring's depth means the latency this adds is invisible
+            # next to the audio already queued ahead of the reading.
+            self._telemetry.publish_pending()
             with self._lock:
                 ring_empty = self._ring is None or self._ring.available_read == 0
                 finished = self._exhausted and ring_empty

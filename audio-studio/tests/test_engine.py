@@ -187,7 +187,14 @@ def test_metering_reports_per_channel_peak_and_rms(
     engine.play()
     pump(engine, blocks=8)
 
+    # The device callback only captures the block; the feeder thread measures
+    # and publishes it, so give that thread a tick to run.
+    deadline = time.monotonic() + 2.0
     levels = engine.levels
+    while levels.is_empty and time.monotonic() < deadline:
+        time.sleep(0.002)
+        levels = engine.levels
+
     assert len(levels.peak) == 2
     assert all(0.0 < value <= 1.0 for value in levels.peak)
     assert all(rms <= peak for rms, peak in zip(levels.rms, levels.peak, strict=True))

@@ -479,7 +479,11 @@ CHECKLIST_CASES = (
         "P0",
         "Callback p99 and realtime discipline",
         _verify_callback_discipline,
-        "callback metering allocates and only proxy timing exists",
+        # The zero-allocation callback landed (meter reductions moved to the
+        # feeder thread; see tests/test_render_discipline.py), so the source
+        # assertion below passes. Only the formal callback-p99 hardware timing
+        # report keeps this item open.
+        "zero-alloc callback fixed; formal callback-p99 timing evidence is missing",
     ),
     ChecklistCase(
         "C4",
