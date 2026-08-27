@@ -24,6 +24,20 @@ const progress = useProgressStore()
 const settings = useSettingsStore()
 
 const { line: coachLine, mood: coachMood, next: coachNext } = useMascotCoach('poems')
+const dialogueLine = ref('')
+const lastAttempt = ref(null)
+const companionSay = computed(() => dialogueLine.value || coachLine.value)
+const companionReplies = computed(() =>
+  lastAttempt.value
+    ? [
+        { id: 'focus', label: '哪里要再练？' },
+        { id: 'again', label: '陪我再读一次' }
+      ]
+    : [
+        { id: 'ready', label: '我准备好了' },
+        { id: 'nervous', label: '我有点紧张' }
+      ]
+)
 
 /** 没指定读哪首就挑生字最少的那一首，跟读第一次不该从《江雪》开始。 */
 const easiest = computed(
@@ -47,11 +61,40 @@ function choose(event) {
   sfx.tap()
   const id = event.target.value
   picked.value = id
+  dialogueLine.value = ''
+  lastAttempt.value = null
   router.replace(`/follow-read/${id}`)
 }
 
 function onScored(payload) {
   progress.recordFollowRead(poem.value.id, payload)
+  lastAttempt.value = payload
+  dialogueLine.value = payload.companionReply || '这一遍读完啦，我陪你再来一次。'
+}
+
+/** Round 8：完全离线的学伴简短对话，只按当前档位和本轮结果套用本地模板。 */
+function onCompanionReply(replyId) {
+  const attempt = lastAttempt.value
+  if (replyId === 'ready') {
+    dialogueLine.value = '准备好啦！先点「听我读一遍」，听清停顿后再轮到你。'
+  } else if (replyId === 'nervous') {
+    dialogueLine.value = '没关系，我一直陪着你。先读一句，慢一点也很棒。'
+  } else if (replyId === 'again') {
+    dialogueLine.value = '好呀！先听范读，再点「我来读」，我们把这一句读得更顺。'
+  } else if (attempt?.mode === 'recognition' && attempt.score < 85) {
+    dialogueLine.value = '看看标成橙色的字，单独听一听，再把整句慢慢连起来。'
+  } else if (attempt?.mode === 'recording') {
+    dialogueLine.value = '先听自己的录音：声音清楚吗、有没有读完整？再调整一次。'
+  } else if (attempt?.mode === 'listen-only') {
+    dialogueLine.value = '这一档不打分。跟着范读拍手打节奏，再自己选读得顺不顺。'
+  } else {
+    dialogueLine.value = '字都跟上啦！下一遍注意逗号停一停，会更像小诗人。'
+  }
+}
+
+function onMascotTap() {
+  dialogueLine.value = ''
+  coachNext()
 }
 </script>
 
@@ -99,15 +142,23 @@ function onScored(payload) {
       @scored="onScored"
     />
 
-    <MascotCompanion
-      class="mascot-dock"
-      :mood="coachMood"
-      :say="coachLine"
-      :size="70"
-      :speak-on-tap="false"
-      tap-hint="点我，换一句悄悄话"
-      @tap="coachNext"
-    />
+    <section class="companion-chat card card--flat" aria-label="学伴小对话">
+      <div class="companion-chat__head">
+        <strong>学伴小对话</strong>
+        <span class="pill">离线规则 · 不上传对话</span>
+      </div>
+      <MascotCompanion
+        class="mascot-dock"
+        :mood="coachMood"
+        :say="companionSay"
+        :size="70"
+        :speak-on-tap="false"
+        :quick-replies="companionReplies"
+        tap-hint="点我，换一句悄悄话"
+        @tap="onMascotTap"
+        @reply="onCompanionReply"
+      />
+    </section>
   </div>
 </template>
 
@@ -181,6 +232,25 @@ function onScored(payload) {
   font-family: 'Kaiti SC', 'STKaiti', 'KaiTi', 'PingFang SC', serif;
 }
 
+.companion-chat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+}
+
+.companion-chat__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-sm);
+  flex-wrap: wrap;
+}
+
+.companion-chat__head strong {
+  font-size: 0.9rem;
+  color: var(--text-strong);
+}
+
 @media (max-width: 560px) {
   .intro {
     flex-direction: column;
@@ -188,6 +258,9 @@ function onScored(payload) {
   }
   .intro .pill {
     align-self: flex-start;
+  }
+  .mascot-dock {
+    align-items: flex-start;
   }
 }
 </style>

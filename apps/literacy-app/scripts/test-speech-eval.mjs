@@ -3,6 +3,7 @@ import {
   GRADES,
   LOUDNESS_SCORE_CAP,
   alignChars,
+  companionReplyForResult,
   evaluate,
   gradeOf,
   normalizeTranscript,
@@ -90,6 +91,35 @@ test('evaluate：识别档给出逐字标记，响度档如实说明分数怎么
   assert.ok(loud.score > 0 && loud.score <= LOUDNESS_SCORE_CAP)
   assert.ok(loud.chars.every((c) => c.status === 'unknown'), '响度档不该假装知道哪个字念对了')
   assert.ok(loud.note.includes('大声读完'), '响度档没有说明这一分是怎么来的')
+})
+
+test('v2 三档名称稳定，旧 loudness 调用会归一到 recording', () => {
+  const sample = { voicedRatio: 0.7, durationRatio: 0.9, peak: 0.35 }
+  assert.equal(evaluate({ mode: 'recording', reference: REF, sample }).mode, 'recording')
+  assert.equal(evaluate({ mode: 'loudness', reference: REF, sample }).mode, 'recording')
+})
+
+test('离线学伴按档位和漏字给出短回复', () => {
+  const missed = evaluate({ mode: 'recognition', reference: REF, heard: '床明月光' })
+  assert.match(companionReplyForResult(missed), /前/)
+  assert.match(
+    companionReplyForResult({
+      mode: 'listen-only',
+      score: null,
+      grade: { id: 'okay' },
+      chars: []
+    }),
+    /范读/
+  )
+  assert.match(
+    companionReplyForResult({
+      mode: 'recording',
+      score: 75,
+      grade: { id: 'silver' },
+      chars: []
+    }),
+    /回放/
+  )
 })
 
 let passed = 0

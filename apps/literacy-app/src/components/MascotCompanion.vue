@@ -21,10 +21,12 @@ const props = defineProps({
   /** 气泡在左还是右 */
   bubbleSide: { type: String, default: 'right' },
   /** 给孩子的点触提示，同时替换按钮的无障碍名称 */
-  tapHint: { type: String, default: '' }
+  tapHint: { type: String, default: '' },
+  /** 离线学伴对话的短选项：[{ id, label }] */
+  quickReplies: { type: Array, default: () => [] }
 })
 
-const emit = defineEmits(['tap'])
+const emit = defineEmits(['tap', 'reply'])
 
 const root = ref(null)
 const body = ref(null)
@@ -63,6 +65,15 @@ const FACES = {
 }
 
 const face = computed(() => FACES[props.mood] ?? FACES.idle)
+const replies = computed(() =>
+  props.quickReplies
+    .map((reply, index) =>
+      typeof reply === 'string'
+        ? { id: reply, label: reply }
+        : { id: String(reply?.id ?? index), label: String(reply?.label ?? '') }
+    )
+    .filter((reply) => reply.label.trim())
+)
 
 /**
  * 气泡本身是 role="status"，内容变了读屏会自己播报；
@@ -157,6 +168,12 @@ function onTap() {
   }
   react('happy')
   emit('tap')
+}
+
+function onReply(reply) {
+  sfx.tap()
+  react('happy')
+  emit('reply', reply.id)
 }
 
 onMounted(() => {
@@ -261,9 +278,20 @@ watch(
       </svg>
     </button>
 
-    <div v-if="say" ref="bubble" class="mascot__bubble" role="status">
-      <p>{{ say }}</p>
+    <div v-if="say || replies.length" ref="bubble" class="mascot__bubble">
+      <p v-if="say" role="status" aria-live="polite">{{ say }}</p>
       <small v-if="tapHint" class="mascot__hint">{{ tapHint }}</small>
+      <div v-if="replies.length" class="mascot__quick" role="group" aria-label="学伴对话选项">
+        <button
+          v-for="reply in replies"
+          :key="reply.id"
+          type="button"
+          class="mascot__quick-btn"
+          @click="onReply(reply)"
+        >
+          {{ reply.label }}
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -341,6 +369,30 @@ watch(
   font-size: 0.74rem;
   font-weight: 700;
   color: var(--text-soft);
+}
+
+.mascot__quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.mascot__quick-btn {
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-pill);
+  background: var(--brand-soft);
+  color: var(--text-strong);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.mascot__quick-btn:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 
 @media (max-width: 480px) {

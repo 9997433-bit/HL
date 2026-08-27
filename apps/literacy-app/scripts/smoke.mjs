@@ -35,6 +35,7 @@ const round6SpeechRoute = findStaticRoute(
 // check:round6 会验证这两个 stub 仍在。功能路由合入后，它们自动进入真实浏览器回归。
 const ROUND6_H3_SMOKE = round6PoemRoute
 const ROUND6_H4_SMOKE = round6SpeechRoute
+const ROUND8_H5_SMOKE = round6SpeechRoute
 const round6Routes = [
   ...(ROUND6_H3_SMOKE ? [['古诗国学（Round 6）', `/#${ROUND6_H3_SMOKE}`]] : []),
   ...(ROUND6_H4_SMOKE ? [['跟读评测（Round 6）', `/#${ROUND6_H4_SMOKE}`]] : [])
@@ -1675,6 +1676,43 @@ if (ROUND6_H4_SMOKE) {
     if (!state.hasStartControl) throw new Error('跟读页缺少开始/录音/重试控件')
     if (!state.hasStatus) throw new Error('跟读结果缺少 aria-live/status 播报区域')
     return '评测文案、操作入口与无障碍状态播报均可见'
+  })
+}
+
+if (ROUND8_H5_SMOKE) {
+  await interact('Round 8 H5：跟读三档与离线学伴对话', `/#${ROUND8_H5_SMOKE}`, async (page) => {
+    const state = await page.evaluate(() => {
+      const panel = document.querySelector('.fr')
+      const chat = document.querySelector('.companion-chat')
+      return {
+        mode: panel?.dataset.mode ?? '',
+        chatText: chat?.innerText.replace(/\s+/g, ' ').trim() ?? '',
+        replies: [...(chat?.querySelectorAll('.mascot__quick-btn') ?? [])].map((node) =>
+          node.innerText.trim()
+        )
+      }
+    })
+    if (!['recognition', 'recording', 'listen-only'].includes(state.mode)) {
+      throw new Error(`跟读没有落在三档降级契约中：${state.mode || '缺少 data-mode'}`)
+    }
+    if (!/学伴小对话/.test(state.chatText) || !/离线规则/.test(state.chatText)) {
+      throw new Error('跟读页缺少离线学伴对话说明')
+    }
+    if (!state.replies.includes('我准备好了') || !state.replies.includes('我有点紧张')) {
+      throw new Error(`学伴开场快捷回复不完整：${state.replies.join('、') || '无'}`)
+    }
+
+    await page.evaluate(() => {
+      const nervous = [...document.querySelectorAll('.companion-chat .mascot__quick-btn')].find(
+        (node) => node.innerText.includes('有点紧张')
+      )
+      nervous?.click()
+    })
+    await page.waitForFunction(
+      () => document.querySelector('.companion-chat .mascot__bubble p')?.innerText.includes('没关系'),
+      { timeout: 3000 }
+    )
+    return `降级档=${state.mode}；离线快捷回复可触发规则化回应`
   })
 }
 
