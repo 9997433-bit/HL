@@ -3,12 +3,20 @@
  * 技能图谱 —— 一张只读的地图，回答「这些技能谁挡着谁、孩子现在走到哪儿了」。
  *
  * 页面本身不出题也不写进度：掌握度来自 progress store，年龄档来自 settings store，
- * 节点状态由 data/skill-graph.js 的纯函数算出来。想练某个技能，从详情卡跳去对应星球，
- * 成绩仍旧记在那颗星球名下。
+ * 节点状态与「推荐下一步」都由 data/skill-graph.js 的纯函数算出来。想练某个技能，
+ * 从详情卡或推荐位跳去对应星球，成绩仍旧记在那颗星球名下。
+ *
+ * 推荐同样是只读的：它不预约、不落盘，也不往 progress 里写任何东西，
+ * 只是把同一份存档按当前年龄档重新排了个序。
  */
 import { computed, ref } from 'vue'
 import { bandOf } from '@/data/age-band.js'
-import { buildSkillGraph, SKILL_STATUSES, STATUS_MAP } from '@/data/skill-graph.js'
+import {
+  RECOMMEND_REASON_MAP,
+  SKILL_STATUSES,
+  STATUS_MAP,
+  buildSkillGraph,
+} from '@/data/skill-graph.js'
 import { useProgressStore } from '@/stores/progress.js'
 import { useSettingsStore } from '@/stores/settings.js'
 import { sound } from '@/utils/sound.js'
@@ -35,12 +43,18 @@ const faded = (node) =>
   (moduleFilter.value !== 'all' && node.module !== moduleFilter.value) ||
   (bandOnly.value && !node.inBand)
 
+/** 技能 id → 它在推荐列表里排第几，图上给推荐位描一圈并标上序号。 */
+const recoRank = computed(() =>
+  Object.fromEntries(graph.value.reco.items.map((item, index) => [item.id, index + 1])),
+)
+
 const nodes = computed(() =>
   graph.value.nodes.map((node) => ({
     ...node,
     faded: faded(node),
     selected: node.id === selectedId.value,
     statusLabel: STATUS_MAP[node.status].label,
+    recoRank: recoRank.value[node.id] ?? 0,
   })),
 )
 
@@ -73,7 +87,15 @@ const detail = computed(() => {
   }
 })
 
-const nextUp = computed(() => graph.value.next)
+/** 推荐下一步：掌握度决定「能练什么、补到哪儿了」，年龄档决定「先练哪个」。 */
+const reco = computed(() => graph.value.reco)
+
+const recoItems = computed(() =>
+  reco.value.items.map((item) => ({
+    ...item,
+    hint: RECOMMEND_REASON_MAP[item.reason].hint,
+  })),
+)
 
 function select(node) {
   sound.click()
@@ -198,12 +220,18 @@ function toggleBandOnly() {
           v-for="node in nodes"
           :key="node.id"
           class="node"
-          :class="[node.status, { faded: node.faded, focus: node.focus, on: node.selected }]"
+          :class="[
+            node.status,
+            { faded: node.faded, focus: node.focus, on: node.selected, reco: node.recoRank },
+          ]"
           :data-skill-node="node.id"
           :data-skill-status="node.status"
           :data-in-band="node.inBand ? '1' : '0'"
+          :data-reco-rank="node.recoRank || null"
           :aria-pressed="node.selected"
-          :aria-label="`${node.name}，${node.moduleName}，${node.level} 档，${node.statusLabel}，掌握度 ${node.percent}%`"
+          :aria-label="`${node.name}，${node.moduleName}，${node.level} 档，${node.statusLabel}，掌握度 ${node.percent}%${
+            node.recoRank ? `，推荐第 ${node.recoRank} 步` : ''
+          }`"
           :style="{
             left: `${node.x}px`,
             top: `${node.y}px`,
@@ -221,6 +249,7 @@ function toggleBandOnly() {
           <span class="node-bar" aria-hidden="true">
             <i :style="{ width: `${node.percent}%` }" />
           </span>
+          <span v-if="node.recoRank" class="node-reco" aria-hidden="true">{{ node.recoRank }}</span>
         </button>
       </div>
     </section>
@@ -277,23 +306,63 @@ function toggleBandOnly() {
       </dl>
     </section>
 
-    <section class="next card" aria-labelledby="next-title">
-      <h3 id="next-title" class="panel-title">接下来练什么</h3>
-      <p class="muted small">按「练过没过线 → 前置已通的新技能」排，本档的排在超前的前面。</p>
+    <section class="next card" aria-labelledby="next-title" data-skill-reco>
+      <div class="next-head row">
+        <h3 id="next-title" class="panel-title">推荐下一步</h3>
+        <span class="spacer" />
+        <span class="chip tiny dim" data-reco-readonly>只读建议 · 不写进度</span>
+      </div>
+      <p class="muted small">
+        按「掌握度 × {{ band.id }} 年龄档」现算：先补练过没过线的，再补本档欠着的底子，
+        超前的排最后。换个档位再看，就是另一份建议。
+      </p>
       <ul class="next-list">
-        <li v-for="node in nextUp" :key="node.id" class="next-row" :data-next-skill="node.id">
-          <span class="node-emoji" aria-hidden="true">{{ node.emoji }}</span>
+        <li
+          v-for="(item, index) in recoItems"
+          :key="item.id"
+          class="next-row"
+          :data-next-skill="item.id"
+          :data-reco-item="item.id"
+          :data-reco-reason="item.reason"
+          :data-reco-rank="index + 1"
+        >
+          <span class="reco-no" aria-hidden="true">{{ index + 1 }}</span>
+          <span class="node-emoji" aria-hidden="true">{{ item.emoji }}</span>
           <div class="next-titles">
-            <strong>{{ node.name }}</strong>
+            <strong>
+              {{ item.name }}
+              <em class="reason" :class="item.reason" :title="item.hint">{{ item.reasonLabel }}</em>
+            </strong>
             <span class="dim small">
-              {{ node.moduleName }} · {{ node.level }} 档 ·
-              {{ node.status === 'learning' ? `已练到 ${node.percent}%` : '前置已通，可以开练' }}
+              {{ item.moduleName }} · {{ item.level }} 档 · {{ item.why }}
             </span>
           </div>
-          <RouterLink class="btn btn--ghost btn--sm" :to="node.route">去练 →</RouterLink>
+          <RouterLink class="btn btn--ghost btn--sm" :to="item.route">去练 →</RouterLink>
         </li>
-        <li v-if="!nextUp.length" class="dim">整张图都练完了，去成就墙看看战绩吧。</li>
+        <li v-if="!recoItems.length" class="dim">整张图都练完了，去成就墙看看战绩吧。</li>
       </ul>
+
+      <div v-if="reco.goal" class="reco-path" data-reco-path>
+        <p class="path-head">
+          <span class="dim small">本档目标</span>
+          <strong :data-reco-goal="reco.goal.id">{{ reco.goal.emoji }} {{ reco.goal.name }}</strong>
+          <span class="dim small">还差 {{ reco.path.length }} 步</span>
+        </p>
+        <ol class="path-list">
+          <li
+            v-for="step in reco.path"
+            :key="step.id"
+            class="path-step"
+            :class="step.status"
+            :data-reco-step="step.id"
+            :data-reco-step-index="step.step"
+          >
+            <span class="step-no" aria-hidden="true">{{ step.step }}</span>
+            <span class="step-name">{{ step.name }}</span>
+            <span class="dim small">{{ step.percent }}%</span>
+          </li>
+        </ol>
+      </div>
     </section>
 
     <div class="foot-links">
@@ -495,6 +564,26 @@ function toggleBandOnly() {
   opacity: 0.2;
 }
 
+.node.reco {
+  border-color: rgba(94, 231, 255, 0.75);
+  box-shadow: 0 0 0 1px rgba(94, 231, 255, 0.28);
+}
+
+.node-reco {
+  position: absolute;
+  top: -7px;
+  left: -7px;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--brand);
+  color: #071021;
+  font-size: 11px;
+  font-weight: 900;
+}
+
 .node-top {
   display: flex;
   align-items: center;
@@ -562,6 +651,12 @@ function toggleBandOnly() {
   color: #55e6a5;
 }
 
+.next-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .next-list {
   display: flex;
   flex-direction: column;
@@ -582,6 +677,97 @@ function toggleBandOnly() {
   flex: 1;
   display: flex;
   flex-direction: column;
+}
+
+.reco-no {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(94, 231, 255, 0.16);
+  color: var(--brand);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.reason {
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 800;
+  border: 1px solid currentcolor;
+  color: var(--text-soft);
+}
+
+.reason.finish {
+  color: #ffce4d;
+}
+
+.reason.base {
+  color: #55e6a5;
+}
+
+.reason.focus {
+  color: #5ee7ff;
+}
+
+.reason.ahead {
+  color: #9b8cff;
+}
+
+.reco-path {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.12);
+}
+
+.path-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.path-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.path-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  font-size: 12px;
+}
+
+.path-step.learning {
+  border-color: rgba(255, 206, 77, 0.5);
+}
+
+.path-step.ready {
+  border-color: rgba(94, 231, 255, 0.5);
+}
+
+.step-no {
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  font-size: 10px;
+  font-weight: 900;
 }
 
 .foot-links {
