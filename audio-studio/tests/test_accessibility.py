@@ -10,10 +10,12 @@ suite.
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import subprocess
 import sys
 import textwrap
+from pathlib import Path
 
 import pytest
 from PySide6.QtGui import QAccessible, QAccessibleInterface, QKeySequence
@@ -449,6 +451,130 @@ class TestScreenReaderReadiness:
             "Marker and region list",
         }
         assert required <= found, sorted(required - found)
+
+
+LIVE_REPORT_PATH = (
+    Path(__file__).resolve().parents[2]
+    / ".agent_workspace/round3/accessibility-report.json"
+)
+
+
+@pytest.fixture(scope="module")
+def live_report() -> dict:
+    assert LIVE_REPORT_PATH.is_file(), (
+        "missing live screen-reader evidence; regenerate it with "
+        "`python tools/accessibility_walkthrough.py` from the repository root"
+    )
+    return json.loads(LIVE_REPORT_PATH.read_text(encoding="utf-8"))
+
+
+class TestLiveScreenReaderReport:
+    """The committed Orca walkthrough artifact stays consistent and honest.
+
+    ``tools/accessibility_walkthrough.py`` runs the real application against
+    a live Orca session over a dedicated AT-SPI bus and commits the outcome
+    as evidence for checklist D4.  These tests pin the artifact's honesty:
+    the platform count must equal the platforms actually passed, unrun
+    screen readers must say so, and the recorded WCAG ratios must still
+    match the shipped palette.
+    """
+
+    def test_the_artifact_identifies_itself_and_passes(self, live_report: dict) -> None:
+        assert live_report["artifact"] == "accessibility-report"
+        assert live_report["checklist_item"] == "D4"
+        assert live_report["generated_by"] == "tools/accessibility_walkthrough.py"
+        assert live_report["status"] == "pass"
+        assert live_report["checks"] and all(live_report["checks"].values())
+
+    def test_wcag_aa_rests_on_a_clean_contrast_audit(self, live_report: dict) -> None:
+        assert live_report["wcag_2_2_aa"] == "pass"
+        evidence = live_report["wcag_evidence"]
+        assert evidence["contrast_pass"] is True
+        assert evidence["failing_pairs"] == []
+        assert evidence["minimum_text_ratio"] >= WCAG_AA_NORMAL_TEXT
+        assert evidence["minimum_graphic_ratio"] >= WCAG_AA_NON_TEXT
+        assert evidence["color_safe_colormap"] is True
+
+    def test_the_recorded_ratios_still_match_the_shipped_palette(
+        self, live_report: dict
+    ) -> None:
+        """A palette change must invalidate the committed evidence."""
+        evidence = live_report["wcag_evidence"]
+        for table in ("text_pair_ratios", "graphic_pair_ratios"):
+            assert evidence[table], f"{table} is empty"
+            for pair, recorded in evidence[table].items():
+                foreground, background = pair.split("/")
+                measured = contrast_ratio(
+                    PALETTE.color(foreground), PALETTE.color(background)
+                )
+                assert measured == pytest.approx(recorded, abs=0.01), (
+                    f"report claims {pair} is {recorded}:1 but the palette "
+                    f"measures {measured:.2f}:1"
+                )
+
+    def test_only_platforms_actually_run_are_counted_as_passed(
+        self, live_report: dict
+    ) -> None:
+        platforms = live_report["platforms"]
+        passed = [entry for entry in platforms if entry["status"] == "pass"]
+        assert live_report["screen_reader_platforms_passed"] == len(passed) >= 1
+        assert all(entry["session"] == "live" for entry in passed)
+        not_run = {
+            entry["screen_reader"]: entry
+            for entry in platforms
+            if entry["status"] == "not-run"
+        }
+        # NVDA and VoiceOver were not exercised: the report must say so
+        # rather than quietly counting them.
+        assert {"nvda", "voiceover"} <= set(not_run)
+        assert all(entry["session"] is None for entry in not_run.values())
+        assert "not-run" in live_report["limitations"].lower() or (
+            "not run" in live_report["limitations"].lower()
+        )
+
+    def test_the_live_orca_session_covered_the_inventory(
+        self, live_report: dict
+    ) -> None:
+        orca = next(
+            entry
+            for entry in live_report["platforms"]
+            if entry["screen_reader"] == "orca"
+        )
+        assert orca["platform"] == "linux"
+        assert orca["session"] == "live"
+        evidence = orca["evidence"]
+        inventory = evidence["inventory"]
+        assert len(inventory) >= 15, "the control inventory is too thin to be evidence"
+        assert all(entry["published_on_bus"] for entry in inventory)
+        assert all(entry["atspi_roles"] for entry in inventory)
+        assert evidence["atspi_tree_nodes"] >= len(inventory)
+
+    def test_orca_spoke_every_focusable_control_by_name(
+        self, live_report: dict
+    ) -> None:
+        orca = next(
+            entry
+            for entry in live_report["platforms"]
+            if entry["screen_reader"] == "orca"
+        )
+        evidence = orca["evidence"]
+        focusable = evidence["focusable_controls"]
+        assert focusable, "no focusable controls were walked"
+        assert evidence["focus_events_recorded"] >= len(focusable)
+        speech = "\n".join(evidence["orca_speech_samples"])
+        unspoken = [name for name in focusable if name not in speech]
+        assert unspoken == [], f"Orca never announced {unspoken}"
+
+    def test_the_methodology_names_its_tools_and_limits(
+        self, live_report: dict
+    ) -> None:
+        methodology = live_report["methodology"]
+        assert "Orca" in methodology and "AT-SPI" in methodology
+        limitations = live_report["limitations"]
+        assert "NVDA" in limitations and "VoiceOver" in limitations
+        assert live_report["headless_proxy_companion"].endswith(
+            "screen-reader-evidence.json"
+        )
 
 
 class TestScaleFactor:

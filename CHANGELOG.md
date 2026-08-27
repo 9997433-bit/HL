@@ -5,6 +5,28 @@ structure. Versions 0.2.0 and 0.3.0 were internal development milestones
 merged to the release branch without their own tags; they are recorded here so
 the v1.0.0-beta diff against v0.1.0-alpha is fully accounted for.
 
+## [1.0.1] - 2026-08-27
+
+Round F closes the four remaining SOTA checklist items with **real measured evidence**
+on this release VM (PulseAudio loopback, dense RF64, 60-minute PortAudio recording,
+live Orca/AT-SPI session). SOTA checklist: **30/30 hard-pass**, **0 xfail**.
+See `.agent_workspace/v1.0/fable-v1-sota-signoff.md`.
+
+### Added
+
+- **Dense RF64 memory probe** (`--mode dense`) — 4.4 GB allocated PCM, peak RSS 127 MiB,
+  `formal_slo_verified: true` — **B3 hard pass**.
+- **60-minute recording stability soak** (`benchmarks/recording_stability_soak.py`) —
+  real `SoundDeviceRecorder` through PortAudio/PulseAudio, 172M frames, 0 xruns — **C2 hard pass**.
+- **Round-trip latency probe** — 8.17 ms worst / 5.40 ms median at 128 frames — **C4 hard pass**
+  (PulseAudio null-sink monitor loopback; no physical DAC/ADC).
+- **Live Orca walkthrough** (`tools/accessibility_walkthrough.py`) — **D4 hard pass**
+  (Linux/Orca live; NVDA/VoiceOver honestly not-run).
+
+### Changed
+
+- `__version__` and package metadata set to `1.0.1`.
+
 ## [1.0.0] - 2026-08-27
 
 Formal release after Round E (six parallel agent tracks). SOTA checklist:

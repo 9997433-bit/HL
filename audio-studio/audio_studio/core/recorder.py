@@ -322,7 +322,7 @@ class TakeRegistry:
             ],
         }
         self.metadata_path.parent.mkdir(parents=True, exist_ok=True)
-        pending = tempfile.NamedTemporaryFile(
+        pending = tempfile.NamedTemporaryFile(  # noqa: SIM115 - closed after fsync/rename
             mode="w",
             encoding="utf-8",
             prefix=f".{self.metadata_path.name}.",
@@ -915,9 +915,13 @@ class AudioRecorder(ABC):
         with self._transition_lock:
             with self._state_lock:
                 opened = self._opened
+                needs_stop = self._running or (
+                    self._target_path is not None and not self._target_written
+                )
             if not opened:
                 return
-            self.stop()
+            if needs_stop:
+                self.stop()
             self._close_stream()
             with self._state_lock:
                 self._opened = False
@@ -1035,6 +1039,127 @@ class NullRecorder(AudioRecorder):
                 next_deadline = time.perf_counter()
 
 
+class SoundDeviceRecorder(AudioRecorder):
+    """PortAudio input backend driven by a ``sounddevice`` callback.
+
+    Callback status and capture failures are retained as monotonic counters so
+    long-running recording checks can distinguish an intact stream from one
+    that merely produced a decodable partial file.
+    """
+
+    name = "sounddevice"
+
+    def __init__(self, device: int | str | None = None) -> None:
+        super().__init__()
+        self._device = device
+        self._stream: Any | None = None
+        self._callback_count = 0
+        self._input_underflows = 0
+        self._input_overflows = 0
+        self._callback_errors = 0
+
+    @staticmethod
+    def is_available() -> bool:
+        """True when ``sounddevice`` and its PortAudio library can be imported."""
+        try:
+            import sounddevice  # noqa: F401
+        except Exception:  # noqa: BLE001 - PortAudio load errors are platform-specific
+            return False
+        return True
+
+    @property
+    def callback_count(self) -> int:
+        return self._callback_count
+
+    @property
+    def input_underflows(self) -> int:
+        return self._input_underflows
+
+    @property
+    def input_overflows(self) -> int:
+        return self._input_overflows
+
+    @property
+    def xruns(self) -> int:
+        return self._input_underflows + self._input_overflows
+
+    @property
+    def callback_errors(self) -> int:
+        return self._callback_errors
+
+    @property
+    def stream_active(self) -> bool:
+        stream = self._stream
+        if stream is None:
+            return False
+        try:
+            return bool(stream.active)
+        except Exception:  # noqa: BLE001 - a failed/closed stream is inactive
+            return False
+
+    def _open_stream(self) -> None:
+        try:
+            import sounddevice as sd
+        except Exception as exc:  # noqa: BLE001
+            raise RecorderDeviceError(f"sounddevice is unavailable: {exc}") from exc
+
+        self._callback_count = 0
+        self._input_underflows = 0
+        self._input_overflows = 0
+        self._callback_errors = 0
+        try:
+            with _quiet_native_stderr():
+                self._stream = sd.InputStream(
+                    samplerate=self._sample_rate,
+                    channels=self._channels,
+                    dtype="float32",
+                    blocksize=self._block_size,
+                    device=self._device,
+                    callback=self._sounddevice_callback,
+                )
+        except Exception as exc:  # noqa: BLE001
+            self._teardown()
+            raise RecorderDeviceError(f"Cannot open input stream: {exc}") from exc
+
+    def _sounddevice_callback(
+        self, indata: np.ndarray, _frames: int, _time_info: Any, status: Any
+    ) -> None:
+        """Copy one real device block into the product recorder without raising."""
+        self._callback_count += 1
+        if status:
+            if getattr(status, "input_underflow", False):
+                self._input_underflows += 1
+            if getattr(status, "input_overflow", False):
+                self._input_overflows += 1
+        try:
+            self._capture(indata)
+        except Exception:  # noqa: BLE001 - never cross the PortAudio callback boundary
+            self._callback_errors += 1
+
+    def _start_stream(self) -> None:
+        if self._stream is None:
+            raise RecorderDeviceError("start() called before open()")
+        try:
+            self._stream.start()
+        except Exception as exc:  # noqa: BLE001
+            raise RecorderDeviceError(f"Cannot start input stream: {exc}") from exc
+
+    def _stop_stream(self) -> None:
+        stream = self._stream
+        if stream is not None:
+            with suppress(Exception):  # the device may already have disappeared
+                stream.stop()
+
+    def _close_stream(self) -> None:
+        self._teardown()
+
+    def _teardown(self) -> None:
+        stream, self._stream = self._stream, None
+        if stream is not None:
+            with suppress(Exception):  # shutdown is best-effort
+                stream.close()
+
+
 class PyAudioRecorder(AudioRecorder):
     """PortAudio input backend driven in callback (push) mode."""
 
@@ -1123,6 +1248,15 @@ class PyAudioRecorder(AudioRecorder):
 
 def create_recorder(*, prefer_null: bool = False) -> AudioRecorder:
     """Return a hardware recorder when possible, otherwise a synthetic one."""
+    if not prefer_null and SoundDeviceRecorder.is_available():
+        probe = SoundDeviceRecorder()
+        try:
+            probe.open(48000, 1)
+        except RecorderDeviceError:
+            probe.close()
+        else:
+            probe.close()
+            return SoundDeviceRecorder()
     if not prefer_null and PyAudioRecorder.is_available():
         probe = PyAudioRecorder()
         try:

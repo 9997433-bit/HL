@@ -1,4 +1,31 @@
-# Audio Studio v1.0.0 — Final Release Summary
+# Audio Studio v1.0.1 — SOTA Complete Release Summary
+
+Date: 2026-08-27
+Branch: `cursor/v1.0-round-f-b3cf` merged to alpha
+Tag: `v1.0.1-sota`
+
+## 1. Positioning
+
+**v1.0.1 closes the SOTA acceptance checklist: 30/30 items pass**, 0 expected gaps.
+This is **not** Adobe Audition feature parity — see `fable-v1-sota-signoff.md`.
+
+## 2. Test evidence (Round F)
+
+| Suite | Result |
+|---|---|
+| Application | **1721 passed**, 12 skipped |
+| SOTA acceptance | **31 passed**, 0 xfailed |
+
+## 3. Round F highlights
+
+Dense RF64 formal probe, 60-minute PortAudio recording, PulseAudio loopback
+latency (8.17 ms worst), live Orca/AT-SPI walkthrough.
+
+---
+
+_Previous v1.0.0 summary below._
+
+# Audio Studio v1.0.0 — Final Release Summary (archived header)
 
 Date: 2026-08-27
 Branch: `cursor/v1.0-round-e-b3cf` merged to alpha

@@ -2,7 +2,7 @@
   "schema_version": 1,
   "harness": "benchmarks/rf64_memory_probe.py",
   "checklist_item": "B3",
-  "mode": "sparse",
+  "mode": "dense",
   "environment": {
     "python": "3.12.3",
     "platform": "Linux-6.12.94+-x86_64-with-glibc2.39",
@@ -15,31 +15,45 @@
     "subtype": "PCM_16",
     "block_frames": 65536,
     "cache_blocks": 8,
-    "rss_sample_every_blocks": 64
+    "rss_sample_every_blocks": 64,
+    "write_chunk_frames": 1048576
   },
+  "fixture": {
+    "file_size_bytes": 4400000080,
+    "pcm_bytes_written": 4400000000,
+    "write_method": "sequential-chunked-write",
+    "write_chunk_frames": 1048576,
+    "write_wall_clock_seconds": 4.128,
+    "payload_sha256": "cca21999fbcf82d3f51308fb459981a193ddbcda343cb92135fb8fd0d20c7f38",
+    "allocated_bytes": 4400005120,
+    "allocated_ratio": 1.000001,
+    "dense_allocation_verified": true,
+    "pcm_content": "deterministic non-silent generated PCM_16"
+  },
+  "formal_requested": true,
   "file_size_bytes": 4400000080,
-  "peak_rss_bytes": 112504832,
+  "peak_rss_bytes": 132943872,
   "status": "pass",
-  "formal_slo_verified": false,
+  "formal_slo_verified": true,
   "results": [
     {
       "slo_id": "rf64-4gb-rss",
-      "title": "4.1 GiB RF64 streaming read loop under 1 GiB RSS (sparse proxy)",
+      "title": "4.1 GiB RF64 streaming read loop under 1 GiB RSS (dense fixture)",
       "status": "pass",
       "threshold_pass": true,
-      "evidence": "headless-proxy",
-      "formal_slo_verified": false,
+      "evidence": "direct-dense",
+      "formal_slo_verified": true,
       "measured": {
         "n_frames": 1100000000,
         "frames_read": 1100000000,
         "blocks_read": 16785,
         "audio_hours_read": 6.366,
-        "baseline_rss_bytes": 107311104,
-        "peak_rss_bytes": 112504832,
-        "peak_rss_mib": 107.3,
-        "rss_growth_bytes": 5193728,
-        "wall_clock_seconds": 7.407,
-        "realtime_factor": 3093.9,
+        "baseline_rss_bytes": 120946688,
+        "peak_rss_bytes": 132943872,
+        "peak_rss_mib": 126.8,
+        "rss_growth_bytes": 11997184,
+        "wall_clock_seconds": 4.713,
+        "realtime_factor": 4862.4,
         "container": "RF64",
         "should_stream": true,
         "file_size_bytes": 4400000080
@@ -48,12 +62,12 @@
         "file_size_bytes_min": 4294967296,
         "peak_rss_bytes_max": 1073741824
       },
-      "limitation": "zero-filled fixture on a shared host: the decode path, block cache and RSS ceiling are real, but the content is synthetic and no dedicated-hardware capture was involved."
+      "limitation": "Direct isolated-VM measurement against fully allocated generated PCM; this proves the file-size/RSS streaming SLO, not live-input capture provenance."
     }
   ],
   "summary": {
-    "proxy_passed": 1,
-    "proxy_failed": 0,
-    "formal_slos_verified": 0
+    "passed": 1,
+    "failed": 0,
+    "formal_slos_verified": 1
   }
 }
