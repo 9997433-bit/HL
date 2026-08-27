@@ -118,6 +118,12 @@ function finish(scored) {
   })
 }
 
+function onRetry() {
+  sfx.tap()
+  reset()
+  say.value = `再读一遍${current.value.label}`
+}
+
 function pick(index) {
   sfx.tap()
   whole.value = false
@@ -208,10 +214,13 @@ function pickWhole() {
         class="btn btn--primary fr__go"
         @click="onStart"
       >
-        🎤 我来读
+        🎤 开始跟读
       </button>
       <button v-else type="button" class="btn btn--primary fr__stop" @click="onStop">
         ✅ 我读完了
+      </button>
+      <button v-if="result" type="button" class="btn fr__retry" @click="onRetry">
+        🔁 再读一遍
       </button>
     </div>
 

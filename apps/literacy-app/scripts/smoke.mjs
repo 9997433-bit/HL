@@ -1410,9 +1410,9 @@ await interact(
       throw new Error(`范读读的不是这一句：「${spoken.join('|')}」`)
     }
 
-    if (!(await clickText(page, '我来读'))) throw new Error('跟读面板缺少「我来读」')
+    if (!(await clickText(page, '开始跟读'))) throw new Error('跟读面板缺少「开始跟读」')
     const recording = await page.evaluate(() => document.querySelector('.fr')?.dataset.phase)
-    if (recording !== 'recording') throw new Error(`点了「我来读」还停在 ${recording}`)
+    if (recording !== 'recording') throw new Error(`点了「开始跟读」还停在 ${recording}`)
 
     if (!(await clickText(page, '我读完了'))) throw new Error('跟读中没有「我读完了」出口')
     await page.waitForSelector('.fr__self', { timeout: 6000 })
@@ -1489,7 +1489,7 @@ await interact(
       { timeout: 5000 }
     )
 
-    if (!(await clickText(page, '我来读'))) throw new Error('识别档点不到「我来读」')
+    if (!(await clickText(page, '开始跟读'))) throw new Error('识别档点不到「开始跟读」')
     await new Promise((r) => setTimeout(r, 500))
     if (!(await clickText(page, '我读完了'))) throw new Error('识别档点不到「我读完了」')
     await page.waitForSelector('.fr__result', { timeout: 8000 })
@@ -1504,7 +1504,7 @@ await interact(
         score: Number(box?.dataset.score ?? -1),
         grade: box?.dataset.grade ?? '',
         marks,
-        heard: document.querySelector('.fr__heard')?.innerText ?? ''
+        heard: document.querySelector('.fr__heard')?.innerText.replace('听到的是：', '').trim() ?? ''
       }
     })
 

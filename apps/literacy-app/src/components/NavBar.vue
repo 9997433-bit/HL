@@ -18,7 +18,13 @@ const ITEMS = [
   { to: '/listen', name: 'listen', icon: 'ear', label: '听音' },
   { to: '/books', name: 'books', icon: 'books', label: '绘本' },
   { to: '/idioms', name: 'idioms', icon: 'lantern', label: '成语' },
-  { to: '/poems', name: 'poems', icon: 'scroll', label: '古诗', also: ['poem', 'follow-read'] }
+  {
+    to: '/poems',
+    name: 'poems',
+    icon: 'scroll',
+    label: '古诗',
+    also: ['poem', 'follow-read', 'follow-read-poem']
+  }
 ]
 
 /** 详情页和跟读页也要让「古诗」这一格保持点亮，孩子才知道自己还在国学区里。 */

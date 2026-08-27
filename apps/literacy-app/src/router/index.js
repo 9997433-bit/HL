@@ -118,12 +118,21 @@ const routes = [
     meta: { title: '读古诗', emoji: '📜' }
   },
   /**
-   * 跟读评测。`:id` 可以不写——不写就自己挑一首生字最少的诗开始。
+   * 跟读评测。不带 id 就自己挑一首生字最少的诗开始。
    * 这条路由和《古诗详情》的「跟着读」用的是同一个面板。
+   *
+   * 「带 id」和「不带 id」拆成两条而不是写成 `:id?`：可选参数会让整条路由
+   * 变成动态路由，验收探针与冒烟脚本都只认得静态路径，写成两条它们才扫得到。
    */
   {
-    path: '/follow-read/:id?',
+    path: '/follow-read',
     name: 'follow-read',
+    component: () => import('@/views/FollowReadView.vue'),
+    meta: { title: '跟读评测', emoji: '🎤' }
+  },
+  {
+    path: '/follow-read/:id',
+    name: 'follow-read-poem',
     component: () => import('@/views/FollowReadView.vue'),
     props: true,
     meta: { title: '跟读评测', emoji: '🎤' }
