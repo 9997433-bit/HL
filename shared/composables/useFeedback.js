@@ -204,7 +204,12 @@ export function createFeedback(adapters = {}) {
             opacity: 0
           }
         ],
-        { duration: conf.duration * rand(0.75, 1.15), easing: 'cubic-bezier(.16,.84,.44,1)' }
+        {
+          duration: conf.duration * rand(0.75, 1.15),
+          easing: 'cubic-bezier(.16,.84,.44,1)',
+          // 不保留末态的话，粒子会在层被收走前的那一瞬间闪回原点
+          fill: 'forwards'
+        }
       )
     }
 

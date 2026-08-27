@@ -799,7 +799,7 @@ onBeforeUnmount(clearTimers)
 
     <!-- 底部操作 -->
     <section class="actions">
-      <button class="btn btn--primary btn--lg btn--block" type="button" @click="markKnown($event)">
+      <button class="btn btn--primary btn--lg btn--block" type="button" @click="markKnown">
         👍 我认识这个字啦
       </button>
       <div class="actions__nav">
