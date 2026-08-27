@@ -70,8 +70,8 @@ FAMILY_TO_MODULE = {
     "PERF": "M1",
 }
 EXPECTED_CRITERIA_PER_FAMILY = {
-    "MODAL": 9, "CORR": 9, "UPD": 10, "WORK": 5, "OPT": 4, "DYN": 5, "ELEM": 3,
-    "IO": 3, "MPE": 5, "PRETEST": 5, "PERF": 3,
+    "MODAL": 9, "CORR": 9, "UPD": 11, "WORK": 5, "OPT": 4, "DYN": 5, "ELEM": 3,
+    "IO": 4, "MPE": 6, "PRETEST": 5, "PERF": 5,
 }
 
 
@@ -133,6 +133,10 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P2", "property", "MS-1.6", _PERF_SUITE, "verified"),
     _c("AC-PERF-003", "Accelerated MAC matches the reference and never slows it down",
        "P2", "property", "MS-1.6, MS-2.2", _PERF_SUITE, "implemented"),
+    _c("AC-PERF-004", "LOBPCG backend matches the dense modal reference",
+       "P2", "property", "MS-1.6", _PERF_SUITE, "implemented"),
+    _c("AC-PERF-005", "Modal benchmark stays within the CI gate budget",
+       "P2", "contract", "MS-1.6", _PERF_SUITE, "implemented"),
     # --- M2 Correlation (MS-2) ----------------------------------------------
     _c("AC-CORR-001", "Weighted MAC self-identity",
        "P0", "property", "MS-2.2", _CORR_SUITE, "verified"),
@@ -173,6 +177,8 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P1", "twin", "MS-3.2", _UPD_SUITE, "verified"),
     _c("AC-UPD-009", "FRF residual recovers a damped twin",
        "P2", "twin", "MS-3.2, MS-7.3", _UPD_SUITE, "verified"),
+    _c("AC-UPD-010", "Parameter resolver builds a twin-recoverable scaling model",
+       "P2", "twin", "MS-3.1", _UPD_SUITE, "implemented"),
     # --- M4 Simulation correction workflow (MS-4) -----------------------------
     _c("AC-WORK-001", "End-to-end correction passes gates",
        "P0", "twin", "MS-4.1, MS-4.2", _WORK_SUITE, "verified"),
@@ -218,6 +224,8 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P1", "contract", "MS-9.3", _IO_SUITE, "verified"),
     _c("AC-IO-003", "Imported mesh assembles as the hand-built model",
        "P0", "contract", "MS-9.4", _IO_SUITE, "verified"),
+    _c("AC-IO-004", "OP2 geometry import matches the BDF of the same model",
+       "P2", "contract", "MS-9.6", _IO_SUITE, "implemented"),
     # --- M9 Modal parameter extraction (MS-10), GAP-06 -----------------------
     _c("AC-MPE-001", "LSCF pole recovery on synthesized FRFs",
        "P0", "oracle", "MS-10.2", _MPE_SUITE, "verified"),
@@ -229,6 +237,8 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P1", "contract", "MS-10.5", _MPE_SUITE, "verified"),
     _c("AC-MPE-005", "Noise robustness of the estimator",
        "P1", "property", "MS-10.2, MS-10.3", _MPE_SUITE, "verified"),
+    _c("AC-MPE-006", "SSI-COV API is explicit until the backend lands",
+       "P2", "contract", "MS-10.1", _MPE_SUITE, "implemented"),
     # --- M10 Pretest planning (MS-11) — spec-first, GAP-07 -------------------
     _c("AC-PRETEST-001", "EI leverage identities and det-FIM downdate",
        "P0", "property", "MS-11.2", _PRETEST_SUITE, "verified"),
@@ -269,7 +279,7 @@ def test_registry_inventory_matches_documented_scope():
         for family in EXPECTED_CRITERIA_PER_FAMILY
     }
     assert counts == EXPECTED_CRITERIA_PER_FAMILY
-    assert len(REGISTRY) == 61
+    assert len(REGISTRY) == 66
 
 
 def test_ids_unique():

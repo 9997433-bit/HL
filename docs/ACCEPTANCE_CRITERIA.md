@@ -164,6 +164,8 @@ to honor the sparse matrix contract of MS-0.2 and MS-1.6.
 | AC-PERF-001 | P2 | 50k-DOF sparse modal solve never densifies a full operator | n = 50,000, k = 6; no full-order `toarray`; cold solve ≤ 120 s | MS-1.6 |
 | AC-PERF-002 | P2 | Iterative modal result matches the dense reference | frequency rel. err ≤ 1e-8; paired MAC ≥ 0.999 | MS-1.6 |
 | AC-PERF-003 | P2 | Accelerated MAC matches the reference and never slows it down | 5000×20×20 unweighted MAC; max abs err ≤ 1e-10; ≤ 2 s; ≤ 5× the written-out NumPy form | MS-1.6, MS-2.2 |
+| AC-PERF-004 | P2 | LOBPCG backend matches the dense modal reference | frequency rel. err ≤ 1e-8; paired MAC ≥ 0.999 | MS-1.6 |
+| AC-PERF-005 | P2 | Modal benchmark stays within the CI gate budget | 100- and 500-DOF chains, six modes, sparse solve; total ≤ 20 s | MS-1.6 |
 
 - **AC-PERF-001** (`contract`) — A procedurally assembled, deterministic
   tridiagonal spring-mass chain with 50,000 DOFs is solved for its six lowest
@@ -188,6 +190,13 @@ to honor the sparse matrix contract of MS-0.2 and MS-1.6.
   computes the right answer, which a pure correctness-and-timeout gate cannot
   express: the correlation is milliseconds of arithmetic, so an accelerator a
   hundred times too slow still fits inside 2 s.
+- **AC-PERF-004** (`property`) — On a 600-DOF chain above the sparse crossover,
+  `ModalSolver(...).solve(sparse=True, sparse_method="lobpcg")` matches the
+  dense reference on frequency (relative error ≤ `1e-8`) and MAC (diagonal ≥
+  `0.999` with the diagonal as the unique best pairing).
+- **AC-PERF-005** (`contract`) — Two sparse modal solves on 100- and 500-DOF
+  spring chains (six modes each) complete within 20 s on the CI runner, matching
+  the bounded benchmark invoked by `scripts/bench_ci_gate.py`.
 
 ---
 
@@ -262,6 +271,7 @@ to honor the sparse matrix contract of MS-0.2 and MS-1.6.
 | AC-UPD-007 | P0 | Collinear parameter detection & freeze | duplicate flagged (cos > 0.99), one frozen, still converges | MS-3.6 |
 | AC-UPD-008 | P1 | Mode switching handled by re-pairing | residual ordering correct through a mode crossing | MS-3.2 |
 | AC-UPD-009 | P2 | FRF residual recovers a damped twin | ‖θ* − θ_true‖_∞ ≤ 1e-2 from noisy FRFs; held-out FRAC ≥ 0.99 | MS-3.2, MS-7.3 |
+| AC-UPD-010 | P2 | Parameter resolver builds a twin-recoverable scaling model | dotted `materials.<name>.E` target; ‖θ* − θ_true‖_∞ ≤ 1e-3 | MS-3.1 |
 
 ### Details
 
@@ -536,6 +546,7 @@ run (AC-IO-003).
 | AC-IO-001 | P0 | Native document survives the JSON/YAML round trip | arrays bitwise equal; both encodings parse to one document | MS-9.2 |
 | AC-IO-002 | P1 | meshio file round trip preserves the neutral model | nodes bitwise; blocks, property ids and labels exact | MS-9.3 |
 | AC-IO-003 | P0 | Imported mesh assembles as the hand-built model | `K`, `M`, DOF partition and mass identical; f₁ within 1 % of the bar oracle | MS-9.4 |
+| AC-IO-004 | P2 | OP2 geometry import matches the BDF of the same model | node labels, coordinates, connectivity and property ids bitwise equal | MS-9.6 |
 
 ### Details
 
@@ -596,6 +607,7 @@ experiment against a modal model the test itself constructed.
 | AC-MPE-003 | P0 | Stabilization diagram separates physical from computational poles | physical alignments fully stable over ≥ 3 consecutive orders; no computational alignment fully stable; auto-pick count = ground truth | MS-10.3 |
 | AC-MPE-004 | P1 | Measurement path: UFF-58 → MPE → TestData → correlate | pipeline yields a `TestData` that pairs every mode at MAC ≥ 0.99 against the source model; `meta` carries provenance | MS-10.5 |
 | AC-MPE-005 | P1 | Noise robustness of the estimator | seeded 1 % noise: f within 0.1 %, ζ within 20 % rel., MAC ≥ 0.98; bitwise deterministic per seed | MS-10.2, MS-10.3 |
+| AC-MPE-006 | P2 | SSI-COV API is explicit until the backend lands | `ssi_cov` raises `NotImplementedError` with an actionable message | MS-10.1 |
 
 ### Details
 

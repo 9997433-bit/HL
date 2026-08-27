@@ -50,6 +50,12 @@ def add_parser(subparsers: argparse._SubParsersAction) -> argparse.ArgumentParse
         help="relative JSON path to open on startup (under --root)",
     )
     parser.add_argument(
+        "-m",
+        "--model",
+        metavar="PATH",
+        help="relative model spec path whose geometry backs the 3D mode-shape viewer",
+    )
+    parser.add_argument(
         "--open",
         action="store_true",
         help="open the dashboard in the default browser",
@@ -61,15 +67,16 @@ def add_parser(subparsers: argparse._SubParsersAction) -> argparse.ArgumentParse
 def run(args: argparse.Namespace, reporter: Reporter) -> int:
     root = Path(args.root).resolve()
     preset = args.file
-    if preset:
-        preset_path = (root / preset).resolve()
-        if not preset_path.is_file():
-            reporter.error(f"file not found under root: {preset}")
+    for label, relative in (("file", args.file), ("model", args.model)):
+        if relative and not (root / relative).resolve().is_file():
+            reporter.error(f"{label} not found under root: {relative}")
             return 1
 
     reporter.heading("OpenFEMLab dashboard")
     reporter.note(f"http://{args.host}:{args.port}/")
     reporter.hint("Upload JSON or load reports/corr.json from the toolbar.")
+    if args.model:
+        reporter.hint(f"3D mode shapes will use the geometry of {args.model}.")
 
     try:
         serve_dashboard(
@@ -78,6 +85,7 @@ def run(args: argparse.Namespace, reporter: Reporter) -> int:
             root=root,
             open_browser=args.open,
             preset_file=preset,
+            preset_model=args.model,
         )
     except OSError as exc:
         reporter.error(f"cannot start server: {exc}")

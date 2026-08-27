@@ -549,3 +549,50 @@ def test_imported_bar_reaches_the_continuum_axial_frequency(tmp_path: Path) -> N
 
     oracle = math.sqrt(BAR_MATERIAL.E / BAR_MATERIAL.density) / (4.0 * BAR_LENGTH)
     assert abs(first - oracle) / oracle <= ORACLE_TOLERANCE
+
+
+@criterion("AC-IO-004")
+def test_ac_io_004_op2_geometry_matches_the_bdf_of_the_same_model() -> None:
+    """OP2 ``GEOM1``/``GEOM2`` import agrees with the bulk-data reader."""
+    import io
+
+    from openfemlab.io.nastran import read_bdf
+    from openfemlab.io.op2 import read_op2
+    from tests import _op2
+
+    grids = [
+        _op2.Grid(id=11, xyz=(0.0, 0.0, 0.0)),
+        _op2.Grid(id=22, xyz=(1.0, 0.0, 0.0)),
+        _op2.Grid(id=33, xyz=(2.0, 0.0, 0.0)),
+    ]
+    rods = [
+        _op2.Rod(id=100, property_id=40, grids=(11, 22)),
+        _op2.Rod(id=200, property_id=40, grids=(22, 33)),
+    ]
+    content = _op2.geometry_file(grids, rods=rods)
+    bdf_text = io.StringIO(
+        "\n".join(
+            [
+                "GRID,11,,0.,0.,0.",
+                "GRID,22,,1.,0.,0.",
+                "GRID,33,,2.,0.,0.",
+                "CROD,100,40,11,22",
+                "CROD,200,40,22,33",
+            ]
+        )
+        + "\n"
+    )
+
+    bdf_model = read_bdf(bdf_text)
+    op2_model = read_op2(io.BytesIO(content))
+
+    np.testing.assert_array_equal(bdf_model.node_ids, op2_model.node_ids)
+    np.testing.assert_allclose(bdf_model.nodes, op2_model.nodes)
+    for element_type in bdf_model.elements:
+        np.testing.assert_array_equal(
+            bdf_model.elements[element_type], op2_model.elements[element_type]
+        )
+        np.testing.assert_array_equal(
+            bdf_model.element_property_ids[element_type],
+            op2_model.element_property_ids[element_type],
+        )

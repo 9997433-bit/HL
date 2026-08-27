@@ -498,3 +498,13 @@ def test_the_estimator_is_bitwise_deterministic_on_a_seeded_input() -> None:
     right = extract_modes(second, ORDERS, band=_band(), min_count=3)
     for name in ("frequencies_hz", "damping_ratios", "poles", "shapes", "participation", "frac"):
         assert np.array_equal(getattr(left, name), getattr(right, name)), name
+
+
+@criterion("AC-MPE-006")
+def test_ac_mpe_006_ssi_cov_api_is_explicitly_unimplemented() -> None:
+    """SSI-COV reserves a stable signature until the numerical backend lands."""
+    from openfemlab.mpe.ssi import ssi_cov
+
+    responses = np.zeros((32, 2))
+    with pytest.raises(NotImplementedError, match="SSI-COV"):
+        ssi_cov(responses, sampling_rate_hz=100.0, orders=(10, 20))

@@ -178,3 +178,50 @@ def test_ac_perf_003_large_mac_stays_fast_and_matches_the_reference():
         f"mac() took {shipped * 1e3:.3f} ms against {oracle * 1e3:.3f} ms for the "
         f"same correlation written out — the dispatch is a pessimization"
     )
+
+
+LOBPCG_DOFS = 600
+LOBPCG_MODES = 8
+LOBPCG_FREQUENCY_RTOL = 1e-8
+LOBPCG_MAC_MINIMUM = 0.999
+
+
+@criterion("AC-PERF-004")
+def test_ac_perf_004_lobpcg_matches_dense_reference():
+    """LOBPCG sparse backend agrees with dense on frequency and MAC."""
+    stiffness, mass = sparse_chain(LOBPCG_DOFS)
+    dense = ModalSolver.from_matrices(stiffness, mass).solve(
+        num_modes=LOBPCG_MODES,
+        sparse=False,
+    )
+    lobpcg = ModalSolver.from_matrices(stiffness, mass).solve(
+        num_modes=LOBPCG_MODES,
+        sparse=True,
+        sparse_method="lobpcg",
+        cache_factorization=False,
+    )
+
+    assert np.max(relative_error(lobpcg.frequencies, dense.frequencies)) <= LOBPCG_FREQUENCY_RTOL
+    agreement = mac(lobpcg.mode_shapes, dense.mode_shapes)
+    assert np.min(np.diag(agreement)) >= LOBPCG_MAC_MINIMUM
+    assert np.array_equal(np.argmax(agreement, axis=1), np.arange(LOBPCG_MODES))
+
+
+BENCH_DOFS = (100, 500)
+BENCH_MODES = 6
+BENCH_TIME_LIMIT_SECONDS = 20.0
+
+
+@criterion("AC-PERF-005")
+def test_ac_perf_005_modal_benchmark_stays_within_ci_budget():
+    """Spring-chain modal benchmark completes inside the CI gate envelope."""
+    started = time.perf_counter()
+    for dof in BENCH_DOFS:
+        stiffness, mass = sparse_chain(dof)
+        ModalSolver.from_matrices(stiffness, mass).solve(
+            num_modes=min(BENCH_MODES, dof - 1),
+            sparse=True,
+            cache_factorization=False,
+        )
+    elapsed = time.perf_counter() - started
+    assert elapsed <= BENCH_TIME_LIMIT_SECONDS

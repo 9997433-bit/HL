@@ -1,13 +1,27 @@
 # Round 5 — SOTA parity
 
 **Branch:** `cursor/round5-sota-parity-7aa3`  
-**Goal:** expose the SSI-COV integration seam and add a bounded modal benchmark
-to the CI acceptance gates.
+**Goal:** LOBPCG、OP2 几何、参数解析器、Web 3D、CI 基准门禁、SSI API 接缝。
 
-| Task | Status | Notes |
-|---|---|---|
-| SSI-COV API | done | `openfemlab.mpe.ssi_cov` documents the output-only time-history contract and fails explicitly until a numerical backend lands. |
-| MPE registration | done | Exported from `openfemlab.mpe`. |
-| CI benchmark gate | done | `scripts/bench_ci_gate.py` runs sizes 100 and 500 once, with a 20 s budget and 30 s hard timeout; the `gates` job invokes it. |
-| AC-PERF-004 / AC-IO-004 registry review | not applicable | No tests tagged with either ID exist in this branch or the linked agent worktrees, so the requested registration condition was not met. |
-| Verification | done | Ruff passed; the benchmark gate finished in 0.92 s; full pytest: 1708 passed, 3 skipped. |
+| 任务 | 状态 | 说明 |
+|------|------|------|
+| LOBPCG (`sparse_method="lobpcg"`) | done | `ModalSolver` + AC-PERF-004 |
+| OP2 Phase 3 `read_op2` | done | GEOM1/GEOM2 + EPT/MPT；AC-IO-004 |
+| 参数解析器 | done | `updating.resolver` + AC-UPD-010 |
+| Web 3D 后处理 | done | `dashboard` three.js + 2D 回退 |
+| HTML 报告 MAC 热力图 | done | `report/html.py` |
+| CI 基准门禁 | done | `scripts/bench_ci_gate.py` + AC-PERF-005 |
+| SSI-COV API | done | `mpe.ssi_cov` stub + AC-MPE-006 |
+| Registry | done | 61 → 66 条 AC |
+
+## 验证
+
+- `python3 -m ruff check .`
+- `python3 -m pytest`
+- `python scripts/bench_ci_gate.py`
+
+## 诚实边界
+
+- OP2 仍无真实 Nastran corpus；`read_op2` 未导出到 `openfemlab.io`
+- SSI-COV 数值核未实现
+- Rust 装配核仍为远期项

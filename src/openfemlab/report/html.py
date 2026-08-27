@@ -175,6 +175,32 @@ def _pairs_table(pairs: list[Any]) -> str:
     )
 
 
+def _mac_heatmap(matrix: list[list[float]] | None) -> str:
+    if not matrix:
+        return ""
+    rows = []
+    for i, row in enumerate(matrix):
+        cells = []
+        for value in row:
+            t = max(0.0, min(1.0, float(value)))
+            red = int(68 + t * (253 - 68))
+            green = int(1 + t * (231 - 1))
+            blue = int(84 + t * (37 - 84))
+            fg = "#111" if t >= 0.5 else "#fff"
+            cells.append(
+                f"<td style=\"background:rgb({red},{green},{blue});color:{fg}\">"
+                f"{float(value):.2f}</td>"
+            )
+        rows.append(f"<tr><td class=\"label\">{i + 1}</td>{''.join(cells)}</tr>")
+    header = "".join(f"<th>{j + 1}</th>" for j in range(len(matrix[0])))
+    return (
+        "<section><h2>MAC matrix</h2>"
+        "<table><thead><tr><th></th>" + header + "</tr></thead><tbody>"
+        + "".join(rows)
+        + "</tbody></table></section>"
+    )
+
+
 def _correlation_body(payload: dict[str, Any]) -> str:
     summary = payload.get("summary") or {}
     status_class = "pass" if float(summary.get("min_mac", 0)) >= 0.7 else "fail"
@@ -186,6 +212,7 @@ def _correlation_body(payload: dict[str, Any]) -> str:
         + "<section><h2>Mode pairing</h2>"
         + _pairs_table(payload.get("pairs") or [])
         + "</section>"
+        + _mac_heatmap(payload.get("mac_matrix"))
     )
 
 

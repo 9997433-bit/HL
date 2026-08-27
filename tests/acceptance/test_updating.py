@@ -1520,3 +1520,37 @@ def test_ac_upd_009_the_finite_difference_route_reaches_the_same_answer():
         f"the two Jacobian routes disagree by {difference:.3e}"
     )
     assert finite_updater.n_evaluations > 4 * analytic_updater.n_evaluations
+
+
+@criterion("AC-UPD-010")
+def test_ac_upd_010_resolver_scaling_spec_recovers_a_twin():
+    """Dotted targets build an affine scaling model that recovers a perturbed E."""
+    from openfemlab.core.model import Material, Section
+    from openfemlab.mesh.simple import bar_mesh
+    from openfemlab.updating import Parameter, ParameterType, update_model
+    from openfemlab.updating.resolver import resolve_scaling_spec
+
+    steel = Material(E=2.1e11, density=7850.0, name="steel")
+    section = Section(area=1.0e-4, name="strip")
+    model = bar_mesh(1.0, 10, steel, section, fixed_start=True, fixed_end=False)
+    parameter = Parameter(
+        "E.steel",
+        "materials.steel.E",
+        reference=steel.E,
+        lower=0.5,
+        upper=2.0,
+        kind=ParameterType.STIFFNESS,
+    )
+    spec = resolve_scaling_spec(model, [parameter], num_modes=3)
+    truth = {"E.steel": 1.15}
+    target = spec.scaling_model(truth)
+
+    result = update_model(
+        spec.scaling_model,
+        spec.parameter_set(),
+        target.frequencies,
+        target.mode_shapes,
+    )
+
+    assert result.converged
+    assert result.parameters["E.steel"] == pytest.approx(truth["E.steel"], rel=1e-3)

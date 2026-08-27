@@ -12,6 +12,7 @@ import numpy as np
 from openfemlab.exceptions import MissingDependencyError
 
 __all__ = [
+    "element_edges",
     "plot_frf_overlay",
     "plot_mac_matrix",
     "plot_mode_shape",
@@ -157,7 +158,7 @@ def plot_mode_shape(
     plotted_deformed = False
 
     for element in model.elements:
-        for start, end in _element_edges(element):
+        for start, end in element_edges(element):
             indices = [node_indices[element.node_ids[start]], node_indices[element.node_ids[end]]]
             if show_undeformed:
                 _plot_segment(
@@ -400,7 +401,12 @@ def _select_mode_shape(mode_shape: Any, mode: int) -> tuple[np.ndarray, int, flo
     return vector, selected_mode, frequency
 
 
-def _element_edges(element: Any) -> tuple[tuple[int, int], ...]:
+def element_edges(element: Any) -> tuple[tuple[int, int], ...]:
+    """Local node index pairs drawing an element's wireframe.
+
+    Solids get their real edge list, a shell or membrane its boundary loop, a
+    two-node member its single segment, and a grounded spring nothing at all.
+    """
     count = len(element.node_ids)
     if count < 2:
         return ()

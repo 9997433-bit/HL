@@ -1,4 +1,15 @@
-"""Threading HTTP server for the local results dashboard."""
+"""Threading HTTP server for the local results dashboard.
+
+Two read-only endpoints back the static viewer:
+
+``/api/report?path=...``
+    Any JSON document under the project root — a correlation report, a
+    correction report, or a native modal result carrying mode shapes.
+``/api/geometry?path=...``
+    The wireframe and DOF layout of a model spec (see
+    :mod:`openfemlab.dashboard.geometry`), which is what turns a mode-shape
+    vector into something the 3D viewer can displace.
+"""
 
 from __future__ import annotations
 
@@ -9,7 +20,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib import resources
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlencode, urlparse
+
+from ..exceptions import OpenFEMLabError
 
 __all__ = ["serve_dashboard"]
 
@@ -51,24 +64,36 @@ class _DashboardHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _serve_document(self, relative: str, load) -> None:
+        """Run ``load`` on a project-root-relative file and answer with its JSON."""
+        if not relative:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "missing path query parameter"})
+            return
+        try:
+            payload = load(_resolve_under_root(self.root, relative))
+            if not isinstance(payload, dict):
+                raise ValueError("the document must be a JSON object")
+            self._send_json(HTTPStatus.OK, payload)
+        except FileNotFoundError:
+            self._send_json(HTTPStatus.NOT_FOUND, {"error": f"file not found: {relative}"})
+        except (OSError, ValueError, OpenFEMLabError, json.JSONDecodeError) as exc:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": f"{relative}: {exc}"})
+
     def do_GET(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
+        query = parse_qs(parsed.query)
+
         if parsed.path == "/api/report":
-            query = parse_qs(parsed.query)
-            relative = query.get("path", [""])[0]
-            if not relative:
-                self._send_json(HTTPStatus.BAD_REQUEST, {"error": "missing path query parameter"})
-                return
-            try:
-                path = _resolve_under_root(self.root, relative)
-                payload = json.loads(path.read_text(encoding="utf-8"))
-                if not isinstance(payload, dict):
-                    raise ValueError("report JSON must be an object")
-                self._send_json(HTTPStatus.OK, payload)
-            except FileNotFoundError:
-                self._send_json(HTTPStatus.NOT_FOUND, {"error": f"file not found: {relative}"})
-            except (OSError, ValueError, json.JSONDecodeError) as exc:
-                self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+            self._serve_document(
+                query.get("path", [""])[0],
+                lambda path: json.loads(path.read_text(encoding="utf-8")),
+            )
+            return
+
+        if parsed.path == "/api/geometry":
+            from .geometry import geometry_from_spec
+
+            self._serve_document(query.get("path", [""])[0], geometry_from_spec)
             return
 
         if parsed.path in ("/", "/index.html"):
@@ -86,8 +111,14 @@ def serve_dashboard(
     root: str | Path = ".",
     open_browser: bool = False,
     preset_file: str | None = None,
+    preset_model: str | None = None,
 ) -> None:
-    """Start the dashboard until interrupted."""
+    """Start the dashboard until interrupted.
+
+    ``preset_file`` and ``preset_model`` are project-root-relative paths the
+    viewer opens on startup: a report JSON and the model spec whose geometry
+    backs the 3D mode-shape view.
+    """
     root_path = Path(root).resolve()
     handler_class = type(
         "BoundDashboardHandler",
@@ -95,9 +126,14 @@ def serve_dashboard(
         {"root": root_path},
     )
     server = ThreadingHTTPServer((host, port), handler_class)
-    url = f"http://{host}:{port}/"
-    if preset_file:
-        url += f"?file={preset_file}"
+    query = urlencode(
+        {
+            key: value
+            for key, value in (("file", preset_file), ("model", preset_model))
+            if value
+        }
+    )
+    url = f"http://{host}:{port}/" + (f"?{query}" if query else "")
 
     if open_browser:
         import webbrowser

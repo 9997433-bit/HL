@@ -32,7 +32,7 @@
       flex-wrap: wrap;
       gap: 0.5rem;
       align-items: center;
-      margin-bottom: 1rem;
+      margin-bottom: 0.6rem;
       padding: 0.75rem 1rem;
       background: var(--card);
       border: 1px solid var(--border);
@@ -92,14 +92,58 @@
     }
     table.data th { background: #f6f8fa; font-weight: 600; }
     table.data td.label { text-align: left; }
-    .mac-grid { border-collapse: collapse; font-size: 0.75rem; margin: 0 auto; }
+    .mac-wrap { display: flex; gap: 1rem; align-items: flex-start; flex-wrap: wrap; }
+    .mac-grid { border-collapse: collapse; font-size: 0.7rem; }
+    .mac-grid th {
+      font-weight: 600;
+      color: var(--muted);
+      padding: 0.15rem 0.3rem;
+      font-size: 0.7rem;
+    }
     .mac-grid td {
-      width: 2.2rem;
-      height: 2.2rem;
+      min-width: 2.1rem;
+      height: 2.1rem;
       text-align: center;
       border: 1px solid var(--border);
       color: #111;
+      cursor: default;
     }
+    .mac-grid td.paired { outline: 2px solid #111; outline-offset: -2px; font-weight: 700; }
+    .mac-axis { color: var(--muted); font-size: 0.75rem; margin: 0.2rem 0 0.4rem; }
+    .mac-legend { display: flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; }
+    .mac-legend .bar {
+      width: 0.9rem;
+      height: 9rem;
+      border: 1px solid var(--border);
+      background: linear-gradient(to top, rgb(68,1,84), rgb(33,145,140), rgb(253,231,37));
+    }
+    .mac-legend .ticks {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      height: 9rem;
+      color: var(--muted);
+    }
+    .viewer-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: center;
+      margin-bottom: 0.6rem;
+      font-size: 0.85rem;
+    }
+    .viewer-controls select, .viewer-controls input[type="range"] { max-width: 16rem; }
+    #viewer-canvas {
+      width: 100%;
+      height: 22rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #101418;
+      display: block;
+      cursor: grab;
+      touch-action: none;
+    }
+    .hint { color: var(--muted); font-size: 0.8rem; margin: 0.4rem 0 0; }
     .badge {
       display: inline-block;
       padding: 0.12rem 0.45rem;
@@ -116,9 +160,14 @@
       border-radius: 8px;
       margin-bottom: 1rem;
     }
+    .error.notice {
+      color: var(--muted);
+      background: var(--card);
+      border: 1px solid var(--border);
+    }
     footer { color: var(--muted); font-size: 0.8rem; margin-top: 2rem; }
     #content:empty::before {
-      content: "上传或加载 correlation / correction JSON 以查看 MAC 热力图与摘要。";
+      content: "上传或加载 correlation / correction / modal JSON 以查看 MAC 热力图与摘要。";
       color: var(--muted);
       display: block;
       padding: 2rem;
@@ -129,7 +178,7 @@
 <body>
   <main>
     <h1>OpenFEMLab 结果查看器</h1>
-    <p class="subtitle">对标 CAE 后处理：模态相关 · 模型修正 · MAC 矩阵</p>
+    <p class="subtitle">对标 CAE 后处理：模态相关 · 模型修正 · MAC 矩阵 · 三维振型</p>
 
     <div class="toolbar">
       <label for="file-input">本地 JSON</label>
@@ -140,14 +189,28 @@
       <button type="button" class="secondary" id="sample-btn">示例说明</button>
     </div>
 
+    <div class="toolbar">
+      <label for="geometry-input">模型几何</label>
+      <input type="text" id="geometry-input" placeholder="models/cantilever.yaml（用于三维振型）">
+      <button type="button" id="geometry-btn">加载几何</button>
+    </div>
+
     <div id="error" class="error" hidden></div>
     <div id="content"></div>
 
-    <footer>OpenFEMLab — 本地 Web 查看器（无外网依赖）</footer>
+    <footer>
+      OpenFEMLab — 本地 Web 查看器。摘要与 MAC 完全离线；三维振型优先使用 CDN 上的
+      three.js，取不到时自动回退到内置 2D 线框渲染。
+    </footer>
   </main>
   <script>
+    const THREE_CDN = "https://unpkg.com/three@0.160.0/build/three.module.js";
+
     const content = document.getElementById("content");
     const errorBox = document.getElementById("error");
+
+    /** Everything the viewer needs, kept across re-renders of the report body. */
+    const state = { payload: null, geometry: null, modes: null, viewer: null };
 
     function esc(s) {
       const d = document.createElement("div");
@@ -194,22 +257,377 @@
         <tbody>${rows.join("")}</tbody></table>`;
     }
 
-    function macHeatmap(matrix) {
+    /** Paired (row, column) cells, so the heatmap can outline the diagonal it chose. */
+    function pairedCells(pairs) {
+      const keys = new Set();
+      (pairs || []).forEach((pair) => {
+        const row = pair.test_index ?? pair.test ?? pair[0];
+        const column = pair.fe_index ?? pair.fe ?? pair[1];
+        if (row != null && column != null) keys.add(`${row}:${column}`);
+      });
+      return keys;
+    }
+
+    function macHeatmap(matrix, pairs) {
       if (!matrix || !matrix.length) return "";
+      const paired = pairedCells(pairs);
+      const cols = matrix[0].length;
+      // Printing every value stops helping once the grid gets dense.
+      const showValues = matrix.length <= 14 && cols <= 14;
       const rows = matrix.map((row, i) => {
         const cells = row.map((v, j) => {
-          const bg = macColor(v);
-          const fg = Number(v) < 0.5 ? "#fff" : "#111";
-          return `<td style="background:${bg};color:${fg}">${Number(v).toFixed(2)}</td>`;
+          const value = Number(v);
+          const fg = value < 0.5 ? "#fff" : "#111";
+          const mark = paired.has(`${i}:${j}`) ? " paired" : "";
+          const text = showValues ? value.toFixed(2) : "";
+          return `<td class="mac${mark}" style="background:${macColor(value)};color:${fg}"
+            title="MAC(试验 ${i + 1}, FE ${j + 1}) = ${value.toFixed(4)}">${text}</td>`;
         });
-        return `<tr><td class="label">${i + 1}</td>${cells.join("")}</tr>`;
+        return `<tr><th scope="row">${i + 1}</th>${cells.join("")}</tr>`;
       });
-      const cols = matrix[0].length;
       const header = Array.from({ length: cols }, (_, j) => `<th>${j + 1}</th>`).join("");
       return `<section><h2>MAC 矩阵</h2>
-        <table class="mac-grid"><thead><tr><th></th>${header}</tr></thead>
-        <tbody>${rows.join("")}</tbody></table></section>`;
+        <p class="mac-axis">行：试验模态 · 列：FE 模态 · 黑框：选定配对 · 悬停查看数值</p>
+        <div class="mac-wrap">
+          <table class="mac-grid"><thead><tr><th></th>${header}</tr></thead>
+          <tbody>${rows.join("")}</tbody></table>
+          <div class="mac-legend">
+            <div class="bar"></div>
+            <div class="ticks"><span>1.0</span><span>0.5</span><span>0.0</span></div>
+          </div>
+        </div></section>`;
     }
+
+    // ------------------------------------------------------------ mode shapes
+
+    function realPart(value) {
+      return value && !Array.isArray(value) && value.real ? value.real : value;
+    }
+
+    /** Mode shapes as one vector per mode, from a modal result or a correlation payload. */
+    function readModes(payload) {
+      const raw = realPart(
+        payload.mode_shapes ?? payload.fe_mode_shapes ?? payload.shapes
+      );
+      if (!Array.isArray(raw) || !raw.length || !Array.isArray(raw[0])) return null;
+      const layout = String(payload.mode_shape_layout ?? "dofs_by_mode").toLowerCase();
+      let shapes = raw;
+      if (!layout.startsWith("modes")) {
+        shapes = raw[0].map((_, mode) => raw.map((row) => Number(row[mode])));
+      }
+      const frequencies = payload.frequencies_hz ?? payload.frequencies ?? null;
+      return { shapes, frequencies };
+    }
+
+    /** Per-node [dx, dy, dz] of one mode vector, using the geometry's DOF map. */
+    function nodalDisplacements(geometry, vector) {
+      const axes = { UX: 0, UY: 1, UZ: 2 };
+      const displacements = geometry.nodes.map(() => [0, 0, 0]);
+      const nodeIds = geometry.dof_map.node_ids;
+      const dofTypes = geometry.dof_map.dof_types;
+      const position = new Map(geometry.node_ids.map((id, index) => [String(id), index]));
+      for (let dof = 0; dof < dofTypes.length && dof < vector.length; dof += 1) {
+        const axis = axes[String(dofTypes[dof]).toUpperCase()];
+        if (axis === undefined) continue;
+        const node = position.get(String(nodeIds[dof]));
+        if (node === undefined) continue;
+        displacements[node][axis] = Number(vector[dof]) || 0;
+      }
+      return displacements;
+    }
+
+    function modelScale(nodes) {
+      const min = [Infinity, Infinity, Infinity];
+      const max = [-Infinity, -Infinity, -Infinity];
+      nodes.forEach((point) => {
+        for (let axis = 0; axis < 3; axis += 1) {
+          min[axis] = Math.min(min[axis], point[axis]);
+          max[axis] = Math.max(max[axis], point[axis]);
+        }
+      });
+      const size = Math.hypot(max[0] - min[0], max[1] - min[1], max[2] - min[2]);
+      const center = min.map((value, axis) => 0.5 * (value + max[axis]));
+      return { size: size > 0 ? size : 1, center };
+    }
+
+    function viewerSection(modes) {
+      const options = modes.shapes
+        .map((_, index) => {
+          const hz = modes.frequencies ? Number(modes.frequencies[index]) : null;
+          const label = hz != null && isFinite(hz)
+            ? `模态 ${index + 1} — ${hz.toFixed(3)} Hz`
+            : `模态 ${index + 1}`;
+          return `<option value="${index}">${esc(label)}</option>`;
+        })
+        .join("");
+      return `<section id="viewer-section"><h2>三维振型</h2>
+        <div class="viewer-controls">
+          <label for="mode-select">模态</label>
+          <select id="mode-select">${options}</select>
+          <label for="scale-input">幅值</label>
+          <input type="range" id="scale-input" min="0.1" max="4" step="0.1" value="1">
+          <label><input type="checkbox" id="animate-input" checked> 动画</label>
+          <span id="viewer-status"></span>
+        </div>
+        <canvas id="viewer-canvas"></canvas>
+        <p class="hint">拖动旋转、滚轮缩放。未加载几何时请在上方填入模型 spec 路径。</p>
+      </section>`;
+    }
+
+    // ------------------------------------------------------------- rendering
+
+    let threeModule = null;
+
+    async function loadThree() {
+      if (threeModule !== null) return threeModule;
+      threeModule = import(/* webpackIgnore: true */ THREE_CDN).catch(() => false);
+      return threeModule;
+    }
+
+    /**
+     * Draw the wireframe, displaced by the selected mode.
+     *
+     * The two backends share the camera state and the deformed coordinates;
+     * only the last step — WebGL buffers or 2-D canvas strokes — differs.
+     */
+    function createViewer(canvas, geometry) {
+      const { size, center } = modelScale(geometry.nodes);
+      const view = { yaw: 0.6, pitch: -0.35, distance: 2.4 * size, dragging: false };
+      const base = geometry.nodes.map((point) =>
+        point.map((value, axis) => value - center[axis])
+      );
+      let displacements = base.map(() => [0, 0, 0]);
+      let amplitude = 0;
+      let scale = 1;
+      let animate = true;
+      let frame = 0;
+      let backend = null;
+      let disposed = false;
+
+      function deformed(phase) {
+        const gain = amplitude * scale * phase;
+        return base.map((point, index) => [
+          point[0] + gain * displacements[index][0],
+          point[1] + gain * displacements[index][1],
+          point[2] + gain * displacements[index][2],
+        ]);
+      }
+
+      function resize() {
+        const width = canvas.clientWidth || 640;
+        const height = canvas.clientHeight || 360;
+        if (backend && backend.resize) backend.resize(width, height);
+        return { width, height };
+      }
+
+      function draw(time) {
+        if (disposed) return;
+        const phase = animate ? Math.sin(time / 320) : 1;
+        if (backend) backend.draw(deformed(phase), view);
+        frame = requestAnimationFrame(draw);
+      }
+
+      function webglBackend(three) {
+        const renderer = new three.WebGLRenderer({ canvas, antialias: true });
+        renderer.setPixelRatio(window.devicePixelRatio || 1);
+        const scene = new three.Scene();
+        scene.background = new three.Color(0x101418);
+        const camera = new three.PerspectiveCamera(45, 16 / 9, size / 100, size * 100);
+
+        const undeformed = new three.BufferGeometry();
+        undeformed.setAttribute(
+          "position",
+          new three.Float32BufferAttribute(edgeBuffer(base), 3)
+        );
+        scene.add(
+          new three.LineSegments(
+            undeformed,
+            new three.LineBasicMaterial({ color: 0x3d444d })
+          )
+        );
+
+        const moving = new three.BufferGeometry();
+        moving.setAttribute(
+          "position",
+          new three.Float32BufferAttribute(edgeBuffer(base), 3)
+        );
+        scene.add(
+          new three.LineSegments(moving, new three.LineBasicMaterial({ color: 0x58a6ff }))
+        );
+
+        return {
+          resize(width, height) {
+            renderer.setSize(width, height, false);
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+          },
+          draw(points, camera_state) {
+            moving.getAttribute("position").set(edgeBuffer(points));
+            moving.getAttribute("position").needsUpdate = true;
+            const radius = camera_state.distance;
+            camera.position.set(
+              radius * Math.cos(camera_state.pitch) * Math.sin(camera_state.yaw),
+              radius * Math.sin(camera_state.pitch),
+              radius * Math.cos(camera_state.pitch) * Math.cos(camera_state.yaw)
+            );
+            camera.lookAt(0, 0, 0);
+            renderer.render(scene, camera);
+          },
+          dispose() {
+            renderer.dispose();
+          },
+        };
+      }
+
+      function edgeBuffer(points) {
+        const buffer = new Float32Array(geometry.edges.length * 6);
+        geometry.edges.forEach((edge, index) => {
+          const a = points[edge[0]];
+          const b = points[edge[1]];
+          buffer.set([a[0], a[1], a[2], b[0], b[1], b[2]], index * 6);
+        });
+        return buffer;
+      }
+
+      function canvasBackend() {
+        const context = canvas.getContext("2d");
+        let width = 640;
+        let height = 360;
+
+        function project(point, camera_state) {
+          const cy = Math.cos(camera_state.yaw);
+          const sy = Math.sin(camera_state.yaw);
+          const cp = Math.cos(camera_state.pitch);
+          const sp = Math.sin(camera_state.pitch);
+          const x = point[0] * cy - point[2] * sy;
+          const z = point[0] * sy + point[2] * cy;
+          const y = point[1] * cp - z * sp;
+          const zoom = (0.42 * Math.min(width, height)) / (camera_state.distance / 2.4);
+          return [width / 2 + x * zoom, height / 2 - y * zoom];
+        }
+
+        function strokeEdges(points, camera_state, color) {
+          context.strokeStyle = color;
+          context.lineWidth = 1.4;
+          context.beginPath();
+          geometry.edges.forEach((edge) => {
+            const a = project(points[edge[0]], camera_state);
+            const b = project(points[edge[1]], camera_state);
+            context.moveTo(a[0], a[1]);
+            context.lineTo(b[0], b[1]);
+          });
+          context.stroke();
+        }
+
+        return {
+          resize(nextWidth, nextHeight) {
+            const ratio = window.devicePixelRatio || 1;
+            width = nextWidth;
+            height = nextHeight;
+            canvas.width = Math.round(width * ratio);
+            canvas.height = Math.round(height * ratio);
+            context.setTransform(ratio, 0, 0, ratio, 0, 0);
+          },
+          draw(points, camera_state) {
+            context.fillStyle = "#101418";
+            context.fillRect(0, 0, width, height);
+            strokeEdges(base, camera_state, "#3d444d");
+            strokeEdges(points, camera_state, "#58a6ff");
+          },
+          dispose() {},
+        };
+      }
+
+      canvas.addEventListener("pointerdown", (event) => {
+        view.dragging = true;
+        canvas.setPointerCapture(event.pointerId);
+      });
+      canvas.addEventListener("pointerup", (event) => {
+        view.dragging = false;
+        canvas.releasePointerCapture(event.pointerId);
+      });
+      canvas.addEventListener("pointermove", (event) => {
+        if (!view.dragging) return;
+        view.yaw += event.movementX * 0.01;
+        view.pitch = Math.max(
+          -1.5,
+          Math.min(1.5, view.pitch - event.movementY * 0.01)
+        );
+      });
+      canvas.addEventListener("wheel", (event) => {
+        event.preventDefault();
+        view.distance = Math.max(
+          0.2 * size,
+          Math.min(20 * size, view.distance * (1 + Math.sign(event.deltaY) * 0.12))
+        );
+      }, { passive: false });
+
+      return {
+        async start() {
+          const three = await loadThree();
+          backend = three ? webglBackend(three) : canvasBackend();
+          resize();
+          window.addEventListener("resize", resize);
+          frame = requestAnimationFrame(draw);
+          return Boolean(three);
+        },
+        setMode(vector, userScale, animated) {
+          displacements = nodalDisplacements(geometry, vector);
+          const peak = displacements.reduce(
+            (best, d) => Math.max(best, Math.hypot(d[0], d[1], d[2])),
+            0
+          );
+          // Normalise so a unit slider displaces the model by a tenth of its size.
+          amplitude = peak > 0 ? (0.1 * size) / peak : 0;
+          scale = userScale;
+          animate = animated;
+        },
+        dispose() {
+          disposed = true;
+          cancelAnimationFrame(frame);
+          window.removeEventListener("resize", resize);
+          if (backend) backend.dispose();
+        },
+      };
+    }
+
+    function mountViewer() {
+      const canvas = document.getElementById("viewer-canvas");
+      if (!canvas || !state.geometry || !state.modes) return;
+      const status = document.getElementById("viewer-status");
+      const modeSelect = document.getElementById("mode-select");
+      const scaleInput = document.getElementById("scale-input");
+      const animateInput = document.getElementById("animate-input");
+
+      if (state.modes.shapes[0].length !== state.geometry.num_dofs) {
+        status.textContent =
+          `振型有 ${state.modes.shapes[0].length} 个自由度，几何有 ` +
+          `${state.geometry.num_dofs} 个，无法对应`;
+        return;
+      }
+
+      if (state.viewer) state.viewer.dispose();
+      const viewer = createViewer(canvas, state.geometry);
+      state.viewer = viewer;
+
+      function apply() {
+        viewer.setMode(
+          state.modes.shapes[Number(modeSelect.value)],
+          Number(scaleInput.value),
+          animateInput.checked
+        );
+      }
+      modeSelect.addEventListener("change", apply);
+      scaleInput.addEventListener("input", apply);
+      animateInput.addEventListener("change", apply);
+      apply();
+
+      viewer.start().then((webgl) => {
+        status.textContent = webgl ? "three.js WebGL" : "离线回退：2D 线框";
+      });
+    }
+
+    // -------------------------------------------------------------- payloads
 
     function renderCorrelation(payload) {
       const summary = payload.summary || {};
@@ -221,7 +639,7 @@
           <span class="badge ${badge}">审阅</span></p>
         ${summaryCards(summary)}
         <section><h2>模态配对</h2>${pairsTable(payload.pairs)}</section>
-        ${macHeatmap(payload.mac_matrix)}
+        ${macHeatmap(payload.mac_matrix, payload.pairs)}
       `;
     }
 
@@ -247,31 +665,81 @@
       `;
     }
 
+    function renderModal(payload, modes) {
+      const rows = modes.shapes.map((_, index) => {
+        const hz = modes.frequencies ? Number(modes.frequencies[index]) : null;
+        return `<tr><td class="label">模态 ${index + 1}</td>
+          <td>${hz != null && isFinite(hz) ? hz.toFixed(4) : "—"}</td></tr>`;
+      });
+      return `
+        <h1>模态结果</h1>
+        <p class="subtitle">${esc(payload.object_type || "modal")} ·
+          ${modes.shapes.length} 阶 · ${modes.shapes[0].length} 自由度</p>
+        <section><h2>固有频率</h2>
+          <table class="data"><thead><tr>
+            <th class="label">模态</th><th>频率 [Hz]</th></tr></thead>
+          <tbody>${rows.join("")}</tbody></table></section>
+      `;
+    }
+
     function detectKind(payload) {
       if (payload.baseline_correlation || payload.status === "PASS" || payload.status === "FAIL")
         return "correction";
       if (payload.summary && payload.pairs) return "correlation";
       if (String(payload.schema_version || "").startsWith("1.") && "mac_matrix" in payload)
         return "correlation";
+      if (payload.object_type === "modal_result" || payload.frequencies_hz) return "modal";
       return "unknown";
     }
 
     function showError(msg) {
+      errorBox.classList.remove("notice");
+      errorBox.textContent = msg;
+      errorBox.hidden = false;
+    }
+
+    function showNotice(msg) {
+      errorBox.classList.add("notice");
       errorBox.textContent = msg;
       errorBox.hidden = false;
     }
 
     function clearError() {
       errorBox.hidden = true;
+      errorBox.classList.remove("notice");
       errorBox.textContent = "";
     }
 
     function render(payload) {
       clearError();
+      state.payload = payload;
+      state.modes = readModes(payload);
+      if (state.viewer) {
+        state.viewer.dispose();
+        state.viewer = null;
+      }
+
       const kind = detectKind(payload);
-      if (kind === "correlation") content.innerHTML = renderCorrelation(payload);
-      else if (kind === "correction") content.innerHTML = renderCorrection(payload);
-      else content.innerHTML = `<section><h2>JSON</h2><pre>${esc(JSON.stringify(payload, null, 2))}</pre></section>`;
+      let body;
+      if (kind === "correlation") body = renderCorrelation(payload);
+      else if (kind === "correction") body = renderCorrection(payload);
+      else if (kind === "modal" && state.modes) body = renderModal(payload, state.modes);
+      else body = `<section><h2>JSON</h2><pre>${esc(JSON.stringify(payload, null, 2))}</pre></section>`;
+
+      if (state.modes) body += viewerSection(state.modes);
+      content.innerHTML = body;
+
+      if (state.modes && !state.geometry) {
+        showNotice("已检测到振型向量：填入模型 spec 路径并点击“加载几何”即可显示三维振型。");
+      }
+      mountViewer();
+    }
+
+    async function fetchJSON(url) {
+      const response = await fetch(url);
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || response.statusText);
+      return body;
     }
 
     document.getElementById("file-input").addEventListener("change", (ev) => {
@@ -287,18 +755,34 @@
       const path = document.getElementById("path-input").value.trim();
       if (!path) { showError("请输入相对项目根的路径"); return; }
       try {
-        const res = await fetch("/api/report?path=" + encodeURIComponent(path));
-        const body = await res.json();
-        if (!res.ok) throw new Error(body.error || res.statusText);
-        render(body);
+        render(await fetchJSON("/api/report?path=" + encodeURIComponent(path)));
+      } catch (e) { showError(e.message); }
+    });
+
+    document.getElementById("geometry-btn").addEventListener("click", async () => {
+      const path = document.getElementById("geometry-input").value.trim();
+      if (!path) { showError("请输入模型 spec 的相对路径"); return; }
+      try {
+        state.geometry = await fetchJSON("/api/geometry?path=" + encodeURIComponent(path));
+        clearError();
+        if (state.payload) render(state.payload);
+        else showNotice(`几何已加载：${state.geometry.name}（再加载一个含振型的 JSON）`);
       } catch (e) { showError(e.message); }
     });
 
     document.getElementById("sample-btn").addEventListener("click", () => {
-      showError("先运行: openfemlab correlate model.yaml measured.yaml -o reports/corr.json --format json");
+      showNotice(
+        "相关性: openfemlab correlate model.yaml measured.yaml -o reports/corr.json --format json" +
+        " ｜ 振型: openfemlab modal model.yaml -n 8 --output reports/modes.json"
+      );
     });
 
     const params = new URLSearchParams(location.search);
+    const presetGeometry = params.get("model");
+    if (presetGeometry) {
+      document.getElementById("geometry-input").value = presetGeometry;
+      document.getElementById("geometry-btn").click();
+    }
     const preset = params.get("file");
     if (preset) {
       document.getElementById("path-input").value = preset;
