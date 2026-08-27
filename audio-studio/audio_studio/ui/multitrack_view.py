@@ -544,10 +544,12 @@ class TrackHeaderStrip(QWidget):
         self.mute_button.setCheckable(True)
         self.mute_button.setFixedSize(24, 20)
         self.mute_button.setToolTip("Mute this track")
+        self.mute_button.setAccessibleName(f"Mute {track.name}")
         self.solo_button = QPushButton("S")
         self.solo_button.setCheckable(True)
         self.solo_button.setFixedSize(24, 20)
         self.solo_button.setToolTip("Solo: mute every track that is not soloed")
+        self.solo_button.setAccessibleName(f"Solo {track.name}")
 
         self.automation_button = QPushButton("A")
         self.automation_button.setCheckable(True)
@@ -565,6 +567,7 @@ class TrackHeaderStrip(QWidget):
         self.gain_slider.setRange(int(MIN_STRIP_DB), int(MAX_GAIN_DB))
         self.gain_slider.setFixedWidth(84)
         self.gain_slider.setToolTip("Track gain")
+        self.gain_slider.setAccessibleName(f"Gain for {track.name}")
         self.gain_label = QLabel("0.0 dB")
         self.gain_label.setObjectName("SecondaryTimecode")
         self.gain_label.setFixedWidth(52)
@@ -573,6 +576,7 @@ class TrackHeaderStrip(QWidget):
         self.pan_slider.setRange(-100, 100)
         self.pan_slider.setFixedWidth(84)
         self.pan_slider.setToolTip("Pan")
+        self.pan_slider.setAccessibleName(f"Pan for {track.name}")
         self.pan_label = QLabel("C")
         self.pan_label.setObjectName("SecondaryTimecode")
         self.pan_label.setFixedWidth(52)
@@ -853,15 +857,18 @@ class BusStrip(QWidget):
         self.mute_button.setCheckable(True)
         self.mute_button.setFixedSize(24, 20)
         self.mute_button.setToolTip("Mute this bus and everything routed to it")
+        self.mute_button.setAccessibleName(f"Mute bus {bus.name}")
 
         self.remove_button = QPushButton("✕")
         self.remove_button.setFixedSize(20, 20)
         self.remove_button.setToolTip("Delete this bus; its tracks return to the master")
+        self.remove_button.setAccessibleName(f"Delete bus {bus.name}")
 
         self.gain_slider = QSlider(Qt.Orientation.Horizontal)
         self.gain_slider.setRange(int(MIN_STRIP_DB), int(MAX_GAIN_DB))
         self.gain_slider.setFixedWidth(120)
         self.gain_slider.setToolTip("Bus gain")
+        self.gain_slider.setAccessibleName(f"Gain for bus {bus.name}")
         self.gain_label = QLabel("0.0 dB")
         self.gain_label.setObjectName("SecondaryTimecode")
         self.gain_label.setFixedWidth(56)
@@ -946,8 +953,10 @@ class MasterStrip(QWidget):
         self.mute_button.setCheckable(True)
         self.mute_button.setFixedSize(24, 20)
         self.mute_button.setToolTip("Mute the master bus")
+        self.mute_button.setAccessibleName("Mute master bus")
 
         self.gain_slider = QSlider(Qt.Orientation.Horizontal)
+        self.gain_slider.setAccessibleName("Master gain")
         self.gain_slider.setRange(int(MIN_STRIP_DB), int(MAX_GAIN_DB))
         self.gain_slider.setFixedWidth(120)
         self.gain_label = QLabel("0.0 dB")
@@ -1028,6 +1037,7 @@ class MultitrackView(QWidget):
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
+        self.setAccessibleName("Multitrack arranger")
         self._palette = palette
         self._session: MultitrackSession | None = None
         self._strips: list[TrackStrip] = []

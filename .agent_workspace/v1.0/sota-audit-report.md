@@ -89,7 +89,7 @@ in parallel Round D branches and their xfail markers are left for those rounds t
 | B7 | 10-file -16 LUFS FLAC batch | **PASS (new)** | — |
 | B8 | 32-track playback and automation | XFAIL | `MultitrackSession` landed; 32-track playback/automation evidence is missing |
 | C4 | Hardware round-trip latency under 15 ms | XFAIL | hardware loopback evidence is missing |
-| D4 | WCAG AA, color-safe map, screen reader | XFAIL | palette and colormap checks pass; screen-reader evidence is missing |
+| D4 | WCAG AA, color-safe map, screen reader | XFAIL | palette, colormap, and the headless accessible-name/role proxy pass (`screen-reader-evidence.json`); a live NVDA/VoiceOver/Orca session is still missing |
 | D5 | UI scaling from 100% to 200% | **PASS (new)** | — |
 | E4 | Crash auto-recovery | XFAIL | crash recovery implementation/evidence is missing |
 
@@ -114,5 +114,6 @@ in parallel Round D branches and their xfail markers are left for those rounds t
 `aes17-report.json` (+ `tools/aes17.py`), `file-performance-report.json` (B2),
 a formal hardware RF64 run (B3), `multitrack-report.json` (B8),
 `recording-stability-report.json` (C2), `roundtrip-latency-report.json` (C4),
-`ui-frame-time-report.json` (D1), screen-reader evidence (D4),
+`ui-frame-time-report.json` (D1), a live NVDA/VoiceOver/Orca walkthrough (D4 —
+the headless introspection proxy `screen-reader-evidence.json` now exists),
 `cross-platform-golden.json` (E2), crash-recovery implementation/evidence (E4).

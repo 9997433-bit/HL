@@ -138,6 +138,7 @@ class _ParameterSlider(QWidget):
         self.readout.setMinimumWidth(48)
 
         self.slider = QSlider(Qt.Orientation.Horizontal)
+        self.slider.setAccessibleName(name)
         self.slider.setRange(0, SLIDER_STEPS)
         self.slider.setValue(self._to_steps(value))
         self.slider.valueChanged.connect(self._on_moved)
@@ -247,11 +248,13 @@ class _PluginSlotBox(QGroupBox):
 
         self.up_button = QPushButton("▲")
         self.up_button.setToolTip("Run this plugin one slot earlier in the chain")
+        self.up_button.setAccessibleName("Move plugin earlier")
         self.up_button.setMaximumWidth(28)
         self.up_button.clicked.connect(lambda: self.moveRequested.emit(self.index, -1))
 
         self.down_button = QPushButton("▼")
         self.down_button.setToolTip("Run this plugin one slot later in the chain")
+        self.down_button.setAccessibleName("Move plugin later")
         self.down_button.setMaximumWidth(28)
         self.down_button.clicked.connect(lambda: self.moveRequested.emit(self.index, 1))
 
@@ -359,6 +362,7 @@ class PluginPanel(QWidget):
         scanner: Callable[[Path], list[PluginDescriptor]] | None = None,
     ) -> None:
         super().__init__(parent)
+        self.setAccessibleName("VST3 plugins")
         self.chain = chain
         self._loader = loader
         self._scanner = scanner

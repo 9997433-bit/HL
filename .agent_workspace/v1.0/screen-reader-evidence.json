@@ -1,0 +1,170 @@
+{
+  "artifact": "screen-reader-evidence",
+  "checklist_item": "D4",
+  "generated_by": "tools/screen_reader_probe.py",
+  "status": "pass",
+  "evidence": "headless-proxy",
+  "method": "MainWindow built on the Qt offscreen platform; every control in the inventory introspected with QAccessible.queryAccessibleInterface \u2014 the tree UIA/NSAccessibility/AT-SPI bridges hand to NVDA, VoiceOver and Orca \u2014 plus window-wide invariants (no glyph-only button names, no unnamed sliders) and a full parent-to-child tree walk",
+  "qt_platform": "offscreen",
+  "pyside6_version": "6.11.2",
+  "controls": [
+    {
+      "control": "transport_bar",
+      "widget": "TransportBar",
+      "accessible_name": "Transport controls",
+      "expected_name": "Transport controls",
+      "role": "Client",
+      "status": "pass"
+    },
+    {
+      "control": "transport_bar.record_button",
+      "widget": "QPushButton",
+      "accessible_name": "Record",
+      "expected_name": "Record",
+      "role": "CheckBox",
+      "status": "pass"
+    },
+    {
+      "control": "transport_bar.play_button",
+      "widget": "QPushButton",
+      "accessible_name": "Play or pause",
+      "expected_name": "Play or pause",
+      "role": "Button",
+      "status": "pass"
+    },
+    {
+      "control": "transport_bar.stop_button",
+      "widget": "QPushButton",
+      "accessible_name": "Stop",
+      "expected_name": "Stop",
+      "role": "Button",
+      "status": "pass"
+    },
+    {
+      "control": "transport_bar.start_button",
+      "widget": "QPushButton",
+      "accessible_name": "Go to start",
+      "expected_name": "Go to start",
+      "role": "Button",
+      "status": "pass"
+    },
+    {
+      "control": "transport_bar.end_button",
+      "widget": "QPushButton",
+      "accessible_name": "Go to end",
+      "expected_name": "Go to end",
+      "role": "Button",
+      "status": "pass"
+    },
+    {
+      "control": "transport_bar.loop_button",
+      "widget": "QPushButton",
+      "accessible_name": "Loop playback",
+      "expected_name": "Loop playback",
+      "role": "CheckBox",
+      "status": "pass"
+    },
+    {
+      "control": "transport_bar.volume_slider",
+      "widget": "QSlider",
+      "accessible_name": "Output gain",
+      "expected_name": "Output gain",
+      "role": "Slider",
+      "status": "pass"
+    },
+    {
+      "control": "transport_bar.position_label",
+      "widget": "QLabel",
+      "accessible_name": "Playback position",
+      "expected_name": "Playback position",
+      "role": "StaticText",
+      "status": "pass"
+    },
+    {
+      "control": "level_meter",
+      "widget": "LevelMeter",
+      "accessible_name": "Output level meter",
+      "expected_name": "Output level meter",
+      "role": "Client",
+      "status": "pass"
+    },
+    {
+      "control": "track_panel",
+      "widget": "TrackPanel",
+      "accessible_name": "Waveform editor",
+      "expected_name": "Waveform editor",
+      "role": "Client",
+      "status": "pass"
+    },
+    {
+      "control": "track_panel.waveform",
+      "widget": "WaveformView",
+      "accessible_name": "Waveform display",
+      "expected_name": "Waveform display",
+      "role": "Client",
+      "status": "pass"
+    },
+    {
+      "control": "multitrack_view",
+      "widget": "MultitrackView",
+      "accessible_name": "Multitrack arranger",
+      "expected_name": "Multitrack arranger",
+      "role": "Client",
+      "status": "pass"
+    },
+    {
+      "control": "spectrum_panel",
+      "widget": "SpectrumPanel",
+      "accessible_name": "Spectral frequency display",
+      "expected_name": "Spectral frequency display",
+      "role": "Client",
+      "status": "pass"
+    },
+    {
+      "control": "effect_rack",
+      "widget": "EffectRackPanel",
+      "accessible_name": "Effects rack",
+      "expected_name": "Effects rack",
+      "role": "Client",
+      "status": "pass"
+    },
+    {
+      "control": "plugin_panel",
+      "widget": "PluginPanel",
+      "accessible_name": "VST3 plugins",
+      "expected_name": "VST3 plugins",
+      "role": "Client",
+      "status": "pass"
+    },
+    {
+      "control": "marker_panel",
+      "widget": "MarkerPanel",
+      "accessible_name": "Markers",
+      "expected_name": "Markers",
+      "role": "Client",
+      "status": "pass"
+    },
+    {
+      "control": "marker_panel.tree",
+      "widget": "QTreeWidget",
+      "accessible_name": "Marker and region list",
+      "expected_name": "Marker and region list",
+      "role": "Tree",
+      "status": "pass"
+    }
+  ],
+  "accessible_tree_nodes": 387,
+  "accessible_tree_named_nodes": 320,
+  "glyph_only_buttons": [],
+  "unnamed_sliders": [],
+  "checks": {
+    "inventory_names_and_roles_published": true,
+    "no_application_button_announces_a_bare_glyph": true,
+    "every_slider_announces_its_parameter": true,
+    "accessible_tree_walkable_from_window": true
+  },
+  "live_screen_reader_session": false,
+  "screen_reader_platforms_passed": 0,
+  "limitations": "No NVDA, VoiceOver or Orca session was run. Passing proves the application publishes worded names and roles to Qt's accessibility layer, which is what the platform bridges read; it does not prove a screen reader announced them correctly.",
+  "unit_suite": "audio-studio/tests/test_accessibility.py::TestScreenReaderReadiness"
+}

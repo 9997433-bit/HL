@@ -1,9 +1,10 @@
-"""Accessibility guarantees: palette contrast, keyboard reach, HiDPI scaling.
+"""Accessibility guarantees: contrast, keyboard reach, scaling, screen reader.
 
 These are regression tests for promises the UI makes to users who need them —
 a colour pair that quietly drifts under 4.5:1, a command that becomes
-mouse-only, or a scale factor that stops reaching Qt are all invisible to the
-rest of the suite.
+mouse-only, a scale factor that stops reaching Qt, or a control that a screen
+reader can only announce as "button" are all invisible to the rest of the
+suite.
 """
 
 from __future__ import annotations
@@ -15,7 +16,8 @@ import sys
 import textwrap
 
 import pytest
-from PySide6.QtGui import QKeySequence
+from PySide6.QtGui import QAccessible, QAccessibleInterface, QKeySequence
+from PySide6.QtWidgets import QAbstractButton, QSlider
 
 from audio_studio.app import (
     MAX_SCALE_FACTOR,
@@ -314,6 +316,139 @@ class TestShortcutsDialog:
         assert second is first
         assert "Analyze Everything" in second.browser.toPlainText()
         second.close()
+
+
+def _accessible(widget) -> QAccessibleInterface:
+    interface = QAccessible.queryAccessibleInterface(widget)
+    assert interface is not None and interface.isValid(), (
+        f"{type(widget).__name__} exposes no accessible interface"
+    )
+    return interface
+
+
+def _is_qt_internal(widget) -> bool:
+    """Qt's own chrome (menu/toolbar overflow chevrons), not application UI."""
+    return widget.objectName().startswith("qt_")
+
+
+class TestScreenReaderReadiness:
+    """Accessible names and roles, introspected the way an AT bridge does.
+
+    ``QAccessible.queryAccessibleInterface`` exposes the same tree the
+    platform bridges (UIA on Windows, NSAccessibility on macOS, AT-SPI on
+    Linux) hand to NVDA, VoiceOver and Orca. Passing here is a headless
+    readiness proxy — the application publishes real names and roles — not a
+    live screen-reader session, and it claims no NVDA/VoiceOver/Orca
+    certification.
+    """
+
+    def test_every_transport_control_announces_its_command(
+        self, window: MainWindow
+    ) -> None:
+        bar = window.transport_bar
+        expected = {
+            "record_button": ("Record", QAccessible.Role.CheckBox),
+            "play_button": ("Play or pause", QAccessible.Role.Button),
+            "stop_button": ("Stop", QAccessible.Role.Button),
+            "start_button": ("Go to start", QAccessible.Role.Button),
+            "end_button": ("Go to end", QAccessible.Role.Button),
+            "loop_button": ("Loop playback", QAccessible.Role.CheckBox),
+        }
+        for attribute, (name, role) in expected.items():
+            interface = _accessible(getattr(bar, attribute))
+            assert interface.text(QAccessible.Text.Name) == name, attribute
+            # Qt maps a checkable button to CheckBox so the toggle state is
+            # announced; the plain commands are Buttons.
+            assert interface.role() == role, attribute
+
+    def test_no_application_button_announces_a_bare_glyph(
+        self, window: MainWindow
+    ) -> None:
+        """"▶" read aloud is noise: every button needs a worded name."""
+        for button in window.findChildren(QAbstractButton):
+            if _is_qt_internal(button):
+                continue
+            name = _accessible(button).text(QAccessible.Text.Name)
+            assert re.search(r"[A-Za-z]", name), (
+                f"{type(button).__name__} announces {name!r}"
+            )
+
+    def test_every_slider_announces_its_parameter(self, window: MainWindow) -> None:
+        """An unnamed slider is announced as just "slider" — useless."""
+        for slider in window.findChildren(QSlider):
+            interface = _accessible(slider)
+            assert interface.text(QAccessible.Text.Name), (
+                f"slider inside {type(slider.parent()).__name__} has no name"
+            )
+            assert interface.role() == QAccessible.Role.Slider
+
+    def test_the_gain_slider_carries_name_role_and_range_description(
+        self, window: MainWindow
+    ) -> None:
+        interface = _accessible(window.transport_bar.volume_slider)
+        assert interface.text(QAccessible.Text.Name) == "Output gain"
+        assert interface.role() == QAccessible.Role.Slider
+        assert "0% to 150%" in interface.text(QAccessible.Text.Description)
+
+    def test_the_editing_surfaces_are_named(self, window: MainWindow) -> None:
+        surfaces = [
+            (window.track_panel, "Waveform editor"),
+            (window.track_panel.waveform, "Waveform display"),
+            (window.multitrack_view, "Multitrack arranger"),
+            (window.level_meter, "Output level meter"),
+            (window.transport_bar, "Transport controls"),
+        ]
+        for widget, name in surfaces:
+            assert _accessible(widget).text(QAccessible.Text.Name) == name
+
+    def test_every_dock_panel_is_named_for_the_bridge(
+        self, window: MainWindow
+    ) -> None:
+        panels = [
+            (window.spectrum_panel, "Spectral frequency display"),
+            (window.effect_rack, "Effects rack"),
+            (window.plugin_panel, "VST3 plugins"),
+            (window.marker_panel, "Markers"),
+        ]
+        for widget, name in panels:
+            assert _accessible(widget).text(QAccessible.Text.Name) == name
+        assert _accessible(window.marker_panel.tree).role() == QAccessible.Role.Tree
+        assert _accessible(window.menuBar()).role() == QAccessible.Role.MenuBar
+
+    def test_the_accessible_tree_reaches_every_named_control(
+        self, window: MainWindow
+    ) -> None:
+        """Walk parent-to-child, as the bridge does, and find each control."""
+        found: set[str] = set()
+        stack = [_accessible(window)]
+        while stack:
+            interface = stack.pop()
+            found.add(interface.text(QAccessible.Text.Name))
+            for index in range(interface.childCount()):
+                child = interface.child(index)
+                if child is not None and child.isValid():
+                    stack.append(child)
+
+        required = {
+            "Record",
+            "Play or pause",
+            "Stop",
+            "Go to start",
+            "Go to end",
+            "Loop playback",
+            "Output gain",
+            "Output level meter",
+            "Waveform display",
+            "Waveform editor",
+            "Multitrack arranger",
+            "Transport controls",
+            "Spectral frequency display",
+            "Effects rack",
+            "VST3 plugins",
+            "Markers",
+            "Marker and region list",
+        }
+        assert required <= found, sorted(required - found)
 
 
 class TestScaleFactor:

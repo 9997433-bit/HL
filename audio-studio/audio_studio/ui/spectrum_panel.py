@@ -110,6 +110,7 @@ class SpectrumPanel(QWidget):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self.setAccessibleName("Spectral frequency display")
         self.spectrogram = SpectrogramWidget()
         self._offset_s = 0.0
         self._sample_rate = 0.0

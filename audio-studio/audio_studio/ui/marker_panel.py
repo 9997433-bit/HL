@@ -53,11 +53,13 @@ class MarkerPanel(QWidget):
 
     def __init__(self, parent: QWidget | None = None, palette: Palette = PALETTE) -> None:
         super().__init__(parent)
+        self.setAccessibleName("Markers")
         self._palette = palette
         self._sample_rate = 44_100
         self._markers = MarkerList()
 
         self.tree = QTreeWidget()
+        self.tree.setAccessibleName("Marker and region list")
         self.tree.setColumnCount(3)
         self.tree.setHeaderLabels(["Name", "Start", "Length"])
         self.tree.setRootIsDecorated(False)
