@@ -11,7 +11,7 @@
  * 屏幕上不该出现一个他没见过的字。`verifySongCoverage()` 逐字校验，
  * `npm run check:data` 会跑它。
  *
- * 前三首配有项目自制的 Ogg 旋律文件，由下面同一份 `notes` 谱面离线渲染；
+ * 前八首配有项目自制的 Ogg 旋律文件，由下面同一份 `notes` 谱面离线渲染；
  * 其余歌曲继续由 `utils/audio.js` 的 `playMelody()` 实时合成。即使静态文件加载
  * 失败，播放器也会自动退回合成旋律，所以断网、旧 WebView 都不会变成无声按钮。
  *
@@ -38,6 +38,9 @@ import { NOTE_HZ } from '../utils/audio.js'
 
 /** Round 10 H5：静态旋律优先、WebAudio 合成降级。 */
 export const ROUND10_H5 = 'file-first-with-synth-fallback'
+
+/** Round 11 H5：真实旋律覆盖过半曲库，仍保留 WebAudio 合成降级。 */
+export const ROUND11_H5 = 'eight-file-first-with-synth-fallback'
 
 const PUNCTUATION = new Set([
   '，', '。', '！', '？', '：', '、', '；', '「', '」', '《', '》', '…', '—', ' ', '\n'
@@ -166,7 +169,7 @@ export const SONGS = [
     summary: '大树替小鸟挡住风，风越大，小鸟唱得越欢。',
     tip: '唱到「动一动」，可以站起来跟着摆一摆。',
     bpm: 104,
-    audio: null,
+    audio: 'audio/songs/sg4-tree-bird-melody.ogg',
     lines: [
       {
         text: '大树高，小鸟小，',
@@ -200,7 +203,7 @@ export const SONGS = [
     summary: '十个最好写的字排成两行，一天认五个刚刚好。',
     tip: '一个字一个音，唱一遍，再在空中写一遍。',
     bpm: 88,
-    audio: null,
+    audio: 'audio/songs/sg5-literacy-melody.ogg',
     lines: [
       {
         text: '日月水火土，',
@@ -234,7 +237,7 @@ export const SONGS = [
     summary: '见面、分手、被人帮忙，各有一句该说的话。',
     tip: '唱完就找家里人试一遍，说出口才算学会。',
     bpm: 90,
-    audio: null,
+    audio: 'audio/songs/sg6-hello-thanks-melody.ogg',
     lines: [
       {
         text: '见面说你好，',
@@ -268,7 +271,7 @@ export const SONGS = [
     summary: '一句一个季节，唱完一遍就是一整年。',
     tip: '唱到哪个季节，就想想那时候窗外是什么样子。',
     bpm: 84,
-    audio: null,
+    audio: 'audio/songs/sg7-four-seasons-melody.ogg',
     lines: [
       {
         text: '春天花儿开，',
@@ -302,7 +305,7 @@ export const SONGS = [
     summary: '把家里人一个一个唱一遍，最后大家挤在一句里。',
     tip: '唱到谁，就指一指他坐的地方。',
     bpm: 94,
-    audio: null,
+    audio: 'audio/songs/sg8-family-melody.ogg',
     lines: [
       {
         text: '爸爸妈妈和我，',

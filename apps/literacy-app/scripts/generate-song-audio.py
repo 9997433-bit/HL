@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render the first three original song melodies as compact Ogg assets."""
+"""Render the first eight original song melodies as compact Ogg assets."""
 
 from __future__ import annotations
 
@@ -47,6 +47,51 @@ SONGS = {
             ["D4", "D4", "E4", "E4", "G4", "E4", "D4"],
             ["C5", "A4", "G4", "A4", "G4", "E4"],
             ["G4", "E4", "D4", "C4", "E4", "D4", "C4"],
+        ],
+    ),
+    "sg4-tree-bird-melody": (
+        104,
+        [
+            ["C4", "E4", "G4", "E4", "D4", "C4"],
+            ["E4", "G4", "A4", "G4", "E4", "D4", "C4"],
+            ["G4", "A4", "C5", "A4", "G4", "E4"],
+            ["E4", "G4", "E4", "D4", "E4", "D4", "C4"],
+        ],
+    ),
+    "sg5-literacy-melody": (
+        88,
+        [
+            ["C4", "D4", "E4", "G4", "A4"],
+            ["A4", "G4", "E4", "D4", "C4"],
+            ["E4", "E4", "G4", "G4", "A4"],
+            ["G4", "E4", "D4", "E4", "C4"],
+        ],
+    ),
+    "sg6-hello-thanks-melody": (
+        90,
+        [
+            ["G4", "E4", "G4", "A4", "C5"],
+            ["A4", "G4", "E4", "D4", "C4"],
+            ["E4", "G4", "A4", "G4", "E4"],
+            ["D4", "E4", "D4", "C4", "C4"],
+        ],
+    ),
+    "sg7-four-seasons-melody": (
+        84,
+        [
+            ["C4", "E4", "G4", "A4", "G4"],
+            ["E4", "G4", "C5", "A4", "G4"],
+            ["A4", "G4", "E4", "D4", "E4"],
+            ["G4", "E4", "D4", "C4", "C4"],
+        ],
+    ),
+    "sg8-family-melody": (
+        94,
+        [
+            ["C4", "C4", "D4", "D4", "E4", "G4"],
+            ["E4", "E4", "G4", "G4", "A4", "G4", "E4"],
+            ["G4", "A4", "C5", "A4", "G4", "E4", "D4"],
+            ["E4", "G4", "E4", "D4", "D4", "C4"],
         ],
     ),
 }
