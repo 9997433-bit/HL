@@ -6,7 +6,7 @@
   "status": "not-certified",
   "physical_hardware_present": false,
   "verdict": "no /dev/snd, no /proc/asound/cards: this host has no sound card, so nothing above the kernel can be a physical audio device",
-  "generated_at": "2026-08-27T03:54:30+00:00",
+  "generated_at": "2026-08-27T03:58:53+00:00",
   "counts": {
     "kernel_cards": 0,
     "usb_audio_interfaces": 0,
@@ -170,9 +170,9 @@
     "loopback_path": "pulseaudio-null-sink-monitor",
     "buffer_frames": 128,
     "sample_rate": 48000,
-    "roundtrip_latency_ms": 8.1667,
+    "roundtrip_latency_ms": 8.0417,
     "threshold_ms": 15.0,
-    "margin_ms": 6.8333,
+    "margin_ms": 6.9583,
     "baseline_claims_physical_dac_adc": false,
     "agrees_with_this_probe": true,
     "pulseaudio_null_sink_only": true,
@@ -258,9 +258,9 @@
         3.0
       ],
       "source": "the estimate stated in benchmarks/roundtrip_latency_probe.py for typical converters; no converter on this host was measured",
-      "worst_case_roundtrip_with_estimate_ms": 11.1667,
+      "worst_case_roundtrip_with_estimate_ms": 11.0417,
       "still_within_threshold": true,
-      "headroom_after_estimate_ms": 3.8333
+      "headroom_after_estimate_ms": 3.9583
     },
     "conclusion": "the baseline was measured through a sound-server loopback and this host has no converter to measure through, so C4 cannot be upgraded to hardware evidence here. The measurement stands for every software stage it contains; the converter path is unmeasured and is stated as such in both artifacts"
   },
