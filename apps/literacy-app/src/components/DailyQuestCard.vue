@@ -323,12 +323,17 @@ onBeforeUnmount(() => {
   }
 }
 
+/* 窄屏一件事只占一行：进度条让位给数字，按钮收窄但不降高度（触达面积照旧） */
 @media (max-width: 560px) {
   .quest__item {
-    flex-wrap: wrap;
+    gap: 10px;
+    padding: 10px;
+  }
+  .quest__bar {
+    display: none;
   }
   .quest__go {
-    width: 100%;
+    padding: 0 var(--gap-md);
   }
 }
 </style>
