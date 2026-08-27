@@ -51,6 +51,13 @@ const ROUND8_H2_SMOKE = sourceRoutePaths
   .find(Boolean)
 const round8Routes = ROUND8_H2_SMOKE ? [['儿歌小舞台（Round 8）', `/#${ROUND8_H2_SMOKE}`]] : []
 
+/**
+ * ROUND9_H1_SMOKE：儿歌 v2 的曲库与歌词-旋律同步动画。
+ * 走同一条路由，但验的是 v1 没有的四件事——曲库规模、预备拍、进度/留痕、音高抬升。
+ */
+const ROUND9_H1_SMOKE = ROUND8_H2_SMOKE
+const ROUND9_H1_MIN_SONGS = 10
+
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -1811,6 +1818,127 @@ if (ROUND8_H2_SMOKE) {
       if (sung !== 1) throw new Error(`存档里记进了 ${sung} 首已唱儿歌，应为 1`)
 
       return `${sheet.lines} 句 ${sheet.chars} 字，高亮第 ${walked.first} → ${walked.later} 个字，唱完记进存档`
+    }
+  )
+}
+
+if (ROUND9_H1_SMOKE) {
+  await interact(
+    'ROUND9_H1：儿歌 v2 —— 曲库 ≥10 首，预备拍 + 进度 + 留痕 + 音高抬升',
+    `/#${ROUND9_H1_SMOKE}`,
+    async (page) => {
+      await page.evaluate(() => localStorage.clear())
+      await page.reload({ waitUntil: 'networkidle2', timeout: 20000 })
+      await new Promise((r) => setTimeout(r, 600))
+
+      const shelf = await page.evaluate(() => ({
+        songs: document.querySelectorAll('.song').length,
+        themes: document.querySelectorAll('.tabs__btn').length,
+        counter: document.body.innerText.replace(/\s+/g, ' ').match(/唱过 \d+ \/ (\d+)/)?.[1] ?? '0'
+      }))
+      if (shelf.songs < ROUND9_H1_MIN_SONGS) {
+        throw new Error(`曲库只渲染出 ${shelf.songs} 首，v2 要求 ≥ ${ROUND9_H1_MIN_SONGS}`)
+      }
+      if (Number(shelf.counter) !== shelf.songs) {
+        throw new Error(`歌单计数 ${shelf.counter} 与渲染出的 ${shelf.songs} 首对不上`)
+      }
+
+      await page.evaluate(() => document.querySelector('.song__head').click())
+      await page.waitForSelector('.lyrics__line', { timeout: 5000 })
+
+      // 音高带是 v2 的旋律可视化：没在唱的时候先摊出第一句，点数要和第一句字数一致。
+      const ready = await page.evaluate(() => {
+        const pitches = [...document.querySelectorAll('.ribbon__dot')].map((n) =>
+          Number(n.style.getPropertyValue('--pitch'))
+        )
+        return {
+          dots: pitches.length,
+          spread: pitches.length ? Math.max(...pitches) - Math.min(...pitches) : 0,
+          firstLineChars: document.querySelector('.lyrics__line')?.querySelectorAll('.cell:not(.cell--punct)').length ?? 0,
+          version: document.querySelector('.player')?.dataset.songSync ?? ''
+        }
+      })
+      if (ready.version !== 'v2') throw new Error(`播放器没有标出 v2（data-song-sync=${ready.version}）`)
+      if (ready.dots !== ready.firstLineChars) {
+        throw new Error(`音高带 ${ready.dots} 个点对不上第一句的 ${ready.firstLineChars} 个字`)
+      }
+      if (!(ready.spread > 0.05)) {
+        throw new Error(`音高带是平的（高低差 ${ready.spread}），--pitch 没接上`)
+      }
+
+      if (!(await clickText(page, '唱一唱'))) throw new Error('儿歌页缺少「唱一唱」控件')
+
+      // 预备拍：点完按钮先数拍子，这几百毫秒里一个字都不该亮。
+      const countIn = await page.evaluate(() => ({
+        text: document.querySelector('.track__countin')?.innerText.trim() ?? '',
+        lit: document.querySelectorAll('.cell.is-on').length
+      }))
+      if (!/预备\s*\d/.test(countIn.text)) throw new Error(`没有预备拍倒数（读到「${countIn.text}」）`)
+      if (countIn.lit !== 0) throw new Error('预备拍还没数完就开始高亮歌词了')
+
+      await page.waitForSelector('.cell.is-on', { timeout: 8000 })
+
+      // 进度条、留痕、音高抬升三样都要「随着唱往前走」，取两帧比一比。
+      const walked = await page.evaluate(async () => {
+        const snap = () => {
+          const on = document.querySelector('.cell.is-on')
+          return {
+            progress: Number(document.querySelector('.track__bar')?.dataset.progress ?? -1),
+            sung: document.querySelectorAll('.cell.is-sung').length,
+            pitch: on ? Number(on.style.getPropertyValue('--pitch')) : -1,
+            lift: on ? getComputedStyle(on).transform : 'none'
+          }
+        }
+        const first = snap()
+        const pitches = new Set([first.pitch])
+        const lifts = new Set([first.lift])
+        let last = first
+        for (let i = 0; i < 30; i += 1) {
+          await new Promise((r) => setTimeout(r, 200))
+          last = snap()
+          if (last.pitch >= 0) pitches.add(last.pitch)
+          lifts.add(last.lift)
+          if (last.sung > first.sung && last.progress > first.progress && pitches.size >= 3) break
+        }
+        return {
+          first,
+          last,
+          pitches: pitches.size,
+          lifts: lifts.size,
+          // 「减少动态」下位移本来就该是 none，这时候只验音高变量，不验位移。
+          quiet: matchMedia('(prefers-reduced-motion: reduce)').matches
+        }
+      })
+      if (!(walked.last.progress > walked.first.progress)) {
+        throw new Error(`进度条卡在 ${walked.first.progress}% 没动`)
+      }
+      if (!(walked.last.sung > walked.first.sung)) {
+        throw new Error(`唱过的字没有留痕（is-sung 一直是 ${walked.first.sung} 个）`)
+      }
+      if (walked.pitches < 3) throw new Error(`高亮只走过 ${walked.pitches} 种音高，--pitch 没跟着旋律变`)
+      if (!walked.quiet && walked.lifts < 3) {
+        throw new Error(`字的抬升只有 ${walked.lifts} 种，音高没换算成位移`)
+      }
+
+      // 停一停要把动画状态一次清干净：高亮、预备拍、句号都不能留在屏幕上。
+      if (!(await clickText(page, '停一停'))) throw new Error('儿歌页缺少「停一停」控件')
+      await new Promise((r) => setTimeout(r, 400))
+      const stopped = await page.evaluate(() => ({
+        on: document.querySelectorAll('.cell.is-on').length,
+        sung: document.querySelectorAll('.cell.is-sung').length,
+        progress: Number(document.querySelector('.track__bar')?.dataset.progress ?? -1)
+      }))
+      if (stopped.on || stopped.sung || stopped.progress !== 0) {
+        throw new Error(
+          `停一停之后还剩 ${stopped.on} 个高亮 / ${stopped.sung} 个留痕 / 进度 ${stopped.progress}%`
+        )
+      }
+
+      return (
+        `${shelf.songs} 首 ${shelf.themes} 个分区；预备拍「${countIn.text}」；` +
+        `进度 ${walked.first.progress}%→${walked.last.progress}%，留痕 ${walked.first.sung}→${walked.last.sung} 字，` +
+        `${walked.pitches} 种音高 / ${walked.quiet ? '减少动态档' : `${walked.lifts} 种抬升`}`
+      )
     }
   )
 }
