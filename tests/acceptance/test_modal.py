@@ -32,16 +32,17 @@ Implemented here
   ``MatrixDefinitenessError``, and the solver package contains no bare
   ``assert`` and no path that returns a NaN instead of failing.
 
-MS-1.2 also lists ``lobpcg`` as an optional third backend. ``ModalSolver``
-exposes the dense and shift-invert Lanczos paths today through its ``sparse``
-switch; :data:`BACKENDS` picks up a ``backend`` keyword automatically if one
-lands later, so the pairwise comparison extends without editing this suite.
+All three MS-1.2 backends are covered: the dense LAPACK path, shift-invert
+Lanczos and LOBPCG, selected through ``sparse`` and ``sparse_method``. The one
+criterion they are not all held to is the frequency window of AC-MODAL-008 —
+LOBPCG converges to the lowest modes by construction, so MS-1.2 has it refuse
+an interior window instead of converging elsewhere, and that refusal is what
+:data:`WINDOW_BACKENDS` and the test beside it assert.
 """
 
 from __future__ import annotations
 
 import ast
-import inspect
 import warnings
 from itertools import combinations
 from pathlib import Path
@@ -106,10 +107,14 @@ TRUNCATION_DEFICIT = 1e-4
 #: Solver keywords per MS-1.2 backend name.
 BACKENDS: dict[str, dict[str, Any]] = {
     "dense": {"sparse": False},
-    "lanczos": {"sparse": True},
+    "lanczos": {"sparse": True, "sparse_method": "arpack"},
+    "lobpcg": {"sparse": True, "sparse_method": "lobpcg"},
 }
-if "backend" in inspect.signature(ModalSolver.solve).parameters:  # pragma: no cover
-    BACKENDS["lobpcg"] = {"backend": "lobpcg"}
+
+#: The backends a frequency window can be asked of.  Rayleigh-quotient descent
+#: reaches the lowest modes and nothing else, so MS-1.2 has ``lobpcg`` refuse
+#: an interior window by name rather than converge somewhere else.
+WINDOW_BACKENDS = {name: keywords for name, keywords in BACKENDS.items() if name != "lobpcg"}
 
 #: Chain sized above the MS-1.2 dense/sparse crossover (n >= 200 DOFs).
 BACKEND_CHAIN_DOFS = 240
@@ -217,8 +222,8 @@ def test_ac_modal_002_backends_return_the_same_lowest_modes(first, second):
 
 @criterion("AC-MODAL-002")
 def test_ac_modal_002_declared_backends_are_available():
-    """The comparison covers the MS-1.2 dense and Lanczos paths at least."""
-    assert {"dense", "lanczos"} <= set(BACKENDS)
+    """The comparison covers all three backends the MS-1.2 table names."""
+    assert {"dense", "lanczos", "lobpcg"} == set(BACKENDS)
 
 
 # --------------------------------------------------------------- AC-MODAL-003
@@ -728,7 +733,7 @@ WINDOW_BANDS = {"low": (0, 3), "interior": (14, 19), "single": (25, 25)}
 
 @criterion("AC-MODAL-008")
 @pytest.mark.parametrize("band", sorted(WINDOW_BANDS))
-@pytest.mark.parametrize("backend", sorted(BACKENDS))
+@pytest.mark.parametrize("backend", sorted(WINDOW_BACKENDS))
 def test_ac_modal_008_a_window_returns_exactly_the_reference_contents(band, backend):
     """``f in [f_lo, f_hi]`` returns the modes the dense reference puts there."""
     solver = _window_chain()
@@ -750,7 +755,7 @@ def test_ac_modal_008_a_window_returns_exactly_the_reference_contents(band, back
 
 
 @criterion("AC-MODAL-008")
-@pytest.mark.parametrize("backend", sorted(BACKENDS))
+@pytest.mark.parametrize("backend", sorted(WINDOW_BACKENDS))
 def test_ac_modal_008_an_empty_window_returns_nothing_rather_than_the_nearest_modes(backend):
     """A band between two adjacent modes is empty, and says so instead of rounding."""
     solver = _window_chain()
@@ -764,6 +769,24 @@ def test_ac_modal_008_an_empty_window_returns_nothing_rather_than_the_nearest_mo
 
     assert result.num_modes == 0
     assert result.meta["expected_in_window"] == 0
+
+
+@criterion("AC-MODAL-008")
+def test_ac_modal_008_a_backend_that_cannot_reach_a_window_says_so():
+    """The backend left out of the sweep above has to refuse, not approximate.
+
+    LOBPCG minimizes the Rayleigh quotient, so it converges to the lowest modes
+    whatever shift it is given. Filtering those against an interior window
+    would return an empty result — or worse, a partial one — that looks like
+    the window was searched, so MS-1.2 makes it a typed refusal naming the
+    backend that can serve the request.
+    """
+    solver = _window_chain()
+    reference = _reference_frequencies(solver)
+    window = _gap_window(reference, *WINDOW_BANDS["interior"])
+
+    with pytest.raises(SolverError, match="freq_window"):
+        solver.solve(num_modes=WINDOW_MODES, freq_window=window, **BACKENDS["lobpcg"])
 
 
 @criterion("AC-MODAL-008")
