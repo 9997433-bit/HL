@@ -7,8 +7,10 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import gsap from 'gsap'
+import AgeBandBadge from '@/components/AgeBandBadge.vue'
 import MascotBot from '@/components/MascotBot.vue'
 import { useProgressStore } from '@/stores/progress.js'
+import { useAgeBand } from '@/composables/useAgeBand'
 import { useFeedback } from '@/composables/useFeedback'
 import {
   candidatesOf,
@@ -59,8 +61,20 @@ const router = useRouter()
 const progress = useProgressStore()
 const { correct: fxCorrect, wrong: fxWrong, burst, flyStar, pop } = useFeedback()
 
-const sizeKey = ref(4)
-const difficulty = ref('easy')
+/** 家长中心选的年龄档决定进来时是哪张棋盘、挖多少洞。 */
+const band = useAgeBand((next) => {
+  const preset = next.defaults.sudoku
+  // 两个值都没变就自己重开一局，变了交给下面的 watch([sizeKey, difficulty])
+  if (sizeKey.value === preset.size && difficulty.value === preset.difficulty) {
+    newGame()
+    return
+  }
+  sizeKey.value = preset.size
+  difficulty.value = preset.difficulty
+})
+
+const sizeKey = ref(band.value.defaults.sudoku.size)
+const difficulty = ref(band.value.defaults.sudoku.difficulty)
 const showNotes = ref(false)
 
 const puzzle = ref([])
@@ -360,6 +374,7 @@ onBeforeUnmount(() => {
         </button>
       </div>
       <div class="spacer" />
+      <AgeBandBadge module="sudoku" />
       <span class="chip">⏱️ {{ timeText }}</span>
       <span class="chip">❌ {{ mistakes }}</span>
       <span class="chip">🔢 {{ filledCount }}/{{ total }}</span>

@@ -2,11 +2,13 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import gsap from 'gsap'
+import AgeBandBadge from '@/components/AgeBandBadge.vue'
 import MascotBot from '@/components/MascotBot.vue'
 import SessionBar from '@/components/SessionBar.vue'
 import RoundSummary from '@/components/RoundSummary.vue'
 import ShapeGlyph from '@/components/ShapeGlyph.vue'
 import { useProgressStore } from '@/stores/progress.js'
+import { useAgeBand } from '@/composables/useAgeBand'
 import { useFeedback } from '@/composables/useFeedback'
 import { REAL_OBJECTS, SHAPES, SHAPES_2D, SHAPES_3D } from '@/data/shapes'
 import { geometrySkill } from '@/data/skill-mapping.js'
@@ -28,7 +30,15 @@ const router = useRouter()
 const progress = useProgressStore()
 const { correct: fxCorrect, wrong: fxWrong, burst, flyStar, enter } = useFeedback()
 
-const scope = ref('2d') // 2d | 3d | all
+/** 家长中心选的年龄档决定进来时看平面还是立体、以及出哪几种题型。 */
+const band = useAgeBand((next) => {
+  const nextScope = next.defaults.geometry.scope
+  // 换了范围就交给下面的 watch(scope) 重开一轮，别重复开两轮
+  if (scope.value === nextScope) startRound()
+  else scope.value = nextScope
+})
+
+const scope = ref(band.value.defaults.geometry.scope) // 2d | 3d | all
 const pool = computed(() =>
   scope.value === '2d' ? SHAPES_2D : scope.value === '3d' ? SHAPES_3D : SHAPES,
 )
@@ -143,12 +153,28 @@ function makeOddOne(list) {
   }
 }
 
+/** 键即 age-band.js 的 GEOMETRY_QUESTION_IDS。 */
+const MAKERS = {
+  find: makeFindByName,
+  name: makeNameIt,
+  sides: makeCountSides,
+  real: makeRealObject,
+  odd: makeOddOne,
+}
+
+/** 立体图形没有「几条边」，也凑不出「三个四边形 + 一个异类」，这两种题只在有平面图形时出。 */
+const PLANE_ONLY = ['sides', 'odd']
+
+const makerIds = computed(() => {
+  const allowed = band.value.defaults.geometry.makers
+  return scope.value === '3d' ? allowed.filter((id) => !PLANE_ONLY.includes(id)) : allowed
+})
+
 function buildQuestion(i) {
-  const list = pool.value
-  const makers = [makeFindByName, makeNameIt, makeCountSides, makeRealObject, makeOddOne]
-  const weights = scope.value === '3d' ? [0, 1, 3] : [0, 1, 2, 3, 4]
-  const idx = i < 2 ? weights[i % weights.length] : sample(weights)
-  return makers[idx](list)
+  const ids = makerIds.value
+  // 前两题按顺序走一遍，保证一轮里题型不会开局就撞车
+  const id = i < ids.length && i < 2 ? ids[i] : sample(ids)
+  return MAKERS[id](pool.value)
 }
 
 /* ---------- 判题 ---------- */
@@ -272,6 +298,7 @@ onMounted(startRound)
       </div>
       <div class="spacer" />
       <RouterLink class="btn btn--primary btn--sm" to="/tangram">🧩 七巧板</RouterLink>
+      <AgeBandBadge module="geometry" />
       <span class="chip">共 {{ pool.length }} 种图形</span>
     </section>
 

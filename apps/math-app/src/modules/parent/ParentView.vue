@@ -8,6 +8,7 @@
  * 时长来自 App 每 15 秒一次的在线采样。
  */
 import { computed, ref } from 'vue'
+import { AGE_BAND_MODULES, bandOf } from '@/data/age-band.js'
 import { MODULES } from '@/data/modules.js'
 import { SKILLS } from '@/data/curriculum.js'
 import { ERROR_TAGS, errorTagInfo } from '@/data/errorTags.js'
@@ -44,6 +45,14 @@ function submitGate() {
   answer.value = ''
   quiz.value = makeGateQuiz()
 }
+
+/* ---------------- 难度档 ---------------- */
+
+/** 选中的档位在六个玩法里各自对应什么默认难度，改档后立刻跟着变。 */
+const bandPreview = computed(() => {
+  const band = bandOf(settings.ageBand)
+  return AGE_BAND_MODULES.map((m) => ({ ...m, hint: band.hints[m.key] }))
+})
 
 /* ---------------- 时长提醒 ---------------- */
 
@@ -394,6 +403,13 @@ function setLimit(value) {
             <small class="muted">{{ band.desc }}</small>
           </button>
         </div>
+
+        <ul class="band-preview" aria-label="当前年龄档在各玩法里的默认难度">
+          <li v-for="m in bandPreview" :key="m.key">
+            <span class="muted">{{ m.name }}</span>
+            <strong>{{ m.hint }}</strong>
+          </li>
+        </ul>
       </section>
 
       <!-- 技能雷达 -->
@@ -842,6 +858,24 @@ function setLimit(value) {
 
 .band small {
   font-size: 12px;
+}
+
+.band-preview {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 6px 14px;
+  list-style: none;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: rgba(94, 231, 255, 0.07);
+  border: 1px solid rgba(94, 231, 255, 0.22);
+}
+
+.band-preview li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
 }
 
 /* ---- 雷达 ---- */

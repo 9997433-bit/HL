@@ -9,9 +9,10 @@
  */
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import AgeBandBadge from '@/components/AgeBandBadge.vue'
 import QuizShell from '@/components/QuizShell.vue'
 import { useProgressStore } from '@/stores/progress.js'
-import { useSettingsStore } from '@/stores/settings.js'
+import { useAgeBand } from '@/composables/useAgeBand'
 import { numericOptions, randInt, sample } from '@/utils/random'
 import { arithmeticSkill } from '@/data/skill-mapping.js'
 import { sound } from '@/utils/sound'
@@ -31,10 +32,15 @@ const roundName = computed(() =>
 
 const router = useRouter()
 const progress = useProgressStore()
-const settings = useSettingsStore()
 
-/** 家长中心选的年龄档决定进来时停在哪个档位，孩子仍然可以自己切。 */
-const LEVEL_BY_AGE_BAND = { L1: 10, L2: 10, L3: 20, L4: 100, L5: 100 }
+/** 家长中心选的年龄档决定进来时停在哪个档位、先练哪种运算，孩子仍然可以自己切。 */
+const band = useAgeBand((next) => {
+  const preset = next.defaults.arithmetic
+  // 档位或运算变了就交给下面的 watch([level, op])，都没变才自己换一轮题
+  if (level.value === preset.level && op.value === preset.op) newRound()
+  level.value = preset.level
+  op.value = preset.op
+})
 
 const LEVELS = [
   { id: 10, label: '10 以内', emoji: '🌱', desc: '入门：一位数加减' },
@@ -49,8 +55,8 @@ const OPS = [
 
 const LEVEL_STEPS = LEVELS.map((l) => l.id)
 
-const level = ref(LEVEL_BY_AGE_BAND[settings.ageBand] ?? 10)
-const op = ref('mix')
+const level = ref(band.value.defaults.arithmetic.level)
+const op = ref(band.value.defaults.arithmetic.op)
 const inputMode = ref('choice')
 /** 自动难度：连对就升档、连错就降档，但只在下一轮生效，不打断正在做的这一轮。 */
 const autoLevel = ref(true)
@@ -305,6 +311,7 @@ function setOp(id) {
         >
           🎚️ 自动难度{{ autoLevel ? '开' : '关' }}
         </button>
+        <AgeBandBadge module="arithmetic" />
       </template>
 
       <!-- 口算连击：连击越高星星加成越多，这里把加成明确画出来 -->

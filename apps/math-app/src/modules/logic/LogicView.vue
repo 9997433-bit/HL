@@ -2,11 +2,13 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import gsap from 'gsap'
+import AgeBandBadge from '@/components/AgeBandBadge.vue'
 import MascotBot from '@/components/MascotBot.vue'
 import SessionBar from '@/components/SessionBar.vue'
 import RoundSummary from '@/components/RoundSummary.vue'
 import ShapeGlyph from '@/components/ShapeGlyph.vue'
 import { useProgressStore } from '@/stores/progress.js'
+import { useAgeBand } from '@/composables/useAgeBand'
 import { useFeedback } from '@/composables/useFeedback'
 import { logicSkill } from '@/data/skill-mapping.js'
 import { SHAPE_MAP } from '@/data/shapes.js'
@@ -18,6 +20,7 @@ const MODULE_ID = 'logic'
 
 const router = useRouter()
 const progress = useProgressStore()
+const band = useAgeBand(() => startRound())
 const { correct: fxCorrect, wrong: fxWrong, burst, flyStar, enter } = useFeedback()
 
 const EMOJI_SETS = [
@@ -202,18 +205,30 @@ function shapeCycle() {
   }
 }
 
-const MAKERS = [
-  arithmeticSeq,
-  decreasingSeq,
-  doublingSeq,
-  growingGapSeq,
-  zigzagSeq,
-  emojiCycle,
-  emojiCycle,
-  growingGroup,
-  rotationPattern,
-  shapeCycle,
-]
+/** 键即 age-band.js 的 LOGIC_PATTERN_IDS，年龄档就是从这些 id 里挑题型。 */
+const MAKERS = {
+  arith: arithmeticSeq,
+  decrease: decreasingSeq,
+  double: doublingSeq,
+  gap: growingGapSeq,
+  zigzag: zigzagSeq,
+  emoji: emojiCycle,
+  group: growingGroup,
+  rotate: rotationPattern,
+  shape: shapeCycle,
+}
+
+/**
+ * 一轮的题型来自年龄档：小的只出图案循环和数量递增，
+ * 大的才见得到翻倍、差值递增、交替加减这些要归纳两层的规律。
+ * 档位里重复写同一个 id 就是给它加权。
+ */
+function drawRound() {
+  const ids = band.value.defaults.logic
+  const out = []
+  while (out.length < ROUND_SIZE) out.push(...shuffle(ids))
+  return out.slice(0, ROUND_SIZE).map((id) => MAKERS[id]())
+}
 
 /* ---------------- 流程 ---------------- */
 
@@ -289,10 +304,7 @@ function finish() {
 }
 
 function startRound() {
-  questions.value = shuffle(MAKERS)
-    .concat(shuffle(MAKERS))
-    .slice(0, ROUND_SIZE)
-    .map((make) => make())
+  questions.value = drawRound()
   index.value = 0
   marks.value = []
   correctCount.value = 0
@@ -329,6 +341,7 @@ onMounted(startRound)
 <template>
   <main class="page stack">
     <section class="card bar-panel">
+      <AgeBandBadge module="logic" />
       <SessionBar
         :index="index"
         :total="ROUND_SIZE"
@@ -520,7 +533,15 @@ onMounted(startRound)
 
 <style scoped>
 .bar-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
   padding: 14px 18px;
+}
+
+.bar-panel > :last-child {
+  width: 100%;
 }
 
 .stage {
