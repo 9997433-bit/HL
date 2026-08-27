@@ -751,8 +751,8 @@ await interact('成语头图：跟着 data-theme 换色', '/#/idioms/szdt', asyn
 })
 
 // 用 b3：前面的绘本用例已经把 b1 读完了，而「第一次读完」才发庆祝
-await interact('庆祝动画：可以立刻跳过', '/#/books/b3', async (page) => {
-  await page.waitForFunction(() => /下一页|读完啦/.test(document.body.innerText), { timeout: 10000 })
+await interact('庆祝动画：播报完整且可以立刻跳过', '/#/books/b3', async (page) => {
+  await page.waitForSelector('.reader .spread', { timeout: 10000 })
   for (let i = 0; i < 8; i++) {
     if (await clickText(page, '下一页')) continue
     if (await clickText(page, '读完啦')) break
@@ -762,10 +762,14 @@ await interact('庆祝动画：可以立刻跳过', '/#/books/b3', async (page) 
 
   const before = await page.evaluate(() => ({
     open: !!document.querySelector('.cel'),
-    skip: !!document.querySelector('.cel__skip')
+    skip: !!document.querySelector('.cel__skip'),
+    live: document.querySelector('.cel [aria-live="polite"]')?.innerText.trim() ?? '',
+    prohibited: !!document.querySelector('.cel span[aria-label]:not([role])')
   }))
   if (!before.open) throw new Error('读完整本没有弹出庆祝层')
   if (!before.skip) throw new Error('庆祝层没有跳过按钮')
+  if (!before.live.includes('跳过')) throw new Error('庆祝播报没有告诉用户可以跳过')
+  if (before.prohibited) throw new Error('庆祝层里有 span 直接挂 aria-label（axe aria-prohibited-attr）')
 
   await page.evaluate(() => document.querySelector('.cel__skip').click())
   await new Promise((r) => setTimeout(r, 250))
@@ -775,7 +779,7 @@ await interact('庆祝动画：可以立刻跳过', '/#/books/b3', async (page) 
   // 跳过后状态要和播完一样：奖励的星星已经进账，读完页正常显示
   const settled = await page.evaluate(() => document.body.innerText.includes('读完啦'))
   if (!settled) throw new Error('跳过庆祝后没有回到读完页')
-  return '庆祝层弹出 → 点跳过 → 立即回到读完页'
+  return `播报「${before.live.slice(0, 18)}…」→ 点跳过 → 立即回到读完页`
 })
 
 await interact('家长中心：过验证并切主题', '/#/parent', async (page) => {
@@ -1099,14 +1103,7 @@ await interact('徽章：学会第一个字就点亮，首页与家长中心都�
   return `首页点亮 ${home.lit} 枚；家长中心共 ${parent.total} 枚（点亮 ${parent.lit}，${parent.locked} 枚带进度条）`
 })
 
-await interact('播报：答题与庆祝都有 aria-live', '/#/listen', async (page) => {
-  // 前面的路由与交互共用一个浏览器上下文；先清档重载，确保 b2 是首次读完，
-  // 否则 store 会正确地拒绝重复弹出“首次完成”庆祝，测试却会误报超时。
-  await page.evaluate(() => localStorage.clear())
-  // 先离开 App，停掉每秒写学习时长的定时器，避免它在 reload 前把旧存档写回来。
-  await page.goto('about:blank')
-  await page.goto(`${base}/#/listen`, { waitUntil: 'networkidle2' })
-  await new Promise((r) => setTimeout(r, 500))
+await interact('播报：答题有 aria-live', '/#/listen', async (page) => {
   await clickText(page, '开始游戏')
   await new Promise((r) => setTimeout(r, 600))
 
@@ -1128,43 +1125,7 @@ await interact('播报：答题与庆祝都有 aria-live', '/#/listen', async (p
   )
   if (!/答对了|正确答案/.test(answered)) throw new Error(`作答后没有播报对错：「${answered}」`)
 
-  // 庆祝浮层：读完一本没读过的绘本
-  await page.goto(page.url().replace(/#.*$/, '#/books/b2'), { waitUntil: 'networkidle2' })
-  // 绘本页是按需 chunk：换 hash 不重新加载文档，翻页按钮没挂上来会一页都翻不到
-  await page.waitForSelector('.reader .spread', { timeout: 10000 })
-  const readCelebration = () =>
-    page.evaluate(() => {
-      const layer = document.querySelector('.cel')
-      if (!layer) return null
-      const live = layer.querySelector('[aria-live="polite"]')
-      return {
-        text: live?.innerText.trim() ?? '',
-        prohibited: !!layer.querySelector('span[aria-label]:not([role])')
-      }
-    })
-  let celebration = null
-  for (let i = 0; i < 8; i++) {
-    if (await clickText(page, '下一页')) {
-      celebration = await readCelebration()
-      if (celebration) break
-      continue
-    }
-    if (await clickText(page, '读完啦')) {
-      celebration = await readCelebration()
-      break
-    }
-    break
-  }
-  if (!celebration) {
-    await page.waitForSelector('.cel', { timeout: 5000 })
-    celebration = await readCelebration()
-  }
-  if (!celebration) throw new Error('读完绘本没有弹出庆祝层')
-  if (!celebration.text) throw new Error('庆祝层没有播报内容')
-  if (!celebration.text.includes('跳过')) throw new Error('庆祝播报没有告诉用户可以跳过')
-  if (celebration.prohibited) throw new Error('庆祝层里有 span 直接挂 aria-label（axe aria-prohibited-attr）')
-
-  return `答题播报「${region.slice(0, 14)}…」，庆祝播报「${celebration.text.slice(0, 18)}…」`
+  return `答题播报「${region.slice(0, 14)}…」，作答反馈「${answered.slice(0, 18)}…」`
 })
 
 await interact('设计令牌：识字 App 用的是共享令牌层', '/#/', async (page) => {
