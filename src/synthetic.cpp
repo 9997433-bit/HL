@@ -9,34 +9,66 @@
 
 namespace dic {
 
-Image makeSpeckle(int width, int height, int numSpeckles, double speckleSigma,
-                  uint32_t seed, double background, double amplitude) {
-  Image img(width, height);
-  for (double& v : img.data) v = background;
+double SpecklePattern::eval(double x, double y) const {
+  double v = background;
+  for (const Speckle& s : speckles) {
+    const double dx = x - s.cx, dy = y - s.cy;
+    v += s.amp * std::exp(-(dx * dx + dy * dy) / (2.0 * s.sigma * s.sigma));
+  }
+  return v;
+}
+
+SpecklePattern makeSpecklePattern(int width, int height, int numSpeckles,
+                                  double speckleSigma, uint32_t seed,
+                                  double background, double amplitude) {
+  SpecklePattern pattern;
+  pattern.background = background;
+  pattern.baseSigma = speckleSigma;
+  pattern.speckles.reserve(numSpeckles);
 
   std::mt19937 rng(seed);
   std::uniform_real_distribution<double> ux(0.0, width - 1.0);
   std::uniform_real_distribution<double> uy(0.0, height - 1.0);
   std::uniform_real_distribution<double> ur(0.75, 1.25);
-
-  const int radius = std::max(1, static_cast<int>(std::ceil(3.0 * speckleSigma)));
   for (int s = 0; s < numSpeckles; ++s) {
-    const double cx = ux(rng);
-    const double cy = uy(rng);
-    const double sigma = speckleSigma * ur(rng);
-    const double inv2s2 = 1.0 / (2.0 * sigma * sigma);
-    const int x0 = std::max(0, static_cast<int>(cx) - radius);
-    const int x1 = std::min(width - 1, static_cast<int>(cx) + radius);
-    const int y0 = std::max(0, static_cast<int>(cy) - radius);
-    const int y1 = std::min(height - 1, static_cast<int>(cy) + radius);
+    Speckle sp;
+    sp.cx = ux(rng);
+    sp.cy = uy(rng);
+    sp.sigma = speckleSigma * ur(rng);
+    sp.amp = amplitude;
+    pattern.speckles.push_back(sp);
+  }
+  return pattern;
+}
+
+Image renderPattern(const SpecklePattern& pattern, int width, int height,
+                    double offX, double offY) {
+  Image img(width, height);
+  for (double& v : img.data) v = pattern.background;
+
+  const int radius = std::max(1, static_cast<int>(std::ceil(3.0 * pattern.baseSigma)));
+  for (const Speckle& s : pattern.speckles) {
+    const double cx = s.cx + offX, cy = s.cy + offY;
+    const double inv2s2 = 1.0 / (2.0 * s.sigma * s.sigma);
+    const int x0 = std::max(0, static_cast<int>(std::floor(cx)) - radius);
+    const int x1 = std::min(width - 1, static_cast<int>(std::floor(cx)) + radius);
+    const int y0 = std::max(0, static_cast<int>(std::floor(cy)) - radius);
+    const int y1 = std::min(height - 1, static_cast<int>(std::floor(cy)) + radius);
     for (int y = y0; y <= y1; ++y)
       for (int x = x0; x <= x1; ++x) {
         const double dx = x - cx, dy = y - cy;
-        img.at(x, y) += amplitude * std::exp(-(dx * dx + dy * dy) * inv2s2);
+        img.at(x, y) += s.amp * std::exp(-(dx * dx + dy * dy) * inv2s2);
       }
   }
   for (double& v : img.data) v = std::clamp(v, 0.0, 255.0);
   return img;
+}
+
+Image makeSpeckle(int width, int height, int numSpeckles, double speckleSigma,
+                  uint32_t seed, double background, double amplitude) {
+  const SpecklePattern p = makeSpecklePattern(width, height, numSpeckles,
+                                              speckleSigma, seed, background, amplitude);
+  return renderPattern(p, width, height, 0.0, 0.0);
 }
 
 Image warpAffine(const Image& ref, const AffineField& field) {

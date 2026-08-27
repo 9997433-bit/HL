@@ -8,7 +8,36 @@
 
 namespace dic {
 
-// Generate a random Gaussian-speckle pattern suitable for correlation.
+// A closed-form Gaussian-sum speckle pattern. Because the pattern is analytic,
+// a translated version can be rendered *exactly* by rasterizing the speckles at
+// shifted centers, with no image interpolation in the generation path. This is
+// what makes bias measurements free of the "inverse crime" (the estimator and
+// the forward model no longer share an interpolant).
+struct Speckle {
+  double cx, cy, amp, sigma;
+};
+struct SpecklePattern {
+  std::vector<Speckle> speckles;
+  double background = 20.0;
+  double baseSigma = 1.2;
+
+  // Continuous intensity of the (undeformed) pattern at real coordinates.
+  double eval(double x, double y) const;
+};
+
+// Build a random speckle pattern (deterministic in seed).
+SpecklePattern makeSpecklePattern(int width, int height, int numSpeckles,
+                                  double speckleSigma, uint32_t seed,
+                                  double background = 20.0, double amplitude = 220.0);
+
+// Rasterize the pattern with all speckle centers shifted by (offX, offY). With
+// offset (0,0) this is the reference; with (s, 0) it is an exact rigid
+// translation by s of the continuous pattern.
+Image renderPattern(const SpecklePattern& pattern, int width, int height,
+                    double offX, double offY);
+
+// Generate a random Gaussian-speckle pattern suitable for correlation
+// (equivalent to renderPattern(makeSpecklePattern(...), w, h, 0, 0)).
 Image makeSpeckle(int width, int height, int numSpeckles, double speckleSigma,
                   uint32_t seed, double background = 20.0, double amplitude = 220.0);
 
