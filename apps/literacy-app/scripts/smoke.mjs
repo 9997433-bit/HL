@@ -35,7 +35,7 @@ const round6SpeechRoute = findStaticRoute(
 // check:round6 会验证这两个 stub 仍在。功能路由合入后，它们自动进入真实浏览器回归。
 const ROUND6_H3_SMOKE = round6PoemRoute
 const ROUND6_H4_SMOKE = round6SpeechRoute
-const ROUND8_H5_SMOKE = round6SpeechRoute
+const ROUND8_H5_SMOKE = round6SpeechRoute ?? '/follow-read'
 const round6Routes = [
   ...(ROUND6_H3_SMOKE ? [['古诗国学（Round 6）', `/#${ROUND6_H3_SMOKE}`]] : []),
   ...(ROUND6_H4_SMOKE ? [['跟读评测（Round 6）', `/#${ROUND6_H4_SMOKE}`]] : [])
