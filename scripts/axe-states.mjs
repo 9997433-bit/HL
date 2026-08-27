@@ -59,6 +59,30 @@ const CASES = [
   ['绘本详情', '/#/books/b1'],
   ['成语列表', '/#/idioms'],
   ['成语详情', '/#/idioms/szdt'],
+  ['古诗长廊', '/#/poems'],
+  [
+    // 诗行是逐字可点的按钮，生字还换了颜色——对比度最容易在这里翻车
+    '古诗详情（点开生字）',
+    '/#/poems/jingyesi',
+    async (page) => {
+      await page.waitForSelector('.verse__line', { timeout: 8_000 })
+      await page.evaluate(() => document.querySelector('.glyph--new')?.click())
+      await wait(350)
+    },
+  ],
+  [
+    // 跟读结果卡在三套主题下各有一套配色，扫「已出结果」这一态
+    '跟读评测（出分之后）',
+    '/#/follow-read/jingyesi',
+    async (page) => {
+      await page.waitForSelector('.fr', { timeout: 8_000 })
+      if (!(await clickText(page, '开始跟读'))) throw new Error('找不到「开始跟读」入口')
+      if (!(await clickText(page, '我读完了'))) throw new Error('找不到「我读完了」出口')
+      await clickText(page, '很流利')
+      await page.waitForSelector('.fr__result', { timeout: 8_000 })
+      await wait(300)
+    },
+  ],
   ['家长中心', '/#/parent'],
   ['小游戏大厅', '/#/games'],
   [

@@ -202,8 +202,12 @@ onMounted(() => {
   color: var(--text-strong);
 }
 
+/**
+ * 数量角标不调透明度：--text-soft 再压 0.7 之后，在选中态的浅色底上
+ * 对比度只剩 4.05:1，过不了 WCAG AA。让它直接继承按钮的文字色。
+ */
 .tabs__btn small {
-  opacity: 0.7;
+  color: inherit;
 }
 
 .gallery {
