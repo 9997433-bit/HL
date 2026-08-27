@@ -892,7 +892,10 @@ multitrack MVP**, positioned honestly rather than as Adobe Audition parity.
   suite; TPDF export dither and an SRC quality report; WCAG 2.2 AA contrast,
   fractional HiDPI scaling and full keyboard coverage with an F1 shortcut
   sheet; a 256-frame default block with real-time GC discipline and a
-  headless 30-minute soak harness.
+  headless 30-minute soak harness; single-file `.hlprojz` project archives
+  and a desktop-bundle scaffold with the LGPL obligations wired into the
+  build; opt-in ASIO host selection (no SDK bundled); reusable JSON edit
+  macros in the batch CLI.
 - **Known limitations:** the *Known limitations* section above is the
   authoritative list. Headline gaps: the synthetic EBU 3341/3342 vectors
   pass but there is no AES17 harness or real-material compliance evidence;

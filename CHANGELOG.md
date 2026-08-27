@@ -15,8 +15,9 @@ not full Adobe Audition parity; the honest gap register lives in
 `.agent_workspace/v1.0/FINAL_RELEASE_SUMMARY.md`.
 
 Merged PRs: *v1.0 Round A — PDC, soak, NR, a11y, dither, DeClip* and the
-v1.0 Round B branches (track gain automation, EBU true-peak certification,
-SOTA acceptance re-grade, and this release preparation).
+v1.0 Round B consolidation (track gain automation; EBU true-peak
+certification; ASIO selection and edit macros; `.hlprojz` archives and the
+installer scaffold; SOTA acceptance re-grade; and this release preparation).
 
 ### Added
 
@@ -64,6 +65,26 @@ SOTA acceptance re-grade, and this release preparation).
   realigns the B5/B8/D2 verifiers with the module paths that actually
   landed, and tightens the remaining xfail reasons: the suite stands at
   9 passed / 22 expected gaps, and `sota_claimed` remains false.
+- **`.hlprojz` project archives.** The `.hlproj` bundle stored as a single zip
+  file, at the same schema version, with atomic packing and unpacking and
+  validation of member names from untrusted archives. File ▸ Open Project
+  Archive (`Ctrl+Shift+H`) and File ▸ Save Project Archive As (`Ctrl+Alt+H`);
+  `audio_studio.project.archive` headlessly.
+- **Desktop bundle scaffold.** `packaging/pyinstaller.spec` and
+  `scripts/build-linux.sh`, building a one-directory artifact that keeps the
+  LGPL shared libraries replaceable, refuses to bundle GPL components, and
+  ships `LGPL-RELINKING.txt` beside the third-party notices.
+- **Opt-in ASIO output selection (Windows).** `AUDIO_STUDIO_ASIO=1` prefers
+  an output device already exposed by the PortAudio ASIO host API that the
+  user's `sounddevice` runtime loaded, falling back to the default device
+  otherwise. Host selection only: no Steinberg ASIO SDK is bundled and
+  `SD_ENABLE_ASIO` is never set, consistent with the licensing policy.
+- **Reusable JSON edit macros.** `save_macro()` serialises the applied
+  command branch of an `EditSession` as schema-v1 JSON, and
+  `audio-studio-batch --macro edit.json` replays it across every batch
+  input. Gain, fade, silence, reverse, spectral edit, delete, trim,
+  insert-silence and cut/paste sequences round-trip; a paste that would need
+  embedded source audio is rejected as non-portable.
 
 ### Changed
 
@@ -161,20 +182,6 @@ continuation* (v0.2 portion), *engine telemetry triple-buffer*, and
   feeder thread, so a heavy chain costs ring latency rather than dropouts.
 - Master volume and mute are ramped over 10 ms; the UI draws an interpolated
   playhead instead of the block-quantised position.
-
-## Unreleased
-
-### Added
-
-- `.hlprojz` project archives: the `.hlproj` bundle stored as a single zip
-  file, at the same schema version, with atomic packing and unpacking and
-  validation of member names from untrusted archives. File ▸ Open Project
-  Archive (`Ctrl+Shift+H`) and File ▸ Save Project Archive As (`Ctrl+Alt+H`);
-  `audio_studio.project.archive` headlessly.
-- Desktop bundle scaffold: `packaging/pyinstaller.spec` and
-  `scripts/build-linux.sh`, building a one-directory artifact that keeps the
-  LGPL shared libraries replaceable, refuses to bundle GPL components, and
-  ships `LGPL-RELINKING.txt` beside the third-party notices.
 
 ## [0.1.0-alpha] - 2026-08-26
 
