@@ -105,6 +105,31 @@ const routes = [
     meta: { title: '成语故事', emoji: '🏮' }
   },
   {
+    path: '/poems',
+    name: 'poems',
+    component: () => import('@/views/PoemsView.vue'),
+    meta: { title: '古诗长廊', emoji: '📜' }
+  },
+  {
+    path: '/poems/:id',
+    name: 'poem',
+    component: () => import('@/views/PoemDetailView.vue'),
+    props: true,
+    meta: { title: '读古诗', emoji: '📜' }
+  },
+  /**
+   * 跟读评测。`:id` 可以不写——不写就自己挑一首生字最少的诗开始。
+   * 这条路由和《古诗详情》的「跟着读」用的是同一个面板。
+   */
+  {
+    path: '/follow-read/:id?',
+    name: 'follow-read',
+    component: () => import('@/views/FollowReadView.vue'),
+    props: true,
+    meta: { title: '跟读评测', emoji: '🎤' }
+  },
+  { path: '/speech', redirect: '/follow-read' },
+  {
     path: '/idioms/:id',
     name: 'idiom',
     component: () => import('@/views/IdiomDetailView.vue'),

@@ -95,6 +95,8 @@ function defaultState() {
     chars: {},
     books: {},
     idioms: {},
+    /** 古诗：{ 'jingyesi': { read, reads, follows, bestScore, lastAt } } */
+    poems: {},
     radicals: {},
 
     /** 已解锁的徽章：{ 'first-step': { unlockedAt } }，定义见 data/badges.js。 */
@@ -158,6 +160,7 @@ function migrate(saved) {
     chars,
     books: { ...(saved.books || {}) },
     idioms: { ...(saved.idioms || {}) },
+    poems: { ...(saved.poems || {}) },
     radicals: { ...(saved.radicals || {}) },
     badges: { ...(saved.badges || {}) },
     seenUnits: Array.isArray(saved.seenUnits)
@@ -292,6 +295,12 @@ export const useProgressStore = defineStore('progress', () => {
    * 比让每个孩子先下载几十 KB 用不上的故事划算得多。
    */
   const idiomsRead = computed(() => Object.values(state.idioms).filter((i) => i?.read).length)
+  /** 古诗同理：只数存档，不把 24 首诗连注解一起拉进首屏。 */
+  const poemsRead = computed(() => Object.values(state.poems ?? {}).filter((p) => p?.read).length)
+  /** 跟读过的诗有几首——徽章看它，比「跟读总次数」更能说明练了多少。 */
+  const poemsFollowed = computed(
+    () => Object.values(state.poems ?? {}).filter((p) => (p?.follows ?? 0) > 0).length
+  )
   const radicalsSeen = computed(() => RADICALS.filter((r) => state.radicals[r.id]?.seen).length)
 
   const quizTotals = computed(() => {
@@ -425,6 +434,7 @@ export const useProgressStore = defineStore('progress', () => {
     streak: streakDays.value,
     books: booksFinished.value,
     idioms: idiomsRead.value,
+    poems: poemsFollowed.value,
     radicals: radicalsSeen.value
   }))
 
@@ -659,6 +669,46 @@ export const useProgressStore = defineStore('progress', () => {
       i.quizWrong = (i.quizWrong ?? 0) + 1
       addXp(2)
     }
+  }
+
+  function ensurePoem(poemId) {
+    if (!state.poems) state.poems = {}
+    if (!state.poems[poemId]) {
+      state.poems[poemId] = { read: false, reads: 0, follows: 0, bestScore: null }
+    }
+    return state.poems[poemId]
+  }
+
+  /** 打开了一首诗的详情页。 */
+  function markPoemRead(poemId) {
+    const p = ensurePoem(poemId)
+    if (!p.read) {
+      p.read = true
+      addStars(2)
+      addXp(10)
+    }
+    p.reads = (p.reads ?? 0) + 1
+    p.lastAt = Date.now()
+  }
+
+  /**
+   * 记一次跟读。
+   *
+   * 自评档没有分数（score 为 null），那一次照样算「练过一遍」，
+   * 只是不参与「最好成绩」——没有麦克风的孩子不该因此在成就上吃亏。
+   */
+  function recordFollowRead(poemId, { score = null, mode = '' } = {}) {
+    const p = ensurePoem(poemId)
+    p.read = true
+    p.follows = (p.follows ?? 0) + 1
+    p.lastMode = mode
+    p.lastAt = Date.now()
+    if (Number.isFinite(score)) {
+      p.bestScore = Math.max(p.bestScore ?? 0, Math.round(score))
+      if (score >= 70) addStars(1)
+    }
+    addXp(6)
+    return { follows: p.follows, bestScore: p.bestScore, badges: refreshBadges() }
   }
 
   function markRadicalSeen(radicalId) {
