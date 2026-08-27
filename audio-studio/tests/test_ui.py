@@ -607,6 +607,28 @@ class TestWindowIntegration:
         assert window.dockWidgetArea(window.spectrum_dock) == Qt.DockWidgetArea.BottomDockWidgetArea
         assert window.dockWidgetArea(window.effects_dock) == Qt.DockWidgetArea.RightDockWidgetArea
 
+    def test_the_window_still_fits_a_1080p_display(self, window: MainWindow) -> None:
+        """A dock cannot shrink below the widget it holds.
+
+        Eleven effect slots stacked outright put a ~1550 px floor under the
+        rack and the whole window inherited it, so the app would not open on
+        the commonest desktop resolution at all.
+        """
+        hint = window.minimumSizeHint()
+
+        assert hint.width() <= 1920
+        assert hint.height() <= 1080
+
+    def test_the_effects_rack_scrolls_rather_than_setting_the_windows_floor(
+        self, window: MainWindow
+    ) -> None:
+        rack = window.effect_rack
+
+        assert rack.scroll_area.widgetResizable()
+        assert rack.minimumSizeHint().height() <= 320
+        # Every slot is still there; only the container around them changed.
+        assert rack.scroll_area.widget().sizeHint().height() > 1_000
+
     def test_loading_a_clip_analyses_it(self, window: MainWindow) -> None:
         assert window.spectrum_panel.has_data
         assert "columns" in window.spectrum_panel.info_label.text()
