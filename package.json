@@ -32,6 +32,7 @@
     "test:a11y": "node scripts/axe-states.mjs",
     "test:acceptance": "bash scripts/acceptance.sh",
     "test:lighthouse:ci": "ACCEPTANCE_MIN_LH_PERFORMANCE=0.95 node scripts/lighthouse-ci.mjs",
+    "test:lighthouse:desktop": "ACCEPTANCE_LH_PROFILE=desktop ACCEPTANCE_MIN_LH_PERFORMANCE=0.95 node scripts/lighthouse-ci.mjs",
     "test:feedback": "node scripts/test-feedback.mjs",
     "test:literacy": "bash scripts/test-literacy.sh",
     "test:math": "bash scripts/test-math.sh",

@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 
 /**
- * Round 9 Lighthouse CI gate.
+ * Round 9/10 Lighthouse CI gate.
  *
  * Runs the repository acceptance suite with the calibrated Lighthouse version,
- * enforces Performance >= 0.95 for both apps, and archives raw reports.
+ * enforces Performance >= 0.95 for both apps, and archives raw mobile or
+ * desktop reports. Mobile remains the backward-compatible default.
  */
 
 import fs from 'node:fs'
@@ -16,6 +17,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const PINNED_LIGHTHOUSE_VERSION = '12.8.2'
 const MIN_PERFORMANCE = 0.95
 const REPORTS = ['literacy-app', 'math-app']
+const SUPPORTED_PROFILES = new Set(['mobile', 'desktop'])
 
 const fail = (message) => {
   console.error(`[lighthouse-ci] FAIL ${message}`)
@@ -46,14 +48,20 @@ if (!Number.isFinite(requestedMinimum) || requestedMinimum < MIN_PERFORMANCE) {
   fail(`ACCEPTANCE_MIN_LH_PERFORMANCE 不得低于 ${MIN_PERFORMANCE}。`)
 }
 
+const profile = process.env.ACCEPTANCE_LH_PROFILE ?? 'mobile'
+if (!SUPPORTED_PROFILES.has(profile)) {
+  fail(`ACCEPTANCE_LH_PROFILE 必须是 mobile 或 desktop，当前为 ${profile}。`)
+}
+
 const evidenceDir = path.resolve(
   root,
-  process.env.ACCEPTANCE_EVIDENCE_DIR ?? '.agent_workspace/evidence/r9'
+  process.env.ACCEPTANCE_EVIDENCE_DIR ??
+    `.agent_workspace/evidence/${profile === 'desktop' ? 'r10' : 'r9'}`
 )
 fs.mkdirSync(evidenceDir, { recursive: true })
 
 console.log(
-  `[lighthouse-ci] Lighthouse ${installedVersion}；` +
+  `[lighthouse-ci] Lighthouse ${installedVersion}；profile=${profile}；` +
     `Performance 阈值 ${(requestedMinimum * 100).toFixed(0)}；证据目录 ${evidenceDir}`
 )
 
@@ -62,6 +70,7 @@ const acceptance = spawnSync('bash', ['scripts/acceptance.sh'], {
   env: {
     ...process.env,
     ACCEPTANCE_EVIDENCE_DIR: evidenceDir,
+    ACCEPTANCE_LH_PROFILE: profile,
     ACCEPTANCE_MIN_LH_PERFORMANCE: String(requestedMinimum),
     LIGHTHOUSE_BIN: lighthouseBin,
   },
@@ -73,7 +82,8 @@ if (acceptance.status !== 0) fail(`test:acceptance 退出码 ${acceptance.status
 
 const scores = []
 for (const app of REPORTS) {
-  const reportPath = path.join(evidenceDir, `lighthouse-${app}.json`)
+  const suffix = profile === 'desktop' ? '-desktop' : ''
+  const reportPath = path.join(evidenceDir, `lighthouse-${app}${suffix}.json`)
   if (!fs.existsSync(reportPath)) fail(`缺少原始报告 ${reportPath}。`)
 
   const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'))
@@ -81,10 +91,19 @@ for (const app of REPORTS) {
   if (report.lighthouseVersion !== PINNED_LIGHTHOUSE_VERSION) {
     fail(`${app} 报告版本为 ${report.lighthouseVersion ?? 'unknown'}。`)
   }
+  if (report.configSettings?.formFactor !== profile) {
+    fail(
+      `${app} 报告 formFactor=${report.configSettings?.formFactor ?? 'missing'}，` +
+        `期望 ${profile}。`
+    )
+  }
+  if (profile === 'desktop' && report.configSettings?.screenEmulation?.mobile !== false) {
+    fail(`${app} desktop 报告未关闭 mobile screen emulation。`)
+  }
   if (typeof performance !== 'number' || performance < requestedMinimum) {
     fail(`${app} Performance=${performance ?? 'missing'}，阈值=${requestedMinimum}。`)
   }
   scores.push(`${app}=${Math.round(performance * 100)}`)
 }
 
-console.log(`[lighthouse-ci] PASS ${scores.join('，')}`)
+console.log(`[lighthouse-ci] PASS profile=${profile}；${scores.join('，')}`)
