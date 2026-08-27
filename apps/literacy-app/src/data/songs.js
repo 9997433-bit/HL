@@ -11,10 +11,9 @@
  * 屏幕上不该出现一个他没见过的字。`verifySongCoverage()` 逐字校验，
  * `npm run check:data` 会跑它。
  *
- * 没有音频文件。整套应用是「零素材」的：音效由振荡器合成、朗读走系统 TTS，
- * 儿歌也照这个路子——`notes` 是逐字的音名，播放时由 `utils/audio.js` 的
- * `playMelody()` 实时合成，人声那一路交给朗读。所以每首歌的 `audio` 都是 null，
- * 它留在数据结构里是为了以后真录了童声可以直接填进来，界面不必改。
+ * 前三首配有项目自制的 Ogg 旋律文件，由下面同一份 `notes` 谱面离线渲染；
+ * 其余歌曲继续由 `utils/audio.js` 的 `playMelody()` 实时合成。即使静态文件加载
+ * 失败，播放器也会自动退回合成旋律，所以断网、旧 WebView 都不会变成无声按钮。
  *
  * 字段：
  *   id          路由与进度记录用的稳定 id
@@ -26,7 +25,7 @@
  *   summary     一句话说这首歌在唱什么
  *   tip         唱之前给孩子的一句提示
  *   bpm         速度，60–110 之间；越小的孩子唱得越慢
- *   audio       录音地址，暂时都是 null（见上）
+ *   audio       项目自制旋律地址；null 表示直接使用合成旋律
  *   lines       逐句：text 歌词、pinyin 逐字拼音（空格分隔，字数必须对上）、
  *               notes 逐字音名（个数也必须和汉字数对上，逐字高亮靠它）
  *
@@ -36,6 +35,9 @@
 
 import { CHARACTER_MAP } from './characters.js'
 import { NOTE_HZ } from '../utils/audio.js'
+
+/** Round 10 H5：静态旋律优先、WebAudio 合成降级。 */
+export const ROUND10_H5 = 'file-first-with-synth-fallback'
 
 const PUNCTUATION = new Set([
   '，', '。', '！', '？', '：', '、', '；', '「', '」', '《', '》', '…', '—', ' ', '\n'
@@ -62,7 +64,7 @@ export const SONGS = [
     summary: '一边爬山一边数数，从一数到十就到家了。',
     tip: '数到几就伸几根手指，边唱边数最容易记住。',
     bpm: 96,
-    audio: null,
+    audio: 'audio/songs/sg1-climb-melody.ogg',
     lines: [
       {
         text: '一二三，爬上山，',
@@ -96,7 +98,7 @@ export const SONGS = [
     summary: '一颗小雨点掉到花上、田里，最后掉进心里。',
     tip: '唱「沙沙沙」的时候，手指在桌上轻轻点三下。',
     bpm: 100,
-    audio: null,
+    audio: 'audio/songs/sg2-raindrop-melody.ogg',
     lines: [
       {
         text: '小雨点，沙沙沙，',
@@ -130,7 +132,7 @@ export const SONGS = [
     summary: '手心手背都要洗到，洗完才好吃饭。',
     tip: '一句歌洗一遍手，唱完四句正好够。',
     bpm: 92,
-    audio: null,
+    audio: 'audio/songs/sg3-wash-hands-melody.ogg',
     lines: [
       {
         text: '手心手背洗一洗，',

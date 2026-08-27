@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url'
 import puppeteer from 'puppeteer-core'
 
 import { BOOKS } from '../src/data/books.js'
+import { SONGS } from '../src/data/songs.js'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const DIST = join(ROOT, 'dist')
@@ -57,6 +58,10 @@ const round8Routes = ROUND8_H2_SMOKE ? [['儿歌小舞台（Round 8）', `/#${RO
  */
 const ROUND9_H1_SMOKE = ROUND8_H2_SMOKE
 const ROUND9_H1_MIN_SONGS = 10
+const ROUND10_H5_SMOKE = SONGS.filter(
+  (song) => song?.audio && /\.(?:mp3|ogg)$/i.test(String(song.audio))
+)
+const ROUND10_H5_MIN_AUDIO = 3
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -64,11 +69,49 @@ const MIME = {
   '.css': 'text/css; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
   '.svg': 'image/svg+xml',
+  '.ogg': 'audio/ogg',
+  '.mp3': 'audio/mpeg',
   '.woff2': 'font/woff2'
 }
 
 if (!existsSync(DIST)) {
   console.error('先跑 npm run build')
+  process.exit(1)
+}
+
+/**
+ * Round 10 H5：数据里的“有音频”不能只是一个字符串。dist 中必须真有至少三份
+ * 可解码格式的静态资产；Ogg/MP3 魔数与最小体积一起挡住空文件和 HTML 404。
+ */
+const songAudioAssets = []
+for (const song of ROUND10_H5_SMOKE) {
+  const relative = String(song.audio).replace(/^\.?\//, '')
+  const extension = extname(relative).toLowerCase()
+  let bytes
+  try {
+    if (relative.includes('..')) throw new Error('路径不能包含 ..')
+    bytes = await readFile(join(DIST, relative))
+  } catch (error) {
+    console.error(`ROUND10_H5_SMOKE：${song.id} 音频不存在（${relative}）：${error.message}`)
+    process.exit(1)
+  }
+  const signature =
+    (extension === '.ogg' && bytes.subarray(0, 4).toString('ascii') === 'OggS') ||
+    (extension === '.mp3' &&
+      (bytes.subarray(0, 3).toString('ascii') === 'ID3' ||
+        (bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0)))
+  if (bytes.length < 1024 || !signature) {
+    console.error(
+      `ROUND10_H5_SMOKE：${song.id} 不是有效 ${extension} 音频（${bytes.length} bytes）`
+    )
+    process.exit(1)
+  }
+  songAudioAssets.push({ id: song.id, relative, bytes: bytes.length })
+}
+if (songAudioAssets.length < ROUND10_H5_MIN_AUDIO) {
+  console.error(
+    `ROUND10_H5_SMOKE：真实 Ogg/MP3 只有 ${songAudioAssets.length}/${ROUND10_H5_MIN_AUDIO} 首`
+  )
   process.exit(1)
 }
 
@@ -1939,6 +1982,79 @@ if (ROUND9_H1_SMOKE) {
         `进度 ${walked.first.progress}%→${walked.last.progress}%，留痕 ${walked.first.sung}→${walked.last.sung} 字，` +
         `${walked.pitches} 种音高 / ${walked.quiet ? '减少动态档' : `${walked.lifts} 种抬升`}`
       )
+    }
+  )
+}
+
+if (ROUND8_H2_SMOKE && songAudioAssets.length >= ROUND10_H5_MIN_AUDIO) {
+  const first = ROUND10_H5_SMOKE[0]
+  await interact(
+    'ROUND10_H5：≥3 首真实 Ogg/MP3，文件优先 + 合成音降级',
+    `/#${ROUND8_H2_SMOKE}/${first.id}`,
+    async (page) => {
+      await page.waitForSelector('.player[data-song-audio="file"]', { timeout: 5000 })
+
+      const controls = await page.$$('.player__controls button')
+      if (controls.length < 3) throw new Error('儿歌播放器控件不完整')
+      await controls[0].click()
+      await page.waitForFunction(
+        () => document.querySelector('.player')?.dataset.playbackSource === 'file',
+        { timeout: 8000 }
+      )
+      const preferred = await page.evaluate(() => ({
+        source: document.querySelector('.player')?.dataset.playbackSource ?? '',
+        label: document.querySelector('.player__source')?.innerText.trim() ?? ''
+      }))
+      if (preferred.source !== 'file') {
+        throw new Error(`有效静态音频没有被优先播放（source=${preferred.source}）`)
+      }
+
+      await controls[2].click()
+      await page.waitForFunction(
+        () => (document.querySelector('.player')?.dataset.playbackSource ?? '') === '',
+        { timeout: 3000 }
+      )
+
+      // 模拟平台无法解码/播放静态文件，必须无须重新点击就切到 WebAudio。
+      await page.evaluate(() => {
+        class BrokenAudio {
+          constructor(src) {
+            this.src = src
+            this.currentTime = 0
+            this.volume = 1
+            this.paused = true
+            this.onerror = null
+          }
+          play() {
+            this.paused = false
+            return Promise.reject(new Error('expected ROUND10_H5 fallback'))
+          }
+          pause() {
+            this.paused = true
+          }
+          load() {}
+          removeAttribute() {}
+        }
+        Object.defineProperty(window, 'Audio', { configurable: true, value: BrokenAudio })
+      })
+
+      const fallbackControls = await page.$$('.player__controls button')
+      await fallbackControls[0].click()
+      await page.waitForFunction(
+        () => document.querySelector('.player')?.dataset.playbackSource === 'synth',
+        { timeout: 5000 }
+      )
+      const fallback = await page.evaluate(() => ({
+        source: document.querySelector('.player')?.dataset.playbackSource ?? '',
+        status: document.querySelector('.player__status')?.innerText.trim() ?? ''
+      }))
+      if (fallback.source !== 'synth' || !/自动换成合成旋律/.test(fallback.status)) {
+        throw new Error(`静态文件失败后没有合成降级：${JSON.stringify(fallback)}`)
+      }
+      await fallbackControls[2].click()
+
+      const totalBytes = songAudioAssets.reduce((sum, asset) => sum + asset.bytes, 0)
+      return `${songAudioAssets.length} 首 / ${totalBytes} bytes；优先=${preferred.source}，降级=${fallback.source}`
     }
   )
 }
