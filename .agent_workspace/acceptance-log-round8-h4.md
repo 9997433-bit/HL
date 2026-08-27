@@ -52,7 +52,21 @@ Model slug: claude-opus-5-thinking-high-fast
 - **`scripts/test-ocr-accuracy.mjs`（本次新增）**：引擎精度 + 预处理算法 + 形近池接线，纯 Node，约 1 秒。
 - `scripts/smoke.mjs`：真浏览器整链（懒加载不下引擎、Service Worker 兜底、认出的字点得进单字页）。
 
-## 5. 回归口径
+## 5. 验收跑（分支 `cursor/r8-literacy-ocr-quality-9f67`）
+
+| 命令 | 结果 |
+|---|---|
+| `npm test` | **全绿**（识字 162 条路由 + 31 项交互 0 问题；数学 18 + 31 0 问题） |
+| └ `test:ocr:accuracy` | 14/14，总召回 35/35（100%），单图 76–146 ms |
+| └ `test:ocr` | 7/7（取字规则，未改动） |
+| `npm run check:round8` | **H4 PASS**、H8 PASS，其余 6 项按编排属他人分支的预期红灯（2/8） |
+| `npm run check:round7` | 8/8，无退化 |
+
+顺手修了 smoke 的两处固定等待（共用 VM 并发跑测试时会误判）：学伴命中区量到
+入场动画缩着的那一帧（72px × .6 = 43px）、徽章在详情包落账前就去读存档。
+两处都改成「等到位再量，等不到就等满 5 秒按原样报错」，真出问题照样红。
+
+## 6. 回归口径
 
 - 换语言包、升 `tesseract.js`、改 `preprocess()`：先跑 `test:ocr:accuracy --json`，
   识别率不得低于本表；确有提升再把阈值往上抬。
