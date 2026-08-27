@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 from openfemlab.report.html import detect_report_kind, write_html_report
@@ -11,7 +10,12 @@ from openfemlab.report.html import detect_report_kind, write_html_report
 def test_detect_correlation_report():
     payload = {
         "schema_version": "1.1",
-        "summary": {"mean_mac": 0.95, "min_mac": 0.9, "max_abs_freq_error_pct": 2.0, "num_pairs": 2},
+        "summary": {
+            "mean_mac": 0.95,
+            "min_mac": 0.9,
+            "max_abs_freq_error_pct": 2.0,
+            "num_pairs": 2,
+        },
         "pairs": [{"test_index": 0, "fe_index": 0, "mac": 0.99, "freq_error_pct": 0.1}],
         "unpaired_test": [],
         "unpaired_fe": [],

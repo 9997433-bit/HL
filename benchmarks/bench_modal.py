@@ -8,8 +8,7 @@ from collections.abc import Sequence
 from rich.console import Console
 from rich.table import Table
 
-from openfemlab.bench import ModalBenchmark, benchmark_modal_sizes, build_spring_chain
-from openfemlab.bench.modal import modal_frequencies
+from openfemlab.bench import ModalBenchmark, benchmark_modal_sizes
 
 
 def render_results(results: Sequence[ModalBenchmark]) -> None:
