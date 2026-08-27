@@ -8,9 +8,17 @@ The schema stays at version 1 while it grows: readers treat every key they do
 not recognise as absent, and every key added after the first release (the
 top-level ``markers`` array, the top-level ``plugins`` array, the per-media
 ``peaks`` sidecar pointer, the multitrack ``buses`` array with its per-track
-``send_to_bus`` pointer and the per-track ``automation`` envelopes, so far) is
-written only when it carries something, so a bundle saved by this build still
-opens in one that predates the addition.
+``send_to_bus`` pointer, the per-track ``automation`` envelopes and the ``ui``
+section's ``layout`` object, so far) is written only when it carries something,
+so a bundle saved by this build still opens in one that predates the addition.
+
+The ``layout`` object under ``ui`` holds the dock arrangement: the base64 of
+:meth:`QMainWindow.saveState` and :meth:`QMainWindow.saveGeometry` plus a
+``docks`` map of object name to visibility. The store never interprets the two
+blobs — they are Qt's own versioned format — but it does insist they decode as
+base64, so a truncated one is dropped here rather than at the window that would
+have fed it to ``restoreState``. The ``docks`` map is the part a future reader
+can still act on if Qt ever refuses the blob.
 
 Automation is stored as ``{"gain_db": [[frame, value], ...]}`` under a track's
 ``automation`` key: compact pairs rather than named objects, because a ridden
@@ -76,6 +84,59 @@ class WaveformState:
 
 
 @dataclass(slots=True)
+class LayoutState:
+    """The dock arrangement of a main window, as the bundle carries it.
+
+    ``window_state`` and ``geometry`` are base64 of the opaque blobs Qt's
+    ``saveState``/``saveGeometry`` produce; ``docks`` maps a dock's object name
+    to whether it was on screen. The map is redundant with the blob when Qt
+    accepts the blob, and is the only thing left when it does not — a state
+    written by a newer Qt, say, which ``restoreState`` refuses outright.
+    """
+
+    window_state: str | None = None
+    geometry: str | None = None
+    docks: dict[str, bool] = field(default_factory=dict)
+
+    @property
+    def is_empty(self) -> bool:
+        return not (self.window_state or self.geometry or self.docks)
+
+    def to_json(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {}
+        if self.window_state:
+            payload["window_state"] = self.window_state
+        if self.geometry:
+            payload["geometry"] = self.geometry
+        if self.docks:
+            payload["docks"] = {str(name): bool(shown) for name, shown in self.docks.items()}
+        return payload
+
+    @classmethod
+    def from_json(cls, raw: Any) -> LayoutState:
+        """Read a ``layout`` object back, dropping anything unusable.
+
+        A layout is a convenience, never the point of a project, so a blob
+        that is not base64 or a ``docks`` entry that is not a name/flag pair
+        costs only itself: the bundle still opens, at the window's defaults.
+        """
+        if not isinstance(raw, Mapping):
+            return cls()
+        docks_raw = raw.get("docks")
+        docks: dict[str, bool] = {}
+        if isinstance(docks_raw, Mapping):
+            for name, shown in docks_raw.items():
+                key = str(name).strip()
+                if key:
+                    docks[key] = bool(shown)
+        return cls(
+            window_state=_base64_or_none(raw.get("window_state")),
+            geometry=_base64_or_none(raw.get("geometry")),
+            docks=docks,
+        )
+
+
+@dataclass(slots=True)
 class ProjectSnapshot:
     """Everything the UI needs to round-trip a working session."""
 
@@ -86,6 +147,7 @@ class ProjectSnapshot:
     source_path: Path | None = None
     markers: MarkerList = field(default_factory=MarkerList)
     plugins: list[dict[str, Any]] = field(default_factory=list)
+    layout: LayoutState = field(default_factory=LayoutState)
 
 
 def _time_range_to_json(rng: TimeRange | None) -> dict[str, int] | None:
@@ -100,13 +162,13 @@ def _time_range_from_json(data: dict[str, int] | None) -> TimeRange | None:
     return TimeRange(int(data["start"]), int(data["end"]))
 
 
-def _plugin_state_b64(value: Any) -> str | None:
+def _base64_or_none(value: Any) -> str | None:
     """``value`` as the base64 string the bundle stores, or ``None`` to omit it.
 
-    The store never decodes the blob into anything meaningful — it is the
-    plugin's own opaque state — but it does insist the string is base64, so a
-    truncated or hand-edited value is dropped at the boundary instead of being
-    carried around until a plugin chokes on it.
+    The store never decodes the blobs it carries into anything meaningful —
+    they belong to a plugin or to Qt — but it does insist each string is
+    base64, so a truncated or hand-edited value is dropped at the boundary
+    instead of being carried around until something chokes on it.
     """
     if not isinstance(value, str) or not value.strip():
         return None
@@ -134,7 +196,7 @@ def _plugins_to_json(entries: Sequence[Mapping[str, Any]]) -> list[dict[str, Any
         item: dict[str, Any] = {"slot": int(entry.get("slot", len(out))), "path": path}
         if entry.get("bypass"):
             item["bypass"] = True
-        state = _plugin_state_b64(entry.get("state"))
+        state = _base64_or_none(entry.get("state"))
         if state is not None:
             item["state"] = state
         out.append(item)
@@ -167,7 +229,7 @@ def _plugins_from_json(raw: Any) -> list[dict[str, Any]]:
             "path": path,
             "bypass": bool(item.get("bypass", False)),
         }
-        state = _plugin_state_b64(item.get("state"))
+        state = _base64_or_none(item.get("state"))
         if state is not None:
             entry["state"] = state
         entries.append(entry)
@@ -225,6 +287,7 @@ class ProjectStore:
         selection: TimeRange | None,
         markers: MarkerList | None = None,
         plugins: Sequence[Mapping[str, Any]] | None = None,
+        layout: LayoutState | None = None,
     ) -> None:
         self.root.mkdir(parents=True, exist_ok=True)
         self.media_dir.mkdir(parents=True, exist_ok=True)
@@ -235,12 +298,15 @@ class ProjectStore:
             backup = self.root / BACKUPS_DIR / f"project.json.{stamp}"
             shutil.copy2(self.json_path, backup)
 
+        ui: dict[str, Any] = {"workspace": workspace, "view_mode": view_mode}
+        if layout is not None and not layout.is_empty:
+            ui["layout"] = layout.to_json()
         payload: dict[str, Any] = {
             "schema_version": SCHEMA_VERSION,
             "app": __app_name__,
             "app_version": __version__,
             "saved_at": datetime.now(tz=UTC).isoformat(),
-            "ui": {"workspace": workspace, "view_mode": view_mode},
+            "ui": ui,
             "waveform": None,
             "multitrack": self._serialize_multitrack(multitrack),
         }
@@ -305,6 +371,7 @@ class ProjectStore:
             source_path=self.root,
             markers=markers,
             plugins=_plugins_from_json(payload.get("plugins")),
+            layout=LayoutState.from_json(ui.get("layout")),
         )
 
     def _serialize_multitrack(self, session: MultitrackSession) -> dict[str, Any]:
@@ -411,6 +478,7 @@ def save_project(
     selection: TimeRange | None,
     markers: MarkerList | None = None,
     plugins: Sequence[Mapping[str, Any]] | None = None,
+    layout: LayoutState | None = None,
 ) -> Path:
     """Write a project bundle and return the normalized directory path."""
     root = path
@@ -426,6 +494,7 @@ def save_project(
         selection=selection,
         markers=markers,
         plugins=plugins,
+        layout=layout,
     )
     return root
 

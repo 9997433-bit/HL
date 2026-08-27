@@ -11,10 +11,11 @@ from .archive import (
     save_project_archive,
     unpack_project,
 )
-from .store import ProjectLoadError, ProjectStore, load_project, save_project
+from .store import LayoutState, ProjectLoadError, ProjectStore, load_project, save_project
 
 __all__ = [
     "ARCHIVE_SUFFIX",
+    "LayoutState",
     "ProjectArchiveError",
     "ProjectLoadError",
     "ProjectStore",

@@ -41,6 +41,7 @@ from ..core.types import TimeRange
 from .store import (
     BACKUPS_DIR,
     PROJECT_JSON,
+    LayoutState,
     ProjectLoadError,
     ProjectSnapshot,
     load_project,
@@ -235,6 +236,7 @@ def save_project_archive(
     selection: TimeRange | None,
     markers: MarkerList | None = None,
     plugins: Sequence[Mapping[str, Any]] | None = None,
+    layout: LayoutState | None = None,
     work_dir: str | Path | None = None,
 ) -> Path:
     """Write a session straight to a ``.hlprojz`` archive.
@@ -273,6 +275,7 @@ def save_project_archive(
             selection=selection,
             markers=markers,
             plugins=plugins,
+            layout=layout,
         )
         return pack_project(saved, target)
     finally:
