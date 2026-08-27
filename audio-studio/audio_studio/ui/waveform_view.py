@@ -248,14 +248,22 @@ class WaveformView(QWidget):
         self.set_view(start, self._view_frames)
 
     def ensure_visible(self, frame: int, *, margin: float = 0.1) -> None:
-        """Scroll so ``frame`` sits inside the view, page-flipping when it runs off."""
+        """Scroll so ``frame`` sits inside the view, page-flipping when it runs off.
+
+        A flip lands ``frame`` a margin inside the edge it is *travelling
+        from*, so the next flip is a whole page away. Landing it on the edge it
+        just ran off would re-arm the trigger on the following frame, turning
+        the page flip into a per-frame scroll — and every scroll throws the
+        waveform pixmap away, so the view would re-render from the peak pyramid
+        on every single tick of the refresh timer.
+        """
         if not self.has_clip or self._view_frames <= 0:
             return
         pad = int(self._view_frames * margin)
         if frame < self._view_start + pad:
-            self.set_view(frame - pad, self._view_frames)
+            self.set_view(frame + pad - self._view_frames, self._view_frames)
         elif frame > self.view_end - pad:
-            self.set_view(frame - self._view_frames + pad, self._view_frames)
+            self.set_view(frame - pad, self._view_frames)
 
     @property
     def amplitude_scale(self) -> float:
