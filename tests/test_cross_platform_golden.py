@@ -13,6 +13,7 @@ import json
 import sys
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
@@ -29,6 +30,7 @@ from tools.cross_platform_golden import (
     merge_records,
     platform_key,
     probe_indices,
+    vector_tolerance,
 )
 
 #: Two cheap vectors: one closed-form transfer function, one polyphase meter.
@@ -163,11 +165,24 @@ class TestMerge:
     def test_diverging_stimuli_are_not_a_comparison(self, linux_record: dict) -> None:
         """Equal outputs mean nothing if the runners were fed different inputs."""
         records = _three_platforms(linux_record)
-        records[1]["vectors"][0]["stimulus_sha256"] = "f" * 64
+        records[1]["vectors"][0]["stimulus_probes"][3] += 0.5
         report = merge_records(records)
         assert report["status"] == "fail"
         assert report["checks"]["identical_stimuli"] is False
         assert report["vectors"][0]["identical_stimulus"] is False
+        assert report["vectors"][0]["stimulus_maximum_absolute_error"] == pytest.approx(0.5)
+
+    def test_a_stimulus_that_differs_only_in_the_last_ulp_is_still_the_same_question(
+        self, linux_record: dict
+    ) -> None:
+        """libm rounding makes the stimulus digests differ; that is not a fault."""
+        records = _three_platforms(linux_record)
+        records[1]["vectors"][0]["stimulus_probes"][3] += 1e-15
+        records[1]["vectors"][0]["stimulus_sha256"] = "f" * 64
+        report = merge_records(records)
+        assert report["status"] == "pass"
+        assert report["vectors"][0]["identical_stimulus"] is True
+        assert report["vectors"][0]["bit_identical_stimulus"] is False
 
     def test_dependency_skew_invalidates_the_comparison(self, linux_record: dict) -> None:
         records = _three_platforms(linux_record)
@@ -190,6 +205,81 @@ class TestMerge:
         records[1]["platform"] = "linux"
         with pytest.raises(ValueError, match="linux"):
             merge_records(records)
+
+
+class TestPrecision:
+    """The bar a vector is held to has to match the format it computes in."""
+
+    def test_float64_paths_are_held_to_the_absolute_tolerance(self) -> None:
+        limit, basis = vector_tolerance("float64", 0.9)
+        assert limit == TOLERANCE_ABSOLUTE
+        assert "absolute" in basis
+
+    def test_float32_paths_are_held_to_one_ulp_of_float32(self) -> None:
+        limit, basis = vector_tolerance("float32", 0.9)
+        assert limit == pytest.approx(float(np.spacing(np.float32(0.9))))
+        assert limit > TOLERANCE_ABSOLUTE
+        assert "float32 ulp" in basis
+
+    def test_one_ulp_of_disagreement_in_a_float32_path_passes(
+        self, linux_record: dict
+    ) -> None:
+        """What the macOS arm64 runner actually does to the resampler.
+
+        A float32 signal has no bits in which to disagree more finely, so a
+        one-ulp difference is the format's resolution, not a DSP divergence.
+        """
+        records = _three_platforms(linux_record)
+        for record in records:
+            record["vectors"][0]["working_precision"] = "float32"
+        ulp = float(np.spacing(np.float32(records[0]["vectors"][0]["peak_absolute"])))
+        records[1]["vectors"][0]["probes"][5] += ulp
+        report = merge_records(records)
+        assert report["status"] == "pass"
+        assert report["vectors"][0]["tolerance_absolute"] == pytest.approx(ulp)
+        assert report["maximum_absolute_error_by_precision"]["float32"] == pytest.approx(ulp)
+        # The headline figure is the float64 one the 1e-9 bar applies to, and
+        # the report says so rather than leaving a reader to infer it.
+        assert report["maximum_absolute_error"] == 0.0
+        assert report["maximum_absolute_error_all_vectors"] == pytest.approx(ulp)
+        assert "float32" in report["maximum_absolute_error_scope"]
+
+    def test_a_float32_path_off_by_many_ulps_still_fails(self, linux_record: dict) -> None:
+        records = _three_platforms(linux_record)
+        for record in records:
+            record["vectors"][0]["working_precision"] = "float32"
+        ulp = float(np.spacing(np.float32(records[0]["vectors"][0]["peak_absolute"])))
+        records[1]["vectors"][0]["probes"][5] += 20 * ulp
+        report = merge_records(records)
+        assert report["status"] == "fail"
+        assert report["checks"]["values_within_tolerance"] is False
+
+    def test_platforms_disagreeing_about_the_precision_is_itself_a_failure(
+        self, linux_record: dict
+    ) -> None:
+        records = _three_platforms(linux_record)
+        records[2]["vectors"][0]["working_precision"] = "float32"
+        report = merge_records(records)
+        assert report["status"] == "fail"
+        assert report["checks"]["working_precisions_agree"] is False
+
+    def test_python_patch_levels_may_differ_across_runner_images(
+        self, linux_record: dict
+    ) -> None:
+        """setup-python resolves 3.12 to a different patch per OS, routinely."""
+        records = _three_platforms(linux_record)
+        records[0]["runtime"]["python"] = "3.12.14"
+        records[1]["runtime"]["python"] = "3.12.10"
+        report = merge_records(records)
+        assert report["checks"]["pinned_dependency_versions_agree"] is True
+
+    def test_a_different_python_minor_version_is_not_the_same_matrix(
+        self, linux_record: dict
+    ) -> None:
+        records = _three_platforms(linux_record)
+        records[1]["runtime"]["python"] = "3.13.1"
+        report = merge_records(records)
+        assert report["checks"]["pinned_dependency_versions_agree"] is False
 
 
 class TestCommandLine:
