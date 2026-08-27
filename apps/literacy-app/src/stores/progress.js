@@ -99,6 +99,13 @@ function defaultState() {
 
     /** 已解锁的徽章：{ 'first-step': { unlockedAt } }，定义见 data/badges.js。 */
     badges: {},
+
+    /**
+     * 单元地图上「解锁过场已经演过」的单元 id。
+     * null 表示这份存档还没记过：读档时按「当前已解锁的都算看过」补一遍，
+     * 老存档才不会一进字表就被十几段过场连着轰。
+     */
+    seenUnits: null,
     /** 单字五步闭环的完成总次数，「五步全通」徽章看它。 */
     flowsCompleted: 0,
 
@@ -153,6 +160,9 @@ function migrate(saved) {
     idioms: { ...(saved.idioms || {}) },
     radicals: { ...(saved.radicals || {}) },
     badges: { ...(saved.badges || {}) },
+    seenUnits: Array.isArray(saved.seenUnits)
+      ? saved.seenUnits.filter((id) => typeof id === 'string')
+      : null,
     flowsCompleted: saved.flowsCompleted ?? 0,
     srs: saved.srs ? { ...saved.srs } : seedCards(chars),
     listen: { ...base.listen, ...(saved.listen || {}) },
@@ -243,6 +253,30 @@ export const useProgressStore = defineStore('progress', () => {
     }
     return out
   })
+
+  /* ------------------------------------------------------------ 地图叙事 */
+
+  /**
+   * 存档里没有记录时，把「此刻已解锁」的单元一次性记成看过。
+   * 读档、导入、清档后都要走一遍，否则解锁过场会对着老进度重放一轮。
+   */
+  function ensureSeenUnits() {
+    if (Array.isArray(state.seenUnits)) return
+    state.seenUnits = UNITS.filter((u) => unlockedUnits.value[u.id]).map((u) => u.id)
+  }
+
+  /** 已经解锁、但过场还没演过的第一个单元；没有就是 null。 */
+  const pendingUnitUnlock = computed(() => {
+    const seen = new Set(state.seenUnits ?? [])
+    return UNITS.find((u) => unlockedUnits.value[u.id] && !seen.has(u.id)) ?? null
+  })
+
+  /** 过场演完（或被跳过）后调用，同一个单元不会再演第二次。 */
+  function markUnitSeen(unitId) {
+    if (!unitId) return
+    if (!Array.isArray(state.seenUnits)) state.seenUnits = []
+    if (!state.seenUnits.includes(unitId)) state.seenUnits.push(unitId)
+  }
 
   const booksFinished = computed(() => BOOKS.filter((b) => state.books[b.id]?.finishedAt).length)
   /**
@@ -715,6 +749,7 @@ export const useProgressStore = defineStore('progress', () => {
       const payload = parsed?.data ?? parsed
       Object.assign(state, migrate(payload))
       applyAppearance()
+      ensureSeenUnits()
       refreshBadges({ silent: true })
       persist()
       return true
@@ -726,6 +761,7 @@ export const useProgressStore = defineStore('progress', () => {
   function resetAll() {
     Object.assign(state, defaultState())
     applyAppearance()
+    ensureSeenUnits()
     persist()
   }
 
@@ -851,6 +887,7 @@ export const useProgressStore = defineStore('progress', () => {
   }
 
   applyAppearance()
+  ensureSeenUnits()
   // 读档时先把老存档欠下的徽章补齐（不发星星、不弹庆祝），之后指标一变就重新对表。
   refreshBadges({ silent: true })
   watch(badgeStats, () => refreshBadges())
@@ -917,6 +954,8 @@ export const useProgressStore = defineStore('progress', () => {
     totalChars,
     masteredCount,
     unlockedUnits,
+    pendingUnitUnlock,
+    markUnitSeen,
     isLearned,
     isMastered,
     chars,
