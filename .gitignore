@@ -1,0 +1,9 @@
+build/
+*.o
+*.obj
+*.a
+*.so
+*.pgm
+*.ppm
+*.png
+.DS_Store
