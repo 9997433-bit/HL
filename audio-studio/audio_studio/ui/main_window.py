@@ -2423,6 +2423,10 @@ class MainWindow(QMainWindow):
 
     def _on_selection_changed(self, selection: TimeRange | None) -> None:
         self.engine.set_selection(selection)
+        # Cut, Trim, the fades and the rest are only offered over a range, so
+        # they follow the selection rather than waiting for the next edit —
+        # otherwise Select All leaves every one of them greyed out.
+        self._update_edit_actions()
         self._update_marker_actions()
         # Coalesce: a drag emits a selection per mouse move, and each one would
         # otherwise start a transform over the range.

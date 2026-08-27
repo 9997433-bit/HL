@@ -1,0 +1,61 @@
+{
+  "dispatch": "QTest.keySequence delivered to the main window, run by QAction shortcuts",
+  "generated_at": "2026-08-27T01:07:43.303026+00:00",
+  "generated_by": "audio-studio/tests/test_keyboard_workflow.py",
+  "item": "D3",
+  "keystrokes": [
+    {
+      "command": "Open\u2026",
+      "keys": "Ctrl+O",
+      "step": "open",
+      "triggered": true
+    },
+    {
+      "command": "Select All",
+      "keys": "Ctrl+A",
+      "step": "select",
+      "triggered": true
+    },
+    {
+      "command": "Cut",
+      "keys": "Ctrl+X",
+      "step": "cut",
+      "triggered": true
+    },
+    {
+      "command": "Undo",
+      "keys": "Ctrl+Z",
+      "step": "undo",
+      "triggered": true
+    },
+    {
+      "command": "Export As\u2026",
+      "keys": "Ctrl+Shift+S",
+      "step": "export",
+      "triggered": true
+    }
+  ],
+  "measurements": {
+    "export_matches_source": true,
+    "exported_frames": 22050,
+    "frames_after_cut": 0,
+    "frames_after_undo": 22050,
+    "selected_frames": 22050,
+    "source_frames": 22050
+  },
+  "mouse_events": 0,
+  "notes": [
+    "The Open and Export As file dialogs are answered by the harness; the commands that raise them are reached by their key sequence.",
+    "Every pointer event delivered to the application during the run is counted by an installed event filter."
+  ],
+  "platform": "qt-offscreen",
+  "status": "pass",
+  "steps": [
+    "open",
+    "select",
+    "cut",
+    "undo",
+    "export"
+  ],
+  "title": "Keyboard-only end-to-end workflow"
+}
