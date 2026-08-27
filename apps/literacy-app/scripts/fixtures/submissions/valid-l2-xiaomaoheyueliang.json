@@ -1,0 +1,25 @@
+{
+  "schema": "hongen-book/1",
+  "level": 2,
+  "title": "小猫和月亮",
+  "sub": "云走了它就回来",
+  "cover": "🌙",
+  "summary": "小猫夜里坐在门口看月亮，云把月亮盖住了，它一直等到月亮回来。",
+  "pages": [
+    { "emoji": "🌙", "text": "夜里，小猫在门口看月亮。" },
+    { "emoji": "🌕", "text": "月亮圆圆的，很白很大。" },
+    { "emoji": "🐱", "text": "小猫问：月亮，你冷不冷？" },
+    { "emoji": "☁️", "text": "风来了，云把月亮盖住了。" },
+    { "emoji": "😿", "text": "小猫坐在门口，一直等。" },
+    { "emoji": "🌙", "text": "云走了，月亮回来了。" },
+    { "emoji": "🏠", "text": "妈妈叫小猫回家睡觉。" },
+    { "emoji": "💤", "text": "小猫说：月亮，明天见。" }
+  ],
+  "contributor": {
+    "name": "示例投稿人",
+    "contact": "submissions@example.com",
+    "license": "CC0-1.0",
+    "original": true
+  },
+  "notes": "导入器的正向夹具：A 类十条规则应全绿。故事只用字表内的字，多音字都被词条覆盖。"
+}

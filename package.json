@@ -26,6 +26,8 @@
     "check:android": "node scripts/check-android.mjs",
     "check:map-narrative": "node scripts/check-map-narrative.mjs",
     "gen:icons": "node scripts/gen-pwa-icons.mjs",
+    "import:book": "node scripts/import-book-submission.mjs",
+    "check:submissions": "node scripts/import-book-submission.mjs --check-all",
     "sync:android": "bash scripts/sync-android.sh all",
     "sync:android:literacy": "bash scripts/sync-android.sh literacy",
     "sync:android:math": "bash scripts/sync-android.sh math",
@@ -47,6 +49,7 @@
     "@capacitor/android": "^6.2.1",
     "@capacitor/cli": "^6.2.1",
     "@capacitor/core": "^6.2.1",
+    "ajv": "^8.17.1",
     "axe-core": "^4.13.0",
     "lighthouse": "12.8.2",
     "puppeteer-core": "^25.9.0"

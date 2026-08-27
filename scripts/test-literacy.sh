@@ -9,6 +9,9 @@ APP_DIR="$ROOT_DIR/apps/literacy-app"
   exit 1
 }
 
+printf '[识字 App] 校验绘本社区投稿（ajv schema + A 类规则）...\n'
+node "$ROOT_DIR/scripts/import-book-submission.mjs" --check-all
+
 if node -e 'const p=require(process.argv[1]); process.exit(p.scripts?.test ? 0 : 1)' \
   "$APP_DIR/package.json"; then
   printf '[识字 App] 运行项目测试...\n'
