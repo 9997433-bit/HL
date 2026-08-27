@@ -82,7 +82,10 @@ unless the caller pins a backend.
 |---------|--------|------|
 | `dense` | `scipy.linalg.eigh(K, M)` (LAPACK `sygvd`) | `n ≤ 2000` or reference/validation runs |
 | `lanczos` | Shift-invert Lanczos, `scipy.sparse.linalg.eigsh(K, k, M, sigma=σ, mode='normal')` with sparse LDLᵀ/LU factorization of `K − σM` | default sparse path, `n > 2000` |
-| `lobpcg` | `scipy.sparse.linalg.lobpcg` with preconditioner (Jacobi default; AMG via `pyamg` when available) | very large `n`, matrix-free operators, or when factorization is too expensive |
+| `lobpcg` | `scipy.sparse.linalg.lobpcg` on the shifted pencil `(K − σM, M)`, preconditioned by the factorization of `K − σM` | lowest modes when the factorization is too expensive to apply once per iteration |
+
+`ModalSolver.solve` selects between them with `sparse` (dense or sparse path)
+and `sparse_method` (`"arpack"`, the default, or `"lobpcg"`).
 
 Backend contract:
 
@@ -90,6 +93,20 @@ Backend contract:
   (small negative) so that `K − σM` is definite even with rigid-body modes.
   User-supplied `sigma` allowed for interior eigenvalues (frequency window
   requests `f ∈ [f_lo, f_hi]`).
+- **Shift strategy (`lobpcg`).** The same small negative `σ`, but it is a
+  *definiteness* shift rather than a target: the iteration runs on `K − σM`,
+  whose spectrum is that of `K` offset by `σ` and which stays positive definite
+  on a free-free structure where the zero eigenvalue of `K` would otherwise
+  make the Rayleigh-Ritz projection ill-conditioned. Rayleigh-quotient descent
+  reaches only the lowest modes, so a positive shift or a `freq_window` raises
+  `SolverError` naming `arpack` instead of converging somewhere else.
+- **Tolerance (`lobpcg`).** SciPy stops on the absolute residual
+  `‖K φ − λ M φ‖`, which the convergence contract below bounds only relative to
+  `‖K φ‖`. The backend therefore runs a first pass to estimate the
+  denominators, derives the absolute bound that matches the relative contract
+  (never below the round-off floor it could not beat anyway), and converges a
+  second pass, warm-started from the first, against it. An explicit `tol` is
+  passed straight through as the absolute bound instead.
 - **Rigid-body modes.** Eigenvalues with `λ_i ≤ ε_rigid · max(λ_k, tr(K)/tr(M)·1e-9)`
   are classified rigid; reported as `f = 0` with `is_rigid=True` flags. The
   count of rigid modes must equal the nullity of `K` on the free structure
@@ -102,7 +119,8 @@ Backend contract:
 
   For rigid modes the denominator is replaced by `λ_ref ‖M φ_i‖₂` with
   `λ_ref = tr(K)/tr(M)`. Non-converged pairs raise `SolverConvergenceError`
-  with the residual history attached.
+  with the residual history attached — including from `lobpcg`, which SciPy
+  reports by warning and returning the block it had rather than by raising.
 - **Missed-mode guard.** For `lanczos`/`lobpcg`, an optional Sylvester
   inertia check (LDLᵀ of `K − σ̄M` at `σ̄` just above the highest returned
   eigenvalue) verifies the eigenvalue count in `(σ, σ̄)`; discrepancy raises

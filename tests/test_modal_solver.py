@@ -35,8 +35,17 @@ import pytest
 import scipy.sparse as sp
 import yaml
 
-from openfemlab import DOF, Material, ModalSolver, Model, Section, SolverError
+from openfemlab import (
+    DOF,
+    Material,
+    ModalSolver,
+    Model,
+    Section,
+    SolverConvergenceError,
+    SolverError,
+)
 from openfemlab.mesh.simple import bar_mesh, beam_mesh, spring_mass_chain, truss_from_arrays
+from openfemlab.solver.modal import RESIDUAL_TOL, eigenpair_residuals, residual_floor
 
 STEEL = Material(E=2.1e11, density=7850.0, nu=0.3, name="steel")
 SQUARE = Section(area=1e-4, inertia_z=1e-4**2 / 12.0, name="10x10 mm")
@@ -77,6 +86,12 @@ def analytic_chain_fixed_fixed(n: int, k: float, m: float):
     j = np.arange(1, n + 1)
     shapes = np.sin(np.outer(j, i) * np.pi / (n + 1))
     return omega, shapes
+
+
+def reduced_eigenpairs(solver: ModalSolver, result):
+    """The free-DOF matrices and mode shapes a residual check works on."""
+    K, M = solver.system.reduced()
+    return K, M, result.mode_shapes[solver.system.free_dofs]
 
 
 # ------------------------------------------------------ reference fixtures
@@ -390,6 +405,142 @@ def test_sparse_path_selected_automatically_for_large_models():
     np.testing.assert_allclose(result.angular_frequencies, omega, rtol=1e-7)
 
 
+def test_lobpcg_backend_matches_the_dense_reference():
+    """MS-1.2: the second sparse backend is interchangeable with the first.
+
+    LOBPCG minimizes the Rayleigh quotient over a block instead of building a
+    Krylov space, so nothing about its path resembles the Lanczos one — which
+    is exactly why the same spectrum and the same shapes coming out of it is
+    worth asserting.
+    """
+
+    n = 500
+    k, m = 2000.0, 1.5
+    solver = ModalSolver(spring_mass_chain(n, k, m))
+
+    dense = solver.solve(num_modes=8, sparse=False)
+    lobpcg = solver.solve(num_modes=8, sparse=True, sparse_method="lobpcg")
+
+    omega = analytic_chain_fixed_free(n, k, m)[0][:8]
+    np.testing.assert_allclose(lobpcg.angular_frequencies, omega, rtol=1e-8)
+    np.testing.assert_allclose(lobpcg.frequencies, dense.frequencies, rtol=1e-8)
+    for mode in range(8):
+        assert mac(lobpcg.mode_shapes[:, mode], dense.mode_shapes[:, mode]) == pytest.approx(
+            1.0, abs=1e-8
+        )
+
+
+def test_lobpcg_backend_meets_the_residual_contract():
+    """The MS-1.2 residual is relative and LOBPCG's own tolerance is not.
+
+    SciPy stops on ``‖K phi - lambda M phi‖`` itself, whose scale is the
+    model's, so the backend has to translate the relative contract into an
+    absolute bound before it can be held to it. This is that translation
+    working on a stiff model, where the two differ by orders of magnitude.
+    """
+
+    solver = ModalSolver(bar_mesh(1.0, 300, STEEL, SQUARE))
+
+    result = solver.solve(num_modes=6, sparse=True, sparse_method="lobpcg")
+
+    K, M, shapes = reduced_eigenpairs(solver, result)
+    residuals = eigenpair_residuals(K, M, result.eigenvalues, shapes)
+    limits = np.maximum(RESIDUAL_TOL, residual_floor(K, M, result.eigenvalues, shapes))
+    assert np.all(residuals <= limits)
+
+
+def test_lobpcg_backend_extracts_rigid_body_modes():
+    """A free-free structure is where an unshifted LOBPCG falls over.
+
+    ``K`` is singular there, so the Rayleigh-Ritz projection of a block that
+    has found the rigid-body subspace is ill-conditioned; the backend iterates
+    on ``K - sigma M`` instead, which has the same eigenvectors and is
+    definite. The elastic frequencies must still match the dense reference —
+    the rigid-body shapes themselves are degenerate and therefore arbitrary.
+    """
+
+    solver = ModalSolver(bar_mesh(1.0, 300, STEEL, SQUARE, fixed_start=False))
+
+    dense = solver.solve(num_modes=6, sparse=False)
+    lobpcg = solver.solve(num_modes=6, sparse=True, sparse_method="lobpcg")
+
+    assert list(lobpcg.rigid_body_modes) == list(dense.rigid_body_modes)
+    assert lobpcg.frequencies[0] == 0.0
+    np.testing.assert_allclose(lobpcg.frequencies[1:], dense.frequencies[1:], rtol=1e-8)
+
+
+def test_lobpcg_backend_is_reproducible_for_a_seed():
+    """AC-MODAL-005: a randomized starting block still gives bitwise repeats."""
+
+    solver = ModalSolver(spring_mass_chain(500, 2000.0, 1.5))
+
+    first = solver.solve(num_modes=6, sparse=True, sparse_method="lobpcg", seed=3)
+    second = solver.solve(num_modes=6, sparse=True, sparse_method="lobpcg", seed=3)
+
+    assert np.array_equal(first.eigenvalues, second.eigenvalues)
+    assert np.array_equal(first.mode_shapes, second.mode_shapes)
+
+
+def test_lobpcg_backend_reuses_the_shift_invert_factorization():
+    """One factorization of ``K - sigma M`` serves both sparse backends.
+
+    ARPACK solves with it every Lanczos step and LOBPCG preconditions with it,
+    but it is the same matrix at the same shift, so a solver that has run one
+    backend must not factorize again for the other.
+    """
+
+    solver = ModalSolver(spring_mass_chain(500, 2000.0, 1.5))
+
+    arpack = solver.solve(num_modes=6, sparse=True)
+    assert solver.factorization_cache_size == 1
+
+    lobpcg = solver.solve(num_modes=6, sparse=True, sparse_method="lobpcg")
+    assert solver.factorization_cache_size == 1
+    np.testing.assert_allclose(lobpcg.frequencies, arpack.frequencies, rtol=1e-8)
+
+
+def test_lobpcg_backend_refuses_the_spectrum_it_cannot_reach():
+    """Rayleigh-quotient descent finds the lowest modes and nothing else.
+
+    A frequency window, or the positive shift that would target one, asks for
+    an interior part of the spectrum; the honest answer is the name of the
+    backend that can deliver it, not a block that quietly converges elsewhere.
+    """
+
+    solver = ModalSolver(spring_mass_chain(500, 2000.0, 1.5))
+
+    with pytest.raises(SolverError, match="freq_window"):
+        solver.solve(
+            num_modes=4, sparse=True, sparse_method="lobpcg", freq_window=(2.0, 4.0)
+        )
+    with pytest.raises(SolverError, match="must not be positive"):
+        solver.solve(num_modes=4, sparse=True, sparse_method="lobpcg", shift=100.0)
+
+
+def test_lobpcg_backend_reports_an_iteration_budget_it_could_not_meet():
+    """SciPy warns and returns half-converged pairs; MS-0.3 wants an exception."""
+
+    solver = ModalSolver(spring_mass_chain(500, 2000.0, 1.5))
+
+    with pytest.raises(SolverConvergenceError, match="LOBPCG") as excinfo:
+        solver.solve(num_modes=8, sparse=True, sparse_method="lobpcg", maxiter=1)
+
+    assert excinfo.value.residuals is not None
+    assert np.max(excinfo.value.residuals) > RESIDUAL_TOL
+
+
+def test_ten_dof_fixture_lobpcg_backend_matches_the_reference():
+    data = load_fixture("ten_dof_chain")
+    K, M = fixture_matrices(data)
+    solver = ModalSolver.from_matrices(K, M)
+
+    result = solver.solve(num_modes=4, sparse=True, sparse_method="lobpcg")
+
+    np.testing.assert_allclose(
+        result.eigenvalues, data["expected"]["eigenvalues"][:4], rtol=1e-9
+    )
+
+
 def test_from_matrices_entry_point():
     K = sp.csr_matrix(np.array([[2.0, -1.0], [-1.0, 1.0]]) * 1000.0)
     M = sp.csr_matrix(np.eye(2) * 2.0)
@@ -625,6 +776,8 @@ def test_invalid_inputs_raise_solver_errors():
     solver = ModalSolver(model)
     with pytest.raises(SolverError, match="normalization"):
         solver.solve(num_modes=1, normalization="unit")
+    with pytest.raises(SolverError, match="sparse_method"):
+        solver.solve(num_modes=1, sparse_method="jacobi-davidson")
     with pytest.raises(SolverError, match="num_modes"):
         solver.solve(num_modes=0)
     with pytest.raises(SolverError, match="exactly one"):

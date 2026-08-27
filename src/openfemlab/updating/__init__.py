@@ -13,6 +13,9 @@ Three layers:
   Gaussian prior, measurement-noise covariance, Laplace posterior covariance.
 - :mod:`~openfemlab.updating.frf` — the MS-3.2 FRF residual provider driving
   the same loop from a measured frequency response instead of a mode table.
+- :mod:`~openfemlab.updating.resolver` — binds declarative dotted parameter
+  targets (``materials.steel.E``) to a solver model and builds the affine
+  parameterisation from it.
 
 :class:`~openfemlab.updating.scaling_model.ScalingModel` ties them together for
 the affine ``K(θ) = K_0 + Σ θ_j K_j`` substructuring parameterisation.
@@ -41,6 +44,18 @@ from .frf import (
     update_model_frf,
 )
 from .parameters import Parameter, ParameterSet, ParameterType, UpdatableParameter
+from .resolver import (
+    NonAffineTargetError,
+    ParameterTarget,
+    ResolvedParameter,
+    ScalingSpec,
+    TargetError,
+    parameters_from_mapping,
+    parse_target,
+    resolve_parameters,
+    resolve_scaling_spec,
+    scaling_model_from_spec,
+)
 from .scaling_model import ScalingModel
 from .sensitivity import (
     ModalData,
@@ -76,12 +91,17 @@ __all__ = [
     "IterationRecord",
     "ModalData",
     "ModelUpdater",
+    "NonAffineTargetError",
     "Parameter",
     "ParameterSet",
+    "ParameterTarget",
     "ParameterType",
     "PosteriorEstimate",
+    "ResolvedParameter",
     "ScalingModel",
+    "ScalingSpec",
     "SensitivityResult",
+    "TargetError",
     "UpdatableParameter",
     "UpdatingOptions",
     "UpdatingResult",
@@ -95,10 +115,15 @@ __all__ = [
     "map_step",
     "modal_sensitivity",
     "mode_shape_sensitivity",
+    "parameters_from_mapping",
+    "parse_target",
     "posterior_covariance",
     "posterior_sigma",
     "precision_matrix",
     "relative_sensitivity",
+    "resolve_parameters",
+    "resolve_scaling_spec",
+    "scaling_model_from_spec",
     "track_modes",
     "update_model",
     "update_model_bayesian",
