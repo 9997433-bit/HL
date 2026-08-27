@@ -3,7 +3,7 @@ Model slug: gpt-5.6-sol-xhigh-fast
 
 > 终验快照：`cursor/r9-global-release-9f67` 基线 `ec733bb`（2026-08-27）。
 > 状态口径：`✅` 表示源码、Round 8 探针与冻结证据已经闭合。识字 15 项、数学
-> 16 项，共 **31/31 模块全 ✅**；Round 9 在途项单列于 §7，不回写或降低
+> 16 项，共 **31/31 模块全 ✅**；Round 9 终验项单列于 §7，不回写或降低
 > Round 8 的终验结论。
 
 ## 1. 审计来源与判定边界
@@ -96,6 +96,7 @@ Model slug: gpt-5.6-sol-xhigh-fast
 | Round 7 验收日志 | `.agent_workspace/acceptance-log-round7.md` | 8/8、Lighthouse 97/94、axe 与性能优化证据 |
 | Round 8 契约与日志 | `.agent_workspace/ROUND8-ACCEPTANCE.md`、`.agent_workspace/acceptance-log-round8.md` | H1–H8 阈值与集成回填 |
 | Round 8 证据索引 | `.agent_workspace/evidence/r8/README.md` | Lighthouse / axe 原始 JSON 的固定归档路径和取证规则 |
+| Round 9 证据索引 | `.agent_workspace/evidence/r9/README.md` | Lighthouse CI 锁版本、阈值断言与 R9 性能 JSON |
 | Round 8 自动门禁 | `npm run check:round8` | 字源、剧情/儿歌、技能图谱、OCR、跟读、Perf、报告与 R7 回归 |
 | 全链回归 | `npm test`、`npm run check:round6` 与 `npm run check:round7` | 单测、内容及往轮硬门槛 |
 | Web 发行包 | `npm run build:all` | 生成 `dist/hongen-literacy-app.zip` 与 `dist/hongen-math-app.zip` |
@@ -110,17 +111,17 @@ Model slug: gpt-5.6-sol-xhigh-fast
 `.agent_workspace/evidence/r8/`。`npm run check:round8` 固定 H1–H8 八项作为后续轮次
 不可降低的基线。
 
-## 7. Round 9 在途
+## 7. Round 9 终验判定
 
-Round 9 以发布工程和已闭合能力的深度打磨为目标；以下状态不改变 §6 的 Round 8
-终态。各功能项合入后由 `npm run check:round9` 统一转绿：
+Round 9 以发布工程和已闭合能力的深度打磨为目标；以下项已全部合入集成线并由
+`npm run check:round9` 转绿（**8/8**），不改变 §6 的 Round 8 终态：
 
-| 范围 | 在途状态 | 收口证据 |
+| 范围 | 终验状态 | 收口证据 |
 |---|---|---|
-| 儿歌 v2：≥10 首、歌词同步与 smoke | ⏳ 待 R9 #4 | `songs.js`、`SongsView.vue`、识字 smoke |
-| OCR 手写/低光/复杂背景扩样 | ⏳ 待 R9 #5 | ≥8 张 fixture 与精度阈值 |
-| 技能图谱 × 进度/FSRS 推荐 | ⏳ 待 R9 #6 | 只读推荐函数、视图与数学 smoke |
-| 绘本投稿格式与剧情/字源质检 | ⏳ 待 R9 #7 | `BOOK-COMMUNITY-SUBMISSION.md` 与抽查记录 |
-| 跟读离线 ASR/音素路线 | ⏳ 待 R9 #8 | 评估文档或 PoC，保留三档降级 |
-| Lighthouse CI 锁与 Android 真机清单 | ⏳ 待 R9 #9 | `evidence/r9/`、CI 脚本与设备走查 |
+| 儿歌 v2：≥10 首、歌词同步与 smoke | ✅ R9 #4 | `songs.js` 13 首、`SongsView.vue` v2、`ROUND9_H1_SMOKE` |
+| OCR 手写/低光/复杂背景扩样 | ✅ R9 #5 | 9 张 fixture、逐 tier 精度与 `ROUND9_H2` |
+| 技能图谱 × 进度/FSRS 推荐 | ✅ R9 #6 | `recommendPath()`、视图推荐区与 `ROUND9_H3_SMOKE` |
+| 绘本投稿格式与剧情/字源质检 | ✅ R9 #7 | `BOOK-COMMUNITY-SUBMISSION.md` 与 20 条改稿 |
+| 跟读离线 ASR/音素路线 | ✅ R9 #8 | `r9-followread-asr-evaluation.md` 与 `phonemeMarks` PoC |
+| Lighthouse CI 锁与 Android 真机清单 | ✅ R9 #9 | `scripts/lighthouse-ci.mjs`、`evidence/r9/` 2 份 JSON |
 | 全局发布脚手架 | ✅ R9 #10 | `.agent_workspace/RELEASE-CHECKLIST.md` 与本报告 |
