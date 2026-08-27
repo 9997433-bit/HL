@@ -77,6 +77,10 @@ class WaveformView(QWidget):
 
     def __init__(self, parent: QWidget | None = None, palette: Palette = PALETTE) -> None:
         super().__init__(parent)
+        self.setAccessibleName("Waveform display")
+        self.setAccessibleDescription(
+            "Scrollable, zoomable waveform canvas; audio selection and playhead"
+        )
         self._palette = palette
 
         self._pyramid: PeakPyramid | None = None

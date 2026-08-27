@@ -138,6 +138,7 @@ class _DbSlider(QWidget):
         self.readout.setMinimumWidth(56)
 
         self.slider = QSlider(Qt.Orientation.Horizontal)
+        self.slider.setAccessibleName(text)
         self.slider.setRange(int(round(minimum * 10)), int(round(maximum * 10)))
         self.slider.setValue(int(round(value * 10)))
         self.slider.valueChanged.connect(self._on_moved)
@@ -194,6 +195,7 @@ class EffectRackPanel(QWidget):
         palette: Palette = PALETTE,
     ) -> None:
         super().__init__(parent)
+        self.setAccessibleName("Effects rack")
         self.chain = chain if chain is not None else default_preview_chain()
         self._palette = palette
 
