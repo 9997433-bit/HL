@@ -61,6 +61,18 @@ const routes = [
     meta: { title: '找不同', emoji: '🔍' }
   },
   {
+    path: '/games/spell',
+    name: 'game-spell',
+    component: () => import('@/views/SpellGameView.vue'),
+    meta: { title: '拼音拼字', emoji: '🔤' }
+  },
+  {
+    path: '/games/catch',
+    name: 'game-catch',
+    component: () => import('@/views/CatchGameView.vue'),
+    meta: { title: '接字大冒险', emoji: '🧺' }
+  },
+  {
     path: '/radicals/:id?',
     name: 'radicals',
     component: () => import('@/views/RadicalsView.vue'),

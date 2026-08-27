@@ -2,7 +2,7 @@
 /**
  * 小游戏大厅 —— 街机厅。
  *
- * 四台「机器」各练一种能力：听音辨形、空间寻字、字音配对、字形辨别。
+ * 六台「机器」各练一种能力：听音辨形、空间寻字、字音配对、字形辨别、拼音拼读、快速认字。
  * 排成网格是为了让孩子一眼扫完再选，而不是从上往下读一列说明；
  * 每台机器只写一句话玩法，孩子自己读得完，家长也扫一眼就知道是练什么的。
  *
@@ -61,6 +61,24 @@ const GAMES = [
     trains: '字形辨别',
     howToPlay: '一屏长得差不多的字里，点出唯一不一样的。',
     color: 'var(--mango-400)'
+  },
+  {
+    to: '/games/spell',
+    emoji: '🔤',
+    slot: '05',
+    name: '拼音拼字',
+    trains: '拼音拼读',
+    howToPlay: '把打乱的字母牌按顺序摆好，拼出这个字的拼音。',
+    color: 'var(--coral-400)'
+  },
+  {
+    to: '/games/catch',
+    emoji: '🧺',
+    slot: '06',
+    name: '接字大冒险',
+    trains: '快速认字',
+    howToPlay: '字从天上掉下来，把篮子挪到要接的那个字下面。',
+    color: 'var(--leaf-400)'
   }
 ]
 
@@ -88,7 +106,7 @@ const hostLine = computed(() =>
       <p class="arcade__eyebrow">识字街机厅</p>
       <h2 class="arcade__title">小游戏大厅</h2>
       <p class="arcade__desc">
-        四台机器都只出<strong>你学过的字</strong>，现在能出题的有
+        {{ GAMES.length }} 台机器都只出<strong>你学过的字</strong>，现在能出题的有
         <strong>{{ learned }}</strong> 个字。多学几个字，街机厅就更热闹啦。
       </p>
 
