@@ -26,6 +26,8 @@ import { DERIVED } from '../src/data/etymology-derived.js'
 import { SIMILAR_MAP } from '../src/data/similar-chars.js'
 import { POEMS, POEM_GLOSS, POEM_THEMES, charsInPoem, verifyPoemCoverage } from '../src/data/poems.js'
 import { TOTAL_POEMS } from '../src/data/poem-index.js'
+import { SONGS, SONG_THEMES, charsInSong, verifySongCoverage } from '../src/data/songs.js'
+import { TOTAL_SONGS } from '../src/data/song-index.js'
 import { validateShape } from '../src/utils/etymologySketch.js'
 import { STREAK_CHORDS, streakChord } from '../src/utils/audio.js'
 
@@ -288,6 +290,59 @@ check(
   `生字注解表里没有多余条目${strayGloss.length ? `（${strayGloss.join('')}）` : ''}`
 )
 
+/* ----------------------------------------------------------------- 儿歌 */
+check(SONGS.length >= 3, `儿歌 ${SONGS.length} 首（要求 ≥ 3）`)
+
+check(
+  TOTAL_SONGS === SONGS.length,
+  `首页用的儿歌总数索引与语料一致（song-index=${TOTAL_SONGS}，语料=${SONGS.length}）`
+)
+
+const songDupes = SONGS.map((s) => s.id).filter((v, i, a) => a.indexOf(v) !== i)
+check(songDupes.length === 0, `儿歌 id 无重复${songDupes.length ? `（${songDupes.join(',')}）` : ''}`)
+
+/**
+ * 儿歌是自己写的，所以按绘本的标准要求：一个没学过的字都不许出现。
+ * 顺带校验逐字拼音与逐字音名的个数——错一个，跟唱高亮就会整句错位。
+ */
+const songCoverage = verifySongCoverage()
+check(
+  songCoverage.length === 0,
+  songCoverage.length
+    ? `儿歌逐字校验不过：${songCoverage
+        .map(
+          (s) =>
+            `《${s.song}》${s.unknown.length ? `超纲字 ${s.unknown.join('')}` : ''}${
+              s.misaligned.length ? ` ${s.misaligned.join('/')}` : ''
+            }${s.badNotes.length ? ` 音名不认识 ${s.badNotes.join('/')}` : ''}`
+        )
+        .join('；')}`
+    : '儿歌歌词只用学过的字，逐字拼音与曲谱都对得上'
+)
+
+const songMeta = SONGS.filter(
+  (s) =>
+    !s.title ||
+    !s.titlePinyin ||
+    !s.emoji ||
+    !s.summary ||
+    !s.tip ||
+    !(s.bpm >= 60 && s.bpm <= 110) ||
+    s.palette?.length !== 2 ||
+    s.lines.length < 4 ||
+    !SONG_THEMES.some((t) => t.id === s.theme)
+)
+check(
+  songMeta.length === 0,
+  `每首儿歌都有歌名/拼音/主题/简介/提示/两色渐变，速度在 60–110 且至少 4 句${songMeta.length ? `（${songMeta.map((s) => s.id).join('、')}）` : ''}`
+)
+
+const emptySongThemes = SONG_THEMES.filter((t) => !SONGS.some((s) => s.theme === t.id))
+check(
+  emptySongThemes.length === 0,
+  `每个儿歌分区都有歌${emptySongThemes.length ? `（空：${emptySongThemes.map((t) => t.name).join('、')}）` : ''}`
+)
+
 const idiomName = (i) => i.word ?? i.idiom ?? i.id
 const idiomScenes = (i) => i.story ?? i.scenes ?? []
 
@@ -462,7 +517,9 @@ console.log(
   `\n统计：${TOTAL_CHARACTERS} 字 / ${UNITS.length} 单元 / ${RADICALS.length} 偏旁 / ` +
     `${BOOKS.length} 本绘本（共 ${BOOKS.reduce((n, b) => n + b.pages.length, 0)} 页，` +
     `${new Set(BOOKS.flatMap(charsInBook)).size} 个不重复用字） / ${IDIOMS.length} 个成语 / ` +
-    `${ETYMOLOGY.length} 个字有字源演变`
+    `${ETYMOLOGY.length} 个字有字源演变 / ${SONGS.length} 首儿歌（共 ` +
+    `${SONGS.reduce((n, s) => n + s.lines.length, 0)} 句，` +
+    `${new Set(SONGS.flatMap(charsInSong)).size} 个不重复用字）`
 )
 
 process.exit(fails.length ? 1 : 0)

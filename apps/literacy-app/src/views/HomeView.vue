@@ -12,6 +12,7 @@ import { TOTAL_BOOKS } from '@/data/book-index.js'
 import { TOTAL_ETYMOLOGY } from '@/data/etymology-index.js'
 import { TOTAL_IDIOMS } from '@/data/idiom-index.js'
 import { TOTAL_POEMS } from '@/data/poem-index.js'
+import { TOTAL_SONGS } from '@/data/song-index.js'
 import { RADICALS } from '@/data/radicals.js'
 import { sfx } from '@/utils/sfx.js'
 import OpenMojiIcon from '@shared/components/OpenMojiIcon.vue'
@@ -113,6 +114,16 @@ const stations = computed(() => [
     color: 'var(--mango-400)',
     done: progress.poemsRead,
     total: TOTAL_POEMS,
+    unit: '首'
+  },
+  {
+    to: '/songs',
+    emoji: '🎵',
+    title: '儿歌小舞台',
+    desc: `${TOTAL_SONGS} 首原创儿歌，歌词只用学过的字，跟着调子唱`,
+    color: 'var(--leaf-400)',
+    done: progress.songsSung,
+    total: TOTAL_SONGS,
     unit: '首'
   },
   {
