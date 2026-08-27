@@ -1,6 +1,6 @@
 # Song audio provenance
 
-The three `.ogg` files in this directory are original project assets, rendered
+The eight `.ogg` files in this directory are original project assets, rendered
 from the project-authored note sequences in `src/data/songs.js`. They contain no
 third-party recordings or samples.
 
