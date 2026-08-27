@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QScrollArea,
     QSlider,
     QSpinBox,
     QVBoxLayout,
@@ -197,21 +198,42 @@ class EffectRackPanel(QWidget):
         self.chain = chain if chain is not None else default_preview_chain()
         self._palette = palette
 
+        # Eleven slots stacked outright make the panel's minimum height their
+        # sum, and a dock cannot shrink below the widget it holds: the whole
+        # window inherited a floor near 1550 px and stopped opening on a 1080p
+        # display at all. The stack goes in a scroll area, whose own minimum
+        # is ours to choose.
+        slot_stack = QWidget(self)
+        slots = QVBoxLayout(slot_stack)
+        slots.setContentsMargins(8, 8, 8, 8)
+        slots.setSpacing(8)
+        slots.addWidget(self._build_master())
+        slots.addWidget(self._build_dehum())
+        slots.addWidget(self._build_declick())
+        slots.addWidget(self._build_noise_reduce())
+        slots.addWidget(self._build_eq())
+        slots.addWidget(self._build_compressor())
+        slots.addWidget(self._build_trim())
+        slots.addWidget(self._build_time_space())
+        slots.addWidget(self._build_limiter())
+        slots.addWidget(self._build_loudness())
+        slots.addWidget(self._build_footer())
+        slots.addStretch(1)
+
+        self.scroll_area = QScrollArea(self)
+        self.scroll_area.setWidget(slot_stack)
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setFrameShape(QScrollArea.Shape.NoFrame)
+        # The slots are laid out to the dock's width, so only the vertical
+        # bar is ever wanted; a horizontal one would mean the width is wrong.
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        # A rack showing roughly two slots is still usable, and the dock can
+        # be dragged larger from there.
+        self.scroll_area.setMinimumHeight(160)
+
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(8)
-        layout.addWidget(self._build_master())
-        layout.addWidget(self._build_dehum())
-        layout.addWidget(self._build_declick())
-        layout.addWidget(self._build_noise_reduce())
-        layout.addWidget(self._build_eq())
-        layout.addWidget(self._build_compressor())
-        layout.addWidget(self._build_trim())
-        layout.addWidget(self._build_time_space())
-        layout.addWidget(self._build_limiter())
-        layout.addWidget(self._build_loudness())
-        layout.addWidget(self._build_footer())
-        layout.addStretch(1)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.scroll_area)
         self.setMinimumWidth(240)
         self.refresh()
 
