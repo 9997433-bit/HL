@@ -74,6 +74,44 @@ npm run gen:corpus -- --refresh
 多音字是这里最容易出错的地方:标注器按词典挑读音,挑的和字表登记的不一致时,
 生成器以字表为准就地改回来,并把每一处改动打印出来让人复核。
 
+## 形近字库与选择题干扰项
+
+听音识字和单字页「听一听 / 考一考」的错误选项不是随机抽的,而是取形近字:
+四个选项长得都差不多,孩子才必须真的听清读音、记住字形,而不是靠轮廓排除。
+
+`src/data/similar-chars.js` 是生成物,由 `npm run gen:similar` 从离线笔顺数据
+(`hanzi-writer-data` 的 medians 骨架)算出来,不联网、不查表:
+
+1. 把每一笔的中线密集采样进 12 × 12 的占格图 —— 「墨在哪儿」越像,看上去越像;
+2. 每一小段的方向按 8 个方位做长度加权直方图 —— 占格图分不出「人 / 八」,笔向能;
+3. 笔画差超过 3 笔的直接排除,同部首加一点分;
+4. 再压一份人工形近清单(己已巳、未末、土士、乌鸟…)兜底,算法漏了也不至于丢。
+
+运行时的取值顺序在 `src/utils/distractors.js`:
+形近字库 → 同部首且笔画接近 → 笔画接近 → 候选池兜底。
+最像的那个固定出现,其余洗牌,重复出题不会四个选项一模一样。
+`check:data` 守着「库里没有字表之外的字」和「≥95% 的字有形近字」。
+
+## 字源语料
+
+`src/data/etymology.js` 只放**手写**的那一批 —— 有小图的象形 / 指事字,和故事
+各不相同的会意字。形声字的讲法是同构的(形旁管意思 + 声旁管读音),一个一个抄
+没有意义,所以走生成:
+
+```bash
+npm run gen:etymology
+```
+
+种子 `scripts/data/etymology-seed.txt` 里每个形声字只写两样东西 —— 声旁是谁、
+声旁本来念什么。形旁取自字表索引的部首,形旁的讲法查生成器里的 `SEMANTIC` 表,
+字义取自单元详情包,读音取自字表拼音并和声旁比对,决定要不要写「A → B」。
+产物是 `src/data/etymology-derived.js` 和 `src/data/etymology-index.js`,都不要手改。
+
+种子只收「声旁本身也是个能给孩子看的字」的形声字:声旁要是个谁也不认识的偏旁
+(㐬、𢦏、巠…),拆开讲反而添乱,这种字宁可不收;形旁的意思和字义对不上的
+(带反犬旁却不是动物的「狡」「猜」)同样不收 —— 讲错了比不讲更糟。
+`check:data` 会核对派生条目的形旁和字表部首一致、讲解里写的读音和字表一致。
+
 ## 学习计划
 
 家长中心的「学习计划」写进 `settings.dailyNewLimit`(每天最多学几个新字,0 = 不限)
@@ -141,6 +179,7 @@ critical 与 serious 都必须为 0；`npm run test:acceptance` 已经接上这�
 | 单字详情·五步闭环(认→写→听→考→奖) | `/learn/:char` | `CharDetailView` |
 | 听音识字游戏 | `/game/listen` | `ListenGameView` |
 | 偏旁部首·字源 | `/radicals` | `RadicalsView` |
+| 字源馆(525 字的演变动画) | `/etymology/:char?` | `EtymologyView` |
 | 分级绘本 | `/books` `/books/:id` | `BooksView` / `BookReadView` |
 | 成语启蒙 | `/idioms` `/idioms/:id` | `IdiomsView` / `IdiomDetailView` |
 | 家长中心(报表/设置/进度导入导出) | `/parent` | `ParentView` |

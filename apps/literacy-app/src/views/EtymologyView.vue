@@ -10,7 +10,7 @@
  * 是为了让「原来这一类字都长这样」这件事自己浮出来——看完五个三点水的字，
  * 不用讲他也知道下一个带「氵」的字八成和水有关。
  */
-import { computed, defineAsyncComponent, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ETYMOLOGY, ETYMOLOGY_KINDS, getEtymology } from '@/data/etymology.js'
 import { getCharacter } from '@/data/characters.js'
@@ -31,21 +31,56 @@ const settings = useSettingsStore()
 
 const filter = ref('all')
 
+/**
+ * 形声字有好几百个，一次全铺出来那面墙谁也扫不完。
+ * 每一类先露一屏（PAGE 个），要找具体的字就打字搜——按汉字或拼音都行。
+ */
+const PAGE = 60
+const query = ref('')
+const expanded = reactive({})
+
 const decoded = computed(() => (props.char ? decodeURIComponent(props.char) : ''))
 const picked = computed(() => (getEtymology(decoded.value) ? decoded.value : ETYMOLOGY[0].c))
 const entry = computed(() => getEtymology(picked.value))
 const pickedInfo = computed(() => getCharacter(picked.value))
 
+const matches = computed(() => {
+  const q = query.value.trim().toLowerCase()
+  if (!q) return null
+  return (char) =>
+    char.includes(q) ||
+    (getCharacter(char)?.pinyin ?? '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .includes(q)
+})
+
 const groups = computed(() =>
-  ETYMOLOGY_KINDS.map((k) => ({
-    ...k,
-    chars: ETYMOLOGY.filter((e) => e.kind === k.id).map((e) => e.c)
-  })).filter((g) => g.chars.length)
+  ETYMOLOGY_KINDS.map((k) => {
+    const all = ETYMOLOGY.filter((e) => e.kind === k.id).map((e) => e.c)
+    const hits = matches.value ? all.filter(matches.value) : all
+    return { ...k, total: all.length, hits }
+  }).filter((g) => g.total)
 )
 
-const shown = computed(() =>
-  filter.value === 'all' ? groups.value : groups.value.filter((g) => g.id === filter.value)
-)
+const shown = computed(() => {
+  const picked = filter.value === 'all' ? groups.value : groups.value.filter((g) => g.id === filter.value)
+  return picked
+    .filter((g) => g.hits.length)
+    .map((g) => ({
+      ...g,
+      // 搜出来的结果本来就不多，不再折叠
+      chars: matches.value || expanded[g.id] ? g.hits : g.hits.slice(0, PAGE),
+      hidden: matches.value || expanded[g.id] ? 0 : Math.max(0, g.hits.length - PAGE)
+    }))
+})
+
+const noHits = computed(() => Boolean(matches.value) && shown.value.length === 0)
+
+function expand(id) {
+  sfx.tap()
+  expanded[id] = true
+}
 
 function pick(char) {
   sfx.tap()
@@ -144,9 +179,22 @@ watch(picked, () => window.scrollTo?.({ top: 0, behavior: 'auto' }))
           @click="setFilter(k.id)"
         >
           <span aria-hidden="true">{{ k.emoji }}</span>
-          {{ k.name }} {{ k.chars.length }}
+          {{ k.name }} {{ k.total }}
         </button>
       </div>
+
+      <label class="search">
+        <span class="sr-only">按汉字或拼音找字</span>
+        <input
+          v-model="query"
+          class="search__input"
+          type="search"
+          placeholder="🔎 输入汉字或拼音，比如 妹 或 mei"
+          autocomplete="off"
+        />
+      </label>
+
+      <p v-if="noHits" class="muted">没找到这个字的来历，换一个试试。</p>
 
       <div v-for="g in shown" :key="g.id" class="group">
         <p class="group__title">
@@ -168,6 +216,14 @@ watch(picked, () => window.scrollTo?.({ top: 0, behavior: 'auto' }))
             </button>
           </li>
         </ul>
+        <button
+          v-if="g.hidden"
+          class="btn btn--ghost btn--sm group__more"
+          type="button"
+          @click="expand(g.id)"
+        >
+          还有 {{ g.hidden }} 个，展开看看
+        </button>
       </div>
     </section>
   </div>
@@ -237,10 +293,30 @@ watch(picked, () => window.scrollTo?.({ top: 0, behavior: 'auto' }))
   color: var(--text-strong);
 }
 
+.search__input {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 14px;
+  border-radius: var(--radius-pill);
+  border: 2px solid var(--border);
+  background: var(--surface-sunken);
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+.search__input:focus-visible {
+  outline: none;
+  border-color: var(--brand);
+}
+
 .group {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.group__more {
+  align-self: flex-start;
 }
 
 .group__title {
