@@ -22,9 +22,11 @@ import pytest
 import openfemlab.io as openfemlab_io
 from openfemlab.core.neutral import ElementType
 from openfemlab.io import FormatError
-from openfemlab.io.nastran import _ELEMENT_CARDS
+from openfemlab.io.nastran import _ELEMENT_CARDS, read_bdf
 from openfemlab.io.op2 import (
+    GEOM2_ELEMENT_LAYOUTS,
     GEOM2_ELEMENT_RECORDS,
+    MPT_MATERIAL_RECORDS,
     OP2_GEOMETRY_TABLES,
     OP2_MODE_TABLES,
     list_op2_tables,
@@ -42,6 +44,7 @@ GRID_LABELS = (11, 22, 33)
 #: source, so a guard can prove where the refusal comes from.
 READING_ENTRY_POINTS = [
     pytest.param(read_op2_modes, id="read_op2_modes"),
+    pytest.param(read_op2, id="read_op2"),
     pytest.param(list_op2_tables, id="list_op2_tables"),
 ]
 
@@ -94,26 +97,12 @@ def expected_shape(mode: _op2.Mode) -> np.ndarray:
 # ------------------------------------------------------------------ guards
 
 
-def test_the_unimplemented_phase_refuses_with_a_roadmap_pointer():
-    """A stub that raises without saying what to do instead is a dead end."""
+@pytest.mark.parametrize("entry_point", READING_ENTRY_POINTS)
+def test_every_entry_point_reports_a_truncated_file_as_a_format_error(entry_point):
+    """Four bytes that frame nothing are a format error from every phase."""
 
-    with pytest.raises(NotImplementedError) as excinfo:
-        read_op2(io.BytesIO(b"\x04\x00\x00\x00"))
-
-    message = str(excinfo.value)
-    assert "not implemented" in message
-    assert "MS-9.6" in message
-
-
-def test_the_unimplemented_phase_refuses_before_reading(tmp_path):
-    """Phase 3 must not open, seek or consume its source to say no."""
-
-    missing = tmp_path / "absent.op2"
-
-    with pytest.raises(NotImplementedError):
-        read_op2(missing)
-
-    assert not missing.exists()
+    with pytest.raises(FormatError):
+        entry_point(io.BytesIO(b"\x04\x00\x00\x00"))
 
 
 @pytest.mark.parametrize("entry_point", READING_ENTRY_POINTS)
@@ -131,11 +120,11 @@ def test_the_implemented_phases_report_a_missing_file_as_a_format_error(
 def test_the_reader_is_not_advertised_by_the_io_package():
     """An exported name promises a *supported* reader; this one is not one yet.
 
-    Phases 1 and 2 work, but only against the files ``tests/_op2.py`` writes —
-    that is, against our own reading of the format.  MS-9.6 makes the opt-in
-    corpus test over real MSC and NX output the condition for calling the
-    reader supported, so until it runs the entry points stay reachable only as
-    ``openfemlab.io.op2.read_op2_modes``.
+    The implemented phases work, but only against the files ``tests/_op2.py``
+    writes — that is, against our own reading of the format.  MS-9.6 makes the
+    opt-in corpus test over real MSC and NX output the condition for calling
+    the reader supported, so until it runs the entry points stay reachable only
+    as ``openfemlab.io.op2.read_op2_modes``.
     """
 
     for name in ("read_op2", "read_op2_modes", "list_op2_tables"):
@@ -154,6 +143,24 @@ def test_element_records_cover_the_bdf_reader_element_set():
     ascii_blocks = {element_type for element_type, _ in _ELEMENT_CARDS.values()}
     assert set(GEOM2_ELEMENT_RECORDS.values()) == ascii_blocks
     assert GEOM2_ELEMENT_RECORDS[(2958, 51, 177)] is ElementType.QUAD4
+
+
+def test_every_readable_layout_belongs_to_a_known_element_card():
+    """The layout table refines the key table; it may not disagree with it.
+
+    :data:`GEOM2_ELEMENT_LAYOUTS` says how to unpack the records
+    :data:`GEOM2_ELEMENT_RECORDS` names, so a key in the first and not the
+    second would be connectivity read into no block at all.  Every entry also
+    has to place its grids inside the entry it declares, since the reader
+    indexes the words it is given without a second bound to check them against.
+    """
+
+    assert set(GEOM2_ELEMENT_LAYOUTS) <= set(GEOM2_ELEMENT_RECORDS)
+    for entry_words, grid_words in GEOM2_ELEMENT_LAYOUTS.values():
+        assert len(set(grid_words)) == len(grid_words)
+        assert all(2 <= word < entry_words for word in grid_words)
+    assert GEOM2_ELEMENT_LAYOUTS[(3001, 30, 48)] == (4, (2, 3))
+    assert MPT_MATERIAL_RECORDS[(103, 1, 77)] == 12
 
 
 def test_element_records_are_distinct_three_integer_keys():
@@ -432,29 +439,135 @@ def test_phase2_rejects_a_record_that_does_not_divide_into_entries():
         read_op2_modes(io.BytesIO(content))
 
 
-# ------------------------------------------------- skipped phase contracts
+# ------------------------------------------------------- phase 3: geometry
+#
+# The fixture model is the two-element rod chain below, written both as bulk
+# data and as an OP2, so the two Nastran doors can be held against each other.
+# Its coordinates and material constants are binary fractions, since a 32-bit
+# OP2 stores single-precision reals and the assertions are about the reader.
 
-_NOT_IMPLEMENTED = (
-    "OP2 geometry import not implemented (GAP-03 extension, MODULE_SPEC MS-9.6 "
-    "Phase 3); these state the contract of each remaining roadmap phase"
-)
+ROD_PROPERTY_ID = 40
+
+ROD_BDF = """\
+GRID,11,,0.,0.,0.
+GRID,22,,1.,0.,0.
+GRID,33,,2.,0.5,0.
+CROD,100,40,11,22
+CROD,200,40,22,33
+MAT1,7,2.5+8,,0.25,7.75+3
+"""
 
 
-@pytest.mark.skip(reason=_NOT_IMPLEMENTED)
+def rod_grids(**frame: int) -> list[_op2.Grid]:
+    """The fixture's three ``GRID`` cards, in the basic frame unless told not to."""
+
+    return [
+        _op2.Grid(id=11, xyz=(0.0, 0.0, 0.0), **frame),
+        _op2.Grid(id=22, xyz=(1.0, 0.0, 0.0), **frame),
+        _op2.Grid(id=33, xyz=(2.0, 0.5, 0.0), **frame),
+    ]
+
+
+def rod_elements() -> list[_op2.Rod]:
+    """The fixture's two ``CROD`` cards, sharing one ``PROD`` they do not define."""
+
+    return [
+        _op2.Rod(id=100, property_id=ROD_PROPERTY_ID, grids=(11, 22)),
+        _op2.Rod(id=200, property_id=ROD_PROPERTY_ID, grids=(22, 33)),
+    ]
+
+
+def rod_materials() -> list[_op2.Mat1]:
+    """The fixture's single ``MAT1``, in constants a float32 holds exactly."""
+
+    return [_op2.Mat1(id=7, E=2.5e8, G=1.0e8, nu=0.25, rho=7.75e3)]
+
+
+def test_phase3_reads_grids_elements_and_materials_into_a_neutral_model():
+    """Phase 3: ``GEOM1`` grids, ``GEOM2`` connectivity and ``MPT`` materials.
+
+    Labels are the point: a reader that renumbers the grids from 1, or that
+    drops the element ids, breaks the MS-9.1 promise that an imported model
+    aligns against a test set through the labels the solver used.
+    """
+
+    content = _op2.geometry_file(rod_grids(), rod_elements(), rod_materials())
+
+    model = read_op2(io.BytesIO(content))
+
+    assert list(model.node_ids) == [11, 22, 33]
+    np.testing.assert_allclose(
+        model.nodes, [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [2.0, 0.5, 0.0]]
+    )
+    assert list(model.elements) == [ElementType.ROD2]
+    np.testing.assert_array_equal(model.elements[ElementType.ROD2], [[11, 22], [22, 33]])
+    np.testing.assert_array_equal(
+        model.element_property_ids[ElementType.ROD2], [ROD_PROPERTY_ID] * 2
+    )
+
+    material = model.materials[7]
+    assert (material.E, material.nu, material.rho) == (2.5e8, 0.25, 7.75e3)
+
+    assert model.meta["format"] == "nastran-op2"
+    assert model.meta["tables"] == ("GEOM1", "GEOM2", "MPT")
+    assert model.meta["element_ids"] == {"rod2": [100, 200]}
+    assert model.meta["skipped_records"] == {}
+
+
+@pytest.mark.parametrize("word_size", [4, 8])
+@pytest.mark.parametrize("byte_order", ["<", ">"])
+def test_phase3_reads_the_same_model_from_every_framing_variant(word_size, byte_order):
+    """The geometry records ride on Phase 1's framing, all four forms of it."""
+
+    content = _op2.geometry_file(
+        rod_grids(),
+        rod_elements(),
+        rod_materials(),
+        word_size=word_size,
+        byte_order=byte_order,
+    )
+
+    model = read_op2(io.BytesIO(content))
+
+    assert list(model.node_ids) == [11, 22, 33]
+    np.testing.assert_allclose(model.nodes[2], [2.0, 0.5, 0.0])
+    np.testing.assert_array_equal(model.elements[ElementType.ROD2], [[11, 22], [22, 33]])
+    assert model.materials[7].rho == 7.75e3
+    assert model.meta["word_size"] == word_size
+    assert model.meta["byte_order"] == byte_order
+
+
 def test_phase3_geometry_matches_the_bdf_of_the_same_model():
     """Phase 3: the acceptance shape of the geometry work.
 
     Reading a model's bulk data and reading the OP2 of the run it produced must
-    give equal ``NeutralModel``s — same labels, same blocks, same properties.
+    give equal ``NeutralModel``s — same labels, same blocks, same materials.
     Any divergence is a bug in one of the two readers, and this is the only
-    test that can tell us which.
+    test that can tell us which.  ``PROD`` is in neither subset, so the section
+    survives both readings as the property id on the element and nothing more.
     """
 
-    raise NotImplementedError
+    from_bdf = read_bdf(io.StringIO(ROD_BDF))
+    from_op2 = read_op2(
+        io.BytesIO(_op2.geometry_file(rod_grids(), rod_elements(), rod_materials()))
+    )
+
+    np.testing.assert_array_equal(from_op2.node_ids, from_bdf.node_ids)
+    np.testing.assert_allclose(from_op2.nodes, from_bdf.nodes)
+    assert list(from_op2.elements) == list(from_bdf.elements)
+    for element_type, connectivity in from_bdf.elements.items():
+        np.testing.assert_array_equal(from_op2.elements[element_type], connectivity)
+        np.testing.assert_array_equal(
+            from_op2.element_property_ids[element_type],
+            from_bdf.element_property_ids[element_type],
+        )
+    assert from_op2.materials == from_bdf.materials
+    assert from_op2.properties == from_bdf.properties == {}
+    assert from_op2.meta["element_ids"] == from_bdf.meta["element_ids"]
 
 
-@pytest.mark.skip(reason=_NOT_IMPLEMENTED)
-def test_phase3_rejects_non_basic_grid_coordinate_systems():
+@pytest.mark.parametrize("frame", [{"cp": 3}, {"cd": 7}])
+def test_phase3_rejects_non_basic_grid_coordinate_systems(frame):
     """Phase 3: ``CP``/``CD`` are wrong coordinates, not missing metadata.
 
     Until Phase 4 reads the ``CORD`` cards, a non-zero frame must raise, the
@@ -462,7 +575,168 @@ def test_phase3_rejects_non_basic_grid_coordinate_systems():
     the eigenvectors written in ``CD``.
     """
 
-    raise NotImplementedError
+    content = _op2.geometry_file(rod_grids(**frame), rod_elements())
+
+    with pytest.raises(FormatError, match="non-basic coordinate system"):
+        read_op2(io.BytesIO(content))
+
+
+def test_phase3_refuses_an_element_card_whose_layout_it_cannot_unpack():
+    """A known card without a layout is a refusal, not a skip.
+
+    ``GEOM2_ELEMENT_RECORDS`` promises the solver has a formulation for the
+    card, so dropping its record would return a model that looks complete and
+    has silently lost a whole element block.  The record here is four ``CROD``
+    words written under the ``CQUAD4`` key, which is what a card outside the
+    layout table looks like from the reader's side.
+    """
+
+    content = _op2.write_op2(
+        [
+            _op2.geom1_block(rod_grids()),
+            _op2.geom2_block(rod_elements(), key=(2958, 51, 177)),
+        ]
+    )
+
+    with pytest.raises(FormatError, match="quad4"):
+        read_op2(io.BytesIO(content))
+
+
+def test_phase3_skips_and_counts_the_records_outside_its_subset():
+    """MS-9.3 partial import: what was not read is reported, not forgotten.
+
+    A ``CBUSH`` record is a card no block of this model has, and ``EPT`` is the
+    property table the next increment reads; both are stepped over, and both
+    are counted so that a caller can tell a complete import from a partial one.
+    """
+
+    unknown_geom2 = _op2.geom2_block(rod_elements(), key=(2608, 26, 60))
+    content = _op2.write_op2(
+        [
+            _op2.geom1_block(rod_grids()),
+            _op2.DataBlock(
+                name="GEOM2",
+                records=(*_op2.geom2_block(rod_elements()).records, *unknown_geom2.records),
+                subtable_name="GEOM2S",
+            ),
+            _op2.DataBlock(name="EPT", records=(_op2.integers(902, 9, 29, 40, 7),)),
+            _op2.mpt_block(rod_materials()),
+        ]
+    )
+
+    model = read_op2(io.BytesIO(content))
+
+    assert model.meta["skipped_records"] == {"GEOM2": 1, "EPT": 1}
+    np.testing.assert_array_equal(model.elements[ElementType.ROD2], [[11, 22], [22, 33]])
+    assert model.properties == {}
+
+
+def test_phase3_rejects_a_record_that_does_not_divide_into_entries():
+    """The dialect trap of MS-9.6, on the geometry side.
+
+    A ``GEOM2`` record one word short of a whole number of entries is what a
+    reader assuming the wrong dialect sees, and reading past the end of an
+    entry is how it turns into wrong connectivity instead of an error.
+    """
+
+    rods = _op2.geom2_block(rod_elements())
+    truncated = list(rods.records[0])[:-1]
+    content = _op2.write_op2(
+        [
+            _op2.geom1_block(rod_grids()),
+            _op2.DataBlock(name="GEOM2", records=(truncated,), subtable_name="GEOM2S"),
+        ]
+    )
+
+    with pytest.raises(FormatError, match="not a multiple of"):
+        read_op2(io.BytesIO(content))
+
+
+def test_phase3_rejects_connectivity_that_names_a_grid_the_file_does_not_define():
+    """An element hanging off a grid that is not there is an unusable model."""
+
+    content = _op2.geometry_file(
+        rod_grids()[:2],
+        [*rod_elements(), _op2.Rod(id=300, property_id=ROD_PROPERTY_ID, grids=(33, 44))],
+    )
+
+    with pytest.raises(FormatError, match="33, 44"):
+        read_op2(io.BytesIO(content))
+
+
+@pytest.mark.parametrize(
+    ("blocks", "message"),
+    [
+        pytest.param(
+            lambda: [_op2.geom1_block([*rod_grids(), _op2.Grid(id=22, xyz=(9.0, 0.0, 0.0))])],
+            "duplicate GRID id 22",
+            id="duplicate-grid",
+        ),
+        pytest.param(
+            lambda: [
+                _op2.geom1_block(rod_grids()),
+                _op2.geom2_block(
+                    [*rod_elements(), _op2.Rod(id=100, property_id=1, grids=(11, 33))]
+                ),
+            ],
+            "duplicate element id 100",
+            id="duplicate-element",
+        ),
+        pytest.param(
+            lambda: [
+                _op2.geom1_block(rod_grids()),
+                _op2.mpt_block([*rod_materials(), _op2.Mat1(id=7, E=1.0)]),
+            ],
+            "duplicate MAT1 id 7",
+            id="duplicate-material",
+        ),
+    ],
+)
+def test_phase3_rejects_a_label_the_file_defines_twice(blocks, message):
+    """Two cards under one label make the import order decide the model."""
+
+    with pytest.raises(FormatError, match=message):
+        read_op2(io.BytesIO(_op2.write_op2(blocks())))
+
+
+def test_phase3_refuses_the_double_precision_grid_dialect():
+    """The 11-word ``GRID`` writes its location in two words per coordinate.
+
+    Reading it as the 8-word form would unpack half of an ``X1`` as a whole
+    coordinate, so the dialect is named and refused until it is implemented.
+    """
+
+    content = _op2.write_op2(
+        [_op2.geom1_block(rod_grids(), key=(4501, 45, 1120001))]
+    )
+
+    with pytest.raises(FormatError, match="double precision"):
+        read_op2(io.BytesIO(content))
+
+
+def test_phase3_names_the_tables_a_file_without_geometry_does_have():
+    """The Phase 1 diagnostic again, raised from Phase 3.
+
+    An OP2 written by a run that requested only results has no ``GEOM1`` in it,
+    which is a wrong ``PARAM,POST`` rather than a broken file — so the answer
+    is the list of blocks the file *does* carry.
+    """
+
+    content = _op2.write_op2([_op2.lama_block(chain_modes())])
+    with pytest.raises(FormatError, match="no GEOM1 table"):
+        read_op2(io.BytesIO(content))
+
+    empty = _op2.write_op2([_op2.geom1_block([])])
+    with pytest.raises(FormatError, match="no GRID records"):
+        read_op2(io.BytesIO(empty))
+
+
+# ------------------------------------------------- skipped phase contracts
+
+_NOT_IMPLEMENTED = (
+    "OP2 corpus import not implemented; this states the contract of the "
+    "remaining roadmap phase"
+)
 
 
 @pytest.mark.skip(reason=_NOT_IMPLEMENTED)

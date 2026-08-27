@@ -1057,7 +1057,7 @@ def neutral_to_model(neutral, *, dofs=None, name=None, material=None, section=No
 def infer_dofs(model: NeutralModel) -> tuple[DOF, ...]
 ```
 
-### MS-9.6 Nastran OP2 — extension, Phases 1-2 implemented
+### MS-9.6 Nastran OP2 — extension, Phases 1-3 implemented
 
 Round-3 extension of GAP-03, scoped by the A139 spike. OP2 is the binary
 companion of the bulk data MS-9.3 already reads, and the only industrial format
@@ -1070,7 +1070,7 @@ reader lives in `openfemlab.io.op2` over the record layer
 |---|---|---|---|
 | `list_op2_tables(source)` | 1 | implemented | the file's data blocks, in file order |
 | `read_op2_modes(source)` | 2 | implemented | `ModalResult` from `LAMA` + `BOUGV1`/`OUGV1`/`OUG1` |
-| `read_op2(source)` | 3 | `NotImplementedError` | `NeutralModel` from `GEOM1`/`GEOM2`/`EPT`/`MPT` |
+| `read_op2(source)` | 3 | implemented for `GRID`, `CROD` and `MAT1` | `NeutralModel` from `GEOM1`/`GEOM2`/`MPT` |
 
 - **Nothing is re-exported from `openfemlab.io`.** A name in that namespace
   advertises a *supported* reader; these stay reachable only as
@@ -1104,11 +1104,25 @@ reader lives in `openfemlab.io.op2` over the record layer
   written in `CD` — the line `read_bdf` already draws for `GRID` and `read_unv`
   draws for dataset 2420. Phase 2 draws it by reading the `GRID` records of
   `GEOM1` for their frames alone and refusing a file where any is non-zero.
+- **`read_op2` imports the geometry it can unpack and refuses the rest.** It
+  reads `GRID` from `GEOM1`, the connectivity records listed in
+  `GEOM2_ELEMENT_LAYOUTS` from `GEOM2` and the material records of
+  `MPT_MATERIAL_RECORDS` from `MPT`, and a rod model imports to the same
+  `NeutralModel` `read_bdf` builds from the bulk data of the same run. Records
+  outside the subset are stepped over and counted per block in
+  `meta["skipped_records"]` (MS-9.3), with one exception: a `GEOM2` record
+  whose card is in `GEOM2_ELEMENT_RECORDS` but whose word layout is not in
+  `GEOM2_ELEMENT_LAYOUTS` raises, since dropping it would return a model that
+  looks complete and has lost an element block. Extending the subset is one
+  table entry per card plus the tests that pin its layout; `EPT` is the
+  remaining increment.
 - **Record keys are stable, record contents are not.** `GEOM2` records are
   addressed by a three-integer key (`CQUAD4` is `(2958, 51, 177)`), but MSC
   writes 15 words per `CQUAD4` entry where NX writes 14. Every unpack must
   check the record length against the entry size it assumes and name the block
-  and key when it does not divide, rather than reading past an entry.
+  and key when it does not divide, rather than reading past an entry. The same
+  applies to `GRID`, whose 11-word dialect writes the location in double
+  precision: Phase 3 names and refuses it rather than read half a coordinate.
 - **The blocker is fixtures, not parsing.** An OP2 cannot be produced without a
   Nastran licence, so CI cannot generate one the way it generates UFF and BDF
   text. The way out is `tests/_op2.py`, a test-only writer that emits the

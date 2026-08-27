@@ -6,9 +6,9 @@ solution, which is exactly the pair the correlation and updating modules need
 from an industrial solver.  Reaching it means writing a binary parser, and a
 binary parser without a test corpus is a liability, so the reader is landed in
 phases (GAP-03 extension, MODULE_SPEC MS-9.6), each with its own tests:
-Phases 1 and 2 — the record framing and the normal modes — are implemented
-here, and :func:`read_op2` still raises :class:`NotImplementedError` because
-Phase 3 geometry is not written yet.
+Phase 1 (the record framing), Phase 2 (the normal modes) and the first
+increment of Phase 3 (``GRID`` geometry, ``CROD`` connectivity and ``MAT1``
+materials) are implemented here.
 
 Nothing here is re-exported from :mod:`openfemlab.io`.  A name in that
 namespace advertises a *supported* reader, and this one is validated only
@@ -104,7 +104,14 @@ raise rather than being guessed at.
 ``NeutralModel``, reusing the element and property vocabulary
 :mod:`openfemlab.io.nastran` already established for the same cards in ASCII,
 so a BDF and its OP2 import to equal models.  Unknown records are skipped and
-counted in ``meta``, the partial-import policy of MS-9.3.
+counted in ``meta``, the partial-import policy of MS-9.3.  *Partly
+implemented*: :func:`read_op2` reads ``GRID`` from ``GEOM1``, ``CROD`` from
+``GEOM2`` and ``MAT1`` from ``MPT``.  Each further card is one entry in
+:data:`GEOM2_ELEMENT_LAYOUTS` or :data:`MPT_MATERIAL_RECORDS` plus the tests
+that pin its word layout, and until a card has both, a record carrying it is
+*refused* rather than dropped — a model quietly missing its elements is worse
+than one that did not import.  The ``EPT`` property tables are the remaining
+increment.
 
 **Phase 4 — coordinate systems.**  ``CORD1R``/``CORD2R`` and the ``CP``/``CD``
 fields, which Phases 2 and 3 must reject rather than ignore (see below).
@@ -165,7 +172,7 @@ from typing import BinaryIO, NamedTuple
 import numpy as np
 
 from openfemlab.core.dofs import DofMap, DofType
-from openfemlab.core.neutral import ElementType, NeutralModel
+from openfemlab.core.neutral import ElementType, NeutralMaterial, NeutralModel
 from openfemlab.core.results import ModalResult
 
 from ._common import FormatError
@@ -173,7 +180,9 @@ from .op2_framing import OP2Block, OP2Format, read_op2_blocks
 
 __all__ = [
     "GEOM1_GRID_RECORDS",
+    "GEOM2_ELEMENT_LAYOUTS",
     "GEOM2_ELEMENT_RECORDS",
+    "MPT_MATERIAL_RECORDS",
     "OP2_GEOMETRY_TABLES",
     "OP2_MODE_TABLES",
     "list_op2_tables",
@@ -208,17 +217,55 @@ GEOM2_ELEMENT_RECORDS: dict[tuple[int, int, int], ElementType] = {
     (7308, 73, 253): ElementType.HEX8,    # CHEXA
 }
 
+#: Order the connectivity blocks are emitted in, so two files declaring the
+#: same elements in a different order still import to identical models.  It is
+#: the declaration order of :data:`GEOM2_ELEMENT_RECORDS`, which is the card
+#: order :mod:`openfemlab.io.nastran` uses for the same blocks.
+_BLOCK_ORDER: tuple[ElementType, ...] = tuple(dict.fromkeys(GEOM2_ELEMENT_RECORDS.values()))
+
+#: ``GEOM2`` record key → ``(words per entry, the words holding its grids)``,
+#: the layout Phase 3 unpacks the record with.  Word 0 of an entry is always
+#: the element id and word 1 its property id, so the grid words are the only
+#: thing a card has to declare here.
+#:
+#: A key in :data:`GEOM2_ELEMENT_RECORDS` and missing from this table names a
+#: card the solver has a formulation for and this phase cannot unpack yet.
+#: :func:`read_op2` refuses such a record instead of skipping it: the element
+#: block would otherwise be absent from a model that looks complete.
+GEOM2_ELEMENT_LAYOUTS: dict[tuple[int, int, int], tuple[int, tuple[int, ...]]] = {
+    (3001, 30, 48): (4, (2, 3)),  # CROD: EID, PID, G1, G2
+}
+
+#: ``MPT`` record key → words per entry, for the material cards Phase 3 reads.
+#: A ``MAT1`` entry is ``MID``, then ``E``, ``G``, ``NU``, ``RHO``, the thermal
+#: expansion coefficient, the reference temperature, the structural damping and
+#: the three allowables, then the ``MCSID`` frame.
+MPT_MATERIAL_RECORDS: dict[tuple[int, int, int], int] = {
+    (103, 1, 77): 12,  # MAT1
+}
+
+#: The words of a ``MAT1`` entry :class:`~openfemlab.core.neutral.NeutralMaterial`
+#: has a home for; the rest are thermal and allowable data no module consumes.
+_MAT1_MODULUS_WORD = 1
+_MAT1_POISSON_WORD = 3
+_MAT1_DENSITY_WORD = 4
+
 #: ``GEOM1`` record key → ``(words per GRID entry, CP word, CD word)``, the
 #: three dialects of the ``GRID`` card.  Phase 2 reads these only to *refuse* a
-#: model whose grids are not in the basic frame; Phase 3 will read the
-#: coordinates through the same table.  The 11-word form writes the location in
-#: double precision, which moves ``CD`` — the reason this is a table and not a
-#: constant.
+#: model whose grids are not in the basic frame; Phase 3 reads the coordinates
+#: through the same table.  The 11-word form writes the location in double
+#: precision, which moves ``CD`` — the reason this is a table and not a
+#: constant — and which Phase 3 refuses rather than read two words as one.
 GEOM1_GRID_RECORDS: dict[tuple[int, int, int], tuple[int, int, int]] = {
     (4501, 45, 1): (8, 1, 5),
     (4501, 45, 810001): (8, 1, 5),
     (4501, 45, 1120001): (11, 1, 8),
 }
+
+#: Words of the single-precision ``GRID`` entry — ``ID, CP, X1, X2, X3, CD,
+#: PS, SEID`` — and the word its location starts at.
+_GRID_BASIC_ENTRY_WORDS = 8
+_GRID_LOCATION_WORD = 2
 
 #: Words in the ``IDENT`` record that opens every result subtable.
 _IDENT_WORDS = 146
@@ -249,34 +296,115 @@ _SORT2_CODES = frozenset({2, 3, 6})
 #: The six components of a real eigenvector entry, in file order.
 _MODE_DOFS = (DofType.UX, DofType.UY, DofType.UZ, DofType.RX, DofType.RY, DofType.RZ)
 
-_ROADMAP = (
-    "reading it is planned as the GAP-03 extension (docs/MODULE_SPEC.md MS-9.6); "
-    "the format subset and the phases are documented in openfemlab.io.op2"
-)
-
-_ALTERNATIVES = (
-    "export the model as bulk data and read it with openfemlab.io.read_bdf, or "
-    "the modes as UFF dataset 55 and read them with openfemlab.io.read_uff_modes"
-)
-
-
 def read_op2(source: str | PathLike[str] | BinaryIO) -> NeutralModel:
     """Read the geometry of an OP2 file into a ``NeutralModel`` — Phase 3.
 
-    Will read ``GRID`` from ``GEOM1``, the connectivity of
-    :data:`GEOM2_ELEMENT_RECORDS` from ``GEOM2``, and the ``PSHELL``/``PSOLID``/
-    ``PROD`` and ``MAT1`` tables from ``EPT`` and ``MPT``, producing the same
-    model :func:`~openfemlab.io.nastran.read_bdf` produces from the bulk data
-    the run started from.
+    Reads ``GRID`` from ``GEOM1``, the connectivity records of
+    :data:`GEOM2_ELEMENT_LAYOUTS` from ``GEOM2`` and the material records of
+    :data:`MPT_MATERIAL_RECORDS` from ``MPT``, producing the model
+    :func:`~openfemlab.io.nastran.read_bdf` produces from the bulk data the run
+    started from — same labels, same blocks, same materials.
+
+    Records outside that subset are stepped over and counted per block in
+    ``meta["skipped_records"]``, the partial-import policy of MS-9.3.  The one
+    record that is refused instead of skipped is a ``GEOM2`` record whose card
+    *is* in :data:`GEOM2_ELEMENT_RECORDS` but whose word layout this increment
+    does not unpack: dropping it would return a model that looks complete and
+    has lost its elements.  ``EPT`` is not read at all yet, so a rod's ``PROD``
+    survives only as the property id on the element — which is also all the
+    ASCII reader keeps of it.
+
+    Parameters
+    ----------
+    source:
+        Path to an OP2 file, or an open binary stream positioned at its start.
 
     Raises
     ------
-    NotImplementedError
-        Always.
+    ~openfemlab.io.FormatError
+        If the file is not an OP2 or its framing is inconsistent; if it holds
+        no ``GEOM1`` table, or no ``GRID`` inside it; if a record length is not
+        a whole number of the entries its layout declares; if a ``GRID`` or
+        element id is defined twice; if connectivity names a grid the file does
+        not define; or if any ``GRID`` names a non-basic ``CP``/``CD`` frame,
+        which Phase 4 will transform and this phase must not silently ignore.
     """
 
-    raise NotImplementedError(
-        f"OP2 geometry import is not implemented: {_ROADMAP}. In the meantime, {_ALTERNATIVES}."
+    op2_format, blocks = read_op2_blocks(source, keep=set(OP2_GEOMETRY_TABLES))
+    source_name = _source_name(source)
+    names = [block.name for block in blocks]
+    if "GEOM1" not in names:
+        raise FormatError(
+            f"{_where(source_name)} has no GEOM1 table, so it holds no geometry; its "
+            f"data blocks are {', '.join(names) or '(none)'}"
+        )
+
+    # Grids first: a dialect this phase cannot unpack has to be named as such,
+    # rather than reported as the unreadable record length it also is.
+    grids, geom1_skipped = _read_grids(blocks, op2_format, source_name)
+    _reject_non_basic_frames(blocks, op2_format, source_name)
+    if not grids:
+        raise FormatError(
+            f"{_where(source_name)}: the GEOM1 table holds no GRID records, so the "
+            "model has no nodes"
+        )
+    connectivity, property_ids, element_ids, geom2_skipped = _read_elements(
+        blocks, op2_format, source_name
+    )
+    materials, mpt_skipped = _read_materials(blocks, op2_format, source_name)
+
+    referenced = {grid for rows in connectivity.values() for row in rows for grid in row}
+    unknown = sorted(referenced - grids.keys())
+    if unknown:
+        listed = ", ".join(str(grid) for grid in unknown)
+        raise FormatError(
+            f"{_where(source_name)}: GEOM2 connectivity references GRID ids the GEOM1 "
+            f"table does not define: {listed}"
+        )
+
+    elements = {
+        element_type: np.asarray(connectivity[element_type], dtype=np.int64)
+        for element_type in _BLOCK_ORDER
+        if connectivity.get(element_type)
+    }
+    skipped = {
+        name: count
+        for name, count in (
+            ("GEOM1", geom1_skipped),
+            ("GEOM2", geom2_skipped),
+            # The property tables are the remaining Phase 3 increment, so every
+            # record of an EPT block is a record this reader did not read.
+            ("EPT", sum(_countable_records(block) for block in blocks if block.name == "EPT")),
+            ("MPT", mpt_skipped),
+        )
+        if count
+    }
+
+    meta: dict[str, object] = {
+        "format": "nastran-op2",
+        "tables": tuple(names),
+        "word_size": op2_format.word_size,
+        "byte_order": op2_format.byte_order,
+        "element_ids": {
+            element_type.value: element_ids[element_type] for element_type in elements
+        },
+        "skipped_records": skipped,
+    }
+    if op2_format.version:
+        meta["solver_version"] = op2_format.version
+    if source_name is not None:
+        meta["source"] = source_name
+
+    return NeutralModel(
+        nodes=np.asarray(list(grids.values()), dtype=np.float64).reshape((-1, 3)),
+        node_ids=np.fromiter(grids, dtype=np.int64, count=len(grids)),
+        elements=elements,
+        element_property_ids={
+            element_type: np.asarray(property_ids[element_type], dtype=np.int64)
+            for element_type in elements
+        },
+        materials=materials,
+        meta=meta,
     )
 
 
@@ -428,6 +556,175 @@ def _first_block(blocks: list[OP2Block], names: tuple[str, ...]) -> OP2Block | N
             if block.name == name:
                 return block
     return None
+
+
+def _countable_records(block: OP2Block) -> int:
+    """Records of a geometry block that carry a card, i.e. all but the name."""
+
+    return max(len(block.records) - 1, 0)
+
+
+def _geometry_records(
+    block: OP2Block, op2_format: OP2Format
+) -> Iterator[tuple[tuple[int, int, int], np.ndarray, np.ndarray]]:
+    """Yield ``(key, integer words, float words)`` per record of a geometry block.
+
+    Records in a geometry block are addressed by the three-integer key they
+    open with rather than by their position, and their entries mix integers and
+    reals word by word, so both readings of the same body are handed out and
+    each field is taken from the one it is written in.  The block's leading
+    subtable-name record carries no key and is stepped over.
+    """
+
+    for record in block.records[1:]:
+        integers = op2_format.ints(record)
+        if integers.size < 3:
+            continue
+        key = (int(integers[0]), int(integers[1]), int(integers[2]))
+        yield key, integers[3:], op2_format.floats(record)[3:]
+
+
+def _entries(
+    key: tuple[int, int, int],
+    block_name: str,
+    integers: np.ndarray,
+    reals: np.ndarray,
+    entry_words: int,
+    source_name: str | None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """The record body reshaped to one row per entry, or a named refusal.
+
+    MS-9.6: record keys are stable across dialects and record *contents* are
+    not, so a body that is not a whole number of entries has to name the block
+    and the key rather than be unpacked past the end of an entry.
+    """
+
+    if integers.size % entry_words:
+        raise FormatError(
+            f"{_where(source_name)}: {block_name} record {key} holds {integers.size} "
+            f"words, which is not a multiple of the {entry_words}-word entry its "
+            "layout declares"
+        )
+    return integers.reshape(-1, entry_words), reals.reshape(-1, entry_words)
+
+
+def _read_grids(
+    blocks: list[OP2Block], op2_format: OP2Format, source_name: str | None
+) -> tuple[dict[int, tuple[float, float, float]], int]:
+    """``GRID`` label → basic-frame coordinates in file order, and skipped records."""
+
+    grids: dict[int, tuple[float, float, float]] = {}
+    skipped = 0
+    for block in blocks:
+        if block.name != "GEOM1":
+            continue
+        for key, integers, reals in _geometry_records(block, op2_format):
+            layout = GEOM1_GRID_RECORDS.get(key)
+            if layout is None:
+                skipped += 1
+                continue
+            entry_words = layout[0]
+            if entry_words != _GRID_BASIC_ENTRY_WORDS:
+                raise FormatError(
+                    f"{_where(source_name)}: GEOM1 record {key} writes the GRID location "
+                    f"in double precision, {entry_words} words to the entry; reading "
+                    "that dialect is outside the MS-9.6 Phase 3 subset"
+                )
+            labels, coordinates = _entries(
+                key, "GEOM1", integers, reals, entry_words, source_name
+            )
+            for row in range(labels.shape[0]):
+                label = int(labels[row, 0])
+                if label in grids:
+                    raise FormatError(f"{_where(source_name)}: duplicate GRID id {label}")
+                location = coordinates[row, _GRID_LOCATION_WORD : _GRID_LOCATION_WORD + 3]
+                grids[label] = (float(location[0]), float(location[1]), float(location[2]))
+    return grids, skipped
+
+
+def _read_elements(
+    blocks: list[OP2Block], op2_format: OP2Format, source_name: str | None
+) -> tuple[
+    dict[ElementType, list[tuple[int, ...]]],
+    dict[ElementType, list[int]],
+    dict[ElementType, list[int]],
+    int,
+]:
+    """The ``GEOM2`` connectivity, property ids and element ids, per block."""
+
+    connectivity: dict[ElementType, list[tuple[int, ...]]] = {}
+    property_ids: dict[ElementType, list[int]] = {}
+    element_ids: dict[ElementType, list[int]] = {}
+    defined: dict[int, ElementType] = {}
+    skipped = 0
+
+    for block in blocks:
+        if block.name != "GEOM2":
+            continue
+        for key, integers, reals in _geometry_records(block, op2_format):
+            layout = GEOM2_ELEMENT_LAYOUTS.get(key)
+            if layout is None:
+                element_type = GEOM2_ELEMENT_RECORDS.get(key)
+                if element_type is not None:
+                    raise FormatError(
+                        f"{_where(source_name)}: GEOM2 record {key} carries "
+                        f"{element_type.value} elements, whose word layout MS-9.6 Phase 3 "
+                        "does not unpack yet; importing the file without them would hide "
+                        "the elements rather than report them"
+                    )
+                skipped += 1
+                continue
+            element_type = GEOM2_ELEMENT_RECORDS[key]
+            entry_words, grid_words = layout
+            rows, _ = _entries(key, "GEOM2", integers, reals, entry_words, source_name)
+            for row in range(rows.shape[0]):
+                element_id = int(rows[row, 0])
+                previous = defined.get(element_id)
+                if previous is not None:
+                    raise FormatError(
+                        f"{_where(source_name)}: duplicate element id {element_id}, "
+                        f"already defined as a {previous.value}"
+                    )
+                defined[element_id] = element_type
+                connectivity.setdefault(element_type, []).append(
+                    tuple(int(rows[row, word]) for word in grid_words)
+                )
+                property_ids.setdefault(element_type, []).append(int(rows[row, 1]))
+                element_ids.setdefault(element_type, []).append(element_id)
+    return connectivity, property_ids, element_ids, skipped
+
+
+def _read_materials(
+    blocks: list[OP2Block], op2_format: OP2Format, source_name: str | None
+) -> tuple[dict[int, NeutralMaterial], int]:
+    """The ``MPT`` materials by id, and the records of that block left unread."""
+
+    materials: dict[int, NeutralMaterial] = {}
+    skipped = 0
+    for block in blocks:
+        if block.name != "MPT":
+            continue
+        for key, integers, reals in _geometry_records(block, op2_format):
+            entry_words = MPT_MATERIAL_RECORDS.get(key)
+            if entry_words is None:
+                skipped += 1
+                continue
+            labels, values = _entries(key, "MPT", integers, reals, entry_words, source_name)
+            for row in range(labels.shape[0]):
+                material_id = int(labels[row, 0])
+                if material_id in materials:
+                    raise FormatError(
+                        f"{_where(source_name)}: duplicate MAT1 id {material_id}"
+                    )
+                # The name is left empty, as the ASCII reader leaves it, so that
+                # a model and the OP2 of its run compare equal card for card.
+                materials[material_id] = NeutralMaterial(
+                    id=material_id,
+                    E=float(values[row, _MAT1_MODULUS_WORD]),
+                    nu=float(values[row, _MAT1_POISSON_WORD]),
+                    rho=float(values[row, _MAT1_DENSITY_WORD]),
+                )
+    return materials, skipped
 
 
 def _iter_subtables(

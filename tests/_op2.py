@@ -5,8 +5,8 @@ have to be written here — the plan MODULE_SPEC MS-9.6 records as the way out o
 the corpus problem, and the binary sibling of :mod:`tests._uff58`.  This module
 emits the framing and the record layouts :mod:`openfemlab.io.op2` documents:
 Fortran ``[reclen, payload, reclen]`` records, key triplets and marker groups,
-a named data block per table, the ``LAMA`` eigenvalue table and the ``OUGV1``
-eigenvectors of a known model.
+a named data block per table, the ``GEOM1``/``GEOM2``/``MPT`` geometry of a
+known model, its ``LAMA`` eigenvalue table and its ``OUGV1`` eigenvectors.
 
 Everything a real writer varies is a parameter here, because the point of the
 fixture is to exercise the variation: 4- and 8-byte words, either byte order,
@@ -48,6 +48,10 @@ EIGENVECTOR_ENTRY_WORDS = 8
 
 #: ``GEOM1`` record key of the ``GRID`` card and its word layout.
 GRID_RECORD_KEY = (4501, 45, 1)
+
+#: ``GEOM2`` record key of the ``CROD`` card, and ``MPT``'s of ``MAT1``.
+CROD_RECORD_KEY = (3001, 30, 48)
+MAT1_RECORD_KEY = (103, 1, 77)
 
 
 # ------------------------------------------------------------------- words
@@ -94,6 +98,26 @@ class Grid:
 
 
 @dataclass(frozen=True)
+class Rod:
+    """A ``CROD`` card as ``GEOM2`` writes it."""
+
+    id: int
+    property_id: int
+    grids: tuple[int, int]
+
+
+@dataclass(frozen=True)
+class Mat1:
+    """A ``MAT1`` card as ``MPT`` writes it, without its thermal fields."""
+
+    id: int
+    E: float
+    G: float = 0.0
+    nu: float = 0.3
+    rho: float = 0.0
+
+
+@dataclass(frozen=True)
 class Mode:
     """One normal mode: its number, frequency and shape at the grids."""
 
@@ -121,6 +145,45 @@ def geom1_block(grids: Iterable[Grid], *, key: tuple[int, int, int] = GRID_RECOR
         record += reals(*grid.xyz)
         record += integers(grid.cd, grid.ps, grid.seid)
     return DataBlock(name="GEOM1", records=(record,), subtable_name="GEOM1S")
+
+
+#: ``GEOM2`` record key of the ``CROD`` card and its word layout.
+CROD_RECORD_KEY = (3001, 30, 48)
+
+
+def geom2_block(
+    rods: Iterable[Rod], *, key: tuple[int, int, int] = CROD_RECORD_KEY
+) -> DataBlock:
+    """``GEOM2`` holding one ``CROD`` record: ``(EID, PID, G1, G2)`` per element.
+
+    ``key`` is an argument because a ``GEOM2`` record is addressed by its key
+    and not by its position: writing the same four words under another card's
+    key is how a test reaches the reader's dispatch and its refusals.
+    """
+
+    record: list[Token] = list(integers(*key))
+    for rod in rods:
+        record += integers(rod.id, rod.property_id, *rod.grids)
+    return DataBlock(name="GEOM2", records=(record,), subtable_name="GEOM2S")
+
+
+def mpt_block(
+    materials: Iterable[Mat1], *, key: tuple[int, int, int] = MAT1_RECORD_KEY
+) -> DataBlock:
+    """``MPT`` holding one ``MAT1`` record: ``(MID, E, G, NU, RHO, ...)``.
+
+    The 12 words are the material id, ten reals — the moduli, Poisson's ratio,
+    the density, the thermal expansion coefficient, the reference temperature,
+    the structural damping and the three allowables — and the ``MCSID`` frame.
+    """
+
+    record: list[Token] = list(integers(*key))
+    for material in materials:
+        record += integers(material.id)
+        record += reals(material.E, material.G, material.nu, material.rho)
+        record += reals(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+        record += integers(0)
+    return DataBlock(name="MPT", records=(record,), subtable_name="MPT")
 
 
 def lama_block(modes: Sequence[Mode], *, name: str = "LAMA") -> DataBlock:
@@ -224,6 +287,32 @@ def result_ident(
     words += characters(subtitle, words=32)
     words += characters(label, words=32)
     return words
+
+
+def geometry_file(
+    grids: Iterable[Grid],
+    rods: Iterable[Rod] = (),
+    materials: Iterable[Mat1] = (),
+    *,
+    extra_blocks: Sequence[DataBlock] = (),
+    **file_options: object,
+) -> bytes:
+    """A whole OP2 holding one model's geometry: ``GEOM1``, ``GEOM2``, ``MPT``.
+
+    The blocks a model does not need are left out entirely rather than written
+    empty, which is what a Nastran run does too.  ``file_options`` are passed
+    to :func:`write_op2`.
+    """
+
+    blocks: list[DataBlock] = [geom1_block(grids)]
+    rods = list(rods)
+    if rods:
+        blocks.append(geom2_block(rods))
+    materials = list(materials)
+    if materials:
+        blocks.append(mpt_block(materials))
+    blocks.extend(extra_blocks)
+    return write_op2(blocks, **file_options)  # type: ignore[arg-type]
 
 
 def modes_file(
