@@ -7,9 +7,9 @@ from io import StringIO
 import numpy as np
 import pytest
 
+from openfemlab.core.elements import TrussElement
 from openfemlab.core.model import DOF, Material, Model, Section
 from openfemlab.core.mpc import parse_nastran_components
-from openfemlab.core.elements import TrussElement
 from openfemlab.io.nastran import read_bdf
 from openfemlab.io.neutral_convert import neutral_to_model
 from openfemlab.solver.modal import ModalSolver
