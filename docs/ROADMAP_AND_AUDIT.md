@@ -4,8 +4,21 @@
 against the state of the art in the DIC/DVC literature and the leading open-source engines
 (OpenCorr, DICe/Sandia, Ncorr, muDIC), and lays out a technical roadmap to reach and exceed
 VIC-2D, then extend to VIC-3D (stereo DIC) and VIC-Volume (DVC). All measurements below were
-produced on this branch (g++ 13.3.0, `-O3`, Release, single thread) and are reproducible with
-the commands and the appendix harness given at the end.
+produced on this branch (g++ 13.3.0, `-O3`, Release) and are reproducible with the commands
+and the appendix harness given at the end.
+
+**Baseline note.** The audit was performed against commit `74c5ffc` (engine core). While it
+was underway, commit `7781755` landed on the same branch, adding a pointwise-least-squares
+strain module (`include/dic/strain.hpp`, `src/strain.cpp`), an OpenMP path-independent
+correlation mode (`DICOptions::pathIndependent`), and three tests (`test_strain`,
+`test_bias`, `test_parallel`). All results in §1 were re-verified at `7781755` (7/7 tests
+pass); findings C6 and part of C9 are now *partially addressed*, as annotated inline, and
+roadmap items A6/A8 (P5/P6) are updated with the remaining scope. Notably, the new
+`test_bias` still generates its deformed images through `warpAffine` — the same-interpolant
+path this audit flags as an inverse crime — and reads a max bias of **0.0038 px**, whereas
+the analytic-rendering harness (§1.3) measures the true peak bias at **0.0166 px**: a direct,
+4× quantification of how much that validation style understates systematic error. (Minor:
+`7781755` also introduced an unused-variable warning `a01` in `apps/dic_demo.cpp`.)
 
 ---
 
@@ -19,7 +32,7 @@ cmake --build build -j
 ctest --test-dir build --output-on-failure
 ```
 
-All four tests pass:
+All tests pass (4/4 at audit baseline `74c5ffc`; 7/7 re-verified at `7781755`):
 
 | Test | Result | Key output |
 |---|---|---|
@@ -27,8 +40,13 @@ All four tests pass:
 | `test_interpolation` | PASS | bicubic reproduces linear field; gradients exact on linear field |
 | `test_icgn` | PASS | translation `u=1.3652 v=-0.7216` (truth 1.37/−0.72), ZNCC 0.988; affine `exx=0.00976 eyy=−0.00706` (truth 0.01/−0.008) |
 | `test_correlation` | PASS | 729/729 valid, `rmsU=0.0025 px`, `rmsV=0.0026 px`, `maxErr=0.0115 px`, mean ZNCC 0.99447 |
+| `test_strain` (new in `7781755`) | PASS | PLS Green-Lagrange strain from displacement field |
+| `test_bias` (new in `7781755`) | PASS | max bias 0.0038 px — but via `warpAffine` (inverse crime, see §1.3) |
+| `test_parallel` (new in `7781755`) | PASS | RG 489 ms vs path-independent 250 ms (4 cores), identical rms 0.0036 px |
 
 ### 1.2 Demo (`./build/dic_demo /tmp/out`)
+
+At audit baseline `74c5ffc` (reliability-guided, single thread):
 
 ```
 image            : 512 x 512 speckle
@@ -46,7 +64,12 @@ exy  : +0.00150  (0.00150)
 
 Wall time 1.16 s single-threaded → **≈ 0.36 ms/POI (≈ 2 800 POI/s)** at subset 41×41,
 mean 6.4 IC-GN iterations. This is a healthy baseline for an unoptimized scalar
-implementation (no coefficient LUT, no threading; see §2.3, §4-A8).
+implementation (no coefficient LUT; see §2.3, §4-A8).
+
+Re-run at `7781755` (path-independent OpenMP mode now default in the demo, 4 cores):
+identical accuracy (RMS 0.0021/0.0021 px, max 0.0134 px, 3249/3249 valid), correlation time
+569 ms, and the new PLS strain output matches the Green-Lagrange truth to 5 decimals
+(`Exx = +0.01005` vs truth `+0.01005`).
 
 ### 1.3 Independent accuracy measurement (bias sweep, no "inverse crime")
 
@@ -122,11 +145,13 @@ sound; the gaps below are about accuracy limits, robustness, and missing subsyst
 **C1 — Validation is an inverse crime (severity: high, affects all quality claims).**
 `warpAffine` (`src/synthetic.cpp`) uses the matcher's own bicubic to synthesize the deformed
 image, so tests cannot see interpolation bias (§1.3) and contain no sensor noise. Every
-accuracy number currently in the test suite overstates real-world accuracy. Fix: analytic
-rendering of the Gaussian-sum speckle at exactly-deformed coordinates (the pattern is
-closed-form, so the deformed image can be evaluated exactly for any invertible field), plus
-Gaussian/Poisson noise injection, plus a sub-pixel bias sweep and a noise-floor test as CI
-assertions.
+accuracy number currently in the test suite overstates real-world accuracy. The `test_bias`
+added in `7781755` inherits the problem: its `warpAffine`-based sweep reads 0.0038 px max
+bias where the analytic-rendering measurement gives 0.0166 px (§1.3) — a ~4× understatement.
+Fix: analytic rendering of the Gaussian-sum speckle at exactly-deformed coordinates (the
+pattern is closed-form, so the deformed image can be evaluated exactly for any invertible
+field), plus Gaussian/Poisson noise injection, plus a sub-pixel bias sweep and a noise-floor
+test as CI assertions.
 
 **C2 — Keys bicubic interpolation is the accuracy limiter (severity: high).**
 Measured peak systematic error ≈ 0.017 px (§1.3). The literature and every leading engine
@@ -167,12 +192,17 @@ strain/step. SOTA (Pan 2009 RG-DIC as implemented in Ncorr/OpenCorr): multiple s
 translation prediction, and a retry/second-chance policy.
 
 **C6 — Strain is taken from raw subset gradients (severity: medium, for any real use).**
-`ux, uy, vx, vy` from a single subset are the noisiest outputs of IC-GN (their variance
-scales ~1/R² worse than displacement). All production tools compute strain from the
-**displacement field** via pointwise local least-squares polynomial fits over a strain
-window (Pan et al. 2009; DICe's Virtual Strain Gauge post-processor; VIC-2D's strain
-filter), with selectable tensor (engineering / Green-Lagrange / principal). The demo's mean
-subset-gradient strain works only because the prescribed field is spatially constant.
+*Partially addressed by `7781755`.* `ux, uy, vx, vy` from a single subset are the noisiest
+outputs of IC-GN (their variance scales ~1/R² worse than displacement). All production tools
+compute strain from the **displacement field** via pointwise local least-squares polynomial
+fits over a strain window (Pan et al. 2009; DICe's Virtual Strain Gauge post-processor;
+VIC-2D's strain filter), with selectable tensor (engineering / Green-Lagrange / principal).
+Commit `7781755` added exactly this pattern: a linear PLS plane fit over a configurable
+window with Green-Lagrange output (`src/strain.cpp`), verified by `test_strain` and the
+demo. Remaining gaps (folded into A6/P5): quadratic-fit option for high strain gradients,
+engineering/principal-strain and rotation outputs, VSG-size reporting per iDICs, validation
+of the strain *noise* transfer (current tests only check smooth/constant fields), and a
+Cholesky solve instead of Cramer's rule in `solve3` for conditioning.
 
 **C7 — Initial guess limited to ±`searchRadius` integer translation (severity: medium).**
 Brute-force ZNCC costs O(S²·R²) and the default S=8 px fails for larger motion; there is no
@@ -190,7 +220,12 @@ from converged residuals) is nearly free to compute since `H` is already factori
 **C9 — Solver/interpolation micro-efficiency (severity: low, correctness-neutral).**
 `solve6` re-factorizes the *constant* Hessian every iteration (should Cholesky-factorize once
 per POI); `bicubic` recomputes kernel weights per sample with no per-image coefficient table
-(OpenCorr's global LUT strategy gives large speedups); everything is single-threaded.
+(OpenCorr's global LUT strategy gives large speedups). *Partially addressed by `7781755`*:
+an OpenMP path-independent mode parallelizes the POI loop (RG mode remains sequential), but
+it re-runs the brute-force integer search at *every* POI — measured only ~2× faster than
+sequential RG on 4 cores (`test_parallel`: 250 ms vs 489 ms) because the O(S²R²) search
+dominates; A5's FFTCC + A8's LUT/factorization reuse are still needed to reach
+OpenCorr-class throughput.
 
 **C10 — Minor I/O and synthetic-generator issues (severity: low).**
 `readPGM` does not handle `#` comments and silently misreads `maxval > 255` (16-bit PGM)
@@ -202,8 +237,10 @@ does not check `det ≠ 0`. None of these affect the current tests.
 
 No image formats beyond 8-bit PGM (need 8/12/16-bit TIFF/PNG), no ROI masks or non-square /
 conformal subsets, no incremental correlation or reference-update strategy for image
-sequences, no lens-distortion correction, no post-processing (data export, virtual
-extensometers/strain gauges), no parallelism, no GPU. These are catalogued in the roadmap.
+sequences, no lens-distortion correction, no data export or virtual extensometer/strain-gauge
+post-processing (PLS strain itself landed in `7781755`), parallelism only via the OpenMP
+path-independent mode (`7781755`, ~2× on 4 cores), no GPU. These are catalogued in the
+roadmap.
 
 ---
 
@@ -216,23 +253,23 @@ extensometers/strain gauges), no parallelism, no GPU. These are catalogued in th
 | Interpolation | Keys bicubic | prefiltered bicubic B-spline (tricubic for DVC) | Keys 4th / convolution filters | biquintic B-spline | B-spline mesh basis | 4/6/8-tap optimized splines |
 | Gradients | 2-pt central diff | consistent with spline | finite-diff or 5-pt convolution | spline-consistent | analytic (basis) | proprietary |
 | Initial guess | brute-force integer ZNCC at 1 seed | FFTCC, SIFT-aided, epipolar (stereo) | phase correlation, optical flow, feature matching, neighbor values | seed + RG | mesh init | robust proprietary init |
-| Propagation | RG (ZNCC heap), single seed, no retry | RG multi-seed, path-independent SIFT variant | per-point with initializer fallbacks | RG with multithreaded seeds | n/a (global) | yes |
+| Propagation | RG (ZNCC heap), single seed, no retry; per-point path-independent mode (`7781755`) | RG multi-seed, path-independent SIFT variant | per-point with initializer fallbacks | RG with multithreaded seeds | n/a (global) | yes |
 | Subset weighting | uniform only | uniform | conformal/arbitrary subset shapes, pixel deactivation | subset truncation near discontinuities | n/a | uniform or **Gaussian** (default best) |
-| Strain | raw subset gradients | PLS strain module (2D/3D) | VSG post-processor (window least squares) | least-squares strain windows | direct from FE fields | strain window/filter, tensor options, VSG tool |
+| Strain | linear PLS + Green-Lagrange (`7781755`); no quadratic fit / principal / VSG reporting | PLS strain module (2D/3D) | VSG post-processor (window least squares) | least-squares strain windows | direct from FE fields | strain window/filter, tensor options, VSG tool |
 | Uncertainty | none | none built-in | per-POI quality metrics (sigma/gamma/beta) | none | none | **sigma confidence margins from covariance** |
 | Masks/ROI | rectangle minus margin | ROI + masks | arbitrary conformal subsets, obstructions | arbitrary ROI, holes | mesh on ROI | arbitrary AOI, holes, boundary fill |
 | Sequences | single pair | sequence paths | tracking, sequences | sequences (seed propagation) | sequences | incremental correlation, ref update |
-| Parallelism | none | OpenMP + CUDA (ICGN 2D/3D) | MPI + threads | multithreaded seeds | NumPy vectorized | multi-core, real-time variants |
+| Parallelism | OpenMP in path-independent mode (`7781755`), RG sequential | OpenMP + CUDA (ICGN 2D/3D) | MPI + threads | multithreaded seeds | NumPy vectorized | multi-core, real-time variants |
 | Stereo / 3D surface | none | stereo DIC + epipolar + reconstruction | stereo (DICe challenge use) | none | none | VIC-3D product line |
 | DVC | none | 3D FFTCC + ICGN3D1 + GPU | no | no | no | VIC-Volume product |
 | Self-adaptive subsets | none | example provided (dynamic size/shape per POI) | adaptive refinement of point placement | none | element size choice | n/a (guided by pattern-quality tools) |
 | Validation method | synthetic affine (inverse crime) | published papers, DIC Challenge datasets | extensive regression suite, DIC Challenge | paper validation | paper validation | metrological claims (±10 nm class, FOV-dep.) |
 
-Summary: the algorithmic *skeleton* matches SOTA (IC-GN + ZNSSD + RG), but HL-DIC currently
-sits below all four open engines on interpolation order, shape-function order, initial-guess
-robustness, strain post-processing, uncertainty, and performance engineering — and below
-VIC-2D additionally on subset weighting, confidence margins, incremental correlation, and
-distortion correction. The DIC Challenge 2.0 datasets (Reu et al., Exp. Mech.) and the
+Summary: the algorithmic *skeleton* matches SOTA (IC-GN + ZNSSD + RG, and since `7781755` a
+first-cut PLS strain module and an OpenMP mode), but HL-DIC currently sits below all four
+open engines on interpolation order, shape-function order, initial-guess robustness,
+uncertainty, and performance engineering — and below VIC-2D additionally on subset
+weighting, confidence margins, incremental correlation, and distortion correction. The DIC Challenge 2.0 datasets (Reu et al., Exp. Mech.) and the
 iDICs Good Practices Guide define the acceptance methodology the project should adopt.
 
 ---
@@ -314,18 +351,20 @@ prioritized list of §5.
   initial-guess speedup at equal capture range.
 
 **A6. Strain module: pointwise least-squares over strain windows [P5]**
-- *Where*: new `include/dic/strain.hpp`, `src/strain.cpp`, operating on `DICField`.
-- *Approach*: Pan et al. (2009): for each POI, fit `u(x,y)` and `v(x,y)` with a linear (or
-  quadratic) polynomial over an M×M window of valid neighbors by least squares; strain from
-  the fitted gradients; outputs engineering, Green-Lagrange, principal strains and rotation;
-  handle invalid/missing neighbors by weighted fit with a minimum-count rule; report the
-  effective virtual-strain-gauge size (`VSG = (M−1)·step + subset`, iDICs) alongside the
-  data. This matches DICe's VSG post-processor and VIC-2D's strain filter.
+- *Status*: **partially landed in `7781755`** — `include/dic/strain.hpp` / `src/strain.cpp`
+  implement the linear PLS plane fit over a window with Green-Lagrange output, skipping
+  invalid neighbors, with `test_strain` coverage.
+- *Remaining scope*: quadratic-fit option for high strain gradients; engineering, principal
+  strains and rotation outputs; report the effective virtual-strain-gauge size
+  (`VSG = (M−1)·step + subset`, iDICs) alongside the data; replace the Cramer's-rule
+  `solve3` with Cholesky; noise-transfer validation (current tests only cover smooth
+  fields). This matches DICe's VSG post-processor and VIC-2D's strain filter (Pan et al.
+  2009).
 - *Dependencies/risks*: small; window-size selection is a bias/noise tradeoff that must be
   a documented user parameter, not a constant.
-- *Validation*: constant-strain recovery < 2e-5 absolute; sinusoidal field with analytic
-  strain: measured window-dependent attenuation matches the PLS transfer function; strain
-  noise floor vs theory within 30%.
+- *Validation*: constant-strain recovery < 2e-5 absolute (partially covered); sinusoidal
+  field with analytic strain: measured window-dependent attenuation matches the PLS transfer
+  function; strain noise floor vs theory within 30%.
 
 **A7. Uncertainty quantification and match-quality outputs [P7]**
 - *Where*: `src/icgn.cpp` (+ result fields), `include/dic/correlation.hpp` (per-POI sigma,
@@ -340,18 +379,20 @@ prioritized list of §5.
   25%; injected decorrelated subsets get rejected by margin.
 
 **A8. Performance engineering: threading, coefficient LUT, factorization reuse [P6]**
-- *Where*: `src/correlation.cpp` (thread pool over POIs after seeds; RG becomes tile-based:
-  seeds per tile, tiles in parallel — or two-pass FFTCC-init-all + parallel IC-GN,
-  path-independent like OpenCorr's SIFT-aided variant), `src/interpolation.cpp` (per-image
-  spline coefficient table from A1), `src/icgn.cpp` (Cholesky factorize `H` once per POI,
-  reuse across iterations; C9).
-- *Approach*: `std::thread` pool (stay dependency-free; optionally `#ifdef _OPENMP`).
-  Deformed-image spline coefficients computed once per image pair, shared read-only across
-  threads.
+- *Status*: **partially landed in `7781755`** — OpenMP path-independent mode parallelizes
+  the POI loop (`DICOptions::pathIndependent`). But each POI re-runs the O(S²R²)
+  brute-force integer search, so the measured gain is only ~2× on 4 cores
+  (`test_parallel`), and RG mode remains sequential.
+- *Remaining scope*: replace the per-POI brute-force init with A5's FFTCC (or
+  neighbor-seeded init) in path-independent mode; per-image spline coefficient table
+  (from A1) in `src/interpolation.cpp`; Cholesky-factorize `H` once per POI and reuse
+  across iterations in `src/icgn.cpp` (C9); tile-based multi-seed RG so reliability-guided
+  mode also parallelizes.
 - *Dependencies/risks*: RG is inherently sequential — the tile/two-pass redesign changes
   propagation semantics; must verify identical results on well-conditioned fields.
-- *Validation*: ≥6× throughput on 8 cores on the 512² demo; results within 1e-10 px of
-  single-thread; report POI/s (target ≥ 20 000 POI/s multithreaded, OpenCorr-class).
+- *Validation*: ≥6× throughput on 8 cores on the 512² demo vs sequential RG; results within
+  1e-10 px of single-thread; report POI/s (target ≥ 20 000 POI/s multithreaded,
+  OpenCorr-class).
 
 ### Phase B — Exceeding VIC-2D (2D)
 
@@ -504,15 +545,18 @@ cost at equal capture range reduced ≥ 10× vs brute force (measured).
 lower than first order at equal subset size; affine-field results unchanged within 1e-4 px;
 automatic fallback to first order on ill-conditioned subsets, with a per-POI flag.
 
-**P5. Pointwise least-squares strain module (A6).**
-*Acceptance*: constant strain recovered to < 2e-5 absolute from a noisy displacement field;
-strain noise vs window size matches PLS theory within 30%; outputs engineering,
-Green-Lagrange and principal strains; reported VSG size per iDICs; demo strain switched from
-raw subset gradients to the module.
+**P5. Complete the pointwise least-squares strain module (A6; core landed in `7781755`).**
+*Acceptance for the remaining scope*: constant strain recovered to < 2e-5 absolute from a
+**noisy** displacement field; strain noise vs window size matches PLS theory within 30%;
+outputs engineering and principal strains + rotation in addition to Green-Lagrange;
+reported VSG size per iDICs; `solve3` replaced by Cholesky.
 
-**P6. Threading + per-image interpolation coefficient table + Cholesky reuse (A8).**
-*Acceptance*: ≥ 6× throughput on 8 cores for the 512² demo (target ≥ 20 000 POI/s); results
-within 1e-10 px of single-threaded; Hessian factorized once per POI (verified by profile).
+**P6. Finish performance engineering: fast init in parallel mode, coefficient table,
+Cholesky reuse (A8; OpenMP loop landed in `7781755`).**
+*Acceptance*: ≥ 6× throughput on 8 cores for the 512² demo vs sequential RG (target
+≥ 20 000 POI/s; currently ~2× on 4 cores because the per-POI brute-force integer search
+dominates); results within 1e-10 px of single-threaded; Hessian factorized once per POI
+(verified by profile).
 
 **P7. Per-POI uncertainty and quality outputs (A7).**
 *Acceptance*: sigma from `σ̂²H⁻¹` validated by Monte-Carlo (≥100 noise realizations,
