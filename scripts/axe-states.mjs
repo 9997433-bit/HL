@@ -3,7 +3,7 @@
  *
  * scripts/axe-check.mjs 扫的是每条路由刚打开、默认主题下的样子。真正出问题的
  * 地方恰恰不在那里：描红练习、答题反馈、庆祝浮层都要先操作几步才出现，而护眼
- * 与夜间主题换的是另一整套颜色。这个脚本把「三套主题 × 页面/交互态」全铺开，
+ * 与夜间/极光主题换的是另一整套颜色。这个脚本把「四套主题 × 页面/交互态」全铺开，
  * critical 与 serious 都必须为 0。
  *
  * 用法：npm --prefix apps/literacy-app run build && node scripts/axe-states.mjs
@@ -19,7 +19,7 @@ import puppeteer from 'puppeteer-core'
 const ROOT = resolve(import.meta.dirname, '..')
 const DIST = resolve(ROOT, 'apps/literacy-app/dist')
 const WCAG_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']
-const THEMES = ['sunny', 'care', 'night']
+const THEMES = ['sunny', 'care', 'night', 'aurora']
 /** 主题切换带 280ms 过渡，量颜色前要等它落定，否则量到的是过渡中的插值。 */
 const THEME_SETTLE_MS = 700
 

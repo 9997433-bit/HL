@@ -16,6 +16,15 @@ const settings = useSettingsStore()
 const progress = useProgressStore()
 const rootClass = computed(() => ({ 'eye-care': settings.eyeCare }))
 
+// 共享 design-tokens 以 <html data-theme> 选主题，立即恢复家长上次选择。
+watch(
+  () => settings.theme,
+  (theme) => {
+    document.documentElement.dataset.theme = theme
+  },
+  { immediate: true },
+)
+
 // 音效开关以玩法层设置为准，护眼模式由设置 store 控制
 watch(
   () => progress.state.settings.sound && settings.soundOn,

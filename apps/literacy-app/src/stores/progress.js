@@ -788,7 +788,7 @@ export const useProgressStore = defineStore('progress', () => {
   }
 
   function cycleTheme() {
-    const order = ['sunny', 'care', 'night']
+    const order = ['sunny', 'care', 'night', 'aurora']
     const next = order[(order.indexOf(state.settings.theme) + 1) % order.length]
     updateSettings({ theme: next })
   }

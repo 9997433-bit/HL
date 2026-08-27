@@ -13,7 +13,7 @@ import { SKILLS } from '@/data/curriculum.js'
 import { ERROR_TAGS, errorTagInfo } from '@/data/errorTags.js'
 import { MASTERY_THRESHOLD } from '@/utils/mastery.js'
 import { useProgressStore } from '@/stores/progress.js'
-import { AGE_BANDS, useSettingsStore } from '@/stores/settings.js'
+import { AGE_BANDS, THEMES, useSettingsStore } from '@/stores/settings.js'
 import { sound } from '@/utils/sound'
 import OpenMojiAttribution from '@shared/components/OpenMojiAttribution.vue'
 
@@ -220,6 +220,11 @@ function resetSettings() {
 function setLimit(value) {
   settings.set('dailyLimitMinutes', Number(value))
 }
+
+function setTheme(theme) {
+  settings.set('theme', theme)
+  sound.click()
+}
 </script>
 
 <template>
@@ -274,6 +279,29 @@ function setLimit(value) {
           <div class="cell">
             <strong>{{ progress.state.dailyStreak }}</strong><span class="muted">连续天数</span>
           </div>
+        </div>
+      </section>
+
+      <!-- 共享主题 -->
+      <section class="panel stack">
+        <h3 class="panel-title">🎨 显示主题</h3>
+        <p class="muted note">主题由双 App 共用的 design tokens 驱动，选择会保存在本机。</p>
+        <div class="themes" role="group" aria-label="显示主题">
+          <button
+            v-for="theme in THEMES"
+            :key="theme.id"
+            class="theme-option"
+            :class="{ on: settings.theme === theme.id }"
+            type="button"
+            :aria-pressed="settings.theme === theme.id"
+            @click="setTheme(theme.id)"
+          >
+            <span class="theme-emoji" aria-hidden="true">{{ theme.emoji }}</span>
+            <span>
+              <strong>{{ theme.name }}</strong>
+              <small class="muted">{{ theme.desc }}</small>
+            </span>
+          </button>
         </div>
       </section>
 
@@ -634,6 +662,42 @@ function setLimit(value) {
 .sub-title {
   font-size: 15px;
   font-weight: 800;
+}
+
+.themes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.theme-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--tap-min);
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  border: 2px solid transparent;
+  text-align: left;
+}
+
+.theme-option.on {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+}
+
+.theme-option > span:last-child {
+  display: flex;
+  flex-direction: column;
+}
+
+.theme-option small {
+  font-size: 12px;
+}
+
+.theme-emoji {
+  font-size: 24px;
 }
 
 .cards {

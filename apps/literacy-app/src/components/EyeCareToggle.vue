@@ -2,7 +2,7 @@
 /**
  * 护眼 / 主题切换。
  *
- * 三档循环：明亮 → 护眼 → 夜间。
+ * 四档循环：明亮 → 护眼 → 夜间 → 极光。
  * 护眼档降低蓝光和对比度（纸质暖色），夜间档给睡前故事时间用。
  * 同时兼作「已连续用眼 N 分钟」的提示位——按钮上的小圆点会随时长变色。
  */
@@ -11,7 +11,7 @@ import { useProgressStore } from '@/stores/progress.js'
 import { sfx } from '@/utils/audio.js'
 
 const props = defineProps({
-  /** compact 只显示图标，用于顶栏；full 显示三个并排的选项，用于家长面板。 */
+  /** compact 只显示图标，用于顶栏；full 显示四个并排的选项，用于家长面板。 */
   variant: { type: String, default: 'compact' }
 })
 
@@ -20,7 +20,8 @@ const progress = useProgressStore()
 const THEMES = [
   { id: 'sunny', icon: '☀️', name: '明亮', desc: '白天使用，色彩鲜明' },
   { id: 'care', icon: '🌿', name: '护眼', desc: '暖纸色，降低蓝光' },
-  { id: 'night', icon: '🌙', name: '夜间', desc: '睡前故事，深色低亮' }
+  { id: 'night', icon: '🌙', name: '夜间', desc: '睡前故事，深色低亮' },
+  { id: 'aurora', icon: '🌌', name: '极光', desc: '青紫极光，沉浸探索' }
 ]
 
 const current = computed(() => THEMES.find((t) => t.id === progress.state.settings.theme) ?? THEMES[0])

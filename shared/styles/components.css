@@ -3,8 +3,8 @@
    ==========================================================================
    规范：.agent_workspace/ui-ux-design-spec.md §7（组件规范）
    前置：必须在 shared/styles/design-tokens.css 之后引入——
-         本文件只引用语义令牌与尺寸/动效令牌，四主题
-         （sunny / care / night / cosmos）下无需任何覆盖即可用。
+         本文件只引用语义令牌与尺寸/动效令牌，五主题
+         （sunny / care / night / aurora / cosmos）下无需任何覆盖即可用。
    引入顺序（各 App 入口 CSS）：
      1. @import '@shared/styles/design-tokens.css';
      2. @import '@shared/styles/components.css';
