@@ -442,7 +442,7 @@
         scene.add(
           new three.LineSegments(
             undeformed,
-            new three.LineBasicMaterial({ color: 0x3d444d })
+            new three.LineBasicMaterial({ color: 0x6e7781 })
           )
         );
 
@@ -502,7 +502,8 @@
           const x = point[0] * cy - point[2] * sy;
           const z = point[0] * sy + point[2] * cy;
           const y = point[1] * cp - z * sp;
-          const zoom = (0.42 * Math.min(width, height)) / (camera_state.distance / 2.4);
+          // Fills the canvas at the default distance of 2.4 model sizes.
+          const zoom = (1.8 * Math.min(width, height)) / camera_state.distance;
           return [width / 2 + x * zoom, height / 2 - y * zoom];
         }
 
@@ -531,7 +532,7 @@
           draw(points, camera_state) {
             context.fillStyle = "#101418";
             context.fillRect(0, 0, width, height);
-            strokeEdges(base, camera_state, "#3d444d");
+            strokeEdges(base, camera_state, "#6e7781");
             strokeEdges(points, camera_state, "#58a6ff");
           },
           dispose() {},
@@ -565,11 +566,22 @@
       return {
         async start() {
           const three = await loadThree();
-          backend = three ? webglBackend(three) : canvasBackend();
+          let status = "离线回退：2D 线框";
+          if (three) {
+            try {
+              backend = webglBackend(three);
+              status = "three.js WebGL";
+            } catch (error) {
+              // No WebGL context (headless, blocklisted driver, ...): the 2-D
+              // canvas draws the same wireframe.
+              status = `WebGL 不可用（${error.message}），回退 2D 线框`;
+            }
+          }
+          if (!backend) backend = canvasBackend();
           resize();
           window.addEventListener("resize", resize);
           frame = requestAnimationFrame(draw);
-          return Boolean(three);
+          return status;
         },
         setMode(vector, userScale, animated) {
           displacements = nodalDisplacements(geometry, vector);
@@ -622,8 +634,8 @@
       animateInput.addEventListener("change", apply);
       apply();
 
-      viewer.start().then((webgl) => {
-        status.textContent = webgl ? "three.js WebGL" : "离线回退：2D 线框";
+      viewer.start().then((backend) => {
+        status.textContent = backend;
       });
     }
 
