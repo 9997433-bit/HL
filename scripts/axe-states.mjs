@@ -100,6 +100,34 @@ const CASES = [
     },
   ],
   [
+    // 拼字要扫「摆了一半」的样子：填好的格子、还空着的格子和用掉的牌同屏，
+    // 三种深浅摆在一起，正是对比度最容易翻车的地方
+    '拼音拼字（摆了一张牌）',
+    '/#/games/spell',
+    async (page) => {
+      if (!(await clickText(page, '开始拼'))) throw new Error('找不到「开始拼」入口')
+      await page.waitForSelector('.spell__key', { timeout: 8_000 })
+      await page.evaluate(() => {
+        const pinyin = document.querySelector('.quest__pinyin')?.textContent.trim() ?? ''
+        const first = [...pinyin]
+          .map((ch) => ch.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase())
+          .find((ch) => /[a-z]/.test(ch))
+        document.querySelector(`.spell__key[data-letter="${first}"]`)?.click()
+      })
+      await wait(400)
+    },
+  ],
+  [
+    '接字大冒险（掉字中）',
+    '/#/games/catch',
+    async (page) => {
+      if (!(await clickText(page, '开始接字'))) throw new Error('找不到「开始接字」入口')
+      await page.waitForSelector('.catch__item', { timeout: 8_000 })
+      await page.keyboard.press('ArrowRight')
+      await wait(400)
+    },
+  ],
+  [
     '描红练习中',
     `/#/learn/${encodeURIComponent('日')}`,
     async (page) => {
