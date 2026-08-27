@@ -108,7 +108,8 @@ function onMascotTap() {
         </h2>
         <p class="muted">
           先听一遍范读，再自己大声读出来。设备能听清就逐字给你标出来，
-          听不清就把你读的录下来放给你听——两种都不会把声音传到别的地方。
+          听不清就把你读的录下来放给你听——录音回放和离线评测不上传；
+          浏览器逐字识别可能走厂商在线服务，需家长在下方显式打开。
         </p>
       </div>
       <span v-if="record?.follows" class="pill">已跟读 {{ record.follows }} 次</span>
