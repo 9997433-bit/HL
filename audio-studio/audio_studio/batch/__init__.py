@@ -16,15 +16,29 @@ from .pipeline import (
     process_file,
     run_batch,
 )
+from .macro import (
+    EditMacro,
+    MacroError,
+    deserialize_macro,
+    load_macro,
+    save_macro,
+    serialize_session,
+)
 
 __all__ = [
     "ApplyGain",
     "BatchJob",
     "BatchReport",
+    "EditMacro",
     "Fade",
     "FileResult",
+    "MacroError",
     "NormalizeLoudness",
     "Operation",
+    "deserialize_macro",
+    "load_macro",
     "process_file",
     "run_batch",
+    "save_macro",
+    "serialize_session",
 ]
