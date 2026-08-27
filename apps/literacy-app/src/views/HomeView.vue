@@ -1,7 +1,9 @@
 <script setup>
 import { computed } from 'vue'
 import BadgeShelf from '@/components/BadgeShelf.vue'
+import MascotCompanion from '@/components/MascotCompanion.vue'
 import ProgressRing from '@/components/ProgressRing.vue'
+import { useMascotCoach } from '@/composables/useMascotCoach.js'
 import { useProgressStore } from '@/stores/progress.js'
 import { useSettingsStore } from '@/stores/settings.js'
 import { BOOKS } from '@/data/books.js'
@@ -13,6 +15,9 @@ import OpenMojiIcon from '@shared/components/OpenMojiIcon.vue'
 
 const progress = useProgressStore()
 const settings = useSettingsStore()
+
+/** 墨墨在每条核心路由上都跟着，首页这组台词讲今天要做什么。 */
+const { line: coachLine, mood: coachMood, next: coachNext } = useMascotCoach('home')
 
 const nextChar = computed(() => progress.nextChar)
 
@@ -180,6 +185,16 @@ const stations = computed(() => [
     </section>
 
     <BadgeShelf mode="compact" title="我的徽章" />
+
+    <MascotCompanion
+      class="mascot-dock"
+      :mood="coachMood"
+      :say="coachLine"
+      :size="76"
+      :speak-on-tap="false"
+      tap-hint="点我，换一句悄悄话"
+      @tap="coachNext"
+    />
 
     <p class="home__foot muted">
       开源项目 · 所有学习数据只保存在这台设备上 🌱

@@ -1,12 +1,16 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import CharCard from '@/components/CharCard.vue'
+import MascotCompanion from '@/components/MascotCompanion.vue'
 import ProgressRing from '@/components/ProgressRing.vue'
+import { useMascotCoach } from '@/composables/useMascotCoach.js'
 import { CHARACTERS, UNITS, charsOfUnit } from '@/data/characters.js'
 import { useProgressStore } from '@/stores/progress.js'
 import { sfx } from '@/utils/sfx.js'
 
 const progress = useProgressStore()
+
+const { line: coachLine, mood: coachMood, next: coachNext } = useMascotCoach('learn')
 
 const FILTERS = [
   { id: 'all', label: '全部', emoji: '📚' },
@@ -196,6 +200,16 @@ const planNote = computed(() => {
         </button>
       </nav>
     </section>
+
+    <MascotCompanion
+      class="mascot-dock"
+      :mood="coachMood"
+      :say="coachLine"
+      :size="72"
+      :speak-on-tap="false"
+      tap-hint="点我，换一句悄悄话"
+      @tap="coachNext"
+    />
   </div>
 </template>
 

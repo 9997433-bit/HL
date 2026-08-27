@@ -17,11 +17,15 @@ const props = defineProps({
   /** 气泡里的话；空字符串表示不显示气泡 */
   say: { type: String, default: '' },
   size: { type: Number, default: 96 },
-  /** 点击时是否朗读气泡内容 */
+  /** 点击时是否朗读气泡内容；由外面接管换句时关掉，避免读的是上一句 */
   speakOnTap: { type: Boolean, default: true },
   /** 气泡在左还是右 */
-  bubbleSide: { type: String, default: 'right' }
+  bubbleSide: { type: String, default: 'right' },
+  /** 给孩子的点触提示，同时替换按钮的无障碍名称 */
+  tapHint: { type: String, default: '' }
 })
+
+const emit = defineEmits(['tap'])
 
 const root = ref(null)
 const body = ref(null)
@@ -43,6 +47,15 @@ const FACES = {
 }
 
 const face = computed(() => FACES[props.mood] ?? FACES.idle)
+
+/**
+ * 气泡本身是 role="status"，内容变了读屏会自己播报；
+ * 所以给了点触提示时，按钮的名称就只讲「点它会发生什么」，不再重复台词。
+ */
+const buttonLabel = computed(() => {
+  if (props.tapHint) return `学伴墨墨，${props.tapHint}`
+  return props.say ? `学伴墨墨说：${props.say}` : '学伴墨墨'
+})
 
 function blink() {
   const targets = [eyeL.value, eyeR.value].filter(Boolean)
@@ -94,9 +107,12 @@ function popBubble() {
 }
 
 function onTap() {
-  sfx.tap()
+  if (props.speakOnTap) {
+    sfx.tap()
+    if (props.say) speak(props.say)
+  }
   react('happy')
-  if (props.speakOnTap && props.say) speak(props.say)
+  emit('tap')
 }
 
 onMounted(() => {
@@ -137,7 +153,7 @@ watch(
       class="mascot__btn"
       type="button"
       :style="{ width: `${size}px`, height: `${size}px` }"
-      :aria-label="say ? `学伴墨墨说：${say}` : '学伴墨墨'"
+      :aria-label="buttonLabel"
       @click="onTap"
     >
       <svg ref="body" viewBox="0 0 100 100" class="mascot__svg" aria-hidden="true">
@@ -190,8 +206,9 @@ watch(
       </svg>
     </button>
 
-    <div v-if="say" ref="bubble" class="mascot__bubble">
+    <div v-if="say" ref="bubble" class="mascot__bubble" role="status">
       <p>{{ say }}</p>
+      <small v-if="tapHint" class="mascot__hint">{{ tapHint }}</small>
     </div>
   </div>
 </template>
@@ -261,6 +278,14 @@ watch(
 
 .mascot__bubble p {
   margin: 0;
+}
+
+.mascot__hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--text-soft);
 }
 
 @media (max-width: 480px) {
