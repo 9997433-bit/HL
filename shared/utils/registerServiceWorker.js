@@ -1,10 +1,10 @@
-const STARTUP_GRACE_MS = 8_000
+const STARTUP_GRACE_MS = 20_000
 const IDLE_TIMEOUT_MS = 4_000
 
 /**
  * Keep first paint and route hydration ahead of the large offline precache.
  * Existing workers still serve immediately; only installation/update work is
- * deferred until the page has been stable for a few seconds.
+ * deferred until the page has been stable for twenty seconds.
  */
 export function registerServiceWorkerAfterStartup(basePath) {
   if (!('serviceWorker' in navigator)) return
