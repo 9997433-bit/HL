@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">快乐识字</string>
+    <string name="title_activity_main">快乐识字</string>
+    <string name="package_name">com.hongen.literacy</string>
+    <string name="custom_url_scheme">com.hongen.literacy</string>
+</resources>

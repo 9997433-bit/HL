@@ -19,7 +19,12 @@
     "check:round5": "node scripts/check-round5.mjs",
     "check:round5b": "node scripts/check-round5b.mjs",
     "check:round6": "node scripts/check-round6.mjs",
+    "check:android": "node scripts/check-android.mjs",
     "check:map-narrative": "node scripts/check-map-narrative.mjs",
+    "gen:icons": "node scripts/gen-pwa-icons.mjs",
+    "sync:android": "bash scripts/sync-android.sh all",
+    "sync:android:literacy": "bash scripts/sync-android.sh literacy",
+    "sync:android:math": "bash scripts/sync-android.sh math",
     "test:a11y": "node scripts/axe-states.mjs",
     "test:acceptance": "bash scripts/acceptance.sh",
     "test:feedback": "node scripts/test-feedback.mjs",
@@ -33,6 +38,9 @@
     "npm": ">=10"
   },
   "devDependencies": {
+    "@capacitor/android": "^6.2.1",
+    "@capacitor/cli": "^6.2.1",
+    "@capacitor/core": "^6.2.1",
     "axe-core": "^4.13.0",
     "puppeteer-core": "^25.9.0"
   }

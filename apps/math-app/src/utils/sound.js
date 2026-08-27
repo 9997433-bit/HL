@@ -42,6 +42,11 @@ export function streakCue(streak = 1) {
   return STREAK_CUES[Math.min(STREAK_CUES.length, Math.max(1, count)) - 1]
 }
 
+/** streakTone：连对档位 → 音高递进谱面（与识字 streakChord 同语义）。 */
+export function streakTone(streak = 1) {
+  return streakCue(streak)
+}
+
 /**
  * 固定反馈音的谱面：{ notes, gap, dur }。
  * gap 为 0 表示同时发声（和弦），否则是相邻音符的起始间隔（秒）。
@@ -132,7 +137,7 @@ export const sound = {
   click: () => play(CUES.click),
   correct: () => play(CUES.correct),
   /** 连对越多音高越高、节拍越紧，7 连对后保持最高档。 */
-  streak: (count) => play(streakCue(count)),
+  streak: (count) => play(streakTone(count)),
   wrong: () => play(CUES.wrong),
   star: () => play(CUES.star),
   combo: () => play(CUES.combo),
