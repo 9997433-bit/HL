@@ -18,7 +18,7 @@
  * 接口与存档形状见 .agent_workspace/round5b-play-architecture.md §1。
  */
 
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, reactive, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { useProgressStore } from './progress.js'
 
@@ -141,9 +141,6 @@ export const useDailyQuestStore = defineStore('dailyQuest', () => {
   const progress = useProgressStore()
   const state = reactive(loadState())
 
-  /** 刚刚完成的那一件，卡片拿它放微庆祝；不持久化，看过就算。 */
-  const justCompleted = ref(null)
-
   /**
    * 任务判定只认这一张计数表，取的全是 progress store 已经导出的东西。
    * 不为了这张卡片去动 progress 的导出面，也不在业务视图里插钩子。
@@ -216,10 +213,6 @@ export const useDailyQuestStore = defineStore('dailyQuest', () => {
   const allDone = computed(
     () => tasks.value.length > 0 && completedCount.value === tasks.value.length
   )
-  const percent = computed(() =>
-    tasks.value.length ? Math.round((completedCount.value / tasks.value.length) * 100) : 0
-  )
-
   /** 达成时间由 store 自己记，什么时候都不会漏。 */
   function stampDoneAt() {
     for (const id of completedIds.value) {
@@ -241,9 +234,7 @@ export const useDailyQuestStore = defineStore('dailyQuest', () => {
     state.cheered = [...now]
     if (!fresh.length) return null
     const latest = fresh[fresh.length - 1]
-    const task = tasks.value.find((t) => t.id === latest)
-    justCompleted.value = { id: latest, title: task?.title ?? '', at: Date.now() }
-    return justCompleted.value
+    return { id: latest, title: tasks.value.find((t) => t.id === latest)?.title ?? '' }
   }
 
   /** 三件全做完且今天还没领过奖 → 记账并返回 true。重复调用只会成功一次。 */
@@ -261,12 +252,6 @@ export const useDailyQuestStore = defineStore('dailyQuest', () => {
     return state.manual[id]
   }
 
-  /** 家长中心「今天重来」用：擦掉手动勾选，任务本身不换。 */
-  function clearChecks() {
-    state.manual = {}
-    state.cheered = [...completedIds.value]
-  }
-
   function persist() {
     if (typeof localStorage === 'undefined') return
     try {
@@ -282,18 +267,13 @@ export const useDailyQuestStore = defineStore('dailyQuest', () => {
   refresh()
 
   return {
-    state,
     tasks,
-    metrics,
-    justCompleted,
     completedIds,
     completedCount,
     allDone,
-    percent,
     refresh,
     flushCompletions,
     claimCelebration,
-    toggle,
-    clearChecks
+    toggle
   }
 })
