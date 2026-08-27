@@ -20,6 +20,7 @@ import { CHARACTERS } from '@/data/characters.js'
 import { useProgressStore } from '@/stores/progress.js'
 import { useSettingsStore } from '@/stores/settings.js'
 import { isSpeechSupported, speak, stopSpeaking } from '@/utils/speech.js'
+import { buildOptions } from '@/utils/distractors.js'
 import { sfx } from '@/utils/sfx.js'
 
 const ROUNDS = 10
@@ -118,15 +119,6 @@ const usingFallbackPool = computed(
   () => CHARACTERS.filter((c) => progress.isLearned(c.char)).length < OPTIONS
 )
 
-function shuffle(list) {
-  const a = [...list]
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[a[i], a[j]] = [a[j], a[i]]
-  }
-  return a
-}
-
 function nextRound() {
   picked.value = null
   locked.value = false
@@ -138,8 +130,12 @@ function nextRound() {
   const pick = preferred[Math.floor(Math.random() * preferred.length)]
   target.value = pick
 
-  const distractors = shuffle(list.filter((c) => c.char !== pick.char)).slice(0, OPTIONS - 1)
-  options.value = shuffle([pick, ...distractors])
+  /**
+   * 干扰项走形近字库：四张卡上的字长得差不多，孩子才必须真的听清读音。
+   * 学过的字里凑不出形近的就从整张字表里借——干扰项只要认得出、不必学过，
+   * 用一个不像的「学过的字」反而把题目难度打回原形。
+   */
+  options.value = buildOptions(pick, OPTIONS, { pool: list })
 
   round.value += 1
   announce(`第 ${round.value} 关，共 ${ROUNDS} 关。${skin.value.sceneHint}，${OPTIONS} 个字里选一个。`)
