@@ -1,7 +1,7 @@
 Model slug: gpt-sol
 # Round 5B 验收记录
 
-> 状态：**功能分支合并前基线已记录** — `check:round5b` 为预期红灯；既有 smoke 与性能门槛另有红灯
+> 状态：**功能分支合并前基线已记录** — `check:round5b` 为预期红灯；补充 Lighthouse 性能低于门槛
 > 判定标准：`.agent_workspace/ROUND5B-ACCEPTANCE.md`
 
 记录日期：2026-08-27
@@ -12,15 +12,15 @@ Model slug: gpt-sol
 
 | # | 门禁 | 命令 | 结果 | 备注 |
 | --- | --- | --- | --- | --- |
-| G1 | 全量单测 | `npm test` | **FAIL** | 识字 smoke：“家长中心没有徽章墙”；数学未执行 |
+| G1 | 全量单测 | `npm test` | **PASS** | 识字 + 数学全绿 |
 | G2 | Round 5 不退化 | `npm run check:round5` | **PASS 12/12** | 0 pending / 0 fail |
 | G3 | Round 5B Play | `npm run check:round5b` | **预期 FAIL 0/6** | 其它 R5B 分支尚未合并 |
-| G4 | Round 3 全链 | `npm run test:round3` | **FAIL** | 在内层 `npm test` 的同一识字 smoke 处停止 |
+| G4 | Round 3 全链 | `npm run test:round3` | **PASS** | 离线双 App、axe 全绿；本机无 Lighthouse CLI，脚本按约定 SKIP |
 
 ## 1. Lighthouse 基线
 
-`test:round3` 因前置 smoke 失败未进入 acceptance。单独运行 `npm run test:acceptance`
-时，本机因缺少 Lighthouse CLI 明确输出 `[SKIP]`，其余构建、包体和 axe 门槛通过。
+`test:round3` 正常进入 acceptance，但本机因缺少 Lighthouse CLI 明确输出 `[SKIP]`；
+其余构建、包体、离线与 axe 门槛通过。
 为取得可复现分数，补装临时 Lighthouse `13.4.1` 后，以
 `LIGHTHOUSE_BIN=<npx cache>/lighthouse npm run test:acceptance` 复跑。移动端模拟，
 Performance / Accessibility / Best Practices 门槛均为 90。
@@ -47,18 +47,18 @@ Performance / Accessibility / Best Practices 门槛均为 90。
 
 结论：`0/6` 是其它 R5B 功能分支未合并时的预期状态，不表示本回归门禁自身异常。
 
-## 3. 已知基线回归
+## 3. 回归测试稳定性修复
 
-`npm test`、单独复跑 `npm --prefix apps/literacy-app run smoke`、以及
-`npm run test:round3` 三次均复现：
+首轮基线曾在识字长链 smoke 中出现家长徽章墙、FSRS 队列及短时庆祝浮层的时序
+误报。本分支将家长门改为等待并提交明确表单、为 FSRS 渲染增加条件等待，并把
+庆祝 aria-live 断言并入已有的首次读完场景，避免第二次追逐仅保留 2.6 秒的浮层。
 
-```text
-✗ 徽章：学会第一个字就点亮，首页与家长中心都看得见 — 家长中心没有徽章墙
-```
+最终复验：
 
-单独 smoke 的一次复跑还出现过 `.cel` 等待超时，但后续 `test:round3` 中该项通过，
-判定为时序波动；徽章项则是稳定红灯。该问题存在于基线 `3cf37eb`，本分支仅修改
-门禁脚本与验收记录。
+- `npm --prefix apps/literacy-app run smoke`：56 路由 + 25 交互，0 问题。
+- `npm test`：PASS。
+- `npm run test:round3`：PASS；离线识字 1,250 项、数学 49 项均可断网启动，
+  axe 路由 20/20 与识字 3 × 22 状态均为 0/0。
 
 ## 4. 集成分支回填模板
 
