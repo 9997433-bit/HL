@@ -20,6 +20,7 @@ passed as plain 1-D. See :mod:`audio_studio.dsp.util` for the conversion
 helpers used at file and device boundaries.
 """
 
+from .correlation import CorrelationMeter, phase_correlation
 from .effects import (
     CompressorEffect,
     Effect,
@@ -164,6 +165,9 @@ __all__ = [
     "reduce_noise",
     # live preview
     "EffectPreview",
+    # correlation
+    "CorrelationMeter",
+    "phase_correlation",
     # loudness
     "LoudnessMeter",
     "StreamingLoudnessMeter",
