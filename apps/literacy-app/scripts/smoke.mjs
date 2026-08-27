@@ -58,6 +58,15 @@ const round8Routes = ROUND8_H2_SMOKE ? [['儿歌小舞台（Round 8）', `/#${RO
 const ROUND9_H1_SMOKE = ROUND8_H2_SMOKE
 const ROUND9_H1_MIN_SONGS = 10
 
+/**
+ * ROUND10_H1_SMOKE：跟读 v3 —— 离线 ASR（sherpa-onnx WASM Worker）接线。
+ * 走跟读那条路由，验的是四档降级契约和隐私默认：
+ * 第一档失败时必须落到录音档，不许悄悄改用可能联网的浏览器识别。
+ */
+const ROUND10_H1_SMOKE = ROUND8_H5_SMOKE
+const ROUND10_H1_TIERS = ['offline-asr', 'recognition', 'recording', 'listen-only']
+const ROUND10_H1_MODES = ['recognition', 'recording', 'listen-only']
+
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -1751,6 +1760,86 @@ if (ROUND8_H5_SMOKE) {
     )
     return `降级档=${state.mode}；离线快捷回复可触发规则化回应`
   })
+}
+
+if (ROUND10_H1_SMOKE) {
+  await interact(
+    'ROUND10_H1：跟读 v3 —— 离线 ASR 四档降级，失败仍降录音档且不联网',
+    `/#${ROUND10_H1_SMOKE}`,
+    async (page) => {
+      await page.waitForSelector('.fr[data-tier]', { timeout: 8000 })
+      // 探测只读清单和本机缓存，等它落定再看，别把「正在查」当成结论
+      await page.waitForFunction(
+        () => !['unknown', 'checking'].includes(document.querySelector('.fr__pack')?.dataset.status),
+        { timeout: 8000 }
+      )
+
+      const opening = await page.evaluate(() => {
+        const fr = document.querySelector('.fr')
+        const pack = document.querySelector('.fr__pack')
+        const optIn = document.querySelector('.fr__opt input[type="checkbox"]')
+        return {
+          tier: fr?.dataset.tier ?? '',
+          mode: fr?.dataset.mode ?? '',
+          source: fr?.dataset.source ?? '',
+          status: pack?.dataset.status ?? '',
+          text: pack?.innerText.replace(/\s+/g, ' ').trim() ?? '',
+          optIn: optIn ? optIn.checked : false,
+          install: !!document.querySelector('.fr__pack-get')
+        }
+      })
+
+      if (!ROUND10_H1_TIERS.includes(opening.tier)) {
+        throw new Error(`跟读没有落在四档降级契约里：${opening.tier || '缺少 data-tier'}`)
+      }
+      if (!ROUND10_H1_MODES.includes(opening.mode)) {
+        throw new Error(`对外 mode 不再是三档：${opening.mode || '缺少 data-mode'}`)
+      }
+      const wantMode = opening.tier === 'offline-asr' ? 'recognition' : opening.tier
+      if (opening.mode !== wantMode) {
+        throw new Error(`第 ${opening.tier} 档映射成了 mode=${opening.mode}`)
+      }
+      if (!opening.source) throw new Error('结果来源没有标出来（缺少 data-source）')
+      if (opening.optIn) throw new Error('浏览器语音识别默认是开的，隐私默认被改坏了')
+      if (opening.status === 'ready') throw new Error('没人点下载，离线评测包却已经装上了')
+      if (!opening.install) throw new Error('没有「下载离线评测包」入口，家长无从选择')
+      if (!/不上传/.test(opening.text)) throw new Error(`离线评测包说明没有讲清去向：「${opening.text}」`)
+
+      // 装包失败要当场降回录音档：既不能卡住，也不能顺手改用可能联网的识别
+      const foreign = []
+      const origin = new URL(page.url()).origin
+      page.on('request', (request) => {
+        if (new URL(request.url()).origin !== origin) foreign.push(request.url())
+      })
+
+      await page.evaluate(() => document.querySelector('.fr__pack-get').click())
+      await page.waitForFunction(
+        () => document.querySelector('.fr__pack')?.dataset.status === 'failed',
+        { timeout: 8000 }
+      )
+
+      const after = await page.evaluate(() => {
+        const fr = document.querySelector('.fr')
+        const optIn = document.querySelector('.fr__opt input[type="checkbox"]')
+        return {
+          tier: fr?.dataset.tier ?? '',
+          mode: fr?.dataset.mode ?? '',
+          note: document.querySelector('.fr__pack-note')?.innerText.replace(/\s+/g, ' ').trim() ?? '',
+          optIn: optIn ? optIn.checked : false
+        }
+      })
+      if (after.tier === 'offline-asr') throw new Error('离线包没装上，却还停在离线档')
+      if (after.tier === 'recognition' && opening.tier !== 'recognition') {
+        throw new Error('离线包失败后自己切到了浏览器识别，违反「失败只降录音档」')
+      }
+      if (after.optIn) throw new Error('离线包失败后替家长打开了浏览器语音识别')
+      if (!ROUND10_H1_MODES.includes(after.mode)) throw new Error(`降级后 mode 不合法：${after.mode}`)
+      if (!after.note.includes('没装上')) throw new Error(`失败原因没有告诉家长：「${after.note}」`)
+      if (foreign.length) throw new Error(`离线评测包走了第三方地址：${foreign.slice(0, 2).join('、')}`)
+
+      return `四档=${opening.tier}（mode=${opening.mode}，来源=${opening.source}）；装包失败后降到 ${after.tier}，0 个跨源请求`
+    }
+  )
 }
 
 if (ROUND8_H2_SMOKE) {
