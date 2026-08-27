@@ -109,19 +109,22 @@ export const NOTE_HZ = {
 }
 
 /**
- * 按谱子逐音播放一段旋律，返回每个音相对开始时刻的毫秒偏移。
+ * 按谱子逐音播放一段旋律，返回每个音相对这段旋律开头的毫秒偏移。
  *
  * 返回时间表而不是逐音回调，是因为界面要做的是「唱到哪个字就高亮哪个字」：
  * 拿着这张表用一个定时器推进比给每个音挂回调稳得多，静音时（家长关了音效）
  * 时间表照样准确，高亮不会因此停摆。
  *
  * @param {string[]} notes 音名序列，不认识的音名当休止符跳过
- * @param {{bpm?: number, gain?: number, holdLast?: number}} [opts]
+ * @param {{bpm?: number, gain?: number, holdLast?: number, startAt?: number}} [opts]
  *        holdLast 收尾音的拍数，默认 2 拍——每句最后一个字拖长一点才像唱歌。
+ *        startAt  整段推迟多少毫秒再响。一首歌四句可以一次全排上，
+ *                 但第二句得等第一句唱完，忘了传就变成四句一起唱。
  * @returns {{offsets: number[], duration: number}} 逐音起始毫秒与总时长
  */
-export function playMelody(notes = [], { bpm = 96, gain = 0.06, holdLast = 2 } = {}) {
+export function playMelody(notes = [], { bpm = 96, gain = 0.06, holdLast = 2, startAt = 0 } = {}) {
   const beat = 60 / Math.min(200, Math.max(40, bpm))
+  const lead = Math.max(0, startAt) / 1000
   const offsets = []
   let at = 0
   notes.forEach((name, index) => {
@@ -129,12 +132,26 @@ export function playMelody(notes = [], { bpm = 96, gain = 0.06, holdLast = 2 } =
     const beats = last ? holdLast : 1
     const freq = NOTE_HZ[name]
     if (freq) {
-      tone({ freq, duration: beat * beats * 0.92, type: 'triangle', gain, delay: at })
+      tone({ freq, duration: beat * beats * 0.92, type: 'triangle', gain, delay: lead + at })
     }
     offsets.push(Math.round(at * 1000))
     at += beat * beats
   })
   return { offsets, duration: Math.round(at * 1000) }
+}
+
+/**
+ * 立刻掐掉所有已经排上队的声音。
+ *
+ * 音效都是零点几秒的，排完就响完，没人需要这个；儿歌不一样——一首歌十几秒
+ * 的音符是一次性排进 WebAudio 的时间轴的，不关掉整个上下文就停不下来。
+ * 下一次发声时 `audioCtx()` 会自己建一个新的，所以这里可以放心关。
+ */
+export function stopAllTones() {
+  if (!ctx) return
+  const dying = ctx
+  ctx = null
+  dying.close().catch(() => {})
 }
 
 export const sfx = {

@@ -19,7 +19,7 @@ import { useMascotCoach } from '@/composables/useMascotCoach.js'
 import { SONGS, SONG_THEMES, getSong, syllablesOfSongLine } from '@/data/songs.js'
 import { useProgressStore } from '@/stores/progress.js'
 import { useSettingsStore } from '@/stores/settings.js'
-import { playMelody, sfx, speak, cancelSpeech } from '@/utils/audio.js'
+import { cancelSpeech, playMelody, sfx, speak, stopAllTones } from '@/utils/audio.js'
 
 const props = defineProps({ id: { type: String, default: '' } })
 
@@ -73,11 +73,7 @@ const open = computed(() => (openId.value ? getSong(openId.value) : null))
 /** 展开的那首歌逐句逐字摊平，模板直接渲染，不在模板里算。 */
 const sheet = computed(() =>
   open.value
-    ? open.value.lines.map((line, index) => ({
-        index,
-        text: line.text,
-        cells: syllablesOfSongLine(line)
-      }))
+    ? open.value.lines.map((line, index) => ({ index, cells: syllablesOfSongLine(line) }))
     : []
 )
 
@@ -87,6 +83,8 @@ const suggestion = computed(() => list.value.find((s) => !s.sung) ?? list.value[
 function stop({ quiet = false } = {}) {
   clearTimers()
   cancelSpeech()
+  // 整首歌的音符是一次排进时间轴的，清定时器只停得住高亮，停不住声音。
+  stopAllTones()
   mode.value = ''
   activeLine.value = -1
   activeChar.value = -1
@@ -122,8 +120,8 @@ function sing() {
 
   let at = 0
   song.lines.forEach((line, lineIndex) => {
-    const { offsets, duration } = playMelody(line.notes, { bpm: song.bpm })
     const lineStart = at
+    const { offsets, duration } = playMelody(line.notes, { bpm: song.bpm, startAt: lineStart })
     later(() => {
       activeLine.value = lineIndex
       activeChar.value = 0
