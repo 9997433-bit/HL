@@ -1275,9 +1275,15 @@ await interact('徽章：学会第一个字就点亮，首页与家长中心都�
   })
   await new Promise((r) => setTimeout(r, 700))
 
-  const stored = await page.evaluate(
-    () => Object.keys(JSON.parse(localStorage.getItem('happy-literacy:v1') ?? '{}').badges ?? {})
-  )
+  // 徽章是单字页加载完详情包之后才落的账，机器忙的时候这一步会晚几百毫秒；
+  // 等到存档里出现它再读，读不到就等满 5 秒，照样按「没解锁」报出来
+  const badgesOf = () =>
+    Object.keys(JSON.parse(localStorage.getItem('happy-literacy:v1') ?? '{}').badges ?? {})
+  await page
+    .waitForFunction(`(${badgesOf.toString()})().includes('first-step')`, { timeout: 5000 })
+    .catch(() => {})
+
+  const stored = await page.evaluate(badgesOf)
   if (!stored.includes('first-step')) {
     throw new Error(`学会第一个字后没有解锁「启蒙芽」，存档里只有：${stored.join('、') || '空'}`)
   }
@@ -1379,6 +1385,18 @@ await interact('学伴：核心路由常驻，点一下换鼓励语并朗读', '
     await page.waitForSelector('.mascot-dock button', { timeout: 8000 })
     // 路由切换有淡入淡出，太早点会点在正在离场的那一只身上
     await new Promise((r) => setTimeout(r, 700))
+    // 学伴入场是 scale(.6) → 1 的 600 ms 动画。机器忙的时候这一段会被拖长，
+    // 量到的就是缩着的那一帧（72px × .6 = 43px），命中区白白判红。
+    // 等它长到位再量；真的长不到 44px 就等满 5 秒，照样按不合格报出来。
+    await page
+      .waitForFunction(
+        () => {
+          const box = document.querySelector('.mascot-dock button')?.getBoundingClientRect()
+          return box && Math.round(Math.min(box.width, box.height)) >= 44
+        },
+        { timeout: 5000 }
+      )
+      .catch(() => {})
 
     const before = await page.evaluate(() => {
       // 朗读在无头环境里没有嗓音，换成记录调用，验的是「点了会说话」这条线
