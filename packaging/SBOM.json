@@ -1,0 +1,404 @@
+{
+  "spdxVersion": "SPDX-2.3",
+  "dataLicense": "CC0-1.0",
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "name": "audio-studio-0.1.0-linux-build-environment",
+  "documentNamespace": "https://audio-studio.invalid/spdx/90067a5b-5aa0-4399-b36b-a72517697552",
+  "creationInfo": {
+    "created": "2026-08-27T03:56:18Z",
+    "creators": [
+      "Tool: tools/generate_sbom.py"
+    ],
+    "licenseListVersion": "3.24"
+  },
+  "comment": "Generated from the build virtualenv (audio-studio/.venv); written even when the desktop bundle itself failed to build. The bundle-scoped BOM is .agent_workspace/v1.1/linux-sbom.json.",
+  "packages": [
+    {
+      "SPDXID": "SPDXRef-Package-altgraph",
+      "name": "altgraph",
+      "versionInfo": "0.17.5",
+      "downloadLocation": "https://pypi.org/project/altgraph/0.17.5/",
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "supplier": "NOASSERTION",
+      "filesAnalyzed": false,
+      "comment": "audio-studio profile: installer"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-ast-serialize",
+      "name": "ast-serialize",
+      "versionInfo": "0.8.0",
+      "downloadLocation": "https://pypi.org/project/ast-serialize/0.8.0/",
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "supplier": "NOASSERTION",
+      "filesAnalyzed": false,
+      "comment": "audio-studio profile: environment"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-audio-studio",
+      "name": "audio-studio",
+      "versionInfo": "0.1.0",
+      "downloadLocation": "https://pypi.org/project/audio-studio/0.1.0/",
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "supplier": "NOASSERTION",
+      "filesAnalyzed": false,
+      "comment": "audio-studio profile: application"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-cffi",
+      "name": "cffi",
+      "versionInfo": "2.1.1",
+      "downloadLocation": "https://pypi.org/project/cffi/2.1.1/",
+      "licenseConcluded": "MIT-0",
+      "licenseDeclared": "MIT-0",
+      "supplier": "NOASSERTION",
+      "filesAnalyzed": false,
+      "comment": "audio-studio profile: default"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-iniconfig",
+      "name": "iniconfig",
+      "versionInfo": "2.3.0",
+      "downloadLocation": "https://pypi.org/project/iniconfig/2.3.0/",
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "supplier": "NOASSERTION",
+      "filesAnalyzed": false,
+      "comment": "audio-studio profile: dev"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-librt",
+      "name": "librt",
+      "versionInfo": "0.15.0",
+      "downloadLocation": "https://pypi.org/project/librt/0.15.0/",
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "supplier": "NOASSERTION",
+      "filesAnalyzed": false,
+      "comment": "audio-studio profile: environment"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-mypy",
+      "name": "mypy",
+      "versionInfo": "2.3.1",
+      "downloadLocation": "https://pypi.org/project/mypy/2.3.1/",
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "supplier": "NOASSERTION",
+      "filesAnalyzed": false,
+      "comment": "audio-studio profile: dev"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-mypy-extensions",
+      "name": "mypy-extensions",
+      "versionInfo": "1.1.0",
+      "downloadLocation": "https://pypi.org/project/mypy-extensions/1.1.0/",
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "supplier": "NOASSERTION",
+      "filesAnalyzed": false,
+      "comment": "audio-studio profile: dev"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-numpy",
+      "name": "numpy",
+      "versionInfo": "2.5.2",
+      "downloadLocation": "https://pypi.org/project/numpy/2.5.2/",
+      "licenseConcluded": "BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0",
+      "licenseDeclared": "BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0",
+      "supplier": "NOASSERTION",
+      "filesAnalyzed": false,
+      "comment": "audio-studio profile: default"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-packaging",
+      "name": "packaging",
+      "versionInfo": "26.3",
+      "downloadLocation": "https://pypi.org/project/packaging/26.3/",
+      "licenseConcluded": "Apache-2.0 OR BSD-2-Clause",
+      "licenseDeclared": "Apache-2.0 OR BSD-2-Clause",
+      "supplier": "NOASSERTION",
+      "filesAnalyzed": false,
+      "comment": "audio-studio profile: build-tooling"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pathspec",
+      "name": "pathspec",
+      "versionInfo": "1.1.1",
+      "downloadLocation": "https://pypi.org/project/pathspec/1.1.1/",
+      "licenseConcluded": "MPL-2.0",
+      "licenseDeclared": "MPL-2.0",
+      "supplier": "NOASSERTION",
+      "filesAnalyzed": false,
+      "comment": "audio-studio profile: dev"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pip",
+      "name": "pip",
+      "versionInfo": "24.0",
+      "downloadLocation": "https://pypi.org/project/pip/24.0/",
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "supplier": "NOASSERTION",
+      "filesAnalyzed": false,
+      "comment": "audio-studio profile: build-tooling"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pluggy",
+      "name": "pluggy",
+      "versionInfo": "1.6.0",
+      "downloadLocation": "https://pypi.org/project/pluggy/1.6.0/",
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "supplier": "NOASSERTION",
+      "filesAnalyzed": false,
+      "comment": "audio-studio profile: dev"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pyaudio",
+      "name": "pyaudio",
+      "versionInfo": "0.2.14",
+      "downloadLocation": "https://pypi.org/project/pyaudio/0.2.14/",
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "supplier": "NOASSERTION",
+      "filesAnalyzed": false,
+      "comment": "audio-studio profile: audio"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pycparser",
+      "name": "pycparser",
+      "versionInfo": "3.0",
+      "downloadLocation": "https://pypi.org/project/pycparser/3.0/",
+      "licenseConcluded": "BSD-3-Clause",
+      "licenseDeclared": "BSD-3-Clause",
+      "supplier": "NOASSERTION",
+      "filesAnalyzed": false,
+      "comment": "audio-studio profile: default"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pygments",
+      "name": "pygments",
+      "versionInfo": "2.21.0",
+      "downloadLocation": "https://pypi.org/project/pygments/2.21.0/",
+      "licenseConcluded": "BSD-2-Clause",
+      "licenseDeclared": "BSD-2-Clause",
+      "supplier": "NOASSERTION",
+      "filesAnalyzed": false,
+      "comment": "audio-studio profile: dev"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pyinstaller",
+      "name": "pyinstaller",
+      "versionInfo": "6.22.2",
+      "downloadLocation": "https://pypi.org/project/pyinstaller/6.22.2/",
+      "licenseConcluded": "GPL-2.0-or-later WITH Bootloader-exception",
+      "licenseDeclared": "GPL-2.0-or-later WITH Bootloader-exception",
+      "supplier": "NOASSERTION",
+      "filesAnalyzed": false,
+      "comment": "audio-studio profile: installer"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pyinstaller-hooks-contrib",
+      "name": "pyinstaller-hooks-contrib",
+      "versionInfo": "2026.7",
+      "downloadLocation": "https://pypi.org/project/pyinstaller-hooks-contrib/2026.7/",
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "supplier": "NOASSERTION",
+      "filesAnalyzed": false,
+      "comment": "audio-studio profile: installer"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pyside6-essentials",
+      "name": "pyside6-essentials",
+      "versionInfo": "6.11.2",
+      "downloadLocation": "https://pypi.org/project/pyside6-essentials/6.11.2/",
+      "licenseConcluded": "LGPL-3.0-only",
+      "licenseDeclared": "LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only",
+      "supplier": "NOASSERTION",
+      "filesAnalyzed": false,
+      "comment": "audio-studio profile: default"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pytest",
+      "name": "pytest",
+      "versionInfo": "9.1.1",
+      "downloadLocation": "https://pypi.org/project/pytest/9.1.1/",
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "supplier": "NOASSERTION",
+      "filesAnalyzed": false,
+      "comment": "audio-studio profile: dev"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pytest-qt",
+      "name": "pytest-qt",
+      "versionInfo": "4.5.0",
+      "downloadLocation": "https://pypi.org/project/pytest-qt/4.5.0/",
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "supplier": "NOASSERTION",
+      "filesAnalyzed": false,
+      "comment": "audio-studio profile: dev"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pyyaml",
+      "name": "pyyaml",
+      "versionInfo": "6.0.3",
+      "downloadLocation": "https://pypi.org/project/pyyaml/6.0.3/",
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "supplier": "NOASSERTION",
+      "filesAnalyzed": false,
+      "comment": "audio-studio profile: environment"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-ruff",
+      "name": "ruff",
+      "versionInfo": "0.16.4",
+      "downloadLocation": "https://pypi.org/project/ruff/0.16.4/",
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "supplier": "NOASSERTION",
+      "filesAnalyzed": false,
+      "comment": "audio-studio profile: dev"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-scipy",
+      "name": "scipy",
+      "versionInfo": "1.18.1",
+      "downloadLocation": "https://pypi.org/project/scipy/1.18.1/",
+      "licenseConcluded": "BSD-3-Clause",
+      "licenseDeclared": "BSD-3-Clause",
+      "supplier": "NOASSERTION",
+      "filesAnalyzed": false,
+      "comment": "audio-studio profile: default"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-setuptools",
+      "name": "setuptools",
+      "versionInfo": "84.0.0",
+      "downloadLocation": "https://pypi.org/project/setuptools/84.0.0/",
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "supplier": "NOASSERTION",
+      "filesAnalyzed": false,
+      "comment": "audio-studio profile: build-tooling"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-shiboken6",
+      "name": "shiboken6",
+      "versionInfo": "6.11.2",
+      "downloadLocation": "https://pypi.org/project/shiboken6/6.11.2/",
+      "licenseConcluded": "LGPL-3.0-only",
+      "licenseDeclared": "LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only",
+      "supplier": "NOASSERTION",
+      "filesAnalyzed": false,
+      "comment": "audio-studio profile: default"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-sounddevice",
+      "name": "sounddevice",
+      "versionInfo": "0.5.6",
+      "downloadLocation": "https://pypi.org/project/sounddevice/0.5.6/",
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "supplier": "NOASSERTION",
+      "filesAnalyzed": false,
+      "comment": "audio-studio profile: audio"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-soundfile",
+      "name": "soundfile",
+      "versionInfo": "0.14.0",
+      "downloadLocation": "https://pypi.org/project/soundfile/0.14.0/",
+      "licenseConcluded": "BSD 3-Clause License",
+      "licenseDeclared": "BSD 3-Clause License",
+      "supplier": "NOASSERTION",
+      "filesAnalyzed": false,
+      "comment": "audio-studio profile: default"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-soxr",
+      "name": "soxr",
+      "versionInfo": "1.1.0",
+      "downloadLocation": "https://pypi.org/project/soxr/1.1.0/",
+      "licenseConcluded": "LGPL-2.1-or-later",
+      "licenseDeclared": "LGPL-2.1-or-later",
+      "supplier": "NOASSERTION",
+      "filesAnalyzed": false,
+      "comment": "audio-studio profile: mastering"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-typing-extensions",
+      "name": "typing-extensions",
+      "versionInfo": "4.16.0",
+      "downloadLocation": "https://pypi.org/project/typing-extensions/4.16.0/",
+      "licenseConcluded": "PSF-2.0",
+      "licenseDeclared": "PSF-2.0",
+      "supplier": "NOASSERTION",
+      "filesAnalyzed": false,
+      "comment": "audio-studio profile: dev"
+    }
+  ],
+  "relationships": [
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relationshipType": "DESCRIBES",
+      "relatedSpdxElement": "SPDXRef-Package-audio-studio"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-audio-studio",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-cffi"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-audio-studio",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-numpy"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-audio-studio",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-pyaudio"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-audio-studio",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-pycparser"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-audio-studio",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-pyside6-essentials"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-audio-studio",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-scipy"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-audio-studio",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-shiboken6"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-audio-studio",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-sounddevice"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-audio-studio",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-soundfile"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-audio-studio",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-soxr"
+    }
+  ]
+}

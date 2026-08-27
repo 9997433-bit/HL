@@ -1,0 +1,996 @@
+{
+  "schema_version": 1,
+  "artifact": "linux-build-report",
+  "generated_by": "tools/generate_sbom.py",
+  "generated_at": "2026-08-27T03:56:18Z",
+  "status": "pass",
+  "build": {
+    "script": "scripts/build-linux.sh",
+    "spec": "packaging/pyinstaller.spec",
+    "python_version": "3.12.3",
+    "platform": "Linux-6.12.94+-x86_64-with-glibc2.39",
+    "machine": "x86_64"
+  },
+  "bundle": {
+    "present": true,
+    "path": "dist/audio-studio",
+    "launcher_sha256": "af6deb4f088980d04e21ad512fdc33e8ace6e0eb771d4ae00f7beafbe9735e2e",
+    "launcher_bytes": 10942280,
+    "total_bytes": 428452535,
+    "file_count": 454,
+    "qt_shared_libraries": [
+      "_internal/PySide6/Qt/lib/libQt6Core.so.6",
+      "_internal/PySide6/libpyside6.abi3.so.6.11",
+      "_internal/libQt6Core.so.6",
+      "_internal/libpyside6.abi3.so.6.11"
+    ],
+    "license_notices_present": {
+      "THIRD_PARTY_LICENSES.md": true,
+      "LGPL-RELINKING.txt": true
+    },
+    "pedalboard_artifacts": [],
+    "native_libraries": [
+      {
+        "soname": "_cffi_backend.cpython-312-x86_64-linux-gnu.so",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/_cffi_backend.cpython-312-x86_64-linux-gnu.so"
+        ]
+      },
+      {
+        "soname": "libQt6Core.so.6",
+        "license": "LGPL-3.0-only",
+        "paths": [
+          "_internal/PySide6/Qt/lib/libQt6Core.so.6",
+          "_internal/libQt6Core.so.6"
+        ]
+      },
+      {
+        "soname": "libQt6DBus.so.6",
+        "license": "LGPL-3.0-only",
+        "paths": [
+          "_internal/PySide6/Qt/lib/libQt6DBus.so.6",
+          "_internal/libQt6DBus.so.6"
+        ]
+      },
+      {
+        "soname": "libQt6EglFSDeviceIntegration.so.6",
+        "license": "LGPL-3.0-only",
+        "paths": [
+          "_internal/PySide6/Qt/lib/libQt6EglFSDeviceIntegration.so.6",
+          "_internal/libQt6EglFSDeviceIntegration.so.6"
+        ]
+      },
+      {
+        "soname": "libQt6EglFsKmsSupport.so.6",
+        "license": "LGPL-3.0-only",
+        "paths": [
+          "_internal/PySide6/Qt/lib/libQt6EglFsKmsSupport.so.6",
+          "_internal/libQt6EglFsKmsSupport.so.6"
+        ]
+      },
+      {
+        "soname": "libQt6Gui.so.6",
+        "license": "LGPL-3.0-only",
+        "paths": [
+          "_internal/PySide6/Qt/lib/libQt6Gui.so.6",
+          "_internal/libQt6Gui.so.6"
+        ]
+      },
+      {
+        "soname": "libQt6Network.so.6",
+        "license": "LGPL-3.0-only",
+        "paths": [
+          "_internal/PySide6/Qt/lib/libQt6Network.so.6",
+          "_internal/libQt6Network.so.6"
+        ]
+      },
+      {
+        "soname": "libQt6OpenGL.so.6",
+        "license": "LGPL-3.0-only",
+        "paths": [
+          "_internal/PySide6/Qt/lib/libQt6OpenGL.so.6",
+          "_internal/libQt6OpenGL.so.6"
+        ]
+      },
+      {
+        "soname": "libQt6Svg.so.6",
+        "license": "LGPL-3.0-only",
+        "paths": [
+          "_internal/PySide6/Qt/lib/libQt6Svg.so.6",
+          "_internal/libQt6Svg.so.6"
+        ]
+      },
+      {
+        "soname": "libQt6WaylandClient.so.6",
+        "license": "LGPL-3.0-only",
+        "paths": [
+          "_internal/PySide6/Qt/lib/libQt6WaylandClient.so.6",
+          "_internal/libQt6WaylandClient.so.6"
+        ]
+      },
+      {
+        "soname": "libQt6Widgets.so.6",
+        "license": "LGPL-3.0-only",
+        "paths": [
+          "_internal/PySide6/Qt/lib/libQt6Widgets.so.6",
+          "_internal/libQt6Widgets.so.6"
+        ]
+      },
+      {
+        "soname": "libQt6WlShellIntegration.so.6",
+        "license": "LGPL-3.0-only",
+        "paths": [
+          "_internal/PySide6/Qt/lib/libQt6WlShellIntegration.so.6",
+          "_internal/libQt6WlShellIntegration.so.6"
+        ]
+      },
+      {
+        "soname": "libQt6XcbQpa.so.6",
+        "license": "LGPL-3.0-only",
+        "paths": [
+          "_internal/PySide6/Qt/lib/libQt6XcbQpa.so.6",
+          "_internal/libQt6XcbQpa.so.6"
+        ]
+      },
+      {
+        "soname": "libX11-xcb.so.1",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libX11-xcb.so.1"
+        ]
+      },
+      {
+        "soname": "libX11.so.6",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libX11.so.6"
+        ]
+      },
+      {
+        "soname": "libXau.so.6",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libXau.so.6"
+        ]
+      },
+      {
+        "soname": "libXcomposite.so.1",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libXcomposite.so.1"
+        ]
+      },
+      {
+        "soname": "libXcursor.so.1",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libXcursor.so.1"
+        ]
+      },
+      {
+        "soname": "libXdamage.so.1",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libXdamage.so.1"
+        ]
+      },
+      {
+        "soname": "libXdmcp.so.6",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libXdmcp.so.6"
+        ]
+      },
+      {
+        "soname": "libXext.so.6",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libXext.so.6"
+        ]
+      },
+      {
+        "soname": "libXfixes.so.3",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libXfixes.so.3"
+        ]
+      },
+      {
+        "soname": "libXi.so.6",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libXi.so.6"
+        ]
+      },
+      {
+        "soname": "libXinerama.so.1",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libXinerama.so.1"
+        ]
+      },
+      {
+        "soname": "libXrandr.so.2",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libXrandr.so.2"
+        ]
+      },
+      {
+        "soname": "libXrender.so.1",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libXrender.so.1"
+        ]
+      },
+      {
+        "soname": "libasound.so.2",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libasound.so.2"
+        ]
+      },
+      {
+        "soname": "libatk-1.0.so.0",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libatk-1.0.so.0"
+        ]
+      },
+      {
+        "soname": "libatk-bridge-2.0.so.0",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libatk-bridge-2.0.so.0"
+        ]
+      },
+      {
+        "soname": "libatspi.so.0",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libatspi.so.0"
+        ]
+      },
+      {
+        "soname": "libblkid.so.1",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libblkid.so.1"
+        ]
+      },
+      {
+        "soname": "libbrotlicommon.so.1",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libbrotlicommon.so.1"
+        ]
+      },
+      {
+        "soname": "libbrotlidec.so.1",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libbrotlidec.so.1"
+        ]
+      },
+      {
+        "soname": "libbsd.so.0",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libbsd.so.0"
+        ]
+      },
+      {
+        "soname": "libbz2.so.1.0",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libbz2.so.1.0"
+        ]
+      },
+      {
+        "soname": "libcairo-gobject.so.2",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libcairo-gobject.so.2"
+        ]
+      },
+      {
+        "soname": "libcairo.so.2",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libcairo.so.2"
+        ]
+      },
+      {
+        "soname": "libcap.so.2",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libcap.so.2"
+        ]
+      },
+      {
+        "soname": "libcom_err.so.2",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libcom_err.so.2"
+        ]
+      },
+      {
+        "soname": "libcrypto.so.3",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libcrypto.so.3"
+        ]
+      },
+      {
+        "soname": "libdatrie.so.1",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libdatrie.so.1"
+        ]
+      },
+      {
+        "soname": "libdb-5.3.so",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libdb-5.3.so"
+        ]
+      },
+      {
+        "soname": "libdbus-1.so.3",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libdbus-1.so.3"
+        ]
+      },
+      {
+        "soname": "libepoxy.so.0",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libepoxy.so.0"
+        ]
+      },
+      {
+        "soname": "libexpat.so.1",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libexpat.so.1"
+        ]
+      },
+      {
+        "soname": "libffi.so.8",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libffi.so.8"
+        ]
+      },
+      {
+        "soname": "libfontconfig.so.1",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libfontconfig.so.1"
+        ]
+      },
+      {
+        "soname": "libfreetype.so.6",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libfreetype.so.6"
+        ]
+      },
+      {
+        "soname": "libfribidi.so.0",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libfribidi.so.0"
+        ]
+      },
+      {
+        "soname": "libgcc_s.so.1",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libgcc_s.so.1"
+        ]
+      },
+      {
+        "soname": "libgcrypt.so.20",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libgcrypt.so.20"
+        ]
+      },
+      {
+        "soname": "libgdk-3.so.0",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libgdk-3.so.0"
+        ]
+      },
+      {
+        "soname": "libgdk_pixbuf-2.0.so.0",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libgdk_pixbuf-2.0.so.0"
+        ]
+      },
+      {
+        "soname": "libgfortran-040039e1-0352e75f.so.5.0.0",
+        "license": "GPL-3.0-or-later WITH GCC-exception-3.1",
+        "paths": [
+          "_internal/libgfortran-040039e1-0352e75f.so.5.0.0",
+          "_internal/scipy.libs/libgfortran-040039e1-0352e75f.so.5.0.0"
+        ]
+      },
+      {
+        "soname": "libgfortran-83c28eba-468e71e5.so.5.0.0",
+        "license": "GPL-3.0-or-later WITH GCC-exception-3.1",
+        "paths": [
+          "_internal/libgfortran-83c28eba-468e71e5.so.5.0.0",
+          "_internal/numpy.libs/libgfortran-83c28eba-468e71e5.so.5.0.0"
+        ]
+      },
+      {
+        "soname": "libgfortran-83c28eba.so.5.0.0",
+        "license": "GPL-3.0-or-later WITH GCC-exception-3.1",
+        "paths": [
+          "_internal/libgfortran-83c28eba.so.5.0.0",
+          "_internal/scipy.libs/libgfortran-83c28eba.so.5.0.0"
+        ]
+      },
+      {
+        "soname": "libgio-2.0.so.0",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libgio-2.0.so.0"
+        ]
+      },
+      {
+        "soname": "libglib-2.0.so.0",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libglib-2.0.so.0"
+        ]
+      },
+      {
+        "soname": "libgmodule-2.0.so.0",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libgmodule-2.0.so.0"
+        ]
+      },
+      {
+        "soname": "libgobject-2.0.so.0",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libgobject-2.0.so.0"
+        ]
+      },
+      {
+        "soname": "libgpg-error.so.0",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libgpg-error.so.0"
+        ]
+      },
+      {
+        "soname": "libgraphite2.so.3",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libgraphite2.so.3"
+        ]
+      },
+      {
+        "soname": "libgssapi_krb5.so.2",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libgssapi_krb5.so.2"
+        ]
+      },
+      {
+        "soname": "libgthread-2.0.so.0",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libgthread-2.0.so.0"
+        ]
+      },
+      {
+        "soname": "libgtk-3.so.0",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libgtk-3.so.0"
+        ]
+      },
+      {
+        "soname": "libharfbuzz.so.0",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libharfbuzz.so.0"
+        ]
+      },
+      {
+        "soname": "libicudata.so.73",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/PySide6/Qt/lib/libicudata.so.73",
+          "_internal/libicudata.so.73"
+        ]
+      },
+      {
+        "soname": "libicui18n.so.73",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/PySide6/Qt/lib/libicui18n.so.73",
+          "_internal/libicui18n.so.73"
+        ]
+      },
+      {
+        "soname": "libicuuc.so.73",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/PySide6/Qt/lib/libicuuc.so.73",
+          "_internal/libicuuc.so.73"
+        ]
+      },
+      {
+        "soname": "libjack.so.0",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libjack.so.0"
+        ]
+      },
+      {
+        "soname": "libjpeg.so.8",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libjpeg.so.8"
+        ]
+      },
+      {
+        "soname": "libk5crypto.so.3",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libk5crypto.so.3"
+        ]
+      },
+      {
+        "soname": "libkeyutils.so.1",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libkeyutils.so.1"
+        ]
+      },
+      {
+        "soname": "libkrb5.so.3",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libkrb5.so.3"
+        ]
+      },
+      {
+        "soname": "libkrb5support.so.0",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libkrb5support.so.0"
+        ]
+      },
+      {
+        "soname": "liblz4.so.1",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/liblz4.so.1"
+        ]
+      },
+      {
+        "soname": "liblzma.so.5",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/liblzma.so.5"
+        ]
+      },
+      {
+        "soname": "libmd.so.0",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libmd.so.0"
+        ]
+      },
+      {
+        "soname": "libmount.so.1",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libmount.so.1"
+        ]
+      },
+      {
+        "soname": "libmvec.so.1",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libmvec.so.1"
+        ]
+      },
+      {
+        "soname": "libpango-1.0.so.0",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libpango-1.0.so.0"
+        ]
+      },
+      {
+        "soname": "libpangocairo-1.0.so.0",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libpangocairo-1.0.so.0"
+        ]
+      },
+      {
+        "soname": "libpangoft2-1.0.so.0",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libpangoft2-1.0.so.0"
+        ]
+      },
+      {
+        "soname": "libpcre2-8.so.0",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libpcre2-8.so.0"
+        ]
+      },
+      {
+        "soname": "libpixman-1.so.0",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libpixman-1.so.0"
+        ]
+      },
+      {
+        "soname": "libpng16.so.16",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libpng16.so.16"
+        ]
+      },
+      {
+        "soname": "libportaudio.so.2",
+        "license": "MIT",
+        "paths": [
+          "_internal/libportaudio.so.2"
+        ]
+      },
+      {
+        "soname": "libpyside6.abi3.so.6.11",
+        "license": "LGPL-3.0-only",
+        "paths": [
+          "_internal/libpyside6.abi3.so.6.11"
+        ]
+      },
+      {
+        "soname": "libpython3.12.so.1.0",
+        "license": "PSF-2.0",
+        "paths": [
+          "_internal/libpython3.12.so.1.0"
+        ]
+      },
+      {
+        "soname": "libquadmath-2284e583-a9307bba.so.0.0.0",
+        "license": "LGPL-2.1-or-later",
+        "paths": [
+          "_internal/libquadmath-2284e583-a9307bba.so.0.0.0",
+          "_internal/numpy.libs/libquadmath-2284e583-a9307bba.so.0.0.0"
+        ]
+      },
+      {
+        "soname": "libquadmath-2284e583.so.0.0.0",
+        "license": "LGPL-2.1-or-later",
+        "paths": [
+          "_internal/libquadmath-2284e583.so.0.0.0",
+          "_internal/scipy.libs/libquadmath-2284e583.so.0.0.0"
+        ]
+      },
+      {
+        "soname": "libquadmath-96973f99-934c22de.so.0.0.0",
+        "license": "LGPL-2.1-or-later",
+        "paths": [
+          "_internal/libquadmath-96973f99-934c22de.so.0.0.0",
+          "_internal/scipy.libs/libquadmath-96973f99-934c22de.so.0.0.0"
+        ]
+      },
+      {
+        "soname": "libreadline.so.8",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libreadline.so.8"
+        ]
+      },
+      {
+        "soname": "libscipy_openblas-5f890258.so",
+        "license": "BSD-3-Clause",
+        "paths": [
+          "_internal/libscipy_openblas-5f890258.so",
+          "_internal/scipy.libs/libscipy_openblas-5f890258.so"
+        ]
+      },
+      {
+        "soname": "libscipy_openblas64_-61654e39.so",
+        "license": "BSD-3-Clause",
+        "paths": [
+          "_internal/libscipy_openblas64_-61654e39.so",
+          "_internal/numpy.libs/libscipy_openblas64_-61654e39.so"
+        ]
+      },
+      {
+        "soname": "libselinux.so.1",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libselinux.so.1"
+        ]
+      },
+      {
+        "soname": "libshiboken6.abi3.so.6.11",
+        "license": "LGPL-3.0-only",
+        "paths": [
+          "_internal/libshiboken6.abi3.so.6.11"
+        ]
+      },
+      {
+        "soname": "libsndfile_x86_64.so",
+        "license": "LGPL-2.1-or-later",
+        "paths": [
+          "_internal/_soundfile_data/libsndfile_x86_64.so"
+        ]
+      },
+      {
+        "soname": "libssl.so.3",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libssl.so.3"
+        ]
+      },
+      {
+        "soname": "libstdc++.so.6",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libstdc++.so.6"
+        ]
+      },
+      {
+        "soname": "libsystemd.so.0",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libsystemd.so.0"
+        ]
+      },
+      {
+        "soname": "libthai.so.0",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libthai.so.0"
+        ]
+      },
+      {
+        "soname": "libtinfo.so.6",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libtinfo.so.6"
+        ]
+      },
+      {
+        "soname": "libxcb-cursor.so.0",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libxcb-cursor.so.0"
+        ]
+      },
+      {
+        "soname": "libxcb-glx.so.0",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libxcb-glx.so.0"
+        ]
+      },
+      {
+        "soname": "libxcb-icccm.so.4",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libxcb-icccm.so.4"
+        ]
+      },
+      {
+        "soname": "libxcb-image.so.0",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libxcb-image.so.0"
+        ]
+      },
+      {
+        "soname": "libxcb-keysyms.so.1",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libxcb-keysyms.so.1"
+        ]
+      },
+      {
+        "soname": "libxcb-randr.so.0",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libxcb-randr.so.0"
+        ]
+      },
+      {
+        "soname": "libxcb-render-util.so.0",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libxcb-render-util.so.0"
+        ]
+      },
+      {
+        "soname": "libxcb-render.so.0",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libxcb-render.so.0"
+        ]
+      },
+      {
+        "soname": "libxcb-shape.so.0",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libxcb-shape.so.0"
+        ]
+      },
+      {
+        "soname": "libxcb-shm.so.0",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libxcb-shm.so.0"
+        ]
+      },
+      {
+        "soname": "libxcb-sync.so.1",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libxcb-sync.so.1"
+        ]
+      },
+      {
+        "soname": "libxcb-util.so.1",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libxcb-util.so.1"
+        ]
+      },
+      {
+        "soname": "libxcb-xfixes.so.0",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libxcb-xfixes.so.0"
+        ]
+      },
+      {
+        "soname": "libxcb-xkb.so.1",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libxcb-xkb.so.1"
+        ]
+      },
+      {
+        "soname": "libxkbcommon-x11.so.0",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libxkbcommon-x11.so.0"
+        ]
+      },
+      {
+        "soname": "libxkbcommon.so.0",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libxkbcommon.so.0"
+        ]
+      },
+      {
+        "soname": "libz.so.1",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libz.so.1"
+        ]
+      },
+      {
+        "soname": "libzstd.so.1",
+        "license": "NOASSERTION",
+        "paths": [
+          "_internal/libzstd.so.1"
+        ]
+      }
+    ]
+  },
+  "bundled_python_distributions": [
+    {
+      "name": "audio-studio",
+      "version": "0.1.0",
+      "profile": "application"
+    },
+    {
+      "name": "cffi",
+      "version": "2.1.1",
+      "profile": "default"
+    },
+    {
+      "name": "numpy",
+      "version": "2.5.2",
+      "profile": "default"
+    },
+    {
+      "name": "packaging",
+      "version": "26.3",
+      "profile": "build-tooling"
+    },
+    {
+      "name": "pyaudio",
+      "version": "0.2.14",
+      "profile": "audio"
+    },
+    {
+      "name": "pycparser",
+      "version": "3.0",
+      "profile": "default"
+    },
+    {
+      "name": "pyside6-essentials",
+      "version": "6.11.2",
+      "profile": "default"
+    },
+    {
+      "name": "pyyaml",
+      "version": "6.0.3",
+      "profile": "environment"
+    },
+    {
+      "name": "scipy",
+      "version": "1.18.1",
+      "profile": "default"
+    },
+    {
+      "name": "setuptools",
+      "version": "84.0.0",
+      "profile": "build-tooling"
+    },
+    {
+      "name": "shiboken6",
+      "version": "6.11.2",
+      "profile": "default"
+    },
+    {
+      "name": "sounddevice",
+      "version": "0.5.6",
+      "profile": "audio"
+    },
+    {
+      "name": "soundfile",
+      "version": "0.14.0",
+      "profile": "default"
+    },
+    {
+      "name": "soxr",
+      "version": "1.1.0",
+      "profile": "mastering"
+    },
+    {
+      "name": "typing-extensions",
+      "version": "4.16.0",
+      "profile": "dev"
+    }
+  ],
+  "checks": {
+    "bundle_present": true,
+    "launcher_hashed": true,
+    "qt_libraries_replaceable": true,
+    "license_notices_shipped": true,
+    "no_pedalboard_artifacts": true,
+    "no_forbidden_distributions_bundled": true,
+    "no_gpl_in_default_profile": true
+  },
+  "sbom_outputs": {
+    "cyclonedx": ".agent_workspace/v1.1/linux-sbom.json",
+    "spdx": "packaging/SBOM.json",
+    "build_report": ".agent_workspace/v1.1/linux-build-report.json"
+  }
+}

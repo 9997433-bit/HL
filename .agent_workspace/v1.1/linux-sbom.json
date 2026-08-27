@@ -1,0 +1,4897 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "serialNumber": "urn:uuid:40dec96b-d4a0-417a-92b6-2b0f96ea7ff2",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-08-27T03:56:18Z",
+    "tools": [
+      {
+        "vendor": "audio-studio",
+        "name": "tools/generate_sbom.py",
+        "version": "1.0"
+      }
+    ],
+    "component": {
+      "type": "application",
+      "bom-ref": "pkg:pypi/audio-studio@0.1.0",
+      "name": "audio-studio",
+      "version": "0.1.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "purl": "pkg:pypi/audio-studio@0.1.0"
+    },
+    "properties": [
+      {
+        "name": "audio-studio:schema-version",
+        "value": "1"
+      },
+      {
+        "name": "audio-studio:platform",
+        "value": "Linux-6.12.94+-x86_64-with-glibc2.39"
+      },
+      {
+        "name": "audio-studio:build-python",
+        "value": "3.12.3"
+      },
+      {
+        "name": "audio-studio:bundle-present",
+        "value": "true"
+      },
+      {
+        "name": "audio-studio:pip-freeze-sha256",
+        "value": "82076cd27ec8cb61996e4e7b02ecff0c9bd15af77c845a88e1cdfddbfc1ebe20"
+      },
+      {
+        "name": "audio-studio:bundle-path",
+        "value": "dist/audio-studio"
+      },
+      {
+        "name": "audio-studio:launcher-sha256",
+        "value": "af6deb4f088980d04e21ad512fdc33e8ace6e0eb771d4ae00f7beafbe9735e2e"
+      },
+      {
+        "name": "audio-studio:bundle-bytes",
+        "value": "428452535"
+      }
+    ]
+  },
+  "components": [
+    {
+      "type": "library",
+      "bom-ref": "pkg:pypi/altgraph@0.17.5",
+      "name": "altgraph",
+      "version": "0.17.5",
+      "purl": "pkg:pypi/altgraph@0.17.5",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "installer"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "false"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "absent"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "wheel-metadata:license-field"
+        },
+        {
+          "name": "audio-studio:license-declared",
+          "value": "MIT"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:pypi/ast-serialize@0.8.0",
+      "name": "ast-serialize",
+      "version": "0.8.0",
+      "purl": "pkg:pypi/ast-serialize@0.8.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "environment"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "false"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "absent"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "wheel-metadata:license-expression"
+        },
+        {
+          "name": "audio-studio:license-declared",
+          "value": "MIT"
+        }
+      ]
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:pypi/audio-studio@0.1.0",
+      "name": "audio-studio",
+      "version": "0.1.0",
+      "purl": "pkg:pypi/audio-studio@0.1.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "application"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "pyz-module:audio_studio"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "wheel-metadata:license-field"
+        },
+        {
+          "name": "audio-studio:license-declared",
+          "value": "MIT"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:pypi/cffi@2.1.1",
+      "name": "cffi",
+      "version": "2.1.1",
+      "purl": "pkg:pypi/cffi@2.1.1",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT-0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "default"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "bundle-so:_internal/_cffi_backend*.so;pyz-module:cffi"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "wheel-metadata:license-expression"
+        },
+        {
+          "name": "audio-studio:license-declared",
+          "value": "MIT-0"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:pypi/iniconfig@2.3.0",
+      "name": "iniconfig",
+      "version": "2.3.0",
+      "purl": "pkg:pypi/iniconfig@2.3.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "dev"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "false"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "absent"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "wheel-metadata:license-expression"
+        },
+        {
+          "name": "audio-studio:license-declared",
+          "value": "MIT"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:pypi/librt@0.15.0",
+      "name": "librt",
+      "version": "0.15.0",
+      "purl": "pkg:pypi/librt@0.15.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "environment"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "false"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "absent"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "wheel-metadata:license-expression"
+        },
+        {
+          "name": "audio-studio:license-declared",
+          "value": "MIT"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:pypi/mypy@2.3.1",
+      "name": "mypy",
+      "version": "2.3.1",
+      "purl": "pkg:pypi/mypy@2.3.1",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "dev"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "false"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "absent"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "wheel-metadata:license-expression"
+        },
+        {
+          "name": "audio-studio:license-declared",
+          "value": "MIT"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:pypi/mypy-extensions@1.1.0",
+      "name": "mypy-extensions",
+      "version": "1.1.0",
+      "purl": "pkg:pypi/mypy-extensions@1.1.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "dev"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "false"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "absent"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "wheel-metadata:license-expression"
+        },
+        {
+          "name": "audio-studio:license-declared",
+          "value": "MIT"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:pypi/numpy@2.5.2",
+      "name": "numpy",
+      "version": "2.5.2",
+      "purl": "pkg:pypi/numpy@2.5.2",
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "default"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "bundle-dir:_internal/numpy;pyz-module:numpy"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "wheel-metadata:license-expression"
+        },
+        {
+          "name": "audio-studio:license-declared",
+          "value": "BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:pypi/packaging@26.3",
+      "name": "packaging",
+      "version": "26.3",
+      "purl": "pkg:pypi/packaging@26.3",
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0 OR BSD-2-Clause"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "build-tooling"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "pyz-module:packaging"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "wheel-metadata:license-expression"
+        },
+        {
+          "name": "audio-studio:license-declared",
+          "value": "Apache-2.0 OR BSD-2-Clause"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:pypi/pathspec@1.1.1",
+      "name": "pathspec",
+      "version": "1.1.1",
+      "purl": "pkg:pypi/pathspec@1.1.1",
+      "licenses": [
+        {
+          "license": {
+            "id": "MPL-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "dev"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "false"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "absent"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "wheel-metadata:classifier"
+        },
+        {
+          "name": "audio-studio:license-declared",
+          "value": "MPL-2.0"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:pypi/pip@24.0",
+      "name": "pip",
+      "version": "24.0",
+      "purl": "pkg:pypi/pip@24.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "build-tooling"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "false"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "absent"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "wheel-metadata:license-field"
+        },
+        {
+          "name": "audio-studio:license-declared",
+          "value": "MIT"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:pypi/pluggy@1.6.0",
+      "name": "pluggy",
+      "version": "1.6.0",
+      "purl": "pkg:pypi/pluggy@1.6.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "dev"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "false"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "absent"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "wheel-metadata:license-field"
+        },
+        {
+          "name": "audio-studio:license-declared",
+          "value": "MIT"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:pypi/pyaudio@0.2.14",
+      "name": "pyaudio",
+      "version": "0.2.14",
+      "purl": "pkg:pypi/pyaudio@0.2.14",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "audio"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "bundle-dir:_internal/pyaudio;pyz-module:pyaudio"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "wheel-metadata:license-field"
+        },
+        {
+          "name": "audio-studio:license-declared",
+          "value": "MIT"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:pypi/pycparser@3.0",
+      "name": "pycparser",
+      "version": "3.0",
+      "purl": "pkg:pypi/pycparser@3.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "default"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "pyz-module:pycparser"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "wheel-metadata:license-expression"
+        },
+        {
+          "name": "audio-studio:license-declared",
+          "value": "BSD-3-Clause"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:pypi/pygments@2.21.0",
+      "name": "pygments",
+      "version": "2.21.0",
+      "purl": "pkg:pypi/pygments@2.21.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-2-Clause"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "dev"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "false"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "absent"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "wheel-metadata:license-expression"
+        },
+        {
+          "name": "audio-studio:license-declared",
+          "value": "BSD-2-Clause"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:pypi/pyinstaller@6.22.2",
+      "name": "pyinstaller",
+      "version": "6.22.2",
+      "purl": "pkg:pypi/pyinstaller@6.22.2",
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-or-later WITH Bootloader-exception"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "installer"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "false"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "absent"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "curated:THIRD_PARTY_LICENSES.md"
+        },
+        {
+          "name": "audio-studio:license-declared",
+          "value": "GPL-2.0-or-later WITH Bootloader-exception"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:pypi/pyinstaller-hooks-contrib@2026.7",
+      "name": "pyinstaller-hooks-contrib",
+      "version": "2026.7",
+      "purl": "pkg:pypi/pyinstaller-hooks-contrib@2026.7",
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "installer"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "false"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "absent"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "wheel-metadata:classifier"
+        },
+        {
+          "name": "audio-studio:license-declared",
+          "value": "Apache-2.0"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:pypi/pyside6-essentials@6.11.2",
+      "name": "pyside6-essentials",
+      "version": "6.11.2",
+      "purl": "pkg:pypi/pyside6-essentials@6.11.2",
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-3.0-only"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "default"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "bundle-dir:_internal/PySide6;pyz-module:PySide6"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "wheel-metadata:license-field"
+        },
+        {
+          "name": "audio-studio:license-declared",
+          "value": "LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:pypi/pytest@9.1.1",
+      "name": "pytest",
+      "version": "9.1.1",
+      "purl": "pkg:pypi/pytest@9.1.1",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "dev"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "false"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "absent"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "wheel-metadata:license-expression"
+        },
+        {
+          "name": "audio-studio:license-declared",
+          "value": "MIT"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:pypi/pytest-qt@4.5.0",
+      "name": "pytest-qt",
+      "version": "4.5.0",
+      "purl": "pkg:pypi/pytest-qt@4.5.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "dev"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "false"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "absent"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "wheel-metadata:license-field"
+        },
+        {
+          "name": "audio-studio:license-declared",
+          "value": "MIT"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:pypi/pyyaml@6.0.3",
+      "name": "pyyaml",
+      "version": "6.0.3",
+      "purl": "pkg:pypi/pyyaml@6.0.3",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "environment"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "bundle-dir:_internal/yaml;pyz-module:yaml"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "wheel-metadata:license-field"
+        },
+        {
+          "name": "audio-studio:license-declared",
+          "value": "MIT"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:pypi/ruff@0.16.4",
+      "name": "ruff",
+      "version": "0.16.4",
+      "purl": "pkg:pypi/ruff@0.16.4",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "dev"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "false"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "absent"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "wheel-metadata:license-expression"
+        },
+        {
+          "name": "audio-studio:license-declared",
+          "value": "MIT"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:pypi/scipy@1.18.1",
+      "name": "scipy",
+      "version": "1.18.1",
+      "purl": "pkg:pypi/scipy@1.18.1",
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "default"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "bundle-dir:_internal/scipy;pyz-module:scipy"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "wheel-metadata:classifier"
+        },
+        {
+          "name": "audio-studio:license-declared",
+          "value": "BSD-3-Clause"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:pypi/setuptools@84.0.0",
+      "name": "setuptools",
+      "version": "84.0.0",
+      "purl": "pkg:pypi/setuptools@84.0.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "build-tooling"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "bundle-dir:_internal/setuptools;pyz-module:_distutils_hack;pyz-module:setuptools"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "wheel-metadata:license-expression"
+        },
+        {
+          "name": "audio-studio:license-declared",
+          "value": "MIT"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:pypi/shiboken6@6.11.2",
+      "name": "shiboken6",
+      "version": "6.11.2",
+      "purl": "pkg:pypi/shiboken6@6.11.2",
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-3.0-only"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "default"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "bundle-dir:_internal/shiboken6;pyz-module:shiboken6"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "wheel-metadata:license-field"
+        },
+        {
+          "name": "audio-studio:license-declared",
+          "value": "LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:pypi/sounddevice@0.5.6",
+      "name": "sounddevice",
+      "version": "0.5.6",
+      "purl": "pkg:pypi/sounddevice@0.5.6",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "audio"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "pyz-module:_sounddevice;pyz-module:sounddevice"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "wheel-metadata:license-expression"
+        },
+        {
+          "name": "audio-studio:license-declared",
+          "value": "MIT"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:pypi/soundfile@0.14.0",
+      "name": "soundfile",
+      "version": "0.14.0",
+      "purl": "pkg:pypi/soundfile@0.14.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD 3-Clause License"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "default"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "bundle-dir:_internal/_soundfile_data;pyz-module:_soundfile;pyz-module:_soundfile_data;pyz-module:soundfile"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "wheel-metadata:license-field"
+        },
+        {
+          "name": "audio-studio:license-declared",
+          "value": "BSD 3-Clause License"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:pypi/soxr@1.1.0",
+      "name": "soxr",
+      "version": "1.1.0",
+      "purl": "pkg:pypi/soxr@1.1.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-2.1-or-later"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "mastering"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "bundle-dir:_internal/soxr;pyz-module:soxr"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "wheel-metadata:license-expression"
+        },
+        {
+          "name": "audio-studio:license-declared",
+          "value": "LGPL-2.1-or-later"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:pypi/typing-extensions@4.16.0",
+      "name": "typing-extensions",
+      "version": "4.16.0",
+      "purl": "pkg:pypi/typing-extensions@4.16.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "PSF-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "dev"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "pyz-module:typing_extensions"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "wheel-metadata:license-expression"
+        },
+        {
+          "name": "audio-studio:license-declared",
+          "value": "PSF-2.0"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:_cffi_backend.cpython-312-x86_64-linux-gnu.so",
+      "name": "_cffi_backend.cpython-312-x86_64-linux-gnu.so",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/_cffi_backend.cpython-312-x86_64-linux-gnu.so"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libQt6Core.so.6",
+      "name": "libQt6Core.so.6",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-3.0-only"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/PySide6/Qt/lib/libQt6Core.so.6;_internal/libQt6Core.so.6"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "curated:THIRD_PARTY_LICENSES.md"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libQt6DBus.so.6",
+      "name": "libQt6DBus.so.6",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-3.0-only"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/PySide6/Qt/lib/libQt6DBus.so.6;_internal/libQt6DBus.so.6"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "curated:THIRD_PARTY_LICENSES.md"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libQt6EglFSDeviceIntegration.so.6",
+      "name": "libQt6EglFSDeviceIntegration.so.6",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-3.0-only"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/PySide6/Qt/lib/libQt6EglFSDeviceIntegration.so.6;_internal/libQt6EglFSDeviceIntegration.so.6"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "curated:THIRD_PARTY_LICENSES.md"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libQt6EglFsKmsSupport.so.6",
+      "name": "libQt6EglFsKmsSupport.so.6",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-3.0-only"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/PySide6/Qt/lib/libQt6EglFsKmsSupport.so.6;_internal/libQt6EglFsKmsSupport.so.6"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "curated:THIRD_PARTY_LICENSES.md"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libQt6Gui.so.6",
+      "name": "libQt6Gui.so.6",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-3.0-only"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/PySide6/Qt/lib/libQt6Gui.so.6;_internal/libQt6Gui.so.6"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "curated:THIRD_PARTY_LICENSES.md"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libQt6Network.so.6",
+      "name": "libQt6Network.so.6",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-3.0-only"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/PySide6/Qt/lib/libQt6Network.so.6;_internal/libQt6Network.so.6"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "curated:THIRD_PARTY_LICENSES.md"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libQt6OpenGL.so.6",
+      "name": "libQt6OpenGL.so.6",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-3.0-only"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/PySide6/Qt/lib/libQt6OpenGL.so.6;_internal/libQt6OpenGL.so.6"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "curated:THIRD_PARTY_LICENSES.md"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libQt6Svg.so.6",
+      "name": "libQt6Svg.so.6",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-3.0-only"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/PySide6/Qt/lib/libQt6Svg.so.6;_internal/libQt6Svg.so.6"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "curated:THIRD_PARTY_LICENSES.md"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libQt6WaylandClient.so.6",
+      "name": "libQt6WaylandClient.so.6",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-3.0-only"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/PySide6/Qt/lib/libQt6WaylandClient.so.6;_internal/libQt6WaylandClient.so.6"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "curated:THIRD_PARTY_LICENSES.md"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libQt6Widgets.so.6",
+      "name": "libQt6Widgets.so.6",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-3.0-only"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/PySide6/Qt/lib/libQt6Widgets.so.6;_internal/libQt6Widgets.so.6"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "curated:THIRD_PARTY_LICENSES.md"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libQt6WlShellIntegration.so.6",
+      "name": "libQt6WlShellIntegration.so.6",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-3.0-only"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/PySide6/Qt/lib/libQt6WlShellIntegration.so.6;_internal/libQt6WlShellIntegration.so.6"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "curated:THIRD_PARTY_LICENSES.md"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libQt6XcbQpa.so.6",
+      "name": "libQt6XcbQpa.so.6",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-3.0-only"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/PySide6/Qt/lib/libQt6XcbQpa.so.6;_internal/libQt6XcbQpa.so.6"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "curated:THIRD_PARTY_LICENSES.md"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libX11-xcb.so.1",
+      "name": "libX11-xcb.so.1",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libX11-xcb.so.1"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libX11.so.6",
+      "name": "libX11.so.6",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libX11.so.6"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libXau.so.6",
+      "name": "libXau.so.6",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libXau.so.6"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libXcomposite.so.1",
+      "name": "libXcomposite.so.1",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libXcomposite.so.1"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libXcursor.so.1",
+      "name": "libXcursor.so.1",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libXcursor.so.1"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libXdamage.so.1",
+      "name": "libXdamage.so.1",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libXdamage.so.1"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libXdmcp.so.6",
+      "name": "libXdmcp.so.6",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libXdmcp.so.6"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libXext.so.6",
+      "name": "libXext.so.6",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libXext.so.6"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libXfixes.so.3",
+      "name": "libXfixes.so.3",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libXfixes.so.3"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libXi.so.6",
+      "name": "libXi.so.6",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libXi.so.6"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libXinerama.so.1",
+      "name": "libXinerama.so.1",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libXinerama.so.1"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libXrandr.so.2",
+      "name": "libXrandr.so.2",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libXrandr.so.2"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libXrender.so.1",
+      "name": "libXrender.so.1",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libXrender.so.1"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libasound.so.2",
+      "name": "libasound.so.2",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libasound.so.2"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libatk-1.0.so.0",
+      "name": "libatk-1.0.so.0",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libatk-1.0.so.0"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libatk-bridge-2.0.so.0",
+      "name": "libatk-bridge-2.0.so.0",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libatk-bridge-2.0.so.0"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libatspi.so.0",
+      "name": "libatspi.so.0",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libatspi.so.0"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libblkid.so.1",
+      "name": "libblkid.so.1",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libblkid.so.1"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libbrotlicommon.so.1",
+      "name": "libbrotlicommon.so.1",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libbrotlicommon.so.1"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libbrotlidec.so.1",
+      "name": "libbrotlidec.so.1",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libbrotlidec.so.1"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libbsd.so.0",
+      "name": "libbsd.so.0",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libbsd.so.0"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libbz2.so.1.0",
+      "name": "libbz2.so.1.0",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libbz2.so.1.0"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libcairo-gobject.so.2",
+      "name": "libcairo-gobject.so.2",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libcairo-gobject.so.2"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libcairo.so.2",
+      "name": "libcairo.so.2",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libcairo.so.2"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libcap.so.2",
+      "name": "libcap.so.2",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libcap.so.2"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libcom_err.so.2",
+      "name": "libcom_err.so.2",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libcom_err.so.2"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libcrypto.so.3",
+      "name": "libcrypto.so.3",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libcrypto.so.3"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libdatrie.so.1",
+      "name": "libdatrie.so.1",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libdatrie.so.1"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libdb-5.3.so",
+      "name": "libdb-5.3.so",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libdb-5.3.so"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libdbus-1.so.3",
+      "name": "libdbus-1.so.3",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libdbus-1.so.3"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libepoxy.so.0",
+      "name": "libepoxy.so.0",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libepoxy.so.0"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libexpat.so.1",
+      "name": "libexpat.so.1",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libexpat.so.1"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libffi.so.8",
+      "name": "libffi.so.8",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libffi.so.8"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libfontconfig.so.1",
+      "name": "libfontconfig.so.1",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libfontconfig.so.1"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libfreetype.so.6",
+      "name": "libfreetype.so.6",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libfreetype.so.6"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libfribidi.so.0",
+      "name": "libfribidi.so.0",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libfribidi.so.0"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libgcc_s.so.1",
+      "name": "libgcc_s.so.1",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libgcc_s.so.1"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libgcrypt.so.20",
+      "name": "libgcrypt.so.20",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libgcrypt.so.20"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libgdk-3.so.0",
+      "name": "libgdk-3.so.0",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libgdk-3.so.0"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libgdk_pixbuf-2.0.so.0",
+      "name": "libgdk_pixbuf-2.0.so.0",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libgdk_pixbuf-2.0.so.0"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libgfortran-040039e1-0352e75f.so.5.0.0",
+      "name": "libgfortran-040039e1-0352e75f.so.5.0.0",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-3.0-or-later WITH GCC-exception-3.1"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libgfortran-040039e1-0352e75f.so.5.0.0;_internal/scipy.libs/libgfortran-040039e1-0352e75f.so.5.0.0"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "curated:THIRD_PARTY_LICENSES.md"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libgfortran-83c28eba-468e71e5.so.5.0.0",
+      "name": "libgfortran-83c28eba-468e71e5.so.5.0.0",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-3.0-or-later WITH GCC-exception-3.1"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libgfortran-83c28eba-468e71e5.so.5.0.0;_internal/numpy.libs/libgfortran-83c28eba-468e71e5.so.5.0.0"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "curated:THIRD_PARTY_LICENSES.md"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libgfortran-83c28eba.so.5.0.0",
+      "name": "libgfortran-83c28eba.so.5.0.0",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-3.0-or-later WITH GCC-exception-3.1"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libgfortran-83c28eba.so.5.0.0;_internal/scipy.libs/libgfortran-83c28eba.so.5.0.0"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "curated:THIRD_PARTY_LICENSES.md"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libgio-2.0.so.0",
+      "name": "libgio-2.0.so.0",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libgio-2.0.so.0"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libglib-2.0.so.0",
+      "name": "libglib-2.0.so.0",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libglib-2.0.so.0"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libgmodule-2.0.so.0",
+      "name": "libgmodule-2.0.so.0",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libgmodule-2.0.so.0"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libgobject-2.0.so.0",
+      "name": "libgobject-2.0.so.0",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libgobject-2.0.so.0"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libgpg-error.so.0",
+      "name": "libgpg-error.so.0",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libgpg-error.so.0"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libgraphite2.so.3",
+      "name": "libgraphite2.so.3",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libgraphite2.so.3"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libgssapi_krb5.so.2",
+      "name": "libgssapi_krb5.so.2",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libgssapi_krb5.so.2"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libgthread-2.0.so.0",
+      "name": "libgthread-2.0.so.0",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libgthread-2.0.so.0"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libgtk-3.so.0",
+      "name": "libgtk-3.so.0",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libgtk-3.so.0"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libharfbuzz.so.0",
+      "name": "libharfbuzz.so.0",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libharfbuzz.so.0"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libicudata.so.73",
+      "name": "libicudata.so.73",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/PySide6/Qt/lib/libicudata.so.73;_internal/libicudata.so.73"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libicui18n.so.73",
+      "name": "libicui18n.so.73",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/PySide6/Qt/lib/libicui18n.so.73;_internal/libicui18n.so.73"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libicuuc.so.73",
+      "name": "libicuuc.so.73",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/PySide6/Qt/lib/libicuuc.so.73;_internal/libicuuc.so.73"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libjack.so.0",
+      "name": "libjack.so.0",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libjack.so.0"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libjpeg.so.8",
+      "name": "libjpeg.so.8",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libjpeg.so.8"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libk5crypto.so.3",
+      "name": "libk5crypto.so.3",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libk5crypto.so.3"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libkeyutils.so.1",
+      "name": "libkeyutils.so.1",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libkeyutils.so.1"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libkrb5.so.3",
+      "name": "libkrb5.so.3",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libkrb5.so.3"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libkrb5support.so.0",
+      "name": "libkrb5support.so.0",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libkrb5support.so.0"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:liblz4.so.1",
+      "name": "liblz4.so.1",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/liblz4.so.1"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:liblzma.so.5",
+      "name": "liblzma.so.5",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/liblzma.so.5"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libmd.so.0",
+      "name": "libmd.so.0",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libmd.so.0"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libmount.so.1",
+      "name": "libmount.so.1",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libmount.so.1"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libmvec.so.1",
+      "name": "libmvec.so.1",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libmvec.so.1"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libpango-1.0.so.0",
+      "name": "libpango-1.0.so.0",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libpango-1.0.so.0"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libpangocairo-1.0.so.0",
+      "name": "libpangocairo-1.0.so.0",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libpangocairo-1.0.so.0"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libpangoft2-1.0.so.0",
+      "name": "libpangoft2-1.0.so.0",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libpangoft2-1.0.so.0"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libpcre2-8.so.0",
+      "name": "libpcre2-8.so.0",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libpcre2-8.so.0"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libpixman-1.so.0",
+      "name": "libpixman-1.so.0",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libpixman-1.so.0"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libpng16.so.16",
+      "name": "libpng16.so.16",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libpng16.so.16"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libportaudio.so.2",
+      "name": "libportaudio.so.2",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libportaudio.so.2"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "curated:THIRD_PARTY_LICENSES.md"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libpyside6.abi3.so.6.11",
+      "name": "libpyside6.abi3.so.6.11",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-3.0-only"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libpyside6.abi3.so.6.11"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "curated:THIRD_PARTY_LICENSES.md"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libpython3.12.so.1.0",
+      "name": "libpython3.12.so.1.0",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "PSF-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libpython3.12.so.1.0"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "curated:THIRD_PARTY_LICENSES.md"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libquadmath-2284e583-a9307bba.so.0.0.0",
+      "name": "libquadmath-2284e583-a9307bba.so.0.0.0",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-2.1-or-later"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libquadmath-2284e583-a9307bba.so.0.0.0;_internal/numpy.libs/libquadmath-2284e583-a9307bba.so.0.0.0"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "curated:THIRD_PARTY_LICENSES.md"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libquadmath-2284e583.so.0.0.0",
+      "name": "libquadmath-2284e583.so.0.0.0",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-2.1-or-later"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libquadmath-2284e583.so.0.0.0;_internal/scipy.libs/libquadmath-2284e583.so.0.0.0"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "curated:THIRD_PARTY_LICENSES.md"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libquadmath-96973f99-934c22de.so.0.0.0",
+      "name": "libquadmath-96973f99-934c22de.so.0.0.0",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-2.1-or-later"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libquadmath-96973f99-934c22de.so.0.0.0;_internal/scipy.libs/libquadmath-96973f99-934c22de.so.0.0.0"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "curated:THIRD_PARTY_LICENSES.md"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libreadline.so.8",
+      "name": "libreadline.so.8",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libreadline.so.8"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libscipy_openblas-5f890258.so",
+      "name": "libscipy_openblas-5f890258.so",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libscipy_openblas-5f890258.so;_internal/scipy.libs/libscipy_openblas-5f890258.so"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "curated:THIRD_PARTY_LICENSES.md"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libscipy_openblas64_-61654e39.so",
+      "name": "libscipy_openblas64_-61654e39.so",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libscipy_openblas64_-61654e39.so;_internal/numpy.libs/libscipy_openblas64_-61654e39.so"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "curated:THIRD_PARTY_LICENSES.md"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libselinux.so.1",
+      "name": "libselinux.so.1",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libselinux.so.1"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libshiboken6.abi3.so.6.11",
+      "name": "libshiboken6.abi3.so.6.11",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-3.0-only"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libshiboken6.abi3.so.6.11"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "curated:THIRD_PARTY_LICENSES.md"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libsndfile_x86_64.so",
+      "name": "libsndfile_x86_64.so",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-2.1-or-later"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/_soundfile_data/libsndfile_x86_64.so"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "curated:THIRD_PARTY_LICENSES.md"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libssl.so.3",
+      "name": "libssl.so.3",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libssl.so.3"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libstdc++.so.6",
+      "name": "libstdc++.so.6",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libstdc++.so.6"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libsystemd.so.0",
+      "name": "libsystemd.so.0",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libsystemd.so.0"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libthai.so.0",
+      "name": "libthai.so.0",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libthai.so.0"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libtinfo.so.6",
+      "name": "libtinfo.so.6",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libtinfo.so.6"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libxcb-cursor.so.0",
+      "name": "libxcb-cursor.so.0",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libxcb-cursor.so.0"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libxcb-glx.so.0",
+      "name": "libxcb-glx.so.0",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libxcb-glx.so.0"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libxcb-icccm.so.4",
+      "name": "libxcb-icccm.so.4",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libxcb-icccm.so.4"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libxcb-image.so.0",
+      "name": "libxcb-image.so.0",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libxcb-image.so.0"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libxcb-keysyms.so.1",
+      "name": "libxcb-keysyms.so.1",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libxcb-keysyms.so.1"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libxcb-randr.so.0",
+      "name": "libxcb-randr.so.0",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libxcb-randr.so.0"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libxcb-render-util.so.0",
+      "name": "libxcb-render-util.so.0",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libxcb-render-util.so.0"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libxcb-render.so.0",
+      "name": "libxcb-render.so.0",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libxcb-render.so.0"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libxcb-shape.so.0",
+      "name": "libxcb-shape.so.0",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libxcb-shape.so.0"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libxcb-shm.so.0",
+      "name": "libxcb-shm.so.0",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libxcb-shm.so.0"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libxcb-sync.so.1",
+      "name": "libxcb-sync.so.1",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libxcb-sync.so.1"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libxcb-util.so.1",
+      "name": "libxcb-util.so.1",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libxcb-util.so.1"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libxcb-xfixes.so.0",
+      "name": "libxcb-xfixes.so.0",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libxcb-xfixes.so.0"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libxcb-xkb.so.1",
+      "name": "libxcb-xkb.so.1",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libxcb-xkb.so.1"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libxkbcommon-x11.so.0",
+      "name": "libxkbcommon-x11.so.0",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libxkbcommon-x11.so.0"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libxkbcommon.so.0",
+      "name": "libxkbcommon.so.0",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libxkbcommon.so.0"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libz.so.1",
+      "name": "libz.so.1",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libz.so.1"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "native:libzstd.so.1",
+      "name": "libzstd.so.1",
+      "version": "bundled",
+      "licenses": [
+        {
+          "license": {
+            "id": "NOASSERTION"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "audio-studio:profile",
+          "value": "native"
+        },
+        {
+          "name": "audio-studio:bundled",
+          "value": "true"
+        },
+        {
+          "name": "audio-studio:bundle-evidence",
+          "value": "_internal/libzstd.so.1"
+        },
+        {
+          "name": "audio-studio:license-source",
+          "value": "unresolved:system-library"
+        }
+      ]
+    }
+  ]
+}
