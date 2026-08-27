@@ -4,6 +4,7 @@
  *
  * 生成：
  *   src/data/char-index.js            全部汉字的索引行（主包唯一带的一层）
+ *   src/data/unit-index.js            单元名录与详情包的按需加载器
  *   src/data/chars/uN.js              带课文的单元详情包（只生成 seed 里写了课文的单元）
  *   ../../shared/data/common-hanzi.json  monorepo 共享字库基线
  *
@@ -35,6 +36,7 @@ const repoRoot = path.resolve(appDir, '..', '..')
 const seedFile = path.join(here, 'data', 'char-seed.txt')
 const cacheFile = path.join(here, 'data', 'derived-cache.json')
 const indexOut = path.join(appDir, 'src', 'data', 'char-index.js')
+const unitsOut = path.join(appDir, 'src', 'data', 'unit-index.js')
 const charsDir = path.join(appDir, 'src', 'data', 'chars')
 const baselineOut = path.join(repoRoot, 'shared', 'data', 'common-hanzi.json')
 
@@ -221,6 +223,36 @@ export const CHAR_INDEX = ROWS.map(([char, pinyin, tone, unit, radical, strokes,
   strokes,
   emoji
 }))
+`
+}
+
+function renderUnits(units) {
+  const rows = units
+    .map(
+      (u) =>
+        `  { id: ${jsString(u.id)}, name: ${jsString(u.name)}, emoji: ${jsString(u.emoji)}, ` +
+        `color: ${jsString(u.color)}, desc: ${jsString(u.desc)} }`
+    )
+    .join(',\n')
+  const loaders = units
+    .map((u) => `  ${u.id}: () => import('./chars/${u.id}.js')`)
+    .join(',\n')
+  return `/**
+ * 单元名录 —— ${units.length} 个单元的标题信息，以及每个单元详情包的加载器。
+ *
+ * 加载器写成显式的 import() 映射而不是 import.meta.glob，
+ * 一来 Vite 能静态分析出每个单元一个块，二来 Node 脚本也能直接跑。
+ *
+ * 本文件由 scripts/gen-char-corpus.mjs 从 scripts/data/char-seed.txt 生成，请勿手改。
+ */
+
+export const UNITS = [
+${rows}
+]
+
+export const DETAIL_LOADERS = {
+${loaders}
+}
 `
 }
 
@@ -415,6 +447,7 @@ if (generatedUnits.length + legacyUnits.length !== units.length) {
 }
 
 fs.writeFileSync(indexOut, renderIndex(units, entries))
+fs.writeFileSync(unitsOut, renderUnits(units))
 for (const unit of generatedUnits) {
   fs.writeFileSync(path.join(charsDir, `${unit.id}.js`), renderPack(unit, entries))
 }
