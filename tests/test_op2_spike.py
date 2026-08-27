@@ -648,7 +648,7 @@ def test_phase3_skips_and_counts_the_records_outside_its_subset():
     unknown_geom2 = _op2.geom2_block(rod_elements(), key=(2608, 26, 60))
     unknown_ept = _op2.DataBlock(
         name="EPT",
-        records=(_op2.integers(2002, 20, 246, 40, 7, 0.1),),
+        records=(_op2.integers(1602, 16, 30, 40, 7, 0.1, 0.2),),
         subtable_name="EPTS",
     )
     content = _op2.write_op2(
@@ -686,6 +686,60 @@ def test_phase3_reads_prod_from_ept():
     assert prop.values["A"] == pytest.approx(1.0e-4)
     assert prop.values["area"] == pytest.approx(1.0e-4)
     assert model.meta["tables"] == ("GEOM1", "GEOM2", "EPT", "MPT")
+
+
+def test_phase3_reads_pshell_and_psolid_from_ept():
+    """Phase 3: ``PSHELL`` thickness and ``PSOLID`` material id import."""
+
+    content = _op2.write_op2(
+        [
+            _op2.geom1_block([_op2.Grid(id=11, xyz=(0.0, 0.0, 0.0))]),
+            _op2.pshell_block([_op2.Pshell(id=10, material_id=7, thickness=0.0025)]),
+            _op2.psolid_block([_op2.Psolid(id=20, material_id=7)]),
+            _op2.mpt_block(rod_materials()),
+        ]
+    )
+
+    model = read_op2(io.BytesIO(content))
+
+    shell = model.properties[10]
+    assert shell.name == "PSHELL"
+    assert shell.material_id == 7
+    assert shell.values["t"] == pytest.approx(0.0025)
+
+    solid = model.properties[20]
+    assert solid.name == "PSOLID"
+    assert solid.material_id == 7
+    assert solid.values == {}
+
+
+def test_phase3_pshell_matches_bdf_of_the_same_property():
+    """Phase 3: ``PSHELL``/``PSOLID`` agree with the bulk-data reader."""
+
+    bdf_text = """\
+GRID,11,,0.,0.,0.
+PSHELL,10,7,0.0025
+PSOLID,20,7
+MAT1,7,2.5+8,,0.25,7.75+3
+"""
+    content = _op2.write_op2(
+        [
+            _op2.geom1_block([_op2.Grid(id=11, xyz=(0.0, 0.0, 0.0))]),
+            _op2.pshell_block([_op2.Pshell(id=10, material_id=7, thickness=0.0025)]),
+            _op2.psolid_block([_op2.Psolid(id=20, material_id=7)]),
+            _op2.mpt_block(rod_materials()),
+        ]
+    )
+
+    from_bdf = read_bdf(io.StringIO(bdf_text))
+    from_op2 = read_op2(io.BytesIO(content))
+
+    assert from_op2.properties[10].name == from_bdf.properties[10].name
+    assert from_op2.properties[10].material_id == from_bdf.properties[10].material_id
+    assert from_op2.properties[10].values["t"] == pytest.approx(
+        from_bdf.properties[10].values["t"]
+    )
+    assert from_op2.properties[20] == from_bdf.properties[20]
 
 
 def test_phase3_rejects_a_record_that_does_not_divide_into_entries():

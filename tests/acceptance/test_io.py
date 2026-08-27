@@ -622,3 +622,41 @@ def test_ac_io_006_op2_reads_prod_properties() -> None:
     assert prop.name == "PROD"
     assert prop.material_id == 7
     assert prop.values["A"] == pytest.approx(2.5e-4)
+
+
+@criterion("AC-IO-007")
+def test_ac_io_007_op2_reads_pshell_and_psolid_properties() -> None:
+    """``PSHELL`` thickness and ``PSOLID`` material id import from ``EPT``."""
+    import io
+
+    from openfemlab.io.nastran import read_bdf
+    from openfemlab.io.op2 import read_op2
+    from tests import _op2
+
+    bdf_text = io.StringIO(
+        "\n".join(
+            [
+                "GRID,11,,0.,0.,0.",
+                "PSHELL,10,7,0.0025",
+                "PSOLID,20,7",
+            ]
+        )
+        + "\n"
+    )
+    content = _op2.write_op2(
+        [
+            _op2.geom1_block([_op2.Grid(id=11, xyz=(0.0, 0.0, 0.0))]),
+            _op2.pshell_block([_op2.Pshell(id=10, material_id=7, thickness=0.0025)]),
+            _op2.psolid_block([_op2.Psolid(id=20, material_id=7)]),
+        ]
+    )
+
+    bdf_model = read_bdf(bdf_text)
+    op2_model = read_op2(io.BytesIO(content))
+
+    assert op2_model.properties[10].name == bdf_model.properties[10].name
+    assert op2_model.properties[10].material_id == bdf_model.properties[10].material_id
+    assert op2_model.properties[10].values["t"] == pytest.approx(
+        bdf_model.properties[10].values["t"]
+    )
+    assert op2_model.properties[20] == bdf_model.properties[20]

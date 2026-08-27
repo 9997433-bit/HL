@@ -110,8 +110,8 @@ implemented*: :func:`read_op2` reads ``GRID`` from ``GEOM1``, ``CROD`` from
 :data:`GEOM2_ELEMENT_LAYOUTS` or :data:`MPT_MATERIAL_RECORDS` plus the tests
 that pin its word layout, and until a card has both, a record carrying it is
 *refused* rather than dropped — a model quietly missing its elements is worse
-than one that did not import.  ``EPT`` reads ``PROD``; ``PSHELL`` and
-``PSOLID`` are the remaining property increments.
+than one that did not import.  ``EPT`` reads ``PROD``, ``PSHELL`` and ``PSOLID``;
+other property cards are skipped and counted like out-of-subset records.
 
 **Phase 4 — coordinate systems.**  ``CORD1R``/``CORD2R`` and the ``CP``/``CD``
 fields, which Phases 2 and 3 must reject rather than ignore (see below).
@@ -259,9 +259,12 @@ MPT_MATERIAL_RECORDS: dict[tuple[int, int, int], int] = {
 #: ``EPT`` record key → words per entry for property cards Phase 3 reads.
 EPT_PROPERTY_RECORDS: dict[tuple[int, int, int], int] = {
     (902, 9, 29): 6,  # PROD: PID, MID, A, J, C, NSM
+    (2302, 23, 283): 11,  # PSHELL: PID, MID1, T, MID2, 12I/T3, MID3, TS/T, NSM, Z1, Z2, MID4
+    (2402, 24, 281): 7,  # PSOLID: PID, MID, CORDM, IN, STRESS, ISOP, FCTN
 }
 
 _PROD_AREA_WORD = 2
+_PSHELL_THICKNESS_WORD = 2
 
 #: The words of a ``MAT1`` entry :class:`~openfemlab.core.neutral.NeutralMaterial`
 #: has a home for; the rest are thermal and allowable data no module consumes.
@@ -342,8 +345,9 @@ def read_op2(source: str | PathLike[str] | BinaryIO) -> NeutralModel:
     *is* in :data:`GEOM2_ELEMENT_RECORDS` but whose word layout this increment
     does not unpack: dropping it would return a model that looks complete and
     has lost its elements.  ``EPT`` reads the property records of
-    :data:`EPT_PROPERTY_RECORDS` — currently ``PROD`` area — while unknown
-    property cards are skipped and counted like other out-of-subset records.
+    :data:`EPT_PROPERTY_RECORDS` — ``PROD`` area, ``PSHELL`` thickness and
+    ``PSOLID`` material — while unknown property cards are skipped and counted
+    like other out-of-subset records.
 
     Parameters
     ----------
@@ -808,19 +812,54 @@ def _read_properties(
             labels, values = _entries(key, "EPT", integers, reals, entry_words, source_name)
             for row in range(labels.shape[0]):
                 property_id = int(labels[row, 0])
-                material_id = int(labels[row, 1])
                 if property_id in properties:
                     raise FormatError(
-                        f"{_where(source_name)}: duplicate PROD id {property_id}"
+                        f"{_where(source_name)}: duplicate property id {property_id}"
                     )
-                area = float(values[row, _PROD_AREA_WORD])
-                properties[property_id] = NeutralProperty(
-                    id=property_id,
-                    material_id=material_id,
-                    values={"A": area, "area": area},
-                    name="PROD",
+                properties[property_id] = _neutral_property_from_ept(
+                    key, row, labels, values, source_name
                 )
     return properties, skipped
+
+
+def _neutral_property_from_ept(
+    key: tuple[int, int, int],
+    row: int,
+    labels: np.ndarray,
+    values: np.ndarray,
+    source_name: str | None,
+) -> NeutralProperty:
+    """One ``EPT`` entry in the card vocabulary :mod:`openfemlab.io.nastran` uses."""
+
+    property_id = int(labels[row, 0])
+    material_id = int(labels[row, 1])
+    if key == (902, 9, 29):
+        area = float(values[row, _PROD_AREA_WORD])
+        return NeutralProperty(
+            id=property_id,
+            material_id=material_id,
+            values={"A": area, "area": area},
+            name="PROD",
+        )
+    if key == (2302, 23, 283):
+        thickness = float(values[row, _PSHELL_THICKNESS_WORD])
+        if thickness <= 0.0:
+            raise FormatError(
+                f"{_where(source_name)}: PSHELL {property_id} thickness must be positive"
+            )
+        return NeutralProperty(
+            id=property_id,
+            material_id=material_id,
+            values={"t": thickness},
+            name="PSHELL",
+        )
+    if key == (2402, 24, 281):
+        return NeutralProperty(
+            id=property_id,
+            material_id=material_id,
+            name="PSOLID",
+        )
+    raise FormatError(f"{_where(source_name)}: unsupported EPT record {key}")
 
 
 def _iter_subtables(

@@ -551,6 +551,7 @@ run (AC-IO-003).
 | AC-IO-004 | P2 | OP2 geometry import matches the BDF of the same model | node labels, coordinates, connectivity and property ids bitwise equal | MS-9.6 |
 | AC-IO-005 | P2 | OP2 readers are exported from `openfemlab.io` | `list_op2_tables`, `read_op2`, `read_op2_modes` in namespace and `__all__` | MS-9.6 |
 | AC-IO-006 | P2 | OP2 EPT PROD area import | `NeutralModel.properties[pid].values["A"]` matches the fixture | MS-9.6 |
+| AC-IO-007 | P2 | OP2 EPT PSHELL/PSOLID import | thickness and material id match the BDF reader | MS-9.6 |
 
 ### Details
 

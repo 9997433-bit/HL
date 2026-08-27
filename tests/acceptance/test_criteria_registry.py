@@ -71,7 +71,7 @@ FAMILY_TO_MODULE = {
 }
 EXPECTED_CRITERIA_PER_FAMILY = {
     "MODAL": 9, "CORR": 9, "UPD": 13, "WORK": 5, "OPT": 4, "DYN": 5, "ELEM": 3,
-    "IO": 6, "MPE": 6, "PRETEST": 5, "PERF": 5,
+    "IO": 7, "MPE": 6, "PRETEST": 5, "PERF": 5,
 }
 
 
@@ -234,6 +234,8 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P2", "contract", "MS-9.6", "tests/acceptance/test_io_export.py", "implemented"),
     _c("AC-IO-006", "OP2 EPT PROD area import",
        "P2", "contract", "MS-9.6", _IO_SUITE, "implemented"),
+    _c("AC-IO-007", "OP2 EPT PSHELL and PSOLID import",
+       "P2", "contract", "MS-9.6", _IO_SUITE, "implemented"),
     # --- M9 Modal parameter extraction (MS-10), GAP-06 -----------------------
     _c("AC-MPE-001", "LSCF pole recovery on synthesized FRFs",
        "P0", "oracle", "MS-10.2", _MPE_SUITE, "verified"),
@@ -287,7 +289,7 @@ def test_registry_inventory_matches_documented_scope():
         for family in EXPECTED_CRITERIA_PER_FAMILY
     }
     assert counts == EXPECTED_CRITERIA_PER_FAMILY
-    assert len(REGISTRY) == 70
+    assert len(REGISTRY) == 71
 
 
 def test_ids_unique():

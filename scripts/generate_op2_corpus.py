@@ -59,6 +59,20 @@ def build_corpus(target: Path) -> list[Path]:
     path = target / "rotated_grid.op2"
     path.write_bytes(rotated)
     written.append(path)
+
+    shell_geometry = op2_fixture.write_op2(
+        [
+            op2_fixture.geom1_block([op2_fixture.Grid(id=11, xyz=(0.0, 0.0, 0.0))]),
+            op2_fixture.pshell_block(
+                [op2_fixture.Pshell(id=10, material_id=7, thickness=0.0025)]
+            ),
+            op2_fixture.psolid_block([op2_fixture.Psolid(id=20, material_id=7)]),
+            op2_fixture.mpt_block([op2_fixture.Mat1(id=7, E=2.0e11, nu=0.3, rho=7800.0)]),
+        ]
+    )
+    path = target / "shell_properties.op2"
+    path.write_bytes(shell_geometry)
+    written.append(path)
     return written
 
 

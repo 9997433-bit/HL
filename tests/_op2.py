@@ -54,6 +54,8 @@ CROD_RECORD_KEY = (3001, 30, 48)
 MAT1_RECORD_KEY = (103, 1, 77)
 CORD2R_RECORD_KEY = (2101, 21, 8)
 PROD_RECORD_KEY = (902, 9, 29)
+PSHELL_RECORD_KEY = (2302, 23, 283)
+PSOLID_RECORD_KEY = (2402, 24, 281)
 
 
 # ------------------------------------------------------------------- words
@@ -121,6 +123,36 @@ class Prod:
 
 
 @dataclass(frozen=True)
+class Pshell:
+    """A ``PSHELL`` card as ``EPT`` writes it — 11 words per entry."""
+
+    id: int
+    material_id: int
+    thickness: float
+    mid2: int = 0
+    bending_ratio: float = 1.0
+    mid3: int = 0
+    shear_ratio: float = 0.833333
+    nsm: float = 0.0
+    z1: float = 0.0
+    z2: float = 0.0
+    mid4: int = 0
+
+
+@dataclass(frozen=True)
+class Psolid:
+    """A ``PSOLID`` card as ``EPT`` writes it — 7 words per entry."""
+
+    id: int
+    material_id: int
+    cordm: int = 0
+    integration: int = 0
+    stress: int = 0
+    isop: int = 0
+    fctn: str = "    "
+
+
+@dataclass(frozen=True)
 class Cord2R:
     """A ``CORD2R`` card as ``GEOM1`` writes it — three points in the ``RID`` frame."""
 
@@ -170,6 +202,42 @@ def ept_block(
     for prop in properties:
         record += integers(prop.id, prop.material_id)
         record += reals(prop.area, prop.j, prop.c, prop.nsm)
+    return DataBlock(name="EPT", records=(record,), subtable_name="EPTS")
+
+
+def pshell_block(
+    properties: Iterable[Pshell], *, key: tuple[int, int, int] = PSHELL_RECORD_KEY
+) -> DataBlock:
+    """``EPT`` holding one ``PSHELL`` record per property."""
+
+    record: list[Token] = list(integers(*key))
+    for prop in properties:
+        record += integers(prop.id, prop.material_id)
+        record += reals(prop.thickness)
+        record += integers(prop.mid2)
+        record += reals(prop.bending_ratio)
+        record += integers(prop.mid3)
+        record += reals(prop.shear_ratio, prop.nsm, prop.z1, prop.z2)
+        record += integers(prop.mid4)
+    return DataBlock(name="EPT", records=(record,), subtable_name="EPTS")
+
+
+def psolid_block(
+    properties: Iterable[Psolid], *, key: tuple[int, int, int] = PSOLID_RECORD_KEY
+) -> DataBlock:
+    """``EPT`` holding one ``PSOLID`` record per property."""
+
+    record: list[Token] = list(integers(*key))
+    for prop in properties:
+        record += integers(
+            prop.id,
+            prop.material_id,
+            prop.cordm,
+            prop.integration,
+            prop.stress,
+            prop.isop,
+        )
+        record += characters(prop.fctn.ljust(4)[:4], words=1)
     return DataBlock(name="EPT", records=(record,), subtable_name="EPTS")
 
 
@@ -355,6 +423,8 @@ def geometry_file(
     *,
     cords: Iterable[Cord2R] = (),
     properties: Iterable[Prod] = (),
+    pshells: Iterable[Pshell] = (),
+    psolids: Iterable[Psolid] = (),
     extra_blocks: Sequence[DataBlock] = (),
     **file_options: object,
 ) -> bytes:
@@ -372,6 +442,12 @@ def geometry_file(
     prods = list(properties)
     if prods:
         blocks.append(ept_block(prods))
+    shells = list(pshells)
+    if shells:
+        blocks.append(pshell_block(shells))
+    solids = list(psolids)
+    if solids:
+        blocks.append(psolid_block(solids))
     materials = list(materials)
     if materials:
         blocks.append(mpt_block(materials))
