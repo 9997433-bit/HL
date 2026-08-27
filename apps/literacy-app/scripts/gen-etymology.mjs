@@ -135,6 +135,12 @@ function bareSyllable(pinyin) {
  *   xing|妹|未|wèi
  *     形声。只写声旁和声旁的读音，其余全部派生。
  *
+ *   xing|洞|同|tóng|水冲穿了一个窟窿，所以带「氵」；后来凡是凹进去通得过的口都叫洞。
+ *     形声 + 「本来是什么」的手写覆盖。形旁模板讲的是这一类字的共性，
+ *     可有些字的今义早就跑出了那个共性（洞不再说水、汽被汽车借走、艺不再指种地）。
+ *     这时候套模板会当着孩子的面自相矛盾：「凹进去的一个口。带「氵」的字都和水有关。」
+ *     第五段就是给这种字留的——只覆盖 origin，形旁、声旁、读音仍然全部派生。
+ *
  *   hui|泪|氵=水+目=眼睛|眼睛里淌出来的水，就是眼泪。|「氵」加「目」，一看就知道在哭。
  *     会意。零件用 + 分开、每个零件写「字形=这个零件在说什么」，
  *     后面两段分别是「本来是什么」和「怎么变的」。
@@ -149,8 +155,11 @@ function parseSeed(text) {
     const kind = f[0]
 
     if (kind === 'xing') {
-      if (f.length !== 4) throw new Error(`第 ${at} 行形声应有 4 段，实际 ${f.length}`)
-      rows.push({ at, kind, char: f[1], phonetic: f[2], phoneticPinyin: f[3] })
+      if (f.length !== 4 && f.length !== 5) {
+        throw new Error(`第 ${at} 行形声应有 4 段（可选第 5 段覆盖「本来是什么」），实际 ${f.length}`)
+      }
+      if (f.length === 5 && !f[4].trim()) throw new Error(`第 ${at} 行第 5 段是空的`)
+      rows.push({ at, kind, char: f[1], phonetic: f[2], phoneticPinyin: f[3], origin: f[4] })
       return
     }
     if (kind === 'hui') {
@@ -215,7 +224,7 @@ for (const row of seed) {
   derived.push({
     c: row.char,
     kind: 'xing',
-    origin: `${meaning}带「${glyph}」的字，${sense.line}。`,
+    origin: row.origin ?? `${meaning}带「${glyph}」的字，${sense.line}。`,
     evolve: same
       ? `「${glyph}」管意思，「${row.phonetic}」管读音，念 ${cp}。`
       : `「${glyph}」管意思，「${row.phonetic}」管读音——「${row.phonetic}」本身念 ${pp}，到了这个字里念 ${cp}。`,
@@ -301,8 +310,10 @@ export function hasEtymology(char) {
 )
 
 const byKind = derived.reduce((acc, e) => ({ ...acc, [e.kind]: (acc[e.kind] ?? 0) + 1 }), {})
+const overrides = seed.filter((row) => row.kind === 'xing' && row.origin).length
 console.log(
   `[etymology] 派生 ${derived.length} 个字（${Object.entries(byKind)
     .map(([k, n]) => `${k} ${n}`)
     .join(' / ')}），` + `连同手写的 ${HANDWRITTEN.length} 个，共 ${chars.length} 个字有字源演变。`
 )
+console.log(`[etymology] 其中 ${overrides} 个形声字手写覆盖了「本来是什么」，其余全部套模板。`)
