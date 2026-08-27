@@ -216,11 +216,9 @@ def _write_fixture(path: Path, n_frames: int) -> dict[str, Any]:
     setup_seconds = time.perf_counter() - started
 
     stat = path.stat()
-    allocated_bytes = int(getattr(stat, "st_blocks", 0)) * 512
-    if allocated_bytes <= 0:
-        # st_blocks is unavailable on Windows.  This fallback is recorded; a
-        # run there may be direct but cannot prove physical allocation.
-        allocated_bytes = 0
+    # st_blocks is unavailable on Windows.  Zero is recorded there, so a run
+    # may be direct but cannot claim to have proved physical allocation.
+    allocated_bytes = max(0, int(getattr(stat, "st_blocks", 0)) * 512)
     return {
         "path": str(path),
         "duration_seconds": n_frames / SAMPLE_RATE,
@@ -489,7 +487,7 @@ def run_benchmark(args: argparse.Namespace, scratch: Path) -> dict[str, Any]:
     if not math.isfinite(args.spectrogram_seconds) or args.spectrogram_seconds <= 0.0:
         raise ValueError("spectrogram_seconds must be positive and finite")
 
-    n_frames = int(round(args.duration_seconds * SAMPLE_RATE))
+    n_frames = round(args.duration_seconds * SAMPLE_RATE)
     fixture_path = scratch / "one-hour-48k-stereo-pcm16.wav"
     _progress(args.quiet, f"writing {n_frames:,}-frame allocated fixture")
     fixture = _write_fixture(fixture_path, n_frames)
