@@ -580,6 +580,7 @@ function setTheme(theme) {
           <li>雷达上最短的那根轴不必急着补满，先把已经练过、还差一点的技能点做到达标。</li>
           <li>屏幕时间结束后，让孩子把刚才最难的一道题讲给你听，比多做十道更管用。</li>
         </ul>
+        <RouterLink to="/skill-graph" class="btn btn-ghost">🕸️ 打开技能图谱</RouterLink>
         <RouterLink to="/progress" class="btn btn-ghost">🏆 查看孩子的成就墙</RouterLink>
       </section>
 

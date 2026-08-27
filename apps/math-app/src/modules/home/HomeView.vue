@@ -316,6 +316,7 @@ onUnmounted(() => {
             🚀 继续冒险 · {{ nextPlanet.name }}
           </button>
           <RouterLink to="/compare" class="btn btn--ghost">⚖️ 比大小擂台</RouterLink>
+          <RouterLink to="/skill-graph" class="btn btn--ghost">🕸️ 技能图谱</RouterLink>
           <RouterLink to="/progress" class="btn btn--ghost">🏆 我的成就</RouterLink>
           <RouterLink to="/parent" class="btn btn--ghost">👨‍👩‍👧 家长中心</RouterLink>
         </div>

@@ -19,7 +19,15 @@ import {
   LOGIC_PATTERN_IDS,
   bandOf,
 } from '../src/data/age-band.js'
-import { isKnownSkill, SKILL_MAP, skillsOfModule } from '../src/data/curriculum.js'
+import { isKnownSkill, SKILLS, SKILL_MAP, skillsOfModule } from '../src/data/curriculum.js'
+import {
+  buildSkillGraph,
+  GRAPH_SIZE,
+  SKILL_EDGES,
+  SKILL_LANES,
+  SKILL_NODES,
+  SKILL_NODE_MAP,
+} from '../src/data/skill-graph.js'
 import {
   arithmeticSkill,
   countingSkill,
@@ -303,6 +311,127 @@ console.log(
     skillsOfModule('word-problems').length
   } 个技能点均有母题覆盖`,
 )
+
+/**
+ * 技能图谱：节点、连线、布局与判读。
+ *
+ * 图谱页是只读视图，一旦布局算错（节点重叠、连线倒着画）或状态判错（前置没通
+ * 却显示可开练），家长看到的就是一张会撒谎的地图，而这在浏览器里很难一眼看出来，
+ * 所以在这里把几何和判读都验死。
+ */
+{
+  const nodeIds = new Set(SKILL_NODES.map((n) => n.id))
+  if (nodeIds.size !== SKILL_NODES.length) fail('技能图谱存在重复节点')
+  for (const skill of SKILLS) {
+    if (!nodeIds.has(skill.id)) fail(`技能点「${skill.id}」没有出现在图谱上`)
+  }
+  for (const node of SKILL_NODES) {
+    if (!SKILL_MAP[node.id]) fail(`图谱节点「${node.id}」不在 curriculum 里`)
+    if (!node.name || !node.level) fail(`图谱节点「${node.id}」缺少名称或等级`)
+    if (node.x < 0 || node.y < 0) fail(`图谱节点「${node.id}」坐标为负：${node.x},${node.y}`)
+    if (node.x + node.w > GRAPH_SIZE.width || node.y + node.h > GRAPH_SIZE.height) {
+      fail(`图谱节点「${node.id}」溢出画布 ${GRAPH_SIZE.width}×${GRAPH_SIZE.height}`)
+    }
+  }
+
+  // 依赖必须严格从左往右：前置节点的右边缘不能越过后继节点的左边缘
+  const edgeIds = new Set()
+  for (const edge of SKILL_EDGES) {
+    if (edgeIds.has(edge.id)) fail(`图谱连线重复：${edge.id}`)
+    edgeIds.add(edge.id)
+    const from = SKILL_NODE_MAP[edge.from]
+    const to = SKILL_NODE_MAP[edge.to]
+    if (!from || !to) {
+      fail(`图谱连线 ${edge.id} 指向了不存在的节点`)
+      continue
+    }
+    if (from.depth >= to.depth) {
+      fail(`图谱连线 ${edge.id} 从深度 ${from.depth} 连到 ${to.depth}，会画成倒着的箭头`)
+    }
+    if (!/^M [\d.]+ [\d.]+ C /.test(edge.path)) fail(`图谱连线 ${edge.id} 的路径不合法`)
+  }
+  const depCount = SKILLS.reduce((sum, s) => sum + (s.deps?.length ?? 0), 0)
+  if (SKILL_EDGES.length !== depCount) {
+    fail(`图谱连线 ${SKILL_EDGES.length} 条，curriculum 里有 ${depCount} 条依赖`)
+  }
+
+  // 同一模块泳道内不许重叠：重叠就意味着两个节点画在同一个格子上
+  for (const lane of SKILL_LANES) {
+    const boxes = SKILL_NODES.filter((n) => n.module === lane.module)
+    for (const node of boxes) {
+      if (node.y < lane.top || node.y + node.h > lane.top + lane.height) {
+        fail(`节点「${node.id}」跑出了「${lane.name}」泳道`)
+      }
+    }
+    for (let i = 0; i < boxes.length; i++) {
+      for (let j = i + 1; j < boxes.length; j++) {
+        const a = boxes[i]
+        const b = boxes[j]
+        if (a.x === b.x && a.y === b.y) fail(`节点「${a.id}」与「${b.id}」画在同一个位置`)
+      }
+    }
+  }
+  const laneSkills = SKILL_LANES.flatMap((l) => l.skills)
+  if (laneSkills.length !== SKILLS.length) {
+    fail(`泳道只收了 ${laneSkills.length} 个技能，curriculum 有 ${SKILLS.length} 个`)
+  }
+
+  // 判读：空存档下只有无前置的技能可开练，其余一律待解锁
+  const empty = buildSkillGraph({ mastery: {}, ageBand: 'L1' })
+  for (const node of empty.nodes) {
+    const want = node.deps.length ? 'locked' : 'ready'
+    if (node.status !== want) fail(`空存档下「${node.id}」应为 ${want}，实际 ${node.status}`)
+  }
+  if (empty.stats.mastered !== 0) fail('空存档却算出了已掌握的技能')
+  if (empty.nodes.some((n) => n.percent !== 0)) fail('空存档却算出了非零掌握度')
+
+  // 达标一个前置，只应让它的直接后继变成「可开练」，不该越级放行
+  const seeded = buildSkillGraph({
+    mastery: { 'count-to-5': MASTERY_THRESHOLD, 'add-within-10': 0.4 },
+    ageBand: 'L2',
+  })
+  const statusById = Object.fromEntries(seeded.nodes.map((n) => [n.id, n.status]))
+  if (statusById['count-to-5'] !== 'mastered') fail('达标的技能没有判成已掌握')
+  if (statusById['count-to-10'] !== 'ready') fail('前置达标后的技能没有变成可开练')
+  if (statusById['count-to-20'] !== 'locked') fail('隔了一层前置的技能被越级放行')
+  if (statusById['add-within-10'] !== 'learning') fail('练过没过线的技能没有判成练习中')
+  if (!seeded.edges.find((e) => e.id === 'count-to-5->count-to-10')?.open) {
+    fail('前置达标后连线没有变成已打通')
+  }
+
+  // 年龄档只影响「在不在本档」的标注，不改状态：图谱是只读的
+  const bands = AGE_BANDS.map((band) => buildSkillGraph({ mastery: {}, ageBand: band.id }))
+  for (const graph of bands) {
+    if (graph.nodes.some((n, i) => n.status !== empty.nodes[i].status)) {
+      fail(`档位 ${graph.band} 改变了技能状态，年龄档不该影响判读`)
+    }
+  }
+  const inBandCounts = bands.map((g) => g.nodes.filter((n) => n.inBand).length)
+  for (let i = 1; i < inBandCounts.length; i++) {
+    if (inBandCounts[i] < inBandCounts[i - 1]) {
+      fail(`档位越高本档技能反而更少：${inBandCounts[i - 1]} → ${inBandCounts[i]}`)
+    }
+  }
+  if (inBandCounts.at(-1) !== SKILL_NODES.length) fail('最高档没有覆盖全部技能点')
+  if (buildSkillGraph({ ageBand: '不存在的档位' }).band !== DEFAULT_AGE_BAND) {
+    fail('未知档位没有回落到默认档')
+  }
+
+  // 建议列表：只推可以立刻练的，练过没过线的排在全新技能前面
+  const advice = seeded.next
+  if (!advice.length) fail('技能图谱没给出任何「接下来练什么」的建议')
+  if (advice.some((n) => n.status === 'locked' || n.status === 'mastered')) {
+    fail('建议列表里混进了待解锁或已掌握的技能')
+  }
+  if (advice[0]?.id !== 'add-within-10') {
+    fail(`建议第一条应是练过没过线的 add-within-10，实际 ${advice[0]?.id}`)
+  }
+
+  console.log(
+    `技能图谱：${SKILL_NODES.length} 节点 / ${SKILL_EDGES.length} 连线 / ${SKILL_LANES.length} 条泳道，` +
+      `画布 ${GRAPH_SIZE.width}×${GRAPH_SIZE.height}，L1–L5 本档覆盖 ${inBandCounts.join('→')}`,
+  )
+}
 
 /* 数独三档 */
 for (const [sizeKey, holes, rounds] of [
