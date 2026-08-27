@@ -86,6 +86,15 @@ import {
   dailyFocusSeed,
 } from '../src/data/daily.js'
 import { practiceEntries, practiceEntry, wrongCountsBySkill } from '../src/data/skill-practice.js'
+import {
+  ADOPTION_STATE_MAP,
+  buildWeekPlan,
+  projectSession,
+  shiftDateKey,
+  WEEK_PLAN_DAYS,
+  WEEK_PLAN_PER_DAY,
+  weekPlanAdoption,
+} from '../src/data/week-plan.js'
 import { ERROR_TAGS } from '../src/data/errorTags.js'
 import { CUES, noteToFreq, STREAK_CUES, streakCue } from '../src/utils/sound.js'
 import { updateMastery, MASTERY_THRESHOLD } from '../src/utils/mastery.js'
@@ -823,6 +832,160 @@ if (questionId('daily-add', '2026-01-01#1') !== 'daily-add:2026-01-01#1') {
   console.log(
     `开练入口：L2 首条「${view.items[0].name}」落到 ${clean[0].kind}（${clean[0].label}），` +
       `欠账时改走错题本 ${owedEntry.wrongCount} 道，本档落点 ${kinds.join(' / ')}`,
+  )
+}
+
+/**
+ * 周计划：推荐排的是「此刻练什么」，周计划排的是「这一周怎么练」。
+ * 它必须是**滚动**的——照着练下去，过了线的技能要从后面几天里退场，
+ * 新解锁的补进来；而且推演全程只在副本上跑，一个字节都不许写回存档。
+ */
+{
+  const PLAN_SEED = { 'count-to-5': 0.95, 'count-to-10': 0.9, 'add-within-10': 0.4 }
+  const PLAN_BOOK = {
+    'arithmetic:7+3': { skill: 'add-within-10', answer: 10, attempts: 2 },
+    'arithmetic:8+2': { skill: 'add-within-10', answer: 10, attempts: 1 },
+  }
+  const frozenSeed = JSON.stringify(PLAN_SEED)
+  const frozenBook = JSON.stringify(PLAN_BOOK)
+  const START = '2026-05-04'
+
+  const plan = buildWeekPlan({
+    mastery: PLAN_SEED,
+    ageBand: 'L2',
+    wrongBook: PLAN_BOOK,
+    startDate: START,
+  })
+  if (JSON.stringify(PLAN_SEED) !== frozenSeed) fail('周计划改写了传进去的掌握度存档')
+  if (JSON.stringify(PLAN_BOOK) !== frozenBook) fail('周计划改写了传进去的错题本')
+
+  // 一天一格，日期连着排，头两天说人话
+  if (plan.days.length !== WEEK_PLAN_DAYS) fail(`周计划排了 ${plan.days.length} 天`)
+  plan.days.forEach((day, index) => {
+    if (day.dateKey !== shiftDateKey(START, index)) {
+      fail(`第 ${index + 1} 天的日期 ${day.dateKey} 不接在 ${START} 后面`)
+    }
+    if (day.skills.length > WEEK_PLAN_PER_DAY) {
+      fail(`第 ${index + 1} 天排了 ${day.skills.length} 个技能，一天最多 ${WEEK_PLAN_PER_DAY} 个`)
+    }
+    if (!day.label) fail(`第 ${index + 1} 天没有日历称呼`)
+  })
+  if (plan.days[0].label !== '今天' || plan.days[1].label !== '明天') {
+    fail(`头两天该叫「今天/明天」，实际 ${plan.days[0].label}/${plan.days[1].label}`)
+  }
+  if (!plan.days[0].today || plan.days[1].today) fail('周计划没有标出哪一天是今天')
+
+  // 每一场功课都得说得出理由、给得出落点，推演值只许往上走
+  for (const day of plan.days) {
+    for (const skill of day.skills) {
+      if (!RECOMMEND_REASON_MAP[skill.reason]) {
+        fail(`第 ${day.day} 天「${skill.id}」的理由 ${skill.reason} 不认识`)
+      }
+      if (!skill.why || !skill.reasonHint) fail(`第 ${day.day} 天「${skill.id}」没有理由文案`)
+      if (!skill.entry?.to?.path) fail(`第 ${day.day} 天「${skill.id}」没有开练入口`)
+      if (skill.mastery >= MASTERY_THRESHOLD) {
+        fail(`第 ${day.day} 天还在排已过线的「${skill.id}」`)
+      }
+      if (!(skill.projected > skill.mastery)) {
+        fail(`「${skill.id}」练一场的推演值 ${skill.projected} 没有涨`)
+      }
+      if (skill.projected !== projectSession(skill.mastery)) {
+        fail(`「${skill.id}」的推演没走 projectSession`)
+      }
+    }
+  }
+
+  // 滚动：过了线就退场，后面的日子必须让给别的技能
+  const seenAfterPass = plan.skills.filter(
+    (row) => row.passOnDay && row.days.some((day) => day > row.passOnDay),
+  )
+  if (seenAfterPass.length) {
+    fail(`「${seenAfterPass[0].id}」预计第 ${seenAfterPass[0].passOnDay} 天过线，后面还排着`)
+  }
+  if (plan.skills.length <= WEEK_PLAN_PER_DAY) {
+    fail(`一周只排了 ${plan.skills.length} 个技能，等于把今天的推荐抄了 ${WEEK_PLAN_DAYS} 遍`)
+  }
+  const dayOneIds = plan.days[0].skills.map((s) => s.id).join(',')
+  if (plan.days.at(-1).skills.map((s) => s.id).join(',') === dayOneIds) {
+    fail('第一天和最后一天排的是同一批技能，计划没有滚动')
+  }
+
+  // 欠着错题的先还账：它排在第一天头一场，落点也走错题重练
+  if (plan.days[0].skills[0].id !== 'add-within-10') {
+    fail(`欠着 2 道错题的技能没有排在第一场，实际 ${plan.days[0].skills[0].id}`)
+  }
+  if (plan.days[0].skills[0].entry.kind !== 'wrongBook') {
+    fail(`第一场的落点应是错题重练，实际 ${plan.days[0].skills[0].entry.kind}`)
+  }
+  // 账当天还清，后面几天不该再按欠账排
+  if (plan.days.slice(1).some((day) => day.skills.some((s) => s.entry.kind === 'wrongBook'))) {
+    fail('周计划把同一笔错题欠账重复算到了后面几天')
+  }
+
+  // 同样的输入排出同样的计划；换个档位就该换一份
+  const again = buildWeekPlan({
+    mastery: PLAN_SEED,
+    ageBand: 'L2',
+    wrongBook: PLAN_BOOK,
+    startDate: START,
+  })
+  if (JSON.stringify(again) !== JSON.stringify(plan)) fail('同样的输入排出了两份不同的周计划')
+  const planOf = (band) =>
+    buildWeekPlan({ mastery: PLAN_SEED, ageBand: band, startDate: START })
+      .days.flatMap((day) => day.skills.map((s) => s.id))
+      .join(',')
+  if (planOf('L1') === planOf('L4')) fail('L1 与 L4 排出的周计划一模一样，年龄档没有参与排期')
+
+  // 全部练熟之后不该硬凑功课，七天全是自由练
+  const done = buildWeekPlan({
+    mastery: Object.fromEntries(SKILLS.map((s) => [s.id, 1])),
+    ageBand: 'L5',
+    startDate: START,
+  })
+  if (done.stats.sessions !== 0 || done.stats.restDays !== WEEK_PLAN_DAYS) {
+    fail(`技能全部过线后仍排了 ${done.stats.sessions} 场功课`)
+  }
+  if (done.days.some((day) => !day.note)) fail('空出来的日子没有给家长一句交代')
+
+  /* 采纳痕迹：只读统计，只认存档里已经有的记录，不新记任何东西 */
+  const adoption = weekPlanAdoption(plan, {
+    mastery: PLAN_SEED,
+    wrongBook: PLAN_BOOK,
+    modules: { arithmetic: { lastPlayed: 1_700_000_000_000 } },
+  })
+  if (JSON.stringify(PLAN_SEED) !== frozenSeed) fail('采纳统计改写了掌握度存档')
+  if (adoption.total !== plan.skills.length) fail('采纳统计漏掉了计划里的技能')
+  if (adoption.passed + adoption.owed + adoption.practiced + adoption.untouched !== adoption.total) {
+    fail('采纳统计的四种痕迹加不齐总数')
+  }
+  for (const row of adoption.rows) {
+    if (!ADOPTION_STATE_MAP[row.state]) fail(`「${row.id}」的痕迹 ${row.state} 不认识`)
+    if (!row.trace) fail(`「${row.id}」没有给出痕迹说明`)
+    if (!row.reasonLabel || !row.why) fail(`「${row.id}」在家长页丢了推荐理由`)
+    if (!row.days.length) fail(`「${row.id}」没有标出排在周几`)
+  }
+  const owedRow = adoption.rows.find((row) => row.id === 'add-within-10')
+  if (owedRow.state !== 'owed' || owedRow.wrongCount !== 2) {
+    fail(`欠着 2 道错题的技能痕迹是 ${owedRow.state}/${owedRow.wrongCount}`)
+  }
+  if (owedRow.lastPlayedAt !== 1_700_000_000_000) fail('采纳痕迹没有读到星球的最近游玩时间')
+  if (adoption.rows.some((row) => row.id !== 'add-within-10' && row.state !== 'untouched')) {
+    fail('存档里没练过的技能被算成了练过')
+  }
+  // 掌握度到了线，痕迹就该翻成「已过线」；这是统计口径唯一的输入
+  const passedAll = weekPlanAdoption(plan, {
+    mastery: Object.fromEntries(plan.skills.map((s) => [s.id, 1])),
+  })
+  if (passedAll.passed !== plan.skills.length || passedAll.touchedPercent !== 100) {
+    fail(`全部过线后采纳统计只认出 ${passedAll.passed}/${plan.skills.length} 个`)
+  }
+  if (weekPlanAdoption(null).total !== 0) fail('没有计划时采纳统计该是空的')
+
+  console.log(
+    `周计划：${plan.stats.days} 天 ${plan.stats.sessions} 场 ${plan.stats.skills} 个技能` +
+      `（约 ${plan.stats.minutes} 分钟，预计 ${plan.stats.passing} 个过线），` +
+      `首场「${plan.days[0].skills[0].name}」落到 ${plan.days[0].skills[0].entry.kind}；` +
+      `采纳痕迹 ${adoption.touched}/${adoption.total} 有记录`,
   )
 }
 
