@@ -54,7 +54,7 @@ for _import_root in (REPOSITORY_ROOT, REPOSITORY_ROOT / "audio-studio"):
     if str(_import_root) not in sys.path:
         sys.path.insert(0, str(_import_root))
 
-from audio_studio.core.autosave import AutosaveJournal, discover
+from audio_studio.core.autosave import DEFAULT_INTERVAL_S, AutosaveJournal, discover
 from audio_studio.core.edit_session import EditSession
 from audio_studio.core.loader import load_audio, save_audio
 from audio_studio.core.sample_source import MemorySampleSource
@@ -485,6 +485,10 @@ def build_report(
         "termination": "kill -9",
         "platform": sys.platform,
         "autosave_interval_s": interval_s,
+        # The harness runs the journal far faster than the product does, so
+        # that five crashes fit in a CI step. The mechanism is identical; only
+        # the amount of work a crash can cost scales with the interval.
+        "product_default_interval_s": DEFAULT_INTERVAL_S,
         "edits_per_second": EDITS_PER_SECOND,
         "trials": list(trials),
         "trials_run": len(trials),

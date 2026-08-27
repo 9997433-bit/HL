@@ -100,13 +100,18 @@ PROBE_COUNT = 256
 #: full-scale sample differing by 1e-9 is 180 dB down.
 TOLERANCE_ABSOLUTE = 1e-9
 
-#: Vectors whose DSP runs in the product's float32 sample format are held to one
-#: ulp of *that* format instead, evaluated at the vector's own peak. Asking two
-#: CPU architectures to agree on a float32 resampler more closely than float32
-#: can represent is not a consistency requirement; it is a request for a number
-#: the format cannot hold. The measured error is reported either way, and which
-#: rule each vector was judged by is recorded next to it.
-FLOAT32_TOLERANCE_ULPS = 1.0
+#: Vectors whose DSP runs in the product's float32 sample format are held to a
+#: few ulps of *that* format instead, evaluated at the vector's own peak.
+#: Asking two CPU architectures to agree on a float32 resampler more closely
+#: than float32 can represent is not a consistency requirement; it is a request
+#: for a number the format cannot hold. Four rather than one, because a
+#: vectorised FIR sums its taps in whatever order the ISA groups them and the
+#: last couple of bits follow that order — measured divergence today is one
+#: ulp, and a bar set exactly there would fail on a regrouping that changed
+#: nothing audible. Four ulps is still 132 dB below full scale. The measured
+#: error is reported either way, and which rule each vector was judged by is
+#: recorded next to it.
+FLOAT32_TOLERANCE_ULPS = 4.0
 
 DEFAULT_OUTPUT = Path(".agent_workspace/round3/cross-platform-golden.json")
 
@@ -427,7 +432,7 @@ def vector_tolerance(
         ulp = float(np.spacing(np.float32(max(abs(peak), 1.0e-6))))
         return (
             max(base, FLOAT32_TOLERANCE_ULPS * ulp),
-            f"one float32 ulp at the vector peak ({ulp:.3e})",
+            f"{FLOAT32_TOLERANCE_ULPS:g} float32 ulps at the vector peak ({ulp:.3e} each)",
         )
     return base, f"{base:g} absolute"
 

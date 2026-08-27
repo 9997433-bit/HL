@@ -1,0 +1,473 @@
+{
+  "bit_identical_vectors": [
+    "true-peak-polyphase",
+    "tpdf-dither-16bit"
+  ],
+  "checks": {
+    "all_three_platforms_recorded": true,
+    "identical_stimuli": true,
+    "pinned_dependency_versions_agree": true,
+    "same_vector_set": true,
+    "sample_counts_agree": true,
+    "values_within_tolerance": true,
+    "working_precisions_agree": true
+  },
+  "generated_at_utc": "2026-08-27T01:45:37.526466+00:00",
+  "item": "E2 cross-platform DSP golden consistency",
+  "maximum_absolute_error": 5.684341886080802e-14,
+  "maximum_absolute_error_all_vectors": 5.960464477539063e-08,
+  "maximum_absolute_error_by_precision": {
+    "float32": 5.960464477539063e-08,
+    "float64": 5.684341886080802e-14
+  },
+  "maximum_absolute_error_scope": "float64 DSP paths, which are the vectors the 1e-9 bar applies to; the float32 audio paths are in maximum_absolute_error_by_precision and are judged against one float32 ulp, per-vector, under vectors[].tolerance_basis",
+  "missing_platforms": [],
+  "notes": [
+    "Each platform ran tools/cross_platform_golden.py record on its own CI runner; this report is the merge of those three artifacts.",
+    "Vectors are compared on PROBE_COUNT evenly spaced output samples, not on summary statistics, so a divergence confined to one region still registers.",
+    "Bit-exactness is reported, not required: libm rounds transcendentals differently per platform, which is why the stimuli are compared numerically rather than by digest.",
+    "float64 analysis paths agree to ~1e-13 or better. The float32 audio paths are held to one ulp of float32 instead: the measured divergence there is the macOS arm64 runner differing from both x86 runners by exactly one float32 ulp in the SciPy polyphase resampler, which is the smallest difference the sample format can express."
+  ],
+  "pairwise_maximum_absolute_error": {
+    "linux-vs-macos": 5.960464477539063e-08,
+    "linux-vs-windows": 5.684341886080802e-14,
+    "macos-vs-windows": 5.960464477539063e-08
+  },
+  "platforms": {
+    "linux": {
+      "provenance": {
+        "commit": "0d17844de5fdcce23b4b0692025060ed4e6d9bc2",
+        "run_attempt": "1",
+        "run_id": "33030941400",
+        "runner": "ubuntu-latest"
+      },
+      "recorded_at_utc": "2026-08-27T01:43:03.788635+00:00",
+      "runtime": {
+        "byte_order": "little",
+        "implementation": "CPython",
+        "libsndfile": "1.2.2",
+        "machine": "x86_64",
+        "numpy": "2.5.2",
+        "python": "3.12.14",
+        "release": "6.17.0-1022-azure",
+        "scipy": "1.18.1",
+        "soundfile": "0.14.0",
+        "src_backend": "scipy",
+        "system": "Linux"
+      },
+      "vectors_recorded": 10
+    },
+    "macos": {
+      "provenance": {
+        "commit": "0d17844de5fdcce23b4b0692025060ed4e6d9bc2",
+        "run_attempt": "1",
+        "run_id": "33030941400",
+        "runner": "macos-latest"
+      },
+      "recorded_at_utc": "2026-08-27T01:42:54.111982+00:00",
+      "runtime": {
+        "byte_order": "little",
+        "implementation": "CPython",
+        "libsndfile": "1.2.2",
+        "machine": "arm64",
+        "numpy": "2.5.2",
+        "python": "3.12.10",
+        "release": "25.5.0",
+        "scipy": "1.18.1",
+        "soundfile": "0.14.0",
+        "src_backend": "scipy",
+        "system": "Darwin"
+      },
+      "vectors_recorded": 10
+    },
+    "windows": {
+      "provenance": {
+        "commit": "0d17844de5fdcce23b4b0692025060ed4e6d9bc2",
+        "run_attempt": "1",
+        "run_id": "33030941400",
+        "runner": "windows-latest"
+      },
+      "recorded_at_utc": "2026-08-27T01:43:22.886303+00:00",
+      "runtime": {
+        "byte_order": "little",
+        "implementation": "CPython",
+        "libsndfile": "1.2.2",
+        "machine": "AMD64",
+        "numpy": "2.5.2",
+        "python": "3.12.10",
+        "release": "2025Server",
+        "scipy": "1.18.1",
+        "soundfile": "0.14.0",
+        "src_backend": "scipy",
+        "system": "Windows"
+      },
+      "vectors_recorded": 10
+    }
+  },
+  "probe_count": 256,
+  "schema_version": 1,
+  "status": "pass",
+  "tolerance_absolute": 1e-09,
+  "vectors": [
+    {
+      "bit_identical": false,
+      "bit_identical_stimulus": false,
+      "description": "Four-band RBJ biquad cascade over programme",
+      "identical_stimulus": true,
+      "maximum_absolute_error": 4.241051954068098e-14,
+      "n_samples": 48000,
+      "pairwise_maximum_absolute_error": {
+        "linux-vs-macos": 4.241051954068098e-14,
+        "linux-vs-windows": 3.302913498259841e-14,
+        "macos-vs-windows": 3.885780586188048e-14
+      },
+      "precisions_agree": true,
+      "result_sha256": {
+        "linux": "cf524de2350a35b3cbfe8a6132c94c8a2c4c0b0cbc0f709be0a298d0f2be7d91",
+        "macos": "537747e7cd39d16541691ffa428af8f7a79244aa604d29e01e8c68efb62a31c4",
+        "windows": "588711f2604b9ac9639e95c2e2ea922ea62b04ecd0433f8b98363e36778f5137"
+      },
+      "sample_counts_agree": true,
+      "stimulus_maximum_absolute_error": 5.551115123125783e-17,
+      "stimulus_pairwise_maximum_absolute_error": {
+        "linux-vs-macos": 5.551115123125783e-17,
+        "linux-vs-windows": 5.551115123125783e-17,
+        "macos-vs-windows": 5.551115123125783e-17
+      },
+      "stimulus_sha256": {
+        "linux": "57338ceae95db3f96fd6709366386136c099227944ff7aab523531ccfef4eeb2",
+        "macos": "fb798b0396438a79b1df37e6691118d1b04d9ed90ad9dcf6fd4b1a07bc5b8cf0",
+        "windows": "2999070ae26d5c5955abc2001130f21b91c58f9333004763261f1f20d3055490"
+      },
+      "tolerance_absolute": 1e-09,
+      "tolerance_basis": "1e-09 absolute",
+      "vector_id": "eq-peaking-cascade",
+      "within_tolerance": true,
+      "working_precision": "float64"
+    },
+    {
+      "bit_identical": false,
+      "bit_identical_stimulus": false,
+      "description": "Analytic EQ transfer function, 20 Hz - 20 kHz",
+      "identical_stimulus": true,
+      "maximum_absolute_error": 5.684341886080802e-14,
+      "n_samples": 2048,
+      "pairwise_maximum_absolute_error": {
+        "linux-vs-macos": 5.684341886080802e-14,
+        "linux-vs-windows": 5.684341886080802e-14,
+        "macos-vs-windows": 7.549516567451064e-15
+      },
+      "precisions_agree": true,
+      "result_sha256": {
+        "linux": "d0cf3662debfe1d2aa67ab3b2407e449e0ab6f1ce99161a9fdf9cf0bce986e5e",
+        "macos": "1439e9e04f5159ca277c42662e5dd244da2adaaad466adfb9b56013e2c9c9f0d",
+        "windows": "b5a69d9ce2ed569fc4284baf4981253568d78f0e0f90b6a804ce25fef96cbc53"
+      },
+      "sample_counts_agree": true,
+      "stimulus_maximum_absolute_error": 0.0,
+      "stimulus_pairwise_maximum_absolute_error": {
+        "linux-vs-macos": 0.0,
+        "linux-vs-windows": 0.0,
+        "macos-vs-windows": 0.0
+      },
+      "stimulus_sha256": {
+        "linux": "c922d69900426e1c00c4720d831e5bf3cc5db0dc27902d781b3e66ff480d8a64",
+        "macos": "7fbd6693c000ca8a762a1cdfcb9e04fd9fff371768c35eea70c0d40cdc15eb1a",
+        "windows": "b200706901d045caf4bcd87b7f34e71adf9199966e2996fd29cd3bdcaad15812"
+      },
+      "tolerance_absolute": 1e-09,
+      "tolerance_basis": "1e-09 absolute",
+      "vector_id": "eq-magnitude-response",
+      "within_tolerance": true,
+      "working_precision": "float64"
+    },
+    {
+      "bit_identical": false,
+      "bit_identical_stimulus": false,
+      "description": "Lookahead true-peak limiter at -1 dBTP",
+      "identical_stimulus": true,
+      "maximum_absolute_error": 2.220446049250313e-16,
+      "n_samples": 48000,
+      "pairwise_maximum_absolute_error": {
+        "linux-vs-macos": 2.220446049250313e-16,
+        "linux-vs-windows": 2.220446049250313e-16,
+        "macos-vs-windows": 1.1102230246251565e-16
+      },
+      "precisions_agree": true,
+      "result_sha256": {
+        "linux": "763b59a4ed29e993a7206cb1c538330294d273423e7ad495c9beb51a6c59b1b9",
+        "macos": "616fe5a1b6ab8297eace71dd677aa5c2a776f13eeb1dc13e3fd9026d802a0a42",
+        "windows": "686a7441ff880f4a8d13c9a17f84605a6074cf3c09e4900f03706db92ba640ea"
+      },
+      "sample_counts_agree": true,
+      "stimulus_maximum_absolute_error": 2.220446049250313e-16,
+      "stimulus_pairwise_maximum_absolute_error": {
+        "linux-vs-macos": 2.220446049250313e-16,
+        "linux-vs-windows": 2.220446049250313e-16,
+        "macos-vs-windows": 2.220446049250313e-16
+      },
+      "stimulus_sha256": {
+        "linux": "6681d47015f9aa98be6c5a862ae5ba5295f2636ee816a5cd46fafe9f0b957504",
+        "macos": "19fec4b0908d48ff5d073d3994066c8f1380452c35df40cd21681652a5daff63",
+        "windows": "b38cb711b4b35771cb980192ca4170c8da467e85fd7adeb12857a7926f9f8575"
+      },
+      "tolerance_absolute": 1e-09,
+      "tolerance_basis": "1e-09 absolute",
+      "vector_id": "limiter-true-peak",
+      "within_tolerance": true,
+      "working_precision": "float64"
+    },
+    {
+      "bit_identical": false,
+      "bit_identical_stimulus": false,
+      "description": "Linked soft-knee compressor, 4:1",
+      "identical_stimulus": true,
+      "maximum_absolute_error": 5.551115123125783e-17,
+      "n_samples": 48000,
+      "pairwise_maximum_absolute_error": {
+        "linux-vs-macos": 5.551115123125783e-17,
+        "linux-vs-windows": 5.551115123125783e-17,
+        "macos-vs-windows": 5.551115123125783e-17
+      },
+      "precisions_agree": true,
+      "result_sha256": {
+        "linux": "6ee721cba314ae20b415a2b2cf6629aa3967a0c9114ec7d2b747c79cee3b2e03",
+        "macos": "257bb6e165f64f638a03ffa95934eb5ac47a95ea02b5503633742b7576c831b4",
+        "windows": "385398a148606e5f77a7b4273bdb94caa38044d944ed72e0143b1e3e1862b207"
+      },
+      "sample_counts_agree": true,
+      "stimulus_maximum_absolute_error": 1.1102230246251565e-16,
+      "stimulus_pairwise_maximum_absolute_error": {
+        "linux-vs-macos": 1.1102230246251565e-16,
+        "linux-vs-windows": 1.1102230246251565e-16,
+        "macos-vs-windows": 1.1102230246251565e-16
+      },
+      "stimulus_sha256": {
+        "linux": "eb7ace829dd93d0ad264ab0b3ffe9d997505d25e04c8d34bd955d88e291f0052",
+        "macos": "919605c1fc3181a516fcb191ae9218feef0b901151e44b5f2028facb952fedac",
+        "windows": "6d5625070829edbbf204c1a2ba538ecf86ecee83d576376ad6324c92f32eb21d"
+      },
+      "tolerance_absolute": 1e-09,
+      "tolerance_basis": "1e-09 absolute",
+      "vector_id": "compressor-soft-knee",
+      "within_tolerance": true,
+      "working_precision": "float64"
+    },
+    {
+      "bit_identical": false,
+      "bit_identical_stimulus": false,
+      "description": "K-weighted short-term curve, LRA and true peak",
+      "identical_stimulus": true,
+      "maximum_absolute_error": 3.375077994860476e-14,
+      "n_samples": 65,
+      "pairwise_maximum_absolute_error": {
+        "linux-vs-macos": 3.375077994860476e-14,
+        "linux-vs-windows": 2.6645352591003757e-14,
+        "macos-vs-windows": 2.6645352591003757e-14
+      },
+      "precisions_agree": true,
+      "result_sha256": {
+        "linux": "c7bf67844ddb64c07614926f58ddeff72a21bced1c73804a64b78eaaaf19d011",
+        "macos": "05228561da9dbe3d05272ca1c7d1761975cae059c8f1b95c6561db00df1d67ff",
+        "windows": "319be6bb73afa58f37952f80bfd71977bae35de1d9ff013d7178c0c56f4c4a5d"
+      },
+      "sample_counts_agree": true,
+      "stimulus_maximum_absolute_error": 5.551115123125783e-17,
+      "stimulus_pairwise_maximum_absolute_error": {
+        "linux-vs-macos": 5.551115123125783e-17,
+        "linux-vs-windows": 5.551115123125783e-17,
+        "macos-vs-windows": 5.551115123125783e-17
+      },
+      "stimulus_sha256": {
+        "linux": "2827c2f8a0c9f638acb3a8527fbb8f5479726ab12cdad47241ed3f511bb42a9e",
+        "macos": "91274bf4d37d0cd2ea50ef808324519e09d1d07181cffa2146e8ba6abb1765ee",
+        "windows": "7ccef6b314f5a9e784abb1f1f6d817a00a8b8268773b215e68029542d79f89bc"
+      },
+      "tolerance_absolute": 1e-09,
+      "tolerance_basis": "1e-09 absolute",
+      "vector_id": "loudness-bs1770",
+      "within_tolerance": true,
+      "working_precision": "float64"
+    },
+    {
+      "bit_identical": true,
+      "bit_identical_stimulus": false,
+      "description": "4x polyphase peaks of crest-straddling tones",
+      "identical_stimulus": true,
+      "maximum_absolute_error": 0.0,
+      "n_samples": 4,
+      "pairwise_maximum_absolute_error": {
+        "linux-vs-macos": 0.0,
+        "linux-vs-windows": 0.0,
+        "macos-vs-windows": 0.0
+      },
+      "precisions_agree": true,
+      "result_sha256": {
+        "linux": "310647697e8aa7bf05701c585874fbd76176fdc3d3899b1d974e5b268a6a73f0",
+        "macos": "310647697e8aa7bf05701c585874fbd76176fdc3d3899b1d974e5b268a6a73f0",
+        "windows": "310647697e8aa7bf05701c585874fbd76176fdc3d3899b1d974e5b268a6a73f0"
+      },
+      "sample_counts_agree": true,
+      "stimulus_maximum_absolute_error": 1.1102230246251565e-16,
+      "stimulus_pairwise_maximum_absolute_error": {
+        "linux-vs-macos": 1.1102230246251565e-16,
+        "linux-vs-windows": 1.1102230246251565e-16,
+        "macos-vs-windows": 1.1102230246251565e-16
+      },
+      "stimulus_sha256": {
+        "linux": "b2882363e837d0b2b9c21863d4eb4f6529aed636934800cfa1df7608d33b87df",
+        "macos": "57a6eebab81d51cd674544d5c85be3b1143cdf8fe37d42e04349f329f6cbe235",
+        "windows": "6e5ad817ae72160e7a8431d736a6a8fff93cb76178d3d1979d86e434eb478673"
+      },
+      "tolerance_absolute": 1e-09,
+      "tolerance_basis": "1e-09 absolute",
+      "vector_id": "true-peak-polyphase",
+      "within_tolerance": true,
+      "working_precision": "float64"
+    },
+    {
+      "bit_identical": false,
+      "bit_identical_stimulus": true,
+      "description": "VHQ sample-rate conversion, 48 kHz to 44.1 kHz",
+      "identical_stimulus": true,
+      "maximum_absolute_error": 5.960464477539063e-08,
+      "n_samples": 44100,
+      "pairwise_maximum_absolute_error": {
+        "linux-vs-macos": 5.960464477539063e-08,
+        "linux-vs-windows": 0.0,
+        "macos-vs-windows": 5.960464477539063e-08
+      },
+      "precisions_agree": true,
+      "result_sha256": {
+        "linux": "c129335dc024ea0056ed411f26516a79d0846b79f219a5e1d652041831df4ed2",
+        "macos": "8c1f8a3ef7707e898bd417ac6427a6f16e42cfb6e6a4605f7bdbc18f971c2c06",
+        "windows": "c129335dc024ea0056ed411f26516a79d0846b79f219a5e1d652041831df4ed2"
+      },
+      "sample_counts_agree": true,
+      "stimulus_maximum_absolute_error": 0.0,
+      "stimulus_pairwise_maximum_absolute_error": {
+        "linux-vs-macos": 0.0,
+        "linux-vs-windows": 0.0,
+        "macos-vs-windows": 0.0
+      },
+      "stimulus_sha256": {
+        "linux": "4f561d22dd36945f39ab058197c6077e3392e7e567dd96618f79ecd44038d524",
+        "macos": "4f561d22dd36945f39ab058197c6077e3392e7e567dd96618f79ecd44038d524",
+        "windows": "4f561d22dd36945f39ab058197c6077e3392e7e567dd96618f79ecd44038d524"
+      },
+      "tolerance_absolute": 2.384185791015625e-07,
+      "tolerance_basis": "4 float32 ulps at the vector peak (5.960e-08 each)",
+      "vector_id": "src-48k-to-44k1",
+      "within_tolerance": true,
+      "working_precision": "float32"
+    },
+    {
+      "bit_identical": true,
+      "bit_identical_stimulus": true,
+      "description": "TPDF-dithered quantisation to 16 bit",
+      "identical_stimulus": true,
+      "maximum_absolute_error": 0.0,
+      "n_samples": 48000,
+      "pairwise_maximum_absolute_error": {
+        "linux-vs-macos": 0.0,
+        "linux-vs-windows": 0.0,
+        "macos-vs-windows": 0.0
+      },
+      "precisions_agree": true,
+      "result_sha256": {
+        "linux": "c694a1636cd8407c050820a5399343d6348ca31e4da95dde101a25470a20f540",
+        "macos": "c694a1636cd8407c050820a5399343d6348ca31e4da95dde101a25470a20f540",
+        "windows": "c694a1636cd8407c050820a5399343d6348ca31e4da95dde101a25470a20f540"
+      },
+      "sample_counts_agree": true,
+      "stimulus_maximum_absolute_error": 0.0,
+      "stimulus_pairwise_maximum_absolute_error": {
+        "linux-vs-macos": 0.0,
+        "linux-vs-windows": 0.0,
+        "macos-vs-windows": 0.0
+      },
+      "stimulus_sha256": {
+        "linux": "b6e594254b8e9d297f21d4cdfed9d849962f98c35ebfe8c847110f93b1c90b57",
+        "macos": "b6e594254b8e9d297f21d4cdfed9d849962f98c35ebfe8c847110f93b1c90b57",
+        "windows": "b6e594254b8e9d297f21d4cdfed9d849962f98c35ebfe8c847110f93b1c90b57"
+      },
+      "tolerance_absolute": 2.384185791015625e-07,
+      "tolerance_basis": "4 float32 ulps at the vector peak (5.960e-08 each)",
+      "vector_id": "tpdf-dither-16bit",
+      "within_tolerance": true,
+      "working_precision": "float32"
+    },
+    {
+      "bit_identical": false,
+      "bit_identical_stimulus": false,
+      "description": "STFT band attenuation and overlap-add resynthesis",
+      "identical_stimulus": true,
+      "maximum_absolute_error": 1.6653345369377348e-16,
+      "n_samples": 48000,
+      "pairwise_maximum_absolute_error": {
+        "linux-vs-macos": 1.6653345369377348e-16,
+        "linux-vs-windows": 1.1102230246251565e-16,
+        "macos-vs-windows": 1.1102230246251565e-16
+      },
+      "precisions_agree": true,
+      "result_sha256": {
+        "linux": "5dc57bd97ea206d4313e80925438bf6c462875056ffcfb551b89d3f6717b15c0",
+        "macos": "6e535d4d5d72f749e046143146322073ca7f602edfc71492ac0c523ed6274369",
+        "windows": "2e1f199142a353f97fb08418e2ee712955d0ddb2713b15b432f7cb617df86d58"
+      },
+      "sample_counts_agree": true,
+      "stimulus_maximum_absolute_error": 5.551115123125783e-17,
+      "stimulus_pairwise_maximum_absolute_error": {
+        "linux-vs-macos": 5.551115123125783e-17,
+        "linux-vs-windows": 5.551115123125783e-17,
+        "macos-vs-windows": 5.551115123125783e-17
+      },
+      "stimulus_sha256": {
+        "linux": "9cac18492077e7b0b8e4b3486cec14efe913faa3aaa61faa1a9a7a734dca72df",
+        "macos": "b9d804baa9afdb8a678421564ec17e0e038958f2ffe7eb35aa26fa87c8ddea79",
+        "windows": "191197517aef8ae8b6a33aa122e2bd161bd3b153052648b88ef2f9970e9d12b7"
+      },
+      "tolerance_absolute": 1e-09,
+      "tolerance_basis": "1e-09 absolute",
+      "vector_id": "spectral-band-attenuate",
+      "within_tolerance": true,
+      "working_precision": "float64"
+    },
+    {
+      "bit_identical": false,
+      "bit_identical_stimulus": true,
+      "description": "Four automated tracks summed through the master bus",
+      "identical_stimulus": true,
+      "maximum_absolute_error": 0.0,
+      "n_samples": 30000,
+      "pairwise_maximum_absolute_error": {
+        "linux-vs-macos": 0.0,
+        "linux-vs-windows": 0.0,
+        "macos-vs-windows": 0.0
+      },
+      "precisions_agree": true,
+      "result_sha256": {
+        "linux": "4eb38618ec0ef32a380dc38bcacec0743f3d3e089ca8bd66bd18bf10fc8eae1f",
+        "macos": "57ff42eb3f3d92f5f30f72a67030a6b7d7ca9d71a7e514e2761d3d9d223ae798",
+        "windows": "e94561a1e417017eef04bbb7728080c055efa2fefbf459b4746ba8cc92e770de"
+      },
+      "sample_counts_agree": true,
+      "stimulus_maximum_absolute_error": 0.0,
+      "stimulus_pairwise_maximum_absolute_error": {
+        "linux-vs-macos": 0.0,
+        "linux-vs-windows": 0.0,
+        "macos-vs-windows": 0.0
+      },
+      "stimulus_sha256": {
+        "linux": "1b8449be96b704d68ea7c9d42edce1158953241ebee8ddb6ebad065035fc5b5d",
+        "macos": "1b8449be96b704d68ea7c9d42edce1158953241ebee8ddb6ebad065035fc5b5d",
+        "windows": "1b8449be96b704d68ea7c9d42edce1158953241ebee8ddb6ebad065035fc5b5d"
+      },
+      "tolerance_absolute": 2.384185791015625e-07,
+      "tolerance_basis": "4 float32 ulps at the vector peak (5.960e-08 each)",
+      "vector_id": "multitrack-mixdown",
+      "within_tolerance": true,
+      "working_precision": "float32"
+    }
+  ]
+}

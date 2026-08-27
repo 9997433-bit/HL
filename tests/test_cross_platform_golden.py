@@ -21,6 +21,7 @@ if str(REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT))
 
 from tools.cross_platform_golden import (
+    FLOAT32_TOLERANCE_ULPS,
     PLATFORM_KEYS,
     TOLERANCE_ABSOLUTE,
     VECTORS,
@@ -215,9 +216,9 @@ class TestPrecision:
         assert limit == TOLERANCE_ABSOLUTE
         assert "absolute" in basis
 
-    def test_float32_paths_are_held_to_one_ulp_of_float32(self) -> None:
+    def test_float32_paths_are_held_to_a_few_ulps_of_float32(self) -> None:
         limit, basis = vector_tolerance("float32", 0.9)
-        assert limit == pytest.approx(float(np.spacing(np.float32(0.9))))
+        assert limit == pytest.approx(FLOAT32_TOLERANCE_ULPS * float(np.spacing(np.float32(0.9))))
         assert limit > TOLERANCE_ABSOLUTE
         assert "float32 ulp" in basis
 
@@ -236,7 +237,9 @@ class TestPrecision:
         records[1]["vectors"][0]["probes"][5] += ulp
         report = merge_records(records)
         assert report["status"] == "pass"
-        assert report["vectors"][0]["tolerance_absolute"] == pytest.approx(ulp)
+        assert report["vectors"][0]["tolerance_absolute"] == pytest.approx(
+            FLOAT32_TOLERANCE_ULPS * ulp
+        )
         assert report["maximum_absolute_error_by_precision"]["float32"] == pytest.approx(ulp)
         # The headline figure is the float64 one the 1e-9 bar applies to, and
         # the report says so rather than leaving a reader to infer it.
