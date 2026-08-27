@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import BadgeShelf from '@/components/BadgeShelf.vue'
-import DailyAdventure from '@/components/DailyAdventure.vue'
+import DailyQuestCard from '@/components/DailyQuestCard.vue'
 import ProgressRing from '@/components/ProgressRing.vue'
 import { useDailyQuestStore } from '@/stores/dailyQuest.js'
 import { useProgressStore } from '@/stores/progress.js'
@@ -146,7 +146,7 @@ const stations = computed(() => [
     </section>
 
     <!-- 今日冒险：今天的三件小事 -->
-    <DailyAdventure />
+    <DailyQuestCard />
 
     <!-- 学习地图 -->
     <section class="stack">

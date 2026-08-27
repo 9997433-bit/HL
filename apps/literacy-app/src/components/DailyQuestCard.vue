@@ -2,20 +2,24 @@
 /**
  * 首页的「今日冒险」卡：今天的三件小事，做完一件当场庆祝一下。
  *
- * 任务本身与判定都在 stores/dailyQuest.js 里，这里只管两件事：
- *  1. 把三件事摆成可勾选的清单——自动完成的会自己打勾，孩子也能自己勾；
- *  2. 每完成一件放一次微庆祝（星星 + 一声脆响 + 墨墨的一句话）。
+ * 任务与判定都在 stores/dailyQuest.js 里，这里只管两件事：
+ *  1. 把三件事摆成可勾选的清单——真做完的会自己打勾，孩子也能自己勾
+ *     （在纸上读的绘本、和家长玩的字卡游戏，应用数不到，别让它们白做）；
+ *  2. 每完成一件放一次微庆祝：星星炸开 + 一声脆响 + 墨墨的一句话；
+ *     三件全做完再走全局庆祝层，并领一次当天的星星奖励。
  *
- * 庆祝一律是「锦上添花」：关掉动效只留文字与播报，进度照记不误。
+ * 庆祝一律是锦上添花：关掉动效只剩文字与播报，进度照记不误。
  */
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import StarBurst from '@/components/StarBurst.vue'
 import { useDailyQuestStore } from '@/stores/dailyQuest.js'
+import { useProgressStore } from '@/stores/progress.js'
 import { useSettingsStore } from '@/stores/settings.js'
 import { sfx } from '@/utils/sfx.js'
 import OpenMojiIcon from '@shared/components/OpenMojiIcon.vue'
 
 const quest = useDailyQuestStore()
+const progress = useProgressStore()
 const settings = useSettingsStore()
 
 const root = ref(null)
@@ -28,7 +32,7 @@ const CHEERS = [
   '这一件搞定啦！',
   '厉害，再来一件？',
   '墨墨给你鼓掌 👏',
-  '又前进了一步！',
+  '又往前走了一步！',
   '记下了，今天你很棒'
 ]
 
@@ -68,16 +72,22 @@ watch(
     cheerTimer = window.setTimeout(() => {
       cheer.value = ''
     }, 2600)
+    // 三件齐活的大庆祝走全局浮层（天然可跳过），奖励每天只发一次。
+    if (quest.claimCelebration()) progress.grantDailyQuestBonus()
   }
 )
 
 /** 页面开着过了一夜，回来时该换成新一天的任务。 */
 function onVisible() {
-  if (!document.hidden) quest.refresh()
+  if (document.hidden) return
+  quest.refresh()
+  quest.flushCompletions()
 }
 
 onMounted(() => {
   quest.refresh()
+  // 大多数任务是在别的页面上完成的，回到首页这一刻才轮到它们的星星。
+  quest.flushCompletions()
   document.addEventListener('visibilitychange', onVisible)
 })
 
@@ -132,7 +142,7 @@ onBeforeUnmount(() => {
             <span class="quest__bar" aria-hidden="true">
               <span class="quest__fill" :style="{ width: `${t.percent}%` }" />
             </span>
-            <small>{{ t.value }} / {{ t.goal }} {{ t.unit }}</small>
+            <small>{{ t.progress }} / {{ t.goal }} {{ t.unit }}</small>
           </span>
         </div>
 

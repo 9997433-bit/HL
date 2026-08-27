@@ -653,6 +653,22 @@ export const useProgressStore = defineStore('progress', () => {
     sessionSeconds.value = 0
   }
 
+  /**
+   * 今日冒险三件事全做完的奖励。
+   * 「每天只发一次」由 dailyQuest store 把关（claimCelebration），这里只管发。
+   */
+  function grantDailyQuestBonus() {
+    addStars(3)
+    addXp(15)
+    celebrate({
+      kind: 'daily-quest',
+      emoji: '🏅',
+      title: '今日冒险全部完成！',
+      subtitle: '明天还有三件新的小事等着你',
+      stars: 3
+    })
+  }
+
   function celebrate(payload) {
     pendingCelebration.value = { ...payload, at: Date.now() }
   }
@@ -902,6 +918,7 @@ export const useProgressStore = defineStore('progress', () => {
     acknowledgeRest,
     celebrate,
     clearCelebration,
+    grantDailyQuestBonus,
 
     applyAppearance,
     updateSettings,
