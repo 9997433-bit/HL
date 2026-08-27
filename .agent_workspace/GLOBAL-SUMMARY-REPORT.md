@@ -1,161 +1,106 @@
-# 全局总结报告 — 洪恩式教育双 App（Round 3 · SOTA 终验）
+Model slug: gpt-5.6-sol
+# Round 7 全局总结报告 · 洪恩对标全表
 
-> **文档状态：框架版。** 标注 `⬜ 待实测` 的单元格由终验代理（Lighthouse 终验打包、
-> 全量 E2E 回归、终验审计）在 Round 3 全部修复分支合并后填入实测值；
-> 不得以估计值或历史值冒充实测。阈值与标准 ID 均引用
-> `.agent_workspace/sota-acceptance-criteria.md`（Round 2 v1.1）。
-> 实测环境要求：`npm run build:all` 产物 zip 解压 → 静态服务器 → Chrome
-> 移动模拟 + 4× CPU 节流（见验收标准 §0 与 §5）。
->
-> 「首轮实测」列为 Round 3 修复合并前、基线
-> `99e6197` 上的量测快照（2026-08-26，详见
-> [`acceptance-log-round3.md`](./acceptance-log-round3.md)），仅作修复前后对照；
-> 终验判定只看「终验实测」列。
+> 报告快照：`cursor/openmoji-integration-9f67` @ `46759f3`（2026-08-27）。
+> 状态口径：`✅` 表示基线源码与既有门禁已有证据；`⏳ 待 R7 子代理 #N`
+> 表示能力由对应 Round 7 功能分支闭合，合入前不冒充终验通过。表内不使用红叉隐藏
+> 在途工作，最终发布声明必须等所有在途项和 Round 7 总门禁转绿。
 
----
+## 1. 审计来源与判定边界
 
-## 1. 交付物清单
+- Round 6 fresh code walk：`.agent_workspace/round6-hongen-module-audit.md`。该审计记录
+  Round 6 开工前的 31 项基线、源码证据和 R7 归属；本报告用 Round 6 集成后的
+  `check:round6` 与当前源码更新其中的内容计数。
+- Round 7 终验审计：`.agent_workspace/round7-hongen-module-audit.md`。该文件由
+  `cursor/r7-module-audit-9f67`（子代理 #2）交付；合入前，本报告对其负责复核的项目
+  保留明确的「待 R7 子代理」状态，合入后应以该审计的逐文件结论替换在途标记。
+- 验收契约：`.agent_workspace/ROUND6-ACCEPTANCE.md`、
+  `.agent_workspace/ROUND7-ACCEPTANCE.md` 与
+  `.agent_workspace/SURPASS-HONGEN-MASTER-PLAN.md`。
+- 回归实测唯一记录：`.agent_workspace/acceptance-log-round6.md`。命令退出码、内容
+  计数、zip 大小和 Android 26 项结果均以该日志为准，不用历史估计值代替。
 
-| 交付物 | 路径 | 首轮实测（基线 99e6197） | 终验（大小 / SHA256） | 状态 |
+本报告中的「对标」指公开能力的工程实现与本项目主计划口径，不复制洪恩的角色、美术、
+音频或受保护内容。开源素材和许可证证据见 `THIRD_PARTY_NOTICES.md`。
+
+## 2. 识字 App 对标全表（L-M1–L-M15）
+
+| ID | 洪恩能力 / 我方超越点 | 终验状态 | 当前证据 | 审计 / R7 归属 |
 |---|---|---|---|---|
-| 识字 App 发行包 | `dist/hongen-literacy-app.zip` | 397,924 B（249 文件） | ⬜ 待实测 | ⬜ |
-| 数学 App 发行包 | `dist/hongen-math-app.zip` | 141,235 B（29 文件） | ⬜ 待实测 | ⬜ |
-| 第三方声明（随两 zip 分发） | `THIRD_PARTY_NOTICES.md` | — | — | ✅ 已建立（2026-08-26） |
-| 全局总结报告 | 本文件 | — | — | 🔄 框架已建，待填终验实测 |
+| L-M1 | 1800 常用字分级；一级字表序、单元化、详情懒加载 | ✅ | `characters.js` / `character-index.js` 为 1820 字，`check-data.mjs` 固定下限 1800；详情按 `chars/u*.js` 分包 | R6 H1 及 R6 审计 L-M1 |
+| L-M2 | 认→读→写→玩→奖励自动闭环，且可暂停自动前进 | ✅ | `CharDetailView.vue` 的 `PHASES`、`pendingNext` 与完整后发奖规则 | R6 审计 L-M2 |
+| L-M3 | 逐笔描红判定；同一笔错 3 次自动示范；键盘替代 | ✅ | `HanziStrokeBox.vue` 的 `demoAfterMistakes: 3`、逐笔示范与键盘入口 | R6 审计 L-M3 |
+| L-M4 | 听音识字与测验优先使用形近字干扰，而非纯随机 | ⏳ 待 R7 子代理 #5 | 基线 `ListenGameView.vue` 仍需接入 `similar-chars.js` 形近字库并由 H2 探针验真 | R6 审计 L-M4；R7 H2 |
+| L-M5 | 130 本分级绘本；正文只使用已学字；正文延迟加载 | ✅ | `book-index.js` 为 132 本；`books.js` 的 `verifyBookCoverage()` 校验零越界 | R6 H2 及 R6 审计 L-M5 |
+| L-M6 | 字源图形 DSL + GSAP 演变；Round 7 自动门槛 200 字 | ⏳ 待 R7 子代理 #5 | 基线 `etymology-index.js` 为 65 字，现有 `EtymologyStage.vue` 动画管线供脚本化扩量 | R6 审计 L-M6；R7 H3 |
+| L-M7 | FSRS-lite 到期复习、掌握度与家长热力图透明可见 | ✅ | `utils/srs.js`、`stores/progress.js` 与 `ParentView.vue` 共同接线 | R6 审计 L-M7 |
+| L-M8 | 60+ 成语与 20+ 古诗；朗读、点字、拼音/释义 | ✅ | `idiom-index.js` 为 60 条；`poem-index.js` 为 24 首，`PoemDetailView.vue` 提供三件套 | R6 H3 及 R6 审计 L-M8 |
+| L-M9 | Web Speech 跟读比对；无识别能力时录音回放降级 | ✅ | `/follow-read/:id?`、`useSpeechEval.js`、`speechEval.js` 与 `ROUND6_H4_SMOKE` 四层接线 | R6 H4 及 R6 审计 L-M9 |
+| L-M10 | Tesseract.js 前端拍照识字；识别结果匹配 1820 字讲解 | ⏳ 待 R7 子代理 #4 | 基线 `router/index.js` 尚无 OCR 页面；目标由 `CameraOcrView.vue` 与 OCR pipeline 接线 | R6 审计 L-M10；R7 H1 |
+| L-M11 | 程序化动画、开源表情与吉祥物陪跑，不复制商业 IP | ✅ | `MascotCompanion.vue`、`unit-stories.js`、`sfx.js` 与 `OpenMojiAttribution.vue` | R6 审计 L-M11；资源声明 |
+| L-M12 | 不含听音在内至少 5 款字表内小游戏，均可从大厅进入 | ✅ | `data/games.js` 注册 maze、memory、spot、spell、catch 共 5 款且路由精确接线 | R6 H5 及 R6 审计 L-M12 |
+| L-M13 | 家长门、防沉迷、JSON 导入导出、自选单元与每日目标 | ✅ | `ParentView.vue` 的家长门和导入导出；`settings.js` 的 `planUnits` 与每日设置 | R6 审计 L-M13 |
+| L-M14 | 星星、10 枚三档徽章、每日任务与可跳过庆祝 | ✅ | `badges.js`、`BadgeShelf.vue`、`dailyQuest.js` 与 `CelebrationLayer.vue` | R6 审计 L-M14 |
+| L-M15 | 离线全功能、axe 0/0、首屏受预算保护、双浏览器性能达线 | ⏳ 待 R7 子代理 #9 | `public/sw.js`、`offline-smoke.sh`、`axe-states.mjs`、`check-bundle.mjs` 已在场；最终 Lighthouse 由性能分支定标 | R6 审计 L-M15；R7 G6 |
 
-> 终验 zip 大小与哈希在最终打包后用 `ls -l dist/*.zip && sha256sum dist/*.zip` 记录。
-> 注意：终验包必须含 `THIRD_PARTY_NOTICES.md` 与识字包内
-> `hanzi-data/ARPHICPL.TXT`（build-all.sh / gen-hanzi-data.mjs 已自动化）。
+识字基线内容水位：1820 字、132 本绘本、60 条成语、24 首古诗、5 款新增小游戏；
+其中计数和接线由 `check-round6.mjs` 固定为 7 个硬结果，防止静默删探针。
 
-## 2. 三轮演进总览
+## 3. 数学 App 对标全表（M-M1–M-M16）
 
-| 轮次 | 状态 | 交付要点 |
-|---|---|---|
-| Round 1 | ✅ | 双 App MVP（识字 7 模块 / 数学 7 星球）、构建与打包流水线、SOTA 验收标准、UI/UX 设计规范、开源资源合规探针 |
-| Round 2 | ✅ | 识字 106 字 + FSRS 接线 + 记忆热力图；数学 QuizShell + Tone.js 移除（主包 gzip ~80KB）+ 4/6/9 数独；双 App 离线 SW；axe critical = 0（当时全路由）；FSRS 单测 8/8 |
-| Round 3 | 🔄 | 字库 200 字、数学家长面板、axe serious 清零、设计令牌迁移、Lighthouse 终验、THIRD_PARTY_NOTICES 与文档对齐、最终打包 |
-
-Round 3 各子任务的合并情况（终验前核对）：
-
-| 子任务 | 分支/交付 | 合并状态 |
-|---|---|---|
-| 识字 200 字 + 内容扩容 | ⬜ 待填 | ⬜ |
-| 识字无障碍（描红键盘替代 / aria-live） | ⬜ 待填 | ⬜ |
-| 数学家长面板（防沉迷/报表/导出） | ⬜ 待填 | ⬜ |
-| 设计令牌落地（literacy theme + math cosmos） | ⬜ 待填 | ⬜ |
-| axe serious 清零 | ⬜ 待填 | ⬜ |
-| Lighthouse 终验 + 最终打包 | ⬜ 待填（首轮实测已记入 acceptance-log-round3.md） | ⬜ |
-| 全量 E2E 回归（test:round3） | ⬜ 待填 | ⬜ |
-| 终验审计 / 令牌迁移验收 | ⬜ 待填 | ⬜ |
-| 文档与 NOTICES 对齐 | `cursor/round3-docs-compliance-6290` | ✅ 本文件所在分支 |
-
-## 3. SOTA 终验门槛结果矩阵
-
-### 3.1 功能（P0）
-
-| 标准 | Round 3 终值 | 终验实测 | 结论 |
-|---|---|---|---|
-| L-F1 字库规模 | ≥ 200 字（分级），每字拼音/释义/例词/笔顺齐 | ⬜ 待实测（`check:data` 输出） | ⬜ |
-| L-F2–F4 学习闭环/笔顺/听音 | 认→写→测衔接；错 3 次示范；温和重试 | ⬜ 待实测（smoke + 手动） | ⬜ |
-| L-F5 复习系统 | FSRS 到期队列首页可见 | ⬜ 待实测 | ⬜ |
-| L-F6–F10 绘本成语/奖励/家长/持久化/防沉迷 | 见验收标准 §1.1 | ⬜ 待实测 | ⬜ |
-| M-F1 知识覆盖 | ≥ 7 类；题库 ≥ 300（可复现题目 ID） | ⬜ 待实测（`check:content` 输出） | ⬜ |
-| M-F8 家长面板 | 家长门 + 报表 + 难度/音量/动效/时长可调 | ⬜ 待实测 | ⬜ |
-| M-F2–F7 / F9–F10 其余功能 | 见验收标准 §2.1 | ⬜ 待实测 | ⬜ |
-
-### 3.2 性能（P0，双 App 分别记录）
-
-| 标准 | 阈值 | 首轮实测（识字/数学） | 终验·识字 | 终验·数学 | 结论 |
-|---|---|---|---|---|---|
-| L/M-P1 Lighthouse Performance | ≥ 95（Round 3 过渡门槛 ≥ 90） | 92 / 95 | ⬜ | ⬜ | ⬜ |
-| L/M-P2 FCP / LCP / TTI | < 1.0s / < 1.5s / < 2.0s | 未单列 | ⬜ | ⬜ | ⬜ |
-| L/M-P3 CLS / TBT | < 0.05 / < 150ms | 未单列 | ⬜ | ⬜ | ⬜ |
-| L/M-P4 首屏 JS gzip | < 250KB | 101,499B / 79,444B ✅ | ⬜ | ⬜ | ⬜ |
-| L/M-P5 动画帧率 | 60s 平均 ≥ 55fps，无 >50ms long task | 未测 | ⬜ | ⬜ | ⬜ |
-| L/M-P6 音效延迟 | 点击到发声 < 100ms | 未测 | ⬜ | ⬜ | ⬜ |
-| L/M-P7 内存 | 30min heap 增长 < 20% | 未测 | ⬜ | ⬜ | ⬜ |
-| M-P8 拖拽跟手 | ≥ 55fps，位移延迟 ≤ 1 帧 | 未测 | — | ⬜ | ⬜ |
-| M-P9 题目生成 | 单题 < 16ms，同 seed 同题 | 未测 | — | ⬜ | ⬜ |
-| 单 App 构建时长 | ≤ 60s | 1.952s / 1.273s ✅ | ⬜ | ⬜ | ⬜ |
-
-### 3.3 无障碍（P0/P1）
-
-| 标准 | 阈值 | 首轮实测（识字/数学） | 终验·识字 | 终验·数学 | 结论 |
-|---|---|---|---|---|---|
-| L/M-A1 Lighthouse Accessibility | ≥ 95 | 87 / 93 ❌ | ⬜ | ⬜ | ⬜ |
-| axe critical（全路由） | = 0 | 1 / 3 ❌ | ⬜ | ⬜ | ⬜ |
-| axe serious（全路由） | = 0 | 58 / 5 ❌ | ⬜ | ⬜ | ⬜ |
-| L/M-A2 触控目标 | ≥ 56×56px，间距 ≥ 8px | 未测 | ⬜ | ⬜ | ⬜ |
-| L/M-A3 对比度（全部主题抽查） | 正文 ≥ 4.5:1 / 大字 ≥ 3:1 | 未测 | ⬜ | ⬜ | ⬜ |
-| L/M-A4 键盘走查 | 学习闭环纯键盘可完成 | 未测 | ⬜ | ⬜ | ⬜ |
-| M-A9 教具键盘替代 | 拖拽教具方向键+回车可完成 | 未测 | — | ⬜ | ⬜ |
-| L/M-A5–A7 读屏 / 动效降级 / 光敏 | 见验收标准 §1.3 | 未测 | ⬜ | ⬜ | ⬜ |
-
-### 3.4 离线（P0）
-
-| 标准 | 阈值 | 首轮实测（识字/数学） | 终验·识字 | 终验·数学 | 结论 |
-|---|---|---|---|---|---|
-| L/M-O1 断网冷启动学习闭环 | `test:offline` + 手动 | PASS / PASS ✅ | ⬜ | ⬜ | ⬜ |
-| L/M-O2 资产本地化 | 运行时零第三方域名请求 | 未测 | ⬜ | ⬜ | ⬜ |
-| L/M-O3 弱网降级 | 角色化提示可重试，不白屏 | 未测 | ⬜ | ⬜ | ⬜ |
-| L/M-O4 静态可部署 | zip 解压任意路径即用 | PASS ✅ | ⬜ | ⬜ | ⬜ |
-
-### 3.5 合规与工程（C 系列）
-
-| 标准 | 阈值 | 实测/现状 | 结论 |
-|---|---|---|---|
-| C-1 隐私 | 零遥测/广告/第三方 SDK，DevTools Network 全程核验 | ⬜ 待实测 | ⬜ |
-| C-2 合规 | NOTICES 覆盖 HanziWriter(MIT)/APL(附 ARPHICPL.TXT)/OpenMoji(署名)/OFL；`verify-resources.sh` 通过 | ✅ `THIRD_PARTY_NOTICES.md` 已建；APL 随 `public/hanzi-data/` 及 zip 分发；verify-resources 2026-08-26 通过 | ✅ |
-| C-3 打包 | `npm test` 与 `npm run build:all` 通过，zip 解压即用 | 首轮：构建/打包/CRC ✅ | ⬜ |
-| C-4 设计令牌 | 双 App 引入 design-tokens.css，抽查 10 组件无硬编码 | ⬜ 待实测 | ⬜ |
-| C-5/C-6 设计走查 / 浏览器矩阵 | 见验收标准 §3 | ⬜ 待实测 | ⬜ |
-
-## 4. 自动化测试终态记录
-
-| 命令 | 覆盖 | 终验结果 | 记录时间 |
-|---|---|---|---|
-| `npm run test:literacy`（test:srs + check:data + build + smoke） | FSRS 单测 / 内容自检 / 17 路由 + 12 交互 | ⬜ 待实测 | ⬜ |
-| `npm run test:math`（check:content + build + smoke） | 题库生成器压测 / 9 路由 + 10 交互 | ⬜ 待实测 | ⬜ |
-| `npm run test:offline` | 双 App 断网冷启动 | ⬜ 待实测 | ⬜ |
-| `npm run test:acceptance` | 构建时长 / gzip / Lighthouse / axe 门禁 | ⬜ 待实测（首轮退出码 1，见 acceptance-log-round3.md） | ⬜ |
-| `bash scripts/verify-resources.sh` | 数据/素材/许可证合规 | ✅ 通过（2026-08-26） | 2026-08-26 |
-
-## 5. 超越洪恩的量化证据（对照验收标准 §4）
-
-| 维度 | 洪恩现状 | 我们的达标线 | 实测证据 | 结论 |
+| ID | 洪恩能力 / 我方超越点 | 终验状态 | 当前证据 | 审计 / R7 归属 |
 |---|---|---|---|---|
-| 商业干扰 | 订阅墙/内购 | 零付费墙、零广告 | ⬜ 待填 | ⬜ |
-| 主题 | 单一明亮主题 | 4 主题 + 字号 4 档 | ⬜ 待填 | ⬜ |
-| 无障碍 | 无读屏/无 reduced-motion | WCAG 2.1 AA 关键项 | ⬜ 待填 | ⬜ |
-| 离线 | 需登录+大包下载 | 断网冷启动全功能 | ⬜ 待填 | ⬜ |
-| 奖励动画 | 不可跳过 | 全部可跳过 | ⬜ 待填 | ⬜ |
-| 家长数据 | 云端不可导出 | 本地持久化 + JSON 导出 | ⬜ 待填 | ⬜ |
-| 反馈延迟 | 约 100ms | ≤ 100ms 有测量记录 | ⬜ 待填 | ⬜ |
+| M-M1 | 3–12 岁 L1–L5 年龄档驱动各核心模块默认难度 | ⏳ 待 R7 子代理 #6 | 基线 `settings.js` 定义五档，但仅 `ArithmeticView.vue` 明确消费；需至少 5 模块联动 | R6 审计 M-M1；R7 H4 |
+| M-M2 | 种子化 PRNG + 母题参数化生成无限可复现题目 ID | ✅ | `utils/random.js` 与 `wordProblems.js` 组合，`check-content.mjs` 对母题批量压测 | R6 审计 M-M2 |
+| M-M3 | 至少 185 个应用题母题，覆盖一步、两步和进阶题 | ✅ | `wordProblems.js` 为 214 个母题；`check-content.mjs` 固定下限 185 | R6 H6 及 R6 审计 M-M3 |
+| M-M4 | 数感、比较、四则、乘法与竖式进退位专题 | ✅ | `/number-sense`、`/compare`、`/arithmetic` 与 `/column-arithmetic` 均在 `router/index.js` | R6 审计 M-M4 |
+| M-M5 | 几何/空间题与可操作七巧板 | ✅ | `GeometryView.vue`、`TangramView.vue` 和 `/tangram` 路由 | R6 审计 M-M5 |
+| M-M6 | 规律推理 + 数学侧配对或迷宫逻辑小游戏 | ⏳ 待 R7 子代理 #7 | 基线 `LogicView.vue` 有 5 类规律题；配对/迷宫及 smoke 由逻辑游戏分支闭合 | R6 审计 M-M6；R7 H5 |
+| M-M7 | 4×4、6×6、9×9 唯一解数独；提示与键盘可玩 | ✅ | `SudokuView.vue` 与 `core/engine/sudoku.js` 的生成、唯一解和三档接线 | R6 审计 M-M7 |
+| M-M8 | 实物→图形→算式三段同步演示，可跳过和重播 | ✅ | `visualDemos.js` 提供 8 类；`VisualDemosView.vue` / `VisualMathDemo.vue` 统一播放 | R6 审计 M-M8 |
+| M-M9 | 掌握度自适应；连对升档、连错降档、弱项优先 | ✅ | `core/engine/adaptive.js` 与默认启用 adaptive 的 `QuizShell.vue` | R6 审计 M-M9 |
+| M-M10 | questionId 级错题本；重练成功后移出 | ✅ | `stores/progress.js` 的 `wrongBook` 与 `WrongBook.vue` 重做闭环 | R6 审计 M-M10 |
+| M-M11 | 口算冲刺、连击反馈、竖式及进位借位错因专练 | ✅ | `/sprint`、`ArithmeticView.vue` 与 `ColumnArithmeticView.vue` | R6 审计 M-M11 |
+| M-M12 | 剧情星球地图、解锁条件、当前关高亮与每日冒险 | ✅ | `modules.js` 的 story/lockedStory、`HomeView.vue` 解锁过场、`daily.js` 种子题 | R6 审计 M-M12 |
+| M-M13 | 至少 3 类互动教具；拖拽同时提供点选/键盘替代 | ✅ | `NumberSenseView.vue` 拖拽计数、`ArithmeticView.vue` 数轴、`ComposeTenView.vue` 分与合 | R6 审计 M-M13 |
+| M-M14 | 家长门、雷达/错因报表、JSON 导入导出、时长设置 | ✅ | `modules/parent/ParentView.vue` 与 `stores/progress.js` / `settings.js` | R6 审计 M-M14 |
+| M-M15 | 三星结算、18 项成就、章节反馈与可降级动效 | ✅ | `achievements.js`、`AchievementToast.vue`、`RoundSummary.vue` 与 `motion.js` | R6 审计 M-M15 |
+| M-M16 | 离线全功能、axe 0/0、路由拆包、Lighthouse 达线 | ⏳ 待 R7 子代理 #9 | `public/sw.js`、`offline-smoke.sh`、路由懒加载与验收脚本已在场；最终分数由性能分支实测 | R6 审计 M-M16；R7 G6 |
 
-## 6. 未达标项与残留风险
+数学基线内容水位：214 个应用题母题、8 类数形演示、4/6/9 三档数独、18 项成就；
+年龄档全模块联动和逻辑小游戏明确留给对应 R7 分支，不以已有设置字段冒充完成。
 
-> 终验后填写：每项写明标准 ID、实测值、差距、责任模块与处置建议（豁免/降级/下轮修复）。
+## 4. 差异化反超清单
 
-- 首轮实测已知差距（修复分支合并后须复测清零）：LH Performance 识字 92（<95）、
-  LH Accessibility 87/93（<95）、axe critical 合计 4、axe serious 合计 63。
-- ⬜ 终验后补充
+| ID | 能力 | 状态 | 证据 / 收口条件 |
+|---|---|---|---|
+| D-1 | 开源、可审计、第三方资源署名完整 | ⏳ 待 R7 子代理 #10 | `THIRD_PARTY_NOTICES.md` 已覆盖依赖与素材；仓库根许可证需发布负责人确认 |
+| D-2 | 零订阅、零广告、零账号、零遥测 | ✅ | 双 App 本地 store + 静态产物；`offline-smoke.sh` 在断网环境跑核心页面 |
+| D-3 | 家长进度 JSON 导入/导出，不被云端锁定 | ✅ | 双 App `ParentView.vue` 均实现 `exportData` / `importData` |
+| D-4 | 四主题、字号档与 reduced-motion 统一持久化 | ⏳ 待 R7 子代理 #8 | 基线主题系统由 `settings.js` 持久化；aurora 与四主题对比度由 R7 H6 闭合 |
+| D-5 | FSRS 调度和记忆热力图向家长透明 | ✅ | `srs.js`、识字 `progress.js` 与家长热力图 |
+| D-6 | 庆祝可跳过，动画可系统级降级 | ✅ | `CelebrationLayer.vue`、`CelebrationOverlay.vue` 与 `prefers-reduced-motion` 样式 |
+| D-7 | 双 App 可离线 zip，单包保持 10 MB 级以下 | ⏳ 待 R7 子代理 #10 | `build-all.sh` 负责打包和 CRC；本轮实测大小写入 `acceptance-log-round6.md` |
 
-## 7. 结论
+## 5. 证据包索引
 
-> 终验后填写：是否达成「全部 P0/P1 清零」的 SOTA 出包门槛；两 zip 是否可对外发布。
+| 证据 | 路径 / 命令 | 用途 |
+|---|---|---|
+| Round 6 审计 | `.agent_workspace/round6-hongen-module-audit.md` | 31 项历史基线、源码 walk 与 R7 缺口来源 |
+| Round 7 审计 | `.agent_workspace/round7-hongen-module-audit.md` | 功能分支合入后的最终逐项复核 |
+| Round 6 验收日志 | `.agent_workspace/acceptance-log-round6.md` | 7/7 内容门禁、回归、zip、Android 实测 |
+| Round 7 自动门禁 | `npm run check:round7` | OCR、形近干扰、字源、年龄档、逻辑游戏、aurora、全局报告 |
+| 全链回归 | `npm test` 与 `npm run test:round3` | 单测、内容、构建、浏览器 smoke、离线、acceptance |
+| Web 发行包 | `npm run build:all` | 生成 `dist/hongen-literacy-app.zip` 与 `dist/hongen-math-app.zip` |
+| Android 镜像 | `npm run sync:android` 与 `npm run check:android` | 双 App Capacitor copy/sync 与 26 项壳层门禁 |
 
-- 首轮判定（基线 99e6197）：产物可完整运行，但无障碍与 Lighthouse 硬门槛未过，
-  **不可发布**（见 acceptance-log-round3.md）。
-- ⬜ 终验判定待填
+## 6. 当前判定
 
----
+31 个洪恩模块行齐全：24 项已有基线证据，7 项明确绑定 R7 子代理。当前报告可以作为
+集成看板和证据入口，但不能在 OCR、形近干扰、字源 200、年龄档联动、数学逻辑游戏、
+aurora 与 Lighthouse 分支合入前发布「全面超越」声明。最终声明还必须同时满足：
 
-### 附：实测数据采集方法（填表人参照）
-
-1. `bash scripts/setup.sh && npm test && npm run build:all` → 记录 §4 与 C-3。
-2. 解压 zip → `npx serve` → Lighthouse（移动模拟 + 4× 节流）→ 填 §3.2 / §3.3 首两行。
-3. `npm run test:acceptance` 的输出可直接摘抄 gzip 字节数与 axe 计数。
-4. Performance 面板录制 60s 学习操作 → 填 L/M-P5、M-P8。
-5. DevTools Network 离线切换 + 全程域名核验 → 填 §3.4 与 C-1。
-6. 结果同时回写 `.agent_workspace/acceptance-log-round3.md`，并更新本文件 §1 的
-   zip 大小与 SHA256。
+1. `npm run check:round6` 保持 7/7；
+2. `npm run check:round7` 七项全部通过；
+3. `npm run test:round3`、双 App Lighthouse 与 Android 26 项门禁通过；
+4. Round 7 审计将本表的全部「待 R7 子代理」逐项改为有实测证据的终态。
