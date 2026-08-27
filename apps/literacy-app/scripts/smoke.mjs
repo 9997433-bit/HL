@@ -1061,7 +1061,8 @@ await interact('徽章：学会第一个字就点亮，首页与家长中心都�
   if (!home.chip) throw new Error('首页顶部没有徽章数量')
 
   await page.goto(page.url().replace(/#.*$/, '#/parent'), { waitUntil: 'networkidle2' })
-  await new Promise((r) => setTimeout(r, 400))
+  // 家长中心是按需 chunk，机器忙的时候几百毫秒挂不上来；等口算门真出现再答题
+  await page.waitForSelector('input[type="number"]', { timeout: 10000 })
   await page.evaluate(() => {
     const label = document.body.innerText.match(/(\d+)\s*\+\s*(\d+)/)
     const input = document.querySelector('input[type="number"]')
@@ -1072,7 +1073,7 @@ await interact('徽章：学会第一个字就点亮，首页与家长中心都�
   })
   await new Promise((r) => setTimeout(r, 200))
   await clickText(page, '进入')
-  await new Promise((r) => setTimeout(r, 400))
+  await page.waitForSelector('.badge', { timeout: 10000 }).catch(() => {})
 
   const parent = await page.evaluate(() => ({
     total: document.querySelectorAll('.badge').length,
@@ -1114,7 +1115,12 @@ await interact('播报：答题与庆祝都有 aria-live', '/#/listen', async (p
   await page.goto(page.url().replace(/#.*$/, '#/books/b2'), { waitUntil: 'networkidle2' })
   await new Promise((r) => setTimeout(r, 400))
   for (let i = 0; i < 8; i++) {
-    if (await clickText(page, '下一页')) continue
+    if (await clickText(page, '下一页')) {
+      // 翻到最后一页就发庆祝，而庆祝几秒后会自动收场：
+      // 一看见浮层就停手，别把剩下的空翻页耗在它的展示时间里
+      if (await page.$('.cel')) break
+      continue
+    }
     if (await clickText(page, '读完啦')) break
     break
   }
