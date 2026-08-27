@@ -1287,9 +1287,15 @@ await interact('徽章：学会第一个字就点亮，首页与家长中心都�
   })
   await new Promise((r) => setTimeout(r, 700))
 
-  const stored = await page.evaluate(
-    () => Object.keys(JSON.parse(localStorage.getItem('happy-literacy:v1') ?? '{}').badges ?? {})
-  )
+  // 徽章是单字页加载完详情包之后才落的账，机器忙的时候这一步会晚几百毫秒；
+  // 等到存档里出现它再读，读不到就等满 5 秒，照样按「没解锁」报出来
+  const badgesOf = () =>
+    Object.keys(JSON.parse(localStorage.getItem('happy-literacy:v1') ?? '{}').badges ?? {})
+  await page
+    .waitForFunction(`(${badgesOf.toString()})().includes('first-step')`, { timeout: 5000 })
+    .catch(() => {})
+
+  const stored = await page.evaluate(badgesOf)
   if (!stored.includes('first-step')) {
     throw new Error(`学会第一个字后没有解锁「启蒙芽」，存档里只有：${stored.join('、') || '空'}`)
   }
