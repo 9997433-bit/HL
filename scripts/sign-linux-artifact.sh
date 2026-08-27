@@ -257,6 +257,10 @@ for line in Path(os.environ["RECORDS"]).read_text(encoding="utf-8").splitlines()
 report = {
     "schema_version": 1,
     "tool": "scripts/sign-linux-artifact.sh",
+    # The platform these artifacts are for, as against "platform" below, which
+    # is the host that ran the script. scripts/release-signing-manifest.sh
+    # refuses a report filed under the wrong one.
+    "target_platform": "linux",
     "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     "platform": {
         "system": platform.system(),
