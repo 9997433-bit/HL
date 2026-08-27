@@ -9,7 +9,7 @@ B2 requires a one-hour, 48 kHz stereo file to:
 
 The default run creates a physically allocated PCM-16 WAV containing a
 deterministic dual tone for the full hour.  Waveform and spectrogram timings
-include real libsndfile reads and offscreen Qt paints.  The offline timing reads
+include real libsndfile reads and headless Qt paints.  The offline timing reads
 every frame through ``StreamingSampleSource``, runs the production three-band
 EQ block path, and runs the production ``NormalizeEffect`` over the complete
 EQ render.
@@ -238,7 +238,7 @@ def _write_fixture(path: Path, n_frames: int) -> dict[str, Any]:
 
 
 def _qt_application():
-    """Return the process QApplication, forcing offscreen rendering headlessly."""
+    """Return a QApplication suitable for Xvfb or offscreen headless rendering."""
     if not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY"):
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     from PySide6.QtWidgets import QApplication
@@ -252,7 +252,7 @@ def _measure_waveform_open(
     expected_frames: int,
     application: Any,
 ) -> tuple[dict[str, Any], bool]:
-    """Open the stream, restore peaks, and force a real offscreen waveform paint."""
+    """Open the stream, restore peaks, and force a real headless waveform paint."""
     from audio_studio.ui.waveform_view import WaveformView
 
     source: StreamingSampleSource | None = None
@@ -291,7 +291,7 @@ def _measure_waveform_open(
             "render_width_px": pixmap.width(),
             "render_height_px": pixmap.height(),
             "waveform_peak": round(waveform_peak, 8),
-            "offscreen_paint_completed": rendered,
+            "headless_paint_completed": rendered,
         }
         return measured, complete
     finally:
@@ -309,7 +309,7 @@ def _measure_spectrogram_first_frame(
     viewport_seconds: float,
     application: Any,
 ) -> tuple[dict[str, Any], bool]:
-    """Read, analyze, and paint the first visible spectral viewport."""
+    """Read, analyze, and paint the first visible viewport headlessly."""
     from audio_studio.ui.spectrum_panel import SpectrumPanel
 
     source: StreamingSampleSource | None = None
@@ -339,7 +339,7 @@ def _measure_spectrogram_first_frame(
             "spectrogram_columns": panel.spectrogram._current_matrix().shape[0],
             "render_width_px": pixmap.width(),
             "render_height_px": pixmap.height(),
-            "offscreen_paint_completed": rendered,
+            "headless_paint_completed": rendered,
         }
         return measured, complete
     finally:
@@ -470,8 +470,8 @@ def _result(
         "threshold": {"elapsed_seconds_max": seconds_max},
         "scope": scope,
         "limitation": (
-            "Offscreen Qt on a shared Linux host measures the complete software "
-            "path, including paint, but excludes a desktop compositor and monitor latency."
+            "Headless Qt on a shared Linux host measures the complete software path, "
+            "including paint, but excludes a physical display and monitor latency."
             if slo_id != "offline-eq-normalize"
             else (
                 "The full file is decoded and processed, but the benchmark discards "
@@ -538,7 +538,7 @@ def run_benchmark(args: argparse.Namespace, scratch: Path) -> dict[str, Any]:
             seconds_max=WAVEFORM_OPEN_SECONDS_MAX,
             operation_complete=waveform_complete,
             formal_eligible=formal_eligible,
-            scope="Streaming open, peak-sidecar restore, 1280×480 offscreen Qt paint",
+            scope="Streaming open, peak-sidecar restore, 1280×480 headless Qt paint",
         ),
         _result(
             slo_id="spectrogram-first-frame",
@@ -549,7 +549,7 @@ def run_benchmark(args: argparse.Namespace, scratch: Path) -> dict[str, Any]:
             formal_eligible=formal_eligible,
             scope=(
                 f"Read/analyze first {spectrogram['viewport_seconds']:g}s viewport "
-                "and complete a 1280×720 offscreen Qt paint"
+                "and complete a 1280×720 headless Qt paint"
             ),
         ),
         _result(

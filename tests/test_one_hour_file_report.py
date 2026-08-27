@@ -95,13 +95,13 @@ def test_report_proves_each_operation_consumed_real_source_data() -> None:
     assert waveform["source_frames"] == fixture_frames
     assert waveform["cached_waveform_frames"] == fixture_frames
     assert waveform["waveform_peak"] > 0.0
-    assert waveform["offscreen_paint_completed"] is True
+    assert waveform["headless_paint_completed"] is True
 
     spectrogram = by_id["spectrogram-first-frame"]["measured"]
     assert spectrogram["source_frames"] == fixture_frames
     assert 0 < spectrogram["viewport_frames"] <= fixture_frames
     assert spectrogram["spectrogram_columns"] > 0
-    assert spectrogram["offscreen_paint_completed"] is True
+    assert spectrogram["headless_paint_completed"] is True
 
     offline = by_id["offline-eq-normalize"]["measured"]
     assert offline["source_frames"] == fixture_frames
