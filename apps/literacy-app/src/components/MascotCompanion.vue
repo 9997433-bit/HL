@@ -193,8 +193,9 @@ onMounted(() => {
     animate(
       root.value,
       [
-        { opacity: 0, transform: 'scale(.6)' },
-        { opacity: 1, transform: 'scale(1)' }
+        // 点击容器不做缩放：即使主线程繁忙、动画停在首帧，命中区也始终 ≥ 44px。
+        { opacity: 0, transform: 'translateY(8px)' },
+        { opacity: 1, transform: 'translateY(0)' }
       ],
       { duration: 600, easing: 'cubic-bezier(.34,1.56,.64,1)' }
     )
