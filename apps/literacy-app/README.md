@@ -44,6 +44,9 @@ npm run preview
 `sw.js` 改成第一次真的去认字时才下载，下完写进 `literacy-app-ocr-pack` 缓存，
 之后断网照样能认字。这个缓存不带版本号，换版本时不会被 `activate` 清掉。
 
+`npm run test:offline` 会把这条链路整个跑一遍：联网时认一次示例照片、确认引擎包
+落进了按需缓存而不是预缓存，然后关掉 HTTP 服务，断网再认一次，必须照样认得出。
+
 Service Worker 不支持 `file://`，不能通过直接双击 `dist/index.html` 安装离线缓存。可在仓库根目录运行 `npm run build && npm run test:offline`，验证关闭 HTTP 服务后仍能启动详情页并读取笔顺数据。
 
 ## 拍照识字

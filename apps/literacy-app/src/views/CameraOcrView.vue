@@ -128,27 +128,32 @@ function say(char) {
     <section class="card ocr__deck">
       <div class="ocr__acts">
         <button class="btn btn--primary btn--lg" :disabled="busy" @click="pick(cameraInput)">
-          📷 拍一张
+          <OpenMojiIcon name="camera" :size="22" /> 拍一张
         </button>
         <button class="btn btn--lg" :disabled="busy" @click="pick(albumInput)">
-          🖼️ 相册选一张
+          <span aria-hidden="true">🖼️</span> 相册选一张
         </button>
         <button class="btn btn--lg" :disabled="busy" @click="useSample">
-          ✨ 试一张示例
+          <span aria-hidden="true">✨</span> 试一张示例
         </button>
         <button v-if="phase !== 'idle'" class="btn btn--lg" :disabled="busy" @click="again">
-          ↩️ 换一张
+          <span aria-hidden="true">↩️</span> 换一张
         </button>
       </div>
 
-      <!-- 两个 input 分开：拍照那个要 capture，相册那个不能带，否则安卓直接跳相机 -->
+      <!--
+        两个 input 分开：拍照那个要 capture，相册那个不能带，否则安卓直接跳相机。
+        它们都从无障碍树里摘掉——真正的控件是上面那排按钮，
+        再让读屏念一遍「选择文件」只是重复。
+      -->
       <input
         ref="cameraInput"
         class="sr-only"
         type="file"
         accept="image/*"
         capture="environment"
-        aria-label="用摄像头拍一张照片"
+        tabindex="-1"
+        aria-hidden="true"
         @change="useFile"
       />
       <input
@@ -156,7 +161,8 @@ function say(char) {
         class="sr-only"
         type="file"
         accept="image/*"
-        aria-label="从相册里选一张照片"
+        tabindex="-1"
+        aria-hidden="true"
         @change="useFile"
       />
 
