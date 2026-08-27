@@ -52,7 +52,13 @@ for _import_root in (REPOSITORY_ROOT, REPOSITORY_ROOT / "audio-studio"):
 
 from audio_studio.core.loader import load_audio, quantize_with_tpdf, save_audio
 from audio_studio.core.types import SAMPLE_DTYPE, AudioBuffer
-from audio_studio.dsp.effects import EQBand, FilterType, GainEffect, LimiterEffect, ParametricEQ
+from audio_studio.dsp.effects import (
+    EQBand,
+    FilterType,
+    GainEffect,
+    LimiterEffect,
+    ParametricEQ,
+)
 
 __all__ = [
     "AES17_CASES",
