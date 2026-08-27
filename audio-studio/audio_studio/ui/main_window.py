@@ -24,9 +24,13 @@ dragging a selection re-analyses once rather than on every mouse move.
 from __future__ import annotations
 
 import html
+import shutil
 import tempfile
+from collections.abc import Iterator
 from concurrent.futures import Future, ThreadPoolExecutor
+from contextlib import contextmanager
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import numpy as np
 from PySide6.QtCore import Qt, QTimer, Slot
@@ -88,6 +92,14 @@ from ..core.session import MultitrackSession, Track
 from ..core.types import TimeRange, TransportState, format_timecode
 from ..dsp.loudness import LoudnessMeter, LoudnessReport, format_lufs
 from ..dsp.preview import EffectPreview
+from ..project.archive import (
+    ARCHIVE_SUFFIX,
+    ProjectArchiveError,
+    archive_path_for,
+    pack_project,
+    project_root_name,
+    unpack_project,
+)
 from ..project.store import (
     ProjectLoadError,
     ProjectSnapshot,
@@ -202,6 +214,11 @@ class MainWindow(QMainWindow):
         self._edit_session: EditSession | StreamingEditSession | None = None
         self._project_path: Path | None = None
         self._project_dirty: bool = False
+        # A .hlprojz session keeps its expanded bundle in a scratch directory
+        # for as long as it is open: the media the engine reads lives there,
+        # and a plain save rewrites it and repacks the archive in place.
+        self._archive_path: Path | None = None
+        self._archive_workspace: TemporaryDirectory[str] | None = None
 
         self._loudness_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="loudness")
         self._loudness_job: Future[LoudnessReport] | None = None
@@ -360,6 +377,21 @@ class MainWindow(QMainWindow):
             self.open_project_dialog,
             "Ctrl+Shift+O",
             tip="Open an .hlproj project bundle",
+        )
+        # The archive commands are the same two operations against a single
+        # file rather than a directory, so they sit beside their folder
+        # equivalents instead of in a submenu of their own.
+        self.action_open_project_archive = action(
+            "Open Project Arc&hive…",
+            self.open_project_archive_dialog,
+            "Ctrl+Shift+H",
+            tip=f"Open a zipped {ARCHIVE_SUFFIX} project archive",
+        )
+        self.action_save_project_archive_as = action(
+            "Save Project Archive As…",
+            self.save_project_archive_as,
+            "Ctrl+Alt+H",
+            tip=f"Save the session as a single {ARCHIVE_SUFFIX} file",
         )
         # StandardKey.Quit resolves to nothing outside macOS, which would
         # leave the one action nobody wants to hunt for in a menu unbound.
@@ -630,8 +662,10 @@ class MainWindow(QMainWindow):
         file_menu.addAction(self.action_export)
         file_menu.addSeparator()
         file_menu.addAction(self.action_open_project)
+        file_menu.addAction(self.action_open_project_archive)
         file_menu.addAction(self.action_save_project)
         file_menu.addAction(self.action_save_project_as)
+        file_menu.addAction(self.action_save_project_archive_as)
         file_menu.addSeparator()
         file_menu.addAction(self.action_close)
         file_menu.addSeparator()
@@ -821,6 +855,7 @@ class MainWindow(QMainWindow):
         except AudioLoadError as exc:
             QMessageBox.critical(self, "Cannot open file", str(exc))
             return False
+        self._release_archive_workspace()
         self._project_path = None
         self._project_dirty = False
         if not preserve_take_registry:
@@ -860,6 +895,7 @@ class MainWindow(QMainWindow):
             pyramid=pyramid,
             owns_source=True,
         )
+        self._release_archive_workspace()
         self._project_path = None
         self._project_dirty = False
         if not preserve_take_registry:
@@ -952,13 +988,13 @@ class MainWindow(QMainWindow):
                 f"{entry.name} is registered, but its audio file is missing:\n{entry.path}",
             )
             return False
-        project_path = self._project_path
-        if not self.open_file(entry.path, preserve_take_registry=True):
-            return False
         # A take belongs to the open recording session. Opening its media as the
         # waveform document must not turn that project into an untitled file.
-        if project_path is not None:
-            self._project_path = project_path
+        had_project = self._project_path is not None
+        with self._preserved_project_binding():
+            if not self.open_file(entry.path, preserve_take_registry=True):
+                return False
+        if had_project:
             self._mark_project_dirty()
         self.statusBar().showMessage(f"Opened {entry.name}", 4000)
         return True
@@ -988,6 +1024,41 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Cannot open project", str(exc))
             return False
         self.statusBar().showMessage(f"Opened project {root.name}", 4000)
+        return True
+
+    def open_project_archive_dialog(self) -> None:
+        start = self._archive_path or self._project_path
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            f"Open project archive ({ARCHIVE_SUFFIX})",
+            str(start.parent if start else Path.home()),
+            f"Audio Studio Project Archive (*{ARCHIVE_SUFFIX})",
+        )
+        if not path:
+            return
+        self._open_project_archive(Path(path))
+
+    def _open_project_archive(self, archive: Path) -> bool:
+        """Unpack a ``.hlprojz`` into scratch space and open the bundle inside.
+
+        The expanded copy is where the media the engine reads lives, so the
+        window holds on to it for as long as the archive stays open.
+        """
+        if not self._confirm_discard_unsaved(action="opening a project"):
+            return False
+        workspace = self._new_archive_workspace()
+        try:
+            root = unpack_project(archive, Path(workspace.name))
+            snapshot = load_project(root)
+            self._apply_project(root, snapshot)
+        except (ProjectLoadError, OSError) as exc:
+            workspace.cleanup()
+            QMessageBox.critical(self, "Cannot open project", str(exc))
+            return False
+        # _apply_project releases whatever archive was open before; binding the
+        # new one afterwards is what makes the next plain save repack this file.
+        self._adopt_archive_workspace(archive, workspace)
+        self.statusBar().showMessage(f"Opened project archive {archive.name}", 4000)
         return True
 
     def _apply_project(self, path: Path, snapshot: ProjectSnapshot) -> None:
@@ -1022,6 +1093,10 @@ class MainWindow(QMainWindow):
         else:
             self.engine.set_source(None)
 
+        # Every project this reaches is a directory on disk; an archive opener
+        # re-binds itself afterwards, and any other caller ends up with the
+        # scratch tree of the previous archive released.
+        self._release_archive_workspace()
         self._project_path = path
         self.take_registry = take_registry
         self._refresh_takes_menu()
@@ -1031,6 +1106,8 @@ class MainWindow(QMainWindow):
         self._update_for_clip()
 
     def save_project(self) -> bool:
+        if self._archive_path is not None:
+            return self._save_project_archive(self._archive_path)
         if self._project_path is None:
             return self.save_project_as()
         try:
@@ -1042,6 +1119,111 @@ class MainWindow(QMainWindow):
         self._mark_project_saved()
         self.statusBar().showMessage(f"Saved project {saved.name}", 4000)
         return True
+
+    def save_project_archive_as(self) -> bool:
+        suggested = self._archive_path or archive_path_for(
+            self._project_path if self._project_path is not None else Path.home() / "Untitled"
+        )
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save project archive as",
+            str(suggested),
+            f"Audio Studio Project Archive (*{ARCHIVE_SUFFIX})",
+        )
+        if not path:
+            return False
+        return self._save_project_archive(Path(path))
+
+    def _save_project_archive(self, archive: Path) -> bool:
+        try:
+            saved = self._write_project_archive(archive)
+        except (OSError, ProjectArchiveError, TakeRegistryError) as exc:
+            QMessageBox.critical(self, "Save failed", str(exc))
+            return False
+        self._mark_project_saved()
+        self.statusBar().showMessage(f"Saved project archive {saved.name}", 4000)
+        return True
+
+    def _write_project_archive(self, archive: Path) -> Path:
+        """Rewrite the expanded bundle in scratch space, then pack it.
+
+        The store writes directories, so an archive save is always a bundle
+        save followed by a pack. Keeping the expanded copy means the media the
+        engine is reading survives the save and the next one does not have to
+        unpack anything.
+        """
+        target = archive_path_for(archive)
+        workspace = self._archive_workspace or self._new_archive_workspace()
+        previous = self._project_path
+        root = self._write_project(Path(workspace.name) / project_root_name(target))
+        packed = pack_project(root, target)
+        self._project_path = root
+        self._adopt_archive_workspace(target, workspace)
+        self._discard_stale_bundle(previous, keep=root, workspace=workspace)
+        return packed
+
+    @staticmethod
+    def _new_archive_workspace() -> TemporaryDirectory[str]:
+        # Cleanup errors are ignored because Windows refuses to unlink a file a
+        # streaming source still has open, and losing a scratch tree at exit is
+        # not worth an exception on the way out.
+        return TemporaryDirectory(prefix="audio-studio-hlprojz-", ignore_cleanup_errors=True)
+
+    def _adopt_archive_workspace(
+        self, archive: Path, workspace: TemporaryDirectory[str]
+    ) -> None:
+        previous = self._archive_workspace
+        self._archive_path = archive
+        self._archive_workspace = workspace
+        if previous is not None and previous is not workspace:
+            previous.cleanup()
+        self._update_window_title()
+
+    def _release_archive_workspace(self) -> None:
+        """Forget the open archive and delete its expanded copy."""
+        workspace, self._archive_workspace = self._archive_workspace, None
+        self._archive_path = None
+        if workspace is not None:
+            workspace.cleanup()
+
+    @staticmethod
+    def _discard_stale_bundle(
+        bundle: Path | None, *, keep: Path, workspace: TemporaryDirectory[str]
+    ) -> None:
+        """Drop the previous expanded bundle after a Save Archive As.
+
+        Saving under a new name writes a second bundle into the same scratch
+        directory; the old one is a full copy of the media and nothing points
+        at it any more.
+        """
+        if bundle is None or bundle == keep:
+            return
+        scratch = Path(workspace.name)
+        if scratch in bundle.parents and bundle.is_dir():
+            shutil.rmtree(bundle, ignore_errors=True)
+
+    @contextmanager
+    def _preserved_project_binding(self) -> Iterator[None]:
+        """Keep the open project across an :meth:`open_file` of its own media.
+
+        Takes and fresh recordings belong to the project that is already open,
+        so the binding :meth:`open_file` clears has to come back afterwards.
+        Detaching the archive scratch directory for the duration keeps that
+        same call from deleting the tree the audio was just read from.
+        """
+        project_path = self._project_path
+        archive = self._archive_path
+        workspace = self._archive_workspace
+        self._archive_workspace = None
+        try:
+            yield
+        finally:
+            if project_path is not None:
+                self._project_path = project_path
+            if archive is not None and workspace is not None:
+                self._adopt_archive_workspace(archive, workspace)
+            elif workspace is not None:
+                workspace.cleanup()
 
     def save_project_as(self) -> bool:
         suggested = (
@@ -1062,6 +1244,9 @@ class MainWindow(QMainWindow):
         except (OSError, TakeRegistryError) as exc:
             QMessageBox.critical(self, "Save failed", str(exc))
             return False
+        # Saving to a real directory is how an archive session becomes a folder
+        # one: the bundle now lives where the user put it, not in scratch.
+        self._release_archive_workspace()
         self._project_path = saved
         self._mark_project_saved()
         self.statusBar().showMessage(f"Saved project {saved.name}", 4000)
@@ -1850,7 +2035,9 @@ class MainWindow(QMainWindow):
         can_save = self._edit_session is not None or self.session.n_tracks > 0
         self.action_save_project.setEnabled(can_save)
         self.action_save_project_as.setEnabled(can_save)
+        self.action_save_project_archive_as.setEnabled(can_save)
         self.action_open_project.setEnabled(True)
+        self.action_open_project_archive.setEnabled(True)
         self.action_add_track.setEnabled(clip is not None)
 
         self._update_edit_actions()
@@ -2006,7 +2193,7 @@ class MainWindow(QMainWindow):
 
     def _finish_recording(self) -> None:
         target = self._recording_path
-        project_path = self._project_path
+        had_project = self._project_path is not None
         try:
             captured = self.recorder.stop()
         except (AudioLoadError, RecorderDeviceError, OSError) as exc:
@@ -2036,9 +2223,10 @@ class MainWindow(QMainWindow):
             )
             take = None
         self._refresh_takes_menu()
-        if self.open_file(target, preserve_take_registry=True):
-            if project_path is not None:
-                self._project_path = project_path
+        with self._preserved_project_binding():
+            opened = self.open_file(target, preserve_take_registry=True)
+        if opened:
+            if had_project:
                 self._mark_project_dirty()
             label = take.name if take is not None else target.name
             self.statusBar().showMessage(
@@ -2259,6 +2447,7 @@ class MainWindow(QMainWindow):
         self.recorder.close()
         self.engine.shutdown()
         self._loudness_pool.shutdown(wait=False, cancel_futures=True)
+        self._release_archive_workspace()
         super().closeEvent(event)
 
 
