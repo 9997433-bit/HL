@@ -12,6 +12,7 @@ import numpy as np
 import scipy.sparse as sp
 
 from ..exceptions import ModelError
+from .mpc import MpcReduction, build_rbe2_reduction, mpc_free_dofs
 
 __all__ = ["AssembledSystem", "assemble_system", "assemble_stiffness", "assemble_mass"]
 
@@ -35,10 +36,17 @@ class AssembledSystem:
     dof_labels: list[str] = field(default_factory=list)
     dof_types: np.ndarray | None = None
     model: object | None = None
+    mpc: MpcReduction | None = None
 
     @property
     def num_dofs(self) -> int:
         return self.K.shape[0]
+
+    @property
+    def num_full_dofs(self) -> int:
+        if self.mpc is None:
+            return self.num_dofs
+        return int(self.mpc.T.shape[0])
 
     @property
     def num_free_dofs(self) -> int:
@@ -61,13 +69,22 @@ class AssembledSystem:
             raise ModelError(
                 f"expected {self.num_free_dofs} free-DOF rows, got {values.shape[0]}"
             )
-        if values.ndim == 1:
-            full = np.zeros(self.num_dofs, dtype=float)
-            full[self.free_dofs] = values
+        if self.mpc is None:
+            if values.ndim == 1:
+                full = np.zeros(self.num_dofs, dtype=float)
+                full[self.free_dofs] = values
+                return full
+            full = np.zeros((self.num_dofs, values.shape[1]), dtype=float)
+            full[self.free_dofs, :] = values
             return full
-        full = np.zeros((self.num_dofs, values.shape[1]), dtype=float)
-        full[self.free_dofs, :] = values
-        return full
+
+        if values.ndim == 1:
+            retained = np.zeros(self.num_dofs, dtype=float)
+            retained[self.free_dofs] = values
+            return self.mpc.to_full(retained)
+        retained = np.zeros((self.num_dofs, values.shape[1]), dtype=float)
+        retained[self.free_dofs, :] = values
+        return np.asarray(self.mpc.T @ retained, dtype=float)
 
     @property
     def total_mass(self) -> float:
@@ -99,7 +116,7 @@ def _assemble_elements(
     if stiffness:
         from ..accel.assembly_rust import assemble_truss_stiffness_rust, use_rust_assembly
 
-        if use_rust_assembly():
+        if use_rust_assembly() and not getattr(model, "rbe2_ties", ()):
             rust_stiffness = assemble_truss_stiffness_rust(model)
             if rust_stiffness is not None:
                 if not mass:
@@ -198,12 +215,23 @@ def assemble_system(model, *, include_point_masses: bool = True) -> AssembledSys
     K.eliminate_zeros()
     M.eliminate_zeros()
 
+    mpc = build_rbe2_reduction(model, model.rbe2_ties)
+    if mpc is not None:
+        K = mpc.reduce(K)
+        M = mpc.reduce(M)
+        free_dofs = mpc_free_dofs(model, mpc)
+        constrained_dofs = np.setdiff1d(np.arange(K.shape[0], dtype=int), free_dofs)
+    else:
+        free_dofs = model.free_dofs
+        constrained_dofs = model.constrained_dofs
+
     return AssembledSystem(
         K=K,
         M=M,
-        free_dofs=model.free_dofs,
-        constrained_dofs=model.constrained_dofs,
+        free_dofs=free_dofs,
+        constrained_dofs=constrained_dofs,
         dof_labels=model.dof_labels,
         dof_types=model.dof_types,
         model=model,
+        mpc=mpc,
     )

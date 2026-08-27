@@ -189,6 +189,7 @@ class Model:
     _elements: list = field(default_factory=list, init=False, repr=False)
     _constrained: set[int] = field(default_factory=set, init=False, repr=False)
     _point_masses: dict[int, float] = field(default_factory=dict, init=False, repr=False)
+    _rbe2_ties: list = field(default_factory=list, init=False, repr=False)
 
     def __post_init__(self) -> None:
         self.dofs = _parse_dofs(self.dofs)
@@ -360,6 +361,35 @@ class Model:
             mask[self.constrained_dofs] = False
         return np.flatnonzero(mask)
 
+    # ---------------------------------------------------------- MPC / RBE2
+
+    @property
+    def rbe2_ties(self) -> tuple:
+        """Registered :class:`~openfemlab.core.mpc.RBE2Tie` instances."""
+        return tuple(self._rbe2_ties)
+
+    def tie_rbe2(
+        self,
+        master: Hashable,
+        slaves: Iterable[Hashable],
+        *,
+        components: Iterable[DOF | str | int] | None = None,
+        eid: Hashable | None = None,
+    ):
+        """Register a Nastran-style RBE2 rigid link on ``master``."""
+        from .mpc import RBE2Tie
+
+        slave_tuple = tuple(slaves)
+        if not slave_tuple:
+            raise ModelError("RBE2 requires at least one slave node")
+        if components is None:
+            tied = self.dofs
+        else:
+            tied = _parse_dofs(components)
+        tie = RBE2Tie(master=master, slaves=slave_tuple, components=tied, eid=eid)
+        self._rbe2_ties.append(tie)
+        return tie
+
     # ----------------------------------------------------- concentrated mass
 
     def add_point_mass(self, node_id: Hashable, mass: float, dofs=None) -> None:
@@ -421,9 +451,10 @@ class Model:
         return assemble_system(self)
 
     def summary(self) -> str:
+        mpc = f", {len(self._rbe2_ties)} RBE2" if self._rbe2_ties else ""
         return (
             f"Model {self.name!r}: {self.num_nodes} nodes, {self.num_elements} elements, "
-            f"{self.num_dofs} DOFs ({len(self._constrained)} constrained), "
+            f"{self.num_dofs} DOFs ({len(self._constrained)} constrained{mpc}), "
             f"DOF signature {[d.name for d in self.dofs]}"
         )
 

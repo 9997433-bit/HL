@@ -57,6 +57,7 @@ from openfemlab.core.elements import (
     TrussElement,
 )
 from openfemlab.core.model import DOF, TRANSLATIONAL_DOFS, Material, Model, Section
+from openfemlab.core.mpc import parse_nastran_components
 from openfemlab.core.neutral import ElementType, NeutralMaterial, NeutralModel, NeutralProperty
 from openfemlab.exceptions import OpenFEMLabError
 
@@ -72,6 +73,7 @@ __all__ = [
     "infer_dofs",
     "material_from_neutral",
     "neutral_to_model",
+    "apply_rbe2_from_neutral",
     "section_from_values",
     "to_model",
 ]
@@ -284,6 +286,7 @@ def to_model(
     if skipped:
         joined = ", ".join(f"{key} ({count})" for key, count in sorted(skipped.items()))
         warnings.warn(f"skipped element types with no formulation: {joined}", stacklevel=2)
+    apply_rbe2_from_neutral(model, neutral)
     return model
 
 
@@ -531,6 +534,35 @@ def _build_beam(
 
 def _meta(neutral: NeutralModel) -> dict[str, Any]:
     return neutral.meta if isinstance(neutral.meta, dict) else {}
+
+
+def apply_rbe2_from_neutral(model: Model, neutral: NeutralModel) -> None:
+    """Register ``RBE2`` cards preserved in ``meta['bdf_preserve']`` on ``model``."""
+
+    for fields in _meta(neutral).get("bdf_preserve", ()):
+        if not fields or str(fields[0]).upper() != "RBE2":
+            continue
+        if len(fields) < 5:
+            raise FormatError(f"RBE2 card {fields!r} is incomplete")
+        _, eid, master, cm, *slaves = fields
+        if not slaves:
+            raise FormatError(f"RBE2 {eid} has no slave nodes")
+        try:
+            components = parse_nastran_components(cm)
+        except OpenFEMLabError as exc:
+            raise FormatError(f"RBE2 {eid}: {exc}") from exc
+        active = tuple(dof for dof in components if model.has_dof(dof))
+        if not active:
+            raise FormatError(
+                f"RBE2 {eid} CM={cm!r} does not overlap the model DOF signature "
+                f"{[d.name for d in model.dofs]}"
+            )
+        model.tie_rbe2(
+            int(master),
+            [int(node_id) for node_id in slaves],
+            components=active,
+            eid=int(eid),
+        )
 
 
 def _lookup(values: dict[str, float], aliases: Sequence[str]) -> float | None:

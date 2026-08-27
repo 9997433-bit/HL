@@ -3,8 +3,9 @@
 The supported subset is one connectivity card per element block the solver
 formulates, plus the grid, material and property cards those need: ``GRID``,
 ``CROD``, ``CBAR``, ``CQUAD4``, ``CTETRA``, ``CHEXA``, ``MAT1``, ``PROD``,
-``PSHELL`` and ``PSOLID``.  ``RBE2`` and ``RBE3`` cards are preserved in
-``NeutralModel.meta`` for round-trip export.  Cards may be written in free
+``PSHELL`` and ``PSOLID``.  ``RBE2`` cards are assembled into the solver as
+rigid links; ``RBE3`` cards are preserved in ``NeutralModel.meta`` for
+round-trip export only.  Cards may be written in free
 field or in small fixed field
 and may run onto continuation lines; unsupported cards are skipped, together
 with their continuations.  ``GRID`` coordinates must use the basic coordinate
@@ -77,8 +78,10 @@ def read_bdf(source: str | PathLike[str] | TextIO) -> NeutralModel:
     ``PSHELL`` and ``PSOLID`` land in ``properties``, the shell carrying its
     ``t`` thickness so :func:`~openfemlab.io.neutral_convert.to_model` binds a
     ``CQUAD4`` at the thickness the file states.  ``PROD`` rod sections are also
-    imported into ``properties`` with an ``A`` entry.  ``RBE2`` and ``RBE3`` rigid
-    links are preserved in ``meta["bdf_preserve"]`` for lossless round-trip even
+    imported into ``properties`` with an ``A`` entry.  ``RBE2`` rigid links are
+    assembled when converting to a solver model; ``RBE3`` cards are preserved in
+    ``meta["bdf_preserve"]`` for lossless round-trip even though they are not
+    expanded into constraints yet.
     though they are not yet expanded into solver constraints.  Other property cards
     such as ``PBAR`` remain outside this reader's subset, so a ``CBAR`` mesh needs
     ``section=`` when it is converted.
