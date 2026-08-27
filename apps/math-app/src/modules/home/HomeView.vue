@@ -5,6 +5,7 @@ import gsap from 'gsap'
 import { MODULES } from '@/data/modules.js'
 import { useProgressStore } from '@/stores/progress.js'
 import { useFeedback } from '@/composables/useFeedback'
+import { useMascotCoach } from '@/composables/useMascotCoach.js'
 import MascotBot from '@/components/MascotBot.vue'
 import { sound } from '@/utils/sound'
 import OpenMojiIcon from '@shared/components/OpenMojiIcon.vue'
@@ -12,6 +13,9 @@ import OpenMojiIcon from '@shared/components/OpenMojiIcon.vue'
 const router = useRouter()
 const progress = useProgressStore()
 const { enter, wrong } = useFeedback()
+
+/** 小算在首页常驻：气泡里挂着一句和今天进度有关的话，点它换下一句并读出来。 */
+const { line: coachLine, mood: coachMood, next: coachNext } = useMascotCoach('home')
 
 const planetRefs = ref([])
 
@@ -132,7 +136,16 @@ onMounted(() => {
           <span class="dim small">今天已完成 {{ daily.done }} / {{ daily.total }} 题</span>
         </div>
       </div>
-      <MascotBot mood="idle" :size="128" class="hero-bot" />
+      <div class="hero-bot">
+        <MascotBot
+          :mood="coachMood"
+          :size="128"
+          interactive
+          tap-label="点我，小算给你说句鼓励的话"
+          @tap="coachNext"
+        />
+        <p class="bot-say" role="status">{{ coachLine }}</p>
+      </div>
     </section>
 
     <section class="tool-deck" aria-labelledby="tool-deck-title">
@@ -299,6 +312,23 @@ onMounted(() => {
 
 .hero-bot {
   flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: min(200px, 100%);
+}
+
+.bot-say {
+  padding: 8px 14px;
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+  border: 1px solid var(--surface-border);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+  text-align: center;
+  color: var(--text-strong);
 }
 
 .daily-cta.done {

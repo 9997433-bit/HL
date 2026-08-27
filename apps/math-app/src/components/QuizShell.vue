@@ -401,7 +401,12 @@ onMounted(() => {
 })
 onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
-defineExpose({ restart, index, current, locked, typed })
+/** 让父组件把一句话写进吉祥物的台词行（下一次判题会覆盖它）。 */
+function announce(text) {
+  if (typeof text === 'string' && text.trim()) message.value = text
+}
+
+defineExpose({ restart, announce, index, current, locked, typed })
 </script>
 
 <template>
@@ -444,8 +449,15 @@ defineExpose({ restart, index, current, locked, typed })
 
     <section v-if="current" ref="stageRef" class="card quiz-stage">
       <header class="stage-head">
-        <MascotBot :mood="mood" :size="72" />
-        <p class="muted say">{{ message }}</p>
+        <!--
+          默认是那只只会做表情的机器人；玩法页想让它变成能点触的陪跑伙伴，
+          就用 mascot 插槽换一只 interactive 的进来，再用 announce() 把它说的话
+          写进下面这行台词里。
+        -->
+        <slot name="mascot" :mood="mood" :message="message">
+          <MascotBot :mood="mood" :size="72" />
+        </slot>
+        <p class="muted say" role="status">{{ message }}</p>
         <div class="spacer" />
         <slot name="head-extra" v-bind="slotCtx" />
         <button

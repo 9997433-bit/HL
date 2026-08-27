@@ -7,7 +7,9 @@
  */
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import MascotBot from '@/components/MascotBot.vue'
 import QuizShell from '@/components/QuizShell.vue'
+import { useMascotCoach } from '@/composables/useMascotCoach.js'
 import { useProgressStore } from '@/stores/progress.js'
 import { COMPARE_NAME } from '@/data/compare.js'
 import { buildDailyQuestions, DAILY_PERFECT_BONUS, dailyDateKey } from '@/data/daily.js'
@@ -21,6 +23,17 @@ const dateKey = dailyDateKey()
 const questions = ref(buildDailyQuestions(dateKey))
 const inputMode = ref('choice')
 const finished = ref(false)
+
+/**
+ * 小算在答题时也陪着：答题壳里那只机器人换成可点触的陪跑形态，
+ * 点一下换一句鼓励语、读出来，并写进它自己的台词行。
+ */
+const quiz = ref(null)
+const { mood: coachMood, next: coachNext } = useMascotCoach('daily')
+
+function cheerMe() {
+  quiz.value?.announce(coachNext())
+}
 
 const quest = computed(() => progress.dailyQuest)
 const dateLabel = computed(() => dateKey.replaceAll('-', ' / '))
@@ -40,6 +53,7 @@ function onFinished({ correct }) {
 <template>
   <main class="page">
     <QuizShell
+      ref="quiz"
       v-model:inputMode="inputMode"
       :module-id="MODULE_ID"
       module-name="今日冒险"
@@ -57,6 +71,16 @@ function onFinished({ correct }) {
       @home="router.push('/')"
       @replay="router.push('/')"
     >
+      <template #mascot="{ mood }">
+        <MascotBot
+          :mood="coachMood === 'cheer' ? 'cheer' : mood"
+          :size="72"
+          interactive
+          tap-label="点我，小算给你说句鼓励的话"
+          @tap="cheerMe"
+        />
+      </template>
+
       <template #controls>
         <span class="chip">🗓️ {{ dateLabel }}</span>
         <span class="chip">📋 今日 {{ quest.done }}/{{ quest.total }}</span>
