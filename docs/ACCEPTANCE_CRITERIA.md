@@ -354,6 +354,7 @@ to honor the sparse matrix contract of MS-0.2 and MS-1.6.
 | AC-WORK-008 | P2 | Dashboard FRF overlay payload | `frf_overlay` block + `drawFrfOverlay` in viewer | MS-4.3 |
 | AC-WORK-009 | P2 | Dashboard stabilization diagram payload | `stabilization_diagram` block renders poles | MS-10.3 |
 | AC-WORK-010 | P1 | BDF/OP2 interchange correction loop exports updated BDF | OP2 geometry/frequency parity; update recovers twin; `write_bdf` scales MAT1 | MS-4.5 |
+| AC-WORK-011 | P1 | Correction pipeline CLI | JSON output matches `run_correction` to 1e-12 rel. (no timing) | MS-4.4 |
 
 ### Details
 
@@ -385,6 +386,10 @@ to honor the sparse matrix contract of MS-0.2 and MS-1.6.
   from the same labels, a detuned twin drives ``update_model`` to recover the
   stiffness factor, and ``write_bdf(material_scales=...)`` exports a deck whose
   MAT1 field and re-solved correlation pass the MS-4.2 MAC gate.
+- **AC-WORK-011** (`contract`) — ``openfemlab pipeline run`` on the
+  ``pipeline_chain`` fixture reproduces the ``CorrectionReport`` of
+  ``run_correction`` to relative error ≤ 1e-12 once wall-time fields are
+  dropped.
 
 ---
 
@@ -606,6 +611,7 @@ run (AC-IO-003).
 | AC-IO-013 | P2 | OP2 CBAR geometry import matches the BDF of the same model | node labels, coordinates, connectivity and property ids bitwise equal | MS-9.6 |
 | AC-IO-014 | P2 | Corpus OP2 sidecar BDF geometry matches OP2 import | for each `*.op2` with a same-stem `.bdf`, geometry equals `read_bdf` | MS-9.6 |
 | AC-IO-015 | P2 | Nastran driver stub typed failure | missing exe raises FormatError | MS-9.7 |
+| AC-IO-016 | P2 | OP2 corpus MSC/NX vendor manifest | `manifest.json` lists vendor dirs each holding OP2 samples | MS-9.6 |
 
 ### Details
 

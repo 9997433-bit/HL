@@ -852,7 +852,7 @@ def test_ac_io_014_corpus_sidecar_bdf_matches_op2_geometry(tmp_path) -> None:
 
     corpus_dir = tmp_path / "corpus"
     build_corpus(corpus_dir)
-    geometry_files = sorted(corpus_dir.glob("*_geometry.op2"))
+    geometry_files = sorted(corpus_dir.rglob("*_geometry.op2"))
     assert geometry_files, "synthetic corpus must ship geometry sidecars"
 
     for op2_path in geometry_files:
@@ -886,3 +886,48 @@ def test_ac_io_015_nastran_driver_reports_missing_executable(tmp_path, monkeypat
     assert nastran_driver.resolve_nastran_executable("/opt/nastran") == "/opt/nastran"
     with pytest.raises(FormatError, match="no Nastran executable"):
         nastran_driver.run_nastran(deck, executable=None)
+
+
+@criterion("AC-IO-016")
+def test_ac_io_016_op2_corpus_manifest_declares_msc_and_nx_vendor_trees(tmp_path) -> None:
+    """Generated corpus carries manifest.json with MSC/NX vendor directories."""
+    import json
+    import sys
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    sys.path.insert(0, str(root / "scripts"))
+    from generate_op2_corpus import build_corpus, corpus_manifest  # noqa: E402
+
+    corpus_dir = tmp_path / "corpus"
+    written = build_corpus(corpus_dir)
+    manifest = corpus_manifest(corpus_dir)
+
+    assert manifest["schema_version"] == "1.0"
+    assert set(manifest["vendors"]) == {"synthetic/msc", "synthetic/nx"}
+    for vendor in manifest["vendors"]:
+        vendor_dir = corpus_dir / vendor
+        assert vendor_dir.is_dir()
+        op2_files = sorted(vendor_dir.glob("*.op2"))
+        assert op2_files, f"{vendor} must contain OP2 samples"
+        assert sorted(manifest["vendors"][vendor]["samples"]) == sorted(
+            path.name for path in op2_files
+        )
+
+    assert sorted(path.relative_to(corpus_dir).as_posix() for path in written) == sorted(
+        f"{vendor}/{sample}"
+        for vendor, samples in {
+            "synthetic/msc": (
+                "rod_geometry.op2",
+                "rotated_grid.op2",
+                "cbar_geometry.op2",
+            ),
+            "synthetic/nx": (
+                "rod_modes.op2",
+                "shell_properties.op2",
+                "quad4_geometry.op2",
+            ),
+        }.items()
+        for sample in samples
+    )
+    assert json.loads((corpus_dir / "manifest.json").read_text(encoding="utf-8")) == manifest

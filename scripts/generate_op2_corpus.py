@@ -4,11 +4,15 @@
 Real Nastran output requires a licence, so CI uses files written by
 ``tests/_op2.py``.  Point ``OPENFEMLAB_OP2_CORPUS`` at the output directory
 to run :mod:`tests.test_op2_corpus`.
+
+The corpus root carries ``manifest.json`` with vendor-relative paths such as
+``msc/`` and ``nx/`` (or ``synthetic/msc`` for generated fixtures).
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -17,16 +21,27 @@ sys.path.insert(0, str(ROOT / "tests"))
 
 import _op2 as op2_fixture  # noqa: E402
 
+CORPUS_MANIFEST_VERSION = "1.0"
+VENDOR_LAYOUT = {
+    "synthetic/msc": (
+        "rod_geometry.op2",
+        "rotated_grid.op2",
+        "cbar_geometry.op2",
+    ),
+    "synthetic/nx": (
+        "rod_modes.op2",
+        "shell_properties.op2",
+        "quad4_geometry.op2",
+    ),
+}
+
 
 def _write_sidecar_bdf(path: Path, lines: list[str]) -> None:
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def build_corpus(target: Path) -> list[Path]:
-    target.mkdir(parents=True, exist_ok=True)
-    written: list[Path] = []
-
-    rod_geometry = op2_fixture.geometry_file(
+def _write_rod_geometry(target: Path) -> Path:
+    content = op2_fixture.geometry_file(
         [
             op2_fixture.Grid(id=11, xyz=(0.0, 0.0, 0.0)),
             op2_fixture.Grid(id=22, xyz=(1.0, 0.0, 0.0)),
@@ -36,8 +51,7 @@ def build_corpus(target: Path) -> list[Path]:
         properties=[op2_fixture.Prod(id=40, material_id=7, area=1.0e-4)],
     )
     path = target / "rod_geometry.op2"
-    path.write_bytes(rod_geometry)
-    written.append(path)
+    path.write_bytes(content)
     _write_sidecar_bdf(
         path.with_suffix(".bdf"),
         [
@@ -46,31 +60,37 @@ def build_corpus(target: Path) -> list[Path]:
             "CROD,100,40,11,22",
         ],
     )
+    return path
 
+
+def _write_rod_modes(target: Path) -> Path:
     modes = [
         op2_fixture.Mode(number=1, frequency_hz=12.5, shape={11: (0.0, 0.0, 1.0, 0.0, 0.0, 0.0)})
     ]
-    rod_modes = op2_fixture.modes_file(
-        modes,
-        grids=[op2_fixture.Grid(id=11, xyz=(0.0, 0.0, 0.0))],
-    )
     path = target / "rod_modes.op2"
-    path.write_bytes(rod_modes)
-    written.append(path)
+    path.write_bytes(
+        op2_fixture.modes_file(
+            modes,
+            grids=[op2_fixture.Grid(id=11, xyz=(0.0, 0.0, 0.0))],
+        )
+    )
+    return path
 
+
+def _write_rotated_grid(target: Path) -> Path:
     cord = op2_fixture.Cord2R(
         cid=1,
         origin=(0.0, 0.0, 0.0),
         z_point=(0.0, 0.0, 1.0),
         xz_point=(0.0, 1.0, 0.0),
     )
-    rotated = op2_fixture.geometry_file(
-        [op2_fixture.Grid(id=11, xyz=(1.0, 0.0, 0.0), cp=1, cd=0)],
-        cords=[cord],
-    )
     path = target / "rotated_grid.op2"
-    path.write_bytes(rotated)
-    written.append(path)
+    path.write_bytes(
+        op2_fixture.geometry_file(
+            [op2_fixture.Grid(id=11, xyz=(1.0, 0.0, 0.0), cp=1, cd=0)],
+            cords=[cord],
+        )
+    )
     _write_sidecar_bdf(
         path.with_suffix(".bdf"),
         [
@@ -78,20 +98,23 @@ def build_corpus(target: Path) -> list[Path]:
             "GRID,11,1,1.,0.,0.",
         ],
     )
+    return path
 
-    shell_geometry = op2_fixture.write_op2(
-        [
-            op2_fixture.geom1_block([op2_fixture.Grid(id=11, xyz=(0.0, 0.0, 0.0))]),
-            op2_fixture.pshell_block(
-                [op2_fixture.Pshell(id=10, material_id=7, thickness=0.0025)]
-            ),
-            op2_fixture.psolid_block([op2_fixture.Psolid(id=20, material_id=7)]),
-            op2_fixture.mpt_block([op2_fixture.Mat1(id=7, E=2.0e11, nu=0.3, rho=7800.0)]),
-        ]
-    )
+
+def _write_shell_properties(target: Path) -> Path:
     path = target / "shell_properties.op2"
-    path.write_bytes(shell_geometry)
-    written.append(path)
+    path.write_bytes(
+        op2_fixture.write_op2(
+            [
+                op2_fixture.geom1_block([op2_fixture.Grid(id=11, xyz=(0.0, 0.0, 0.0))]),
+                op2_fixture.pshell_block(
+                    [op2_fixture.Pshell(id=10, material_id=7, thickness=0.0025)]
+                ),
+                op2_fixture.psolid_block([op2_fixture.Psolid(id=20, material_id=7)]),
+                op2_fixture.mpt_block([op2_fixture.Mat1(id=7, E=2.0e11, nu=0.3, rho=7800.0)]),
+            ]
+        )
+    )
     _write_sidecar_bdf(
         path.with_suffix(".bdf"),
         [
@@ -100,24 +123,27 @@ def build_corpus(target: Path) -> list[Path]:
             "PSOLID,20,7",
         ],
     )
+    return path
 
+
+def _write_quad4_geometry(target: Path) -> Path:
     quad_grids = [
         op2_fixture.Grid(id=11, xyz=(0.0, 0.0, 0.0)),
         op2_fixture.Grid(id=22, xyz=(1.0, 0.0, 0.0)),
         op2_fixture.Grid(id=33, xyz=(1.0, 1.0, 0.0)),
         op2_fixture.Grid(id=44, xyz=(0.0, 1.0, 0.0)),
     ]
-    quad_geometry = op2_fixture.write_op2(
-        [
-            op2_fixture.geom1_block(quad_grids),
-            op2_fixture.geom2_quad4_block(
-                [op2_fixture.Quad4(id=100, property_id=10, grids=(11, 22, 33, 44))]
-            ),
-        ]
-    )
     path = target / "quad4_geometry.op2"
-    path.write_bytes(quad_geometry)
-    written.append(path)
+    path.write_bytes(
+        op2_fixture.write_op2(
+            [
+                op2_fixture.geom1_block(quad_grids),
+                op2_fixture.geom2_quad4_block(
+                    [op2_fixture.Quad4(id=100, property_id=10, grids=(11, 22, 33, 44))]
+                ),
+            ]
+        )
+    )
     _write_sidecar_bdf(
         path.with_suffix(".bdf"),
         [
@@ -128,21 +154,28 @@ def build_corpus(target: Path) -> list[Path]:
             "CQUAD4,100,10,11,22,33,44",
         ],
     )
+    return path
 
-    cbar_geometry = op2_fixture.geometry_file(
-        [
-            op2_fixture.Grid(id=11, xyz=(0.0, 0.0, 0.0)),
-            op2_fixture.Grid(id=22, xyz=(1.0, 0.0, 0.0)),
-            op2_fixture.Grid(id=33, xyz=(2.0, 0.5, 0.0)),
-        ],
-        cbars=[
-            op2_fixture.CBar(id=300, property_id=50, grids=(11, 22), orientation=(0.0, 0.0, 1.0)),
-            op2_fixture.CBar(id=400, property_id=50, grids=(22, 33), orientation=(0.0, 1.0, 0.0)),
-        ],
-    )
+
+def _write_cbar_geometry(target: Path) -> Path:
     path = target / "cbar_geometry.op2"
-    path.write_bytes(cbar_geometry)
-    written.append(path)
+    path.write_bytes(
+        op2_fixture.geometry_file(
+            [
+                op2_fixture.Grid(id=11, xyz=(0.0, 0.0, 0.0)),
+                op2_fixture.Grid(id=22, xyz=(1.0, 0.0, 0.0)),
+                op2_fixture.Grid(id=33, xyz=(2.0, 0.5, 0.0)),
+            ],
+            cbars=[
+                op2_fixture.CBar(
+                    id=300, property_id=50, grids=(11, 22), orientation=(0.0, 0.0, 1.0)
+                ),
+                op2_fixture.CBar(
+                    id=400, property_id=50, grids=(22, 33), orientation=(0.0, 1.0, 0.0)
+                ),
+            ],
+        )
+    )
     _write_sidecar_bdf(
         path.with_suffix(".bdf"),
         [
@@ -152,6 +185,63 @@ def build_corpus(target: Path) -> list[Path]:
             "CBAR,300,50,11,22,0.,0.,1.",
             "CBAR,400,50,22,33,0.,1.,0.",
         ],
+    )
+    return path
+
+
+_WRITERS = {
+    "rod_geometry.op2": _write_rod_geometry,
+    "rod_modes.op2": _write_rod_modes,
+    "rotated_grid.op2": _write_rotated_grid,
+    "shell_properties.op2": _write_shell_properties,
+    "quad4_geometry.op2": _write_quad4_geometry,
+    "cbar_geometry.op2": _write_cbar_geometry,
+}
+
+
+def corpus_manifest(root: Path) -> dict[str, object]:
+    """Return the vendor manifest for ``root``, or raise when it is missing."""
+    manifest_path = root / "manifest.json"
+    if not manifest_path.is_file():
+        raise FileNotFoundError(f"missing corpus manifest: {manifest_path}")
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if payload.get("schema_version") != CORPUS_MANIFEST_VERSION:
+        raise ValueError(
+            f"unsupported manifest schema {payload.get('schema_version')!r}; "
+            f"expected {CORPUS_MANIFEST_VERSION!r}"
+        )
+    vendors = payload.get("vendors")
+    if not isinstance(vendors, dict) or not vendors:
+        raise ValueError("manifest must contain a non-empty 'vendors' mapping")
+    return payload
+
+
+def build_corpus(target: Path) -> list[Path]:
+    """Write the synthetic MSC/NX vendor tree and return every OP2 path."""
+    target.mkdir(parents=True, exist_ok=True)
+    written: list[Path] = []
+    vendors: dict[str, dict[str, str]] = {}
+
+    for vendor, samples in VENDOR_LAYOUT.items():
+        vendor_dir = target / vendor
+        vendor_dir.mkdir(parents=True, exist_ok=True)
+        for sample in samples:
+            writer = _WRITERS[sample]
+            written.append(writer(vendor_dir))
+        vendors[vendor] = {
+            "solver": "MSC Nastran" if vendor.endswith("/msc") else "Siemens NX Nastran",
+            "description": "Synthetic fixture output for CI (not a licensed solver run)",
+            "samples": list(samples),
+        }
+
+    manifest = {
+        "schema_version": CORPUS_MANIFEST_VERSION,
+        "description": "OP2 corpus vendor layout for MSC and NX solver output",
+        "vendors": vendors,
+    }
+    (target / "manifest.json").write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
     )
     return written
 

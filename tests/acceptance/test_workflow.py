@@ -624,9 +624,10 @@ def test_ac_work_008_dashboard_html_supports_frf_overlay() -> None:
         [0.9 + 0.0j, 0.45 + 0.0j, 0.2 + 0.0j],
     )
     assert block["measured_magnitude"] == pytest.approx([1.0, 0.5, 0.25])
-    html = (Path(__file__).resolve().parents[2] / "src/openfemlab/dashboard/static/index.html").read_text(
-        encoding="utf-8"
+    dashboard_html = (
+        Path(__file__).resolve().parents[2] / "src/openfemlab/dashboard/static/index.html"
     )
+    html = dashboard_html.read_text(encoding="utf-8")
     assert "drawFrfOverlay" in html
     assert "frf_overlay" in html
 
@@ -646,9 +647,10 @@ def test_ac_work_009_dashboard_html_supports_stabilization_diagram() -> None:
     block = stabilization_diagram_payload(diagram)
     assert block["orders"] == [4, 6]
     assert block["poles"][0][0]["label"] == "stable"
-    html = (Path(__file__).resolve().parents[2] / "src/openfemlab/dashboard/static/index.html").read_text(
-        encoding="utf-8"
+    dashboard_html = (
+        Path(__file__).resolve().parents[2] / "src/openfemlab/dashboard/static/index.html"
     )
+    html = dashboard_html.read_text(encoding="utf-8")
     assert "drawStabilizationDiagram" in html
 
 
@@ -833,3 +835,34 @@ def test_ac_work_010_bdf_op2_correction_loop_exports_updated_bdf(tmp_path) -> No
         strict=False,
     )
     assert final_report.min_mac >= MAC_MIN
+
+
+# --------------------------------------------------------------- AC-WORK-011
+
+
+@criterion("AC-WORK-011")
+def test_pipeline_cli_matches_run_correction_oracle(capsys) -> None:
+    """``openfemlab pipeline run`` JSON matches ``run_correction`` without timing."""
+    from openfemlab.cli.main import main
+
+    config_path = Path(__file__).resolve().parents[1] / "fixtures" / "pipeline_chain.yaml"
+    model = _chain_model()
+    oracle = run_correction(model, _measured(model), None, _parameters(), seed=SEED)
+
+    assert (
+        main(
+            [
+                "--no-color",
+                "pipeline",
+                "run",
+                str(config_path),
+                "--format",
+                "json",
+            ]
+        )
+        == 0
+    )
+    cli_report = json.loads(capsys.readouterr().out)
+    expected = oracle.to_dict(include_timing=False)
+    _assert_reproduces(cli_report, expected)
+    assert cli_report["status"] == "PASS"

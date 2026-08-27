@@ -1,0 +1,28 @@
+name: ten_dof_correction
+description: AC-WORK-001 chain twin for the correction pipeline CLI
+preset: chain
+num_masses: 10
+num_modes: 6
+stiffness_groups:
+  - [1, 2, 3]
+  - [4, 5, 6]
+  - [7, 8, 9, 10]
+mass_groups:
+  - [1, 2, 3, 4, 5]
+  - [6, 7, 8, 9, 10]
+parameters:
+  - name: k1
+    lower: 0.5
+    upper: 2.0
+  - name: k2
+    lower: 0.5
+    upper: 2.0
+  - name: k3
+    lower: 0.5
+    upper: 2.0
+measurement:
+  truth:
+    k1: 1.20
+    k2: 0.80
+    k3: 1.15
+seed: 11

@@ -70,8 +70,8 @@ FAMILY_TO_MODULE = {
     "PERF": "M1",
 }
 EXPECTED_CRITERIA_PER_FAMILY = {
-    "MODAL": 9,     "CORR": 13, "UPD": 15, "WORK": 10, "OPT": 4, "DYN": 10, "ELEM": 3,
-    "IO": 15, "MPE": 8, "PRETEST": 9, "PERF": 6,
+    "MODAL": 9,     "CORR": 13, "UPD": 15, "WORK": 11, "OPT": 4, "DYN": 10, "ELEM": 3,
+    "IO": 16, "MPE": 8, "PRETEST": 9, "PERF": 6,
 }
 
 
@@ -218,6 +218,8 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P2", "contract", "MS-10.3", _WORK_SUITE, "implemented"),
     _c("AC-WORK-010", "BDF/OP2 interchange correction loop exports updated BDF",
        "P1", "contract", "MS-4.5", _WORK_SUITE, "implemented"),
+    _c("AC-WORK-011", "Correction pipeline CLI matches run_correction oracle",
+       "P1", "contract", "MS-4.4", _WORK_SUITE, "implemented"),
     # --- M5 Optimization hook (MS-5) ------------------------------------------
     _c("AC-OPT-001", "Analytic gradients vs central FD",
        "P0", "oracle", "MS-5.1", _OPT_SUITE, "verified"),
@@ -286,6 +288,8 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P2", "contract", "MS-9.6", _IO_SUITE, "implemented"),
     _c("AC-IO-015", "Nastran driver stub resolves exe and typed failure",
        "P2", "contract", "MS-9.7", _IO_SUITE, "implemented"),
+    _c("AC-IO-016", "OP2 corpus manifest declares MSC/NX vendor directories",
+       "P2", "contract", "MS-9.6", _IO_SUITE, "implemented"),
     # --- M9 Modal parameter extraction (MS-10), GAP-06 -----------------------
     _c("AC-MPE-001", "LSCF pole recovery on synthesized FRFs",
        "P0", "oracle", "MS-10.2", _MPE_SUITE, "verified"),
@@ -351,7 +355,7 @@ def test_registry_inventory_matches_documented_scope():
         for family in EXPECTED_CRITERIA_PER_FAMILY
     }
     assert counts == EXPECTED_CRITERIA_PER_FAMILY
-    assert len(REGISTRY) == 102
+    assert len(REGISTRY) == 104
 
 
 def test_ids_unique():

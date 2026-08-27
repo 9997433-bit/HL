@@ -586,6 +586,11 @@ def run_correction(model, test, sensor_map, params, *,
                    seed: int = 0) -> CorrectionReport
 ```
 
+``openfemlab pipeline run CONFIG.yaml`` exposes the same ``S1..S6`` loop from the
+command line, writing a schema-versioned ``CorrectionReport`` as JSON/YAML
+(AC-WORK-011).  The chain preset in ``tests/fixtures/pipeline_chain.yaml`` mirrors
+the AC-WORK-001 twin.
+
 ---
 
 ## 5. Module M5 — Optimization Hook (`openfemlab.optimization`) (MS-5)
@@ -1232,7 +1237,9 @@ reader lives in `openfemlab.io.op2` over the record layer
   output, skipped when the corpus path is unset. Each geometry sample may ship a
   same-stem ``.bdf`` sidecar; when present, ``tests/test_op2_corpus.py`` and
   AC-IO-014 compare OP2 and bulk-data geometry import (AC-IO-013 pins ``CBAR``
-  parity in CI fixtures).
+  parity in CI fixtures).  Real solver output is organized under vendor
+  directories listed in ``manifest.json`` (``msc/``, ``nx/``, or
+  ``synthetic/msc`` for generated fixtures — AC-IO-016).
 - **BDF export and external drivers (MS-9.7).** ``write_bdf`` round-trips neutral
   geometry and accepts ``material_scales`` / ``property_scales`` for updated
   decks (AC-IO-010). ``openfemlab.io.drivers`` exposes Nastran, Ansys and Abaqus

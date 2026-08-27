@@ -97,6 +97,7 @@ for mode, frequency in enumerate(result.frequencies, start=1):
 | `serve`（`gui`） | 本地 Web 结果查看器（MAC 热力图、摘要卡片） |
 | `modal` | 对模型规格文件做实模态分析 |
 | `sdm scan` | 在模态域扫描附加弹簧刚度对固有频率的影响（SDM 快速重分析） |
+| `pipeline run` | 运行 S1–S6 仿真修正工作流，输出 CorrectionReport |
 | `correlate` | FE 模态与实测模态的相关性报告（MAC、频率偏差、COMAC） |
 | `correlate-frf` | 实测 FRF 与模型合成 FRF 的频域相关（FRAC、FDAC） |
 | `update` | 由配置文件驱动的灵敏度模型修正 |
@@ -361,6 +362,18 @@ openfemlab sdm scan chain.yaml --dof-index 0 --stiffness 0,0.5,1.0 -n 5 --format
 | `-n/--modes N` | SDM 保留的模态数（默认 6） |
 | `--mode-index I` | 报告哪一阶模态的频率（默认 0，最低阶） |
 | `--format table\|json\|yaml` | 输出格式（默认 table） |
+
+## 7.2 修正工作流：`openfemlab pipeline run`
+
+MS-4 的 S1–S6 修正流水线（基线 → 配对 → 诊断 → 更新 → 重分析 → 验证）可通过
+配置文件一键运行：
+
+```bash
+openfemlab pipeline run tests/fixtures/pipeline_chain.yaml --format json -o correction.json
+```
+
+配置文件描述链式参数化模型（``preset: chain``）、合成测量 detuning（``measurement.truth``）
+以及待修正参数。CLI 输出 schema 版本化的 ``CorrectionReport``；失败时以非零退出码结束。
 
 ## 8. FE/试验相关：`openfemlab correlate`
 
