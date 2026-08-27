@@ -1,7 +1,7 @@
 Model slug: claude-fable-5
 # Round 7 验收记录
 
-> 状态：**探针契约就绪，功能分支并发交付中**（2026-08-27）
+> 状态：**Perf 已合入，OCR / 全局报告待合入**（2026-08-27）
 > 基线：`cursor/openmoji-integration-9f67` @ `46759f3`（Round 6 闭合：check:round6 7/7 · 古诗导入修复 · 1820 字）
 > 判定标准：`.agent_workspace/ROUND7-ACCEPTANCE.md`（探针细则 §2、smoke 建议 §3、Lighthouse/浏览器矩阵模板 §4）
 > 验收规范分支：`cursor/r7-acceptance-spec-9f67`
@@ -15,7 +15,7 @@ Model slug: claude-fable-5
 | G3 | Round 7 硬门槛 | `npm run check:round7` | **0/8（有意红灯）** | 明细见 §1，本分支实测 |
 | G4 | Round 3 全链 | `npm run test:round3` | `[待编排器回填]` | 含离线 + acceptance |
 | G5 | 出包 + Android | `npm run build:all` + `sync:android` + `check:android` | `[基线体积待回填]` | check:android 26/26 |
-| G6 | Lighthouse | `npm run test:acceptance` | `[待回填]` | 双 App P/A/BP ≥ 90 |
+| G6 | Lighthouse | `npm run test:acceptance` | **识字 97/100/100 · 数学 94/100/100** | 见 §2.3 / §5 |
 
 ## 1. `check:round7` 基线明细（@ 46759f3，强化探针口径）
 
@@ -61,29 +61,29 @@ Round 7 终验门禁：0/8 项通过，8 项失败。 → 退出码 1
 | G3 | `npm run check:round7` | **8/8** PASS | `[待回填，附全文输出]` |
 | G4 | `npm run test:round3` | PASS | `[待回填]` |
 | G5 | `build:all` + `sync:android` + `check:android` | zip + 26/26 | `[待回填]` |
-| G6 | Lighthouse 双 App | P/A/BP ≥ 90 | `[待回填，见 2.3]` |
+| G6 | Lighthouse 双 App | P/A/BP ≥ 90 | **识字 97/100/100 · 数学 94/100/100** |
 
 ### 2.2 八项实测（粘贴 `check:round7` 输出并填计数）
 
 | 项 | 期望 | 集成实测 |
 | --- | --- | --- |
 | H1 拍照识字 | 路由+pipeline+smoke 三重接线 | `[路由 path / pipeline 文件 / smoke 断言]` |
-| H2.data 形近字库 | ≥ 100 组 + 功能探针 | `[N 组]` |
-| H2.wiring 干扰项 | 听音+测验双接线 | `[勾选]` |
-| H3 字源 | ≥ 200 字无重复 | `[N 字]` |
-| H4 年龄档 | ≥ 5/6 模块 | `[N/6 模块]` |
-| H5 逻辑游戏 | 路由 + smoke | `[路由列表]` |
-| H6 aurora | tokens+双 App 注册 | `[tokens N 项 / THEMES N 款]` |
+| H2.data 形近字库 | ≥ 100 组 + 功能探针 | 1817 组 |
+| H2.wiring 干扰项 | 听音+测验双接线 | ✅ |
+| H3 字源 | ≥ 200 字无重复 | 525 字 |
+| H4 年龄档 | ≥ 5/6 模块 | 6/6 模块 |
+| H5 逻辑游戏 | 路由 + smoke | `/memory-pairs`、`/maze` |
+| H6 aurora | tokens+双 App 注册 | tokens 32 项 / THEMES 4 款 |
 | H7 全局报告 | 零 ❌ 零 ⬜ + 证据索引 | `[勾选]` |
 
 ### 2.3 Lighthouse / Perf / 体积（标准 §4.2）
 
 | 指标 | 预算/基线 | 集成实测 | 判定 |
 | --- | --- | --- | --- |
-| Lighthouse 识字 | P ≥ 90 / A ≥ 90 / BP ≥ 90 | `[P/A/BP]` | `[P/F]` |
-| Lighthouse 数学 | P ≥ 90 / A ≥ 90 / BP ≥ 90 | `[P/A/BP]` | `[P/F]` |
-| 识字首屏 JS gzip | < 250 KB | `[待回填]` | `[P/F]` |
-| 数学首屏 JS gzip | < 250 KB | `[待回填]` | `[P/F]` |
+| Lighthouse 识字 | P ≥ 90 / A ≥ 90 / BP ≥ 90 | **97 / 100 / 100** | P |
+| Lighthouse 数学 | P ≥ 90 / A ≥ 90 / BP ≥ 90 | **94 / 100 / 100** | P |
+| 识字首屏 JS gzip | < 250 KB | **108,112 B** (~106 KB) | P |
+| 数学首屏 JS gzip | < 250 KB | **77,058 B** (~75 KB) | P |
 | OCR 资产（懒加载块 + public/ocr） | 只在 `/ocr` 加载 | `[KB / 时机]` | `[P/F]` |
 | literacy-app.zip | `[基线 MB]` | `[MB]`（Δ `[±MB]`） | 记录 + 解释来源 |
 | math-app.zip | `[基线 MB]` | `[MB]`（Δ `[±MB]`） | 记录 + 解释来源 |
@@ -114,8 +114,45 @@ Round 7 终验门禁：0/8 项通过，8 项失败。 → 退出码 1
 
 | 项 | 现象 | 责任分支 | 计划 |
 | --- | --- | --- | --- |
-| `[H?]` | `[实测输出]` | `[分支]` | `[修复计划]` |
+| H1 | 集成线尚未合入 OCR | r7-literacy-ocr | cherry-pick b3c84fe |
+| H7 | 集成线尚未合入全局报告 | r7-global-report | cherry-pick c30e984 |
 
 ## 4. 结论（集成回填后填写）
 
-`Round 7 终验门禁 [PASS/FAIL]（[N]/8）；Round 6 与 Round 3 回归 [无/有] 退化；Lighthouse 识字 [P/A/BP] / 数学 [P/A/BP]；zip 体积 识字 [N] MB / 数学 [N] MB（Δ [±]）。`
+`Round 7 终验门禁 [PASS/FAIL]（[N]/8）；Round 6 与 Round 3 回归 [无/有] 退化；Lighthouse 识字 97/100/100 / 数学 94/100/100；zip 体积 识字 [N] MB / 数学 [N] MB（Δ [±]）。`
+
+## 5. 附录：Lighthouse 实测详情（r7-perf-lighthouse @ 9c90be2）
+
+> 日期：2026-08-27  
+> 分支：`cursor/r7-perf-lighthouse-9f67`  
+> 性能实现：`33f01f2`  
+> 工具：Lighthouse `12.8.2`，mobile / simulate，gzip 静态服务器
+
+命令：
+
+```bash
+LIGHTHOUSE_BIN=/home/ubuntu/.npm/_npx/0f94ee7615faf582/node_modules/.bin/lighthouse \
+ACCEPTANCE_MIN_LH_PERFORMANCE=0.90 \
+ACCEPTANCE_MIN_LH_ACCESSIBILITY=1 \
+ACCEPTANCE_MIN_LH_BEST_PRACTICES=1 \
+npm run test:acceptance
+```
+
+`test:acceptance` 同轮实测还通过：
+
+- axe 路由扫描：双 App `20/20`，`critical=0, serious=0`。
+- 识字状态扫描：3 套主题 × 24 状态，`critical=0, serious=0`。
+
+优化与回归证据：
+
+- 双 App 把 GSAP 从首页同步依赖移到真正需要它的懒加载路由；识字星爆、徽章、学伴和数学首页反馈改用原生 Web Animations。
+- 数学入口 gzip 从基线 `105,114 B` 降至 `77,058 B`（`-28,056 B / -26.7%`）。
+- 双 App 统一内联入口关键 CSS；SW 安装/完整离线预缓存延后到首屏稳定后，避免和首次渲染争抢资源。
+- 数学锁定卡片不再用父级透明度降低全部文字对比度，Lighthouse A11y `95 → 100`，首页 axe `serious 5 → 0`。
+- `npm --prefix apps/literacy-app test`：PASS（161 路由 + 30 交互）。
+- `npm --prefix apps/math-app test`：PASS（16 路由 + 26 交互）。
+- 最终 `npm --prefix apps/literacy-app run smoke`：PASS（161 路由 + 30 交互）。
+- `npm run test:offline`：PASS（识字 2076 项、数学 56 项预缓存，关服后均可启动）。
+- `npm run check:round6`：7/7 PASS。
+
+结论：双 App Lighthouse Performance 均 ≥ 90，Accessibility / Best Practices 均保持 100；功能 smoke 与完整离线能力无退化。
