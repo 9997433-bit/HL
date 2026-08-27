@@ -1,8 +1,11 @@
 <script setup>
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 
+const STARTUP_DELAY_MS = 3_000
 const canvas = ref(null)
 let raf = 0
+let startupTimer = 0
+let idleCallback = 0
 let stars = []
 let shooting = []
 let ctx = null
@@ -11,6 +14,7 @@ let h = 0
 let dpr = 1
 let lastShootAt = 0
 let paused = false
+let started = false
 
 function resize() {
   const el = canvas.value
@@ -115,16 +119,43 @@ function onVisibility() {
   paused = document.hidden
 }
 
-onMounted(() => {
+function start() {
+  if (started) return
+  started = true
   resize()
-  window.addEventListener('resize', resize)
-  document.addEventListener('visibilitychange', onVisibility)
   raf = requestAnimationFrame(draw)
+}
+
+function scheduleStart() {
+  startupTimer = window.setTimeout(() => {
+    startupTimer = 0
+    if ('requestIdleCallback' in window) {
+      idleCallback = window.requestIdleCallback(start, { timeout: 2_000 })
+    } else {
+      start()
+    }
+  }, STARTUP_DELAY_MS)
+}
+
+function onResize() {
+  if (started) resize()
+}
+
+onMounted(() => {
+  // 星空是纯装饰：首屏先保留轻量 CSS 星云，Canvas 在 load 后的空闲期再启动，
+  // 避免逐帧绘制与首页 LCP / Vue hydration 争抢主线程。
+  if (document.readyState === 'complete') scheduleStart()
+  else window.addEventListener('load', scheduleStart, { once: true })
+  window.addEventListener('resize', onResize)
+  document.addEventListener('visibilitychange', onVisibility)
 })
 
 onBeforeUnmount(() => {
   cancelAnimationFrame(raf)
-  window.removeEventListener('resize', resize)
+  clearTimeout(startupTimer)
+  if (idleCallback && 'cancelIdleCallback' in window) window.cancelIdleCallback(idleCallback)
+  window.removeEventListener('load', scheduleStart)
+  window.removeEventListener('resize', onResize)
   document.removeEventListener('visibilitychange', onVisibility)
 })
 </script>

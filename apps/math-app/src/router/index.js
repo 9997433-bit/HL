@@ -1,11 +1,14 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
+import HomeView from '@/modules/home/HomeView.vue'
 
 // hash 模式:静态托管(GitHub Pages / 本地 file 部署)零配置
 const routes = [
   {
     path: '/',
     name: 'home',
-    component: () => import('@/modules/home/HomeView.vue'),
+    // 首页是首个 LCP 的唯一必经视图。直接并入入口可消除路由启动后的 JS/CSS 串行请求；
+    // 其余玩法仍按路由懒加载，不增加非首页的启动成本。
+    component: HomeView,
     meta: { title: '学习地图' },
   },
   {

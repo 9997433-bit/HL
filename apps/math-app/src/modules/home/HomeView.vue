@@ -668,6 +668,8 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 340px;
 }
 
 .tool-deck-head {
@@ -802,6 +804,8 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 12px;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 92px;
 }
 
 .stat-pill {
@@ -889,6 +893,11 @@ onUnmounted(() => {
   margin-bottom: 8px;
 }
 
+.map {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 520px;
+}
+
 .map-head .chip {
   margin-left: auto;
 }
@@ -948,7 +957,6 @@ onUnmounted(() => {
 .chapter-step.locked {
   border-color: var(--surface-border);
   background: var(--surface-sunken);
-  filter: grayscale(1);
 }
 
 .chapter-step.current {
@@ -1130,6 +1138,11 @@ onUnmounted(() => {
   color: var(--text-soft);
 }
 
+.grid-cards {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 760px;
+}
+
 .mod-card {
   text-align: left;
   display: flex;
@@ -1146,8 +1159,13 @@ onUnmounted(() => {
 }
 
 .mod-card.locked {
-  filter: grayscale(0.9);
   border-style: dashed;
+  border-color: var(--surface-border);
+  background: linear-gradient(160deg, var(--surface), var(--surface-sunken));
+}
+
+.mod-card.locked .mod-emoji {
+  filter: grayscale(1);
 }
 
 .mod-story {
@@ -1157,8 +1175,14 @@ onUnmounted(() => {
 }
 
 .mod-card.locked .mod-story {
-  color: var(--text-soft);
+  color: var(--text);
   font-style: italic;
+}
+
+.mod-card.locked .mod-chapter,
+.mod-card.locked .mod-sub,
+.mod-card.locked .mod-progress .dim {
+  color: var(--text);
 }
 
 /* 解锁条件写成一句可执行的话，而不是只挂一个「需 N ⭐」的价签 */
