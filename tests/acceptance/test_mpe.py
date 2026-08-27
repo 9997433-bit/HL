@@ -501,10 +501,28 @@ def test_the_estimator_is_bitwise_deterministic_on_a_seeded_input() -> None:
 
 
 @criterion("AC-MPE-006")
-def test_ac_mpe_006_ssi_cov_api_is_explicitly_unimplemented() -> None:
-    """SSI-COV reserves a stable signature until the numerical backend lands."""
-    from openfemlab.mpe.ssi import ssi_cov
+def test_ac_mpe_006_ssi_cov_recovers_operational_modes() -> None:
+    """SSI-COV identifies both modes of a synthesized ambient record."""
+    from openfemlab.mpe.ssi import simulate_operational_response, ssi_cov
 
-    responses = np.zeros((32, 2))
-    with pytest.raises(NotImplementedError, match="SSI-COV"):
-        ssi_cov(responses, sampling_rate_hz=100.0, orders=(10, 20))
+    record = simulate_operational_response(
+        (4.0, 9.5),
+        (0.015, 0.02),
+        np.array([[1.0, 0.8], [1.2, -0.6], [0.7, 1.1]]),
+        sampling_rate_hz=200.0,
+        samples=8192,
+        seed=17,
+    )
+    result = ssi_cov(
+        record,
+        200.0,
+        range(6, 20, 2),
+        block_rows=30,
+        min_count=2,
+        freq_tol=0.05,
+        damp_tol=0.15,
+        mac_tol=0.85,
+    )
+    frequencies = list(result.frequencies_hz)
+    assert any(abs(value - 4.0) < 0.6 for value in frequencies)
+    assert any(abs(value - 9.5) < 0.6 for value in frequencies)

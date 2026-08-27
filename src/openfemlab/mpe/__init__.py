@@ -11,8 +11,8 @@ the stabilization diagram over model orders
 (:func:`stabilization_diagram`), LSFD residue/shape estimation
 (:func:`extract_shapes`), the one-call driver (:func:`extract_modes`), and
 the ``MPEResult.to_test_data`` bridge into the M2 correlation input.  The
-output-only :func:`ssi_cov` API is reserved explicitly and currently raises
-``NotImplementedError`` until its numerical backend lands.
+The output-only :func:`ssi_cov` estimator completes the operational modal
+analysis path alongside the frequency-response LSCF fitter.
 
 The estimators are direct solves over the measured lines, so they take no
 seed and identical inputs produce bitwise-identical results (MS-10.1). Input

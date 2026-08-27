@@ -70,8 +70,8 @@ FAMILY_TO_MODULE = {
     "PERF": "M1",
 }
 EXPECTED_CRITERIA_PER_FAMILY = {
-    "MODAL": 9, "CORR": 9, "UPD": 11, "WORK": 5, "OPT": 4, "DYN": 5, "ELEM": 3,
-    "IO": 4, "MPE": 6, "PRETEST": 5, "PERF": 5,
+    "MODAL": 9, "CORR": 9, "UPD": 12, "WORK": 5, "OPT": 4, "DYN": 5, "ELEM": 3,
+    "IO": 5, "MPE": 6, "PRETEST": 5, "PERF": 5,
 }
 
 
@@ -179,6 +179,8 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P2", "twin", "MS-3.2, MS-7.3", _UPD_SUITE, "verified"),
     _c("AC-UPD-010", "Parameter resolver builds a twin-recoverable scaling model",
        "P2", "twin", "MS-3.1", _UPD_SUITE, "implemented"),
+    _c("AC-UPD-011", "Monte Carlo propagation matches the linear oracle",
+       "P2", "oracle", "MS-3.5", _UPD_SUITE, "implemented"),
     # --- M4 Simulation correction workflow (MS-4) -----------------------------
     _c("AC-WORK-001", "End-to-end correction passes gates",
        "P0", "twin", "MS-4.1, MS-4.2", _WORK_SUITE, "verified"),
@@ -226,6 +228,8 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P0", "contract", "MS-9.4", _IO_SUITE, "verified"),
     _c("AC-IO-004", "OP2 geometry import matches the BDF of the same model",
        "P2", "contract", "MS-9.6", _IO_SUITE, "implemented"),
+    _c("AC-IO-005", "OP2 readers are exported from openfemlab.io",
+       "P2", "contract", "MS-9.6", "tests/acceptance/test_io_export.py", "implemented"),
     # --- M9 Modal parameter extraction (MS-10), GAP-06 -----------------------
     _c("AC-MPE-001", "LSCF pole recovery on synthesized FRFs",
        "P0", "oracle", "MS-10.2", _MPE_SUITE, "verified"),
@@ -237,8 +241,8 @@ REGISTRY: tuple[AcceptanceCriterion, ...] = (
        "P1", "contract", "MS-10.5", _MPE_SUITE, "verified"),
     _c("AC-MPE-005", "Noise robustness of the estimator",
        "P1", "property", "MS-10.2, MS-10.3", _MPE_SUITE, "verified"),
-    _c("AC-MPE-006", "SSI-COV API is explicit until the backend lands",
-       "P2", "contract", "MS-10.1", _MPE_SUITE, "implemented"),
+    _c("AC-MPE-006", "SSI-COV recovers operational modes from output-only data",
+       "P2", "oracle", "MS-10.1", _MPE_SUITE, "implemented"),
     # --- M10 Pretest planning (MS-11) — spec-first, GAP-07 -------------------
     _c("AC-PRETEST-001", "EI leverage identities and det-FIM downdate",
        "P0", "property", "MS-11.2", _PRETEST_SUITE, "verified"),
@@ -279,7 +283,7 @@ def test_registry_inventory_matches_documented_scope():
         for family in EXPECTED_CRITERIA_PER_FAMILY
     }
     assert counts == EXPECTED_CRITERIA_PER_FAMILY
-    assert len(REGISTRY) == 66
+    assert len(REGISTRY) == 68
 
 
 def test_ids_unique():

@@ -1554,3 +1554,21 @@ def test_ac_upd_010_resolver_scaling_spec_recovers_a_twin():
 
     assert result.converged
     assert result.parameters["E.steel"] == pytest.approx(truth["E.steel"], rel=1e-3)
+
+
+@criterion("AC-UPD-011")
+def test_ac_upd_011_monte_carlo_propagation_matches_linear_oracle() -> None:
+    from openfemlab.uq import NormalUncertainty, monte_carlo_run
+
+    nominal = {"E": 210e9, "rho": 7800.0}
+    uncertainties = {
+        "E": NormalUncertainty(mean=210e9, std=1.0e9),
+        "rho": NormalUncertainty(mean=7800.0, std=20.0),
+    }
+
+    def evaluate(theta: dict[str, float]) -> np.ndarray:
+        return np.array([theta["E"] / theta["rho"]])
+
+    result = monte_carlo_run(evaluate, nominal, uncertainties, 512, seed=11)
+    assert result.mean[0] == pytest.approx(210e9 / 7800.0, rel=0.05)
+    assert result.std[0] > 0.0

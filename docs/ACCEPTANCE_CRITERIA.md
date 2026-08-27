@@ -272,6 +272,7 @@ to honor the sparse matrix contract of MS-0.2 and MS-1.6.
 | AC-UPD-008 | P1 | Mode switching handled by re-pairing | residual ordering correct through a mode crossing | MS-3.2 |
 | AC-UPD-009 | P2 | FRF residual recovers a damped twin | ‖θ* − θ_true‖_∞ ≤ 1e-2 from noisy FRFs; held-out FRAC ≥ 0.99 | MS-3.2, MS-7.3 |
 | AC-UPD-010 | P2 | Parameter resolver builds a twin-recoverable scaling model | dotted `materials.<name>.E` target; ‖θ* − θ_true‖_∞ ≤ 1e-3 | MS-3.1 |
+| AC-UPD-011 | P2 | Monte Carlo propagation matches the linear oracle | E/ρ mean within 5 % rel.; std > 0 on 512 samples | MS-3.5 |
 
 ### Details
 
@@ -547,6 +548,7 @@ run (AC-IO-003).
 | AC-IO-002 | P1 | meshio file round trip preserves the neutral model | nodes bitwise; blocks, property ids and labels exact | MS-9.3 |
 | AC-IO-003 | P0 | Imported mesh assembles as the hand-built model | `K`, `M`, DOF partition and mass identical; f₁ within 1 % of the bar oracle | MS-9.4 |
 | AC-IO-004 | P2 | OP2 geometry import matches the BDF of the same model | node labels, coordinates, connectivity and property ids bitwise equal | MS-9.6 |
+| AC-IO-005 | P2 | OP2 readers are exported from `openfemlab.io` | `list_op2_tables`, `read_op2`, `read_op2_modes` in namespace and `__all__` | MS-9.6 |
 
 ### Details
 
@@ -607,7 +609,7 @@ experiment against a modal model the test itself constructed.
 | AC-MPE-003 | P0 | Stabilization diagram separates physical from computational poles | physical alignments fully stable over ≥ 3 consecutive orders; no computational alignment fully stable; auto-pick count = ground truth | MS-10.3 |
 | AC-MPE-004 | P1 | Measurement path: UFF-58 → MPE → TestData → correlate | pipeline yields a `TestData` that pairs every mode at MAC ≥ 0.99 against the source model; `meta` carries provenance | MS-10.5 |
 | AC-MPE-005 | P1 | Noise robustness of the estimator | seeded 1 % noise: f within 0.1 %, ζ within 20 % rel., MAC ≥ 0.98; bitwise deterministic per seed | MS-10.2, MS-10.3 |
-| AC-MPE-006 | P2 | SSI-COV API is explicit until the backend lands | `ssi_cov` raises `NotImplementedError` with an actionable message | MS-10.1 |
+| AC-MPE-006 | P2 | SSI-COV recovers operational modes from output-only data | both oracle modes within 0.6 Hz of the synthesized ambient record | MS-10.1 |
 
 ### Details
 
@@ -717,8 +719,8 @@ with no promoted row.
 registry (one entry per criterion: ID, title, module, spec anchor, priority,
 verification method, planned test reference, status).
 
-The current inventory is **61 criteria**: M1 = 12 (`MODAL` = 9, `PERF` = 3),
-M2 = 9, M3 = 10, M4 = 5, M5 = 4, M6 = 5, M7 = 3, M8 = 3, M9 = 5, and
+The current inventory is **68 criteria**: M1 = 14 (`MODAL` = 9, `PERF` = 5),
+M2 = 9, M3 = 12, M4 = 5, M5 = 4, M6 = 5, M7 = 3, M8 = 5, M9 = 6, and
 M10 = 5. The two suffixed M3 rows (`AC-UPD-006a` / `AC-UPD-006b`) are
 distinct criteria under one dense base number.
 

@@ -117,19 +117,16 @@ def test_the_implemented_phases_report_a_missing_file_as_a_format_error(
         entry_point(missing)
 
 
-def test_the_reader_is_not_advertised_by_the_io_package():
-    """An exported name promises a *supported* reader; this one is not one yet.
+def test_the_reader_is_advertised_by_the_io_package():
+    """Round 6 exports the OP2 subset from ``openfemlab.io`` (AC-IO-005).
 
-    The implemented phases work, but only against the files ``tests/_op2.py``
-    writes — that is, against our own reading of the format.  MS-9.6 makes the
-    opt-in corpus test over real MSC and NX output the condition for calling
-    the reader supported, so until it runs the entry points stay reachable only
-    as ``openfemlab.io.op2.read_op2_modes``.
+    Real Nastran corpus validation remains opt-in via ``OPENFEMLAB_OP2_CORPUS``;
+    the export marks the API as supported for the synthetic-fixture subset.
     """
 
     for name in ("read_op2", "read_op2_modes", "list_op2_tables"):
-        assert name not in openfemlab_io.__all__
-        assert not hasattr(openfemlab_io, name)
+        assert name in openfemlab_io.__all__
+        assert hasattr(openfemlab_io, name)
 
 
 def test_element_records_cover_the_bdf_reader_element_set():
