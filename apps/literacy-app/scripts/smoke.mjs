@@ -1049,7 +1049,7 @@ await interact('徽章：学会第一个字就点亮，首页与家长中心都�
   }
 
   await page.goto(page.url().replace(/#.*$/, '#/'), { waitUntil: 'networkidle2' })
-  await new Promise((r) => setTimeout(r, 500))
+  await page.waitForSelector('.badges', { timeout: 5000 })
   const home = await page.evaluate(() => ({
     shelf: !!document.querySelector('.badges'),
     lit: document.querySelectorAll('.badge[data-unlocked="true"]').length,
@@ -1061,7 +1061,8 @@ await interact('徽章：学会第一个字就点亮，首页与家长中心都�
   if (!home.chip) throw new Error('首页顶部没有徽章数量')
 
   await page.goto(page.url().replace(/#.*$/, '#/parent'), { waitUntil: 'networkidle2' })
-  await new Promise((r) => setTimeout(r, 400))
+  // 家长中心同样是异步分块，验证题没渲染出来就去读题的话，下面的解锁会静默落空
+  await page.waitForSelector('input[type="number"]', { timeout: 5000 })
   await page.evaluate(() => {
     const label = document.body.innerText.match(/(\d+)\s*\+\s*(\d+)/)
     const input = document.querySelector('input[type="number"]')
