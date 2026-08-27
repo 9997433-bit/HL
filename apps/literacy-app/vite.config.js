@@ -39,7 +39,16 @@ function inlineEntryCss() {
 
 export default defineConfig({
   base: './',
-  plugins: [vue(), inlineEntryCss(), offlinePrecache()],
+  plugins: [
+    vue(),
+    inlineEntryCss(),
+    /**
+     * 拍照识字的 wasm 内核 + 语言包近 6 MB。放进预缓存等于每个访客一进门就下载
+     * 一个多半用不上的大件，所以这三个文件留给 sw.js 里的按需缓存：
+     * 第一次真的去认字才下载，下载完照样离线可用。
+     */
+    offlinePrecache({ exclude: [/^ocr\/(?:worker\.min|tesseract-core|chi_sim)/] })
+  ],
   resolve: {
     alias: {
       '@shared': fileURLToPath(new URL('../../shared', import.meta.url)),

@@ -36,6 +36,17 @@ const routes = [
     meta: { title: '听音识字', emoji: '👂' }
   },
   { path: '/game/listen', redirect: '/listen' },
+  /**
+   * 拍照识字。整套 OCR 引擎近 6 MB，全部藏在这条路由的懒加载块和
+   * public/ocr/ 里，别的页面一个字节都不会为它买单。
+   */
+  {
+    path: '/ocr',
+    name: 'camera-ocr',
+    component: () => import('@/views/CameraOcrView.vue'),
+    meta: { title: '拍照识字', emoji: '📷' }
+  },
+  { path: '/camera', redirect: '/ocr' },
   {
     path: '/games',
     name: 'games',

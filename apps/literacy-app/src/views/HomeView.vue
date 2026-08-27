@@ -49,6 +49,15 @@ const stations = computed(() => [
     lockHint: '先学会 4 个字就能玩'
   },
   {
+    to: '/ocr',
+    emoji: '📷',
+    title: '拍照识字',
+    desc: '书上、路牌上不认识的字，拍下来当场认',
+    color: 'var(--sky-400)',
+    done: null,
+    total: null
+  },
+  {
     to: '/games',
     emoji: '🎲',
     title: '识字小游戏',

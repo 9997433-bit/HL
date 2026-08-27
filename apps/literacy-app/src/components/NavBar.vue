@@ -2,7 +2,7 @@
 /**
  * 底部主导航。
  *
- * 儿童端只放 6 个入口，图标大、命中区大（>= 64px），文字始终可见——
+ * 儿童端只放最常走的几个入口，图标大、命中区大（>= 44px），文字始终可见——
  * 这个年龄段还读不熟字，图标+文字双通道比纯图标可靠得多。
  * 家长中心不放在这里，避免孩子误入，入口在顶栏并有一道简单验证。
  */
@@ -16,6 +16,7 @@ const ITEMS = [
   { to: '/', name: 'home', icon: 'house', label: '乐园' },
   { to: '/learn', name: 'learn', icon: 'pencil', label: '学字' },
   { to: '/listen', name: 'listen', icon: 'ear', label: '听音' },
+  { to: '/ocr', name: 'camera-ocr', icon: 'camera', label: '拍照' },
   { to: '/books', name: 'books', icon: 'books', label: '绘本' },
   { to: '/idioms', name: 'idioms', icon: 'lantern', label: '成语' },
   { to: '/poems', name: 'poems', icon: 'scroll', label: '古诗', also: ['poem', 'follow-read'] }
