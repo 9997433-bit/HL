@@ -18,6 +18,28 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const DIST = join(ROOT, 'dist')
 const CHROME = '/usr/local/bin/google-chrome'
 
+const routerSource = await readFile(join(ROOT, 'src/router/index.js'), 'utf8')
+const sourceRoutePaths = [
+  ...routerSource
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '')
+    .matchAll(/\bpath\s*:\s*(['"])(.*?)\1/g)
+].map((match) => match[2])
+const findStaticRoute = (pattern) =>
+  sourceRoutePaths.find((route) => !route.includes(':') && pattern.test(route))
+const round6PoemRoute = findStaticRoute(/\/(?:poems?|poetry|classics?)(?:\/|$)/i)
+const round6SpeechRoute = findStaticRoute(
+  /\/(?:follow[-/]?read|speech[-/]?(?:eval|assess)|read[-/]?aloud)(?:\/|$)/i
+)
+
+// check:round6 会验证这两个 stub 仍在。功能路由合入后，它们自动进入真实浏览器回归。
+const ROUND6_H3_SMOKE = round6PoemRoute
+const ROUND6_H4_SMOKE = round6SpeechRoute
+const round6Routes = [
+  ...(ROUND6_H3_SMOKE ? [['古诗国学（Round 6）', `/#${ROUND6_H3_SMOKE}`]] : []),
+  ...(ROUND6_H4_SMOKE ? [['跟读评测（Round 6）', `/#${ROUND6_H4_SMOKE}`]] : [])
+]
+
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -72,6 +94,7 @@ const ROUTES = [
   ['成语 愚公移山', '/#/idioms/ygys'],
   ['成语 盲人摸象', '/#/idioms/mrmx'],
   ['成语 五颜六色', '/#/idioms/wyls'],
+  ...round6Routes,
   ['字源馆', '/#/etymology'],
   ['字源 日（象形）', `/#/etymology/${encodeURIComponent('日')}`],
   ['字源 明（会意）', `/#/etymology/${encodeURIComponent('明')}`],
@@ -1352,6 +1375,44 @@ await interact('单字页：笔顺数据可用', `/#/learn/${encodeURIComponent(
     return `svg path 数=${paths.length}，${note}`
   })
 })
+
+if (ROUND6_H3_SMOKE) {
+  await interact('Round 6 H3：古诗入口渲染内容与点读控件', `/#${ROUND6_H3_SMOKE}`, async (page) => {
+    const state = await page.evaluate(() => {
+      const text = document.body.innerText.replace(/\s+/g, ' ').trim()
+      const controls = [...document.querySelectorAll('button, a')].map((node) =>
+        `${node.innerText} ${node.getAttribute('aria-label') ?? ''}`.trim()
+      )
+      return {
+        hasPoemCopy: /古诗|诗词|作者|朝代/.test(text),
+        hasReadingControl: controls.some((label) => /朗读|播放|点读|听/.test(label))
+      }
+    })
+    if (!state.hasPoemCopy) throw new Error('古诗页没有可识别的诗词/作者内容')
+    if (!state.hasReadingControl) throw new Error('古诗页缺少朗读或点读控件')
+    return '诗词内容与朗读/点读入口均可见'
+  })
+}
+
+if (ROUND6_H4_SMOKE) {
+  await interact('Round 6 H4：跟读评测入口与降级提示', `/#${ROUND6_H4_SMOKE}`, async (page) => {
+    const state = await page.evaluate(() => {
+      const text = document.body.innerText.replace(/\s+/g, ' ').trim()
+      const controls = [...document.querySelectorAll('button')].map((node) =>
+        `${node.innerText} ${node.getAttribute('aria-label') ?? ''}`.trim()
+      )
+      return {
+        hasEvalCopy: /跟读|语音评测|朗读评测|录音/.test(text),
+        hasStartControl: controls.some((label) => /开始|跟读|录音|重试|播放/.test(label)),
+        hasStatus: Boolean(document.querySelector('[aria-live], [role="status"]'))
+      }
+    })
+    if (!state.hasEvalCopy) throw new Error('跟读页没有评测或录音说明')
+    if (!state.hasStartControl) throw new Error('跟读页缺少开始/录音/重试控件')
+    if (!state.hasStatus) throw new Error('跟读结果缺少 aria-live/status 播报区域')
+    return '评测文案、操作入口与无障碍状态播报均可见'
+  })
+}
 
 await browser.close()
 server.close()
