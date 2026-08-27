@@ -108,6 +108,31 @@ async function waitForWorker(page) {
   })
 }
 
+/**
+ * 拍照识字的引擎包（worker + wasm 内核 + 语言包）不进预缓存，走的是 sw.js 里的
+ * 按需缓存。第一次认字把它收下来，断网之后必须照样认得出——这条链路只有真的
+ * 跑一遍 OCR 才验得了，所以这里认的是入库的那张示例照片。
+ */
+async function recognizeSample(page, baseUrl) {
+  await page.goto(`${baseUrl}/#/ocr`, { waitUntil: 'networkidle0', timeout: 30_000 })
+  await page.waitForSelector('.ocr[data-phase="idle"]', { timeout: 15_000 })
+  await page.evaluate(() => {
+    const start = [...document.querySelectorAll('button')].find((node) =>
+      node.innerText.includes('试一张示例'),
+    )
+    if (!start) throw new Error('拍照识字页缺少「试一张示例」入口')
+    start.click()
+  })
+  await page.waitForFunction(
+    () => ['done', 'error'].includes(document.querySelector('.ocr')?.dataset.phase),
+    { timeout: 120_000 },
+  )
+  return page.evaluate(() => ({
+    phase: document.querySelector('.ocr')?.dataset.phase,
+    chars: [...document.querySelectorAll('.ocr__hit')].map((node) => node.dataset.char),
+  }))
+}
+
 async function verifyOfflineApp(browser, app) {
   const directory = join(ROOT, 'apps', app.directory, 'dist')
   const builtWorker = await readFile(join(directory, 'sw.js'), 'utf8')
@@ -145,6 +170,24 @@ async function verifyOfflineApp(browser, app) {
       assert(
         worker.urls.some((url) => url.endsWith('/hanzi-data/index.json')),
         `${app.label}: hanzi-data/index.json 未进入预缓存`,
+      )
+    }
+
+    if (app.ocr) {
+      const warmOcr = await recognizeSample(warmPage, baseUrl)
+      assert(warmOcr.phase === 'done', `${app.label}: 联网时示例照片就没认成`)
+      const packed = await warmPage.evaluate(async () => {
+        const cache = await caches.open('literacy-app-ocr-pack')
+        return (await cache.keys()).map((request) => request.url)
+      })
+      assert(
+        packed.length >= 3 && packed.some((url) => url.includes('chi_sim.traineddata')),
+        `${app.label}: 认过一次字之后引擎包没有落进按需缓存（${packed.length} 项）`,
+      )
+      const precached = worker.urls.filter((url) => /\/ocr\/(?:worker|tesseract-core|chi_sim)/.test(url))
+      assert(
+        precached.length === 0,
+        `${app.label}: 5.5 MB 的引擎包混进了预缓存（${precached.join('、')}）`,
       )
     }
 
@@ -199,6 +242,19 @@ async function verifyOfflineApp(browser, app) {
       )
     }
 
+    if (app.ocr) {
+      const offlineOcr = await recognizeSample(offlinePage, baseUrl)
+      assert(
+        offlineOcr.phase === 'done' && offlineOcr.chars.length >= 3,
+        `${app.label}: 断网后认不出示例照片（${offlineOcr.phase}，${offlineOcr.chars.join('') || '零个字'}）`,
+      )
+      assert(
+        failures.length === 0,
+        `${app.label}: 断网认字时仍有资源请求失败\n${failures.join('\n')}`,
+      )
+      console.log(`  · 断网拍照识字认出「${offlineOcr.chars.join('')}」`)
+    }
+
     console.log(
       `✓ ${app.label}: 服务关闭后 ${app.route} 启动成功，预缓存 ${worker.urls.length} 项`,
     )
@@ -220,6 +276,7 @@ try {
     directory: 'literacy-app',
     hanzi: true,
     label: '识字 App',
+    ocr: true,
     route: `/#/learn/${encodeURIComponent('日')}`,
   })
   await verifyOfflineApp(browser, {
