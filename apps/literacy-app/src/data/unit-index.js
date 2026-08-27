@@ -1,5 +1,5 @@
 /**
- * 单元名录 —— 58 个单元的标题信息，以及每个单元详情包的加载器。
+ * 单元名录 —— 73 个单元的标题信息，以及每个单元详情包的加载器。
  *
  * 加载器写成显式的 import() 映射而不是 import.meta.glob，
  * 一来 Vite 能静态分析出每个单元一个块，二来 Node 脚本也能直接跑。
@@ -65,7 +65,22 @@ export const UNITS = [
   { id: 'u55', name: '量一量比一比', emoji: '⚖️', color: 'var(--seed-mango)', desc: '寸亩升斗，或多或少' },
   { id: 'u56', name: '科学和宇宙', emoji: '🚀', color: 'var(--seed-leaf)', desc: '技术器物，星辰宇宙' },
   { id: 'u57', name: '心情和身体', emoji: '😌', color: 'var(--seed-sky)', desc: '喜怒哀乐，眉眼手掌' },
-  { id: 'u58', name: '讲故事', emoji: '🧚', color: 'var(--seed-grape)', desc: '神仙侠客，敲门搬家' }
+  { id: 'u58', name: '讲故事', emoji: '🧚', color: 'var(--seed-grape)', desc: '神仙侠客，敲门搬家' },
+  { id: 'u59', name: '识字小路', emoji: '🚶', color: 'var(--seed-mango)', desc: '笔画最少的一批字' },
+  { id: 'u60', name: '识字小桥', emoji: '🌉', color: 'var(--seed-leaf)', desc: '三四画，写起来很快' },
+  { id: 'u61', name: '识字小坡', emoji: '⛰️', color: 'var(--seed-sky)', desc: '四画的常用字排排站' },
+  { id: 'u62', name: '识字树林', emoji: '🌲', color: 'var(--seed-grape)', desc: '四五画，越走越熟' },
+  { id: 'u63', name: '识字山谷', emoji: '🏞️', color: 'var(--seed-mint)', desc: '五画的字一大家子' },
+  { id: 'u64', name: '识字溪边', emoji: '🏕️', color: 'var(--seed-coral)', desc: '五画的字，边走边认' },
+  { id: 'u65', name: '识字草原', emoji: '🌾', color: 'var(--seed-mango)', desc: '六画的字，一望无边' },
+  { id: 'u66', name: '识字沙丘', emoji: '🏜️', color: 'var(--seed-leaf)', desc: '六画的字，一步一个脚印' },
+  { id: 'u67', name: '识字海湾', emoji: '🏖️', color: 'var(--seed-sky)', desc: '六画的字，浪花一朵朵' },
+  { id: 'u68', name: '识字礁石', emoji: '🪨', color: 'var(--seed-grape)', desc: '六画的字，稳稳当当' },
+  { id: 'u69', name: '识字码头', emoji: '⚓', color: 'var(--seed-mint)', desc: '六画的字，一船一船地运' },
+  { id: 'u70', name: '识字岛屿', emoji: '🏝️', color: 'var(--seed-coral)', desc: '六七画的字，一座连一座' },
+  { id: 'u71', name: '识字山洞', emoji: '🕳️', color: 'var(--seed-mango)', desc: '七画的字，一探究竟' },
+  { id: 'u72', name: '识字瀑布', emoji: '💦', color: 'var(--seed-leaf)', desc: '七画的字，哗啦啦落下来' },
+  { id: 'u73', name: '识字峡谷', emoji: '🧗', color: 'var(--seed-sky)', desc: '七画的字，一步步往上爬' }
 ]
 
 export const DETAIL_LOADERS = {
@@ -126,5 +141,20 @@ export const DETAIL_LOADERS = {
   u55: () => import('./chars/u55.js'),
   u56: () => import('./chars/u56.js'),
   u57: () => import('./chars/u57.js'),
-  u58: () => import('./chars/u58.js')
+  u58: () => import('./chars/u58.js'),
+  u59: () => import('./chars/u59.js'),
+  u60: () => import('./chars/u60.js'),
+  u61: () => import('./chars/u61.js'),
+  u62: () => import('./chars/u62.js'),
+  u63: () => import('./chars/u63.js'),
+  u64: () => import('./chars/u64.js'),
+  u65: () => import('./chars/u65.js'),
+  u66: () => import('./chars/u66.js'),
+  u67: () => import('./chars/u67.js'),
+  u68: () => import('./chars/u68.js'),
+  u69: () => import('./chars/u69.js'),
+  u70: () => import('./chars/u70.js'),
+  u71: () => import('./chars/u71.js'),
+  u72: () => import('./chars/u72.js'),
+  u73: () => import('./chars/u73.js')
 }
