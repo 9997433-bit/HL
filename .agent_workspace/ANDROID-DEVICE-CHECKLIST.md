@@ -18,7 +18,7 @@ Model slug: gpt-5.6-sol-xhigh-fast
 | Android 版本 / API | Owner: Android QA；目标 Android 8–10 | Owner: Android QA；目标 Android 13+ |
 | Android System WebView 版本 | Owner: Android QA；从应用详情页记录完整版本 | Owner: Android QA；从应用详情页记录完整版本 |
 | 屏幕尺寸、分辨率、DPI | Owner: Android QA；记录物理尺寸与 `wm size/density` | Owner: Android QA；记录物理尺寸与 `wm size/density` |
-| App commit / APK SHA-256 | 测量基线为本分支 HEAD；APK 由 Android Build 出包后冻结 SHA-256 | 测量基线为本分支 HEAD；使用同一组冻结 APK |
+| App commit / APK SHA-256 | VM 测量 commit `5ea1a6f`；APK 由 Android Build 出包后冻结 SHA-256 | VM 测量 commit `5ea1a6f`；使用同一组冻结 APK |
 | 识字 / 数学版本号 | 当前 package 版本均为 `0.1.0`；Owner: Release 冻结 Android versionName/code | 当前 package 版本均为 `0.1.0`；Owner: Release 冻结 Android versionName/code |
 
 ### 1.1 Cursor Cloud VM 能力与实测边界
@@ -30,10 +30,20 @@ Android 设备。因此 Web 构建、Capacitor 同步、静态 Android 门禁与
 可在 VM 实测；APK 编译、安装、WebView、权限、触控、音频、温升和内存只能由真机 owner
 签核。
 
+| VM 可执行项（2026-08-27 UTC） | 结果 | 证据 / 实测值 |
+|---|---|---|
+| `npm ci` | PASS（exit 0） | 安装 380 packages；Node/npm 版本见上 |
+| `npm run build:all` | PASS（exit 0） | 双 App production build 完成 |
+| `npm run sync:android` | PASS（exit 0） | 双 App `cap copy + cap sync` 完成 |
+| `npm run check:android` | PASS（exit 0） | **26/26** 静态 Android 门禁通过 |
+| `npm run test:lighthouse:desktop` | PASS（exit 0） | 识字、数学 P/A/BP 均 **100/100/100**；`formFactor=desktop`、`screenEmulation.mobile=false` |
+| desktop 同轮 axe | PASS | 双 App 22/22 路由；识字 4 主题 × 24 状态；critical=0、serious=0 |
+| APK / adb / 真机项 | BLOCKED（非产品失败） | VM 无 Android SDK、`adb` 和实体设备；Owner: Android Build / Android QA |
+
 ## 2. 出包与安装前置
 
-- [ ] VM / Owner: Performance：在待验 commit 执行 `npm ci && npm run build:all` 并归档结果。
-- [ ] VM / Owner: Performance：执行 `npm run sync:android && npm run check:android`，结果全绿。
+- [x] VM / Owner: Performance：在 commit `5ea1a6f` 执行 `npm ci && npm run build:all`，均 exit 0。
+- [x] VM / Owner: Performance：执行 `npm run sync:android && npm run check:android`，后者 **26/26**。
 - [ ] Owner: Android Build：分别在 `apps/literacy-app/android`、`apps/math-app/android` 执行
       `./gradlew assembleDebug`，保存构建日志与 APK SHA-256。
 - [ ] Owner: Android QA：用 `adb install -r <apk>` 安装；记录
