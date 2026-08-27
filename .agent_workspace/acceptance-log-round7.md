@@ -60,7 +60,7 @@ Round 7 终验门禁：0/8 项通过，8 项失败。 → 退出码 1
 | G2 | `npm run check:round6` | 7/7 | `[待回填]` |
 | G3 | `npm run check:round7` | **8/8** PASS | **8/8 PASS** |
 | G4 | `npm run test:round3` | PASS | `[待回填]` |
-| G5 | `build:all` + `sync:android` + `check:android` | zip + 26/26 | `[待回填]` |
+| G5 | `build:all` + `sync:android` + `check:android` | zip + 26/26 | literacy 2,891,785 B / math 435,723 B · android 26/26 |
 | G6 | Lighthouse 双 App | P/A/BP ≥ 90 | **识字 97/100/100 · 数学 94/100/100** |
 
 ### 2.2 八项实测（粘贴 `check:round7` 输出并填计数）
@@ -85,8 +85,8 @@ Round 7 终验门禁：0/8 项通过，8 项失败。 → 退出码 1
 | 识字首屏 JS gzip | < 250 KB | **108,112 B** (~106 KB) | P |
 | 数学首屏 JS gzip | < 250 KB | **77,058 B** (~75 KB) | P |
 | OCR 资产（懒加载块 + public/ocr） | 只在 `/ocr` 加载 | `[KB / 时机]` | `[P/F]` |
-| literacy-app.zip | `[基线 MB]` | `[MB]`（Δ `[±MB]`） | 记录 + 解释来源 |
-| math-app.zip | `[基线 MB]` | `[MB]`（Δ `[±MB]`） | 记录 + 解释来源 |
+| literacy-app.zip | Round 5：1,795,883 B | **2,891,785 B**（+1,095,902 B） | P |
+| math-app.zip | Round 5：223,512 B | **435,723 B**（+212,211 B） | P |
 
 ### 2.4 浏览器矩阵 C-6（标准 §4.3）
 
