@@ -1061,7 +1061,9 @@ await interact('徽章：学会第一个字就点亮，首页与家长中心都�
   if (!home.chip) throw new Error('首页顶部没有徽章数量')
 
   await page.goto(page.url().replace(/#.*$/, '#/parent'), { waitUntil: 'networkidle2' })
-  await new Promise((r) => setTimeout(r, 400))
+  // 家长中心是按需 chunk，慢机器上 400ms 未必够它挂上来
+  await page.waitForSelector('.gate input[type="number"]', { timeout: 8000 })
+  await new Promise((r) => setTimeout(r, 200))
   await page.evaluate(() => {
     const label = document.body.innerText.match(/(\d+)\s*\+\s*(\d+)/)
     const input = document.querySelector('input[type="number"]')
@@ -1112,12 +1114,28 @@ await interact('播报：答题与庆祝都有 aria-live', '/#/listen', async (p
 
   // 庆祝浮层：读完一本没读过的绘本
   await page.goto(page.url().replace(/#.*$/, '#/books/b2'), { waitUntil: 'networkidle2' })
+  await page.waitForSelector('.reader .pill', { timeout: 8000 })
   await new Promise((r) => setTimeout(r, 400))
-  for (let i = 0; i < 8; i++) {
-    if (await clickText(page, '下一页')) continue
-    if (await clickText(page, '读完啦')) break
-    break
+
+  /**
+   * 按「页码有没有真的前进」来翻页，而不是数点击次数：机器忙起来的时候
+   * 一次点击可能落在翻页动画里，固定次数的循环会在半路上就把书放下。
+   */
+  const readerPage = () =>
+    page.evaluate(() => {
+      const m = document.querySelector('.reader .pill')?.innerText.match(/(\d+)\s*\/\s*(\d+)/)
+      return m ? { at: Number(m[1]), total: Number(m[2]) } : null
+    })
+  let spread = await readerPage()
+  if (!spread) throw new Error('绘本页没有渲染页码')
+  for (let i = 0; i < 24 && spread.at < spread.total; i++) {
+    await clickText(page, '下一页')
+    spread = (await readerPage()) ?? spread
   }
+  if (spread.at !== spread.total) {
+    throw new Error(`没有翻到最后一页：停在 ${spread.at} / ${spread.total}`)
+  }
+  await clickText(page, '读完啦')
   await page.waitForSelector('.cel', { timeout: 5000 })
   const celebration = await page.evaluate(() => {
     const layer = document.querySelector('.cel')
