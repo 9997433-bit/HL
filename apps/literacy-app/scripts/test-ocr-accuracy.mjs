@@ -73,6 +73,11 @@ const realSamples = JSON.parse(
 )
 const notices = await readFile(new URL('THIRD_PARTY_NOTICES.md', repoUrl), 'utf8')
 
+/** 自己读自己：往轮门禁在这份源码里找机读标记，删标记的那一刀得当场被拦下。 */
+const harnessSource = await readFile(new URL('scripts/test-ocr-accuracy.mjs', appUrl), 'utf8')
+const stripComments = (src) =>
+  src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+
 /**
  * 基准集。
  *
@@ -253,6 +258,17 @@ const BENCHMARK = [
   }
 ]
 
+/**
+ * 机读标记与它的来路。
+ *
+ * 每一轮的门禁脚本都到这份源码里找自己那一枚标记（`check-round9.mjs` 找
+ * `ROUND9_H2`，`check-round11.mjs` 找 `ROUND11_H2`），而且找的是**去掉注释之后**
+ * 的代码——写在头注释里的那串不算数。所以这条链得一直留在常量里：
+ * 接替不等于抹掉，往轮的门禁还要能继续对上账，删一枚就是让 R9/R10 当场退化。
+ */
+const MARKER = 'ROUND11_H2'
+const SUPERSEDES = ['ROUND10_H2', 'ROUND9_H2', 'ROUND8_H4']
+
 /** 整套基准集的总召回率下限：单张可以差一点，合起来不许掉到这条线下。 */
 const OVERALL_RECALL = 0.9
 
@@ -431,6 +447,20 @@ test(`真实照片不少于 ${MIN_REAL_IMAGES} 张，这一类的召回率单独
     `真实照片召回率 ${(hit / total * 100).toFixed(1)}%（${hit}/${total}，` +
       `下限 ${REAL_TIER_RECALL * 100}%）`
   )
+})
+
+test('往轮的机读标记还在，升级这个脚本不会连带把旧门禁改红', () => {
+  // 门禁读的是去掉注释后的源码，所以标记必须活在常量里而不是头注释里。
+  // R10 那次差点栽在这上面：把 supersedes 从 'ROUND9_H2' 改成 'ROUND10_H2'，
+  // check:round9 的 H2 立刻转红——分数一分没掉，红的是一个字符串。
+  const source = stripComments(harnessSource)
+  for (const marker of [MARKER, ...SUPERSEDES]) {
+    assert.match(
+      source,
+      new RegExp(`\\b${marker}\\b`),
+      `代码里找不到「${marker}」——对应那一轮的门禁会当场退化（注释里的不算数）`
+    )
+  }
 })
 
 test(`真实照片来自至少 ${MIN_REAL_SOURCES} 张不同的原图，不是一张图裁五刀`, () => {
@@ -762,8 +792,8 @@ if (asJson) {
   console.log(
     JSON.stringify(
       {
-        marker: 'ROUND11_H2',
-        supersedes: 'ROUND10_H2',
+        marker: MARKER,
+        supersedes: SUPERSEDES,
         imageCount: rows.length,
         realImageCount: rows.filter((r) => r.item.tier === REAL_TIER).length,
         realSourceCount: new Set(
