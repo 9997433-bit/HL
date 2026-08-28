@@ -11,10 +11,17 @@
  * 母题库是「语义模板 × 场景皮肤」笛卡尔积扩出来的，逐题手写解析扩不动。
  * equation 里可能出现的记号只有 0-9、+ − × ÷、括号、逗号分句和「……」余数，
  * 遇到解析不了的写法一律返回空步骤，由界面退回显示原始算式，不猜。
+ *
+ * 公式推导管「每道题都有剖析」，手写剖析（ROUND17_H4，见 data/word-problem-explains.js）
+ * 管「这道题讲得像老师」：查得到手写就整条顶掉公式那句放之四海皆准的话，
+ * 查不到就照旧走公式，两边都不缺步。
  */
+import { explainOf, ROUND17_H4 } from '@/data/word-problem-explains.js'
 
 /** 剖析壳的三件套：图示理解 → 分步提示 → 变式入口。 */
 export const ROUND16_H5 = 'diagram-steps-variant'
+
+export { ROUND17_H4 }
 
 /** 运算符统一成题面里用的那套符号，顺带带上「为什么用它」的一句话。 */
 const OPS = {
@@ -75,7 +82,8 @@ function parse(tokens) {
 
   const record = (op, a, b) => {
     const value = OPS[op].apply(a, b)
-    steps.push({ kind: 'calc', op, expr: `${a} ${op} ${b}`, value, why: OPS[op].why })
+    // a/b 一并留着：手写剖析要按这一步的两个数说话，不该让它再解析一遍 expr
+    steps.push({ kind: 'calc', op, a, b, expr: `${a} ${op} ${b}`, value, why: OPS[op].why })
     return value
   }
 
@@ -158,6 +166,10 @@ export function analyzeEquation(equation) {
       out.push({
         kind: 'calc',
         op: '÷',
+        a,
+        b,
+        quotient,
+        remainder,
         expr: `${a} ÷ ${b}`,
         display: `${quotient} …… ${remainder}`,
         masked: asksRemainder ? `${quotient} …… ?` : '?',
@@ -268,15 +280,62 @@ export function buildDiagram(question) {
   }
 }
 
+/**
+ * 手写文案有没有把答案写出来。
+ *
+ * 被问的那一步在判题前是盖住的，剖析不扣星——文案里再把得数说出来，
+ * 孩子就能白拿一次答案。操作数本来就写在算式上，所以只拦「既不是 a 也不是 b
+ * 的那个得数」；写漏了就退回公式那句，宁可讲得干一点也不泄题。
+ */
+function leaksAnswer(text, step) {
+  if (!step.asked) return false
+  const value = step.value
+  if (!Number.isFinite(value) || value === step.a || value === step.b) return false
+  return new RegExp(`(?<![0-9])${value}(?![0-9])`).test(text)
+}
+
+/**
+ * 把手写剖析盖到公式拆出的步骤上：一步换一句，换不动的那步留着公式的话。
+ * 手写函数是数据文件里的普通函数，抛错、写空、泄题都只影响它自己那一步。
+ */
+function applyExplain(steps, question) {
+  const explain = explainOf(question?.id)
+  const writers = explain?.steps ?? []
+  if (!steps.length || !writers.length) return { steps, explain, handwritten: false }
+
+  let written = 0
+  const out = steps.map((step, index) => {
+    const write = writers[index]
+    if (typeof write !== 'function') return step
+    let text = ''
+    try {
+      text = String(write({ ...step, index, all: steps, question: question ?? {} }) ?? '').trim()
+    } catch {
+      return step
+    }
+    if (!text || /NaN|undefined/.test(text) || leaksAnswer(text, step)) return step
+    written += 1
+    return { ...step, why: text, hand: true }
+  })
+  return { steps: out, explain, handwritten: written === steps.length }
+}
+
 /** 一道题的完整剖析数据；界面只管渲染，不再自己算。 */
 export function buildAnalysis(question) {
+  const { steps, explain, handwritten } = applyExplain(
+    analyzeEquation(question?.equation),
+    question,
+  )
+  const diagram = buildDiagram(question)
   return {
     knowns: extractKnowns(question?.text),
     ask: extractAsk(question?.text),
-    diagram: buildDiagram(question),
-    steps: analyzeEquation(question?.equation),
+    diagram: explain?.caption ? { ...diagram, caption: explain.caption } : diagram,
+    steps,
     equation: String(question?.equation ?? ''),
     unit: question?.unit ?? '',
-    why: question?.hint ?? '',
+    why: explain?.headline ?? question?.hint ?? '',
+    /** 整条链都是手写的才算数：只盖住半截的，界面不该挂「老师讲法」的招牌。 */
+    handwritten,
   }
 }
