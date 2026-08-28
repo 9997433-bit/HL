@@ -7,6 +7,12 @@ Model slug: claude-opus-5-thinking-high-fast
 > VM 能力边界：`.agent_workspace/ANDROID-DEVICE-CHECKLIST.md` §1.1
 > 证据落点：`.agent_workspace/evidence/r12/ocr-device-<serial>.json`
 >
+> **R14 起这份文档的 §3 / §4 / §5 已被 `.agent_workspace/r13-ocr-regression-loop.md` §5
+> 取代**（`ROUND14_H2`）：B 段不再只是「把人和图送到位」，它自己接进设备的 WebView
+> 逐张认字；退出码从两档变三档（SKIP 单独走 exit 2）；证据落点从
+> `evidence/r12/ocr-device-<serial>.json` 改成 `evidence/r14/android/ocr-device-b.json`。
+> 下面 §1 / §2 讲的 A 段口径与变异测试仍然有效，照读。
+>
 > 一句话：拍照识字这条链上最容易在真机上断的那几段，**都不在 OCR 引擎里**。
 > `test-ocr-accuracy.mjs` 守「引擎认得出多少字」，这个脚本守「字还没进引擎之前
 > 的那一路」——6 MB 的 wasm 取不取得到、断网之后还在不在、按下「拍一张」

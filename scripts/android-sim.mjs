@@ -177,7 +177,10 @@ steps.push({
   log: mathSmokeLog.path,
 })
 
-const ocrDevice = run('node', ['scripts/test-ocr-device.mjs'], {
+// --section=a：这个 step 问的是「真机走查的前提条件绿不绿」，不是「真机验过了」。
+// R14 起 harness 在 B 段没跑成时走 exit 2（SKIP 自己一档），不加这个参数的话
+// VM 上永远没有设备，这一步会被判红——而它守的 A 段其实一条都没红。
+const ocrDevice = run('node', ['scripts/test-ocr-device.mjs', '--section=a'], {
   cwd: path.join(root, 'apps/literacy-app'),
 })
 steps.push({ step: 'ocr-device-a', pass: ocrDevice.ok, exit: ocrDevice.status })
