@@ -1,5 +1,7 @@
 /**
  * ROUND12_H2 —— 拍照识字的真机 / 模拟器 harness。
+ * R13 起 scripts/android-sim.mjs 把 A 段作为 `ocr-device-a` step 调用（门禁 ROUND13_H2），
+ * 失败样本回流纪律见 .agent_workspace/r13-ocr-regression-loop.md。
  *
  * scripts/test-ocr-accuracy.mjs 守的是「引擎认得出多少字」，它在 Node 里跑，
  * 一秒出头就有分数。可拍照识字这条链上，最容易在真机上断、而在开发机上
@@ -514,7 +516,7 @@ if (asJson) {
   for (const f of fails) console.log(`  ✗ ${f}`)
   if (evidencePath) console.log(`\n  证据：${path.relative(repoDir, evidencePath)}`)
   console.log(
-    `\n拍照识字真机 harness：${passes.length} 项通过，${fails.length} 项失败，` +
+    `\n拍照识字真机 harness [ROUND12_H2/ROUND13_H2]：${passes.length} 项通过，${fails.length} 项失败，` +
       `${skips.length} 项 SKIP（${found.ok ? `设备 ${device.serial}` : found.why}）。`
   )
   if (skips.length) {
