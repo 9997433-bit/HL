@@ -111,7 +111,25 @@ done
 | `check:round14` 总计 | 2/8 | **3/8** | H3、H4、H5 绿 |
 | `check:round13` | 6/8 | 6/8 | H4「范唱批次 13 首（≥3）+ 13/13 音频」仍绿，无退化 |
 | `check:round12` | 8/8 | 8/8 | 无退化 |
-| `literacy-app` `check:data` | 80/0 | 80/0 | 无退化 |
+| `literacy-app` `check:data` | 80/0 | 80/0 | 13 首儿歌 / 52 句 / 147 不重复用字 |
+| `literacy-app` `build` + `check:bundle` | 4/0 | 4/0 | 首屏 JS 325 KB（预算 420 KB） |
+| `literacy-app` `smoke` | 164 路由 + 44 交互，0 问题 | 164 路由 + 44 交互，0 问题 | 见下 |
+| `scripts/offline-smoke.sh` | 通过 | 通过 | 识字 App 断网启动，预缓存 2148 项（含 13 份范唱） |
+
+真实浏览器证据（无头 Chrome，非真机）：`ROUND12_H4` 那条交互现在读到
+`真人「啊」音范唱 82207 bytes，可播放且可停止`——即 sg5 的新成品在浏览器里
+从随包文件真起播、`data-vocal-source=file`、能停。断网复跑时 13 份
+`*-vocal-human.ogg` 全在 Service Worker 预缓存清单里，`dist/` 中已无
+`vocal-guide` / `vocal-pilot` 资产残留。
+
+### smoke 断言修复
+
+`scripts/smoke.mjs` 的 `ROUND12_H4` 交互把 Piper 时代的「啦」字硬编码进了按钮与
+状态断言（`node.innerText.includes('啦')`、`status.includes('离线「啦」音范唱')`）。
+sg5 换成真人声源后界面写的是「听真人「啊」音范唱」，接线完好却报
+`{"audio":"file","vocal":"file","button":false}`。改为按 `songs.js` 的
+`humanStudio` 取当前文案，验的仍是同一件事：按钮点得到、点下去从随包文件起播、
+能停。这是断言口径跟进，不是放宽——三个 `!==`/`includes` 判据一个没少。
 
 **H8 仍红，且不在本批可解范围**：`check:round14` 的 H8 要求 `check:round13`
 8/8，而 R13 的 H6（Android 模拟闭环）与 H7（商店实提）在无真机、无 Console 回执的
