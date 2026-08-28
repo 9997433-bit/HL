@@ -1,0 +1,40 @@
+{
+  "modelSlug": "gpt-sol",
+  "marker": "ROUND14_H6",
+  "schema": "r14-android-lowend-skip/1",
+  "task": "round14-3-16-lowend-30min",
+  "status": "skipped",
+  "pass": false,
+  "verdict": "NO-GO",
+  "onDevice": false,
+  "simulated": false,
+  "matrixClass": "low-end-old",
+  "device": null,
+  "recordedAt": "2026-08-28T07:26:06Z",
+  "reason": "No authorized physical Android device was connected, so the low-end 30-minute regression was not run.",
+  "probe": {
+    "command": "node scripts/android-device-matrix.mjs capture",
+    "result": "SKIP",
+    "exitCode": 2,
+    "detail": "adb devices returned no entries",
+    "deviceSignoffProduced": false
+  },
+  "execution": {
+    "checklist": ".agent_workspace/r14-android-lowend-checklist.md",
+    "startedAt": null,
+    "completedAt": null,
+    "durationMinutes": 0,
+    "literacy": "not-run",
+    "math": "not-run"
+  },
+  "blockedBy": {
+    "requiredDevice": "Physical low-end Android 8-10 device (API 26-29), authorized in adb",
+    "owner": "Android QA"
+  },
+  "resumeCommand": "npm run android:device:qa -- capture --serial <adb-serial> --install --literacy-apk <literacy.apk> --math-apk <math.apk>",
+  "notes": [
+    "Exit 2 is an honest SKIP and is not a QA pass.",
+    "No onDevice:true evidence or device-signoff.json was created.",
+    "Run the linked checklist for 30 minutes per app after a qualifying physical device is available."
+  ]
+}
