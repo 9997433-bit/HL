@@ -1,108 +1,110 @@
 # Round 15 · H5 全库自动补齐（缺了自动补）
 
-分支：`cursor/r15-play-autofill-9f67`（先从 `cursor/r15-orchestration-9f67` @ 5940319 起，
-后合入编排分支 @ 89d2546）
+分支：`cursor/r15-play-autofill-9f67`
+（先从 `cursor/r15-orchestration-9f67` @ 5940319 起，两次合入编排分支，最后一次 @ d77de00）
 Model slug：claude-opus-5-thinking-high-fast
 
-## 三层契约
+## 这一轮最后落下的是什么
 
-| 层 | 文件 | 谁写 | `templateFallback` / `source` |
-|---|---|---|---|
-| 富脚本 | `src/data/char-play-rich.js` | 手写 seed（272 条，u1–u20） | `false` / `rich` |
-| **补齐索引** | `src/data/char-play-generated.js` | **`scripts/gen-char-play.mjs`（本轮）** | `true` / `generated` |
-| 现算兜底 | `src/data/char-play.js` 的模板运行时 | 引擎 | `true` / `fallback` |
+本分支第一版自己铺了一层「富脚本 → 生成层 → 现算」的解析（并顺手翻译了富脚本道具），
+先前那版已被编排分支上的 H2「三套剧本方言归一到六种互动」整块覆盖——归一层做的是同一
+件事而且做得更完整（19 种模板 → 6 种渲染器，道具翻译在 `toStage()` 里统一做）。
+合入时把 `char-play.js` / `char-play-templates.js` / 生成器整块让给上游，只留下两处：
 
-`getCharPlay(char)` 依次取用，**永不返回 null**：字表 1820 字全部落在前两层，
-字表外的字（绘本生字、搜索进来的生僻字）落第三层。
+1. **生成器不再把富脚本烤进生成物**，`PLAY_ROWS` 给全部 1820 字留一行地板
+2. **`check:data` 补四条数据层门槛** + `npm run verify:char-play`
 
-## 补齐索引里到底有什么
+## 1. 为什么地板要铺满 1820 行
 
-一行一个字：`汉字|模板|一句话线索`。只存「玩什么 + 说什么」，道具仍由运行时现算，
-所以 1820 字压下来 65 KB。
+运行时读富脚本是 `char-play.js` 直接 `import` `char-play-rich.js`，生成物里的
+`RICH_PLAYS` 没有任何人读。而上游生成器把这 272 个字**从 `PLAY_ROWS` 里挖掉**、
+另存成一份 JSON 副本，于是：
 
-线索句和玩法选择都来自**运行时够不着的语料**，这也是这一层存在的理由：
+- 富脚本改一条模板、撤一条，那个字就掉到「字表外生僻字」那层（`source: 'runtime'`），
+  拿不到课文线索句，玩法也从主题轮转里重挑——地板破了一个洞，没有任何门槛看得见
+- 生成器认得的模板比引擎少 8 种，重跑时会把富脚本的 `swipe-motion` / `sound-tap` /
+  `sort-buckets` 按主题重挑一遍（跑一次就是 9 条 `! 富脚本「扫」的模板…不认识` 警告）
+- 编排分支上的生成物是富脚本落地之前生成的，`--check` 已经对不上（红）
 
-- 线索句取自按需加载的单元详情包（`src/data/chars/uN.js`）里的字义，掐到 16 字以内；
-  运行时只看得到主包里的字表索引，说不出「铃」是「叮叮当当响的小铃铛」。
-- 玩法只在字源说得上话时纠三处，其余沿用引擎的主题轮转（轮转本来就铺得开）：
-  1. 有小图的象形 / 指事字 → `morph-story`（本来就是照着东西画的）
-  2. 形声 / 会意字轮到 `morph-story` → 改 `drag-parts`（把管意思的形旁拼回去）
-  3. 轮到 `drag-parts` 却没有部件可讲 → 改 `emoji-hunt` / `tap-reveal`
-
-## 富脚本道具适配（顺手修的集成缝）
-
-富脚本写道具用的是情境小词汇（`hero` / `items` / `stages` / `target` / `decoys` / `goal`），
-舞台吃的是模板道具（`items` / `frames` / `cells` / `options` / `drops`）。合入时两边直接
-`{...base.props, ...rich.props}`，于是 47 个字拿到点不动的卡片（`npm run test:play` 在
-编排分支 @ 89d2546 上红 47 处）。本分支按模板翻译，翻不出来退回模板道具，旁白与主角图标
-仍是手写的那份；富脚本自己的 11 种玩法名（`count-tap` / `swipe-motion` / `pop-bubbles`…）
-映射到舞台最接近的机制。
-
-## 实测（`/tmp/wt-r15-autofill`，node v22）
+改成「地板铺满、富脚本只点个数」之后：数据行与编排分支 @ d77de00 committed 的**逐字节
+一致**（diff 只有文件头那两行和 `RICH_PLAYS` 这个死导出），生成器重新幂等。
 
 ```
 $ npm run gen:char-play
-Play 补齐索引已生成：1820 字全覆盖（字义线索 1818，按字源改写玩法 402）。
-  模板 5 种：tap-reveal 534，emoji-hunt 470，drag-parts 352，morph-story 306，rain-catch 158
-  主题 17 类：nature 320，action 233，body 195，home 164，family 162，number 133，tool 115，water 103
+Play 场景已生成：1820 字全覆盖（带字义线索 1818，其中 272 字另有手写富脚本盖在上面）。
+  主题 24 类：plant 187，hand 160，person 140，number 132，tool 113，mouth 107，water 103，home 95
+  模板 11 种：emoji-hunt 339，word-build 337，tap-reveal 276，pair-match 236，scene-tap 229，…
 
 $ npm run verify:char-play
 ✓ char-play-generated.js 是最新的（1820 字）
 
-$ npm run test:play
-char-play 自测：1820 字，模板分布 tap-reveal 609 / emoji-hunt 433 / drag-parts 322 / morph-story 298 / rain-catch 158
-富脚本 272 条，模板补齐 1548 字，空洞 0
-✓ 全库每个字都有玩得完的场景          ← 编排分支同一命令为 ✗ 47 处不合格
-
-$ npm run check:data
-  ✓ Play 补齐索引覆盖全库 1820/1820
-  ✓ Play 旁白一字一句：1820/1820 条不重样（要求 ≥ 95%）
-  ✓ 字表外的字也有兜底 Play，且标了 templateFallback
-  ✓ Play 补齐索引与生成器一致
-内容自检：84 项通过，0 项失败。
-
-$ npm run build && npm run check:bundle
-  ✓ 首屏 JS 325 KB（预算 420 KB）              ← 与编排分支持平，补齐索引不进首屏
-构建产物体检：4 项通过，0 项失败。
-
-$ npm run check:round15   （仓库根）
-Round 15 check (ROUND15-v1.1): 7/8      ← 仅 H8 红：worktree 里没有 android:sim 产的双 APK，
-                                           同一提交在 /workspace（有 APK）check:round13 为 7/8
+$ git diff origin/cursor/r15-orchestration-9f67 -- src/data/char-play-generated.js
+ 1 file changed, 5 insertions(+), 8 deletions(-)      ← 1820 行数据一行没动
 ```
 
-## 真实浏览器 A/B（headless Chrome，dist 静态服务，只跑「玩」这一步）
+## 2. `check:data` 的四条
 
-同一份脚本分别跑编排分支 @ 89d2546 与本分支的 `dist`：进单字页 → 只点舞台上的道具
-（不点「跳过」「再玩一次」）→ 等父级停表切步，看能不能自己玩到「认」。
+`test:play` 逐字验道具玩不玩得完；这四条守的是数据层，破了孩子会点开一张
+「和别的字长得一样」的卡片，而探针仍然是绿的：
 
-| 字 | 编排分支 | 本分支 |
-|---|---|---|
-| 日（富脚本） | ✓ 变一变 → 认 | ✓ 变一变 → 认 |
-| **光（富脚本）** | **✗ 点 20 次仍停在玩（道具是四个 `?`，点不动）** | **✓ 点 7 次 → 认** |
-| 铃（模板补齐） | ✓ 变一变 → 认 | ✓ 拼一拼 → 认（旁白「叮叮当当响的小铃铛。」） |
-| 秆（冷门字） | ✓ 拼一拼 → 认 | ✓ 拼一拼 → 认（旁白「庄稼的杆儿。」） |
-| 慢（模板补齐） | ✓ 点一点 → 认 | ✓ 点一点 → 认（旁白「用的时间很多。」） |
-| 日 / 铃 / 慢（reduce） | 日、慢 ✓ | 三个全 ✓ |
+```
+$ npm run check:data
+  ✓ Play 补齐索引覆盖全库 1820/1820          ← 字表里的字全部落在 rich / generated 两层
+  ✓ Play 旁白一字一句：1820/1820 条不重样（要求 ≥ 95%）
+  ✓ 字表外的字也有兜底 Play，且标了 templateFallback   ← getCharPlay('龘') → runtime
+  ✓ Play 补齐索引与生成器一致                ← 内部跑一次 gen --check，字表改了没重跑就红
+内容自检：84 项通过，0 项失败。
+```
 
-「光」那一格就是富脚本道具适配修掉的那个洞；旁白那几句括号里的字就是补齐索引带来的
-「一字一句」——编排分支上这几个字念的都是同一句通用旁白。
+## 契约现状（合入后）
 
-## 包体账
-
-| 块 | 编排分支 @ 89d2546 | 本分支 | 差 |
+| 层 | 文件 | `source` / `templateFallback` | 覆盖 |
 |---|---|---|---|
-| 首屏 `index-*.js` | 325 KB | 325 KB | 0 |
-| `CharDetailView-*.js`（按需） | 136.1 KB / gzip 44.7 | 177.6 KB / gzip 70.6 | +41.5 KB / +25.9 KB |
+| 富脚本 | `src/data/char-play-rich.js` | `rich` / `false` | 272 |
+| 补齐索引 | `src/data/char-play-generated.js`（本岗生成） | `generated` / `true` | 1820 行地板，实际生效 1548 |
+| 现算 | `char-play.js` 的 `generatedPlay()` 尾巴 | `runtime` / `true` | 字表外的生字 |
+| 兜底 | `char-play.js` 的 `emergencyPlay()` | `emergency` / `true` | 上面全炸时 |
 
-多出来的就是 1820 句线索。首屏预算不受影响；这一块随「玩」步按需下载，离线预缓存照旧。
+`getCharPlay(char)` **永不返回 null**：`getCharPlay('')`、`getCharPlay(null)` 退到「字」，
+字表外的「龘」拿到 `emoji-hunt` / `pick`。
 
-**给后续接手的人**：`char-play.js` 只能从 `CharPlayStage` / `CharDetailView` 这类懒加载路由
-引用，别从首页地图或 `CharCard` 引用——那样补齐索引会被拉进首屏块，425 KB 就顶到预算线了。
+## 实测（`/tmp/wt-r15-autofill`，node v22）
+
+```
+$ node -e "CHARACTERS.every(c => getCharPlay(c.char)?.template)"
+CHARACTERS 1820 · every template true · every kind ok true · holes 0
+source {"rich":272,"generated":1548} · distinct narration 1820/1820
+
+$ npm run test:play
+char-play 自测：1820 字，模板 19 种 / 互动 6 种
+  来源：generated 1548 / rich 272（模板补齐 1548 字，空洞 0）
+✓ 全库每个字都有玩得完的场景
+
+$ npm run build && npm run check:bundle
+  ✓ 首屏 JS 325 KB（预算 420 KB）        ← 与编排分支持平，补齐索引不进首屏
+构建产物体检：4 项通过，0 项失败。
+CharDetailView-*.js 253.6 KB（按需，随「玩」步下载）
+
+$ npm run check:round15   （仓库根）
+Round 15 check (ROUND15-v1.1): 7/8    ← 仅 H8 红：worktree 里没有 android:sim 产的双 APK
+  ✓ H5 自动补齐管道就位（apps/literacy-app/scripts/gen-char-play.mjs，fallback 条目已打标）
+
+$ node scripts/smoke.mjs
+共 164 条路由 + 45 项交互，0 项有问题。
+```
+
+## 顺手查清的一件事（不是本分支引入的）
+
+上一轮 smoke 里 `ROUND14_H5：L1 字卡单字与例句优先请求随包离线范读` 红过一次。
+用同一份探针分别跑编排分支 @ 89d2546 和本分支的 `dist`，两边都停在
+`{"phase":"play","tts":"offline-l1"}`——五步重映射之后单字页从「玩」起步，
+`.intro__say` 8 秒内不在 DOM 里，与补齐索引无关。编排分支已在
+`a27f287 test(literacy): keep offline TTS smoke phase-aware` 修好，本分支合了进来。
 
 ## 重跑
 
 ```
 cd apps/literacy-app
-npm run gen:char-play      # 字表 / 课文 / 字源 改了都要重跑
+npm run gen:char-play      # 字表 / 课文 / 字源 / 富脚本 改了都要重跑
 npm run verify:char-play   # 只校验是不是最新（check:data 里也会跑一遍）
 ```
