@@ -12,7 +12,13 @@ import { extname, join, normalize } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import puppeteer from 'puppeteer-core'
 
-import { BOOKS, scenePages } from '../src/data/books.js'
+import {
+  BOOKS,
+  ROUND12_H3,
+  SCENE_BOOK_IDS,
+  TOTAL_SCENE_PAGES,
+  scenePages
+} from '../src/data/books.js'
 import { SONGS } from '../src/data/songs.js'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
@@ -96,6 +102,25 @@ const ROUND11_H1_SHIPPED = ['manifest.json', 'pcm-capture.worklet.js']
 const ROUND11_H4_SMOKE = BOOKS.find((book) => scenePages(book).length >= 3) ?? null
 const ROUND11_H4_PLAIN = BOOKS.find((book) => scenePages(book).length === 0) ?? null
 const ROUND11_H4_MIN_ITEMS = 3
+
+/**
+ * ROUND12_H3_SMOKE：场景从 3 本样板铺到 17 本之后的抽检。
+ *
+ * R11 那条验的是「一本样板画得对」；铺开之后要防的是另一件事——
+ * 数据里堆够了页数，渲染却没跟上：某一页少画两件、坐标写错飘出画框、
+ * 或者哪本书的 `scene` 被别的改动吃回单 emoji。逐页比对
+ * 「数据声明几件 / DOM 上的 data-scene-items 几件 / 真的画出来几件」，
+ * 三个数对不齐就是渲染没兑现数据。
+ *
+ * 抽样而不是全量：17 本 105 页翻一遍要几分钟，冒烟没这个预算。
+ * 取首、尾和中间两本，手写的 core 和生成的 l1 都能覆盖到。
+ */
+const ROUND12_H3_SAMPLE = (() => {
+  const scened = BOOKS.filter((book) => scenePages(book).length)
+  if (scened.length <= 4) return scened
+  const picks = [0, Math.floor(scened.length / 3), Math.floor((scened.length * 2) / 3), scened.length - 1]
+  return [...new Set(picks)].map((i) => scened[i])
+})()
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -2368,6 +2393,85 @@ if (ROUND11_H4_SMOKE) {
         `首页 ${first.items.length} 件（${first.bg}）→ 次页 ${second.items.length} 件（${second.bg}）；` +
         `读屏「${first.label}」；减少动态 ${quiet.items.length} 件静止` +
         (plain ? `；《${ROUND11_H4_PLAIN.title}》仍是单 emoji` : '')
+      )
+    }
+  )
+}
+
+if (ROUND12_H3_SAMPLE.length) {
+  await interact(
+    'ROUND12_H3：绘本场景铺开 —— 抽样逐页比对「数据声明 / DOM 声明 / 实际渲染」',
+    `/#/books/${ROUND12_H3_SAMPLE[0].id}`,
+    async (page) => {
+      /** 台账写死在数据层，先确认它没跟数据脱节，再谈渲染。 */
+      if (SCENE_BOOK_IDS.length !== ROUND12_H3.books || TOTAL_SCENE_PAGES !== ROUND12_H3.pages) {
+        throw new Error(
+          `场景台账对不上：数据 ${SCENE_BOOK_IDS.length} 本 / ${TOTAL_SCENE_PAGES} 页，` +
+            `ROUND12_H3 声明 ${ROUND12_H3.books} 本 / ${ROUND12_H3.pages} 页`
+        )
+      }
+      if (TOTAL_SCENE_PAGES < ROUND12_H3.target) {
+        throw new Error(`场景只铺到 ${TOTAL_SCENE_PAGES} 页，门槛 ≥ ${ROUND12_H3.target}`)
+      }
+
+      /** 当前这一页画了什么：件数、有没有飘出画框、读屏念的是哪句。 */
+      const readStage = () =>
+        page.evaluate(() => {
+          const stage = document.querySelector('.scene')
+          if (!stage) return null
+          const box = stage.getBoundingClientRect()
+          const items = [...stage.querySelectorAll('.scene__item')].map((node) => {
+            const rect = node.getBoundingClientRect()
+            return {
+              cx: (rect.left + rect.width / 2 - box.left) / box.width,
+              cy: (rect.top + rect.height / 2 - box.top) / box.height
+            }
+          })
+          return {
+            kind: stage.dataset.scene,
+            declared: Number(stage.dataset.sceneItems ?? 0),
+            label: stage.getAttribute('aria-label') ?? '',
+            drawn: items.length,
+            strayed: items.filter((i) => i.cx < 0 || i.cx > 1 || i.cy < 0 || i.cy > 1).length
+          }
+        })
+
+      let checkedPages = 0
+      let checkedItems = 0
+      for (const book of ROUND12_H3_SAMPLE) {
+        await page.goto(`${base}/#/books/${book.id}`, { waitUntil: 'networkidle2', timeout: 20000 })
+        await page.waitForSelector('.scene[data-scene="dsl"]', { timeout: 8000 })
+
+        for (const [index, expected] of book.pages.entries()) {
+          const at = `《${book.title}》p${index + 1}`
+          const stage = await readStage()
+          if (!stage) throw new Error(`${at} 没有插图舞台`)
+          const want = expected.scene?.length ?? 0
+          if (!want) throw new Error(`${at} 数据里没有场景，抽样书应当整本升级`)
+          if (stage.kind !== 'dsl') throw new Error(`${at} 退回了单 emoji（data-scene=${stage.kind}）`)
+          if (stage.declared !== want || stage.drawn !== want) {
+            throw new Error(
+              `${at} 三个数对不齐：数据 ${want} 件、DOM 声明 ${stage.declared} 件、实际画出 ${stage.drawn} 件`
+            )
+          }
+          if (stage.strayed) throw new Error(`${at} 有 ${stage.strayed} 件元素落在画框外`)
+          if (stage.label !== (expected.sceneAlt ?? '')) {
+            throw new Error(`${at} 读屏念的是「${stage.label}」，数据写的是「${expected.sceneAlt}」`)
+          }
+          checkedPages++
+          checkedItems += stage.drawn
+
+          if (index < book.pages.length - 1 && !(await clickText(page, '下一页'))) {
+            throw new Error(`${at} 之后翻不到下一页`)
+          }
+        }
+      }
+
+      const plainBooks = BOOKS.length - SCENE_BOOK_IDS.length
+      return (
+        `台账 ${ROUND12_H3.books} 本 / ${ROUND12_H3.pages} 页（门槛 ≥ ${ROUND12_H3.target}）；` +
+        `抽样 ${ROUND12_H3_SAMPLE.length} 本逐页比对 ${checkedPages} 页 / ${checkedItems} 件，` +
+        `声明与渲染一致；其余 ${plainBooks} 本仍走单 emoji`
       )
     }
   )

@@ -21,6 +21,11 @@
  * 页面插图有两档（ROUND11_H4）：老的一档是一页一个大 emoji，新的一档是
  * 下面这套场景 DSL——一页摆几件东西，各有位置、大小和一点轻微的动。
  * 两档并存，没写 `scene` 的页照旧显示 `emoji`，扩充绘本不必一次性全改。
+ *
+ * ROUND12_H3 把场景从 3 本样板铺到读得最多的 17 本；剩下 115 本仍走单 emoji，
+ * 那条退化路径是硬要求，不是过渡态——绘本会一直往下加，新书进来时先有兜底。
+ * 扩充绘本（books/l*.js）是生成的，它们的场景写在
+ * scripts/data/book-scene-seed.mjs，手写的 30 本直接写在 books/core.js。
  */
 
 import { CHARACTER_MAP } from './characters.js'
@@ -120,6 +125,24 @@ export function verifyBookCoverage() {
 export const SCENE_BOOK_IDS = BOOKS.filter((b) => scenePages(b).length).map((b) => b.id)
 
 export const TOTAL_SCENE_PAGES = BOOKS.reduce((n, b) => n + scenePages(b).length, 0)
+
+/**
+ * ROUND12_H3 铺开台账。
+ *
+ * 数字是手写的，不是从上面那两行算出来的——算出来的数永远等于自己，
+ * 挡不住任何事。写死一份，让 `check:data` 拿它跟实际数据对：
+ * 谁把一本书的 `scene` 删了、谁生成器跑歪了少写一页，都会在这里炸出来，
+ * 而不是等到有人翻到那一页才发现插图退回了单 emoji。
+ *
+ * 铺的是「读得最多的那一摞」：L1 前 15 本（含 R11 的样板 b1）整本升级，
+ * 加上 R11 已升的 b10（L2）和 b14（L3），三个分级各有实例。
+ */
+export const ROUND12_H3 = Object.freeze({
+  /** 硬门槛，见 .agent_workspace/ROUND12-ACCEPTANCE.md。 */
+  target: 60,
+  books: 17,
+  pages: 105
+})
 
 /** 场景旁白里出现的所有汉字（去重）。 */
 export function charsInScenes(book) {
