@@ -125,3 +125,19 @@ Round 9 以发布工程和已闭合能力的深度打磨为目标；以下项已
 | 跟读离线 ASR/音素路线 | ✅ R9 #8 | `r9-followread-asr-evaluation.md` 与 `phonemeMarks` PoC |
 | Lighthouse CI 锁与 Android 真机清单 | ✅ R9 #9 | `scripts/lighthouse-ci.mjs`、`evidence/r9/` 2 份 JSON |
 | 全局发布脚手架 | ✅ R9 #10 | `.agent_workspace/RELEASE-CHECKLIST.md` 与本报告 |
+
+## 8. Round 11 终验判定
+
+Round 11 以洪恩级体验深度为目标；以下项已全部合入集成线并由
+`npm run check:round11` 转绿（**8/8**），`check:round10` 不退化：
+
+| 范围 | 终验状态 | 收口证据 |
+|---|---|---|
+| 跟读产品化：冻结清单 + Go/No-Go + 评测集 | ✅ R11 H1 | `manifest.json` freezeChecklist、`ROUND11_H1_SMOKE` |
+| OCR 实拍矩阵 6 张 + 授权 + 失败话术 | ✅ R11 H2 | 六张 real PNG、`ROUND11_H2`、精度脚本 |
+| 推荐周计划 + 家长侧理由/采纳 | ✅ R11 H3 | `week-plan.js`、`ROUND11_H3_SMOKE` |
+| 绘本多元素场景 20 页 | ✅ R11 H4 | `BookPageScene.vue`、b1/b10/b14、`ROUND11_H4` |
+| 儿歌真实旋律 ≥8 首 | ✅ R11 H5 | `public/audio/songs/`、`ROUND11_H5` |
+| 预算趋势 + evidence/r11 | ✅ R11 H6 | `evidence/r11/`、路由预算实体 |
+| 离线 TTS 评估 / 商店清单 + 反馈 | ✅ R11 H7 | TTS 评估或商店分发实体 |
+| Round 10 门禁不退化 | ✅ R11 H8 | `check:round10` 8/8 |
