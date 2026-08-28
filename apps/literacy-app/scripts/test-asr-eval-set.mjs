@@ -1,0 +1,919 @@
+/**
+ * ROUND11_H1 —— 跟读离线 ASR 的评测跑道：冻结清单 + 儿童评测集骨架 + 五层 Go/No-Go。
+ *
+ * R10 只把 sherpa-onnx 的 Worker 接线做完了（`available:false`，仓库里一个模型字节都没有）。
+ * 缺的不是代码，是「凭什么把 available 置成 true」这条路：靠什么数据测、按哪些线判、
+ * 谁来测。这个脚本就是那条路，模型还没来之前它先跑空载——但跑的是同一条路：
+ *
+ *   1. 清单自检   public/asr/manifest.json 的 freezeChecklist / goNoGo 结构是否完整、
+ *                 是否自洽。最要紧的一条：只要还有一条冻结项没做完，available 必须是 false；
+ *                 反过来，谁想把 available 改成 true，就得先让这里全绿。
+ *   2. 评测集骨架 scripts/data/asr-eval-set.json：≥30 条占位、目标 300 条，
+ *                 说话人隔离、年龄/口音/设备/环境/异常类别的覆盖下限都在这里守。
+ *                 占位阶段不许有音频进仓库（audio 恒为 null）。
+ *   3. 指标管线   用占位条目里的「模拟转写」跑一遍真正的聚合器（speechEval 的逐字对齐），
+ *                 算出字符召回、漏字检出、静音误判。**这些数字不是模型指标**——
+ *                 它们证明的是「真模型来了以后，这条算分的路是通的、算得对」。
+ *                 报表里一律标 simulated，Go/No-Go 里一律记「未实测」。
+ *   4. 故障演练   R9 §5 的五类故障（飞行模式 / 模型 404 / wasm 初始化失败 / 麦克风拒绝 /
+ *                 低内存杀 Worker），外加整包指纹不符与一次完整安装的正向对照。
+ *                 用 fetch / CacheStorage / Worker 的替身在 Node 里跑接线层本身，
+ *                 每一类都要在 2 秒内落到 recording 或 listen-only，且不许有跨源请求。
+ *   5. Go/No-Go   把上面的实测值填进五层门槛表，算出 go / no-go 并说明卡在哪一层。
+ *                 当前预期是 **no-go**：模型未冻结、冻结集未录制。
+ *
+ * 结论表同步在 .agent_workspace/r11-followread-gonogo.md；评测集设计在
+ * .agent_workspace/r11-asr-eval-set.md。
+ *
+ * 用法：node scripts/test-asr-eval-set.mjs [--json]
+ */
+
+import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
+import { readFile } from 'node:fs/promises'
+
+import { POEM_MAP } from '../src/data/poems.js'
+import {
+  OFFLINE_ASR,
+  chooseTier,
+  createOfflineRecognizer,
+  installOfflinePack,
+  packCacheName,
+  parseManifest,
+  probeOfflinePack
+} from '../src/utils/offlineAsr.js'
+import { alignChars, evaluate, gradeOf, normalizeTranscript } from '../src/utils/speechEval.js'
+
+const asJson = process.argv.includes('--json')
+const appUrl = new URL('../', import.meta.url)
+
+const manifestRaw = await readFile(new URL('public/asr/manifest.json', appUrl), 'utf8')
+const manifest = JSON.parse(manifestRaw)
+const evalSet = JSON.parse(await readFile(new URL('scripts/data/asr-eval-set.json', appUrl), 'utf8'))
+
+const tests = []
+const test = (name, fn) => tests.push({ name, fn })
+
+/* ------------------------------------------------------------------ 约定 */
+
+/** 冻结清单里每一条的合法状态；只有 done 才算这一条过了。 */
+const FREEZE_STATUS = ['todo', 'doing', 'done']
+/** 冻结清单至少要覆盖这些层，少一层就说明有一整类风险没人认领。 */
+const FREEZE_LAYERS = [
+  'license',
+  'resource',
+  'eval-set',
+  'text',
+  'diagnosis',
+  'performance',
+  'reliability',
+  'governance'
+]
+/** R9 §5 的五类故障，一类都不许从演练里消失。 */
+const FAULT_CLASSES = ['airplane', 'model-404', 'wasm-init', 'mic-denied', 'oom-worker']
+/** 降档必须在这个时间内完成，否则孩子会盯着一个转圈的界面。 */
+const DEGRADE_BUDGET_MS = 2000
+
+/** 孩子读了的那些条目——只有这些能进字符召回。 */
+const READ_CATEGORIES = ['normal', 'miss', 'extra', 'repeat', 'tone', 'initial']
+/** 孩子没读的那些条目：静音、只有旁人说话。判成「读得好」就是误判。 */
+const SILENT_CATEGORIES = ['silence', 'bystander']
+
+/** 评测集的规模与覆盖下限：扩样可以，缩回去当场红灯。 */
+const MIN_SPEAKERS_PER_SPLIT = 3
+const MIN_CLIPS_PER_SPLIT = 6
+const SPLITS = ['dev', 'threshold', 'final']
+const REQUIRED_AGE_BANDS = ['4-6', '7-9']
+const REQUIRED_ENVIRONMENTS = ['quiet', 'tv', 'far']
+const REQUIRED_DEVICES = ['phone', 'tablet']
+const CLIP_SECONDS = [3, 10]
+
+const speakerMap = new Map(evalSet.speakers.map((s) => [s.id, s]))
+const referenceOf = (clip) => {
+  const poem = POEM_MAP.get(clip.poem)
+  return normalizeTranscript(poem?.lines?.[clip.line]?.text ?? '')
+}
+const clipsOf = (categories) => evalSet.clips.filter((c) => categories.includes(c.category))
+const ratio = (hit, total) => (total ? hit / total : null)
+const pct = (value) => (value === null ? '未实测' : `${(value * 100).toFixed(1)}%`)
+
+/* ------------------------------------------------- 1. 冻结清单（manifest） */
+
+test('清单的 freezeChecklist 每一条都写清了「要做什么、拿什么当证据、卡住什么」', () => {
+  const list = manifest.freezeChecklist
+  assert.ok(Array.isArray(list), 'freezeChecklist 不是数组')
+  assert.ok(list.length >= 8, `冻结项只剩 ${list.length} 条（下限 8）`)
+  const seen = new Set()
+  for (const item of list) {
+    assert.ok(item.id && !seen.has(item.id), `冻结项 id 缺失或重复：${item.id}`)
+    seen.add(item.id)
+    for (const field of ['layer', 'must', 'evidence', 'status', 'blocks']) {
+      assert.ok(item[field], `${item.id} 缺 ${field}——没有证据的清单只是愿望清单`)
+    }
+    assert.ok(
+      FREEZE_STATUS.includes(item.status),
+      `${item.id} 的 status「${item.status}」不在 ${FREEZE_STATUS.join('/')} 里`
+    )
+    assert.ok(FREEZE_LAYERS.includes(item.layer), `${item.id} 的 layer「${item.layer}」没登记`)
+  }
+  const layers = new Set(list.map((i) => i.layer))
+  const missing = FREEZE_LAYERS.filter((l) => !layers.has(l))
+  assert.equal(missing.length, 0, `冻结清单少了这些层：${missing.join('、')}`)
+})
+
+test('冻结项没做完，available 就必须是 false——清单不许比模型跑得快', () => {
+  const pending = manifest.freezeChecklist.filter(
+    (item) => item.status !== 'done' && /available=true/.test(item.blocks)
+  )
+  if (pending.length) {
+    assert.equal(
+      manifest.available,
+      false,
+      `还有 ${pending.length} 条冻结项没做完（${pending.map((i) => i.id).join('、')}），` +
+        'available 却是 true'
+    )
+    assert.equal(
+      manifest.goNoGo.verdict,
+      'no-go',
+      '冻结项没做完，goNoGo.verdict 却不是 no-go'
+    )
+    assert.equal(manifest.files.length, 0, 'available=false 却已经列了模型文件')
+  }
+})
+
+test('一旦 available 置 true，整份清单必须当场经得起 parseManifest 校验', () => {
+  if (manifest.available !== true) {
+    // 现在这一档不可用，验的是「不可用要被拒绝」这条路本身没坏
+    // （许可证空着就已经被挡下，轮不到 available 那一关）
+    assert.throws(() => parseManifest(manifest), /还没有冻结|许可证/)
+    return
+  }
+  const parsed = parseManifest(manifest)
+  assert.ok(parsed.bytes <= OFFLINE_ASR.maxPackBytes, '整包超过 60 MiB 预算')
+  assert.ok(manifest.license, 'available=true 却没有许可证')
+  const notDone = manifest.freezeChecklist.filter((i) => i.status !== 'done')
+  assert.equal(notDone.length, 0, `available=true 却还有冻结项没做完：${notDone.map((i) => i.id)}`)
+  assert.equal(manifest.goNoGo.verdict, 'go', 'available=true 却没有 go 结论')
+})
+
+test('五层门槛表齐全，每条门槛都写明阈值和「谁来测」', () => {
+  const layers = manifest.goNoGo?.layers ?? []
+  assert.equal(layers.length, 5, `Go/No-Go 只剩 ${layers.length} 层（应为五层）`)
+  const names = layers.map((l) => l.name)
+  for (const want of ['文本层', '诊断层', '性能层', '资源层', '可靠性层']) {
+    assert.ok(names.includes(want), `五层门槛里少了${want}`)
+  }
+  for (const layer of layers) {
+    assert.ok(layer.gates?.length, `${layer.name}一条门槛都没有`)
+    for (const gate of layer.gates) {
+      assert.ok(gate.metric, `${layer.name}有门槛没写 metric`)
+      assert.ok(['>=', '<='].includes(gate.op), `${gate.metric} 的比较符不合法：${gate.op}`)
+      assert.equal(typeof gate.threshold, 'number', `${gate.metric} 的阈值不是数字`)
+      assert.ok(
+        ['eval-set', 'device', 'harness', 'smoke'].includes(gate.measuredBy),
+        `${gate.metric} 没说谁来测（measuredBy=${gate.measuredBy}）`
+      )
+      assert.ok(!('measured' in gate), `${gate.metric} 把实测值写进了清单——实测值会过期，交给 harness 现算`)
+    }
+  }
+})
+
+test('清单指得到评测集、harness、Go/No-Go 三份文件，路径不许飘', () => {
+  assert.equal(manifest.evalSet?.spec, 'apps/literacy-app/scripts/data/asr-eval-set.json')
+  assert.equal(manifest.evalSet?.harness, 'apps/literacy-app/scripts/test-asr-eval-set.mjs')
+  assert.equal(manifest.evalSet?.goNoGo, '.agent_workspace/r11-followread-gonogo.md')
+  assert.ok(manifest.evalSet.minClips >= 30, '评测集下限被调到 30 条以下')
+  assert.equal(manifest.evalSet.targetClips, 300, '目标规模不再是 300 条')
+})
+
+/* --------------------------------------------------------- 2. 评测集骨架 */
+
+test(`评测集不少于 ${evalSet.minClips} 条，目标 ${evalSet.targetClips} 条，id 不重复`, () => {
+  assert.equal(evalSet.schema, 'literacy-asr-eval-set/1')
+  assert.ok(
+    evalSet.clips.length >= evalSet.minClips,
+    `只剩 ${evalSet.clips.length} 条（下限 ${evalSet.minClips}）`
+  )
+  assert.ok(evalSet.targetClips >= 300, '目标规模不该低于 R9 §5 定的 300 条')
+  assert.equal(new Set(evalSet.clips.map((c) => c.id)).size, evalSet.clips.length, 'clip id 重复')
+  assert.equal(
+    new Set(evalSet.speakers.map((s) => s.id)).size,
+    evalSet.speakers.length,
+    'speaker id 重复'
+  )
+})
+
+test('每条都能对上一句真实诗句、一个登记过的说话人，时长落在 3–10 秒', () => {
+  for (const clip of evalSet.clips) {
+    const speaker = speakerMap.get(clip.speaker)
+    assert.ok(speaker, `${clip.id} 的说话人 ${clip.speaker} 不在名册里`)
+    assert.ok(SPLITS.includes(speaker.split), `${speaker.id} 的 split 不合法：${speaker.split}`)
+    const reference = referenceOf(clip)
+    assert.ok(reference, `${clip.id} 指向的诗句不存在：${clip.poem} 第 ${clip.line} 句`)
+    assert.ok(
+      clip.seconds >= CLIP_SECONDS[0] && clip.seconds <= CLIP_SECONDS[1],
+      `${clip.id} 时长 ${clip.seconds}s 不在 ${CLIP_SECONDS.join('–')}s 内`
+    )
+    assert.ok(evalSet.environments[clip.env], `${clip.id} 的环境「${clip.env}」没登记`)
+    assert.ok(REQUIRED_DEVICES.includes(clip.device), `${clip.id} 的设备「${clip.device}」没登记`)
+    assert.ok(evalSet.categories[clip.category], `${clip.id} 的类别「${clip.category}」没登记`)
+  }
+})
+
+test('说话人隔离：dev / threshold / final 三份不共用同一个孩子', () => {
+  const bySplit = new Map(SPLITS.map((s) => [s, new Set()]))
+  for (const clip of evalSet.clips) {
+    bySplit.get(speakerMap.get(clip.speaker).split).add(clip.speaker)
+  }
+  const seen = new Map()
+  for (const [split, speakers] of bySplit) {
+    assert.ok(
+      speakers.size >= MIN_SPEAKERS_PER_SPLIT,
+      `${split} 只有 ${speakers.size} 个说话人（下限 ${MIN_SPEAKERS_PER_SPLIT}）`
+    )
+    const clips = evalSet.clips.filter((c) => speakerMap.get(c.speaker).split === split)
+    assert.ok(
+      clips.length >= MIN_CLIPS_PER_SPLIT,
+      `${split} 只有 ${clips.length} 条（下限 ${MIN_CLIPS_PER_SPLIT}）`
+    )
+    assert.ok(
+      clips.some((c) => SILENT_CATEGORIES.includes(c.category)),
+      `${split} 一条静音/旁人说话的负样本都没有——静音误判这条线就成了摆设`
+    )
+    for (const id of speakers) {
+      assert.ok(!seen.has(id), `${id} 同时出现在 ${seen.get(id)} 和 ${split}，说话人泄漏了`)
+      seen.set(id, split)
+    }
+  }
+})
+
+test('覆盖面：两个年龄段、三种环境、两种设备、八类异常一个都不少', () => {
+  const ages = new Set(evalSet.speakers.map((s) => s.ageBand))
+  for (const band of REQUIRED_AGE_BANDS) assert.ok(ages.has(band), `没有 ${band} 岁的孩子`)
+  const envs = new Set(evalSet.clips.map((c) => c.env))
+  for (const env of REQUIRED_ENVIRONMENTS) assert.ok(envs.has(env), `没有${evalSet.environments[env] ?? env}的样本`)
+  const devices = new Set(evalSet.clips.map((c) => c.device))
+  for (const device of REQUIRED_DEVICES) assert.ok(devices.has(device), `没有 ${device} 录的样本`)
+  const categories = new Set(evalSet.clips.map((c) => c.category))
+  for (const category of Object.keys(evalSet.categories)) {
+    assert.ok(categories.has(category), `「${evalSet.categories[category]}」这一类一条样本都没有`)
+  }
+  const genders = new Set(evalSet.speakers.map((s) => s.gender))
+  assert.ok(genders.size >= 2, '说话人只有一种性别，子组差距根本算不出来')
+})
+
+test('占位阶段一个字节的音频都不进仓库，同意与保存期限写在明处', () => {
+  for (const clip of evalSet.clips) {
+    if (clip.status === 'placeholder') {
+      assert.equal(clip.audio, null, `${clip.id} 还是占位却挂了音频路径`)
+      assert.equal(typeof clip.mock, 'string', `${clip.id} 缺少模拟转写，管线自检跑不了`)
+    } else {
+      assert.equal(clip.status, 'recorded', `${clip.id} 的 status 不合法：${clip.status}`)
+      assert.ok(clip.audio, `${clip.id} 标成 recorded 却没有音频`)
+      assert.ok(
+        !String(clip.audio).startsWith('apps/') && !String(clip.audio).startsWith('/workspace'),
+        `${clip.id} 的音频落进了仓库目录：${clip.audio}`
+      )
+      for (const who of ['a', 'b', 'arbiter']) {
+        assert.ok(clip.labels?.[who] !== undefined, `${clip.id} 缺 ${who} 标注——双标注仲裁没走完`)
+      }
+      assert.equal(clip.mock, undefined, `${clip.id} 已经录到了真音频，模拟转写必须删掉`)
+    }
+  }
+  assert.equal(evalSet.consent.storage, 'out-of-repo', '同意书/音频的存放位置不是仓库外')
+  assert.ok(evalSet.consent.retentionMonths > 0, '没写保存期限')
+  assert.equal(evalSet.consent.deidentified, true, '没声明去标识化')
+})
+
+test('异常样本名副其实：漏字真的短了、多读真的长了、静音真的没出声', () => {
+  for (const clip of evalSet.clips) {
+    const reference = referenceOf(clip)
+    const spoken = normalizeTranscript(clip.spoken)
+    if (clip.category === 'silence' || clip.category === 'bystander') {
+      assert.equal(spoken, '', `${clip.id} 标成没出声，spoken 却有内容`)
+      continue
+    }
+    if (clip.category === 'normal') {
+      assert.equal(spoken, reference, `${clip.id} 标成读全对，内容却和原文不一致`)
+    }
+    if (clip.category === 'miss') {
+      assert.ok(spoken.length < reference.length, `${clip.id} 标成漏字却没少字`)
+    }
+    if (clip.category === 'extra' || clip.category === 'repeat') {
+      assert.ok(spoken.length > reference.length, `${clip.id} 标成多读/重复却没多字`)
+    }
+    if (clip.category === 'tone' || clip.category === 'initial') {
+      assert.equal(spoken, reference, `${clip.id} 是发音错，读的字数和原文该一样`)
+      assert.notEqual(
+        normalizeTranscript(clip.mock),
+        reference,
+        `${clip.id} 是发音错，模拟转写却和原文一模一样，测不出东西`
+      )
+    }
+  }
+})
+
+/* ------------------------------------------------- 3. 指标管线（模拟转写） */
+
+/**
+ * 用占位条目的模拟转写跑一遍真正的聚合器。
+ *
+ * 再说一次：这些数字**不是模型指标**。模拟转写是我们自己写的，模型换成谁都不会变。
+ * 它证明的是三件事——分组切得对（安静 / 噪声）、漏字能被逐字对齐标出来、
+ * 没出声的那些条目不会被判成「读得好」。真模型来了，把 mock 换成引擎输出，
+ * 同一段代码就出真实指标。
+ */
+function aggregate(clips, hypothesisOf) {
+  const quiet = { hit: 0, total: 0 }
+  const noisy = { hit: 0, total: 0 }
+  let missDesigned = 0
+  let missCaught = 0
+  let silentTotal = 0
+  let silentAccepted = 0
+
+  for (const clip of clips) {
+    const reference = referenceOf(clip)
+    const heard = hypothesisOf(clip)
+
+    if (READ_CATEGORIES.includes(clip.category)) {
+      const { hits, total } = alignChars(reference, heard)
+      const bucket = clip.env === 'quiet' ? quiet : noisy
+      bucket.hit += hits
+      bucket.total += total
+    }
+
+    if (clip.category === 'miss') {
+      // 设计上漏掉的是哪几个位置，由「原文 vs 孩子实际读的」定；
+      // 能不能查出来，看「原文 vs 识别结果」在同样的位置上是不是也标了 miss。
+      const designed = alignChars(reference, normalizeTranscript(clip.spoken)).chars
+      const detected = alignChars(reference, heard).chars
+      designed.forEach((mark, index) => {
+        if (mark.status !== 'miss') return
+        missDesigned += 1
+        if (detected[index]?.status === 'miss') missCaught += 1
+      })
+    }
+
+    if (SILENT_CATEGORIES.includes(clip.category)) {
+      silentTotal += 1
+      const { score } = evaluate({ mode: 'recognition', reference, heard })
+      // 「读得好」= 至少拿到铜牌；again 档是「再来一次」，不算误判
+      if (gradeOf(score).id !== 'again') silentAccepted += 1
+    }
+  }
+
+  return {
+    quietCharRecall: ratio(quiet.hit, quiet.total),
+    noisyCharRecall: ratio(noisy.hit, noisy.total),
+    missDetectionRecall: ratio(missCaught, missDesigned),
+    silenceFalseAccept: ratio(silentAccepted, silentTotal),
+    counts: {
+      quiet: quiet.total,
+      noisy: noisy.total,
+      missDesigned,
+      silent: silentTotal
+    }
+  }
+}
+
+const simulated = aggregate(evalSet.clips, (clip) => normalizeTranscript(clip.mock ?? ''))
+
+test('聚合器把安静集和噪声集分开算，两边都有足够的字撑住分母', () => {
+  assert.ok(simulated.counts.quiet >= 40, `安静集只有 ${simulated.counts.quiet} 个字`)
+  assert.ok(simulated.counts.noisy >= 40, `噪声集只有 ${simulated.counts.noisy} 个字`)
+  assert.notEqual(simulated.quietCharRecall, null, '安静集字符召回算不出来')
+  assert.notEqual(simulated.noisyCharRecall, null, '噪声集字符召回算不出来')
+})
+
+test('漏字检出：设计上漏掉的那几个字，逐字对齐一个不落地标出来', () => {
+  assert.ok(simulated.counts.missDesigned >= 5, `漏字样本只标出 ${simulated.counts.missDesigned} 个漏字`)
+  assert.equal(
+    simulated.missDetectionRecall,
+    1,
+    `模拟转写与孩子实际读的完全一致时，漏字检出应当是 100%，实得 ${pct(simulated.missDetectionRecall)}`
+  )
+})
+
+test('静音与旁人说话一律不判「读得好」，误判率为 0', () => {
+  assert.ok(simulated.counts.silent >= 4, `没出声的负样本只有 ${simulated.counts.silent} 条`)
+  assert.equal(
+    simulated.silenceFalseAccept,
+    0,
+    `静音误判率 ${pct(simulated.silenceFalseAccept)}，孩子没读却被夸了`
+  )
+})
+
+test('管线对退化敏感：把识别结果换成空串，召回立刻掉到 0', () => {
+  const blind = aggregate(evalSet.clips, () => '')
+  assert.equal(blind.quietCharRecall, 0, '识别什么都没给，安静集召回却不是 0——聚合器在自说自话')
+  assert.equal(blind.noisyCharRecall, 0, '识别什么都没给，噪声集召回却不是 0')
+  assert.equal(blind.silenceFalseAccept, 0, '空转写不该被判成读得好')
+})
+
+/* --------------------------------------------------------- 4. 故障演练 */
+
+/** 极小的 CacheStorage 替身：只实现 offlineAsr.js 用到的 open/match/put/keys/delete。 */
+function cacheShim() {
+  const stores = new Map()
+  return {
+    stores,
+    async open(name) {
+      if (!stores.has(name)) stores.set(name, new Map())
+      const store = stores.get(name)
+      return {
+        async match(url) {
+          return store.get(String(url))
+        },
+        async put(url, response) {
+          store.set(String(url), response)
+        }
+      }
+    },
+    async keys() {
+      return [...stores.keys()]
+    },
+    async delete(name) {
+      return stores.delete(name)
+    }
+  }
+}
+
+const BASE_URI = 'http://127.0.0.1:4173/literacy/'
+/** 所有演练发出的请求都记在这里：跨源一个都不许有。 */
+const allRequests = []
+const crossOrigin = (requests) =>
+  requests.filter((url) => !url.startsWith(new URL(BASE_URI).origin)).length
+
+/** 在 Node 里给接线层搭一套浏览器替身；每次演练用完就还原，互不串味。 */
+async function withBrowserShims({ fetchImpl, WorkerImpl }, run) {
+  const saved = {
+    document: globalThis.document,
+    caches: globalThis.caches,
+    fetch: globalThis.fetch,
+    Worker: globalThis.Worker
+  }
+  const requests = []
+  globalThis.document = { baseURI: BASE_URI }
+  globalThis.caches = cacheShim()
+  globalThis.Worker = WorkerImpl ?? saved.Worker
+  globalThis.fetch = async (input, init) => {
+    const url = String(input)
+    requests.push(url)
+    allRequests.push(url)
+    if (!fetchImpl) throw new TypeError('这次演练没有准备网络')
+    return fetchImpl(url, init)
+  }
+  try {
+    return await run({ requests, caches: globalThis.caches })
+  } finally {
+    globalThis.document = saved.document
+    globalThis.caches = saved.caches
+    globalThis.fetch = saved.fetch
+    globalThis.Worker = saved.Worker
+  }
+}
+
+const sha256 = (text) => createHash('sha256').update(text).digest('hex')
+
+/** 一份「什么都对」的清单，用来演练下载成功与整包作废两条路。 */
+function frozenPack() {
+  const glue = 'export default () => ({ createOnlineRecognizer(){} })\n'
+  const wasm = 'fake-wasm-binary'
+  return {
+    files: { 'models/glue.js': glue, 'models/engine.wasm': wasm },
+    manifest: {
+      schema: OFFLINE_ASR.schema,
+      engine: OFFLINE_ASR.engine,
+      available: true,
+      modelId: 'drill-zipformer-zh',
+      modelVersion: '2026-08-27',
+      license: 'Apache-2.0',
+      files: [
+        { path: 'models/glue.js', role: 'wasm-glue', bytes: glue.length, sha256: sha256(glue) },
+        { path: 'models/engine.wasm', role: 'wasm-binary', bytes: wasm.length, sha256: sha256(wasm) }
+      ]
+    }
+  }
+}
+
+/** 按脚本行事的 Worker 替身：init 之后怎么表现，由每场演练自己定。 */
+function workerShim(behaviour) {
+  return class DrillWorker {
+    constructor(url, options) {
+      this.url = String(url)
+      this.options = options
+      this.terminated = false
+      this.posted = []
+    }
+    postMessage(message) {
+      this.posted.push(message)
+      behaviour(message, this)
+    }
+    terminate() {
+      this.terminated = true
+    }
+  }
+}
+
+const drills = []
+const drill = (id, faultClass, layer, name, fn) =>
+  drills.push({ id, faultClass, layer, name, fn })
+
+/** 默认隐私姿态：家长没打开浏览器识别，所以降档只能落到录音/自评。 */
+const DEFAULT_TIER_INPUT = { canRecognize: true, allowRecognition: false, canRecord: true }
+
+drill('D1', 'airplane', 'reliability', '飞行模式：清单都读不到，落回录音档且不触网兜底', async () => {
+  return withBrowserShims(
+    { fetchImpl: () => Promise.reject(new TypeError('Failed to fetch')) },
+    async ({ requests }) => {
+      const started = Date.now()
+      const probe = await probeOfflinePack()
+      const tier = chooseTier({ ...DEFAULT_TIER_INPUT, offlineReady: probe.status === 'ready' })
+      const ms = Date.now() - started
+      assert.equal(probe.status, 'unavailable', `飞行模式下探测结果是 ${probe.status}`)
+      assert.ok(probe.note, '没告诉家长为什么用不了')
+      assert.equal(tier, 'recording', `飞行模式降到了 ${tier}`)
+      assert.equal(crossOrigin(requests), 0, `演练里出现了跨源请求：${requests.join('、')}`)
+      return { ms, detail: `probe=${probe.status} → ${tier}`, requests: requests.length }
+    }
+  )
+})
+
+drill('D2', 'model-404', 'reliability', '模型 404：整包作废、缓存清空，当场降录音档', async () => {
+  const pack = frozenPack()
+  return withBrowserShims(
+    {
+      fetchImpl: async (url) => {
+        if (url.endsWith('manifest.json')) return new Response(JSON.stringify(pack.manifest))
+        if (url.endsWith('glue.js')) return new Response(pack.files['models/glue.js'])
+        return new Response('not found', { status: 404 })
+      }
+    },
+    async ({ requests, caches }) => {
+      const started = Date.now()
+      let failure = null
+      try {
+        await installOfflinePack()
+      } catch (error) {
+        failure = error
+      }
+      const tier = chooseTier({ ...DEFAULT_TIER_INPUT, offlineReady: false, offlineFault: true })
+      const ms = Date.now() - started
+      assert.ok(failure, '模型 404 了，安装却报成功')
+      assert.match(failure.message, /下载失败|HTTP 404/, `失败原因说不清：${failure.message}`)
+      assert.equal(caches.stores.size, 0, '半截的包留在了缓存里——下次会在孩子读到一半时崩')
+      assert.equal(tier, 'recording', `模型 404 后降到了 ${tier}`)
+      assert.equal(crossOrigin(requests), 0, '下载走了第三方地址')
+      return { ms, detail: `install 失败「${failure.message}」→ ${tier}`, requests: requests.length }
+    }
+  )
+})
+
+drill('D3', 'wasm-init', 'reliability', 'wasm 初始化失败：Worker 报错即降档，不改用在线识别', async () => {
+  const Worker = workerShim((message, worker) => {
+    if (message.type === 'init') {
+      queueMicrotask(() => worker.onmessage?.({ data: { type: 'error', message: 'wasm 起不来' } }))
+    }
+  })
+  return withBrowserShims({ WorkerImpl: Worker }, async () => {
+    const started = Date.now()
+    const engine = createOfflineRecognizer(parseManifest(frozenPack().manifest), { timeoutMs: 800 })
+    let failure = null
+    try {
+      await engine.ready
+    } catch (error) {
+      failure = error
+    }
+    engine.dispose()
+    // 家长此前打开过浏览器识别也不算数：本地引擎崩了不等于允许把音频送上网
+    const tier = chooseTier({
+      ...DEFAULT_TIER_INPUT,
+      allowRecognition: true,
+      offlineReady: true,
+      offlineFault: true
+    })
+    const ms = Date.now() - started
+    assert.ok(failure, 'Worker 报了错，ready 却还是成功的')
+    assert.equal(tier, 'recording', `wasm 起不来之后落到了 ${tier}`)
+    return { ms, detail: `ready 失败「${failure.message}」→ ${tier}` }
+  })
+})
+
+drill('D4', 'mic-denied', 'reliability', '麦克风拒绝：没有音频就没有任何识别档，直接自评', async () => {
+  const started = Date.now()
+  const denied = chooseTier({ ...DEFAULT_TIER_INPUT, micDenied: true })
+  const deniedWithPack = chooseTier({ ...DEFAULT_TIER_INPUT, offlineReady: true, micDenied: true })
+  const noMic = chooseTier({ canRecord: false })
+  const ms = Date.now() - started
+  assert.equal(denied, 'listen-only', `麦克风被拒绝后落到了 ${denied}`)
+  assert.equal(
+    deniedWithPack,
+    'listen-only',
+    `离线包装好了但麦克风被拒绝，仍然停在 ${deniedWithPack}——没有音频的识别档是假的`
+  )
+  assert.equal(noMic, 'listen-only', `没有麦克风的设备落到了 ${noMic}`)
+  return { ms, detail: `拒绝→${denied}；装了包也→${deniedWithPack}` }
+})
+
+drill('D5', 'oom-worker', 'reliability', '低内存杀 Worker：读到一半没了，收尾也要交出结果并降档', async () => {
+  let live = null
+  const Worker = workerShim((message, worker) => {
+    live = worker
+    if (message.type === 'init') {
+      queueMicrotask(() => worker.onmessage?.({ data: { type: 'ready' } }))
+    }
+    if (message.type === 'audio') {
+      queueMicrotask(() => worker.onmessage?.({ data: { type: 'partial', text: '床前' } }))
+    }
+  })
+  return withBrowserShims({ WorkerImpl: Worker }, async () => {
+    const engine = createOfflineRecognizer(parseManifest(frozenPack().manifest), { timeoutMs: 800 })
+    await engine.ready
+    engine.accept(new Int16Array(1600))
+    await new Promise((r) => setTimeout(r, 10))
+    const started = Date.now()
+    // 系统把 Worker 杀了：浏览器给的是一个 error 事件，不是一句解释
+    live.onerror?.({ message: 'Worker 被系统回收' })
+    const tail = await engine.finish(600)
+    const tier = chooseTier({ ...DEFAULT_TIER_INPUT, offlineReady: true, offlineFault: true })
+    const ms = Date.now() - started
+    engine.dispose()
+    assert.equal(tail.degraded, true, 'Worker 死了，收尾却报正常')
+    assert.equal(tail.text, '床前', '已经听到的那半句被丢了，孩子这一遍白读了')
+    assert.equal(tier, 'recording', `Worker 被杀之后落到了 ${tier}`)
+    return { ms, detail: `收尾拿回「${tail.text}」(degraded) → ${tier}` }
+  })
+})
+
+drill('D6', 'hash-mismatch', 'resource', '指纹不符：整包作废，绝不装一份来路不明的模型', async () => {
+  const pack = frozenPack()
+  const tampered = { ...pack.manifest }
+  return withBrowserShims(
+    {
+      fetchImpl: async (url) => {
+        if (url.endsWith('manifest.json')) return new Response(JSON.stringify(tampered))
+        if (url.endsWith('glue.js')) return new Response(pack.files['models/glue.js'])
+        return new Response('被掉包的二进制')
+      }
+    },
+    async ({ caches }) => {
+      const started = Date.now()
+      let failure = null
+      try {
+        await installOfflinePack()
+      } catch (error) {
+        failure = error
+      }
+      const ms = Date.now() - started
+      assert.ok(failure, '文件被掉包了，安装却报成功')
+      assert.match(failure.message, /指纹对不上/, `失败原因说不清：${failure.message}`)
+      assert.equal(caches.stores.size, 0, '被掉包的包留在了缓存里')
+      return { ms, detail: `install 失败「${failure.message}」`, }
+    }
+  )
+})
+
+drill('D7', 'install-ok', 'resource', '正向对照：清单齐全时整包装得上、探测转 ready、档位升到离线', async () => {
+  const pack = frozenPack()
+  const fetchImpl = async (url) => {
+    if (url.endsWith('manifest.json')) return new Response(JSON.stringify(pack.manifest))
+    for (const [path, body] of Object.entries(pack.files)) {
+      if (url.endsWith(path)) return new Response(body)
+    }
+    return new Response('not found', { status: 404 })
+  }
+  return withBrowserShims({ fetchImpl }, async ({ requests, caches }) => {
+    const started = Date.now()
+    const steps = []
+    const installed = await installOfflinePack({ onProgress: ({ step }) => steps.push(step) })
+    const probe = await probeOfflinePack()
+    const tier = chooseTier({ ...DEFAULT_TIER_INPUT, offlineReady: probe.status === 'ready' })
+    const ms = Date.now() - started
+    assert.equal(installed.modelId, 'drill-zipformer-zh')
+    assert.ok(steps.includes('verifying'), '装包过程没有核对指纹这一步')
+    assert.equal(probe.status, 'ready', `装完之后探测结果是 ${probe.status}`)
+    assert.ok(caches.stores.has(packCacheName(installed)), '缓存名没有跟着模型版本走')
+    assert.equal(tier, 'offline-asr', `装好了包却停在 ${tier}`)
+    assert.equal(crossOrigin(requests), 0, '装包过程走了第三方地址')
+    return {
+      ms,
+      detail: `${installed.files.length} 个文件校验通过 → ${tier}`,
+      requests: requests.length
+    }
+  })
+})
+
+const drillRows = []
+for (const item of drills) {
+  test(`故障演练 ${item.id} · ${item.name}`, async () => {
+    const outcome = await item.fn()
+    drillRows.push({ ...item, ...outcome })
+    if (item.layer === 'reliability') {
+      assert.ok(
+        outcome.ms <= DEGRADE_BUDGET_MS,
+        `${item.id} 用了 ${outcome.ms} ms 才降档（预算 ${DEGRADE_BUDGET_MS} ms）`
+      )
+    }
+  })
+}
+
+test(`R9 §5 的五类故障一类都不许少（${FAULT_CLASSES.join('、')}）`, () => {
+  const covered = new Set(drillRows.map((r) => r.faultClass))
+  const missing = FAULT_CLASSES.filter((c) => !covered.has(c))
+  assert.equal(missing.length, 0, `这些故障没有演练：${missing.join('、')}`)
+})
+
+/* ------------------------------------------------------------ 先跑测试 */
+
+let failed = 0
+const failures = []
+for (const { name, fn } of tests) {
+  try {
+    await fn()
+    if (!asJson) console.log(`  ✓ ${name}`)
+  } catch (error) {
+    failed += 1
+    failures.push(`${name}：${error.message}`)
+    if (!asJson) console.log(`  ✗ ${name}\n      ${error.message}`)
+  }
+}
+
+/* --------------------------------------------------------- 5. Go / No-Go */
+
+/**
+ * 实测值表。
+ *
+ * 只往里填**这一轮真跑出来的数**：
+ *   - harness 能跑的（故障演练、跨源请求）填真值；
+ *   - 需要真模型或真机的（文本层、诊断层、性能层）一律 null，
+ *     模拟值单独放在 simulated 字段里，绝不参与判定。
+ */
+function measure() {
+  const reliability = drillRows.filter((r) => r.layer === 'reliability')
+  const faultClasses = new Set(drillRows.map((r) => r.faultClass))
+  return {
+    quietCharRecall: { value: null, simulated: simulated.quietCharRecall },
+    noisyCharRecall: { value: null, simulated: simulated.noisyCharRecall },
+    missDetectionRecall: { value: null, simulated: simulated.missDetectionRecall },
+    silenceFalseAccept: { value: null, simulated: simulated.silenceFalseAccept },
+    toneNearPrecision: { value: null },
+    subgroupGap: { value: null },
+    p95LatencyMs: { value: null },
+    rtf: { value: null },
+    peakMemoryMiB: { value: null },
+    longTaskMs: { value: null },
+    packBytesMiB: {
+      value: manifest.files.length
+        ? manifest.files.reduce((n, f) => n + (f.bytes ?? 0), 0) / 1048576
+        : null
+    },
+    precacheModelBytes: { value: null },
+    offlineRestartPass: { value: null },
+    faultDrillsProtocol: { value: FAULT_CLASSES.filter((c) => faultClasses.has(c)).length },
+    degradeMs: { value: reliability.length ? Math.max(...reliability.map((r) => r.ms)) : null },
+    faultDrillsOnDevice: { value: null },
+    crossOriginRequests: { value: crossOrigin(allRequests) }
+  }
+}
+
+function verdictOf(gate, measured) {
+  const entry = measured[gate.metric]
+  if (!entry || entry.value === null || entry.value === undefined) return 'unmeasured'
+  const ok = gate.op === '>=' ? entry.value >= gate.threshold : entry.value <= gate.threshold
+  return ok ? 'pass' : 'fail'
+}
+
+const measured = measure()
+const layerRows = manifest.goNoGo.layers.map((layer) => {
+  const gates = layer.gates.map((gate) => ({
+    ...gate,
+    measured: measured[gate.metric]?.value ?? null,
+    simulated: measured[gate.metric]?.simulated ?? null,
+    verdict: verdictOf(gate, measured)
+  }))
+  const status = gates.some((g) => g.verdict === 'fail')
+    ? 'fail'
+    : gates.every((g) => g.verdict === 'pass')
+      ? 'pass'
+      : 'unmeasured'
+  return { id: layer.id, name: layer.name, status, gates }
+})
+
+const blockers = [
+  ...manifest.freezeChecklist.filter((i) => i.status !== 'done').map((i) => `${i.id} ${i.must}`),
+  ...layerRows
+    .filter((l) => l.status !== 'pass')
+    .map((l) => `${l.name}：${l.gates.filter((g) => g.verdict !== 'pass').map((g) => g.metric).join('、')}`)
+]
+const verdict = blockers.length ? 'no-go' : 'go'
+
+/** 最后一道：清单里写死的结论，必须和这次实测算出来的结论一致。 */
+{
+  const name = '清单里写死的结论要和这次实测算出来的结论一致'
+  try {
+    assert.equal(
+      manifest.goNoGo.verdict,
+      verdict,
+      `清单写着 ${manifest.goNoGo.verdict}，这次实测算出来是 ${verdict}`
+    )
+    if (verdict === 'no-go') {
+      assert.equal(manifest.available, false, '结论是 no-go，available 却是 true')
+    }
+    tests.push({ name })
+    if (!asJson) console.log(`  ✓ ${name}`)
+  } catch (error) {
+    tests.push({ name })
+    failed += 1
+    failures.push(`${name}：${error.message}`)
+    if (!asJson) console.log(`  ✗ ${name}\n      ${error.message}`)
+  }
+}
+
+/* ------------------------------------------------------------------ 输出 */
+
+const VERDICT_LABEL = { pass: '达标', fail: '未达标', unmeasured: '未实测' }
+const fmt = (metric, value) => {
+  if (value === null || value === undefined) return '—'
+  if (/Recall|Accept|Precision|Gap|rtf/i.test(metric)) return Number(value).toFixed(3)
+  return String(Number(value.toFixed ? value.toFixed(2) : value))
+}
+
+if (asJson) {
+  console.log(
+    JSON.stringify(
+      {
+        marker: 'ROUND11_H1',
+        manifest: {
+          available: manifest.available,
+          modelId: manifest.modelId,
+          modelVersion: manifest.modelVersion,
+          freezeDone: manifest.freezeChecklist.filter((i) => i.status === 'done').length,
+          freezeTotal: manifest.freezeChecklist.length
+        },
+        evalSet: {
+          clips: evalSet.clips.length,
+          speakers: evalSet.speakers.length,
+          target: evalSet.targetClips,
+          stage: evalSet.stage
+        },
+        simulated,
+        drills: drillRows.map((r) => ({
+          id: r.id,
+          faultClass: r.faultClass,
+          layer: r.layer,
+          name: r.name,
+          ms: r.ms,
+          detail: r.detail
+        })),
+        goNoGo: { verdict, layers: layerRows, blockers },
+        passed: tests.length - failed,
+        tests: tests.length,
+        failures
+      },
+      null,
+      2
+    )
+  )
+} else {
+  console.log('')
+  console.log(
+    `  评测集：${evalSet.clips.length} 条占位 / 目标 ${evalSet.targetClips} 条，` +
+      `${evalSet.speakers.length} 个说话人，dev/threshold/final 说话人隔离`
+  )
+  console.log(
+    `  管线自检（模拟转写，不是模型指标）：安静 ${pct(simulated.quietCharRecall)} · ` +
+      `噪声 ${pct(simulated.noisyCharRecall)} · 漏字检出 ${pct(simulated.missDetectionRecall)} · ` +
+      `静音误判 ${pct(simulated.silenceFalseAccept)}`
+  )
+  console.log('')
+  for (const row of drillRows) {
+    console.log(`  [演练 ${row.id}] ${row.name}：${row.detail}（${row.ms} ms）`)
+  }
+  console.log('')
+  for (const layer of layerRows) {
+    console.log(`  ${layer.name}（${VERDICT_LABEL[layer.status]}）`)
+    for (const gate of layer.gates) {
+      const line =
+        `    ${gate.metric} ${gate.op} ${gate.threshold}` +
+        ` · 实测 ${fmt(gate.metric, gate.measured)}` +
+        (gate.simulated !== null ? `（模拟 ${fmt(gate.metric, gate.simulated)}）` : '') +
+        ` · ${VERDICT_LABEL[gate.verdict]} · 由 ${gate.measuredBy} 测`
+      console.log(line)
+    }
+  }
+  const done = manifest.freezeChecklist.filter((i) => i.status === 'done').length
+  console.log('')
+  console.log(
+    `  冻结清单：${done}/${manifest.freezeChecklist.length} 条完成；` +
+      `模型 ${manifest.modelId}@${manifest.modelVersion}，available=${manifest.available}`
+  )
+  console.log(`  Go/No-Go：${verdict.toUpperCase()}${blockers.length ? `，卡在 ${blockers.length} 处` : ''}`)
+  for (const item of blockers.slice(0, 6)) console.log(`    · ${item}`)
+  if (blockers.length > 6) console.log(`    · …另有 ${blockers.length - 6} 处`)
+  console.log(
+    `\n跟读评测跑道（ROUND11_H1）：${tests.length - failed} / ${tests.length} 项通过，` +
+      `${drillRows.length} 场故障演练。`
+  )
+}
+
+process.exit(failed ? 1 : 0)

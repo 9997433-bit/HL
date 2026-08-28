@@ -21,12 +21,13 @@
     "preview": "vite preview --port 4173",
     "test:srs": "node scripts/test-srs.mjs",
     "test:speech": "node scripts/test-speech-eval.mjs",
+    "test:asr:evalset": "node scripts/test-asr-eval-set.mjs",
     "test:ocr": "node scripts/test-ocr.mjs",
     "test:ocr:accuracy": "node scripts/test-ocr-accuracy.mjs",
     "check:data": "node scripts/check-data.mjs",
     "check:bundle": "node scripts/check-bundle.mjs",
     "smoke": "node scripts/smoke.mjs",
-    "test": "npm run test:srs && npm run test:speech && npm run test:ocr && npm run test:ocr:accuracy && npm run check:data && npm run build && npm run check:bundle && npm run smoke"
+    "test": "npm run test:srs && npm run test:speech && npm run test:asr:evalset && npm run test:ocr && npm run test:ocr:accuracy && npm run check:data && npm run build && npm run check:bundle && npm run smoke"
   },
   "dependencies": {
     "gsap": "^3.12.5",
