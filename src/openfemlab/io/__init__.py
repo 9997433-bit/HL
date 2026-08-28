@@ -41,13 +41,16 @@ from ._native import (
     read_modal_result,
     read_model,
     read_test_data,
+    static_result_to_dict,
     test_data_from_dict,
     test_data_to_dict,
     write,
     write_modal_result,
     write_model,
+    write_static_result,
     write_test_data,
 )
+from .frd import FRDResult, read_frd
 from .meshio_bridge import from_meshio, read_meshio, to_meshio, write_meshio
 from .nastran import read_bdf, read_nastran, write_bdf
 from .neutral_convert import (
@@ -58,6 +61,7 @@ from .neutral_convert import (
     section_from_values,
 )
 from .op2 import list_op2_tables, read_op2, read_op2_modes
+from .results_locator import ResultLocator, locate_results
 from .uff import (
     UFFDataset,
     UFFFunction,
@@ -68,6 +72,7 @@ from .uff import (
     read_uff_modes,
     write_uff,
 )
+from .uff_frf import uff_function_to_frf, uff_functions_to_frf
 from .unv import (
     FE_DESCRIPTOR_TO_ELEMENT,
     UNV_ELEMENT_DATASET,
@@ -119,9 +124,11 @@ __all__ = [
     "model_from_dict",
     "read_modal_result",
     "write_modal_result",
+    "write_static_result",
     "load_modal_result",
     "save_modal_result",
     "modal_result_to_dict",
+    "static_result_to_dict",
     "modal_result_from_dict",
     "read_test_data",
     "write_test_data",
@@ -132,6 +139,12 @@ __all__ = [
     "dof_map_to_dict",
     "dof_map_from_dict",
     "dof_map_from_labels",
+    "read_frd",
+    "FRDResult",
+    "ResultLocator",
+    "locate_results",
+    "uff_function_to_frf",
+    "uff_functions_to_frf",
     "from_meshio",
     "to_meshio",
     "read_meshio",

@@ -809,6 +809,35 @@ class Tri3Element(Element):
     def stress(self, coords: np.ndarray, displacements: np.ndarray) -> np.ndarray:
         return self.constitutive_matrix @ self.strain(coords, displacements)
 
+    def stiffness_coord_derivatives(self, coords: np.ndarray) -> np.ndarray:
+        """Coordinate derivatives ``dK/d(x_node, axis)`` with shape ``(6, 6, 3, 2)``."""
+        base = np.asarray(coords, dtype=float).reshape(3, -1)
+        if base.shape[1] == 2:
+            trial_coords = base
+        else:
+            trial_coords = base[:, :2]
+        derivatives = np.zeros((6, 6, 3, 2), dtype=float)
+        step = 1e-6
+
+        def matrix_at(points: np.ndarray) -> np.ndarray:
+            if base.shape[1] == 2:
+                return self.stiffness_matrix(points)
+            padded = np.zeros((3, 3), dtype=float)
+            padded[:, :2] = points
+            padded[:, 2] = base[:, 2]
+            return self.stiffness_matrix(padded)
+
+        for node in range(3):
+            for axis in range(2):
+                plus = trial_coords.copy()
+                minus = trial_coords.copy()
+                plus[node, axis] += step
+                minus[node, axis] -= step
+                derivatives[:, :, node, axis] = (
+                    matrix_at(plus) - matrix_at(minus)
+                ) / (2.0 * step)
+        return derivatives
+
 
 class Quad4Element(Element):
     """4-node isoparametric bilinear quadrilateral in the XY plane (DOFs ``UX``, ``UY``).
@@ -987,6 +1016,28 @@ class Quad4Element(Element):
 
     def total_mass(self, coords: np.ndarray) -> float:
         return float(self.material.density) * self.thickness * self.area(coords)
+
+    def stiffness_coord_derivatives(self, coords: np.ndarray) -> np.ndarray:
+        """Analytic ``dK/d(x_node, axis)`` with shape ``(8, 8, 4, 2)``."""
+        points = self._planar_coords(coords)
+        D = self.constitutive_matrix
+        thickness = self.thickness
+        derivatives = np.zeros((8, 8, 4, 2), dtype=float)
+        for point, weight in zip(self._points, self._weights, strict=True):
+            xi, eta = point
+            b, _ = self.strain_displacement_matrix(coords, xi, eta)
+            for node in range(4):
+                for axis in range(2):
+                    trial = points.copy()
+                    step = 1e-6
+                    trial[node, axis] += step
+                    b_plus, det_plus = self.strain_displacement_matrix(trial, xi, eta)
+                    k_plus = (weight * det_plus * thickness) * (b_plus.T @ D @ b_plus)
+                    trial[node, axis] -= 2.0 * step
+                    b_minus, det_minus = self.strain_displacement_matrix(trial, xi, eta)
+                    k_minus = (weight * det_minus * thickness) * (b_minus.T @ D @ b_minus)
+                    derivatives[:, :, node, axis] += (k_plus - k_minus) / (2.0 * step)
+        return derivatives
 
     # ------------------------------------------------------------ recovery
 

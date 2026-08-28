@@ -26,7 +26,9 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "opt9": "SDM stiffness spring scan",
         "opt10": "Correlate FRF (measured vs synthesized)",
         "opt11": "Run a performance benchmark",
-        "opt12": "Show command cheat sheet",
+        "opt12": "Static analysis (YAML/JSON model file)",
+        "opt13": "MPE extract from measured UFF FRF",
+        "opt14": "Show command cheat sheet",
         "opt0": "Exit",
         "goodbye": "Goodbye.",
         "choice": "Choice",
@@ -44,6 +46,8 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "frf_measured": "Measured FRF path (UFF/UNV)",
         "frf_model": "Damped model spec path",
         "bench_case": "Benchmark case [modal]",
+        "static_model": "Model spec path for static analysis",
+        "mpe_frf": "Measured FRF path (UFF/UNV)",
         "running": "Running: openfemlab {}",
         "unknown": "Unknown choice: {choice!r}",
         "cheat_heading": "CLI cheat sheet",
@@ -62,7 +66,9 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "opt9": "SDM 刚度弹簧扫描",
         "opt10": "FRF 相关（实测 vs 合成）",
         "opt11": "性能基准（bench）",
-        "opt12": "命令速查表",
+        "opt12": "静力分析（YAML/JSON 模型文件）",
+        "opt13": "MPE 提取（UFF 实测 FRF）",
+        "opt14": "命令速查表",
         "opt0": "退出",
         "goodbye": "再见。",
         "choice": "选项",
@@ -80,6 +86,8 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "frf_measured": "实测 FRF 路径（UFF/UNV）",
         "frf_model": "阻尼模型规格路径",
         "bench_case": "基准用例 [modal]",
+        "static_model": "静力分析模型规格路径",
+        "mpe_frf": "实测 FRF 路径（UFF/UNV）",
         "running": "正在运行: openfemlab {}",
         "unknown": "未知选项: {choice!r}",
         "cheat_heading": "命令速查",
@@ -99,6 +107,8 @@ _CHEAT_SHEET = [
     "openfemlab pipeline run pipeline.yaml --strict",
     "openfemlab sdm scan model.yaml",
     "openfemlab bench modal",
+    "openfemlab static model.yaml",
+    "openfemlab mpe extract measured.unv",
     "openfemlab info",
     "pip install 'openfemlab[cli,plot,io]'",
 ]
@@ -150,6 +160,8 @@ def run(args: argparse.Namespace, reporter: Reporter) -> int:
         reporter.line(f" 10  {msg['opt10']}")
         reporter.line(f" 11  {msg['opt11']}")
         reporter.line(f" 12  {msg['opt12']}")
+        reporter.line(f" 13  {msg['opt13']}")
+        reporter.line(f" 14  {msg['opt14']}")
         reporter.line(f"  0  {msg['opt0']}")
         choice = _prompt(msg["choice"], reporter)
 
@@ -218,6 +230,16 @@ def run(args: argparse.Namespace, reporter: Reporter) -> int:
             case = _prompt(msg["bench_case"], reporter) or "modal"
             return _delegate(["bench", case], reporter, msg)
         if choice == "12":
+            model = _prompt(msg["static_model"], reporter)
+            if not model:
+                continue
+            return _delegate(["static", model], reporter, msg)
+        if choice == "13":
+            measured = _prompt(msg["mpe_frf"], reporter)
+            if not measured:
+                continue
+            return _delegate(["mpe", "extract", measured], reporter, msg)
+        if choice == "14":
             _cheat_sheet(reporter, msg)
             continue
         reporter.warning(msg["unknown"].format(choice=choice))

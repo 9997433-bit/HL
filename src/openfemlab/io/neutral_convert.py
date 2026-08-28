@@ -79,6 +79,7 @@ __all__ = [
     "apply_rbe3_from_neutral",
     "apply_spc1_from_neutral",
     "apply_conm2_from_neutral",
+    "apply_force_from_neutral",
     "section_from_values",
     "to_model",
 ]
@@ -297,6 +298,7 @@ def to_model(
     apply_rbe3_from_neutral(model, neutral)
     apply_spc1_from_neutral(model, neutral)
     apply_conm2_from_neutral(model, neutral)
+    apply_force_from_neutral(model, neutral)
     return model
 
 
@@ -690,6 +692,29 @@ def apply_conm2_from_neutral(model: Model, neutral: NeutralModel) -> None:
             i33 = float(fields[13]) if fields[13] not in ("",) else 0.0
             if i33 > 0.0 and model.has_dof(DOF.RZ):
                 model.add_rotary_inertia(node_id, i33, dofs=(DOF.RZ,))
+
+
+def apply_force_from_neutral(model: Model, neutral: NeutralModel) -> None:
+    """Apply ``FORCE`` cards stored in ``meta['bdf_force']`` or ``bdf_preserve``."""
+
+    for entry in _meta(neutral).get("bdf_force", ()):
+        model.add_nodal_load(
+            int(entry["node"]),
+            float(entry["magnitude"]),
+            direction=tuple(entry["direction"]),
+        )
+    for fields in _meta(neutral).get("bdf_preserve", ()):
+        if not fields or str(fields[0]).upper() != "FORCE":
+            continue
+        if len(fields) < 5:
+            raise FormatError(f"FORCE card {fields!r} is incomplete")
+        node_id = int(fields[2])
+        magnitude = float(fields[4])
+        direction = [0.0, 0.0, 0.0]
+        for index, offset in enumerate((5, 6, 7)):
+            if len(fields) > offset and str(fields[offset]).strip():
+                direction[index] = float(fields[offset])
+        model.add_nodal_load(node_id, magnitude, direction=direction)
 
 
 def _parse_rbe3_preserve_fields(

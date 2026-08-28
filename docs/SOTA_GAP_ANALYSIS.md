@@ -1,3 +1,37 @@
+# OpenFEMLab vs FEMtools — SOTA Gap Analysis (Round 13 refresh)
+
+**Auditor:** Cloud Agent · **Date:** 2026-08-28 UTC  
+**Snapshot:** branch `cursor/round13-workflow-closure-7aa3`, release **`0.2.3`**  
+**Registry:** **104/104** acceptance criteria `verified`
+
+## Round 13 executive summary
+
+Round 13 implements the user-requested workflow gaps that remain code-finishable
+without DAQ hardware, ARTeMIS DLLs, or native Ansys/Abaqus binary readers:
+
+| Priority | Theme | Outcome |
+|----------|-------|---------|
+| P0 | FORCE / static | `StaticSolver`, `Model.add_nodal_load`, BDF `FORCE`, `openfemlab static` |
+| P0 | UFF → MPE | `uff_frf` bridge + `openfemlab mpe extract` + example 12 |
+| P1 | Shell `dK/da` | `Tri3Element` / `Quad4Element` `stiffness_coord_derivatives` |
+| P1 | RSM surrogates | `optimization/rsm.py` quadratic least-squares RSM |
+| P1 | External results | CalculiX `read_frd` + `results_locator` (.frd/.op2/.odb/.rst) |
+| P2 | CLI + Web | Wizard static/MPE menus; dashboard static deformation view |
+
+### Remaining intentional / deferred gaps
+
+| Gap | Status |
+|-----|--------|
+| DAQ hardware / ARTeMIS runtime | **Deferred** — file workflow only (UFF→MPE) |
+| Topology optimization / SIMP | **Deferred** — RSM screening shipped |
+| Native `.rst` / `.odb` parsers | **Deferred** — locator + FRD + meshio/subprocess |
+| Full commercial Nastran card set | **Partial** — industrial subset grows each release |
+
+**Verdict:** Scripted workflow parity extends to static loads, measured FRF
+extraction, surrogate screening, and CalculiX/Abaqus-adjacent result discovery.
+
+---
+
 # OpenFEMLab vs FEMtools — SOTA Gap Analysis (Round 12 refresh)
 
 **Auditor:** Cloud Agent · **Date:** 2026-08-28 UTC  

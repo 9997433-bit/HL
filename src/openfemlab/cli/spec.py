@@ -74,6 +74,7 @@ def build_model(spec: Mapping[str, Any]) -> Model:
     _apply_supports(model, spec.get("supports", ()))
     _apply_point_masses(model, spec.get("point_masses", ()))
     _apply_rotary_inertias(model, spec.get("rotary_inertias", ()))
+    _apply_loads(model, spec.get("loads", ()))
     return model
 
 
@@ -287,6 +288,28 @@ def _apply_rotary_inertias(model: Model, entries: Any) -> None:
             model.add_rotary_inertia(
                 node_id, _number(data, "inertia"), None if dofs is None else _dofs(dofs)
             )
+
+
+def _apply_loads(model: Model, entries: Any) -> None:
+    for entry in _sequence(entries, "loads", allow_empty=True):
+        data = _mapping(entry, "load")
+        if "magnitude" in data:
+            magnitude = _number(data, "magnitude")
+        elif "force" in data:
+            magnitude = _number(data, "force")
+        else:
+            raise SpecError("load entry requires 'magnitude' or 'force'")
+        for node_id in _node_ids(data, "load"):
+            if "direction" in data:
+                direction = data["direction"]
+                if isinstance(direction, str):
+                    model.add_nodal_load(node_id, magnitude, dof=direction)
+                else:
+                    model.add_nodal_load(node_id, magnitude, direction=direction)
+            elif "dof" in data:
+                model.add_nodal_load(node_id, magnitude, dof=data["dof"])
+            else:
+                model.add_nodal_load(node_id, magnitude)
 
 
 # -------------------------------------------------------------- value parsing

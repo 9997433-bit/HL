@@ -65,6 +65,7 @@ from .responses import (
     TotalMass,
     frequency_floor,
 )
+from .rsm import QuadraticRSM, fit_quadratic_rsm
 from .sizing import (
     ModalDesignEvaluator,
     MorphingGeometryModel,
@@ -91,6 +92,7 @@ __all__ = [
     "OptimizerBackend",
     "Response",
     "ScipyBackend",
+    "QuadraticRSM",
     "ShapeVariable",
     "TotalMass",
     "VectorConstraint",
@@ -99,6 +101,7 @@ __all__ = [
     "compile_sizing_problem",
     "factorial_design_vectors",
     "finite_difference_gradient",
+    "fit_quadratic_rsm",
     "frequency_floor",
     "get_backend",
     "run_factorial_screen",

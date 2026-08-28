@@ -4,7 +4,8 @@ The supported subset is one connectivity card per element block the solver
 formulates, plus the grid, material and property cards those need: ``GRID``,
 ``CROD``, ``CBAR``, ``CTRIA3``, ``CQUAD4``, ``CTETRA``, ``CHEXA``, ``MAT1``,
 ``PROD``, ``PSHELL``, ``PSOLID`` and ``PBAR``.  ``SPC1`` and ``CONM2`` import as
-supports and concentrated masses; ``RBE2`` and ``RBE3`` cards are assembled
+supports and concentrated masses; ``FORCE`` imports as static nodal loads;
+``RBE2`` and ``RBE3`` cards are assembled
 into the solver as kinematic ties when converting to a
 :class:`~openfemlab.core.model.Model`.  Cards may be written in free
 field or in small fixed field
@@ -60,6 +61,7 @@ _HAS_FIXED_GRID_COUNT = frozenset({"CTETRA", "CHEXA"})
 _PROPERTY_CARDS = frozenset({"PSHELL", "PSOLID", "PROD", "PBAR"})
 _BULK_PRESERVE_CARDS = frozenset({"RBE2", "RBE3"})
 _CONSTRAINT_CARDS = frozenset({"SPC1"})
+_LOAD_CARDS = frozenset({"FORCE"})
 _MASS_CARDS = frozenset({"CONM2"})
 _SUPPORTED_CARDS = (
     frozenset({"GRID", "MAT1"})
@@ -67,6 +69,7 @@ _SUPPORTED_CARDS = (
     | _PROPERTY_CARDS
     | _BULK_PRESERVE_CARDS
     | _CONSTRAINT_CARDS
+    | _LOAD_CARDS
     | _MASS_CARDS
 )
 
@@ -103,6 +106,7 @@ def read_bdf(source: str | PathLike[str] | TextIO) -> NeutralModel:
     properties: dict[int, NeutralProperty] = {}
     bulk_preserve: list[list[str]] = []
     spc1_entries: list[dict[str, object]] = []
+    force_entries: list[dict[str, object]] = []
     conm2_entries: list[dict[str, object]] = []
 
     for line_number, fields in _iter_cards(text):
@@ -154,6 +158,8 @@ def read_bdf(source: str | PathLike[str] | TextIO) -> NeutralModel:
                 bulk_preserve.append(fields)
             elif card == "SPC1":
                 spc1_entries.append(_parse_spc1(fields))
+            elif card == "FORCE":
+                force_entries.append(_parse_force(fields))
             elif card == "CONM2":
                 conm2_entries.append(_parse_conm2(fields))
             elif card == "MAT1":
@@ -175,6 +181,8 @@ def read_bdf(source: str | PathLike[str] | TextIO) -> NeutralModel:
         referenced.add(int(entry["node"]))
     for entry in spc1_entries:
         referenced.update(int(node_id) for node_id in entry["nodes"])
+    for entry in force_entries:
+        referenced.add(int(entry["node"]))
     unknown_nodes = sorted(referenced - nodes.keys())
     if unknown_nodes:
         joined = ", ".join(str(node_id) for node_id in unknown_nodes)
@@ -207,6 +215,8 @@ def read_bdf(source: str | PathLike[str] | TextIO) -> NeutralModel:
         meta["bdf_preserve"] = bulk_preserve
     if spc1_entries:
         meta["bdf_spc1"] = spc1_entries
+    if force_entries:
+        meta["bdf_force"] = force_entries
     if conm2_entries:
         meta["bdf_conm2"] = conm2_entries
     return NeutralModel(
@@ -452,6 +462,27 @@ def _parse_spc1(fields: list[str]) -> dict[str, object]:
     return {"sid": sid, "components": components, "nodes": nodes}
 
 
+def _parse_force(fields: list[str]) -> dict[str, object]:
+    sid = _positive_integer(_required(fields, 1, "SID"), "FORCE SID")
+    node = _positive_integer(_required(fields, 2, "G"), "FORCE G")
+    magnitude = _float(_required(fields, 4, "F"), "FORCE F")
+    direction = [0.0, 0.0, 0.0]
+    for index, key in enumerate(("N1", "N2", "N3"), start=5):
+        if len(fields) > index and str(fields[index]).strip():
+            direction[index - 5] = _float(fields[index], key)
+    norm = float(np.linalg.norm(direction))
+    if norm <= 0.0:
+        direction[0] = 1.0
+        norm = 1.0
+    direction = [component / norm for component in direction]
+    return {
+        "sid": sid,
+        "node": node,
+        "magnitude": magnitude,
+        "direction": tuple(direction),
+    }
+
+
 def _parse_conm2(fields: list[str]) -> dict[str, object]:
     eid = _positive_integer(_required(fields, 1, "EID"), "CONM2 EID")
     node = _positive_integer(_required(fields, 2, "G"), "CONM2 G")
@@ -610,6 +641,12 @@ def write_bdf(
     for entry in model.meta.get("bdf_spc1", ()):
         nodes = ",".join(str(int(node_id)) for node_id in entry["nodes"])
         lines.append(f"SPC1,{int(entry['sid'])},{entry['components']},{nodes}")
+    for entry in model.meta.get("bdf_force", ()):
+        n1, n2, n3 = entry["direction"]
+        lines.append(
+            f"FORCE,{int(entry['sid'])},{int(entry['node'])},,"
+            f"{float(entry['magnitude']):g},{float(n1):g},{float(n2):g},{float(n3):g}"
+        )
     for entry in model.meta.get("bdf_conm2", ()):
         inertia = entry.get("inertia") or {}
         lines.append(

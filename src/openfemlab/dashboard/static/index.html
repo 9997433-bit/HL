@@ -314,6 +314,12 @@
 
     /** Mode shapes as one vector per mode, from a modal result or a correlation payload. */
     function readModes(payload) {
+      if (payload.object_type === "static_result" || payload.kind === "static") {
+        const raw = realPart(payload.displacements);
+        const values = Array.isArray(raw?.data) ? raw.data : raw;
+        if (!Array.isArray(values)) return null;
+        return { shapes: [values.map((entry) => Number(entry))], frequencies: ["static"] };
+      }
       const raw = realPart(
         payload.mode_shapes ?? payload.fe_mode_shapes ?? payload.shapes
       );
@@ -807,6 +813,7 @@
       if (String(payload.schema_version || "").startsWith("1.") && "mac_matrix" in payload)
         return "correlation";
       if (payload.object_type === "modal_result" || payload.frequencies_hz) return "modal";
+      if (payload.object_type === "static_result" || payload.kind === "static") return "static";
       return "unknown";
     }
 
@@ -842,6 +849,7 @@
       if (kind === "correlation") body = renderCorrelation(payload);
       else if (kind === "correction") body = renderCorrection(payload);
       else if (kind === "modal" && state.modes) body = renderModal(payload, state.modes);
+      else if (kind === "static" && state.modes) body = renderModal(payload, state.modes);
       else body = `<section><h2>JSON</h2><pre>${esc(JSON.stringify(payload, null, 2))}</pre></section>`;
 
       if (payload.stabilization_diagram) {

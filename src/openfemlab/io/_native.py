@@ -16,7 +16,7 @@ from openfemlab.core.neutral import (
     NeutralModel,
     NeutralProperty,
 )
-from openfemlab.core.results import ModalResult, TestData
+from openfemlab.core.results import ModalResult, StaticResult, TestData
 
 from ._common import (
     FormatError,
@@ -288,6 +288,40 @@ def write_modal_result(
     """Write analytical modal data to JSON or YAML."""
 
     write_data(modal_result_to_dict(result), destination, format=format)
+
+
+def static_result_to_dict(result: StaticResult) -> dict[str, Any]:
+    """Return a native mapping for a static displacement result."""
+
+    if not isinstance(result, StaticResult):
+        raise TypeError(f"expected StaticResult, got {type(result).__name__}")
+    if result.dof_map is None:
+        raise FormatError(
+            "static result has no dof_map; attach one with StaticResult.with_dof_map() "
+            "before writing"
+        )
+    payload: dict[str, Any] = {
+        **_HEADER,
+        "object_type": "static_result",
+        "displacements": encode_array(result.displacements),
+        "load_vector": encode_array(result.load_vector),
+        "dof_map": dof_map_to_dict(result.dof_map),
+        "meta": result.meta,
+    }
+    if result.free_dofs is not None:
+        payload["free_dofs"] = result.free_dofs.tolist()
+    return payload
+
+
+def write_static_result(
+    result: StaticResult,
+    destination: str | PathLike[str] | TextIO,
+    *,
+    format: str | None = None,
+) -> None:
+    """Write static displacement data to JSON or YAML."""
+
+    write_data(static_result_to_dict(result), destination, format=format)
 
 
 def test_data_to_dict(test_data: TestData) -> dict[str, Any]:
