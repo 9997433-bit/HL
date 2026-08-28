@@ -14,7 +14,13 @@ Model slug: claude-opus-4-6-20260815
 | `ocr-device-b.skip.json` | 在 | 上一次尝试的 SKIP 台账：谁缺什么、设备到位跑哪条命令 |
 | `ocr-device-b.emulator.json` | 不在 | 只有 `--allow-emulator` 才会生成，且恒带 `simulated:true` |
 | `ocr-device-b.schema.json` | 在 | 上面几份 JSON 的形状，`test-ocr-device.mjs` 的 A12 段照它校验 |
+| `lowend-skip.json` | 在 | #16 低档机 30 分钟回归的诚实 SKIP：`status:skipped`、`onDevice:false` |
 | `device-signoff.json` | 不在 | H6 的两台真机签核，归真机线（#5→#16） |
+
+低档 Android 8–10（API 26–29）设备到位后，Android QA 按
+[`r14-android-lowend-checklist.md`](../../../r14-android-lowend-checklist.md)
+对识字、数学两个 App 分别执行 30 分钟离线回归。SKIP 台账只记录未执行事实，不是
+本目录“真机跑出”的 PASS 证据；完成前 H6 继续保持 NO-GO。
 
 因此 **H2 的「真机 B 段」那条腿现在是红的，而且应该是红的**。
 本轮在这条腿上交付的是可执行的采集手段（B 段自动化 + schema + 台账），
