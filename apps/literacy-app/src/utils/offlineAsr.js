@@ -37,6 +37,20 @@ export const OFFLINE_ASR = Object.freeze({
 
 const HEX64 = /^[0-9a-f]{64}$/
 
+/**
+ * ROUND12_H1：整包必须齐这七个角色，少一个 Worker 就起不来（sherpaAsrWorker.boot）。
+ * 少一个就当场拒绝，比让孩子读完一句再报「引擎起不来」强。
+ */
+export const PACK_ROLES = Object.freeze([
+  'wasm-glue',
+  'wasm-binary',
+  'asr-api',
+  'model-encoder',
+  'model-decoder',
+  'model-joiner',
+  'tokens'
+])
+
 /* --------------------------------------------------------------- 纯函数层 */
 
 /** base 是 './'，用 baseURI 拼相对路径，子目录部署与 Android WebView 都能工作。 */
@@ -79,8 +93,9 @@ export function parseManifest(raw) {
   if (bytes > OFFLINE_ASR.maxPackBytes) {
     throw new Error(`整包 ${(bytes / 1048576).toFixed(1)} MiB，超过 60 MiB 预算`)
   }
-  if (!files.some((file) => file.role === 'wasm-glue')) throw new Error('清单缺少 wasm 胶水脚本')
-  if (!files.some((file) => file.role === 'wasm-binary')) throw new Error('清单缺少 wasm 二进制')
+  const roles = new Set(files.map((file) => file.role))
+  const missing = PACK_ROLES.filter((role) => !roles.has(role))
+  if (missing.length) throw new Error(`清单缺少这些角色：${missing.join('、')}`)
 
   return Object.freeze({
     schema: data.schema,
