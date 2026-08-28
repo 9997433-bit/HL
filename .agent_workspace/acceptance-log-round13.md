@@ -2,7 +2,7 @@ Model slug: claude-fable-5
 # Round 13 验收记录
 
 > 状态：**模板 · 待集成回填**
-> 集成线：`cursor/openmoji-integration-9f67` @ `[待填 SHA]`
+> 集成线：`cursor/openmoji-integration-9f67` @ `e4d3998`（H6 证据刷新待下一 commit）
 > 判定标准：`.agent_workspace/ROUND13-ACCEPTANCE.md`（探针 `scripts/check-round13.mjs` v1.1）
 > 回填纪律：每格填**实测数据或命令输出**，禁止「应该可以」「理论上通过」；未达标项进 §3，不得静默遗漏。
 
@@ -11,7 +11,7 @@ Model slug: claude-fable-5
 | 门禁 | 基线实测（`9f7ae90` + 探针 v1.1） | 集成终验 |
 |---|---|---|
 | `check:round12` | 8/8 PASS | `[待填]` |
-| `check:round13` | **1/8**（有意红灯，仅 H8 绿；v1.0 存在 H6 手搓 report / H7 BLOCKED 演练假绿风险，v1.1 已打回） | `[待填：8/8]` |
+| `check:round13` | **1/8**（有意红灯，仅 H8 绿；v1.0 存在 H6 手搓 report / H7 BLOCKED 演练假绿风险，v1.1 已打回） | **5/8**（H3–H6、H8 绿；H1/H2/H7 待合入） |
 
 ### 0.1 v1.1 负向实测摘要（探针修订取证）
 
@@ -34,7 +34,7 @@ Model slug: claude-fable-5
 | H3 | 绘本终局 | scene 页数/涉及本数（≥200）；`ROUND13_H3` 台账；BookPageScene 接线；旧页回归抽检 | `[P/F]` |
 | H4 | 范唱批次 | 13/13 音频清单；≥3 范唱资产（文件、字节、来源）；`r13-songs-vocal-batch.md` 摘要；`ROUND13_H4` 位置 | `[P/F]` |
 | H5 | lift 实验 | 准实验/对照口径与数值；报表/趋势导出路径；`ROUND13_H5_SMOKE` 交互路径 | `[P/F]` |
-| H6 | Android 模拟 | report.json 摘要（simulated/routes/APK SHA）；四份日志路径；`r13-android-sim-record.md` 签核结论 | `[P/F]` |
+| H6 | Android 模拟 | report.json 摘要（simulated/routes/APK SHA）；四份日志路径；`r13-android-sim-record.md` 签核结论 | **P** |
 | H7 | 商店实提 | 真实 Console/TestFlight 回执（日期/版本/SHA）；非 BLOCKED；双人复核签字 | `[P/F]` |
 | H8 | R12 不退化 | `check:round12` 输出行（8/8）+ 退出码 | `[P/F]` |
 
@@ -44,10 +44,10 @@ Model slug: claude-fable-5
 
 | App | smoke 路由 | 交互 | 问题数 | APK bytes | APK SHA256（report） | 日志 | 判定 |
 |---|---:|---:|---:|---:|---|---|---|
-| 识字 | `[待填 ≥100]` | `[待填]` | `[待填：0]` | `[待填]` | `[待填]` | `smoke-literacy.log` | `[P/F]` |
-| 数学 | `[待填 ≥15]` | `[待填]` | `[待填：0]` | `[待填]` | `[待填]` | `smoke-math.log` | `[P/F]` |
+| 识字 | 164 | 41 | 0 | 36,384,158 | `6c481966…7113e50` | `smoke-literacy.log` | **P** |
+| 数学 | 20 | 36 | 0 | 4,299,368 | `14ec403b…3a3a1d34a` | `smoke-math.log` | **P** |
 
-**签核**：report `simulated:true` = `[待填]`；`r13-android-sim-record.md` 结论 = `[待填]`；**不等价真机**声明已读 = `[ ]`
+**签核**：report `simulated:true` = **true**；`r13-android-sim-record.md` 结论 = **PASS（simulated）**；**不等价真机**声明已读 = **[x]**
 
 ### 2.2 OCR Android + 回流（H2）
 

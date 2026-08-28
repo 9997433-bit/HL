@@ -1,8 +1,8 @@
 # marker: ROUND13_H6
 # command: node scripts/test-ocr-device.mjs
 # cwd: apps/literacy-app
-# startedAt: 2026-08-28T02:39:11.040Z
-# durationMs: 56
+# startedAt: 2026-08-28T02:53:16.819Z
+# durationMs: 92
 # exit: 0
 
   ✓ A1 Capacitor appId = com.hongen.literacy
