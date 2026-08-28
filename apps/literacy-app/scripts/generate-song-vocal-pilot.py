@@ -62,7 +62,8 @@ VOCALSET_NOTE_SOURCE = {
 }
 GUIDES = {
     "sg1": {
-        "asset": "sg1-climb-vocal-guide.ogg",
+        "asset": "sg1-climb-vocal-human.ogg",
+        "legacy_asset": "sg1-climb-vocal-guide.ogg",
         "bpm": 96,
         "lines": [
             ["C4", "D4", "E4", "G4", "G4", "E4"],
@@ -71,8 +72,19 @@ GUIDES = {
             ["G4", "E4", "D4", "E4", "D4", "C4"],
         ],
     },
+    "sg2": {
+        "asset": "sg2-raindrop-vocal-human.ogg",
+        "bpm": 100,
+        "lines": [
+            ["G4", "A4", "G4", "E4", "E4", "D4"],
+            ["C4", "D4", "E4", "G4", "A4", "G4", "E4"],
+            ["E4", "G4", "A4", "C5", "A4", "G4", "E4"],
+            ["G4", "E4", "D4", "C4", "D4", "E4", "C4"],
+        ],
+    },
     "sg3": {
-        "asset": "sg3-wash-hands-vocal-guide.ogg",
+        "asset": "sg3-wash-hands-vocal-human.ogg",
+        "legacy_asset": "sg3-wash-hands-vocal-guide.ogg",
         "bpm": 92,
         "lines": [
             ["E4", "E4", "G4", "G4", "A4", "G4", "E4"],
@@ -92,7 +104,8 @@ GUIDES = {
         ],
     },
     "sg5": {
-        "asset": "sg5-literacy-vocal-pilot.ogg",
+        "asset": "sg5-literacy-vocal-human.ogg",
+        "legacy_asset": "sg5-literacy-vocal-pilot.ogg",
         "bpm": 88,
         "lines": [
             ["C4", "D4", "E4", "G4", "A4"],
@@ -322,6 +335,30 @@ def prepare_human_sources(source: Path, directory: Path) -> dict[str, tuple[Path
     return sources
 
 
+def assert_single_stream(output: Path) -> None:
+    ffprobe = shutil.which("ffprobe")
+    if not ffprobe:
+        return
+    probe = subprocess.run(
+        [
+            ffprobe,
+            "-v",
+            "error",
+            "-show_entries",
+            "stream=index",
+            "-of",
+            "csv=p=0",
+            str(output),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    streams = [line for line in probe.stdout.splitlines() if line.strip()]
+    if len(streams) != 1:
+        raise SystemExit(f"{output.name} must hold exactly one stream, got {len(streams)}")
+
+
 def render_guide(
     sources: dict[str, tuple[Path, float, float]],
     note_sources: dict[str, str],
@@ -340,6 +377,9 @@ def render_guide(
     labels: list[str] = []
     flat_notes = [note for line in lines for note in line]
     source_keys = [note_sources[note] for note in flat_notes]
+    # A seed nobody consumes would leave an unlabelled filter output, which
+    # ffmpeg auto-maps into a second stream of the Ogg. Drop unused seeds.
+    sources = {key: value for key, value in sources.items() if key in set(source_keys)}
     for input_index, key in enumerate(sources):
         indexes = [i for i, source_key in enumerate(source_keys) if source_key == key]
         split = (
@@ -411,6 +451,7 @@ def render_guide(
     data = output.read_bytes()
     if len(data) < 10_240 or not data.startswith(b"OggS"):
         raise SystemExit(f"invalid vocal guide output: {len(data)} bytes")
+    assert_single_stream(output)
 
 
 def main() -> None:
@@ -436,13 +477,12 @@ def main() -> None:
         parser.error(f"{args.song} does not declare a Round 14 human-vocal asset")
     if not args.human_source and not (args.model and args.config):
         parser.error("provide --human-source or both --model and --config")
+    if not args.human_source and "legacy_asset" not in guide:
+        parser.error(f"{args.song} has no legacy Piper asset; use --human-source")
 
+    asset = guide["asset"] if args.human_source else guide["legacy_asset"]
     output = args.output or (
-        Path(__file__).resolve().parents[1]
-        / "public"
-        / "audio"
-        / "songs"
-        / guide["asset"]
+        Path(__file__).resolve().parents[1] / "public" / "audio" / "songs" / asset
     )
     output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory() as temp:

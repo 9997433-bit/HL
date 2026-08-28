@@ -27,7 +27,7 @@
 - Hanzi Writer Data：Arphic Public License；
 - Tesseract.js、OCR 内核与语言模型：Apache-2.0 / 对应上游条款；
 - OpenMoji：CC BY-SA 4.0；
-- VocalSet 真人元音声源及九份衍生范唱：CC BY 4.0；
+- VocalSet 真人元音声源及十三份衍生范唱：CC BY 4.0；
 - 字体许可文本：SIL Open Font License 1.1。
 
 本说明用于划清代码许可与内容许可边界，不改变任何第三方许可证。

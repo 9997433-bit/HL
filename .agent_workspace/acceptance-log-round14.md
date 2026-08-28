@@ -20,7 +20,7 @@
 | H1 | ASR 体验 | available；recorded 条数；device RTF p95；`ROUND14_H1` smoke | `[P/F]` |
 | H2 | OCR 体验 | App 召回；device B JSON；队列状态；`ROUND14_H2` | `[P/F]` |
 | H3 | 绘本密度 | scene 页数（≥400）；`ROUND14_H3` | `[P/F]` |
-| H4 | 范唱全库 | humanVocal 13/13；`r14-songs-vocal-full.md` | `[P/F]` |
+| H4 | 范唱全库 | humanVocal **13/13**（`cursor/r14-literacy-vocal-full-9f67` 实测绿）；`r14-songs-vocal-full.md` 已改 13/13 口径 | **P**（待集成复测） |
 | H5 | L1 朗读 | 资产数；`r14-tts-l1-batch.md`；`ROUND14_H5_SMOKE` | `[P/F]` |
 | H6 | 真机签核 | device-signoff；GO 定案；真机设备矩阵 | `[P/F]` |
 | H7 | 商店内测 | Console 回执；非 BLOCKED | `[P/F]` |
@@ -32,7 +32,7 @@
 |---|---|---|---|
 | L-M9 | 录音回放 | `[待填]` | `[ ]` |
 | L-M10 | 真机零签核 | `[待填]` | `[ ]` |
-| L-M11 | 3/13 范唱 | `[待填]` | `[ ]` |
+| L-M11 | 3/13 范唱 | 13/13 真人声源范唱随包；三份 Piper 旧资产已下架 | `[x]`（盲听签核仍 BLOCKED） |
 | L-M5 | 209/1121 scene | `[待填]` | `[ ]` |
 | L-M15/16 | simulated only | `[待填]` | `[ ]` |
 

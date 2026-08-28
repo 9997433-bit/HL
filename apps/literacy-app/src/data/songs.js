@@ -26,7 +26,7 @@
  *   tip         唱之前给孩子的一句提示
  *   bpm         速度，60–110 之间；越小的孩子唱得越慢
  *   audio       项目自制旋律地址（13/13 均随包离线提供）
- *   vocal       可选的离线元音范唱地址；没有范唱的歌曲省略
+ *   vocal       离线元音范唱地址（13/13 均随包离线提供）
  *   humanStudio true 表示范唱来自有明确授权的真人棚录声源（可做逐音剪辑/移调）
  *   lines       逐句：text 歌词、pinyin 逐字拼音（空格分隔，字数必须对上）、
  *               notes 逐字音名（个数也必须和汉字数对上，逐字高亮靠它）
@@ -50,8 +50,8 @@ export const ROUND12_H4 = 'thirteen-offline-melodies-with-vocal-pilot'
 /** Round 13 H4：三首歌接入随包的 Piper「啦」音范唱。 */
 export const ROUND13_H4 = 'three-offline-vocal-guides'
 
-/** Round 14 H4：九首歌接入基于专业真人棚录声源制作的元音范唱。 */
-export const ROUND14_H4 = 'nine-human-studio-vocal-guides'
+/** Round 14 H4：十三首歌全部接入基于专业真人棚录声源制作的元音范唱。 */
+export const ROUND14_H4 = 'thirteen-human-studio-vocal-guides'
 
 const PUNCTUATION = new Set([
   '，', '。', '！', '？', '：', '、', '；', '「', '」', '《', '》', '…', '—', ' ', '\n'
@@ -79,7 +79,8 @@ export const SONGS = [
     tip: '数到几就伸几根手指，边唱边数最容易记住。',
     bpm: 96,
     audio: 'audio/songs/sg1-climb-melody.ogg',
-    vocal: 'audio/songs/sg1-climb-vocal-guide.ogg',
+    vocal: 'audio/songs/sg1-climb-vocal-human.ogg',
+    humanStudio: true,
     lines: [
       {
         text: '一二三，爬上山，',
@@ -114,6 +115,8 @@ export const SONGS = [
     tip: '唱「沙沙沙」的时候，手指在桌上轻轻点三下。',
     bpm: 100,
     audio: 'audio/songs/sg2-raindrop-melody.ogg',
+    vocal: 'audio/songs/sg2-raindrop-vocal-human.ogg',
+    humanStudio: true,
     lines: [
       {
         text: '小雨点，沙沙沙，',
@@ -148,7 +151,8 @@ export const SONGS = [
     tip: '一句歌洗一遍手，唱完四句正好够。',
     bpm: 92,
     audio: 'audio/songs/sg3-wash-hands-melody.ogg',
-    vocal: 'audio/songs/sg3-wash-hands-vocal-guide.ogg',
+    vocal: 'audio/songs/sg3-wash-hands-vocal-human.ogg',
+    humanStudio: true,
     lines: [
       {
         text: '手心手背洗一洗，',
@@ -219,7 +223,8 @@ export const SONGS = [
     tip: '一个字一个音，唱一遍，再在空中写一遍。',
     bpm: 88,
     audio: 'audio/songs/sg5-literacy-melody.ogg',
-    vocal: 'audio/songs/sg5-literacy-vocal-pilot.ogg',
+    vocal: 'audio/songs/sg5-literacy-vocal-human.ogg',
+    humanStudio: true,
     lines: [
       {
         text: '日月水火土，',
