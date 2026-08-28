@@ -142,8 +142,11 @@ ROUND11_H2 补的就是这两段：**扩样到六张不同条件的实拍**，�
 | `npm --prefix apps/literacy-app run test:ocr` | 7/7（取字规则，未改动） |
 | `npm --prefix apps/literacy-app run check:data` | 71/71（1820 字 / 99 单元 / 132 本绘本，未改动） |
 | `npm --prefix apps/literacy-app run build` + `check:bundle` | 4/4，首屏 JS **322 KB**（预算 420 KB）——真实样张不进 `public/`，包体未增 |
+| `npm --prefix apps/literacy-app run smoke` | **164 条路由 + 36 项交互，0 项有问题**；「拍照识字：示例照片认出『日月山水』，引擎点了才下载」仍绿（示例图置信度 95，不触发降级卡） |
+| `npm run check:round9` | **8/8**，无退化（第 6 节那条机读标记的坑就是在这一步暴露的） |
 | `npm run check:round11` | **H2 PASS**（real 6 张 + 失败话术 + `ROUND11_H2`）、**H8 PASS**；其余 5 项按编排属他人分支的预期红灯（3/8，基线 1/8） |
 | `npm run check:round10` | **8/8**，无退化 |
+| `npm run check:tokens` | 4 项未过，**全部落在 `apps/math-app` 的既有硬编码色值上**，与本分支无关（本分支新增的 `.ocr__trouble*` 样式只用 token） |
 | `npm run gen:ocr:real`（删 `.cache/` 从零重跑） | 六张 PNG 与入库版本逐字节一致；R10 那三张的字节数一个没变 |
 
 ## 8. 回归口径
