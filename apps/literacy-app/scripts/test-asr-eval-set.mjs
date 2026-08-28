@@ -25,6 +25,11 @@
  * 结论表同步在 .agent_workspace/r11-followread-gonogo.md；评测集设计在
  * .agent_workspace/r11-asr-eval-set.md。
  *
+ * R13（ROUND13_H1）在这条路上又加了两段，都写在下面的 ROUND13_H1 常量旁：
+ * 冻结集骨架的规模与结构守法（第 2b 段），以及「主机 RTF 基准不许冒充真机」
+ * 那道闸（判定之后的 post 段）。口径见 .agent_workspace/r13-asr-freeze-set.md
+ * 与 .agent_workspace/r13-asr-android-rtf-baseline.md。
+ *
  * 用法：node scripts/test-asr-eval-set.mjs [--json]
  */
 
@@ -48,10 +53,20 @@ import { alignChars, evaluate, gradeOf, normalizeTranscript } from '../src/utils
 
 const asJson = process.argv.includes('--json')
 const appUrl = new URL('../', import.meta.url)
+const repoUrl = new URL('../../', appUrl)
 
 const manifestRaw = await readFile(new URL('public/asr/manifest.json', appUrl), 'utf8')
 const manifest = JSON.parse(manifestRaw)
 const evalSet = JSON.parse(await readFile(new URL('scripts/data/asr-eval-set.json', appUrl), 'utf8'))
+
+/** 仓库里的旁证（文档、基准记录）；缺了就是空串/null，由各自的断言说话。 */
+const readRepo = async (rel) => {
+  try {
+    return await readFile(new URL(rel, repoUrl), 'utf8')
+  } catch {
+    return ''
+  }
+}
 
 const tests = []
 const test = (name, fn) => tests.push({ name, fn })
@@ -84,6 +99,51 @@ const ROUND12_H1 = Object.freeze({
   shipDoc: '.agent_workspace/r12-followread-ship.md',
   engineHarness: 'apps/literacy-app/scripts/test-asr-engine.mjs'
 })
+
+/**
+ * ROUND13_H1 —— 这一轮要回答的是「什么时候才敢把 available 翻成 true」。
+ *
+ * R12 把 35 MiB 落了库，卡住放行的从此只剩两件事：**冻结集没录**（F4）、
+ * **真机性能没测**（F7）。这一轮不假装解决它们，只把它们从「等着」变成「可开工」：
+ *
+ *   1. 冻结集从 36 条长到 ≥50 条，并且按 300 条的配额等比缩样——
+ *      不是随手多堆几条，而是让每一格（划分 / 异常类别 / 年龄 / 环境 / 设备）
+ *      在骨架阶段就按最终比例站好位。录的时候只往每一格里填，不用重排。
+ *   2. 骨架里补上录制真正需要的那一层结构：每个孩子的**同意状态**、
+ *      单人条数上限、语料横跨多少首诗。没有这些，录到一半才发现某个家长撤回、
+ *      或者某个孩子的口音占了三分之一，整批就得重录。
+ *   3. `recorded` / `stage` 这两个进度字段一律**现算核对**：
+ *      谁想把「已录 200 条」写进 JSON 而 clips[] 里一条 recorded 都没有，这里当场红。
+ *   4. Android RTF 有了主机基准（bench-asr-rtf.mjs）。这条最容易出事：
+ *      主机上 RTF 0.12 很好看，但性能层那四条门槛写的是**中端 Android 真机**。
+ *      所以主机数只以 `host` 字段出现在报表里，`value` 恒为 null——
+ *      性能层必须继续显示「未实测」，Go/No-Go 必须继续 no-go。
+ */
+const ROUND13_H1 = Object.freeze({
+  freezeSpec: '.agent_workspace/r13-asr-freeze-set.md',
+  rtfBaselineDoc: '.agent_workspace/r13-asr-android-rtf-baseline.md',
+  rtfBaselineEvidence: '.agent_workspace/evidence/r13/asr-rtf/host-baseline.json',
+  /** 这几条只有真机说了算；主机基准再好看也不许往里填。 */
+  deviceOnlyGates: [
+    'p95LatencyMs',
+    'rtf',
+    'peakMemoryMiB',
+    'longTaskMs',
+    'offlineRestartPass',
+    'faultDrillsOnDevice'
+  ],
+  freezeStages: ['skeleton', 'recording', 'frozen']
+})
+
+const freezeSpecDoc = await readRepo(ROUND13_H1.freezeSpec)
+const rtfBaselineDoc = await readRepo(ROUND13_H1.rtfBaselineDoc)
+const rtfBaseline = (() => {
+  try {
+    return JSON.parse(readFileSync(new URL(ROUND13_H1.rtfBaselineEvidence, repoUrl), 'utf8'))
+  } catch {
+    return null
+  }
+})()
 
 /** 孩子读了的那些条目——只有这些能进字符召回。 */
 const READ_CATEGORIES = ['normal', 'miss', 'extra', 'repeat', 'tone', 'initial']
@@ -250,7 +310,18 @@ test('清单指得到评测集、harness、Go/No-Go 三份文件，路径不许�
     )
     assert.equal(manifest.evalSet?.ship, ROUND12_H1.shipDoc)
   }
-  assert.ok(manifest.evalSet.minClips >= 30, '评测集下限被调到 30 条以下')
+  assert.equal(
+    manifest.evalSet?.freezeSpec,
+    ROUND13_H1.freezeSpec,
+    '清单没挂冻结集口径文档——家长界面上的「冻结集进度」就没有出处'
+  )
+  assert.equal(manifest.evalSet?.rtfBaseline, ROUND13_H1.rtfBaselineDoc, '清单没挂 RTF 基准文档')
+  assert.equal(
+    manifest.evalSet.minClips,
+    evalSet.freezeSet.skeletonFloor,
+    `清单写下限 ${manifest.evalSet.minClips}，评测集写 ${evalSet.freezeSet.skeletonFloor}`
+  )
+  assert.ok(manifest.evalSet.minClips >= 50, '评测集下限被调到 50 条以下')
   assert.equal(manifest.evalSet.targetClips, 300, '目标规模不再是 300 条')
 })
 
@@ -379,6 +450,147 @@ test('异常样本名副其实：漏字真的短了、多读真的长了、静�
       )
     }
   }
+})
+
+/* ------------------------------------- 2b. 冻结集骨架（ROUND13_H1 新增守法） */
+
+const freeze = evalSet.freezeSet ?? {}
+const recordedClips = evalSet.clips.filter((c) => c.status === 'recorded')
+const clipsBySpeaker = new Map()
+for (const clip of evalSet.clips) {
+  clipsBySpeaker.set(clip.speaker, (clipsBySpeaker.get(clip.speaker) ?? 0) + 1)
+}
+
+test('ROUND13_H1 冻结集骨架 ≥50 条，且 stage / recorded 由 clips[] 现算核对', () => {
+  assert.ok(freeze.id, '冻结集没有批次 id——将来无从说清「这批分数是哪一批录的」')
+  assert.ok(freeze.skeletonFloor >= 50, `骨架下限被调到 ${freeze.skeletonFloor}（不许低于 50）`)
+  assert.equal(
+    evalSet.minClips,
+    freeze.skeletonFloor,
+    `minClips=${evalSet.minClips} 与骨架下限 ${freeze.skeletonFloor} 对不上，两个地板会互相拆台`
+  )
+  assert.ok(
+    evalSet.clips.length >= freeze.skeletonFloor,
+    `骨架只剩 ${evalSet.clips.length} 条（下限 ${freeze.skeletonFloor}）`
+  )
+  assert.equal(freeze.recordedFloor, evalSet.targetClips, '冻结下限与目标条数写成了两个数')
+  assert.equal(
+    freeze.recorded,
+    recordedClips.length,
+    `freezeSet.recorded 写 ${freeze.recorded}，clips[] 里实际 recorded ${recordedClips.length} 条——进度不许手写`
+  )
+  assert.ok(
+    ROUND13_H1.freezeStages.includes(freeze.stage),
+    `stage「${freeze.stage}」不在 ${ROUND13_H1.freezeStages.join('/')} 里`
+  )
+  if (freeze.stage === 'frozen') {
+    assert.ok(
+      recordedClips.length >= freeze.recordedFloor,
+      `stage 已经写成 frozen，实录却只有 ${recordedClips.length} 条（下限 ${freeze.recordedFloor}）`
+    )
+  } else {
+    assert.equal(manifest.available, false, `冻结集还停在 ${freeze.stage}，available 却是 true`)
+  }
+  assert.ok(freezeSpecDoc.length > 800, `冻结集口径文档 ${ROUND13_H1.freezeSpec} 缺失或太薄`)
+})
+
+test('ROUND13_H1 骨架按 300 条配额等比缩样：三份划分和八类异常都不许缩成摆设', () => {
+  const total = evalSet.clips.length
+  const bySplit = new Map(SPLITS.map((s) => [s, 0]))
+  for (const clip of evalSet.clips) {
+    const split = speakerMap.get(clip.speaker).split
+    bySplit.set(split, bySplit.get(split) + 1)
+  }
+  for (const split of SPLITS) {
+    const want = freeze.splitQuota?.[split]
+    assert.equal(typeof want, 'number', `${split} 没写配额`)
+    const got = bySplit.get(split) / total
+    assert.ok(
+      Math.abs(got - want) <= freeze.splitTolerance,
+      `${split} 占 ${(got * 100).toFixed(1)}%，配额 ${(want * 100).toFixed(0)}%，` +
+        `超出 ±${(freeze.splitTolerance * 100).toFixed(0)} 个百分点的容差`
+    )
+  }
+  const counts = new Map()
+  for (const clip of evalSet.clips) counts.set(clip.category, (counts.get(clip.category) ?? 0) + 1)
+  for (const [category, quota] of Object.entries(freeze.categoryQuota ?? {})) {
+    assert.ok(evalSet.categories[category], `配额表里的「${category}」没在 categories 登记`)
+    // 等比缩样后再打个折：骨架阶段允许稀，但不许把某一类砍成一条样本充数
+    const floor = Math.max(1, Math.round((quota / freeze.recordedFloor) * total * freeze.skeletonFloorRatio))
+    assert.ok(
+      (counts.get(category) ?? 0) >= floor,
+      `「${evalSet.categories[category]}」只有 ${counts.get(category) ?? 0} 条，等比缩样下限 ${floor} 条`
+    )
+  }
+})
+
+test('ROUND13_H1 每个孩子都有同意状态：没签就不许有他的录音，撤回的一条都不许留', () => {
+  const states = freeze.consentStates ?? []
+  assert.ok(states.length >= 3, '同意状态只写了 ' + states.length + ' 种，撤回这条路没登记')
+  for (const speaker of evalSet.speakers) {
+    assert.ok(
+      states.includes(speaker.consent),
+      `${speaker.id} 的同意状态「${speaker.consent}」不在 ${states.join('/')} 里`
+    )
+    const mine = evalSet.clips.filter((c) => c.speaker === speaker.id)
+    if (speaker.consent === 'withdrawn') {
+      assert.equal(mine.length, 0, `${speaker.id} 已撤回同意，却还留着 ${mine.length} 条片段`)
+    }
+    if (speaker.consent !== 'signed') {
+      const recorded = mine.filter((c) => c.status === 'recorded')
+      assert.equal(
+        recorded.length,
+        0,
+        `${speaker.id} 还没签同意书（${speaker.consent}），却已经有 ${recorded.length} 条实录`
+      )
+    }
+  }
+  for (const [id, count] of clipsBySpeaker) {
+    assert.ok(
+      count <= freeze.maxClipsPerSpeaker,
+      `${id} 一个人占了 ${count} 条（上限 ${freeze.maxClipsPerSpeaker}）——他的口音会主导整份分数`
+    )
+  }
+})
+
+test('ROUND13_H1 语料与子组：骨架横跨足够多首诗，每份划分都算得出子组', () => {
+  const poems = new Set(evalSet.clips.map((c) => c.poem))
+  assert.ok(
+    poems.size >= freeze.minPoems,
+    `骨架只用了 ${poems.size} 首诗（下限 ${freeze.minPoems}）——语料太窄，分数会跟着几句话走`
+  )
+  for (const split of SPLITS) {
+    const clips = evalSet.clips.filter((c) => speakerMap.get(c.speaker).split === split)
+    const speakers = clips.map((c) => speakerMap.get(c.speaker))
+    const uniq = (list) => new Set(list).size
+    assert.ok(uniq(speakers.map((s) => s.ageBand)) >= 2, `${split} 只有一个年龄段，子组切不开`)
+    assert.ok(uniq(speakers.map((s) => s.gender)) >= 2, `${split} 只有一种性别，子组切不开`)
+    assert.ok(uniq(speakers.map((s) => s.accent)) >= 2, `${split} 只有一种口音`)
+    assert.ok(uniq(clips.map((c) => c.device)) >= 2, `${split} 只有一种设备`)
+    assert.equal(
+      REQUIRED_ENVIRONMENTS.filter((env) => !clips.some((c) => c.env === env)).length,
+      0,
+      `${split} 少了环境：${REQUIRED_ENVIRONMENTS.filter((env) => !clips.some((c) => c.env === env)).join('、')}`
+    )
+  }
+})
+
+test('ROUND13_H1 Android RTF 有基准记录，且白纸黑字写明「不是真机」', () => {
+  assert.ok(rtfBaselineDoc.length > 800, `RTF 基准文档 ${ROUND13_H1.rtfBaselineDoc} 缺失或太薄`)
+  assert.match(rtfBaselineDoc, /RTF|实时因子/, 'RTF 基准文档里找不到 RTF')
+  assert.match(
+    rtfBaselineDoc,
+    /SKIP owner|真机|未实测/,
+    'RTF 基准文档没有标明真机那一段仍未实测——这份文档就成了放行的假证据'
+  )
+  assert.ok(rtfBaseline, `没有主机基准记录 ${ROUND13_H1.rtfBaselineEvidence}，跑一次 npm run bench:asr:rtf`)
+  assert.equal(rtfBaseline.onDevice, false, '主机基准把自己标成了真机测量')
+  assert.equal(rtfBaseline.marker, 'ROUND13_H1', '主机基准没有挂 ROUND13_H1 标记')
+  assert.ok(rtfBaseline.decode?.rtf?.p95 > 0, '主机基准里没有 RTF p95')
+  assert.ok(
+    rtfBaseline.projection?.deviceVerdict !== 'pass',
+    '主机基准替真机下了 pass 结论——推算不是实测'
+  )
 })
 
 /* ------------------------------------------------- 3. 指标管线（模拟转写） */
@@ -842,10 +1054,12 @@ function measure() {
     silenceFalseAccept: { value: null, simulated: simulated.silenceFalseAccept },
     toneNearPrecision: { value: null },
     subgroupGap: { value: null },
-    p95LatencyMs: { value: null },
-    rtf: { value: null },
-    peakMemoryMiB: { value: null },
-    longTaskMs: { value: null },
+    // ROUND13_H1：性能层这四条只有中端 Android 真机说了算。主机基准放在 host 字段里
+    // 供人参考（也给「真机比主机慢多少」留个锚点），value 恒为 null——它不参与判定。
+    p95LatencyMs: { value: null, host: rtfBaseline?.tailMs?.p95 ?? null },
+    rtf: { value: null, host: rtfBaseline?.decode?.rtf?.p95 ?? null },
+    peakMemoryMiB: { value: null, host: rtfBaseline?.memory?.peakRssDeltaMiB ?? null },
+    longTaskMs: { value: null, host: rtfBaseline?.chunkMs?.max ?? null },
     packBytesMiB: {
       value: manifest.files.length
         ? manifest.files.reduce((n, f) => n + (f.bytes ?? 0), 0) / 1048576
@@ -873,6 +1087,7 @@ const layerRows = manifest.goNoGo.layers.map((layer) => {
     ...gate,
     measured: measured[gate.metric]?.value ?? null,
     simulated: measured[gate.metric]?.simulated ?? null,
+    host: measured[gate.metric]?.host ?? null,
     verdict: verdictOf(gate, measured)
   }))
   const status = gates.some((g) => g.verdict === 'fail')
@@ -891,22 +1106,67 @@ const blockers = [
 ]
 const verdict = blockers.length ? 'no-go' : 'go'
 
-/** 最后一道：清单里写死的结论，必须和这次实测算出来的结论一致。 */
-{
-  const name = '清单里写死的结论要和这次实测算出来的结论一致'
-  try {
+/** 判定跑完之后才能验的几条；和上面的 test() 一样计入总数与退出码。 */
+const afterVerdict = []
+const post = (name, fn) => afterVerdict.push({ name, fn })
+
+post('清单里写死的结论要和这次实测算出来的结论一致', () => {
+  assert.equal(
+    manifest.goNoGo.verdict,
+    verdict,
+    `清单写着 ${manifest.goNoGo.verdict}，这次实测算出来是 ${verdict}`
+  )
+  if (verdict === 'no-go') {
+    assert.equal(manifest.available, false, '结论是 no-go，available 却是 true')
+  }
+})
+
+/**
+ * ROUND13_H1 最后一道闸。前面那条守的是「清单别和实测说两套话」，
+ * 这条守的是**放行只有一个入口**：available 为真，当且仅当这次实测算出来是 go。
+ * 少了它，「清单写 go、available 写 true、可是冻结集一条没录」也能自洽——
+ * 因为两份谎话是一致的。
+ */
+post('ROUND13_H1 available 只能由 Go/No-Go 说了算，没有第二个开关', () => {
+  assert.equal(
+    manifest.available === true,
+    verdict === 'go',
+    `available=${manifest.available}，本次实测结论 ${verdict} —— 放行与判定脱钩了`
+  )
+  if (verdict !== 'go') {
+    assert.ok(blockers.length > 0, '结论不是 go，却一条阻塞都列不出来')
+  }
+})
+
+/**
+ * ROUND13_H1：主机基准不许冒充真机。
+ * bench-asr-rtf.mjs 在这台 VM 上量出的 RTF 好看得很，但性能层写的是中端 Android。
+ * 只要真机没跑，这四条就必须停在「未实测」，性能层就必须继续拖着 Go/No-Go。
+ */
+post('ROUND13_H1 主机基准只当参考：真机那几条门槛仍旧未实测', () => {
+  for (const metric of ROUND13_H1.deviceOnlyGates) {
     assert.equal(
-      manifest.goNoGo.verdict,
-      verdict,
-      `清单写着 ${manifest.goNoGo.verdict}，这次实测算出来是 ${verdict}`
+      measured[metric]?.value ?? null,
+      null,
+      `${metric} 被填上了实测值，可这一轮一台真机都没跑`
     )
-    if (verdict === 'no-go') {
-      assert.equal(manifest.available, false, '结论是 no-go，available 却是 true')
-    }
-    tests.push({ name })
+  }
+  const perf = layerRows.find((l) => l.name === '性能层')
+  assert.equal(perf?.status, 'unmeasured', `性能层状态是 ${perf?.status}，真机没测就不该有结论`)
+  if (rtfBaseline) {
+    assert.ok(
+      perf.gates.some((g) => g.metric === 'rtf' && g.host !== null),
+      '主机 RTF 基准没有出现在报表里——白测了'
+    )
+  }
+})
+
+for (const { name, fn } of afterVerdict) {
+  tests.push({ name })
+  try {
+    fn()
     if (!asJson) console.log(`  ✓ ${name}`)
   } catch (error) {
-    tests.push({ name })
     failed += 1
     failures.push(`${name}：${error.message}`)
     if (!asJson) console.log(`  ✗ ${name}\n      ${error.message}`)
@@ -926,7 +1186,8 @@ if (asJson) {
   console.log(
     JSON.stringify(
       {
-        marker: 'ROUND11_H1',
+        marker: 'ROUND13_H1',
+        lineage: ['ROUND11_H1', 'ROUND12_H1', 'ROUND13_H1'],
         manifest: {
           available: manifest.available,
           modelId: manifest.modelId,
@@ -939,6 +1200,21 @@ if (asJson) {
           speakers: evalSet.speakers.length,
           target: evalSet.targetClips,
           stage: evalSet.stage
+        },
+        freezeSet: {
+          id: freeze.id,
+          stage: freeze.stage,
+          skeleton: evalSet.clips.length,
+          skeletonFloor: freeze.skeletonFloor,
+          recorded: recordedClips.length,
+          recordedFloor: freeze.recordedFloor,
+          poems: new Set(evalSet.clips.map((c) => c.poem)).size,
+          consentSigned: evalSet.speakers.filter((s) => s.consent === 'signed').length
+        },
+        rtfBaseline: rtfBaseline && {
+          onDevice: rtfBaseline.onDevice,
+          hostRtfP95: rtfBaseline.decode?.rtf?.p95 ?? null,
+          projection: rtfBaseline.projection ?? null
         },
         simulated,
         drills: drillRows.map((r) => ({
@@ -965,6 +1241,12 @@ if (asJson) {
       `${evalSet.speakers.length} 个说话人，dev/threshold/final 说话人隔离`
   )
   console.log(
+    `  冻结集 ${freeze.id}（${freeze.stage}）：骨架 ${evalSet.clips.length}/${freeze.skeletonFloor} 条 · ` +
+      `实录 ${recordedClips.length}/${freeze.recordedFloor} 条 · ` +
+      `${new Set(evalSet.clips.map((c) => c.poem)).size} 首诗 · ` +
+      `同意已签 ${evalSet.speakers.filter((s) => s.consent === 'signed').length}/${evalSet.speakers.length} 人`
+  )
+  console.log(
     `  管线自检（模拟转写，不是模型指标）：安静 ${pct(simulated.quietCharRecall)} · ` +
       `噪声 ${pct(simulated.noisyCharRecall)} · 漏字检出 ${pct(simulated.missDetectionRecall)} · ` +
       `静音误判 ${pct(simulated.silenceFalseAccept)}`
@@ -981,6 +1263,7 @@ if (asJson) {
         `    ${gate.metric} ${gate.op} ${gate.threshold}` +
         ` · 实测 ${fmt(gate.metric, gate.measured)}` +
         (gate.simulated !== null ? `（模拟 ${fmt(gate.metric, gate.simulated)}）` : '') +
+        (gate.host !== null ? `（主机 ${fmt(gate.metric, gate.host)}，不计入）` : '') +
         ` · ${VERDICT_LABEL[gate.verdict]} · 由 ${gate.measuredBy} 测`
       console.log(line)
     }
@@ -994,8 +1277,15 @@ if (asJson) {
   console.log(`  Go/No-Go：${verdict.toUpperCase()}${blockers.length ? `，卡在 ${blockers.length} 处` : ''}`)
   for (const item of blockers.slice(0, 6)) console.log(`    · ${item}`)
   if (blockers.length > 6) console.log(`    · …另有 ${blockers.length - 6} 处`)
+  if (rtfBaseline) {
+    console.log(
+      `  主机 RTF 基准（${ROUND13_H1.rtfBaselineEvidence}，onDevice=${rtfBaseline.onDevice}）：` +
+        `p95 ${rtfBaseline.decode?.rtf?.p95} · 推算中端 Android ` +
+        `${rtfBaseline.projection?.androidRtfBand?.join('–') ?? '—'}（${rtfBaseline.projection?.deviceVerdict}）`
+    )
+  }
   console.log(
-    `\n跟读评测跑道（ROUND11_H1）：${tests.length - failed} / ${tests.length} 项通过，` +
+    `\n跟读评测跑道（ROUND13_H1）：${tests.length - failed} / ${tests.length} 项通过，` +
       `${drillRows.length} 场故障演练。`
   )
 }
