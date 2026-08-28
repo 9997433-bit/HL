@@ -56,7 +56,14 @@ const mathSmoke = readStripped('apps/math-app/scripts/smoke.mjs')
   try {
     const j = JSON.parse(read('apps/literacy-app/public/asr/manifest.json'))
     const items = Array.isArray(j.freezeChecklist)
-      ? j.freezeChecklist.filter((it) => typeof it === 'string' && it.trim().length >= 8)
+      ? j.freezeChecklist.filter((it) => {
+          if (typeof it === 'string') return it.trim().length >= 8
+          if (it && typeof it === 'object') {
+            const text = String(it.must || it.id || it.evidence || '')
+            return text.trim().length >= 2
+          }
+          return false
+        })
       : []
     freezeOk = items.length >= 3 && typeof j.modelId === 'string' && j.modelId.length > 0
   } catch {
