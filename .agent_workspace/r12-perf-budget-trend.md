@@ -26,8 +26,8 @@ Model slug: gpt-5.6-sol-xhigh-fast
 
 | App | 报告 | formFactor | P / A / BP | R9 P | 可比变化 | 判定 |
 |---|---|---|---:|---:|---:|---|
-| 识字 | `evidence/r12/lighthouse-literacy-app.json` | mobile | 97 / 100 / 100 | 98 | -1 pp | PASS |
-| 数学 | `evidence/r12/lighthouse-math-app.json` | mobile | 95 / 100 / 100 | 98 | -3 pp | PASS（门槛边缘） |
+| 识字 | `evidence/r12/lighthouse-literacy-app-mobile.json` | mobile | 97 / 100 / 100 | 98 | -1 pp | PASS |
+| 数学 | `evidence/r12/lighthouse-math-app-mobile.json` | mobile | 95 / 100 / 100 | 98 | -3 pp | PASS（门槛边缘） |
 
 两轮报告均由 Lighthouse `12.8.2`、Chrome headless、`simulate` throttling 生成。
 归档轮的 benchmark index 为识字 `3300`、数学 `3408.5`，低于 R9 的
