@@ -19,7 +19,7 @@ import {
   TOTAL_SCENE_PAGES,
   scenePages
 } from '../src/data/books.js'
-import { ROUND12_H4, SONGS } from '../src/data/songs.js'
+import { ROUND12_H4, ROUND13_H4, SONGS } from '../src/data/songs.js'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const DIST = join(ROOT, 'dist')
@@ -71,10 +71,18 @@ const ROUND10_H5_MIN_AUDIO = 3
 const ROUND12_H4_MIN_AUDIO = 13
 const ROUND12_H4_MIN_BYTES = 10_240
 const ROUND12_H4_VOCAL = SONGS.find(
-  (song) => song?.vocal && /\.(?:mp3|ogg)$/i.test(String(song.vocal))
+  (song) => song?.id === 'sg5' && song?.vocal && /\.(?:mp3|ogg)$/i.test(String(song.vocal))
+)
+const ROUND13_H4_MIN_VOCALS = 3
+const ROUND13_H4_VOCALS = SONGS.filter(
+  (song) => song?.vocal && /\.(?:mp3|ogg|wav|m4a)$/i.test(String(song.vocal))
 )
 if (ROUND12_H4 !== 'thirteen-offline-melodies-with-vocal-pilot') {
   console.error(`ROUND12_H4_SMOKE：能力标记不对（${ROUND12_H4 || '缺失'}）`)
+  process.exit(1)
+}
+if (ROUND13_H4 !== 'three-offline-vocal-guides') {
+  console.error(`ROUND13_H4_SMOKE：能力标记不对（${ROUND13_H4 || '缺失'}）`)
   process.exit(1)
 }
 
@@ -220,9 +228,9 @@ if (
   process.exit(1)
 }
 
-let vocalPilotAsset = null
-if (ROUND12_H4_VOCAL) {
-  const relative = String(ROUND12_H4_VOCAL.vocal).replace(/^\.?\//, '')
+const vocalBatchAssets = []
+for (const song of ROUND13_H4_VOCALS) {
+  const relative = String(song.vocal).replace(/^\.?\//, '')
   const extension = extname(relative).toLowerCase()
   try {
     if (relative.includes('..')) throw new Error('路径不能包含 ..')
@@ -235,12 +243,25 @@ if (ROUND12_H4_VOCAL) {
     if (bytes.length < ROUND12_H4_MIN_BYTES || !signature) {
       throw new Error(`${bytes.length} bytes / ${extension || '无扩展名'}`)
     }
-    vocalPilotAsset = { id: ROUND12_H4_VOCAL.id, relative, bytes: bytes.length }
+    vocalBatchAssets.push({ id: song.id, relative, bytes: bytes.length })
   } catch (error) {
-    console.error(`ROUND12_H4_SMOKE：范唱资产无效（${relative}）：${error.message}`)
+    console.error(`ROUND13_H4_SMOKE：范唱资产无效（${relative}）：${error.message}`)
     process.exit(1)
   }
 }
+const distinctVocalAudio = new Set(vocalBatchAssets.map((asset) => asset.relative))
+if (
+  vocalBatchAssets.length < ROUND13_H4_MIN_VOCALS ||
+  distinctVocalAudio.size < ROUND13_H4_MIN_VOCALS
+) {
+  console.error(
+    `ROUND13_H4_SMOKE：离线范唱只有 ${vocalBatchAssets.length} 首 / ` +
+      `${distinctVocalAudio.size} 份去重资产，要求至少 ${ROUND13_H4_MIN_VOCALS} 首`
+  )
+  process.exit(1)
+}
+
+const vocalPilotAsset = vocalBatchAssets.find((asset) => asset.id === ROUND12_H4_VOCAL?.id)
 if (!vocalPilotAsset) {
   console.error('ROUND12_H4_SMOKE：13 首中没有可播放的离线范唱试点')
   process.exit(1)

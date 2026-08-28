@@ -26,7 +26,7 @@
  *   tip         唱之前给孩子的一句提示
  *   bpm         速度，60–110 之间；越小的孩子唱得越慢
  *   audio       项目自制旋律地址（13/13 均随包离线提供）
- *   vocal       可选的离线「啦」音范唱地址；没有试点的歌曲省略
+ *   vocal       可选的离线「啦」音范唱地址；没有范唱的歌曲省略
  *   lines       逐句：text 歌词、pinyin 逐字拼音（空格分隔，字数必须对上）、
  *               notes 逐字音名（个数也必须和汉字数对上，逐字高亮靠它）
  *
@@ -45,6 +45,9 @@ export const ROUND11_H5 = 'eight-file-first-with-synth-fallback'
 
 /** Round 12 H4：全曲库离线旋律 + 可播放的 Piper「啦」音范唱试点。 */
 export const ROUND12_H4 = 'thirteen-offline-melodies-with-vocal-pilot'
+
+/** Round 13 H4：三首歌接入随包的 Piper「啦」音范唱。 */
+export const ROUND13_H4 = 'three-offline-vocal-guides'
 
 const PUNCTUATION = new Set([
   '，', '。', '！', '？', '：', '、', '；', '「', '」', '《', '》', '…', '—', ' ', '\n'
@@ -72,6 +75,7 @@ export const SONGS = [
     tip: '数到几就伸几根手指，边唱边数最容易记住。',
     bpm: 96,
     audio: 'audio/songs/sg1-climb-melody.ogg',
+    vocal: 'audio/songs/sg1-climb-vocal-guide.ogg',
     lines: [
       {
         text: '一二三，爬上山，',
@@ -140,6 +144,7 @@ export const SONGS = [
     tip: '一句歌洗一遍手，唱完四句正好够。',
     bpm: 92,
     audio: 'audio/songs/sg3-wash-hands-melody.ogg',
+    vocal: 'audio/songs/sg3-wash-hands-vocal-guide.ogg',
     lines: [
       {
         text: '手心手背洗一洗，',
