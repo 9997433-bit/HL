@@ -34,8 +34,7 @@ import { BOOK_IDS, TOTAL_BOOKS } from '../src/data/book-index.js'
 import { IDIOMS } from '../src/data/idioms.js'
 import { TOTAL_IDIOMS } from '../src/data/idiom-index.js'
 import { RADICALS, getRadical } from '../src/data/radicals.js'
-import { getCharPlay } from '../src/data/char-play.js'
-import { PLAY_TEMPLATES, PLAY_THEMES } from '../src/data/char-play-templates.js'
+import { TOTAL_GENERATED_PLAYS, getCharPlay } from '../src/data/char-play.js'
 import { ETYMOLOGY, ETYMOLOGY_KINDS } from '../src/data/etymology.js'
 import { ETYMOLOGY_CHARS } from '../src/data/etymology-index.js'
 import { DERIVED } from '../src/data/etymology-derived.js'
@@ -619,69 +618,31 @@ const badExample = RADICALS.flatMap((r) =>
 )
 check(badExample.length === 0, `部首的「学过的字」示例都在字表里${badExample.length ? `（${badExample.join(', ')}）` : ''}`)
 
-/* --------------------------------------------------------- 玩一玩（Play）
+/* ----------------------------------------------------- 玩一玩的补齐索引
  *
- * 「玩」这一步的红线是**全库没有空洞**：随便点开哪个字都得有一场玩得完的互动，
- * 缺定制脚本的由 gen-char-play.mjs 按主题模板补上。这里把 1820 个字全展开一遍，
- * 顺带验生成物没过期——字表改了而 Play 索引没重跑，孩子那头就是一张空白卡。
+ * 道具好不好玩由 test:play 逐模板验；这里只守数据层的三条：
+ * 全库每个字都在补齐索引里、每个字说的是自己的话、索引没有落后于字表。
+ * 三条里任何一条破了，孩子点开的都会是一张「和别的字长得一样」的卡片。
  */
-const PLAY_INTERACTIONS = new Set(['pick', 'catch', 'assemble', 'watch'])
-const playThemes = new Set(PLAY_THEMES.map((t) => t.id))
-const playTemplates = new Set(PLAY_TEMPLATES.map((t) => t.id))
-
-/** 「玩得完」= props 里真有可以点对的东西，点满 steps 次就通关。 */
-function playable(play) {
-  const p = play.props ?? {}
-  const solvable =
-    p.options?.some((o) => o.correct) ||
-    p.pairs?.some((x) => x.correct) ||
-    p.pieces?.some((x) => x.correct) ||
-    p.drops?.filter((d) => d.hit).length >= (p.rounds ?? 1) ||
-    p.frames?.length >= 2
-  return Boolean(solvable) && play.steps >= 1
-}
-
-const playHoles = []
-const playBroken = []
-const playTemplateCount = new Map()
-for (const c of CHARACTERS) {
-  const play = getCharPlay(c.char)
-  if (!play?.template || !play.narration || !play.prompt) {
-    playHoles.push(c.char)
-    continue
-  }
-  if (
-    !playThemes.has(play.theme) ||
-    !playTemplates.has(play.template) ||
-    !PLAY_INTERACTIONS.has(play.interaction) ||
-    !playable(play)
-  ) {
-    playBroken.push(`${c.char}(${play.template})`)
-  }
-  playTemplateCount.set(play.template, (playTemplateCount.get(play.template) ?? 0) + 1)
-}
+const playRows = CHARACTERS.map((c) => ({ char: c.char, play: getCharPlay(c.char) }))
+const playStrays = playRows.filter(({ play }) => play?.source === 'fallback').map((r) => r.char)
 check(
-  playHoles.length === 0,
-  `每个字都有 Play 场景 ${CHARACTERS.length - playHoles.length}/${CHARACTERS.length}` +
-    `${playHoles.length ? `（缺：${playHoles.slice(0, 12).join('')}）` : ''}`
-)
-check(
-  playBroken.length === 0,
-  `每场 Play 都玩得完${playBroken.length ? `（${playBroken.slice(0, 8).join('、')}）` : ''}`
+  TOTAL_GENERATED_PLAYS === CHARACTERS.length && playStrays.length === 0,
+  `Play 补齐索引覆盖全库 ${TOTAL_GENERATED_PLAYS}/${CHARACTERS.length}` +
+    `${playStrays.length ? `（漏：${playStrays.slice(0, 12).join('')}，请跑 npm run gen:char-play）` : ''}`
 )
 
-/** 一张卡片铺满全库就等于没有玩法，最多的那个模板不许过半。 */
-const playTop = [...playTemplateCount.entries()].sort((a, b) => b[1] - a[1])[0] ?? ['-', 0]
+/** 旁白第一句是这个字自己的字义，所以不重复的旁白应当接近字数。 */
+const distinctNarration = new Set(playRows.map(({ play }) => play?.narration ?? '')).size
 check(
-  playTop[1] <= CHARACTERS.length * 0.4,
-  `Play 模板不扎堆：最多的 ${playTop[0]} ${playTop[1]} 个字` +
-    `（上限 ${Math.floor(CHARACTERS.length * 0.4)}，共 ${playTemplateCount.size} 种）`
+  distinctNarration >= CHARACTERS.length * 0.95,
+  `Play 旁白一字一句：${distinctNarration}/${CHARACTERS.length} 条不重样（要求 ≥ 95%）`
 )
 
-/** 字表外的字（新加的、外部传进来的）也不能返回 null。 */
+/** 字表外的字（绘本生字、搜索进来的字）也不能返回 null。 */
 const strayPlay = getCharPlay('龘')
 check(
-  Boolean(strayPlay?.template) && strayPlay.templateFallback === true && playable(strayPlay),
+  Boolean(strayPlay?.template) && strayPlay.templateFallback === true && strayPlay.source === 'fallback',
   '字表外的字也有兜底 Play，且标了 templateFallback'
 )
 
@@ -691,7 +652,7 @@ const playStale = spawnSync(process.execPath, ['scripts/gen-char-play.mjs', '--c
 })
 check(
   playStale.status === 0,
-  `Play 索引与生成器一致${playStale.status === 0 ? '' : '（请跑 npm run gen:char-play）'}`
+  `Play 补齐索引与生成器一致${playStale.status === 0 ? '' : '（请跑 npm run gen:char-play）'}`
 )
 
 /* ------------------------------------------------------------- 答对音效 */

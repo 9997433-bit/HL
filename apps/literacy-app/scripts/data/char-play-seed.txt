@@ -1,0 +1,349 @@
+# ROUND15_H3 · 富互动 play 脚本 seed —— 「玩」这一步的手写剧本，一字一个。
+#
+# 洪恩识字的卖点是「根据字源、字义设计每一个汉字动画」。这份 seed 就是咱们的
+# 对应物：前 20 个单元（272 字）每个字一条手写脚本，玩法和字义直接挂钩——
+# 雨是接雨滴、火是添柴、口是张嘴发声、推是往前推、拉是往回拉。
+# 没手写到的字由 gen-char-play.mjs 按部首 / 主题模板自动补（那些条目
+# templateFallback = true），这里的每一条都是 templateFallback = false。
+#
+# 每行五个字段，用 | 分隔：
+#
+#   汉字 | 主题 | 模板 | 旁白（念给孩子听的一句） | 道具
+#
+# - 主题（theme）取值见 gen-char-play-rich.mjs 里的 THEMES：
+#   number nature weather animal body family school food color shape
+#   time place action object word feeling
+# - 模板（template）取值见同一个文件里的 TEMPLATE_CATALOG，每个模板都标了
+#   交互类型（tap / drag / swipe / sequence），舞台没实现某个模板时可以按
+#   交互类型退化，但不会退成空白卡。
+# - 旁白写给 4–6 岁的孩子：一句话、不超过 24 个字、说清楚「现在要干什么」。
+# - 道具（props）写成 key=value，用 ; 分隔；value 里的 , 表示列表，
+#   : 表示成对（pairs / buckets / 分桶版的 items）。常用键：
+#     hero    主角 emoji
+#     items   可交互的一堆 emoji（分桶模板里写成 emoji:桶名）
+#     decoys  干扰项 emoji
+#     tool    手里的工具 emoji（伞、手电、纸巾…）
+#     stages  变形 / 生长的分镜，按顺序播
+#     parts   要拖到一起的零件（可以是 emoji，也可以是部件字）
+#     pairs   要连线的成对项，写成 左:右
+#     buckets 分类筐，写成 筐名:emoji
+#     dir     滑动方向 up / down / left / right
+#     sound   发声玩法要念的拟声词
+#     color   涂色玩法的颜色
+#     word    组词玩法要拼出来的词
+#     goal    要完成几次有效交互（默认 3），reduce-motion / 跳过时不影响通关
+#
+# 生成物：src/data/char-play-rich.js（node scripts/gen-char-play-rich.mjs）
+# 校验：node scripts/gen-char-play-rich.mjs --check
+
+# ---- u1 我和数字 ----
+一|number|count-tap|只点一个苹果就好，一就是最小的数。|hero=☝️;items=🍎;goal=1
+二|number|count-tap|再添一只小鸭，两只排排站就是二。|hero=✌️;items=🦆,🦆;goal=2
+三|number|count-tap|点亮三颗星星，三横就是三。|hero=🤟;items=⭐,⭐,⭐;goal=3
+上|place|swipe-motion|往上一推，气球飞到高高的天上。|hero=🎈;dir=up;goal=3
+下|place|swipe-motion|往下一拉，雨滴落到地面上。|hero=💧;dir=down;goal=3
+人|body|morph-story|小人迈开两条腿，就走成了人字。|stages=🧍,🚶,人;goal=3
+口|body|sound-tap|点点小嘴巴，张开说「啊」。|hero=👄;sound=啊;goal=3
+大|body|grow-tap|张开双手越张越开，这就是大。|stages=🙋,🙆,🐘;goal=3
+小|nature|emoji-hunt|谁最小？把小小的那一个找出来。|target=🐣;decoys=🐔,🐘,🐄;goal=1
+我|family|tap-reveal|点点镜子里的小朋友，那就是我。|hero=🪞;items=🙋;goal=1
+个|number|count-tap|一个一个放进筐里，数数几个。|hero=🧺;items=🍎,🍎,🍎;goal=3
+们|family|tap-reveal|一个人加上大家，就成了我们。|hero=👥;items=🧍,🧍,🧍;goal=3
+
+# ---- u2 大自然 ----
+日|nature|morph-story|圆圆的太阳慢慢变方，就成了日。|stages=☀️,🌞,日;goal=3
+月|nature|morph-story|满月一点点变弯，弯成月字。|stages=🌕,🌙,月;goal=3
+山|nature|drag-parts|把三个山尖尖立起来，就是山。|hero=⛰️;parts=⛰️,⛰️,⛰️
+水|nature|trace-path|带着小水滴顺着山坡流下来。|hero=💧;dir=down;goal=3
+火|nature|grow-tap|添一根柴，火苗就往上蹿一点。|stages=🕯️,🔥,🌋;goal=3
+木|nature|grow-tap|小树苗喝饱水，长成一棵大树。|stages=🌱,🌿,🌲;goal=3
+田|nature|scene-poke|一格一格的田里，点点种了什么。|hero=🌾;items=🌾,🌽,🥬,🍠;goal=4
+土|nature|scene-poke|挖挖泥土，看看土里藏着谁。|hero=🟫;items=🌱,🐛,🥔;goal=3
+天|nature|scene-poke|抬头看天，天上都有些什么。|hero=🌤️;items=☁️,🐦,🌈,✈️;goal=4
+花|nature|grow-tap|浇浇水，花骨朵一点点开了。|stages=🌱,🌷,🌸;goal=3
+海|nature|scene-poke|大海好宽，点点浪里的小伙伴。|hero=🌊;items=🐬,🐠,🐚,⛵;goal=4
+河|nature|trace-path|带小船顺着弯弯的小河往前漂。|hero=⛵;dir=right;goal=3
+林|nature|drag-parts|一个木是树，两个木并排就是林。|hero=🌳;parts=木,木
+
+# ---- u3 身体和动物 ----
+手|body|tap-reveal|数数小手，一根一根点手指。|hero=✋;items=👆,👆,👆,👆,👆;goal=5
+目|body|morph-story|把眼睛竖起来，就变成目字。|stages=👁️,👀,目;goal=3
+耳|body|sound-tap|捂住耳朵再放开，听听什么在响。|hero=👂;sound=叮咚;goal=3
+心|body|sound-tap|手放在胸口，心怦怦怦地跳。|hero=❤️;sound=怦怦;goal=3
+牛|animal|sound-tap|摸摸牛角，大牛哞地叫一声。|hero=🐄;sound=哞;goal=3
+羊|animal|count-tap|数数草地上的小羊，咩咩咩。|hero=🐑;items=🐑,🐑,🐑;goal=3
+鸟|animal|swipe-motion|轻轻往上一挥，小鸟飞起来了。|hero=🐦;dir=up;goal=3
+中|place|emoji-hunt|谁正好在正中间？点中它。|target=🎯;decoys=⬅️,➡️,⬆️;goal=1
+不|word|sort-buckets|摇摇头说不，分清能做和不能做。|buckets=可以:👍,不可以:🙅;items=📚:可以,🧸:可以,🔥:不可以,🔌:不可以
+好|feeling|tap-reveal|女和子放在一起，心里就觉得好。|hero=👍;items=👧,👶;goal=2
+头|body|scene-poke|点点头上都有什么：头发眼睛嘴巴。|hero=🙂;items=💇,👁️,👄;goal=3
+牙|body|tap-reveal|张开嘴，把白牙齿一颗颗刷干净。|hero=🦷;items=🦷,🦷,🦷;tool=🪥;goal=3
+兔|animal|swipe-motion|小兔子一蹦一蹦，往上跳三下。|hero=🐰;dir=up;goal=3
+
+# ---- u4 会说话 ----
+是|word|sort-buckets|说得对点是，说错了点不是。|buckets=是:✅,不是:❌;items=鱼会游泳:是,鸟会飞:是,大象很小:不是,火是凉的:不是
+有|word|tap-reveal|口袋里有什么？点开看看你的宝贝。|hero=🎁;items=🍬,🧸,🔑;goal=3
+的|word|pair-match|这是谁的？把东西送回主人手里。|pairs=🐶:🦴,👶:🍼,🐦:🪹
+看|body|emoji-hunt|睁大眼睛看一看，找出躲起来的猫。|target=🐱;decoys=🌳,🌸,🪨;goal=1
+在|place|scene-poke|小猫在哪里？在桌上、门口、家里。|hero=🐱;items=🪑,🚪,🏠;goal=3
+来|action|swipe-motion|招招手，把小狗叫到身边来。|hero=🐶;dir=right;goal=3
+去|action|swipe-motion|挥挥手，送小车开到远远的地方去。|hero=🚗;dir=left;goal=3
+会|word|tap-reveal|点点看谁会做这件事，会就亮起来。|hero=🌟;items=🐟,🐦,🐰;goal=3
+说|action|sound-tap|嘴巴一张一合，说出「你好」。|hero=🗣️;sound=你好;goal=3
+也|word|pair-match|他有的我也有，配成一样的一对。|pairs=🍎:🍎,🎈:🎈,🧸:🧸
+了|word|count-tap|做完一件点一下，做完了！|hero=🏁;items=✅,✅,✅;goal=3
+很|word|grow-tap|越点越开心，从开心变成很开心。|stages=🙂,😀,😆;goal=3
+和|word|pair-match|你和我，把两个人拉到一起。|pairs=🧒:🧒,🐱:🐶,🍎:🍐
+
+# ---- u5 数字大家庭 ----
+四|number|count-tap|数四个草莓：一二三四。|hero=4️⃣;items=🍓,🍓,🍓,🍓;goal=4
+五|number|count-tap|张开一只手，正好五个手指。|hero=🖐️;items=👆,👆,👆,👆,👆;goal=5
+六|number|count-tap|六颗糖，把小盒子装满。|hero=6️⃣;items=🍬,🍬,🍬,🍬,🍬,🍬;goal=6
+七|number|count-tap|一个星期七天，点满七格。|hero=7️⃣;items=📅,📅,📅,📅,📅,📅,📅;goal=7
+八|number|drag-parts|两撇往两边一分，就写成八。|hero=8️⃣;parts=丿,乀
+九|number|pop-bubbles|戳破九个泡泡，再一个就到十。|hero=9️⃣;items=🫧,🫧,🫧,🫧,🫧,🫧,🫧,🫧,🫧;goal=9
+十|number|drag-parts|一横加一竖，交叉就是十。|hero=🔟;parts=一,丨
+百|number|pop-bubbles|十个十个数，一百好多好多。|hero=💯;items=🫧,🫧,🫧,🫧,🫧,🫧,🫧,🫧,🫧,🫧;goal=10
+千|number|pop-bubbles|一千颗星星撒满天，先点亮十颗。|hero=🌌;items=⭐,⭐,⭐,⭐,⭐,⭐,⭐,⭐,⭐,⭐;goal=10
+万|number|pop-bubbles|一万像烟花一样多，点开看看。|hero=🎆;items=🎆,🎆,🎆,🎆,🎆;goal=5
+半|number|drag-parts|把西瓜从中间切开，一人一半。|hero=🍉;parts=🍉,🍉
+双|number|pair-match|两只一样的才叫一双，配对试试。|pairs=🧦:🧦,👟:👟,🧤:🧤
+
+# ---- u6 天气和大地 ----
+风|weather|swipe-motion|呼——手指一划，风把树叶吹跑。|hero=🍃;dir=right;goal=3
+雨|weather|rain-catch|下雨啦，撑起小伞接住雨滴。|hero=🌧️;items=💧,💧,💧,💧;tool=☂️;goal=4
+云|weather|swipe-motion|白云飘飘，推着它慢慢走。|hero=☁️;dir=right;goal=3
+雪|weather|rain-catch|雪花飘下来，用手心接住它。|hero=❄️;items=❄️,❄️,❄️;tool=🧤;goal=3
+地|nature|scene-poke|脚下的大地上，都长着什么。|hero=🌍;items=🌱,🌳,🐛;goal=3
+石|nature|drag-parts|把小石头一块一块摞高。|hero=🪨;parts=🪨,🪨,🪨
+草|nature|grow-tap|春天到，小草从土里钻出来。|stages=🟫,🌱,🌿;goal=3
+树|nature|grow-tap|树苗长成大树，还结了果子。|stages=🌱,🌳,🍎;goal=3
+星|nature|tap-reveal|夜里点一点，星星一闪一闪亮。|hero=⭐;items=⭐,⭐,⭐,⭐,⭐;goal=5
+光|nature|tap-reveal|打开灯，光照到哪里哪里亮。|hero=🔆;items=💡,🕯️,🔦;goal=3
+冰|weather|morph-story|水冷得发抖，冻成硬硬的一块冰。|stages=💧,🧊,❄️;goal=3
+沙|nature|scene-poke|沙滩上的沙细细的，挖挖看。|hero=🏖️;items=🐚,🦀,🪣;goal=3
+
+# ---- u7 我的家人 ----
+父|family|tap-reveal|点点看，爸爸都会做什么。|hero=👨;items=🧰,🚗,🍳;goal=3
+母|family|tap-reveal|妈妈抱抱我，心里暖暖的。|hero=👩;items=🤱,❤️,🍲;goal=3
+男|family|emoji-hunt|田里出力的是男，找出男孩子。|target=👦;decoys=👧,👵,🧒;goal=1
+女|family|emoji-hunt|找出女孩子，她扎着小辫子。|target=👧;decoys=👦,🧔,👴;goal=1
+子|family|grow-tap|小娃娃一点点长大，变成小朋友。|stages=👶,🧒,👦;goal=3
+你|family|sound-tap|指一指对面的小伙伴，说声你好。|hero=🫵;sound=你好;goal=3
+他|family|emoji-hunt|他说的是那个男孩，把他找出来。|target=🧑;decoys=👩,👧,👵;goal=1
+她|family|emoji-hunt|她是女字旁，说的是那个女孩。|target=👩‍🦰;decoys=🧑,👦,👴;goal=1
+家|family|drag-parts|宝盖头是屋顶，屋顶下面就是家。|hero=🏠;parts=🏠,👨,👩,🧒
+爱|feeling|tap-reveal|抱一抱，心里的爱冒出小红心。|hero=❤️;items=💗,💖,💞;goal=3
+哥|family|sort-buckets|哥哥比我大，把他放到大的那边。|buckets=大:🔼,小:🔽;items=👦:大,🧔:大,👶:小,🧒:小
+姐|family|tap-reveal|姐姐牵着我的手，看她在做什么。|hero=👧;items=📚,🎀,🤝;goal=3
+妹|family|grow-tap|妹妹比我小，她还在慢慢长大。|stages=👶,🧒,👧;goal=3
+国|place|drag-parts|大方框里住着好多人，那是我们的国。|hero=🏯;parts=囗,玉
+
+# ---- u8 上学啦 ----
+学|school|grow-tap|每学会一样本领，就点亮一颗星。|stages=📖,✏️,🌟;goal=3
+校|school|scene-poke|走进学校，点点里面都有什么。|hero=🏫;items=🚪,🔔,🏀;goal=3
+老|school|sort-buckets|谁年纪大？把老爷爷放到老这边。|buckets=老:👴,小:👶;items=👵:老,🧓:老,🧒:小,👶:小
+师|school|tap-reveal|老师教我们本领，点点她手里的东西。|hero=🧑‍🏫;items=📕,✏️,🗺️;goal=3
+生|school|grow-tap|一颗种子从土里生出来，越长越高。|stages=🌰,🌱,🌿;goal=3
+书|school|tap-reveal|一页一页翻开书，看看里面画了什么。|hero=📕;items=📖,🖼️,🔤;goal=3
+字|school|word-build|一个个方块字，拼出「写字」。|word=写字;parts=写,字
+读|school|sound-tap|张开嘴，把书上的字大声读出来。|hero=📖;sound=一二三;goal=3
+写|school|trace-path|拿起笔，跟着线把字写下来。|hero=✍️;dir=right;goal=3
+听|school|sound-tap|竖起耳朵听一听，是什么在响。|hero=👂;sound=叮咚;goal=3
+问|school|drag-parts|门里放一个口，站在门口问一问。|hero=❓;parts=门,口
+答|school|pair-match|有问就有答，把问和答连起来。|pairs=🐶:汪,🐱:喵,🐄:哞
+本|school|count-tap|数一数，书架上有几本书。|hero=📔;items=📕,📗,📘;goal=3
+
+# ---- u9 小动物 ----
+鱼|animal|emoji-hunt|水里游过好多东西，点住那条小鱼。|target=🐟;decoys=🐙,🦀,🐚;goal=3
+虫|animal|trace-path|小虫子扭一扭，慢慢爬过树叶。|hero=🐛;dir=right;goal=3
+马|animal|swipe-motion|驾！小马嗒嗒嗒地往前跑。|hero=🐴;dir=right;goal=3
+猫|animal|sound-tap|摸摸小猫，它喵地叫了一声。|hero=🐱;sound=喵;goal=3
+狗|animal|sound-tap|拍拍小狗的头，它汪汪叫。|hero=🐶;sound=汪;goal=3
+鸡|animal|sound-tap|小鸡叽叽叫，还会下蛋。|hero=🐔;sound=叽;goal=3
+鸭|animal|swipe-motion|扁嘴巴的小鸭，摇摇摆摆下水啦。|hero=🦆;dir=down;goal=3
+猪|animal|sound-tap|胖小猪拱拱鼻子，哼哼哼。|hero=🐷;sound=哼;goal=3
+象|animal|grow-tap|大象的长鼻子，能卷起水喷出来。|stages=🐘,🚿,🌊;goal=3
+虎|animal|sound-tap|老虎吼一声，森林都安静了。|hero=🐯;sound=吼;goal=3
+蛙|animal|swipe-motion|青蛙呱呱，一蹦跳到荷叶上。|hero=🐸;dir=up;goal=3
+熊|animal|scene-poke|大熊要冬眠了，帮它准备好。|hero=🐻;items=🍯,🛌,🌲;goal=3
+
+# ---- u10 五颜六色 ----
+红|color|color-fill|把小苹果涂得红红的。|hero=🍎;color=red;goal=3
+黄|color|color-fill|把小鸭子涂得黄黄的。|hero=🐤;color=yellow;goal=3
+蓝|color|color-fill|把大海涂得蓝蓝的。|hero=🌊;color=blue;goal=3
+绿|color|color-fill|把小草涂得绿绿的。|hero=🌿;color=green;goal=3
+白|color|color-fill|把云朵涂得白白的。|hero=☁️;color=white;goal=3
+黑|color|tap-reveal|天黑了，打开手电看看藏着谁。|hero=⚫;items=🦉,🦇,⭐;tool=🔦;goal=3
+色|color|sort-buckets|把颜色分一分，红的一边蓝的一边。|buckets=红:🔴,蓝:🔵;items=🍎:红,🍓:红,🌊:蓝,🫐:蓝
+圆|shape|emoji-hunt|找出圆圆的、一个角也没有的。|target=⭕;decoys=🔷,🔺,⬜;goal=3
+方|shape|emoji-hunt|找出方方正正、四个角的。|target=⬜;decoys=⭕,🔺,💠;goal=3
+长|shape|sort-buckets|长的放这边，短的放那边。|buckets=长:📏,短:📎;items=🐍:长,🚂:长,🐛:短,🚗:短
+高|shape|sort-buckets|高的往上摆，矮的往下摆。|buckets=高:🗼,矮:🏠;items=🦒:高,🌲:高,🐕:矮,🌱:矮
+
+# ---- u11 春夏秋冬 ----
+春|time|grow-tap|春风一吹，花全都开了。|stages=🌱,🌷,🌸;goal=3
+夏|time|scene-poke|夏天太阳好大，点点消暑的东西。|hero=🌞;items=🍉,🏖️,🍦;goal=3
+秋|time|rain-catch|秋风起，接住飘下来的黄叶子。|hero=🍂;items=🍁,🍂,🍁;tool=🧺;goal=3
+冬|time|scene-poke|冬天冷冰冰，给雪人穿戴好。|hero=⛄;items=🧣,🧤,🎩;goal=3
+早|time|morph-story|太阳从地平线上升起来，早上到了。|stages=🌑,🌅,🌞;goal=3
+晚|time|morph-story|太阳落下去月亮爬上来，天晚了。|stages=🌇,🌆,🌙;goal=3
+明|time|drag-parts|日和月放在一起，天亮堂堂。|hero=🌞;parts=日,月
+今|time|emoji-hunt|一堆日子里，找出今天那一格。|target=📅;decoys=🗓️,🗓️,🗓️;goal=1
+年|time|pop-bubbles|新年到，点响四个小烟花。|hero=🎊;items=🎆,🎆,🎆,🎆;goal=4
+时|time|trace-path|拨一拨时针，让钟走一圈。|hero=⏰;dir=right;goal=3
+分|time|drag-parts|把一块饼干平平地分成两半。|hero=🍪;parts=🍪,🍪
+刻|time|count-tap|一刻是十五分，点四下就一小时。|hero=⏳;items=⏳,⏳,⏳,⏳;goal=4
+岁|time|count-tap|过一个生日长一岁，点亮蜡烛数数。|hero=🎂;items=🕯️,🕯️,🕯️,🕯️,🕯️;goal=5
+
+# ---- u12 上下左右 ----
+左|place|swipe-motion|往左边挥挥手，左手举起来。|hero=👈;dir=left;goal=3
+右|place|swipe-motion|往右边挥挥手，右手举起来。|hero=👉;dir=right;goal=3
+多|number|sort-buckets|哪一堆多？把多的挑出来。|buckets=多:➕,少:➖;items=🍎🍎🍎:多,🍬🍬🍬:多,🍎:少,🍬:少
+少|number|pop-bubbles|吃掉几个，果子就变少了。|hero=🍓;items=🍓,🍓,🍓;goal=3
+门|place|swipe-motion|推开大门，吱呀一声请进。|hero=🚪;dir=right;goal=2
+车|object|trace-path|开着小车沿着马路往前开。|hero=🚗;dir=right;goal=3
+足|body|count-tap|数数小脚丫，一二，两只脚。|hero=🦶;items=🦶,🦶;goal=2
+前|place|swipe-motion|向前走三步，看看前面有什么。|hero=🚩;dir=right;goal=3
+后|place|swipe-motion|往后退一退，站到后面去。|hero=🔙;dir=left;goal=3
+里|place|sort-buckets|把玩具放进盒子里面。|buckets=里面:📥,外面:📤;items=🧸:里面,🧩:里面,🍂:外面,🪨:外面
+外|place|swipe-motion|推门走到外面，外面太阳真好。|hero=🌞;dir=right;goal=2
+边|place|sort-buckets|左边右边，把东西摆到对的一边。|buckets=左边:👈,右边:👉;items=🍎:左边,🧸:左边,🍐:右边,🎈:右边
+
+# ---- u13 我会做 ----
+走|action|swipe-motion|一步一步慢慢走，走路要小心。|hero=🥾;dir=right;goal=3
+跑|action|swipe-motion|快跑！两只脚都离开地面了。|hero=💨;dir=right;goal=5
+跳|action|swipe-motion|用力一蹬，往上跳三下。|hero=🤸;dir=up;goal=3
+坐|action|drag-parts|两个人坐在土地上，就是坐。|hero=🧎;parts=人,人,土
+站|action|swipe-motion|站直了，两只脚立在地上不动。|hero=🚏;dir=up;goal=2
+吃|action|pop-bubbles|啊呜——把好吃的一口一口吃掉。|hero=😋;items=🍎,🍌,🍞;goal=3
+喝|action|pop-bubbles|咕咚咕咚，把水喝光。|hero=🥤;items=💧,💧,💧;goal=3
+拿|action|drag-parts|伸出手，把东西握住拿起来。|hero=🤲;parts=🍎,🧸
+唱|action|sound-tap|张开嘴唱一首歌，啦啦啦。|hero=🎤;sound=啦;goal=3
+笑|feeling|grow-tap|嘴角越翘越高，笑得好开心。|stages=🙂,😀,😄;goal=3
+哭|feeling|rain-catch|眼泪掉下来了，用纸巾接住它。|hero=😢;items=💧,💧;tool=🧻;goal=2
+打|action|swipe-motion|挥挥手，把小球打出去。|hero=🏓;dir=right;goal=3
+玩|action|scene-poke|挑一样玩具，玩得开开心心。|hero=🧸;items=⚽,🪀,🧩;goal=3
+
+# ---- u14 家里的东西 ----
+桌|object|scene-poke|在桌子上摆好碗和杯子。|hero=🍽️;items=🥣,🥛,🥢;goal=3
+椅|object|drag-parts|装上靠背和椅子腿，坐上去。|hero=🪑;parts=🪑,🦵,🦵
+床|object|tap-reveal|铺好被子，晚安，该睡觉了。|hero=🛏️;items=🛌,🧸,🌙;goal=3
+灯|object|tap-reveal|按一下开关，灯就亮了。|hero=💡;items=💡,🔦,🕯️;goal=3
+窗|object|swipe-motion|推开窗户，风吹进来啦。|hero=🪟;dir=right;goal=2
+衣|object|sort-buckets|天冷穿厚衣，天热穿薄衣。|buckets=冷:❄️,热:🌞;items=🧥:冷,🧣:冷,👕:热,🩳:热
+鞋|object|pair-match|把左脚右脚的鞋配成一双。|pairs=👟:👟,🥾:🥾,👢:👢
+帽|object|tap-reveal|挑一顶帽子戴在头上。|hero=🧢;items=🎩,👒,⛑️;goal=3
+碗|object|count-tap|摆好三只碗，一人一只。|hero=🥣;items=🥣,🥣,🥣;goal=3
+杯|object|pop-bubbles|把杯子里的水喝得光光的。|hero=🥛;items=💧,💧,💧;goal=3
+伞|object|rain-catch|下雨了，快撑开伞挡住雨点。|hero=☂️;items=💧,💧,💧;tool=☂️;goal=3
+房|object|drag-parts|盖房子：先砌墙，再放屋顶。|hero=🏡;parts=🧱,🧱,🔺
+电|object|trace-path|电顺着电线跑过来，灯就亮了。|hero=⚡;dir=right;goal=3
+
+# ---- u15 好吃的 ----
+米|food|count-tap|一粒一粒的白米，装进小碗里。|hero=🍙;items=🍚,🍚,🍚;goal=3
+饭|food|pop-bubbles|米煮成饭啦，一口一口吃干净。|hero=🍚;items=🍚,🍚,🍚;goal=3
+菜|food|sort-buckets|把青菜放进菜篮，别放错了。|buckets=是菜:🥬,不是菜:🍬;items=🥦:是菜,🥕:是菜,🍭:不是菜,🍫:不是菜
+果|food|grow-tap|花谢了，树上结出果子。|stages=🌸,🍏,🍎;goal=3
+苹|food|emoji-hunt|一堆水果里，找出红苹果。|target=🍎;decoys=🍌,🍇,🍐;goal=3
+面|food|trace-path|长长的面条，夹起来吸溜一口。|hero=🍜;dir=up;goal=3
+蛋|food|tap-reveal|敲一敲蛋壳，看看里面是谁。|hero=🥚;items=🥚,🥚,🐣;goal=3
+奶|food|pop-bubbles|咕嘟咕嘟，把牛奶喝完。|hero=🍼;items=🥛,🥛;goal=2
+糖|food|count-tap|数数糖果，不过一天只能吃一颗。|hero=🍬;items=🍬,🍭,🍫;goal=3
+茶|food|grow-tap|茶叶放进水里，泡出香香的茶。|stages=🍃,🫖,🍵;goal=3
+肉|food|sort-buckets|哪些是肉？把肉放进盘子。|buckets=是肉:🍖,不是肉:🥬;items=🍗:是肉,🥩:是肉,🥕:不是肉,🥦:不是肉
+瓜|food|drag-parts|大西瓜切开，一块一块分着吃。|hero=🍉;parts=🍉,🍉,🍉
+
+# ---- u16 这个那个 ----
+这|word|tap-reveal|指着近处说这个，就在手边。|hero=👇;items=🧸,🍎,🖍️;goal=3
+那|word|emoji-hunt|远远的那个才是那，点远处的。|target=🏔️;decoys=🧸,🍎,🪑;goal=1
+什|word|tap-reveal|盒子里是什么？打开问一问。|hero=❔;items=🎁,🎁,🎁;goal=3
+么|word|pair-match|什么、怎么、这么，把两个字配好。|pairs=什:么,怎:么,这:么
+都|word|count-tap|一个都不少，全点到才算都。|hero=🧑‍🤝‍🧑;items=🧒,🧒,🧒,🧒;goal=4
+要|feeling|sort-buckets|想要的放这边，不要的放那边。|buckets=要:🙏,不要:🙅;items=🍎:要,🧸:要,🗑️:不要,🦟:不要
+能|feeling|tap-reveal|试一试就知道，我能行。|hero=💪;items=🏃,🎨,🎵;goal=3
+想|feeling|tap-reveal|闭上眼想一想，脑袋里冒出什么。|hero=💭;items=🍦,🏖️,🎁;goal=3
+用|action|pair-match|每样东西都有用处，配一配。|pairs=✏️:📄,🥄:🍚,🔑:🚪
+做|action|scene-poke|动手做一做：做饭、做手工。|hero=🧑‍🔧;items=🍳,✂️,🔨;goal=3
+给|action|swipe-motion|把礼物送到小伙伴手里。|hero=🎁;dir=right;goal=3
+把|action|drag-parts|把扫帚拿过来，抓住把手。|hero=🧹;parts=🧹,✋
+
+# ---- u17 教室里 ----
+笔|school|trace-path|拿起铅笔，跟着线画一道。|hero=✏️;dir=right;goal=3
+纸|school|tap-reveal|白白的一张纸，在上面画点什么。|hero=📄;items=🖍️,✏️,🖌️;goal=3
+画|school|color-fill|画一幅画，给它涂上颜色。|hero=🎨;color=rainbow;goal=3
+课|school|scene-poke|上课啦，点点课上要用的东西。|hero=📚;items=📕,✏️,🔔;goal=3
+班|school|count-tap|数数我们班有几个小朋友。|hero=🏫;items=🧒,🧒,🧒,🧒;goal=4
+同|school|pair-match|一样的才是同，找出相同的。|pairs=🍎:🍎,📕:📕,⚽:⚽
+朋|school|drag-parts|两个月字并排站，就是朋友的朋。|hero=🧑‍🤝‍🧑;parts=月,月
+友|feeling|pair-match|手拉着手，就成了好朋友。|pairs=🧒:🧒,🐱:🐶,👦:👧
+教|school|sound-tap|老师教一句，我们跟着念一句。|hero=👩‍🏫;sound=跟我读;goal=3
+室|school|scene-poke|教室里都有什么？点点看。|hero=🚪;items=🪑,🖼️,🪟;goal=3
+队|school|drag-parts|一个跟着一个，排成一条队。|hero=🚶;parts=🧒,🧒,🧒
+讲|school|sound-tap|站上讲台，大声讲给大家听。|hero=🗣️;sound=大家好;goal=3
+台|school|swipe-motion|把小凳子摞高，就成了小台子。|hero=🎤;dir=up;goal=3
+板|school|color-fill|在黑板上写写画画，再擦干净。|hero=🪵;color=black;goal=3
+图|school|scene-poke|摊开地图，点点上面画了什么。|hero=🗺️;items=⛰️,🏞️,🏠;goal=3
+数|school|count-tap|数一数，一共有几个。|hero=🔢;items=1️⃣,2️⃣,3️⃣,4️⃣,5️⃣;goal=5
+语|school|sound-tap|说一句话，说出来的就是语。|hero=💬;sound=你好呀;goal=3
+文|school|word-build|把字连起来，就成了一篇文。|word=语文;parts=语,文
+
+# ---- u18 我的身体 ----
+脸|body|scene-poke|洗脸啦，点点脸上都有什么。|hero=😊;items=👁️,👃,👄;goal=3
+眼|body|tap-reveal|眨眨眼睛，睁开看看世界。|hero=👁️;items=👀,👁️,👁️;goal=3
+鼻|body|emoji-hunt|用鼻子闻一闻，哪个最香。|target=🌸;decoys=🧦,🗑️,🐟;goal=1
+嘴|body|sound-tap|张开嘴巴，啊——|hero=👄;sound=啊;goal=3
+脚|body|swipe-motion|小脚丫左一步右一步往前走。|hero=🦶;dir=right;goal=4
+腿|body|swipe-motion|抬起腿，跨过小水坑。|hero=🦵;dir=up;goal=3
+背|body|drag-parts|把书包背到背上，出发上学。|hero=🎒;parts=🎒,🧒
+肚|body|pop-bubbles|吃饱啦，肚子圆鼓鼓的。|hero=🫄;items=🍎,🍞,🍚;goal=3
+发|body|trace-path|梳一梳头发，梳得顺顺的。|hero=💇;dir=down;goal=3
+指|body|count-tap|一根一根数手指，一共五根。|hero=👆;items=👆,👆,👆,👆,👆;goal=5
+肩|body|swipe-motion|耸耸肩，肩膀上下动一动。|hero=🙆;dir=up;goal=3
+身|body|scene-poke|从头到脚，都是我的身体。|hero=🧍;items=🙂,🫄,🦶;goal=3
+体|body|scene-poke|做做运动，身体会更棒。|hero=💪;items=🏃,🤸,🏀;goal=3
+皮|body|pop-bubbles|剥开外面的皮，才吃得到里面。|hero=🍌;items=🍌,🍊,🥔;goal=3
+骨|body|drag-parts|把小骨头一根一根拼成骨架。|hero=🦴;parts=🦴,🦴,🦴
+毛|body|tap-reveal|摸摸小动物身上软软的毛。|hero=🧶;items=🐑,🐱,🐰;goal=3
+血|body|tap-reveal|破了个小口子，贴上创可贴。|hero=🩸;items=🩹,🩹;goal=2
+汗|body|rain-catch|跑得好热，汗珠掉下来，快擦掉。|hero=💦;items=💧,💧,💧;tool=🧻;goal=3
+
+# ---- u19 一家人 ----
+爸|family|tap-reveal|爸爸举高高，点点他在做什么。|hero=👨;items=🤾,🍳,🚗;goal=3
+妈|family|tap-reveal|妈妈抱一抱，暖暖的。|hero=👩;items=🤱,🍲,❤️;goal=3
+弟|family|sort-buckets|弟弟比我小，放到小的那边。|buckets=大:🔼,小:🔽;items=🧔:大,👨:大,👦:小,👶:小
+爷|family|pair-match|爷爷是爸爸的爸爸，连一连。|pairs=👴:👨,👵:👩
+叔|family|emoji-hunt|叔叔是爸爸的弟弟，找出叔叔。|target=🧔;decoys=👴,👦,👶;goal=1
+姑|family|pair-match|姑姑是爸爸的姐妹，配一配。|pairs=👨:👩‍🦰,👩:🧑‍🦱
+姨|family|emoji-hunt|阿姨是妈妈的姐妹，点出阿姨。|target=🧑‍🦱;decoys=👴,👦,🧒;goal=1
+亲|feeling|tap-reveal|亲一亲抱一抱，最亲的人在身边。|hero=🤗;items=❤️,💞,💗;goal=3
+客|family|scene-poke|客人来啦，请他喝茶、坐下。|hero=🛎️;items=🍵,🪑,🍪;goal=3
+伴|family|pair-match|好伙伴要两个人，配成一对。|pairs=🧒:🧒,👦:👧,👯:👯
+伙|family|count-tap|一群小伙伴，数数一共几个。|hero=🧑‍🤝‍🧑;items=🧒,🧒,🧒,🧒;goal=4
+邻|family|scene-poke|隔壁邻居家，去打个招呼。|hero=🏘️;items=🚪,🔔,👋;goal=3
+众|family|count-tap|三个人叠在一起，人多就是众。|hero=👥;items=🧍,🧍,🧍;goal=3
+婆|family|pair-match|外婆是妈妈的妈妈，连一连。|pairs=👵:👩,👴:👨
+孙|family|grow-tap|小孙子一点点长大。|stages=👶,🧒,👦;goal=3
+娃|family|tap-reveal|小娃娃睡着了，轻轻拍一拍。|hero=👶;items=🍼,🧸,🌙;goal=3
+姓|word|word-build|每个人都有姓，姓在名字前面。|word=姓名;parts=姓,名
+名|word|word-build|写下自己的名字，念一念。|word=名字;parts=名,字
+
+# ---- u20 动手做 ----
+拉|action|swipe-motion|使劲往自己这边拉。|hero=🤝;dir=left;goal=3
+推|action|swipe-motion|双手往前推，小车动起来。|hero=🛒;dir=right;goal=3
+提|action|swipe-motion|用手拎起水桶，往上提。|hero=🧺;dir=up;goal=3
+抱|action|drag-parts|张开两只手，把小熊抱住。|hero=🤱;parts=🧸,✋,✋
+洗|action|scene-poke|打开水龙头，把小手洗干净。|hero=🧼;items=🚿,🧴,🤲;goal=3
+扫|action|swipe-motion|拿起扫把，把地上的土扫走。|hero=🧹;dir=right;goal=4
+拍|action|sound-tap|拍拍手，啪啪啪。|hero=👏;sound=啪;goal=3
+摸|action|tap-reveal|闭上眼摸一摸，猜猜是什么。|hero=🖐️;items=🧸,🐱,🪨;goal=3
+找|action|emoji-hunt|钥匙不见了，快把它找出来。|target=🔑;decoys=🧦,📕,🧸;goal=1
+抓|action|tap-reveal|一把抓住气球，别让它飞走。|hero=🫳;items=🎈,🎈,🎈;goal=3
+放|action|swipe-motion|轻轻把东西放下来。|hero=🫴;dir=down;goal=3
+开|action|swipe-motion|把门打开，请进。|hero=🔓;dir=right;goal=2
+关|action|swipe-motion|出门记得把门关上。|hero=🔒;dir=left;goal=2
+送|action|swipe-motion|把礼物送给好朋友。|hero=🎁;dir=right;goal=3
+收|action|drag-parts|玩具玩完了，一件件收回箱子。|hero=📦;parts=🧸,🪀,🧩
+挂|action|swipe-motion|把画往上挂到墙上。|hero=🖼️;dir=up;goal=3
+举|action|swipe-motion|会回答的小朋友，把手高高举起。|hero=🙋;dir=up;goal=3
+摆|action|sort-buckets|把碗筷一样一样摆整齐。|buckets=桌上:🍽️,柜里:🗄️;items=🥣:桌上,🥢:桌上,🫖:柜里,🍶:柜里

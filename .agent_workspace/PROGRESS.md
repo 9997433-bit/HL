@@ -40,7 +40,8 @@
 | Round 15 | 🚀 **启动** | **一字一动画**（玩认练写说）+ 全库 Play 自动补齐；见 ROUND15-BRIEF；十路子代理并发 |
 
 ## 并发规则（已更新）
-**每轮固定 10 个子代理并发，缺了立马补。**
+**每轮固定 10 个子代理并发，缺了立马补。**  
+**模型配比（自 R15 起永久）**：fable ×3（`claude-fable-5-thinking-high`）+ opus-fast ×5（`claude-opus-5-thinking-high-fast`）+ gpt-sol ×2（`gpt-5.6-sol-high`）。详见 `.agent_workspace/ORCHESTRATION-MODEL-SOP.md`。
 
 ## Round 1 子代理任务（10个）
 - fable×3: 架构规划、SOTA审计、UI/UX设计规范
