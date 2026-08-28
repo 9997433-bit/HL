@@ -166,26 +166,41 @@
 
 | 检查 | 结果 |
 |---|---|
-| `npm run check:content -w math-app` | ✅ 21 个技能点、三段齐全、三句旁白、技能点唯一且在图谱里、模块与图谱一致、`learn-demo-index` 与注册表逐项对齐 |
-| `node scripts/verify-learn-demo.mjs`（定点） | ✅ 11/11：演示中心 21 个技能点、跳过到算式、换条重播、`?skill=` 深链、reduced-motion 静态三态、五处玩法页入口弹出收起、图谱只给有演示的技能挂链接 |
+| `npm run check:content -w math-app` | ✅ 27 个技能点、三段齐全、三句旁白、技能点唯一且在图谱里、模块与图谱一致、`learn-demo-index` 与注册表逐项对齐（下限从 12 抬到 27） |
+| `node scripts/verify-learn-demo.mjs`（定点） | ✅ 13/13：演示中心 27 个技能点、跳过到算式、换条重播、新增 6 条逐条点得开、`?skill=` 深链、reduced-motion 静态三态、六处玩法页入口弹出收起、图谱只给有演示的技能挂链接 |
 | `node scripts/smoke.mjs`（math 全量） | ✅ 20 条路由 + 38 项交互全绿；三条断言进了权威门禁（演示中心 / reduced-motion / 算术恒星入口 + 数字键不误判），摘录见 `learn-demo-smoke.md` |
-| `npm run check:route-budget -w math-app` | ✅ 18/18 组通过，`/visual-demos` 5.7 / 24 KiB gzip；演示壳与注册表按需加载，练习路由只静态引技能清单 |
-| `npm run check:round16` | ✅ H4 21 ≥ 12（计数取注册表 `skillId` 条数与本文清单的最大值） |
+| `npm run check:route-budget -w math-app` | ✅ 18/18 组通过，`/visual-demos` 5.8 / 24 KiB gzip（多 6 条只涨 0.1 KiB）；演示壳与注册表按需加载，练习路由只静态引技能清单 |
+| `npm run check:round17` | ✅ H3 27 ≥ 27（三态 + 可跳过，计数取带可执行标记文件里的 `skillId` 去重） |
+| `npm run check:round16` | ✅ H4 27 ≥ 12（登记表参考数同步到 27） |
 
 定点验收输出：
 
 ```
- ✓ 演示中心：21 个技能点 + 跳过到算式 —— 21 个技能点，object → equation（4）
+ ✓ 演示中心：27 个技能点 + 跳过到算式 —— 27 个技能点，object → equation（5）
  ✓ 演示中心：换一条演示重新从实物段播 —— division / div-basic 从 object 段重播
+ ✓ 演示中心：ROUND17_H3 新增的 6 条逐条点得开 —— shape-3d 1 + 4 + 1 = 6；classify 5 + 3 = 8；wp-diff 8 − 5 = 3；wp-times 3 × 4 = 12；wp-share 12 ÷ 4 = 3；wp-two-step 7 − 3 + 4 = 8
  ✓ 演示中心：?skill= 深链直接定位 —— ?skill=symmetry → symmetry-fold
  ✓ reduced-motion：静态三态仍可读 —— 三面板不透明度 1/1/1，旁白 3 句全列，算式 4
  ✓ 算术恒星：练习入口就地弹出演示 —— add-within-10（🎯 10以内加法）弹出并收起，练习壳还在
- ✓ 生活行星：练习入口就地弹出演示 —— wp-remain（🎯 剩余问题）弹出并收起，练习壳还在
- ✓ 数量星云：练习入口就地弹出演示 —— count-to-10（🎯 10以内点数）弹出并收起，练习壳还在
+ ✓ 生活行星：练习入口就地弹出演示 —— wp-times（🎯 倍数与几个几）弹出并收起，练习壳还在
+ ✓ 数量星云：练习入口就地弹出演示 —— count-to-5（🎯 5以内点数）弹出并收起，练习壳还在
  ✓ 形状卫星：练习入口就地弹出演示 —— shape-2d（🎯 认识平面图形）弹出并收起，练习壳还在
- ✓ 规律环带：练习入口就地弹出演示 —— pattern-number（🎯 数列规律）弹出并收起，练习壳还在
+ ✓ 规律环带：练习入口就地弹出演示 —— pattern-abab（🎯 循环规律(ABAB)）弹出并收起，练习壳还在
+ ✓ 配对记忆：练习入口就地弹出演示 —— classify（🎯 分类大师）弹出并收起，练习壳还在
  ✓ 10 的分与合：练习入口就地弹出演示 —— compose-ten（🎯 10的分与合）弹出并收起，练习壳还在
  ✓ 技能图谱：只给有演示的技能点挂链接 —— mul-table 有「先看演示」，sudoku-4 没有
 
-ROUND16_H4 学演示定点验收：11/11 通过。
+ROUND16_H4 / ROUND17_H3 学演示定点验收：13/13 通过。
 ```
+
+生活行星那条抽到的是 `wp-times`——Round 17 补的演示确实出现在真的练习页题头上，
+不是只躺在演示中心里。
+
+## 一处测试稳定性修补
+
+「首段是实物」原先的写法是：进页面 → 等 700ms → 回驱动端读一次 `data-demo-stage`。
+三段每 1.5 秒自动往前走，机器上同时跑着别的浏览器时，这一读经常落在 1.5 秒之后，
+读到 `visual` 就红——红的是负载，不是代码。改成在页面里点一张卡片（演示重挂、
+回到第一段）、`setTimeout(30)` 后就地读回，窗口从「700ms + 一次往返」收到一次渲染。
+断言的东西没变松：仍然要求播放态、仍然要求起播那一段是实物。`smoke.mjs` 与
+`verify-learn-demo.mjs` 两边同改。
