@@ -34,7 +34,8 @@ import { BOOK_IDS, TOTAL_BOOKS } from '../src/data/book-index.js'
 import { IDIOMS } from '../src/data/idioms.js'
 import { TOTAL_IDIOMS } from '../src/data/idiom-index.js'
 import { RADICALS, getRadical } from '../src/data/radicals.js'
-import { TOTAL_GENERATED_PLAYS, getCharPlay } from '../src/data/char-play.js'
+import { getCharPlay } from '../src/data/char-play.js'
+import { TOTAL_GENERATED_PLAYS } from '../src/data/char-play-generated.js'
 import { ETYMOLOGY, ETYMOLOGY_KINDS } from '../src/data/etymology.js'
 import { ETYMOLOGY_CHARS } from '../src/data/etymology-index.js'
 import { DERIVED } from '../src/data/etymology-derived.js'
@@ -625,14 +626,17 @@ check(badExample.length === 0, `部首的「学过的字」示例都在字表里
  * 三条里任何一条破了，孩子点开的都会是一张「和别的字长得一样」的卡片。
  */
 const playRows = CHARACTERS.map((c) => ({ char: c.char, play: getCharPlay(c.char) }))
-const playStrays = playRows.filter(({ play }) => play?.source === 'fallback').map((r) => r.char)
+// runtime / emergency 是给字表外的生字准备的，字表里的字落到这两层就说明索引漏了
+const playStrays = playRows
+  .filter(({ play }) => play?.source !== 'rich' && play?.source !== 'generated')
+  .map((r) => r.char)
 check(
   TOTAL_GENERATED_PLAYS === CHARACTERS.length && playStrays.length === 0,
   `Play 补齐索引覆盖全库 ${TOTAL_GENERATED_PLAYS}/${CHARACTERS.length}` +
     `${playStrays.length ? `（漏：${playStrays.slice(0, 12).join('')}，请跑 npm run gen:char-play）` : ''}`
 )
 
-/** 旁白第一句是这个字自己的字义，所以不重复的旁白应当接近字数。 */
+/** 旁白里带着这个字自己的线索句，所以不重复的旁白应当接近字数。 */
 const distinctNarration = new Set(playRows.map(({ play }) => play?.narration ?? '')).size
 check(
   distinctNarration >= CHARACTERS.length * 0.95,
@@ -642,7 +646,7 @@ check(
 /** 字表外的字（绘本生字、搜索进来的字）也不能返回 null。 */
 const strayPlay = getCharPlay('龘')
 check(
-  Boolean(strayPlay?.template) && strayPlay.templateFallback === true && strayPlay.source === 'fallback',
+  Boolean(strayPlay?.template) && strayPlay.templateFallback === true && strayPlay.source === 'runtime',
   '字表外的字也有兜底 Play，且标了 templateFallback'
 )
 

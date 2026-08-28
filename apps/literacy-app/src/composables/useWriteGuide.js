@@ -33,10 +33,14 @@ export const isWritePhase = (id) => WRITE_PHASE_IDS.includes(id)
 
 /** 拿不到笔画数时按这个笔数估示范时长。 */
 const FALLBACK_STROKES = 8
-/** 兜底闹钟：一笔按这么久算，加一点起手的余量，再长也不超过 MAX_DEMO_MS。 */
+/**
+ * 兜底闹钟：一笔按这么久算，加一点起手的余量，再长也不超过 MAX_DEMO_MS。
+ * 数字往宽了取——闹钟只是「动画回调没回来」时的保险，估短了会把
+ * 笔画多的字的示范拦腰砍断，那比多等一会儿糟糕得多。
+ */
 const MS_PER_STROKE = 1100
 const DEMO_LEAD_IN = 700
-const MAX_DEMO_MS = 14000
+const MAX_DEMO_MS = 30000
 /** 等笔顺数据的上限，以及每次回头看的间隔。 */
 const READY_WAIT_MS = 6000
 const READY_POLL_MS = 120
@@ -56,11 +60,7 @@ export function useWriteGuide({
 } = {}) {
   /** idle 没在写步 | demo 老师在写 | trace 轮到孩子写 | done 这一遍写完或跳过了 */
   const stage = ref('idle')
-  /** 这一趟有没有跳过示范：孩子自己按的，或者「减少动态」替他按的。 */
-  const demoSkipped = ref(false)
-
   const demoing = computed(() => stage.value === 'demo')
-  const tracing = computed(() => stage.value === 'trace')
 
   /** 每次进出写步都换一个号，过期的动画回调和闹钟认号作废。 */
   let run = 0
@@ -94,18 +94,14 @@ export function useWriteGuide({
     run += 1
     clearTimer()
     stage.value = 'idle'
-    demoSkipped.value = false
   }
 
-  /**
-   * 轮到孩子写。
-   * `reason === 'self'` 表示描红是孩子自己在田字格里点开的，这里就别再开一次。
-   */
+  /** 轮到孩子写：把描红测验开起来。 */
   function toTrace(reason) {
     clearTimer()
     if (stage.value === 'trace' || stage.value === 'done') return
     stage.value = 'trace'
-    if (reason !== 'self') box.value?.startQuiz?.()
+    box.value?.startQuiz?.()
     if (reason === 'demo-end') announce('看完啦，轮到你在田字格里写一遍。')
   }
 
@@ -143,7 +139,6 @@ export function useWriteGuide({
 
     if (reduceMotion()) {
       // 减少动态下不放长动画：进来就能写，笔顺想看再自己点「看笔顺」
-      demoSkipped.value = true
       announce('已按「减少动态」跳过笔顺示范，直接在田字格里写就行。')
       toTrace('reduce-motion')
       return
@@ -177,7 +172,6 @@ export function useWriteGuide({
     // 换号，还在跑的那一遍示范收尾时认不出来，就不会再抢一次描红
     run += 1
     clearTimer()
-    demoSkipped.value = true
     toTrace('skip')
     announce('好，直接开始写。写不动随时点「写下一笔」。')
   }
@@ -202,7 +196,6 @@ export function useWriteGuide({
     if (stage.value !== 'demo') return
     run += 1
     clearTimer()
-    demoSkipped.value = true
     stage.value = 'trace'
   }
 
@@ -218,8 +211,6 @@ export function useWriteGuide({
   return {
     stage,
     demoing,
-    tracing,
-    demoSkipped,
     enter,
     skipDemo,
     replayDemo,
