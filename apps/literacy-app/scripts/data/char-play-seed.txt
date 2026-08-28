@@ -74,14 +74,14 @@
 羊|animal|count-tap|数数草地上的小羊，咩咩咩。|hero=🐑;items=🐑,🐑,🐑;goal=3
 鸟|animal|swipe-motion|轻轻往上一挥，小鸟飞起来了。|hero=🐦;dir=up;goal=3
 中|place|emoji-hunt|谁正好在正中间？点中它。|target=🎯;decoys=⬅️,➡️,⬆️;goal=1
-不|word|sort-buckets|摇摇头说不，分清能做和不能做。|buckets=可以:👍,不可以:🙅;items=📚:可以,🧸:可以,🔥:不可以,🔪:不可以
+不|word|sort-buckets|摇摇头说不，分清能做和不能做。|buckets=可以:👍,不可以:🙅;items=📚:可以,🧸:可以,🔥:不可以,🔌:不可以
 好|feeling|tap-reveal|女和子放在一起，心里就觉得好。|hero=👍;items=👧,👶;goal=2
 头|body|scene-poke|点点头上都有什么：头发眼睛嘴巴。|hero=🙂;items=💇,👁️,👄;goal=3
 牙|body|tap-reveal|张开嘴，把白牙齿一颗颗刷干净。|hero=🦷;items=🦷,🦷,🦷;tool=🪥;goal=3
 兔|animal|swipe-motion|小兔子一蹦一蹦，往上跳三下。|hero=🐰;dir=up;goal=3
 
 # ---- u4 会说话 ----
-是|word|sort-buckets|说得对点是，说错了点不是。|buckets=是:✅,不是:❌;items=🐟游泳:是,🐦会飞:是,🐘很小:不是,🔥很凉:不是
+是|word|sort-buckets|说得对点是，说错了点不是。|buckets=是:✅,不是:❌;items=鱼会游泳:是,鸟会飞:是,大象很小:不是,火是凉的:不是
 有|word|tap-reveal|口袋里有什么？点开看看你的宝贝。|hero=🎁;items=🍬,🧸,🔑;goal=3
 的|word|pair-match|这是谁的？把东西送回主人手里。|pairs=🐶:🦴,👶:🍼,🐦:🪹
 看|body|emoji-hunt|睁大眼睛看一看，找出躲起来的猫。|target=🐱;decoys=🌳,🌸,🪨;goal=1
