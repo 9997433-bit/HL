@@ -62,6 +62,23 @@ class ResultLocator:
             raise FileNotFoundError(f"no supported result file under {self.directory}")
         return read_solver_result(self.require(kind))
 
+    def load_for_model(
+        self,
+        model,
+        kind: str | None = None,
+        *,
+        by_id: bool = True,
+        max_distance: float | None = None,
+    ):
+        """Load a result and map its nodes onto ``model``."""
+        from .geometry_map import map_external_to_model
+
+        external = self.load(kind)
+        mapping = map_external_to_model(
+            model, external, by_id=by_id, max_distance=max_distance
+        )
+        return external, mapping
+
     def to_dict(self) -> dict[str, str]:
         return {key: str(path) for key, path in self.matches.items()}
 

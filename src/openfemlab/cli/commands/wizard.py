@@ -29,6 +29,7 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "opt12": "Static analysis (YAML/JSON model file)",
         "opt13": "MPE extract from measured UFF FRF",
         "opt14": "Show command cheat sheet",
+        "opt15": "SIMP topology optimization (topopt)",
         "opt0": "Exit",
         "goodbye": "Goodbye.",
         "choice": "Choice",
@@ -47,6 +48,7 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "frf_model": "Damped model spec path",
         "bench_case": "Benchmark case [modal]",
         "static_model": "Model spec path for static analysis",
+        "topopt_model": "Model spec path for topology optimization",
         "mpe_frf": "Measured FRF path (UFF/UNV)",
         "running": "Running: openfemlab {}",
         "unknown": "Unknown choice: {choice!r}",
@@ -69,6 +71,7 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "opt12": "静力分析（YAML/JSON 模型文件）",
         "opt13": "MPE 提取（UFF 实测 FRF）",
         "opt14": "命令速查表",
+        "opt15": "SIMP 拓扑优化（topopt）",
         "opt0": "退出",
         "goodbye": "再见。",
         "choice": "选项",
@@ -87,6 +90,7 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "frf_model": "阻尼模型规格路径",
         "bench_case": "基准用例 [modal]",
         "static_model": "静力分析模型规格路径",
+        "topopt_model": "拓扑优化模型规格路径",
         "mpe_frf": "实测 FRF 路径（UFF/UNV）",
         "running": "正在运行: openfemlab {}",
         "unknown": "未知选项: {choice!r}",
@@ -108,6 +112,7 @@ _CHEAT_SHEET = [
     "openfemlab sdm scan model.yaml",
     "openfemlab bench modal",
     "openfemlab static model.yaml",
+    "openfemlab topopt model.yaml --filter-radius 0.35 --heaviside-beta 32",
     "openfemlab mpe extract measured.unv",
     "openfemlab info",
     "pip install 'openfemlab[cli,plot,io]'",
@@ -162,6 +167,7 @@ def run(args: argparse.Namespace, reporter: Reporter) -> int:
         reporter.line(f" 12  {msg['opt12']}")
         reporter.line(f" 13  {msg['opt13']}")
         reporter.line(f" 14  {msg['opt14']}")
+        reporter.line(f" 15  {msg['opt15']}")
         reporter.line(f"  0  {msg['opt0']}")
         choice = _prompt(msg["choice"], reporter)
 
@@ -242,6 +248,15 @@ def run(args: argparse.Namespace, reporter: Reporter) -> int:
         if choice == "14":
             _cheat_sheet(reporter, msg)
             continue
+        if choice == "15":
+            model = _prompt(msg["topopt_model"], reporter)
+            if not model:
+                continue
+            return _delegate(
+                ["topopt", model, "--filter-radius", "0.35", "--max-iter", "30"],
+                reporter,
+                msg,
+            )
         reporter.warning(msg["unknown"].format(choice=choice))
 
 

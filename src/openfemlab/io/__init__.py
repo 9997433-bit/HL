@@ -52,6 +52,7 @@ from ._native import (
 )
 from .external_result import ExternalResult
 from .frd import FRDResult, read_frd
+from .geometry_map import ExternalNodeMap, map_external_to_model
 from .meshio_bridge import from_meshio, read_meshio, to_meshio, write_meshio
 from .nastran import read_bdf, read_nastran, write_bdf
 from .neutral_convert import (
@@ -65,6 +66,7 @@ from .odb import ODBResult, extract_odb_npz, read_odb, read_odb_npz, sidecar_npz
 from .op2 import list_op2_tables, read_op2, read_op2_modes
 from .results_locator import ResultLocator, locate_results, read_solver_result
 from .rst import RSTResult, read_rst
+from .topology_export import DENSITY_CELL_KEY, model_to_neutral, write_topology_vtu
 from .uff import (
     UFFDataset,
     UFFFunction,
@@ -152,6 +154,11 @@ __all__ = [
     "sidecar_npz_path",
     "ODBResult",
     "ExternalResult",
+    "ExternalNodeMap",
+    "map_external_to_model",
+    "DENSITY_CELL_KEY",
+    "model_to_neutral",
+    "write_topology_vtu",
     "read_solver_result",
     "ResultLocator",
     "locate_results",

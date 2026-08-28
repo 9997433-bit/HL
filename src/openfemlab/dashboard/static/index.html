@@ -806,6 +806,29 @@
       `;
     }
 
+    function renderTopology(payload) {
+      const rows = (payload.densities || [])
+        .slice()
+        .sort((a, b) => Number(b.density) - Number(a.density))
+        .slice(0, 24)
+        .map(
+          (row) =>
+            `<tr><td>${esc(String(row.element))}</td><td>${Number(row.density).toFixed(4)}</td></tr>`
+        );
+      const summary = payload.summary || {};
+      return `
+        <h1>拓扑优化</h1>
+        <section><h2>Summary</h2>
+          <p>iterations: ${esc(String(summary.iterations ?? "—"))}</p>
+          <p>mean density: ${esc(String(summary.mean_density ?? "—"))}</p>
+          <p>compliance: ${esc(String(summary.final_compliance ?? "—"))}</p>
+        </section>
+        <section><h2>Element densities</h2>
+          <table><thead><tr><th>element</th><th>rho</th></tr></thead>
+          <tbody>${rows.join("") || "<tr><td colspan=2>no data</td></tr>"}</tbody></table>
+        </section>`;
+    }
+
     function detectKind(payload) {
       if (payload.baseline_correlation || payload.status === "PASS" || payload.status === "FAIL")
         return "correction";
@@ -814,6 +837,7 @@
         return "correlation";
       if (payload.object_type === "modal_result" || payload.frequencies_hz) return "modal";
       if (payload.object_type === "static_result" || payload.kind === "static") return "static";
+      if (payload.kind === "topology" && payload.densities) return "topology";
       return "unknown";
     }
 
@@ -850,6 +874,7 @@
       else if (kind === "correction") body = renderCorrection(payload);
       else if (kind === "modal" && state.modes) body = renderModal(payload, state.modes);
       else if (kind === "static" && state.modes) body = renderModal(payload, state.modes);
+      else if (kind === "topology") body = renderTopology(payload);
       else body = `<section><h2>JSON</h2><pre>${esc(JSON.stringify(payload, null, 2))}</pre></section>`;
 
       if (payload.stabilization_diagram) {

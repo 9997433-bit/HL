@@ -7,7 +7,7 @@ from typing import Any
 
 from ...optimization.topology import run_simp_topology
 from ..console import Column, Reporter, format_number
-from ..spec import build_model, load_spec
+from ..spec import build_load_cases, build_model, load_spec
 
 NAME = "topopt"
 HELP = "run SIMP topology optimization on a loaded structural model"
@@ -85,6 +85,17 @@ def add_parser(subparsers: argparse._SubParsersAction) -> argparse.ArgumentParse
         metavar="PATH",
         help="write final element densities to JSON/YAML",
     )
+    parser.add_argument(
+        "--export-vtu",
+        default=None,
+        metavar="PATH",
+        help="write projected/physical densities as VTU/VTK cell data",
+    )
+    parser.add_argument(
+        "--export-projected",
+        action="store_true",
+        help="when exporting VTU, use projected densities instead of physical rho",
+    )
     parser.set_defaults(func=run)
     return parser
 
@@ -92,6 +103,11 @@ def add_parser(subparsers: argparse._SubParsersAction) -> argparse.ArgumentParse
 def run(args: argparse.Namespace, reporter: Reporter) -> int:
     spec = load_spec(args.model)
     model = build_model(spec)
+    load_cases = build_load_cases(spec, model)
+    load_vectors = None
+    load_weights = None
+    if load_cases is not None:
+        load_vectors, load_weights = load_cases
     result = run_simp_topology(
         model,
         vol_frac=args.vol_frac,
@@ -102,6 +118,8 @@ def run(args: argparse.Namespace, reporter: Reporter) -> int:
         heaviside_beta=args.heaviside_beta,
         heaviside_eta=args.heaviside_eta,
         heaviside_continuation=not args.no_heaviside_continuation,
+        load_vectors=load_vectors,
+        load_weights=load_weights,
     )
     report = build_report(model, result, source=str(args.model))
     if args.format == "table":
@@ -113,6 +131,17 @@ def run(args: argparse.Namespace, reporter: Reporter) -> int:
 
         write_data(report, args.output)
         reporter.note(f"topology result written to {args.output}")
+    if args.export_vtu:
+        from ...io.topology_export import write_topology_vtu
+
+        projected = result.projected_densities if args.export_projected else None
+        write_topology_vtu(
+            model,
+            result.densities,
+            args.export_vtu,
+            use_projected=projected,
+        )
+        reporter.note(f"topology VTU written to {args.export_vtu}")
     return 0
 
 

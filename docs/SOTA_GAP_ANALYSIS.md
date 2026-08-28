@@ -1,3 +1,35 @@
+# OpenFEMLab vs FEMtools — SOTA Gap Analysis (Round 17 refresh)
+
+**Auditor:** Cloud Agent · **Date:** 2026-08-28 UTC  
+**Snapshot:** branch `cursor/round17-full-closure-7aa3`, release **`0.3.0`**  
+**Registry:** **104/104** acceptance criteria `verified`
+
+## Round 17 executive summary
+
+Round 17 closes the four post-R16 themes in one release: topology productization,
+0.3.0 delivery, I/O long-tail, and CI/ROM differentiation.
+
+| Priority | Theme | Outcome |
+|----------|-------|---------|
+| P0 | Topology product | Multi-load SIMP, VTU density export, wizard/dashboard topopt |
+| P0 | 0.3.0 release | Examples 14, multi-load specs, docs bump |
+| P1 | I/O long-tail | `map_external_to_model`, `ResultLocator.load_for_model` |
+| P1 | Differentiation | Golden correlation CI test, Craig-Bampton CMS skeleton |
+
+### Remaining intentional gaps
+
+| Gap | Status |
+|-----|--------|
+| DAQ hardware / ARTeMIS runtime | **Deferred** |
+| Desktop-grade GUI product | **Deferred** — CLI + Web by design |
+| Full CB fixed-interface modes | **Partial** — Guyan skeleton shipped |
+| Stress-constrained topology | **Deferred** — multi-load compliance shipped |
+
+**Verdict:** OpenFEMLab `0.3.0` is the integration release for R14–R17: scripted
+workflow parity with FEMtools plus open CI-native topology and result mapping.
+
+---
+
 # OpenFEMLab vs FEMtools — SOTA Gap Analysis (Round 16 refresh)
 
 **Auditor:** Cloud Agent · **Date:** 2026-08-28 UTC  

@@ -360,6 +360,39 @@ class TopologyResult:
         return float(np.mean(self.densities))
 
 
+def _resolve_load_cases(
+    model,
+    load_vectors: list[np.ndarray] | None,
+    load_weights: list[float] | None,
+) -> tuple[list[np.ndarray], list[float]]:
+    if load_vectors is None:
+        vector = model.load_vector()
+        if float(vector.sum()) == 0.0:
+            raise OptimizationError("topology optimization requires non-zero nodal loads")
+        return [vector], [1.0]
+    vectors = [np.asarray(item, dtype=float).reshape(-1) for item in load_vectors]
+    if not vectors:
+        raise OptimizationError("load_vectors must contain at least one load case")
+    for index, vector in enumerate(vectors):
+        if vector.size != model.num_dofs:
+            raise OptimizationError(
+                f"load case {index} has {vector.size} entries, expected {model.num_dofs}"
+            )
+        if float(vector.sum()) == 0.0:
+            raise OptimizationError(f"load case {index} is zero")
+    if load_weights is None:
+        weights = [1.0] * len(vectors)
+    else:
+        weights = [float(value) for value in load_weights]
+        if len(weights) != len(vectors):
+            raise OptimizationError(
+                f"expected {len(vectors)} load weights, got {len(weights)}"
+            )
+    if sum(weights) <= 0.0:
+        raise OptimizationError("load case weights must sum to a positive value")
+    return vectors, weights
+
+
 def run_simp_topology(
     model,
     *,
@@ -374,16 +407,17 @@ def run_simp_topology(
     heaviside_eta: float = 0.5,
     heaviside_continuation: bool = True,
     heaviside_beta_min: float = 1.0,
+    load_vectors: list[np.ndarray] | None = None,
+    load_weights: list[float] | None = None,
 ) -> TopologyResult:
     """Minimize compliance with a SIMP penalization and OC updates."""
     if not 0.0 < vol_frac <= 1.0:
         raise OptimizationError("vol_frac must lie in (0, 1]")
-    if model.load_vector().sum() == 0.0:
-        raise OptimizationError("topology optimization requires non-zero nodal loads")
     if heaviside_beta is not None and filter_radius is None:
         raise OptimizationError(
             "Heaviside projection requires a density filter; set filter_radius"
         )
+    loads, weights = _resolve_load_cases(model, load_vectors, load_weights)
     volumes = element_volumes(model)
     filter_matrix: sp.csr_matrix | None = None
     row_sums: np.ndarray | None = None
@@ -420,6 +454,7 @@ def run_simp_topology(
                 "heaviside_beta": heaviside_beta,
                 "heaviside_eta": heaviside_eta,
                 "heaviside_continuation": heaviside_continuation,
+                "num_load_cases": len(loads),
             },
         )
 
@@ -438,34 +473,37 @@ def run_simp_topology(
         k = assemble_simp_stiffness(
             model, rho_design, penalization=penalization, e_min=e_min
         )
-        load = model.load_vector()
         free = model.free_dofs
         k_ff = k[free, :][:, free].tocsr()
-        f_f = load[free]
-        u_f = spla.spsolve(k_ff, f_f)
-        u = np.zeros(model.num_dofs, dtype=float)
-        u[free] = np.asarray(u_f, dtype=float).reshape(-1)
-        last_u = u
-        energies = element_strain_energy(
-            model, u, rho_design, penalization=penalization, e_min=e_min
-        )
-        compliance = float(f_f @ u_f)
+        compliance = 0.0
+        dc = np.zeros(model.num_elements, dtype=float)
+        for weight, load in zip(weights, loads, strict=True):
+            f_f = load[free]
+            u_f = spla.spsolve(k_ff, f_f)
+            u = np.zeros(model.num_dofs, dtype=float)
+            u[free] = np.asarray(u_f, dtype=float).reshape(-1)
+            last_u = u
+            energies = element_strain_energy(
+                model, u, rho_design, penalization=penalization, e_min=e_min
+            )
+            compliance += float(weight) * float(f_f @ u_f)
+            dc_design = -float(penalization) * np.power(
+                np.maximum(rho_design, 1e-3), penalization - 1.0
+            ) * np.maximum(energies, 0.0)
+            if projection_deriv is not None:
+                dc_design = dc_design * projection_deriv
+            dc_case = (
+                filter_sensitivities(dc_design, filter_matrix, row_sums)
+                if filter_matrix is not None and row_sums is not None
+                else dc_design
+            )
+            dc += float(weight) * dc_case
         volume = float((rho * volumes).sum() / (volumes.sum() or 1.0))
         history_c.append(compliance)
         history_v.append(volume)
-        dc_design = -float(penalization) * np.power(
-            np.maximum(rho_design, 1e-3), penalization - 1.0
-        ) * np.maximum(energies, 0.0)
-        if projection_deriv is not None:
-            dc_design = dc_design * projection_deriv
-        dc = (
-            filter_sensitivities(dc_design, filter_matrix, row_sums)
-            if filter_matrix is not None and row_sums is not None
-            else dc_design
-        )
         rho_new = oc_update(
             rho,
-            energies,
+            np.zeros(model.num_elements, dtype=float),
             volumes,
             vol_frac=vol_frac,
             move=move,
