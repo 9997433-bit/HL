@@ -1,3 +1,9 @@
+# Round 17 regression baseline
+# command: npm run check:round17
+# exit: 1
+
+> hongen-edu-apps@1.0.0 check:round17
+> node scripts/check-round17.mjs
 
 Round 17 check (ROUND17-v1.0): 2/8
 
@@ -10,3 +16,19 @@ Round 17 check (ROUND17-v1.0): 2/8
 ✗ H5 缺学伴关键接线（ROUND17_H5）
 ✗ H6 走查证据不足（doc=0，引用=0，落盘=0）
 
+# command: npm run check:round16
+# exit: 0
+
+> hongen-edu-apps@1.0.0 check:round16
+> node scripts/check-round16.mjs
+
+Round 16 check (ROUND16-v1.1): 8/8
+
+✓ H1 双 App 洪恩体验总表就位
+✓ H2 无字源认步默认动画已接线（可执行标记 ×3）
+✓ H3 富 Play 640 ≥ 500，narration 去重 640 ≥ 400（apps/literacy-app/src/data/char-play.js）
+✓ H4 数学学演示 21 ≥ 12（三态+可跳过，登记表参考 21）
+✓ H5 应用题剖析壳就位（可执行标记 ×2）
+✓ H6 学伴人格台词 95 ≥ 40（去重，阶段场景 4/4，标记 ×2）
+✓ H7 家长可解释周报就位（可执行标记 ×2）
+✓ H8 check:round15 8/8
