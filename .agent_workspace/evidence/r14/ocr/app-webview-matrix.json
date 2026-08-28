@@ -1,6 +1,6 @@
 {
   "marker": "ROUND14_H2",
-  "capturedAt": "2026-08-28T04:58:37.459Z",
+  "capturedAt": "2026-08-28T05:16:38.952Z",
   "simulated": true,
   "onDevice": false,
   "surface": {
@@ -27,7 +27,7 @@
       "missed": "",
       "noise": "",
       "confidence": 78,
-      "ms": 69,
+      "ms": 71,
       "canvas": {
         "from": "320×81",
         "to": "320×81"
@@ -51,7 +51,7 @@
       "missed": "",
       "noise": "",
       "confidence": 85,
-      "ms": 21,
+      "ms": 19,
       "canvas": {
         "from": "240×99",
         "to": "240×99"
@@ -99,7 +99,7 @@
       "missed": "",
       "noise": "",
       "confidence": 93,
-      "ms": 24,
+      "ms": 23,
       "canvas": {
         "from": "320×97",
         "to": "320×97"
@@ -123,7 +123,7 @@
       "missed": "",
       "noise": "",
       "confidence": 84,
-      "ms": 18,
+      "ms": 17,
       "canvas": {
         "from": "240×85",
         "to": "240×85"
@@ -147,7 +147,7 @@
       "missed": "",
       "noise": "",
       "confidence": 76,
-      "ms": 19,
+      "ms": 20,
       "canvas": {
         "from": "240×76",
         "to": "240×76"
@@ -171,7 +171,7 @@
       "missed": "",
       "noise": "",
       "confidence": 95,
-      "ms": 44,
+      "ms": 45,
       "canvas": {
         "from": "400×77",
         "to": "400×77"
