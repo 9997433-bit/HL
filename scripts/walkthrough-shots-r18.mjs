@@ -54,6 +54,9 @@ async function loadLiteracyData() {
   register('./alias-loader.mjs', import.meta.url)
   const { CHAR_INDEX } = await import(resolve(ROOT, 'apps/literacy-app/src/data/char-index.js'))
   const play = await import(resolve(ROOT, 'apps/literacy-app/src/data/char-play.js'))
+  // R18 H3 之后富脚本按单元分片，不 await 就一条都查不到（UI 那边是按需拉的，
+  // 这里是走查在挑样本，得先把全库装上才知道哪个字是手写关）
+  if (typeof play.loadAllRichPlays === 'function') await play.loadAllRichPlays()
   return { CHAR_INDEX, play }
 }
 
@@ -341,6 +344,7 @@ async function sceneBundle(browser, base) {
   await page.setCacheEnabled(false)
 
   const seen = new Map()
+  let phase = 'cold'
   const cdp = await page.createCDPSession()
   await cdp.send('Network.enable')
   const urls = new Map()
@@ -352,7 +356,11 @@ async function sceneBundle(browser, base) {
     if (!url) return
     const file = url.split('/').pop().split('?')[0]
     if (!file.endsWith('.js')) return
-    seen.set(file, Math.max(seen.get(file) ?? 0, e.encodedDataLength ?? 0))
+    const prev = seen.get(file)
+    seen.set(file, {
+      bytes: Math.max(prev?.bytes ?? 0, e.encodedDataLength ?? 0),
+      phase: prev?.phase ?? phase,
+    })
   })
 
   await page.goto(`${base}/#/learn/${encodeURIComponent(char)}`, {
@@ -374,39 +382,61 @@ async function sceneBundle(browser, base) {
       '这条就是 R18 H3 要减负的单字关键路径',
   )
 
-  const rows = [...seen.entries()].sort((a, b) => b[1] - a[1])
-  const total = rows.reduce((sum, [, bytes]) => sum + bytes, 0)
-  const top = rows.slice(0, 10)
+  // 拆包拆没拆干净，光看首屏体积说不全：再切到一个**别的单元**的字，
+  // 看它是不是只补拉那一个单元的分片。整包同步的写法这里会一片都不拉。
+  phase = 'switch'
+  const other =
+    CHAR_INDEX.find((c) => play.hasRichPlay(c.char) && c.unit !== CHAR_INDEX[0].unit) ?? null
+  if (other) {
+    await page.goto(`${base}/#/learn/${encodeURIComponent(other.char)}`, {
+      waitUntil: 'networkidle2',
+      timeout: 30_000,
+    })
+    await page.waitForSelector('[data-char-play]', { timeout: 15_000 })
+    await wait(1500)
+  }
+
+  const all = [...seen.entries()].map(([file, info]) => ({ file, ...info }))
+  const cold = all.filter((r) => r.phase === 'cold').sort((a, b) => b.bytes - a.bytes)
+  const later = all.filter((r) => r.phase === 'switch').sort((a, b) => b.bytes - a.bytes)
+  const total = cold.reduce((sum, r) => sum + r.bytes, 0)
+  const top = cold.slice(0, 8)
+  const laterBytes = later.reduce((sum, r) => sum + r.bytes, 0)
   await shootPanel(
     browser,
     'r18-04-bundle-network.png',
-    `拆包实测：冷开单字详情「${char}」真实下载的 JS 分片（前 ${top.length} 大 / 共 ${rows.length} 个，` +
-      `合计 ${(total / 1024).toFixed(0)} KB 传输字节）`,
+    `拆包实测：冷开单字详情「${char}」真实下载 ${cold.length} 个 JS 分片 / ` +
+      `${(total / 1024).toFixed(0)} KB；切到别的单元的字「${other?.char ?? '—'}」再补拉 ` +
+      `${later.length} 片 / ${(laterBytes / 1024).toFixed(1)} KB`,
     {
       title: '单字关键路径 · 实测 JS 分片（Chrome CDP 采集）',
       subtitle:
-        `路由 #/learn/${char} · 禁用缓存冷开 · 共 ${rows.length} 个 JS 分片 / ` +
+        `路由 #/learn/${char} · 禁用缓存冷开 · 首屏 ${cold.length} 片 / ` +
         `${(total / 1024).toFixed(1)} KB 传输字节 · 采集时间 ${new Date().toISOString()}`,
       rows: [
         ['分片文件', '传输字节', 'KB'],
-        ...top.map(([file, bytes]) => [
-          file,
-          bytes.toLocaleString('en-US'),
-          (bytes / 1024).toFixed(1),
-        ]),
-        ['合计（全部分片）', total.toLocaleString('en-US'), (total / 1024).toFixed(1)],
+        ...top.map((r) => [r.file, r.bytes.toLocaleString('en-US'), (r.bytes / 1024).toFixed(1)]),
+        ['合计（冷开全部分片）', total.toLocaleString('en-US'), (total / 1024).toFixed(1)],
+        [
+          `切到「${other?.char ?? '—'}」（${other?.unit ?? '—'}）后补拉`,
+          later.length ? later.map((r) => r.file).join('、') : '（没有新分片）',
+          (laterBytes / 1024).toFixed(1),
+        ],
       ],
-      note:
-        'CharDetailView 这一片目前把 char-play-rich 整包同步吃进来，所以它一个人就占了单字路径的大头。' +
-        'R18 H3 的按单元懒加载合入后，这张表里 CharDetailView 应显著变小，并多出「切到哪个单元才拉哪一片」的分片。',
+      note: later.length
+        ? '换一个单元的字只补拉了它那一片富脚本，别的单元的剧本没有跟着下来——' +
+          '这就是 R18 H3 的按单元懒加载在真浏览器里的样子。'
+        : '换单元没有补拉任何分片：要么富脚本还是整包同步进来的，要么这个字没有手写剧本。',
     },
   )
   await page.close()
   return {
     char,
-    chunks: rows.length,
-    totalBytes: total,
-    top: top.map(([file, bytes]) => ({ file, bytes })),
+    coldChunks: cold.length,
+    coldBytes: total,
+    switchedTo: other ? { char: other.char, unit: other.unit } : null,
+    switchChunks: later.map((r) => ({ file: r.file, bytes: r.bytes })),
+    top: top.map((r) => ({ file: r.file, bytes: r.bytes })),
   }
 }
 
