@@ -2,8 +2,8 @@
   "simulated": true,
   "marker": "android-sim-harness-v1",
   "note": "VM WebView 模拟 + Capacitor APK 构建；不等价 Android QA 真机签核",
-  "timestamp": "2026-08-28T02:18:54.542Z",
-  "commit": "9c9d126",
+  "timestamp": "2026-08-28T03:05:19.576Z",
+  "commit": "ef488a4",
   "webViewUserAgent": "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36 Version/4.0",
   "steps": [
     {
@@ -32,7 +32,7 @@
       "exit": 0
     },
     {
-      "step": "ocr-device-a",
+      "step": "ocr-device",
       "pass": true,
       "exit": 0
     }
@@ -42,19 +42,231 @@
     "smokeRoutes": 164,
     "smokeInteractions": 41,
     "smokeProblems": 0,
-    "apkSha256": "0b0b4587326681da3fc1b80515a433afe17983e57d5a60388a510eb233c35af9",
-    "apkBytes": 36081850
+    "apkSha256": "cc056bffe7dd614d9af43ff91bc8d0859c382e90dd7f871f9d44918a9993766a",
+    "apkBytes": 36040658
   },
   "math": {
     "smokePass": true,
     "smokeRoutes": 20,
     "smokeInteractions": 36,
     "smokeProblems": 0,
-    "apkSha256": "1e3a341cac52241b1ad1825959084f6067b163e94b337b8199032f8d4c8c9da3",
-    "apkBytes": 4292454
+    "apkSha256": "bc5473c8627b550e45623201921d0af87d99e7939e14dd6e36966697304b6d22",
+    "apkBytes": 4260315
   },
   "ocr": {
-    "pass": true
+    "marker": "ocr-android-sim-v1",
+    "simulated": true,
+    "note": "VM 里的 Android WebView 模拟（UA + 移动视口 + localhost 安全上下文），不等价真机签核",
+    "capturedAt": "2026-08-28T03:05:19.564Z",
+    "pass": true,
+    "webviewRan": true,
+    "userAgent": "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36 Version/4.0",
+    "viewport": "412×915@2.625x",
+    "chromium": "148.0.7778.96",
+    "serviceWorker": true,
+    "cachedPack": [
+      "/ocr/chi_sim.traineddata.gz",
+      "/ocr/worker.min.js",
+      "/ocr/tesseract-core-simd-lstm.wasm.js"
+    ],
+    "recall": {
+      "hit": 33,
+      "total": 41,
+      "floor": 33,
+      "note": "App 完整链路实测，与 test-ocr-accuracy.mjs 的引擎侧跑分不是一回事"
+    },
+    "offline": {
+      "ran": true,
+      "matched": 10
+    },
+    "apkLayout": {
+      "sample": "real-park-sign",
+      "expected": "爱护花草",
+      "got": "爱护花草",
+      "hit": 4,
+      "total": 4,
+      "phase": "done"
+    },
+    "samples": [
+      {
+        "name": "real-park-sign",
+        "tier": {
+          "light": "dappled",
+          "angle": "tilt-down",
+          "paper": "painted-board"
+        },
+        "expected": "爱护花草",
+        "got": "爱护花草",
+        "hit": 4,
+        "total": 4,
+        "floor": 4,
+        "confidence": 87,
+        "trouble": "",
+        "ms": 1244
+      },
+      {
+        "name": "real-floor-cone",
+        "tier": {
+          "light": "indoor-lamp",
+          "angle": "tilt-up",
+          "paper": "plastic-cone"
+        },
+        "expected": "小心地滑",
+        "got": "小心地滑",
+        "hit": 4,
+        "total": 4,
+        "floor": 4,
+        "confidence": 75,
+        "trouble": "",
+        "ms": 335
+      },
+      {
+        "name": "real-wall-stencil",
+        "tier": {
+          "light": "daylight",
+          "angle": "frontal",
+          "paper": "concrete"
+        },
+        "expected": "小心地滑",
+        "got": "小心地海",
+        "hit": 3,
+        "total": 4,
+        "floor": 3,
+        "confidence": 32,
+        "trouble": "shaky",
+        "ms": 323
+      },
+      {
+        "name": "real-road-warning",
+        "tier": {
+          "light": "daylight",
+          "angle": "frontal",
+          "paper": "enamel-metal"
+        },
+        "expected": "小心行人",
+        "got": "小心行人",
+        "hit": 4,
+        "total": 4,
+        "floor": 4,
+        "confidence": 93,
+        "trouble": "",
+        "ms": 339
+      },
+      {
+        "name": "real-toilet-sign",
+        "tier": {
+          "light": "spotlight",
+          "angle": "frontal",
+          "paper": "metal-letter"
+        },
+        "expected": "洗手间",
+        "got": "六手间",
+        "hit": 2,
+        "total": 3,
+        "floor": 2,
+        "confidence": 33,
+        "trouble": "shaky",
+        "ms": 341
+      },
+      {
+        "name": "real-blackboard-press",
+        "tier": {
+          "light": "shade",
+          "angle": "frontal",
+          "paper": "chalkboard"
+        },
+        "expected": "中华书局",
+        "got": "站华书朋",
+        "hit": 2,
+        "total": 4,
+        "floor": 2,
+        "confidence": 44,
+        "trouble": "shaky",
+        "ms": 321
+      },
+      {
+        "name": "real-road-slogan",
+        "tier": {
+          "light": "overcast",
+          "angle": "tilt-up",
+          "paper": "reflective-sign"
+        },
+        "expected": "爱护环境光荣",
+        "got": "爱护环境光荣",
+        "hit": 6,
+        "total": 6,
+        "floor": 6,
+        "confidence": 95,
+        "trouble": "",
+        "ms": 317
+      },
+      {
+        "name": "real-town-plaque",
+        "tier": {
+          "light": "overcast",
+          "angle": "frontal",
+          "paper": "acrylic-plaque"
+        },
+        "expected": "社会治安",
+        "got": "会安储痊",
+        "hit": 2,
+        "total": 4,
+        "floor": 2,
+        "confidence": 33,
+        "trouble": "shaky",
+        "ms": 321
+      },
+      {
+        "name": "real-shop-oblique",
+        "tier": {
+          "light": "backlit",
+          "angle": "oblique",
+          "paper": "lightbox-film"
+        },
+        "expected": "良欣美食",
+        "got": "良欣美食",
+        "hit": 4,
+        "total": 4,
+        "floor": 4,
+        "confidence": 89,
+        "trouble": "",
+        "ms": 317
+      },
+      {
+        "name": "real-receipt-shadow",
+        "tier": {
+          "light": "hand-shadow",
+          "angle": "tilt-down",
+          "paper": "thermal-paper"
+        },
+        "expected": "小碗米饭",
+        "got": "小便米饮",
+        "hit": 2,
+        "total": 4,
+        "floor": 2,
+        "confidence": 52,
+        "trouble": "shaky",
+        "ms": 321
+      }
+    ],
+    "reflux": {
+      "queue": "apps/literacy-app/scripts/fixtures/ocr/regressions/queue.json",
+      "design": ".agent_workspace/r13-ocr-regression-loop.md",
+      "records": 5,
+      "open": 4
+    },
+    "assertions": {
+      "passed": 68,
+      "failed": 0,
+      "skipped": 4
+    },
+    "fails": [],
+    "deviceSkips": [
+      "B1 设备指纹（型号 / Android 版本 / WebView 版本 / 分辨率）",
+      "B2 十张真实样张 push 到 /sdcard/Download/hongen-ocr，逐格走「相册选」",
+      "B3 冷启 → /#/ocr → 首次下引擎包耗时与峰值内存",
+      "B4 飞行模式下重进 /#/ocr，引擎从 SW 缓存里起来"
+    ]
   },
   "androidHome": "/home/ubuntu/android-sdk"
 }

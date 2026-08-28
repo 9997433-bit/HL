@@ -1115,6 +1115,7 @@ if (webviewSim) {
       const missing = webview.samples.filter((s) => s.hit < s.total && !known.has(s.name))
       if (missing.length && recordFailures) {
         const today = new Date().toISOString().slice(0, 10)
+        queue.records = queue.records ?? []
         for (const s of missing) {
           queue.records.push({
             id: `r${currentRound}-webview-${s.name.replace(/^real-/, '')}`,
