@@ -76,6 +76,15 @@ App ID：识字 `com.hongen.literacy`；数学 `com.hongen.mathquest`。
 ## 4. 识字 App 专项
 
 > Owner: Literacy QA + Android QA；相机、麦克风、WebView 与触控项不得用桌面浏览器代签。
+>
+> **拍照识字先跑脚本再动手（R14 起，`ROUND14_H2`）**：设备插上后执行
+> `node apps/literacy-app/scripts/test-ocr-device.mjs --require-device`。
+> 它会自己把十张真实样张推进设备、接进 App 的 WebView 逐张认字、开一次飞行模式
+> 复跑，证据落 `.agent_workspace/evidence/r14/android/ocr-device-b.json`。
+> 退出码：`0` 全绿 / `1` 有断言红 / `2` 没红但没跑成（**exit 2 不是通过**）。
+> 掉不掉字这件事人眼看不出来（差别在 WebView 的 canvas 插值和 wasm SIMD），
+> 交给脚本逐张对字数；下面这几条留给人的是脚本证不了的部分——取景、权限弹窗、
+> 提示话术读起来是不是人话、连续用下去烫不烫。
 
 - [ ] 首页地图 → 字表 → 单字详情 → 描红 → 完成反馈闭环；新增高单元字也可进入。
 - [ ] 听音识字正确/错误各答一次，语音、动画、震动不重叠，复习记录正确。
