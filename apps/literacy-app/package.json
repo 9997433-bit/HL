@@ -43,7 +43,8 @@
     "check:data": "node scripts/check-data.mjs",
     "check:bundle": "node scripts/check-bundle.mjs",
     "smoke": "node scripts/smoke.mjs",
-    "test": "npm run test:srs && npm run test:play && npm run test:speech && npm run test:asr:evalset && npm run test:asr:engine && npm run test:ocr && npm run test:ocr:accuracy && npm run test:ocr:app && npm run check:data && npm run build && npm run check:bundle && npm run smoke"
+    "test": "npm run test:srs && npm run test:play && npm run test:speech && npm run test:asr:evalset && npm run test:asr:engine && npm run test:ocr && npm run test:ocr:accuracy && npm run test:ocr:app && npm run check:data && npm run build && npm run check:bundle && npm run smoke",
+    "gen:char-play": "node scripts/gen-char-play.mjs"
   },
   "dependencies": {
     "gsap": "^3.12.5",

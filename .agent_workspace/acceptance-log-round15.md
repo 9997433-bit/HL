@@ -13,14 +13,14 @@
 
 | 探针 | 状态 | 证据 / 命令摘录 | Owner 分支 |
 |---|---|---|---|
-| H1 五步对齐 | ⬜ | | r15-phase-remap |
-| H2 Play 全库 | ⬜ | | r15-play-engine / autofill |
-| H3 富脚本 ≥200 | ⬜ | | r15-play-catalog-rich |
-| H4 认步字源默认播 | ⬜ | | r15-phase-remap |
-| H5 自动补齐管道 | ⬜ | | r15-play-autofill |
-| H6 写步引导 | ⬜ | | r15-write-guide |
-| H7 smoke / a11y | 🟡 smoke 已合入 | cherry-pick `06452f2` | r15-play-smoke-tests |
-| H8 往轮 | 🟡 | 以 openmoji-integration 实测为准；缺 APK 先 android:sim | r15-regression-gate |
+| H1 五步对齐 | ✅ | check:round15 8/8 | r15-phase-remap |
+| H2 Play 全库 | ✅ | 1820/1820 | r15-play-engine / autofill |
+| H3 富脚本 ≥200 | ✅ | 272 条 u1–u20 | r15-play-catalog-rich |
+| H4 认步字源默认播 | ✅ | intro 默认 EtymologyStage | r15-phase-remap |
+| H5 自动补齐管道 | ✅ | gen-char-play.mjs | r15-play-autofill |
+| H6 写步引导 | ✅ | useWriteGuide | r15-write-guide |
+| H7 smoke / a11y | ✅ | ROUND15_H7 | r15-play-smoke-tests |
+| H8 往轮 | ✅ | round13 7/8（H7 BLOCKED） | r15-regression-gate |
 
 ## 修订记录
 
@@ -29,6 +29,7 @@
 | 2026-08-28 | v1.0 编排启动，十路子代理发射 |
 | 2026-08-28 | 探针基线实测 **1/8**（仅 H8）；十路 Task 已并发启动 |
 | 2026-08-28 | v1.1 合入 audit / smoke / gate；明确 H8 与 APK 环境前置 |
+| 2026-08-28 | **集成实测 check:round15 8/8**；engine/autofill/rich/phase/write 合入 |
 
 ## 十路子代理（已发射）
 
@@ -37,11 +38,11 @@
 | 1 | fable | r15-arch-contracts | bc-188efcbb… ✅ 已合入 |
 | 2 | fable | r15-hongen-play-audit | bc-38b7e636… ✅ 已合入 |
 | 3 | fable | r15-acceptance-spec | bc-b2d836d8… |
-| 4 | opus-fast | r15-play-engine | bc-90f4bdab… |
-| 5 | opus-fast | r15-phase-remap | bc-d5a7b171… |
-| 6 | opus-fast | r15-play-catalog-rich | bc-8a247b69… |
-| 7 | opus-fast | r15-play-autofill | bc-1d0514a6… |
-| 8 | opus-fast | r15-write-guide | bc-1b3f921d… |
+| 4 | opus-fast | r15-play-engine | ✅ bc-90f4bdab… |
+| 5 | opus-fast | r15-phase-remap | ✅ bc-d5a7b171… |
+| 6 | opus-fast | r15-play-catalog-rich | ✅ bc-8a247b69… |
+| 7 | opus-fast | r15-play-autofill | ✅ bc-1d0514a6… |
+| 8 | opus-fast | r15-write-guide | ✅ bc-1b3f921d… |
 | 9 | gpt-sol | r15-play-smoke-tests | bc-9b92bbee… ✅ 已合入 |
 | 10 | gpt-sol | r15-regression-gate | bc-53e189ed… ✅ 已合入 |
 
