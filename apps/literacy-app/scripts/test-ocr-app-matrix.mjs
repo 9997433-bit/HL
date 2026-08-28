@@ -223,7 +223,9 @@ if (asJson) {
 } else {
   for (const r of rows) {
     console.log(
-      `  ${r.hit === r.total ? '✓' : '✗'} ${r.name}：${r.hit}/${r.total}` +
+      // 满分打勾，缺字打半月：喷漆那张的「滑」是引擎边界，不是这一段的失败，
+      // 真正的红灯由下面 failures 那几行给。
+      `  ${r.hit === r.total ? '✓' : '◐'} ${r.name}：${r.hit}/${r.total}` +
         ` · 把握 ${r.confidence} · ${r.canvas.from} → ${r.canvas.to}` +
         ` · 曝光 ${r.photo.luma} / 跨度 ${r.photo.span} / 锐度 ${r.photo.sharpness}` +
         `${r.missed ? ` · 丢字「${r.missed}」` : ''}${r.noise ? ` · 误检「${r.noise}」` : ''}`
