@@ -204,9 +204,9 @@ const CRAFTED_EXPLAINS = [
     headline: '进一法：除完余下的小朋友不能丢在路边，哪怕只剩 1 个也要再派一辆车。',
     caption: '一车一车地装，装到装不满一车为止，余下的人还得再要一辆。',
     steps: [
-      ({ a, b, quotient }) => `${a} 个小朋友、每车 ${b} 人，先看坐得满几辆——能坐满 ${quotient} 辆。`,
+      ({ a, b, quotient }) => `${a} 个小朋友、每车 ${b} 人，一辆一辆地坐，能坐满 ${quotient} 辆。`,
       ({ a, b, quotient }) =>
-        `坐满的车一共载走 ${quotient} 个 ${b} 人，从 ${a} 个小朋友里减掉，就是还没上车的人数。`,
+        `坐满的车每辆 ${b} 人、一共 ${quotient} 辆，把坐上车的从 ${a} 个小朋友里减掉，剩下的还在路边等。`,
       ({ a, b }) => `余下的人也要上车，所以在坐满的 ${a} 辆上再加 ${b} 辆。`,
     ],
   },
@@ -429,9 +429,9 @@ const SEMANTIC_EXPLAINS = [
     caption: '一份一份地装，装到装不满一份为止，余下的还得再要一份。',
     steps: [
       ({ a, b, quotient, question }) =>
-        `一共 ${a} 个，每${question.unit}最多装 ${b} 个，先看装得满几${question.unit}——能装满 ${quotient} ${question.unit}。`,
+        `一共 ${a} 个，每${question.unit}最多装 ${b} 个，一${question.unit}一${question.unit}地装，能装满 ${quotient} ${question.unit}。`,
       ({ a, b, quotient, question }) =>
-        `装满的 ${question.unit}里一共放进 ${quotient} 个 ${b}，从 ${a} 个里减掉，剩下的就是还没地方放的。`,
+        `装满的部分每${question.unit} ${b} 个、一共 ${quotient} ${question.unit}，从 ${a} 个里减掉，剩下的就是还没地方放的。`,
       ({ a, b, question }) =>
         `余下的也要装，所以在装满的 ${a} ${question.unit}上再加 ${b} ${question.unit}。`,
     ],
