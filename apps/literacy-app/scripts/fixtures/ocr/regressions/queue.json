@@ -1,0 +1,106 @@
+{
+  "$comment": "ROUND13_H2 失败样本回流队列。拍照识字每认错一次，这里就该多一条——不管是真机走查看到的、Android WebView 模拟跑出来的，还是家长按「这个字不对」报上来的。口径、状态机与到期规则见 .agent_workspace/r13-ocr-regression-loop.md，体检由 scripts/test-ocr-device.mjs 的 A9 段做。这个文件是手写的，不由脚本重写：--record-failures 只往里追加新记录，已有记录的状态和结论要人来改。",
+  "version": 1,
+  "sources": {
+    "webview-sim": "scripts/test-ocr-device.mjs --webview-sim（VM 里的 Android WebView 模拟，走 App 的完整链路）",
+    "device-qa": "真机走查（B 段），Android QA 按 tier 矩阵逐格记录",
+    "accuracy-bench": "scripts/test-ocr-accuracy.mjs（Node 引擎直跑原图，不过 preprocess）",
+    "parent-report": "家长在应用里报「这个字不对」（尚未实现上报通道，见回流文档 §5）"
+  },
+  "reasons": {
+    "dim": "太暗：CameraOcrView 的 reason=dim，luma 与 span 同时压线",
+    "blurry": "拍糊：reason=blurry，锐度分位数低于线",
+    "blank": "一个字都没认出来：reason=blank",
+    "shaky": "认出来了但把握不大：reason=shaky，置信度 < 60",
+    "error": "引擎自己没起来：reason=error（wasm / 语言包 / 浏览器太旧）",
+    "partial": "界面看不见的那一类：置信度够高，字却是错的。UI 不会亮任何提示，只能靠样张对账发现"
+  },
+  "states": {
+    "new": "刚回流进来，还没人看过。必须带 owner 与 dueRound",
+    "triaged": "已定位到原因，等修。必须带 owner 与 dueRound",
+    "promoted": "已固化成基准样张（promotedTo 指向 fixtures/ocr/ 里的图），退化会被跑分拦住",
+    "accepted-limit": "确认是这套离线引擎的边界，不修。note 里要写清为什么，并在阈值里留痕",
+    "fixed": "已修，且有守着它的断言"
+  },
+  "records": [
+    {
+      "id": "r12-wall-stencil-hua",
+      "capturedAt": "2026-08-27",
+      "source": "accuracy-bench",
+      "sample": "real-wall-stencil",
+      "tier": { "light": "daylight", "angle": "frontal", "paper": "concrete" },
+      "reason": "shaky",
+      "expected": "小心地滑",
+      "got": "小心地海",
+      "missed": "滑",
+      "status": "accepted-limit",
+      "owner": "识字 App",
+      "note": "水泥墙上的喷漆模板字，「滑」的三点水被墙面起皮切断，两条链路（Node 原图 conf 70、App preprocess 后 conf 32）都读成「海」。这是 chi_sim 在断笔字上的边界，不是回归：阈值已经写进 test-ocr-accuracy 的 recall 0.75，界面也会亮「把握不大」，孩子不会把错字当真。要翻这个结论，先换语言包再来。",
+      "repro": "npm --prefix apps/literacy-app run test:ocr:accuracy"
+    },
+    {
+      "id": "r13-webview-toilet-sign",
+      "capturedAt": "2026-08-28",
+      "source": "webview-sim",
+      "sample": "real-toilet-sign",
+      "tier": { "light": "spotlight", "angle": "frontal", "paper": "metal-letter" },
+      "reason": "shaky",
+      "expected": "洗手间",
+      "got": "六手间",
+      "missed": "洗",
+      "status": "triaged",
+      "owner": "识字 App",
+      "dueRound": 14,
+      "note": "Android WebView 模拟里 2/3，Node 引擎直跑同一张原图 3/3（conf 84）。把 preprocess() 的产物存成 PNG 再喂给 Node 引擎，逐字复现了 App 侧的「六手间」与 conf 33——掉的这一个字是自家预处理造成的，跟 WebView、wasm、语言包都无关。定位过程见 .agent_workspace/r13-ocr-regression-loop.md §3。",
+      "repro": "node scripts/test-ocr-device.mjs --webview-sim"
+    },
+    {
+      "id": "r13-webview-blackboard-press",
+      "capturedAt": "2026-08-28",
+      "source": "webview-sim",
+      "sample": "real-blackboard-press",
+      "tier": { "light": "shade", "angle": "frontal", "paper": "chalkboard" },
+      "reason": "shaky",
+      "expected": "中华书局",
+      "got": "站华书朋",
+      "missed": "中局",
+      "status": "triaged",
+      "owner": "识字 App",
+      "dueRound": 14,
+      "note": "同一根因（preprocess 的对比度拉伸）。Node 原图 4/4 conf 76，preprocess 后 2/4 conf 44，与 App 侧一字不差。粉笔字的飞白被拉伸放大成断笔，「中」被读成「站」。",
+      "repro": "node scripts/test-ocr-device.mjs --webview-sim"
+    },
+    {
+      "id": "r13-webview-town-plaque",
+      "capturedAt": "2026-08-28",
+      "source": "webview-sim",
+      "sample": "real-town-plaque",
+      "tier": { "light": "overcast", "angle": "frontal", "paper": "acrylic-plaque" },
+      "reason": "shaky",
+      "expected": "社会治安",
+      "got": "会安储痊",
+      "missed": "社治",
+      "status": "triaged",
+      "owner": "识字 App",
+      "dueRound": 14,
+      "note": "同一根因。Node 原图 4/4 conf 62，preprocess 后 2/4 conf 33。这张原图里字只有百来像素高，拉伸把亚克力牌面的反光也一起拉满，笔画和反光挤成一片，还多认出两个图上没有的字。",
+      "repro": "node scripts/test-ocr-device.mjs --webview-sim"
+    },
+    {
+      "id": "r13-webview-receipt-shadow",
+      "capturedAt": "2026-08-28",
+      "source": "webview-sim",
+      "sample": "real-receipt-shadow",
+      "tier": { "light": "hand-shadow", "angle": "tilt-down", "paper": "thermal-paper" },
+      "reason": "shaky",
+      "expected": "小碗米饭",
+      "got": "小便米饮",
+      "missed": "碗饭",
+      "status": "triaged",
+      "owner": "识字 App",
+      "dueRound": 14,
+      "note": "同一根因。Node 原图 4/4 conf 64，preprocess 后 2/4 conf 52。热敏纸小票下半截压着手影，全局拉伸按整张图的最暗最亮定端点，阴影里的那半边反而更糊——这一格恰好是「孩子在餐桌上低头拍」的日常场景。",
+      "repro": "node scripts/test-ocr-device.mjs --webview-sim"
+    }
+  ]
+}
