@@ -1592,8 +1592,12 @@ await interact('单字五步状态机：玩→认→练→写→说自动衔接'
     if (!ok) throw new Error(`「${label}」里点不到正确选项`)
   }
 
-  // 玩一玩：把 CharPlayStage 的道具点完，就应当自动排上「认一认」
-  await page.waitForSelector('.playstage__target', { timeout: 8000 })
+  // 玩一玩：把舞台上的道具点完，就应当自动排上「认一认」
+  await page
+    .waitForSelector('.playstage__target', { timeout: 8000 })
+    .catch(() => {
+      throw new Error('「玩一玩」没有出 CharPlayStage 舞台（getCharPlay 没给出玩法？）')
+    })
   await page.evaluate(() => {
     for (const n of document.querySelectorAll('.playstage__target')) n.click()
   })
