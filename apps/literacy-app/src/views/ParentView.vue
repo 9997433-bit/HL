@@ -10,6 +10,7 @@ import { TOTAL_IDIOMS } from '@/data/idiom-index.js'
 import { sfx } from '@/utils/sfx.js'
 import { speak, voiceInfo } from '@/utils/audio.js'
 import { useVoiceStatus } from '@/composables/useVoiceStatus.js'
+import { useWeeklyReport } from '@/composables/useWeeklyReport.js'
 import OpenMojiAttribution from '@shared/components/OpenMojiAttribution.vue'
 
 const progress = useProgressStore()
@@ -61,6 +62,13 @@ function submitGate() {
     quiz.value = makeQuiz()
   }
 }
+
+/* ---------------- 本周一句话 ----------------
+ *
+ * 下面的图表能回答「练了多少」，回答不了「所以这周该练什么」。
+ * 周报就补这一句：一个弱项 + 最多三条能直接点过去的练习，本机现算，不联网。
+ */
+const weeklyReport = useWeeklyReport()
 
 /* ---------------- 学习报告 ---------------- */
 const week = computed(() => progress.last7Days)
@@ -254,6 +262,38 @@ function resetSettings() {
           <div><strong>{{ progress.badgeCount }}</strong><small>点亮徽章</small></div>
           <div><strong>{{ progress.badgeStats.flows }}</strong><small>完整学完</small></div>
         </div>
+      </section>
+
+      <!-- 本周弱项一句话 + 建议练习 -->
+      <section class="card stack weekly" data-weekly-report :data-weakness="weeklyReport.weakness.id">
+        <h3 class="section-title">
+          <span class="section-title__emoji" aria-hidden="true">🗞️</span>
+          本周一句话（{{ weeklyReport.range }}）
+        </h3>
+        <p class="weekly__headline" data-weekly-headline>{{ weeklyReport.headline }}</p>
+        <p class="muted weekly__meta">
+          这周来了 {{ weeklyReport.week.activeDays }} 天 ·
+          共 {{ weeklyReport.week.minutes }} 分钟 ·
+          新认 {{ weeklyReport.week.newChars }} 个字 ·
+          弱项判定：{{ weeklyReport.weakness.label }}
+        </p>
+
+        <h4 class="weekly__sub">这周建议练这 {{ weeklyReport.drills.length }} 件事</h4>
+        <ol class="weekly__drills">
+          <li v-for="d in weeklyReport.drills" :key="d.id" class="weekly__drill">
+            <RouterLink class="weekly__go" :to="d.to" @click="sfx.tap()">
+              <strong>{{ d.title }}</strong>
+              <small class="muted">{{ d.why }}</small>
+              <span class="pill weekly__time">
+                {{ d.minutes > 0 ? `约 ${d.minutes} 分钟` : '只是一个约定' }}
+              </span>
+            </RouterLink>
+          </li>
+        </ol>
+        <p class="muted weekly__note">
+          这段话是根据本机存档现算的：没有联网，也没有别的孩子的数据来做对比。
+          不认同判断就直接看下面的图表，那才是原始记录。
+        </p>
       </section>
 
       <!-- 徽章墙 -->
@@ -748,6 +788,95 @@ function resetSettings() {
 .badges__note {
   margin-top: -6px;
   font-size: 0.8rem;
+  line-height: 1.7;
+}
+
+/* 本周一句话 */
+.weekly__headline {
+  font-size: 1.02rem;
+  font-weight: 700;
+  line-height: 1.8;
+  color: var(--text-strong);
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  background: var(--brand-soft);
+  border-left: 5px solid var(--brand);
+}
+
+.weekly__meta {
+  font-size: 0.8rem;
+  line-height: 1.7;
+}
+
+.weekly__sub {
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: var(--text-strong);
+}
+
+.weekly__drills {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  counter-reset: drill;
+}
+
+.weekly__drill {
+  counter-increment: drill;
+}
+
+.weekly__go {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas: 'no title' 'no why' 'no time';
+  gap: 2px 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+  border: 2px solid transparent;
+}
+
+.weekly__go::before {
+  grid-area: no;
+  align-self: center;
+  content: counter(drill);
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--brand);
+  color: var(--text-invert);
+  font-weight: 800;
+}
+
+.weekly__go strong {
+  grid-area: title;
+  color: var(--text-strong);
+  font-size: 0.96rem;
+}
+
+.weekly__go small {
+  grid-area: why;
+  font-size: 0.78rem;
+  line-height: 1.6;
+}
+
+.weekly__time {
+  grid-area: time;
+  justify-self: start;
+  margin-top: 4px;
+  font-size: 0.72rem;
+}
+
+.weekly__go:hover,
+.weekly__go:focus-visible {
+  border-color: var(--brand);
+}
+
+.weekly__note {
+  font-size: 0.78rem;
   line-height: 1.7;
 }
 
