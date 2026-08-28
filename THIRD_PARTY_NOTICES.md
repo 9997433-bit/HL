@@ -127,10 +127,17 @@ Apache-2.0 要求随附许可证与 NOTICE：许可证全文见「附录 B」指
   | `real-road-warning.png` | [Watch out for pedestrians! 小心行人 (6269606152).jpg](https://commons.wikimedia.org/wiki/File:Watch_out_for_pedestrians!_%E5%B0%8F%E5%BF%83%E8%A1%8C%E4%BA%BA_(6269606152).jpg) | Joybot | [CC BY-SA 2.0](https://creativecommons.org/licenses/by-sa/2.0) |
   | `real-toilet-sign.png` | [洗手间，2024年7月1日.jpg](https://commons.wikimedia.org/wiki/File:%E6%B4%97%E6%89%8B%E9%97%B4%EF%BC%8C2024%E5%B9%B47%E6%9C%881%E6%97%A5.jpg) | メイド理世 | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0) |
   | `real-blackboard-press.png` | [华东师大图书馆前黑板.jpg](https://commons.wikimedia.org/wiki/File:%E5%8D%8E%E4%B8%9C%E5%B8%88%E5%A4%A7%E5%9B%BE%E4%B9%A6%E9%A6%86%E5%89%8D%E9%BB%91%E6%9D%BF.jpg) | Lt2818 | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0) |
+  | `real-road-slogan.png` | [格尔木215国道上的三语《爱护环境光荣》标语.jpg](https://commons.wikimedia.org/wiki/File:%E6%A0%BC%E5%B0%94%E6%9C%A8215%E5%9B%BD%E9%81%93%E4%B8%8A%E7%9A%84%E4%B8%89%E8%AF%AD%E3%80%8A%E7%88%B1%E6%8A%A4%E7%8E%AF%E5%A2%83%E5%85%89%E8%8D%A3%E3%80%8B%E6%A0%87%E8%AF%AD.jpg) | Liuxingy | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0) |
+  | `real-town-plaque.png` | [永汉镇社会治安综合治理中心，惠州市龙门县（2026年5月2日）.jpg](https://commons.wikimedia.org/wiki/File:%E6%B0%B8%E6%B1%89%E9%95%87%E7%A4%BE%E4%BC%9A%E6%B2%BB%E5%AE%89%E7%BB%BC%E5%90%88%E6%B2%BB%E7%90%86%E4%B8%AD%E5%BF%83%EF%BC%8C%E6%83%A0%E5%B7%9E%E5%B8%82%E9%BE%99%E9%97%A8%E5%8E%BF%EF%BC%882026%E5%B9%B45%E6%9C%882%E6%97%A5%EF%BC%89.jpg) | 茅野ふたば | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0) |
+  | `real-shop-oblique.png` | [良欣美食，惠州市龙门县（2026年5月2日）.jpg](https://commons.wikimedia.org/wiki/File:%E8%89%AF%E6%AC%A3%E7%BE%8E%E9%A3%9F%EF%BC%8C%E6%83%A0%E5%B7%9E%E5%B8%82%E9%BE%99%E9%97%A8%E5%8E%BF%EF%BC%882026%E5%B9%B45%E6%9C%882%E6%97%A5%EF%BC%89.jpg) | 茅野ふたば | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0) |
+  | `real-receipt-shadow.png` | [小四川世博店 23台点菜単（2025年10月4日）.jpg](https://commons.wikimedia.org/wiki/File:%E5%B0%8F%E5%9B%9B%E5%B7%9D%E4%B8%96%E5%8D%9A%E5%BA%97_23%E5%8F%B0%E7%82%B9%E8%8F%9C%E5%8D%98%EF%BC%882025%E5%B9%B410%E6%9C%884%E6%97%A5%EF%BC%89.jpg) | 茅野ふたば | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0) |
 
 - 这张表不是写完就算：`test-ocr-accuracy.mjs` 会逐张核对清单里的出处链接与作者
   是否出现在本文件里，漏一条当场红灯。换样张时先改 `real-samples.json`，
   再跑 `npm run gen:ocr:real`，最后把新的署名补进这张表。
+- ROUND12_H2 把这一组从六张扩到十张。新的四张不是随手加的：清单里每张都标了自己占的
+  **光照 × 角度 × 纸质** 格（`tier` 字段），格子重样会被 `test-ocr-accuracy.mjs` 拦下，
+  分格口径见 `.agent_workspace/r12-ocr-matrix.md`。
 
 ### Noto Sans SC 字体 — SIL OFL 1.1（仅许可证文本，未内置字体）
 

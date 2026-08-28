@@ -1,5 +1,5 @@
 /**
- * ROUND11_H2（承接 ROUND10_H2 / ROUND9_H2 / ROUND8_H4）—— 拍照识字的识别精度基准。
+ * ROUND12_H2（承接 ROUND11_H2 / ROUND10_H2 / ROUND9_H2 / ROUND8_H4）—— 拍照识字的识别精度基准。
  *
  * scripts/test-ocr.mjs 守的是取字规则（哪些字符算字、哪些字讲得了），
  * 它给一段假文本就能跑；真正会悄悄退化的那一半——语言包换了、tesseract 升级了、
@@ -44,6 +44,29 @@
  * 「认不出」是常态而不是异常。界面在这半边只说一句「没认出来」就是把锅甩给孩子，
  * 所以这里加了一段断言，盯住 CameraOcrView 里那三条降级话术（光线 / 取景 / 换一张）
  * 与它们的出口按钮还在——话术被删掉，跑分再好看也没用。
+ *
+ * ROUND12_H2 做两件事，一件是把 real-photo 从六张扩到十张，另一件是给这十张定坐标。
+ *
+ * 「十张真实照片」这个数字本身证不了什么。R11 的六张里有四张是白天户外的正面标牌，
+ * 再加四张同类的，跑分会更好看，可孩子在昏暗的餐桌上举着手机斜着拍一张小票时，
+ * 引擎会发生什么，仍然一个字都没说。所以这一轮扩样是按格子扩的：清单里的每张样张
+ * 都要在 `tier` 里写清自己占哪个 **光照 × 角度 × 纸质** 的格（口径见 real-samples.json
+ * 的 matrix 段与 .agent_workspace/r12-ocr-matrix.md），格子不许重样——
+ * 重样就说明这张图没有带来新的真实条件，只是在把分母做大。
+ *
+ * 新的四张各自补一个 R11 完全空着的格：
+ *
+ *   real-road-slogan    高原阴天，隔着挡风玻璃仰拍国道龙门架上的反光膜标语
+ *   real-town-plaque    阴天从街对面平视，字在原图里只有百来像素高
+ *   real-shop-oblique   侧着拍店招灯箱，右半边被透视压扁（真实的斜拍，不是 CSS 变形）
+ *   real-receipt-shadow 俯拍桌上的热敏纸小票，拍照的手把下半截压进阴影
+ *
+ * 下面那几条 MIN_REAL_* 与矩阵断言就是这套坐标的护栏：删图、砍轴、
+ * 或者用同一种光同一种载体凑数，都会当场红灯。
+ *
+ * 界面那一半也跟着分了岔：认不出的原因不同，能照做的事就不同（低光要找光、
+ * 糊了要端稳、整页无字要换个取景），所以话术从一组变成了按原因分支的三组，
+ * 断言也跟着盯到每一个分支上。
  *
  * 基准图为什么不放 public/：见 scripts/gen-ocr-benchmark.mjs 的说明。
  * 浏览器里的整链（懒加载、Service Worker、点进单字页）由 scripts/smoke.mjs 覆盖，
@@ -255,6 +278,58 @@ const BENCHMARK = [
     keyword: '中华',
     recall: 0.75,
     conf: 60
+  },
+  {
+    // ROUND12_H2 的四张。挑图的标准换了：不再问「这张好不好认」，
+    // 而是问「这张占的那个光照 × 角度 × 纸质的格，之前有没有人占过」。
+    //
+    // 这一张是隔着副驾驶挡风玻璃仰拍的国道龙门架。反光膜路牌在阴天下反倒最干净——
+    // 6/6、置信度 94，是整套真实样张里最高的一张。它守的不是「难」，
+    // 是另一头：真实世界里也有好认的字，这条线掉下去就是预处理把好图也搞坏了。
+    tier: 'real-photo',
+    name: '真实照片 国道反光标语「爱护环境光荣」',
+    file: 'scripts/fixtures/ocr/real-road-slogan.png',
+    expect: '爱护环境光荣',
+    keyword: '环境光荣',
+    recall: 0.83,
+    conf: 75
+  },
+  {
+    // 街对面平视拍的门楣牌：字在 5712 px 的原图里只有百来像素高，
+    // 裁到 280 px 宽之后每个字大约 60 px——这是孩子「站远了随手拍一张」的常态。
+    // 「社」稳定被读成「计」以外的邻字，误检额度留一个。
+    tier: 'real-photo',
+    name: '真实照片 门楣亚克力牌「社会治安」',
+    file: 'scripts/fixtures/ocr/real-town-plaque.png',
+    expect: '社会治安',
+    keyword: '会治安',
+    recall: 0.75,
+    conf: 50
+  },
+  {
+    // 合成基准里的 perspective tier 是 CSS transform 变出来的：透视是线性的，
+    // 笔画粗细一路均匀。这张是真的侧着站在街边拍的店招，右半边被压扁的同时
+    // 还在离焦，灯箱本身又在自发光——三样一起上，才是真实的斜拍。
+    tier: 'real-photo',
+    name: '真实照片 侧拍店招灯箱「良欣美食」',
+    file: 'scripts/fixtures/ocr/real-shop-oblique.png',
+    expect: '良欣美食',
+    keyword: '良欣美食',
+    recall: 0.75,
+    conf: 75
+  },
+  {
+    // 唯一一张纸。前面九张全是牌子、墙和黑板，可孩子在餐桌上最常拍的就是纸：
+    // 热敏纸、作业本、包装盒。这张连「手影」一起收了——拍照的手把小票下半截
+    // 压进阴影，「小碗米饭」正好落在明暗交界上，灰度直方图是双峰的，
+    // preprocess() 的全局对比度拉伸在这种图上帮不上忙。
+    tier: 'real-photo',
+    name: '真实照片 手影下的热敏纸小票「小碗米饭」',
+    file: 'scripts/fixtures/ocr/real-receipt-shadow.png',
+    expect: '小碗米饭',
+    keyword: '米饭',
+    recall: 0.75,
+    conf: 50
   }
 ]
 
@@ -266,8 +341,8 @@ const BENCHMARK = [
  * 的代码——写在头注释里的那串不算数。所以这条链得一直留在常量里：
  * 接替不等于抹掉，往轮的门禁还要能继续对上账，删一枚就是让 R9/R10 当场退化。
  */
-const MARKER = 'ROUND11_H2'
-const SUPERSEDES = ['ROUND10_H2', 'ROUND9_H2', 'ROUND8_H4']
+const MARKER = 'ROUND12_H2'
+const SUPERSEDES = ['ROUND11_H2', 'ROUND10_H2', 'ROUND9_H2', 'ROUND8_H4']
 
 /** 整套基准集的总召回率下限：单张可以差一点，合起来不许掉到这条线下。 */
 const OVERALL_RECALL = 0.9
@@ -282,7 +357,7 @@ const MAX_NOISE = 2
  * 是天黑了没开灯的桌面、是花桌布上摆着的字卡。这两条钉住「扩样不许缩回去」——
  * 删图、砍 tier 都会当场红灯，而不是等某天线上认不出来了才发现。
  */
-const MIN_IMAGES = 15
+const MIN_IMAGES = 19
 const REQUIRED_TIERS = [
   'handwriting',
   'low-light',
@@ -300,12 +375,29 @@ const REQUIRED_TIERS = [
  *
  * 张数这条线有个便宜的绕法：从同一张原图上裁五个位置，数字立刻够了，
  * 可光线、镜头、字体全是同一套，等于什么都没扩。MIN_REAL_SOURCES 堵的就是这条路——
- * 五张真实样张必须来自五张**不同的原始照片**（按清单里的 page 去重）。
+ * 真实样张必须来自同样张数的**不同原始照片**（按清单里的 page 去重）。
+ *
+ * ROUND12_H2 把这两条从 5 抬到 8（实交十张，留两张余量），并加上第三条：
+ * 光有张数和出处还是能凑——十张白天户外的正面标牌照样过线。MIN_REAL_CELLS 与
+ * MIN_AXIS_VALUES 要求这十张在**光照 × 角度 × 纸质**的坐标系里各占一格、
+ * 且每根轴都摊开到一定宽度，扩样才算真的扩到了没测过的地方。
  */
-const MIN_REAL_IMAGES = 5
-const MIN_REAL_SOURCES = 5
+const MIN_REAL_IMAGES = 8
+const MIN_REAL_SOURCES = 8
 const REAL_TIER = 'real-photo'
 const REAL_TIER_RECALL = 0.75
+
+/** 十张样张要占满十个互不相同的 (光照, 角度, 纸质) 格；下限留两格余量。 */
+const MIN_REAL_CELLS = 8
+
+/**
+ * 每根轴至少要摊开到几个取值。
+ *
+ * 角度这根轴天生窄：孩子举着手机对着字拍，绝大多数就是正对，仰、俯、侧斜各来一张
+ * 就已经覆盖了现实里会发生的全部；纸质那根轴反过来，牌子、墙、黑板、纸、灯箱
+ * 各是一种完全不同的反光与笔画边缘，所以要求得多。
+ */
+const MIN_AXIS_VALUES = { light: 6, angle: 4, paper: 8 }
 
 /** tier 的中文名，只用于打分表和 --json 的可读性。 */
 const TIER_LABEL = {
@@ -477,6 +569,80 @@ test(`真实照片来自至少 ${MIN_REAL_SOURCES} 张不同的原图，不是�
     pages.size >= MIN_REAL_SOURCES,
     `${real.length} 张真实样张只来自 ${pages.size} 张原图（下限 ${MIN_REAL_SOURCES}）`
   )
+})
+
+/* ------------------------------------------- 光照 × 角度 × 纸质（ROUND12_H2） */
+
+/**
+ * 张数和出处管得住「别用一张图裁十刀」，管不住「十张都是同一种字」。
+ *
+ * 下面三条盯的是清单里那个 tier 坐标：
+ *   1. 每张都得报出自己的 (光照, 角度, 纸质)，而且三个值都在 matrix 段登记过——
+ *      随手写个 "bright" 会被当场拦下，否则这套坐标系一轮就散了；
+ *   2. 格子不许重样。同一个格里的第二张图不带来任何新信息，只会把分母做大；
+ *   3. 每根轴要摊开到 MIN_AXIS_VALUES 那么宽。十张不同的格子仍然可能全是
+ *      「户外日光」——光照那根轴就等于没测。
+ */
+
+const realSampleOf = (item) =>
+  realSamples.samples.find(
+    (s) => s.name === item.file.replace(/^.*\//, '').replace(/\.png$/, '')
+  )
+
+const AXES = ['light', 'angle', 'paper']
+
+test('每张真实照片都报出自己的光照 / 角度 / 纸质，取值都在 matrix 里登记过', () => {
+  const legend = realSamples.matrix
+  assert.ok(legend, 'real-samples.json 少了 matrix 段，tier 的取值就没有词表可对')
+  for (const axis of AXES) {
+    assert.ok(
+      legend[axis] && Object.keys(legend[axis]).length > 0,
+      `matrix 段少了「${axis}」这根轴`
+    )
+  }
+  for (const item of BENCHMARK.filter((c) => c.tier === REAL_TIER)) {
+    const sample = realSampleOf(item)
+    assert.ok(sample?.tier, `「${item.name}」在清单里没写 tier，说不清它占哪个格`)
+    for (const axis of AXES) {
+      const value = sample.tier[axis]
+      assert.ok(value, `「${sample.name}」的 tier 缺 ${axis}`)
+      assert.ok(
+        Object.prototype.hasOwnProperty.call(legend[axis], value),
+        `「${sample.name}」的 ${axis}="${value}" 不在 matrix.${axis} 里——` +
+          '先把这个取值连同中文名登记进去，再拿它标样张'
+      )
+    }
+  }
+})
+
+test(`真实照片占满至少 ${MIN_REAL_CELLS} 个互不相同的（光照, 角度, 纸质）格`, () => {
+  const seen = new Map()
+  for (const item of BENCHMARK.filter((c) => c.tier === REAL_TIER)) {
+    const sample = realSampleOf(item)
+    const cell = AXES.map((axis) => sample.tier[axis]).join(' × ')
+    assert.ok(
+      !seen.has(cell),
+      `「${sample.name}」和「${seen.get(cell)}」占同一个格（${cell}）——` +
+        '换一张真的不一样的照片，或者说清它们哪里不同并给这个格分出新的取值'
+    )
+    seen.set(cell, sample.name)
+  }
+  assert.ok(
+    seen.size >= MIN_REAL_CELLS,
+    `真实样张只占了 ${seen.size} 个格（下限 ${MIN_REAL_CELLS}）`
+  )
+})
+
+test('光照 / 角度 / 纸质三根轴都摊开了，不是十张同一种条件', () => {
+  const real = BENCHMARK.filter((c) => c.tier === REAL_TIER).map(realSampleOf)
+  for (const axis of AXES) {
+    const values = new Set(real.map((s) => s.tier[axis]))
+    assert.ok(
+      values.size >= MIN_AXIS_VALUES[axis],
+      `「${axis}」这根轴只有 ${values.size} 种取值（下限 ${MIN_AXIS_VALUES[axis]}）：` +
+        `${[...values].join('、')}`
+    )
+  }
 })
 
 test('每张真实照片都留着出处与授权，署名同步进 THIRD_PARTY_NOTICES', () => {
