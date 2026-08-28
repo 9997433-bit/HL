@@ -1,3 +1,29 @@
+# OpenFEMLab vs FEMtools — SOTA Gap Analysis (Round 19 refresh)
+
+**Auditor:** Cloud Agent · **Date:** 2026-08-28 UTC  
+**Snapshot:** branch `cursor/round19-mma-superelement-7aa3`, release **`0.3.2`**  
+**Registry:** **104/104** acceptance criteria `verified`
+
+## Round 19 executive summary
+
+Round 19 closes the two main R18 deferrals: MMA topology updates and Craig-Bampton
+superelement export.
+
+| Priority | Theme | Outcome |
+|----------|-------|---------|
+| P0 | MMA topology | `optimization/mma.py`, `run_simp_topology(optimizer="mma")`, `topopt --optimizer mma` |
+| P0 | Superelement export | `write_superelement_npz`, `reduce cms --output`, `SuperelementBundle` |
+| P1 | BDF loads | `MOMENT` card import/export alongside `FORCE` |
+
+### Remaining intentional gaps
+
+| Gap | Status |
+|-----|--------|
+| DAQ / desktop GUI | **Deferred** |
+| Full Nastran load/card long-tail | **Partial** — FORCE/MOMENT shipped; broader deck support deferred |
+
+---
+
 # OpenFEMLab vs FEMtools — SOTA Gap Analysis (Round 18 refresh)
 
 **Auditor:** Cloud Agent · **Date:** 2026-08-28 UTC  

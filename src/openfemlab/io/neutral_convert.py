@@ -80,6 +80,7 @@ __all__ = [
     "apply_spc1_from_neutral",
     "apply_conm2_from_neutral",
     "apply_force_from_neutral",
+    "apply_moment_from_neutral",
     "section_from_values",
     "to_model",
 ]
@@ -299,6 +300,7 @@ def to_model(
     apply_spc1_from_neutral(model, neutral)
     apply_conm2_from_neutral(model, neutral)
     apply_force_from_neutral(model, neutral)
+    apply_moment_from_neutral(model, neutral)
     return model
 
 
@@ -715,6 +717,60 @@ def apply_force_from_neutral(model: Model, neutral: NeutralModel) -> None:
             if len(fields) > offset and str(fields[offset]).strip():
                 direction[index] = float(fields[offset])
         model.add_nodal_load(node_id, magnitude, direction=direction)
+
+
+def apply_moment_from_neutral(model: Model, neutral: NeutralModel) -> None:
+    """Apply ``MOMENT`` cards stored in ``meta['bdf_moment']`` or ``bdf_preserve``."""
+
+    for entry in _meta(neutral).get("bdf_moment", ()):
+        _apply_nodal_moment(
+            model,
+            int(entry["node"]),
+            float(entry["magnitude"]),
+            direction=tuple(entry["direction"]),
+        )
+    for fields in _meta(neutral).get("bdf_preserve", ()):
+        if not fields or str(fields[0]).upper() != "MOMENT":
+            continue
+        if len(fields) < 5:
+            raise FormatError(f"MOMENT card {fields!r} is incomplete")
+        node_id = int(fields[2])
+        magnitude = float(fields[4])
+        direction = [0.0, 0.0, 0.0]
+        for index, offset in enumerate((5, 6, 7)):
+            if len(fields) > offset and str(fields[offset]).strip():
+                direction[index] = float(fields[offset])
+        _apply_nodal_moment(model, node_id, magnitude, direction=direction)
+
+
+def _apply_nodal_moment(
+    model: Model,
+    node_id: int,
+    magnitude: float,
+    *,
+    direction: Sequence[float],
+) -> None:
+    components = np.asarray(direction, dtype=float).reshape(-1)
+    if components.size > 3:
+        raise FormatError(f"moment direction must have at most 3 components, got {components.size}")
+    norm = float(np.linalg.norm(components))
+    if norm <= 0.0:
+        raise FormatError("moment direction vector must be non-zero")
+    unit = components / norm
+    rotational = model.rotational_dofs
+    if not rotational:
+        raise FormatError("model has no rotational DOFs for MOMENT loads")
+    for active in rotational:
+        axis = int(active) - int(DOF.RX)
+        if axis < 0 or axis >= unit.size:
+            continue
+        component = unit[axis]
+        if component == 0.0:
+            continue
+        index = model.dof_index(node_id, active)
+        model._nodal_loads[index] = (
+            model._nodal_loads.get(index, 0.0) + float(magnitude) * component
+        )
 
 
 def _parse_rbe3_preserve_fields(

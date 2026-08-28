@@ -19,7 +19,7 @@ def add_parser(subparsers: argparse._SubParsersAction) -> argparse.ArgumentParse
         help=HELP,
         description=(
             "Minimize static compliance with Solid Isotropic Material with "
-            "Penalization (SIMP) and optimality-criteria updates."
+            "Penalization (SIMP) and optimality-criteria or MMA updates."
         ),
     )
     parser.add_argument("model", help="path to the model specification (JSON or YAML)")
@@ -45,7 +45,13 @@ def add_parser(subparsers: argparse._SubParsersAction) -> argparse.ArgumentParse
         "--move",
         type=float,
         default=0.2,
-        help="OC move limit (default: 0.2)",
+        help="OC/MMA move limit (default: 0.2)",
+    )
+    parser.add_argument(
+        "--optimizer",
+        choices=("oc", "mma"),
+        default="oc",
+        help="density update strategy (default: oc)",
     )
     parser.add_argument(
         "--filter-radius",
@@ -127,6 +133,7 @@ def run(args: argparse.Namespace, reporter: Reporter) -> int:
         penalization=args.penalty,
         max_iter=args.max_iter,
         move=args.move,
+        optimizer=args.optimizer,
         filter_radius=args.filter_radius,
         heaviside_beta=args.heaviside_beta,
         heaviside_eta=args.heaviside_eta,

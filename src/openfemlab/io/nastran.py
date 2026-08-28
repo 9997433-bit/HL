@@ -61,7 +61,7 @@ _HAS_FIXED_GRID_COUNT = frozenset({"CTETRA", "CHEXA"})
 _PROPERTY_CARDS = frozenset({"PSHELL", "PSOLID", "PROD", "PBAR"})
 _BULK_PRESERVE_CARDS = frozenset({"RBE2", "RBE3"})
 _CONSTRAINT_CARDS = frozenset({"SPC1"})
-_LOAD_CARDS = frozenset({"FORCE"})
+_LOAD_CARDS = frozenset({"FORCE", "MOMENT"})
 _MASS_CARDS = frozenset({"CONM2"})
 _SUPPORTED_CARDS = (
     frozenset({"GRID", "MAT1"})
@@ -107,6 +107,7 @@ def read_bdf(source: str | PathLike[str] | TextIO) -> NeutralModel:
     bulk_preserve: list[list[str]] = []
     spc1_entries: list[dict[str, object]] = []
     force_entries: list[dict[str, object]] = []
+    moment_entries: list[dict[str, object]] = []
     conm2_entries: list[dict[str, object]] = []
 
     for line_number, fields in _iter_cards(text):
@@ -160,6 +161,8 @@ def read_bdf(source: str | PathLike[str] | TextIO) -> NeutralModel:
                 spc1_entries.append(_parse_spc1(fields))
             elif card == "FORCE":
                 force_entries.append(_parse_force(fields))
+            elif card == "MOMENT":
+                moment_entries.append(_parse_moment(fields))
             elif card == "CONM2":
                 conm2_entries.append(_parse_conm2(fields))
             elif card == "MAT1":
@@ -182,6 +185,8 @@ def read_bdf(source: str | PathLike[str] | TextIO) -> NeutralModel:
     for entry in spc1_entries:
         referenced.update(int(node_id) for node_id in entry["nodes"])
     for entry in force_entries:
+        referenced.add(int(entry["node"]))
+    for entry in moment_entries:
         referenced.add(int(entry["node"]))
     unknown_nodes = sorted(referenced - nodes.keys())
     if unknown_nodes:
@@ -217,6 +222,8 @@ def read_bdf(source: str | PathLike[str] | TextIO) -> NeutralModel:
         meta["bdf_spc1"] = spc1_entries
     if force_entries:
         meta["bdf_force"] = force_entries
+    if moment_entries:
+        meta["bdf_moment"] = moment_entries
     if conm2_entries:
         meta["bdf_conm2"] = conm2_entries
     return NeutralModel(
@@ -483,6 +490,27 @@ def _parse_force(fields: list[str]) -> dict[str, object]:
     }
 
 
+def _parse_moment(fields: list[str]) -> dict[str, object]:
+    sid = _positive_integer(_required(fields, 1, "SID"), "MOMENT SID")
+    node = _positive_integer(_required(fields, 2, "G"), "MOMENT G")
+    magnitude = _float(_required(fields, 4, "M"), "MOMENT M")
+    direction = [0.0, 0.0, 0.0]
+    for index, key in enumerate(("N1", "N2", "N3"), start=5):
+        if len(fields) > index and str(fields[index]).strip():
+            direction[index - 5] = _float(fields[index], key)
+    norm = float(np.linalg.norm(direction))
+    if norm <= 0.0:
+        direction[2] = 1.0
+        norm = 1.0
+    direction = [component / norm for component in direction]
+    return {
+        "sid": sid,
+        "node": node,
+        "magnitude": magnitude,
+        "direction": tuple(direction),
+    }
+
+
 def _parse_conm2(fields: list[str]) -> dict[str, object]:
     eid = _positive_integer(_required(fields, 1, "EID"), "CONM2 EID")
     node = _positive_integer(_required(fields, 2, "G"), "CONM2 G")
@@ -645,6 +673,12 @@ def write_bdf(
         n1, n2, n3 = entry["direction"]
         lines.append(
             f"FORCE,{int(entry['sid'])},{int(entry['node'])},,"
+            f"{float(entry['magnitude']):g},{float(n1):g},{float(n2):g},{float(n3):g}"
+        )
+    for entry in model.meta.get("bdf_moment", ()):
+        n1, n2, n3 = entry["direction"]
+        lines.append(
+            f"MOMENT,{int(entry['sid'])},{int(entry['node'])},,"
             f"{float(entry['magnitude']):g},{float(n1):g},{float(n2):g},{float(n3):g}"
         )
     for entry in model.meta.get("bdf_conm2", ()):

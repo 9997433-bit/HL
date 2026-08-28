@@ -8,7 +8,7 @@ from typing import Any
 import numpy as np
 
 from ...core.assembly import assemble_stiffness, assemble_system
-from ...reduction import build_craig_bampton, reduced_craig_bampton_matrices
+from ...reduction import build_craig_bampton, reduced_craig_bampton_matrices, write_superelement_npz
 from ..console import Reporter
 from ..spec import build_model, load_spec
 
@@ -41,6 +41,13 @@ def add_parser(subparsers: argparse._SubParsersAction) -> argparse.ArgumentParse
         default="table",
         help="render format (default: table)",
     )
+    cms.add_argument(
+        "-o",
+        "--output",
+        default=None,
+        metavar="PATH",
+        help="write Craig-Bampton superelement bundle to NPZ",
+    )
     cms.set_defaults(func=run_cms)
     return parser
 
@@ -70,6 +77,17 @@ def run_cms(args: argparse.Namespace, reporter: Reporter) -> int:
         render(report, reporter)
     else:
         reporter.document(report, format=args.format)
+    if args.output:
+        write_superelement_npz(
+            args.output,
+            basis,
+            k_dense,
+            m_dense,
+            model_name=model.name,
+            source=str(args.model),
+            meta={"interface_dofs": [int(value) for value in basis.interface_dofs]},
+        )
+        reporter.note(f"superelement written to {args.output}")
     return 0
 
 

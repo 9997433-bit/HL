@@ -1,9 +1,9 @@
 # OpenFEMLab Stability Policy
 
-**Version:** `0.3.1` · **Status:** Stable release · **Date:** 2026-08-28
+**Version:** `0.3.2` · **Status:** Stable release · **Date:** 2026-08-28
 
-OpenFEMLab `0.3.1` adds full Craig-Bampton fixed-interface modes and a first
-stress-aware SIMP topology path with p-norm von Mises aggregation.
+OpenFEMLab `0.3.2` adds MMA-based SIMP topology updates and Craig-Bampton
+superelement NPZ export for downstream assembly workflows.
 
 ## What `0.2.x` guarantees
 

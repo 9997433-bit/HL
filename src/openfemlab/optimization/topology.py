@@ -9,6 +9,7 @@ import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
 from ..exceptions import OptimizationError
+from .mma import create_mma_state, mma_update
 from .stress import (
     element_von_mises_stresses,
     stress_constraint_sensitivity,
@@ -28,6 +29,7 @@ __all__ = [
     "heaviside_projection",
     "heaviside_projection_derivative",
     "oc_update",
+    "mma_update",
     "run_simp_topology",
     "simp_penalized_modulus",
 ]
@@ -408,6 +410,7 @@ def run_simp_topology(
     max_iter: int = 50,
     move: float = 0.2,
     tol: float = 1e-3,
+    optimizer: str = "oc",
     filter_radius: float | None = None,
     heaviside_beta: float | None = None,
     heaviside_eta: float = 0.5,
@@ -418,7 +421,10 @@ def run_simp_topology(
     stress_limit: float | None = None,
     stress_p: float = 8.0,
 ) -> TopologyResult:
-    """Minimize compliance with a SIMP penalization and OC updates."""
+    """Minimize compliance with SIMP penalization and OC or MMA updates."""
+    optimizer = str(optimizer).lower()
+    if optimizer not in {"oc", "mma"}:
+        raise OptimizationError("optimizer must be 'oc' or 'mma'")
     if not 0.0 < vol_frac <= 1.0:
         raise OptimizationError("vol_frac must lie in (0, 1]")
     if heaviside_beta is not None and filter_radius is None:
@@ -432,10 +438,15 @@ def run_simp_topology(
     if filter_radius is not None:
         filter_matrix, row_sums = build_density_filter(model, filter_radius, volumes=volumes)
     rho = np.full(model.num_elements, float(vol_frac), dtype=float)
+    rho_min = 0.001
     history_c: list[float] = []
     history_v: list[float] = []
     history_s: list[float] = []
     last_u: np.ndarray | None = None
+    mma_state = create_mma_state(rho) if optimizer == "mma" else None
+    total_volume = float(volumes.sum()) or 1.0
+    xmin = np.full(model.num_elements, rho_min, dtype=float)
+    xmax = np.ones(model.num_elements, dtype=float)
 
     def _finish(iteration: int) -> TopologyResult:
         rho_design, _ = _design_densities(
@@ -467,6 +478,7 @@ def run_simp_topology(
                 "num_load_cases": len(loads),
                 "stress_limit": stress_limit,
                 "stress_p": stress_p,
+                "optimizer": optimizer,
             },
         )
 
@@ -535,16 +547,33 @@ def run_simp_topology(
                     dc_stress = filter_sensitivities(dc_stress, filter_matrix, row_sums)
                 scale = 1.0 + min(50.0, 5.0 * measure)
                 dc += scale * dc_stress
-        rho_new = oc_update(
-            rho,
-            np.zeros(model.num_elements, dtype=float),
-            volumes,
-            vol_frac=vol_frac,
-            move=move,
-            penalization=penalization,
-            e_min=e_min,
-            sensitivity=dc,
-        )
+        if optimizer == "mma":
+            assert mma_state is not None
+            volume_gradient = volumes / total_volume
+            rho_new, mma_state = mma_update(
+                rho,
+                xmin,
+                xmax,
+                mma_state,
+                f0=compliance,
+                df0dx=dc,
+                constraints=[
+                    (volume - float(vol_frac), volume_gradient),
+                    (float(vol_frac) - volume, -volume_gradient),
+                ],
+                move=move,
+            )
+        else:
+            rho_new = oc_update(
+                rho,
+                np.zeros(model.num_elements, dtype=float),
+                volumes,
+                vol_frac=vol_frac,
+                move=move,
+                penalization=penalization,
+                e_min=e_min,
+                sensitivity=dc,
+            )
         change = float(np.max(np.abs(rho_new - rho)))
         rho = rho_new
         if iteration > 5 and change < tol:
