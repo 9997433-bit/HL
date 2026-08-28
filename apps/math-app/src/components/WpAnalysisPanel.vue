@@ -11,10 +11,8 @@
  *   3. 变式只换数字不换结构，看完还能顺手要一轮同类题接着练。
  */
 import { computed, ref, watch } from 'vue'
-import { buildAnalysis } from '@/utils/wpAnalysis'
+import { buildAnalysis, ROUND16_H5 } from '@/utils/wpAnalysis'
 import { sound } from '@/utils/sound'
-
-const PROBE = 'ROUND16_H5'
 
 const props = defineProps({
   question: { type: Object, required: true },
@@ -100,11 +98,10 @@ watch(
 </script>
 
 <template>
-  <section class="wp-analysis" :data-probe="PROBE">
+  <section class="wp-analysis" :data-analysis="ROUND16_H5">
     <button
       v-if="!open"
       class="btn btn--ghost btn--sm analysis-open"
-      aria-controls="wp-analysis-body"
       :aria-expanded="false"
       @click="openPanel"
     >
@@ -116,7 +113,14 @@ watch(
         <span class="chip chip-on">🔍 剖析</span>
         <p class="dim">看懂「为什么这样列式」，再回去作答。</p>
         <div class="spacer" />
-        <button class="btn btn--ghost btn--sm" :aria-expanded="true" @click="skip">跳过 ✕</button>
+        <button
+          class="btn btn--ghost btn--sm"
+          aria-controls="wp-analysis-body"
+          :aria-expanded="true"
+          @click="skip"
+        >
+          跳过 ✕
+        </button>
       </header>
 
       <!-- 一 · 图示理解：先把数量画成长短，再说要求的是哪一段 -->
@@ -181,6 +185,12 @@ watch(
         </div>
         <div v-if="variant && variantAnalysis" class="variant">
           <p class="variant-text">{{ variant.text }}</p>
+          <!-- 变式是讲给卡住的孩子看的范例，所以它的每一步都摊开，不盖得数 -->
+          <ol v-if="variantAnalysis.steps.length" class="steps">
+            <li v-for="(step, i) in variantAnalysis.steps" :key="i" class="step">
+              <span class="step-expr">{{ step.expr }} = {{ step.display }}</span>
+            </li>
+          </ol>
           <p class="variant-eq">
             {{ variantAnalysis.equation.replace('?', String(variant.answer)) }}
           </p>
