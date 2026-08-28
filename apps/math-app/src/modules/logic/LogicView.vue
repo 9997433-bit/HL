@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import gsap from 'gsap'
 import AgeBandBadge from '@/components/AgeBandBadge.vue'
+import LearnDemoLauncher from '@/components/LearnDemoLauncher.vue'
 import MascotBot from '@/components/MascotBot.vue'
 import SessionBar from '@/components/SessionBar.vue'
 import RoundSummary from '@/components/RoundSummary.vue'
@@ -257,12 +258,18 @@ const message = ref('先看看前面几个，再猜问号里是什么。')
 
 const current = computed(() => questions.value[index.value] ?? null)
 
+/** 这道题算在哪个技能点上——和判题时上报掌握度同一条口径（见 grade）。 */
+const currentSkill = computed(() => {
+  if (!current.value) return ''
+  return focusedSkill.value === 'deduction' ? 'deduction' : logicSkill(current.value.type)
+})
+
 function grade(value, anchor) {
   const q = current.value
   const right = value === q.answer
   marks.value[index.value] = right ? 'ok' : 'no'
   chosen.value = value
-  const skill = focusedSkill.value === 'deduction' ? 'deduction' : logicSkill(q.type)
+  const skill = currentSkill.value
 
   if (right) {
     const stars = showHint.value ? 1 : 2
@@ -369,6 +376,7 @@ onMounted(startRound)
           <h2 class="prompt">{{ current.prompt }}</h2>
           <p class="muted say">{{ message }}</p>
         </div>
+        <LearnDemoLauncher :skill="currentSkill" />
         <button class="btn btn--ghost btn--sm" @click="toggleHint">
           💡 {{ showHint ? '收起提示' : '提示（少 1⭐）' }}
         </button>

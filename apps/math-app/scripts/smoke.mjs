@@ -317,6 +317,12 @@ await interact('ROUND16_H4 学演示：算术恒星练习入口就地弹出', '/
   if (!opened.name) throw new Error('演示没标出正在讲哪个技能点')
   if (!opened.quizStillThere) throw new Error('看个演示把整轮练习顶掉了')
 
+  // 弹层盖着的时候数字键归演示管，不能替孩子把这道题交了
+  await page.keyboard.press('1')
+  await sleep(300)
+  const graded = await page.evaluate(() => !!document.querySelector('.opt.right, .opt.bad'))
+  if (graded) throw new Error('演示盖着的时候数字键仍然把题判了')
+
   await page.click('[data-demo-dismiss]')
   await sleep(250)
   const closed = await page.evaluate(() => !document.querySelector('[data-learn-demo-layer]'))

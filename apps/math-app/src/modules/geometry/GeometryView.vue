@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import gsap from 'gsap'
 import AgeBandBadge from '@/components/AgeBandBadge.vue'
+import LearnDemoLauncher from '@/components/LearnDemoLauncher.vue'
 import MascotBot from '@/components/MascotBot.vue'
 import SessionBar from '@/components/SessionBar.vue'
 import RoundSummary from '@/components/RoundSummary.vue'
@@ -62,6 +63,11 @@ const showFact = ref(false)
 const stageRef = ref(null)
 
 const current = computed(() => questions.value[index.value] ?? null)
+
+/** 这道题算在哪个技能点上——和判题时上报掌握度同一条口径（见 grade）。 */
+const currentSkill = computed(() =>
+  current.value ? geometrySkill(current.value.target) : '',
+)
 
 /** 题型 1：给名字，从 4 个陨石里点出对应图形。 */
 function makeFindByName(list) {
@@ -190,7 +196,7 @@ function grade(value, anchor) {
   marks.value[index.value] = right ? 'ok' : 'no'
   chosen.value = value
   // 映射到 curriculum 技能点，让自适应掌握度引擎能收到反馈
-  const skill = geometrySkill(q.target)
+  const skill = currentSkill.value
 
   if (right) {
     const stars = q.target.dim === '3d' ? 2 : 1
@@ -324,6 +330,7 @@ onMounted(startRound)
           <h2 class="prompt">{{ current.prompt }}</h2>
           <p class="muted say">{{ message }}</p>
         </div>
+        <LearnDemoLauncher :skill="currentSkill" />
       </header>
 
       <!-- 需要展示单个大图形的题型 -->
