@@ -234,27 +234,41 @@ const literacySmoke = stripComments(read('apps/literacy-app/scripts/smoke.mjs'))
   )
 }
 
-/* ---- H8 往轮 ---- */
+/*
+ * ---- H8 往轮 ----
+ * R13 的批准基线是 7/8：H1–H6 与 H8 必须保持绿，仅 H7 可因外部 Play
+ * Console 账号继续红。不能只看总分，否则 H7 翻绿会掩盖其他必绿项退化。
+ * H6 依赖不入库的双 APK；干净环境须先跑 npm run android:sim，缺产物不降门槛。
+ */
 {
-  const r13 = spawnSync('node', ['scripts/check-round13.mjs', '--json'], {
+  const r13 = spawnSync(process.execPath, ['scripts/check-round13.mjs', '--json'], {
     cwd: root,
     encoding: 'utf8',
     timeout: 120000
   })
+  const requiredIds = ['H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'H8']
   let pass = 0
+  let requiredFailures = [...requiredIds]
+  let parseError = ''
   try {
     const j = JSON.parse(r13.stdout || '{}')
-    pass = j.passed ?? j.pass ?? 0
-    if (j.results) pass = j.results.filter((r) => r.status === 'pass').length
-  } catch {
-    const m = (r13.stdout || '').match(/(\d+)\s*\/\s*8/)
-    if (m) pass = Number(m[1])
+    const priorResults = Array.isArray(j.results) ? j.results : []
+    pass = priorResults.filter((result) => result.status === 'pass').length
+    const byId = new Map(priorResults.map((result) => [result.id, result.status]))
+    requiredFailures = requiredIds.filter((id) => byId.get(id) !== 'pass')
+    if (priorResults.length !== 8) parseError = `结果数 ${priorResults.length}/8`
+  } catch (error) {
+    parseError = `JSON 解析失败：${error.message}`
   }
+  const failureDetail = parseError || requiredFailures.join(', ') || '未知'
+  const h6Hint = requiredFailures.includes('H6')
+    ? '；H6 在干净环境需先 npm run android:sim 重建双 APK'
+    : ''
   check(
     'H8',
-    pass >= 7,
-    `H8 check:round13 ${pass}/8 ≥ 7`,
-    `H8 check:round13 ${pass}/8 < 7（往轮退化或环境）`
+    !parseError && requiredFailures.length === 0,
+    `H8 check:round13 ${pass}/8；H1–H6/H8 保持绿（仅 H7 可因 Play 账号阻断）`,
+    `H8 check:round13 ${pass}/8；必绿项失败：${failureDetail}（仅 H7 可红）${h6Hint}`
   )
 }
 
