@@ -60,7 +60,8 @@ C 段绿 **不代表可以跳过 B 段**。它不是真机：WebView 不是 Chro
 
 于是：浏览器里一路顺，装到机器上一按「开始认字」就取不到语言包。
 更糟的是它不报错——worker 停在「正在翻汉字词典」上再没动过，
-孩子看到的是一条永远走不完的进度条（C10 变异测试实测：整整两分钟没有任何变化）。
+孩子看到的是一条永远走不完的进度条（C10 变异测试实测：一分钟的时限内界面没有任何变化，
+所以「卡住」也当失败算，不能让脚本崩在等待里）。
 
 改法在 `src/utils/ocr.js`：起 worker 之前用一个 `Range: bytes=0-0` 探哪个名字在，
 在就用哪个。Web 照旧走 `.gz`，Android WebView 走解压后的名字，结论跟着
@@ -244,7 +245,7 @@ node apps/literacy-app/scripts/test-ocr-device.mjs --require-device
 | 注入的改动 | 变红的断言 |
 |---|---|
 | `utils/ocr.js`：`gzip: await langIsGzipped()` → `gzip: true` | C10（卡在「正在翻汉字词典」，一分钟没结果） |
-| `WEBVIEW_BASELINE` 里任一张的 `hit` 调高一格 | 该张的 C4 |
+| `WEBVIEW_BASELINE` 里任一张的 `hit` 调高一格 | 该张的 C4 + 合计那条 C4 |
 | 从队列里删掉一条 `r13-webview-*` | C9（认不全的样张在队列里没记录） |
 | 队列里任一条 `triaged` 的 `dueRound` 改成 12 | A9（已过期：说好第 12 轮处理，现在是第 13 轮） |
 | `CameraOcrView` 加一种新的 `reason` 而队列词表不动 | A9（界面有而队列没有的 reason） |
