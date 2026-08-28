@@ -25,6 +25,7 @@
     "preview": "vite preview --port 4173",
     "test:srs": "node scripts/test-srs.mjs",
     "test:play": "node scripts/test-char-play.mjs",
+    "test:play:split": "node scripts/test-char-play-split.mjs",
     "test:play:guard": "node scripts/test-play-rich-guard.mjs",
     "test:speech": "node scripts/test-speech-eval.mjs",
     "test:asr:evalset": "node scripts/test-asr-eval-set.mjs",
