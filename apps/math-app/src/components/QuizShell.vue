@@ -21,14 +21,16 @@
  *   errorTags: String[] | (answered, question) => String[],
  * }
  */
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import gsap from 'gsap'
 import MascotBot from '@/components/MascotBot.vue'
 import SessionBar from '@/components/SessionBar.vue'
 import RoundSummary from '@/components/RoundSummary.vue'
 import { useProgressStore, wrongBookKey } from '@/stores/progress.js'
 import { useFeedback } from '@/composables/useFeedback'
+import { SKILL_MAP } from '@/data/curriculum.js'
 import { errorTagInfo } from '@/data/errorTags.js'
+import { hasLearnDemo } from '@/data/learn-demo-index.js'
 import { createAdaptiveEngine } from '@/core/engine/adaptive.js'
 import { sample } from '@/utils/random'
 import { sound } from '@/utils/sound'
@@ -133,6 +135,39 @@ const shownTags = computed(() =>
     ...errorTagInfo(id),
   })),
 )
+
+/* --------------------------------------------------- ROUND16_H4 学演示 */
+
+/**
+ * 卡在题面上的时候，孩子缺的往往不是再试一次，而是「这个知识点到底在讲什么」。
+ * 当前这道题的技能点有配套演示，就在题头挂一个入口，就地弹出「实物 → 图形 → 算式」，
+ * 看完关掉，本轮的题目顺序、连击和计时都不受影响。
+ *
+ * 演示壳和注册表都按需加载：练习页的路由块里只留 learn-demo-index 那份技能清单，
+ * 不把全部旁白文案压进每个玩法的首包（预算见 scripts/check-route-budget.mjs）。
+ */
+const LearnDemo = defineAsyncComponent(() => import('@/components/LearnDemo.vue'))
+
+const demo = ref(null)
+const demoOpen = ref(false)
+const demoSkill = computed(() => current.value?.skill ?? '')
+const canDemo = computed(() => hasLearnDemo(demoSkill.value))
+const demoSkillName = computed(() => SKILL_MAP[demoSkill.value]?.name ?? '')
+
+async function openDemo() {
+  if (!canDemo.value) return
+  sound.click()
+  const registry = await import('@/data/learn-demos.js')
+  const found = registry.learnDemoOfSkill(demoSkill.value)
+  if (!found) return
+  demo.value = found
+  demoOpen.value = true
+}
+
+function closeDemo() {
+  demoOpen.value = false
+  sound.click()
+}
 
 /* ----------------------------------------------------- 自适应 / 错题本 */
 
@@ -306,6 +341,8 @@ function next() {
   locked.value = false
   lastResult.value = null
   mood.value = 'idle'
+  // 换题就收演示：上一题的知识点讲完了，不该盖在下一题上
+  demoOpen.value = false
   if (index.value + 1 >= total.value) {
     finish()
     return
@@ -348,6 +385,7 @@ function restart() {
   hintLevel.value = 0
   lastResult.value = null
   mood.value = 'idle'
+  demoOpen.value = false
   message.value = props.prompts[0] ?? ''
   questionStart.value = Date.now()
   progress.resetCombo()
@@ -384,6 +422,11 @@ function toggleMode() {
 /* -------------------------------------------------------------- 键盘 */
 
 function onKeydown(e) {
+  // 演示弹层盖在题面上时，数字键属于演示而不是作答，别让它替孩子交卷
+  if (demoOpen.value) {
+    if (e.key === 'Escape') closeDemo()
+    return
+  }
   if (showSummary.value || locked.value) return
   if (props.inputMode === 'keypad') {
     if (/^[0-9]$/.test(e.key)) tapKey(e.key)
@@ -472,6 +515,15 @@ defineExpose({ restart, announce, index, current, locked, typed })
         <div class="spacer" />
         <slot name="head-extra" v-bind="slotCtx" />
         <button
+          v-if="canDemo"
+          class="btn btn--ghost btn--sm"
+          data-learn-demo-open
+          :data-learn-demo-skill="demoSkill"
+          @click="openDemo"
+        >
+          🎞️ 看演示
+        </button>
+        <button
           v-if="hints.length"
           class="btn btn--ghost btn--sm"
           :disabled="!canHint"
@@ -480,6 +532,25 @@ defineExpose({ restart, announce, index, current, locked, typed })
           {{ hintLabels[Math.min(hintLevel, hintLabels.length - 1)] }}
         </button>
       </header>
+
+      <div
+        v-if="demoOpen && demo"
+        class="demo-layer"
+        role="dialog"
+        aria-modal="true"
+        aria-label="学演示"
+        data-learn-demo-layer
+      >
+        <div class="demo-layer-inner">
+          <LearnDemo
+            :key="demo.id"
+            :demo="demo"
+            :skill-name="demoSkillName"
+            dismiss-label="✕ 收起，继续答题"
+            @dismiss="closeDemo"
+          />
+        </div>
+      </div>
 
       <div ref="promptRef" class="quiz-prompt">
         <slot name="question" v-bind="slotCtx" />
@@ -607,6 +678,23 @@ defineExpose({ restart, announce, index, current, locked, typed })
   font-size: 15px;
   flex: 1;
   min-width: 180px;
+}
+
+.demo-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  overflow: auto;
+  padding: clamp(12px, 4vw, 40px);
+  background: rgba(4, 6, 20, 0.78);
+  backdrop-filter: blur(3px);
+}
+
+.demo-layer-inner {
+  width: min(1080px, 100%);
 }
 
 .quiz-hint {

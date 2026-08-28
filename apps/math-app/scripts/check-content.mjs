@@ -98,7 +98,8 @@ import {
 import { ERROR_TAGS } from '../src/data/errorTags.js'
 import { CUES, noteToFreq, STREAK_CUES, streakCue } from '../src/utils/sound.js'
 import { updateMastery, MASTERY_THRESHOLD } from '../src/utils/mastery.js'
-import { VISUAL_DEMOS } from '../src/data/visualDemos.js'
+import { LEARN_DEMOS, LEARN_DEMO_STAGES, objectTiles } from '../src/data/learn-demos.js'
+import { hasLearnDemo, LEARN_DEMO_SKILLS, learnDemoRoute } from '../src/data/learn-demo-index.js'
 import {
   createAdaptiveEngine,
   nextDifficulty,
@@ -245,20 +246,59 @@ for (const tierId of ['one', 'two', 'multi']) {
   )
 }
 
-/* 数形演示注册表：每类必须完整走完「实物 → 图形 → 算式」三段。 */
+/* ROUND16_H4 学演示注册表：每条挂一个技能点，完整走完「实物 → 图形 → 算式」三段。 */
 {
+  const MIN_LEARN_DEMOS = 12
   const demoIds = new Set()
-  if (VISUAL_DEMOS.length < 7) fail(`数形演示只有 ${VISUAL_DEMOS.length} 类，少于要求的 7 类`)
-  for (const demo of VISUAL_DEMOS) {
-    if (!demo.id || demoIds.has(demo.id)) fail(`数形演示 id 缺失或重复：${demo.id}`)
-    demoIds.add(demo.id)
-    if (!demo.object?.label || !demo.object?.emoji) fail(`数形演示 ${demo.id} 缺少实物段`)
-    if (!demo.visual?.label || !demo.visual?.groups?.length) fail(`数形演示 ${demo.id} 缺少图形段`)
-    if (!demo.equation) fail(`数形演示 ${demo.id} 缺少算式段`)
-    if (demo.narration?.length !== 3) fail(`数形演示 ${demo.id} 应有 3 段旁白`)
-    if (!isKnownSkill(demo.skill)) fail(`数形演示 ${demo.id} 技能点「${demo.skill}」不在图谱里`)
+  const demoSkills = new Set()
+  if (LEARN_DEMOS.length < MIN_LEARN_DEMOS) {
+    fail(`学演示只有 ${LEARN_DEMOS.length} 条，少于要求的 ${MIN_LEARN_DEMOS} 个技能点`)
   }
-  console.log(`数形演示 ${VISUAL_DEMOS.length} 类：实物 / 图形 / 算式 / 三段旁白齐全`)
+  for (const demo of LEARN_DEMOS) {
+    if (!demo.id || demoIds.has(demo.id)) fail(`学演示 id 缺失或重复：${demo.id}`)
+    demoIds.add(demo.id)
+    if (!demo.object?.label || !demo.object?.emoji) fail(`学演示 ${demo.id} 缺少实物段`)
+    if (!demo.visual?.label || !demo.visual?.groups?.length) fail(`学演示 ${demo.id} 缺少图形段`)
+    if (!demo.equation) fail(`学演示 ${demo.id} 缺少算式段`)
+    // 三句旁白一段一句：跳过与 reduced-motion 静态三态都靠它对齐面板
+    if (demo.narration?.length !== LEARN_DEMO_STAGES.length) {
+      fail(`学演示 ${demo.id} 应有 ${LEARN_DEMO_STAGES.length} 段旁白`)
+    }
+    if (demo.skill !== demo.skillId) fail(`学演示 ${demo.id} 的 skill 与 skillId 不一致`)
+    if (!isKnownSkill(demo.skill)) fail(`学演示 ${demo.id} 技能点「${demo.skill}」不在图谱里`)
+    // 一个技能点最多一条演示：练习入口按技能取，重复了就说不清弹哪条
+    if (demoSkills.has(demo.skill)) fail(`技能点「${demo.skill}」挂了不止一条学演示`)
+    demoSkills.add(demo.skill)
+    if (!SKILL_MAP[demo.skill] || SKILL_MAP[demo.skill].module !== demo.module) {
+      fail(`学演示 ${demo.id} 的模块「${demo.module}」和技能点所属模块对不上`)
+    }
+    const tiles = objectTiles(demo.object)
+    if (!tiles.length || tiles.some((tile) => !tile.items.length)) {
+      fail(`学演示 ${demo.id} 的实物段渲染不出任何实物`)
+    }
+  }
+
+  // 练习壳只静态引 learn-demo-index（见那里的说明），两边漏改一边就会给出死入口
+  const listed = new Set(LEARN_DEMO_SKILLS)
+  if (LEARN_DEMO_SKILLS.length !== listed.size) fail('learn-demo-index 的技能清单里有重复项')
+  for (const skill of demoSkills) {
+    if (!listed.has(skill)) fail(`learn-demo-index 少登记了技能点「${skill}」`)
+  }
+  for (const skill of listed) {
+    if (!demoSkills.has(skill)) fail(`learn-demo-index 多登记了技能点「${skill}」`)
+    if (!hasLearnDemo(skill)) fail(`hasLearnDemo 认不出已登记的技能点「${skill}」`)
+    if (learnDemoRoute(skill)?.query?.skill !== skill) fail(`「${skill}」的演示深链没带上技能点`)
+  }
+  if (learnDemoRoute('not-a-skill') !== null) fail('没有演示的技能点不该给出深链')
+
+  const byModule = {}
+  for (const demo of LEARN_DEMOS) byModule[demo.module] = (byModule[demo.module] ?? 0) + 1
+  console.log(
+    `学演示 ${LEARN_DEMOS.length} 个技能点：实物 / 图形 / 算式 / 三段旁白齐全（` +
+      `${Object.entries(byModule)
+        .map(([m, n]) => `${m} ${n}`)
+        .join('、')}）`,
+  )
 }
 
 /* 语义模板 × 场景皮肤：笛卡尔积必须完整铺满，否则等于悄悄少了一批母题 */
