@@ -1,0 +1,51 @@
+{
+  "generatedAt": "2026-08-28T15:10:26.993Z",
+  "chrome": "/usr/local/bin/google-chrome",
+  "shots": [
+    {
+      "name": "r17-literacy-intro-fallback-radical.png",
+      "caption": "无字源字「我」认步第一幕：部首牌登场 + 同部首兄弟字（data-intro-stage=intro-fallback-stage）",
+      "bytes": 148425
+    },
+    {
+      "name": "r17-literacy-intro-fallback-word.png",
+      "caption": "无字源字「我」认步第三幕：组词情境，目标字在词里点亮",
+      "bytes": 135896
+    },
+    {
+      "name": "r17-math-learn-demo-overlay.png",
+      "caption": "玩法页「数量星云」里点开的学演示弹层（技能 number-order / 演示 number-order），自动演到 data-demo-stage=visual",
+      "bytes": 836644
+    },
+    {
+      "name": "r17-math-learn-demo-equation.png",
+      "caption": "同一个演示走到末态（data-demo-stage=equation），三态并排且「跳过演示」全程常驻",
+      "bytes": 950964
+    },
+    {
+      "name": "r17-math-wp-analysis.png",
+      "caption": "应用题剖析面板：① 图示理解（条形图 + 已知/所求）② 分步提示（本题一步到底，末步得数按设计盖住）③ 变式，右上角「跳过 ✕」全程可退",
+      "bytes": 696721
+    },
+    {
+      "name": "r17-math-parent-weekly.png",
+      "caption": "数学 App 家长周报：弱项判定 thin —— 这周只练了 1 天、一共 1 分钟：口算和推理都靠手感，每天 10 分钟比周末补一次管用。",
+      "bytes": 586291
+    },
+    {
+      "name": "r17-literacy-parent-weekly.png",
+      "caption": "识字 App 家长周报：弱项判定 thin —— 这周只练了 1 天、一共 0 分钟：识字最怕断，每天 10 分钟比周末补一次管用。",
+      "bytes": 186793
+    }
+  ],
+  "meta": {
+    "math": {
+      "weakness": "thin",
+      "headline": "这周只练了 1 天、一共 1 分钟：口算和推理都靠手感，每天 10 分钟比周末补一次管用。"
+    },
+    "literacy": {
+      "weakness": "thin",
+      "headline": "这周只练了 1 天、一共 0 分钟：识字最怕断，每天 10 分钟比周末补一次管用。"
+    }
+  }
+}
