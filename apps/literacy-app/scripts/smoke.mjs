@@ -16,6 +16,7 @@ import {
   BOOKS,
   ROUND12_H3,
   ROUND13_H3,
+  ROUND14_H3,
   SCENE_BOOK_IDS,
   TOTAL_SCENE_PAGES,
   scenePages
@@ -199,7 +200,7 @@ const ROUND11_H4_PLAIN = BOOKS.find((book) => scenePages(book).length === 0) ?? 
 const ROUND11_H4_MIN_ITEMS = 3
 
 /**
- * ROUND13_H3_SMOKE：场景铺到 33 本 209 页之后的抽检。
+ * ROUND14_H3_SMOKE：场景铺到 60 本 404 页之后的抽检。
  *
  * R11 那条验的是「一本样板画得对」；铺开之后要防的是另一件事——
  * 数据里堆够了页数，渲染却没跟上：某一页少画两件、坐标写错飘出画框、
@@ -207,12 +208,12 @@ const ROUND11_H4_MIN_ITEMS = 3
  * 「数据声明几件 / DOM 上的 data-scene-items 几件 / 真的画出来几件」，
  * 三个数对不齐就是渲染没兑现数据。
  *
- * 抽样而不是全量：33 本 209 页翻一遍要十几分钟，冒烟没这个预算。
+ * 抽样而不是全量：60 本 404 页翻一遍要几十分钟，冒烟没这个预算。
  * R12 那版按下标取首尾和中间两本，铺到三个分级之后这么取会整级漏掉——
  * L2 的扩充绘本正好落在两个采样点之间。改成每级取头尾：手写的 core、
- * 生成的 l1/l2 和每个分级的边界书都在里面，五本三十来页仍在预算内。
+ * 生成的 l1/l2/l3 和每个分级的边界书都在里面，六本四十来页仍在预算内。
  */
-const ROUND13_H3_SAMPLE = (() => {
+const ROUND14_H3_SAMPLE = (() => {
   const scened = BOOKS.filter((book) => scenePages(book).length)
   const picked = new Set()
   for (const level of new Set(scened.map((book) => book.level))) {
@@ -2929,27 +2930,32 @@ if (ROUND11_H4_SMOKE) {
   )
 }
 
-if (ROUND13_H3_SAMPLE.length) {
+if (ROUND14_H3_SAMPLE.length) {
   await interact(
-    'ROUND13_H3：绘本场景终局 —— 抽样逐页比对「数据声明 / DOM 声明 / 实际渲染」',
-    `/#/books/${ROUND13_H3_SAMPLE[0].id}`,
+    'ROUND14_H3：绘本场景铺满前三级 —— 抽样逐页比对「数据声明 / DOM 声明 / 实际渲染」',
+    `/#/books/${ROUND14_H3_SAMPLE[0].id}`,
     async (page) => {
       /** 台账写死在数据层，先确认它没跟数据脱节，再谈渲染。 */
-      if (SCENE_BOOK_IDS.length !== ROUND13_H3.books || TOTAL_SCENE_PAGES !== ROUND13_H3.pages) {
+      if (SCENE_BOOK_IDS.length !== ROUND14_H3.books || TOTAL_SCENE_PAGES !== ROUND14_H3.pages) {
         throw new Error(
           `场景台账对不上：数据 ${SCENE_BOOK_IDS.length} 本 / ${TOTAL_SCENE_PAGES} 页，` +
-            `ROUND13_H3 声明 ${ROUND13_H3.books} 本 / ${ROUND13_H3.pages} 页`
+            `ROUND14_H3 声明 ${ROUND14_H3.books} 本 / ${ROUND14_H3.pages} 页`
         )
       }
-      if (TOTAL_SCENE_PAGES < ROUND13_H3.target) {
-        throw new Error(`场景只铺到 ${TOTAL_SCENE_PAGES} 页，门槛 ≥ ${ROUND13_H3.target}`)
+      if (TOTAL_SCENE_PAGES < ROUND14_H3.target) {
+        throw new Error(`场景只铺到 ${TOTAL_SCENE_PAGES} 页，门槛 ≥ ${ROUND14_H3.target}`)
       }
-      // R12 的量当地板：这一轮加书不能顺手把上一轮铺过的书吃回单 emoji。
-      if (SCENE_BOOK_IDS.length < ROUND12_H3.books || TOTAL_SCENE_PAGES < ROUND12_H3.pages) {
-        throw new Error(
-          `场景退回 ROUND12_H3 台账之下：${SCENE_BOOK_IDS.length}/${ROUND12_H3.books} 本、` +
-            `${TOTAL_SCENE_PAGES}/${ROUND12_H3.pages} 页`
-        )
+      // 往轮的量当地板：这一轮加书不能顺手把上一轮铺过的书吃回单 emoji。
+      for (const [name, past] of [
+        ['ROUND12_H3', ROUND12_H3],
+        ['ROUND13_H3', ROUND13_H3]
+      ]) {
+        if (SCENE_BOOK_IDS.length < past.books || TOTAL_SCENE_PAGES < past.pages) {
+          throw new Error(
+            `场景退回 ${name} 台账之下：${SCENE_BOOK_IDS.length}/${past.books} 本、` +
+              `${TOTAL_SCENE_PAGES}/${past.pages} 页`
+          )
+        }
       }
 
       /** 当前这一页画了什么：件数、有没有飘出画框、读屏念的是哪句。 */
@@ -2976,7 +2982,7 @@ if (ROUND13_H3_SAMPLE.length) {
 
       let checkedPages = 0
       let checkedItems = 0
-      for (const book of ROUND13_H3_SAMPLE) {
+      for (const book of ROUND14_H3_SAMPLE) {
         await page.goto(`${base}/#/books/${book.id}`, { waitUntil: 'networkidle2', timeout: 20000 })
         await page.waitForSelector('.scene[data-scene="dsl"]', { timeout: 8000 })
 
@@ -3007,8 +3013,8 @@ if (ROUND13_H3_SAMPLE.length) {
 
       const plainBooks = BOOKS.length - SCENE_BOOK_IDS.length
       return (
-        `台账 ${ROUND13_H3.books} 本 / ${ROUND13_H3.pages} 页（门槛 ≥ ${ROUND13_H3.target}）；` +
-        `抽样 ${ROUND13_H3_SAMPLE.length} 本逐页比对 ${checkedPages} 页 / ${checkedItems} 件，` +
+        `台账 ${ROUND14_H3.books} 本 / ${ROUND14_H3.pages} 页（门槛 ≥ ${ROUND14_H3.target}）；` +
+        `抽样 ${ROUND14_H3_SAMPLE.length} 本逐页比对 ${checkedPages} 页 / ${checkedItems} 件，` +
         `声明与渲染一致；其余 ${plainBooks} 本仍走单 emoji`
       )
     }
