@@ -594,8 +594,10 @@ const engineLimit = new Map(
         'A12 pass:true 的证据必须同时 onDevice:true',
         'onDevice 不为真却报 pass，这份证据点不亮任何东西'
       )
+      // 张数下限只对 pass:true 的证据要求：一次半路 SKIP 掉的运行（比如设备上
+      // 没装 App）留下的台账 rows 是空的，那不是造假，重跑一次就覆盖了。
       check(
-        rows.length >= MIN_SAMPLES && Number(ev.samples) === rows.length,
+        Number(ev.samples) === rows.length && (ev.pass !== true || rows.length >= MIN_SAMPLES),
         `A12 逐张记录 ${rows.length} 张（samples 字段 ${ev.samples}）`,
         '样张张数和 rows 对不上'
       )
@@ -808,6 +810,22 @@ function webviewSocket(serial) {
   return names.find((n) => pid && n.endsWith(`_${pid}`)) ?? names[0] ?? ''
 }
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+
+/**
+ * 冷启之后 WebView 要过几秒才挂上那个 socket——低端机上更久。
+ * 不等就直接判「接不进 WebView」，会把一台好设备误报成没法自动化。
+ */
+async function waitForWebviewSocket(serial, timeoutMs = 45_000) {
+  const deadline = Date.now() + timeoutMs
+  for (;;) {
+    const socket = webviewSocket(serial)
+    if (socket) return socket
+    if (Date.now() >= deadline) return ''
+    await sleep(2000)
+  }
+}
+
 async function cdpJson(pathname) {
   const res = await fetch(`http://127.0.0.1:${CDP_PORT}${pathname}`)
   if (!res.ok) throw new Error(`${pathname} 返回 ${res.status}`)
@@ -924,7 +942,7 @@ async function runDeviceSection(found) {
   )
 
   /* --- B4 接进 WebView，逐张认 --- */
-  const socket = webviewSocket(serial)
+  const socket = await waitForWebviewSocket(serial)
   if (!socket) {
     bskip(
       'B4',
@@ -1047,7 +1065,7 @@ async function runDeviceSection(found) {
     } else {
       const viaShell = await setAirplaneMode(serial, true)
       restoreAirplane = true
-      await new Promise((r) => setTimeout(r, 4000))
+      await sleep(4000)
       await page.reload({ waitUntil: 'load', timeout: 120_000 })
       await openOcrRoute(page)
       const packOk = await page.evaluate(
