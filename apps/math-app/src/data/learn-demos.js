@@ -1,5 +1,5 @@
 /**
- * ROUND16_H4 「学演示」注册表 —— 每个技能点一段「实物 → 图形 → 算式」。
+ * ROUND16_H4 / ROUND17_H3 「学演示」注册表 —— 每个技能点一段「实物 → 图形 → 算式」。
  *
  * 这份表回答的是「开练之前，这个知识点长什么样」。三段是硬契约：
  *
@@ -18,11 +18,15 @@
 /** 探针可执行标记（注释里的 ROUND16_H4 不算数）。 */
 export const ROUND16_H4 = 'learn-demo-registry'
 
+/** Round 17 把注册表从 21 个技能点续到 27 个，同一套三段契约，标记另起一个。 */
+export const ROUND17_H3 = 'learn-demo-registry-27'
+
 /** 图形段的框型：不给就是裸点组。 */
 export const VISUAL_FRAMES = {
   ten: '十格框',
   fraction: '整体等分',
   mirror: '对称轴',
+  net: '展开图',
 }
 
 const RAW_DEMOS = [
@@ -338,6 +342,26 @@ const RAW_DEMOS = [
       '两边一样多，这条线就是对称轴：3 = 3。',
     ],
   },
+  {
+    id: 'net-of-cube',
+    skillId: 'shape-3d',
+    module: 'geometry',
+    title: '摊开来数有几个面',
+    subtitle: '立体图形有几个面，展开图就有几块',
+    object: { emoji: '🎲', count: 1, label: '一颗骰子，就是一个正方体' },
+    visual: {
+      groups: [1, 4, 1],
+      frame: 'net',
+      groupLabels: ['上面 1 块', '中间一圈 4 块', '下面 1 块'],
+      label: '摊平后是 6 块一样大的正方形',
+    },
+    equation: '1 + 4 + 1 = 6',
+    narration: [
+      '一颗骰子就是个正方体，摸一圈，它有六个面。',
+      '沿着棱剪开摊平：上面 1 块、中间一圈 4 块、下面 1 块。',
+      '展开图有几块，立体图形就有几个面：1 + 4 + 1 = 6。',
+    ],
+  },
 
   /* ─────────────────────────────── 逻辑推理 ─────────────────────────────── */
   {
@@ -393,6 +417,33 @@ const RAW_DEMOS = [
       '差都是 2，下一项就是 6 + 2 = 8。',
     ],
   },
+  {
+    id: 'classify-count',
+    skillId: 'classify',
+    module: 'logic',
+    title: '先分类，再数数',
+    subtitle: '同一类的归一起，数量才数得清',
+    object: {
+      emoji: '🧺',
+      count: 8,
+      label: '一只筐里混着 5 个水果和 3 辆小车',
+      tiles: [
+        { emoji: '🍎', count: 5, caption: '水果 5 个' },
+        { emoji: '🚗', count: 3, caption: '小车 3 辆' },
+      ],
+    },
+    visual: {
+      groups: [5, 3],
+      groupLabels: ['水果这一类', '小车这一类'],
+      label: '按类分成两堆，一堆 5 个、一堆 3 个',
+    },
+    equation: '5 + 3 = 8',
+    narration: [
+      '一只筐里水果和小车混在一起，看着乱糟糟，数着也容易漏。',
+      '先按「是不是同一类」分成两堆：一堆 5 个，一堆 3 个。',
+      '分完再数，总数一件也没多没少：5 + 3 = 8 件。',
+    ],
+  },
 
   /* ─────────────────────────────── 生活应用题 ─────────────────────────────── */
   {
@@ -431,6 +482,108 @@ const RAW_DEMOS = [
       '题目说：手里有 8 个气球，飞走了 3 个。',
       '整体画成 8 个点，飞走的 3 个划掉。',
       '问「还剩」用减法：8 − 3 = 5 个。',
+    ],
+  },
+  {
+    id: 'wp-diff',
+    skillId: 'wp-diff',
+    module: 'word-problems',
+    title: '比较问题：多出来的那一段',
+    subtitle: '问「多几个」，比的不是谁，是那一段差',
+    object: {
+      emoji: '🧁',
+      count: 13,
+      label: '姐姐做了 8 个纸杯蛋糕，弟弟做了 5 个',
+      tiles: [
+        { count: 8, caption: '姐姐 8 个' },
+        { count: 5, caption: '弟弟 5 个' },
+      ],
+    },
+    visual: {
+      groups: [5, 3],
+      highlightGroup: 1,
+      groupLabels: ['配对掉的 5 个', '多出来的 3 个'],
+      label: '两排对齐，右边这一段才是答案',
+    },
+    equation: '8 − 5 = 3',
+    narration: [
+      '题目说：姐姐做了 8 个纸杯蛋糕，弟弟做了 5 个。',
+      '两排对齐着摆，前 5 个一一配上对，姐姐这边还剩一段没人配。',
+      '问「多几个」求的就是那一段：8 − 5 = 3 个。',
+    ],
+  },
+  {
+    id: 'wp-times',
+    skillId: 'wp-times',
+    module: 'word-problems',
+    title: '倍数问题：几个这么多',
+    subtitle: '先圈出「一份」，再看有几份',
+    object: {
+      emoji: '🥕',
+      count: 15,
+      label: '小兔拔了 3 根，大兔拔的是它的 4 倍',
+      tiles: [
+        { count: 3, caption: '小兔 3 根＝一份' },
+        { count: 12, caption: '大兔是这样的 4 份' },
+      ],
+    },
+    visual: {
+      groups: [3, 3, 3, 3],
+      groupLabels: ['第 1 份', '第 2 份', '第 3 份', '第 4 份'],
+      label: '4 份一样多，每份都是 3 个',
+    },
+    equation: '3 × 4 = 12',
+    narration: [
+      '题目说：小兔拔了 3 根胡萝卜，大兔拔的是小兔的 4 倍。',
+      '把小兔的 3 根圈成一份，大兔那边正好是这样的 4 份。',
+      '几个几用乘法：3 × 4 = 12 根。',
+    ],
+  },
+  {
+    id: 'wp-share',
+    skillId: 'wp-share',
+    module: 'word-problems',
+    title: '包含除：里面装得下几份',
+    subtitle: '每份定好，看总数里有几个这样的份',
+    object: { emoji: '🥟', count: 12, label: '12 个饺子，每盘装 4 个' },
+    visual: {
+      groups: [4, 4, 4],
+      groupLabels: ['第 1 盘', '第 2 盘', '第 3 盘'],
+      label: '每 4 个圈成一盘，正好圈出 3 盘',
+    },
+    equation: '12 ÷ 4 = 3',
+    narration: [
+      '题目说：一共 12 个饺子，每盘装 4 个，能装几盘？',
+      '每 4 个点圈成一盘，一盘一盘圈下去，正好圈出 3 盘。',
+      '这里不是分给几个人，是看 12 里面有几个 4：12 ÷ 4 = 3 盘。',
+    ],
+  },
+  {
+    id: 'wp-two-step',
+    skillId: 'wp-two-step',
+    module: 'word-problems',
+    title: '两步问题：算完一步再算下一步',
+    subtitle: '先处理先发生的那件事，别想一口气算完',
+    object: {
+      emoji: '🧒',
+      count: 11,
+      label: '车上 7 人，下去 3 人，又上来 4 人',
+      tiles: [
+        { count: 7, crossedFrom: 4, caption: '原有 7 人，下去 3 人' },
+        { count: 4, caption: '又上来 4 人' },
+      ],
+    },
+    visual: {
+      groups: [4, 3, 4],
+      crossedGroup: 1,
+      groupLabels: ['先剩 4 人', '下车 3 人', '再上 4 人'],
+      label: '先划掉下车的，再添上车的',
+    },
+    equation: '7 − 3 + 4 = 8',
+    narration: [
+      '题目说：车上有 7 个人，到站下去 3 个，接着又上来 4 个。',
+      '照发生的先后来：先把下车的 3 个划掉，车上先剩 4 个，再添上后上来的 4 个。',
+      '第一步 7 − 3 = 4，第二步 4 + 4 = 8，连起来就是 7 − 3 + 4 = 8 人。',
     ],
   },
 ]

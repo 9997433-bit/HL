@@ -1,5 +1,5 @@
 /**
- * ROUND16_H4 学演示的「有没有」索引。
+ * ROUND16_H4 / ROUND17_H3 学演示的「有没有」索引。
  *
  * 练习壳只需要回答一个问题：当前这道题的技能点，有没有配套演示？
  * 为这一个布尔值把整份注册表（含全部旁白文案）拖进玩法块并不划算——
@@ -27,10 +27,16 @@ export const LEARN_DEMO_SKILLS = [
   'div-basic',
   'shape-2d',
   'symmetry',
+  'shape-3d',
   'pattern-abab',
   'pattern-number',
+  'classify',
   'wp-combine',
   'wp-remain',
+  'wp-diff',
+  'wp-times',
+  'wp-share',
+  'wp-two-step',
 ]
 
 const COVERED = new Set(LEARN_DEMO_SKILLS)
