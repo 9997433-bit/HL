@@ -279,7 +279,7 @@ export const CHAR_PLAY_RICH = [
     char: '不', unit: 'u3', theme: 'word',
     template: 'sort-buckets', interaction: 'drag',
     narration: '摇摇头说不，分清能做和不能做。',
-    props: { hero: '🙅', items: [{ item: '📚', bucket: '可以' }, { item: '🧸', bucket: '可以' }, { item: '🔥', bucket: '不可以' }, { item: '🔪', bucket: '不可以' }], buckets: [{ label: '可以', emoji: '👍' }, { label: '不可以', emoji: '🙅' }], goal: 4 },
+    props: { hero: '🙅', items: [{ item: '📚', bucket: '可以' }, { item: '🧸', bucket: '可以' }, { item: '🔥', bucket: '不可以' }, { item: '🔌', bucket: '不可以' }], buckets: [{ label: '可以', emoji: '👍' }, { label: '不可以', emoji: '🙅' }], goal: 4 },
     templateFallback: false
   },
   {
@@ -315,7 +315,7 @@ export const CHAR_PLAY_RICH = [
     char: '是', unit: 'u4', theme: 'word',
     template: 'sort-buckets', interaction: 'drag',
     narration: '说得对点是，说错了点不是。',
-    props: { hero: '✅', items: [{ item: '🐟游泳', bucket: '是' }, { item: '🐦会飞', bucket: '是' }, { item: '🐘很小', bucket: '不是' }, { item: '🔥很凉', bucket: '不是' }], buckets: [{ label: '是', emoji: '✅' }, { label: '不是', emoji: '❌' }], goal: 4 },
+    props: { hero: '✅', items: [{ item: '鱼会游泳', bucket: '是' }, { item: '鸟会飞', bucket: '是' }, { item: '大象很小', bucket: '不是' }, { item: '火是凉的', bucket: '不是' }], buckets: [{ label: '是', emoji: '✅' }, { label: '不是', emoji: '❌' }], goal: 4 },
     templateFallback: false
   },
   {
