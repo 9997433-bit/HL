@@ -1,0 +1,99 @@
+{
+  "marker": "ROUND14_H2",
+  "supersedes": [
+    "ROUND13_H2",
+    "ROUND12_H2"
+  ],
+  "schema": "ocr-device-b/1",
+  "capturedAt": "2026-08-28T06:02:02.368Z",
+  "status": "skipped",
+  "pass": false,
+  "onDevice": false,
+  "simulated": false,
+  "emulator": false,
+  "exitCode": 2,
+  "appId": "com.hongen.literacy",
+  "device": null,
+  "deviceDir": "/sdcard/Download/hongen-ocr",
+  "sampleDir": "/sdcard/Android/data/com.hongen.literacy/files/ocr-samples",
+  "samples": 0,
+  "firstScreenCorrect": 0,
+  "firstScreenFloor": 9,
+  "recall": {
+    "hit": 0,
+    "total": 0,
+    "floor": 40
+  },
+  "coldStartMs": null,
+  "peakPssKib": null,
+  "offline": null,
+  "engineLimit": [
+    {
+      "id": "R14-OCR-005",
+      "sample": "real-wall-stencil",
+      "chars": "滑",
+      "reviewRound": 16
+    }
+  ],
+  "rows": [],
+  "steps": [
+    {
+      "id": "B1",
+      "status": "skip",
+      "msg": "设备指纹（型号 / Android 版本 / WebView 版本 / 分辨率）",
+      "detail": "这台机器上没有 adb（Cursor Cloud VM 默认不带 Android SDK）；设备到位后执行：node scripts/test-ocr-device.mjs"
+    },
+    {
+      "id": "B2",
+      "status": "skip",
+      "msg": "十张真实样张 push 到 /sdcard/Android/data/com.hongen.literacy/files/ocr-samples 与 /sdcard/Download/hongen-ocr",
+      "detail": "这台机器上没有 adb（Cursor Cloud VM 默认不带 Android SDK）；设备到位后执行：node scripts/test-ocr-device.mjs"
+    },
+    {
+      "id": "B3",
+      "status": "skip",
+      "msg": "冷启 → /#/ocr → 冷启耗时与峰值内存",
+      "detail": "这台机器上没有 adb（Cursor Cloud VM 默认不带 Android SDK）；设备到位后执行：node scripts/test-ocr-device.mjs"
+    },
+    {
+      "id": "B4",
+      "status": "skip",
+      "msg": "接进 WebView 逐张认字（设备侧召回 ≥40/41、首屏认对 ≥9/10）",
+      "detail": "这台机器上没有 adb（Cursor Cloud VM 默认不带 Android SDK）；设备到位后执行：node scripts/test-ocr-device.mjs --require-device"
+    },
+    {
+      "id": "B5",
+      "status": "skip",
+      "msg": "飞行模式下复跑一张，确认引擎从 SW 缓存起来",
+      "detail": "这台机器上没有 adb（Cursor Cloud VM 默认不带 Android SDK）；设备到位后执行：node scripts/test-ocr-device.mjs --require-device"
+    }
+  ],
+  "skips": [
+    {
+      "msg": "B1 设备指纹（型号 / Android 版本 / WebView 版本 / 分辨率）",
+      "owner": "Android QA",
+      "why": "这台机器上没有 adb（Cursor Cloud VM 默认不带 Android SDK）；设备到位后执行：node scripts/test-ocr-device.mjs"
+    },
+    {
+      "msg": "B2 十张真实样张 push 到 /sdcard/Android/data/com.hongen.literacy/files/ocr-samples 与 /sdcard/Download/hongen-ocr",
+      "owner": "Android QA",
+      "why": "这台机器上没有 adb（Cursor Cloud VM 默认不带 Android SDK）；设备到位后执行：node scripts/test-ocr-device.mjs"
+    },
+    {
+      "msg": "B3 冷启 → /#/ocr → 冷启耗时与峰值内存",
+      "owner": "Android QA",
+      "why": "这台机器上没有 adb（Cursor Cloud VM 默认不带 Android SDK）；设备到位后执行：node scripts/test-ocr-device.mjs"
+    },
+    {
+      "msg": "B4 接进 WebView 逐张认字（设备侧召回 ≥40/41、首屏认对 ≥9/10）",
+      "owner": "Android QA",
+      "why": "这台机器上没有 adb（Cursor Cloud VM 默认不带 Android SDK）；设备到位后执行：node scripts/test-ocr-device.mjs --require-device"
+    },
+    {
+      "msg": "B5 飞行模式下复跑一张，确认引擎从 SW 缓存起来",
+      "owner": "Android QA",
+      "why": "这台机器上没有 adb（Cursor Cloud VM 默认不带 Android SDK）；设备到位后执行：node scripts/test-ocr-device.mjs --require-device"
+    }
+  ],
+  "notes": []
+}
