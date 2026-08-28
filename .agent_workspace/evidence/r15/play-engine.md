@@ -162,3 +162,29 @@ char-play 自测：1820 字
 **留给 smoke 岗一个缺口**：H7 目前只走「日」一个字，走的是 `watch`；
 `match` / `assemble` 的判定写反了它看不出来。建议 H7 再带上 `不`（match）和
 `山`（assemble）两个字，各点到 `data-state=done`。
+
+## 门禁现状与一处不归本岗的红灯
+
+`node scripts/check-round15.mjs` → **7/8**，H2 绿：
+`getCharPlay 全库 1820/1820 有 template`。H8 红的是 check:round13 的
+Android H6（干净环境要先 `npm run android:sim` 重建双 APK），与 Play 无关。
+
+`npm run smoke` → 164 条路由 + 45 项交互，两条 Play 断言都绿
+（`play→intro→listen→trace→speak`；减少动态下玩相位仍可完成），
+**另有 1 项红灯需要五步改造岗接手**：
+
+```
+✗ ROUND14_H5：L1 字卡单字与例句优先请求随包离线范读
+  Waiting for selector `.detail[data-tts="offline-l1"] .intro__say` failed
+```
+
+这条不是本岗改出来的。R14 那条断言进 `/#/learn/一` 后直接找认步的
+「🔊 听怎么读」按钮，而五步重映射（H1，orchestration 上的 b1ac81e）之后
+单字路由默认停在**玩**步，`.intro__say` 要等玩完或跳过才进 DOM——
+H7 要求的「默认从玩相位开始」和 H5 假设的「一进来就是认步」互相打架。
+本分支相对 orchestration 只动了 `char-play.js` / `CharPlayStage.vue` /
+`test-char-play.mjs` / `package.json` 四个文件，没碰 CharDetailView 和认步。
+
+修法建议（归五步改造岗或 smoke 岗）：ROUND14_H5 的用例进页面后先把玩步跳过
+（点 `[data-char-play] .play__acts button`）再等 `.intro__say`，
+这也正好顺带验一次「跳过照样能走到认步」。
