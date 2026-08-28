@@ -20,6 +20,7 @@ import {
   bandOf,
 } from '../src/data/age-band.js'
 import { isKnownSkill, SKILLS, SKILL_MAP, skillsOfModule } from '../src/data/curriculum.js'
+import { buildAnalysis } from '../src/utils/wpAnalysis.js'
 import {
   buildSkillGraph,
   GRAPH_SIZE,
@@ -160,6 +161,48 @@ console.log(
 
 for (const tierId of ['one', 'two', 'multi']) {
   if (problemsOfTier(tierId).length === 0) fail(`难度档「${tierId}」一道母题都没有`)
+}
+
+/**
+ * 应用题剖析壳（ROUND16_H5）：剖析是解析 equation 得来的，不是逐题手写的，
+ * 所以每加一个母题都得确认它的算式拆得开——拆不开面板就只能干巴巴地重复算式。
+ * 另外盖住的那一步必须正好是答案所在，且判题前不能把得数写出来。
+ */
+{
+  const TRIES = 30
+  let checked = 0
+  for (const tpl of WORD_PROBLEMS) {
+    for (let i = 0; i < TRIES; i++) {
+      const q = tpl.make()
+      const a = buildAnalysis(q)
+      if (!a.steps.length) {
+        fail(`${tpl.id} 的算式拆不出分步：${q.equation}`)
+        break
+      }
+      const asked = a.steps.filter((s) => s.asked)
+      if (asked.length !== 1) {
+        fail(`${tpl.id} 分步里「要求的那一步」有 ${asked.length} 处：${q.equation}`)
+        break
+      }
+      if (asked[0].value !== q.answer) {
+        fail(`${tpl.id} 分步算出 ${asked[0].value}，题目答案是 ${q.answer}：${q.equation}`)
+        break
+      }
+      if (!asked[0].masked.includes('?')) {
+        fail(`${tpl.id} 判题前没盖住得数：${asked[0].masked}`)
+        break
+      }
+      if (!a.ask || !a.knowns.length || !a.diagram.bars.length || !a.diagram.caption) {
+        fail(`${tpl.id} 剖析缺少已知 / 问句 / 图示：${q.text}`)
+        break
+      }
+      checked += 1
+    }
+  }
+  console.log(
+    `应用题剖析：${WORD_PROBLEMS.length} 个母题 × ${TRIES} 次共 ${checked} 道，` +
+      '图示 / 分步 / 盖住答案全部成立',
+  )
 }
 
 /**

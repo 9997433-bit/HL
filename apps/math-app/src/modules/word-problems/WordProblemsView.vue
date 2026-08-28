@@ -8,6 +8,7 @@ import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AgeBandBadge from '@/components/AgeBandBadge.vue'
 import QuizShell from '@/components/QuizShell.vue'
+import WpAnalysisPanel from '@/components/WpAnalysisPanel.vue'
 import { useAgeBand } from '@/composables/useAgeBand'
 import {
   WORD_PROBLEMS,
@@ -19,6 +20,8 @@ import { sound } from '@/utils/sound'
 
 const ROUND_SIZE = 8
 const MODULE_ID = 'word'
+/** 剖析壳（图示理解 / 分步提示 / 变式入口）的探针标记。 */
+const ANALYSIS_PROBE = 'ROUND16_H5'
 
 const router = useRouter()
 const route = useRoute()
@@ -33,8 +36,10 @@ const band = useAgeBand((next) => {
 const tier = ref(band.value.defaults.word)
 const inputMode = ref('choice')
 
+/** 剖析里点「换一轮同类题」选的技能，优先级高于进来时带的 ?skill=。 */
+const pickedSkill = ref('')
 const focusedSkill = computed(() => {
-  const id = String(route.query.skill ?? '')
+  const id = pickedSkill.value || String(route.query.skill ?? '')
   return WORD_PROBLEMS.some((problem) => problem.skill === id) ? id : ''
 })
 const bank = computed(() => {
@@ -89,11 +94,31 @@ function newRound() {
 }
 
 watch(tier, newRound)
+watch(focusedSkill, newRound)
 
 function setTier(id) {
   if (tier.value === id) return
   sound.click()
   tier.value = id
+}
+
+/** 母题的 make()：剖析面板拿它抽同结构、换数字的变式。 */
+function variantMaker(question) {
+  const template = WORD_PROBLEMS.find((item) => item.id === question?.id)
+  return template ? () => template.make() : null
+}
+
+/** 剖析看完想接着练同一类：换成这个技能的题，重抽一轮。 */
+function practiceSkill(skill) {
+  if (!skill) return
+  if (focusedSkill.value === skill) newRound()
+  else pickedSkill.value = skill
+}
+
+function clearFocus() {
+  sound.click()
+  if (pickedSkill.value) pickedSkill.value = ''
+  else router.replace({ query: {} })
 }
 </script>
 
@@ -130,6 +155,9 @@ function setTier(id) {
         </div>
         <AgeBandBadge module="word" />
         <span class="chip">📚 母题 {{ bank.length }} / {{ WORD_PROBLEMS.length }} 道</span>
+        <button v-if="focusedSkill" class="btn btn--ghost btn--sm" @click="clearFocus">
+          🎯 只练同类题 · 取消
+        </button>
       </template>
 
       <template #question="{ question }">
@@ -167,6 +195,18 @@ function setTier(id) {
             </div>
           </div>
         </article>
+      </template>
+
+      <!-- 剖析壳：作答前/中随时能点开，看不看都不影响答题流程 -->
+      <template #beneath="{ question, locked }">
+        <WpAnalysisPanel
+          v-if="question"
+          :data-analysis-probe="ANALYSIS_PROBE"
+          :question="question"
+          :reveal="locked"
+          :make-variant="variantMaker(question)"
+          @practice="practiceSkill"
+        />
       </template>
 
       <template #extra="{ question, locked }">
