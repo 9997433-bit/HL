@@ -4,11 +4,10 @@
  * 这里只负责抽母题、实例化题面和画线段/实物图，
  * 答题流程（选项/键盘/判题/提示扣星/进度条/总结）复用 QuizShell。
  */
-import { computed, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, nextTick, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AgeBandBadge from '@/components/AgeBandBadge.vue'
 import QuizShell from '@/components/QuizShell.vue'
-import WpAnalysisPanel from '@/components/WpAnalysisPanel.vue'
 import { useAgeBand } from '@/composables/useAgeBand'
 import {
   WORD_PROBLEMS,
@@ -20,6 +19,12 @@ import { sound } from '@/utils/sound'
 
 const ROUND_SIZE = 8
 const MODULE_ID = 'word'
+
+/**
+ * 剖析壳（ROUND16_H5）点开才下载：图示 + 分步 + 变式连它的算式解析器
+ * 有小 5 KiB gzip，多数题孩子读一遍就会做，没必要让每个人进星球时都背着它。
+ */
+const WpAnalysisPanel = defineAsyncComponent(() => import('@/components/WpAnalysisPanel.vue'))
 
 /**
  * 变式用的抽题函数按母题 id 备好一份，别在渲染里现做：
@@ -104,6 +109,22 @@ function setTier(id) {
   if (tier.value === id) return
   sound.click()
   tier.value = id
+}
+
+/** 剖析开着没有。开合状态跨题保留：连着几道都想看的孩子不用每题重点一次。 */
+const analysisOpen = ref(false)
+const analysisBtn = ref(null)
+
+function openAnalysis() {
+  sound.click()
+  analysisOpen.value = true
+}
+
+/** 跳过时把焦点送回入口按钮，键盘用户不至于被扔回页首。 */
+async function closeAnalysis() {
+  analysisOpen.value = false
+  await nextTick()
+  analysisBtn.value?.focus()
 }
 
 /** 剖析看完想接着练同一类：换成这个技能的题，重抽一轮。 */
@@ -197,11 +218,21 @@ function clearFocus() {
 
       <!-- 剖析壳（ROUND16_H5）：作答前/中随时能点开，看不看都不影响答题流程 -->
       <template #beneath="{ question, locked }">
+        <button
+          v-if="!analysisOpen"
+          ref="analysisBtn"
+          class="btn btn--ghost btn--sm analysis-open"
+          aria-expanded="false"
+          @click="openAnalysis"
+        >
+          🔍 剖析这道题（想不出来再点，可跳过）
+        </button>
         <WpAnalysisPanel
-          v-if="question"
+          v-else-if="question"
           :question="question"
           :reveal="locked"
           :make-variant="VARIANT_MAKERS.get(question.id) ?? null"
+          @skip="closeAnalysis"
           @practice="practiceSkill"
         />
       </template>
@@ -313,6 +344,10 @@ function clearFocus() {
   font-style: normal;
   font-weight: 900;
   color: var(--star);
+}
+
+.analysis-open {
+  align-self: flex-start;
 }
 
 .eq {
