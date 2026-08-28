@@ -17,11 +17,71 @@ export const CORE_BOOKS = [
     summary: '天上有什么？山下有什么？跟着小主人公看一看。',
     newChars: ['天', '日', '月', '山', '水', '田', '土', '木', '花'],
     pages: [
-      { emoji: '🌅', text: '天上有日，天上有月。', p: 'tiān shàng yǒu rì, tiān shàng yǒu yuè.' },
-      { emoji: '⛰️', text: '山下有水，水上有花。', p: 'shān xià yǒu shuǐ, shuǐ shàng yǒu huā.' },
-      { emoji: '🌾', text: '田中有土，土上有木。', p: 'tián zhōng yǒu tǔ, tǔ shàng yǒu mù.' },
-      { emoji: '🙋', text: '我在山下，我看天上的月。', p: 'wǒ zài shān xià, wǒ kàn tiān shàng de yuè.' },
-      { emoji: '🌸', text: '大山，小花，我也会看！', p: 'dà shān, xiǎo huā, wǒ yě huì kàn!' }
+      {
+        emoji: '🌅',
+        text: '天上有日，天上有月。',
+        p: 'tiān shàng yǒu rì, tiān shàng yǒu yuè.',
+        sceneBg: 'dawn',
+        sceneAlt: '天上有日，也有月',
+        scene: [
+          { e: '☀️', x: 72, y: 24, s: 1.3, m: 'float' },
+          { e: '🌙', x: 26, y: 28, s: 1, m: 'float' },
+          { e: '☁️', x: 48, y: 44, s: 1.1, m: 'drift' },
+          { e: '⛰️', x: 34, y: 80, s: 1.8 }
+        ]
+      },
+      {
+        emoji: '⛰️',
+        text: '山下有水，水上有花。',
+        p: 'shān xià yǒu shuǐ, shuǐ shàng yǒu huā.',
+        sceneBg: 'water',
+        sceneAlt: '山下有水，水上有花',
+        scene: [
+          { e: '⛰️', x: 28, y: 44, s: 2.1 },
+          { e: '🌊', x: 52, y: 80, s: 1.5, m: 'sway' },
+          { e: '🌸', x: 74, y: 66, s: 1.1, m: 'float' },
+          { e: '🌿', x: 16, y: 82, s: 1 }
+        ]
+      },
+      {
+        emoji: '🌾',
+        text: '田中有土，土上有木。',
+        p: 'tián zhōng yǒu tǔ, tǔ shàng yǒu mù.',
+        sceneBg: 'field',
+        sceneAlt: '天上有日，田中有土，土上有木',
+        scene: [
+          { e: '☀️', x: 82, y: 18, s: 1, m: 'float' },
+          { e: '🌳', x: 70, y: 54, s: 1.9 },
+          { e: '🌾', x: 24, y: 72, s: 1.4, m: 'sway' },
+          { e: '🌱', x: 48, y: 84, s: 1.1 }
+        ]
+      },
+      {
+        emoji: '🙋',
+        text: '我在山下，我看天上的月。',
+        p: 'wǒ zài shān xià, wǒ kàn tiān shàng de yuè.',
+        sceneBg: 'dusk',
+        sceneAlt: '我站在山下看天上的月',
+        scene: [
+          { e: '🌙', x: 74, y: 22, s: 1.3, m: 'float' },
+          { e: '⭐', x: 56, y: 30, s: 0.8, m: 'float' },
+          { e: '⛰️', x: 22, y: 52, s: 2 },
+          { e: '🙋', x: 52, y: 82, s: 1.5 }
+        ]
+      },
+      {
+        emoji: '🌸',
+        text: '大山，小花，我也会看！',
+        p: 'dà shān, xiǎo huā, wǒ yě huì kàn!',
+        sceneBg: 'sky',
+        sceneAlt: '大山和小花，我都看到了',
+        scene: [
+          { e: '⛰️', x: 26, y: 48, s: 2.2 },
+          { e: '🙋', x: 46, y: 78, s: 1.4 },
+          { e: '🌸', x: 68, y: 72, s: 1.1, m: 'sway' },
+          { e: '🌼', x: 82, y: 82, s: 0.9, m: 'sway' }
+        ]
+      }
     ]
   },
   {
@@ -148,13 +208,98 @@ export const CORE_BOOKS = [
     summary: '风来了雨来了，小鸟找不到家。小松鼠说：别急，我帮你。',
     newChars: ['鸟', '飞', '找', '急', '帮', '回', '风', '雨'],
     pages: [
-      { emoji: '🐦', text: '小鸟在天上飞，飞了很远。', p: 'xiǎo niǎo zài tiān shàng fēi, fēi le hěn yuǎn.' },
-      { emoji: '🌧️', text: '风来了，雨也来了。', p: 'fēng lái le, yǔ yě lái le.' },
-      { emoji: '😰', text: '小鸟找不到家，很急。', p: 'xiǎo niǎo zhǎo bù dào jiā, hěn jí.' },
-      { emoji: '🐿️', text: '小松鼠说：别急，我帮你找。', p: 'xiǎo sōng shǔ shuō: bié jí, wǒ bāng nǐ zhǎo.' },
-      { emoji: '🌳', text: '小松鼠和小鸟走到一个大树下。', p: 'xiǎo sōng shǔ hé xiǎo niǎo zǒu dào yī gè dà shù xià.' },
-      { emoji: '🏠', text: '小鸟说：这就是我的家！', p: 'xiǎo niǎo shuō: zhè jiù shì wǒ de jiā!' },
-      { emoji: '🎉', text: '雨停了，小鸟和小松鼠都笑了。', p: 'yǔ tíng le, xiǎo niǎo hé xiǎo sōng shǔ dōu xiào le.' }
+      {
+        emoji: '🐦',
+        text: '小鸟在天上飞，飞了很远。',
+        p: 'xiǎo niǎo zài tiān shàng fēi, fēi le hěn yuǎn.',
+        sceneBg: 'sky',
+        sceneAlt: '小鸟一个人在天上飞',
+        scene: [
+          { e: '☀️', x: 84, y: 16, s: 1, m: 'float' },
+          { e: '☁️', x: 68, y: 26, s: 1.2, m: 'drift' },
+          { e: '🐦', x: 38, y: 40, s: 1.4, m: 'float' },
+          { e: '☁️', x: 16, y: 46, s: 0.9, m: 'drift' }
+        ]
+      },
+      {
+        emoji: '🌧️',
+        text: '风来了，雨也来了。',
+        p: 'fēng lái le, yǔ yě lái le.',
+        sceneBg: 'storm',
+        sceneAlt: '风来了，树在动，雨也来了',
+        scene: [
+          { e: '🌧️', x: 48, y: 26, s: 1.8, m: 'sway' },
+          { e: '💨', x: 20, y: 42, s: 1.2, m: 'drift' },
+          { e: '💧', x: 64, y: 62, s: 1, m: 'float' },
+          { e: '🌳', x: 82, y: 74, s: 1.5, m: 'sway' }
+        ]
+      },
+      {
+        emoji: '😰',
+        text: '小鸟找不到家，很急。',
+        p: 'xiǎo niǎo zhǎo bù dào jiā, hěn jí.',
+        sceneBg: 'storm',
+        sceneAlt: '小鸟在雨里找不到家',
+        scene: [
+          { e: '🌧️', x: 24, y: 24, s: 1.3, m: 'sway' },
+          { e: '❓', x: 64, y: 32, s: 1.1, m: 'float' },
+          { e: '🐦', x: 44, y: 50, s: 1.4, m: 'sway' },
+          { e: '🌳', x: 82, y: 76, s: 1.5 }
+        ]
+      },
+      {
+        emoji: '🐿️',
+        text: '小松鼠说：别急，我帮你找。',
+        p: 'xiǎo sōng shǔ shuō: bié jí, wǒ bāng nǐ zhǎo.',
+        sceneBg: 'field',
+        sceneAlt: '小松鼠来帮小鸟找家',
+        scene: [
+          { e: '🌳', x: 84, y: 48, s: 1.8 },
+          { e: '🐦', x: 34, y: 58, s: 1.2, m: 'float' },
+          { e: '🐿️', x: 60, y: 70, s: 1.5 },
+          { e: '🍂', x: 18, y: 84, s: 0.9, m: 'drift' }
+        ]
+      },
+      {
+        emoji: '🌳',
+        text: '小松鼠和小鸟走到一个大树下。',
+        p: 'xiǎo sōng shǔ hé xiǎo niǎo zǒu dào yī gè dà shù xià.',
+        sceneBg: 'field',
+        sceneAlt: '小松鼠和小鸟走到大树下',
+        scene: [
+          { e: '🌳', x: 62, y: 44, s: 2.4 },
+          { e: '🐦', x: 48, y: 66, s: 1, m: 'float' },
+          { e: '🐿️', x: 38, y: 76, s: 1.2 },
+          { e: '🌿', x: 18, y: 84, s: 1 }
+        ]
+      },
+      {
+        emoji: '🏠',
+        text: '小鸟说：这就是我的家！',
+        p: 'xiǎo niǎo shuō: zhè jiù shì wǒ de jiā!',
+        sceneBg: 'field',
+        sceneAlt: '大树上的那个家就是小鸟的家',
+        scene: [
+          { e: '✨', x: 78, y: 26, s: 0.9, m: 'float' },
+          { e: '🏠', x: 60, y: 36, s: 1.1 },
+          { e: '🌳', x: 58, y: 56, s: 2.4 },
+          { e: '🐦', x: 40, y: 44, s: 1.1, m: 'float' },
+          { e: '🐿️', x: 34, y: 82, s: 1.1 }
+        ]
+      },
+      {
+        emoji: '🎉',
+        text: '雨停了，小鸟和小松鼠都笑了。',
+        p: 'yǔ tíng le, xiǎo niǎo hé xiǎo sōng shǔ dōu xiào le.',
+        sceneBg: 'sky',
+        sceneAlt: '雨停了，天上有光，小鸟和小松鼠都笑了',
+        scene: [
+          { e: '☀️', x: 84, y: 18, s: 1, m: 'float' },
+          { e: '🌈', x: 54, y: 28, s: 1.9, m: 'float' },
+          { e: '🐦', x: 34, y: 52, s: 1.2, m: 'float' },
+          { e: '🐿️', x: 58, y: 76, s: 1.3 }
+        ]
+      }
     ]
   },
   {
@@ -266,14 +411,111 @@ export const CORE_BOOKS = [
     summary: '花开、水凉、叶黄、下雪，一年四时，一页一时。',
     newChars: ['春', '夏', '秋', '冬', '雪', '热', '冷', '熟'],
     pages: [
-      { emoji: '🌸', text: '春天到了，花开了，草绿了。', p: 'chūn tiān dào le, huā kāi le, cǎo lǜ le.' },
-      { emoji: '🐝', text: '小蜂在花上飞，小蝶也来了。', p: 'xiǎo fēng zài huā shàng fēi, xiǎo dié yě lái le.' },
-      { emoji: '☀️', text: '夏天很热，我们去河里玩水。', p: 'xià tiān hěn rè, wǒ men qù hé lǐ wán shuǐ.' },
-      { emoji: '🍉', text: '夏天的瓜又大又甜。', p: 'xià tiān de guā yòu dà yòu tián.' },
-      { emoji: '🍂', text: '秋天来了，树叶黄了。', p: 'qiū tiān lái le, shù yè huáng le.' },
-      { emoji: '🍐', text: '秋天的梨和枣都熟了。', p: 'qiū tiān de lí hé zǎo dōu shú le.' },
-      { emoji: '❄️', text: '冬天很冷，天上下雪，地上白了。', p: 'dōng tiān hěn lěng, tiān shàng xià xuě, dì shàng bái le.' },
-      { emoji: '🧣', text: '春夏秋冬，我都爱。', p: 'chūn xià qiū dōng, wǒ dōu ài.' }
+      {
+        emoji: '🌸',
+        text: '春天到了，花开了，草绿了。',
+        p: 'chūn tiān dào le, huā kāi le, cǎo lǜ le.',
+        sceneBg: 'field',
+        sceneAlt: '春天花开了，草也绿了',
+        scene: [
+          { e: '☀️', x: 82, y: 18, s: 1, m: 'float' },
+          { e: '🌸', x: 30, y: 62, s: 1.5, m: 'sway' },
+          { e: '🌿', x: 74, y: 70, s: 1.2, m: 'sway' },
+          { e: '🌱', x: 54, y: 82, s: 1.1 }
+        ]
+      },
+      {
+        emoji: '🐝',
+        text: '小蜂在花上飞，小蝶也来了。',
+        p: 'xiǎo fēng zài huā shàng fēi, xiǎo dié yě lái le.',
+        sceneBg: 'field',
+        sceneAlt: '小蜂和小蝶都在花上飞',
+        scene: [
+          { e: '🦋', x: 64, y: 32, s: 1.2, m: 'float' },
+          { e: '🐝', x: 38, y: 42, s: 1.1, m: 'float' },
+          { e: '🌼', x: 28, y: 76, s: 1.3 },
+          { e: '🌷', x: 70, y: 78, s: 1.2, m: 'sway' }
+        ]
+      },
+      {
+        emoji: '☀️',
+        text: '夏天很热，我们去河里玩水。',
+        p: 'xià tiān hěn rè, wǒ men qù hé lǐ wán shuǐ.',
+        sceneBg: 'water',
+        sceneAlt: '夏天很热，我们在河里玩水',
+        scene: [
+          { e: '☀️', x: 78, y: 18, s: 1.4, m: 'float' },
+          { e: '🌴', x: 86, y: 56, s: 1.6, m: 'sway' },
+          { e: '🏊', x: 44, y: 68, s: 1.4 },
+          { e: '🌊', x: 22, y: 84, s: 1.5, m: 'sway' }
+        ]
+      },
+      {
+        emoji: '🍉',
+        text: '夏天的瓜又大又甜。',
+        p: 'xià tiān de guā yòu dà yòu tián.',
+        sceneBg: 'field',
+        sceneAlt: '田里的瓜熟了，又大又甜',
+        scene: [
+          { e: '☀️', x: 82, y: 18, s: 1, m: 'float' },
+          { e: '🍉', x: 46, y: 62, s: 2, m: 'float' },
+          { e: '🌿', x: 20, y: 74, s: 1.2 },
+          { e: '🍉', x: 72, y: 82, s: 1.1 }
+        ]
+      },
+      {
+        emoji: '🍂',
+        text: '秋天来了，树叶黄了。',
+        p: 'qiū tiān lái le, shù yè huáng le.',
+        sceneBg: 'dusk',
+        sceneAlt: '秋天来了，树上的叶都黄了',
+        scene: [
+          { e: '🍂', x: 28, y: 40, s: 1, m: 'drift' },
+          { e: '🌳', x: 62, y: 52, s: 2.2 },
+          { e: '🍁', x: 44, y: 74, s: 1.1, m: 'drift' },
+          { e: '🍂', x: 78, y: 84, s: 0.9, m: 'drift' }
+        ]
+      },
+      {
+        emoji: '🍐',
+        text: '秋天的梨和枣都熟了。',
+        p: 'qiū tiān de lí hé zǎo dōu shú le.',
+        sceneBg: 'dusk',
+        sceneAlt: '秋天的梨和枣都熟了',
+        scene: [
+          { e: '🍂', x: 80, y: 38, s: 0.9, m: 'drift' },
+          { e: '🍐', x: 36, y: 56, s: 1.4, m: 'float' },
+          { e: '🍒', x: 62, y: 64, s: 1.2, m: 'float' },
+          { e: '🧺', x: 48, y: 84, s: 1.4 }
+        ]
+      },
+      {
+        emoji: '❄️',
+        text: '冬天很冷，天上下雪，地上白了。',
+        p: 'dōng tiān hěn lěng, tiān shàng xià xuě, dì shàng bái le.',
+        sceneBg: 'snow',
+        sceneAlt: '冬天下雪了，地上都白了',
+        scene: [
+          { e: '❄️', x: 28, y: 24, s: 1.1, m: 'float' },
+          { e: '❄️', x: 68, y: 36, s: 0.9, m: 'float' },
+          { e: '🌲', x: 84, y: 62, s: 1.6 },
+          { e: '⛄', x: 48, y: 78, s: 1.8 }
+        ]
+      },
+      {
+        emoji: '🧣',
+        text: '春夏秋冬，我都爱。',
+        p: 'chūn xià qiū dōng, wǒ dōu ài.',
+        sceneBg: 'dawn',
+        sceneAlt: '春夏秋冬四时的东西都在一张画里',
+        scene: [
+          { e: '☀️', x: 44, y: 26, s: 1.1, m: 'float' },
+          { e: '❄️', x: 82, y: 36, s: 1, m: 'float' },
+          { e: '🌸', x: 20, y: 66, s: 1.2, m: 'sway' },
+          { e: '🍁', x: 66, y: 68, s: 1.2, m: 'drift' },
+          { e: '🧒', x: 44, y: 84, s: 1.4 }
+        ]
+      }
     ]
   },
   {
