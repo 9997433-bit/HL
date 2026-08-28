@@ -111,20 +111,29 @@ const mapUnits = computed(() =>
 const currentUnitId = computed(() => currentPage.value?.unit.id ?? null)
 
 /**
- * 翻到哪一站就把那一站的玩步剧本预热上（ROUND18_H3 按单元分片）。
- * 孩子在字表上挑字的这几秒足够把一片拉回来，点进详情时第一步就能演手写那一版。
+ * 在某一站**停下来**了，就把那一站的玩步剧本预热上（ROUND18_H3 按单元分片）。
+ * 孩子挑字的这几秒足够把一片拉回来，点进详情时第一步就能演手写那一版。
  *
- * 连玩步引擎本身也是动态取的：预取不该让字表页先背上一个它自己用不到的模块，
- * 那就把省下来的下载量又还回去了。
+ * 两处克制，都是为了别把刚拆掉的包又整包拉回来：
+ *   停下来才拉 —— 一路翻过 99 站不算「要玩这一站」，不防着就等于全量下载；
+ *   引擎也动态取 —— 字表页自己用不到玩步引擎，不该为预取先背上它。
  */
+const PLAY_PRELOAD_DWELL = 600
+let playPreloadTimer = 0
+
 watch(
   currentUnitId,
   (unitId) => {
+    window.clearTimeout(playPreloadTimer)
     if (!unitId) return
-    import('@/data/char-play.js').then((play) => play.preloadPlayUnits([unitId]))
+    playPreloadTimer = window.setTimeout(() => {
+      import('@/data/char-play.js').then((play) => play.preloadPlayUnits([unitId]))
+    }, PLAY_PRELOAD_DWELL)
   },
   { immediate: true }
 )
+
+onUnmounted(() => window.clearTimeout(playPreloadTimer))
 
 const currentStop = computed(
   () => mapUnits.value.find((s) => s.unit.id === currentUnitId.value) ?? mapUnits.value[0]
