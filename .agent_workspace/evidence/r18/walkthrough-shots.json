@@ -1,0 +1,146 @@
+{
+  "round": 18,
+  "generatedAt": "2026-08-28T17:14:51.379Z",
+  "chrome": "/usr/local/bin/google-chrome",
+  "node": "v22.14.0",
+  "shots": [
+    {
+      "name": "r18-01-play-rich.png",
+      "caption": "富玩：手写富脚本的玩关「驰」（data-play-template=swipe-motion、data-fallback=false），旁白「骏马撒开腿，飞驰起来。」",
+      "bytes": 127013
+    },
+    {
+      "name": "r18-02-play-template-gap.png",
+      "caption": "富玩缺口：字「纫」目前落在模板回填关（data-fallback=true、模板 pair-match），旁白「穿针缝东西。把「纫」和它的图连起来。」——R18 H2 要把这批字续写成手写关",
+      "bytes": 120304
+    },
+    {
+      "name": "r18-03-char-detail-single-char.png",
+      "caption": "拆包场景的落点：单字详情「一」冷开首屏（步骤条 🎮玩 → 👀认 → 👂练 → ✍️写 → 🗣️说），这条就是 R18 H3 要减负的单字关键路径",
+      "bytes": 290738
+    },
+    {
+      "name": "r18-04-bundle-network.png",
+      "caption": "拆包实测：冷开单字详情「一」真实下载的 JS 分片（前 10 大 / 共 16 个，合计 924 KB 传输字节）",
+      "bytes": 229033
+    },
+    {
+      "name": "r18-05-wp-analysis.png",
+      "caption": "应用题剖析面板：图示理解 + 分步提示（本题摊开 1 步，没有「全部摊开」按钮，步骤已全在）+ 变式，右上角「跳过 ✕」全程可退",
+      "bytes": 753821
+    },
+    {
+      "name": "r18-06-wp-steps-audit.png",
+      "caption": "剖析步数对齐实测：一致率 100.0%（R18 H4 阈值 ≥90%）",
+      "bytes": 105931
+    },
+    {
+      "name": "r18-07-math-parent-weekly.png",
+      "caption": "数学 App 家长周报：弱项判定 thin —— 这周只练了 1 天、一共 0 分钟：口算和推理都靠手感，每天 10 分钟比周末补一次管用。",
+      "bytes": 587342
+    },
+    {
+      "name": "r18-08-literacy-mascot.png",
+      "caption": "识字 App 学伴：点一下学伴后的气泡台词「有 2 个老朋友在等你，先去打个招呼吧。 点我，换一句悄悄话」",
+      "bytes": 37505
+    }
+  ],
+  "meta": {
+    "play-rich": {
+      "richChar": "驰",
+      "richTemplate": "swipe-motion",
+      "plays": 1240,
+      "narrations": 1240,
+      "chars": 1820,
+      "probe": "ROUND17_H2",
+      "gap": {
+        "template": "pair-match",
+        "fallback": "true",
+        "state": "playing",
+        "narration": "穿针缝东西。把「纫」和它的图连起来。",
+        "char": "纫"
+      }
+    },
+    "bundle": {
+      "char": "一",
+      "chunks": 16,
+      "totalBytes": 946425,
+      "top": [
+        {
+          "file": "CharDetailView-DVUA74oE.js",
+          "bytes": 471261
+        },
+        {
+          "file": "index-CxaR5hoK.js",
+          "bytes": 332635
+        },
+        {
+          "file": "index-SFc2wnMY.js",
+          "bytes": 70660
+        },
+        {
+          "file": "distractors-Cr0wOnTL.js",
+          "bytes": 39214
+        },
+        {
+          "file": "useMascotCoach-CIOpl45b.js",
+          "bytes": 8623
+        },
+        {
+          "file": "MascotCompanion-BXsaidyE.js",
+          "bytes": 6824
+        },
+        {
+          "file": "useFeedback-LQb1hJNg.js",
+          "bytes": 4641
+        },
+        {
+          "file": "chars-u1-B2jyDb2B.js",
+          "bytes": 2800
+        },
+        {
+          "file": "etymology-index-RxgXPquw.js",
+          "bytes": 2737
+        },
+        {
+          "file": "settings-DFLSlnmf.js",
+          "bytes": 2456
+        }
+      ]
+    },
+    "wp-analysis": {
+      "shownSteps": 1,
+      "answered": 8
+    },
+    "wp-steps": {
+      "total": 214,
+      "match": 214,
+      "rate": 100,
+      "mismatched": 0,
+      "oneStepOnly": 93,
+      "byDeclared": {
+        "1": {
+          "total": 93,
+          "same": 93
+        },
+        "2": {
+          "total": 98,
+          "same": 98
+        },
+        "3": {
+          "total": 23,
+          "same": 23
+        }
+      },
+      "sample": []
+    },
+    "parent-weekly": {
+      "weakness": "thin",
+      "headline": "这周只练了 1 天、一共 0 分钟：口算和推理都靠手感，每天 10 分钟比周末补一次管用。"
+    },
+    "mascot": {
+      "say": "有 2 个老朋友在等你，先去打个招呼吧。 点我，换一句悄悄话"
+    }
+  },
+  "failures": []
+}
