@@ -34,7 +34,7 @@
 
 | # | 模型 | 分支 | Agent |
 |---|---|---|---|
-| 1 | fable | r15-arch-contracts | bc-188efcbb… |
+| 1 | fable | r15-arch-contracts | bc-188efcbb… ✅ 已合入 |
 | 2 | fable | r15-hongen-play-audit | bc-38b7e636… ✅ 已合入 |
 | 3 | fable | r15-acceptance-spec | bc-b2d836d8… |
 | 4 | opus-fast | r15-play-engine | bc-90f4bdab… |
