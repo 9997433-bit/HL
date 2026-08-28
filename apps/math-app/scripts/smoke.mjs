@@ -2180,6 +2180,7 @@ await interact('推荐全覆盖：34/34 可开练 + 采纳/lift 进入家长导�
   }, adopted)
 
   await page.goto(base + '/#/parent', { waitUntil: 'networkidle2' })
+  await page.reload({ waitUntil: 'networkidle2' })
   await sleep(500)
   const sum = await gateSum(page)
   if (sum === null) throw new Error('家长中心没有口算门')
