@@ -228,6 +228,38 @@ export async function readPack() {
 }
 
 /**
+ * 语言包在 APK 里叫另一个名字（ROUND13_H2）。
+ *
+ * 仓库里入库的是 `chi_sim.traineddata.gz`（1.69 MiB），Web 上就按这个名字取。
+ * 可 Android Gradle 合并 assets 时会把 `.gz` **解开并去掉后缀**——同一份语言包
+ * 装进 APK 之后叫 `chi_sim.traineddata`（2.41 MiB，实测两边字节完全对得上）。
+ * tesseract.js 的 `gzip: true` 只会去取带 `.gz` 的那个名字，于是这条链在
+ * 浏览器里一路顺，装成 APK 之后一按「开始认字」就 404——而这个差别，
+ * 在开发机、在 `npm run build`、在任何不装机的测试里都看不见。
+ *
+ * 所以起 worker 之前先探一下哪个名字在：在就用哪个。探的是 Range 请求的头一个
+ * 字节，不整包下载；结论跟 workerPromise 一起缓存，第二张照片不会再探。
+ * 两个都探不到时按 `.gz` 走，让 tesseract 报它自己那句更具体的错。
+ *
+ * 覆盖它的是 scripts/test-ocr-device.mjs 的 C10：那一段按 Gradle 打包后的布局
+ * 起一个服务器（只有解压后的名字、`.gz` 一律 404），再让 App 完整认一遍。
+ */
+async function langIsGzipped() {
+  const probe = async (file) => {
+    try {
+      const res = await fetch(ocrAssetUrl(file), { headers: { Range: 'bytes=0-0' } })
+      // 拿到就够了，body 不留着占连接
+      res.body?.cancel?.().catch(() => {})
+      return res.ok || res.status === 206
+    } catch {
+      return false
+    }
+  }
+  if (await probe(`${OCR_PACK.lang}.traineddata.gz`)) return true
+  return !(await probe(`${OCR_PACK.lang}.traineddata`))
+}
+
+/**
  * 建 worker。第一次要下近 6 MB，之后常驻在内存里，换张照片立刻就能认。
  *
  * workerBlobURL 关掉：worker 直接用同源 URL 起，Service Worker 才能接管它
@@ -242,7 +274,7 @@ async function getWorker(onStep) {
         corePath: ocrAssetUrl(OCR_PACK.core),
         langPath: ocrAssetUrl(''),
         workerBlobURL: false,
-        gzip: true,
+        gzip: await langIsGzipped(),
         // 语言包已经由 Service Worker 缓存，再往 IndexedDB 抄一份纯属占地方
         cacheMethod: 'none',
         logger: (m) => onStep?.(m)
