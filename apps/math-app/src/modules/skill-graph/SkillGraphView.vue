@@ -19,6 +19,7 @@ import {
   STATUS_MAP,
   buildSkillGraph,
 } from '@/data/skill-graph.js'
+import { learnDemoRoute } from '@/data/learn-demo-index.js'
 import { practiceEntry, wrongCountsBySkill } from '@/data/skill-practice.js'
 import { buildWeekPlan, SESSION_MINUTES } from '@/data/week-plan.js'
 import { useProgressStore } from '@/stores/progress.js'
@@ -101,6 +102,12 @@ const wrongCounts = computed(() => wrongCountsBySkill(progress.state.wrongBook))
 const detailEntry = computed(() =>
   detail.value ? practiceEntry(detail.value, { wrongCounts: wrongCounts.value }) : null,
 )
+
+/**
+ * ROUND16_H4：开练之前先看一眼「这个技能长什么样」。
+ * 只有注册表里真有这条演示才给链接，没有就不摆一个死按钮出来。
+ */
+const detailDemo = computed(() => (detail.value ? learnDemoRoute(detail.value.id) : null))
 
 const recoItems = computed(() =>
   reco.value.items.map((item) => ({
@@ -310,7 +317,19 @@ function adoptWeekSkill(skill) {
           </p>
         </div>
         <span class="spacer" />
-        <RouterLink class="btn btn--ghost btn--sm" :to="detail.route">
+        <RouterLink
+          v-if="detailDemo"
+          class="btn btn--ghost btn--sm"
+          :to="detailDemo"
+          :data-learn-demo-link="detail.id"
+        >
+          🎞️ 先看演示
+        </RouterLink>
+        <RouterLink
+          class="btn btn--ghost btn--sm"
+          :to="detail.route"
+          :data-skill-planet-link="detail.id"
+        >
           去 {{ detail.moduleName }} 练 →
         </RouterLink>
         <RouterLink

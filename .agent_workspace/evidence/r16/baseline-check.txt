@@ -1,0 +1,42 @@
+Round 16 regression-gate baseline
+Date: 2026-08-28
+Branch: cursor/r16-regression-gate-9f67
+Tested commit: 1634b8e
+
+COMMAND: npm run check:round16
+EXIT CODE: 1
+OUTPUT (verbatim):
+
+> hongen-edu-apps@1.0.0 check:round16
+> node scripts/check-round16.mjs
+
+
+Round 16 check (ROUND16-v1.0): 0/8
+
+✗ H1 缺少 round16-hongen-gap-audit.md 或内容过薄
+✗ H2 无字源认步仍可能空白（缺 ROUND16_H2 或回退舞台）
+✗ H3 富 Play 272 < 500
+✗ H4 数学学演示不足（hit=true, count=0）
+✗ H5 缺少应用题剖析壳（ROUND16_H5）
+✗ H6 学伴人格台词不足或缺 ROUND16_H6
+✗ H7 缺少家长弱项一句话+建议练习周报
+✗ H8 check:round15 7/8（需要 8/8）
+
+COMMAND: npm run check:round15
+EXIT CODE: 1
+OUTPUT (verbatim):
+
+> hongen-edu-apps@1.0.0 check:round15
+> node scripts/check-round15.mjs
+
+
+Round 15 check (ROUND15-v1.1): 7/8
+
+✓ H1 五步 play→intro→listen→trace→说，默认从玩起且 play 舞台已挂载
+✓ H2 getCharPlay 全库 1820/1820 template+narration 有效（apps/literacy-app/src/data/char-play.js）
+✓ H3 富 play 脚本 272 ≥ 200，narration 去重 272 ≥ 160（runtime(apps/literacy-app/src/data/char-play.js，fallback=1548)）
+✓ H4 认步默认挂载/播放字源舞台（intro 门控或 ROUND15_H4+自动展开）
+✓ H5 自动补齐管道就位（apps/literacy-app/scripts/gen-char-play.mjs，fallback 条目已打标）
+✓ H6 写步含引导示范再描红
+✓ H7 literacy smoke 覆盖 play 全库 + reduced-motion，且有断言
+✗ H8 check:round13 6/8；必绿项失败：H6（仅 H7 可红）；H6 在干净环境需先 npm run android:sim 重建双 APK

@@ -23,11 +23,13 @@
  */
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import gsap from 'gsap'
+import LearnDemoLauncher from '@/components/LearnDemoLauncher.vue'
 import MascotBot from '@/components/MascotBot.vue'
 import SessionBar from '@/components/SessionBar.vue'
 import RoundSummary from '@/components/RoundSummary.vue'
 import { useProgressStore, wrongBookKey } from '@/stores/progress.js'
 import { useFeedback } from '@/composables/useFeedback'
+import { ROUND17_H5, useQuizCoach } from '@/composables/useQuizCoach.js'
 import { errorTagInfo } from '@/data/errorTags.js'
 import { createAdaptiveEngine } from '@/core/engine/adaptive.js'
 import { sample } from '@/utils/random'
@@ -102,6 +104,26 @@ const message = ref(props.prompts[0] ?? '')
 const lastResult = ref(null)
 const questionStart = ref(Date.now())
 
+/* ------------------------------------------------------- ROUND17_H5 陪跑 */
+
+/**
+ * 本轮连着答错了几道。判词自己不带情绪，小算的「算错了」那组台词全靠它开门；
+ * 答对一道就清零——连错三道之后答对的那一道，值得让它重新高兴起来。
+ */
+const recentWrong = ref(0)
+const {
+  mood: coachMood,
+  stage: coachStage,
+  opener: coachOpener,
+  next: coachNext
+} = useQuizCoach({ recentWrong })
+
+/** 孩子点了小算：换一句鼓励语、读出来，并写进台词行。 */
+function cheerUp() {
+  const text = coachNext()
+  if (text) message.value = text
+}
+
 const stageRef = ref(null)
 const promptRef = ref(null)
 
@@ -133,6 +155,17 @@ const shownTags = computed(() =>
     ...errorTagInfo(id),
   })),
 )
+
+/* --------------------------------------------------- ROUND16_H4 学演示 */
+
+/**
+ * 题头的「看演示」（见 components/LearnDemoLauncher.vue）：当前这道题的技能点
+ * 有配套演示就出现，点开就地弹出「实物 → 图形 → 算式」。这里只需要盯住开合——
+ * 弹层盖着的时候，键盘敲的是演示，不该顺手把这道题交了。
+ */
+const demoLauncher = ref(null)
+const demoOpen = ref(false)
+const demoSkill = computed(() => current.value?.skill ?? '')
 
 /* ----------------------------------------------------- 自适应 / 错题本 */
 
@@ -209,6 +242,7 @@ function grade(value, anchor) {
     })
     // 这道题原本欠在错题本里：答对就把它放出去，比多给一颗星更有成就感
     const redeemed = progress.clearWrong(keyOf(q))
+    recentWrong.value = 0
     // recordAnswer 已把本题计入 combo，音效因此能随连续答对逐级升高。
     fxCorrect(anchor, { streak: progress.combo })
     burst(anchor, { count: 16 + Math.min(10, progress.combo * 2) })
@@ -232,6 +266,7 @@ function grade(value, anchor) {
     }
   } else {
     const errorTags = tagsFor(q, value)
+    recentWrong.value += 1
     progress.recordAnswer(props.moduleId, false, { skill: q.skill, errorTags })
     progress.recordWrong({
       id: keyOf(q),
@@ -306,12 +341,15 @@ function next() {
   locked.value = false
   lastResult.value = null
   mood.value = 'idle'
+  // 换题就收演示：上一题的知识点讲完了，不该盖在下一题上
+  demoLauncher.value?.hide()
   if (index.value + 1 >= total.value) {
     finish()
     return
   }
   index.value += 1
-  message.value = sample(props.prompts)
+  // 刚答错、正连着对、错题欠多了……这些时候由小算开口，比第 n 遍「算一算」管用
+  message.value = coachOpener() || sample(props.prompts)
   questionStart.value = Date.now()
   // 自适应换过顺序，父组件要的是「现在这道题在题库里的下标」
   emit('advance', order.value[index.value] ?? index.value)
@@ -348,6 +386,8 @@ function restart() {
   hintLevel.value = 0
   lastResult.value = null
   mood.value = 'idle'
+  recentWrong.value = 0
+  demoLauncher.value?.hide()
   message.value = props.prompts[0] ?? ''
   questionStart.value = Date.now()
   progress.resetCombo()
@@ -384,6 +424,11 @@ function toggleMode() {
 /* -------------------------------------------------------------- 键盘 */
 
 function onKeydown(e) {
+  // 演示弹层盖在题面上时，数字键属于演示而不是作答，别让它替孩子交卷
+  if (demoOpen.value) {
+    if (e.key === 'Escape') demoLauncher.value?.hide()
+    return
+  }
   if (showSummary.value || locked.value) return
   if (props.inputMode === 'keypad') {
     if (/^[0-9]$/.test(e.key)) tapKey(e.key)
@@ -421,7 +466,7 @@ defineExpose({ restart, announce, index, current, locked, typed })
 </script>
 
 <template>
-  <div class="quiz-shell stack">
+  <div class="quiz-shell stack" :data-coach="ROUND17_H5" :data-coach-stage="coachStage.id">
     <section v-if="$slots.controls || allowModeToggle" class="card quiz-controls">
       <slot name="controls" />
       <div class="spacer" />
@@ -461,16 +506,22 @@ defineExpose({ restart, announce, index, current, locked, typed })
     <section v-if="current" ref="stageRef" class="card quiz-stage">
       <header class="stage-head">
         <!--
-          默认是那只只会做表情的机器人；玩法页想让它变成能点触的陪跑伙伴，
-          就用 mascot 插槽换一只 interactive 的进来，再用 announce() 把它说的话
-          写进下面这行台词里。
+          默认这只就是能点的陪跑伙伴：点一下换一句阶段台词，写进下面的台词行。
+          玩法页想换一只（比如自己接管点触）就用 mascot 插槽，插槽里能拿到
+          当前阶段，接着用 announce() 把自己的话写进台词行。
         -->
-        <slot name="mascot" :mood="mood" :message="message">
-          <MascotBot :mood="mood" :size="72" />
+        <slot name="mascot" :mood="mood" :message="message" :stage="coachStage">
+          <MascotBot
+            :mood="coachMood === 'cheer' ? 'cheer' : mood"
+            :size="72"
+            interactive
+            @tap="cheerUp"
+          />
         </slot>
         <p class="muted say" role="status">{{ message }}</p>
         <div class="spacer" />
         <slot name="head-extra" v-bind="slotCtx" />
+        <LearnDemoLauncher ref="demoLauncher" :skill="demoSkill" @update:open="demoOpen = $event" />
         <button
           v-if="hints.length"
           class="btn btn--ghost btn--sm"

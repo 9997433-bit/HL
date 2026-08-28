@@ -13,10 +13,12 @@
  */
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import gsap from 'gsap'
+import MascotCompanion from '@/components/MascotCompanion.vue'
 import StarBurst from '@/components/StarBurst.vue'
 import CelebrationOverlay from '@/components/CelebrationOverlay.vue'
 import VoiceNotice from '@/components/VoiceNotice.vue'
 import { CHARACTERS } from '@/data/characters.js'
+import { useMascotCoach } from '@/composables/useMascotCoach.js'
 import { useProgressStore } from '@/stores/progress.js'
 import { useSettingsStore } from '@/stores/settings.js'
 import { isSpeechSupported, speak, stopSpeaking } from '@/utils/speech.js'
@@ -83,6 +85,22 @@ const picked = ref(null)
 const locked = ref(false)
 const missedChars = ref([])
 const celebrating = ref(false)
+
+/**
+ * 墨墨在这一局里的「此刻」：连对几个、上一下有没有答错、题面是哪个字。
+ * 这三样只有答题页知道，交给陪跑之后它会自己换到「连对」或「答错」那组台词，
+ * 不必在这里写一句一句的鼓励语。
+ */
+const recentWrong = ref(0)
+const {
+  line: coachLine,
+  mood: coachMood,
+  next: coachNext
+} = useMascotCoach('games', {
+  combo: streak,
+  recentWrong,
+  char: computed(() => target.value?.char ?? '')
+})
 
 /**
  * 读屏播报。
@@ -274,6 +292,7 @@ function choose(opt) {
   picked.value = opt.char
 
   const correct = opt.char === target.value.char
+  recentWrong.value = correct ? 0 : recentWrong.value + 1
   if (correct) {
     score.value += 1
     streak.value += 1
@@ -325,6 +344,7 @@ function start() {
   score.value = 0
   streak.value = 0
   bestStreak.value = 0
+  recentWrong.value = 0
   missedChars.value = []
   nextRound()
 }
@@ -471,6 +491,17 @@ onBeforeUnmount(() => {
 
       <!-- 视觉短提示；完整播报交给上面的 sr-only 区域，避免读屏念两遍 -->
       <p class="feedback" aria-hidden="true">{{ feedback }}</p>
+
+      <MascotCompanion
+        class="mascot-dock"
+        :mood="coachMood"
+        :say="coachLine"
+        :size="64"
+        :speak-on-tap="false"
+        bubble-side="left"
+        tap-hint="点我，墨墨再说一句"
+        @tap="coachNext"
+      />
     </template>
 
     <!-- 结算 -->

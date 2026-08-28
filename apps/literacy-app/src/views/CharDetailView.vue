@@ -7,7 +7,8 @@
  * （CharPlayStage），玩完或者跳过才进「认」。
  *
  *   玩 play    跟字义相关的小互动，暖场；玩不玩都能往下走
- *   认 intro   有字源的字直接把演变动画摆出来自动播（ROUND15_H4），没有的看字形听读音
+ *   认 intro   有字源的字自动播演变动画（ROUND15_H4），没字源的自动播部首/零件/组词
+ *              三幕（ROUND16_H2）——这一步没有只剩一行释义的字
  *   练 listen  听音从三个形近字里挑出它
  *   写 trace   在田字格里按笔顺写一遍
  *   说 speak   说出它的意思，答完当场结账发星星发徽章
@@ -39,6 +40,7 @@ import { useRouter } from 'vue-router'
 import gsap from 'gsap'
 import CharPlayStage from '@/components/CharPlayStage.vue'
 import HanziStrokeBox from '@/components/HanziStrokeBox.vue'
+import MascotCompanion from '@/components/MascotCompanion.vue'
 import VoiceNotice from '@/components/VoiceNotice.vue'
 import {
   CHARACTERS,
@@ -48,7 +50,9 @@ import {
   loadUnitDetails
 } from '@/data/characters.js'
 import { hasEtymology } from '@/data/etymology-index.js'
+import { ROUND16_H2 } from '@/data/intro-fallback.js'
 import { RADICAL_MAP, getRadical } from '@/data/radicals.js'
+import { ROUND17_H5, useCharCoach } from '@/composables/useCharCoach.js'
 import { useFeedback } from '@/composables/useFeedback.js'
 import { ROUND15_H6, isWritePhase, useWriteGuide } from '@/composables/useWriteGuide.js'
 import { useProgressStore } from '@/stores/progress.js'
@@ -72,6 +76,14 @@ const props = defineProps({ char: { type: String, required: true } })
  * 但也只在有字源语料的字走到那一步时才 import()——没语料的字一个字节也不下载。
  */
 const EtymologyStage = defineAsyncComponent(() => import('@/components/EtymologyStage.vue'))
+
+/**
+ * ROUND16_H2 · 没有字源语料的字，「认」这一步挂这台回退舞台。
+ * 同样按需加载，同样只在真的走到那一步、且这个字确实没字源时才下载。
+ */
+const IntroFallbackStage = defineAsyncComponent(() =>
+  import('@/components/IntroFallbackStage.vue')
+)
 
 const router = useRouter()
 const progress = useProgressStore()
@@ -181,6 +193,10 @@ const radical = computed(() => (item.value ? getRadical(item.value.radical) : nu
  * ROUND15_H4 · 有字源语料的字，「认」这一步默认就把演变动画摆出来自动播，
  * 不再藏在一个「看看它的来历」按钮后面——认字本来就该是看着字怎么来的学。
  * 页面底部那块「这个字的来历」只在不处于「认」步时保留，当随时可回看的入口。
+ *
+ * ROUND16_H2 · 全库有一千来个字没有字源语料。它们过去走到这一步只剩一行释义，
+ * 和有字源那半边差着一整台动画。现在没字源的字默认挂 IntroFallbackStage：
+ * 部首讲解 → 零件暗示 → 组词情境三幕照样自动演，这一步不再有空舞台。
  */
 const hasOrigin = computed(() => hasEtymology(decoded.value))
 const originOpen = ref(false)
@@ -190,8 +206,12 @@ function toggleOrigin() {
   originOpen.value = !originOpen.value
 }
 
-/** 字源动画演完 = 这个字「认」过了，接着去练。 */
-function onOriginPlayed() {
+/**
+ * 「认」这一步的舞台演完了 = 这个字认过了，接着去练。
+ * 有字源的是演变动画（EtymologyStage），没字源的是三幕讲解（IntroFallbackStage），
+ * 两边同一个出口，后面的记账和自动衔接不必分两套。
+ */
+function onIntroStagePlayed() {
   done.intro = true
   if (phase.value === 'intro') scheduleAdvance('listen', DELAY.origin)
 }
@@ -214,6 +234,47 @@ const next = computed(() =>
 const record = computed(() => progress.chars[decoded.value] || null)
 const mastered = computed(() => progress.isMastered(decoded.value))
 const offlineL1 = computed(() => hasOfflineTtsL1Card(decoded.value))
+
+/* ------------------------------------------------------- ROUND17_H5 陪跑 */
+
+/**
+ * 墨墨要知道的「此刻」：这一趟连对了几个、上一下答错没有、刚刚有没有掌握。
+ * 这三样只有这一页知道，交给陪跑之后它自己会换到「连对」「答错」「刚掌握」
+ * 那几组阶段台词，页面这边不必再写一句一句的鼓励语。
+ */
+const combo = ref(0)
+const recentWrong = ref(0)
+const justMastered = ref(false)
+
+const {
+  line: coachLine,
+  mood: coachMood,
+  stage: coachStage,
+  next: coachNext,
+  enterStep: coachEnterStep,
+  judge: coachJudge,
+  reset: coachReset
+} = useCharCoach({ combo, recentWrong, justMastered, char: decoded })
+
+/** 换字或重走一遍：这一趟攒下的连对、连错、刚掌握都不该带到下一趟。 */
+function resetCoach() {
+  combo.value = 0
+  recentWrong.value = 0
+  justMastered.value = false
+  coachReset()
+}
+
+/** 判完一题：记下连对/连错，再让墨墨挑该说的那句。 */
+function coachAnswered(correct, beat = correct ? 'right' : 'wrong') {
+  if (correct) {
+    combo.value += 1
+    recentWrong.value = 0
+  } else {
+    combo.value = 0
+    recentWrong.value += 1
+  }
+  coachJudge(beat)
+}
 
 let speechRun = 0
 
@@ -319,6 +380,8 @@ function nextStep() {
 
 function enterPhase(id, { manual } = {}) {
   reached.value = Math.max(reached.value, phaseIndex(id))
+  // 每走到一步先让墨墨说这一步要干什么，比步骤条上那个字讲得清楚
+  coachEnterStep(id)
   if (id === 'play') {
     // 玩是暖场，不是关卡：一直没人动就自己去「认」，也不给这一步记完成
     idleTimer = window.setTimeout(() => scheduleAdvance('intro', 600), DELAY.playIdle)
@@ -392,6 +455,7 @@ function onListenPick(option, event) {
   listenPick.value = option.char
   listenTries.value += 1
   progress.recordAnswer(decoded.value, correct)
+  coachAnswered(correct)
   if (correct) {
     // 一次答对才算连对：听错过再选中的，音高不往上走
     feedback.correct(event?.currentTarget, { cueArg: listenTries.value === 1 ? 2 : 1 })
@@ -455,7 +519,9 @@ function onQuizPick(option, event) {
   quizPick.value = option.char
   quizRevealed.value = true
   done.speak = true
-  progress.recordAnswer(decoded.value, correct)
+  const graded = progress.recordAnswer(decoded.value, correct)
+  justMastered.value = Boolean(graded?.justMastered)
+  coachAnswered(correct, justMastered.value ? 'mastered' : correct ? 'right' : 'wrong')
   if (correct) {
     // 练一练也答对了的话，说一说的音再往上抬一档
     feedback.correct(event?.currentTarget, { cueArg: done.listen ? 3 : 1 })
@@ -483,6 +549,7 @@ function settleReward() {
   // 这一趟里解锁的徽章都在 recentBadges 里，靠它比只看返回值更稳
   rewardBadges.value = [...progress.recentBadges].slice(0, 3)
   if (!rewardBadges.value.length && badges.length) rewardBadges.value = badges.slice(0, 3)
+  coachJudge('reward')
   feedback.celebrate(panelRef.value)
 }
 
@@ -496,6 +563,7 @@ function restartFlow() {
   quizPick.value = ''
   for (const key of Object.keys(done)) done[key] = false
   reached.value = 0
+  resetCoach()
   starsAtStart.value = progress.stars
   progress.clearRecentBadges()
   goPhase('play', { manual: true })
@@ -513,6 +581,7 @@ function resetFlow() {
   quizPick.value = ''
   for (const key of Object.keys(done)) done[key] = false
   reached.value = 0
+  resetCoach()
   phase.value = 'play'
   pendingNext.value = null
   stepAnnounce.value = ''
@@ -574,11 +643,13 @@ function flash(msg) {
 }
 
 function markKnown(event) {
-  const { justMastered } = progress.recordAnswer(decoded.value, true)
+  const graded = progress.recordAnswer(decoded.value, true)
+  justMastered.value = Boolean(graded?.justMastered)
+  coachAnswered(true, justMastered.value ? 'mastered' : 'right')
   const anchor = event?.currentTarget ?? panelRef.value
-  if (justMastered) feedback.celebrate(anchor)
+  if (justMastered.value) feedback.celebrate(anchor)
   else feedback.correct(anchor)
-  flash(justMastered ? '太厉害了，这个字已经掌握啦！🏆' : '记住啦！+1 ⭐')
+  flash(justMastered.value ? '太厉害了，这个字已经掌握啦！🏆' : '记住啦！+1 ⭐')
 }
 
 /** 田字格里的「我来写」是孩子自己按的，引导跟着走到描红，别再补一次示范。 */
@@ -596,8 +667,12 @@ function onQuizSkip() {
 function onQuizComplete({ mistakes }) {
   // 写完一遍才算「会写」，掌握度要靠它才能从「认识了」升到「会写了」。
   progress.markTraced(decoded.value)
-  const { justMastered } = progress.recordAnswer(decoded.value, mistakes === 0)
-  if (justMastered) {
+  const graded = progress.recordAnswer(decoded.value, mistakes === 0)
+  justMastered.value = Boolean(graded?.justMastered)
+  // 一遍写对接着算连对；笔顺卡了几下不算答错，只是这一遍不加分
+  if (mistakes === 0) coachAnswered(true, justMastered.value ? 'mastered' : 'traced')
+  else coachJudge('traced')
+  if (justMastered.value) {
     feedback.celebrate(strokeBoxRef.value)
     flash('这个字已经掌握啦！🏆')
   } else if (mistakes === 0) {
@@ -652,7 +727,10 @@ onBeforeUnmount(() => {
     :data-phase="phase"
     :data-write-guide="ROUND15_H6"
     :data-guide-stage="guideStage"
+    :data-intro-stage="hasOrigin ? 'etymology' : ROUND16_H2"
     :data-tts="offlineL1 ? 'offline-l1' : 'system'"
+    :data-coach="ROUND17_H5"
+    :data-coach-stage="coachStage.id"
   >
     <!-- 五步进度条：既是导航，也是「现在在第几步」的说明 -->
     <nav ref="railRef" class="rail card" aria-label="单字学习五步：玩、认、练、写、说">
@@ -733,12 +811,30 @@ onBeforeUnmount(() => {
       </h3>
       <p class="panel__hint muted">{{ current.hint }}</p>
 
+      <!--
+        墨墨就站在这一步旁边：走到新一步先讲这一步要干什么，判完一题换成
+        「连对了几个」「答错没关系」那类阶段台词；点它一下换下一句并读出来。
+      -->
+      <MascotCompanion
+        class="panel__coach"
+        :mood="coachMood"
+        :say="coachLine"
+        :size="60"
+        :speak-on-tap="false"
+        bubble-side="right"
+        tap-hint="点我，墨墨再说一句"
+        @tap="coachNext"
+      />
+
       <!-- 玩：先陪这个字玩一小会儿 -->
       <template v-if="phase === 'play'">
         <CharPlayStage :char="item.char" @complete="onPlayDone" @skip="onPlaySkip" />
       </template>
 
-      <!-- 认：有字源的字直接自动播演变动画（ROUND15_H4），没有的看字形听读音 -->
+      <!--
+        认：有字源的字自动播演变动画（ROUND15_H4）；没有字源的字挂三幕回退舞台
+        （ROUND16_H2），部首 → 零件 → 组词照样自动演。两边都不会只剩一行释义。
+      -->
       <template v-else-if="phase === 'intro'">
         <div class="intro">
           <div v-if="hasOrigin" class="intro__origin">
@@ -746,7 +842,7 @@ onBeforeUnmount(() => {
               :char="item.char"
               :size="196"
               autoplay
-              @played="onOriginPlayed"
+              @played="onIntroStagePlayed"
             />
             <RouterLink
               class="intro__origin-more"
@@ -756,11 +852,23 @@ onBeforeUnmount(() => {
               去字源馆看更多 →
             </RouterLink>
           </div>
+          <div v-else class="intro__origin intro__origin--fallback">
+            <IntroFallbackStage
+              :char="item.char"
+              :item="item"
+              :size="176"
+              autoplay
+              @played="onIntroStagePlayed"
+            />
+          </div>
           <button class="btn btn--primary btn--lg intro__say" type="button" @click="heard">
             🔊 听「{{ item.char }}」怎么读
           </button>
-          <p class="intro__meaning">{{ item.meaning }}</p>
-          <p class="intro__strokes muted">{{ item.strokes }} 画 · 部首「{{ radical ? radical.name : item.radical }}」</p>
+          <!-- 回退舞台自己就把释义、画数、部首讲了一遍，这里不再重复一遍 -->
+          <template v-if="hasOrigin">
+            <p class="intro__meaning">{{ item.meaning }}</p>
+            <p class="intro__strokes muted">{{ item.strokes }} 画 · 部首「{{ radical ? radical.name : item.radical }}」</p>
+          </template>
         </div>
       </template>
 
@@ -1096,6 +1204,12 @@ onBeforeUnmount(() => {
   align-self: flex-end;
 }
 
+/* 墨墨贴着面板左上角站，气泡往右展开，不跟中间那块舞台抢位置 */
+.panel__coach {
+  align-self: stretch;
+  margin-top: -2px;
+}
+
 .intro,
 .trace,
 .ask,
@@ -1120,6 +1234,11 @@ onBeforeUnmount(() => {
   padding: var(--gap-sm);
   border-radius: var(--radius-md);
   background: var(--surface-sunken);
+}
+
+/* 回退舞台自己是一整台三幕讲解，边框留给它，别再套一层视觉 */
+.intro__origin--fallback {
+  align-items: stretch;
 }
 
 .intro__origin-more {

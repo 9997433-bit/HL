@@ -451,6 +451,28 @@ export function listRichPlays() {
   return [...RICH.values()]
 }
 
+/** 本轮富脚本这一层的门槛标记（Round 17 数的是 ≥900 条、旁白去重 ≥720）。 */
+export const RICH_PLAY_PROBE = 'ROUND17_H2'
+
+/**
+ * 富脚本覆盖到什么程度 —— 条数和「旁白不重样」的句数分开报。
+ *
+ * 分开报是因为这两个数只有一起看才有意义：条数说的是「有多少个字点开是手写关」，
+ * 去重句数说的是「这些关的旁白是不是各说各的字」。一份把同一句复制 900 遍的
+ * 脚本库，前一个数好看，后一个数当场露馅。撞句在生成期就被 gen-char-play-rich.mjs
+ * 拦掉了（连只改标点的近似撞句一起拦），这里是运行时的复核口径。
+ */
+export function richPlayCoverage() {
+  const rows = listRichPlays()
+  const narrations = new Set()
+  for (const row of rows) {
+    if (row?.templateFallback === true) continue
+    const line = typeof row?.narration === 'string' ? row.narration.trim() : ''
+    if (line) narrations.add(line)
+  }
+  return { probe: RICH_PLAY_PROBE, plays: rows.length, narrations: narrations.size }
+}
+
 /* ------------------------------------------------------------------ 归一 */
 
 /** 一个字符串是不是图标（没有汉字 / 拉丁字母，就当它是 emoji）。 */
@@ -941,6 +963,7 @@ export default {
   hasRichPlay,
   countRichPlays,
   listRichPlays,
+  richPlayCoverage,
   findPlayHoles,
   getPlayTemplate,
   PLAY_TEMPLATES,

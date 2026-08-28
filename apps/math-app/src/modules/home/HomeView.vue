@@ -1,6 +1,7 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { LEARN_DEMO_SKILLS } from '@/data/learn-demo-index.js'
 import { MODULE_MAP, MODULES } from '@/data/modules.js'
 import { TOPICS } from '@/data/topics.js'
 import { useProgressStore } from '@/stores/progress.js'
@@ -354,8 +355,8 @@ onUnmounted(() => {
       <div class="tool-grid">
         <RouterLink class="tool-card card demo" to="/visual-demos">
           <span class="tool-icon">🎞️</span>
-          <strong>数形演示</strong>
-          <small>实物 → 图形 → 算式</small>
+          <strong>学演示</strong>
+          <small>{{ LEARN_DEMO_SKILLS.length }} 个技能点：实物 → 图形 → 算式</small>
         </RouterLink>
         <RouterLink class="tool-card card compose" to="/compose-ten">
           <span class="tool-icon">🔵</span>
