@@ -1,0 +1,41 @@
+{
+  "schema": "literacy-asr-freeze-delivery/1",
+  "freezeSetId": "FS-2026-09-zh-poem",
+  "batch": "B1",
+  "deliveredAt": "2026-09-12",
+  "note": "交付清单模板（ROUND14_H1）。sha256 是编的、音频文件不存在——它只回答「一份合格的交付长什么样」，跑 --verify-audio 一定红。真交付连同音频一起放在仓库外的受控目录，不进 git。口径见 .agent_workspace/r14-asr-recording-batch1.md §4。",
+  "consent": [
+    { "speaker": "S01", "state": "signed", "formRef": "consent/S01-2026-09-01.pdf" },
+    { "speaker": "S13", "state": "signed", "formRef": "consent/S13-2026-09-03.pdf" }
+  ],
+  "clips": [
+    {
+      "clipId": "C001",
+      "speaker": "S01",
+      "audio": "B1/S01/C001.wav",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000001",
+      "seconds": 4.3,
+      "sampleRate": 16000,
+      "labels": { "a": "床前明月光", "b": "床前明月光" }
+    },
+    {
+      "clipId": "C003",
+      "speaker": "S01",
+      "audio": "B1/S01/C003.wav",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000002",
+      "seconds": 4.6,
+      "sampleRate": 48000,
+      "labels": { "a": "远看山色", "b": "远看有色", "arbiter": "远看山色" }
+    },
+    {
+      "clipId": "C037",
+      "speaker": "S13",
+      "audio": "B1/S13/C037.wav",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000003",
+      "seconds": 4.1,
+      "sampleRate": 16000,
+      "category": "miss",
+      "labels": { "a": "解落三秋", "b": "解落三秋" }
+    }
+  ]
+}
