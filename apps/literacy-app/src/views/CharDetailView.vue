@@ -7,7 +7,8 @@
  * （CharPlayStage），玩完或者跳过才进「认」。
  *
  *   玩 play    跟字义相关的小互动，暖场；玩不玩都能往下走
- *   认 intro   有字源的字直接把演变动画摆出来自动播（ROUND15_H4），没有的看字形听读音
+ *   认 intro   有字源的字自动播演变动画（ROUND15_H4），没字源的自动播部首/零件/组词
+ *              三幕（ROUND16_H2）——这一步没有只剩一行释义的字
  *   练 listen  听音从三个形近字里挑出它
  *   写 trace   在田字格里按笔顺写一遍
  *   说 speak   说出它的意思，答完当场结账发星星发徽章
@@ -48,6 +49,7 @@ import {
   loadUnitDetails
 } from '@/data/characters.js'
 import { hasEtymology } from '@/data/etymology-index.js'
+import { ROUND16_H2 } from '@/data/intro-fallback.js'
 import { RADICAL_MAP, getRadical } from '@/data/radicals.js'
 import { useFeedback } from '@/composables/useFeedback.js'
 import { ROUND15_H6, isWritePhase, useWriteGuide } from '@/composables/useWriteGuide.js'
@@ -72,6 +74,14 @@ const props = defineProps({ char: { type: String, required: true } })
  * 但也只在有字源语料的字走到那一步时才 import()——没语料的字一个字节也不下载。
  */
 const EtymologyStage = defineAsyncComponent(() => import('@/components/EtymologyStage.vue'))
+
+/**
+ * ROUND16_H2 · 没有字源语料的字，「认」这一步挂这台回退舞台。
+ * 同样按需加载，同样只在真的走到那一步、且这个字确实没字源时才下载。
+ */
+const IntroFallbackStage = defineAsyncComponent(() =>
+  import('@/components/IntroFallbackStage.vue')
+)
 
 const router = useRouter()
 const progress = useProgressStore()
@@ -181,6 +191,10 @@ const radical = computed(() => (item.value ? getRadical(item.value.radical) : nu
  * ROUND15_H4 · 有字源语料的字，「认」这一步默认就把演变动画摆出来自动播，
  * 不再藏在一个「看看它的来历」按钮后面——认字本来就该是看着字怎么来的学。
  * 页面底部那块「这个字的来历」只在不处于「认」步时保留，当随时可回看的入口。
+ *
+ * ROUND16_H2 · 全库有一千来个字没有字源语料。它们过去走到这一步只剩一行释义，
+ * 和有字源那半边差着一整台动画。现在没字源的字默认挂 IntroFallbackStage：
+ * 部首讲解 → 零件暗示 → 组词情境三幕照样自动演，这一步不再有空舞台。
  */
 const hasOrigin = computed(() => hasEtymology(decoded.value))
 const originOpen = ref(false)
@@ -190,8 +204,12 @@ function toggleOrigin() {
   originOpen.value = !originOpen.value
 }
 
-/** 字源动画演完 = 这个字「认」过了，接着去练。 */
-function onOriginPlayed() {
+/**
+ * 「认」这一步的舞台演完了 = 这个字认过了，接着去练。
+ * 有字源的是演变动画（EtymologyStage），没字源的是三幕讲解（IntroFallbackStage），
+ * 两边同一个出口，后面的记账和自动衔接不必分两套。
+ */
+function onIntroStagePlayed() {
   done.intro = true
   if (phase.value === 'intro') scheduleAdvance('listen', DELAY.origin)
 }
@@ -652,6 +670,7 @@ onBeforeUnmount(() => {
     :data-phase="phase"
     :data-write-guide="ROUND15_H6"
     :data-guide-stage="guideStage"
+    :data-intro-stage="hasOrigin ? 'etymology' : ROUND16_H2"
     :data-tts="offlineL1 ? 'offline-l1' : 'system'"
   >
     <!-- 五步进度条：既是导航，也是「现在在第几步」的说明 -->
@@ -738,7 +757,10 @@ onBeforeUnmount(() => {
         <CharPlayStage :char="item.char" @complete="onPlayDone" @skip="onPlaySkip" />
       </template>
 
-      <!-- 认：有字源的字直接自动播演变动画（ROUND15_H4），没有的看字形听读音 -->
+      <!--
+        认：有字源的字自动播演变动画（ROUND15_H4）；没有字源的字挂三幕回退舞台
+        （ROUND16_H2），部首 → 零件 → 组词照样自动演。两边都不会只剩一行释义。
+      -->
       <template v-else-if="phase === 'intro'">
         <div class="intro">
           <div v-if="hasOrigin" class="intro__origin">
@@ -746,7 +768,7 @@ onBeforeUnmount(() => {
               :char="item.char"
               :size="196"
               autoplay
-              @played="onOriginPlayed"
+              @played="onIntroStagePlayed"
             />
             <RouterLink
               class="intro__origin-more"
@@ -756,11 +778,23 @@ onBeforeUnmount(() => {
               去字源馆看更多 →
             </RouterLink>
           </div>
+          <div v-else class="intro__origin intro__origin--fallback">
+            <IntroFallbackStage
+              :char="item.char"
+              :item="item"
+              :size="176"
+              autoplay
+              @played="onIntroStagePlayed"
+            />
+          </div>
           <button class="btn btn--primary btn--lg intro__say" type="button" @click="heard">
             🔊 听「{{ item.char }}」怎么读
           </button>
-          <p class="intro__meaning">{{ item.meaning }}</p>
-          <p class="intro__strokes muted">{{ item.strokes }} 画 · 部首「{{ radical ? radical.name : item.radical }}」</p>
+          <!-- 回退舞台自己就把释义、画数、部首讲了一遍，这里不再重复一遍 -->
+          <template v-if="hasOrigin">
+            <p class="intro__meaning">{{ item.meaning }}</p>
+            <p class="intro__strokes muted">{{ item.strokes }} 画 · 部首「{{ radical ? radical.name : item.radical }}」</p>
+          </template>
         </div>
       </template>
 
@@ -1120,6 +1154,11 @@ onBeforeUnmount(() => {
   padding: var(--gap-sm);
   border-radius: var(--radius-md);
   background: var(--surface-sunken);
+}
+
+/* 回退舞台自己是一整台三幕讲解，边框留给它，别再套一层视觉 */
+.intro__origin--fallback {
+  align-items: stretch;
 }
 
 .intro__origin-more {
