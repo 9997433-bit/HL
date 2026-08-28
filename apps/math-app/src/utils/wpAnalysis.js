@@ -21,6 +21,13 @@ import { explainOf, ROUND17_H4 } from '@/data/word-problem-explains.js'
 /** 剖析壳的三件套：图示理解 → 分步提示 → 变式入口。 */
 export const ROUND16_H5 = 'diagram-steps-variant'
 
+/**
+ * 母题声明的 steps 与剖析真的拆出来的步数对得上（见 utils/wpSteps.js）。
+ * 挂在这里是因为对账的一半责任在解析器身上：有余数除法从前只记一步，
+ * 「装满几份」和「还剩几个」被压成同一行，声明的两步就永远兑现不了。
+ */
+export const ROUND18_H4 = 'wp-steps-alignment'
+
 export { ROUND17_H4 }
 
 /** 运算符统一成题面里用的那套符号，顺带带上「为什么用它」的一句话。 */
@@ -153,7 +160,14 @@ export function analyzeEquation(equation) {
     const tokens = tokenize(lhs)
     if (!tokens) return []
 
-    // 有余数的除法：商和余数得一起报，孩子才分得清「问的是几份还是剩几个」
+    /*
+     * 有余数的除法要报两个数：装满了几份、还剩几个。
+     * 从前这两个数压在同一行里（`26 ÷ 4 = 6 …… 2`），孩子看到的是一个复合结果，
+     * 声明成两步的母题也就永远兑不出第二步。这里拆成两条并列的步骤：
+     *   ① 商    26 ÷ 4      = 6   —— 一份一份地分，分得出几份
+     *   ② 余数  26 − 4 × 6  = 2   —— 分掉的拿走，剩下的才是余数
+     * 余数那一步写成减法而不是「取模」，是因为孩子手上真做的就是这个减法。
+     */
     if (rhs.includes('……')) {
       if (tokens.length !== 3 || tokens[1].type !== 'op' || tokens[1].op !== '÷') return []
       const a = tokens[0].value
@@ -163,19 +177,44 @@ export function analyzeEquation(equation) {
       const remainder = a % b
       const asked = rhs.includes('?')
       const asksRemainder = /……\s*\?/.test(rhs)
+      // 问商还是问余数，决定该盖住哪一步；两步里最多只有一步是「答案所在」
+      const asksQuotient = asked && !asksRemainder
       out.push({
         kind: 'calc',
         op: '÷',
+        part: 'quotient',
         a,
         b,
         quotient,
         remainder,
         expr: `${a} ÷ ${b}`,
-        display: `${quotient} …… ${remainder}`,
-        masked: asksRemainder ? `${quotient} …… ?` : '?',
-        value: asksRemainder ? remainder : quotient,
-        asked,
-        why: `${b} 个一份地分，分得出 ${quotient} 份，分不完的 ${remainder} 就是余数。`,
+        display: String(quotient),
+        masked: '?',
+        value: quotient,
+        asked: asksQuotient,
+        // 商被盖住时连它自己都不能说，否则公式兜底反而把答案念了出来
+        why: asksQuotient
+          ? `${b} 个一份地分，看看 ${a} 里最多分得出几份。`
+          : `${b} 个一份地分，${a} 里最多分得出 ${quotient} 份。`,
+      })
+      out.push({
+        kind: 'calc',
+        op: '−',
+        part: 'remainder',
+        a,
+        b,
+        quotient,
+        remainder,
+        // 问商的题里连算式都不能写出商，先用 ? 占着，判完题那一步自然就填上了
+        expr: asksQuotient ? `${a} − ${b} × ?` : `${a} − ${b} × ${quotient}`,
+        display: String(remainder),
+        masked: '?',
+        value: remainder,
+        asked: asked && asksRemainder,
+        // 问的是商时连这一步也不能提商，不然孩子从第二步的说明里就把答案读走了
+        why: asksQuotient
+          ? `每一份都正好 ${b} 个，把分掉的从 ${a} 里减去，剩下的就是分不完的余数。`
+          : `分掉的是 ${quotient} 个 ${b}，从 ${a} 里减掉它们，剩下的就是分不完的余数。`,
       })
       continue
     }
