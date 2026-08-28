@@ -22,6 +22,11 @@ import {
 import { isKnownSkill, SKILLS, SKILL_MAP, skillsOfModule } from '../src/data/curriculum.js'
 import { buildAnalysis } from '../src/utils/wpAnalysis.js'
 import {
+  EXPLAIN_COUNT,
+  WORD_PROBLEM_EXPLAINS,
+  explainOf,
+} from '../src/data/word-problem-explains.js'
+import {
   buildSkillGraph,
   GRAPH_SIZE,
   RECOMMEND_REASON_MAP,
@@ -173,7 +178,8 @@ for (const tierId of ['one', 'two', 'multi']) {
   let checked = 0
   for (const tpl of WORD_PROBLEMS) {
     for (let i = 0; i < TRIES; i++) {
-      const q = tpl.make()
+      // 带上母题 id：玩法页传给面板的就是这种形状，手写剖析也是靠它对号入座
+      const q = { ...tpl.make(), id: tpl.id }
       const a = buildAnalysis(q)
       if (!a.steps.length) {
         fail(`${tpl.id} 的算式拆不出分步：${q.equation}`)
@@ -202,6 +208,110 @@ for (const tierId of ['one', 'two', 'multi']) {
   console.log(
     `应用题剖析：${WORD_PROBLEMS.length} 个母题 × ${TRIES} 次共 ${checked} 道，` +
       '图示 / 分步 / 盖住答案全部成立',
+  )
+}
+
+/**
+ * ROUND17_H4 手写剖析链：公式兜底保证「每道题都有剖析」，手写保证「讲得像老师」。
+ *
+ * 手写文案是拿随机数当场拼的，出问题的方式和母题一样只在某些取值下现形，
+ * 所以这里也按母题成百上千次地跑，逐句盯三件事：
+ *   1. 手写真的盖住了公式那句（一步都不许漏回兜底，漏了说明步数对不上）
+ *   2. 判题前不许把答案写进文案——剖析不扣星，泄题就等于白送一次答案
+ *   3. 语义模板的文案不许出现具体名词，否则贝壳会串到面包坊去
+ */
+{
+  const MIN_EXPLAINS = 20
+  const TRIES = 200
+  // 皮肤专属名词：语义模板的文案里出现任何一个，就说明它被某张皮肤带跑了
+  const SKIN_WORDS = [...new Set(SCENE_SKINS.flatMap((s) => [s.item, s.holder, s.verb, s.away]))]
+  const SEMANTIC_IDS = new Set(SEMANTIC_TEMPLATES.map((t) => t.id))
+
+  if (EXPLAIN_COUNT < MIN_EXPLAINS) {
+    fail(`手写剖析只有 ${EXPLAIN_COUNT} 条，少于要求的 ${MIN_EXPLAINS} 条`)
+  }
+  const explainIds = new Set()
+  for (const explain of WORD_PROBLEM_EXPLAINS) {
+    if (!explain.id || explainIds.has(explain.id)) fail(`手写剖析 id 缺失或重复：${explain.id}`)
+    explainIds.add(explain.id)
+    if (!explain.headline) fail(`手写剖析 ${explain.id} 没有整题思路`)
+    if (!explain.steps?.length) fail(`手写剖析 ${explain.id} 没有任何分步文案`)
+    if (explain.steps?.some((s) => typeof s !== 'function')) {
+      fail(`手写剖析 ${explain.id} 的分步不是函数，拼不出随机数值`)
+    }
+  }
+  // 挂在不存在的母题上的剖析永远不会生效，等于白写
+  const templateIds = new Set(WORD_PROBLEMS.map((t) => t.id))
+  for (const id of explainIds) {
+    if (!templateIds.has(id) && !SEMANTIC_IDS.has(id)) {
+      fail(`手写剖析「${id}」既不是母题也不是语义模板，永远匹配不上`)
+    }
+  }
+
+  let covered = 0
+  let sentences = 0
+  const seen = new Set()
+  for (const tpl of WORD_PROBLEMS) {
+    const explain = explainOf(tpl.id)
+    if (!explain) continue
+    covered += 1
+    // 皮肤组合共用一条语义剖析，名词检查只对语义那侧做
+    const semantic = !templateIds.has(explain.id)
+    for (let i = 0; i < TRIES; i++) {
+      const q = { ...tpl.make(), id: tpl.id }
+      const a = buildAnalysis(q)
+      if (a.why !== explain.headline) {
+        fail(`${tpl.id} 的整题思路没换成手写：${a.why}`)
+        break
+      }
+      if (explain.caption && a.diagram.caption !== explain.caption) {
+        fail(`${tpl.id} 的图示说明没换成手写：${a.diagram.caption}`)
+        break
+      }
+      if (!a.handwritten) {
+        const fell = a.steps.findIndex((s) => !s.hand)
+        fail(
+          `${tpl.id} 第 ${fell + 1} 步退回了公式兜底（手写 ${explain.steps.length} 句 / ` +
+            `算式 ${a.steps.length} 步）：${q.equation}`,
+        )
+        break
+      }
+      // 题目自己的量词是从 question.unit 取的，不算写死；写死的是别张皮肤的词
+      const forbidden = semantic ? SKIN_WORDS.filter((word) => word !== q.unit) : []
+      let bad = ''
+      for (const step of a.steps) {
+        if (!step.why || step.why.length < 8) bad ||= `手写文案太短：${step.why}`
+        if (/NaN|undefined|-\d/.test(step.why)) bad ||= `手写文案渲染异常：${step.why}`
+        // 盖住的那一步一旦写出得数，孩子点开剖析就等于免费拿到答案
+        if (step.asked && step.value !== step.a && step.value !== step.b) {
+          if (new RegExp(`(?<![0-9])${step.value}(?![0-9])`).test(step.why)) {
+            bad ||= `把盖住的答案 ${step.value} 写了出来：${step.why}`
+          }
+        }
+        const leaked = forbidden.find((word) => step.why.includes(word))
+        if (leaked) bad ||= `语义剖析「${explain.id}」写死了皮肤专属词「${leaked}」：${step.why}`
+        seen.add(step.why)
+        sentences += 1
+      }
+      if (bad) {
+        fail(`${tpl.id} ${bad}`)
+        break
+      }
+    }
+  }
+
+  if (covered < MIN_EXPLAINS) fail(`只有 ${covered} 个母题挂上了手写剖析，少于 ${MIN_EXPLAINS} 个`)
+  // 兜底那侧也得还在：没手写的母题必须照旧拆得出步骤
+  for (const tpl of WORD_PROBLEMS) {
+    if (explainOf(tpl.id)) continue
+    const a = buildAnalysis({ ...tpl.make(), id: tpl.id })
+    if (!a.steps.length || a.handwritten) fail(`${tpl.id} 没有手写剖析却没走公式兜底`)
+  }
+
+  console.log(
+    `手写剖析 ${EXPLAIN_COUNT} 条覆盖 ${covered}/${WORD_PROBLEMS.length} 个母题：` +
+      `${TRIES} 次随机取值共 ${sentences} 句（去重 ${seen.size}），` +
+      '整题思路 / 图示说明 / 每一步都是手写，且判题前不写出答案',
   )
 }
 
