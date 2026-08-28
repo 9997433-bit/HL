@@ -21,6 +21,7 @@ from . import (
     sdm,
     serve,
     static,
+    topopt,
     update,
     wizard,
 )
@@ -34,6 +35,7 @@ COMMANDS = (
     bench,
     modal,
     static,
+    topopt,
     mpe,
     sdm,
     pipeline,
@@ -59,6 +61,7 @@ __all__ = [
     "sdm",
     "serve",
     "static",
+    "topopt",
     "update",
     "wizard",
 ]

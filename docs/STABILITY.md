@@ -1,11 +1,11 @@
 # OpenFEMLab Stability Policy
 
-**Version:** `0.2.3` · **Status:** Stable release · **Date:** 2026-08-28
+**Version:** `0.2.4` · **Status:** Stable release · **Date:** 2026-08-28
 
 OpenFEMLab `0.2.x` releases target engineers who want a reproducible,
-solver-independent modal correlation and model-updating workflow.  `0.2.3`
-adds linear static analysis, UFF→MPE extraction, quadratic RSM surrogates,
-shell geometric `dK/da`, and CalculiX FRD/result discovery.
+solver-independent modal correlation and model-updating workflow.  `0.2.4`
+adds SIMP topology optimization and native Ansys RST / Abaqus ODB displacement
+import (with licence-local ODB extraction).
 
 ## What `0.2.x` guarantees
 
@@ -14,7 +14,7 @@ shell geometric `dK/da`, and CalculiX FRD/result discovery.
 | Core workflow | Model → modal solve → correlate → update → validate is covered by **104/104** acceptance criteria (`verified`) |
 | Interchange | Native JSON/YAML schemas are versioned; readers reject unknown major versions |
 | CLI gates | `--require-*` exit codes and JSON report shapes are treated as stable within `0.2.x` |
-| Industrial I/O | BDF subset (`GRID`, connectivity, `MAT1`, `PSHELL`/`PSOLID`/`PROD`/`PBAR`, `CTRIA3`, `SPC1`, `CONM2`, `FORCE`, assembled `RBE2`/`RBE3`), OP2 geometry/modes, UFF-55/58, CalculiX FRD |
+| Industrial I/O | BDF subset, OP2, UFF-55/58, FRD, **RST**, **ODB sidecar**, assembled RBE2/RBE3 |
 | Performance | AC-PERF-001 (50k-DOF sparse modal, no full densification, ≤120 s) enforced in CI |
 
 ## What may still change before 1.0
@@ -44,6 +44,7 @@ File reproducible cases with:
 - **`0.2.1`** — Round 11: `RBE3` assembly, `PBAR`, shape-morph evaluation, wizard FRF/bench
 - **`0.2.2`** — Round 12: TRI3/CTRIA3, SPC1/CONM2, truss geometric `dK/da`, driver dry-run
 - **`0.2.3`** — Round 13: static solver + FORCE, UFF→MPE CLI, RSM, shell `dK/da`, FRD/locator
+- **`0.2.4`** — Round 14: SIMP topology (`topopt`), native RST reader, ODB NPZ + extract
 - **`1.0.0`** — semver-stable schemas and CLI, documented LTS support window
 
 See also [`MIGRATION.md`](MIGRATION.md) for upgrade steps from `0.1.0` alpha builds.

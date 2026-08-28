@@ -50,6 +50,7 @@ from ._native import (
     write_static_result,
     write_test_data,
 )
+from .external_result import ExternalResult
 from .frd import FRDResult, read_frd
 from .meshio_bridge import from_meshio, read_meshio, to_meshio, write_meshio
 from .nastran import read_bdf, read_nastran, write_bdf
@@ -60,8 +61,10 @@ from .neutral_convert import (
     neutral_to_model,
     section_from_values,
 )
+from .odb import ODBResult, extract_odb_npz, read_odb, read_odb_npz, sidecar_npz_path
 from .op2 import list_op2_tables, read_op2, read_op2_modes
-from .results_locator import ResultLocator, locate_results
+from .results_locator import ResultLocator, locate_results, read_solver_result
+from .rst import RSTResult, read_rst
 from .uff import (
     UFFDataset,
     UFFFunction,
@@ -141,6 +144,15 @@ __all__ = [
     "dof_map_from_labels",
     "read_frd",
     "FRDResult",
+    "read_rst",
+    "RSTResult",
+    "read_odb",
+    "read_odb_npz",
+    "extract_odb_npz",
+    "sidecar_npz_path",
+    "ODBResult",
+    "ExternalResult",
+    "read_solver_result",
     "ResultLocator",
     "locate_results",
     "uff_function_to_frf",

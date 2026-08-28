@@ -73,6 +73,7 @@ from .sizing import (
     minimize_sizing,
     problem_from_updater,
 )
+from .topology import TopologyResult, run_simp_topology
 from .variables import DesignSpace, ShapeVariable
 
 __all__ = [
@@ -94,6 +95,7 @@ __all__ = [
     "ScipyBackend",
     "QuadraticRSM",
     "ShapeVariable",
+    "TopologyResult",
     "TotalMass",
     "VectorConstraint",
     "available_backends",
@@ -106,6 +108,7 @@ __all__ = [
     "get_backend",
     "run_factorial_screen",
     "run_lhs_screen",
+    "run_simp_topology",
     "kkt_residual",
     "minimize_sizing",
     "modal_frequency_gradients",

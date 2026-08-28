@@ -1,3 +1,34 @@
+# OpenFEMLab vs FEMtools — SOTA Gap Analysis (Round 14 refresh)
+
+**Auditor:** Cloud Agent · **Date:** 2026-08-28 UTC  
+**Snapshot:** branch `cursor/round14-topology-native-io-7aa3`, release **`0.2.4`**  
+**Registry:** **104/104** acceptance criteria `verified`
+
+## Round 14 executive summary
+
+Round 14 closes the last two user-requested deferred items that remain
+implementable without a full commercial desktop shell:
+
+| Priority | Theme | Outcome |
+|----------|-------|---------|
+| P0 | SIMP topology | `run_simp_topology`, `openfemlab topopt`, OC + penalization |
+| P0 | Native RST | `read_rst` via optional `ansys-mapdl-reader` (no live licence) |
+| P0 | Native ODB | `read_odb` with sidecar NPZ + Abaqus-Python extraction path |
+| P1 | Result routing | `read_solver_result` / `ResultLocator.load()` unify FRD/RST/ODB |
+
+### Remaining intentional gaps
+
+| Gap | Status |
+|-----|--------|
+| DAQ hardware / ARTeMIS runtime | **Deferred** — file workflow only |
+| Desktop-grade GUI product | **Deferred** — CLI + Web by design |
+| ODB without any Abaqus install | **Partial** — requires sidecar NPZ or local Abaqus for first extract |
+
+**Verdict:** OpenFEMLab now covers sizing, shape (morph), **topology (SIMP)**,
+and native displacement import for CalculiX/FRD, Ansys/RST, and Abaqus/ODB.
+
+---
+
 # OpenFEMLab vs FEMtools — SOTA Gap Analysis (Round 13 refresh)
 
 **Auditor:** Cloud Agent · **Date:** 2026-08-28 UTC  
