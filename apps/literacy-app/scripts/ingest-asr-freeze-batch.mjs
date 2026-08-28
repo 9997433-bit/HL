@@ -628,8 +628,14 @@ function serialize(set) {
     )}\n`
 }
 
-/** --verify-audio：只有拿着受控目录的那台机器能跑，CI 上这一段不会执行。 */
-function verifyAudio(root, accepted) {
+/**
+ * --verify-audio：核对音频确实在受控目录里、sha256 与交付清单对得上。
+ *
+ * 真交付时只有拿着受控目录的那台机器跑得动（音频不在仓库里）。
+ * ROUND14_H1 之后它在 CI 上也有活干：`pilot-asr-ingest.mjs` 用合成 wav
+ * 在临时目录里走一遍同样的路，这一段就不再是「从没被执行过的代码」。
+ */
+export function verifyAudio(root, accepted) {
   const problems = []
   for (const entry of accepted) {
     const full = path.join(root, entry.audio)
