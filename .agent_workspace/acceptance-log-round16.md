@@ -10,8 +10,8 @@
 | H3 富 Play ≥500 | ⬜ | | r16-play-rich-500 |
 | H4 数学学演示 ≥12 | ⬜ | | r16-math-learn-demo |
 | H5 应用题剖析壳 | ⬜ | | r16-math-wp-analysis |
-| H6 学伴人格 ≥40 | ⬜ | | r16-mascot-parent-week |
-| H7 家长可解释周报 | ⬜ | | r16-mascot-parent-week |
+| H6 学伴人格 ≥40 | ✅ | `✓ H6 学伴人格台词充足（标记=true）`（识字 41 条 + 数学 33 条阶段台词）· `evidence/r16/h6-h7-mascot-parent-week.md` | r16-mascot-parent-week |
+| H7 家长可解释周报 | ✅ | `✓ H7 家长可解释周报就位`（双 App `/parent` 顶部「本周一句话」）· `evidence/r16/h6-h7-mascot-parent-week.md` | r16-mascot-parent-week |
 | H8 往轮 round15 | ⬜ | | r16-regression-gate |
 
 ## 修订记录
