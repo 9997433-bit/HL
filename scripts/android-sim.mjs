@@ -108,11 +108,24 @@ const mathSmoke = run('node', ['scripts/smoke.mjs'], {
 const mat = parseSmokeSummary(mathSmoke.stdout + mathSmoke.stderr)
 fs.writeFileSync(path.join(evidenceDir, 'smoke-math.log'), mathSmoke.stdout + mathSmoke.stderr)
 
-const ocrDevice = run('node', ['scripts/test-ocr-device.mjs'], {
+// 拍照识字这一段由 test-ocr-device.mjs 自己下结论（ROUND13_H2）：A 段静态断言、
+// C 段用 Android UA 起无头 Chrome 把十张真实样张认一遍、再断网重认一遍，
+// 结果写成 ocr-section.json 供这里取用。--sim-report 那份会就地更新上一次的
+// report.json，单独重跑 OCR 不必再走一遍出包流程。
+const ocrDevice = run('node', ['scripts/test-ocr-device.mjs', '--webview-sim', `--sim-report=${path.relative(root, path.join(evidenceDir, 'report.json'))}`], {
   cwd: path.join(root, 'apps/literacy-app'),
+  env: { ...process.env, ANDROID_SIM_UA: WEBVIEW_UA },
 })
-steps.push({ step: 'ocr-device-a', pass: ocrDevice.ok, exit: ocrDevice.status })
+steps.push({ step: 'ocr-device', pass: ocrDevice.ok, exit: ocrDevice.status })
 fs.writeFileSync(path.join(evidenceDir, 'ocr-device-a.log'), ocrDevice.stdout + ocrDevice.stderr)
+
+const ocrSection = (() => {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(evidenceDir, 'ocr-section.json'), 'utf8'))
+  } catch {
+    return null
+  }
+})()
 
 const report = {
   simulated: true,
@@ -138,7 +151,7 @@ const report = {
     apkSha256: apk.math?.sha256 ?? null,
     apkBytes: apk.math?.bytes ?? null,
   },
-  ocr: { pass: ocrDevice.ok },
+  ocr: ocrSection ?? { pass: ocrDevice.ok },
   androidHome: process.env.ANDROID_HOME ?? null,
 }
 
