@@ -165,7 +165,9 @@ const ROUND14_H1 = Object.freeze({
   /** 批次 1 的说话人下限：300 条要 ≥40 人，第一批先把 18 人推到这个数。 */
   minBatchSpeakers: 30,
   /** 三批号段加起来必须正好是冻结地板，多一条少一条都说明有格子没人认领。 */
-  batchIds: ['B1', 'B2', 'B3']
+  batchIds: ['B1', 'B2', 'B3'],
+  /** 文档 §4 那份交付清单模板：它必须真的过得了闸，否则录音现场照着填只会白填一趟。 */
+  deliveryExample: 'scripts/fixtures/asr/delivery-b1-example.json'
 })
 
 const freezeSpecDoc = await readRepo(ROUND13_H1.freezeSpec)
@@ -776,6 +778,30 @@ test('ROUND14_H1 落库闸对着真数据也讲得通：批次 1 的缺口现算
   assert.match(batchPlanDoc, /同意|consent/i, '批次 1 文档没写同意书怎么走')
   assert.match(batchPlanDoc, /双标注|仲裁/, '批次 1 文档没写双标注与仲裁')
   assert.match(batchPlanDoc, /仓库外|out-of-repo/i, '批次 1 文档没写音频存哪儿')
+})
+
+test('ROUND14_H1 文档里那份交付清单模板，拿到闸前面跑一遍是过得去的', () => {
+  // 模板过不了闸是最气人的一种错：录音现场照着填一百条，回来发现字段名都对不上
+  const example = JSON.parse(readFileSync(new URL(ROUND14_H1.deliveryExample, appUrl), 'utf8'))
+  const result = ingest.validateDelivery({ evalSet, delivery: example, referenceOf })
+  assert.equal(result.errors.length, 0, `模板本身不合规：${result.errors.join('；')}`)
+  assert.equal(
+    result.rejected.length,
+    0,
+    `模板被自己的闸拦下了：${result.rejected.map((r) => `${r.clipId} ${r.code}`).join('、')}`
+  )
+  assert.ok(result.accepted.length >= 3, `模板只示范了 ${result.accepted.length} 条，讲不清仲裁与改类别`)
+  // 三种情形都得示范到：两位一致、两位不一致走仲裁、录出来和排的类别不一样
+  assert.ok(
+    result.accepted.some((a) => a.labels.arbiter !== null),
+    '模板没示范「两位标注不一致时怎么写仲裁」'
+  )
+  assert.ok(result.accepted.some((a) => a.categoryChanged), '模板没示范「录出来和排的类别不一样」')
+  // 模板终究是模板：指纹是编的，别让它有机会真落库
+  assert.ok(
+    /编|模板|example/i.test(String(example.note ?? '')),
+    '交付模板没写明自己是模板——迟早有人拿它 --apply'
+  )
 })
 
 /* ------------------------------------------------- 3. 指标管线（模拟转写） */

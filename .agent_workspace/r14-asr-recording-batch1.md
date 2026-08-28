@@ -122,6 +122,12 @@ R13 结束时，F4 从「没人知道该录什么」变成「拿着这张表就�
 字段少得刻意：**能从槽位查到的都不重复写**（诗、句号、环境、设备都在 `clips[]` 里），
 交付方只负责回答「录到了什么」。重复写一遍只会多一处对不上的机会。
 
+可以直接拷走的一份在
+`apps/literacy-app/scripts/fixtures/asr/delivery-b1-example.json`——三条各示范一种情形：
+两位标注一致、两位不一致走仲裁、录出来和排的类别不一样。harness 每次都拿它过一遍闸
+（`ROUND14_H1` 第六条断言），所以它不会和工具走散。里面的 `sha256` 是编的、音频文件不存在，
+`--verify-audio` 一定红——它只回答「一份合格的交付长什么样」。
+
 ## 5. 落库闸拦的是什么
 
 `ingest-asr-freeze-batch.mjs` 有 14 条拒收码。每一条对应一种
@@ -151,6 +157,9 @@ R13 结束时，F4 从「没人知道该录什么」变成「拿着这张表就�
 
 ```bash
 cd apps/literacy-app
+
+# 0. 交付清单照着这份填（sha256 是编的，只示范格式）
+cat scripts/fixtures/asr/delivery-b1-example.json
 
 # 1. 看批次 1 还差什么（只读，不写任何东西）
 npm run ingest:asr:batch -- --plan
