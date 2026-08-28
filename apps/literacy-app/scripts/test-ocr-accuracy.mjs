@@ -727,6 +727,127 @@ test('三种失败都落到同一张降级卡上，并且卡里带得走的出�
   assert.match(cameraSource, /试一张示例/, '降级卡里没有「试一张示例」这条自证路径')
 })
 
+/* --------------------------------- 按失败原因分岔的话术（ROUND12_H2） */
+
+/**
+ * 一组通用话术对着「所有失败」讲，代价是每条只说对三分之一：
+ * 照片黑得看不见笔画时让人「凑近一点」，糊成一团时让人「找个亮地方」，
+ * 都是把孩子支去做一件不会有用的事。
+ *
+ * 这几条盯的就是这次的分岔：三组原因话术都在、每组说的确实是自己那件事、
+ * 每组都留着「换一张」这条出口，而且判暗判糊靠的是真的量出来的数
+ * （utils/ocr.js 的 photoStats），不是拿置信度反推。
+ */
+
+const REASON_BLOCK = cameraSource.match(/const REASON_TIPS\s*=\s*\{[\s\S]*?\n\}/)?.[0] ?? ''
+
+const reasonLines = (key) => {
+  const body = REASON_BLOCK.match(new RegExp(`\\b${key}:\\s*\\[[\\s\\S]*?\\n\\s*\\]`))?.[0]
+  return body ? [...body.matchAll(/text:\s*'([^']+)'/g)].map((m) => m[1]) : null
+}
+
+test('低光 / 模糊 / 无字 各有一组自己的话术，说的都是自己那件事', () => {
+  assert.ok(REASON_BLOCK, 'CameraOcrView 里找不到 REASON_TIPS——按原因分岔的话术被删了')
+  for (const [what, key, pattern] of [
+    ['低光', 'dim', /暗|光|灯|窗/],
+    ['模糊', 'blurry', /糊|稳|抖|对焦|端/],
+    ['无字', 'blank', /没找到|占满|摆正|成行|平行/]
+  ]) {
+    const lines = reasonLines(key)
+    assert.ok(lines, `REASON_TIPS 少了「${what}」（${key}）这一组`)
+    assert.ok(lines.length >= 2, `「${what}」只剩 ${lines.length} 条话术（下限 2）`)
+    assert.ok(
+      lines.some((t) => pattern.test(t)),
+      `「${what}」那一组没有一条在说 ${what} 该怎么办：${lines.join(' / ')}`
+    )
+    // 每一组都得留着出口，否则孩子会对着同一张认不了的照片一直重拍
+    assert.ok(
+      lines.some((t) => /换一张|换张/.test(t)),
+      `「${what}」那一组没给「换一张」的出口`
+    )
+  }
+})
+
+test('判暗判糊靠量出来的曝光与锐度，不是拿置信度反推', () => {
+  for (const [what, pattern] of [
+    ['亮度下限 DIM_LUMA', /const DIM_LUMA\s*=\s*\d+/],
+    ['灰阶跨度下限 DIM_SPAN', /const DIM_SPAN\s*=\s*\d+/],
+    ['锐度下限 BLUR_SHARPNESS', /const BLUR_SHARPNESS\s*=\s*\d+/],
+    ['reason 分岔', /const reason\s*=\s*computed/],
+    ['话术跟着 reason 走', /const tips\s*=\s*computed\([\s\S]*?REASON_TIPS\[reason\.value\]/]
+  ]) {
+    assert.match(cameraSource, pattern, `CameraOcrView 里找不到${what}`)
+  }
+  assert.match(
+    cameraSource,
+    /result\.value\?\.photo/,
+    'reason 没有读 result.photo，等于在猜照片暗不暗'
+  )
+  assert.match(
+    cameraSource,
+    /:data-trouble="reason"/,
+    'data-trouble 没跟着 reason 走，smoke 与读屏分不出这次是暗还是糊'
+  )
+  // 兜底那三条得留着：量不出数（老浏览器、异常路径）时界面不能一句话都没有
+  assert.match(cameraSource, /REASON_TIPS\[reason\.value\]\s*\?\?\s*RETRY_TIPS/, '没有兜底话术')
+
+  // 判「暗」必须两条同时踩中。只看平均亮度会冤枉黑板：低光字卡均值 29、
+  // 黑板粉笔落款 31，两张都认得出四个字，暗的是画面不是笔画。
+  assert.match(
+    cameraSource,
+    /stats\.luma\s*<\s*DIM_LUMA\s*&&\s*stats\.span\s*<\s*DIM_SPAN/,
+    '判暗只看了平均亮度，深底浅字的照片会被冤枉成「太暗」'
+  )
+})
+
+test('判暗判糊的三条线，压在二十张基准图之外', () => {
+  // 这二十张全都认得出，谁也不该被降级卡挑出毛病。
+  // 数是 utils/ocr.js 的 preprocess() 在真浏览器里量的，表见
+  // .agent_workspace/r12-ocr-matrix.md §4；改预处理算法要回来重量一次。
+  const MEASURED = {
+    '示例字卡': { luma: 234, span: 238, sharpness: 30 },
+    'angled-card': { luma: 208, span: 217, sharpness: 13 },
+    'blackboard': { luma: 48, span: 206, sharpness: 36 },
+    'blurry-note': { luma: 231, span: 140, sharpness: 13 },
+    'book-page': { luma: 239, span: 229, sharpness: 53 },
+    'busy-bg': { luma: 203, span: 222, sharpness: 30 },
+    'handwriting': { luma: 243, span: 191, sharpness: 20 },
+    'handwriting-daily': { luma: 244, span: 192, sharpness: 23 },
+    'low-light': { luma: 29, span: 110, sharpness: 32 },
+    'warm-light': { luma: 190, span: 167, sharpness: 6 },
+    'real-blackboard-press': { luma: 31, span: 211, sharpness: 27 },
+    'real-floor-cone': { luma: 66, span: 107, sharpness: 26 },
+    'real-park-sign': { luma: 88, span: 244, sharpness: 35 },
+    'real-receipt-shadow': { luma: 82, span: 112, sharpness: 32 },
+    'real-road-slogan': { luma: 114, span: 158, sharpness: 37 },
+    'real-road-warning': { luma: 154, span: 205, sharpness: 21 },
+    'real-shop-oblique': { luma: 87, span: 151, sharpness: 20 },
+    'real-toilet-sign': { luma: 211, span: 235, sharpness: 17 },
+    'real-town-plaque': { luma: 102, span: 222, sharpness: 30 },
+    'real-wall-stencil': { luma: 144, span: 211, sharpness: 31 }
+  }
+  assert.equal(
+    Object.keys(MEASURED).length,
+    BENCHMARK.length,
+    `实测表里有 ${Object.keys(MEASURED).length} 张，基准集有 ${BENCHMARK.length} 张——换图之后没回来重量`
+  )
+  const dimLuma = Number(cameraSource.match(/const DIM_LUMA\s*=\s*(\d+)/)?.[1])
+  const dimSpan = Number(cameraSource.match(/const DIM_SPAN\s*=\s*(\d+)/)?.[1])
+  const blur = Number(cameraSource.match(/const BLUR_SHARPNESS\s*=\s*(\d+)/)?.[1])
+  for (const [name, m] of Object.entries(MEASURED)) {
+    assert.ok(
+      !(m.luma < dimLuma && m.span < dimSpan),
+      `「${name}」（luma ${m.luma} / span ${m.span}）会被判成「太暗」，可它认得出——` +
+        `DIM_LUMA=${dimLuma} / DIM_SPAN=${dimSpan} 定高了`
+    )
+    assert.ok(
+      m.sharpness >= blur,
+      `「${name}」（锐度 ${m.sharpness}）会被判成「糊了」，可它认得出——` +
+        `BLUR_SHARPNESS=${blur} 定高了`
+    )
+  }
+})
+
 test('低置信度的提醒线，跟真实样张的实测分数对得上', () => {
   const line = Number(cameraSource.match(/const SHAKY_CONFIDENCE\s*=\s*(\d+)/)?.[1])
   assert.ok(Number.isFinite(line), 'CameraOcrView 里找不到 SHAKY_CONFIDENCE')
@@ -847,6 +968,42 @@ test('几乎纯色的照片不拉对比度，免得把噪点放大成假笔画',
 test('空图片当场说清楚，不把 0×0 的画布喂给引擎', () => {
   withCanvasShim(() => {
     assert.throws(() => preprocess(grayImage(0, 0)), /照片是空的/)
+  })
+})
+
+/** 黑白相间的竖条：拉伸前后都是满对比度的硬边，用来看锐度那一维量得准不准。 */
+const stripeImage = (width, height) => ({
+  naturalWidth: width,
+  naturalHeight: height,
+  sample(t) {
+    const v = Math.round(t * (width - 1)) % 2 ? 255 : 0
+    return [v, v, v]
+  }
+})
+
+test('preprocess 顺手量出曝光与锐度，界面才说得出「暗」还是「糊」', () => {
+  withCanvasShim(() => {
+    // 曝光要在拉伸**之前**取：拉满之后每张图的均值都被推向 128，暗照片就没了
+    const dark = preprocess(grayImage(800, 640, 10, 40)).photoStats
+    assert.ok(dark, 'preprocess 没有把 photoStats 挂到 canvas 上')
+    assert.ok(
+      Math.abs(dark.luma - 25) <= 2,
+      `暗图量出的平均亮度 ${dark.luma}，应当落在 25 附近（10–40 的中点）`
+    )
+    assert.equal(dark.span, 30, `灰阶跨度量成了 ${dark.span}，应当是 30`)
+
+    const bright = preprocess(grayImage(800, 640, 200, 240)).photoStats
+    assert.ok(bright.luma > dark.luma + 100, '亮图和暗图量出来的曝光几乎一样，这一维没用')
+
+    // 锐度要在拉伸**之后**取：先把曝光抹平，剩下的才是笔画边缘陡不陡
+    const smooth = preprocess(grayImage(800, 640, 92, 176)).photoStats
+    const crisp = preprocess(stripeImage(800, 640)).photoStats
+    assert.ok(smooth.sharpness < 10, `平滑渐变量出的锐度 ${smooth.sharpness}，不该有硬边`)
+    assert.ok(crisp.sharpness > 200, `黑白硬边量出的锐度只有 ${crisp.sharpness}`)
+    assert.ok(
+      crisp.sharpness > smooth.sharpness * 10,
+      '锐度这一维分不出硬边和渐变，判「糊」就是在掷骰子'
+    )
   })
 })
 

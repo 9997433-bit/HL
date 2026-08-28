@@ -81,11 +81,73 @@ export function describeStep(status) {
 /* ------------------------------------------------------------------ 图片预处理 */
 
 /**
+ * 认不出的时候界面要说得出「为什么」（ROUND12_H2）。
+ *
+ * 「没认出来」只有一句话可说的时候，孩子只会以为是自己拍得不好；可现场真正改得动的
+ * 三件事——补光、端稳、换个取景——对应的是三种完全不同的失败。区分它们不需要再跑一遍
+ * 模型，preprocess() 本来就要把每个像素过一遍，顺手就能量出来：
+ *
+ *   luma       拉伸**之前**的平均灰度。这是曝光，跟「暗不暗」直接对应。
+ *              必须在拉伸前取——拉满之后每张图的均值都被推向 128，暗照片会消失。
+ *   span       拉伸前的灰阶跨度。窄说明整张图挤在一小段灰度里。
+ *              判「暗」要 luma 和 span 一起看：黑板照片的 luma 只有三十几，
+ *              可白粉笔字把 span 拉到两百以上——画面是暗的，笔画不是。
+ *   sharpness  拉伸**之后**横向梯度的 99 分位数（0–255）。
+ *
+ * 锐度为什么取分位数而不是平均值：一张字卡的绝大部分面积是空白，
+ * 平均梯度基本等于「空白占了多大比例」，跟糊不糊没多大关系——实测二十张基准图
+ * 的平均梯度全落在 0.4–3.9 这个窄带里，拍糊的便签(0.4)和干净的绘本内页(1.3)
+ * 分不开。分位数只看最陡的那百分之一像素，也就是笔画的边：边缘被模糊摊开时，
+ * 峰值梯度会实实在在地塌下去。
+ *
+ * 门槛写在 CameraOcrView 里而不是这里：这里只管量，怎么解读是界面的事。
+ */
+function measure(gray, width, height, stretch) {
+  let sum = 0
+  let min = 255
+  let max = 0
+  for (let i = 0; i < gray.length; i += 1) {
+    sum += gray[i]
+    if (gray[i] < min) min = gray[i]
+    if (gray[i] > max) max = gray[i]
+  }
+  // 梯度直方图：256 个整数桶，一趟扫完，不用为了求分位数把上百万个数排序
+  const bins = new Uint32Array(256)
+  let pairs = 0
+  for (let y = 0; y < height; y += 1) {
+    const row = y * width
+    for (let x = 1; x < width; x += 1) {
+      const d = Math.abs(stretch(gray[row + x]) - stretch(gray[row + x - 1]))
+      bins[Math.min(255, Math.round(d))] += 1
+      pairs += 1
+    }
+  }
+  let seen = 0
+  let sharpness = 0
+  const cut = pairs * 0.99
+  for (let i = 0; i < 256; i += 1) {
+    seen += bins[i]
+    if (seen >= cut) {
+      sharpness = i
+      break
+    }
+  }
+  return {
+    luma: Math.round(sum / Math.max(1, gray.length)),
+    span: max - min,
+    sharpness
+  }
+}
+
+/**
  * 缩放 + 去色 + 拉对比度。
  *
  * 家里随手拍的照片通常是暖光下的书页：整体偏黄、明暗不匀。
  * 先转灰度再把实际用到的灰阶拉满 0–255，比直接丢给 Tesseract 稳得多，
  * 而且这点计算量在主线程上跑一帧就完了，不值得再开一个 worker。
+ *
+ * 量出来的曝光/锐度挂在返回的 canvas 上（`photoStats`）。挂在对象上而不是改返回值，
+ * 是为了不动 preprocess() 这个签名——它已经有三处调用方和一整套单元测试。
  */
 export function preprocess(source, { maxSide = MAX_SIDE, minSide = MIN_SIDE } = {}) {
   const width = source.naturalWidth || source.width
@@ -116,14 +178,16 @@ export function preprocess(source, { maxSide = MAX_SIDE, minSide = MIN_SIDE } = 
   }
 
   const span = max - min
+  const stretch = (value) => (span > 8 ? ((value - min) * 255) / span : value)
   for (let i = 0, g = 0; i < pixels.length; i += 4, g += 1) {
-    const value = span > 8 ? ((gray[g] - min) * 255) / span : gray[g]
+    const value = stretch(gray[g])
     pixels[i] = value
     pixels[i + 1] = value
     pixels[i + 2] = value
     pixels[i + 3] = 255
   }
   ctx.putImageData(image, 0, 0)
+  canvas.photoStats = measure(gray, canvas.width, canvas.height, stretch)
   return canvas
 }
 
@@ -218,6 +282,8 @@ export async function recognizePhoto(source, { onStep } = {}) {
     confidence: Math.round(data.confidence ?? 0),
     known,
     unknown,
+    // 认不出时界面靠这三个数分辨「暗」「糊」和「没字」，见 CameraOcrView 的 reason
+    photo: canvas.photoStats ?? null,
     ms: Date.now() - started
   }
 }
