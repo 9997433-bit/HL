@@ -94,6 +94,27 @@ const readDemo = (page, scope = '') =>
     }
   }, scope)
 
+/**
+ * 换到某条演示，然后立刻读它停在哪一段。
+ *
+ * 三段是每 1.5 秒自动往前走的，所以「点完再隔一次驱动端往返去读」这种写法，
+ * 机器一忙就会读到已经推进过的 visual —— 红的是负载不是代码。点击和读都放进
+ * 页面里跑，中间只留一次渲染的工夫。
+ */
+const pickDemo = (page, selector) =>
+  page.evaluate(async (sel) => {
+    const tab = document.querySelector(sel)
+    if (!tab) throw new Error(`演示中心上没有 ${sel}`)
+    tab.click()
+    await new Promise((resolve) => setTimeout(resolve, 30))
+    const root = document.querySelector('[data-demo-id]')
+    return {
+      id: root?.dataset.demoId ?? '',
+      skill: root?.dataset.demoSkill ?? '',
+      stage: root?.dataset.demoStage ?? '',
+    }
+  }, selector)
+
 await check(`演示中心：${LEARN_DEMO_SKILLS.length} 个技能点 + 跳过到算式`, '/#/visual-demos', async (page) => {
   await page.waitForSelector('[data-demo-id]')
   const tabs = await page.evaluate(() =>
@@ -108,20 +129,19 @@ await check(`演示中心：${LEARN_DEMO_SKILLS.length} 个技能点 + 跳过到
 
   const before = await readDemo(page)
   if (before.motion !== 'play') throw new Error(`默认应是播放态，实际 ${before.motion}`)
-  if (before.stage !== 'object') throw new Error(`首段应是实物，实际 ${before.stage}`)
+  const started = await pickDemo(page, '[data-demo-select="counting"]')
+  if (started.stage !== 'object') throw new Error(`首段应是实物，实际 ${started.stage}`)
   await page.click('[data-demo-skip]')
   await sleep(250)
   const after = await readDemo(page)
   if (after.stage !== 'equation') throw new Error(`跳过后没到算式段：${after.stage}`)
   if (!/=|½|^\d+$/.test(after.equation)) throw new Error(`算式段没有算式：${after.equation}`)
-  return `${tabs.length} 个技能点，object → ${after.stage}（${after.equation}）`
+  return `${tabs.length} 个技能点，${started.stage} → ${after.stage}（${after.equation}）`
 })
 
 await check('演示中心：换一条演示重新从实物段播', '/#/visual-demos', async (page) => {
   await page.waitForSelector('[data-demo-select="division"]')
-  await page.click('[data-demo-select="division"]')
-  await sleep(250)
-  const picked = await readDemo(page)
+  const picked = await pickDemo(page, '[data-demo-select="division"]')
   if (picked.id !== 'division') throw new Error(`选中的不是 division：${picked.id}`)
   if (picked.stage !== 'object') throw new Error(`换条演示应从实物段重播，实际 ${picked.stage}`)
   return `division / ${picked.skill} 从 ${picked.stage} 段重播`
@@ -133,11 +153,7 @@ await check('演示中心：ROUND17_H3 新增的 6 条逐条点得开', '/#/visu
   const added = ['shape-3d', 'classify', 'wp-diff', 'wp-times', 'wp-share', 'wp-two-step']
   const seen = []
   for (const skill of added) {
-    const tab = `[data-demo-select-skill="${skill}"]`
-    if (!(await page.$(tab))) throw new Error(`演示中心没有 ${skill} 的卡片`)
-    await page.click(tab)
-    await sleep(200)
-    const demo = await readDemo(page)
+    const demo = await pickDemo(page, `[data-demo-select-skill="${skill}"]`)
     if (demo.skill !== skill) throw new Error(`点 ${skill} 打开的却是 ${demo.skill}`)
     if (demo.stage !== 'object') throw new Error(`${skill} 没有从实物段重播：${demo.stage}`)
     await page.click('[data-demo-skip]')
