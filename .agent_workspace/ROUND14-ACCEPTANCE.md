@@ -60,26 +60,26 @@
 
 ## 4. 基线与 v1.1 负向实测（R13 集成 @ 7/8）
 
-| 探针 | 基线预期 | 原因 |
+| 探针 | v1.1 基线实测 | 原因 |
 |---|---|---|
 | H1 | FAIL | available=false，recorded=0 |
-| H2 | FAIL | 无 r14 device B，App 33/41 |
+| H2 | FAIL | 无 r14 device B，逐例矩阵 0/0（R13 旧值 33/41 不再回退） |
 | H3 | FAIL | scene=209<400 |
 | H4 | FAIL | humanVocal=0–3/13 |
 | H5 | FAIL | 无 L1 批次 |
 | H6 | FAIL | 无 r14 真机 signoff |
 | H7 | FAIL | BLOCKED 延续 |
-| H8 | PASS | round12 8/8 + round13 7/8 |
+| H8 | PASS | 刷新 android-sim 落盘 APK 后：round12 8/8 + round13 7/8 |
 
 **v1.0 → v1.1 正/负向抽查**（正向先补齐该 H 的其余所有腿，只改变表中攻击面）：
 
-| 伪造/对照手段 | v1.0 | v1.1 预期 |
+| 伪造/对照手段 | v1.0 审阅 | v1.1 实测 |
 |---|---|---|
-| H1 正向：合规 `device-rtf.json`（device 身份 + `simulated:false`） | H1 绿 | H1 绿 |
-| H1 负向：同一 JSON 删除 `device` 身份 | H1 可绿 | `deviceRtf=false`，H1 红 |
-| H2 正向：41 条逐例结果（40 pass）且汇总相符 | H2 绿 | H2 绿 |
-| H2 负向：`ocrSection:[]` 但顶层手填 `passCount:40,total:41` | H2 可绿 | `ocrSection=false`，H2 红 |
-| H6 正向：纯 R14 真机路径 + 显式 `simulated:false` | H6 绿 | H6 绿 |
-| H6 负向：签核记录追加 `evidence/r13/android-sim/report.json` | H6 可绿 | `noR13SimPath=false`，H6 红 |
+| H1 正向：合规 `device-rtf.json`（device 身份 + `simulated:false`） | H1 绿 | **H1 PASS** |
+| H1 负向：同一 JSON 删除 `device` 身份 | H1 可绿 | **H1 FAIL**，`deviceRtf=false` |
+| H2 正向：41 条逐例结果（40 pass）且汇总相符 | H2 绿 | **H2 PASS**，App 40/41 |
+| H2 负向：`ocrSection:[]` 但顶层手填 `passCount:40,total:41` | H2 可绿 | **H2 FAIL**，`app=0/0`、`ocrSection=false` |
+| H6 正向：纯 R14 真机路径 + 显式 `simulated:false` | H6 绿 | **H6 PASS** |
+| H6 负向：签核记录追加 `evidence/r13/android-sim/report.json` | H6 可绿 | **H6 FAIL**，`noR13SimPath=false` |
 
-逐字命令输出与退出码回填到 `.agent_workspace/r14-acceptance-probe-baseline.md`；基线仍须保持 **1/8（仅 H8）**。
+逐字命令输出与退出码见 `.agent_workspace/r14-acceptance-probe-baseline.md`。v1.1 基线实测 **1/8（仅 H8）**，`--json` 为 `passed=1`、`failed=7`、`results.length=8`；三组攻击探针均保持固定八项，相对正向对照只打红目标 H。
