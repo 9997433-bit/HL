@@ -75,6 +75,13 @@ const WEAKNESS_RULES = [
         why: '这是上次停下时还没过线的技能点。',
         minutes: 5,
         to: f.weakSkills[0].route
+      },
+      {
+        id: 'map',
+        title: '让孩子自己挑一颗星球',
+        why: '选择权交出去，重新开始的概率高不少。',
+        minutes: 8,
+        to: '/'
       }
     ]
   },
@@ -172,22 +179,6 @@ const WEAKNESS_RULES = [
     ]
   },
   {
-    id: 'weakSkill',
-    label: '技能点卡住',
-    when: (f) => f.weakSkills.length > 0,
-    headline: (f) =>
-      `「${f.weakSkills.map((s) => s.name).join('」「')}」练过但还没过线` +
-      `（最低 ${f.weakSkills[0].percent}%）：这周把它们做到达标，比开新星球值。`,
-    drills: (f) =>
-      f.weakSkills.slice(0, MAX_DRILLS).map((s) => ({
-        id: `skill-${s.id}`,
-        title: `练「${s.name}」到过线`,
-        why: `当前掌握度 ${s.percent}%，差一点就达标了。`,
-        minutes: 6,
-        to: s.route
-      }))
-  },
-  {
     id: 'accuracy',
     label: '正确率偏低',
     when: (f) => f.week.answered >= 10 && f.week.accuracy < 60,
@@ -217,6 +208,23 @@ const WEAKNESS_RULES = [
         to: '/progress'
       }
     ]
+  },
+  {
+    id: 'weakSkill',
+    label: '技能点卡住',
+    // 掌握度 0.5–0.8 只是「还在练」，不算短板；低于一半才值得单独拎出来说。
+    when: (f) => f.weakSkills.length > 0 && f.weakSkills[0].percent < 50,
+    headline: (f) =>
+      `「${f.weakSkills.map((s) => s.name).join('」「')}」练过但还没过线` +
+      `（最低 ${f.weakSkills[0].percent}%）：这周把它们做到达标，比开新星球值。`,
+    drills: (f) =>
+      f.weakSkills.slice(0, MAX_DRILLS).map((s) => ({
+        id: `skill-${s.id}`,
+        title: `练「${s.name}」到过线`,
+        why: `当前掌握度 ${s.percent}%，差一点就达标了。`,
+        minutes: 6,
+        to: s.route
+      }))
   },
   {
     id: 'narrow',
@@ -270,6 +278,30 @@ const WEAKNESS_RULES = [
 ]
 
 /**
+ * 兜底练习。
+ *
+ * 有些弱项的建议是条件式的（「回到卡住的技能点」在没有技能点记录时就不该出现），
+ * 极端存档下可能只剩一条。这两条永远成立，用来把清单垫到两条以上——
+ * 家长打开周报只看到孤零零一行，会以为是没算出来。
+ */
+const FALLBACK_DRILLS = [
+  {
+    id: 'daily',
+    title: '做一次今日冒险',
+    why: '题量固定、几分钟就能做完，是最容易坚持的一件事。',
+    minutes: 6,
+    to: '/daily'
+  },
+  {
+    id: 'graph',
+    title: '和孩子一起看一眼技能图谱',
+    why: '让他自己挑下周想点亮哪个技能点。',
+    minutes: 5,
+    to: '/skill-graph'
+  }
+]
+
+/**
  * 生成周报。
  *
  * @param {object} input
@@ -318,10 +350,12 @@ export function buildWeeklyReport(input = {}) {
   }
 
   const rule = WEAKNESS_RULES.find((r) => r.when(facts)) ?? WEAKNESS_RULES[WEAKNESS_RULES.length - 1]
-  const drills = (rule.drills(facts) || [])
-    .filter(Boolean)
-    .slice(0, MAX_DRILLS)
-    .map((d) => ({ minutes: 5, ...d }))
+  const picked = (rule.drills(facts) || []).filter(Boolean)
+  for (const filler of FALLBACK_DRILLS) {
+    if (picked.length >= 2) break
+    if (!picked.some((d) => d.id === filler.id)) picked.push(filler)
+  }
+  const drills = picked.slice(0, MAX_DRILLS).map((d) => ({ minutes: 5, ...d }))
 
   return {
     script: ROUND16_H7_WEEKLY_REPORT,
