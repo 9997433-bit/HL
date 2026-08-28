@@ -30,11 +30,13 @@
 
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
+import { readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 
 import { POEM_MAP } from '../src/data/poems.js'
 import {
   OFFLINE_ASR,
+  PACK_ROLES,
   chooseTier,
   createOfflineRecognizer,
   installOfflinePack,
@@ -73,6 +75,15 @@ const FREEZE_LAYERS = [
 const FAULT_CLASSES = ['airplane', 'model-404', 'wasm-init', 'mic-denied', 'oom-worker']
 /** 降档必须在这个时间内完成，否则孩子会盯着一个转圈的界面。 */
 const DEGRADE_BUDGET_MS = 2000
+
+/**
+ * ROUND12_H1：模型落库这一轮新增的守法。
+ * 落库不等于放行——文件齐全归 files[] 管，能不能给孩子用归 goNoGo 管。
+ */
+const ROUND12_H1 = Object.freeze({
+  shipDoc: '.agent_workspace/r12-followread-ship.md',
+  engineHarness: 'apps/literacy-app/scripts/test-asr-engine.mjs'
+})
 
 /** 孩子读了的那些条目——只有这些能进字符召回。 */
 const READ_CATEGORIES = ['normal', 'miss', 'extra', 'repeat', 'tone', 'initial']
@@ -137,7 +148,56 @@ test('冻结项没做完，available 就必须是 false——清单不许比模�
       'no-go',
       '冻结项没做完，goNoGo.verdict 却不是 no-go'
     )
-    assert.equal(manifest.files.length, 0, 'available=false 却已经列了模型文件')
+  }
+})
+
+/**
+ * ROUND12_H1 —— R11 这一条原本写的是「available=false 时 files 必须是空的」。
+ * 那条规矩在「一个模型字节都没有」的时候是对的，现在它挡的是正确的事：
+ * 落库（文件在包里、指纹冻结、许可证核过）和放行（孩子真用上这一档）本来就该分开——
+ * 前者是后者的前置，硬绑在一起只会逼着人要么不落库、要么提前放行。
+ *
+ * 新规矩：files[] 随时可以齐全，但每一项都要在磁盘上核得上，
+ * 而 available 仍旧由 Go/No-Go 说了算（下面那条「结论一致」的断言守着）。
+ */
+test('落库的文件逐项核得上：路径、字节数、sha256 与清单一致，整包不超预算', () => {
+  if (!manifest.files.length) {
+    assert.equal(manifest.available, false, 'files 是空的，available 却是 true')
+    return
+  }
+  let total = 0
+  for (const file of manifest.files) {
+    assert.ok(
+      file.path?.startsWith('asr/') && !file.path.includes('..'),
+      `文件路径不合法：${file.path}`
+    )
+    const body = readFileSync(new URL(`public/${file.path}`, appUrl))
+    assert.equal(body.length, file.bytes, `${file.path} 实际 ${body.length} 字节，清单写 ${file.bytes}`)
+    assert.equal(
+      createHash('sha256').update(body).digest('hex'),
+      file.sha256,
+      `${file.path} 指纹对不上——落库的不是清单里那一份`
+    )
+    total += body.length
+  }
+  assert.ok(
+    total <= OFFLINE_ASR.maxPackBytes,
+    `整包 ${(total / 1048576).toFixed(2)} MiB 超过 60 MiB 预算`
+  )
+  const roles = new Set(manifest.files.map((f) => f.role))
+  const missing = PACK_ROLES.filter((role) => !roles.has(role))
+  assert.equal(missing.length, 0, `落库了却少角色：${missing.join('、')}——Worker 起不来`)
+})
+
+test('落库的每个文件都写明了上游出处、上游 sha256 与许可证', () => {
+  if (!manifest.files.length) return
+  const sources = manifest.source?.files ?? []
+  assert.ok(manifest.source?.generator, '没写生成脚本，别人复现不了这个包')
+  for (const file of manifest.files) {
+    const source = sources.find((s) => s.path === file.path)
+    assert.ok(source, `${file.path} 没有出处记录`)
+    assert.match(source.upstreamSha256 ?? '', /^[a-f0-9]{64}$/, `${file.path} 没记上游 sha256`)
+    assert.ok(source.license, `${file.path} 没记许可证`)
   }
 })
 
@@ -182,6 +242,14 @@ test('清单指得到评测集、harness、Go/No-Go 三份文件，路径不许�
   assert.equal(manifest.evalSet?.spec, 'apps/literacy-app/scripts/data/asr-eval-set.json')
   assert.equal(manifest.evalSet?.harness, 'apps/literacy-app/scripts/test-asr-eval-set.mjs')
   assert.equal(manifest.evalSet?.goNoGo, '.agent_workspace/r11-followread-gonogo.md')
+  if (manifest.files.length) {
+    assert.equal(
+      manifest.evalSet?.engineHarness,
+      'apps/literacy-app/scripts/test-asr-engine.mjs',
+      '落库了却没挂引擎回归 harness——没人守「这堆字节还跑得动」'
+    )
+    assert.equal(manifest.evalSet?.ship, ROUND12_H1.shipDoc)
+  }
   assert.ok(manifest.evalSet.minClips >= 30, '评测集下限被调到 30 条以下')
   assert.equal(manifest.evalSet.targetClips, 300, '目标规模不再是 300 条')
 })
@@ -475,12 +543,31 @@ async function withBrowserShims({ fetchImpl, WorkerImpl }, run) {
 
 const sha256 = (text) => createHash('sha256').update(text).digest('hex')
 
-/** 一份「什么都对」的清单，用来演练下载成功与整包作废两条路。 */
+/**
+ * 一份「什么都对」的清单，用来演练下载成功与整包作废两条路。
+ * ROUND12_H1 之后整包是七个角色，演练包也跟着长——少一个角色 parseManifest 就该拒绝，
+ * 这正是 D6/D7 要证明的那条线。
+ */
+const DRILL_ROLES = {
+  'wasm-glue': 'asr/models/glue.js',
+  'wasm-binary': 'asr/models/engine.wasm',
+  'asr-api': 'asr/models/api.js',
+  'model-encoder': 'asr/models/encoder.int8.onnx',
+  'model-decoder': 'asr/models/decoder.int8.onnx',
+  'model-joiner': 'asr/models/joiner.int8.onnx',
+  tokens: 'asr/models/tokens.txt'
+}
+
 function frozenPack() {
-  const glue = 'export default () => ({ createOnlineRecognizer(){} })\n'
-  const wasm = 'fake-wasm-binary'
+  const files = {}
+  const entries = []
+  for (const [role, path] of Object.entries(DRILL_ROLES)) {
+    const body = `drill-${role}-payload`
+    files[path] = body
+    entries.push({ path, role, bytes: body.length, sha256: sha256(body) })
+  }
   return {
-    files: { 'models/glue.js': glue, 'models/engine.wasm': wasm },
+    files,
     manifest: {
       schema: OFFLINE_ASR.schema,
       engine: OFFLINE_ASR.engine,
@@ -488,10 +575,7 @@ function frozenPack() {
       modelId: 'drill-zipformer-zh',
       modelVersion: '2026-08-27',
       license: 'Apache-2.0',
-      files: [
-        { path: 'models/glue.js', role: 'wasm-glue', bytes: glue.length, sha256: sha256(glue) },
-        { path: 'models/engine.wasm', role: 'wasm-binary', bytes: wasm.length, sha256: sha256(wasm) }
-      ]
+      files: entries
     }
   }
 }
@@ -545,7 +629,7 @@ drill('D2', 'model-404', 'reliability', '模型 404：整包作废、缓存清�
     {
       fetchImpl: async (url) => {
         if (url.endsWith('manifest.json')) return new Response(JSON.stringify(pack.manifest))
-        if (url.endsWith('glue.js')) return new Response(pack.files['models/glue.js'])
+        if (url.endsWith('glue.js')) return new Response(pack.files['asr/models/glue.js'])
         return new Response('not found', { status: 404 })
       }
     },
@@ -652,7 +736,7 @@ drill('D6', 'hash-mismatch', 'resource', '指纹不符：整包作废，绝不�
     {
       fetchImpl: async (url) => {
         if (url.endsWith('manifest.json')) return new Response(JSON.stringify(tampered))
-        if (url.endsWith('glue.js')) return new Response(pack.files['models/glue.js'])
+        if (url.endsWith('glue.js')) return new Response(pack.files['asr/models/glue.js'])
         return new Response('被掉包的二进制')
       }
     },

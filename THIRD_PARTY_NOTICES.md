@@ -74,6 +74,49 @@ Apache-2.0 要求随附许可证与 NOTICE：许可证全文见「附录 B」指
 - **义务**：随附 Apache-2.0 许可证（见「附录 B」）并保留版权声明；本文件即为声明载体。
   未对模型做任何修改，无需附加修改说明。
 
+### 离线跟读评测包（sherpa-onnx WASM 运行时 + 中文流式 Zipformer int8 模型）— Apache-2.0
+
+- 位置：`apps/literacy-app/public/asr/models/`，共 7 个文件、合计 **35.31 MiB**。
+  逐文件的 `bytes` / `sha256` / 上游出处冻结在
+  `apps/literacy-app/public/asr/manifest.json` 的 `files[]` 与 `source.files[]` 里，
+  由 `scripts/test-asr-engine.mjs` 每次跑测时现核。
+- 复现：`npm --prefix apps/literacy-app run gen:asr:pack`（脚本
+  `scripts/gen-asr-pack.mjs` 里写死了 release tag 与模型 revision）。
+- 分发状态：这些文件**会**随 dist 与 zip 分发（自托管是硬约束：运行时不许回退到任何
+  第三方 CDN），但**不进首屏 precache**——只有家长在跟读页点「下载离线评测包」
+  才会取，取完存进版本化 Cache Storage。当前 `available:false`，即这一档尚未放行。
+
+| 文件 | 上游 | 许可证 | 修改 |
+|---|---|---|---|
+| `sherpa-onnx-wasm-main-asr.js` | [k2-fsa/sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) v1.12.15 release 资产 `sherpa-onnx-wasm-simd-v1.12.15-en-asr-zipformer.tar.bz2` | Apache-2.0 | **有**，见下 |
+| `sherpa-onnx-wasm-main-asr.wasm` | 同上 | Apache-2.0 | 无 |
+| `sherpa-onnx-asr.js` | 同上 | Apache-2.0 | 无 |
+| `encoder.int8.onnx` | [csukuangfj/sherpa-onnx-streaming-zipformer-zh-14M-2023-02-23](https://huggingface.co/csukuangfj/sherpa-onnx-streaming-zipformer-zh-14M-2023-02-23) @ `204ad334` 的 `encoder-epoch-99-avg-1.int8.onnx` | Apache-2.0（上游模型卡） | 无（仅重命名） |
+| `decoder.int8.onnx` | 同上 `decoder-epoch-99-avg-1.int8.onnx` | Apache-2.0 | 无（仅重命名） |
+| `joiner.int8.onnx` | 同上 `joiner-epoch-99-avg-1.int8.onnx` | Apache-2.0 | 无（仅重命名） |
+| `tokens.txt` | 同上 | Apache-2.0 | 无 |
+
+- **修改说明（Apache-2.0 第 4(b) 条要求标明）**：`sherpa-onnx-wasm-main-asr.js` 相对上游
+  只改了一处——Emscripten `--preload-file` 生成的 `loadPackage({...})` 元数据被替换成
+  `loadPackage({"files":[],"remote_package_size":0})`。原因是官方产物把一个 182 MiB 的
+  英文大模型打进了配套 `.data`，我们不带那份 `.data`，改由 Worker 在运行时把中文 int8
+  模型写进 Emscripten MEMFS。改动前后的 sha256 都记在 `manifest.source.files[]` 里
+  （`upstreamSha256` 为改动前），`test-asr-engine.mjs` 有一条断言钉住「全文只此一处改动」。
+- **模型来源链**：上游模型卡声明由
+  [marcoyang/sherpa-ncnn-streaming-zipformer-zh-14M-2023-02-23](https://huggingface.co/marcoyang/sherpa-ncnn-streaming-zipformer-zh-14M-2023-02-23)
+  经 icefall `export-onnx-zh.py` 导出（脚本随模型仓库分发）。本项目按上游模型卡标注的
+  Apache-2.0 再分发；训练语料的授权由上游承担，本仓库未做二次训练也未修改权重。
+- **义务**：随附 Apache-2.0 许可证（见「附录 B」）、保留版权声明、标明上述修改。本文件即声明载体。
+
+### 引擎回归音频 `upstream-zh-0.wav` — Apache-2.0（随模型仓库）
+
+- 位置：`apps/literacy-app/scripts/fixtures/asr/upstream-zh-0.wav`（175 KB，
+  上游模型仓库 `test_wavs/0.wav` 的未修改副本，成人普通话 5.61 秒）。
+- 用途：`scripts/test-asr-engine.mjs` 的引擎回归输入——证明落库的那 35 MiB 装得起来、
+  解得出中文。**不进 `public/`、不打进 dist、不随 zip 分发**，也**不是**儿童冻结集
+  （后者按 `.agent_workspace/r11-asr-eval-set.md` 另行录制，音频存仓库外）。
+- 许可证：随上游模型仓库的 Apache-2.0；sha256 记在 `manifest.source.engineFixture`。
+
 ## 三、仓库内第三方素材（当前未打入 App 产物）
 
 ### OpenMoji 图标 — CC BY-SA 4.0
@@ -159,7 +202,7 @@ Apache-2.0 要求随附许可证与 NOTICE：许可证全文见「附录 B」指
 | CC BY-SA 2.0 / 3.0（OCR 真实样张） | 署名；衍生同许可 | 署名表见第三节「OCR 真实样张」；裁剪后的 `real-*.png` 沿用原图许可，仅存在于源码仓库 |
 | OFL 1.1 | 字体随附许可证；不得单独出售 | 未内置字体；许可证文本已预置 |
 | GSAP Standard | 不得用于竞争性动画工具等 | 仅作应用内动画库使用 |
-| Apache-2.0（随产物分发） | 保留版权与 NOTICE；标明修改 | Tesseract.js / wasm 内核 / chi_sim 语言包均为未修改副本，声明见第一、二节 |
+| Apache-2.0（随产物分发） | 保留版权与 NOTICE；标明修改 | Tesseract.js / wasm 内核 / chi_sim 语言包均为未修改副本，声明见第一、二节；离线跟读评测包中 `sherpa-onnx-wasm-main-asr.js` 有一处修改，已在第二节逐字说明并由断言钉住 |
 
 ---
 
@@ -200,6 +243,7 @@ SOFTWARE.
 | SIL OFL 1.1 | `shared/assets/fonts/OFL-NotoSansSC.txt` |
 | GSAP Standard License | <https://gsap.com/standard-license>（随版本变化，升级时核对） |
 | Apache-2.0（Tesseract.js / wasm 内核 / chi_sim 语言包） | `node_modules/tesseract.js/LICENSE.md`、`node_modules/tesseract.js-core/LICENSE`，或 <https://www.apache.org/licenses/LICENSE-2.0> |
+| Apache-2.0（sherpa-onnx 运行时 / zh-14M int8 模型 / 引擎回归音频） | <https://github.com/k2-fsa/sherpa-onnx/blob/master/LICENSE>、上游模型卡，或 <https://www.apache.org/licenses/LICENSE-2.0> |
 | Apache-2.0（仅开发依赖） | <https://www.apache.org/licenses/LICENSE-2.0> |
 | MPL-2.0（仅开发依赖） | <https://www.mozilla.org/MPL/2.0/> |
 
