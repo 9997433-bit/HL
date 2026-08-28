@@ -12,7 +12,7 @@
  * 这是 VisualMathDemo 的接任者：同一套 data-demo-* 钩子，加上静态三态与技能标注。
  */
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { LEARN_DEMO_STAGES, objectTiles } from '@/data/learn-demos.js'
+import { LEARN_DEMO_STAGES, objectTiles, ROUND16_H4 } from '@/data/learn-demos.js'
 import { reducedMotion } from '@/utils/motion.js'
 
 const props = defineProps({
@@ -116,6 +116,7 @@ onBeforeUnmount(() => {
   <section
     class="learn-demo card"
     :class="{ still }"
+    :data-round16="ROUND16_H4"
     :data-demo-id="demo.id"
     :data-demo-skill="demo.skill"
     :data-demo-stage="stages[stage].id"

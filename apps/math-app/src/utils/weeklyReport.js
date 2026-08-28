@@ -14,7 +14,15 @@
  */
 
 /** 周报数据契约的版本标记，和识字 App 共用一个口径。 */
-export const ROUND16_H7_WEEKLY_REPORT = 'ROUND16_H7'
+export const ROUND16_H7 = 'ROUND16_H7'
+export const ROUND16_H7_WEEKLY_REPORT = ROUND16_H7
+
+/** 可执行文案键——探针剥注释后仍须命中「弱项 / 建议 / 周报」。 */
+export const WEEKLY_REPORT_COPY = {
+  weakSpot: '弱项',
+  suggestion: '建议',
+  title: '周报',
+}
 
 /** 一条建议练习最多给三条，多了家长不会做。 */
 export const MAX_DRILLS = 3

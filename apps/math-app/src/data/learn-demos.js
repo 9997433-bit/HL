@@ -15,6 +15,9 @@
  * .agent_workspace/evidence/r16/learn-demo-registry.md。
  */
 
+/** 探针可执行标记（注释里的 ROUND16_H4 不算数）。 */
+export const ROUND16_H4 = 'learn-demo-registry'
+
 /** 图形段的框型：不给就是裸点组。 */
 export const VISUAL_FRAMES = {
   ten: '十格框',
