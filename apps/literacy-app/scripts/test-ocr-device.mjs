@@ -551,6 +551,78 @@ const engineLimit = new Map(
   )
 }
 
+/* --- A12 真机证据的自洽性：手搓一份 pass:true 得连十张的分数一起编圆（ROUND14_H2） --- */
+{
+  const rel = '.agent_workspace/evidence/r14/android/ocr-device-b.json'
+  const raw = read(rel, repoDir)
+  if (!raw) {
+    // 没有这份证据不是这里的红——它本来就要等一台设备，H2 那条腿会照实红着。
+    // 只在「这一趟根本不打算跑 B 段」时才记一条 SKIP：真要跑 B 段的时候，
+    // 这份证据是这一趟结束时才写出来的，先判它缺席等于让第一次真机运行必红。
+    if (!runB) {
+      skip(
+        'A12 真机 B 段证据（evidence/r14/android/ocr-device-b.json）',
+        'Android QA',
+        '还没有任何一台设备跑过 B 段：设备到位后执行 node scripts/test-ocr-device.mjs --require-device'
+      )
+    }
+  } else {
+    let ev = null
+    try {
+      ev = JSON.parse(raw)
+    } catch {
+      ev = null
+    }
+    if (!ev) {
+      fail(`A12 ${rel} 解析不了`)
+    } else {
+      const rows = Array.isArray(ev.rows) ? ev.rows : []
+      const sumHit = rows.reduce((n, r) => n + Number(r.hit ?? 0), 0)
+      const sumTotal = rows.reduce((n, r) => n + Number(r.total ?? 0), 0)
+      const firstScreen = rows.filter((r) => r.firstScreenCorrect === true).length
+      // 门禁只读 pass / onDevice / simulated 三个字段，所以伪造它只要三行。
+      // 这几条把那三行和逐张的分数绑在一起：编一个绿灯，就得把十张样张的
+      // 命中数、首屏张数、断网复跑那一张全部编得对得上。
+      check(ev.schema === 'ocr-device-b/1', 'A12 证据自报 schema = ocr-device-b/1')
+      check(
+        ev.simulated !== true && ev.emulator !== true,
+        'A12 ocr-device-b.json 不是模拟器/模拟结论',
+        '模拟器的结论只能落 ocr-device-b.emulator.json'
+      )
+      check(
+        ev.pass !== true || ev.onDevice === true,
+        'A12 pass:true 的证据必须同时 onDevice:true',
+        'onDevice 不为真却报 pass，这份证据点不亮任何东西'
+      )
+      check(
+        rows.length >= MIN_SAMPLES && Number(ev.samples) === rows.length,
+        `A12 逐张记录 ${rows.length} 张（samples 字段 ${ev.samples}）`,
+        '样张张数和 rows 对不上'
+      )
+      check(
+        Number(ev.recall?.hit) === sumHit && Number(ev.recall?.total) === sumTotal,
+        `A12 recall ${ev.recall?.hit}/${ev.recall?.total} 与逐张之和 ${sumHit}/${sumTotal} 一致`,
+        '汇总和明细对不上：这份证据是手改的'
+      )
+      check(
+        Number(ev.firstScreenCorrect) === firstScreen,
+        `A12 首屏认对 ${ev.firstScreenCorrect} 张与逐张之和 ${firstScreen} 一致`,
+        '汇总和明细对不上：这份证据是手改的'
+      )
+      check(
+        ev.pass !== true ||
+          (ev.offline?.packFetchOk === true && ev.offline?.offlineHit === ev.offline?.onlineHit),
+        'A12 pass:true 的证据带着飞行模式复跑，且断网前后认出的字一样多',
+        '没有断网那一段就不算走完 B 段：离线认字正是这条链最容易断的地方'
+      )
+      check(
+        !Number.isNaN(Date.parse(ev.capturedAt ?? '')),
+        'A12 证据带着可解析的采集时间'
+      )
+    }
+  }
+}
+
 /* ============================================================ B 段 · 真机执行 */
 
 const device = {

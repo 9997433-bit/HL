@@ -1,0 +1,127 @@
+{
+  "$comment": "拍照识字真机 B 段证据的形状（ROUND14_H2）。写者只有一个：apps/literacy-app/scripts/test-ocr-device.mjs。读者有两个：scripts/check-round14.mjs 的 H2（只看 pass / onDevice / simulated），和下一轮想知道「上一次的绿灯凭什么」的人（看 rows 和 offline）。同一个脚本的 A12 段拿这份 schema 反过来校验 ocr-device-b.json：字段缺、rows 的字数加不出 recall、onDevice 和 emulator 打架，一律当红——手搓一份 pass:true 进来要连十张样张的分数一起编圆，这就是这份 schema 存在的理由。",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ocr-device-b/1",
+  "type": "object",
+  "required": [
+    "marker",
+    "schema",
+    "capturedAt",
+    "status",
+    "pass",
+    "onDevice",
+    "simulated",
+    "appId",
+    "device",
+    "samples",
+    "firstScreenCorrect",
+    "recall",
+    "rows",
+    "steps"
+  ],
+  "properties": {
+    "marker": { "const": "ROUND14_H2" },
+    "schema": { "const": "ocr-device-b/1" },
+    "capturedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["pass", "fail", "skipped"] },
+    "pass": { "type": "boolean", "$comment": "H2 硬要求 true；只有设备上十张走完且两条线都过才为 true" },
+    "onDevice": { "type": "boolean", "$comment": "H2 硬要求 true；模拟器上恒为 false" },
+    "simulated": { "type": "boolean", "$comment": "H2 硬要求非 true；模拟器上恒为 true" },
+    "emulator": { "type": "boolean", "$comment": "true 时文件名必须是 ocr-device-b.emulator.json" },
+    "exitCode": { "enum": [0, 1, 2], "$comment": "0 全绿 / 1 有断言红 / 2 SKIP（没设备、没装 App、接不进 WebView）" },
+    "appId": { "type": "string" },
+    "device": {
+      "type": "object",
+      "required": ["serial", "model", "release", "sdk", "webview"],
+      "properties": {
+        "serial": { "type": "string" },
+        "model": { "type": "string" },
+        "release": { "type": "string", "$comment": "Android 版本号" },
+        "sdk": { "type": "string", "$comment": "API level" },
+        "webview": { "type": "string", "$comment": "System WebView 版本；主版本 <91 没有 wasm SIMD" },
+        "webviewPackage": { "type": "string" },
+        "size": { "type": "string" },
+        "density": { "type": "string" },
+        "fingerprint": { "type": "string" },
+        "emulator": { "type": "boolean" }
+      }
+    },
+    "samples": { "type": "integer", "minimum": 8, "$comment": "走完的真实样张张数，与 rows 长度一致" },
+    "firstScreenCorrect": { "type": "integer", "$comment": "期望字全中的张数，引擎底线字不计；下限 9" },
+    "firstScreenFloor": { "type": "integer" },
+    "recall": {
+      "type": "object",
+      "required": ["hit", "total", "floor"],
+      "properties": {
+        "hit": { "type": "integer", "$comment": "= Σ rows[].hit" },
+        "total": { "type": "integer", "$comment": "= Σ rows[].total" },
+        "floor": { "type": "integer", "$comment": "40：与 App 侧矩阵同一条线" }
+      }
+    },
+    "coldStartMs": { "type": ["integer", "null"], "$comment": "am start -W 的 TotalTime" },
+    "peakPssKib": { "type": ["integer", "null"], "$comment": "dumpsys meminfo 的 TOTAL PSS" },
+    "offline": {
+      "type": ["object", "null"],
+      "$comment": "飞行模式下复跑一张：offlineHit 必须等于 onlineHit，否则引擎没能从 SW 缓存起来",
+      "required": ["sample", "onlineHit", "offlineHit", "total", "packFetchOk"],
+      "properties": {
+        "airplaneModeVia": { "type": "string" },
+        "sample": { "type": "string" },
+        "onlineHit": { "type": "integer" },
+        "offlineHit": { "type": "integer" },
+        "total": { "type": "integer" },
+        "packFetchOk": { "type": "boolean" }
+      }
+    },
+    "engineLimit": {
+      "type": "array",
+      "$comment": "queue.json 里 status:engine-limit 的单子；这些字丢了不算失败，但每一条都要在这里列出来",
+      "items": {
+        "type": "object",
+        "required": ["id", "sample", "chars"],
+        "properties": {
+          "id": { "type": "string" },
+          "sample": { "type": "string" },
+          "chars": { "type": "string" },
+          "reviewRound": { "type": ["integer", "null"] }
+        }
+      }
+    },
+    "rows": {
+      "type": "array",
+      "minItems": 8,
+      "items": {
+        "type": "object",
+        "required": ["name", "expect", "hit", "total", "firstScreenCorrect"],
+        "properties": {
+          "name": { "type": "string" },
+          "tier": { "type": "object" },
+          "expect": { "type": "string" },
+          "hit": { "type": "integer" },
+          "total": { "type": "integer" },
+          "missed": { "type": "string" },
+          "engineLimitAllowed": { "type": "string" },
+          "firstScreenCorrect": { "type": "boolean" },
+          "confidence": { "type": "number" },
+          "phase": { "type": "string" },
+          "ms": { "type": "integer" }
+        }
+      }
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "status", "msg"],
+        "properties": {
+          "id": { "type": "string", "$comment": "B1 设备指纹 / B2 样张 / B3 冷启 / B4 逐张认字 / B5 飞行模式" },
+          "status": { "enum": ["pass", "fail", "skip"] },
+          "msg": { "type": "string" },
+          "detail": { "type": "string" }
+        }
+      }
+    },
+    "skips": { "type": "array" },
+    "notes": { "type": "array", "$comment": "脚本做不了、留给 ANDROID-DEVICE-CHECKLIST 的人工项" }
+  }
+}
