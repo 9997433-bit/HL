@@ -1,8 +1,8 @@
 # marker: ROUND13_H6
-# command: node scripts/test-ocr-device.mjs
+# command: node scripts/test-ocr-device.mjs --section=a
 # cwd: apps/literacy-app
-# startedAt: 2026-08-28T06:05:30.913Z
-# durationMs: 28
+# startedAt: 2026-08-28T07:04:56.363Z
+# durationMs: 57
 # exit: 0
 
   ✓ A1 Capacitor appId = com.hongen.literacy
@@ -47,15 +47,13 @@
   ✓ A10 回流队列在（5 条）
   ✓ A10 关掉的单都写了根因
   ✓ A10 没有逾期单（本轮 R14）
-  ⃠ [SKIP owner: Android QA] B1 设备指纹（型号 / Android 版本 / WebView 版本 / 分辨率）
-      这台机器上没有 adb（Cursor Cloud VM 不带 Android SDK）；设备到位后执行：node scripts/test-ocr-device.mjs
-  ⃠ [SKIP owner: Android QA] B2 十张真实样张 push 到 /sdcard/Download/hongen-ocr，逐格走「相册选」
-      这台机器上没有 adb（Cursor Cloud VM 不带 Android SDK）；设备到位后执行：node scripts/test-ocr-device.mjs
-  ⃠ [SKIP owner: Android QA] B3 冷启 → /#/ocr → 首次下引擎包耗时与峰值内存
-      这台机器上没有 adb（Cursor Cloud VM 不带 Android SDK）；设备到位后执行：node scripts/test-ocr-device.mjs
-  ⃠ [SKIP owner: Android QA] B4 飞行模式下重进 /#/ocr，引擎从 SW 缓存里起来
-      这台机器上没有 adb（Cursor Cloud VM 不带 Android SDK）；设备到位后执行：飞行模式后重跑 B3
+  ✓ A11 1 条引擎底线单都指名了样张
+  ✓ A11 引擎底线单都写清了丢哪个字、为什么是引擎的边界
+  ✓ A11 引擎底线单都写了重新排期的条件（reopenIf）
+  ✓ A11 引擎底线单都挂着复核轮次（≥R15，当前口径 R16）
+  ✓ A11 底线单里的字都出自对应样张的期望文字
+  ⃠ [SKIP owner: Android QA] A12 真机 B 段证据（evidence/r14/android/ocr-device-b.json）
+      还没有任何一台设备跑过 B 段：设备到位后执行 node scripts/test-ocr-device.mjs --require-device
 
-拍照识字真机 harness [ROUND14_H2/ROUND13_H2/ROUND12_H2]：42 项通过，0 项失败，4 项 SKIP（这台机器上没有 adb（Cursor Cloud VM 不带 Android SDK））。
-SKIP 不是通过：真机那几项要由 owner 在设备上跑一遍并回填 evidence/r12/。
+拍照识字真机 harness [ROUND14_H2/ROUND13_H2/ROUND12_H2]：47 项通过，0 项失败，1 项 SKIP（--section=a：这一趟只跑 A 段）。
 
