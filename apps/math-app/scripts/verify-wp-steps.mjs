@@ -10,16 +10,20 @@
  */
 
 import assert from 'node:assert/strict'
-import { pathToFileURL } from 'node:url'
+import { existsSync } from 'node:fs'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import './register-alias.mjs'
 
 const [problemData, analysisData] = await Promise.all([
   import('../src/data/wordProblems.js'),
   import('../src/utils/wpAnalysis.js'),
 ])
+const stepContractUrl = new URL('../src/utils/wpSteps.js', import.meta.url)
+const stepContract = existsSync(fileURLToPath(stepContractUrl)) ? await import(stepContractUrl) : {}
 
 const { WORD_PROBLEMS } = problemData
 const { buildAnalysis } = analysisData
+const declaredStepsOf = stepContract.declaredSteps ?? ((template) => template.steps)
 const READY_MARKER = ['ROUND18', 'H4'].join('_')
 const TARGET_RATE = 0.9
 
@@ -35,9 +39,10 @@ export function auditWordProblemSteps(templates = WORD_PROBLEMS, sampleCount = s
 
   const rows = templates.map((template) => {
     assert.ok(template?.id, 'every word-problem template needs an id')
+    const declaredSteps = declaredStepsOf(template)
     assert.ok(
-      Number.isInteger(template.steps) && template.steps >= 1,
-      `${template.id} has invalid declared steps: ${template.steps}`,
+      Number.isInteger(declaredSteps) && declaredSteps >= 1,
+      `${template.id} has invalid declared steps: ${declaredSteps}`,
     )
     assert.equal(typeof template.make, 'function', `${template.id} has no make() function`)
 
@@ -52,9 +57,9 @@ export function auditWordProblemSteps(templates = WORD_PROBLEMS, sampleCount = s
     const actualSteps = [...observed].sort((a, b) => a - b)
     return {
       id: template.id,
-      declaredSteps: template.steps,
+      declaredSteps,
       actualSteps,
-      matches: actualSteps.length === 1 && actualSteps[0] === template.steps,
+      matches: actualSteps.length === 1 && actualSteps[0] === declaredSteps,
     }
   })
 
@@ -70,7 +75,7 @@ export function auditWordProblemSteps(templates = WORD_PROBLEMS, sampleCount = s
 }
 
 export function hasRound18StepMarker() {
-  return [problemData, analysisData].some((module) =>
+  return [problemData, analysisData, stepContract].some((module) =>
     Object.prototype.hasOwnProperty.call(module, READY_MARKER),
   )
 }
