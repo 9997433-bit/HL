@@ -18,6 +18,7 @@ import {
 import {
   BOOKS,
   ROUND12_H3,
+  ROUND13_H3,
   SCENE_BOOK_IDS,
   SCENE_ITEM_LIMIT,
   TOTAL_SCENE_PAGES,
@@ -212,16 +213,23 @@ check(
   `页级场景样板 ${SCENE_BOOK_IDS.length} 本 / ${TOTAL_SCENE_PAGES} 页（要求 ≥ 1 本且 ≥ 5 页）`
 )
 
-// ROUND12_H3：铺开的量得对得上台账。少一页就是有人的改动把场景吃掉了。
+// ROUND13_H3：铺开的量得对得上当期台账。少一页就是有人的改动把场景吃掉了。
 check(
-  SCENE_BOOK_IDS.length === ROUND12_H3.books && TOTAL_SCENE_PAGES === ROUND12_H3.pages,
-  `场景铺开与 ROUND12_H3 台账一致：${SCENE_BOOK_IDS.length}/${ROUND12_H3.books} 本、` +
-    `${TOTAL_SCENE_PAGES}/${ROUND12_H3.pages} 页`
+  SCENE_BOOK_IDS.length === ROUND13_H3.books && TOTAL_SCENE_PAGES === ROUND13_H3.pages,
+  `场景铺开与 ROUND13_H3 台账一致：${SCENE_BOOK_IDS.length}/${ROUND13_H3.books} 本、` +
+    `${TOTAL_SCENE_PAGES}/${ROUND13_H3.pages} 页`
 )
 
 check(
-  TOTAL_SCENE_PAGES >= ROUND12_H3.target,
-  `场景页 ${TOTAL_SCENE_PAGES} 页（ROUND12_H3 门槛 ≥ ${ROUND12_H3.target}）`
+  TOTAL_SCENE_PAGES >= ROUND13_H3.target,
+  `场景页 ${TOTAL_SCENE_PAGES} 页（ROUND13_H3 门槛 ≥ ${ROUND13_H3.target}）`
+)
+
+// 往轮台账当地板：场景只能往上加，退回 R12 的量说明这一轮的书被吃回了单 emoji。
+check(
+  SCENE_BOOK_IDS.length >= ROUND12_H3.books && TOTAL_SCENE_PAGES >= ROUND12_H3.pages,
+  `场景不低于 ROUND12_H3 台账：${SCENE_BOOK_IDS.length} ≥ ${ROUND12_H3.books} 本、` +
+    `${TOTAL_SCENE_PAGES} ≥ ${ROUND12_H3.pages} 页`
 )
 
 // 一百多本还没升级，退化路径不是过渡态：任何一页丢了 emoji，书架就空一格。
