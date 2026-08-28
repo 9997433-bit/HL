@@ -1,5 +1,5 @@
 /**
- * Round 14 洪恩体验对齐硬门槛（v1.0 探针）。
+ * Round 14 洪恩体验对齐硬门槛（v1.1 探针修订版）。
  * 标准：.agent_workspace/ROUND14-ACCEPTANCE.md
  *
  * 固定输出 8 个结果：H1–H8。基线（R13 集成 7/8、R14 功能未合入）预期 1/8（仅 H8 绿）。
@@ -60,6 +60,19 @@ const evidenceFileOk = (rel, minBytes = 200) => {
   }
 }
 
+const hasDeviceIdentity = (device) => {
+  if (typeof device === 'string') return device.trim().length >= 3
+  if (!device || typeof device !== 'object' || Array.isArray(device)) return false
+  return ['model', 'name', 'deviceModel', 'product'].some(
+    (key) => typeof device[key] === 'string' && device[key].trim().length >= 3
+  )
+}
+
+const referencesR13AndroidSim = (value) =>
+  /(?:\.agent_workspace\/)?evidence\/r13\/android-sim(?:\/|$)/i.test(
+    String(value).replaceAll('\\', '/')
+  )
+
 const countScenePages = async () => {
   let scenePages = 0
   try {
@@ -81,7 +94,7 @@ const countScenePages = async () => {
   return scenePages
 }
 
-/* H1 ASR 体验放行：available:true + recorded≥300 + GO 文档 + 真机 RTF 证据 + ROUND14_H1 */
+/* H1 ASR 体验放行：available:true + recorded≥300 + GO 文档 + 带设备身份的真机 RTF 证据 + ROUND14_H1 */
 {
   let available = false
   let recordedClips = 0
@@ -114,14 +127,19 @@ const countScenePages = async () => {
     /GO|go-no-go.*go|verdict.*go/i.test(releaseDoc) &&
     !/NO-GO|no-go|BLOCKED/i.test(releaseDoc.match(/操作结论|verdict|当前决策/i)?.[0] ?? releaseDoc.slice(0, 400))
 
+  const deviceRtfPath = '.agent_workspace/evidence/r14/asr/device-rtf.json'
   let deviceRtfOk = false
   try {
-    const rtf = JSON.parse(read('.agent_workspace/evidence/r14/asr/device-rtf.json'))
+    const rtf = JSON.parse(read(deviceRtfPath))
     deviceRtfOk =
+      evidenceFileOk(deviceRtfPath, 100) &&
       rtf.onDevice === true &&
+      rtf.simulated === false &&
+      hasDeviceIdentity(rtf.device) &&
       typeof rtf.rtfP95 === 'number' &&
-      rtf.rtfP95 <= 0.5 &&
-      !rtf.simulated
+      Number.isFinite(rtf.rtfP95) &&
+      rtf.rtfP95 >= 0 &&
+      rtf.rtfP95 <= 0.5
   } catch {
     deviceRtfOk = false
   }
@@ -139,22 +157,46 @@ const countScenePages = async () => {
   )
 }
 
-/* H2 OCR 体验：App≥40/41 + 真机 B 段 + 队列无逾期 + ROUND14_H2 */
+/* H2 OCR 体验：App≥40/41 非空逐例矩阵 + 真机 B 段 + 队列无逾期 + ROUND14_H2 */
 {
   let appRecall = 0
-  let appTotal = 41
+  let appTotal = 0
+  let ocrSectionOk = false
   try {
-    const sec = JSON.parse(read('.agent_workspace/evidence/r14/ocr/app-webview-matrix.json'))
-    appRecall = Number(sec.passCount ?? sec.recall ?? 0)
-    appTotal = Number(sec.total ?? 41)
+    const matrix = JSON.parse(
+      read('.agent_workspace/evidence/r14/ocr/app-webview-matrix.json')
+    )
+    const section = matrix.ocrSection ?? matrix['ocr-section']
+    const rows = Array.isArray(section)
+      ? section
+      : Array.isArray(section?.cases)
+        ? section.cases
+        : Array.isArray(section?.rows)
+          ? section.rows
+          : Array.isArray(section?.results)
+            ? section.results
+            : []
+    const validRows = rows.filter((row) => row && typeof row === 'object')
+    appTotal = validRows.length
+    appRecall = validRows.filter(
+      (row) =>
+        row.pass === true ||
+        String(row.status ?? row.result ?? '').toLowerCase() === 'pass'
+    ).length
+
+    const declaredPass = Number(section?.passCount ?? matrix.passCount)
+    const declaredTotal = Number(section?.total ?? matrix.total)
+    ocrSectionOk =
+      appTotal >= 41 &&
+      appRecall >= 40 &&
+      Number.isFinite(declaredPass) &&
+      Number.isFinite(declaredTotal) &&
+      declaredPass === appRecall &&
+      declaredTotal === appTotal
   } catch {
-    try {
-      const sim = JSON.parse(read('.agent_workspace/evidence/r13/android-sim/ocr-section.json'))
-      appRecall = Number(sim.passCount ?? sim.recall ?? 0)
-      appTotal = Number(sim.total ?? 41)
-    } catch {
-      appRecall = 0
-    }
+    appRecall = 0
+    appTotal = 0
+    ocrSectionOk = false
   }
 
   let deviceBOk = false
@@ -193,9 +235,9 @@ const countScenePages = async () => {
 
   check(
     'H2',
-    appRecall >= 40 && appTotal >= 41 && deviceBOk && queueOk && refluxOk && harnessOk,
+    ocrSectionOk && deviceBOk && queueOk && refluxOk && harnessOk,
     `H2 OCR 体验闭环：App ${appRecall}/${appTotal} + 真机 B 段 + 队列 + ROUND14_H2`,
-    `H2 OCR 体验未闭环：app=${appRecall}/${appTotal}，deviceB=${deviceBOk}，queue=${queueOk}，reflux=${refluxOk}，harness=${harnessOk} —— r14-literacy-ocr-device-b`
+    `H2 OCR 体验未闭环：app=${appRecall}/${appTotal}，ocrSection=${ocrSectionOk}，deviceB=${deviceBOk}，queue=${queueOk}，reflux=${refluxOk}，harness=${harnessOk} —— r14-literacy-ocr-device-b`
   )
 }
 
@@ -302,15 +344,17 @@ const countScenePages = async () => {
 /* H6 真机签核：evidence/r14/android 非 simulated + GO 定案 + ROUND14_H6 */
 {
   const signoffPath = '.agent_workspace/evidence/r14/android/device-signoff.json'
+  const signoffRaw = read(signoffPath)
   let signoffOk = false
   try {
-    const j = JSON.parse(read(signoffPath))
+    const j = JSON.parse(signoffRaw)
     signoffOk =
       j.pass === true &&
       j.onDevice === true &&
-      j.simulated !== true &&
+      j.simulated === false &&
       Array.isArray(j.devices) &&
-      j.devices.length >= 2
+      j.devices.length >= 2 &&
+      !referencesR13AndroidSim(signoffRaw)
   } catch {
     signoffOk = false
   }
@@ -330,12 +374,18 @@ const countScenePages = async () => {
     /真机|onDevice|不等价模拟/i.test(recordDoc) &&
     /evidence\/r14\/android/.test(recordDoc) &&
     /\bROUND14_H6\b/.test(recordDoc)
+  const noR13SimPath =
+    !referencesR13AndroidSim(decision) && !referencesR13AndroidSim(recordDoc)
 
   check(
     'H6',
-    signoffOk && decisionOk && recordOk && evidenceFileOk(signoffPath, 100),
+    signoffOk &&
+      decisionOk &&
+      recordOk &&
+      noR13SimPath &&
+      evidenceFileOk(signoffPath, 100),
     'H6 真机签核：device-signoff + GO 定案 + 签核文档 + ROUND14_H6',
-    `H6 真机未签核：signoff=${signoffOk}，decision=${decisionOk}，record=${recordOk} —— r14-android-device-matrix`
+    `H6 真机未签核：signoff=${signoffOk}，decision=${decisionOk}，record=${recordOk}，noR13SimPath=${noR13SimPath} —— r14-android-device-matrix`
   )
 }
 

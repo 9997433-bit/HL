@@ -1,6 +1,6 @@
 # Round 14 验收标准 · 洪恩体验对齐（E1–E5）
 
-> 版本：Round 14 v1.0（2026-08-28）
+> 版本：Round 14 v1.1（2026-08-28，随探针负向加固同步）
 > 依据：`.agent_workspace/ROUND14-BRIEF.md` + `round13-hongen-audit.md` §5.1 R14 尾巴
 > 配套：`.agent_workspace/acceptance-log-round14.md`、`scripts/check-round14.mjs`（H1–H8，固定 8 结果）
 > 判定原则：**体验 flip** 须孩子/家长可感知；真机 evidence 与 `simulated:true` 分目录，**禁止冒充**。
@@ -21,14 +21,22 @@
 
 | ID | 交付物 | PASS 标准 | 体验 flip |
 |---|---|---|---|
-| H1 | ASR 体验 | `available:true` + recorded≥300 + GO 文档 + 真机 RTF p95≤0.5 + `ROUND14_H1` + smoke | L-M9 ✅ |
-| H2 | OCR 体验 | App≥40/41 + 真机 B 段 JSON + 队列无逾期 + `ROUND14_H2` | L-M10 ✅ |
+| H1 | ASR 体验 | `available:true` + recorded≥300 + GO 文档 + **带 device 身份**的真机 RTF p95≤0.5 + `ROUND14_H1` + smoke | L-M9 ✅ |
+| H2 | OCR 体验 | App **逐例非空矩阵**≥40/41 + 真机 B 段 JSON + 队列无逾期 + `ROUND14_H2` | L-M10 ✅ |
 | H3 | 绘本密度 | scene≥400 + 渲染 + `ROUND14_H3` | L-M5 大幅收窄 |
 | H4 | 范唱全库 | 13/13 humanStudio 范唱 + `r14-songs-vocal-full.md` + `ROUND14_H4` | L-M11 ✅ |
 | H5 | L1 朗读 | `r14-tts-l1-batch.md` + ≥20 资产 + `ROUND14_H5_SMOKE` | X1 收窄 |
-| H6 | 真机签核 | `evidence/r14/android/device-signoff.json` + GO 定案 + `ROUND14_H6` | L-M15/M-M16 ✅ |
+| H6 | 真机签核 | `evidence/r14/android/device-signoff.json` + GO 定案 + `ROUND14_H6`；**不得引用 r13 android-sim** | L-M15/M-M16 ✅ |
 | H7 | 商店内测 | 真实 Console 回执 + `ROUND14_H7` | 发布 ✅ |
 | H8 | 往轮不退化 | round12 8/8 + round13 ≥7/8 | 链式兜底 |
+
+### 1.1 v1.1 探针接线契约
+
+`scripts/check-round14.mjs` 固定输出 H1–H8 八项；结果数异常时门禁自身 FAIL。`--json` 必须保留 `passed`、`failed`、`results[]`。v1.1 在 v1.0 基础上加三条不可由汇总数字或旧轮证据替代的实体约束：
+
+1. **H1 device RTF 实体**：只认 `.agent_workspace/evidence/r14/asr/device-rtf.json`，文件 ≥100B；须同时满足 `onDevice:true`、`simulated:false`、`rtfP95` 为有限数且 `0≤p95≤0.5`，并有非空 `device` 身份（字符串，或对象的 `model`/`name`/`deviceModel`/`product`）。只有布尔值和 p95、没有 device 身份的占位 JSON 一律 FAIL。
+2. **H2 OCR 逐例矩阵**：只认 `.agent_workspace/evidence/r14/ocr/app-webview-matrix.json`，不回退读取 R13 `android-sim`。矩阵须有 `ocrSection`（兼容键名 `ocr-section`），其本体为数组，或含 `cases`/`rows`/`results` 数组；有效对象行 ≥41，逐行 `pass:true` 或 `status/result:"pass"` ≥40，且 section/顶层声明的 `passCount`、`total` 与逐行实数完全一致。空 section 配 `40/41` 汇总不得蹭绿。
+3. **H6 真机/模拟隔离**：`device-signoff.json` 须显式 `simulated:false`；signoff、GO 定案、签核记录任一处引用 `.agent_workspace/evidence/r13/android-sim/`（或等价相对路径）即 FAIL。R13 VM 证据只能由 H8 继承验证，不得充当 R14 真机签核腿。
 
 ## 2. 体验 flip 判定表（终审用）
 
@@ -50,7 +58,7 @@
 - W5 L1 朗读：字卡听感可接受
 - W6 真机/商店：真机 evidence + Console 回执（非 BLOCKED）
 
-## 4. 基线负向预期（R13 集成 @ 7/8）
+## 4. 基线与 v1.1 负向实测（R13 集成 @ 7/8）
 
 | 探针 | 基线预期 | 原因 |
 |---|---|---|
@@ -62,3 +70,16 @@
 | H6 | FAIL | 无 r14 真机 signoff |
 | H7 | FAIL | BLOCKED 延续 |
 | H8 | PASS | round12 8/8 + round13 7/8 |
+
+**v1.0 → v1.1 正/负向抽查**（正向先补齐该 H 的其余所有腿，只改变表中攻击面）：
+
+| 伪造/对照手段 | v1.0 | v1.1 预期 |
+|---|---|---|
+| H1 正向：合规 `device-rtf.json`（device 身份 + `simulated:false`） | H1 绿 | H1 绿 |
+| H1 负向：同一 JSON 删除 `device` 身份 | H1 可绿 | `deviceRtf=false`，H1 红 |
+| H2 正向：41 条逐例结果（40 pass）且汇总相符 | H2 绿 | H2 绿 |
+| H2 负向：`ocrSection:[]` 但顶层手填 `passCount:40,total:41` | H2 可绿 | `ocrSection=false`，H2 红 |
+| H6 正向：纯 R14 真机路径 + 显式 `simulated:false` | H6 绿 | H6 绿 |
+| H6 负向：签核记录追加 `evidence/r13/android-sim/report.json` | H6 可绿 | `noR13SimPath=false`，H6 红 |
+
+逐字命令输出与退出码回填到 `.agent_workspace/r14-acceptance-probe-baseline.md`；基线仍须保持 **1/8（仅 H8）**。
