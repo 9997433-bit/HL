@@ -8,8 +8,9 @@
  *
  * ROUND10_H5 给前三首、ROUND11_H5 给前八首、ROUND12_H4 给全部十三首接入
  * 项目自制 Ogg 旋律：优先播放静态文件，加载或解码失败就自动退回
- * `playMelody()` 的 WebAudio 合成音。ROUND12_H4 还给《认字歌》接了一条 Piper
- * 离线渲染的「啦」音范唱试点；它是独立试听，不冒充中文真人演唱。
+ * `playMelody()` 的 WebAudio 合成音。ROUND12_H4 给《认字歌》接了一条 Piper
+ * 离线渲染的「啦」音范唱试点，ROUND13_H4 再扩到三首；它们是独立试听，
+ * 不冒充中文真人演唱。
  *
  * ROUND9_H1 —— 儿歌 v2 的歌词-旋律同步动画。v1 只有「唱到的那个字亮一下」，
  * 试下来有三个说不清的地方，v2 各补一件事：
@@ -307,7 +308,7 @@ function stop({ quiet = false } = {}) {
   if (!quiet) status.value = '停下来了，想唱了再点一次。'
 }
 
-/** ROUND12_H4：播放一条随包的 Piper「啦」音范唱，不依赖系统中文嗓音。 */
+/** ROUND12_H4 / ROUND13_H4：播放当前歌曲随包的 Piper「啦」音范唱。 */
 function playVocalGuide() {
   const song = open.value
   if (!song?.vocal) return

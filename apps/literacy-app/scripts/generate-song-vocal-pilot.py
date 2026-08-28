@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render the sg5 offline “la” vocal guide from a pinned Piper voice.
+"""Render an offline “la” vocal guide from a pinned Piper voice.
 
 This is a generation-only tool: neither Piper nor its voice model ships in the
 application. The checked-in Ogg is the complete runtime asset.
@@ -27,20 +27,46 @@ CONFIG_REVISION = "9f800697ad9dfc9533f9e6191d04da0ecdd204f5"
 MODEL_SHA256 = "df011f56825a59dd1efc080c38a65a1ef70407e60f63050e9246f43a3d7e471e"
 CONFIG_SHA256 = "d45dd74cbb4eca58694bf04a97e243044092476f28a55ae26424f0653086980a"
 SAMPLE_RATE = 22_050
-BPM = 88
 NOTE_HZ = {
     "C4": 261.63,
     "D4": 293.66,
     "E4": 329.63,
     "G4": 392.00,
     "A4": 440.00,
+    "C5": 523.25,
 }
-LINES = [
-    ["C4", "D4", "E4", "G4", "A4"],
-    ["A4", "G4", "E4", "D4", "C4"],
-    ["E4", "E4", "G4", "G4", "A4"],
-    ["G4", "E4", "D4", "E4", "C4"],
-]
+GUIDES = {
+    "sg1": {
+        "asset": "sg1-climb-vocal-guide.ogg",
+        "bpm": 96,
+        "lines": [
+            ["C4", "D4", "E4", "G4", "G4", "E4"],
+            ["D4", "E4", "G4", "E4", "D4", "C4"],
+            ["E4", "G4", "A4", "C5", "C5", "A4"],
+            ["G4", "E4", "D4", "E4", "D4", "C4"],
+        ],
+    },
+    "sg3": {
+        "asset": "sg3-wash-hands-vocal-guide.ogg",
+        "bpm": 92,
+        "lines": [
+            ["E4", "E4", "G4", "G4", "A4", "G4", "E4"],
+            ["D4", "D4", "E4", "E4", "G4", "E4", "D4"],
+            ["C5", "A4", "G4", "A4", "G4", "E4"],
+            ["G4", "E4", "D4", "C4", "E4", "D4", "C4"],
+        ],
+    },
+    "sg5": {
+        "asset": "sg5-literacy-vocal-pilot.ogg",
+        "bpm": 88,
+        "lines": [
+            ["C4", "D4", "E4", "G4", "A4"],
+            ["A4", "G4", "E4", "D4", "C4"],
+            ["E4", "E4", "G4", "G4", "A4"],
+            ["G4", "E4", "D4", "E4", "C4"],
+        ],
+    },
+}
 
 
 def sha256(path: Path) -> str:
@@ -128,22 +154,26 @@ def render_seed(model: Path, config: Path, output: Path) -> None:
     )
 
 
-def render_guide(seed: Path, seed_hz: float, output: Path) -> None:
+def render_guide(
+    seed: Path, seed_hz: float, output: Path, guide: dict[str, object]
+) -> None:
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
         raise SystemExit("ffmpeg with the rubberband filter is required")
 
+    lines = guide["lines"]
+    bpm = guide["bpm"]
     filters: list[str] = []
     labels: list[str] = []
-    segments = sum(len(line) for line in LINES)
+    segments = sum(len(line) for line in lines)
     filters.append(
         f"[0:a]aformat=sample_fmts=fltp:sample_rates={SAMPLE_RATE},"
         f"asplit={segments}" + "".join(f"[seed{i}]" for i in range(segments))
     )
 
-    beat = 60 / BPM
+    beat = 60 / bpm
     segment_index = 0
-    for line_index, line in enumerate(LINES):
+    for line_index, line in enumerate(lines):
         for note_index, note in enumerate(line):
             duration = beat * (2 if note_index == len(line) - 1 else 1)
             # The source is a low male voice. An octave-down transposition keeps
@@ -205,26 +235,30 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", required=True, type=Path)
     parser.add_argument("--config", required=True, type=Path)
+    parser.add_argument("--song", choices=sorted(GUIDES), default="sg5")
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path(__file__).resolve().parents[1]
-        / "public"
-        / "audio"
-        / "songs"
-        / "sg5-literacy-vocal-pilot.ogg",
     )
     args = parser.parse_args()
 
     assert_voice_files(args.model, args.config)
-    args.output.parent.mkdir(parents=True, exist_ok=True)
+    guide = GUIDES[args.song]
+    output = args.output or (
+        Path(__file__).resolve().parents[1]
+        / "public"
+        / "audio"
+        / "songs"
+        / guide["asset"]
+    )
+    output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory() as temp:
         seed = Path(temp) / "piper-la.wav"
         render_seed(args.model, args.config, seed)
         seed_hz = estimate_pitch(seed)
-        render_guide(seed, seed_hz, args.output)
+        render_guide(seed, seed_hz, output, guide)
     print(
-        f"rendered {args.output} ({args.output.stat().st_size} bytes, "
+        f"rendered {args.song} to {output} ({output.stat().st_size} bytes, "
         f"seed {seed_hz:.1f} Hz, model revision {MODEL_REVISION[:8]}, "
         f"config revision {CONFIG_REVISION[:8]})"
     )
