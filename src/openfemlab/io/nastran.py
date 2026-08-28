@@ -2,9 +2,12 @@
 
 The supported subset is one connectivity card per element block the solver
 formulates, plus the grid, material and property cards those need: ``GRID``,
-``CROD``, ``CBAR``, ``CQUAD4``, ``CTETRA``, ``CHEXA``, ``MAT1``, ``PROD``,
-``PSHELL`` and ``PSOLID``.  ``RBE2`` and ``RBE3`` cards are preserved in
-``NeutralModel.meta`` for round-trip export.  Cards may be written in free
+``CROD``, ``CBAR``, ``CTRIA3``, ``CQUAD4``, ``CTETRA``, ``CHEXA``, ``MAT1``,
+``PROD``, ``PSHELL``, ``PSOLID`` and ``PBAR``.  ``SPC1`` and ``CONM2`` import as
+supports and concentrated masses; ``FORCE`` imports as static nodal loads;
+``RBE2`` and ``RBE3`` cards are assembled
+into the solver as kinematic ties when converting to a
+:class:`~openfemlab.core.model.Model`.  Cards may be written in free
 field or in small fixed field
 and may run onto continuation lines; unsupported cards are skipped, together
 with their continuations.  ``GRID`` coordinates must use the basic coordinate
@@ -43,6 +46,7 @@ from ._common import FormatError
 _ELEMENT_CARDS: dict[str, tuple[ElementType, int]] = {
     "CROD": (ElementType.ROD2, 2),
     "CBAR": (ElementType.BEAM2, 2),
+    "CTRIA3": (ElementType.TRI3, 3),
     "CQUAD4": (ElementType.QUAD4, 4),
     "CTETRA": (ElementType.TET4, 4),
     "CHEXA": (ElementType.HEX8, 8),
@@ -54,10 +58,19 @@ _ELEMENT_CARDS: dict[str, tuple[ElementType, int]] = {
 #: can be checked this way.
 _HAS_FIXED_GRID_COUNT = frozenset({"CTETRA", "CHEXA"})
 
-_PROPERTY_CARDS = frozenset({"PSHELL", "PSOLID", "PROD"})
+_PROPERTY_CARDS = frozenset({"PSHELL", "PSOLID", "PROD", "PBAR"})
 _BULK_PRESERVE_CARDS = frozenset({"RBE2", "RBE3"})
+_CONSTRAINT_CARDS = frozenset({"SPC1"})
+_LOAD_CARDS = frozenset({"FORCE", "MOMENT"})
+_MASS_CARDS = frozenset({"CONM2"})
 _SUPPORTED_CARDS = (
-    frozenset({"GRID", "MAT1"}) | set(_ELEMENT_CARDS) | _PROPERTY_CARDS | _BULK_PRESERVE_CARDS
+    frozenset({"GRID", "MAT1"})
+    | set(_ELEMENT_CARDS)
+    | _PROPERTY_CARDS
+    | _BULK_PRESERVE_CARDS
+    | _CONSTRAINT_CARDS
+    | _LOAD_CARDS
+    | _MASS_CARDS
 )
 
 #: Block order of the emitted connectivity, so two files that declare the same
@@ -77,11 +90,10 @@ def read_bdf(source: str | PathLike[str] | TextIO) -> NeutralModel:
     ``PSHELL`` and ``PSOLID`` land in ``properties``, the shell carrying its
     ``t`` thickness so :func:`~openfemlab.io.neutral_convert.to_model` binds a
     ``CQUAD4`` at the thickness the file states.  ``PROD`` rod sections are also
-    imported into ``properties`` with an ``A`` entry.  ``RBE2`` and ``RBE3`` rigid
-    links are preserved in ``meta["bdf_preserve"]`` for lossless round-trip even
-    though they are not yet expanded into solver constraints.  Other property cards
-    such as ``PBAR`` remain outside this reader's subset, so a ``CBAR`` mesh needs
-    ``section=`` when it is converted.
+    imported into ``properties`` with an ``A`` entry.  ``PBAR`` beam sections
+    import ``A``/``I1``/``I2``/``J``.  ``RBE2`` and ``RBE3`` rigid links are
+    preserved in ``meta["bdf_preserve"]`` and assembled when converting to a
+    solver model.
     """
 
     text, source_name = _read_text(source)
@@ -93,6 +105,10 @@ def read_bdf(source: str | PathLike[str] | TextIO) -> NeutralModel:
     materials: dict[int, NeutralMaterial] = {}
     properties: dict[int, NeutralProperty] = {}
     bulk_preserve: list[list[str]] = []
+    spc1_entries: list[dict[str, object]] = []
+    force_entries: list[dict[str, object]] = []
+    moment_entries: list[dict[str, object]] = []
+    conm2_entries: list[dict[str, object]] = []
 
     for line_number, fields in _iter_cards(text):
         card = fields[0].upper()
@@ -132,13 +148,23 @@ def read_bdf(source: str | PathLike[str] | TextIO) -> NeutralModel:
                     property_ = _parse_pshell(fields)
                 elif card == "PSOLID":
                     property_ = _parse_psolid(fields)
-                else:
+                elif card == "PROD":
                     property_ = _parse_prod(fields)
+                else:
+                    property_ = _parse_pbar(fields)
                 if property_.id in properties:
                     raise FormatError(f"duplicate property id {property_.id}")
                 properties[property_.id] = property_
             elif card in _BULK_PRESERVE_CARDS:
                 bulk_preserve.append(fields)
+            elif card == "SPC1":
+                spc1_entries.append(_parse_spc1(fields))
+            elif card == "FORCE":
+                force_entries.append(_parse_force(fields))
+            elif card == "MOMENT":
+                moment_entries.append(_parse_moment(fields))
+            elif card == "CONM2":
+                conm2_entries.append(_parse_conm2(fields))
             elif card == "MAT1":
                 material = _parse_mat1(fields)
                 if material.id in materials:
@@ -154,6 +180,14 @@ def read_bdf(source: str | PathLike[str] | TextIO) -> NeutralModel:
     referenced = {
         node_id for rows in connectivity.values() for row in rows for node_id in row
     }
+    for entry in conm2_entries:
+        referenced.add(int(entry["node"]))
+    for entry in spc1_entries:
+        referenced.update(int(node_id) for node_id in entry["nodes"])
+    for entry in force_entries:
+        referenced.add(int(entry["node"]))
+    for entry in moment_entries:
+        referenced.add(int(entry["node"]))
     unknown_nodes = sorted(referenced - nodes.keys())
     if unknown_nodes:
         joined = ", ".join(str(node_id) for node_id in unknown_nodes)
@@ -184,6 +218,14 @@ def read_bdf(source: str | PathLike[str] | TextIO) -> NeutralModel:
         meta["source"] = source_name
     if bulk_preserve:
         meta["bdf_preserve"] = bulk_preserve
+    if spc1_entries:
+        meta["bdf_spc1"] = spc1_entries
+    if force_entries:
+        meta["bdf_force"] = force_entries
+    if moment_entries:
+        meta["bdf_moment"] = moment_entries
+    if conm2_entries:
+        meta["bdf_conm2"] = conm2_entries
     return NeutralModel(
         nodes=node_coordinates,
         node_ids=node_ids,
@@ -384,6 +426,107 @@ def _parse_prod(fields: list[str]) -> NeutralProperty:
     )
 
 
+def _parse_pbar(fields: list[str]) -> NeutralProperty:
+    property_id = _positive_integer(_required(fields, 1, "PID"), "PBAR PID")
+    material_id = _positive_integer(_required(fields, 2, "MID"), "PBAR MID")
+    area = _float(_required(fields, 3, "A"), "PBAR A")
+    if area <= 0.0:
+        raise FormatError("PBAR A must be positive")
+    values: dict[str, float] = {"A": area}
+    inertia_1 = _optional_float(fields, 4, "PBAR I1")
+    inertia_2 = _optional_float(fields, 5, "PBAR I2")
+    torsion = _optional_float(fields, 6, "PBAR J")
+    if inertia_1 is not None:
+        if inertia_1 < 0.0:
+            raise FormatError("PBAR I1 must be non-negative")
+        values["I1"] = inertia_1
+    if inertia_2 is not None:
+        if inertia_2 < 0.0:
+            raise FormatError("PBAR I2 must be non-negative")
+        values["I2"] = inertia_2
+    if torsion is not None:
+        if torsion < 0.0:
+            raise FormatError("PBAR J must be non-negative")
+        values["J"] = torsion
+    return NeutralProperty(
+        id=property_id,
+        material_id=material_id,
+        values=values,
+        name="PBAR",
+    )
+
+
+def _parse_spc1(fields: list[str]) -> dict[str, object]:
+    sid = _positive_integer(_required(fields, 1, "SID"), "SPC1 SID")
+    components = _required(fields, 2, "C")
+    nodes = [
+        _positive_integer(token, "SPC1 G")
+        for token in fields[3:]
+        if str(token).strip()
+    ]
+    if not nodes:
+        raise FormatError("SPC1 has no grid ids")
+    return {"sid": sid, "components": components, "nodes": nodes}
+
+
+def _parse_force(fields: list[str]) -> dict[str, object]:
+    sid = _positive_integer(_required(fields, 1, "SID"), "FORCE SID")
+    node = _positive_integer(_required(fields, 2, "G"), "FORCE G")
+    magnitude = _float(_required(fields, 4, "F"), "FORCE F")
+    direction = [0.0, 0.0, 0.0]
+    for index, key in enumerate(("N1", "N2", "N3"), start=5):
+        if len(fields) > index and str(fields[index]).strip():
+            direction[index - 5] = _float(fields[index], key)
+    norm = float(np.linalg.norm(direction))
+    if norm <= 0.0:
+        direction[0] = 1.0
+        norm = 1.0
+    direction = [component / norm for component in direction]
+    return {
+        "sid": sid,
+        "node": node,
+        "magnitude": magnitude,
+        "direction": tuple(direction),
+    }
+
+
+def _parse_moment(fields: list[str]) -> dict[str, object]:
+    sid = _positive_integer(_required(fields, 1, "SID"), "MOMENT SID")
+    node = _positive_integer(_required(fields, 2, "G"), "MOMENT G")
+    magnitude = _float(_required(fields, 4, "M"), "MOMENT M")
+    direction = [0.0, 0.0, 0.0]
+    for index, key in enumerate(("N1", "N2", "N3"), start=5):
+        if len(fields) > index and str(fields[index]).strip():
+            direction[index - 5] = _float(fields[index], key)
+    norm = float(np.linalg.norm(direction))
+    if norm <= 0.0:
+        direction[2] = 1.0
+        norm = 1.0
+    direction = [component / norm for component in direction]
+    return {
+        "sid": sid,
+        "node": node,
+        "magnitude": magnitude,
+        "direction": tuple(direction),
+    }
+
+
+def _parse_conm2(fields: list[str]) -> dict[str, object]:
+    eid = _positive_integer(_required(fields, 1, "EID"), "CONM2 EID")
+    node = _positive_integer(_required(fields, 2, "G"), "CONM2 G")
+    mass = _float(_required(fields, 4, "M"), "CONM2 M")
+    if mass < 0.0:
+        raise FormatError("CONM2 M must be non-negative")
+    inertia: dict[str, float] = {}
+    if len(fields) > 8 and str(fields[8]).strip():
+        inertia["I11"] = _float(fields[8], "CONM2 I11")
+    if len(fields) > 10 and str(fields[10]).strip():
+        inertia["I22"] = _float(fields[10], "CONM2 I22")
+    if len(fields) > 13 and str(fields[13]).strip():
+        inertia["I33"] = _float(fields[13], "CONM2 I33")
+    return {"eid": eid, "node": node, "mass": mass, "inertia": inertia}
+
+
 def _parse_mat1(fields: list[str]) -> NeutralMaterial:
     material_id = _positive_integer(_required(fields, 1, "MID"), "MAT1 MID")
     youngs_modulus = _optional_float(fields, 2, "MAT1 E")
@@ -500,6 +643,20 @@ def write_bdf(
                 f"PROD,{property_id},{property_.material_id},{area:g}"
             )
             continue
+        if property_.name == "PBAR" or (
+            "A" in property_.values and "t" not in property_.values and property_.name != "PSOLID"
+        ):
+            area = property_.values.get("A")
+            if area is None:
+                continue
+            i1 = property_.values.get("I1", property_.values.get("Iz", 0.0))
+            i2 = property_.values.get("I2", property_.values.get("Iy", 0.0))
+            torsion = property_.values.get("J", 0.0)
+            lines.append(
+                f"PBAR,{property_id},{property_.material_id},{area:g},"
+                f"{float(i1):g},{float(i2):g},{float(torsion):g}"
+            )
+            continue
         thickness = property_.values.get("t")
         if thickness is not None:
             lines.append(
@@ -509,6 +666,30 @@ def write_bdf(
             lines.append(f"PSOLID,{property_id},{property_.material_id}")
     for fields in model.meta.get("bdf_preserve", ()):
         lines.append(",".join(str(field) for field in fields))
+    for entry in model.meta.get("bdf_spc1", ()):
+        nodes = ",".join(str(int(node_id)) for node_id in entry["nodes"])
+        lines.append(f"SPC1,{int(entry['sid'])},{entry['components']},{nodes}")
+    for entry in model.meta.get("bdf_force", ()):
+        n1, n2, n3 = entry["direction"]
+        lines.append(
+            f"FORCE,{int(entry['sid'])},{int(entry['node'])},,"
+            f"{float(entry['magnitude']):g},{float(n1):g},{float(n2):g},{float(n3):g}"
+        )
+    for entry in model.meta.get("bdf_moment", ()):
+        n1, n2, n3 = entry["direction"]
+        lines.append(
+            f"MOMENT,{int(entry['sid'])},{int(entry['node'])},,"
+            f"{float(entry['magnitude']):g},{float(n1):g},{float(n2):g},{float(n3):g}"
+        )
+    for entry in model.meta.get("bdf_conm2", ()):
+        inertia = entry.get("inertia") or {}
+        lines.append(
+            f"CONM2,{int(entry['eid'])},{int(entry['node'])},,{float(entry['mass']):g}"
+            f",,,,"
+            f"{float(inertia.get('I11', 0.0)):g},,"
+            f"{float(inertia.get('I22', 0.0)):g},,,"
+            f"{float(inertia.get('I33', 0.0)):g}"
+        )
     for index, node_id in enumerate(model.node_ids):
         x, y, z = model.nodes[index]
         lines.append(f"GRID,{int(node_id)},,{x:g},{y:g},{z:g}")
@@ -516,6 +697,7 @@ def write_bdf(
     card_map = {
         ElementType.ROD2: "CROD",
         ElementType.BEAM2: "CBAR",
+        ElementType.TRI3: "CTRIA3",
         ElementType.QUAD4: "CQUAD4",
         ElementType.TET4: "CTETRA",
         ElementType.HEX8: "CHEXA",

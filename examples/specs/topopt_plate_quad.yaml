@@ -1,0 +1,32 @@
+# Round 16: 2D QUAD4 plate SIMP topology (two-element cantilever strip).
+name: quad plate topopt
+materials:
+  steel:
+    E: 2.1e11
+    density: 0.0
+    nu: 0.3
+mesh:
+  type: custom
+  dofs: [UX, UY]
+  nodes:
+    - [1, 0.0, 0.0]
+    - [2, 1.0, 0.0]
+    - [3, 1.0, 0.5]
+    - [4, 0.0, 0.5]
+    - [5, 0.0, 1.0]
+    - [6, 1.0, 1.0]
+  elements:
+    - type: quad4
+      nodes: [1, 2, 3, 4]
+      material: steel
+      thickness: 0.01
+    - type: quad4
+      nodes: [4, 3, 6, 5]
+      material: steel
+      thickness: 0.01
+supports:
+  - nodes: [1, 4, 5]
+loads:
+  - node: 6
+    dof: UY
+    magnitude: 1000.0

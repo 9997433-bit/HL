@@ -167,6 +167,85 @@ class TestDesignSpace:
         physical = space.to_physical([1.0, 1.0, 0.25])
         assert np.isclose(physical["bulge"], 0.25)
 
+    def test_shape_morph_changes_modal_frequency(self):
+        from openfemlab.core.elements import TrussElement
+        from openfemlab.core.model import DOF, Material, Model, Section
+        from openfemlab.optimization.sizing import ModalDesignEvaluator
+        from openfemlab.solver.modal import ModalSolver
+
+        steel = Material(E=2.1e11, density=7850.0)
+        section = Section(area=1e-4)
+        model = Model(dofs=(DOF.UX,))
+        model.add_nodes([(0, 0.0), (1, 1.0)])
+        model.add_element(TrussElement((0, 1), steel, section))
+        model.fix(0)
+        basis = np.zeros((2, 3))
+        basis[1, 0] = 1.0  # stretch the free end
+        space = DesignSpace(shape=[ShapeVariable("stretch", basis, lower=-0.2, upper=0.5)])
+
+        def solve(_parameters):
+            return ModalSolver(model).solve(num_modes=1)
+
+        evaluator = ModalDesignEvaluator(solve, space, geometry=model)
+        f0 = evaluator.state([0.0]).modal.frequencies[0]
+        f1 = evaluator.state([0.25]).modal.frequencies[0]
+        assert f1 < f0
+        assert model.coordinates[1, 0] == pytest.approx(1.25)
+
+    def test_truss_geometric_derivatives_match_finite_differences(self):
+        from openfemlab.core.elements import TrussElement
+        from openfemlab.core.model import DOF, Material, Model, Section
+        from openfemlab.optimization import MorphingGeometryModel, check_gradient
+        from openfemlab.optimization.responses import NaturalFrequency, Objective
+
+        steel = Material(E=2.1e11, density=0.0)
+        section = Section(area=1e-4)
+        model = Model(dofs=(DOF.UX,))
+        model.add_nodes([(0, 0.0), (1, 1.0)])
+        model.add_element(TrussElement((0, 1), steel, section))
+        model.add_point_mass(1, 1.0)
+        model.fix(0)
+        basis = np.zeros((2, 3))
+        basis[1, 0] = 1.0
+        space = DesignSpace(shape=[ShapeVariable("stretch", basis, lower=-0.1, upper=0.4)])
+        morph = MorphingGeometryModel(model, space, num_modes=1)
+        problem, evaluator = compile_sizing_problem(
+            morph,
+            space,
+            Objective(NaturalFrequency(0)),
+            geometry=model,
+        )
+        assert evaluator.analytic
+        report = check_gradient(
+            problem.objective, problem.gradient, space.x0(), steps=space.steps()
+        )
+        assert report.passed
+
+    def test_truss_stiffness_coord_derivatives_match_fd(self):
+        from openfemlab.core.elements import TrussElement
+        from openfemlab.core.model import DOF, Material, Model, Section
+
+        steel = Material(E=2.1e11, density=7850.0)
+        section = Section(area=1e-4)
+        model = Model(dofs=(DOF.UX, DOF.UY))
+        model.add_nodes([(0, 0.0, 0.0), (1, 1.0, 0.0)])
+        element = model.add_element(TrussElement((0, 1), steel, section))
+        coords = model.node_coords(element.node_ids)
+        analytic = element.stiffness_coord_derivatives(coords)
+        step = 1e-6
+        for node in range(2):
+            for axis in range(2):
+                plus = coords.copy()
+                minus = coords.copy()
+                plus[node, axis] += step
+                minus[node, axis] -= step
+                fd = (
+                    element.stiffness_matrix(plus) - element.stiffness_matrix(minus)
+                ) / (2 * step)
+                np.testing.assert_allclose(
+                    analytic[:, :, node, axis], fd, rtol=1e-6, atol=1e-8
+                )
+
     def test_rejects_duplicates_and_empty(self):
         with pytest.raises(OptimizationError):
             DesignSpace(

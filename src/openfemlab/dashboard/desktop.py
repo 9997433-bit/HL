@@ -25,10 +25,10 @@ def open_desktop_window(url: str, *, title: str = "OpenFEMLab") -> None:
     except ImportError as exc:
         raise OpenFEMLabError(
             "the desktop viewer requires pywebview; install with "
-            "'pip install pywebview' or omit --desktop"
+            "'pip install openfemlab[gui]' or omit --desktop"
         ) from exc
 
-    webview.create_window(title, url)
+    webview.create_window(title, url, width=1280, height=840, min_size=(960, 640))
     webview.start()
 
 

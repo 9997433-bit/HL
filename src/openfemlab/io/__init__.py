@@ -41,13 +41,18 @@ from ._native import (
     read_modal_result,
     read_model,
     read_test_data,
+    static_result_to_dict,
     test_data_from_dict,
     test_data_to_dict,
     write,
     write_modal_result,
     write_model,
+    write_static_result,
     write_test_data,
 )
+from .external_result import ExternalResult
+from .frd import FRDResult, read_frd
+from .geometry_map import ExternalNodeMap, map_external_to_model
 from .meshio_bridge import from_meshio, read_meshio, to_meshio, write_meshio
 from .nastran import read_bdf, read_nastran, write_bdf
 from .neutral_convert import (
@@ -57,7 +62,11 @@ from .neutral_convert import (
     neutral_to_model,
     section_from_values,
 )
+from .odb import ODBResult, extract_odb_npz, read_odb, read_odb_npz, sidecar_npz_path
 from .op2 import list_op2_tables, read_op2, read_op2_modes
+from .results_locator import ResultLocator, locate_results, read_solver_result
+from .rst import RSTResult, read_rst
+from .topology_export import DENSITY_CELL_KEY, model_to_neutral, write_topology_vtu
 from .uff import (
     UFFDataset,
     UFFFunction,
@@ -68,6 +77,7 @@ from .uff import (
     read_uff_modes,
     write_uff,
 )
+from .uff_frf import uff_function_to_frf, uff_functions_to_frf
 from .unv import (
     FE_DESCRIPTOR_TO_ELEMENT,
     UNV_ELEMENT_DATASET,
@@ -119,9 +129,11 @@ __all__ = [
     "model_from_dict",
     "read_modal_result",
     "write_modal_result",
+    "write_static_result",
     "load_modal_result",
     "save_modal_result",
     "modal_result_to_dict",
+    "static_result_to_dict",
     "modal_result_from_dict",
     "read_test_data",
     "write_test_data",
@@ -132,6 +144,26 @@ __all__ = [
     "dof_map_to_dict",
     "dof_map_from_dict",
     "dof_map_from_labels",
+    "read_frd",
+    "FRDResult",
+    "read_rst",
+    "RSTResult",
+    "read_odb",
+    "read_odb_npz",
+    "extract_odb_npz",
+    "sidecar_npz_path",
+    "ODBResult",
+    "ExternalResult",
+    "ExternalNodeMap",
+    "map_external_to_model",
+    "DENSITY_CELL_KEY",
+    "model_to_neutral",
+    "write_topology_vtu",
+    "read_solver_result",
+    "ResultLocator",
+    "locate_results",
+    "uff_function_to_frf",
+    "uff_functions_to_frf",
     "from_meshio",
     "to_meshio",
     "read_meshio",

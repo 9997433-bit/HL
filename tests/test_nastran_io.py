@@ -104,6 +104,57 @@ ENDDATA
     assert model.properties[4].material_id == 9
 
 
+def test_pbar_cards_import_section_values() -> None:
+    model = read_bdf(
+        StringIO(
+            """BEGIN BULK
+GRID,1,,0.,0.,0.
+GRID,2,,1.,0.,0.
+MAT1,1,2.1+11,,0.3,7850.
+PBAR,4,1,1.E-4,8.33E-10,8.33E-10,1.66E-9
+CBAR,10,4,1,2
+ENDDATA
+"""
+        )
+    )
+    assert model.properties[4].values["A"] == pytest.approx(1e-4)
+    assert model.properties[4].values["I1"] == pytest.approx(8.33e-10)
+    assert model.properties[4].values["J"] == pytest.approx(1.66e-9)
+    assert model.properties[4].material_id == 1
+
+
+def test_ctria3_spc1_conm2_round_trip_to_solver() -> None:
+    from openfemlab.core.model import DOF, Material
+    from openfemlab.io.neutral_convert import neutral_to_model
+
+    source = StringIO(
+        """BEGIN BULK
+GRID,1,,0.,0.,0.
+GRID,2,,1.,0.,0.
+GRID,3,,0.,1.,0.
+MAT1,1,2.1+11,,0.3,7850.
+PSHELL,1,1,0.01
+CTRIA3,10,1,1,2,3
+SPC1,1,12,1
+CONM2,99,2,,2.5
+ENDDATA
+"""
+    )
+    neutral = read_bdf(source)
+    assert ElementType.TRI3 in neutral.elements
+    assert neutral.meta["bdf_spc1"][0]["nodes"] == [1]
+    assert neutral.meta["bdf_conm2"][0]["mass"] == pytest.approx(2.5)
+    model = neutral_to_model(
+        neutral,
+        material=Material(E=2.1e11, density=7850.0, nu=0.3),
+        thickness=0.01,
+        dofs=(DOF.UX, DOF.UY),
+    )
+    assert model.is_constrained(1, DOF.UX)
+    assert model.is_constrained(1, DOF.UY)
+    assert model.point_masses[model.dof_index(2, DOF.UX)] == pytest.approx(2.5)
+
+
 def test_rbe2_cards_are_preserved_for_round_trip(tmp_path: Path) -> None:
     from openfemlab.io.nastran import write_bdf
 

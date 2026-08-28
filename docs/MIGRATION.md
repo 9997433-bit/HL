@@ -1,13 +1,13 @@
-# Migration Guide — 0.1.0 Alpha → 0.2.0 Beta
+# Migration Guide — 0.1.0 Alpha → 0.2.x
 
 This note covers breaking or behaviour-visible changes when upgrading from early
-alpha snapshots to **`0.2.0b1`** (Round 8 + Round 9 product hardening).
+alpha snapshots to **`0.2.0`** (Round 8–10 product hardening).
 
 ## Install / version pin
 
 ```bash
 python -m pip install -e ".[dev,cli,io]"
-openfemlab --version   # expect 0.2.0b1
+openfemlab --version   # expect 0.2.0
 ```
 
 PyPI publication is planned for `0.2.0`; until then install from the repository
@@ -15,9 +15,9 @@ tag or wheel artifact attached to the release PR.
 
 ## Package metadata
 
-| Item | 0.1.0 alpha | 0.2.0b1 beta |
-|------|-------------|--------------|
-| `Development Status` classifier | Alpha | **Beta** |
+| Item | 0.1.0 alpha | 0.2.0 |
+|------|-------------|-------|
+| `Development Status` classifier | Alpha | **Stable** |
 | Documented stability | “API may change anytime” | See [`STABILITY.md`](STABILITY.md) |
 | Registry | partial `verified` | **104/104 verified** |
 
@@ -34,9 +34,11 @@ New commands are additive; existing scripts keep working:
 ## BDF reader extensions
 
 - **`PROD`** rod sections import into `NeutralProperty.values["A"]`.
-- **`RBE2` / `RBE3`** cards round-trip via `NeutralModel.meta["bdf_preserve"]`.
-  They are **not** expanded into solver constraints yet; re-analysis still uses
-  the element connectivity subset.
+- **`PBAR`** beam sections import `A` / `I1` / `I2` / `J`.
+- **`RBE2`** / **`RBE3`** cards are assembled into solver kinematic ties when
+  converting with :func:`~openfemlab.io.neutral_convert.neutral_to_model`
+  (or register them with :meth:`~openfemlab.core.model.Model.tie_rbe2` /
+  :meth:`~openfemlab.core.model.Model.tie_rbe3`).
 
 If you previously ignored `PROD` as an unsupported card, update any custom
 parsers that counted it as “skipped bulk data”.

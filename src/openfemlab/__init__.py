@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-__version__ = "0.2.0b1"
+__version__ = "0.3.3"
 
 #: Public name -> defining submodule, resolved on first attribute access.
 _EXPORTS: dict[str, str] = {
@@ -37,6 +37,7 @@ _EXPORTS: dict[str, str] = {
     "BeamElement2D": "openfemlab.core.elements",
     "BeamElement3D": "openfemlab.core.elements",
     "Quad4Element": "openfemlab.core.elements",
+    "Tri3Element": "openfemlab.core.elements",
     "Tet4Element": "openfemlab.core.elements",
     "plane_constitutive_matrix": "openfemlab.core.elements",
     "solid_constitutive_matrix": "openfemlab.core.elements",

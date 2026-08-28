@@ -20,11 +20,16 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "opt3": "Correlate model vs measured modal data",
         "opt4": "Update model parameters from measurements",
         "opt5": "Build an HTML report from a JSON artifact",
-        "opt6": "Open the Web results dashboard (serve)",
+        "opt6": "Open the desktop CAE shell (desktop)",
         "opt7": "Initialize a CAE project workspace",
         "opt8": "Run the six-stage correction pipeline",
         "opt9": "SDM stiffness spring scan",
-        "opt10": "Show command cheat sheet",
+        "opt10": "Correlate FRF (measured vs synthesized)",
+        "opt11": "Run a performance benchmark",
+        "opt12": "Static analysis (YAML/JSON model file)",
+        "opt13": "MPE extract from measured UFF FRF",
+        "opt14": "Show command cheat sheet",
+        "opt15": "SIMP topology optimization (topopt)",
         "opt0": "Exit",
         "goodbye": "Goodbye.",
         "choice": "Choice",
@@ -39,6 +44,12 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "project_dir": "Project directory [.]",
         "pipeline_config": "Pipeline configuration path",
         "sdm_model": "Model spec for SDM scan",
+        "frf_measured": "Measured FRF path (UFF/UNV)",
+        "frf_model": "Damped model spec path",
+        "bench_case": "Benchmark case [modal]",
+        "static_model": "Model spec path for static analysis",
+        "topopt_model": "Model spec path for topology optimization",
+        "mpe_frf": "Measured FRF path (UFF/UNV)",
         "running": "Running: openfemlab {}",
         "unknown": "Unknown choice: {choice!r}",
         "cheat_heading": "CLI cheat sheet",
@@ -51,11 +62,16 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "opt3": "相关分析：模型 vs 实测模态",
         "opt4": "模型修正：根据测量更新参数",
         "opt5": "由 JSON 生成 HTML 报告",
-        "opt6": "打开 Web 结果查看器（serve）",
+        "opt6": "打开桌面 CAE 壳层（desktop）",
         "opt7": "初始化 CAE 项目工作区",
         "opt8": "六阶段修正流水线（pipeline）",
         "opt9": "SDM 刚度弹簧扫描",
-        "opt10": "命令速查表",
+        "opt10": "FRF 相关（实测 vs 合成）",
+        "opt11": "性能基准（bench）",
+        "opt12": "静力分析（YAML/JSON 模型文件）",
+        "opt13": "MPE 提取（UFF 实测 FRF）",
+        "opt14": "命令速查表",
+        "opt15": "SIMP 拓扑优化（topopt）",
         "opt0": "退出",
         "goodbye": "再见。",
         "choice": "选项",
@@ -70,6 +86,12 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "project_dir": "项目目录 [.]",
         "pipeline_config": "流水线配置路径",
         "sdm_model": "SDM 扫描模型规格",
+        "frf_measured": "实测 FRF 路径（UFF/UNV）",
+        "frf_model": "阻尼模型规格路径",
+        "bench_case": "基准用例 [modal]",
+        "static_model": "静力分析模型规格路径",
+        "topopt_model": "拓扑优化模型规格路径",
+        "mpe_frf": "实测 FRF 路径（UFF/UNV）",
         "running": "正在运行: openfemlab {}",
         "unknown": "未知选项: {choice!r}",
         "cheat_heading": "命令速查",
@@ -82,12 +104,16 @@ _CHEAT_SHEET = [
     "openfemlab modal model.yaml -n 8",
     "openfemlab correlate model.yaml measured.yaml",
     "openfemlab correlate model.yaml measured.yaml -o report.json --format json",
+    "openfemlab correlate-frf measured.unv model.yaml",
     "openfemlab report report.json -o report.html --open",
     "openfemlab serve --root . --file reports/corr.json --open",
     "openfemlab update updating.yaml -o model.updated.yaml",
     "openfemlab pipeline run pipeline.yaml --strict",
     "openfemlab sdm scan model.yaml",
-    "openfemlab correlate-frf measured.unv model.yaml",
+    "openfemlab bench modal",
+    "openfemlab static model.yaml",
+    "openfemlab topopt model.yaml --filter-radius 0.35 --heaviside-beta 32",
+    "openfemlab mpe extract measured.unv",
     "openfemlab info",
     "pip install 'openfemlab[cli,plot,io]'",
 ]
@@ -137,6 +163,11 @@ def run(args: argparse.Namespace, reporter: Reporter) -> int:
         reporter.line(f"  8  {msg['opt8']}")
         reporter.line(f"  9  {msg['opt9']}")
         reporter.line(f" 10  {msg['opt10']}")
+        reporter.line(f" 11  {msg['opt11']}")
+        reporter.line(f" 12  {msg['opt12']}")
+        reporter.line(f" 13  {msg['opt13']}")
+        reporter.line(f" 14  {msg['opt14']}")
+        reporter.line(f" 15  {msg['opt15']}")
         reporter.line(f"  0  {msg['opt0']}")
         choice = _prompt(msg["choice"], reporter)
 
@@ -181,7 +212,7 @@ def run(args: argparse.Namespace, reporter: Reporter) -> int:
             dest = _prompt(msg["html_out"], reporter) or f"{Path(source).stem}.html"
             return _delegate(["report", source, "-o", dest], reporter, msg)
         if choice == "6":
-            return _delegate(["serve", "--open"], reporter, msg)
+            return _delegate(["desktop", "--browser"], reporter, msg)
         if choice == "7":
             directory = _prompt(msg["project_dir"], reporter) or "."
             return _delegate(["project", "init", directory], reporter, msg)
@@ -196,8 +227,36 @@ def run(args: argparse.Namespace, reporter: Reporter) -> int:
                 continue
             return _delegate(["sdm", "scan", model], reporter, msg)
         if choice == "10":
+            measured = _prompt(msg["frf_measured"], reporter)
+            model = _prompt(msg["frf_model"], reporter)
+            if not measured or not model:
+                continue
+            return _delegate(["correlate-frf", measured, model], reporter, msg)
+        if choice == "11":
+            case = _prompt(msg["bench_case"], reporter) or "modal"
+            return _delegate(["bench", case], reporter, msg)
+        if choice == "12":
+            model = _prompt(msg["static_model"], reporter)
+            if not model:
+                continue
+            return _delegate(["static", model], reporter, msg)
+        if choice == "13":
+            measured = _prompt(msg["mpe_frf"], reporter)
+            if not measured:
+                continue
+            return _delegate(["mpe", "extract", measured], reporter, msg)
+        if choice == "14":
             _cheat_sheet(reporter, msg)
             continue
+        if choice == "15":
+            model = _prompt(msg["topopt_model"], reporter)
+            if not model:
+                continue
+            return _delegate(
+                ["topopt", model, "--filter-radius", "0.35", "--max-iter", "30"],
+                reporter,
+                msg,
+            )
         reporter.warning(msg["unknown"].format(choice=choice))
 
 

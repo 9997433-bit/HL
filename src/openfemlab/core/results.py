@@ -15,6 +15,7 @@ that only know frequencies and shapes leave those fields empty.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -28,7 +29,7 @@ from openfemlab.exceptions import SolverError
 if TYPE_CHECKING:
     from openfemlab.core.assembly import AssembledSystem
 
-__all__ = ["NORMALIZATIONS", "RIGID_BODY_TOL", "ModalResult", "TestData"]
+__all__ = ["NORMALIZATIONS", "RIGID_BODY_TOL", "ModalResult", "StaticResult", "TestData"]
 
 #: Mode-shape scalings a producer may report through ``ModalResult.normalization``.
 NORMALIZATIONS = ("mass", "max", "none")
@@ -284,6 +285,72 @@ class ModalResult:
         lo = float(self.frequencies[0]) if self.n_modes else float("nan")
         hi = float(self.frequencies[-1]) if self.n_modes else float("nan")
         return f"ModalResult(n_modes={self.n_modes}, f=[{lo:.4g}..{hi:.4g}] Hz)"
+
+
+class StaticResult:
+    """Static displacement solution of ``K u = f`` with constrained DOFs fixed at zero.
+
+    ``displacements`` spans the full model DOF space (zeros at constrained DOFs).
+    Attach ``system`` to recover reaction forces and total strain energy.
+    """
+
+    __slots__ = ("displacements", "load_vector", "dof_map", "meta", "free_dofs", "system")
+
+    def __init__(
+        self,
+        displacements: npt.ArrayLike,
+        *,
+        load_vector: npt.ArrayLike | None = None,
+        dof_map: DofMap | None = None,
+        meta: dict[str, Any] | None = None,
+        free_dofs: npt.ArrayLike | None = None,
+        system: AssembledSystem | None = None,
+    ) -> None:
+        self.displacements = np.asarray(displacements, dtype=float).reshape(-1)
+        self.load_vector = (
+            np.zeros_like(self.displacements)
+            if load_vector is None
+            else np.asarray(load_vector, dtype=float).reshape(-1)
+        )
+        if self.displacements.shape != self.load_vector.shape:
+            raise ValueError("displacements and load_vector must have the same length")
+        self.dof_map = dof_map
+        self.meta = dict(meta or {})
+        self.free_dofs = (
+            None if free_dofs is None else np.asarray(free_dofs, dtype=int).reshape(-1)
+        )
+        self.system = system
+
+    @property
+    def ndof(self) -> int:
+        return int(self.displacements.size)
+
+    @property
+    def strain_energy(self) -> float:
+        """Quadratic strain energy ``0.5 u^T K u`` when ``system`` is attached."""
+        if self.system is None:
+            raise SolverError("strain_energy requires the assembled system on the result")
+        u = self.displacements
+        return float(0.5 * u @ (self.system.K @ u))
+
+    def with_dof_map(
+        self, dof_map: DofMap, *, meta: Mapping[str, Any] | None = None
+    ) -> StaticResult:
+        merged = dict(self.meta)
+        if meta:
+            merged.update(meta)
+        return StaticResult(
+            self.displacements,
+            load_vector=self.load_vector,
+            dof_map=dof_map,
+            meta=merged,
+            free_dofs=self.free_dofs,
+            system=self.system,
+        )
+
+    def __repr__(self) -> str:
+        peak = float(np.max(np.abs(self.displacements))) if self.ndof else float("nan")
+        return f"StaticResult(ndof={self.ndof}, max|u|={peak:.4g})"
 
 
 @dataclass(slots=True)

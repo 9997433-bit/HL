@@ -1,3 +1,328 @@
+# OpenFEMLab vs FEMtools — SOTA Gap Analysis (Round 20 refresh)
+
+**Auditor:** Cloud Agent · **Date:** 2026-08-28 UTC  
+**Snapshot:** branch `cursor/round20-desktop-gui-7aa3`, release **`0.3.3`**  
+**Registry:** **104/104** acceptance criteria `verified`
+
+## Round 20 executive summary
+
+Round 20 delivers a commercial-style desktop shell on top of the existing dashboard:
+project navigation, one-click workflows, a job console, and native-window hosting.
+
+| Priority | Theme | Outcome |
+|----------|-------|---------|
+| P0 | Desktop GUI | `openfemlab desktop`, `/desktop` app shell, pywebview window |
+| P0 | Workflow runner | `POST /api/run`, job polling, modal/correlate/pipeline presets |
+| P1 | Project UX | `/api/list`, `/api/project`, sample measurement on `project init` |
+
+### Remaining intentional gaps
+
+| Gap | Status |
+|-----|--------|
+| DAQ hardware runtime | **Deferred** |
+| Full FE pre-processor / mesh editor | **Deferred** — file/spec workflow by design |
+| Installer (.msi/.deb/AppImage) | **Deferred** — `pip install openfemlab[gui]` for now |
+
+---
+
+# OpenFEMLab vs FEMtools — SOTA Gap Analysis (Round 19 refresh)
+
+**Auditor:** Cloud Agent · **Date:** 2026-08-28 UTC  
+**Snapshot:** branch `cursor/round19-mma-superelement-7aa3`, release **`0.3.2`**  
+**Registry:** **104/104** acceptance criteria `verified`
+
+## Round 19 executive summary
+
+Round 19 closes the two main R18 deferrals: MMA topology updates and Craig-Bampton
+superelement export.
+
+| Priority | Theme | Outcome |
+|----------|-------|---------|
+| P0 | MMA topology | `optimization/mma.py`, `run_simp_topology(optimizer="mma")`, `topopt --optimizer mma` |
+| P0 | Superelement export | `write_superelement_npz`, `reduce cms --output`, `SuperelementBundle` |
+| P1 | BDF loads | `MOMENT` card import/export alongside `FORCE` |
+
+### Remaining intentional gaps
+
+| Gap | Status |
+|-----|--------|
+| DAQ / desktop GUI | **Deferred** |
+| Full Nastran load/card long-tail | **Partial** — FORCE/MOMENT shipped; broader deck support deferred |
+
+---
+
+# OpenFEMLab vs FEMtools — SOTA Gap Analysis (Round 18 refresh)
+
+**Auditor:** Cloud Agent · **Date:** 2026-08-28 UTC  
+**Snapshot:** branch `cursor/round18-cms-stress-7aa3`, release **`0.3.1`**  
+**Registry:** **104/104** acceptance criteria `verified`
+
+## Round 18 executive summary
+
+Round 18 completes the two main R17 deferrals: full Craig-Bampton CMS and a
+first stress-aware SIMP path.
+
+| Priority | Theme | Outcome |
+|----------|-------|---------|
+| P0 | Craig-Bampton CMS | Fixed-interface modes, `reduced_craig_bampton_matrices`, `reduce cms` CLI |
+| P0 | Stress topology | p-norm von Mises constraint, `--stress-limit` on `topopt` |
+| P1 | API | `optimization/stress.py`, extended `TopologyResult.stress_history` |
+
+### Remaining intentional gaps
+
+| Gap | Status |
+|-----|--------|
+| DAQ / desktop GUI | **Deferred** |
+| MMA optimizer for topology | **Deferred** — OC + stress penalty shipped |
+| Full CB superelement export | **Partial** — reduced K/M reported, no superelement file yet |
+
+---
+
+# OpenFEMLab vs FEMtools — SOTA Gap Analysis (Round 17 refresh)
+
+**Auditor:** Cloud Agent · **Date:** 2026-08-28 UTC  
+**Snapshot:** branch `cursor/round17-full-closure-7aa3`, release **`0.3.0`**  
+**Registry:** **104/104** acceptance criteria `verified`
+
+## Round 17 executive summary
+
+Round 17 closes the four post-R16 themes in one release: topology productization,
+0.3.0 delivery, I/O long-tail, and CI/ROM differentiation.
+
+| Priority | Theme | Outcome |
+|----------|-------|---------|
+| P0 | Topology product | Multi-load SIMP, VTU density export, wizard/dashboard topopt |
+| P0 | 0.3.0 release | Examples 14, multi-load specs, docs bump |
+| P1 | I/O long-tail | `map_external_to_model`, `ResultLocator.load_for_model` |
+| P1 | Differentiation | Golden correlation CI test, Craig-Bampton CMS skeleton |
+
+### Remaining intentional gaps
+
+| Gap | Status |
+|-----|--------|
+| DAQ hardware / ARTeMIS runtime | **Deferred** |
+| Desktop-grade GUI product | **Deferred** — CLI + Web by design |
+| Full CB fixed-interface modes | **Closed** — Round 18 CMS basis |
+| Stress-constrained topology | **Partial** — p-norm von Mises penalty (Round 18) |
+
+**Verdict:** OpenFEMLab `0.3.0` is the integration release for R14–R17: scripted
+workflow parity with FEMtools plus open CI-native topology and result mapping.
+
+---
+
+# OpenFEMLab vs FEMtools — SOTA Gap Analysis (Round 16 refresh)
+
+**Auditor:** Cloud Agent · **Date:** 2026-08-28 UTC  
+**Snapshot:** branch `cursor/round16-heaviside-topology-spec-7aa3`, release **`0.2.6`**  
+**Registry:** **104/104** acceptance criteria `verified`
+
+## Round 16 executive summary
+
+Round 16 adds Heaviside projection for sharper SIMP layouts and ships
+declarative 3D topology CLI specs:
+
+| Priority | Theme | Outcome |
+|----------|-------|---------|
+| P0 | Heaviside projection | `heaviside_projection`, continuation beta, OC chain rule |
+| P0 | 3D CLI specs | `tet_block` / `hex_block` mesh types + example YAML |
+| P1 | Workflow | `examples/13_topopt_3d_workflow.py`, `topopt --heaviside-beta` |
+
+### Remaining intentional gaps
+
+| Gap | Status |
+|-----|--------|
+| DAQ hardware / ARTeMIS runtime | **Deferred** — file workflow only |
+| Desktop-grade GUI product | **Deferred** — CLI + Web by design |
+| Robust topology (multi-load / stress constraints) | **Deferred** — compliance SIMP shipped |
+| ODB without any Abaqus install | **Partial** — requires sidecar NPZ or local Abaqus for first extract |
+
+**Verdict:** Topology optimization now supports filter → Heaviside projection and
+declarative 3D cantilever specs for `openfemlab topopt`.
+
+---
+
+# OpenFEMLab vs FEMtools — SOTA Gap Analysis (Round 15 refresh)
+
+**Auditor:** Cloud Agent · **Date:** 2026-08-28 UTC  
+**Snapshot:** branch `cursor/round15-topology-filter-7aa3`, release **`0.2.5`**  
+**Registry:** **104/104** acceptance criteria `verified`
+
+## Round 15 executive summary
+
+Round 15 extends the Round 14 SIMP topology path to 3D solids and adds the
+standard Sigmund density filter for mesh-independent designs:
+
+| Priority | Theme | Outcome |
+|----------|-------|---------|
+| P0 | 3D SIMP topology | `element_volumes()` for TET4/HEX8; 3D `topopt` runs |
+| P0 | Density filter | `build_density_filter`, `apply_density_filter`, `--filter-radius` |
+| P1 | Sensitivity chain rule | Filtered OC updates via `filter_sensitivities` |
+
+### Remaining intentional gaps
+
+| Gap | Status |
+|-----|--------|
+| DAQ hardware / ARTeMIS runtime | **Deferred** — file workflow only |
+| Desktop-grade GUI product | **Deferred** — CLI + Web by design |
+| Heaviside projection / robust topology | **Closed** — Sigmund projection + continuation (Round 16) |
+| ODB without any Abaqus install | **Partial** — requires sidecar NPZ or local Abaqus for first extract |
+
+**Verdict:** OpenFEMLab topology optimization now spans 2D shells/plates and
+3D TET4/HEX8 solids with optional density filtering.
+
+---
+
+# OpenFEMLab vs FEMtools — SOTA Gap Analysis (Round 14 refresh)
+
+**Auditor:** Cloud Agent · **Date:** 2026-08-28 UTC  
+**Snapshot:** branch `cursor/round14-topology-native-io-7aa3`, release **`0.2.4`**  
+**Registry:** **104/104** acceptance criteria `verified`
+
+## Round 14 executive summary
+
+Round 14 closes the last two user-requested deferred items that remain
+implementable without a full commercial desktop shell:
+
+| Priority | Theme | Outcome |
+|----------|-------|---------|
+| P0 | SIMP topology | `run_simp_topology`, `openfemlab topopt`, OC + penalization |
+| P0 | Native RST | `read_rst` via optional `ansys-mapdl-reader` (no live licence) |
+| P0 | Native ODB | `read_odb` with sidecar NPZ + Abaqus-Python extraction path |
+| P1 | Result routing | `read_solver_result` / `ResultLocator.load()` unify FRD/RST/ODB |
+
+### Remaining intentional gaps
+
+| Gap | Status |
+|-----|--------|
+| DAQ hardware / ARTeMIS runtime | **Deferred** — file workflow only |
+| Desktop-grade GUI product | **Deferred** — CLI + Web by design |
+| ODB without any Abaqus install | **Partial** — requires sidecar NPZ or local Abaqus for first extract |
+
+**Verdict:** OpenFEMLab now covers sizing, shape (morph), **topology (SIMP)**,
+and native displacement import for CalculiX/FRD, Ansys/RST, and Abaqus/ODB.
+
+---
+
+# OpenFEMLab vs FEMtools — SOTA Gap Analysis (Round 13 refresh)
+
+**Auditor:** Cloud Agent · **Date:** 2026-08-28 UTC  
+**Snapshot:** branch `cursor/round13-workflow-closure-7aa3`, release **`0.2.3`**  
+**Registry:** **104/104** acceptance criteria `verified`
+
+## Round 13 executive summary
+
+Round 13 implements the user-requested workflow gaps that remain code-finishable
+without DAQ hardware, ARTeMIS DLLs, or native Ansys/Abaqus binary readers:
+
+| Priority | Theme | Outcome |
+|----------|-------|---------|
+| P0 | FORCE / static | `StaticSolver`, `Model.add_nodal_load`, BDF `FORCE`, `openfemlab static` |
+| P0 | UFF → MPE | `uff_frf` bridge + `openfemlab mpe extract` + example 12 |
+| P1 | Shell `dK/da` | `Tri3Element` / `Quad4Element` `stiffness_coord_derivatives` |
+| P1 | RSM surrogates | `optimization/rsm.py` quadratic least-squares RSM |
+| P1 | External results | CalculiX `read_frd` + `results_locator` (.frd/.op2/.odb/.rst) |
+| P2 | CLI + Web | Wizard static/MPE menus; dashboard static deformation view |
+
+### Remaining intentional / deferred gaps
+
+| Gap | Status |
+|-----|--------|
+| DAQ hardware / ARTeMIS runtime | **Deferred** — file workflow only (UFF→MPE) |
+| Topology optimization / SIMP | **Deferred** — RSM screening shipped |
+| Native `.rst` / `.odb` parsers | **Deferred** — locator + FRD + meshio/subprocess |
+| Full commercial Nastran card set | **Partial** — industrial subset grows each release |
+
+**Verdict:** Scripted workflow parity extends to static loads, measured FRF
+extraction, surrogate screening, and CalculiX/Abaqus-adjacent result discovery.
+
+---
+
+# OpenFEMLab vs FEMtools — SOTA Gap Analysis (Round 12 refresh)
+
+**Auditor:** Cloud Agent · **Date:** 2026-08-28 UTC  
+**Snapshot:** branch `cursor/round12-parity-closure-7aa3`, release **`0.2.2`**  
+**Registry:** **104/104** acceptance criteria `verified`
+
+## Round 12 executive summary
+
+Round 12 closes the last **code-finishable** industrial gaps that do not
+require DAQ hardware, ARTeMIS, or a commercial solver licence:
+
+| Priority | Theme | Outcome |
+|----------|-------|---------|
+| P0 | TRI3 membrane | `Tri3Element` + `CTRIA3` BDF R/W + `neutral_to_model` |
+| P0 | BDF SPC1 / CONM2 | Parsed into meta and applied as `fix` / point mass |
+| P1 | Geometric `dK/da` | Analytic truss derivatives + `MorphingGeometryModel` |
+| P1 | External drivers | `dry_run` argv contracts for Nastran/Ansys/Abaqus |
+
+### Remaining intentional / deferred gaps
+
+| Gap | Status |
+|-----|--------|
+| DAQ hardware / ARTeMIS | **Intentional** — out of scope |
+| Desktop-grade GUI product | **Deferred** — CLI + Web viewer by design |
+| Topology optimization / RSM surrogates | **Deferred** |
+| Analytic `dK/da` for shells/solids | **Deferred** — truss done; remesh+FD elsewhere |
+| Native Ansys/Abaqus result readers | **Deferred** — subprocess drivers + meshio geometry |
+| FORCE / static load path | **Deferred** — modal platform first |
+| Full commercial Nastran card set | **Partial** — industrial subset grows each release |
+
+**Verdict:** For the FEMtools-style *scripted* workflow (import → modal →
+correlate → update → validate → size/shape), OpenFEMLab is at practical
+parity.  Remaining gaps are product-form and licence-local integrations, not
+missing core analysis capabilities.
+
+---
+
+# OpenFEMLab vs FEMtools — SOTA Gap Analysis (Round 11 refresh)
+
+**Auditor:** Cloud Agent · **Date:** 2026-08-27 UTC  
+**Snapshot:** branch `cursor/round11-gap-closure-7aa3`, release **`0.2.0` + Round 11**  
+**Registry:** **104/104** acceptance criteria `verified`  
+**Companion documents:** `ARCHITECTURE.md`, `MODULE_SPEC.md`, `ACCEPTANCE_CRITERIA.md`,
+`STABILITY.md`, `MIGRATION.md`.
+
+---
+
+## Round 11 executive summary
+
+OpenFEMLab's FEMtools-style **core workflow is at parity** for scripted/CI use
+(model → modal → correlate → update → validate).  Round 11 closes the largest
+remaining industrial MPC gap (`RBE3`), wires shape morphing into design
+evaluation, imports `PBAR`, and hardens the external Nastran OP2 readback path.
+
+| Priority | Theme | Round 11 outcome |
+|----------|-------|------------------|
+| P0 | RBE3 in solver | `tie_rbe3` + `apply_rbe3_from_neutral` + `MpcReduction` |
+| P1 | Shape morph eval | `ModalDesignEvaluator(geometry=...)` remeshes before solve |
+| P1 | BDF `PBAR` | Imported into `NeutralProperty` (`A`/`I1`/`I2`/`J`) |
+| P1 | External OP2 loop | Example 07 locates `.op2` and calls `read_op2_modes` when present |
+| P2 | Wizard UX | FRF correlation + bench menu entries |
+
+### Remaining intentional / deferred gaps
+
+| Gap | Status |
+|-----|--------|
+| DAQ hardware / ARTeMIS | Intentional — out of scope |
+| Ansys/Abaqus native result drivers | Partial — subprocess drivers; meshio geometry |
+| Analytic geometric `dK/da` | Deferred — FD via remesh works |
+| Topology optimization / RSM | Deferred |
+| TRI3 formulation / CTRIA3 | Deferred |
+| Full Nastran licence corpus CI | Opt-in via `OPENFEMLAB_OP2_CORPUS` |
+
+### Gap register — current status (selected)
+
+| ID | Was | Now |
+|----|-----|-----|
+| GAP-01 | Dual model contracts | **Closed** |
+| GAP-03 | No UFF/BDF | **Closed** — UFF-55/58, BDF subset + OP2 |
+| GAP-06 | No MPE | **Closed** — LSCF + SSI-COV |
+| — | RBE in solver | **Closed** — RBE2 (R10) + RBE3 (R11) |
+| — | Shape morph evaluation | **Partial** — remesh + FD; no analytic `dK/da` |
+| — | External Nastran OP2 loop | **Partial** — driver + readback when OP2 exists; licence-local |
+
+---
+
 # OpenFEMLab vs FEMtools — SOTA Gap Analysis (Round 9 refresh)
 
 **Auditor:** Cloud Agent · **Date:** 2026-08-27 UTC  

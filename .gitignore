@@ -9,3 +9,5 @@ build/
 dist/
 .corpus/
 nastran_run/
+example14_*.json
+example14_*.vtu

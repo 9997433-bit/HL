@@ -189,6 +189,9 @@ class Model:
     _elements: list = field(default_factory=list, init=False, repr=False)
     _constrained: set[int] = field(default_factory=set, init=False, repr=False)
     _point_masses: dict[int, float] = field(default_factory=dict, init=False, repr=False)
+    _nodal_loads: dict[int, float] = field(default_factory=dict, init=False, repr=False)
+    _rbe2_ties: list = field(default_factory=list, init=False, repr=False)
+    _rbe3_ties: list = field(default_factory=list, init=False, repr=False)
 
     def __post_init__(self) -> None:
         self.dofs = _parse_dofs(self.dofs)
@@ -360,6 +363,96 @@ class Model:
             mask[self.constrained_dofs] = False
         return np.flatnonzero(mask)
 
+    # ---------------------------------------------------------- MPC / RBE2
+
+    @property
+    def rbe2_ties(self) -> tuple:
+        """Registered :class:`~openfemlab.core.mpc.RBE2Tie` instances."""
+        return tuple(self._rbe2_ties)
+
+    @property
+    def rbe3_ties(self) -> tuple:
+        """Registered :class:`~openfemlab.core.mpc.RBE3Tie` instances."""
+        return tuple(self._rbe3_ties)
+
+    def tie_rbe2(
+        self,
+        master: Hashable,
+        slaves: Iterable[Hashable],
+        *,
+        components: Iterable[DOF | str | int] | None = None,
+        eid: Hashable | None = None,
+    ):
+        """Register a Nastran-style RBE2 rigid link on ``master``."""
+        from .mpc import RBE2Tie
+
+        slave_tuple = tuple(slaves)
+        if not slave_tuple:
+            raise ModelError("RBE2 requires at least one slave node")
+        if components is None:
+            tied = self.dofs
+        else:
+            tied = _parse_dofs(components)
+        tie = RBE2Tie(master=master, slaves=slave_tuple, components=tied, eid=eid)
+        self._rbe2_ties.append(tie)
+        return tie
+
+    def tie_rbe3(
+        self,
+        dependent: Hashable,
+        independents: Iterable[Hashable],
+        *,
+        components: Iterable[DOF | str | int] | None = None,
+        weight: float = 1.0,
+        independent_components: Iterable[DOF | str | int] | None = None,
+        eid: Hashable | None = None,
+    ):
+        """Register a Nastran-style RBE3 weighted interpolation on ``dependent``.
+
+        The single-group form expresses each dependent component as the average
+        of the same component on ``independents`` (weight ``weight``).
+        """
+        from .mpc import RBE3Group, RBE3Tie
+
+        independent_tuple = tuple(independents)
+        if not independent_tuple:
+            raise ModelError("RBE3 requires at least one independent node")
+        if weight <= 0.0:
+            raise ModelError("RBE3 weight must be positive")
+        dependent_dofs = self.dofs if components is None else _parse_dofs(components)
+        independent_dofs = (
+            dependent_dofs
+            if independent_components is None
+            else _parse_dofs(independent_components)
+        )
+        tie = RBE3Tie(
+            dependent=dependent,
+            dependent_components=dependent_dofs,
+            groups=(
+                RBE3Group(
+                    weight=float(weight),
+                    components=independent_dofs,
+                    independents=independent_tuple,
+                ),
+            ),
+            eid=eid,
+        )
+        self._rbe3_ties.append(tie)
+        return tie
+
+    def set_node_coordinates(self, coordinates) -> None:
+        """Replace nodal coordinates in DOF numbering order (shape morphing)."""
+        coords = np.asarray(coordinates, dtype=float)
+        nodes = self.nodes
+        if coords.ndim != 2 or coords.shape[0] != len(nodes) or coords.shape[1] > 3:
+            raise ModelError(
+                f"coordinates must have shape ({len(nodes)}, <=3), got {coords.shape}"
+            )
+        for node, row in zip(nodes, coords, strict=True):
+            padded = np.zeros(3, dtype=float)
+            padded[: row.size] = row
+            object.__setattr__(node, "coords", padded)
+
     # ----------------------------------------------------- concentrated mass
 
     def add_point_mass(self, node_id: Hashable, mass: float, dofs=None) -> None:
@@ -400,6 +493,69 @@ class Model:
             vector[index] += value
         return vector
 
+    # ---------------------------------------------------------- static loads
+
+    def add_nodal_load(
+        self,
+        node_id: Hashable,
+        magnitude: float,
+        *,
+        dof: DOF | str | int | None = None,
+        direction: Sequence[float] | None = None,
+    ) -> None:
+        """Apply a concentrated nodal force for static analysis.
+
+        With ``dof`` set, the entire ``magnitude`` acts on that single DOF.
+        With ``direction`` set instead, ``magnitude`` scales the direction
+        cosines projected onto the model's active translational DOFs.  When
+        neither is given, ``magnitude`` loads ``UX`` if present, otherwise the
+        first translational DOF.
+        """
+        if dof is not None and direction is not None:
+            raise ModelError("add_nodal_load accepts dof or direction, not both")
+        if dof is not None:
+            parsed = DOF.parse(dof)
+            if not self.has_dof(parsed):
+                raise ModelError(
+                    f"DOF {parsed.name} is not active in model {self.name!r} "
+                    f"(active: {[d.name for d in self.dofs]})"
+                )
+            self._nodal_loads[self.dof_index(node_id, parsed)] = (
+                self._nodal_loads.get(self.dof_index(node_id, parsed), 0.0) + float(magnitude)
+            )
+            return
+        if direction is not None:
+            components = np.asarray(direction, dtype=float).reshape(-1)
+            if components.size > 3:
+                raise ModelError(f"direction must have at most 3 components, got {components.size}")
+            norm = float(np.linalg.norm(components))
+            if norm <= 0.0:
+                raise ModelError("direction vector must be non-zero")
+            unit = components / norm
+            for active in self.translational_dofs:
+                component = unit[int(active)]
+                if component == 0.0:
+                    continue
+                index = self.dof_index(node_id, active)
+                self._nodal_loads[index] = self._nodal_loads.get(index, 0.0) + float(
+                    magnitude
+                ) * component
+            return
+        default = DOF.UX if self.has_dof(DOF.UX) else self.translational_dofs[0]
+        self.add_nodal_load(node_id, magnitude, dof=default)
+
+    @property
+    def nodal_loads(self) -> dict[int, float]:
+        """Mapping ``global dof index -> applied force``."""
+        return dict(self._nodal_loads)
+
+    def load_vector(self) -> np.ndarray:
+        """External force vector ``f`` for ``K u = f`` in global DOF order."""
+        vector = np.zeros(self.num_dofs, dtype=float)
+        for index, value in self._nodal_loads.items():
+            vector[index] += value
+        return vector
+
     # ---------------------------------------------------------------- extras
 
     def add_spring(self, node_a: Hashable, node_b: Hashable, stiffness: float, dof=DOF.UX):
@@ -421,9 +577,15 @@ class Model:
         return assemble_system(self)
 
     def summary(self) -> str:
+        parts: list[str] = []
+        if self._rbe2_ties:
+            parts.append(f"{len(self._rbe2_ties)} RBE2")
+        if self._rbe3_ties:
+            parts.append(f"{len(self._rbe3_ties)} RBE3")
+        mpc = f", {', '.join(parts)}" if parts else ""
         return (
             f"Model {self.name!r}: {self.num_nodes} nodes, {self.num_elements} elements, "
-            f"{self.num_dofs} DOFs ({len(self._constrained)} constrained), "
+            f"{self.num_dofs} DOFs ({len(self._constrained)} constrained{mpc}), "
             f"DOF signature {[d.name for d in self.dofs]}"
         )
 

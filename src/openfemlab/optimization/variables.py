@@ -13,9 +13,12 @@ Shape variables are amplitudes of node-coordinate perturbation fields
     X(a) = X_0 + sum_j a_j V_j            V_j : (n_nodes, 3) velocity field
 
 The linear morph and its geometry gradient ``dX/da_j = V_j`` are exact and
-implemented here; regenerating element matrices from morphed coordinates (and
-the geometric ``dK/da`` chain) is a Round 3 item, so shape variables currently
-route their response gradients through finite differences.
+implemented here.  Pass the FE :class:`~openfemlab.core.model.Model` as
+``geometry=`` to :class:`~openfemlab.optimization.sizing.ModalDesignEvaluator`
+(or :func:`~openfemlab.optimization.sizing.compile_sizing_problem`) so each
+design point remeshes ``X = X0 + Σ a_j V_j`` before the modal solve; response
+gradients then use tracked finite differences.  Analytic geometric ``dK/da``
+remains a follow-on.
 
 :class:`DesignSpace` concatenates both kinds into one bounded design vector
 ``x = [x_sizing, a_shape]`` with a single bounds/clip/step/chain-rule contract,

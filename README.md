@@ -4,8 +4,8 @@ OpenFEMLab is an open-source, solver-independent Python toolkit for structural
 dynamics. It connects finite-element modal analysis, FE/test correlation, and
 sensitivity-based model updating in a reproducible CAE workflow.
 
-The project is **beta** software (`0.2.0b1`).  Core workflow schemas and CLI
-gate behaviour are stable within the `0.2.x` line; see
+The project ships **`0.3.3`** on the stable `0.3.x` line. Core workflow
+schemas and CLI gate behaviour are stable within the `0.3.x` line; see
 [`docs/STABILITY.md`](docs/STABILITY.md) and [`docs/MIGRATION.md`](docs/MIGRATION.md).
 
 ## Features
@@ -61,7 +61,7 @@ gate behaviour are stable within the `0.2.x` line; see
 - A dependency-free Nastran BDF reader for the supported `GRID`, `CROD`,
   `CBAR`, `CQUAD4`, `CTETRA`, `CHEXA`, `MAT1`, `PROD`, `PSHELL` and `PSOLID`
   subset in free-field and small fixed-field form, continuation lines included.
-  `RBE2`/`RBE3` cards round-trip via preserved bulk data.
+  `RBE2`/`RBE3` cards are assembled as kinematic ties; `PBAR` beam sections import with `A`/`I1`/`I2`/`J`.
 - A `meshio` bridge (optional `[io]` extra) converting mesh files to and from
   the neutral model for the `vertex`/`line`/`triangle`/`quad`/`tetra`/
   `hexahedron` cell types.
@@ -77,12 +77,13 @@ python -m pip install -e .
 For contributor tools, rich CLI output, and the benchmark scripts:
 
 ```bash
-python -m pip install -e ".[dev,cli]"
+python -m pip install -e ".[dev,cli,gui]"
 ```
 
-The optional `io` extra installs `meshio`, which the
-`openfemlab.io.meshio_bridge` adapter uses to import Gmsh, Abaqus, VTK and the
-other formats meshio reads:
+The optional `[gui]` extra installs `pywebview` for the native desktop shell
+(`openfemlab desktop`). Use `[plot]` for Matplotlib charts and `[io]` for meshio
+import/export. The `openfemlab.io.meshio_bridge` adapter uses meshio to import
+Gmsh, Abaqus, VTK and the other formats meshio reads:
 
 ```bash
 python -m pip install -e ".[io]"
@@ -168,6 +169,15 @@ Install the CLI extras for coloured tables and the interactive wizard:
 
 ```bash
 python -m pip install -e ".[cli]"
+```
+
+**Desktop CAE shell** — project tree, one-click workflows, and 3D review:
+
+```bash
+openfemlab project init my-wing
+cd my-wing
+openfemlab desktop          # native window (needs [gui])
+# openfemlab desktop --browser   # same UI in a browser tab
 ```
 
 **Zero setup** — run the built-in demo (no YAML files):

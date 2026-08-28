@@ -14,11 +14,12 @@ from collections.abc import Mapping
 from typing import Any
 
 from ..core.model import Model
-from ..core.results import ModalResult
+from ..core.results import ModalResult, StaticResult
 from ..solver.modal import ModalSolver
+from ..solver.static import StaticSolver
 from .spec import build_model
 
-__all__ = ["as_modal_result", "dof_map_of", "solve_spec"]
+__all__ = ["as_modal_result", "as_static_result", "dof_map_of", "solve_spec", "solve_static_spec"]
 
 
 def solve_spec(
@@ -40,6 +41,13 @@ def solve_spec(
     return model, result
 
 
+def solve_static_spec(spec: Mapping[str, Any]) -> tuple[Model, StaticResult]:
+    """Build the model described by ``spec`` and solve ``K u = f``."""
+    model = build_model(spec)
+    result = StaticSolver(model).solve()
+    return model, result
+
+
 def dof_map_of(model: Model):
     """DOF map of ``model`` in global equation order, for the io contracts."""
     from ..io import dof_map_from_labels
@@ -57,6 +65,22 @@ def as_modal_result(
     provenance: dict[str, Any] = {
         "solver": "openfemlab.solver.modal.ModalSolver",
         "normalization": result.normalization,
+        "model": model.name,
+    }
+    if meta:
+        provenance.update(meta)
+    return result.with_dof_map(dof_map_of(model), meta=provenance)
+
+
+def as_static_result(
+    model: Model,
+    result: StaticResult,
+    *,
+    meta: Mapping[str, Any] | None = None,
+) -> StaticResult:
+    """Attach ``model``'s DOF map and solver provenance to ``result``."""
+    provenance: dict[str, Any] = {
+        "solver": "openfemlab.solver.static.StaticSolver",
         "model": model.name,
     }
     if meta:
