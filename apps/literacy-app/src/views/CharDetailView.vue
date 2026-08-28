@@ -1,15 +1,25 @@
 <script setup>
 /**
- * 单字学习页 = 一台五步状态机：认一认 → 写一写 → 听一听 → 考一考 → 领奖励。
+ * ROUND15_H1 · 单字学习页 = 一台五步状态机：玩 → 认 → 练 → 写 → 说。
  *
- * 为什么要做成状态机：孩子自己不会安排「先看再写再听再考」，
- * 把顺序固定下来，每一步做完自动接上下一步，一个字才算真的过了一遍。
+ * 为什么是这个顺序：孩子不是先认识一个字才对它有兴趣，是先玩过、有了印象，
+ * 后面的认写练才挂得住。所以第一步不是讲字，是先陪这个字玩一小会儿
+ * （CharPlayStage），玩完或者跳过才进「认」。
  *
- * 三条规矩：
+ *   玩 play    跟字义相关的小互动，暖场；玩不玩都能往下走
+ *   认 intro   有字源的字直接把演变动画摆出来自动播（ROUND15_H4），没有的看字形听读音
+ *   练 listen  听音从三个形近字里挑出它
+ *   写 trace   在田字格里按笔顺写一遍
+ *   说 speak   说出它的意思，答完当场结账发星星发徽章
+ *
+ * 「说」把原来的「领奖励」并了进来：答完题还要再翻一屏才看得到星星，
+ * 中间那一下停顿刚好把「答对了」的劲儿放掉，不如就在原地开奖。
+ *
+ * 三条规矩（沿用，别拆）：
  *  1. 自动衔接不是自动跳走。每次自动前进都先在 `pendingNext` 里挂一秒多，
  *     期间屏幕上有「等一下」可以按停，读屏也会先播报下一步是什么（WCAG §2.2.1）。
  *  2. 任何一步都能用上面的步骤条手动跳。跳过去不等于做过：`done` 里只记
- *     真正做完的步骤，四步都做完了「领奖励」才会给这一轮记账、发徽章。
+ *     真正做完的步骤，认练写说四步都做完了才给这一轮记账、发徽章。
  *  3. 田字格、组词、例句、底部操作在所有阶段都在原地，状态机只换中间那块面板；
  *     这样孩子随时想写一笔、想听个词都不用先退出当前步骤。
  */
@@ -25,6 +35,7 @@ import {
 } from 'vue'
 import { useRouter } from 'vue-router'
 import gsap from 'gsap'
+import CharPlayStage from '@/components/CharPlayStage.vue'
 import HanziStrokeBox from '@/components/HanziStrokeBox.vue'
 import VoiceNotice from '@/components/VoiceNotice.vue'
 import {
@@ -53,9 +64,9 @@ import { sfx } from '@/utils/sfx.js'
 const props = defineProps({ char: { type: String, required: true } })
 
 /**
- * 字源演变按需加载：只有六十多个字有字源语料，而演变动画本身还要带上
- * GSAP 时间线和小图数据。有语料的字先显示一个入口按钮，孩子点了才 import()，
- * 没点过的字一个字节也不下载。
+ * 字源演变按需加载：演变动画自己还要带上 GSAP 时间线和小图数据，
+ * 主包不背这一份。ROUND15_H4 之后它是「认」这一步的默认主角，
+ * 但也只在有字源语料的字走到那一步时才 import()——没语料的字一个字节也不下载。
  */
 const EtymologyStage = defineAsyncComponent(() => import('@/components/EtymologyStage.vue'))
 
@@ -69,32 +80,44 @@ const toast = ref('')
 
 /* ------------------------------------------------------------ 五步状态机 */
 
+/**
+ * ROUND15_H1 · 玩 → 认 → 练 → 写 → 说。
+ * `label` 是步骤条上的一个字，`full` 是面板标题里的说法。
+ */
 const PHASES = [
-  { id: 'intro', label: '认一认', emoji: '👀', hint: '看清字形，听听它怎么读' },
-  { id: 'trace', label: '写一写', emoji: '✍️', hint: '在田字格里按笔顺写一遍' },
-  { id: 'listen', label: '听一听', emoji: '👂', hint: '听读音，从三个字里挑出它' },
-  { id: 'quiz', label: '考一考', emoji: '🧠', hint: '选出这个字的意思' },
-  { id: 'reward', label: '领奖励', emoji: '🏆', hint: '看看这一趟的收获' }
+  { id: 'play', label: '玩', full: '玩一玩', emoji: '🎮', hint: '先陪这个字玩一小会儿' },
+  { id: 'intro', label: '认', full: '认一认', emoji: '👀', hint: '看看它的来历和长相，听听它怎么读' },
+  { id: 'listen', label: '练', full: '练一练', emoji: '👂', hint: '听读音，从三个字里挑出它' },
+  { id: 'trace', label: '写', full: '写一写', emoji: '✍️', hint: '在田字格里按笔顺写一遍' },
+  { id: 'speak', label: '说', full: '说一说', emoji: '🗣️', hint: '说出这个字的意思，领走星星' }
 ]
 const PHASE_IDS = PHASES.map((p) => p.id)
 const phaseIndex = (id) => PHASE_IDS.indexOf(id)
 const phaseAfter = (id) => PHASE_IDS[phaseIndex(id) + 1] ?? null
 const phaseMeta = (id) => PHASES[phaseIndex(id)] ?? PHASES[0]
 
+/**
+ * 记账要认的四步。「玩」是暖场，玩不玩都不影响这一趟算不算走完了——
+ * 真要求孩子每个字都先玩满一轮，赶时间的那几天就没人愿意开这一页了。
+ */
+const GRADED = ['intro', 'listen', 'trace', 'speak']
+
 /** 各处自动衔接的等待时长（毫秒）。都留出了「等一下」能按停的余地。 */
 const DELAY = {
   heard: 1600,
+  playIdle: 22000,
   introIdle: 18000,
   traced: 1400,
   skipped: 900,
   answered: 1400,
   revealed: 2000,
-  traceStart: 1200
+  traceStart: 1200,
+  origin: 900
 }
 
-const phase = ref('intro')
-/** 真正做完的步骤；手动跳过去不算数，「领奖励」凭它决定要不要记账。 */
-const done = reactive({ intro: false, trace: false, listen: false, quiz: false })
+const phase = ref('play')
+/** 真正做完的步骤；手动跳过去不算数，「说」这一步凭它决定要不要记账。 */
+const done = reactive({ play: false, intro: false, listen: false, trace: false, speak: false })
 /** 正在倒计时的自动衔接：{ id, label }。 */
 const pendingNext = ref(null)
 const stepAnnounce = ref('')
@@ -108,9 +131,9 @@ let idleTimer = null
 let traceTimer = null
 
 const current = computed(() => phaseMeta(phase.value))
-const flowReady = computed(() => done.intro && done.trace && done.listen && done.quiz)
+const flowReady = computed(() => GRADED.every((id) => done[id]))
 const missingSteps = computed(() =>
-  PHASES.filter((p) => p.id !== 'reward' && !done[p.id]).map((p) => p.label)
+  PHASES.filter((p) => GRADED.includes(p.id) && !done[p.id]).map((p) => p.full)
 )
 
 const decoded = computed(() => decodeURIComponent(props.char))
@@ -135,13 +158,23 @@ watch(
 )
 const radical = computed(() => (item.value ? getRadical(item.value.radical) : null))
 
-/** 有字源语料的字才显示「这个字的来历」，展开之后才真的把动画组件拉下来。 */
+/**
+ * ROUND15_H4 · 有字源语料的字，「认」这一步默认就把演变动画摆出来自动播，
+ * 不再藏在一个「看看它的来历」按钮后面——认字本来就该是看着字怎么来的学。
+ * 页面底部那块「这个字的来历」只在不处于「认」步时保留，当随时可回看的入口。
+ */
 const hasOrigin = computed(() => hasEtymology(decoded.value))
 const originOpen = ref(false)
 
 function toggleOrigin() {
   sfx.tap()
   originOpen.value = !originOpen.value
+}
+
+/** 字源动画演完 = 这个字「认」过了，接着去练。 */
+function onOriginPlayed() {
+  done.intro = true
+  if (phase.value === 'intro') scheduleAdvance('listen', DELAY.origin)
 }
 
 /**
@@ -218,7 +251,7 @@ function cancelAdvance() {
 function scheduleAdvance(id, delay) {
   if (!id) return
   cancelAdvance()
-  pendingNext.value = { id, label: phaseMeta(id).label }
+  pendingNext.value = { id, label: phaseMeta(id).full }
   advanceTimer = window.setTimeout(() => {
     advanceTimer = null
     pendingNext.value = null
@@ -238,7 +271,7 @@ function goPhase(id, { manual = false } = {}) {
   pendingNext.value = null
   phase.value = id
   const meta = phaseMeta(id)
-  stepAnnounce.value = `第 ${phaseIndex(id) + 1} 步，共 ${PHASES.length} 步：${meta.label}。${meta.hint}`
+  stepAnnounce.value = `第 ${phaseIndex(id) + 1} 步，共 ${PHASES.length} 步：${meta.full}。${meta.hint}`
   if (manual) sfx.tap()
   enterPhase(id, { manual })
 }
@@ -251,7 +284,7 @@ const canJump = (id) => phaseIndex(id) <= Math.max(phaseIndex(phase.value) + 1, 
 
 function onStepClick(id) {
   if (!canJump(id)) {
-    stepAnnounce.value = `「${phaseMeta(id).label}」还没解锁，先把前面几步做完吧。`
+    stepAnnounce.value = `「${phaseMeta(id).full}」还没解锁，先把前面几步做完吧。`
     return
   }
   goPhase(id, { manual: true })
@@ -260,41 +293,57 @@ function onStepClick(id) {
 function nextStep() {
   const id = phaseAfter(phase.value)
   if (!id) return
-  // 「认一认」看过听过就算过；写 / 听 / 考三步得真做完才记数，光按「下一步」不算
+  // 「认一认」看过听过就算过；玩 / 练 / 写 / 说得真做完才记数，光按「下一步」不算
   if (phase.value === 'intro') done.intro = true
   goPhase(id, { manual: true })
 }
 
 function enterPhase(id, { manual } = {}) {
   reached.value = Math.max(reached.value, phaseIndex(id))
-  if (id === 'intro') {
+  if (id === 'play') {
+    // 玩是暖场，不是关卡：一直没人动就自己去「认」，也不给这一步记完成
+    idleTimer = window.setTimeout(() => scheduleAdvance('intro', 600), DELAY.playIdle)
+  } else if (id === 'intro') {
     // 干等着也别卡住：一直没有动作就自己往下走一步
     idleTimer = window.setTimeout(() => {
       done.intro = true
-      scheduleAdvance('trace', 600)
+      scheduleAdvance('listen', 600)
     }, DELAY.introIdle)
-  } else if (id === 'trace') {
-    // 顺着流程走进来的，田字格自己进入描红；手动跳进来的让孩子自己按
-    if (!manual) traceTimer = window.setTimeout(() => strokeBoxRef.value?.startQuiz(), DELAY.traceStart)
   } else if (id === 'listen') {
     buildListen()
     window.setTimeout(() => playListen(), 400)
-  } else if (id === 'quiz') {
+  } else if (id === 'trace') {
+    // 顺着流程走进来的，田字格自己进入描红；手动跳进来的让孩子自己按
+    if (!manual) traceTimer = window.setTimeout(() => strokeBoxRef.value?.startQuiz(), DELAY.traceStart)
+  } else if (id === 'speak') {
     buildQuiz()
-  } else if (id === 'reward') {
-    settleReward()
   }
 }
 
-/* ------------------------------------------------- 状态机：认一认 / 写一写 */
+/* ------------------------------------------------------- 状态机：玩一玩 */
+
+/** 玩满一轮：记完成，接着去认。 */
+function onPlayDone() {
+  done.play = true
+  stepAnnounce.value = `玩过一轮啦，来看看「${decoded.value}」长什么样。`
+  if (phase.value === 'play') scheduleAdvance('intro', DELAY.answered)
+}
+
+/** 「先不玩了」：不记完成，但也别把孩子晾在第一步。 */
+function onPlaySkip() {
+  sfx.tap()
+  if (phase.value === 'play') goPhase('intro', { manual: true })
+}
+
+/* ------------------------------------------------------ 状态机：认一认 */
 
 function heard() {
   say(item.value.char)
   done.intro = true
-  if (phase.value === 'intro') scheduleAdvance('trace', DELAY.heard)
+  if (phase.value === 'intro') scheduleAdvance('listen', DELAY.heard)
 }
 
-/* --------------------------------------------------- 状态机：听一听 */
+/* --------------------------------------------------- 状态机：练一练 */
 
 const listenOptions = ref([])
 const listenPick = ref('')
@@ -303,7 +352,7 @@ const listenRevealed = ref(false)
 
 /**
  * 三个选项都走形近字库（data/similar-chars.js）：字形越接近，
- * 「听一听」才真的在考听音，而不是考谁的轮廓最扎眼。
+ * 「练一练」才真的在考听音，而不是考谁的轮廓最扎眼。
  * 早先按「同一单元」取，同单元只保证主题相近，字形常常差得很远。
  */
 function buildListen() {
@@ -330,7 +379,7 @@ function onListenPick(option, event) {
     listenRevealed.value = true
     done.listen = true
     stepAnnounce.value = `答对了，就是「${decoded.value}」。`
-    scheduleAdvance('quiz', DELAY.answered)
+    scheduleAdvance('trace', DELAY.answered)
     return
   }
   feedback.wrong(event?.currentTarget)
@@ -338,20 +387,20 @@ function onListenPick(option, event) {
     listenRevealed.value = true
     done.listen = true
     stepAnnounce.value = `没关系，正确答案是「${decoded.value}」。`
-    scheduleAdvance('quiz', DELAY.revealed)
+    scheduleAdvance('trace', DELAY.revealed)
   } else {
     stepAnnounce.value = '再听一次，选出刚才读的那个字。'
   }
 }
 
-/* --------------------------------------------------- 状态机：考一考 */
+/* ------------------------------------------- 状态机：说一说（含开奖） */
 
 const quizOptions = ref([])
 const quizPick = ref('')
 const quizRevealed = ref(false)
 
 /**
- * 「考一考」考的是字义，所以三个选项得各自带一句释义。释义在单元详情包里，
+ * 「说一说」说的是字义，所以三个选项得各自带一句释义。释义在单元详情包里，
  * 而形近字往往散落在别的单元——先拿一批形近候选，把它们的详情包一起
  * import() 回来，再挑出释义和正确答案不重样的两个。
  *
@@ -386,20 +435,21 @@ function onQuizPick(option, event) {
   const correct = option.char === decoded.value
   quizPick.value = option.char
   quizRevealed.value = true
-  done.quiz = true
+  done.speak = true
   progress.recordAnswer(decoded.value, correct)
   if (correct) {
-    // 听一听也答对了的话，考一考的音再往上抬一档
+    // 练一练也答对了的话，说一说的音再往上抬一档
     feedback.correct(event?.currentTarget, { cueArg: done.listen ? 3 : 1 })
     stepAnnounce.value = '意思也对上了！'
   } else {
     feedback.wrong(event?.currentTarget)
     stepAnnounce.value = `「${decoded.value}」的意思是：${item.value.meaning}`
   }
-  scheduleAdvance('reward', correct ? DELAY.answered : DELAY.revealed)
+  // 就地开奖：答完还要再翻一屏才看到星星的话，那口气就散了
+  settleReward()
 }
 
-/* --------------------------------------------------- 状态机：领奖励 */
+/* ------------------------------------------------- 结账：星星与徽章 */
 
 const starsAtStart = ref(0)
 const flowRounds = ref(0)
@@ -423,11 +473,13 @@ const earnedStars = computed(() => Math.max(0, progress.stars - starsAtStart.val
 function restartFlow() {
   settled = false
   rewardBadges.value = []
+  quizRevealed.value = false
+  quizPick.value = ''
   for (const key of Object.keys(done)) done[key] = false
   reached.value = 0
   starsAtStart.value = progress.stars
   progress.clearRecentBadges()
-  goPhase('intro', { manual: true })
+  goPhase('play', { manual: true })
 }
 
 function resetFlow() {
@@ -438,14 +490,16 @@ function resetFlow() {
   flowRounds.value = 0
   listenOptions.value = []
   quizOptions.value = []
+  quizRevealed.value = false
+  quizPick.value = ''
   for (const key of Object.keys(done)) done[key] = false
   reached.value = 0
-  phase.value = 'intro'
+  phase.value = 'play'
   pendingNext.value = null
   stepAnnounce.value = ''
   starsAtStart.value = progress.stars
   progress.clearRecentBadges()
-  enterPhase('intro', { manual: true })
+  enterPhase('play', { manual: true })
 }
 
 /* ------------------------------------------------------------ 动效 */
@@ -511,7 +565,7 @@ function markKnown(event) {
 function onQuizSkip() {
   flash('跳过描红也没关系，随时可以回来写 ✍️')
   // 跳过不算「写一写」做完了，但流程别停在这儿干等着
-  if (phase.value === 'trace') scheduleAdvance('listen', DELAY.skipped)
+  if (phase.value === 'trace') scheduleAdvance('speak', DELAY.skipped)
 }
 
 function onQuizComplete({ mistakes }) {
@@ -526,10 +580,9 @@ function onQuizComplete({ mistakes }) {
   }
   done.intro = true
   done.trace = true
-  // 在哪一步写完的都算数：孩子常常在「认一认」时就自己动手写了
-  if (phase.value === 'intro' || phase.value === 'trace') {
-    scheduleAdvance('listen', DELAY.traced)
-  }
+  // 在哪一步写完的都算数：孩子常常还在「认」「练」的时候就自己动手写了。
+  // 但只有正经走到「写」这一步才接着往「说」推，免得把前面的步骤抽走。
+  if (phase.value === 'trace') scheduleAdvance('speak', DELAY.traced)
 }
 
 function onStrokeDemo({ strokeNum }) {
@@ -574,7 +627,7 @@ onBeforeUnmount(() => {
     :data-tts="offlineL1 ? 'offline-l1' : 'system'"
   >
     <!-- 五步进度条：既是导航，也是「现在在第几步」的说明 -->
-    <nav ref="railRef" class="rail card" aria-label="单字学习五步">
+    <nav ref="railRef" class="rail card" aria-label="单字学习五步：玩、认、练、写、说">
       <ol class="rail__list">
         <li v-for="(p, i) in PHASES" :key="p.id" class="rail__item">
           <button
@@ -588,7 +641,7 @@ onBeforeUnmount(() => {
             :data-step="p.id"
             :aria-current="phase === p.id ? 'step' : undefined"
             :aria-disabled="canJump(p.id) ? undefined : 'true'"
-            :aria-label="`第 ${i + 1} 步 ${p.label}${done[p.id] ? '，已完成' : ''}`"
+            :aria-label="`第 ${i + 1} 步 ${p.full}${done[p.id] ? '，已完成' : ''}`"
             @click="onStepClick(p.id)"
           >
             <span class="rail__dot" aria-hidden="true">{{ done[p.id] ? '✓' : p.emoji }}</span>
@@ -647,13 +700,33 @@ onBeforeUnmount(() => {
     <section ref="panelRef" class="card stack panel" :data-panel="phase">
       <h3 class="section-title">
         <span class="section-title__emoji" aria-hidden="true">{{ current.emoji }}</span>
-        第 {{ phaseIndex(phase) + 1 }} 步 · {{ current.label }}
+        第 {{ phaseIndex(phase) + 1 }} 步 · {{ current.full }}
       </h3>
       <p class="panel__hint muted">{{ current.hint }}</p>
 
-      <!-- 认一认 -->
-      <template v-if="phase === 'intro'">
+      <!-- 玩：先陪这个字玩一小会儿 -->
+      <template v-if="phase === 'play'">
+        <CharPlayStage :char="item.char" @complete="onPlayDone" @skip="onPlaySkip" />
+      </template>
+
+      <!-- 认：有字源的字直接自动播演变动画（ROUND15_H4），没有的看字形听读音 -->
+      <template v-else-if="phase === 'intro'">
         <div class="intro">
+          <div v-if="hasOrigin" class="intro__origin">
+            <EtymologyStage
+              :char="item.char"
+              :size="196"
+              autoplay
+              @played="onOriginPlayed"
+            />
+            <RouterLink
+              class="intro__origin-more"
+              :to="`/etymology/${encodeURIComponent(item.char)}`"
+              @click="sfx.tap()"
+            >
+              去字源馆看更多 →
+            </RouterLink>
+          </div>
           <button class="btn btn--primary btn--lg intro__say" type="button" @click="heard">
             🔊 听「{{ item.char }}」怎么读
           </button>
@@ -662,25 +735,7 @@ onBeforeUnmount(() => {
         </div>
       </template>
 
-      <!-- 写一写 -->
-      <template v-else-if="phase === 'trace'">
-        <div class="trace">
-          <p class="trace__tip">先点「看笔顺」记住顺序，再在田字格里写一遍。</p>
-          <div class="trace__acts">
-            <button class="btn btn--ghost" type="button" @click="strokeBoxRef?.play()">
-              ▶️ 再看一遍笔顺
-            </button>
-            <button class="btn btn--accent" type="button" @click="strokeBoxRef?.startQuiz()">
-              ✍️ 开始描红
-            </button>
-          </div>
-          <p class="muted trace__note">
-            写不动也没关系：按空格键或点「写下一笔」，我来帮忙；同一笔连错 3 次，我会自动示范。
-          </p>
-        </div>
-      </template>
-
-      <!-- 听一听 -->
+      <!-- 练一练 -->
       <template v-else-if="phase === 'listen'">
         <div class="ask">
           <button class="btn btn--primary ask__play" type="button" @click="playListen">
@@ -710,10 +765,31 @@ onBeforeUnmount(() => {
         </div>
       </template>
 
-      <!-- 考一考 -->
-      <template v-else-if="phase === 'quiz'">
+      <!-- 写一写 -->
+      <template v-else-if="phase === 'trace'">
+        <div class="trace">
+          <p class="trace__tip">先点「看笔顺」记住顺序，再在田字格里写一遍。</p>
+          <div class="trace__acts">
+            <button class="btn btn--ghost" type="button" @click="strokeBoxRef?.play()">
+              ▶️ 再看一遍笔顺
+            </button>
+            <button class="btn btn--accent" type="button" @click="strokeBoxRef?.startQuiz()">
+              ✍️ 开始描红
+            </button>
+          </div>
+          <p class="muted trace__note">
+            写不动也没关系：按空格键或点「写下一笔」，我来帮忙；同一笔连错 3 次，我会自动示范。
+          </p>
+        </div>
+      </template>
+
+      <!-- 说一说：答完就地开奖，不再单开一屏「领奖励」 -->
+      <template v-else>
         <div class="ask">
-          <p class="ask__q">「{{ item.char }}」是什么意思？</p>
+          <button class="btn btn--ghost ask__play" type="button" @click="say(item.char)">
+            🗣️ 跟着老师读一遍「{{ item.char }}」
+          </button>
+          <p class="ask__q">说说看，「{{ item.char }}」是什么意思？</p>
           <div class="opts opts--text">
             <button
               v-for="o in quizOptions"
@@ -735,11 +811,8 @@ onBeforeUnmount(() => {
             {{ quizPick === item.char ? '意思也对上了，真棒！' : `「${item.char}」的意思是：${item.meaning}` }}
           </p>
         </div>
-      </template>
 
-      <!-- 领奖励 -->
-      <template v-else>
-        <div class="reward">
+        <div v-if="quizRevealed" class="reward">
           <p v-if="!flowReady" class="reward__todo">
             还差 {{ missingSteps.join('、') }} 没做完，做完这一趟才算完整走了一遍哦。
           </p>
@@ -785,12 +858,12 @@ onBeforeUnmount(() => {
         <button class="btn btn--ghost btn--sm" type="button" @click="holdOn">✋ 等一下</button>
       </div>
       <button
-        v-else-if="phase !== 'reward'"
+        v-else-if="phaseAfter(phase)"
         class="btn btn--ghost panel__next"
         type="button"
         @click="nextStep"
       >
-        下一步：{{ phaseMeta(phaseAfter(phase)).label }} →
+        下一步：{{ phaseMeta(phaseAfter(phase)).full }} →
       </button>
     </section>
 
@@ -800,8 +873,11 @@ onBeforeUnmount(() => {
 
     <VoiceNotice fallback="拼音就在字的上面，家长可以照着拼音读给孩子听。" />
 
-    <!-- 这个字的来历：有字源语料的字才出现，展开才加载演变动画 -->
-    <section v-if="hasOrigin" class="card stack origin">
+    <!--
+      这个字的来历：「认」这一步已经把演变动画摆在正中间自动播了（ROUND15_H4），
+      这里只在其它步骤留一个可随时回看的折叠入口，免得同一张舞台在一屏上出现两次。
+    -->
+    <section v-if="hasOrigin && phase !== 'intro'" class="card stack origin">
       <h3 class="section-title">
         <span class="section-title__emoji" aria-hidden="true">🏺</span>
         这个字的来历
@@ -987,6 +1063,29 @@ onBeforeUnmount(() => {
   align-items: flex-start;
 }
 
+.intro {
+  align-self: stretch;
+}
+
+/* 认一认：字源舞台是这一步的主角，占满面板宽度居中站着 */
+.intro__origin {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: var(--gap-sm);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+}
+
+.intro__origin-more {
+  align-self: flex-end;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-soft);
+}
+
 .intro__say {
   align-self: stretch;
 }
@@ -1080,9 +1179,16 @@ onBeforeUnmount(() => {
   color: var(--success);
 }
 
-/* ---------------- 领奖励 ---------------- */
+/* ---------------- 就地开奖 ---------------- */
 .reward {
   align-self: stretch;
+}
+
+/* 答完题星星就长在题目下面，中间画一道虚线隔开「答题」和「收获」 */
+.ask + .reward {
+  margin-top: var(--gap-sm);
+  padding-top: var(--gap-md);
+  border-top: 2px dashed var(--stroke-hint);
 }
 
 .reward__stats,

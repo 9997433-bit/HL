@@ -309,10 +309,12 @@ defineExpose({ finish, replay, skip: onSkip })
 <template>
   <section
     ref="stageRef"
-    class="play"
+    class="play char-play-stage"
     :class="{ 'play--static': reduced, 'play--done': state === 'done' }"
     :style="{ '--play-accent': scene.accent }"
+    data-char-play
     :data-char="char"
+    :data-play-template="template"
     :data-template="template"
     :data-state="state"
     :data-fallback="scene.templateFallback ? 'true' : 'false'"
