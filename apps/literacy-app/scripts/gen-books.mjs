@@ -21,8 +21,10 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { CORE_BOOKS } from '../src/data/books/core.js'
+import { SCENE_BACKDROPS, SCENE_ITEM_LIMIT, SCENE_MOTIONS } from '../src/data/books.js'
 import { MIN_PAGES, PUNCT, toPinyin as pinyinOf } from './book-text.mjs'
 import { BOOK_SEED } from './data/book-seed.mjs'
+import { SCENE_SEED } from './data/book-scene-seed.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const dataDir = path.resolve(here, '..', 'src', 'data')
@@ -72,6 +74,44 @@ const PALETTES = [
   ['#c8ebff', '#ffe6b3']
 ]
 
+/* ------------------------------------------------------- 页级场景（ROUND12_H3）
+ *
+ * 场景种子按 id 找书，但真正拦错的是 title 和页数：种子文件里插一本、
+ * 挪一行，bx 编号就整体后移，场景会安静地贴到别的句子上。所以这里
+ * 三样一起对——id 存在、书名一致、页数逐页对齐——对不上就退出不写文件。
+ */
+const sceneById = new Map(SCENE_SEED.map((s) => [s.id, s]))
+
+function expandScene(seed, book) {
+  const where = `${book.id}《${book.title}》场景`
+  if (seed.title !== book.title) {
+    errors.push(`${where}：种子写的是《${seed.title}》，编号却落在《${book.title}》上`)
+    return null
+  }
+  if (seed.pages.length !== book.pages.length) {
+    errors.push(`${where}：种子 ${seed.pages.length} 页，书 ${book.pages.length} 页，对不齐`)
+    return null
+  }
+  return seed.pages.map((page, index) => {
+    if (!page) return null
+    const at = `${where} p${index + 1}`
+    const items = page.s ?? []
+    if (items.length < 2 || items.length > SCENE_ITEM_LIMIT) {
+      errors.push(`${at}：摆了 ${items.length} 件，允许 2–${SCENE_ITEM_LIMIT} 件`)
+    }
+    if (!page.alt) errors.push(`${at}：缺读屏旁白`)
+    if (page.bg && !SCENE_BACKDROPS.has(page.bg)) errors.push(`${at}：背景预设 ${page.bg} 不存在`)
+    return {
+      sceneBg: page.bg ?? '',
+      sceneAlt: page.alt ?? '',
+      scene: items.map(([e, x, y, s, m]) => {
+        if (m !== undefined && !SCENE_MOTIONS.has(m)) errors.push(`${at}：动效 ${m} 不认识`)
+        return { e, x, y, s, m }
+      })
+    }
+  })
+}
+
 const usedIds = new Set(CORE_BOOKS.map((b) => b.id))
 const usedTitles = new Set(CORE_BOOKS.map((b) => b.title))
 
@@ -95,7 +135,7 @@ const books = BOOK_SEED.map((seed, index) => {
   if (!seed.cover) errors.push(`${where}：缺封面图标`)
   if (!seed.sub) errors.push(`${where}：缺分级副标题`)
 
-  return {
+  const book = {
     id,
     title: seed.t,
     pinyin: toPinyin(seed.t, `${where} 书名`),
@@ -107,7 +147,20 @@ const books = BOOK_SEED.map((seed, index) => {
     newChars: pickNewChars(pages),
     pages
   }
+
+  const scenes = sceneById.has(id) ? expandScene(sceneById.get(id), book) : null
+  if (scenes) {
+    for (const [i, scene] of scenes.entries()) {
+      if (scene) Object.assign(pages[i], scene)
+    }
+  }
+  return book
 })
+
+const strayScenes = SCENE_SEED.filter((s) => !books.some((b) => b.id === s.id))
+if (strayScenes.length) {
+  errors.push(`场景种子指向不存在的绘本：${strayScenes.map((s) => s.id).join('、')}`)
+}
 
 if (errors.length) {
   console.error('绘本生成失败：')
@@ -120,10 +173,30 @@ if (errors.length) {
 
 const q = (s) => `'${s.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`
 
-function renderBook(b) {
-  const pages = b.pages
-    .map((p) => `      { emoji: ${q(p.emoji)}, text: ${q(p.text)}, p: ${q(p.p)} }`)
+/** 场景页展开成多行，非场景页仍是一行——两档并存，diff 里一眼看得出哪页升级了。 */
+function renderPage(p) {
+  const head = `emoji: ${q(p.emoji)}, text: ${q(p.text)}, p: ${q(p.p)}`
+  if (!p.scene) return `      { ${head} }`
+  const items = p.scene
+    .map((it) => {
+      const tail = [`x: ${it.x}`, `y: ${it.y}`]
+      if (it.s !== undefined) tail.push(`s: ${it.s}`)
+      if (it.m !== undefined) tail.push(`m: ${q(it.m)}`)
+      return `          { e: ${q(it.e)}, ${tail.join(', ')} }`
+    })
     .join(',\n')
+  return `      {
+        ${head},
+        sceneBg: ${q(p.sceneBg)},
+        sceneAlt: ${q(p.sceneAlt)},
+        scene: [
+${items}
+        ]
+      }`
+}
+
+function renderBook(b) {
+  const pages = b.pages.map(renderPage).join(',\n')
   return `  {
     id: ${q(b.id)},
     title: ${q(b.title)},

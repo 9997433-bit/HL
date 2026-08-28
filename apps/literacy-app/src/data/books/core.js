@@ -95,12 +95,93 @@ export const CORE_BOOKS = [
     summary: '一到十先念一遍，再去数天上的鸟、水里的鱼、山上的花。',
     newChars: ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十'],
     pages: [
-      { emoji: '🖐️', text: '一，二，三，四，五。', p: 'yī, èr, sān, sì, wǔ.' },
-      { emoji: '✋', text: '六，七，八，九，十。', p: 'liù, qī, bā, jiǔ, shí.' },
-      { emoji: '🐦', text: '天上有三只小鸟。', p: 'tiān shàng yǒu sān zhī xiǎo niǎo.' },
-      { emoji: '🐟', text: '水里有五条小鱼。', p: 'shuǐ lǐ yǒu wǔ tiáo xiǎo yú.' },
-      { emoji: '🌸', text: '山上有花。我数一数，一共十！', p: 'shān shàng yǒu huā. wǒ shǔ yī shǔ, yī gòng shí!' },
-      { emoji: '🙋', text: '我会数数，一到十我都会！', p: 'wǒ huì shǔ shù, yī dào shí wǒ dōu huì!' }
+      {
+        emoji: '🖐️',
+        text: '一，二，三，四，五。',
+        p: 'yī, èr, sān, sì, wǔ.',
+        sceneBg: 'sky',
+        sceneAlt: '我数一数：一二三四五',
+        scene: [
+          { e: '1️⃣', x: 16, y: 30, s: 1, m: 'float' },
+          { e: '2️⃣', x: 33, y: 26, s: 1, m: 'float' },
+          { e: '3️⃣', x: 50, y: 24, s: 1, m: 'float' },
+          { e: '4️⃣', x: 67, y: 26, s: 1, m: 'float' },
+          { e: '5️⃣', x: 84, y: 30, s: 1, m: 'float' },
+          { e: '✋', x: 50, y: 78, s: 2.2 }
+        ]
+      },
+      {
+        emoji: '✋',
+        text: '六，七，八，九，十。',
+        p: 'liù, qī, bā, jiǔ, shí.',
+        sceneBg: 'sky',
+        sceneAlt: '我数一数：六七八九十',
+        scene: [
+          { e: '6️⃣', x: 16, y: 30, s: 1, m: 'float' },
+          { e: '7️⃣', x: 33, y: 26, s: 1, m: 'float' },
+          { e: '8️⃣', x: 50, y: 24, s: 1, m: 'float' },
+          { e: '9️⃣', x: 67, y: 26, s: 1, m: 'float' },
+          { e: '🔟', x: 84, y: 30, s: 1, m: 'float' },
+          { e: '🖐️', x: 50, y: 78, s: 2.2 }
+        ]
+      },
+      {
+        emoji: '🐦',
+        text: '天上有三只小鸟。',
+        p: 'tiān shàng yǒu sān zhī xiǎo niǎo.',
+        sceneBg: 'sky',
+        sceneAlt: '天上有三只小鸟',
+        scene: [
+          { e: '🐦', x: 52, y: 24, s: 1, m: 'float' },
+          { e: '🐦', x: 34, y: 30, s: 1.1, m: 'float' },
+          { e: '🐦', x: 70, y: 32, s: 1.1, m: 'float' },
+          { e: '☁️', x: 22, y: 46, s: 1.2, m: 'drift' },
+          { e: '🌳', x: 44, y: 84, s: 1.5 }
+        ]
+      },
+      {
+        emoji: '🐟',
+        text: '水里有五条小鱼。',
+        p: 'shuǐ lǐ yǒu wǔ tiáo xiǎo yú.',
+        sceneBg: 'water',
+        sceneAlt: '水里有五条小鱼',
+        scene: [
+          { e: '🐟', x: 54, y: 60, s: 1 },
+          { e: '🐟', x: 22, y: 64, s: 1, m: 'sway' },
+          { e: '🐟', x: 84, y: 68, s: 1, m: 'sway' },
+          { e: '🐟', x: 38, y: 74, s: 1.1, m: 'sway' },
+          { e: '🐟', x: 70, y: 80, s: 1.1, m: 'sway' },
+          { e: '🌊', x: 48, y: 90, s: 1.4, m: 'drift' }
+        ]
+      },
+      {
+        emoji: '🌸',
+        text: '山上有花。我数一数，一共十！',
+        p: 'shān shàng yǒu huā. wǒ shǔ yī shǔ, yī gòng shí!',
+        sceneBg: 'field',
+        sceneAlt: '山上有花，我数一数',
+        scene: [
+          { e: '⛰️', x: 26, y: 48, s: 2 },
+          { e: '🌺', x: 78, y: 72, s: 1, m: 'sway' },
+          { e: '🌸', x: 44, y: 78, s: 1.1, m: 'sway' },
+          { e: '🌼', x: 62, y: 84, s: 1, m: 'sway' },
+          { e: '🌻', x: 32, y: 88, s: 1, m: 'sway' }
+        ]
+      },
+      {
+        emoji: '🙋',
+        text: '我会数数，一到十我都会！',
+        p: 'wǒ huì shǔ shù, yī dào shí wǒ dōu huì!',
+        sceneBg: 'dawn',
+        sceneAlt: '一到十，我都会数',
+        scene: [
+          { e: '⭐', x: 60, y: 24, s: 0.9, m: 'float' },
+          { e: '1️⃣', x: 24, y: 38, s: 1, m: 'float' },
+          { e: '🔟', x: 74, y: 42, s: 1.2, m: 'float' },
+          { e: '🙋', x: 48, y: 80, s: 1.6 },
+          { e: '🌸', x: 82, y: 86, s: 1, m: 'sway' }
+        ]
+      }
     ]
   },
   {
@@ -114,12 +195,86 @@ export const CORE_BOOKS = [
     summary: '大和小、多和少、远和近，一页看一对。',
     newChars: ['大', '小', '多', '少', '长', '高', '远', '近'],
     pages: [
-      { emoji: '🐘', text: '大象大，小马小。', p: 'dà xiàng dà, xiǎo mǎ xiǎo.' },
-      { emoji: '🌳', text: '大树高，小草不高。', p: 'dà shù gāo, xiǎo cǎo bù gāo.' },
-      { emoji: '🐟', text: '水里的鱼很多，天上的云很少。', p: 'shuǐ lǐ de yú hěn duō, tiān shàng de yún hěn shǎo.' },
-      { emoji: '🏔️', text: '山很远，家很近。', p: 'shān hěn yuǎn, jiā hěn jìn.' },
-      { emoji: '🐍', text: '小蛇长，小虫不长。', p: 'xiǎo shé cháng, xiǎo chóng bù cháng.' },
-      { emoji: '🙋', text: '我不大也不小，我天天在长高！', p: 'wǒ bù dà yě bù xiǎo, wǒ tiān tiān zài zhǎng gāo!' }
+      {
+        emoji: '🐘',
+        text: '大象大，小马小。',
+        p: 'dà xiàng dà, xiǎo mǎ xiǎo.',
+        sceneBg: 'field',
+        sceneAlt: '大象大，小马小',
+        scene: [
+          { e: '☁️', x: 60, y: 24, s: 1.1, m: 'drift' },
+          { e: '🐘', x: 32, y: 68, s: 2.2 },
+          { e: '🐴', x: 70, y: 82, s: 1.1 },
+          { e: '🌿', x: 88, y: 88, s: 0.9, m: 'sway' }
+        ]
+      },
+      {
+        emoji: '🌳',
+        text: '大树高，小草不高。',
+        p: 'dà shù gāo, xiǎo cǎo bù gāo.',
+        sceneBg: 'field',
+        sceneAlt: '大树高，小草不高',
+        scene: [
+          { e: '☀️', x: 80, y: 20, s: 1, m: 'float' },
+          { e: '🌳', x: 36, y: 54, s: 2.2 },
+          { e: '🌿', x: 66, y: 84, s: 1, m: 'sway' },
+          { e: '🌱', x: 82, y: 88, s: 0.8, m: 'sway' }
+        ]
+      },
+      {
+        emoji: '🐟',
+        text: '水里的鱼很多，天上的云很少。',
+        p: 'shuǐ lǐ de yú hěn duō, tiān shàng de yún hěn shǎo.',
+        sceneBg: 'water',
+        sceneAlt: '水里的鱼很多，天上的云很少',
+        scene: [
+          { e: '☁️', x: 70, y: 22, s: 1, m: 'drift' },
+          { e: '🐟', x: 28, y: 66, s: 1, m: 'sway' },
+          { e: '🐟', x: 64, y: 70, s: 1, m: 'sway' },
+          { e: '🐟', x: 46, y: 78, s: 1.1, m: 'sway' },
+          { e: '🐟', x: 80, y: 84, s: 1.1, m: 'sway' },
+          { e: '🌊', x: 20, y: 90, s: 1.2, m: 'drift' }
+        ]
+      },
+      {
+        emoji: '🏔️',
+        text: '山很远，家很近。',
+        p: 'shān hěn yuǎn, jiā hěn jìn.',
+        sceneBg: 'dusk',
+        sceneAlt: '山很远，家很近',
+        scene: [
+          { e: '⛰️', x: 48, y: 36, s: 1 },
+          { e: '⛰️', x: 30, y: 40, s: 1.2 },
+          { e: '🌳', x: 22, y: 74, s: 1.2 },
+          { e: '🏠', x: 66, y: 82, s: 1.8 }
+        ]
+      },
+      {
+        emoji: '🐍',
+        text: '小蛇长，小虫不长。',
+        p: 'xiǎo shé cháng, xiǎo chóng bù cháng.',
+        sceneBg: 'field',
+        sceneAlt: '小蛇长，小虫不长',
+        scene: [
+          { e: '🍃', x: 66, y: 56, s: 0.9, m: 'drift' },
+          { e: '🐍', x: 42, y: 76, s: 1.8, m: 'drift' },
+          { e: '🌿', x: 20, y: 82, s: 1.1, m: 'sway' },
+          { e: '🐛', x: 74, y: 88, s: 0.8, m: 'drift' }
+        ]
+      },
+      {
+        emoji: '🙋',
+        text: '我不大也不小，我天天在长高！',
+        p: 'wǒ bù dà yě bù xiǎo, wǒ tiān tiān zài zhǎng gāo!',
+        sceneBg: 'dawn',
+        sceneAlt: '我不大也不小，我天天长高',
+        scene: [
+          { e: '☀️', x: 80, y: 22, s: 1.1, m: 'float' },
+          { e: '🌳', x: 22, y: 58, s: 1.5 },
+          { e: '🙋', x: 50, y: 78, s: 1.7 },
+          { e: '🌱', x: 78, y: 88, s: 0.9, m: 'sway' }
+        ]
+      }
     ]
   },
   {
@@ -133,12 +288,85 @@ export const CORE_BOOKS = [
     summary: '爸爸妈妈爷爷姑姑，一页一个人，读完就认识一家人。',
     newChars: ['爸', '妈', '爷', '姑', '弟', '妹', '亲', '家'],
     pages: [
-      { emoji: '👨', text: '这是我爸爸。', p: 'zhè shì wǒ bà ba.' },
-      { emoji: '👩', text: '这是我妈妈。', p: 'zhè shì wǒ mā ma.' },
-      { emoji: '👴', text: '这是爷爷，那是姑姑。', p: 'zhè shì yé ye, nà shì gū gu.' },
-      { emoji: '👶', text: '我有弟弟，也有妹妹。', p: 'wǒ yǒu dì di, yě yǒu mèi mei.' },
-      { emoji: '🏡', text: '我们一家人都在家里。', p: 'wǒ men yī jiā rén dōu zài jiā lǐ.' },
-      { emoji: '❤️', text: '我爱我家，我家的人都爱我。', p: 'wǒ ài wǒ jiā, wǒ jiā de rén dōu ài wǒ.' }
+      {
+        emoji: '👨',
+        text: '这是我爸爸。',
+        p: 'zhè shì wǒ bà ba.',
+        sceneBg: 'room',
+        sceneAlt: '这是我爸爸',
+        scene: [
+          { e: '💡', x: 50, y: 24, s: 0.9, m: 'float' },
+          { e: '👨', x: 52, y: 66, s: 1.9 },
+          { e: '🛋️', x: 24, y: 82, s: 1.2 },
+          { e: '🧒', x: 76, y: 84, s: 1.2 }
+        ]
+      },
+      {
+        emoji: '👩',
+        text: '这是我妈妈。',
+        p: 'zhè shì wǒ mā ma.',
+        sceneBg: 'room',
+        sceneAlt: '这是我妈妈',
+        scene: [
+          { e: '🪟', x: 22, y: 40, s: 1.2 },
+          { e: '🌸', x: 80, y: 58, s: 0.9, m: 'sway' },
+          { e: '👩', x: 52, y: 66, s: 1.9 },
+          { e: '🧒', x: 76, y: 84, s: 1.2 }
+        ]
+      },
+      {
+        emoji: '👴',
+        text: '这是爷爷，那是姑姑。',
+        p: 'zhè shì yé ye, nà shì gū gu.',
+        sceneBg: 'room',
+        sceneAlt: '这是爷爷，那是姑姑',
+        scene: [
+          { e: '🪟', x: 20, y: 38, s: 1.1 },
+          { e: '👴', x: 34, y: 70, s: 1.6 },
+          { e: '👩‍🦰', x: 68, y: 80, s: 1.5 },
+          { e: '🪑', x: 88, y: 88, s: 1 }
+        ]
+      },
+      {
+        emoji: '👶',
+        text: '我有弟弟，也有妹妹。',
+        p: 'wǒ yǒu dì di, yě yǒu mèi mei.',
+        sceneBg: 'room',
+        sceneAlt: '我有弟弟，也有妹妹',
+        scene: [
+          { e: '🛏️', x: 18, y: 72, s: 1.2 },
+          { e: '👦', x: 36, y: 76, s: 1.4 },
+          { e: '👧', x: 62, y: 82, s: 1.4 },
+          { e: '🧸', x: 84, y: 88, s: 1, m: 'float' }
+        ]
+      },
+      {
+        emoji: '🏡',
+        text: '我们一家人都在家里。',
+        p: 'wǒ men yī jiā rén dōu zài jiā lǐ.',
+        sceneBg: 'room',
+        sceneAlt: '我们一家人都在家里',
+        scene: [
+          { e: '🏠', x: 50, y: 42, s: 1.6 },
+          { e: '👨', x: 26, y: 74, s: 1.3 },
+          { e: '👩', x: 44, y: 78, s: 1.3 },
+          { e: '👦', x: 62, y: 84, s: 1.1 },
+          { e: '👧', x: 78, y: 88, s: 1.1 }
+        ]
+      },
+      {
+        emoji: '❤️',
+        text: '我爱我家，我家的人都爱我。',
+        p: 'wǒ ài wǒ jiā, wǒ jiā de rén dōu ài wǒ.',
+        sceneBg: 'dawn',
+        sceneAlt: '我爱我家，家里的人都爱我',
+        scene: [
+          { e: '❤️', x: 50, y: 32, s: 1.5, m: 'float' },
+          { e: '🏠', x: 20, y: 58, s: 1.3 },
+          { e: '👨‍👩‍👧‍👦', x: 50, y: 80, s: 2 },
+          { e: '🌸', x: 82, y: 86, s: 1, m: 'sway' }
+        ]
+      }
     ]
   },
   {
@@ -152,12 +380,85 @@ export const CORE_BOOKS = [
     summary: '红的苹果、蓝的海、白的云，读一遍就认全了色的字。',
     newChars: ['红', '黄', '蓝', '绿', '白', '黑', '色', '亮'],
     pages: [
-      { emoji: '🍎', text: '苹果是红的。', p: 'píng guǒ shì hóng de.' },
-      { emoji: '🌞', text: '日是黄的，月也是黄的。', p: 'rì shì huáng de, yuè yě shì huáng de.' },
-      { emoji: '🌊', text: '海是蓝的，天也是蓝的。', p: 'hǎi shì lán de, tiān yě shì lán de.' },
-      { emoji: '🌿', text: '草是绿的，叶也是绿的。', p: 'cǎo shì lǜ de, yè yě shì lǜ de.' },
-      { emoji: '☁️', text: '云是白的，夜是黑的。', p: 'yún shì bái de, yè shì hēi de.' },
-      { emoji: '🌈', text: '雨后天上有光，光里的色又多又亮！', p: 'yǔ hòu tiān shàng yǒu guāng, guāng lǐ de sè yòu duō yòu liàng!' }
+      {
+        emoji: '🍎',
+        text: '苹果是红的。',
+        p: 'píng guǒ shì hóng de.',
+        sceneBg: 'field',
+        sceneAlt: '苹果是红的',
+        scene: [
+          { e: '🌳', x: 22, y: 56, s: 1.5 },
+          { e: '🍎', x: 48, y: 66, s: 1.7, m: 'float' },
+          { e: '🍎', x: 72, y: 80, s: 1.2 },
+          { e: '🌿', x: 84, y: 88, s: 0.9, m: 'sway' }
+        ]
+      },
+      {
+        emoji: '🌞',
+        text: '日是黄的，月也是黄的。',
+        p: 'rì shì huáng de, yuè yě shì huáng de.',
+        sceneBg: 'dusk',
+        sceneAlt: '日是黄的，月也是黄的',
+        scene: [
+          { e: '☀️', x: 30, y: 32, s: 1.5, m: 'float' },
+          { e: '🌕', x: 70, y: 30, s: 1.4, m: 'float' },
+          { e: '⭐', x: 56, y: 48, s: 0.8, m: 'float' },
+          { e: '⛰️', x: 44, y: 82, s: 1.7 }
+        ]
+      },
+      {
+        emoji: '🌊',
+        text: '海是蓝的，天也是蓝的。',
+        p: 'hǎi shì lán de, tiān yě shì lán de.',
+        sceneBg: 'water',
+        sceneAlt: '海是蓝的，天也是蓝的',
+        scene: [
+          { e: '☁️', x: 26, y: 24, s: 1.2, m: 'drift' },
+          { e: '⛵', x: 60, y: 62, s: 1.1, m: 'drift' },
+          { e: '🌊', x: 40, y: 80, s: 1.5, m: 'sway' },
+          { e: '🌊', x: 72, y: 88, s: 1.3, m: 'sway' }
+        ]
+      },
+      {
+        emoji: '🌿',
+        text: '草是绿的，叶也是绿的。',
+        p: 'cǎo shì lǜ de, yè yě shì lǜ de.',
+        sceneBg: 'field',
+        sceneAlt: '草是绿的，叶也是绿的',
+        scene: [
+          { e: '🍃', x: 64, y: 50, s: 1, m: 'drift' },
+          { e: '🌳', x: 36, y: 56, s: 1.9 },
+          { e: '🌿', x: 26, y: 84, s: 1.2, m: 'sway' },
+          { e: '🌱', x: 72, y: 88, s: 1, m: 'sway' }
+        ]
+      },
+      {
+        emoji: '☁️',
+        text: '云是白的，夜是黑的。',
+        p: 'yún shì bái de, yè shì hēi de.',
+        sceneBg: 'night',
+        sceneAlt: '云是白的，夜是黑的',
+        scene: [
+          { e: '🌙', x: 72, y: 26, s: 1.3, m: 'float' },
+          { e: '☁️', x: 32, y: 32, s: 1.4, m: 'drift' },
+          { e: '⭐', x: 52, y: 44, s: 0.8, m: 'float' },
+          { e: '🏠', x: 46, y: 84, s: 1.4 }
+        ]
+      },
+      {
+        emoji: '🌈',
+        text: '雨后天上有光，光里的色又多又亮！',
+        p: 'yǔ hòu tiān shàng yǒu guāng, guāng lǐ de sè yòu duō yòu liàng!',
+        sceneBg: 'sky',
+        sceneAlt: '雨后天上有光，光里的色多又亮',
+        scene: [
+          { e: '☀️', x: 80, y: 20, s: 1.1, m: 'float' },
+          { e: '☁️', x: 22, y: 26, s: 1.1, m: 'drift' },
+          { e: '🌈', x: 50, y: 42, s: 2 },
+          { e: '🌳', x: 72, y: 80, s: 1.3 },
+          { e: '🌸', x: 34, y: 88, s: 1, m: 'sway' }
+        ]
+      }
     ]
   },
   {
