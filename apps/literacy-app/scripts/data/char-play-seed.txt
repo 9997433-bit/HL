@@ -1,9 +1,9 @@
 # ROUND16_H3（承 ROUND15_H3）· 富互动 play 脚本 seed —— 「玩」这一步的手写剧本，一字一个。
 #
 # 洪恩识字的卖点是「根据字源、字义设计每一个汉字动画」。这份 seed 就是咱们的
-# 对应物：前 35 个单元（540 字）每个字一条手写脚本，玩法和字义直接挂钩——
+# 对应物：前 40 个单元（640 字）每个字一条手写脚本，玩法和字义直接挂钩——
 # 雨是接雨滴、火是添柴、口是张嘴发声、推是往前推、拉是往回拉。
-# Round 15 写到 u20（272 条），Round 16 续到 u35（540 条），把前段手感铺到
+# Round 15 写到 u20（272 条），Round 16 续到 u40（640 条），把前段手感铺到
 # 「随手点开一个字都是手写关」的密度。
 # 没手写到的字由 gen-char-play.mjs 按部首 / 主题模板自动补（那些条目
 # templateFallback = true），这里的每一条都是 templateFallback = false。
@@ -651,3 +651,113 @@
 及|action|swipe-motion|伸长手够一够，看能不能碰到。|hero=🙋;dir=up;goal=3
 与|word|pair-match|你与我，把两个凑到一起。|pairs=🧒:👧,🐱:🐭,☕:🍰
 或|word|sort-buckets|吃苹果或者吃梨，选一样就行。|buckets=选这个:🍎,选那个:🍐;items=🍎:选这个,🍏:选这个,🍐:选那个,🥝:选那个
+
+# ---- u36 车船飞机 ----
+汽|object|grow-tap|水烧开了，冒出一团白汽。|stages=💧,♨️,☁️;goal=3
+轨|object|trace-path|两条铁轨并排，火车顺着走。|hero=🚂;dir=right;goal=3
+道|place|trace-path|沿着大道一直往前，别拐弯。|hero=🛣️;dir=right;goal=3
+途|place|swipe-motion|路上还远着呢，再往前赶一段。|hero=🎒;dir=right;goal=4
+程|number|count-tap|一段一段记路程，走满四段。|hero=📍;items=📍,📍,📍,📍;goal=4
+航|object|swipe-motion|大船起航，慢慢驶向大海去。|hero=🚢;dir=right;goal=3
+舰|object|emoji-hunt|哪一艘最大？找出那艘军舰。|target=🚢;decoys=🛶,⛵,🛥️;goal=1
+舱|place|tap-reveal|钻进船舱看看，里面有什么。|hero=🛳️;items=🛏️,🪟,🧳;goal=3
+帆|object|swipe-motion|风一吹，把帆往上升起来。|hero=⛵;dir=up;goal=3
+桨|action|swipe-motion|双手划桨，一下一下往后拨。|hero=🛶;dir=left;goal=4
+舵|action|trace-path|握住舵轮，把船头掉个方向。|hero=🛞;dir=right;goal=3
+轿|object|scene-poke|小轿车里坐得下谁？点点看。|hero=🚙;items=👨,👩,🧒;goal=3
+卡|object|tap-reveal|刷一下卡，门就打开了。|hero=💳;items=💳,🎫,🔑;goal=3
+货|object|sort-buckets|装车啦，重货轻货分开放。|buckets=重货:📦,轻货:🎈;items=🧱:重货,🪑:重货,🧸:轻货,🪶:轻货
+载|action|count-tap|车上装了几箱？一箱一箱数。|hero=🚚;items=📦,📦,📦,📦;goal=4
+运|action|swipe-motion|把箱子从这头运到那头去。|hero=📦;dir=right;goal=4
+输|action|trace-path|水从这一头输到那一头。|hero=🚰;dir=right;goal=3
+驾|action|swipe-motion|握好方向盘，驾着车往前开。|hero=🚗;dir=right;goal=4
+驶|action|swipe-motion|车子飞快驶过，一眨眼没影。|hero=🚙;dir=right;goal=5
+乘|action|scene-poke|乘车要排队，点点该做的事。|hero=🚌;items=🚏,🎫,🪑;goal=3
+
+# ---- u37 穿的用的 ----
+服|object|sort-buckets|把衣服分好，上身的下身的。|buckets=上身:👕,下身:👖;items=🧥:上身,👚:上身,🩳:下身,👖:下身
+衬|object|tap-reveal|里面先穿衬衣，再套上外套。|hero=👔;items=👕,👔,🧥;goal=3
+衫|object|color-fill|给小衬衫涂上淡淡的蓝。|hero=👕;color=lightblue;goal=3
+裤|object|drag-parts|两条裤腿缝到一起，成一条裤。|hero=👖;parts=🦵,🦵
+裙|object|swipe-motion|转个圈，裙子就飘起来了。|hero=👗;dir=right;goal=3
+袜|object|pair-match|一只一只配好，袜子成对。|pairs=🧦:🧦,🩰:🩰,🥾:🥾
+袋|object|pop-bubbles|口袋里掏出小东西，一件一件。|hero=👝;items=🔑,🍬,🪙;goal=3
+扣|action|count-tap|一颗一颗系扣子，系好四颗。|hero=🔘;items=🔘,🔘,🔘,🔘;goal=4
+领|body|tap-reveal|翻好衣领，脖子那圈才整齐。|hero=👔;items=👔,🧣,🧥;goal=3
+袖|body|swipe-motion|把袖子往上一撸，准备干活。|hero=💪;dir=up;goal=3
+布|object|trace-path|一匹布铺开，从这头拉到那头。|hero=🧵;dir=right;goal=3
+棉|nature|grow-tap|棉花开了，白白的一朵朵。|stages=🌱,🌿,☁️;goal=3
+丝|object|trace-path|蚕吐出细细的丝，绕成一圈。|hero=🕸️;dir=right;goal=3
+绸|object|color-fill|把光滑的绸子涂成粉红色。|hero=🎀;color=pink;goal=3
+线|object|trace-path|捏住线头，从针眼里穿过去。|hero=🧵;dir=right;goal=3
+针|object|emoji-hunt|草堆里找针，把细细的找出来。|target=📌;decoys=🌾,🍂,🪵;goal=1
+缝|action|swipe-motion|一针上一针下，把破口缝好。|hero=🪡;dir=up;goal=4
+补|action|drag-parts|衣服破了，贴块布补起来。|hero=👕;parts=👕,🟦
+织|action|count-tap|一行一行织毛衣，织满五行。|hero=🧶;items=🧶,🧶,🧶,🧶,🧶;goal=5
+染|action|color-fill|白布放进染缸，染成紫的。|hero=🧻;color=purple;goal=3
+
+# ---- u38 什么天气 ----
+晴|weather|morph-story|云散开了，天一下子晴起来。|stages=☁️,⛅,☀️;goal=3
+阴|weather|swipe-motion|云飘过来遮住太阳，天阴了。|hero=☁️;dir=left;goal=3
+霜|weather|color-fill|一夜过去，叶子上结了白霜。|hero=🍂;color=white;goal=3
+露|nature|rain-catch|清早的露珠滚下来，接住它。|hero=🌿;items=💧,💧,💧;tool=🍃;goal=3
+冻|weather|morph-story|水在外面放一夜，冻成硬块。|stages=💧,🧊,冻;goal=3
+霞|color|color-fill|把天边的云涂成红彤彤的霞。|hero=🌇;color=red;goal=3
+虹|weather|grow-tap|雨停了，天上架起一道彩虹。|stages=🌧️,⛅,🌈;goal=3
+潮|nature|swipe-motion|潮水涨上来，一直漫到脚边。|hero=🌊;dir=left;goal=3
+旱|weather|morph-story|好久不下雨，地都晒裂了。|stages=🌱,🌵,旱;goal=3
+涝|weather|rain-catch|雨下个不停，赶紧把水舀走。|hero=🌊;items=💧,💧,💧,💧;tool=🪣;goal=4
+暴|weather|sound-tap|暴风雨来了，呼呼直响。|hero=⛈️;sound=呼呼;goal=3
+烈|weather|grow-tap|日头越来越烈，晒得人躲开。|stages=🌤️,🌞,🔥;goal=3
+寒|weather|grow-tap|风一阵比一阵寒，冻得发抖。|stages=🍃,❄️,🥶;goal=3
+凉|feeling|tap-reveal|天热喝点凉的，点开挑一样。|hero=🧊;items=🥤,🍧,🍉;goal=3
+洪|nature|rain-catch|大水冲过来，快拿沙袋挡住。|hero=🌊;items=🌊,🌊,🌊;tool=🧱;goal=3
+浇|action|trace-path|提起水壶，给小花浇点水。|hero=🚿;dir=down;goal=3
+泼|action|swipe-motion|一盆水往外泼，哗地一下。|hero=🪣;dir=right;goal=3
+溅|action|pop-bubbles|踩进水坑，水花溅得到处都是。|hero=💦;items=💦,💦,💦;goal=3
+淹|nature|grow-tap|水越涨越高，把小船淹住了。|stages=⛵,💧,🌊;goal=3
+冒|weather|grow-tap|锅盖一掀，热气直往上冒。|stages=🍲,♨️,☁️;goal=3
+
+# ---- u39 田里山里 ----
+耕|action|trace-path|牵着牛，把地一垄一垄耕开。|hero=🐂;dir=right;goal=3
+播|action|rain-catch|抓一把种子，一粒粒撒进地。|hero=🌾;items=🌰,🌰,🌰;tool=🕳️;goal=3
+割|action|swipe-motion|拿起镰刀，把麦子一把割下。|hero=🌾;dir=right;goal=4
+犁|object|trace-path|犁头插进土里，翻出新泥来。|hero=🐄;dir=right;goal=3
+锄|action|swipe-motion|举起锄头，一下一下锄草。|hero=⛏️;dir=down;goal=4
+秧|nature|count-tap|一株一株插秧，插满四株。|hero=🌱;items=🌱,🌱,🌱,🌱;goal=4
+稻|nature|grow-tap|稻子灌了浆，垂下沉沉的头。|stages=🌱,🌾,🍚;goal=3
+穗|nature|count-tap|数数手里握着几个麦穗。|hero=🌾;items=🌾,🌾,🌾;goal=3
+粮|food|sort-buckets|粮食收进仓，别的放外面。|buckets=粮食:🌾,不是粮食:🪨;items=🍚:粮食,🌽:粮食,🪨:不是粮食,🍂:不是粮食
+仓|place|drag-parts|盖个大仓库，把粮食堆进去。|hero=🏚️;parts=🧱,🧱,🌾
+畜|animal|sort-buckets|家里养的进圈，山里的留在野外。|buckets=家养:🏠,野生:🌲;items=🐄:家养,🐖:家养,🦌:野生,🐺:野生
+牧|animal|swipe-motion|赶着羊群，上山坡去吃草。|hero=🐑;dir=right;goal=4
+渔|action|rain-catch|撒下渔网，接住游过来的鱼。|hero=🎣;items=🐟,🐟,🐟;tool=🥅;goal=3
+猎|action|emoji-hunt|草丛里藏着谁？把它找出来。|target=🐗;decoys=🌿,🌾,🍂;goal=1
+沿|place|trace-path|沿着河边一直走，别走岔了。|hero=🚶;dir=right;goal=3
+涌|nature|grow-tap|水从地下涌上来，一股又一股。|stages=💧,💦,⛲;goal=3
+溪|nature|trace-path|小溪叮咚，一路流下山去。|hero=💧;dir=down;goal=3
+瀑|nature|swipe-motion|瀑布从崖上冲下来，白花花。|hero=💦;dir=down;goal=4
+岩|nature|drag-parts|大岩石一块压一块，堆成崖。|hero=🪨;parts=🪨,🪨,🪨
+坡|place|swipe-motion|顺着山坡往下滑，冲呀。|hero=🛷;dir=down;goal=3
+
+# ---- u40 工具和容器 ----
+斧|action|swipe-motion|举起斧头，把木头劈成两半。|hero=🪓;dir=down;goal=4
+锯|action|swipe-motion|锯子来回拉，木板断成两截。|hero=🪚;dir=right;goal=4
+锤|action|count-tap|咚咚咚，把钉子锤进去三下。|hero=🔨;items=🔨,🔨,🔨;goal=3
+钉|action|drag-parts|四颗钉子钉住板子，稳稳的。|hero=📌;parts=📌,📌,📌,📌
+钻|action|trace-path|电钻转起来，在墙上钻个洞。|hero=🪛;dir=right;goal=3
+尺|object|trace-path|拿尺子比一比，画一条直线。|hero=📏;dir=right;goal=3
+秤|object|sort-buckets|放上秤称一称，沉的往下压。|buckets=沉:⬇️,飘:⬆️;items=🍉:沉,🪨:沉,🍃:飘,🎈:飘
+绳|object|trace-path|长绳子一头，拉到另一头去。|hero=🪢;dir=right;goal=3
+索|action|swipe-motion|抓住绳索，手脚并用往上爬。|hero=🧗;dir=up;goal=3
+链|object|drag-parts|一环扣一环，连成一条链。|hero=⛓️;parts=⭕,⭕,⭕
+锁|action|swipe-motion|咔哒，把锁往下一按就锁好。|hero=🔒;dir=down;goal=3
+钥|action|pair-match|每把钥匙配一把锁，试试看。|pairs=🔑:🔒,🗝️:🔐,🔑:🧳
+桶|object|pop-bubbles|水桶里的水，一瓢一瓢舀完。|hero=🪣;items=💧,💧,💧;goal=3
+盆|object|scene-poke|洗脸盆边放着什么？点点看。|hero=🛁;items=🧼,🧽,🪥;goal=3
+篮|object|count-tap|篮子里装了几样水果？数数。|hero=🧺;items=🍎,🍌,🍇,🍐;goal=4
+筐|object|sort-buckets|把菜和果子分别放进两个筐。|buckets=菜筐:🥬,果筐:🍎;items=🥕:菜筐,🥦:菜筐,🍐:果筐,🍇:果筐
+箱|object|tap-reveal|打开箱子，看看里面装了啥。|hero=📦;items=👕,🧸,📕;goal=3
+柜|object|sort-buckets|衣服挂衣柜，碗筷收进碗柜。|buckets=衣柜:🧥,碗柜:🍽️;items=👕:衣柜,👖:衣柜,🥣:碗柜,🥢:碗柜
+架|object|drag-parts|一层一层搭个架子，好放书。|hero=🗄️;parts=🟫,🟫,🟫
+具|object|scene-poke|工具箱里的家伙，一样样点。|hero=🧰;items=🔨,🔧,🪛;goal=3
