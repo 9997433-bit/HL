@@ -2,8 +2,8 @@
   "simulated": true,
   "marker": "android-sim-harness-v2",
   "note": "VM WebView 模拟 + Capacitor APK 构建；不等价 Android QA 真机签核",
-  "timestamp": "2026-08-28T03:46:55.711Z",
-  "commit": "7d8ac7a",
+  "timestamp": "2026-08-28T04:16:15.732Z",
+  "commit": "834fe72",
   "webViewUserAgent": "Mozilla/5.0 (Linux; Android 13; Pixel 7 Build/TQ3A.230805.001; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/120.0.6099.230 Mobile Safari/537.36",
   "webView": {
     "requestedUserAgent": "Mozilla/5.0 (Linux; Android 13; Pixel 7 Build/TQ3A.230805.001; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/120.0.6099.230 Mobile Safari/537.36",
@@ -31,14 +31,14 @@
       "step": "gradle:literacy",
       "pass": true,
       "exit": 0,
-      "durationMs": 47519,
+      "durationMs": 1789,
       "log": ".agent_workspace/evidence/r13/android-sim/gradle-literacy.log"
     },
     {
       "step": "gradle:math",
       "pass": true,
       "exit": 0,
-      "durationMs": 3372,
+      "durationMs": 1037,
       "log": ".agent_workspace/evidence/r13/android-sim/gradle-math.log"
     },
     {
@@ -71,16 +71,16 @@
     "webViewUaPass": true,
     "smokeLog": {
       "path": ".agent_workspace/evidence/r13/android-sim/smoke-literacy.log",
-      "sha256": "628157f48a69c617cc11d01b737c297044e7408aac21e92414a1fce4fc4e3a6b",
-      "bytes": 20010
+      "sha256": "cc7ab5b6ca543ae2d691a661ed0055160fec60cae1dca93bbdf4a371d9d03b76",
+      "bytes": 20004
     },
-    "apkSha256": "4923affce425763468cda177cb0356c6c876bffdb4473a496760a02b80e95533",
-    "apkBytes": 36222498,
+    "apkSha256": "f15e47b6e75f9474c5a4c33af9c99bad0f1f61d41ce838f7deb6e481416dd1e3",
+    "apkBytes": 36490518,
     "apkPath": "apps/literacy-app/android/app/build/outputs/apk/debug/app-debug.apk",
     "gradleLog": {
       "path": ".agent_workspace/evidence/r13/android-sim/gradle-literacy.log",
-      "sha256": "415ab61eb01d73de8c37ebdbc531fee6fd0b6b95f6261377fb42a3e15a0feb85",
-      "bytes": 6934
+      "sha256": "ae1b5fde4c54dca0187bbeac573295b2fddc3dcbb46ef8aa4372d74dccc46ef3",
+      "bytes": 6788
     }
   },
   "math": {
@@ -91,24 +91,24 @@
     "webViewUaPass": true,
     "smokeLog": {
       "path": ".agent_workspace/evidence/r13/android-sim/smoke-math.log",
-      "sha256": "0516cc5a3d847526d2d8cfbe133c3d36e4f3c26b9943181b7007b94e5731e3ac",
-      "bytes": 6382
+      "sha256": "7b3f9b79109adc0260cbc96434fcd7ceda9215d4554fdccdd2911d4225a9fcf6",
+      "bytes": 6384
     },
-    "apkSha256": "7fc33e5a27ebca190c719f12fa9d478fbe7e5ebb350a2f24a18eebd13a8fbd64",
-    "apkBytes": 4261568,
+    "apkSha256": "14ec403bb3ebb99418b783e8a73e37af775f18044075aa4f754e3453a3a1d34a",
+    "apkBytes": 4299368,
     "apkPath": "apps/math-app/android/app/build/outputs/apk/debug/app-debug.apk",
     "gradleLog": {
       "path": ".agent_workspace/evidence/r13/android-sim/gradle-math.log",
-      "sha256": "d00092b62d462113eaf9a12d47417cd7f2ec16574a3b3aad550562b88e3cc5cf",
-      "bytes": 6219
+      "sha256": "84dd66acb5e79ffe7f0899ae74703c82ded770ab35ce5643712a131471b7e315",
+      "bytes": 6831
     }
   },
   "ocr": {
     "pass": true,
     "log": {
       "path": ".agent_workspace/evidence/r13/android-sim/ocr-device-a.log",
-      "sha256": "4382566ef345f9826ddd2419180bddda641829807a1bd6f22a1f39e5933a6eb7",
-      "bytes": 3667
+      "sha256": "4d7422f1df9e6107b770b225ae3d67b9970008450e2c0498aa4fadad21c9c01f",
+      "bytes": 3642
     }
   },
   "androidHome": "/home/ubuntu/android-sdk"

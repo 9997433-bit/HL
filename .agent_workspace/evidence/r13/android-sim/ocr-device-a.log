@@ -1,8 +1,8 @@
 # marker: ROUND13_H6
 # command: node scripts/test-ocr-device.mjs
 # cwd: apps/literacy-app
-# startedAt: 2026-08-28T03:46:55.683Z
-# durationMs: 28
+# startedAt: 2026-08-28T04:16:15.685Z
+# durationMs: 46
 # exit: 0
 
   ✓ A1 Capacitor appId = com.hongen.literacy
@@ -43,14 +43,14 @@
   ✓ A8 assets/public/ocr/sample-photo.png 已随 cap copy 进包
   ✓ A8 assets/public/index.html 已随 cap copy 进包
   ⃠ [SKIP owner: Android QA] B1 设备指纹（型号 / Android 版本 / WebView 版本 / 分辨率）
-      这台机器上没有 adb（Cursor Cloud VM 不带 Android SDK）；设备到位后执行：node scripts/test-ocr-device.mjs
+      adb 在，但没有处于 device 状态的设备或模拟器；设备到位后执行：node scripts/test-ocr-device.mjs
   ⃠ [SKIP owner: Android QA] B2 十张真实样张 push 到 /sdcard/Download/hongen-ocr，逐格走「相册选」
-      这台机器上没有 adb（Cursor Cloud VM 不带 Android SDK）；设备到位后执行：node scripts/test-ocr-device.mjs
+      adb 在，但没有处于 device 状态的设备或模拟器；设备到位后执行：node scripts/test-ocr-device.mjs
   ⃠ [SKIP owner: Android QA] B3 冷启 → /#/ocr → 首次下引擎包耗时与峰值内存
-      这台机器上没有 adb（Cursor Cloud VM 不带 Android SDK）；设备到位后执行：node scripts/test-ocr-device.mjs
+      adb 在，但没有处于 device 状态的设备或模拟器；设备到位后执行：node scripts/test-ocr-device.mjs
   ⃠ [SKIP owner: Android QA] B4 飞行模式下重进 /#/ocr，引擎从 SW 缓存里起来
-      这台机器上没有 adb（Cursor Cloud VM 不带 Android SDK）；设备到位后执行：飞行模式后重跑 B3
+      adb 在，但没有处于 device 状态的设备或模拟器；设备到位后执行：飞行模式后重跑 B3
 
-拍照识字真机 harness [ROUND12_H2/ROUND13_H2]：37 项通过，0 项失败，4 项 SKIP（这台机器上没有 adb（Cursor Cloud VM 不带 Android SDK））。
+拍照识字真机 harness [ROUND12_H2/ROUND13_H2]：37 项通过，0 项失败，4 项 SKIP（adb 在，但没有处于 device 状态的设备或模拟器）。
 SKIP 不是通过：真机那几项要由 owner 在设备上跑一遍并回填 evidence/r12/。
 
