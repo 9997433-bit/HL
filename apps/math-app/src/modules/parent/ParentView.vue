@@ -16,11 +16,19 @@ import { buildWeekPlan, weekPlanAdoption } from '@/data/week-plan.js'
 import { MASTERY_THRESHOLD } from '@/utils/mastery.js'
 import { useProgressStore } from '@/stores/progress.js'
 import { AGE_BANDS, THEMES, useSettingsStore } from '@/stores/settings.js'
+import { useWeeklyReport } from '@/composables/useWeeklyReport.js'
 import { sound } from '@/utils/sound'
 import OpenMojiAttribution from '@shared/components/OpenMojiAttribution.vue'
 
 const progress = useProgressStore()
 const settings = useSettingsStore()
+
+/* ---------------- 本周一句话 ----------------
+ *
+ * 下面的雷达和错因表能回答「练了多少、错在哪」，回答不了「所以这周该练什么」。
+ * 周报就补这一句：一个弱项 + 最多三条能直接点过去的练习，本机现算，不联网。
+ */
+const weeklyReport = useWeeklyReport()
 
 /* ---------------- 口算门：一道两位数加法，挡住小朋友即可 ---------------- */
 
@@ -339,6 +347,39 @@ function setTheme(theme) {
             <strong>{{ progress.state.dailyStreak }}</strong><span class="muted">连续天数</span>
           </div>
         </div>
+      </section>
+
+      <!-- 本周弱项一句话 + 建议练习 -->
+      <section
+        class="panel stack weekly"
+        data-weekly-report
+        :data-weakness="weeklyReport.weakness.id"
+      >
+        <h3 class="panel-title">🗞️ 本周一句话（{{ weeklyReport.range }}）</h3>
+        <p class="weekly-headline" data-weekly-headline>{{ weeklyReport.headline }}</p>
+        <p class="muted note">
+          这周来了 {{ weeklyReport.week.activeDays }} 天 ·
+          共 {{ weeklyReport.week.minutes }} 分钟 ·
+          做了 {{ weeklyReport.week.answered }} 道题 ·
+          弱项判定：{{ weeklyReport.weakness.label }}
+        </p>
+
+        <h4 class="sub-title">这周建议练这 {{ weeklyReport.drills.length }} 件事</h4>
+        <ol class="weekly-drills">
+          <li v-for="drill in weeklyReport.drills" :key="drill.id" class="weekly-drill">
+            <RouterLink class="weekly-go" :to="drill.to">
+              <strong>{{ drill.title }}</strong>
+              <small class="muted">{{ drill.why }}</small>
+              <span class="chip">
+                {{ drill.minutes > 0 ? `约 ${drill.minutes} 分钟` : '只是一个约定' }}
+              </span>
+            </RouterLink>
+          </li>
+        </ol>
+        <p class="muted note">
+          这段话是按本机存档现算的：没有联网，也没有拿别的孩子做对比。
+          不认同判断就直接看下面的雷达和错因表，那才是原始记录。
+        </p>
       </section>
 
       <!-- 共享主题 -->
@@ -855,6 +896,78 @@ function setTheme(theme) {
 .sub-title {
   font-size: 15px;
   font-weight: 800;
+}
+
+/* ---- 本周一句话 ---- */
+
+.weekly-headline {
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  background: rgba(94, 231, 255, 0.12);
+  border-left: 4px solid var(--brand);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.8;
+}
+
+.weekly-drills {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  counter-reset: drill;
+}
+
+.weekly-drill {
+  counter-increment: drill;
+}
+
+.weekly-go {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas: 'no title' 'no why' 'no time';
+  gap: 2px 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.weekly-go::before {
+  grid-area: no;
+  align-self: center;
+  content: counter(drill);
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--brand);
+  color: #05213a;
+  font-weight: 900;
+}
+
+.weekly-go strong {
+  grid-area: title;
+  font-size: 15px;
+}
+
+.weekly-go small {
+  grid-area: why;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.weekly-go .chip {
+  grid-area: time;
+  justify-self: start;
+  margin-top: 4px;
+  font-size: 11px;
+}
+
+.weekly-go:hover,
+.weekly-go:focus-visible {
+  border-color: var(--brand);
 }
 
 .themes {

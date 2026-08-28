@@ -1,12 +1,21 @@
 /**
  * 学伴墨墨的陪跑台词。
  *
- * 每条核心路由一组：前面几句跟着当前进度走（「还有 3 个字要复习」），
- * 后面几句是通用的鼓励与玩法提示。孩子点一下墨墨就换下一句，同时朗读出来。
+ * 分两层：
+ *  - 「场景」按路由走（首页说去哪儿玩，绘本页说怎么读），一进页面就有话说；
+ *  - 「阶段」按孩子此刻的状态走（刚开新字、连着答对、复习欠账、坐太久、
+ *    答错卡住、好久没来……），同一个页面在不同状态下听到的是不同的墨墨。
+ *
+ * 阶段这一层是墨墨「有人格」的地方：它不复读固定鼓励语，而是先判断
+ * 现在最该说哪一类话，再从那一类里轮着说。`pickMascotStage()` 就是这个判断，
+ * 界面不必自己写一堆 if。
  *
  * 台词里不放 emoji：这些句子会直接交给 SpeechSynthesis 念，
  * 表情符号有的读作「笑脸」，有的干脆卡住，写成纯文字最稳。
  */
+
+/** 阶段剧本的版本标记，随台词一起返回，探针与证据回填都认它。 */
+export const ROUND16_H6_STAGE_SCRIPT = 'ROUND16_H6'
 
 const trim = (list) => list.filter((line) => typeof line === 'string' && line.trim())
 
@@ -81,8 +90,184 @@ export const MASCOT_SCENES = {
     ])
 }
 
-/** 取某个场景的台词；场景名写错时退回首页那组，界面上永远有话可说。 */
+/**
+ * 阶段剧本。
+ *
+ * `when` 判断此刻是不是这个阶段，`lines` 给这个阶段的台词。
+ * 数组顺序就是优先级：越靠前越「打断」后面的——孩子坐了半小时还在硬撑时，
+ * 「该歇歇了」比「还有 3 个字要复习」重要得多。
+ */
+export const MASCOT_STAGES = [
+  {
+    id: 'comeback',
+    label: '久别重逢',
+    when: (ctx) => (ctx.daysAway ?? 0) >= 3,
+    lines: (ctx) =>
+      trim([
+        `好久不见，${who(ctx.name)}，你的字我都替你收着呢。`,
+        (ctx.daysAway ?? 0) > 0 && `你有 ${ctx.daysAway} 天没来啦，我们先认几个老字热热身。`,
+        '忘掉的字不算丢，再认一次它就回来了。',
+        '先别急着学新字，把上次学的捡起来更要紧。'
+      ])
+  },
+  {
+    id: 'fatigue',
+    label: '该歇歇了',
+    when: (ctx) => Boolean(ctx.restDue) || (ctx.sessionMinutes ?? 0) >= 15,
+    lines: (ctx) =>
+      trim([
+        (ctx.sessionMinutes ?? 0) > 0
+          ? `我们已经连着学了 ${ctx.sessionMinutes} 分钟，眼睛要歇一歇了。`
+          : '学了好一会儿了，眼睛要歇一歇。',
+        '站起来走两步，看看远处的绿色，再回来找我。',
+        '累的时候记不住字，歇一下反而学得快。',
+        '去喝口水吧，我就在这儿等你。',
+        '今天学得够多啦，剩下的留给明天也不亏。'
+      ])
+  },
+  {
+    id: 'mastered',
+    label: '刚掌握',
+    when: (ctx) => Boolean(ctx.justMastered),
+    lines: (ctx) =>
+      trim([
+        ctx.lastChar
+          ? `「${ctx.lastChar}」你已经真掌握了，可以骄傲一下。`
+          : '这个字你已经真掌握了，可以骄傲一下。',
+        (ctx.mastered ?? 0) > 0 && `你已经掌握 ${ctx.mastered} 个字，这可不是小数目。`,
+        '掌握了的字也会慢慢变淡，过几天我再喊你来看一眼。',
+        '把刚学会的字写给家里人看，他们准要惊讶。'
+      ])
+  },
+  {
+    id: 'combo',
+    label: '连着答对',
+    when: (ctx) => (ctx.combo ?? 0) >= 3,
+    lines: (ctx) =>
+      trim([
+        `连着答对 ${ctx.combo} 个啦，你今天状态真好。`,
+        '太顺了，我都快跟不上你的速度了。',
+        '连对的时候也别飘，下一题还是读完再选。',
+        '这一串答对说明你是真记住了，不是蒙的。',
+        '再对两个，我就要给你鼓掌了。'
+      ])
+  },
+  {
+    id: 'encourage',
+    label: '答错了',
+    when: (ctx) => (ctx.recentWrong ?? 0) > 0,
+    lines: (ctx) =>
+      trim([
+        ctx.lastChar
+          ? `「${ctx.lastChar}」认错了不要紧，我小时候也常把它看岔。`
+          : '错一个字不要紧，我小时候也常常认岔。',
+        '我们再看一遍这个字，这次一定能记住。',
+        '不会只是还没学会，不是学不会。',
+        (ctx.learned ?? 0) > 0
+          ? `你已经认识 ${ctx.learned} 个字了，慢一点也在往前走。`
+          : '慢一点没关系，你正在往前走。',
+        '先深呼吸，再看一遍题目，答案就藏在里面。'
+      ])
+  },
+  {
+    id: 'review',
+    label: '要复习',
+    when: (ctx) => (ctx.due ?? 0) > 0,
+    lines: (ctx) =>
+      trim([
+        `有 ${ctx.due} 个老朋友在等你，先去打个招呼吧。`,
+        '复习不是重学一遍，是把快忘的字捞回来。',
+        '想不起来也别急，看一眼答案再记一次就好。',
+        '今天把它们复习完，明天它们就不容易跑掉了。',
+        '复习过的字会记得更久，这是记忆曲线告诉我的。'
+      ])
+  },
+  {
+    id: 'finish',
+    label: '今天够了',
+    when: (ctx) => Boolean(ctx.dailyLimitReached),
+    lines: (ctx) =>
+      trim([
+        '今天的新字学完啦，剩下的时间读本绘本吧。',
+        (ctx.streak ?? 0) > 1
+          ? `连着来了 ${ctx.streak} 天，这个习惯比多认几个字更值钱。`
+          : '明天再来，我们就算连上两天啦。',
+        '今天到这里就很好，认字是长跑不是冲刺。',
+        '走之前挑一个今天最喜欢的字，读三遍再关掉。'
+      ])
+  },
+  {
+    id: 'newChar',
+    label: '要学新字',
+    when: (ctx) => Boolean(ctx.nextChar),
+    lines: (ctx) =>
+      trim([
+        `今天的新朋友是「${ctx.nextChar}」，我们先看看它长什么样。`,
+        '新字先认样子，再认声音，最后才动手写。',
+        '刚见面觉得陌生很正常，多看两眼它就熟了。',
+        (ctx.newCharsToday ?? 0) > 0
+          ? `今天已经认下 ${ctx.newCharsToday} 个新字，这个是加餐。`
+          : '今天的第一个新字，我们慢慢来。',
+        '认完这个新字，记得自己再读一遍给我听。'
+      ])
+  },
+  {
+    id: 'idle',
+    label: '随便聊聊',
+    when: () => true,
+    lines: (ctx) =>
+      trim([
+        `我是墨墨，${who(ctx.name)}学字的时候我一直都在。`,
+        '每个字都藏着一幅小画，看久了就能看出来。',
+        '想听哪个字的故事？点一下它我就讲。',
+        '慢慢来，认字这件事急不得。'
+      ])
+  }
+]
+
+/** 阶段 id → 定义，`mascotStageLines('review')` 这种直接点名的写法用它。 */
+const STAGE_BY_ID = Object.fromEntries(MASCOT_STAGES.map((s) => [s.id, s]))
+
+/**
+ * 按当前状态挑出该说哪一类话。
+ * 永远有结果：最后一个阶段 `idle` 的 `when` 恒为真。
+ */
+export function pickMascotStage(ctx = {}) {
+  const stage = MASCOT_STAGES.find((s) => s.when(ctx)) ?? STAGE_BY_ID.idle
+  return { id: stage.id, label: stage.label, script: ROUND16_H6_STAGE_SCRIPT }
+}
+
+/** 某个阶段的台词；不传阶段名就按当前状态自己挑一个。 */
+export function mascotStageLines(stageId, ctx = {}) {
+  const stage = STAGE_BY_ID[stageId] ?? STAGE_BY_ID[pickMascotStage(ctx).id]
+  return stage ? stage.lines(ctx) : []
+}
+
+/** 阶段台词的总条数，验收与证据回填直接读它，不必去数源码里的引号。 */
+export function countMascotStageLines(ctx = {}) {
+  const probe = {
+    name: '小朋友',
+    nextChar: '人',
+    lastChar: '人',
+    learned: 12,
+    mastered: 5,
+    due: 3,
+    streak: 4,
+    combo: 5,
+    daysAway: 5,
+    sessionMinutes: 20,
+    newCharsToday: 2,
+    ...ctx
+  }
+  return MASCOT_STAGES.reduce((n, s) => n + s.lines(probe).length, 0)
+}
+
+/**
+ * 取台词：当前阶段的话排在前面，场景常驻语垫在后面。
+ * 场景名写错时退回首页那组，界面上永远有话可说。
+ */
 export function mascotLines(scene, ctx = {}) {
   const build = MASCOT_SCENES[scene] ?? MASCOT_SCENES.home
-  return build(ctx)
+  const stage = pickMascotStage(ctx)
+  return [...mascotStageLines(stage.id, ctx), ...build(ctx)]
 }
