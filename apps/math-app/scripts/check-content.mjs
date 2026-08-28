@@ -9,7 +9,13 @@ import {
   WORD_PROBLEM_TAGS,
   WORD_PROBLEM_TIERS,
   problemsOfTier,
+  tierOf,
 } from '../src/data/wordProblems.js'
+import {
+  auditStepAlignment,
+  stepHistogram,
+  STEPS_ALIGN_TARGET,
+} from '../src/utils/wpSteps.js'
 import {
   AGE_BANDS,
   AGE_BAND_MODULES,
@@ -130,13 +136,13 @@ if (WORD_PROBLEMS.length < MIN_TEMPLATES) {
 
 const ids = new Set()
 const scenes = new Set()
-const byStep = { 1: 0, 2: 0, 3: 0 }
+const byTier = { one: 0, two: 0, multi: 0 }
 
 for (const tpl of WORD_PROBLEMS) {
   if (ids.has(tpl.id)) fail(`母题 id 重复：${tpl.id}`)
   ids.add(tpl.id)
   scenes.add(tpl.scene)
-  byStep[Math.min(3, tpl.steps ?? 1)] += 1
+  byTier[tierOf(tpl)] += 1
   if (typeof tpl.make !== 'function') {
     fail(`${tpl.id} 没有 make() 生成器`)
     continue
@@ -161,11 +167,40 @@ if (scenes.size < MIN_SCENES) fail(`只有 ${scenes.size} 种场景，少于要�
 if (WORD_PROBLEM_TAGS.some((t) => !t)) fail('存在没有语义标签的母题')
 console.log(
   `  ${WORD_PROBLEM_TAGS.length} 类语义标签 / ${scenes.size} 种场景，` +
-    `一步 ${byStep[1]} · 两步 ${byStep[2]} · 进阶 ${byStep[3]}，每个母题各生成 2000 道`,
+    `一步 ${byTier.one} · 两步 ${byTier.two} · 进阶 ${byTier.multi}，每个母题各生成 2000 道`,
 )
 
 for (const tierId of ['one', 'two', 'multi']) {
   if (problemsOfTier(tierId).length === 0) fail(`难度档「${tierId}」一道母题都没有`)
+}
+
+/**
+ * ROUND18_H4 步数对齐：母题写着 steps: 2，剖析面板却只摊得出一步，
+ * 孩子看到的两个数字对不上——先信哪个都是错的。
+ *
+ * 步数是随机取值算出来的，所以和别的内容检查一样得按母题反复抽，
+ * 一次抽中的那组数字碰巧对上不算数。
+ */
+{
+  const report = auditStepAlignment(WORD_PROBLEMS, { tries: 60, seed: 20250418 })
+  const pct = (n) => `${(n * 100).toFixed(1)}%`
+  if (report.rate < STEPS_ALIGN_TARGET) {
+    fail(
+      `声明步数与剖析步数只对上 ${report.aligned}/${report.total}（${pct(report.rate)}），` +
+        `低于验收线 ${pct(STEPS_ALIGN_TARGET)}`,
+    )
+    for (const row of report.mismatched.slice(0, 8)) {
+      fail(`  ${row.id} 声明 ${row.declared} 步 / 剖析 ${row.analyzed.join('、')} 步：${row.equation}`)
+    }
+  }
+  const hist = (key) =>
+    stepHistogram(report.rows, key)
+      .map(([n, c]) => `${n} 步 ×${c}`)
+      .join(' · ')
+  console.log(
+    `应用题步数对齐：${report.aligned}/${report.total}（${pct(report.rate)}，验收线 ` +
+      `${pct(STEPS_ALIGN_TARGET)}），每题抽 ${report.tries} 次；声明 ${hist('declared')}`,
+  )
 }
 
 /**

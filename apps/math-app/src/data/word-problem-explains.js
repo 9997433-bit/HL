@@ -17,6 +17,7 @@
  *   a / b        这一步的两个操作数（有余数除法里是被除数与除数）
  *   value        这一步的得数
  *   quotient / remainder  有余数除法的商与余数
+ *   part         有余数除法拆出的两步：'quotient'（装满几份）/ 'remainder'（还剩几个）
  *   op           这一步的运算符
  *   index / all  第几步、全部步骤
  *   question     整道题（用得最多的是 question.unit）
@@ -174,8 +175,11 @@ const CRAFTED_EXPLAINS = [
     headline: '有余数的除法要报两个数：装满了几袋、还剩几颗。这道题问的是剩下的那几颗。',
     caption: '一段一段地剪，剪到不够剪一段为止，手里那一小截就是余数。',
     steps: [
+      ({ a, b, quotient }) =>
+        `${a} 颗糖每 ${b} 颗装一袋，一袋一袋地装下去，装到凑不满一袋为止，能装满 ${quotient} 袋。`,
+      // 装满的袋数可能和余数撞成同一个数，这一步一提它就等于报答案，所以只讲 a 和 b
       ({ a, b }) =>
-        `${a} 颗糖每 ${b} 颗装一袋，一袋一袋地装下去，装到凑不满一袋为止——手里剩的那几颗就是答案。`,
+        `装满的每一袋都正好 ${b} 颗，把装进袋子的糖都从 ${a} 颗里拿走，手里剩下的那几颗就是答案。`,
     ],
   },
   {
@@ -200,7 +204,9 @@ const CRAFTED_EXPLAINS = [
     headline: '进一法：除完余下的小朋友不能丢在路边，哪怕只剩 1 个也要再派一辆车。',
     caption: '一车一车地装，装到装不满一车为止，余下的人还得再要一辆。',
     steps: [
-      ({ a, b }) => `${a} 个小朋友、每车 ${b} 人，先看能坐满几辆、还余下几个人。`,
+      ({ a, b, quotient }) => `${a} 个小朋友、每车 ${b} 人，先看坐得满几辆——能坐满 ${quotient} 辆。`,
+      ({ a, b, quotient }) =>
+        `坐满的车一共载走 ${quotient} 个 ${b} 人，从 ${a} 个小朋友里减掉，就是还没上车的人数。`,
       ({ a, b }) => `余下的人也要上车，所以在坐满的 ${a} 辆上再加 ${b} 辆。`,
     ],
   },
@@ -422,8 +428,10 @@ const SEMANTIC_EXPLAINS = [
     headline: '进一法：除完余下的那几个也得有地方放，所以要在装满的份数上再加一份。',
     caption: '一份一份地装，装到装不满一份为止，余下的还得再要一份。',
     steps: [
-      ({ a, b, question }) =>
-        `一共 ${a} 个，每${question.unit}最多装 ${b} 个，先看能装满几${question.unit}、还余几个。`,
+      ({ a, b, quotient, question }) =>
+        `一共 ${a} 个，每${question.unit}最多装 ${b} 个，先看装得满几${question.unit}——能装满 ${quotient} ${question.unit}。`,
+      ({ a, b, quotient, question }) =>
+        `装满的 ${question.unit}里一共放进 ${quotient} 个 ${b}，从 ${a} 个里减掉，剩下的就是还没地方放的。`,
       ({ a, b, question }) =>
         `余下的也要装，所以在装满的 ${a} ${question.unit}上再加 ${b} ${question.unit}。`,
     ],
@@ -433,8 +441,11 @@ const SEMANTIC_EXPLAINS = [
     headline: '有余数的除法要报两个数：装满了几份、还剩几个。这道题问的是剩下的那几个。',
     caption: '一段一段地剪，剪到不够剪一段为止，手里那一小截就是余数。',
     steps: [
+      ({ a, b, quotient, question }) =>
+        `${a} ${question.unit}每 ${b} ${question.unit}装一份，一份一份地装下去，能装满 ${quotient} 份。`,
+      // 装满的份数可能和余数撞成同一个数，这一步一提它就等于报答案，所以只讲 a 和 b
       ({ a, b, question }) =>
-        `${a} ${question.unit}每 ${b} ${question.unit}装一份，一份一份地装下去，装到凑不满一份为止——手里剩的就是答案。`,
+        `装满的每一份都正好 ${b} ${question.unit}，把装进去的都从 ${a} ${question.unit}里拿走，剩下的就是答案。`,
     ],
   },
   {
