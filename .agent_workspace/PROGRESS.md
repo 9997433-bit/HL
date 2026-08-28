@@ -112,7 +112,7 @@ H6/H2 的 sim 腿对账本机构建产物（APK sha256、证据日志），新�
 |---|---|---|
 | Round 14-1 | ✅ **已合入** | 6/6 路 @ `3834a41`；H2 app=40/41 |
 | Round 14-2 | ✅ **已合入** | 6/6 路；`check:round14` **3/8**（H3/H5/H8）；结论见 ROUND14-2-CONCLUSION-BRIEF |
-| Round 14-3 | 🔄 **无真机收口进行中** | 目标 4/8（H4 翻绿）；H1/H2/H6/H7 诚实 BLOCKED；简报 ROUND14-3-BRIEF |
+| Round 14-3 | ✅ **无真机收口闭合** | `check:round14` **4/8**（H3/H4/H5/H8）；终审见 round14-final-audit.md |
 
 ### Round 14-3 六路（无真机收口）
 
