@@ -1567,7 +1567,7 @@ const waitPhase = (page, want, timeout = 12000) =>
     want
   )
 
-await interact('单字五步状态机：认→写→听→考→奖自动衔接', `/#/learn/${encodeURIComponent('日')}`, async (page) => {
+await interact('单字五步状态机：玩→认→练→写→说自动衔接', `/#/learn/${encodeURIComponent('日')}`, async (page) => {
   await page.evaluate(() => localStorage.clear())
   await page.reload({ waitUntil: 'networkidle2' })
   await page.waitForSelector('.rail__step', { timeout: 8000 })
@@ -1575,17 +1575,45 @@ await interact('单字五步状态机：认→写→听→考→奖自动衔接'
   const rail = await page.evaluate(() =>
     [...document.querySelectorAll('.rail__step')].map((n) => n.dataset.step)
   )
-  const want = ['intro', 'trace', 'listen', 'quiz', 'reward']
+  const want = ['play', 'intro', 'listen', 'trace', 'speak']
   if (rail.join(',') !== want.join(',')) {
     throw new Error(`步骤条不是五步 ${want.join('→')}，实际是 ${rail.join('→')}`)
   }
-  if ((await phaseOf(page)) !== 'intro') throw new Error('进页面没有停在「认一认」')
+  if ((await phaseOf(page)) !== 'play') throw new Error('进页面没有停在「玩一玩」')
 
-  // 认一认：听一次读音就应当自动排上「写一写」
-  if (!(await clickText(page, '怎么读'))) throw new Error('「认一认」缺少听读音按钮')
+  const pickAnswer = async (label) => {
+    await page.waitForSelector('.opt[data-char="日"]', { timeout: 8000 })
+    const ok = await page.evaluate(() => {
+      const btn = document.querySelector('.opt[data-char="日"]')
+      if (!btn || btn.disabled) return false
+      btn.click()
+      return true
+    })
+    if (!ok) throw new Error(`「${label}」里点不到正确选项`)
+  }
+
+  // 玩一玩：把 CharPlayStage 的道具点完，就应当自动排上「认一认」
+  await page.waitForSelector('.playstage__target', { timeout: 8000 })
+  await page.evaluate(() => {
+    for (const n of document.querySelectorAll('.playstage__target')) n.click()
+  })
   const queued = await page.evaluate(() => document.querySelector('.autonext')?.innerText ?? '')
-  if (!queued.includes('写一写')) throw new Error(`听完读音没有预告下一步：「${queued}」`)
+  if (!queued.includes('认一认')) throw new Error(`玩完一轮没有预告下一步：「${queued}」`)
   if (!queued.includes('等一下')) throw new Error('自动衔接没有给「等一下」的按停出口')
+  await waitPhase(page, 'intro')
+
+  // 认一认：「日」有字源，这一步应当直接把演变舞台摆出来，而不是先找按钮
+  if (!(await page.$('.intro__origin'))) {
+    throw new Error('「认一认」没有默认展开字源舞台')
+  }
+  // 字源演完会自己往下走；没等到就点一次读音，同样排上「练一练」
+  if ((await phaseOf(page)) === 'intro' && !(await clickText(page, '怎么读'))) {
+    throw new Error('「认一认」缺少听读音按钮')
+  }
+  await waitPhase(page, 'listen')
+
+  // 练一练：选对字进入「写一写」
+  await pickAnswer('练一练')
   await waitPhase(page, 'trace')
 
   // 写一写：进入这一步田字格会自己开始描红，用「写下一笔」写完
@@ -1600,23 +1628,11 @@ await interact('单字五步状态机：认→写→听→考→奖自动衔接'
     if (done) break
     if (!(await clickText(page, '写下一笔'))) break
   }
-  await waitPhase(page, 'listen')
+  await waitPhase(page, 'speak')
 
-  // 听一听 / 考一考：都选正确项，每一步作答后自动进入下一步
-  const pickAnswer = async (label) => {
-    await page.waitForSelector('.opt[data-char="日"]', { timeout: 8000 })
-    const ok = await page.evaluate(() => {
-      const btn = document.querySelector('.opt[data-char="日"]')
-      if (!btn || btn.disabled) return false
-      btn.click()
-      return true
-    })
-    if (!ok) throw new Error(`「${label}」里点不到正确选项`)
-  }
-  await pickAnswer('听一听')
-  await waitPhase(page, 'quiz')
-  await pickAnswer('考一考')
-  await waitPhase(page, 'reward')
+  // 说一说：答完题星星就在原地开出来，不再翻一屏「领奖励」
+  await pickAnswer('说一说')
+  await page.waitForSelector('.reward', { timeout: 8000 })
 
   const settled = await page.evaluate(() => {
     const saved = JSON.parse(localStorage.getItem('happy-literacy:v1') ?? '{}')
@@ -1631,16 +1647,16 @@ await interact('单字五步状态机：认→写→听→考→奖自动衔接'
   if (settled.flows < 1) throw new Error('走完五步没有记下一次完整闭环')
   if (settled.charFlows < 1) throw new Error('「日」自己的闭环次数没有加上')
   if (settled.traced < 1) throw new Error('五步里的描红没有记进「会写了」')
-  for (const step of ['intro', 'trace', 'listen', 'quiz']) {
+  for (const step of ['play', 'intro', 'listen', 'trace', 'speak']) {
     if (!settled.steps.includes(step)) throw new Error(`步骤条上「${step}」没有标成已完成`)
   }
-  if (!settled.reward) throw new Error('「领奖励」这一步是空的')
+  if (!settled.reward) throw new Error('「说一说」答完没有就地开奖')
 
   // 手动回跳：点步骤条应当能回到前面的步骤
   await page.evaluate(() => document.querySelector('.rail__step[data-step="listen"]')?.click())
   await waitPhase(page, 'listen', 5000)
 
-  return `五步自动衔接完成（闭环 ${settled.flows} 次，描红 ${settled.traced} 遍），步骤条可回跳`
+  return `五步（玩认练写说）自动衔接完成（闭环 ${settled.flows} 次，描红 ${settled.traced} 遍），步骤条可回跳`
 })
 
 await interact('描红：同一笔连错 3 次自动示范这一笔', `/#/learn/${encodeURIComponent('日')}`, async (page) => {
