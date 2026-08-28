@@ -1,0 +1,122 @@
+
+> hongen-edu-apps@1.0.0 android:sim
+> node scripts/android-sim.mjs
+
+[android-sim-harness-v2] Android 模拟全链路开始…
+{
+  "simulated": true,
+  "marker": "android-sim-harness-v2",
+  "note": "VM WebView 模拟 + Capacitor APK 构建；不等价 Android QA 真机签核",
+  "timestamp": "2026-08-28T17:18:10.327Z",
+  "commit": "a15e09c",
+  "webViewUserAgent": "Mozilla/5.0 (Linux; Android 13; Pixel 7 Build/TQ3A.230805.001; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/120.0.6099.230 Mobile Safari/537.36",
+  "webView": {
+    "requestedUserAgent": "Mozilla/5.0 (Linux; Android 13; Pixel 7 Build/TQ3A.230805.001; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/120.0.6099.230 Mobile Safari/537.36",
+    "literacyObservedUserAgent": "Mozilla/5.0 (Linux; Android 13; Pixel 7 Build/TQ3A.230805.001; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/120.0.6099.230 Mobile Safari/537.36",
+    "mathObservedUserAgent": null,
+    "pass": false
+  },
+  "steps": [
+    {
+      "step": "build:all",
+      "pass": true,
+      "exit": 0
+    },
+    {
+      "step": "sync:android",
+      "pass": true,
+      "exit": 0
+    },
+    {
+      "step": "check:android",
+      "pass": true,
+      "exit": 0
+    },
+    {
+      "step": "gradle:literacy",
+      "pass": true,
+      "exit": 0,
+      "durationMs": 7357,
+      "log": ".agent_workspace/evidence/r13/android-sim/gradle-literacy.log"
+    },
+    {
+      "step": "gradle:math",
+      "pass": true,
+      "exit": 0,
+      "durationMs": 5231,
+      "log": ".agent_workspace/evidence/r13/android-sim/gradle-math.log"
+    },
+    {
+      "step": "smoke:literacy:webview-ua",
+      "pass": false,
+      "exit": 1,
+      "routes": 164,
+      "problems": 1,
+      "log": ".agent_workspace/evidence/r13/android-sim/smoke-literacy.log"
+    },
+    {
+      "step": "smoke:math:webview-ua",
+      "pass": false,
+      "exit": 1,
+      "routes": 0,
+      "problems": 0,
+      "log": ".agent_workspace/evidence/r13/android-sim/smoke-math.log"
+    },
+    {
+      "step": "ocr-device-a",
+      "pass": true,
+      "exit": 0
+    }
+  ],
+  "literacy": {
+    "smokePass": false,
+    "smokeRoutes": 164,
+    "smokeInteractions": 45,
+    "smokeProblems": 1,
+    "webViewUaPass": true,
+    "smokeLog": {
+      "path": ".agent_workspace/evidence/r13/android-sim/smoke-literacy.log",
+      "sha256": "9a7be262b87898537366d9e699164ebbdf81fc97cc483061bdb35bc6a59f44b9",
+      "bytes": 20588
+    },
+    "apkSha256": "b53d8f0b70badc7b9a14feac0e62ad55f117798f858a9e180a0690712b3267a8",
+    "apkBytes": 37551246,
+    "apkPath": "apps/literacy-app/android/app/build/outputs/apk/debug/app-debug.apk",
+    "gradleLog": {
+      "path": ".agent_workspace/evidence/r13/android-sim/gradle-literacy.log",
+      "sha256": "45c767a0c041429ff4350cd643f8943d13e91cf360569e8bc17c092f2f56aae5",
+      "bytes": 6832
+    }
+  },
+  "math": {
+    "smokePass": false,
+    "smokeRoutes": 0,
+    "smokeInteractions": 0,
+    "smokeProblems": 0,
+    "webViewUaPass": false,
+    "smokeLog": {
+      "path": ".agent_workspace/evidence/r13/android-sim/smoke-math.log",
+      "sha256": "6a94399b0e009b09dec3b2cf98c54020580b4c878f99de5597ad0bca2e8d77b2",
+      "bytes": 897
+    },
+    "apkSha256": "9fd9bc0ed0d08064689fec921696a2561aec1116a80ee4811477202682c535ad",
+    "apkBytes": 4292264,
+    "apkPath": "apps/math-app/android/app/build/outputs/apk/debug/app-debug.apk",
+    "gradleLog": {
+      "path": ".agent_workspace/evidence/r13/android-sim/gradle-math.log",
+      "sha256": "169505744543513a90a21a0614504a1be7c9dcffb4c58d6104fb0507460e72bf",
+      "bytes": 6828
+    }
+  },
+  "ocr": {
+    "pass": true,
+    "log": {
+      "path": ".agent_workspace/evidence/r13/android-sim/ocr-device-a.log",
+      "sha256": "ef4f7d58352b1084a29a6627f04a8961a1b8cecab84cdcb61e875ea7c8da20c8",
+      "bytes": 3442
+    }
+  },
+  "androidHome": "/home/ubuntu/android-sdk"
+}
+
+ANDROID_SIM_EXIT=1
