@@ -1,0 +1,43 @@
+Round 15 regression-gate baseline
+Date: 2026-08-28
+Branch: cursor/r15-regression-gate-9f67
+Tested commit: c1f747a
+
+COMMAND: npm run check:round15
+EXIT CODE: 1
+OUTPUT (verbatim):
+
+> hongen-edu-apps@1.0.0 check:round15
+> node scripts/check-round15.mjs
+
+
+Round 15 check: 0/8
+
+✗ H1 缺少玩步或五步未对齐洪恩玩认练写说
+✗ H2 引擎未就绪（getCharPlay=object, chars=1820）
+✗ H3 富 play 脚本 0 < 200
+✗ H4 认步仍把字源藏在可选按钮后
+✗ H5 缺少 gen-char-play 或 templateFallback 标记
+✗ H6 写步未见引导示范编排
+✗ H7 smoke 未覆盖 play 流
+✗ H8 check:round13 6/8；必绿项失败：H6（仅 H7 可红）；H6 在干净环境需先 npm run android:sim 重建双 APK
+
+COMMAND: npm run check:round13
+EXIT CODE: 1
+OUTPUT (verbatim):
+
+> hongen-edu-apps@1.0.0 check:round13
+> node scripts/check-round13.mjs
+
+  ✓ H1 ASR 放行：files[] 落盘 37022120B + 放行/冻结集腿 + harness + ROUND13_H1_SMOKE
+  ✓ H2 OCR Android 模拟 + 失败回流设计 + harness ROUND13_H2
+  ✓ H3 绘本终局 404 页 scene（≥200）+ 渲染接线 + ROUND13_H3
+  ✓ H4 范唱批次 13 首（≥3）+ 13/13 音频 + ROUND13_H4
+  ✓ H5 lift 准实验口径 + ROUND13_H5_SMOKE
+  ✓ H8 Round 12 门禁 8/8 无退化
+
+  ✗ H6 Android 模拟未闭环：sim=false，record=true，harness=true —— r13-android-sim-harness
+  ✗ H7 商店实提未闭环：submit=false —— r13-store-submit
+
+Round 13 终局门禁：6/8 项通过，2 项失败。
+说明：R13 功能分支未全部合并时 FAIL 属预期红灯；集成后必须 8/8。
