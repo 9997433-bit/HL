@@ -6,6 +6,7 @@
  */
 
 import { createServer } from 'node:http'
+import { createHash } from 'node:crypto'
 import { readdir, readFile } from 'node:fs/promises'
 import { existsSync, statSync } from 'node:fs'
 import { extname, join, normalize, sep } from 'node:path'
@@ -79,6 +80,9 @@ const ROUND13_H4_MIN_VOCALS = 3
 const ROUND13_H4_VOCALS = SONGS.filter(
   (song) => song?.vocal && /\.(?:mp3|ogg|wav|m4a)$/i.test(String(song.vocal))
 )
+const ROUND14_H5_SMOKE = 'l1-card-and-sentence-offline-tts'
+const ROUND14_H5_MIN_ASSETS = 20
+const ROUND14_H5_CARD_COUNT = 12
 if (ROUND12_H4 !== 'thirteen-offline-melodies-with-vocal-pilot') {
   console.error(`ROUND12_H4_SMOKE：能力标记不对（${ROUND12_H4 || '缺失'}）`)
   process.exit(1)
@@ -322,6 +326,78 @@ if (
 const vocalPilotAsset = vocalBatchAssets.find((asset) => asset.id === ROUND12_H4_VOCAL?.id)
 if (!vocalPilotAsset) {
   console.error('ROUND12_H4_SMOKE：13 首中没有可播放的离线范唱试点')
+  process.exit(1)
+}
+
+/**
+ * Round 14 H5：不能只数源码目录里的文件。逐份核对构建产物的格式、体积、
+ * 清单字节数和 sha256，并要求 12 张字卡都同时有单字与例句。
+ */
+const l1TtsDir = join(DIST, 'audio', 'tts-l1')
+let l1TtsManifest
+try {
+  l1TtsManifest = JSON.parse(await readFile(join(l1TtsDir, 'manifest.json'), 'utf8'))
+} catch (error) {
+  console.error(`ROUND14_H5_SMOKE：构建产物缺少可解析的 L1 清单：${error.message}`)
+  process.exit(1)
+}
+const l1TtsFiles = Array.isArray(l1TtsManifest.files) ? l1TtsManifest.files : []
+const l1TtsPaths = new Set()
+const l1TtsCards = new Map()
+let l1TtsBytes = 0
+let l1TtsDuration = 0
+for (const entry of l1TtsFiles) {
+  const relative = String(entry?.path ?? '')
+  try {
+    if (!/^[a-z0-9-]+\.ogg$/i.test(relative) || relative.includes('..')) {
+      throw new Error(`非法文件名 ${relative || '（空）'}`)
+    }
+    if (l1TtsPaths.has(relative)) throw new Error(`重复路径 ${relative}`)
+    const bytes = await readFile(join(l1TtsDir, relative))
+    const digest = createHash('sha256').update(bytes).digest('hex')
+    if (bytes.length < 4096) throw new Error(`${bytes.length} bytes，小于 4096`)
+    if (bytes.subarray(0, 4).toString('ascii') !== 'OggS' || !bytes.includes('OpusHead')) {
+      throw new Error('不是 Ogg/Opus')
+    }
+    if (entry.bytes !== bytes.length) {
+      throw new Error(`清单 bytes=${entry.bytes}，实物=${bytes.length}`)
+    }
+    if (entry.sha256 !== digest) throw new Error(`sha256 不一致（实物 ${digest}）`)
+    if (!Number.isFinite(entry.durationMs) || entry.durationMs < 500) {
+      throw new Error(`durationMs=${entry.durationMs}`)
+    }
+    if (!entry.char || !['character', 'sentence'].includes(entry.kind)) {
+      throw new Error('缺 char 或 kind')
+    }
+
+    l1TtsPaths.add(relative)
+    l1TtsBytes += bytes.length
+    l1TtsDuration += entry.durationMs
+    const kinds = l1TtsCards.get(entry.char) ?? new Set()
+    kinds.add(entry.kind)
+    l1TtsCards.set(entry.char, kinds)
+  } catch (error) {
+    console.error(`ROUND14_H5_SMOKE：L1 资产无效（${relative || '未知'}）：${error.message}`)
+    process.exit(1)
+  }
+}
+const completeL1Cards = [...l1TtsCards.values()].filter(
+  (kinds) => kinds.has('character') && kinds.has('sentence')
+).length
+if (
+  l1TtsManifest.marker !== 'ROUND14_H5' ||
+  l1TtsPaths.size < ROUND14_H5_MIN_ASSETS ||
+  completeL1Cards !== ROUND14_H5_CARD_COUNT ||
+  l1TtsManifest.totalBytes !== l1TtsBytes ||
+  l1TtsManifest.totalDurationMs !== l1TtsDuration
+) {
+  console.error(
+    `ROUND14_H5_SMOKE：L1 批次不完整（marker=${l1TtsManifest.marker}，` +
+      `assets=${l1TtsPaths.size}/${ROUND14_H5_MIN_ASSETS}，` +
+      `cards=${completeL1Cards}/${ROUND14_H5_CARD_COUNT}，` +
+      `bytes=${l1TtsBytes}/${l1TtsManifest.totalBytes}，` +
+      `duration=${l1TtsDuration}/${l1TtsManifest.totalDurationMs}）`
+  )
   process.exit(1)
 }
 
@@ -1998,6 +2074,37 @@ await interact('单字页：笔顺数据可用', `/#/learn/${encodeURIComponent(
     return `svg path 数=${paths.length}，${note}`
   })
 })
+
+if (ROUND14_H5_SMOKE) {
+  await interact(
+    'ROUND14_H5：L1 字卡单字与例句优先请求随包离线范读',
+    `/#/learn/${encodeURIComponent('一')}`,
+    async (page) => {
+      await page.waitForSelector('.detail[data-tts="offline-l1"] .intro__say', { timeout: 8000 })
+
+      const waitForTts = (suffix) =>
+        page.waitForResponse(
+          (response) =>
+            response.status() === 200 &&
+            new URL(response.url()).pathname.endsWith(`/audio/tts-l1/${suffix}`),
+          { timeout: 5000 }
+        )
+
+      const charResponse = waitForTts('u1-01-yi-char.ogg')
+      await page.click('.intro__say')
+      const charType = (await charResponse).headers()['content-type'] ?? ''
+
+      const sentenceResponse = waitForTts('u1-01-yi-sentence.ogg')
+      await page.click('.sentence')
+      const sentenceType = (await sentenceResponse).headers()['content-type'] ?? ''
+
+      if (!/audio\/ogg/i.test(charType) || !/audio\/ogg/i.test(sentenceType)) {
+        throw new Error(`L1 范读 MIME 不对：单字=${charType || '空'}，例句=${sentenceType || '空'}`)
+      }
+      return `24 份清单资产通过哈希；“一”单字与例句均从同源 audio/tts-l1 请求`
+    }
+  )
+}
 
 if (ROUND6_H3_SMOKE) {
   await interact('Round 6 H3：古诗入口渲染内容与点读控件', `/#${ROUND6_H3_SMOKE}`, async (page) => {
