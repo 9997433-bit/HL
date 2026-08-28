@@ -22,6 +22,10 @@ Model slug: claude-opus-5-thinking-high-fast
   `verifyScenes()` 0 问题；`check:data` **79/79**。
 - `check:round13` H3 绿（v1.0 与审计建议的 v1.1 都跑过，v1.1 多查一条
   `BookPageScene` 渲染腿，同样绿）；H8 `check:round12` 8/8 不退化。
+- 识字 smoke **164 条路由 + 41 项交互，0 项有问题**。`ROUND13_H3` 那条抽样
+  5 本逐页比对 33 页 / 135 件，「数据声明 / DOM 声明 / 实际渲染」三个数全对齐。
+- **首屏 JS 一个字节没变**：324 KB（预算 420 KB）。增量全落在按需加载的绘本块
+  `books-*.js`：137.42 kB → 154.09 kB（gzip 58.69 → 62.68 kB，+3.99 kB）。
 
 ## 为什么按分级铺，而不是挑页数最多的书
 
