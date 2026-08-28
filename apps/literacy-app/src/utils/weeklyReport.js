@@ -121,6 +121,13 @@ const WEAKNESS_RULES = [
         why: '绘本只用学过的字，读一本就是一次无痛复习。',
         minutes: 8,
         to: '/books'
+      },
+      {
+        id: 'listen',
+        title: '玩一局听音识字',
+        why: '游戏门槛最低，孩子自己就愿意点开。',
+        minutes: 5,
+        to: '/listen'
       }
     ]
   },
@@ -313,8 +320,39 @@ const WEAKNESS_RULES = [
         why: '把这周学的字放回句子里过一遍。',
         minutes: 8,
         to: '/books'
+      },
+      {
+        id: 'poem',
+        title: '读一首短古诗',
+        why: '四句二十个字，读三遍就能背，成就感来得快。',
+        minutes: 6,
+        to: '/poems'
       }
     ]
+  }
+]
+
+/**
+ * 兜底练习。
+ *
+ * 有些弱项的建议是条件式的（「先复习到期的字」在没有到期字时就不该出现），
+ * 极端存档下可能只剩一条。这两条永远成立，用来把清单垫到两条以上——
+ * 家长打开周报只看到孤零零一行，会以为是没算出来。
+ */
+const FALLBACK_DRILLS = [
+  {
+    id: 'learn',
+    title: '按计划认几个新字',
+    why: '没有别的短板时，把课程往前推一点就是最好的安排。',
+    minutes: 10,
+    to: '/learn'
+  },
+  {
+    id: 'book',
+    title: '读一本绘本收尾',
+    why: '绘本只用学过的字，读一本就是一次无痛复习。',
+    minutes: 8,
+    to: '/books'
   }
 ]
 
@@ -354,10 +392,12 @@ export function buildWeeklyReport(input = {}) {
   }
 
   const rule = WEAKNESS_RULES.find((r) => r.when(facts)) ?? WEAKNESS_RULES[WEAKNESS_RULES.length - 1]
-  const drills = (rule.drills(facts) || [])
-    .filter(Boolean)
-    .slice(0, MAX_DRILLS)
-    .map((d) => ({ minutes: 5, chars: [], ...d }))
+  const picked = (rule.drills(facts) || []).filter(Boolean)
+  for (const filler of FALLBACK_DRILLS) {
+    if (picked.length >= 2) break
+    if (!picked.some((d) => d.id === filler.id)) picked.push(filler)
+  }
+  const drills = picked.slice(0, MAX_DRILLS).map((d) => ({ minutes: 5, chars: [], ...d }))
 
   return {
     script: ROUND16_H7_WEEKLY_REPORT,
