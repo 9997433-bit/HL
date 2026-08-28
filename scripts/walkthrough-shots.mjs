@@ -9,6 +9,7 @@
  *   ② 学演示       数学玩法页里点开的学演示弹层，以及演示中心里的算式态
  *   ③ 应用题剖析   数学应用题的「剖析这道题」面板（图示 + 分步 + 变式）
  *   ④ 家长周报     两个 App 家长中心的周报卡片
+ *   ⑤ 降动效       学演示在 prefers-reduced-motion 下的样子（验收 G4）
  *
  * 周报那两张刻意排在最后：前面几幕答的题会真的落进本机存档，周报读的就是
  * 那一份，所以截出来的弱项和建议是走查过程本身产生的，不是手搓的假数据。
@@ -204,11 +205,16 @@ async function shoot(target, name, caption) {
   console.log(`  📸 ${name}（${(size / 1024).toFixed(0)} KB）— ${caption}`)
 }
 
+/**
+ * caption 可以传一个函数。自动播放的演示每两秒换一段，滚动定位那 400ms 里
+ * 画面就已经走了——所以说明文字要在滚完之后、快门之前才现读一次 DOM，
+ * 否则报告里写的 stage 和图上亮着的那一段对不上。
+ */
 async function shootElement(page, selector, name, caption) {
   const handle = await page.waitForSelector(selector, { timeout: 15_000 })
   await handle.evaluate((el) => el.scrollIntoView({ block: 'center' }))
   await wait(400)
-  await shoot(handle, name, caption)
+  await shoot(handle, name, typeof caption === 'function' ? await caption() : caption)
 }
 
 /* -------------------------------------------------------------- 四条路径 */
@@ -244,7 +250,13 @@ async function sceneIntroFallback(browser, base) {
     page,
     '[data-panel="intro"]',
     'r17-literacy-intro-fallback-radical.png',
-    `无字源字「${char}」认步第一幕：部首牌登场 + 同部首兄弟字（data-intro-stage=${stage}）`,
+    async () => {
+      const scene = await page.$eval('.ifs', (el) => el.dataset.scene)
+      return (
+        `无字源字「${char}」认步第一幕（data-scene=${scene}）：部首牌登场 + 同部首兄弟字，` +
+        `整步挂在 data-intro-stage=${stage} 这个回退舞台上`
+      )
+    },
   )
 
   // 三幕自动演，演完这一步会挂着「马上进入下一步」的倒计时自己往前走。
@@ -264,7 +276,10 @@ async function sceneIntroFallback(browser, base) {
     page,
     '[data-panel="intro"]',
     'r17-literacy-intro-fallback-word.png',
-    `无字源字「${char}」认步第三幕：组词情境，目标字在词里点亮`,
+    async () => {
+      const scene = await page.$eval('.ifs', (el) => el.dataset.scene)
+      return `无字源字「${char}」认步第三幕（data-scene=${scene}）：组词情境，目标字在词里点亮`
+    },
   )
   await page.close()
 }
@@ -281,17 +296,21 @@ async function sceneLearnDemo(browser, base) {
   await page.click('[data-learn-demo-open]')
   await page.waitForSelector('[data-learn-demo-layer] [data-demo-id]', { timeout: 15_000 })
   await wait(1400)
-  const opened = await page.$eval('[data-demo-id]', (el) => ({
-    id: el.dataset.demoId,
-    stage: el.dataset.demoStage,
-    motion: el.dataset.demoMotion,
-  }))
   await shootElement(
     page,
     '[data-learn-demo-layer] [data-demo-id]',
     'r17-math-learn-demo-overlay.png',
-    `玩法页「数量星云」里点开的学演示弹层（技能 ${skill} / 演示 ${opened.id}），` +
-      `自动演到 data-demo-stage=${opened.stage}`,
+    async () => {
+      const now = await page.$eval('[data-demo-id]', (el) => ({
+        id: el.dataset.demoId,
+        stage: el.dataset.demoStage,
+        motion: el.dataset.demoMotion,
+      }))
+      return (
+        `玩法页「数量星云」里点开的学演示弹层（技能 ${skill} / 演示 ${now.id}），` +
+        `data-demo-motion=${now.motion} 自动播到 data-demo-stage=${now.stage}`
+      )
+    },
   )
 
   // 再把三态走到底，证明「实物 → 图形 → 算式」不是只画了第一张
@@ -301,12 +320,14 @@ async function sceneLearnDemo(browser, base) {
     await next.click()
     await wait(900)
   }
-  const stage = await page.$eval('[data-demo-id]', (el) => el.dataset.demoStage)
   await shootElement(
     page,
     '[data-demo-id]',
     'r17-math-learn-demo-equation.png',
-    `同一个演示走到末态（data-demo-stage=${stage}），三态并排且「跳过演示」全程常驻`,
+    async () => {
+      const stage = await page.$eval('[data-demo-id]', (el) => el.dataset.demoStage)
+      return `同一个演示走到末态（data-demo-stage=${stage}），三态并排且「跳过演示」全程常驻`
+    },
   )
 
   // 收起弹层接着练：既证明演示不接管这一轮，也给后面的周报攒真实作答记录
@@ -314,6 +335,43 @@ async function sceneLearnDemo(browser, base) {
   await wait(600)
   const done = await answerRound(page, 8, { deliberateWrong: true })
   console.log(`  ↳ 收起演示后继续作答 ${done} 题（有对有错）`)
+  await page.close()
+}
+
+/**
+ * 验收 G4 要求「reduced-motion 可完成」。演示本身是逐段播的，降动效下
+ * LearnDemo 会走静态分支：不再定时推进，三段一次铺开、stage 直接停在算式。
+ * 这一幕就是去拍那个分支——不是把动画截个尾帧冒充。
+ */
+async function sceneReducedMotion(browser, base) {
+  console.log('\n⑤ 降动效下的学演示')
+  const page = await browser.newPage()
+  await page.setViewport({ width: 900, height: 1150, deviceScaleFactor: 2 })
+  await page.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }])
+  await page.goto(`${base}/#/number-sense`, { waitUntil: 'networkidle2', timeout: 30_000 })
+  await page.waitForSelector('[data-learn-demo-open]', { timeout: 15_000 })
+  await page.click('[data-learn-demo-open]')
+  await page.waitForSelector('[data-learn-demo-layer] [data-demo-id]', { timeout: 15_000 })
+  await wait(900)
+
+  const state = await page.$eval('[data-demo-id]', (el) => ({
+    id: el.dataset.demoId,
+    motion: el.dataset.demoMotion,
+    stage: el.dataset.demoStage,
+    hasNext: Boolean(el.querySelector('[data-demo-next]')),
+  }))
+  if (state.motion !== 'static') {
+    throw new Error(`降动效下 data-demo-motion=${state.motion}，没走静态分支`)
+  }
+  await shootElement(
+    page,
+    '[data-learn-demo-layer] [data-demo-id]',
+    'r17-math-learn-demo-reduced-motion.png',
+    // 挑到哪条演示取决于当时题面上的技能点，未必和第 ② 幕是同一条
+    `演示「${state.id}」在 prefers-reduced-motion: reduce 下：data-demo-motion=${state.motion}、` +
+      `一进来就停在 data-demo-stage=${state.stage}，三段同时铺开、` +
+      `${state.hasNext ? '仍留有「下一步」' : '不再有「下一步」等着点'}，「跳过演示」照常在`,
+  )
   await page.close()
 }
 
@@ -394,6 +452,7 @@ let failed = 0
 try {
   if (want('intro-fallback')) await sceneIntroFallback(browser, literacy.base)
   if (want('learn-demo')) await sceneLearnDemo(browser, math.base)
+  if (want('reduced-motion')) await sceneReducedMotion(browser, math.base)
   if (want('wp-analysis')) await sceneWpAnalysis(browser, math.base)
   // 数学侧共用一个浏览器上下文：上面答的题就落在这份存档里，周报读的是它
   if (want('parent-weekly')) {
