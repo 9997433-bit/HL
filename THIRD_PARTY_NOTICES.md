@@ -74,18 +74,48 @@ Apache-2.0 要求随附许可证与 NOTICE：许可证全文见「附录 B」指
 - **义务**：随附 Apache-2.0 许可证（见「附录 B」）并保留版权声明；本文件即为声明载体。
   未对模型做任何修改，无需附加修改说明。
 
-### Piper NST 人声生成资产 — CC0
+### 离线跟读评测包（sherpa-onnx WASM 运行时 + 中文流式 Zipformer int8 模型）— Apache-2.0
 
-- 分发位置：`apps/literacy-app/public/audio/songs/sg5-literacy-vocal-pilot.ogg`。
-- 用途：Round 12《认字歌》离线「啦」音范唱试点。成品由 Piper 1.7.0 在开发机生成，
-  再按本项目原创谱面移调；不是中文歌词真人录音。
-- Voice：`sv_SE-nst-medium`，上游
-  [rhasspy/piper-voices](https://huggingface.co/rhasspy/piper-voices/tree/main/sv/sv_SE/nst/medium)。
-  模型卡明示 NST 数据集为 **CC0**，由 KBLab / National Library of Sweden 从零训练。
-  固定 revision、输入哈希、成品哈希和复现命令见
-  `.agent_workspace/r12-songs-vocal-pilot.md`。
-- 分发边界：App 只携带 22.05kHz 单声道 Ogg 成品，不携带 Piper（GPL-3.0-or-later）
-  运行时、ONNX 权重或配置。CC0 不要求署名，本节仍保留完整来源以便审计。
+- 位置：`apps/literacy-app/public/asr/models/`，共 7 个文件、合计 **35.31 MiB**。
+  逐文件的 `bytes` / `sha256` / 上游出处冻结在
+  `apps/literacy-app/public/asr/manifest.json` 的 `files[]` 与 `source.files[]` 里，
+  由 `scripts/test-asr-engine.mjs` 每次跑测时现核。
+- 复现：`npm --prefix apps/literacy-app run gen:asr:pack`（脚本
+  `scripts/gen-asr-pack.mjs` 里写死了 release tag 与模型 revision）。
+- 分发状态：这些文件**会**随 dist 与 zip 分发（自托管是硬约束：运行时不许回退到任何
+  第三方 CDN），但**不进首屏 precache**——只有家长在跟读页点「下载离线评测包」
+  才会取，取完存进版本化 Cache Storage。当前 `available:false`，即这一档尚未放行。
+
+| 文件 | 上游 | 许可证 | 修改 |
+|---|---|---|---|
+| `sherpa-onnx-wasm-main-asr.js` | [k2-fsa/sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) v1.12.15 release 资产 `sherpa-onnx-wasm-simd-v1.12.15-en-asr-zipformer.tar.bz2` | Apache-2.0 | **有**，见下 |
+| `sherpa-onnx-wasm-main-asr.wasm` | 同上 | Apache-2.0 | 无 |
+| `sherpa-onnx-asr.js` | 同上 | Apache-2.0 | 无 |
+| `encoder.int8.onnx` | [csukuangfj/sherpa-onnx-streaming-zipformer-zh-14M-2023-02-23](https://huggingface.co/csukuangfj/sherpa-onnx-streaming-zipformer-zh-14M-2023-02-23) @ `204ad334` 的 `encoder-epoch-99-avg-1.int8.onnx` | Apache-2.0（上游模型卡） | 无（仅重命名） |
+| `decoder.int8.onnx` | 同上 `decoder-epoch-99-avg-1.int8.onnx` | Apache-2.0 | 无（仅重命名） |
+| `joiner.int8.onnx` | 同上 `joiner-epoch-99-avg-1.int8.onnx` | Apache-2.0 | 无（仅重命名） |
+| `tokens.txt` | 同上 | Apache-2.0 | 无 |
+
+- **修改说明（Apache-2.0 第 4(b) 条要求标明）**：`sherpa-onnx-wasm-main-asr.js` 相对上游
+  只改了一处——Emscripten `--preload-file` 生成的 `loadPackage({...})` 元数据被替换成
+  `loadPackage({"files":[],"remote_package_size":0})`。原因是官方产物把一个 182 MiB 的
+  英文大模型打进了配套 `.data`，我们不带那份 `.data`，改由 Worker 在运行时把中文 int8
+  模型写进 Emscripten MEMFS。改动前后的 sha256 都记在 `manifest.source.files[]` 里
+  （`upstreamSha256` 为改动前），`test-asr-engine.mjs` 有一条断言钉住「全文只此一处改动」。
+- **模型来源链**：上游模型卡声明由
+  [marcoyang/sherpa-ncnn-streaming-zipformer-zh-14M-2023-02-23](https://huggingface.co/marcoyang/sherpa-ncnn-streaming-zipformer-zh-14M-2023-02-23)
+  经 icefall `export-onnx-zh.py` 导出（脚本随模型仓库分发）。本项目按上游模型卡标注的
+  Apache-2.0 再分发；训练语料的授权由上游承担，本仓库未做二次训练也未修改权重。
+- **义务**：随附 Apache-2.0 许可证（见「附录 B」）、保留版权声明、标明上述修改。本文件即声明载体。
+
+### 引擎回归音频 `upstream-zh-0.wav` — Apache-2.0（随模型仓库）
+
+- 位置：`apps/literacy-app/scripts/fixtures/asr/upstream-zh-0.wav`（175 KB，
+  上游模型仓库 `test_wavs/0.wav` 的未修改副本，成人普通话 5.61 秒）。
+- 用途：`scripts/test-asr-engine.mjs` 的引擎回归输入——证明落库的那 35 MiB 装得起来、
+  解得出中文。**不进 `public/`、不打进 dist、不随 zip 分发**，也**不是**儿童冻结集
+  （后者按 `.agent_workspace/r11-asr-eval-set.md` 另行录制，音频存仓库外）。
+- 许可证：随上游模型仓库的 Apache-2.0；sha256 记在 `manifest.source.engineFixture`。
 
 ## 三、仓库内第三方素材（当前未打入 App 产物）
 
@@ -127,17 +157,10 @@ Apache-2.0 要求随附许可证与 NOTICE：许可证全文见「附录 B」指
   | `real-road-warning.png` | [Watch out for pedestrians! 小心行人 (6269606152).jpg](https://commons.wikimedia.org/wiki/File:Watch_out_for_pedestrians!_%E5%B0%8F%E5%BF%83%E8%A1%8C%E4%BA%BA_(6269606152).jpg) | Joybot | [CC BY-SA 2.0](https://creativecommons.org/licenses/by-sa/2.0) |
   | `real-toilet-sign.png` | [洗手间，2024年7月1日.jpg](https://commons.wikimedia.org/wiki/File:%E6%B4%97%E6%89%8B%E9%97%B4%EF%BC%8C2024%E5%B9%B47%E6%9C%881%E6%97%A5.jpg) | メイド理世 | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0) |
   | `real-blackboard-press.png` | [华东师大图书馆前黑板.jpg](https://commons.wikimedia.org/wiki/File:%E5%8D%8E%E4%B8%9C%E5%B8%88%E5%A4%A7%E5%9B%BE%E4%B9%A6%E9%A6%86%E5%89%8D%E9%BB%91%E6%9D%BF.jpg) | Lt2818 | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0) |
-  | `real-road-slogan.png` | [格尔木215国道上的三语《爱护环境光荣》标语.jpg](https://commons.wikimedia.org/wiki/File:%E6%A0%BC%E5%B0%94%E6%9C%A8215%E5%9B%BD%E9%81%93%E4%B8%8A%E7%9A%84%E4%B8%89%E8%AF%AD%E3%80%8A%E7%88%B1%E6%8A%A4%E7%8E%AF%E5%A2%83%E5%85%89%E8%8D%A3%E3%80%8B%E6%A0%87%E8%AF%AD.jpg) | Liuxingy | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0) |
-  | `real-town-plaque.png` | [永汉镇社会治安综合治理中心，惠州市龙门县（2026年5月2日）.jpg](https://commons.wikimedia.org/wiki/File:%E6%B0%B8%E6%B1%89%E9%95%87%E7%A4%BE%E4%BC%9A%E6%B2%BB%E5%AE%89%E7%BB%BC%E5%90%88%E6%B2%BB%E7%90%86%E4%B8%AD%E5%BF%83%EF%BC%8C%E6%83%A0%E5%B7%9E%E5%B8%82%E9%BE%99%E9%97%A8%E5%8E%BF%EF%BC%882026%E5%B9%B45%E6%9C%882%E6%97%A5%EF%BC%89.jpg) | 茅野ふたば | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0) |
-  | `real-shop-oblique.png` | [良欣美食，惠州市龙门县（2026年5月2日）.jpg](https://commons.wikimedia.org/wiki/File:%E8%89%AF%E6%AC%A3%E7%BE%8E%E9%A3%9F%EF%BC%8C%E6%83%A0%E5%B7%9E%E5%B8%82%E9%BE%99%E9%97%A8%E5%8E%BF%EF%BC%882026%E5%B9%B45%E6%9C%882%E6%97%A5%EF%BC%89.jpg) | 茅野ふたば | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0) |
-  | `real-receipt-shadow.png` | [小四川世博店 23台点菜単（2025年10月4日）.jpg](https://commons.wikimedia.org/wiki/File:%E5%B0%8F%E5%9B%9B%E5%B7%9D%E4%B8%96%E5%8D%9A%E5%BA%97_23%E5%8F%B0%E7%82%B9%E8%8F%9C%E5%8D%98%EF%BC%882025%E5%B9%B410%E6%9C%884%E6%97%A5%EF%BC%89.jpg) | 茅野ふたば | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0) |
 
 - 这张表不是写完就算：`test-ocr-accuracy.mjs` 会逐张核对清单里的出处链接与作者
   是否出现在本文件里，漏一条当场红灯。换样张时先改 `real-samples.json`，
   再跑 `npm run gen:ocr:real`，最后把新的署名补进这张表。
-- ROUND12_H2 把这一组从六张扩到十张。新的四张不是随手加的：清单里每张都标了自己占的
-  **光照 × 角度 × 纸质** 格（`tier` 字段），格子重样会被 `test-ocr-accuracy.mjs` 拦下，
-  分格口径见 `.agent_workspace/r12-ocr-matrix.md`。
 
 ### Noto Sans SC 字体 — SIL OFL 1.1（仅许可证文本，未内置字体）
 
@@ -151,8 +174,6 @@ Apache-2.0 要求随附许可证与 NOTICE：许可证全文见「附录 B」指
 
 - `shared/assets/audio/*.wav`：正弦波合成占位音效；`shared/assets/lottie/celebration.json`：
   自制 Lottie 动画。均为本项目生成，不含外部录音或图形。
-- `apps/literacy-app/public/audio/songs/*-melody.ogg`：由本项目原创谱面离线合成；
-  `sg5-literacy-vocal-pilot.ogg` 是第二节单列的 CC0 voice 生成试点，不归入原创录音。
 - `shared/data/common-hanzi.json`、`math-problems.json`、`idioms.json`：本项目整理的
   教学数据，声明为 CC0-1.0。
 - 两 App 的课程数据（`src/data/*.js`）、音效（Web Audio 现场合成）、朗读
@@ -170,7 +191,6 @@ Apache-2.0 要求随附许可证与 NOTICE：许可证全文见「附录 B」指
 | [hanzi-writer-data](https://github.com/chanind/hanzi-writer-data) | 2.0.x | APL | 笔顺数据源（裁剪产物随包分发，见第二节） |
 | [puppeteer-core](https://github.com/puppeteer/puppeteer) | 25.x | Apache-2.0 | smoke / 离线 / 验收测试 |
 | [axe-core](https://github.com/dequelabs/axe-core) | 4.13.x | MPL-2.0 | 无障碍扫描 |
-| [Piper](https://github.com/OHF-Voice/piper1-gpl) | 1.7.0 | GPL-3.0-or-later | 仅离线生成一条范唱 Ogg；运行时和模型不分发 |
 
 ## 六、许可证义务速查
 
@@ -182,8 +202,7 @@ Apache-2.0 要求随附许可证与 NOTICE：许可证全文见「附录 B」指
 | CC BY-SA 2.0 / 3.0（OCR 真实样张） | 署名；衍生同许可 | 署名表见第三节「OCR 真实样张」；裁剪后的 `real-*.png` 沿用原图许可，仅存在于源码仓库 |
 | OFL 1.1 | 字体随附许可证；不得单独出售 | 未内置字体；许可证文本已预置 |
 | GSAP Standard | 不得用于竞争性动画工具等 | 仅作应用内动画库使用 |
-| Apache-2.0（随产物分发） | 保留版权与 NOTICE；标明修改 | Tesseract.js / wasm 内核 / chi_sim 语言包均为未修改副本，声明见第一、二节 |
-| CC0 1.0（NST voice） | 无署名义务 | 仍在第二节保留 voice、模型卡、哈希与生成边界 |
+| Apache-2.0（随产物分发） | 保留版权与 NOTICE；标明修改 | Tesseract.js / wasm 内核 / chi_sim 语言包均为未修改副本，声明见第一、二节；离线跟读评测包中 `sherpa-onnx-wasm-main-asr.js` 有一处修改，已在第二节逐字说明并由断言钉住 |
 
 ---
 
@@ -224,10 +243,11 @@ SOFTWARE.
 | SIL OFL 1.1 | `shared/assets/fonts/OFL-NotoSansSC.txt` |
 | GSAP Standard License | <https://gsap.com/standard-license>（随版本变化，升级时核对） |
 | Apache-2.0（Tesseract.js / wasm 内核 / chi_sim 语言包） | `node_modules/tesseract.js/LICENSE.md`、`node_modules/tesseract.js-core/LICENSE`，或 <https://www.apache.org/licenses/LICENSE-2.0> |
+| Apache-2.0（sherpa-onnx 运行时 / zh-14M int8 模型 / 引擎回归音频） | <https://github.com/k2-fsa/sherpa-onnx/blob/master/LICENSE>、上游模型卡，或 <https://www.apache.org/licenses/LICENSE-2.0> |
 | Apache-2.0（仅开发依赖） | <https://www.apache.org/licenses/LICENSE-2.0> |
 | MPL-2.0（仅开发依赖） | <https://www.mozilla.org/MPL/2.0/> |
 
 ---
 
-*最近核对：2026-08-28（Round 12 H4）。核对方式：`package-lock.json` 安装版本 +
+*最近核对：2026-08-26（Round 3）。核对方式：`package-lock.json` 安装版本 +
 各包 LICENSE 文件 + 上游仓库许可证页。本文件是工程合规清单，不构成法律意见。*

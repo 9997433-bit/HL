@@ -53,6 +53,8 @@ const MODEL = {
 export const MODEL_ID = 'sherpa-onnx-streaming-zipformer-zh-14M-int8'
 export const MODEL_VERSION = '2023-02-23+wasm1.12.15'
 const MAX_PACK_BYTES = 60 * 1024 * 1024
+/** files[].path 是站点根相对的——门禁、smoke、运行时三处都按发出去的那个路径找文件。 */
+const PACK_PREFIX = 'asr/models/'
 
 /**
  * 只带走这几个文件。角色名就是 Worker 装引擎时认的那几个 key，
@@ -144,9 +146,9 @@ async function build() {
       note = `仅改写 loadPackage 元数据为空包（原值前 120 字符：${replaced}…）`
     }
     await fsp.writeFile(path.join(packDir, file.out), body)
-    entries.push({ path: `models/${file.out}`, role: file.role, bytes: body.length, sha256: sha256(body), type: file.type })
+    entries.push({ path: `${PACK_PREFIX}${file.out}`, role: file.role, bytes: body.length, sha256: sha256(body), type: file.type })
     sources.push({
-      path: `models/${file.out}`,
+      path: `${PACK_PREFIX}${file.out}`,
       from: `${RUNTIME.project}@${RUNTIME.tag}/${RUNTIME.asset}!${file.member}`,
       upstreamSha256: sha256(raw),
       license: RUNTIME.license,
@@ -159,9 +161,9 @@ async function build() {
   for (const file of MODEL_FILES) {
     const raw = await download(`${base}/${file.member}`, path.join(cacheDir, 'model', file.member))
     await fsp.writeFile(path.join(packDir, file.out), raw)
-    entries.push({ path: `models/${file.out}`, role: file.role, bytes: raw.length, sha256: sha256(raw), type: file.type })
+    entries.push({ path: `${PACK_PREFIX}${file.out}`, role: file.role, bytes: raw.length, sha256: sha256(raw), type: file.type })
     sources.push({
-      path: `models/${file.out}`,
+      path: `${PACK_PREFIX}${file.out}`,
       from: `hf:${MODEL.repo}@${MODEL.revision}/${file.member}`,
       upstreamSha256: sha256(raw),
       license: MODEL.license,
@@ -209,7 +211,7 @@ async function verify() {
   let total = 0
   let bad = 0
   for (const file of manifest.files ?? []) {
-    const full = path.join(appRoot, 'public/asr', file.path)
+    const full = path.join(appRoot, 'public', file.path)
     let body
     try {
       body = await fsp.readFile(full)

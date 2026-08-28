@@ -59,6 +59,15 @@ export function asrAssetUrl(file = '') {
 }
 
 /**
+ * ROUND12_H1：整包里每个文件的 path 是**站点根相对**的（`asr/models/…`），
+ * 也就是它被真正发出去的那个路径。写成 `asr/` 内相对会多一层心算，
+ * 而落库校验、smoke、门禁三处都要按「发出去的路径」去找文件。
+ */
+export function packAssetUrl(file = '') {
+  return new URL(file, document.baseURI).href
+}
+
+/**
  * 清单校验。宁可整包不装，也不要装一份来路不明的模型。
  *
  * 通过校验只说明「这份清单可以拿去下载」，不代表文件已经在本机；
@@ -79,8 +88,12 @@ export function parseManifest(raw) {
   let bytes = 0
   for (const file of files) {
     const path = String(file?.path ?? '')
-    if (!path || path.startsWith('/') || path.includes('..') || /^[a-z]+:/i.test(path)) {
-      throw new Error(`文件路径必须是 public/asr/ 下的相对路径：${path || '(空)'}`)
+    if (
+      !path.startsWith('asr/') ||
+      path.includes('..') ||
+      /^[a-z]+:/i.test(path)
+    ) {
+      throw new Error(`文件路径必须是 asr/ 下的站点相对路径：${path || '(空)'}`)
     }
     if (!HEX64.test(String(file?.sha256 ?? ''))) {
       throw new Error(`${path} 没有冻结 sha256，拒绝下载`)
@@ -239,7 +252,7 @@ export async function probeOfflinePack() {
   try {
     const cache = await caches.open(packCacheName(manifest))
     for (const file of manifest.files) {
-      if (!(await cache.match(asrAssetUrl(file.path)))) {
+      if (!(await cache.match(packAssetUrl(file.path)))) {
         return {
           status: 'available',
           manifest,
@@ -267,7 +280,7 @@ export async function installOfflinePack({ onProgress, signal } = {}) {
   try {
     for (const file of manifest.files) {
       if (signal?.aborted) throw new Error('已取消下载')
-      const url = asrAssetUrl(file.path)
+      const url = packAssetUrl(file.path)
       onProgress?.({ step: 'downloading', file: file.path, done, total: manifest.bytes })
 
       const response = await fetch(url, { cache: 'no-store', signal })
@@ -363,7 +376,7 @@ export function createOfflineRecognizer(manifest, { timeoutMs = OFFLINE_ASR.init
         type: 'init',
         cacheName: packCacheName(manifest),
         sampleRate: OFFLINE_ASR.sampleRate,
-        files: manifest.files.map((file) => ({ ...file, url: asrAssetUrl(file.path) }))
+        files: manifest.files.map((file) => ({ ...file, url: packAssetUrl(file.path) }))
       })
     }),
     timeoutMs,

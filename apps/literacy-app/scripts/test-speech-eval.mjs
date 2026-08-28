@@ -168,6 +168,21 @@ test('离线学伴按档位和漏字给出短回复', () => {
 
 /* ------------------------------------------- v3 离线 ASR 接线层（ROUND10_H1） */
 
+/**
+ * ROUND12_H1：整包从「胶水 + 二进制」两件长到七件——JS API 层和
+ * encoder/decoder/joiner/tokens 缺任何一件，Worker 都装不起来，
+ * 所以 parseManifest 现在逐个角色查。这份夹具跟着长。
+ */
+const PACK_FIXTURE = [
+  ['asr/models/glue.js', 'wasm-glue', 1024],
+  ['asr/models/engine.wasm', 'wasm-binary', 2048],
+  ['asr/models/api.js', 'asr-api', 512],
+  ['asr/models/encoder.int8.onnx', 'model-encoder', 4096],
+  ['asr/models/decoder.int8.onnx', 'model-decoder', 1024],
+  ['asr/models/joiner.int8.onnx', 'model-joiner', 1024],
+  ['asr/models/tokens.txt', 'tokens', 256]
+]
+
 const goodManifest = () => ({
   schema: OFFLINE_ASR.schema,
   engine: 'sherpa-onnx',
@@ -175,15 +190,17 @@ const goodManifest = () => ({
   modelId: 'streaming-zipformer-zh',
   modelVersion: '2026-01-01',
   license: 'Apache-2.0',
-  files: [
-    { path: 'models/glue.js', role: 'wasm-glue', bytes: 1024, sha256: 'a'.repeat(64) },
-    { path: 'models/engine.wasm', role: 'wasm-binary', bytes: 2048, sha256: 'b'.repeat(64) }
-  ]
+  files: PACK_FIXTURE.map(([path, role, bytes], index) => ({
+    path,
+    role,
+    bytes,
+    sha256: index.toString(16).repeat(64)
+  }))
 })
 
 test('离线评测包清单必须冻结哈希、许可证和可用标记，否则整包不装', () => {
   const ok = parseManifest(goodManifest())
-  assert.equal(ok.bytes, 3072)
+  assert.equal(ok.bytes, PACK_FIXTURE.reduce((n, [, , bytes]) => n + bytes, 0))
   assert.equal(packCacheName(ok), `${OFFLINE_ASR.cachePrefix}streaming-zipformer-zh-2026-01-01`)
 
   const reject = (mutate, hint) => {
@@ -194,9 +211,12 @@ test('离线评测包清单必须冻结哈希、许可证和可用标记，否�
   reject((m) => (m.available = false), '还没有冻结')
   reject((m) => (m.license = ''), '许可证')
   reject((m) => (m.files[0].sha256 = 'not-a-hash'), 'sha256')
-  reject((m) => (m.files[0].path = 'https://cdn.example.com/glue.js'), '相对路径')
-  reject((m) => (m.files[0].path = '../../secret.js'), '相对路径')
-  reject((m) => (m.files = m.files.slice(1)), '胶水脚本')
+  reject((m) => (m.files[0].path = 'https://cdn.example.com/glue.js'), '站点相对路径')
+  reject((m) => (m.files[0].path = 'asr/../../secret.js'), '站点相对路径')
+  reject((m) => (m.files[0].path = 'ocr/chi_sim.traineddata.gz'), '站点相对路径')
+  reject((m) => (m.files = m.files.slice(1)), 'wasm-glue')
+  reject((m) => (m.files = m.files.slice(0, -1)), 'tokens')
+  reject((m) => m.files.splice(3, 1), 'model-encoder')
   reject((m) => (m.files[1].bytes = OFFLINE_ASR.maxPackBytes), '60 MiB')
 })
 

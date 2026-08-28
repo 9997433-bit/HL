@@ -8,7 +8,7 @@
 import { createServer } from 'node:http'
 import { readdir, readFile } from 'node:fs/promises'
 import { existsSync, statSync } from 'node:fs'
-import { extname, join, normalize } from 'node:path'
+import { extname, join, normalize, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import puppeteer from 'puppeteer-core'
 
@@ -99,8 +99,34 @@ const ROUND10_H1_MODES = ['recognition', 'recording', 'listen-only']
 const ROUND11_H1_SMOKE = ROUND8_H5_SMOKE
 const ROUND11_H1_MIN_FREEZE = 8
 const ROUND11_H1_LAYERS = ['文本层', '诊断层', '性能层', '资源层', '可靠性层']
-/** 随包发的只有这两个文件：清单和采音 worklet。模型是家长点了才下的。 */
+/** dist/asr 顶层随包发的只有这两个文件：清单和采音 worklet。模型都在 models/ 下。 */
 const ROUND11_H1_SHIPPED = ['manifest.json', 'pcm-capture.worklet.js']
+
+/**
+ * ROUND12_H1_SMOKE：模型真落库之后，孩子那一侧还是不许变。
+ *
+ * R11 守的是「清单发出去了」，这一条守的是**落库与放行的那道缝没被抹掉**：
+ * 35 MiB 的模型现在确实躺在 dist 里，可是
+ *
+ *   - 首屏一次都不许请求它（家长不点「下载」，一个字节都不动）；
+ *   - 清单 files[] 每一项都要能被页面按同源地址取到、取回来的字节数与 bytes 对得上
+ *     （抽最大和最小两个文件各取一次，够钉住「路径写错 / 没随包发出去」）；
+ *   - available 还是 false，所以界面必须继续停在录音档、入口上写的还是「下载」；
+ *   - 家长点了下载：这一版清单不放行，界面必须落到 failed 并说明原因，
+ *     且全程 0 个跨源请求——落库不是偷偷放行的后门。
+ */
+const ROUND12_H1_SMOKE = ROUND8_H5_SMOKE
+const ROUND12_H1_PACK_DIR = 'models'
+const ROUND12_H1_MAX_PACK_BYTES = 60 * 1024 * 1024
+const ROUND12_H1_ROLES = [
+  'wasm-glue',
+  'wasm-binary',
+  'asr-api',
+  'model-encoder',
+  'model-decoder',
+  'model-joiner',
+  'tokens'
+]
 
 /**
  * ROUND11_H4_SMOKE：绘本页级场景。
@@ -221,25 +247,52 @@ if (!vocalPilotAsset) {
 }
 
 /**
- * Round 11 H1：模型不进包这件事，只能在 dist 上验。
+ * Round 11 H1 / ROUND12_H1：模型不进首屏这件事，只能在 dist 上验。
  *
  * 清单里可以写「不进首屏 precache」，vite.config.js 里也可以写 exclude，
  * 但真正决定用户第一次打开要下多少字节的，是 dist/asr 里躺着什么、
- * sw.js 的预缓存清单里列了什么。这两条一起看，才拦得住「顺手把模型 commit 进来」。
+ * sw.js 的预缓存清单里列了什么。
+ *
+ * R11 那会儿仓库里一个模型字节都没有，所以这条写成「dist/asr 里除了清单和 worklet
+ * 不许有第三个文件」。R12 模型真落库之后，那句话字面上必然不成立——真正要守的
+ * 从来不是「包里没有模型」，而是**「模型在包里，但没人替访客提前下载它」**：
+ *
+ *   1. dist/asr 顶层还是只有清单和 worklet，模型一律在 models/ 子目录下；
+ *   2. models/ 的字节数与清单 files[] 逐项对得上，且整包 ≤ 60 MiB；
+ *   3. sw.js 的预缓存清单里不许出现 asr/models/；
+ *   4. 首屏跑完浏览器一次都没请求过模型——这条在下面的交互用例里量。
  */
 const asrDistDir = join(DIST, 'asr')
 const asrShipped = existsSync(asrDistDir) ? await readdir(asrDistDir, { recursive: true }) : []
+let asrStrayBytes = 0
 let asrModelBytes = 0
 for (const entry of asrShipped) {
   const full = join(asrDistDir, entry)
   if (!statSync(full).isFile()) continue
-  if (ROUND11_H1_SHIPPED.includes(entry)) continue
-  asrModelBytes += statSync(full).size
+  const relative = entry.split(sep).join('/')
+  if (ROUND11_H1_SHIPPED.includes(relative)) continue
+  if (relative.startsWith(`${ROUND12_H1_PACK_DIR}/`)) asrModelBytes += statSync(full).size
+  else asrStrayBytes += statSync(full).size
 }
-if (asrModelBytes > 0) {
+if (asrStrayBytes > 0) {
   console.error(
-    `ROUND11_H1_SMOKE：dist/asr 里多出 ${asrModelBytes} 字节的模型文件` +
-      `（只该有 ${ROUND11_H1_SHIPPED.join('、')}）`
+    `ROUND11_H1_SMOKE：dist/asr 顶层多出 ${asrStrayBytes} 字节` +
+      `（只该有 ${ROUND11_H1_SHIPPED.join('、')}，模型一律放 ${ROUND12_H1_PACK_DIR}/）`
+  )
+  process.exit(1)
+}
+const asrDistManifest = JSON.parse(await readFile(join(asrDistDir, 'manifest.json'), 'utf8'))
+const asrDeclaredBytes = (asrDistManifest.files ?? []).reduce((n, file) => n + (file.bytes ?? 0), 0)
+if (asrDeclaredBytes !== asrModelBytes) {
+  console.error(
+    `ROUND12_H1_SMOKE：dist 里的模型 ${asrModelBytes} 字节，清单声明 ${asrDeclaredBytes} 字节——` +
+      '发出去的和冻结的不是同一份'
+  )
+  process.exit(1)
+}
+if (asrModelBytes > ROUND12_H1_MAX_PACK_BYTES) {
+  console.error(
+    `ROUND12_H1_SMOKE：整包 ${(asrModelBytes / 1048576).toFixed(2)} MiB 超过 60 MiB 预算`
   )
   process.exit(1)
 }
@@ -2051,10 +2104,6 @@ if (ROUND11_H1_SMOKE) {
       if (pending.length && manifest.goNoGo.verdict !== 'no-go') {
         throw new Error(`冻结项没做完，结论却是 ${manifest.goNoGo.verdict}`)
       }
-      if (manifest.available !== true && manifest.files.length) {
-        throw new Error('这一档还不可用，清单里却已经列了模型文件')
-      }
-
       // 界面这边要和清单一致：没冻结就不该出现离线档，也不该显示「已就绪」
       const ui = await page.evaluate(() => ({
         tier: document.querySelector('.fr')?.dataset.tier ?? '',
@@ -2072,6 +2121,116 @@ if (ROUND11_H1_SMOKE) {
         `冻结清单 ${done}/${freeze.length} 条完成，五层门槛齐全，` +
         `结论=${manifest.goNoGo.verdict}，available=${manifest.available}；` +
         `dist/asr 模型字节 ${asrModelBytes}，档位=${ui.tier || '未标注'}`
+      )
+    }
+  )
+}
+
+if (ROUND12_H1_SMOKE) {
+  await interact(
+    'ROUND12_H1：模型真落库 —— 首屏一个模型字节都不下，界面照旧停在录音档',
+    `/#${ROUND12_H1_SMOKE}`,
+    async (page) => {
+      const origin = new URL(page.url()).origin
+      const modelRequests = []
+      const foreign = []
+      page.on('request', (request) => {
+        const url = request.url()
+        if (/\/asr\/models\//.test(url)) modelRequests.push(url)
+        // 内联的 data: 图标不是「出网」，只有真正的 http(s) 才算跨源
+        if (/^https?:/.test(url) && new URL(url).origin !== origin) foreign.push(url)
+      })
+
+      await page.reload({ waitUntil: 'networkidle2', timeout: 20000 })
+      await page.waitForSelector('.fr[data-tier]', { timeout: 8000 })
+      await page.waitForFunction(
+        () => !['unknown', 'checking'].includes(document.querySelector('.fr__pack')?.dataset.status),
+        { timeout: 8000 }
+      )
+      if (modelRequests.length) {
+        throw new Error(
+          `首屏就去取模型了（${modelRequests.length} 次，如 ${modelRequests[0]}）——` +
+            '家长还没点下载，流量已经花出去了'
+        )
+      }
+
+      const manifest = await page.evaluate(async () => {
+        const response = await fetch(new URL('asr/manifest.json', document.baseURI).href, {
+          cache: 'no-cache'
+        })
+        return response.json()
+      })
+      const roles = (manifest.files ?? []).map((file) => file.role)
+      const missing = ROUND12_H1_ROLES.filter((role) => !roles.includes(role))
+      if (missing.length) throw new Error(`落库的整包缺角色：${missing.join('、')}`)
+      for (const file of manifest.files) {
+        if (!/^[a-f0-9]{64}$/.test(String(file.sha256))) {
+          throw new Error(`${file.path} 没有冻结 sha256`)
+        }
+        if (!Number.isInteger(file.bytes) || file.bytes <= 0) {
+          throw new Error(`${file.path} 的 bytes 不合法：${file.bytes}`)
+        }
+      }
+      const total = manifest.files.reduce((n, file) => n + file.bytes, 0)
+      if (total > ROUND12_H1_MAX_PACK_BYTES) {
+        throw new Error(`整包 ${(total / 1048576).toFixed(2)} MiB 超过 60 MiB 预算`)
+      }
+
+      // 抽最大和最小的两个文件，按同源地址真取一次：路径写错或没发出去，这里当场红
+      const sorted = [...manifest.files].sort((a, b) => a.bytes - b.bytes)
+      const probes = [sorted[0], sorted[sorted.length - 1]]
+      const fetched = await page.evaluate(async (list) => {
+        const out = []
+        for (const file of list) {
+          const url = new URL(file.path, document.baseURI).href
+          const response = await fetch(url, { cache: 'no-store' })
+          const buffer = response.ok ? await response.arrayBuffer() : new ArrayBuffer(0)
+          out.push({ path: file.path, ok: response.ok, bytes: buffer.byteLength })
+        }
+        return out
+      }, probes)
+      for (const [index, probe] of fetched.entries()) {
+        if (!probe.ok) throw new Error(`${probe.path} 没随包发出去（同源取不到）`)
+        if (probe.bytes !== probes[index].bytes) {
+          throw new Error(
+            `${probe.path} 发出去 ${probe.bytes} 字节，清单写 ${probes[index].bytes} 字节`
+          )
+        }
+      }
+
+      // 落库不等于放行：清单没转绿，界面必须还停在录音档，入口还是「下载」
+      const before = await page.evaluate(() => ({
+        tier: document.querySelector('.fr')?.dataset.tier ?? '',
+        status: document.querySelector('.fr__pack')?.dataset.status ?? '',
+        cta: document.querySelector('.fr__pack-get')?.innerText.replace(/\s+/g, ' ').trim() ?? ''
+      }))
+      if (manifest.available !== false) {
+        throw new Error(`冻结集还没录，available 却是 ${manifest.available}`)
+      }
+      if (before.tier === 'offline-asr') throw new Error('模型只是落了库，界面就自己升到了离线档')
+      if (before.status === 'ready') throw new Error('没人点下载，界面却说离线评测包已就绪')
+      if (!before.cta) throw new Error('「下载离线评测包」入口不见了')
+
+      // 家长真点一次：这一版不放行，必须落到 failed 并讲清原因，也不许改用在线识别
+      await page.evaluate(() => document.querySelector('.fr__pack-get').click())
+      await page.waitForFunction(
+        () => document.querySelector('.fr__pack')?.dataset.status === 'failed',
+        { timeout: 8000 }
+      )
+      const after = await page.evaluate(() => ({
+        tier: document.querySelector('.fr')?.dataset.tier ?? '',
+        note: document.querySelector('.fr__pack-note')?.innerText.replace(/\s+/g, ' ').trim() ?? '',
+        optIn: document.querySelector('.fr__opt input[type="checkbox"]')?.checked ?? false
+      }))
+      if (after.tier === 'offline-asr') throw new Error('这一版没放行，档位却升到了离线')
+      if (after.optIn) throw new Error('装包失败后替家长打开了浏览器语音识别')
+      if (!after.note) throw new Error('装包失败却没告诉家长为什么')
+      if (foreign.length) throw new Error(`跟读页走了第三方地址：${foreign.slice(0, 2).join('、')}`)
+
+      return (
+        `整包 ${(total / 1048576).toFixed(2)} MiB / ${manifest.files.length} 个文件（${roles.length} 个角色）` +
+        `，首屏 0 次模型请求；抽验 ${probes.map((p) => p.path.split('/').pop()).join('、')} 同源可取且字节对得上；` +
+        `available=${manifest.available}，档位 ${before.tier}→${after.tier}，0 个跨源请求`
       )
     }
   )

@@ -168,10 +168,10 @@ test('落库的文件逐项核得上：路径、字节数、sha256 与清单一�
   let total = 0
   for (const file of manifest.files) {
     assert.ok(
-      file.path && !file.path.startsWith('/') && !file.path.includes('..'),
+      file.path?.startsWith('asr/') && !file.path.includes('..'),
       `文件路径不合法：${file.path}`
     )
-    const body = readFileSync(new URL(`public/asr/${file.path}`, appUrl))
+    const body = readFileSync(new URL(`public/${file.path}`, appUrl))
     assert.equal(body.length, file.bytes, `${file.path} 实际 ${body.length} 字节，清单写 ${file.bytes}`)
     assert.equal(
       createHash('sha256').update(body).digest('hex'),
@@ -549,13 +549,13 @@ const sha256 = (text) => createHash('sha256').update(text).digest('hex')
  * 这正是 D6/D7 要证明的那条线。
  */
 const DRILL_ROLES = {
-  'wasm-glue': 'models/glue.js',
-  'wasm-binary': 'models/engine.wasm',
-  'asr-api': 'models/api.js',
-  'model-encoder': 'models/encoder.int8.onnx',
-  'model-decoder': 'models/decoder.int8.onnx',
-  'model-joiner': 'models/joiner.int8.onnx',
-  tokens: 'models/tokens.txt'
+  'wasm-glue': 'asr/models/glue.js',
+  'wasm-binary': 'asr/models/engine.wasm',
+  'asr-api': 'asr/models/api.js',
+  'model-encoder': 'asr/models/encoder.int8.onnx',
+  'model-decoder': 'asr/models/decoder.int8.onnx',
+  'model-joiner': 'asr/models/joiner.int8.onnx',
+  tokens: 'asr/models/tokens.txt'
 }
 
 function frozenPack() {
@@ -629,7 +629,7 @@ drill('D2', 'model-404', 'reliability', '模型 404：整包作废、缓存清�
     {
       fetchImpl: async (url) => {
         if (url.endsWith('manifest.json')) return new Response(JSON.stringify(pack.manifest))
-        if (url.endsWith('glue.js')) return new Response(pack.files['models/glue.js'])
+        if (url.endsWith('glue.js')) return new Response(pack.files['asr/models/glue.js'])
         return new Response('not found', { status: 404 })
       }
     },
@@ -736,7 +736,7 @@ drill('D6', 'hash-mismatch', 'resource', '指纹不符：整包作废，绝不�
     {
       fetchImpl: async (url) => {
         if (url.endsWith('manifest.json')) return new Response(JSON.stringify(tampered))
-        if (url.endsWith('glue.js')) return new Response(pack.files['models/glue.js'])
+        if (url.endsWith('glue.js')) return new Response(pack.files['asr/models/glue.js'])
         return new Response('被掉包的二进制')
       }
     },

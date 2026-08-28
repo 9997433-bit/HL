@@ -9,49 +9,49 @@
   "sha256": "e3c99b7eee5a92d90455870682180a516056f5eb7f4bd9ce2799051245cd207e",
   "files": [
     {
-      "path": "models/sherpa-onnx-wasm-main-asr.js",
+      "path": "asr/models/sherpa-onnx-wasm-main-asr.js",
       "role": "wasm-glue",
       "bytes": 91901,
       "sha256": "567d3e9993743e4a4176dc55f302c6cf4f8621474e8fe0787f45aac71b239cc7",
       "type": "text/javascript"
     },
     {
-      "path": "models/sherpa-onnx-wasm-main-asr.wasm",
+      "path": "asr/models/sherpa-onnx-wasm-main-asr.wasm",
       "role": "wasm-binary",
       "bytes": 11535148,
       "sha256": "7696761b31fee476f829d2d5853a78cb4dc2bdb933e78bc642861ba62a36ec82",
       "type": "application/wasm"
     },
     {
-      "path": "models/sherpa-onnx-asr.js",
+      "path": "asr/models/sherpa-onnx-asr.js",
       "role": "asr-api",
       "bytes": 40446,
       "sha256": "f5bb003d8c5fc0567a73dbac6951bdf96306b58af7a73e7b963e42c1b84ce588",
       "type": "text/javascript"
     },
     {
-      "path": "models/encoder.int8.onnx",
+      "path": "asr/models/encoder.int8.onnx",
       "role": "model-encoder",
       "bytes": 21621684,
       "sha256": "1c556ea57cec304e55ec4b72e52c1cc098bb01476ed7d90f3de939fe126487b1",
       "type": "application/octet-stream"
     },
     {
-      "path": "models/decoder.int8.onnx",
+      "path": "asr/models/decoder.int8.onnx",
       "role": "model-decoder",
       "bytes": 1888682,
       "sha256": "22f123bb8cba9b38974b3df18a3f45e7081f4985ebb2e075d9f21f618c468bbf",
       "type": "application/octet-stream"
     },
     {
-      "path": "models/joiner.int8.onnx",
+      "path": "asr/models/joiner.int8.onnx",
       "role": "model-joiner",
       "bytes": 1795562,
       "sha256": "a7cf9d82757bdcf786059454495a9ca95e4bd7347f72473fc08d794475c36169",
       "type": "application/octet-stream"
     },
     {
-      "path": "models/tokens.txt",
+      "path": "asr/models/tokens.txt",
       "role": "tokens",
       "bytes": 48697,
       "sha256": "8b294db9045d6e5f94647f4c1eec1af4da143a75053c399611444b378ff966ac",
@@ -66,8 +66,14 @@
     "runtimeLicense": "Apache-2.0（框架）",
     "modelLicense": "Apache-2.0（上游模型卡；已核对并写进 THIRD_PARTY_NOTICES.md）",
     "rejected": [
-      { "family": "sherpa-onnx streaming zipformer bilingual zh-en 2023-02-20", "reason": "int8 encoder 单文件 173 MiB，整包远超 60 MiB 预算" },
-      { "family": "官方 wasm asr 整包（--preload-file 的 .data）", "reason": ".data 里是 182 MiB 英文大模型，且逐文件 sha256 会退化成一个不透明大 blob" }
+      {
+        "family": "sherpa-onnx streaming zipformer bilingual zh-en 2023-02-20",
+        "reason": "int8 encoder 单文件 173 MiB，整包远超 60 MiB 预算"
+      },
+      {
+        "family": "官方 wasm asr 整包（--preload-file 的 .data）",
+        "reason": ".data 里是 182 MiB 英文大模型，且逐文件 sha256 会退化成一个不透明大 blob"
+      }
     ]
   },
   "evalSet": {
@@ -326,49 +332,49 @@
     },
     "files": [
       {
-        "path": "models/sherpa-onnx-wasm-main-asr.js",
+        "path": "asr/models/sherpa-onnx-wasm-main-asr.js",
         "from": "k2-fsa/sherpa-onnx@v1.12.15/sherpa-onnx-wasm-simd-v1.12.15-en-asr-zipformer.tar.bz2!sherpa-onnx-wasm-main-asr.js",
         "upstreamSha256": "0451e4eefaddc015e5a27a796b1a39f8ad2227bc76d1b9ee50660eaa7f366846",
         "license": "Apache-2.0",
         "note": "仅改写 loadPackage 元数据为空包（原值前 120 字符：loadPackage({\"files\":[{\"filename\":\"/.gitignore\",\"start\":0,\"end\":0},{\"filename\":\"/README.md\",\"start\":0,\"end\":3033},{\"file…）"
       },
       {
-        "path": "models/sherpa-onnx-wasm-main-asr.wasm",
+        "path": "asr/models/sherpa-onnx-wasm-main-asr.wasm",
         "from": "k2-fsa/sherpa-onnx@v1.12.15/sherpa-onnx-wasm-simd-v1.12.15-en-asr-zipformer.tar.bz2!sherpa-onnx-wasm-main-asr.wasm",
         "upstreamSha256": "7696761b31fee476f829d2d5853a78cb4dc2bdb933e78bc642861ba62a36ec82",
         "license": "Apache-2.0",
         "note": "原样自托管"
       },
       {
-        "path": "models/sherpa-onnx-asr.js",
+        "path": "asr/models/sherpa-onnx-asr.js",
         "from": "k2-fsa/sherpa-onnx@v1.12.15/sherpa-onnx-wasm-simd-v1.12.15-en-asr-zipformer.tar.bz2!sherpa-onnx-asr.js",
         "upstreamSha256": "f5bb003d8c5fc0567a73dbac6951bdf96306b58af7a73e7b963e42c1b84ce588",
         "license": "Apache-2.0",
         "note": "原样自托管"
       },
       {
-        "path": "models/encoder.int8.onnx",
+        "path": "asr/models/encoder.int8.onnx",
         "from": "hf:csukuangfj/sherpa-onnx-streaming-zipformer-zh-14M-2023-02-23@204ad334e2e683fd295359930cc16fc0432a23ac/encoder-epoch-99-avg-1.int8.onnx",
         "upstreamSha256": "1c556ea57cec304e55ec4b72e52c1cc098bb01476ed7d90f3de939fe126487b1",
         "license": "Apache-2.0",
         "note": "原样自托管（int8 量化档）"
       },
       {
-        "path": "models/decoder.int8.onnx",
+        "path": "asr/models/decoder.int8.onnx",
         "from": "hf:csukuangfj/sherpa-onnx-streaming-zipformer-zh-14M-2023-02-23@204ad334e2e683fd295359930cc16fc0432a23ac/decoder-epoch-99-avg-1.int8.onnx",
         "upstreamSha256": "22f123bb8cba9b38974b3df18a3f45e7081f4985ebb2e075d9f21f618c468bbf",
         "license": "Apache-2.0",
         "note": "原样自托管（int8 量化档）"
       },
       {
-        "path": "models/joiner.int8.onnx",
+        "path": "asr/models/joiner.int8.onnx",
         "from": "hf:csukuangfj/sherpa-onnx-streaming-zipformer-zh-14M-2023-02-23@204ad334e2e683fd295359930cc16fc0432a23ac/joiner-epoch-99-avg-1.int8.onnx",
         "upstreamSha256": "a7cf9d82757bdcf786059454495a9ca95e4bd7347f72473fc08d794475c36169",
         "license": "Apache-2.0",
         "note": "原样自托管（int8 量化档）"
       },
       {
-        "path": "models/tokens.txt",
+        "path": "asr/models/tokens.txt",
         "from": "hf:csukuangfj/sherpa-onnx-streaming-zipformer-zh-14M-2023-02-23@204ad334e2e683fd295359930cc16fc0432a23ac/tokens.txt",
         "upstreamSha256": "8b294db9045d6e5f94647f4c1eec1af4da143a75053c399611444b378ff966ac",
         "license": "Apache-2.0",

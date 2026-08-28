@@ -27,7 +27,8 @@ import { alignChars, normalizeTranscript } from '../src/utils/speechEval.js'
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const asJson = process.argv.includes('--json')
-const asrRoot = path.join(appRoot, 'public/asr')
+const publicRoot = path.join(appRoot, 'public')
+const asrRoot = path.join(publicRoot, 'asr')
 const manifest = JSON.parse(fs.readFileSync(path.join(asrRoot, 'manifest.json'), 'utf8'))
 
 /** 上游给这条示例音频公布的参考转写；逐字对齐用它当分母。 */
@@ -40,14 +41,14 @@ const DESKTOP_RTF_BUDGET = 0.35
 
 const tests = []
 const test = (name, fn) => tests.push({ name, fn })
-const bytesOf = (rel) => fs.readFileSync(path.join(asrRoot, rel))
+const bytesOf = (rel) => fs.readFileSync(path.join(publicRoot, rel))
 const sha256 = (buffer) => createHash('sha256').update(buffer).digest('hex')
 
 /* ------------------------------------------------------------ 1. 落库核对 */
 
 const files = Array.isArray(manifest.files) ? manifest.files : []
 
-test('清单里的每个文件都真在 public/asr/ 下，bytes 与 sha256 逐项对得上', () => {
+test('清单里的每个文件都真在 public/ 下发得出去，bytes 与 sha256 逐项对得上', () => {
   assert.ok(files.length >= PACK_ROLES.length, `清单只有 ${files.length} 个文件`)
   for (const file of files) {
     const body = bytesOf(file.path)
