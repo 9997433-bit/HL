@@ -1,10 +1,14 @@
 <script setup>
 import { computed } from 'vue'
+import MascotCompanion from '@/components/MascotCompanion.vue'
+import { useMascotCoach } from '@/composables/useMascotCoach.js'
 import { BOOKS, charsInBook } from '@/data/books.js'
 import { useProgressStore } from '@/stores/progress.js'
 import { sfx } from '@/utils/sfx.js'
 
 const progress = useProgressStore()
+
+const { line: coachLine, mood: coachMood, next: coachNext } = useMascotCoach('books')
 
 const shelf = computed(() =>
   BOOKS.map((b) => {
@@ -73,6 +77,16 @@ const shelf = computed(() =>
         </div>
       </RouterLink>
     </section>
+
+    <MascotCompanion
+      class="mascot-dock"
+      :mood="coachMood"
+      :say="coachLine"
+      :size="72"
+      :speak-on-tap="false"
+      tap-hint="点我，换一句悄悄话"
+      @tap="coachNext"
+    />
   </div>
 </template>
 
@@ -153,7 +167,7 @@ const shelf = computed(() =>
   padding: 2px 9px;
   border-radius: var(--radius-pill);
   background: rgba(255, 255, 255, 0.85);
-  color: #4a3a22;
+  color: var(--text-strong);
   font-size: 0.72rem;
   font-weight: 800;
 }

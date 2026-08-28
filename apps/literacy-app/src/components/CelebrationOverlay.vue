@@ -13,6 +13,7 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import gsap from 'gsap'
 import { sfx } from '@/utils/audio.js'
+import OpenMojiIcon from '@shared/components/OpenMojiIcon.vue'
 
 const props = defineProps({
   open: { type: Boolean, default: false },
@@ -33,12 +34,12 @@ const props = defineProps({
 const emit = defineEmits(['done'])
 
 const CONFETTI_COLORS = [
-  'var(--seed-mango)',
-  'var(--seed-coral)',
-  'var(--seed-mint)',
-  'var(--seed-sky)',
-  'var(--seed-grape)',
-  'var(--seed-leaf)'
+  'var(--mango-400)',
+  'var(--coral-400)',
+  'var(--mint-400)',
+  'var(--sky-400)',
+  'var(--grape-400)',
+  'var(--leaf-400)'
 ]
 
 /** 主体动画预算（ms）：卡片弹入 + 星星三连，合计不超过规范给的 1.2s。 */
@@ -237,7 +238,7 @@ onBeforeUnmount(() => {
       <p class="sr-only" role="status" aria-live="polite" aria-atomic="true">{{ liveText }}</p>
 
       <div ref="cardEl" class="cel__card">
-        <span class="cel__emoji" aria-hidden="true">{{ emoji }}</span>
+        <OpenMojiIcon class="cel__emoji" :emoji="emoji" :size="48" />
         <strong class="cel__title">{{ title }}</strong>
         <span v-if="highlight" class="cel__highlight">{{ highlight }}</span>
         <span v-if="subtitle" class="cel__subtitle">{{ subtitle }}</span>

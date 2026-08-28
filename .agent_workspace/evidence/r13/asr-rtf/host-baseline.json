@@ -1,0 +1,96 @@
+{
+  "marker": "ROUND13_H1",
+  "schema": "literacy-asr-rtf-baseline/1",
+  "onDevice": false,
+  "measuredAt": "2026-08-28T02:32:29.130Z",
+  "host": {
+    "kind": "ci-vm",
+    "cpu": "Intel(R) Xeon(R) Processor",
+    "cores": 4,
+    "totalMemGiB": 15.6,
+    "platform": "linux 6.12.94+",
+    "node": "v22.14.0",
+    "load1Before": 19.39,
+    "load1After": 18.41,
+    "shared": true,
+    "contended": true
+  },
+  "pack": {
+    "modelId": "sherpa-onnx-streaming-zipformer-zh-14M-int8",
+    "modelVersion": "2023-02-23+wasm1.12.15",
+    "bytes": 37022120
+  },
+  "calibration": {
+    "iterations": 40000000,
+    "runs": 5,
+    "min": 254.6,
+    "p50": 321.6,
+    "p95": 388.1,
+    "max": 388.1
+  },
+  "engine": {
+    "bootMs": 427.4,
+    "createRecognizerMs": 6380.6
+  },
+  "fixture": {
+    "path": "apps/literacy-app/scripts/fixtures/asr/upstream-zh-0.wav",
+    "audioSeconds": 5.61,
+    "frameMs": 100,
+    "speaker": "adult",
+    "note": "上游模型仓库自带的成人普通话示例。儿童语速与共发音另计，见 F4 冻结集。"
+  },
+  "decode": {
+    "passes": 5,
+    "rtf": {
+      "runs": 5,
+      "min": 0.117,
+      "p50": 0.134,
+      "p95": 0.276,
+      "max": 0.276
+    },
+    "rtfPerLoopMs": 0.000417,
+    "text": "对我做了介绍那么我想说的是大家如果对我的研究感兴趣呢"
+  },
+  "tailMs": {
+    "runs": 5,
+    "min": 0.1,
+    "p50": 0.2,
+    "p95": 7.4,
+    "max": 7.4
+  },
+  "chunkMs": {
+    "runs": 285,
+    "min": 0,
+    "p50": 0.1,
+    "p95": 77.9,
+    "max": 237.7
+  },
+  "memory": {
+    "rssBaselineMiB": 45.9,
+    "rssAfterBootMiB": 113.9,
+    "rssPeakMiB": 431.2,
+    "peakRssDeltaMiB": 385.3,
+    "note": "Node 进程的 RSS 增量，含 wasm 线性内存与 onnx 权重，且 Node 不急着回收——这是上界，不是 WebView 里的实际占用。真机口径由 F7 单独测。"
+  },
+  "projection": {
+    "method": "deviceRtf ≈ rtfPerLoopMs × deviceLoopMs；deviceLoopMs 由同一段 calibrationLoop 在 Android WebView 里跑出，除以主机耗时的做法可抵掉共用 VM 的负载抖动",
+    "deviceLoopMsAssumption": {
+      "min": 500,
+      "max": 1200,
+      "basis": "assumed-webview-scalar-loop"
+    },
+    "androidRtfBand": [
+      0.208,
+      0.5
+    ],
+    "budget": {
+      "rtf": 0.5,
+      "tailMs": 2500,
+      "longTaskMs": 100,
+      "memoryMiB": 300
+    },
+    "deviceVerdict": "unmeasured",
+    "owner": "SKIP owner: Android QA",
+    "blocks": "freezeChecklist F7 → available=true"
+  }
+}

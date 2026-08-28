@@ -8,16 +8,27 @@
  * 时长来自 App 每 15 秒一次的在线采样。
  */
 import { computed, ref } from 'vue'
+import { AGE_BAND_MODULES, bandOf } from '@/data/age-band.js'
 import { MODULES } from '@/data/modules.js'
 import { SKILLS } from '@/data/curriculum.js'
 import { ERROR_TAGS, errorTagInfo } from '@/data/errorTags.js'
+import { buildWeekPlan, weekPlanAdoption } from '@/data/week-plan.js'
 import { MASTERY_THRESHOLD } from '@/utils/mastery.js'
 import { useProgressStore } from '@/stores/progress.js'
-import { AGE_BANDS, useSettingsStore } from '@/stores/settings.js'
+import { AGE_BANDS, THEMES, useSettingsStore } from '@/stores/settings.js'
+import { useWeeklyReport } from '@/composables/useWeeklyReport.js'
 import { sound } from '@/utils/sound'
+import OpenMojiAttribution from '@shared/components/OpenMojiAttribution.vue'
 
 const progress = useProgressStore()
 const settings = useSettingsStore()
+
+/* ---------------- 本周一句话 ----------------
+ *
+ * 下面的雷达和错因表能回答「练了多少、错在哪」，回答不了「所以这周该练什么」。
+ * 周报就补这一句：一个弱项 + 最多三条能直接点过去的练习，本机现算，不联网。
+ */
+const weeklyReport = useWeeklyReport()
 
 /* ---------------- 口算门：一道两位数加法，挡住小朋友即可 ---------------- */
 
@@ -43,6 +54,14 @@ function submitGate() {
   answer.value = ''
   quiz.value = makeGateQuiz()
 }
+
+/* ---------------- 难度档 ---------------- */
+
+/** 选中的档位在六个玩法里各自对应什么默认难度，改档后立刻跟着变。 */
+const bandPreview = computed(() => {
+  const band = bandOf(settings.ageBand)
+  return AGE_BAND_MODULES.map((m) => ({ ...m, hint: band.hints[m.key] }))
+})
 
 /* ---------------- 时长提醒 ---------------- */
 
@@ -147,6 +166,55 @@ const weakSkills = computed(() =>
     })),
 )
 
+/* ---------------- 推荐理由与采纳痕迹 ---------------- */
+
+/**
+ * 家长侧看的是同一份周计划（data/week-plan.js），只是问题不一样：
+ * 孩子那边问「今天练什么」，家长这边问「凭什么推荐它、孩子到底练没练」。
+ *
+ * 两段都只读：计划是按当前存档现算的推演，痕迹是把存档里已有的记录
+ * （掌握度、错题欠账、星球最近游玩时间）按计划里的技能点重排一遍。
+ * 家长中心不替孩子预约功课，也不为了统计多记一笔数据。
+ */
+const weekPlan = computed(() =>
+  buildWeekPlan({
+    mastery: progress.state.mastery,
+    ageBand: settings.ageBand,
+    wrongBook: progress.state.wrongBook,
+  }),
+)
+
+const adoption = computed(() =>
+  weekPlanAdoption(weekPlan.value, {
+    mastery: progress.state.mastery,
+    wrongBook: progress.state.wrongBook,
+    modules: progress.state.modules,
+  }),
+)
+
+const recoMetrics = computed(() => progress.recommendationMetrics)
+const recoTrend = computed(() => progress.recommendationTrend.slice(-8))
+const recoMetricStatus = computed(
+  () =>
+    ({
+      insufficient: '样本积累中',
+      positive: '达到正向阈值',
+      watch: '继续观察',
+      negative: '低于预警线',
+    })[recoMetrics.value.status] ?? '继续观察',
+)
+
+function signedLift(value) {
+  return `${value > 0 ? '+' : ''}${value}pp`
+}
+
+function lastPlayedText(at) {
+  if (!at) return '还没玩过'
+  const days = Math.floor((Date.now() - at) / 864e5)
+  if (days <= 0) return '今天玩过'
+  return days === 1 ? '昨天玩过' : `${days} 天前玩过`
+}
+
 /* ---------------- 错因统计 ---------------- */
 
 const errorRows = computed(() => {
@@ -219,6 +287,11 @@ function resetSettings() {
 function setLimit(value) {
   settings.set('dailyLimitMinutes', Number(value))
 }
+
+function setTheme(theme) {
+  settings.set('theme', theme)
+  sound.click()
+}
 </script>
 
 <template>
@@ -273,6 +346,62 @@ function setLimit(value) {
           <div class="cell">
             <strong>{{ progress.state.dailyStreak }}</strong><span class="muted">连续天数</span>
           </div>
+        </div>
+      </section>
+
+      <!-- 本周弱项一句话 + 建议练习 -->
+      <section
+        class="panel stack weekly"
+        data-weekly-report
+        :data-weakness="weeklyReport.weakness.id"
+      >
+        <h3 class="panel-title">🗞️ 本周一句话（{{ weeklyReport.range }}）</h3>
+        <p class="weekly-headline" data-weekly-headline>{{ weeklyReport.headline }}</p>
+        <p class="muted note">
+          这周来了 {{ weeklyReport.week.activeDays }} 天 ·
+          共 {{ weeklyReport.week.minutes }} 分钟 ·
+          做了 {{ weeklyReport.week.answered }} 道题 ·
+          弱项判定：{{ weeklyReport.weakness.label }}
+        </p>
+
+        <h4 class="sub-title">这周建议练这 {{ weeklyReport.drills.length }} 件事</h4>
+        <ol class="weekly-drills">
+          <li v-for="drill in weeklyReport.drills" :key="drill.id" class="weekly-drill">
+            <RouterLink class="weekly-go" :to="drill.to">
+              <strong>{{ drill.title }}</strong>
+              <small class="muted">{{ drill.why }}</small>
+              <span class="chip">
+                {{ drill.minutes > 0 ? `约 ${drill.minutes} 分钟` : '只是一个约定' }}
+              </span>
+            </RouterLink>
+          </li>
+        </ol>
+        <p class="muted note">
+          这段话是按本机存档现算的：没有联网，也没有拿别的孩子做对比。
+          不认同判断就直接看下面的雷达和错因表，那才是原始记录。
+        </p>
+      </section>
+
+      <!-- 共享主题 -->
+      <section class="panel stack">
+        <h3 class="panel-title">🎨 显示主题</h3>
+        <p class="muted note">主题由双 App 共用的 design tokens 驱动，选择会保存在本机。</p>
+        <div class="themes" role="group" aria-label="显示主题">
+          <button
+            v-for="theme in THEMES"
+            :key="theme.id"
+            class="theme-option"
+            :class="{ on: settings.theme === theme.id }"
+            type="button"
+            :aria-pressed="settings.theme === theme.id"
+            @click="setTheme(theme.id)"
+          >
+            <span class="theme-emoji" aria-hidden="true">{{ theme.emoji }}</span>
+            <span>
+              <strong>{{ theme.name }}</strong>
+              <small class="muted">{{ theme.desc }}</small>
+            </span>
+          </button>
         </div>
       </section>
 
@@ -393,6 +522,13 @@ function setLimit(value) {
             <small class="muted">{{ band.desc }}</small>
           </button>
         </div>
+
+        <ul class="band-preview" aria-label="当前年龄档在各玩法里的默认难度">
+          <li v-for="m in bandPreview" :key="m.key">
+            <span class="muted">{{ m.name }}</span>
+            <strong>{{ m.hint }}</strong>
+          </li>
+        </ul>
       </section>
 
       <!-- 技能雷达 -->
@@ -467,6 +603,132 @@ function setLimit(value) {
         </ul>
       </section>
 
+      <!-- 推荐理由与采纳痕迹 -->
+      <section class="panel stack" data-parent-reco>
+        <h3 class="panel-title">📅 推荐理由与采纳痕迹</h3>
+        <p class="muted note">
+          技能图谱按孩子当前的掌握度排出这一周的练习计划：{{ weekPlan.stats.days }} 天
+          {{ weekPlan.stats.sessions }} 场，涉及 {{ weekPlan.stats.skills }} 个技能点。
+          下面先说「凭什么推荐它们」，再说这些技能点在存档里留下了什么痕迹。
+        </p>
+
+        <div
+          class="reco-metric-grid"
+          data-reco-metrics
+          :data-adoption-rate="recoMetrics.adoptionRate"
+          :data-reco-lift="recoMetrics.recoLift"
+          :data-reco-status="recoMetrics.status"
+        >
+          <div class="cell">
+            <strong>{{ recoMetrics.adoptionRate }}%</strong>
+            <span class="muted">推荐采纳率</span>
+          </div>
+          <div class="cell">
+            <strong>{{ recoMetrics.recoLift > 0 ? '+' : '' }}{{ recoMetrics.recoLift }}pp</strong>
+            <span class="muted">推荐相对提升</span>
+          </div>
+          <div class="cell">
+            <strong>{{ recoMetricStatus }}</strong>
+            <span class="muted">
+              {{ recoMetrics.adoptions }} 次采纳 / {{ recoMetrics.controls }} 个对照
+            </span>
+          </div>
+        </div>
+        <p class="muted note" data-reco-metric-definition>
+          准实验 lift = 被采纳技能的掌握度变化 − 同批未采纳技能的变化；至少
+          {{ recoMetrics.thresholds.minAdoptions }} 次采纳和
+          {{ recoMetrics.thresholds.minControls }} 个对照后才判读。它受孩子自选择与对照串线影响，
+          只表示关联，不能当作个人因果证明；该字段会随“导出进度”写入 recommendationEffect。
+        </p>
+
+        <div
+          v-if="recoTrend.length"
+          class="reco-trend"
+          data-reco-trend
+          :data-trend-points="recoTrend.length"
+        >
+          <h4 class="sub-title">近 {{ recoTrend.length }} 个记录日的采纳 / lift 趋势</h4>
+          <ol class="reco-trend-list">
+            <li
+              v-for="point in recoTrend"
+              :key="point.date"
+              class="reco-trend-point"
+              data-reco-trend-point
+              :data-reco-trend-date="point.date"
+              :data-reco-trend-adoption-rate="point.adoptionRate"
+              :data-reco-trend-lift="point.recoLift"
+            >
+              <time :datetime="point.date">{{ point.date.slice(5) }}</time>
+              <strong>采纳 {{ point.adoptionRate }}%</strong>
+              <strong :class="{ negative: point.recoLift < 0 }">
+                lift {{ signedLift(point.recoLift) }}
+              </strong>
+              <span class="muted">{{ point.adoptions }} 采纳 / {{ point.controls }} 对照</span>
+            </li>
+          </ol>
+          <p class="muted note">
+            每个自然日冻结一条读数，同日练习覆盖当天点；趋势随导出写入
+            recommendationTrend，历史日期不会被今天的掌握度改写。
+          </p>
+        </div>
+
+        <template v-if="adoption.total">
+          <h4 class="sub-title">凭什么推荐这些</h4>
+          <ul class="reasons">
+            <li
+              v-for="reason in adoption.byReason"
+              :key="reason.id"
+              class="reason-row"
+              :data-reco-reason-row="reason.id"
+            >
+              <div class="row-head">
+                <strong>{{ reason.label }}</strong>
+                <span class="chip">{{ reason.count }} 个技能 · {{ reason.sessions }} 场</span>
+              </div>
+              <p class="muted row-tip">{{ reason.hint }}</p>
+              <p class="muted row-tip">{{ reason.skills.join('、') }}</p>
+            </li>
+          </ul>
+
+          <h4 class="sub-title">采纳痕迹</h4>
+          <p class="muted note" data-adoption-summary>
+            计划里的 {{ adoption.total }} 个技能点，{{ adoption.touched }} 个在存档里查得到记录
+            （{{ adoption.touchedPercent }}%）：已过线 {{ adoption.passed }}、练过
+            {{ adoption.practiced }}、欠着错题 {{ adoption.owed }}、还没开练
+            {{ adoption.untouched }}。
+          </p>
+          <p class="muted note">
+            这是周计划痕迹，不是推荐点击、更不是因果：这里只能看出计划里的技能点动没动过——
+            可能是照着练的，也可能是孩子自己逛到那颗星球上去了。
+          </p>
+          <ul class="adoption">
+            <li
+              v-for="row in adoption.rows"
+              :key="row.id"
+              class="adoption-row"
+              :data-adoption-row="row.id"
+              :data-adoption-state="row.state"
+            >
+              <div class="row-head">
+                <strong>{{ row.emoji }} {{ row.name }}</strong>
+                <span class="chip" :class="row.state">{{ row.stateLabel }}</span>
+              </div>
+              <p class="muted row-tip">
+                第 {{ row.days.join('、') }} 天安排 · {{ row.reasonLabel }}：{{ row.why }}
+              </p>
+              <p class="muted row-tip">
+                {{ row.trace }} · {{ row.moduleName }}{{ lastPlayedText(row.lastPlayedAt) }}
+              </p>
+            </li>
+          </ul>
+        </template>
+        <p v-else class="muted">
+          图上该练的技能点都过线了，这周没有需要安排的新功课，复习和自由练都行。
+        </p>
+
+        <RouterLink to="/skill-graph" class="btn btn-ghost">🕸️ 看看完整周计划</RouterLink>
+      </section>
+
       <!-- 错因统计 -->
       <section class="panel stack">
         <h3 class="panel-title">🔍 错因统计</h3>
@@ -535,8 +797,11 @@ function setLimit(value) {
           <li>雷达上最短的那根轴不必急着补满，先把已经练过、还差一点的技能点做到达标。</li>
           <li>屏幕时间结束后，让孩子把刚才最难的一道题讲给你听，比多做十道更管用。</li>
         </ul>
+        <RouterLink to="/skill-graph" class="btn btn-ghost">🕸️ 打开技能图谱</RouterLink>
         <RouterLink to="/progress" class="btn btn-ghost">🏆 查看孩子的成就墙</RouterLink>
       </section>
+
+      <OpenMojiAttribution />
     </template>
   </main>
 </template>
@@ -586,10 +851,10 @@ function setLimit(value) {
   width: 100%;
   min-height: 52px;
   padding: 0 16px;
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-sm);
   border: 1px solid rgba(255, 255, 255, 0.24);
   background: rgba(255, 255, 255, 0.08);
-  color: var(--ink);
+  color: var(--text-strong);
   font-family: inherit;
   font-size: 18px;
   text-align: center;
@@ -597,11 +862,11 @@ function setLimit(value) {
 }
 
 .gate-input:focus {
-  border-color: var(--cyan);
+  border-color: var(--brand);
 }
 
 .err {
-  color: #ffb3bd;
+  color: var(--danger);
   font-weight: 800;
   font-size: 14px;
 }
@@ -614,7 +879,7 @@ function setLimit(value) {
   border-radius: 999px;
   background: rgba(85, 230, 165, 0.18);
   border: 1px solid rgba(85, 230, 165, 0.5);
-  color: #d6fff0;
+  color: var(--success);
   font-weight: 800;
   font-size: 14px;
 }
@@ -633,6 +898,114 @@ function setLimit(value) {
   font-weight: 800;
 }
 
+/* ---- 本周一句话 ---- */
+
+.weekly-headline {
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  background: rgba(94, 231, 255, 0.12);
+  border-left: 4px solid var(--brand);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.8;
+}
+
+.weekly-drills {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  counter-reset: drill;
+}
+
+.weekly-drill {
+  counter-increment: drill;
+}
+
+.weekly-go {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas: 'no title' 'no why' 'no time';
+  gap: 2px 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.weekly-go::before {
+  grid-area: no;
+  align-self: center;
+  content: counter(drill);
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--brand);
+  color: #05213a;
+  font-weight: 900;
+}
+
+.weekly-go strong {
+  grid-area: title;
+  font-size: 15px;
+}
+
+.weekly-go small {
+  grid-area: why;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.weekly-go .chip {
+  grid-area: time;
+  justify-self: start;
+  margin-top: 4px;
+  font-size: 11px;
+}
+
+.weekly-go:hover,
+.weekly-go:focus-visible {
+  border-color: var(--brand);
+}
+
+.themes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.theme-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--tap-min);
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  border: 2px solid transparent;
+  text-align: left;
+}
+
+.theme-option.on {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+}
+
+.theme-option > span:last-child {
+  display: flex;
+  flex-direction: column;
+}
+
+.theme-option small {
+  font-size: 12px;
+}
+
+.theme-emoji {
+  font-size: 24px;
+}
+
 .cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
@@ -646,7 +1019,7 @@ function setLimit(value) {
   align-items: center;
   gap: 2px;
   padding: 12px 6px;
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
@@ -672,19 +1045,19 @@ function setLimit(value) {
   display: block;
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, var(--cyan), var(--violet));
+  background: linear-gradient(90deg, var(--brand), var(--accent));
   transition: width 0.5s ease;
 }
 
 .bar-fill.warm {
-  background: linear-gradient(90deg, var(--gold), var(--orange));
+  background: linear-gradient(90deg, var(--star), var(--neon-orange));
 }
 
 /* ---- 时长 ---- */
 
 .usage {
   padding: 12px 16px;
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.12);
   font-size: 14px;
@@ -738,7 +1111,7 @@ function setLimit(value) {
 .chart-bar {
   width: 100%;
   border-radius: 8px;
-  background: linear-gradient(180deg, var(--cyan), var(--violet));
+  background: linear-gradient(180deg, var(--brand), var(--accent));
   transition: height 0.5s ease;
 }
 
@@ -749,7 +1122,7 @@ function setLimit(value) {
 .chart-sub {
   font-size: 11px;
   font-weight: 800;
-  color: var(--gold);
+  color: var(--star);
 }
 
 .field {
@@ -766,7 +1139,7 @@ function setLimit(value) {
 .range {
   width: 100%;
   height: 34px;
-  accent-color: var(--cyan);
+  accent-color: var(--brand);
 }
 
 .toggles {
@@ -780,7 +1153,7 @@ function setLimit(value) {
   align-items: center;
   gap: 12px;
   padding: 12px 14px;
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
   cursor: pointer;
@@ -790,7 +1163,7 @@ function setLimit(value) {
   width: 22px;
   height: 22px;
   flex: none;
-  accent-color: var(--cyan);
+  accent-color: var(--brand);
 }
 
 .toggles span {
@@ -822,14 +1195,14 @@ function setLimit(value) {
   gap: 2px;
   padding: 12px 14px;
   text-align: left;
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.12);
   transition: border-color 0.14s ease, background 0.14s ease;
 }
 
 .band.on {
-  border-color: var(--cyan);
+  border-color: var(--brand);
   background: rgba(94, 231, 255, 0.14);
 }
 
@@ -839,6 +1212,24 @@ function setLimit(value) {
 
 .band small {
   font-size: 12px;
+}
+
+.band-preview {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 6px 14px;
+  list-style: none;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: rgba(94, 231, 255, 0.07);
+  border: 1px solid rgba(94, 231, 255, 0.22);
+}
+
+.band-preview li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
 }
 
 /* ---- 雷达 ---- */
@@ -869,13 +1260,13 @@ function setLimit(value) {
 
 .radar-shape {
   fill: rgba(94, 231, 255, 0.28);
-  stroke: var(--cyan);
+  stroke: var(--brand);
   stroke-width: 2;
   stroke-linejoin: round;
 }
 
 .radar-text {
-  fill: #f2f5ff;
+  fill: var(--text-strong);
   font-size: 10px;
   font-weight: 700;
 }
@@ -939,7 +1330,7 @@ function setLimit(value) {
   flex-direction: column;
   gap: 2px;
   padding: 10px 14px;
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.12);
 }
@@ -950,6 +1341,99 @@ function setLimit(value) {
 
 .weak-item span {
   font-size: 12px;
+}
+
+/* ---- 推荐理由与采纳痕迹 ---- */
+
+.reasons,
+.adoption {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.reco-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.reco-trend {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.reco-trend-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.reco-trend-point {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(96, 214, 255, 0.24);
+  background: rgba(96, 214, 255, 0.07);
+}
+
+.reco-trend-point time,
+.reco-trend-point span {
+  font-size: 12px;
+}
+
+.reco-trend-point strong {
+  font-size: 14px;
+  color: #55e6a5;
+}
+
+.reco-trend-point strong.negative {
+  color: #ff8f8f;
+}
+
+.reason-row,
+.adoption-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.row-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.row-head strong {
+  font-size: 15px;
+}
+
+.row-tip {
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.chip.passed {
+  border-color: rgba(85, 230, 165, 0.5);
+  color: #55e6a5;
+}
+
+.chip.owed {
+  border-color: rgba(255, 120, 120, 0.5);
+  color: #ff8f8f;
+}
+
+.chip.practiced {
+  border-color: rgba(255, 206, 77, 0.5);
+  color: #ffce4d;
 }
 
 /* ---- 错因 ---- */
@@ -996,7 +1480,7 @@ function setLimit(value) {
 
 .danger {
   border-color: rgba(255, 107, 125, 0.6);
-  color: #ffd3d9;
+  color: var(--danger);
 }
 
 .tips {

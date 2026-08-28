@@ -5,8 +5,17 @@ const PRECACHE_URLS = [
   /* __PRECACHE_MANIFEST__ */
 ]
 
+/**
+ * 拍照识字的引擎包（worker + wasm 内核 + chi_sim 语言包）不进预缓存：
+ * 近 6 MB，多数访客根本不会打开这一页。改成第一次用到时才下，
+ * 下完就留在这个缓存里，之后断网照样能认字。
+ * 名字不带版本号，也不以 CACHE_PREFIX 开头，换版本时不会被 activate 清掉。
+ */
+const OCR_CACHE = 'literacy-app-ocr-pack'
+
 const scopeUrl = new URL(self.registration.scope)
 const indexUrl = new URL('./index.html', scopeUrl).href
+const ocrPrefix = new URL('./ocr/', scopeUrl).pathname
 const precacheRequests = PRECACHE_URLS.map(
   (path) => new Request(new URL(path, scopeUrl), { cache: 'reload' }),
 )
@@ -50,7 +59,26 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
+  if (url.pathname.startsWith(ocrPrefix)) {
+    event.respondWith(cacheOnFirstUse(request))
+    return
+  }
+
   event.respondWith(
     caches.match(request, { ignoreSearch: true }).then((cached) => cached ?? fetch(request)),
   )
 })
+
+async function cacheOnFirstUse(request) {
+  // 先查全部缓存：清单和示例图体积小，还是走预缓存的，别让它们白跑一趟网络
+  const cached = await caches.match(request, { ignoreSearch: true })
+  if (cached) return cached
+
+  const response = await fetch(request)
+  // 只收成功的整份响应：把 404 或半截的 range 响应存下来，离线时会一直坏下去
+  if (response.ok && response.status === 200) {
+    const cache = await caches.open(OCR_CACHE)
+    await cache.put(request, response.clone())
+  }
+  return response
+}

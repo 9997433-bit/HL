@@ -1,7 +1,8 @@
 {
   "name": "math-app",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
+  "license": "MIT",
   "type": "module",
   "description": "MathQuest 数学星球大冒险 — 开源儿童数学 Web 应用:数与量启蒙 / 加减乘除 / 几何空间 / 逻辑推理 / 数独 / 应用题 / 进度系统",
   "scripts": {
@@ -9,7 +10,9 @@
     "build": "vite build",
     "preview": "vite preview --port 4174",
     "smoke": "node scripts/smoke.mjs",
-    "test": "npm run check:content && npm run build && node scripts/smoke.mjs",
+    "test": "npm run check:content && npm run build && npm run check:bundle && npm run check:route-budget && node scripts/smoke.mjs",
+    "check:bundle": "node scripts/check-bundle.mjs",
+    "check:route-budget": "node scripts/check-route-budget.mjs",
     "check:content": "node --import ./scripts/register-alias.mjs scripts/check-content.mjs"
   },
   "dependencies": {

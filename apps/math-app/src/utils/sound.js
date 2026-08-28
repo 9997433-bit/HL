@@ -1,7 +1,7 @@
 /**
  * 音效引擎 —— 全应用唯一的声音入口。
  *
- * 五种反馈音全部用 Web Audio 现场合成，不打包任何音频文件，也不依赖音频库：
+ * 反馈音全部用 Web Audio 现场合成，不打包任何音频文件，也不依赖音频库：
  * 一个三角波振荡器 + 一条 ADSR 增益包络就够用，整套引擎不到 3KB。
  *
  * 浏览器要求 AudioContext 由用户手势创建，所以这里在第一次 play* 调用时才惰性初始化；
@@ -22,14 +22,40 @@ const RELEASE = 0.3
 const SEMITONES = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }
 
 /**
- * 五种反馈音的谱面：{ notes, gap, dur }。
+ * 连对音阶：每答对一题，整段大三和弦向上走一级；第 7 级封顶，避免长连击进入刺耳频段。
+ * 第一档沿用普通答对音，因此旧调用与 streak=1 听感一致。
+ */
+export const STREAK_CUES = [
+  { notes: ['C5', 'E5', 'G5'], gap: 0.09, dur: '16n' },
+  { notes: ['D5', 'F#5', 'A5'], gap: 0.085, dur: '16n' },
+  { notes: ['E5', 'G#5', 'B5'], gap: 0.08, dur: '16n' },
+  { notes: ['F5', 'A5', 'C6'], gap: 0.075, dur: '16n' },
+  { notes: ['G5', 'B5', 'D6'], gap: 0.07, dur: '16n' },
+  { notes: ['A5', 'C#6', 'E6'], gap: 0.065, dur: '16n' },
+  { notes: ['C6', 'E6', 'G6'], gap: 0.06, dur: '16n' },
+]
+
+/** 把任意 streak 值归一到安全谱面，供音效入口与内容测试共用。 */
+export function streakCue(streak = 1) {
+  const value = Number(streak)
+  const count = Number.isFinite(value) ? Math.floor(value) : 1
+  return STREAK_CUES[Math.min(STREAK_CUES.length, Math.max(1, count)) - 1]
+}
+
+/** streakTone：连对档位 → 音高递进谱面（与识字 streakChord 同语义）。 */
+export function streakTone(streak = 1) {
+  return streakCue(streak)
+}
+
+/**
+ * 固定反馈音的谱面：{ notes, gap, dur }。
  * gap 为 0 表示同时发声（和弦），否则是相邻音符的起始间隔（秒）。
  */
 export const CUES = {
   /** 界面点击:短促单音 */
   click: { notes: ['C5'], gap: 0, dur: '32n' },
   /** 答对:大调上行琶音 */
-  correct: { notes: ['C5', 'E5', 'G5'], gap: 0.09, dur: '16n' },
+  correct: STREAK_CUES[0],
   /** 答错:柔和下行小二度(不刺耳,保护低龄挫败感) */
   wrong: { notes: ['E4', 'Eb4'], gap: 0.12, dur: '8n' },
   /** 获得星星:高音闪烁 */
@@ -110,6 +136,8 @@ export const sound = {
   },
   click: () => play(CUES.click),
   correct: () => play(CUES.correct),
+  /** 连对越多音高越高、节拍越紧，7 连对后保持最高档。 */
+  streak: (count) => play(streakTone(count)),
   wrong: () => play(CUES.wrong),
   star: () => play(CUES.star),
   combo: () => play(CUES.combo),
@@ -119,6 +147,7 @@ export const sound = {
 export const sfx = {
   tap: () => sound.click(),
   correct: () => sound.correct(),
+  streak: (count) => sound.streak(count),
   wrong: () => sound.wrong(),
   star: () => sound.star(),
   levelUp: () => sound.combo(),

@@ -1,0 +1,11 @@
+
+Round 16 check (ROUND16-v1.0): 1/8
+
+✓ H4 数学学演示 21 ≥ 12
+✗ H1 缺少 round16-hongen-gap-audit.md 或内容过薄
+✗ H2 无字源认步仍可能空白（缺 ROUND16_H2 或回退舞台）
+✗ H3 富 Play 272 < 500
+✗ H5 缺少应用题剖析壳（ROUND16_H5）
+✗ H6 学伴人格台词不足或缺 ROUND16_H6
+✗ H7 缺少家长弱项一句话+建议练习周报
+✗ H8 check:round15 7/8（需要 8/8）

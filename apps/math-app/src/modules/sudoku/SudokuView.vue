@@ -5,10 +5,12 @@
  * 每挖一格用解计数器验证唯一解，所以任何档位的题目都保证有且只有一个答案。
  */
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import gsap from 'gsap'
+import AgeBandBadge from '@/components/AgeBandBadge.vue'
 import MascotBot from '@/components/MascotBot.vue'
 import { useProgressStore } from '@/stores/progress.js'
+import { useAgeBand } from '@/composables/useAgeBand'
 import { useFeedback } from '@/composables/useFeedback'
 import {
   candidatesOf,
@@ -56,11 +58,25 @@ const DIFFICULTIES = [
 ]
 
 const router = useRouter()
+const route = useRoute()
 const progress = useProgressStore()
 const { correct: fxCorrect, wrong: fxWrong, burst, flyStar, pop } = useFeedback()
 
-const sizeKey = ref(4)
-const difficulty = ref('easy')
+/** 家长中心选的年龄档决定进来时是哪张棋盘、挖多少洞。 */
+const band = useAgeBand((next) => {
+  const preset = next.defaults.sudoku
+  // 两个值都没变就自己重开一局，变了交给下面的 watch([sizeKey, difficulty])
+  if (sizeKey.value === preset.size && difficulty.value === preset.difficulty) {
+    newGame()
+    return
+  }
+  sizeKey.value = preset.size
+  difficulty.value = preset.difficulty
+})
+
+const focusSize = Number(String(route.query.skill ?? '').match(/^sudoku-(4|6|9)$/)?.[1])
+const sizeKey = ref(focusSize || band.value.defaults.sudoku.size)
+const difficulty = ref(band.value.defaults.sudoku.difficulty)
 const showNotes = ref(false)
 
 const puzzle = ref([])
@@ -360,6 +376,7 @@ onBeforeUnmount(() => {
         </button>
       </div>
       <div class="spacer" />
+      <AgeBandBadge module="sudoku" />
       <span class="chip">⏱️ {{ timeText }}</span>
       <span class="chip">❌ {{ mistakes }}</span>
       <span class="chip">🔢 {{ filledCount }}/{{ total }}</span>
@@ -480,14 +497,14 @@ onBeforeUnmount(() => {
   border-radius: 999px;
   font-size: 13px;
   font-weight: 800;
-  color: var(--ink-soft);
+  color: var(--text);
   transition: all 0.16s ease;
   white-space: nowrap;
 }
 
 .seg-btn.on {
-  background: linear-gradient(135deg, var(--violet), var(--pink));
-  color: #12082a;
+  background: linear-gradient(135deg, var(--accent), var(--neon-pink));
+  color: var(--text-invert);
   box-shadow: 0 6px 16px rgba(155, 140, 255, 0.34);
 }
 
@@ -519,7 +536,7 @@ onBeforeUnmount(() => {
 
 .board-wrap {
   padding: 12px;
-  border-radius: var(--radius-m);
+  border-radius: var(--radius-md);
   background:
     radial-gradient(70% 70% at 50% 0%, rgba(155, 140, 255, 0.18), transparent 70%),
     rgba(6, 9, 30, 0.5);
@@ -550,7 +567,7 @@ onBeforeUnmount(() => {
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.07);
   border: 2px solid rgba(255, 255, 255, 0.1);
-  color: var(--cyan);
+  color: var(--brand);
   transition: background 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease;
 }
 
@@ -567,7 +584,7 @@ onBeforeUnmount(() => {
 
 .cell.given {
   background: rgba(255, 255, 255, 0.14);
-  color: var(--ink);
+  color: var(--text-strong);
   cursor: default;
 }
 
@@ -580,14 +597,14 @@ onBeforeUnmount(() => {
 }
 
 .cell.sel {
-  border-color: var(--gold);
+  border-color: var(--star);
   background: rgba(255, 206, 77, 0.18);
   box-shadow: 0 0 20px rgba(255, 206, 77, 0.45);
 }
 
 .cell.bad {
-  color: var(--red);
-  border-color: var(--red);
+  color: var(--danger);
+  border-color: var(--danger);
   background: rgba(255, 107, 125, 0.16);
 }
 
@@ -613,7 +630,7 @@ onBeforeUnmount(() => {
   font-size: clamp(8px, 1.6vw, 11px);
   font-style: normal;
   font-weight: 700;
-  color: var(--ink-dim);
+  color: var(--text-soft);
 }
 
 .pad {
@@ -628,7 +645,7 @@ onBeforeUnmount(() => {
   height: 56px;
   font-size: 26px;
   font-weight: 900;
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-sm);
   background: linear-gradient(160deg, rgba(155, 140, 255, 0.24), rgba(94, 231, 255, 0.18));
   border: 2px solid rgba(155, 140, 255, 0.45);
   transition: transform 0.12s ease, box-shadow 0.12s ease;
@@ -675,7 +692,7 @@ onBeforeUnmount(() => {
 
 .rule-list li::before {
   content: '· ';
-  color: var(--violet);
+  color: var(--accent);
   font-weight: 900;
 }
 

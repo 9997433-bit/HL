@@ -1,10 +1,12 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, nextTick, onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import gsap from 'gsap'
 import MascotBot from '@/components/MascotBot.vue'
+import WrongBook from '@/components/WrongBook.vue'
 import { ACHIEVEMENTS } from '@/data/achievements'
-import { MODULES, MODULE_MAP } from '@/data/modules.js'
+import { moduleInfo, MODULES } from '@/data/modules.js'
+import { TOPICS } from '@/data/topics.js'
 import { useProgressStore } from '@/stores/progress.js'
 import { useSettingsStore } from '@/stores/settings.js'
 import { useFeedback } from '@/composables/useFeedback'
@@ -12,9 +14,22 @@ import { sound } from '@/utils/sound'
 
 const AVATARS = ['🧑‍🚀', '👩‍🚀', '🤖', '👽', '🐱', '🦊', '🐼', '🦖']
 
+const route = useRoute()
 const router = useRouter()
 const progress = useProgressStore()
 const settings = useSettingsStore()
+
+/**
+ * 技能图谱的推荐位带着 `?wrong=<技能点>` 跳进来时，错题本只列这一个技能的题。
+ * 筛选只活在地址栏里，清掉就恢复全部，错题本本身一条都不动。
+ */
+const wrongSkill = computed(() => String(route.query.wrong ?? ''))
+
+function clearWrongSkill() {
+  const query = { ...route.query }
+  delete query.wrong
+  router.replace({ path: route.path, query })
+}
 const { burst, pop, wrong } = useFeedback()
 
 const filter = ref('all') // all | unlocked | locked
@@ -50,6 +65,18 @@ const moduleRows = computed(() =>
 )
 
 const maxAnswered = computed(() => Math.max(1, ...moduleRows.value.map((r) => r.answered)))
+
+/**
+ * 专题挑战入口：成绩记在各自对应的星球名下，所以这里顺手把那颗星球的
+ * 掌握度显出来——家长一眼能看出「练了这条专线，哪块指标在动」。
+ */
+const topicRows = computed(() =>
+  TOPICS.map((t) => ({
+    ...t,
+    recordName: moduleInfo(t.record)?.name ?? t.record,
+    mastery: Math.round(progress.moduleProgress(t.record) * 100),
+  })),
+)
 
 /** 最近 12 次练习的得分曲线。 */
 const spark = computed(() => {
@@ -145,13 +172,18 @@ function exportReport() {
   URL.revokeObjectURL(url)
 }
 
-onMounted(() => {
+onMounted(async () => {
   gsap.fromTo(
     '.ach',
     { opacity: 0, scale: 0.8, y: 14 },
     { opacity: 1, scale: 1, y: 0, duration: 0.38, stagger: 0.035, ease: 'back.out(2)' },
   )
   gsap.fromTo('.ring-fill', { strokeDasharray: '0, 251' }, { strokeDasharray: ringDash.value, duration: 1.1, ease: 'power2.out' })
+
+  // 带着技能筛选进来的话，直接把错题本推到眼前——它排在成就墙下面很远的地方
+  if (!wrongSkill.value) return
+  await nextTick()
+  document.getElementById('wrong-book')?.scrollIntoView({ block: 'start', behavior: 'smooth' })
 })
 </script>
 
@@ -251,8 +283,8 @@ onMounted(() => {
           />
           <defs>
             <linearGradient id="achGrad" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stop-color="#ffce4d" />
-              <stop offset="100%" stop-color="#ff7ac6" />
+              <stop offset="0%" stop-color="var(--star)" />
+              <stop offset="100%" stop-color="var(--neon-pink)" />
             </linearGradient>
           </defs>
         </svg>
@@ -326,6 +358,28 @@ onMounted(() => {
       </ul>
     </section>
 
+    <!-- 专题挑战 -->
+    <section class="card">
+      <h3 class="panel-title">🎯 专题挑战</h3>
+      <p class="dim tiny">比较、速算、生活应用三条专线，练的还是星球里的那份掌握度。</p>
+      <ul class="mod-list">
+        <li v-for="t in topicRows" :key="t.id" class="mod-row topic-row">
+          <span class="mod-emoji">{{ t.emoji }}</span>
+          <div class="mod-body">
+            <div class="mod-top">
+              <strong>{{ t.name }}</strong>
+              <span class="dim tiny">{{ t.tagline }} · 计入{{ t.recordName }} {{ t.mastery }}%</span>
+            </div>
+            <p class="dim tiny">{{ t.blurb }}</p>
+          </div>
+          <RouterLink :to="t.route" class="btn btn--ghost btn--sm topic-link">开练</RouterLink>
+        </li>
+      </ul>
+    </section>
+
+    <!-- 错题本 -->
+    <WrongBook :skill="wrongSkill" @clear-skill="clearWrongSkill" />
+
     <!-- 最近表现 -->
     <section v-if="spark" class="card">
       <h3 class="panel-title">📈 最近 {{ spark.list.length }} 轮表现</h3>
@@ -333,15 +387,15 @@ onMounted(() => {
       <svg class="spark" :viewBox="`0 0 ${spark.w} ${spark.h}`" preserveAspectRatio="none">
         <defs>
           <linearGradient id="sparkFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#5ee7ff" stop-opacity="0.5" />
-            <stop offset="100%" stop-color="#5ee7ff" stop-opacity="0" />
+            <stop offset="0%" stop-color="var(--brand)" stop-opacity="0.5" />
+            <stop offset="100%" stop-color="var(--brand)" stop-opacity="0" />
           </linearGradient>
         </defs>
         <polygon :points="spark.area" fill="url(#sparkFill)" />
         <polyline
           :points="spark.points"
           fill="none"
-          stroke="#5ee7ff"
+          stroke="var(--brand)"
           stroke-width="2"
           stroke-linejoin="round"
           vector-effect="non-scaling-stroke"
@@ -349,8 +403,8 @@ onMounted(() => {
       </svg>
       <ul class="history">
         <li v-for="(h, i) in spark.list.slice().reverse()" :key="i" class="hist-row">
-          <span class="chip">{{ MODULE_MAP[h.moduleId]?.icon ?? '🎯' }}</span>
-          <span>{{ MODULE_MAP[h.moduleId]?.name ?? h.moduleId }}</span>
+          <span class="chip">{{ moduleInfo(h.moduleId)?.icon ?? '🎯' }}</span>
+          <span>{{ moduleInfo(h.moduleId)?.name ?? h.moduleId }}</span>
           <div class="spacer" />
           <span class="dim">{{ h.correct }}/{{ h.total }}</span>
           <strong :class="{ good: h.score >= 80 }">{{ h.score }}%</strong>
@@ -464,7 +518,7 @@ onMounted(() => {
   font-family: inherit;
   font-size: 16px;
   font-weight: 700;
-  color: var(--ink);
+  color: var(--text-strong);
   background: rgba(255, 255, 255, 0.09);
   border: 1px solid rgba(255, 255, 255, 0.24);
   outline: none;
@@ -492,7 +546,7 @@ onMounted(() => {
 }
 
 .av-pick.on {
-  border-color: var(--gold);
+  border-color: var(--star);
   background: rgba(255, 206, 77, 0.2);
 }
 
@@ -507,7 +561,7 @@ onMounted(() => {
   flex-direction: column;
   align-items: center;
   padding: 10px 4px;
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
@@ -532,7 +586,7 @@ onMounted(() => {
   display: block;
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, var(--cyan), var(--violet));
+  background: linear-gradient(90deg, var(--brand), var(--accent));
   transition: width 0.6s ease;
 }
 
@@ -583,14 +637,14 @@ onMounted(() => {
   border-radius: 999px;
   font-size: 12px;
   font-weight: 800;
-  color: var(--ink-soft);
+  color: var(--text);
   transition: all 0.16s ease;
   white-space: nowrap;
 }
 
 .seg-btn.on {
-  background: linear-gradient(135deg, var(--gold), var(--pink));
-  color: #2a0f1e;
+  background: linear-gradient(135deg, var(--star), var(--neon-pink));
+  color: var(--text-invert);
 }
 
 .wall {
@@ -606,7 +660,7 @@ onMounted(() => {
   gap: 4px;
   padding: 16px 10px;
   text-align: center;
-  border-radius: var(--radius-m);
+  border-radius: var(--radius-md);
   background: linear-gradient(160deg, rgba(255, 206, 77, 0.18), rgba(255, 122, 198, 0.12));
   border: 2px solid rgba(255, 206, 77, 0.42);
   transition: transform 0.16s ease, box-shadow 0.16s ease;
@@ -642,7 +696,7 @@ onMounted(() => {
 .ach-date {
   font-size: 10px;
   font-weight: 800;
-  color: var(--gold);
+  color: var(--star);
 }
 
 .empty {
@@ -664,7 +718,7 @@ onMounted(() => {
   align-items: center;
   gap: 12px;
   padding: 10px 12px;
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
@@ -672,6 +726,10 @@ onMounted(() => {
 .mod-emoji {
   font-size: 26px;
   flex: none;
+}
+
+.topic-row {
+  border-color: color-mix(in srgb, var(--brand) 30%, transparent);
 }
 
 .mod-body {
@@ -721,13 +779,13 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   padding: 6px 10px;
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.04);
   font-size: 13px;
 }
 
 .hist-row strong.good {
-  color: var(--green);
+  color: var(--success);
 }
 
 /* ---- 设置 ---- */
@@ -765,7 +823,7 @@ onMounted(() => {
 }
 
 .toggle.on {
-  background: linear-gradient(135deg, var(--green), var(--cyan));
+  background: linear-gradient(135deg, var(--success), var(--brand));
 }
 
 .knob {
@@ -775,7 +833,7 @@ onMounted(() => {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--surface-strong);
   transition: transform 0.2s ease;
 }
 
@@ -785,8 +843,8 @@ onMounted(() => {
 
 .danger {
   background: rgba(255, 107, 125, 0.22);
-  border-color: var(--red);
-  color: #ffd3d9;
+  border-color: var(--danger);
+  color: var(--danger);
 }
 
 @media (max-width: 560px) {

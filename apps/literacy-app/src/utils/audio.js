@@ -46,6 +46,114 @@ function tone({ freq = 440, duration = 0.16, type = 'sine', gain = 0.07, delay =
   osc.stop(start + duration + 0.02)
 }
 
+/**
+ * 连对音阶与数学 App 保持同一走向。第 7 档封顶，长连击不会无限升高。
+ * 每一档的收尾音严格递增，孩子不用看数字也能听出连对在累积。
+ */
+export const STREAK_CHORDS = [
+  [523.25, 659.25, 783.99],
+  [587.33, 739.99, 880],
+  [659.25, 830.61, 987.77],
+  [698.46, 880, 1046.5],
+  [783.99, 987.77, 1174.66],
+  [880, 1108.73, 1318.51],
+  [1046.5, 1318.51, 1567.98]
+]
+
+function streakIndex(streak = 1) {
+  const value = Number(streak)
+  const count = Number.isFinite(value) ? Math.floor(value) : 1
+  return Math.min(STREAK_CHORDS.length, Math.max(1, count)) - 1
+}
+
+/** 把任意 streak 值归一到安全音域，便于独立验证谱面。 */
+export function streakChord(streak = 1) {
+  return STREAK_CHORDS[streakIndex(streak)]
+}
+
+function playStreak(streak = 1) {
+  const index = streakIndex(streak)
+  const gap = 0.09 - index * 0.005
+  streakChord(streak).forEach((freq, noteIndex, notes) =>
+    tone({
+      freq,
+      duration: noteIndex === notes.length - 1 ? 0.22 : 0.14,
+      type: noteIndex % 2 ? 'sine' : 'triangle',
+      gain: noteIndex === notes.length - 1 ? 0.055 : 0.05,
+      delay: noteIndex * gap
+    })
+  )
+}
+
+/* -------------------------------------------------------------------------
+   儿歌旋律
+   ------------------------------------------------------------------------- */
+
+/**
+ * 儿歌能用的音名表。
+ *
+ * 只到 C4–E5 一个八度多一点：再低这个年龄段的嗓子够不着，再高合成音会发尖。
+ * data/songs.js 的每个字配一个音名，`verifySongCoverage()` 会校验音名都在这张表里。
+ */
+export const NOTE_HZ = {
+  C4: 261.63,
+  D4: 293.66,
+  E4: 329.63,
+  F4: 349.23,
+  G4: 392,
+  A4: 440,
+  B4: 493.88,
+  C5: 523.25,
+  D5: 587.33,
+  E5: 659.25
+}
+
+/**
+ * 按谱子逐音播放一段旋律，返回每个音相对这段旋律开头的毫秒偏移。
+ *
+ * 返回时间表而不是逐音回调，是因为界面要做的是「唱到哪个字就高亮哪个字」：
+ * 拿着这张表用一个定时器推进比给每个音挂回调稳得多，静音时（家长关了音效）
+ * 时间表照样准确，高亮不会因此停摆。
+ *
+ * @param {string[]} notes 音名序列，不认识的音名当休止符跳过
+ * @param {{bpm?: number, gain?: number, holdLast?: number, startAt?: number}} [opts]
+ *        holdLast 收尾音的拍数，默认 2 拍——每句最后一个字拖长一点才像唱歌。
+ *        startAt  整段推迟多少毫秒再响。一首歌四句可以一次全排上，
+ *                 但第二句得等第一句唱完，忘了传就变成四句一起唱。
+ * @returns {{offsets: number[], duration: number}} 逐音起始毫秒与总时长
+ */
+export function playMelody(notes = [], { bpm = 96, gain = 0.06, holdLast = 2, startAt = 0 } = {}) {
+  const beat = 60 / Math.min(200, Math.max(40, bpm))
+  const lead = Math.max(0, startAt) / 1000
+  const offsets = []
+  let at = 0
+  notes.forEach((name, index) => {
+    const last = index === notes.length - 1
+    const beats = last ? holdLast : 1
+    const freq = NOTE_HZ[name]
+    if (freq) {
+      tone({ freq, duration: beat * beats * 0.92, type: 'triangle', gain, delay: lead + at })
+    }
+    offsets.push(Math.round(at * 1000))
+    at += beat * beats
+  })
+  return { offsets, duration: Math.round(at * 1000) }
+}
+
+/**
+ * 立刻掐掉所有已经排上队的声音。
+ *
+ * 音效都是零点几秒的，排完就响完，没人需要这个；儿歌不一样——一首歌十几秒
+ * 的音符是一次性排进 WebAudio 的时间轴的，不关掉整个上下文就停不下来。
+ * 下一次发声时 `audioCtx()` 会自己建一个新的，所以这里可以放心关。
+ */
+export function stopAllTones() {
+  if (!ctx) return
+  const dying = ctx
+  ctx = null
+  dying.close().catch(() => {})
+}
+
 export const sfx = {
   tap: () => tone({ freq: 520, duration: 0.07, type: 'triangle', gain: 0.045 }),
   page: () => {
@@ -55,11 +163,9 @@ export const sfx = {
   /** 每写完一笔的轻脆反馈，笔序越靠后音越高。 */
   stroke: (index = 0) =>
     tone({ freq: 480 + index * 40, duration: 0.08, type: 'sine', gain: 0.05 }),
-  correct: () => {
-    tone({ freq: 660, duration: 0.14 })
-    tone({ freq: 880, duration: 0.16, delay: 0.09 })
-    tone({ freq: 1180, duration: 0.22, delay: 0.18, gain: 0.055 })
-  },
+  correct: () => playStreak(1),
+  /** 连对越多音高越高、节拍越紧；供答题链路传入最新 streak。 */
+  streak: (count) => playStreak(count),
   wrong: () => {
     tone({ freq: 240, duration: 0.16, type: 'sawtooth', gain: 0.045 })
     tone({ freq: 175, duration: 0.22, type: 'sawtooth', gain: 0.045, delay: 0.09 })

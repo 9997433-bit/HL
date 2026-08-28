@@ -1,0 +1,59 @@
+# marker: ROUND13_H6
+# command: node scripts/test-ocr-device.mjs --section=a
+# cwd: apps/literacy-app
+# startedAt: 2026-08-28T07:04:56.363Z
+# durationMs: 57
+# exit: 0
+
+  ✓ A1 Capacitor appId = com.hongen.literacy
+  ✓ A1 webDir = dist，cap copy 搬的是构建产物
+  ✓ A1 androidScheme = https，WebView 是安全上下文，SW 注册得了
+  ✓ A2 worker 脚本（workerPath）走同源 ocrAssetUrl()
+  ✓ A2 wasm 内核（corePath）走同源 ocrAssetUrl()
+  ✓ A2 语言包目录（langPath）走同源 ocrAssetUrl()
+  ✓ A2 utils/ocr.js 里没有写死的 CDN 地址
+  ✓ A2 workerBlobURL: false，worker 归 Service Worker 管
+  ✓ A2 ocrAssetUrl 按 baseURI 拼相对路径，Web 子目录与 WebView 共用一套
+  ✓ A3 public/ocr/manifest.json 在
+  ✓ A3 chi_sim.traineddata.gz 落盘（1689 KiB）
+  ✓ A3 chi_sim.traineddata.gz 的清单字节数与磁盘一致
+  ✓ A3 tesseract-core-simd-lstm.wasm.js 落盘（3808 KiB）
+  ✓ A3 tesseract-core-simd-lstm.wasm.js 的清单字节数与磁盘一致
+  ✓ A3 worker.min.js 落盘（109 KiB）
+  ✓ A3 worker.min.js 的清单字节数与磁盘一致
+  ✓ A3 引擎包合计 5.47 MiB ≤ 6 MiB
+  ✓ A3 示例图在，没相机权限也走得完整条链
+  ✓ A4 sw.js 里有独立的 OCR_CACHE
+  ✓ A4 OCR 缓存名不带版本前缀，换版本不会被 activate 清掉
+  ✓ A4 只缓存完整的 200 响应，不会把半截的 wasm 钉死在缓存里
+  ✓ A4 预缓存排除了 OCR 大文件，装 SW 时不会先拉 6 MB
+  ✓ A5 「拍一张」带 capture="environment"，安卓直接调后置摄像头
+  ✓ A5 file input 限定 image/*
+  ✓ A5 没有调 getUserMedia，WebView 里不需要额外的权限桥接
+  ✓ A5 「相册选」的 input 不带 capture，不会被安卓劫持成拍照
+  ✓ A6 AndroidManifest.xml 在
+  ✓ A6 声明了 INTERNET（首次下引擎包要用）
+  ✓ A6 没有多要 CAMERA 权限（file input 由系统相机代拍）
+  ✓ A6 没有多要相册读取权限（选图走的是系统选择器）
+  ✓ A7 真实样张 10 张（下限 8），够铺开一轮真机走查
+  ✓ A7 每张样张 ≤ 512 KiB
+  ✓ A7 样张合计 0.60 MiB ≤ 2 MiB，adb push 不至于等太久
+  ✓ A7 10 张样张带着光照/角度/纸质坐标，真机走查照着格子走
+  ✓ A8 assets/public/ocr/chi_sim.traineddata.gz 已随 cap copy 进包
+  ✓ A8 assets/public/ocr/sample-photo.png 已随 cap copy 进包
+  ✓ A8 assets/public/index.html 已随 cap copy 进包
+  ✓ A9 App 侧（WebView）真实样张召回 40/41 ≥ 40/41
+  ✓ A9 矩阵 JSON 自报 simulated:true，没有冒充真机
+  ✓ A10 回流队列在（5 条）
+  ✓ A10 关掉的单都写了根因
+  ✓ A10 没有逾期单（本轮 R14）
+  ✓ A11 1 条引擎底线单都指名了样张
+  ✓ A11 引擎底线单都写清了丢哪个字、为什么是引擎的边界
+  ✓ A11 引擎底线单都写了重新排期的条件（reopenIf）
+  ✓ A11 引擎底线单都挂着复核轮次（≥R15，当前口径 R16）
+  ✓ A11 底线单里的字都出自对应样张的期望文字
+  ⃠ [SKIP owner: Android QA] A12 真机 B 段证据（evidence/r14/android/ocr-device-b.json）
+      还没有任何一台设备跑过 B 段：设备到位后执行 node scripts/test-ocr-device.mjs --require-device
+
+拍照识字真机 harness [ROUND14_H2/ROUND13_H2/ROUND12_H2]：47 项通过，0 项失败，1 项 SKIP（--section=a：这一趟只跑 A 段）。
+

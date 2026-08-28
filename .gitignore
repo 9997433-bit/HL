@@ -1,5 +1,11 @@
 /node_modules/
 /dist/
 
+# 拍照识字的 worker 与 wasm 内核由 scripts/gen-ocr-assets.mjs 从 node_modules 复制，
+# 每次构建都会重新生成；入库的只有它旁边的 chi_sim 语言包和示例图。
+/apps/literacy-app/public/ocr/manifest.json
+/apps/literacy-app/public/ocr/worker.min.js
+/apps/literacy-app/public/ocr/tesseract-core-*.wasm.js
+
 *.log
 .DS_Store

@@ -4,6 +4,8 @@
  */
 import { computed, onMounted, ref } from 'vue'
 import gsap from 'gsap'
+import MascotCompanion from '@/components/MascotCompanion.vue'
+import { useMascotCoach } from '@/composables/useMascotCoach.js'
 import { IDIOMS } from '@/data/idioms.js'
 import { useProgressStore } from '@/stores/progress.js'
 import { useSettingsStore } from '@/stores/settings.js'
@@ -11,6 +13,8 @@ import { sfx } from '@/utils/sfx.js'
 
 const progress = useProgressStore()
 const settings = useSettingsStore()
+
+const { line: coachLine, mood: coachMood, next: coachNext } = useMascotCoach('idioms')
 
 const shelfRef = ref(null)
 
@@ -85,6 +89,16 @@ onMounted(() => {
         <span v-else-if="i.seen" class="idiom__badge" title="已经学过">✓</span>
       </RouterLink>
     </section>
+
+    <MascotCompanion
+      class="mascot-dock"
+      :mood="coachMood"
+      :say="coachLine"
+      :size="72"
+      :speak-on-tap="false"
+      tap-hint="点我，换一句悄悄话"
+      @tap="coachNext"
+    />
   </div>
 </template>
 
@@ -129,7 +143,7 @@ onMounted(() => {
   background: linear-gradient(135deg, var(--c1) 0%, var(--c2) 100%);
   box-shadow: var(--shadow-md);
   text-align: center;
-  color: #3d2f1f;
+  color: var(--text-strong);
   transition: transform var(--dur-fast) var(--ease-pop), box-shadow var(--dur-fast) ease;
 }
 

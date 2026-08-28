@@ -1,0 +1,18 @@
+{
+  "schema": "hongen-book/1",
+  "level": 3,
+  "title": "大大小小",
+  "sub": "长短高低",
+  "cover": "📏",
+  "summary": "比一比谁大谁小，谁长谁短。",
+  "id": "bx200",
+  "pages": [
+    { "emoji": "🐘", "text": "大象很大，它的鼻子很长。" },
+    { "emoji": "🐜", "text": "蚂蚁很小，小得像一个点。" },
+    { "emoji": "📏", "text": "我用尺子量一量：1 米。" },
+    { "emoji": "🌳", "text": "草有三种，高的矮的都有。" },
+    { "emoji": "🙋", "text": "我长大了也会很高。" },
+    { "emoji": "😊", "text": "小朋友们要好好学习，天天向上！" }
+  ],
+  "contributor": { "name": "王五", "license": "MIT", "original": true }
+}

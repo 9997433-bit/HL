@@ -59,19 +59,19 @@ defineProps({
 }
 
 .dot.ok {
-  background: var(--green);
-  border-color: var(--green);
+  background: var(--success);
+  border-color: var(--success);
   box-shadow: 0 0 10px rgba(85, 230, 165, 0.6);
 }
 
 .dot.no {
-  background: var(--red);
-  border-color: var(--red);
+  background: var(--danger);
+  border-color: var(--danger);
 }
 
 .dot.now {
-  background: var(--gold);
-  border-color: var(--gold);
+  background: var(--star);
+  border-color: var(--star);
   transform: scale(1.28);
   box-shadow: 0 0 12px rgba(255, 206, 77, 0.7);
 }
@@ -79,6 +79,6 @@ defineProps({
 .streak {
   background: linear-gradient(135deg, rgba(255, 159, 69, 0.32), rgba(255, 107, 125, 0.32));
   border-color: rgba(255, 159, 69, 0.6);
-  color: var(--ink);
+  color: var(--text-strong);
 }
 </style>

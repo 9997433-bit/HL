@@ -1,0 +1,23 @@
+{
+  "schema": "literacy-asr-device-rtf/1",
+  "marker": "ROUND14_H1",
+  "status": "not-measured",
+  "onDevice": false,
+  "simulated": false,
+  "rtfP95": null,
+  "owner": "SKIP owner: Android QA",
+  "blockedBy": "freezeChecklist F7 → available=true（性能层四条门槛）",
+  "notes": "这份文件现在是**诚实占位**，不是测量结果。跟读的性能层写的是中端 Android 真机，而这一轮的 VM 里既没有真机也没有 adb。占位停在这里，check-round14.mjs 的 H1 deviceRtf 那条腿就红着——红得对。要把它变成真证据，照 device-rtf.schema.json 填齐，跑 `npm --prefix apps/literacy-app run check:asr:device-rtf` 验一遍，再把 adb 日志落到 evidence.log 指的那个路径。校验器比探针严：只填 onDevice/simulated/device/rtfP95 这四五个字段能让探针变绿，却过不了收货台，test-asr-eval-set.mjs 会当场红。",
+  "hostBaselineForReference": {
+    "path": ".agent_workspace/evidence/r13/asr-rtf/host-baseline.json",
+    "onDevice": false,
+    "rtfP95": 0.276,
+    "note": "R13 在这台共用 VM 上量的主机基准，推算中端 Android 落在 0.208–0.5。推算不是实测，它进不了上面的 rtfP95，也不参与任何判定——放在这里只是给真机测量留一个锚点：真机若量出远低于 0.2 或高于 0.6 的数，先怀疑测法。"
+  },
+  "howToMeasure": {
+    "doc": ".agent_workspace/r14-followread-release.md",
+    "section": "§5 真机 RTF 怎么测",
+    "template": ".agent_workspace/evidence/r14/asr/device-rtf.example.json",
+    "validator": "apps/literacy-app/scripts/check-asr-device-rtf.mjs"
+  }
+}

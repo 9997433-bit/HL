@@ -1,14 +1,17 @@
 <script setup>
 import { computed, ref } from 'vue'
+import BadgeShelf from '@/components/BadgeShelf.vue'
 import ProgressRing from '@/components/ProgressRing.vue'
 import { FONT_SCALES, THEMES, useSettingsStore } from '@/stores/settings.js'
 import { MASTERY_THRESHOLD, useProgressStore } from '@/stores/progress.js'
-import { CHARACTERS, UNITS } from '@/data/characters.js'
-import { BOOKS } from '@/data/books.js'
-import { IDIOMS } from '@/data/idioms.js'
+import { CHARACTERS, UNITS, charsOfUnit } from '@/data/characters.js'
+import { TOTAL_BOOKS } from '@/data/book-index.js'
+import { TOTAL_IDIOMS } from '@/data/idiom-index.js'
 import { sfx } from '@/utils/sfx.js'
 import { speak, voiceInfo } from '@/utils/audio.js'
 import { useVoiceStatus } from '@/composables/useVoiceStatus.js'
+import { useWeeklyReport } from '@/composables/useWeeklyReport.js'
+import OpenMojiAttribution from '@shared/components/OpenMojiAttribution.vue'
 
 const progress = useProgressStore()
 const settings = useSettingsStore()
@@ -60,6 +63,13 @@ function submitGate() {
   }
 }
 
+/* ---------------- 本周一句话 ----------------
+ *
+ * 下面的图表能回答「练了多少」，回答不了「所以这周该练什么」。
+ * 周报就补这一句：一个弱项 + 最多三条能直接点过去的练习，本机现算，不联网。
+ */
+const weeklyReport = useWeeklyReport()
+
 /* ---------------- 学习报告 ---------------- */
 const week = computed(() => progress.last7Days)
 const maxMinutes = computed(() =>
@@ -90,10 +100,10 @@ const weakChars = computed(() =>
  * 记忆最弱的排在最前面，家长一眼就能看出今天该陪孩子复习哪几个字。
  */
 const HEAT_BANDS = [
-  { min: 0.85, label: '记得很牢', color: 'var(--seed-leaf)' },
-  { min: 0.6, label: '还算清楚', color: 'var(--seed-mint)' },
-  { min: 0.35, label: '有点模糊', color: 'var(--seed-mango)' },
-  { min: 0, label: '快忘了', color: 'var(--seed-coral)' }
+  { min: 0.85, label: '记得很牢', color: 'var(--leaf-400)' },
+  { min: 0.6, label: '还算清楚', color: 'var(--mint-400)' },
+  { min: 0.35, label: '有点模糊', color: 'var(--mango-400)' },
+  { min: 0, label: '快忘了', color: 'var(--coral-400)' }
 ]
 
 const bandOf = (r) => HEAT_BANDS.find((b) => r >= b.min) ?? HEAT_BANDS[HEAT_BANDS.length - 1]
@@ -120,6 +130,42 @@ const bandCounts = computed(() =>
     count: progress.memoryCards.filter((c) => bandOf(c.retention).label === b.label).length
   }))
 )
+
+/* ---------------- 学习计划 ----------------
+ *
+ * 计划只管「今天学什么新字」：每天新字上限决定推荐节奏，勾选单元决定顺序。
+ * 一个都不勾就是按课程顺序学全部，这也是默认。
+ */
+const NEW_LIMITS = [
+  { value: 0, label: '不限' },
+  { value: 3, label: '3 个' },
+  { value: 5, label: '5 个' },
+  { value: 8, label: '8 个' },
+  { value: 12, label: '12 个' },
+  { value: 20, label: '20 个' }
+]
+
+const planRows = computed(() =>
+  UNITS.map((u) => ({
+    ...u,
+    total: charsOfUnit(u.id).length,
+    picked: settings.planUnits.includes(u.id),
+    ...progress.unitProgress(u.id)
+  }))
+)
+
+const wholeCourse = computed(() => settings.planUnits.length === 0)
+
+function togglePlanUnit(id) {
+  sfx.tap()
+  settings.togglePlanUnit(id)
+}
+
+function useWholeCourse() {
+  sfx.tap()
+  settings.clearPlanUnits()
+  flash('已恢复成按课程顺序学全部单元')
+}
 
 /* ---------------- 数据管理 ---------------- */
 const importError = ref('')
@@ -213,8 +259,49 @@ function resetSettings() {
           <div><strong>{{ totalMinutes }}</strong><small>累计分钟</small></div>
           <div><strong>{{ progress.streakDays || 1 }}</strong><small>连续天数</small></div>
           <div><strong>{{ progress.stars }}</strong><small>获得星星</small></div>
+          <div><strong>{{ progress.badgeCount }}</strong><small>点亮徽章</small></div>
+          <div><strong>{{ progress.badgeStats.flows }}</strong><small>完整学完</small></div>
         </div>
       </section>
+
+      <!-- 本周弱项一句话 + 建议练习 -->
+      <section class="card stack weekly" data-weekly-report :data-weakness="weeklyReport.weakness.id">
+        <h3 class="section-title">
+          <span class="section-title__emoji" aria-hidden="true">🗞️</span>
+          本周一句话（{{ weeklyReport.range }}）
+        </h3>
+        <p class="weekly__headline" data-weekly-headline>{{ weeklyReport.headline }}</p>
+        <p class="muted weekly__meta">
+          这周来了 {{ weeklyReport.week.activeDays }} 天 ·
+          共 {{ weeklyReport.week.minutes }} 分钟 ·
+          新认 {{ weeklyReport.week.newChars }} 个字 ·
+          弱项判定：{{ weeklyReport.weakness.label }}
+        </p>
+
+        <h4 class="weekly__sub">这周建议练这 {{ weeklyReport.drills.length }} 件事</h4>
+        <ol class="weekly__drills">
+          <li v-for="d in weeklyReport.drills" :key="d.id" class="weekly__drill">
+            <RouterLink class="weekly__go" :to="d.to" @click="sfx.tap()">
+              <strong>{{ d.title }}</strong>
+              <small class="muted">{{ d.why }}</small>
+              <span class="pill weekly__time">
+                {{ d.minutes > 0 ? `约 ${d.minutes} 分钟` : '只是一个约定' }}
+              </span>
+            </RouterLink>
+          </li>
+        </ol>
+        <p class="muted weekly__note">
+          这段话是根据本机存档现算的：没有联网，也没有别的孩子的数据来做对比。
+          不认同判断就直接看下面的图表，那才是原始记录。
+        </p>
+      </section>
+
+      <!-- 徽章墙 -->
+      <BadgeShelf mode="full" title="成就徽章墙" />
+      <p class="muted badges__note">
+        徽章按「攒够某个指标」发放，没有隐藏条件：孩子看得见还差多少，
+        您也能拿灰着的那几枚当这周的小目标。
+      </p>
 
       <!-- 近 7 天 -->
       <section class="card stack">
@@ -255,8 +342,8 @@ function resetSettings() {
           </li>
         </ul>
         <div class="row">
-          <span class="pill">📖 绘本 {{ progress.booksFinished }}/{{ BOOKS.length }}</span>
-          <span class="pill">🎭 成语 {{ progress.idiomsSeen }}/{{ IDIOMS.length }}</span>
+          <span class="pill">📖 绘本 {{ progress.booksFinished }}/{{ TOTAL_BOOKS }}</span>
+          <span class="pill">🎭 成语 {{ progress.idiomsSeen }}/{{ TOTAL_IDIOMS }}</span>
           <span class="pill">🎧 游戏 {{ progress.game.plays }} 题 · 正确率 {{ progress.gameAccuracy }}%</span>
         </div>
       </section>
@@ -323,6 +410,80 @@ function resetSettings() {
             <span class="weak__char">{{ c.char }}</span>
             <small>对 {{ c.correct }} · 错 {{ c.wrong }}</small>
           </RouterLink>
+        </div>
+      </section>
+
+      <!-- 学习计划 -->
+      <section class="card stack">
+        <h3 class="section-title">
+          <span class="section-title__emoji" aria-hidden="true">🗓️</span>
+          学习计划
+        </h3>
+        <p class="muted plan__intro">
+          计划只决定「今天推荐学哪些新字」。已经学过的字随时可以复习，
+          到期的复习也不受上限影响。
+        </p>
+
+        <div class="field">
+          <span id="new-limit-label" class="field__label">每天最多学几个新字</span>
+          <div class="segmented" role="group" aria-labelledby="new-limit-label">
+            <button
+              v-for="l in NEW_LIMITS"
+              :key="l.value"
+              class="segmented__item"
+              :class="{ 'is-on': settings.dailyNewCharLimit === l.value }"
+              type="button"
+              :aria-pressed="settings.dailyNewCharLimit === l.value"
+              @click="settings.update({ dailyNewCharLimit: l.value })"
+            >
+              {{ l.label }}
+            </button>
+          </div>
+          <p class="muted plan__today" role="status" aria-live="polite">
+            今天已经学了 {{ progress.newCharsToday }} 个新字，
+            <template v-if="progress.newCharsLeft === null">今天不限量。</template>
+            <template v-else-if="progress.dailyLimitReached">
+              今天的新字学完啦，剩下的时间留给复习和绘本吧。
+            </template>
+            <template v-else>还可以再学 {{ progress.newCharsLeft }} 个。</template>
+          </p>
+        </div>
+
+        <div class="field">
+          <span id="plan-units-label" class="field__label">这一阶段只学这些单元</span>
+          <div class="row plan__summary">
+            <button
+              class="chip"
+              :class="{ 'is-on': wholeCourse }"
+              type="button"
+              :aria-pressed="wholeCourse"
+              @click="useWholeCourse"
+            >
+              📚 全部 {{ UNITS.length }} 个单元
+            </button>
+            <span class="pill">
+              计划内 {{ progress.planProgress.learned }} / {{ progress.planProgress.total }} 字
+              （{{ progress.planProgress.percent }}%）
+            </span>
+            <span v-if="progress.nextChar" class="pill pill--accent">
+              下一个字：{{ progress.nextChar.char }} {{ progress.nextChar.pinyin }}
+            </span>
+          </div>
+          <div class="plan" role="group" aria-labelledby="plan-units-label">
+            <label v-for="u in planRows" :key="u.id" class="plan__unit" :class="{ 'is-on': u.picked }">
+              <input
+                type="checkbox"
+                :checked="u.picked"
+                @change="togglePlanUnit(u.id)"
+              />
+              <span class="plan__emoji" aria-hidden="true">{{ u.emoji }}</span>
+              <span class="plan__meta">
+                <strong>{{ u.name }}</strong>
+                <small>{{ u.done }}/{{ u.total }} 字</small>
+              </span>
+            </label>
+          </div>
+          <p class="muted">一个都不勾，就按课程顺序把 {{ CHARACTERS.length }} 个字学下来。</p>
         </div>
       </section>
 
@@ -511,6 +672,8 @@ function resetSettings() {
           <li>屏幕时间结束后，可以让孩子在纸上把当天的字再写一遍。</li>
         </ul>
       </section>
+
+      <OpenMojiAttribution />
     </template>
   </div>
 </template>
@@ -582,7 +745,7 @@ function resetSettings() {
   padding: 9px 20px;
   border-radius: var(--radius-pill);
   background: var(--success);
-  color: #fff;
+  color: var(--text-invert);
   font-weight: 700;
   box-shadow: var(--shadow-sm);
 }
@@ -620,6 +783,101 @@ function resetSettings() {
 .overview__grid small {
   font-size: 0.7rem;
   color: var(--text-soft);
+}
+
+.badges__note {
+  margin-top: -6px;
+  font-size: 0.8rem;
+  line-height: 1.7;
+}
+
+/* 本周一句话 */
+.weekly__headline {
+  font-size: 1.02rem;
+  font-weight: 700;
+  line-height: 1.8;
+  color: var(--text-strong);
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  background: var(--brand-soft);
+  border-left: 5px solid var(--brand);
+}
+
+.weekly__meta {
+  font-size: 0.8rem;
+  line-height: 1.7;
+}
+
+.weekly__sub {
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: var(--text-strong);
+}
+
+.weekly__drills {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  counter-reset: drill;
+}
+
+.weekly__drill {
+  counter-increment: drill;
+}
+
+.weekly__go {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas: 'no title' 'no why' 'no time';
+  gap: 2px 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+  border: 2px solid transparent;
+}
+
+.weekly__go::before {
+  grid-area: no;
+  align-self: center;
+  content: counter(drill);
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--brand);
+  color: var(--text-invert);
+  font-weight: 800;
+}
+
+.weekly__go strong {
+  grid-area: title;
+  color: var(--text-strong);
+  font-size: 0.96rem;
+}
+
+.weekly__go small {
+  grid-area: why;
+  font-size: 0.78rem;
+  line-height: 1.6;
+}
+
+.weekly__time {
+  grid-area: time;
+  justify-self: start;
+  margin-top: 4px;
+  font-size: 0.72rem;
+}
+
+.weekly__go:hover,
+.weekly__go:focus-visible {
+  border-color: var(--brand);
+}
+
+.weekly__note {
+  font-size: 0.78rem;
+  line-height: 1.7;
 }
 
 /* 图表 */
@@ -899,9 +1157,91 @@ function resetSettings() {
   transition: background var(--dur-fast) ease, color var(--dur-fast) ease;
 }
 
+/*
+ * 选中态用「品牌色淡底 + 正文色」而不是「品牌色实底 + 白字」：
+ * 品牌色是暖橙，压白字在三套主题下都到不了 4.5:1。淡底加一圈实心描边，
+ * 既保住了「这一项被选中」的辨识度，对比度也不用再迁就主题。
+ */
 .segmented__item.is-on {
-  background: var(--brand);
-  color: var(--text-invert);
+  background: color-mix(in srgb, var(--brand) 26%, var(--surface));
+  color: var(--text-strong);
+  box-shadow: inset 0 0 0 2px var(--brand);
+}
+
+/* 学习计划 */
+.plan__intro,
+.plan__today {
+  font-size: 0.85rem;
+  line-height: 1.7;
+}
+
+.plan__summary {
+  flex-wrap: wrap;
+}
+
+.chip {
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+  border: 2px solid transparent;
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: var(--text);
+}
+
+.chip.is-on {
+  background: color-mix(in srgb, var(--brand) 26%, var(--surface));
+  border-color: var(--brand);
+  color: var(--text-strong);
+}
+
+.plan {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.plan__unit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+  border: 2px solid transparent;
+  cursor: pointer;
+}
+
+.plan__unit.is-on {
+  border-color: var(--brand);
+}
+
+.plan__unit input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--brand);
+}
+
+.plan__emoji {
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.plan__meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.plan__meta strong {
+  font-size: 0.88rem;
+  color: var(--text-strong);
+}
+
+.plan__meta small {
+  font-size: 0.75rem;
+  color: var(--text-soft);
 }
 
 .toggles {
@@ -943,7 +1283,8 @@ function resetSettings() {
 }
 
 .btn--danger {
-  background: var(--danger);
+  /* 夜间主题的 --danger 偏亮，白字压在上面只有 2.7:1，压深一档才够 3:1。 */
+  background: color-mix(in srgb, var(--danger) 78%, #000);
   color: #fff;
 }
 

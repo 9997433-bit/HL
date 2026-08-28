@@ -1,0 +1,404 @@
+{
+  "schema": "literacy-asr-pack/1",
+  "engine": "sherpa-onnx",
+  "runtime": "wasm-worker",
+  "available": false,
+  "modelId": "sherpa-onnx-streaming-zipformer-zh-14M-int8",
+  "modelVersion": "2023-02-23+wasm1.12.15",
+  "license": "Apache-2.0",
+  "sha256": "e3c99b7eee5a92d90455870682180a516056f5eb7f4bd9ce2799051245cd207e",
+  "files": [
+    {
+      "path": "asr/models/sherpa-onnx-wasm-main-asr.js",
+      "role": "wasm-glue",
+      "bytes": 91901,
+      "sha256": "567d3e9993743e4a4176dc55f302c6cf4f8621474e8fe0787f45aac71b239cc7",
+      "type": "text/javascript"
+    },
+    {
+      "path": "asr/models/sherpa-onnx-wasm-main-asr.wasm",
+      "role": "wasm-binary",
+      "bytes": 11535148,
+      "sha256": "7696761b31fee476f829d2d5853a78cb4dc2bdb933e78bc642861ba62a36ec82",
+      "type": "application/wasm"
+    },
+    {
+      "path": "asr/models/sherpa-onnx-asr.js",
+      "role": "asr-api",
+      "bytes": 40446,
+      "sha256": "f5bb003d8c5fc0567a73dbac6951bdf96306b58af7a73e7b963e42c1b84ce588",
+      "type": "text/javascript"
+    },
+    {
+      "path": "asr/models/encoder.int8.onnx",
+      "role": "model-encoder",
+      "bytes": 21621684,
+      "sha256": "1c556ea57cec304e55ec4b72e52c1cc098bb01476ed7d90f3de939fe126487b1",
+      "type": "application/octet-stream"
+    },
+    {
+      "path": "asr/models/decoder.int8.onnx",
+      "role": "model-decoder",
+      "bytes": 1888682,
+      "sha256": "22f123bb8cba9b38974b3df18a3f45e7081f4985ebb2e075d9f21f618c468bbf",
+      "type": "application/octet-stream"
+    },
+    {
+      "path": "asr/models/joiner.int8.onnx",
+      "role": "model-joiner",
+      "bytes": 1795562,
+      "sha256": "a7cf9d82757bdcf786059454495a9ca95e4bd7347f72473fc08d794475c36169",
+      "type": "application/octet-stream"
+    },
+    {
+      "path": "asr/models/tokens.txt",
+      "role": "tokens",
+      "bytes": 48697,
+      "sha256": "8b294db9045d6e5f94647f4c1eec1af4da143a75053c399611444b378ff966ac",
+      "type": "text/plain"
+    }
+  ],
+  "note": "ROUND14_H1：卡住放行的还是 F4（儿童冻结集）与 F7（真机性能）。这一轮把 F4 从「可开工」推到「可派工」——300 条拆三批，批次 1 的 100 个槽位全部排定（30 个孩子 / 24 首诗），并装上落库闸 scripts/ingest-asr-freeze-batch.mjs：同意书没签回、音频指向仓库、单标注冒充双标注、仲裁另写第三版，一律拒收。实录仍是 0/300，available 仍是 false：排位不是录音，收货台不是货。F7 一动没动，RTF 仍只有主机侧基准（onDevice=false）。模型自 ROUND12_H1 起逐文件自托管在 public/asr/models/（整包 35.31 MiB / 预算 60 MiB），sha256 由 scripts/test-asr-engine.mjs 每次现核。文件在包里≠这一档可用，这两件事故意分开；跟读继续走录音档。",
+  "candidate": {
+    "family": "sherpa-onnx 中文流式 Zipformer（zh-14M 档，int8 量化）",
+    "upstream": "https://k2-fsa.github.io/sherpa/onnx/wasm/index.html",
+    "androidReference": "https://k2-fsa.github.io/sherpa/onnx/android/apk-cn.html",
+    "runtimeLicense": "Apache-2.0（框架）",
+    "modelLicense": "Apache-2.0（上游模型卡；已核对并写进 THIRD_PARTY_NOTICES.md）",
+    "rejected": [
+      {
+        "family": "sherpa-onnx streaming zipformer bilingual zh-en 2023-02-20",
+        "reason": "int8 encoder 单文件 173 MiB，整包远超 60 MiB 预算"
+      },
+      {
+        "family": "官方 wasm asr 整包（--preload-file 的 .data）",
+        "reason": ".data 里是 182 MiB 英文大模型，且逐文件 sha256 会退化成一个不透明大 blob"
+      }
+    ]
+  },
+  "evalSet": {
+    "spec": "apps/literacy-app/scripts/data/asr-eval-set.json",
+    "harness": "apps/literacy-app/scripts/test-asr-eval-set.mjs",
+    "engineHarness": "apps/literacy-app/scripts/test-asr-engine.mjs",
+    "design": ".agent_workspace/r11-asr-eval-set.md",
+    "goNoGo": ".agent_workspace/r11-followread-gonogo.md",
+    "ship": ".agent_workspace/r12-followread-ship.md",
+    "freezeSpec": ".agent_workspace/r13-asr-freeze-set.md",
+    "rtfBaseline": ".agent_workspace/r13-asr-android-rtf-baseline.md",
+    "batchPlan": ".agent_workspace/r14-asr-recording-batch1.md",
+    "minClips": 50,
+    "targetClips": 300,
+    "stage": "placeholder",
+    "freezeSet": {
+      "id": "FS-2026-09-zh-poem",
+      "stage": "skeleton",
+      "skeleton": 100,
+      "skeletonFloor": 50,
+      "recorded": 0,
+      "recordedFloor": 300,
+      "consentSigned": 0,
+      "speakers": 30,
+      "batches": [
+        { "id": "B1", "slots": 100, "allocated": 100, "recorded": 0, "stage": "planned" },
+        { "id": "B2", "slots": 100, "allocated": 0, "recorded": 0, "stage": "unplanned" },
+        { "id": "B3", "slots": 100, "allocated": 0, "recorded": 0, "stage": "unplanned" }
+      ],
+      "note": "ROUND14_H1：300 条拆三批，批次 1 的 100 个槽位已全部排定（30 个孩子），实录仍是 0——排位不是录音。这里只发计数：受控目录路径、同意书编号、音频指针一个都不随包发出。这些数由 scripts/test-asr-eval-set.mjs 对着 asr-eval-set.json 现算核对，改这里不改数据当场红。"
+    }
+  },
+  "freezeChecklist": [
+    {
+      "id": "F1",
+      "layer": "license",
+      "must": "冻结模型下载 URL、SHA-256、tokens 与量化档，逐文件自托管到 public/asr/models/",
+      "evidence": "manifest.files[] 七个角色齐全 + source.files[] 逐项上游 URL/sha256；scripts/test-asr-engine.mjs 每次现核落库指纹（R12 实测 7/7）",
+      "status": "done",
+      "blocks": "available=true"
+    },
+    {
+      "id": "F2",
+      "layer": "license",
+      "must": "核对模型许可证并写进 THIRD_PARTY_NOTICES.md 与 SBOM；许可证不明的模型一律不合",
+      "evidence": "license=Apache-2.0（运行时与模型卡各自核对）+ THIRD_PARTY_NOTICES.md「离线跟读评测包」章节逐文件列出出处与上游 sha256",
+      "status": "done",
+      "blocks": "available=true"
+    },
+    {
+      "id": "F3",
+      "layer": "resource",
+      "must": "整包压缩下载 ≤ 60 MiB，且不进入首屏 precache（走版本化 Cache Storage）",
+      "evidence": "实测整包 35.31 MiB（gen-asr-pack --verify 现算）+ dist/asr 顶层仍只有清单与 worklet、sw.js 预缓存不含 asr/models/、首屏 0 次模型请求（smoke ROUND12_H1_SMOKE）",
+      "status": "done",
+      "blocks": "available=true"
+    },
+    {
+      "id": "F4",
+      "layer": "eval-set",
+      "must": "录制并双标注儿童冻结集 ≥300 条 3–10 秒片段，dev/threshold/final 三份说话人隔离",
+      "evidence": "ROUND14_H1：批次 1 的 100 个槽位已排定（30 个孩子 / 24 首诗 / 按 300 条配额三分之一站位，.agent_workspace/r14-asr-recording-batch1.md），落库闸 scripts/ingest-asr-freeze-batch.mjs 的 14 条拒收码逐条自检；仍是 todo —— 实录 0/300，clips[] 一条 status=recorded 都没有。排位与收货台不是录音",
+      "status": "todo",
+      "blocks": "available=true"
+    },
+    {
+      "id": "F5",
+      "layer": "text",
+      "must": "安静集字符召回 ≥90%、噪声集 ≥80%、漏字检出召回 ≥85%、静音误判 ≤1%",
+      "evidence": "node scripts/test-asr-eval-set.mjs --json 的 goNoGo 文本层（真模型跑冻结集）",
+      "status": "todo",
+      "blocks": "available=true"
+    },
+    {
+      "id": "F6",
+      "layer": "diagnosis",
+      "must": "tone/near 对人工标签精确率 ≥90%，任一年龄/性别/设备子组与总体差距 ≤10 个百分点",
+      "evidence": "同一 harness 的诊断层；未达标则只发布命中/漏读，不逐字展示声调",
+      "status": "todo",
+      "blocks": "逐字声调展示（不阻塞 available=true）"
+    },
+    {
+      "id": "F7",
+      "layer": "performance",
+      "must": "中档 Android 真机句末到结果 P95 ≤2.5 秒、RTF ≤0.5、峰值新增内存 ≤300 MiB、主线程无 >100 ms 长任务",
+      "evidence": "ROUND13_H1：主机侧基准已有（scripts/bench-asr-rtf.mjs → .agent_workspace/evidence/r13/asr-rtf/host-baseline.json，onDevice=false），推算中端 Android RTF 落在 0.21–0.50，正好顶着门槛；真机基准（机型 + 系统版本 + 采样次数）仍缺 —— [SKIP owner: Android QA]",
+      "status": "todo",
+      "blocks": "available=true"
+    },
+    {
+      "id": "F8",
+      "layer": "reliability",
+      "must": "飞行模式、模型 404、wasm 初始化失败、麦克风拒绝、低内存杀 Worker 五类故障都在 2 秒内降到 recording/listen-only，且不触网兜底",
+      "evidence": "harness 的五场故障演练（接线层）+ smoke ROUND10_H1/ROUND11_H1（浏览器）；真机复演另计",
+      "status": "doing",
+      "blocks": "available=true"
+    },
+    {
+      "id": "F9",
+      "layer": "resource",
+      "must": "首次下载可暂停/重试，完整离线重启 20/20 成功，损坏缓存自动清除后降档",
+      "evidence": "installOfflinePack() 的整包作废路径（harness 演练 D6）+ 真机离线重启记录",
+      "status": "todo",
+      "blocks": "available=true"
+    },
+    {
+      "id": "F10",
+      "layer": "governance",
+      "must": "换模型即换版本：modelVersion 前进、缓存名随之变化，并重跑冻结集；旧分数不与新模型横比",
+      "evidence": "packCacheName() 单测 + 家长中心展示 modelVersion；modelVersion 由 gen-asr-pack.mjs 与上游 revision/release tag 绑定（2023-02-23+wasm1.12.15）",
+      "status": "doing",
+      "blocks": "available=true"
+    }
+  ],
+  "goNoGo": {
+    "verdict": "no-go",
+    "reason": "R14-1：批次 1 的 100 个槽位排定、落库闸装上（14 条拒收码），录音这件事从「可开工」变成「可派工」——但一条录音都还没有（F4 实录 0/300），主机基准 onDevice=false（F7 未实测），文本层与诊断层因此仍然算不出数（F5/F6），离线重启也没在真机上跑过（F9）。available 保持 false：派工单和收货台都不是货。",
+    "source": ".agent_workspace/r9-followread-asr-evaluation.md §5",
+    "note": "这里只冻结阈值和「谁来测」。实测值不写进清单（会过期），由 scripts/test-asr-eval-set.mjs 每次现算，记录在 .agent_workspace/r11-followread-gonogo.md。",
+    "layers": [
+      {
+        "id": "L1",
+        "name": "文本层",
+        "gates": [
+          {
+            "metric": "quietCharRecall",
+            "op": ">=",
+            "threshold": 0.9,
+            "measuredBy": "eval-set"
+          },
+          {
+            "metric": "noisyCharRecall",
+            "op": ">=",
+            "threshold": 0.8,
+            "measuredBy": "eval-set"
+          },
+          {
+            "metric": "missDetectionRecall",
+            "op": ">=",
+            "threshold": 0.85,
+            "measuredBy": "eval-set"
+          },
+          {
+            "metric": "silenceFalseAccept",
+            "op": "<=",
+            "threshold": 0.01,
+            "measuredBy": "eval-set"
+          }
+        ]
+      },
+      {
+        "id": "L2",
+        "name": "诊断层",
+        "gates": [
+          {
+            "metric": "toneNearPrecision",
+            "op": ">=",
+            "threshold": 0.9,
+            "measuredBy": "eval-set"
+          },
+          {
+            "metric": "subgroupGap",
+            "op": "<=",
+            "threshold": 0.1,
+            "measuredBy": "eval-set"
+          }
+        ]
+      },
+      {
+        "id": "L3",
+        "name": "性能层",
+        "gates": [
+          {
+            "metric": "p95LatencyMs",
+            "op": "<=",
+            "threshold": 2500,
+            "measuredBy": "device"
+          },
+          {
+            "metric": "rtf",
+            "op": "<=",
+            "threshold": 0.5,
+            "measuredBy": "device"
+          },
+          {
+            "metric": "peakMemoryMiB",
+            "op": "<=",
+            "threshold": 300,
+            "measuredBy": "device"
+          },
+          {
+            "metric": "longTaskMs",
+            "op": "<=",
+            "threshold": 100,
+            "measuredBy": "device"
+          }
+        ]
+      },
+      {
+        "id": "L4",
+        "name": "资源层",
+        "gates": [
+          {
+            "metric": "packBytesMiB",
+            "op": "<=",
+            "threshold": 60,
+            "measuredBy": "harness"
+          },
+          {
+            "metric": "precacheModelBytes",
+            "op": "<=",
+            "threshold": 0,
+            "measuredBy": "smoke"
+          },
+          {
+            "metric": "offlineRestartPass",
+            "op": ">=",
+            "threshold": 20,
+            "measuredBy": "device"
+          }
+        ]
+      },
+      {
+        "id": "L5",
+        "name": "可靠性层",
+        "gates": [
+          {
+            "metric": "faultDrillsProtocol",
+            "op": ">=",
+            "threshold": 5,
+            "measuredBy": "harness"
+          },
+          {
+            "metric": "degradeMs",
+            "op": "<=",
+            "threshold": 2000,
+            "measuredBy": "harness"
+          },
+          {
+            "metric": "faultDrillsOnDevice",
+            "op": ">=",
+            "threshold": 5,
+            "measuredBy": "device"
+          },
+          {
+            "metric": "crossOriginRequests",
+            "op": "<=",
+            "threshold": 0,
+            "measuredBy": "harness"
+          }
+        ]
+      }
+    ]
+  },
+  "source": {
+    "runtime": {
+      "project": "k2-fsa/sherpa-onnx",
+      "tag": "v1.12.15",
+      "asset": "sherpa-onnx-wasm-simd-v1.12.15-en-asr-zipformer.tar.bz2",
+      "license": "Apache-2.0",
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/tag/v1.12.15"
+    },
+    "model": {
+      "repo": "csukuangfj/sherpa-onnx-streaming-zipformer-zh-14M-2023-02-23",
+      "revision": "204ad334e2e683fd295359930cc16fc0432a23ac",
+      "license": "Apache-2.0",
+      "url": "https://huggingface.co/csukuangfj/sherpa-onnx-streaming-zipformer-zh-14M-2023-02-23/tree/204ad334e2e683fd295359930cc16fc0432a23ac"
+    },
+    "generator": "apps/literacy-app/scripts/gen-asr-pack.mjs",
+    "engineFixture": {
+      "path": "apps/literacy-app/scripts/fixtures/asr/upstream-zh-0.wav",
+      "from": "hf:csukuangfj/sherpa-onnx-streaming-zipformer-zh-14M-2023-02-23@204ad334e2e683fd295359930cc16fc0432a23ac/test_wavs/0.wav",
+      "sha256": "668bf8df51a10027b84d5d8816a1ce11ae93545538dc05cfe2aa6811d399c250",
+      "note": "上游示例音频（成人普通话），只用于引擎回归；不属于儿童冻结集"
+    },
+    "files": [
+      {
+        "path": "asr/models/sherpa-onnx-wasm-main-asr.js",
+        "from": "k2-fsa/sherpa-onnx@v1.12.15/sherpa-onnx-wasm-simd-v1.12.15-en-asr-zipformer.tar.bz2!sherpa-onnx-wasm-main-asr.js",
+        "upstreamSha256": "0451e4eefaddc015e5a27a796b1a39f8ad2227bc76d1b9ee50660eaa7f366846",
+        "license": "Apache-2.0",
+        "note": "仅改写 loadPackage 元数据为空包（原值前 120 字符：loadPackage({\"files\":[{\"filename\":\"/.gitignore\",\"start\":0,\"end\":0},{\"filename\":\"/README.md\",\"start\":0,\"end\":3033},{\"file…）"
+      },
+      {
+        "path": "asr/models/sherpa-onnx-wasm-main-asr.wasm",
+        "from": "k2-fsa/sherpa-onnx@v1.12.15/sherpa-onnx-wasm-simd-v1.12.15-en-asr-zipformer.tar.bz2!sherpa-onnx-wasm-main-asr.wasm",
+        "upstreamSha256": "7696761b31fee476f829d2d5853a78cb4dc2bdb933e78bc642861ba62a36ec82",
+        "license": "Apache-2.0",
+        "note": "原样自托管"
+      },
+      {
+        "path": "asr/models/sherpa-onnx-asr.js",
+        "from": "k2-fsa/sherpa-onnx@v1.12.15/sherpa-onnx-wasm-simd-v1.12.15-en-asr-zipformer.tar.bz2!sherpa-onnx-asr.js",
+        "upstreamSha256": "f5bb003d8c5fc0567a73dbac6951bdf96306b58af7a73e7b963e42c1b84ce588",
+        "license": "Apache-2.0",
+        "note": "原样自托管"
+      },
+      {
+        "path": "asr/models/encoder.int8.onnx",
+        "from": "hf:csukuangfj/sherpa-onnx-streaming-zipformer-zh-14M-2023-02-23@204ad334e2e683fd295359930cc16fc0432a23ac/encoder-epoch-99-avg-1.int8.onnx",
+        "upstreamSha256": "1c556ea57cec304e55ec4b72e52c1cc098bb01476ed7d90f3de939fe126487b1",
+        "license": "Apache-2.0",
+        "note": "原样自托管（int8 量化档）"
+      },
+      {
+        "path": "asr/models/decoder.int8.onnx",
+        "from": "hf:csukuangfj/sherpa-onnx-streaming-zipformer-zh-14M-2023-02-23@204ad334e2e683fd295359930cc16fc0432a23ac/decoder-epoch-99-avg-1.int8.onnx",
+        "upstreamSha256": "22f123bb8cba9b38974b3df18a3f45e7081f4985ebb2e075d9f21f618c468bbf",
+        "license": "Apache-2.0",
+        "note": "原样自托管（int8 量化档）"
+      },
+      {
+        "path": "asr/models/joiner.int8.onnx",
+        "from": "hf:csukuangfj/sherpa-onnx-streaming-zipformer-zh-14M-2023-02-23@204ad334e2e683fd295359930cc16fc0432a23ac/joiner-epoch-99-avg-1.int8.onnx",
+        "upstreamSha256": "a7cf9d82757bdcf786059454495a9ca95e4bd7347f72473fc08d794475c36169",
+        "license": "Apache-2.0",
+        "note": "原样自托管（int8 量化档）"
+      },
+      {
+        "path": "asr/models/tokens.txt",
+        "from": "hf:csukuangfj/sherpa-onnx-streaming-zipformer-zh-14M-2023-02-23@204ad334e2e683fd295359930cc16fc0432a23ac/tokens.txt",
+        "upstreamSha256": "8b294db9045d6e5f94647f4c1eec1af4da143a75053c399611444b378ff966ac",
+        "license": "Apache-2.0",
+        "note": "原样自托管（int8 量化档）"
+      }
+    ]
+  }
+}

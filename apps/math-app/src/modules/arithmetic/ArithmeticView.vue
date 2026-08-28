@@ -2,26 +2,50 @@
 /**
  * 算术恒星 · 口算闯关。
  * 题目生成、数轴、错因归因留在这里；答题流程（选项/键盘/判题/星星/进度条）交给 QuizShell。
+ *
+ * mode='sprint' 是路由 /sprint 的「速算冲刺」专题：同一套题库与判题，
+ * 只把节奏调紧——一轮多出 5 题、秒答窗口从 6 秒收到 3 秒。成绩仍记在
+ * 算术恒星名下，专题练的和星球练的是同一份掌握度。
  */
 import { computed, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+import AgeBandBadge from '@/components/AgeBandBadge.vue'
 import QuizShell from '@/components/QuizShell.vue'
 import { useProgressStore } from '@/stores/progress.js'
-import { useSettingsStore } from '@/stores/settings.js'
+import { useAgeBand } from '@/composables/useAgeBand'
 import { numericOptions, randInt, sample } from '@/utils/random'
 import { arithmeticSkill } from '@/data/skill-mapping.js'
 import { sound } from '@/utils/sound'
 
-const ROUND_SIZE = 10
 const MODULE_ID = 'arithmetic'
-const SPEED_BONUS_MS = 6000
+const FOCUS_PRESETS = {
+  'add-within-100': { level: 100, op: 'add' },
+  'sub-within-100': { level: 100, op: 'sub' },
+}
+
+const props = defineProps({
+  mode: { type: String, default: 'quest' },
+})
+
+const isSprint = computed(() => props.mode === 'sprint')
+const roundSize = computed(() => (isSprint.value ? 15 : 10))
+const speedBonusMs = computed(() => (isSprint.value ? 3000 : 6000))
+const roundName = computed(() =>
+  isSprint.value ? `速算冲刺 · ${level.value} 以内` : `算术恒星 · ${level.value} 以内`,
+)
 
 const router = useRouter()
+const route = useRoute()
 const progress = useProgressStore()
-const settings = useSettingsStore()
 
-/** 家长中心选的年龄档决定进来时停在哪个档位，孩子仍然可以自己切。 */
-const LEVEL_BY_AGE_BAND = { L1: 10, L2: 10, L3: 20, L4: 100, L5: 100 }
+/** 家长中心选的年龄档决定进来时停在哪个档位、先练哪种运算，孩子仍然可以自己切。 */
+const band = useAgeBand((next) => {
+  const preset = next.defaults.arithmetic
+  // 档位或运算变了就交给下面的 watch([level, op])，都没变才自己换一轮题
+  if (level.value === preset.level && op.value === preset.op) newRound()
+  level.value = preset.level
+  op.value = preset.op
+})
 
 const LEVELS = [
   { id: 10, label: '10 以内', emoji: '🌱', desc: '入门：一位数加减' },
@@ -34,9 +58,15 @@ const OPS = [
   { id: 'mix', label: '混合 ±' },
 ]
 
-const level = ref(LEVEL_BY_AGE_BAND[settings.ageBand] ?? 10)
-const op = ref('mix')
+const LEVEL_STEPS = LEVELS.map((l) => l.id)
+
+const focusPreset = FOCUS_PRESETS[String(route.query.skill ?? '')]
+const level = ref(focusPreset?.level ?? band.value.defaults.arithmetic.level)
+const op = ref(focusPreset?.op ?? band.value.defaults.arithmetic.op)
 const inputMode = ref('choice')
+/** 自动难度：连对就升档、连错就降档，但只在下一轮生效，不打断正在做的这一轮。 */
+const autoLevel = ref(true)
+const pendingLevel = ref(null)
 
 const isHard = computed(() => level.value === 100)
 const comboBest = ref(0)
@@ -115,6 +145,8 @@ function buildQuestion() {
   return {
     ...q,
     id: `${q.a}${q.sign}${q.b}`,
+    title: `${q.a} ${q.sign} ${q.b} = ?`,
+    difficulty: level.value,
     skill: arithmeticSkill({ level: level.value, kind: q.kind }),
     options: numericOptions(q.answer, {
       count: 4,
@@ -130,13 +162,20 @@ function buildQuestion() {
   }
 }
 
-const questions = ref(Array.from({ length: ROUND_SIZE }, buildQuestion))
+const questions = ref(Array.from({ length: roundSize.value }, buildQuestion))
 const currentIndex = ref(0)
 
 function newRound() {
+  // 上一轮攒下的升降档建议在这里兑现：改 level 会触发下面的 watch 重新出题
+  const suggested = pendingLevel.value
+  pendingLevel.value = null
+  if (autoLevel.value && suggested && suggested !== level.value) {
+    level.value = suggested
+    return
+  }
   comboBest.value = 0
   currentIndex.value = 0
-  questions.value = Array.from({ length: ROUND_SIZE }, buildQuestion)
+  questions.value = Array.from({ length: roundSize.value }, buildQuestion)
 }
 
 watch([level, op], newRound)
@@ -164,6 +203,34 @@ function onGraded({ correct }) {
   if (correct) comboBest.value = Math.max(comboBest.value, progress.combo)
 }
 
+/**
+ * QuizShell 里的自适应引擎发来的升降档建议，攒到下一轮开始时再换档，
+ * 且一轮最多挪一档：全对 10 题也不该把孩子从 10 以内直接扔进 100 以内。
+ */
+function onAdapt({ difficulty }) {
+  if (!autoLevel.value) return
+  const from = LEVEL_STEPS.indexOf(level.value)
+  const to = LEVEL_STEPS.indexOf(difficulty)
+  if (from < 0 || to < 0 || to === from) {
+    pendingLevel.value = null
+    return
+  }
+  pendingLevel.value = LEVEL_STEPS[from + (to > from ? 1 : -1)]
+}
+
+const pendingLabel = computed(() => {
+  const target = pendingLevel.value
+  if (!autoLevel.value || !target || target === level.value) return ''
+  const name = LEVELS.find((l) => l.id === target)?.label ?? `${target} 以内`
+  return target > level.value ? `下一轮升到 ${name}` : `下一轮降到 ${name}`
+})
+
+function toggleAuto() {
+  sound.click()
+  autoLevel.value = !autoLevel.value
+  if (!autoLevel.value) pendingLevel.value = null
+}
+
 function setLevel(id) {
   if (level.value === id) return
   sound.click()
@@ -178,18 +245,42 @@ function setOp(id) {
 </script>
 
 <template>
-  <main class="page">
+  <main class="page stack">
+    <section v-if="isSprint" class="card tool-entry sprint-entry">
+      <div>
+        <strong>⚡ 速算冲刺</strong>
+        <span class="muted">
+          一轮 {{ roundSize }} 题，3 秒内答对多拿一颗星；练累了回算术恒星慢慢算
+        </span>
+      </div>
+      <RouterLink class="btn btn--ghost btn--sm" to="/arithmetic">回算术恒星 →</RouterLink>
+    </section>
+    <section v-else class="card tool-entry">
+      <div>
+        <strong>🧮 竖式工坊</strong>
+        <span class="muted">逐位练习进位与借位，错误会按原因归类</span>
+      </div>
+      <RouterLink class="btn btn--primary btn--sm" to="/column-arithmetic">进入专题 →</RouterLink>
+    </section>
+
     <QuizShell
       v-model:inputMode="inputMode"
       :module-id="MODULE_ID"
-      :module-name="`算术恒星 · ${level} 以内`"
+      :module-name="roundName"
       :questions="questions"
-      :speed-bonus-ms="SPEED_BONUS_MS"
+      :speed-bonus-ms="speedBonusMs"
       :perfect-bonus="4"
       :show-answer-slot="false"
+      :difficulty-steps="LEVEL_STEPS"
+      :difficulty="level"
       :hint-labels="['💡 提示', '💡 再提示（少 1⭐）']"
-      :prompts="['算一算，答案是多少？', '看清符号再作答 🙂', '心里默算一遍，再选答案。']"
+      :prompts="
+        isSprint
+          ? ['快！答案是多少？', '别停，下一题来了 ⚡', '想到就选，越快星星越多。']
+          : ['算一算，答案是多少？', '看清符号再作答 🙂', '心里默算一遍，再选答案。']
+      "
       @advance="currentIndex = $event"
+      @adapt="onAdapt"
       @graded="onGraded"
       @replay="newRound"
       @home="router.push('/')"
@@ -218,6 +309,15 @@ function setOp(id) {
             {{ o.label }}
           </button>
         </div>
+        <button
+          class="btn btn--ghost btn--sm"
+          :aria-pressed="autoLevel"
+          title="连对就升档、连错就降档，换档在下一轮生效"
+          @click="toggleAuto"
+        >
+          🎚️ 自动难度{{ autoLevel ? '开' : '关' }}
+        </button>
+        <AgeBandBadge module="arithmetic" />
       </template>
 
       <!-- 口算连击：连击越高星星加成越多，这里把加成明确画出来 -->
@@ -228,6 +328,7 @@ function setOp(id) {
           <em v-else-if="progress.combo >= 3">×2⭐</em>
         </span>
         <span v-if="comboBest >= 2" class="chip">🏅 本轮最佳 {{ comboBest }}</span>
+        <span v-if="pendingLabel" class="chip chip-on">🎚️ {{ pendingLabel }}</span>
       </template>
 
       <template #question="{ question, typed }">
@@ -273,6 +374,28 @@ function setOp(id) {
 </template>
 
 <style scoped>
+.tool-entry {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 13px 16px;
+  border-color: rgba(255, 206, 77, 0.38);
+}
+
+.sprint-entry {
+  border-color: color-mix(in srgb, var(--neon-orange) 52%, transparent);
+  background:
+    radial-gradient(80% 160% at 0% 50%, color-mix(in srgb, var(--neon-orange) 20%, transparent), transparent 62%),
+    var(--surface);
+}
+
+.tool-entry > div {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .seg {
   display: flex;
   gap: 4px;
@@ -287,27 +410,27 @@ function setOp(id) {
   border-radius: 999px;
   font-size: 13px;
   font-weight: 800;
-  color: var(--ink-soft);
+  color: var(--text);
   transition: all 0.16s ease;
   white-space: nowrap;
 }
 
 .seg-btn.on {
-  background: linear-gradient(135deg, var(--gold), var(--orange));
-  color: #3a2400;
+  background: linear-gradient(135deg, var(--star), var(--neon-orange));
+  color: var(--text-invert);
   box-shadow: 0 6px 16px rgba(255, 159, 69, 0.32);
 }
 
 .combo em {
   font-style: normal;
   font-weight: 900;
-  color: var(--gold);
+  color: var(--star);
 }
 
 .combo.hot {
   background: linear-gradient(135deg, rgba(255, 159, 69, 0.32), rgba(255, 107, 125, 0.32));
   border-color: rgba(255, 159, 69, 0.6);
-  color: var(--ink);
+  color: var(--text-strong);
 }
 
 .equation {
@@ -316,7 +439,7 @@ function setOp(id) {
   justify-content: center;
   gap: 14px;
   padding: 26px 12px;
-  border-radius: var(--radius-m);
+  border-radius: var(--radius-md);
   background:
     radial-gradient(70% 120% at 50% 0%, rgba(255, 206, 77, 0.16), transparent 70%),
     rgba(6, 9, 30, 0.45);
@@ -336,7 +459,7 @@ function setOp(id) {
 }
 
 .sign {
-  color: var(--gold);
+  color: var(--star);
 }
 
 .slot {
@@ -346,9 +469,9 @@ function setOp(id) {
   font-weight: 900;
   line-height: 1;
   text-align: center;
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-sm);
   border: 3px dashed rgba(94, 231, 255, 0.6);
-  color: var(--cyan);
+  color: var(--brand);
 }
 
 .slot.filled {
@@ -374,7 +497,7 @@ function setOp(id) {
   top: 0;
   height: 4px;
   border-radius: 999px;
-  background: linear-gradient(90deg, var(--cyan), var(--violet));
+  background: linear-gradient(90deg, var(--brand), var(--accent));
   opacity: 0.5;
 }
 
@@ -396,14 +519,14 @@ function setOp(id) {
 .nl-tick.start .nl-dot {
   width: 14px;
   height: 14px;
-  background: var(--gold);
+  background: var(--star);
   box-shadow: 0 0 12px rgba(255, 206, 77, 0.8);
 }
 
 .nl-tick.end .nl-dot {
   width: 14px;
   height: 14px;
-  background: var(--green);
+  background: var(--success);
   box-shadow: 0 0 12px rgba(85, 230, 165, 0.8);
 }
 
@@ -412,6 +535,6 @@ function setOp(id) {
   top: 12px;
   font-size: 11px;
   font-style: normal;
-  color: var(--ink-dim);
+  color: var(--text-soft);
 }
 </style>

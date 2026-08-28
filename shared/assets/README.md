@@ -9,8 +9,12 @@ run offline.
 
 Source: <https://github.com/hfg-gmuend/openmoji>
 
-Files: `apple.svg`, `target.svg`, `open-book.svg`, `numbers.svg`, `abacus.svg`, `star.svg`.
-They are unmodified copies renamed from their Unicode code-point filenames.
+Files: see `scripts/fetch-openmoji.mjs` for the full list (35 icons as of Round 3).
+They are unmodified OpenMoji color SVG copies, renamed for semantic use in the apps.
+
+Both education apps load these through `@shared/components/OpenMojiIcon.vue` (Vite `?url`
+imports → hashed assets in dist, precached by Service Worker). Attribution text lives in
+`OpenMojiAttribution.vue` on each app's parent dashboard.
 
 > All emojis designed by [OpenMoji](https://openmoji.org/) – the open-source emoji and icon project.
 > License: [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).

@@ -5,16 +5,16 @@
    使用方式：
      1. 在各 App 入口 CSS 的第一行 `@import` 本文件（先于本地主题/组件层）。
      2. 根元素设置主题：
-        - literacy-app: <html data-theme="sunny|care|night">（默认 sunny）
-        - math-app:     <html data-theme="cosmos">
+       - literacy-app: <html data-theme="sunny|care|night|aurora">（默认 sunny）
+       - math-app:     <html data-theme="cosmos|aurora">（默认 cosmos）
      3. 组件只允许引用「语义令牌」（--bg-* --surface* --text* --brand* --accent*
         --success --danger --star 等）；「原始色板」仅供主题层映射使用。
      4. JS 读取共享常量（音量/时长）：
         getComputedStyle(document.documentElement).getPropertyValue('--sfx-gain')
    分层：
      §1 原始色板  §2 排印  §3 间距/圆角/层级  §4 动效  §5 交互尺寸
-     §6 组件令牌  §7 音频令牌  §8 主题层(sunny/care/night/cosmos)
-     §9 字号缩放  §10 动效降级  §11 兼容别名
+     §6 组件令牌  §7 音频令牌  §8 主题层(sunny/care/night/aurora/cosmos)
+     §9 字号缩放  §10 动效降级
    ========================================================================== */
 
 /* --------------------------------------------------------------------------
@@ -375,6 +375,54 @@
   color-scheme: dark;
 }
 
+/* ---------- aurora 极光（双 App 共用的沉浸深色主题） ---------- */
+:root[data-theme='aurora'] {
+  --bg-page:
+    radial-gradient(90% 70% at 18% 0%, rgba(73, 224, 190, 0.2) 0%, transparent 58%),
+    radial-gradient(80% 65% at 86% 12%, rgba(180, 142, 255, 0.2) 0%, transparent 62%),
+    linear-gradient(165deg, #16243b 0%, #172d38 52%, #211d3b 100%);
+  --bg-page-solid: #16243b;
+  --bg-blob-a: rgba(73, 224, 190, 0.26);
+  --bg-blob-b: rgba(180, 142, 255, 0.24);
+  --bg-blob-c: rgba(79, 166, 232, 0.2);
+
+  --surface: rgba(37, 53, 76, 0.94);
+  --surface-strong: #2d3e59;
+  --surface-sunken: #1c2c43;
+  --surface-border: rgba(190, 230, 255, 0.2);
+
+  --text-strong: #f5f8ff;
+  --text: #dce6f4;
+  --text-soft: #bdcce0;
+  --text-invert: #102329;
+
+  --brand: #72e7ca;
+  --brand-strong: #45c9ab;
+  --brand-soft: rgba(114, 231, 202, 0.16);
+
+  --accent: #c5abff;
+  --accent-soft: rgba(197, 171, 255, 0.16);
+  --info: #91cfff;
+  --danger: #ff929f;
+  --success: #83e0ad;
+  --star: #ffdc73;
+
+  --grid-line: rgba(114, 231, 202, 0.3);
+  --stroke-ink: #f5f8ff;
+  --stroke-hint: rgba(235, 244, 255, 0.2);
+
+  --focus-ring: #72e7ca;
+  --overlay-scrim: rgba(7, 12, 27, 0.65);
+
+  --shadow-sm: 0 2px 10px rgba(4, 10, 24, 0.34);
+  --shadow-md: 0 9px 26px rgba(4, 10, 24, 0.42);
+  --shadow-lg: 0 18px 44px rgba(4, 10, 24, 0.5);
+  --shadow-press: 0 3px 0 rgba(2, 7, 18, 0.45);
+  --shadow-glow: 0 0 26px rgba(114, 231, 202, 0.24);
+
+  color-scheme: dark;
+}
+
 /* ---------- cosmos 深空（数学 App 默认） ---------- */
 :root[data-theme='cosmos'] {
   --bg-page: radial-gradient(120% 90% at 50% 0%, #1b2360 0%, var(--cosmos-1) 45%, var(--cosmos-0) 100%);
@@ -447,44 +495,4 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
   }
-}
-
-/* --------------------------------------------------------------------------
-   §11 兼容别名（Round 2 迁移完成后删除）
-   -------------------------------------------------------------------------- */
-
-/* literacy-app theme.css 旧名 */
-:root {
-  --seed-mango: var(--mango-400);
-  --seed-coral: var(--coral-400);
-  --seed-mint: var(--mint-400);
-  --seed-sky: var(--sky-400);
-  --seed-grape: var(--grape-400);
-  --seed-leaf: var(--leaf-400);
-}
-
-/* math-app main.css 旧名（仅 cosmos 主题下生效；--space-* 在旧文件中是颜色而非间距） */
-:root[data-theme='cosmos'] {
-  --space-0: var(--cosmos-0);
-  --space-1: var(--cosmos-1);
-  --space-2: var(--cosmos-2);
-  --space-3: var(--cosmos-3);
-
-  --ink: var(--ice-100);
-  --ink-soft: var(--ice-300);
-  --ink-dim: var(--ice-500);
-
-  --cyan: var(--neon-cyan);
-  --violet: var(--neon-violet);
-  --pink: var(--neon-pink);
-  --gold: var(--neon-gold);
-  --green: var(--neon-green);
-  --red: var(--neon-red);
-  --orange: var(--neon-orange);
-
-  --radius-s: var(--radius-sm);
-  --radius-m: var(--radius-md);
-  --radius-l: var(--radius-xl);
-
-  --shadow-card: var(--shadow-lg);
 }

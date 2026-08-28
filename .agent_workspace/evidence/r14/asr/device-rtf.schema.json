@@ -1,0 +1,160 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "literacy-asr-device-rtf/1",
+  "title": "跟读离线 ASR · 中端 Android 真机性能证据（ROUND14_H1）",
+  "description": "check-round14.mjs 的 H1 只读这份文件的五个字段（onDevice / simulated / device / rtfP95 / 文件大小）。这份 schema 与 apps/literacy-app/scripts/check-asr-device-rtf.mjs 一起，规定剩下那些「凭什么算数」的字段：测的是不是随包发出去的那个整包、测的是哪一台具体机器、量了多长的音、有没有执行痕迹和签字。语义约束（整包指纹对账、rtfP95 与 rtf.p95 互为镜像、gates 的 verdict 与阈值自洽、evidence.log 落盘）由校验器执行，JSON Schema 只管形状。",
+  "type": "object",
+  "required": ["schema", "marker", "status", "onDevice", "simulated"],
+  "additionalProperties": true,
+  "properties": {
+    "schema": { "const": "literacy-asr-device-rtf/1" },
+    "marker": { "const": "ROUND14_H1" },
+    "status": {
+      "enum": ["not-measured", "measured"],
+      "description": "not-measured：真机还没跑，onDevice 必须 false、rtfP95 必须 null，并写清 owner / blockedBy。measured：下面所有字段都要有。"
+    },
+    "onDevice": { "type": "boolean", "description": "在真机上跑的才是 true。主机、模拟器、推算一律 false。" },
+    "simulated": { "const": false, "description": "真机证据必须显式写 false；缺这个字段探针不认。" },
+    "example": {
+      "type": "boolean",
+      "description": "模板专用。为 true 时校验器跳过整包指纹对账与日志落盘两条，同时永远不会给出 measured-pass。落盘证据里不许出现这个字段。"
+    },
+    "owner": { "type": "string", "description": "status=not-measured 时必填：这件事欠在谁头上。" },
+    "blockedBy": { "type": "string", "description": "status=not-measured 时必填：它卡住了哪一条（例：freezeChecklist F7 → available=true）。" },
+    "measuredAt": { "type": "string", "format": "date-time" },
+    "device": {
+      "type": "object",
+      "description": "一台具体的机器。「Android 手机」不算身份。",
+      "required": ["model", "tier", "androidVersion", "chipset", "ramGiB", "webView", "serialHash"],
+      "properties": {
+        "model": { "type": "string", "minLength": 3, "examples": ["Redmi Note 12", "OPPO A58"] },
+        "tier": {
+          "enum": ["low", "mid", "high"],
+          "description": "门槛写的是中端机，所以这份主证据必须是 mid。低端/高端机的补充测量另存 device-rtf-low.json / device-rtf-high.json。"
+        },
+        "androidVersion": { "type": "string" },
+        "chipset": { "type": "string" },
+        "ramGiB": { "type": "number", "exclusiveMinimum": 0 },
+        "webView": { "type": "string", "description": "Android System WebView 的版本号——跟读跑在 WebView 里，换个版本就是换个运行时。" },
+        "serialHash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "sha256(adb 序列号 + 盐)。落哈希不落明文，好让同一台机器的多次测量对得上，又不把设备标识写进仓库。"
+        }
+      }
+    },
+    "pack": {
+      "type": "object",
+      "description": "测的是哪一个包。sha256 必须等于 apps/literacy-app/public/asr/manifest.json 的整包指纹——换模型不重测，校验器当场对不上。",
+      "required": ["modelId", "modelVersion", "sha256", "bytes"],
+      "properties": {
+        "modelId": { "type": "string" },
+        "modelVersion": { "type": "string" },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "bytes": { "type": "integer", "exclusiveMinimum": 0 }
+      }
+    },
+    "session": {
+      "type": "object",
+      "description": "量了多长的音。三句话的 p95 说明不了任何事。",
+      "required": ["utterances", "audioSeconds", "sampleRate"],
+      "properties": {
+        "utterances": { "type": "integer", "minimum": 20 },
+        "audioSeconds": { "type": "number", "minimum": 60 },
+        "sampleRate": { "const": 16000 },
+        "env": { "enum": ["quiet", "tv", "far"] },
+        "source": { "type": "string", "description": "音频来自哪儿（例：freeze-set B1 的已落库片段）。" }
+      }
+    },
+    "rtfP95": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "description": "探针唯一读的那个数，是 rtf.p95 的镜像。两处对不上就是有人只改了给探针看的那一个。"
+    },
+    "rtf": {
+      "type": "object",
+      "required": ["runs", "min", "p50", "p95", "max"],
+      "properties": {
+        "runs": { "type": "integer", "minimum": 20 },
+        "min": { "type": "number" },
+        "p50": { "type": "number" },
+        "p95": { "type": "number" },
+        "max": { "type": "number" }
+      }
+    },
+    "gates": {
+      "type": "array",
+      "description": "六条只有真机说了算的门槛，一条都不许缺；verdict 必须和阈值算出来的一致。",
+      "minItems": 6,
+      "items": {
+        "type": "object",
+        "required": ["metric", "op", "threshold", "measured", "verdict"],
+        "properties": {
+          "metric": {
+            "enum": [
+              "rtf",
+              "p95LatencyMs",
+              "peakMemoryMiB",
+              "longTaskMs",
+              "offlineRestartPass",
+              "faultDrillsOnDevice"
+            ]
+          },
+          "op": { "enum": [">=", "<="] },
+          "threshold": { "type": "number" },
+          "measured": { "type": "number" },
+          "verdict": { "enum": ["pass", "fail"] }
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "description": "执行痕迹。没有它，那些数字就只是打出来的字。",
+      "required": ["log", "command", "harness"],
+      "properties": {
+        "log": { "type": "string", "description": "相对 .agent_workspace/ 的路径；文件必须真的落盘（例：evidence/r14/asr/device-rtf.logcat.txt）。" },
+        "command": { "type": "string" },
+        "harness": { "type": "string" },
+        "adbVersion": { "type": "string" }
+      }
+    },
+    "attestation": {
+      "type": "object",
+      "description": "谁在什么时候签的字。真机测量不是匿名事件。",
+      "required": ["measuredBy", "role", "signedAt"],
+      "properties": {
+        "measuredBy": { "type": "string" },
+        "role": { "type": "string" },
+        "signedAt": { "type": "string" },
+        "contact": { "type": "string" }
+      }
+    },
+    "notes": { "type": "string" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "status": { "const": "measured" } }, "required": ["status"] },
+      "then": {
+        "required": [
+          "measuredAt",
+          "device",
+          "pack",
+          "session",
+          "rtfP95",
+          "rtf",
+          "gates",
+          "evidence",
+          "attestation"
+        ],
+        "properties": { "onDevice": { "const": true }, "rtfP95": { "type": "number" } }
+      }
+    },
+    {
+      "if": { "properties": { "status": { "const": "not-measured" } }, "required": ["status"] },
+      "then": {
+        "required": ["owner", "blockedBy"],
+        "properties": { "onDevice": { "const": false }, "rtfP95": { "type": "null" } }
+      }
+    }
+  ]
+}

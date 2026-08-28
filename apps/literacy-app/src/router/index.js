@@ -36,6 +36,53 @@ const routes = [
     meta: { title: '听音识字', emoji: '👂' }
   },
   { path: '/game/listen', redirect: '/listen' },
+  /**
+   * 拍照识字。整套 OCR 引擎近 6 MB，全部藏在这条路由的懒加载块和
+   * public/ocr/ 里，别的页面一个字节都不会为它买单。
+   */
+  {
+    path: '/ocr',
+    name: 'camera-ocr',
+    component: () => import('@/views/CameraOcrView.vue'),
+    meta: { title: '拍照识字', emoji: '📷' }
+  },
+  { path: '/camera', redirect: '/ocr' },
+  {
+    path: '/games',
+    name: 'games',
+    component: () => import('@/views/GamesView.vue'),
+    meta: { title: '小游戏', emoji: '🎲' }
+  },
+  {
+    path: '/games/maze',
+    name: 'game-maze',
+    component: () => import('@/views/MazeGameView.vue'),
+    meta: { title: '字迷宫', emoji: '🧭' }
+  },
+  {
+    path: '/games/memory',
+    name: 'game-memory',
+    component: () => import('@/views/MemoryGameView.vue'),
+    meta: { title: '配对记忆', emoji: '🃏' }
+  },
+  {
+    path: '/games/spot',
+    name: 'game-spot',
+    component: () => import('@/views/SpotGameView.vue'),
+    meta: { title: '找不同', emoji: '🔍' }
+  },
+  {
+    path: '/games/spell',
+    name: 'game-spell',
+    component: () => import('@/views/SpellGameView.vue'),
+    meta: { title: '拼音拼字', emoji: '🔤' }
+  },
+  {
+    path: '/games/catch',
+    name: 'game-catch',
+    component: () => import('@/views/CatchGameView.vue'),
+    meta: { title: '接字大冒险', emoji: '🧺' }
+  },
   {
     path: '/radicals/:id?',
     name: 'radicals',
@@ -56,11 +103,55 @@ const routes = [
     meta: { title: '读绘本', emoji: '📖' }
   },
   {
+    path: '/etymology/:char?',
+    name: 'etymology',
+    component: () => import('@/views/EtymologyView.vue'),
+    props: true,
+    meta: { title: '字源馆', emoji: '🏺' }
+  },
+  {
     path: '/idioms',
     name: 'idioms',
     component: () => import('@/views/IdiomsView.vue'),
     meta: { title: '成语故事', emoji: '🏮' }
   },
+  {
+    path: '/poems',
+    name: 'poems',
+    component: () => import('@/views/PoemsView.vue'),
+    meta: { title: '古诗长廊', emoji: '📜' }
+  },
+  {
+    path: '/poems/:id',
+    name: 'poem',
+    component: () => import('@/views/PoemDetailView.vue'),
+    props: true,
+    meta: { title: '读古诗', emoji: '📜' }
+  },
+  /**
+   * 儿歌小舞台。`:id` 可以不写——不写就是歌单，写了就直接展开那一首。
+   * 这一条不拆列表 / 详情：每首歌四句，展开后一屏放得下。
+   */
+  {
+    path: '/songs/:id?',
+    name: 'songs',
+    component: () => import('@/views/SongsView.vue'),
+    props: true,
+    meta: { title: '儿歌小舞台', emoji: '🎵' }
+  },
+  { path: '/song', redirect: '/songs' },
+  /**
+   * 跟读评测。`:id` 可以不写——不写就自己挑一首生字最少的诗开始。
+   * 这条路由和《古诗详情》的「跟着读」用的是同一个面板。
+   */
+  {
+    path: '/follow-read/:id?',
+    name: 'follow-read',
+    component: () => import('@/views/FollowReadView.vue'),
+    props: true,
+    meta: { title: '跟读评测', emoji: '🎤' }
+  },
+  { path: '/speech', redirect: '/follow-read' },
   {
     path: '/idioms/:id',
     name: 'idiom',
@@ -73,6 +164,12 @@ const routes = [
     name: 'parent',
     component: () => import('@/views/ParentView.vue'),
     meta: { title: '家长中心', emoji: '👨‍👩‍👧' }
+  },
+  {
+    path: '/privacy',
+    name: 'privacy',
+    component: () => import('@/views/PrivacyView.vue'),
+    meta: { title: '隐私政策', emoji: '🛡️' }
   },
   { path: '/:pathMatch(.*)*', redirect: '/' }
 ]

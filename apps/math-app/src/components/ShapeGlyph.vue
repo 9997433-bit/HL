@@ -4,7 +4,7 @@ import { computed } from 'vue'
 const props = defineProps({
   shape: { type: String, required: true },
   size: { type: Number, default: 100 },
-  color: { type: String, default: '#5ee7ff' },
+  color: { type: String, default: 'var(--brand)' },
   spin: { type: Number, default: 0 }, // 额外旋转角度，用于「旋转规律」类题目
   outline: { type: Boolean, default: false },
   label: { type: String, default: '' },

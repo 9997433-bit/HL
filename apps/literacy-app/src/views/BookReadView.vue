@@ -11,14 +11,17 @@
  *
  * 逐句朗读用一个自增的 token 做取消：翻页、点字、离开页面都让 token 失效，
  * 上一轮的 await 醒来发现 token 变了就自己退出，不会把高亮画到新的一页上。
+ *
+ * 插图交给 BookPageScene：写了 scene 的页摆成多元素场景，没写的仍是单 emoji。
  */
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import gsap from 'gsap'
+import BookPageScene from '@/components/BookPageScene.vue'
 import StarBurst from '@/components/StarBurst.vue'
 import VoiceNotice from '@/components/VoiceNotice.vue'
 import { charsInBook, getBook } from '@/data/books.js'
-import { CHARACTER_MAP } from '@/data/characters.js'
+import { CHARACTER_MAP, getLoadedCharacter, loadCharacter } from '@/data/characters.js'
 import { useProgressStore } from '@/stores/progress.js'
 import { useSettingsStore } from '@/stores/settings.js'
 import { speak, stopSpeaking } from '@/utils/speech.js'
@@ -34,6 +37,11 @@ const book = computed(() => getBook(props.id))
 const pageIndex = ref(0)
 const finished = ref(false)
 const selected = ref(null)
+/** 被点开那个字的释义，跟着单元详情包异步到位。 */
+const meaning = ref('')
+watch(selected, (g) => {
+  if (!g) meaning.value = ''
+})
 const stageRef = ref(null)
 const burstRef = ref(null)
 
@@ -179,7 +187,15 @@ function tapChar(g) {
   sfx.tap()
   stopRead()
   selected.value = selected.value?.i === g.i ? null : g
-  if (selected.value) speak(g.ch, { rate: settings.speechRate })
+  if (!selected.value) return
+  speak(g.ch, { rate: settings.speechRate })
+  // 释义在单元详情包里，点到哪个字才去取哪一包。
+  if (g.known) {
+    loadCharacter(g.ch).then((full) => {
+      if (selected.value?.i === g.i) meaning.value = full?.meaning ?? ''
+    })
+    meaning.value = getLoadedCharacter(g.ch)?.meaning ?? ''
+  }
 }
 
 function restart() {
@@ -239,10 +255,17 @@ onBeforeUnmount(stopRead)
         />
       </div>
 
-      <section ref="stageRef" class="spread card" :style="{ '--c1': book.palette[0], '--c2': book.palette[1] }">
-        <div class="spread__art">
-          <span class="spread__emoji" aria-hidden="true">{{ page.emoji }}</span>
-        </div>
+      <section ref="stageRef" class="spread card">
+        <!-- 整幅换掉：翻页时重挂一次，元素才会重新一件件落进画面 -->
+        <BookPageScene
+          :key="`${book.id}-${pageIndex}`"
+          :scene="page.scene"
+          :bg="page.sceneBg"
+          :alt="page.sceneAlt"
+          :palette="book.palette"
+          :emoji="page.emoji"
+          :reduced="settings.reduceMotion"
+        />
 
         <div class="spread__text">
           <p v-if="settings.showPinyin" class="spread__pinyin">{{ page.p }}</p>
@@ -296,7 +319,7 @@ onBeforeUnmount(stopRead)
               <span class="peek__char">{{ selected.ch }}</span>
               <span class="peek__info">
                 <strong v-if="selected.known">{{ CHARACTER_MAP.get(selected.ch).pinyin }}</strong>
-                <small v-if="selected.known">{{ CHARACTER_MAP.get(selected.ch).meaning }}</small>
+                <small v-if="selected.known">{{ meaning }}</small>
                 <small v-else>这个字还没在课程里，先听听读音吧</small>
               </span>
               <RouterLink
@@ -410,20 +433,6 @@ onBeforeUnmount(stopRead)
   gap: var(--gap-lg);
   padding: 0;
   overflow: hidden;
-}
-
-.spread__art {
-  display: grid;
-  place-items: center;
-  min-height: 210px;
-  background: linear-gradient(150deg, var(--c1) 0%, var(--c2) 100%);
-}
-
-.spread__emoji {
-  font-size: clamp(4.5rem, 22vw, 7rem);
-  line-height: 1;
-  animation: float-y 4s ease-in-out infinite;
-  filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.12));
 }
 
 .spread__text {

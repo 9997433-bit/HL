@@ -2,21 +2,41 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import gsap from 'gsap'
+import AgeBandBadge from '@/components/AgeBandBadge.vue'
+import LearnDemoLauncher from '@/components/LearnDemoLauncher.vue'
 import MascotBot from '@/components/MascotBot.vue'
 import SessionBar from '@/components/SessionBar.vue'
 import RoundSummary from '@/components/RoundSummary.vue'
 import { useProgressStore } from '@/stores/progress.js'
+import { useAgeBand } from '@/composables/useAgeBand'
 import { useFeedback } from '@/composables/useFeedback'
-import { numericOptions, randInt, sample } from '@/utils/random'
+import { createRng, numericOptions, questionId, sample } from '@/utils/random'
 import { sound } from '@/utils/sound'
 import { countingSkill } from '@/data/skill-mapping.js'
+import { COMPARE_NAME, makeCompareQuestion } from '@/data/compare.js'
+import { COUNTING_QUESTION_IDS } from '@/data/age-band.js'
 
 const ROUND_SIZE = 8
 const MODULE_ID = 'counting'
 
+/** 雷达上超过这个数量，星星就密到数不清了，再高的年龄档也不往上加。 */
+const RADAR_CAP = 24
+
+/** mode='compare' 时整轮只出比大小题（路由 /compare 的比大小擂台）。 */
+const props = defineProps({
+  mode: { type: String, default: 'mix' },
+})
+
+const compareOnly = computed(() => props.mode === 'compare')
+const roundName = computed(() => (compareOnly.value ? '比大小擂台' : '数量星云'))
+
 const router = useRouter()
 const progress = useProgressStore()
+const band = useAgeBand(() => startRound())
 const { correct: fxCorrect, wrong: fxWrong, burst, flyStar, pop, enter } = useFeedback()
+
+/** 家长中心选的年龄档决定数到多大、出哪几种题；孩子做的这一轮不会中途变。 */
+const tuning = computed(() => band.value.defaults.counting)
 
 const CARGO = [
   { icon: '💎', name: '能量水晶' },
@@ -29,54 +49,92 @@ const CARGO = [
   { icon: '🍄', name: '星球蘑菇' },
 ]
 
-/** 每题最大难度随轮次上升：先 1–10，后 1–20。 */
-function makeQuestion(index) {
-  const cargo = sample(CARGO)
-  const ceiling = index < 3 ? 10 : 20
-  const roll = Math.random()
+/** 按年龄档给的权重抽题型：低龄多装货、多点数，高龄多数序、多比大小。 */
+function pickType(rng, mix) {
+  const total = COUNTING_QUESTION_IDS.reduce((sum, key) => sum + (mix[key] ?? 0), 0)
+  let roll = rng() * total
+  for (const key of COUNTING_QUESTION_IDS) {
+    roll -= mix[key] ?? 0
+    if (roll < 0) return key
+  }
+  return 'count'
+}
 
-  if (roll < 0.55) {
-    const target = randInt(index < 3 ? 2 : 5, ceiling)
-    const poolSize = Math.min(20, target + randInt(3, 6))
-    return {
+/**
+ * 出一道题。所有随机都取自 seed 派生的随机流，
+ * 题目 id 里带着 seed，凭 id 就能把同一道题原样重建出来（家长端讲评、回归测试都靠它）。
+ * 数值上限、公差和题型配比都来自年龄档；每轮前 3 题还会再降一档热身。
+ */
+function makeQuestion(index, seed) {
+  const rng = createRng(seed)
+  const cargo = rng.sample(CARGO)
+  const { ceilings, dragCap, steps, mix } = tuning.value
+  const ceiling = index < 3 ? ceilings[0] : ceilings[1]
+  const type = compareOnly.value ? 'compare' : pickType(rng, mix)
+  const withId = (q) => ({ ...q, id: questionId(q.type, seed), seed })
+
+  if (type === 'drag') {
+    // 货物要一个个点进货舱，数量再多也得停在 dragCap，不然低龄的孩子点到手酸
+    const top = Math.min(ceiling, dragCap)
+    const target = rng.int(Math.min(index < 3 ? 2 : 5, top - 1), top)
+    const poolSize = target + rng.int(3, 6)
+    return withId({
       type: 'drag',
       cargo,
       target,
       poolSize,
       prompt: `把 ${target} 个${cargo.name}装进货舱`,
       hint: `一个一个地数：1、2、3…… 数到 ${target} 就停下。`,
-    }
+      stars: target >= 11 ? 2 : 1,
+      xp: 10 + target,
+    })
   }
 
-  if (roll < 0.8) {
-    const target = randInt(3, ceiling)
-    return {
+  if (type === 'count') {
+    const top = Math.min(ceiling, RADAR_CAP)
+    const target = rng.int(Math.min(3, top), top)
+    return withId({
       type: 'count',
       cargo,
       target,
       prompt: `雷达上有几个${cargo.name}？`,
-      options: numericOptions(target, { count: 4, spread: 3, min: 1, max: 20 }),
+      options: numericOptions(target, { count: 4, spread: 3, min: 1, max: top, rng }),
       hint: '用手指点着一个一个数，别数漏也别数重复。',
-    }
+      stars: target >= 11 ? 2 : 1,
+      xp: 10 + target,
+    })
   }
 
-  const step = Math.random() < 0.7 ? 1 : sample([2, 2, 5])
-  const start = randInt(1, Math.max(1, ceiling - step * 4))
-  const seq = [0, 1, 2, 3, 4].map((i) => start + i * step)
-  const blank = randInt(1, 3)
-  return {
-    type: 'seq',
-    cargo,
-    target: seq[blank],
-    seq,
-    blank,
-    prompt: step === 1 ? '这串数字少了哪一个？' : `每次加 ${step}，缺的是几？`,
-    options: numericOptions(seq[blank], { count: 4, spread: Math.max(2, step + 1), min: 1, max: 40 }),
-    hint: '看看相邻两个数差了多少，规律就出来了。',
+  if (type === 'seq') {
+    const step = rng.sample(steps)
+    const start = rng.int(1, Math.max(1, ceiling - step * 4))
+    const seq = [0, 1, 2, 3, 4].map((i) => start + i * step)
+    const blank = rng.int(1, 3)
+    return withId({
+      type: 'seq',
+      cargo,
+      target: seq[blank],
+      seq,
+      blank,
+      prompt: step === 1 ? '这串数字少了哪一个？' : `每次加 ${step}，缺的是几？`,
+      options: numericOptions(seq[blank], {
+        count: 4,
+        spread: Math.max(2, step + 1),
+        min: 1,
+        max: seq[seq.length - 1] + step,
+        rng,
+      }),
+      hint: '看看相邻两个数差了多少，规律就出来了。',
+      stars: seq[blank] >= 11 ? 2 : 1,
+      xp: 10 + seq[blank],
+    })
   }
+
+  return withId(makeCompareQuestion(rng, { ceiling, icons: CARGO }))
 }
 
 const questions = ref([])
+const roundSeed = ref('')
 const index = ref(0)
 const marks = ref([])
 const correctCount = ref(0)
@@ -89,6 +147,14 @@ const message = ref('把货物拖进飞船的货舱吧！')
 const chosen = ref(null)
 
 const current = computed(() => questions.value[index.value] ?? null)
+
+/**
+ * 这道题算在哪个技能点上 —— 和判题时上报掌握度用的是同一条口径（见 award）。
+ * ROUND16_H4 的「看演示」按它决定弹哪条演示，没有演示的技能点就不渲染按钮。
+ */
+const currentSkill = computed(() =>
+  current.value ? (current.value.skill ?? countingSkill(current.value)) : '',
+)
 
 /* ---------------- 拖拽状态 ---------------- */
 
@@ -193,6 +259,14 @@ function onCargoClick(item) {
 
 /** 机器人的鼓励语。标题已经写了题目，这里不再重复念一遍。 */
 function encourage() {
+  if (compareOnly.value) {
+    return sample([
+      '大嘴巴永远朝着大的那一边。',
+      '先数一数两边各有多少个。',
+      '一样多的时候别忘了等号 =。',
+      '我在旁边给你加油 🤖',
+    ])
+  }
   return sample([
     '别着急，一个一个慢慢数。',
     '用手指点着数，不容易数漏哦。',
@@ -203,13 +277,14 @@ function encourage() {
 
 
 function award(isRight, anchor) {
+  const q = current.value
   marks.value[index.value] = isRight ? 'ok' : 'no'
-  const skill = countingSkill(current.value)
+  const skill = currentSkill.value
   if (isRight) {
     correctCount.value += 1
-    const stars = current.value.target >= 11 ? 2 : 1
+    const stars = q.stars ?? 1
     starsEarned.value += stars
-    progress.recordAnswer(MODULE_ID, true, { skill, stars, xp: 10 + current.value.target })
+    progress.recordAnswer(MODULE_ID, true, { skill, stars, xp: q.xp ?? 10 })
     fxCorrect(anchor)
     burst(anchor, { count: 18 })
     flyStar(anchor)
@@ -219,7 +294,7 @@ function award(isRight, anchor) {
     progress.recordAnswer(MODULE_ID, false, { skill })
     fxWrong(anchor)
     mood.value = 'sad'
-    message.value = `正确答案是 ${current.value.target}，我们再数一次好吗？`
+    message.value = `正确答案是 ${q.answerText ?? q.target}，我们再数一次好吗？`
   }
 }
 
@@ -264,7 +339,12 @@ function finish() {
 }
 
 function startRound() {
-  questions.value = Array.from({ length: ROUND_SIZE }, (_, i) => makeQuestion(i))
+  // 每轮一个母种子，第 i 题的种子是「母种子-i」：同一轮的题目集合可以整轮复现
+  // 种子里带上年龄档，换档之后重开的一轮不会和上一轮撞题
+  roundSeed.value = `${props.mode}-${band.value.id}-${Date.now().toString(36)}`
+  questions.value = Array.from({ length: ROUND_SIZE }, (_, i) =>
+    makeQuestion(i, `${roundSeed.value}-${i}`),
+  )
   index.value = 0
   marks.value = []
   correctCount.value = 0
@@ -314,7 +394,16 @@ onBeforeUnmount(() => {
 
 <template>
   <main class="page stack">
+    <section v-if="!compareOnly" class="card tool-entry">
+      <div>
+        <strong>🟣 分与合教具</strong>
+        <span class="muted">亲手移动 10 颗弹珠，练习 <code>compose-ten</code></span>
+      </div>
+      <RouterLink class="btn btn--primary btn--sm" to="/compose-ten">开始分弹珠 →</RouterLink>
+    </section>
+
     <section class="card bar-panel">
+      <AgeBandBadge module="counting" />
       <SessionBar
         :index="index"
         :total="ROUND_SIZE"
@@ -331,6 +420,7 @@ onBeforeUnmount(() => {
           <h2 class="prompt">{{ current.prompt }}</h2>
           <p class="muted say">{{ message }}</p>
         </div>
+        <LearnDemoLauncher :skill="currentSkill" />
         <button class="btn btn--ghost btn--sm hint-btn" @click="showHint = !showHint">
           💡 {{ showHint ? '收起' : '提示' }}
         </button>
@@ -367,8 +457,8 @@ onBeforeUnmount(() => {
               <svg class="ship-svg" viewBox="0 0 240 120" aria-hidden="true">
                 <defs>
                   <linearGradient id="hull" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stop-color="#8ef0ff" />
-                    <stop offset="100%" stop-color="#4a67d8" />
+                    <stop offset="0%" stop-color="var(--brand)" />
+                    <stop offset="100%" stop-color="var(--accent)" />
                   </linearGradient>
                 </defs>
                 <ellipse cx="120" cy="96" rx="104" ry="18" fill="rgba(94,231,255,0.16)" />
@@ -378,9 +468,9 @@ onBeforeUnmount(() => {
                   stroke="rgba(255,255,255,0.5)"
                   stroke-width="2"
                 />
-                <circle cx="120" cy="60" r="24" fill="rgba(13,18,54,0.75)" stroke="#bff3ff" stroke-width="2" />
-                <circle cx="70" cy="76" r="6" fill="#ffce4d" />
-                <circle cx="170" cy="76" r="6" fill="#ff7ac6" />
+                <circle cx="120" cy="60" r="24" fill="rgba(13,18,54,0.75)" stroke="var(--brand)" stroke-width="2" />
+                <circle cx="70" cy="76" r="6" fill="var(--star)" />
+                <circle cx="170" cy="76" r="6" fill="var(--neon-pink)" />
               </svg>
               <div class="hold">
                 <button
@@ -443,6 +533,41 @@ onBeforeUnmount(() => {
         </div>
       </template>
 
+      <!-- 比大小 -->
+      <template v-else-if="current.type === 'compare'">
+        <div class="compare">
+          <div class="cmp-side">
+            <span class="cmp-num">{{ current.left }}</span>
+            <span class="cmp-dots" aria-hidden="true">
+              <span v-for="i in current.left" :key="i" class="cmp-dot">{{ current.cargo.icon }}</span>
+            </span>
+          </div>
+          <span class="cmp-slot" :class="{ solved: locked }">{{ locked ? current.target : '?' }}</span>
+          <div class="cmp-side">
+            <span class="cmp-num">{{ current.right }}</span>
+            <span class="cmp-dots" aria-hidden="true">
+              <span v-for="i in current.right" :key="i" class="cmp-dot">{{ current.cargo.icon }}</span>
+            </span>
+          </div>
+        </div>
+        <div class="options">
+          <button
+            v-for="o in current.options"
+            :key="o"
+            class="opt sym"
+            :class="{
+              right: locked && o === current.target,
+              bad: locked && chosen === o && o !== current.target,
+            }"
+            :disabled="locked"
+            :aria-label="`${current.left} ${COMPARE_NAME[o]} ${current.right}`"
+            @click="chooseOption(o, $event)"
+          >
+            {{ o }}
+          </button>
+        </div>
+      </template>
+
       <!-- 数序 -->
       <template v-else>
         <div class="sequence">
@@ -488,7 +613,7 @@ onBeforeUnmount(() => {
       :correct="correctCount"
       :total="ROUND_SIZE"
       :stars-earned="starsEarned"
-      module-name="数量星云"
+      :module-name="roundName"
       @replay="startRound"
       @home="router.push('/')"
     />
@@ -496,8 +621,35 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.tool-entry {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 13px 16px;
+  border-color: rgba(155, 140, 255, 0.38);
+}
+
+.tool-entry > div {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tool-entry code {
+  color: var(--star);
+}
+
 .bar-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
   padding: 14px 18px;
+}
+
+.bar-panel > :last-child {
+  width: 100%;
 }
 
 .stage {
@@ -534,10 +686,10 @@ onBeforeUnmount(() => {
 
 .hint {
   padding: 10px 14px;
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-sm);
   background: rgba(255, 206, 77, 0.12);
   border: 1px solid rgba(255, 206, 77, 0.4);
-  color: var(--gold);
+  color: var(--star);
   font-size: 14px;
 }
 
@@ -557,7 +709,7 @@ onBeforeUnmount(() => {
   gap: 8px;
   padding: 14px;
   min-height: 190px;
-  border-radius: var(--radius-m);
+  border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.04);
   border: 1px dashed rgba(255, 255, 255, 0.2);
 }
@@ -601,14 +753,14 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: 8px;
   padding: 12px;
-  border-radius: var(--radius-m);
+  border-radius: var(--radius-md);
   border: 2px dashed rgba(94, 231, 255, 0.35);
   background: rgba(94, 231, 255, 0.05);
   transition: all 0.18s ease;
 }
 
 .ship-wrap.active {
-  border-color: var(--green);
+  border-color: var(--success);
   background: rgba(85, 230, 165, 0.14);
   box-shadow: 0 0 28px rgba(85, 230, 165, 0.3);
 }
@@ -616,7 +768,7 @@ onBeforeUnmount(() => {
 .ship {
   position: relative;
   flex: 1;
-  border-radius: var(--radius-m);
+  border-radius: var(--radius-md);
   padding: 6px;
 }
 
@@ -646,7 +798,7 @@ onBeforeUnmount(() => {
 .counter-num {
   font-size: 32px;
   font-weight: 900;
-  color: var(--cyan);
+  color: var(--brand);
   text-shadow: 0 0 18px rgba(94, 231, 255, 0.6);
 }
 
@@ -684,7 +836,7 @@ onBeforeUnmount(() => {
   gap: 6px;
   justify-items: center;
   padding: 20px;
-  border-radius: var(--radius-m);
+  border-radius: var(--radius-md);
   background:
     repeating-radial-gradient(circle at 50% 50%, rgba(94, 231, 255, 0.08) 0 1px, transparent 1px 34px),
     rgba(6, 9, 30, 0.5);
@@ -705,6 +857,73 @@ onBeforeUnmount(() => {
   }
 }
 
+/* ---- 比大小 ---- */
+
+.compare {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 12px;
+  align-items: center;
+  padding: 18px 12px;
+  border-radius: var(--radius-m);
+  background:
+    radial-gradient(60% 90% at 50% 0%, rgba(155, 140, 255, 0.14), transparent 65%),
+    rgba(6, 9, 30, 0.45);
+  border: 1px solid rgba(155, 140, 255, 0.24);
+}
+
+.cmp-side {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.cmp-num {
+  font-size: 44px;
+  font-weight: 900;
+  line-height: 1;
+  color: var(--cyan);
+  text-shadow: 0 0 20px rgba(94, 231, 255, 0.45);
+}
+
+.cmp-dots {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 3px;
+  max-width: 190px;
+}
+
+.cmp-dot {
+  font-size: 17px;
+  line-height: 1;
+}
+
+.cmp-slot {
+  width: 66px;
+  height: 66px;
+  display: grid;
+  place-items: center;
+  font-size: 34px;
+  font-weight: 900;
+  color: var(--gold);
+  border-radius: var(--radius-s);
+  border: 2px dashed var(--gold);
+  background: rgba(255, 206, 77, 0.1);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.cmp-slot.solved {
+  border-style: solid;
+  animation: none;
+}
+
+.options .opt.sym {
+  font-size: 40px;
+  letter-spacing: 2px;
+}
+
 /* ---- 数序 ---- */
 
 .sequence {
@@ -722,14 +941,14 @@ onBeforeUnmount(() => {
   place-items: center;
   font-size: 26px;
   font-weight: 900;
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.07);
   border: 1px solid rgba(255, 255, 255, 0.14);
 }
 
 .seq-cell.blank {
-  color: var(--gold);
-  border: 2px dashed var(--gold);
+  color: var(--star);
+  border: 2px dashed var(--star);
   background: rgba(255, 206, 77, 0.1);
   animation: pulse 1.4s ease-in-out infinite;
 }
@@ -756,7 +975,7 @@ onBeforeUnmount(() => {
   padding: 20px 10px;
   font-size: 28px;
   font-weight: 900;
-  border-radius: var(--radius-m);
+  border-radius: var(--radius-md);
   background: linear-gradient(160deg, rgba(94, 231, 255, 0.16), rgba(155, 140, 255, 0.16));
   border: 2px solid rgba(155, 140, 255, 0.4);
   transition: transform 0.14s ease, box-shadow 0.14s ease;
@@ -769,12 +988,12 @@ onBeforeUnmount(() => {
 
 .options .opt.right {
   background: rgba(85, 230, 165, 0.28);
-  border-color: var(--green);
+  border-color: var(--success);
 }
 
 .options .opt.bad {
   background: rgba(255, 107, 125, 0.26);
-  border-color: var(--red);
+  border-color: var(--danger);
 }
 
 @media (max-width: 720px) {

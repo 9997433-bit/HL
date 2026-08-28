@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "marker": "ROUND12_H7",
+  "id": "poem:jingyesi",
+  "title": "静夜思离线范读试点",
+  "locale": "zh-CN",
+  "text": [
+    "床前明月光，",
+    "疑是地上霜。",
+    "举头望明月，",
+    "低头思故乡。"
+  ],
+  "generatedAt": "2026-08-28",
+  "generator": {
+    "engine": "Kokoro 0.9.4",
+    "model": "hexgrad/Kokoro-82M-v1.1-zh",
+    "revision": "01e7505bd6a7a2ac4975463114c3a7650a9f7218",
+    "modelSha256": "b1d8410fa44dfb5c15471fd6c4225ea6b4e9ac7fa03c98e8bea47a9928476e2b",
+    "voice": "zf_001",
+    "voiceSha256": "b759a65788991932d031d6fc8440f7a8efc402273fc1c2ca9d52ffd8a16a6666",
+    "license": "Apache-2.0",
+    "source": "https://huggingface.co/hexgrad/Kokoro-82M-v1.1-zh"
+  },
+  "encoding": {
+    "container": "Ogg",
+    "codec": "Opus",
+    "sampleRateHz": 24000,
+    "channels": 1,
+    "targetBitrateKbps": 32
+  },
+  "files": [
+    {
+      "line": 0,
+      "path": "jingyesi-1.ogg",
+      "bytes": 8609,
+      "durationMs": 2557,
+      "sha256": "b21f64aa20a3cf34b3669f4d0f32b71fad0d760e5520e306c9bbf95709ed13c3"
+    },
+    {
+      "line": 1,
+      "path": "jingyesi-2.ogg",
+      "bytes": 7834,
+      "durationMs": 2357,
+      "sha256": "76c46f51c483f2fccbbc1f9b3d873716138aa7eba65a81ef76a9b85cbf86ca76"
+    },
+    {
+      "line": 2,
+      "path": "jingyesi-3.ogg",
+      "bytes": 8467,
+      "durationMs": 2507,
+      "sha256": "7d117e1eb2565eaa195e3342f02104584051c146528540f6db60902a4bce1613"
+    },
+    {
+      "line": 3,
+      "path": "jingyesi-4.ogg",
+      "bytes": 8432,
+      "durationMs": 2532,
+      "sha256": "32494e40b054d5ffcd49fea10b87ec44188537ed429c8322b6e9a176a996a68e"
+    }
+  ],
+  "releaseState": "pilot-teacher-review-required",
+  "fallback": "device-zh-CN-speech-synthesis"
+}

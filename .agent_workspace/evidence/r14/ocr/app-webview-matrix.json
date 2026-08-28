@@ -1,0 +1,360 @@
+{
+  "marker": "ROUND14_H2",
+  "capturedAt": "2026-08-28T05:16:38.952Z",
+  "simulated": true,
+  "onDevice": false,
+  "surface": {
+    "chrome": "Chrome/148.0.7778.96",
+    "userAgent": "Mozilla/5.0 (Linux; Android 13; Pixel 7 Build/TQ3A.230805.001; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/120.0.6099.230 Mobile Safari/537.36",
+    "headless": true
+  },
+  "pipeline": "src/utils/ocr.js preprocess() → tesseract.js chi_sim LSTM_ONLY",
+  "floor": 40,
+  "passCount": 40,
+  "total": 41,
+  "recall": 0.9756,
+  "samples": [
+    {
+      "name": "real-park-sign",
+      "tier": {
+        "light": "dappled",
+        "angle": "tilt-down",
+        "paper": "painted-board"
+      },
+      "expect": "爱护花草",
+      "hit": 4,
+      "total": 4,
+      "missed": "",
+      "noise": "",
+      "confidence": 78,
+      "ms": 71,
+      "canvas": {
+        "from": "320×81",
+        "to": "320×81"
+      },
+      "photo": {
+        "luma": 88,
+        "span": 252,
+        "sharpness": 149
+      }
+    },
+    {
+      "name": "real-floor-cone",
+      "tier": {
+        "light": "indoor-lamp",
+        "angle": "tilt-up",
+        "paper": "plastic-cone"
+      },
+      "expect": "小心地滑",
+      "hit": 4,
+      "total": 4,
+      "missed": "",
+      "noise": "",
+      "confidence": 85,
+      "ms": 19,
+      "canvas": {
+        "from": "240×99",
+        "to": "240×99"
+      },
+      "photo": {
+        "luma": 67,
+        "span": 107,
+        "sharpness": 141
+      }
+    },
+    {
+      "name": "real-wall-stencil",
+      "tier": {
+        "light": "daylight",
+        "angle": "frontal",
+        "paper": "concrete"
+      },
+      "expect": "小心地滑",
+      "hit": 3,
+      "total": 4,
+      "missed": "滑",
+      "noise": "海",
+      "confidence": 70,
+      "ms": 50,
+      "canvas": {
+        "from": "600×150",
+        "to": "600×150"
+      },
+      "photo": {
+        "luma": 145,
+        "span": 218,
+        "sharpness": 63
+      }
+    },
+    {
+      "name": "real-road-warning",
+      "tier": {
+        "light": "daylight",
+        "angle": "frontal",
+        "paper": "enamel-metal"
+      },
+      "expect": "小心行人",
+      "hit": 4,
+      "total": 4,
+      "missed": "",
+      "noise": "",
+      "confidence": 93,
+      "ms": 23,
+      "canvas": {
+        "from": "320×97",
+        "to": "320×97"
+      },
+      "photo": {
+        "luma": 154,
+        "span": 208,
+        "sharpness": 72
+      }
+    },
+    {
+      "name": "real-toilet-sign",
+      "tier": {
+        "light": "spotlight",
+        "angle": "frontal",
+        "paper": "metal-letter"
+      },
+      "expect": "洗手间",
+      "hit": 3,
+      "total": 3,
+      "missed": "",
+      "noise": "",
+      "confidence": 84,
+      "ms": 17,
+      "canvas": {
+        "from": "240×85",
+        "to": "240×85"
+      },
+      "photo": {
+        "luma": 212,
+        "span": 237,
+        "sharpness": 94
+      }
+    },
+    {
+      "name": "real-blackboard-press",
+      "tier": {
+        "light": "shade",
+        "angle": "frontal",
+        "paper": "chalkboard"
+      },
+      "expect": "中华书局",
+      "hit": 4,
+      "total": 4,
+      "missed": "",
+      "noise": "",
+      "confidence": 76,
+      "ms": 20,
+      "canvas": {
+        "from": "240×76",
+        "to": "240×76"
+      },
+      "photo": {
+        "luma": 31,
+        "span": 214,
+        "sharpness": 122
+      }
+    },
+    {
+      "name": "real-road-slogan",
+      "tier": {
+        "light": "overcast",
+        "angle": "tilt-up",
+        "paper": "reflective-sign"
+      },
+      "expect": "爱护环境光荣",
+      "hit": 6,
+      "total": 6,
+      "missed": "",
+      "noise": "",
+      "confidence": 95,
+      "ms": 45,
+      "canvas": {
+        "from": "400×77",
+        "to": "400×77"
+      },
+      "photo": {
+        "luma": 114,
+        "span": 164,
+        "sharpness": 126
+      }
+    },
+    {
+      "name": "real-town-plaque",
+      "tier": {
+        "light": "overcast",
+        "angle": "frontal",
+        "paper": "acrylic-plaque"
+      },
+      "expect": "社会治安",
+      "hit": 4,
+      "total": 4,
+      "missed": "",
+      "noise": "双",
+      "confidence": 62,
+      "ms": 41,
+      "canvas": {
+        "from": "280×82",
+        "to": "280×82"
+      },
+      "photo": {
+        "luma": 103,
+        "span": 223,
+        "sharpness": 127
+      }
+    },
+    {
+      "name": "real-shop-oblique",
+      "tier": {
+        "light": "backlit",
+        "angle": "oblique",
+        "paper": "lightbox-film"
+      },
+      "expect": "良欣美食",
+      "hit": 4,
+      "total": 4,
+      "missed": "",
+      "noise": "",
+      "confidence": 92,
+      "ms": 31,
+      "canvas": {
+        "from": "240×66",
+        "to": "240×66"
+      },
+      "photo": {
+        "luma": 87,
+        "span": 151,
+        "sharpness": 115
+      }
+    },
+    {
+      "name": "real-receipt-shadow",
+      "tier": {
+        "light": "hand-shadow",
+        "angle": "tilt-down",
+        "paper": "thermal-paper"
+      },
+      "expect": "小碗米饭",
+      "hit": 4,
+      "total": 4,
+      "missed": "",
+      "noise": "",
+      "confidence": 63,
+      "ms": 18,
+      "canvas": {
+        "from": "280×89",
+        "to": "280×89"
+      },
+      "photo": {
+        "luma": 82,
+        "span": 112,
+        "sharpness": 151
+      }
+    }
+  ],
+  "stats": {
+    "示例字卡": {
+      "luma": 235,
+      "span": 238,
+      "sharpness": 37
+    },
+    "angled-card": {
+      "luma": 208,
+      "span": 217,
+      "sharpness": 16
+    },
+    "blackboard": {
+      "luma": 48,
+      "span": 206,
+      "sharpness": 48
+    },
+    "blurry-note": {
+      "luma": 231,
+      "span": 140,
+      "sharpness": 20
+    },
+    "book-page": {
+      "luma": 239,
+      "span": 229,
+      "sharpness": 74
+    },
+    "busy-bg": {
+      "luma": 204,
+      "span": 222,
+      "sharpness": 40
+    },
+    "handwriting-daily": {
+      "luma": 244,
+      "span": 192,
+      "sharpness": 27
+    },
+    "handwriting": {
+      "luma": 243,
+      "span": 191,
+      "sharpness": 21
+    },
+    "low-light": {
+      "luma": 29,
+      "span": 110,
+      "sharpness": 44
+    },
+    "real-blackboard-press": {
+      "luma": 31,
+      "span": 214,
+      "sharpness": 122
+    },
+    "real-floor-cone": {
+      "luma": 67,
+      "span": 107,
+      "sharpness": 141
+    },
+    "real-park-sign": {
+      "luma": 88,
+      "span": 252,
+      "sharpness": 149
+    },
+    "real-receipt-shadow": {
+      "luma": 82,
+      "span": 112,
+      "sharpness": 151
+    },
+    "real-road-slogan": {
+      "luma": 114,
+      "span": 164,
+      "sharpness": 126
+    },
+    "real-road-warning": {
+      "luma": 154,
+      "span": 208,
+      "sharpness": 72
+    },
+    "real-shop-oblique": {
+      "luma": 87,
+      "span": 151,
+      "sharpness": 115
+    },
+    "real-toilet-sign": {
+      "luma": 212,
+      "span": 237,
+      "sharpness": 94
+    },
+    "real-town-plaque": {
+      "luma": 103,
+      "span": 223,
+      "sharpness": 127
+    },
+    "real-wall-stencil": {
+      "luma": 145,
+      "span": 218,
+      "sharpness": 63
+    },
+    "warm-light": {
+      "luma": 190,
+      "span": 167,
+      "sharpness": 6
+    }
+  }
+}

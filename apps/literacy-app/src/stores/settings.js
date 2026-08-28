@@ -17,7 +17,8 @@ import { useProgressStore } from './progress.js'
 export const THEMES = [
   { id: 'sunny', name: '明亮童趣', emoji: '🌞', desc: '色彩鲜艳，白天使用' },
   { id: 'care', name: '护眼模式', emoji: '🍃', desc: '暖纸色低蓝光，久看不累' },
-  { id: 'night', name: '夜间模式', emoji: '🌙', desc: '睡前故事时间' }
+  { id: 'night', name: '夜间模式', emoji: '🌙', desc: '睡前故事时间' },
+  { id: 'aurora', name: '极光模式', emoji: '🌌', desc: '青紫极光，沉浸探索' }
 ]
 
 export const FONT_SCALES = [
@@ -43,6 +44,9 @@ export const useSettingsStore = defineStore('settings', () => {
   const showPinyin = computed(() => raw().showPinyin)
   const speechRate = computed(() => raw().speechRate ?? DEFAULT_SPEECH_RATE)
   const dailyLimitMinutes = computed(() => raw().restReminderMin)
+  /** 学习计划：每天新字上限（0 = 不限）与计划覆盖的单元（空 = 全部）。 */
+  const dailyNewCharLimit = computed(() => raw().dailyNewLimit ?? 0)
+  const planUnits = computed(() => raw().planUnits ?? [])
   const listenSkin = computed(() => raw().listenSkin ?? 'fish')
   const breakReminder = computed(() => raw().breakReminder ?? DEFAULT_BREAK_REMINDER)
   const childName = computed(() => progress.state.childName)
@@ -66,6 +70,12 @@ export const useSettingsStore = defineStore('settings', () => {
           break
         case 'dailyLimitMinutes':
           next.restReminderMin = value
+          break
+        case 'dailyNewCharLimit':
+          next.dailyNewLimit = Math.max(0, Math.round(Number(value) || 0))
+          break
+        case 'planUnits':
+          next.planUnits = [...new Set(value ?? [])]
           break
         case 'childName':
           progress.setProfile({ childName: value })
@@ -101,8 +111,22 @@ export const useSettingsStore = defineStore('settings', () => {
       restReminderMin: 20,
       speechRate: DEFAULT_SPEECH_RATE,
       breakReminder: DEFAULT_BREAK_REMINDER,
-      listenSkin: 'fish'
+      listenSkin: 'fish',
+      dailyNewLimit: 8,
+      planUnits: []
     })
+  }
+
+  /** 勾选 / 取消一个计划单元。取消到一个不剩就回到「全部单元」。 */
+  function togglePlanUnit(unitId) {
+    const picked = new Set(planUnits.value)
+    if (picked.has(unitId)) picked.delete(unitId)
+    else picked.add(unitId)
+    update({ planUnits: [...picked] })
+  }
+
+  function clearPlanUnits() {
+    update({ planUnits: [] })
   }
 
   /** 兼容旧调用：外观在 progress store 初始化时已经应用过了。 */
@@ -119,6 +143,8 @@ export const useSettingsStore = defineStore('settings', () => {
     showPinyin,
     speechRate,
     dailyLimitMinutes,
+    dailyNewCharLimit,
+    planUnits,
     listenSkin,
     breakReminder,
     childName,
@@ -126,6 +152,8 @@ export const useSettingsStore = defineStore('settings', () => {
     isEyeCare,
 
     update,
+    togglePlanUnit,
+    clearPlanUnits,
     setTheme,
     cycleTheme,
     toggleEyeCare,

@@ -1,5 +1,5 @@
 /**
- * 进度 store — 掌握度 / 星星 / 经验等级 / 成就 / 打卡 / 错因统计，localStorage 持久化。
+ * 进度 store — 掌握度 / 星星 / 经验等级 / 成就 / 打卡 / 错因统计 / 错题本，localStorage 持久化。
  *
  * 同时满足两套调用契约：
  *  - 架构契约：mastery / stars / dailyStreak / moduleProgress / recordAnswer(question, ok) / exportReport
@@ -11,6 +11,7 @@ import { updateMastery, MASTERY_THRESHOLD } from '@/utils/mastery.js'
 import { isKnownSkill, SKILLS } from '@/data/curriculum.js'
 import { CURRICULUM_ID, MODULES } from '@/data/modules.js'
 import { ACHIEVEMENTS, ACHIEVEMENT_MAP } from '@/data/achievements.js'
+import { DAILY_SIZE, dailyDateKey } from '@/data/daily.js'
 
 const STORAGE_KEY = 'mathquest/progress'
 
@@ -20,6 +21,27 @@ const BACKUP_VERSION = 1
 
 /** 每日明细只留最近 30 天，够画 7 天曲线也不会把 localStorage 撑爆。 */
 const DAILY_KEEP_DAYS = 30
+
+/** 错题本只留最近错的 60 道：再多孩子也刷不完，反而看着发怵。 */
+const WRONG_BOOK_MAX = 60
+/** 推荐 cohort 只留最近 40 组，避免长期使用后存档无限增长。 */
+const RECOMMENDATION_COHORT_MAX = 40
+/** 每天最多一条推荐效果快照，保留八周供家长查看趋势与导出复算。 */
+const RECOMMENDATION_TREND_MAX = 56
+
+export const RECOMMENDATION_METRIC_THRESHOLDS = {
+  minAdoptions: 5,
+  minControls: 5,
+  adoptionRate: 25,
+  recoLift: 5,
+}
+
+/**
+ * 错题本的键：模块 + 题目 id。
+ * 不同玩法的题目 id 各自成体系（口算是「7+5」，应用题是母题 id），
+ * 不加模块前缀迟早会撞在一起。
+ */
+export const wrongBookKey = (moduleId, questionId) => `${moduleId || 'unknown'}:${questionId}`
 
 /** 升级所需经验随等级递增：level n -> n × 40。 */
 const xpForLevel = (level) => level * 40
@@ -37,6 +59,21 @@ const emptyModuleStat = () => ({
 
 const emptyDay = () => ({ seconds: 0, answered: 0, correct: 0, stars: 0 })
 
+/**
+ * 今日冒险的进度。date 是这份记录属于哪一天，跨天后自动归零，
+ * streak / lastCompletedDate 跨天保留，用来算「连续完成多少天」。
+ */
+const emptyDailyQuest = () => ({
+  date: '',
+  done: 0,
+  correct: 0,
+  total: DAILY_SIZE,
+  completedAt: 0,
+  streak: 0,
+  bestStreak: 0,
+  lastCompletedDate: '',
+})
+
 function defaultState() {
   return {
     pilotName: '小小宇航员',
@@ -51,11 +88,24 @@ function defaultState() {
     dailyStreak: 0,
     lastPlayedDate: '',
     errorTagCounts: {},
+    /** questionId -> { skill, errorTag, attempts, lastAt, ... }，答错入库、重做答对出库 */
+    wrongBook: {},
     modules: Object.fromEntries(MODULES.map((m) => [m.id, emptyModuleStat()])),
-    counters: { arithmeticHardCorrect: 0, sudokuSolved: 0, perfectRuns: 0 },
+    counters: { arithmeticHardCorrect: 0, sudokuSolved: 0, perfectRuns: 0, dailyQuests: 0 },
+    dailyQuest: emptyDailyQuest(),
     achievements: {},
+    /**
+     * 解锁过场已经演给孩子看过的星球 id。
+     * null 表示这份存档还没记过，读档时按「当前已解锁的都算看过」补一次，
+     * 老玩家不会一进首页就被几段过场轮番轰炸。
+     */
+    seenPlanets: null,
     settings: { sound: true, animations: true },
     history: [],
+    /** 推荐集合 → 点击采纳时的掌握度基线；不浏览打点，只在孩子真的选择后落盘。 */
+    recommendationCohorts: [],
+    /** 每日推荐效果快照；历史点冻结，今天的点在读取时用最新掌握度覆盖。 */
+    recommendationMetricHistory: [],
     /** 'YYYY-MM-DD' -> { seconds, answered, correct, stars }，家长页时长曲线的数据源 */
     daily: {},
   }
@@ -69,6 +119,234 @@ function numberMap(raw, max = Number.POSITIVE_INFINITY) {
     if (Number.isFinite(n)) out[key] = Math.min(max, Math.max(0, n))
   }
   return out
+}
+
+/** 错题本超量时按「最后错的时间」淘汰最旧的几条。 */
+function trimWrongBook(book) {
+  const keys = Object.keys(book)
+  if (keys.length <= WRONG_BOOK_MAX) return book
+  const stale = keys
+    .sort((a, b) => (book[a].lastAt ?? 0) - (book[b].lastAt ?? 0))
+    .slice(0, keys.length - WRONG_BOOK_MAX)
+  for (const key of stale) delete book[key]
+  return book
+}
+
+const text = (value, fallback = '') => (typeof value === 'string' ? value : fallback)
+
+function mergeRecommendationCohorts(raw) {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .slice(-RECOMMENDATION_COHORT_MAX)
+    .map((cohort) => {
+      if (!cohort || typeof cohort !== 'object') return null
+      const offered = []
+      const seen = new Set()
+      for (const row of Array.isArray(cohort.offered) ? cohort.offered : []) {
+        const skill = text(row?.skill)
+        const baseline = Number(row?.baseline)
+        if (!isKnownSkill(skill) || seen.has(skill) || !Number.isFinite(baseline)) continue
+        seen.add(skill)
+        offered.push({ skill, baseline: Math.min(1, Math.max(0, baseline)) })
+      }
+      if (!offered.length) return null
+      const adopted = []
+      const adoptedSeen = new Set()
+      for (const row of Array.isArray(cohort.adopted) ? cohort.adopted : []) {
+        const skill = text(row?.skill)
+        if (!seen.has(skill) || adoptedSeen.has(skill)) continue
+        adoptedSeen.add(skill)
+        adopted.push({
+          skill,
+          at: Number.isFinite(Number(row.at)) ? Number(row.at) : 0,
+          source: text(row.source, 'skill-graph'),
+        })
+      }
+      return {
+        id: text(cohort.id),
+        at: Number.isFinite(Number(cohort.at)) ? Number(cohort.at) : 0,
+        offered,
+        adopted,
+      }
+    })
+    .filter((cohort) => cohort?.id && cohort.adopted.length)
+}
+
+const mean = (values) =>
+  values.length ? values.reduce((total, value) => total + value, 0) / values.length : 0
+const oneDecimal = (value) => Math.round(value * 10) / 10
+
+/**
+ * 推荐效果度量（百分点）：
+ * - adoptionRate = 被点击技能数 / 同批展示技能数；
+ * - recoLift = 被采纳技能的掌握度变化均值 - 同 cohort 未采纳技能变化均值。
+ *
+ * 这里只比较同一推荐集合内、同一时点截下的基线，不把普通星球游玩误记成推荐点击。
+ */
+export function recommendationEffect(cohorts = [], mastery = {}) {
+  const valid = mergeRecommendationCohorts(cohorts)
+  const adoptedDeltas = []
+  const controlDeltas = []
+  let offers = 0
+  let adoptions = 0
+
+  for (const cohort of valid) {
+    const adopted = new Set(cohort.adopted.map((row) => row.skill))
+    offers += cohort.offered.length
+    adoptions += adopted.size
+    for (const row of cohort.offered) {
+      const current = Number(mastery[row.skill])
+      const delta = (Number.isFinite(current) ? current : row.baseline) - row.baseline
+      ;(adopted.has(row.skill) ? adoptedDeltas : controlDeltas).push(delta)
+    }
+  }
+
+  const adoptionRate = offers ? oneDecimal((adoptions / offers) * 100) : 0
+  const adoptedMasteryLift = oneDecimal(mean(adoptedDeltas) * 100)
+  const controlMasteryLift = oneDecimal(mean(controlDeltas) * 100)
+  const recoLift = oneDecimal(adoptedMasteryLift - controlMasteryLift)
+  const enough =
+    adoptions >= RECOMMENDATION_METRIC_THRESHOLDS.minAdoptions &&
+    controlDeltas.length >= RECOMMENDATION_METRIC_THRESHOLDS.minControls
+  const status = !enough
+    ? 'insufficient'
+    : adoptionRate >= RECOMMENDATION_METRIC_THRESHOLDS.adoptionRate &&
+        recoLift >= RECOMMENDATION_METRIC_THRESHOLDS.recoLift
+      ? 'positive'
+      : recoLift <= -RECOMMENDATION_METRIC_THRESHOLDS.recoLift
+        ? 'negative'
+        : 'watch'
+
+  return {
+    definition: 'recoLift=adoptedMasteryLift-controlMasteryLift (percentage points)',
+    design: 'within-cohort controlled pre/post quasi-experiment',
+    causalClaim: 'association only; not randomized',
+    cohorts: valid.length,
+    offers,
+    adoptions,
+    controls: controlDeltas.length,
+    adoptionRate,
+    adoptedMasteryLift,
+    controlMasteryLift,
+    recoLift,
+    status,
+    thresholds: { ...RECOMMENDATION_METRIC_THRESHOLDS },
+  }
+}
+
+const RECOMMENDATION_METRIC_STATUSES = new Set([
+  'insufficient',
+  'positive',
+  'watch',
+  'negative',
+])
+
+function recommendationMetricPoint(raw) {
+  if (!raw || typeof raw !== 'object' || !/^\d{4}-\d{2}-\d{2}$/.test(raw.date ?? '')) {
+    return null
+  }
+  const point = {
+    date: raw.date,
+    recordedAt: Number(raw.recordedAt),
+    cohorts: Number(raw.cohorts),
+    offers: Number(raw.offers),
+    adoptions: Number(raw.adoptions),
+    controls: Number(raw.controls),
+    adoptionRate: Number(raw.adoptionRate),
+    recoLift: Number(raw.recoLift),
+    status: RECOMMENDATION_METRIC_STATUSES.has(raw.status) ? raw.status : 'insufficient',
+  }
+  if (
+    !Number.isFinite(point.recordedAt) ||
+    ![
+      point.cohorts,
+      point.offers,
+      point.adoptions,
+      point.controls,
+      point.adoptionRate,
+      point.recoLift,
+    ].every(Number.isFinite)
+  ) {
+    return null
+  }
+  return point
+}
+
+function mergeRecommendationMetricHistory(raw) {
+  if (!Array.isArray(raw)) return []
+  const byDate = new Map()
+  for (const value of raw) {
+    const point = recommendationMetricPoint(value)
+    if (point) byDate.set(point.date, point)
+  }
+  return [...byDate.values()]
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(-RECOMMENDATION_TREND_MAX)
+}
+
+function metricPointFromEffect(effect, now = Date.now()) {
+  const recordedAt = Number.isFinite(Number(now)) ? Number(now) : Date.now()
+  return {
+    date: dateKey(new Date(recordedAt)),
+    recordedAt,
+    cohorts: effect.cohorts,
+    offers: effect.offers,
+    adoptions: effect.adoptions,
+    controls: effect.controls,
+    adoptionRate: effect.adoptionRate,
+    recoLift: effect.recoLift,
+    status: effect.status,
+  }
+}
+
+/**
+ * 推荐效果趋势：历史日冻结，今天按当前 mastery 重算后覆盖。
+ * 因此报表不会把旧日期反复改写，也不会等到第二天才看见今天的新练习效果。
+ */
+export function buildRecommendationTrend(history = [], effect = {}, now = Date.now()) {
+  const points = mergeRecommendationMetricHistory(history)
+  if (!(Number(effect?.cohorts) > 0)) return points
+  const current = metricPointFromEffect(effect, now)
+  return [...points.filter((point) => point.date !== current.date), current]
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(-RECOMMENDATION_TREND_MAX)
+}
+
+/**
+ * 洗一份外部错题本：没有正确答案的条目直接丢掉——重做流程验不了答案，
+ * 留着只会在界面上变成一行点不动的死记录。
+ */
+function mergeWrongBook(raw) {
+  const out = {}
+  for (const [key, value] of Object.entries(raw ?? {})) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) continue
+    const answer = value.answer
+    if (typeof answer !== 'number' && typeof answer !== 'string') continue
+    if (typeof answer === 'number' && !Number.isFinite(answer)) continue
+
+    const attempts = Math.round(Number(value.attempts))
+    const retries = Math.round(Number(value.retries))
+    const lastAt = Number(value.lastAt)
+    const addedAt = Number(value.addedAt)
+    out[key] = {
+      id: key,
+      module: text(value.module),
+      skill: isKnownSkill(value.skill) ? value.skill : null,
+      errorTag: text(value.errorTag, 'miscalc'),
+      errorTags: Array.isArray(value.errorTags) ? value.errorTags.filter((t) => text(t)) : [],
+      title: text(value.title),
+      answer,
+      options: Array.isArray(value.options) ? value.options.slice(0, 8) : [],
+      unit: text(value.unit),
+      hint: text(value.hint),
+      lastWrong: value.lastWrong ?? null,
+      attempts: Number.isFinite(attempts) ? Math.max(1, attempts) : 1,
+      retries: Number.isFinite(retries) ? Math.max(0, retries) : 0,
+      addedAt: Number.isFinite(addedAt) ? addedAt : Date.now(),
+      lastAt: Number.isFinite(lastAt) ? lastAt : Date.now(),
+    }
+  }
+  return trimWrongBook(out)
 }
 
 function mergeDaily(raw) {
@@ -98,11 +376,24 @@ function mergeState(saved) {
     ...saved,
     mastery: numberMap(saved.mastery, 1),
     errorTagCounts: numberMap(saved.errorTagCounts),
+    wrongBook: mergeWrongBook(saved.wrongBook),
     modules,
     counters: { ...base.counters, ...numberMap(saved.counters) },
+    dailyQuest: {
+      ...base.dailyQuest,
+      ...(saved.dailyQuest && typeof saved.dailyQuest === 'object' ? saved.dailyQuest : {}),
+      total: DAILY_SIZE,
+    },
     achievements: { ...(saved.achievements || {}) },
+    seenPlanets: Array.isArray(saved.seenPlanets)
+      ? saved.seenPlanets.filter((id) => typeof id === 'string')
+      : null,
     settings: { ...base.settings, ...(saved.settings || {}) },
     history: Array.isArray(saved.history) ? saved.history.slice(0, 40) : [],
+    recommendationCohorts: mergeRecommendationCohorts(saved.recommendationCohorts),
+    recommendationMetricHistory: mergeRecommendationMetricHistory(
+      saved.recommendationMetricHistory,
+    ),
     daily: mergeDaily(saved.daily),
   }
 }
@@ -145,8 +436,23 @@ export const useProgressStore = defineStore('progress', () => {
     })),
   )
   const lockedAchievements = computed(() => ACHIEVEMENTS.filter((a) => !state.achievements[a.id]))
+  const recommendationMetrics = computed(() =>
+    recommendationEffect(state.recommendationCohorts, state.mastery),
+  )
+  const recommendationTrend = computed(() =>
+    buildRecommendationTrend(state.recommendationMetricHistory, recommendationMetrics.value),
+  )
 
   const moduleStat = (moduleId) => state.modules[moduleId] ?? emptyModuleStat()
+
+  // ---------- 错题本 ----------
+
+  /** 最近错的排在最前，界面直接按这个顺序渲染。 */
+  const wrongList = computed(() =>
+    Object.values(state.wrongBook).sort((a, b) => (b.lastAt ?? 0) - (a.lastAt ?? 0)),
+  )
+  const wrongCount = computed(() => wrongList.value.length)
+  const wrongOfModule = (moduleId) => wrongList.value.filter((e) => e.module === moduleId)
 
   // ---------- 使用时长 ----------
 
@@ -191,6 +497,30 @@ export const useProgressStore = defineStore('progress', () => {
   const isModuleUnlocked = (moduleId) => {
     const mod = MODULES.find((m) => m.id === moduleId)
     return !mod || state.stars >= mod.starsToUnlock
+  }
+
+  // ---------- 地图叙事 ----------
+
+  /**
+   * 存档里没有记录时，把「此刻已解锁」的星球一次性记成看过。
+   * 读档补记、整档导入与清档后都要走一遍，否则解锁过场会对着老进度重放。
+   */
+  function ensureSeenPlanets() {
+    if (Array.isArray(state.seenPlanets)) return
+    state.seenPlanets = MODULES.filter((m) => state.stars >= m.starsToUnlock).map((m) => m.id)
+  }
+
+  /** 已经解锁、但过场还没演过的第一颗星球；没有就是 null。 */
+  const pendingPlanetUnlock = computed(() => {
+    const seen = new Set(state.seenPlanets ?? [])
+    return MODULES.find((m) => state.stars >= m.starsToUnlock && !seen.has(m.id))?.id ?? null
+  })
+
+  /** 过场演完（或被跳过）后调用，同一颗星球不会再演第二次。 */
+  function markPlanetSeen(moduleId) {
+    if (!moduleId) return
+    if (!Array.isArray(state.seenPlanets)) state.seenPlanets = []
+    if (!state.seenPlanets.includes(moduleId)) state.seenPlanets.push(moduleId)
   }
 
   // ---------- 内部工具 ----------
@@ -249,6 +579,79 @@ export const useProgressStore = defineStore('progress', () => {
     return state.daily[key]
   }
 
+  /* ---------- 今日冒险 ---------- */
+
+  /** 跨天后把今日冒险归零；连续天数与历史完成日不动。 */
+  function rollDailyQuest() {
+    const today = dateKey()
+    const quest = state.dailyQuest
+    if (quest.date !== today) {
+      quest.date = today
+      quest.done = 0
+      quest.correct = 0
+      quest.completedAt = 0
+    }
+    quest.total = DAILY_SIZE
+    return quest
+  }
+
+  const dailyQuest = computed(() => {
+    const quest = state.dailyQuest
+    const fresh = quest.date === dateKey()
+    return {
+      date: quest.date,
+      done: fresh ? quest.done : 0,
+      correct: fresh ? quest.correct : 0,
+      total: DAILY_SIZE,
+      completed: fresh && quest.completedAt > 0,
+      completedAt: fresh ? quest.completedAt : 0,
+      streak: quest.streak,
+      bestStreak: quest.bestStreak,
+    }
+  })
+
+  const dailyQuestDone = computed(() => dailyQuest.value.completed)
+
+  /** 进入今日冒险时调用，返回今天该做的题号（断点续做用）。 */
+  function startDailyQuest() {
+    const quest = rollDailyQuest()
+    persist()
+    return { date: quest.date, done: quest.done, total: quest.total }
+  }
+
+  /** 每答一题记一步。答题本身的星星 / 掌握度仍走 recordAnswer。 */
+  function recordDailyStep(isCorrect) {
+    const quest = rollDailyQuest()
+    quest.done = Math.min(quest.total, quest.done + 1)
+    if (isCorrect) quest.correct = Math.min(quest.total, quest.correct + 1)
+    return { done: quest.done, total: quest.total }
+  }
+
+  /**
+   * 今日冒险收尾：记完成时间、算连续天数、发完成奖励。
+   * 同一天重复完成不再发奖，否则刷「再来一轮」就能白拿星星。
+   */
+  function finishDailyQuest({ correct = 0, bonusStars = 2 } = {}) {
+    const quest = rollDailyQuest()
+    if (quest.completedAt) return { alreadyDone: true, streak: quest.streak, stars: 0 }
+
+    const today = quest.date
+    const yesterday = dailyDateKey(new Date(Date.now() - 864e5))
+    quest.streak = quest.lastCompletedDate === yesterday ? quest.streak + 1 : 1
+    quest.bestStreak = Math.max(quest.bestStreak, quest.streak)
+    quest.lastCompletedDate = today
+    quest.completedAt = Date.now()
+    quest.done = quest.total
+    quest.correct = Math.min(quest.total, correct)
+
+    state.counters.dailyQuests = (state.counters.dailyQuests ?? 0) + 1
+    if (bonusStars > 0) state.stars += bonusStars
+
+    touchStreak()
+    checkAchievements()
+    return { alreadyDone: false, streak: quest.streak, stars: bonusStars }
+  }
+
   function touchStreak() {
     const today = new Date().toISOString().slice(0, 10)
     if (state.lastPlayedDate === today) return
@@ -273,6 +676,53 @@ export const useProgressStore = defineStore('progress', () => {
     const delta = Number(seconds)
     if (!Number.isFinite(delta) || delta <= 0) return
     dayBucket().seconds += Math.round(delta)
+  }
+
+  /**
+   * 孩子从推荐集合里点下一个开练入口时，冻结整批技能的掌握度作为同 cohort 对照。
+   * 同一个 cohort 的重复点击只补一条 adoption，不重复扩大 offer 分母。
+   */
+  function recordRecommendationAdoption({
+    cohortId,
+    skill,
+    offeredSkills = [],
+    source = 'skill-graph',
+  } = {}) {
+    if (!isKnownSkill(skill)) return null
+    const id = text(cohortId)
+    if (!id) return null
+    const offeredIds = [...new Set([...offeredSkills, skill].filter(isKnownSkill))]
+    let cohort = state.recommendationCohorts.find((row) => row.id === id)
+    if (!cohort) {
+      cohort = {
+        id,
+        at: Date.now(),
+        offered: offeredIds.map((offeredSkill) => ({
+          skill: offeredSkill,
+          baseline: state.mastery[offeredSkill] ?? 0,
+        })),
+        adopted: [],
+      }
+      state.recommendationCohorts.push(cohort)
+      state.recommendationCohorts = state.recommendationCohorts.slice(-RECOMMENDATION_COHORT_MAX)
+    }
+    if (!cohort.adopted.some((row) => row.skill === skill)) {
+      cohort.adopted.push({ skill, at: Date.now(), source: text(source, 'skill-graph') })
+    }
+    snapshotRecommendationMetric()
+    persist()
+    return recommendationEffect(state.recommendationCohorts, state.mastery)
+  }
+
+  /** 冻结当天最新读数；同一天重复练习只覆盖当天点，不制造伪样本。 */
+  function snapshotRecommendationMetric(now = Date.now()) {
+    if (!recommendationMetrics.value.cohorts) return null
+    state.recommendationMetricHistory = buildRecommendationTrend(
+      state.recommendationMetricHistory,
+      recommendationMetrics.value,
+      now,
+    )
+    return state.recommendationMetricHistory.at(-1) ?? null
   }
 
   function bumpCounter(name, delta = 1) {
@@ -333,7 +783,80 @@ export const useProgressStore = defineStore('progress', () => {
 
     touchStreak()
     checkAchievements()
+    if (skillId) snapshotRecommendationMetric()
     return { combo: combo.value }
+  }
+
+  /**
+   * 答错入错题本。同一道题再错一次只累加 attempts，不会刷出两行。
+   * 除了统计字段，还存下题面/选项/答案，进度页的重做流程才能离线复现这道题。
+   */
+  function recordWrong(entry) {
+    const id = text(entry?.id)
+    const answer = entry?.answer
+    if (!id) return null
+    if (typeof answer !== 'number' && typeof answer !== 'string') return null
+    if (typeof answer === 'number' && !Number.isFinite(answer)) return null
+
+    const now = Date.now()
+    const prev = state.wrongBook[id]
+    const tags = [...new Set([...(entry.errorTags ?? [])].filter((t) => text(t)))]
+    const next = {
+      id,
+      module: text(entry.module, prev?.module ?? ''),
+      skill: isKnownSkill(entry.skill) ? entry.skill : (prev?.skill ?? null),
+      errorTag: text(entry.errorTag, tags[0] ?? prev?.errorTag ?? 'miscalc'),
+      errorTags: tags.length ? tags : (prev?.errorTags ?? []),
+      title: text(entry.title, prev?.title ?? ''),
+      answer,
+      options: Array.isArray(entry.options) ? entry.options.slice(0, 8) : (prev?.options ?? []),
+      unit: text(entry.unit, prev?.unit ?? ''),
+      hint: text(entry.hint, prev?.hint ?? ''),
+      lastWrong: entry.lastWrong ?? null,
+      attempts: (prev?.attempts ?? 0) + 1,
+      retries: prev?.retries ?? 0,
+      addedAt: prev?.addedAt ?? now,
+      lastAt: now,
+    }
+    state.wrongBook[id] = next
+    trimWrongBook(state.wrongBook)
+    return next
+  }
+
+  /** 从错题本移出一道题；返回是否真的移出了，方便调用方决定要不要报喜。 */
+  function clearWrong(id) {
+    if (!id || !state.wrongBook[id]) return false
+    delete state.wrongBook[id]
+    return true
+  }
+
+  /**
+   * 错题本里重做一道题。
+   * 答对：掌握度上调、移出错题本、奖 1 颗星；答错：留在本子里，attempts 再 +1。
+   * 这里不走 recordAnswer，重做不该把「总题数 / 正确率」这些主统计冲淡。
+   */
+  function retryWrong(id, isCorrect) {
+    const entry = state.wrongBook[id]
+    if (!entry) return null
+    if (entry.skill) {
+      state.mastery[entry.skill] = updateMastery(state.mastery[entry.skill], isCorrect)
+      snapshotRecommendationMetric()
+    }
+    entry.retries += 1
+    entry.lastAt = Date.now()
+
+    if (!isCorrect) {
+      entry.attempts += 1
+      return { cleared: false, entry }
+    }
+    delete state.wrongBook[id]
+    addXp(6)
+    addStars(1)
+    return { cleared: true, entry }
+  }
+
+  function clearWrongBook() {
+    state.wrongBook = {}
   }
 
   /** 记录一轮练习结束，用于历史曲线与「完美通关」成就。 */
@@ -368,6 +891,7 @@ export const useProgressStore = defineStore('progress', () => {
 
   function resetAll() {
     Object.assign(state, defaultState())
+    ensureSeenPlanets()
     pendingUnlocks.value = []
     combo.value = 0
     persist()
@@ -383,6 +907,8 @@ export const useProgressStore = defineStore('progress', () => {
         app: BACKUP_APP,
         version: BACKUP_VERSION,
         exportedAt: new Date().toISOString(),
+        recommendationEffect: recommendationMetrics.value,
+        recommendationTrend: recommendationTrend.value,
         progress: JSON.parse(JSON.stringify(state)),
       },
       null,
@@ -424,6 +950,7 @@ export const useProgressStore = defineStore('progress', () => {
     }
 
     Object.assign(state, mergeState(payload))
+    ensureSeenPlanets()
     pendingUnlocks.value = []
     combo.value = 0
     persist()
@@ -448,6 +975,16 @@ export const useProgressStore = defineStore('progress', () => {
         mastery: state.mastery,
         modules: state.modules,
         errorTagCounts: state.errorTagCounts,
+        recommendationEffect: recommendationMetrics.value,
+        recommendationTrend: recommendationTrend.value,
+        wrongBook: wrongList.value.map(({ id, module, skill, errorTag, attempts, lastAt }) => ({
+          id,
+          module,
+          skill,
+          errorTag,
+          attempts,
+          lastAt,
+        })),
         achievements: Object.keys(state.achievements),
         history: state.history,
       },
@@ -455,6 +992,8 @@ export const useProgressStore = defineStore('progress', () => {
       2,
     )
   }
+
+  ensureSeenPlanets()
 
   watch(() => JSON.stringify(state), persist)
 
@@ -467,6 +1006,15 @@ export const useProgressStore = defineStore('progress', () => {
     dailyStreak: computed(() => state.dailyStreak),
     mastery: computed(() => state.mastery),
     errorTagCounts: computed(() => state.errorTagCounts),
+    // 错题本
+    wrongBook: computed(() => state.wrongBook),
+    wrongList,
+    wrongCount,
+    wrongOfModule,
+    recordWrong,
+    clearWrong,
+    retryWrong,
+    clearWrongBook,
     badges,
     masteredCount,
     totalSkills,
@@ -479,12 +1027,25 @@ export const useProgressStore = defineStore('progress', () => {
     lockedAchievements,
     isModuleUnlocked,
     moduleStat,
+    // 地图叙事
+    pendingPlanetUnlock,
+    markPlanetSeen,
     // 使用时长
     todaySeconds,
     todayMinutes,
     totalMinutes,
     last7Days,
     recordUsage,
+    // 推荐效果
+    recommendationMetrics,
+    recommendationTrend,
+    recordRecommendationAdoption,
+    // 今日冒险
+    dailyQuest,
+    dailyQuestDone,
+    startDailyQuest,
+    recordDailyStep,
+    finishDailyQuest,
     addStars,
     bumpCounter,
     recordAnswer,

@@ -5,11 +5,10 @@
  * 用内联 SVG 而不是 emoji/图片：可以跟着主题变色、可以逐部件做动画，
  * 而且不增加任何素材体积。
  *
- * mood 控制表情，GSAP 负责三层动作：
+ * mood 控制表情，浏览器原生 Web Animations 负责三层动作：
  *   1) 常驻呼吸浮动；2) 随机眨眼；3) mood 切换时的一次性反应动作。
  */
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { gsap } from 'gsap'
 import { sfx, speak } from '@/utils/audio.js'
 
 const props = defineProps({
@@ -17,11 +16,17 @@ const props = defineProps({
   /** 气泡里的话；空字符串表示不显示气泡 */
   say: { type: String, default: '' },
   size: { type: Number, default: 96 },
-  /** 点击时是否朗读气泡内容 */
+  /** 点击时是否朗读气泡内容；由外面接管换句时关掉，避免读的是上一句 */
   speakOnTap: { type: Boolean, default: true },
   /** 气泡在左还是右 */
-  bubbleSide: { type: String, default: 'right' }
+  bubbleSide: { type: String, default: 'right' },
+  /** 给孩子的点触提示，同时替换按钮的无障碍名称 */
+  tapHint: { type: String, default: '' },
+  /** 离线学伴对话的短选项：[{ id, label }] */
+  quickReplies: { type: Array, default: () => [] }
 })
+
+const emit = defineEmits(['tap', 'reply'])
 
 const root = ref(null)
 const body = ref(null)
@@ -31,6 +36,23 @@ const bubble = ref(null)
 
 let idleTween = null
 let blinkTimer = null
+const activeAnimations = new Set()
+
+function animate(target, keyframes, options) {
+  const animation = target?.animate?.(keyframes, options)
+  if (!animation) return null
+  activeAnimations.add(animation)
+  animation.finished
+    .catch(() => {})
+    .finally(() => activeAnimations.delete(animation))
+  return animation
+}
+
+function stopAnimations(target) {
+  for (const animation of activeAnimations) {
+    if (animation.effect?.target === target) animation.cancel()
+  }
+}
 
 /** 各心情下的嘴形路径与眼睛缩放。 */
 const FACES = {
@@ -43,14 +65,39 @@ const FACES = {
 }
 
 const face = computed(() => FACES[props.mood] ?? FACES.idle)
+const replies = computed(() =>
+  props.quickReplies
+    .map((reply, index) =>
+      typeof reply === 'string'
+        ? { id: reply, label: reply }
+        : { id: String(reply?.id ?? index), label: String(reply?.label ?? '') }
+    )
+    .filter((reply) => reply.label.trim())
+)
+
+/**
+ * 气泡本身是 role="status"，内容变了读屏会自己播报；
+ * 所以给了点触提示时，按钮的名称就只讲「点它会发生什么」，不再重复台词。
+ */
+const buttonLabel = computed(() => {
+  if (props.tapHint) return `学伴墨墨，${props.tapHint}`
+  return props.say ? `学伴墨墨说：${props.say}` : '学伴墨墨'
+})
 
 function blink() {
   const targets = [eyeL.value, eyeR.value].filter(Boolean)
   if (targets.length && props.mood !== 'sleep') {
-    gsap
-      .timeline()
-      .to(targets, { scaleY: 0.08, duration: 0.07, transformOrigin: 'center' })
-      .to(targets, { scaleY: face.value.eyeScale, duration: 0.1 })
+    for (const target of targets) {
+      animate(
+        target,
+        [
+          { transform: `scaleY(${face.value.eyeScale})` },
+          { transform: 'scaleY(0.08)', offset: 0.42 },
+          { transform: `scaleY(${face.value.eyeScale})` }
+        ],
+        { duration: 170, easing: 'ease-in-out' }
+      )
+    }
   }
   blinkTimer = window.setTimeout(blink, 2200 + Math.random() * 3200)
 }
@@ -58,68 +105,110 @@ function blink() {
 /** mood 变化时来一个短反应，让学伴显得在「回应」孩子。 */
 function react(mood) {
   if (!body.value) return
-  gsap.killTweensOf(body.value)
-  const tl = gsap.timeline()
+  stopAnimations(body.value)
 
   if (mood === 'happy' || mood === 'cheer') {
-    tl.to(body.value, { y: -14, scaleX: 0.94, scaleY: 1.08, duration: 0.18, ease: 'power2.out' })
-      .to(body.value, { y: 0, scaleX: 1.06, scaleY: 0.94, duration: 0.16, ease: 'power2.in' })
-      .to(body.value, { scaleX: 1, scaleY: 1, duration: 0.3, ease: 'elastic.out(1, 0.4)' })
-    if (mood === 'cheer') {
-      tl.to(body.value, { rotate: -8, duration: 0.12 }, 0)
-        .to(body.value, { rotate: 8, duration: 0.16 }, 0.12)
-        .to(body.value, { rotate: 0, duration: 0.2 }, 0.28)
-    }
+    const rotate = mood === 'cheer'
+    animate(
+      body.value,
+      [
+        { transform: 'translateY(0) scale(1) rotate(0)' },
+        {
+          transform: `translateY(-14px) scale(.94, 1.08) rotate(${rotate ? '-8deg' : '0'})`,
+          offset: 0.28
+        },
+        {
+          transform: `translateY(0) scale(1.06, .94) rotate(${rotate ? '8deg' : '0'})`,
+          offset: 0.53
+        },
+        { transform: 'translateY(0) scale(1) rotate(0)' }
+      ],
+      { duration: 640, easing: 'cubic-bezier(.34,1.56,.64,1)' }
+    )
   } else if (mood === 'sad') {
-    tl.to(body.value, { y: 6, scaleY: 0.93, duration: 0.22, ease: 'power2.out' }).to(body.value, {
-      y: 0,
-      scaleY: 1,
-      duration: 0.45,
-      ease: 'power2.out'
-    })
+    animate(
+      body.value,
+      [
+        { transform: 'translateY(0) scaleY(1)' },
+        { transform: 'translateY(6px) scaleY(.93)', offset: 0.33 },
+        { transform: 'translateY(0) scaleY(1)' }
+      ],
+      { duration: 670, easing: 'ease-out' }
+    )
   } else if (mood === 'think') {
-    tl.to(body.value, { rotate: -6, duration: 0.3, ease: 'sine.inOut' })
-      .to(body.value, { rotate: 4, duration: 0.4, ease: 'sine.inOut' })
-      .to(body.value, { rotate: 0, duration: 0.3, ease: 'sine.inOut' })
+    animate(
+      body.value,
+      [
+        { transform: 'rotate(0)' },
+        { transform: 'rotate(-6deg)', offset: 0.3 },
+        { transform: 'rotate(4deg)', offset: 0.7 },
+        { transform: 'rotate(0)' }
+      ],
+      { duration: 1000, easing: 'ease-in-out' }
+    )
   }
 }
 
 function popBubble() {
   if (!bubble.value) return
-  gsap.fromTo(
+  animate(
     bubble.value,
-    { scale: 0.7, opacity: 0, y: 8 },
-    { scale: 1, opacity: 1, y: 0, duration: 0.4, ease: 'back.out(2)' }
+    [
+      { opacity: 0, transform: 'translateY(8px) scale(.7)' },
+      { opacity: 1, transform: 'translateY(0) scale(1)' }
+    ],
+    { duration: 400, easing: 'cubic-bezier(.34,1.56,.64,1)' }
   )
 }
 
 function onTap() {
+  if (props.speakOnTap) {
+    sfx.tap()
+    if (props.say) speak(props.say)
+  }
+  react('happy')
+  emit('tap')
+}
+
+function onReply(reply) {
   sfx.tap()
   react('happy')
-  if (props.speakOnTap && props.say) speak(props.say)
+  emit('reply', reply.id)
 }
 
 onMounted(() => {
   if (body.value) {
-    idleTween = gsap.to(body.value, {
-      y: -6,
-      duration: 1.8,
-      ease: 'sine.inOut',
-      repeat: -1,
-      yoyo: true
-    })
+    idleTween = animate(
+      body.value,
+      [{ transform: 'translateY(0)' }, { transform: 'translateY(-6px)' }],
+      {
+        duration: 1800,
+        easing: 'ease-in-out',
+        iterations: Infinity,
+        direction: 'alternate'
+      }
+    )
   }
   if (root.value) {
-    gsap.from(root.value, { scale: 0.6, opacity: 0, duration: 0.6, ease: 'back.out(1.7)' })
+    animate(
+      root.value,
+      [
+        // 点击容器不做缩放：即使主线程繁忙、动画停在首帧，命中区也始终 ≥ 44px。
+        { opacity: 0, transform: 'translateY(8px)' },
+        { opacity: 1, transform: 'translateY(0)' }
+      ],
+      { duration: 600, easing: 'cubic-bezier(.34,1.56,.64,1)' }
+    )
   }
   blink()
   if (props.say) popBubble()
 })
 
 onBeforeUnmount(() => {
-  idleTween?.kill()
+  idleTween?.cancel()
   if (blinkTimer) clearTimeout(blinkTimer)
-  gsap.killTweensOf([body.value, eyeL.value, eyeR.value, bubble.value].filter(Boolean))
+  for (const animation of activeAnimations) animation.cancel()
+  activeAnimations.clear()
 })
 
 watch(() => props.mood, react)
@@ -137,14 +226,14 @@ watch(
       class="mascot__btn"
       type="button"
       :style="{ width: `${size}px`, height: `${size}px` }"
-      :aria-label="say ? `学伴墨墨说：${say}` : '学伴墨墨'"
+      :aria-label="buttonLabel"
       @click="onTap"
     >
       <svg ref="body" viewBox="0 0 100 100" class="mascot__svg" aria-hidden="true">
         <defs>
           <linearGradient :id="`mascotBody-${size}`" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="var(--seed-mango)" />
-            <stop offset="100%" stop-color="var(--seed-coral)" />
+            <stop offset="0%" stop-color="var(--mango-400)" />
+            <stop offset="100%" stop-color="var(--coral-400)" />
           </linearGradient>
         </defs>
 
@@ -159,17 +248,17 @@ watch(
         <ellipse cx="50" cy="62" rx="24" ry="22" fill="var(--surface-strong)" opacity="0.9" />
 
         <!-- 腮红 -->
-        <ellipse cx="28" cy="60" rx="6" ry="4" fill="var(--seed-coral)" :opacity="face.cheek" />
-        <ellipse cx="72" cy="60" rx="6" ry="4" fill="var(--seed-coral)" :opacity="face.cheek" />
+        <ellipse cx="28" cy="60" rx="6" ry="4" fill="var(--coral-400)" :opacity="face.cheek" />
+        <ellipse cx="72" cy="60" rx="6" ry="4" fill="var(--coral-400)" :opacity="face.cheek" />
 
         <!-- 眼睛 -->
         <g ref="eyeL" :style="{ transform: `scaleY(${face.eyeScale})`, transformOrigin: '38px 48px' }">
           <ellipse cx="38" cy="48" rx="5" ry="6.5" fill="var(--stroke-ink)" />
-          <circle cx="40" cy="45.5" r="1.9" fill="#fff" />
+          <circle cx="40" cy="45.5" r="1.9" fill="var(--surface-strong)" />
         </g>
         <g ref="eyeR" :style="{ transform: `scaleY(${face.eyeScale})`, transformOrigin: '62px 48px' }">
           <ellipse cx="62" cy="48" rx="5" ry="6.5" fill="var(--stroke-ink)" />
-          <circle cx="64" cy="45.5" r="1.9" fill="#fff" />
+          <circle cx="64" cy="45.5" r="1.9" fill="var(--surface-strong)" />
         </g>
 
         <!-- 嘴 -->
@@ -182,7 +271,7 @@ watch(
         />
 
         <!-- 头顶小笔（墨墨是一支会写字的小精灵） -->
-        <rect x="47" y="4" width="6" height="14" rx="3" fill="var(--seed-mint)" />
+        <rect x="47" y="4" width="6" height="14" rx="3" fill="var(--mint-400)" />
         <path d="M 47 16 L 53 16 L 50 21 Z" fill="var(--stroke-ink)" />
 
         <!-- 睡着时的 Z -->
@@ -190,8 +279,22 @@ watch(
       </svg>
     </button>
 
-    <div v-if="say" ref="bubble" class="mascot__bubble">
-      <p>{{ say }}</p>
+    <div v-if="say || replies.length" ref="bubble" class="mascot__bubble">
+      <div v-if="say" role="status" aria-live="polite">
+        <p>{{ say }}</p>
+      </div>
+      <small v-if="tapHint" class="mascot__hint">{{ tapHint }}</small>
+      <div v-if="replies.length" class="mascot__quick" role="group" aria-label="学伴对话选项">
+        <button
+          v-for="reply in replies"
+          :key="reply.id"
+          type="button"
+          class="mascot__quick-btn"
+          @click="onReply(reply)"
+        >
+          {{ reply.label }}
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -261,6 +364,38 @@ watch(
 
 .mascot__bubble p {
   margin: 0;
+}
+
+.mascot__hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--text-soft);
+}
+
+.mascot__quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.mascot__quick-btn {
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-pill);
+  background: var(--brand-soft);
+  color: var(--text-strong);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.mascot__quick-btn:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 
 @media (max-width: 480px) {

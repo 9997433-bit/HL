@@ -1,12 +1,15 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import gsap from 'gsap'
+import AgeBandBadge from '@/components/AgeBandBadge.vue'
+import LearnDemoLauncher from '@/components/LearnDemoLauncher.vue'
 import MascotBot from '@/components/MascotBot.vue'
 import SessionBar from '@/components/SessionBar.vue'
 import RoundSummary from '@/components/RoundSummary.vue'
 import ShapeGlyph from '@/components/ShapeGlyph.vue'
 import { useProgressStore } from '@/stores/progress.js'
+import { useAgeBand } from '@/composables/useAgeBand'
 import { useFeedback } from '@/composables/useFeedback'
 import { REAL_OBJECTS, SHAPES, SHAPES_2D, SHAPES_3D } from '@/data/shapes'
 import { geometrySkill } from '@/data/skill-mapping.js'
@@ -15,13 +18,33 @@ import { sound } from '@/utils/sound'
 
 const ROUND_SIZE = 10
 const MODULE_ID = 'geometry'
-const PALETTE = ['#5ee7ff', '#9b8cff', '#ff7ac6', '#ffce4d', '#55e6a5', '#ff9f45']
+const PALETTE = [
+  'var(--neon-cyan)',
+  'var(--neon-violet)',
+  'var(--neon-pink)',
+  'var(--neon-gold)',
+  'var(--neon-green)',
+  'var(--neon-orange)',
+]
 
 const router = useRouter()
+const route = useRoute()
 const progress = useProgressStore()
 const { correct: fxCorrect, wrong: fxWrong, burst, flyStar, enter } = useFeedback()
 
-const scope = ref('2d') // 2d | 3d | all
+/** 家长中心选的年龄档决定进来时看平面还是立体、以及出哪几种题型。 */
+const band = useAgeBand((next) => {
+  const nextScope = next.defaults.geometry.scope
+  // 换了范围就交给下面的 watch(scope) 重开一轮，别重复开两轮
+  if (scope.value === nextScope) startRound()
+  else scope.value = nextScope
+})
+
+const focusScope = {
+  'shape-2d': '2d',
+  'shape-3d': '3d',
+}[String(route.query.skill ?? '')]
+const scope = ref(focusScope ?? band.value.defaults.geometry.scope) // 2d | 3d | all
 const pool = computed(() =>
   scope.value === '2d' ? SHAPES_2D : scope.value === '3d' ? SHAPES_3D : SHAPES,
 )
@@ -40,6 +63,11 @@ const showFact = ref(false)
 const stageRef = ref(null)
 
 const current = computed(() => questions.value[index.value] ?? null)
+
+/** 这道题算在哪个技能点上——和判题时上报掌握度同一条口径（见 grade）。 */
+const currentSkill = computed(() =>
+  current.value ? geometrySkill(current.value.target) : '',
+)
 
 /** 题型 1：给名字，从 4 个陨石里点出对应图形。 */
 function makeFindByName(list) {
@@ -136,12 +164,28 @@ function makeOddOne(list) {
   }
 }
 
+/** 键即 age-band.js 的 GEOMETRY_QUESTION_IDS。 */
+const MAKERS = {
+  find: makeFindByName,
+  name: makeNameIt,
+  sides: makeCountSides,
+  real: makeRealObject,
+  odd: makeOddOne,
+}
+
+/** 立体图形没有「几条边」，也凑不出「三个四边形 + 一个异类」，这两种题只在有平面图形时出。 */
+const PLANE_ONLY = ['sides', 'odd']
+
+const makerIds = computed(() => {
+  const allowed = band.value.defaults.geometry.makers
+  return scope.value === '3d' ? allowed.filter((id) => !PLANE_ONLY.includes(id)) : allowed
+})
+
 function buildQuestion(i) {
-  const list = pool.value
-  const makers = [makeFindByName, makeNameIt, makeCountSides, makeRealObject, makeOddOne]
-  const weights = scope.value === '3d' ? [0, 1, 3] : [0, 1, 2, 3, 4]
-  const idx = i < 2 ? weights[i % weights.length] : sample(weights)
-  return makers[idx](list)
+  const ids = makerIds.value
+  // 前两题按顺序走一遍，保证一轮里题型不会开局就撞车
+  const id = i < ids.length && i < 2 ? ids[i] : sample(ids)
+  return MAKERS[id](pool.value)
 }
 
 /* ---------- 判题 ---------- */
@@ -152,7 +196,7 @@ function grade(value, anchor) {
   marks.value[index.value] = right ? 'ok' : 'no'
   chosen.value = value
   // 映射到 curriculum 技能点，让自适应掌握度引擎能收到反馈
-  const skill = geometrySkill(q.target)
+  const skill = currentSkill.value
 
   if (right) {
     const stars = q.target.dim === '3d' ? 2 : 1
@@ -264,6 +308,8 @@ onMounted(startRound)
         </button>
       </div>
       <div class="spacer" />
+      <RouterLink class="btn btn--primary btn--sm" to="/tangram">🧩 七巧板</RouterLink>
+      <AgeBandBadge module="geometry" />
       <span class="chip">共 {{ pool.length }} 种图形</span>
     </section>
 
@@ -284,6 +330,7 @@ onMounted(startRound)
           <h2 class="prompt">{{ current.prompt }}</h2>
           <p class="muted say">{{ message }}</p>
         </div>
+        <LearnDemoLauncher :skill="currentSkill" />
       </header>
 
       <!-- 需要展示单个大图形的题型 -->
@@ -376,14 +423,14 @@ onMounted(startRound)
   border-radius: 999px;
   font-size: 13px;
   font-weight: 800;
-  color: var(--ink-soft);
+  color: var(--text);
   transition: all 0.16s ease;
   white-space: nowrap;
 }
 
 .seg-btn.on {
-  background: linear-gradient(135deg, var(--pink), var(--violet));
-  color: #1a0a22;
+  background: linear-gradient(135deg, var(--neon-pink), var(--accent));
+  color: var(--text-invert);
   box-shadow: 0 6px 16px rgba(255, 122, 198, 0.32);
 }
 
@@ -423,7 +470,7 @@ onMounted(startRound)
   display: grid;
   place-items: center;
   padding: 12px;
-  border-radius: var(--radius-m);
+  border-radius: var(--radius-md);
   background:
     radial-gradient(60% 80% at 50% 40%, rgba(155, 140, 255, 0.16), transparent 70%),
     rgba(6, 9, 30, 0.4);
@@ -441,7 +488,7 @@ onMounted(startRound)
   place-items: center;
   gap: 6px;
   padding: 16px 8px;
-  border-radius: var(--radius-m);
+  border-radius: var(--radius-md);
   background:
     radial-gradient(70% 70% at 30% 25%, rgba(255, 255, 255, 0.1), transparent 70%),
     rgba(255, 255, 255, 0.05);
@@ -456,19 +503,19 @@ onMounted(startRound)
 }
 
 .rock.right {
-  border-color: var(--green);
+  border-color: var(--success);
   background: rgba(85, 230, 165, 0.16);
 }
 
 .rock.bad {
-  border-color: var(--red);
+  border-color: var(--danger);
   background: rgba(255, 107, 125, 0.16);
 }
 
 .rock-name {
   font-size: 13px;
   font-weight: 800;
-  color: var(--ink-soft);
+  color: var(--text);
 }
 
 .word-options {
@@ -481,7 +528,7 @@ onMounted(startRound)
   padding: 18px 12px;
   font-size: 20px;
   font-weight: 900;
-  border-radius: var(--radius-m);
+  border-radius: var(--radius-md);
   background: linear-gradient(160deg, rgba(255, 122, 198, 0.16), rgba(155, 140, 255, 0.16));
   border: 2px solid rgba(255, 122, 198, 0.4);
   transition: transform 0.14s ease, box-shadow 0.14s ease;
@@ -494,20 +541,20 @@ onMounted(startRound)
 
 .word-opt.right {
   background: rgba(85, 230, 165, 0.28);
-  border-color: var(--green);
+  border-color: var(--success);
 }
 
 .word-opt.bad {
   background: rgba(255, 107, 125, 0.26);
-  border-color: var(--red);
+  border-color: var(--danger);
 }
 
 .fact {
   padding: 12px 16px;
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-sm);
   background: rgba(94, 231, 255, 0.1);
   border: 1px solid rgba(94, 231, 255, 0.32);
-  color: var(--ink-soft);
+  color: var(--text);
   font-size: 14px;
 }
 

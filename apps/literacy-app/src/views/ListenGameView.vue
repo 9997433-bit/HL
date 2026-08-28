@@ -13,13 +13,16 @@
  */
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import gsap from 'gsap'
+import MascotCompanion from '@/components/MascotCompanion.vue'
 import StarBurst from '@/components/StarBurst.vue'
 import CelebrationOverlay from '@/components/CelebrationOverlay.vue'
 import VoiceNotice from '@/components/VoiceNotice.vue'
 import { CHARACTERS } from '@/data/characters.js'
+import { useMascotCoach } from '@/composables/useMascotCoach.js'
 import { useProgressStore } from '@/stores/progress.js'
 import { useSettingsStore } from '@/stores/settings.js'
 import { isSpeechSupported, speak, stopSpeaking } from '@/utils/speech.js'
+import { buildOptions } from '@/utils/distractors.js'
 import { sfx } from '@/utils/sfx.js'
 
 const ROUNDS = 10
@@ -84,6 +87,22 @@ const missedChars = ref([])
 const celebrating = ref(false)
 
 /**
+ * 墨墨在这一局里的「此刻」：连对几个、上一下有没有答错、题面是哪个字。
+ * 这三样只有答题页知道，交给陪跑之后它会自己换到「连对」或「答错」那组台词，
+ * 不必在这里写一句一句的鼓励语。
+ */
+const recentWrong = ref(0)
+const {
+  line: coachLine,
+  mood: coachMood,
+  next: coachNext
+} = useMascotCoach('games', {
+  combo: streak,
+  recentWrong,
+  char: computed(() => target.value?.char ?? '')
+})
+
+/**
  * 读屏播报。
  *
  * 屏幕上的反馈是「颜色 + 一句短提示 + 动画」，这三样读屏用户一样都拿不到，
@@ -118,15 +137,6 @@ const usingFallbackPool = computed(
   () => CHARACTERS.filter((c) => progress.isLearned(c.char)).length < OPTIONS
 )
 
-function shuffle(list) {
-  const a = [...list]
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[a[i], a[j]] = [a[j], a[i]]
-  }
-  return a
-}
-
 function nextRound() {
   picked.value = null
   locked.value = false
@@ -138,8 +148,12 @@ function nextRound() {
   const pick = preferred[Math.floor(Math.random() * preferred.length)]
   target.value = pick
 
-  const distractors = shuffle(list.filter((c) => c.char !== pick.char)).slice(0, OPTIONS - 1)
-  options.value = shuffle([pick, ...distractors])
+  /**
+   * 干扰项走形近字库：四张卡上的字长得差不多，孩子才必须真的听清读音。
+   * 学过的字里凑不出形近的就从整张字表里借——干扰项只要认得出、不必学过，
+   * 用一个不像的「学过的字」反而把题目难度打回原形。
+   */
+  options.value = buildOptions(pick, OPTIONS, { pool: list })
 
   round.value += 1
   announce(`第 ${round.value} 关，共 ${ROUNDS} 关。${skin.value.sceneHint}，${OPTIONS} 个字里选一个。`)
@@ -278,11 +292,12 @@ function choose(opt) {
   picked.value = opt.char
 
   const correct = opt.char === target.value.char
+  recentWrong.value = correct ? 0 : recentWrong.value + 1
   if (correct) {
     score.value += 1
     streak.value += 1
     bestStreak.value = Math.max(bestStreak.value, streak.value)
-    sfx.correct()
+    sfx.streak(streak.value)
     burstRef.value?.burst()
     animateRight(opt.char)
     announce(
@@ -329,6 +344,7 @@ function start() {
   score.value = 0
   streak.value = 0
   bestStreak.value = 0
+  recentWrong.value = 0
   missedChars.value = []
   nextRound()
 }
@@ -475,6 +491,17 @@ onBeforeUnmount(() => {
 
       <!-- 视觉短提示；完整播报交给上面的 sr-only 区域，避免读屏念两遍 -->
       <p class="feedback" aria-hidden="true">{{ feedback }}</p>
+
+      <MascotCompanion
+        class="mascot-dock"
+        :mood="coachMood"
+        :say="coachLine"
+        :size="64"
+        :speak-on-tap="false"
+        bubble-side="left"
+        tap-hint="点我，墨墨再说一句"
+        @tap="coachNext"
+      />
     </template>
 
     <!-- 结算 -->
@@ -714,7 +741,11 @@ onBeforeUnmount(() => {
   gap: 4px;
   padding: 18px 34px;
   border-radius: var(--radius-xl);
-  background: linear-gradient(180deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 65%, #000 12%) 100%);
+  background: linear-gradient(
+    180deg,
+    var(--accent) 0%,
+    color-mix(in srgb, var(--accent) 65%, var(--text-strong) 12%) 100%
+  );
   color: var(--text-invert);
   box-shadow: var(--shadow-md);
   transition: transform var(--dur-fast) var(--ease-pop);
@@ -864,10 +895,10 @@ onBeforeUnmount(() => {
 .board--fish {
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--seed-sky) 26%, var(--surface-sunken)) 0%,
-    color-mix(in srgb, var(--seed-mint) 34%, var(--surface-sunken)) 100%
+    color-mix(in srgb, var(--sky-400) 26%, var(--surface-sunken)) 0%,
+    color-mix(in srgb, var(--mint-400) 34%, var(--surface-sunken)) 100%
   );
-  box-shadow: inset 0 8px 20px color-mix(in srgb, var(--seed-sky) 24%, transparent);
+  box-shadow: inset 0 8px 20px color-mix(in srgb, var(--sky-400) 24%, transparent);
 }
 
 .opt--fish {
@@ -875,8 +906,8 @@ onBeforeUnmount(() => {
   border-radius: 62% 38% 42% 58% / 54% 50% 50% 46%;
   background: linear-gradient(
     150deg,
-    color-mix(in srgb, var(--seed-mango) 70%, var(--surface-strong)) 0%,
-    color-mix(in srgb, var(--seed-coral) 55%, var(--surface-strong)) 100%
+    color-mix(in srgb, var(--mango-400) 70%, var(--surface-strong)) 0%,
+    color-mix(in srgb, var(--coral-400) 55%, var(--surface-strong)) 100%
   );
   border-color: color-mix(in srgb, var(--surface-strong) 70%, transparent);
 }
@@ -918,8 +949,8 @@ onBeforeUnmount(() => {
 .board--mole {
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--seed-leaf) 22%, var(--surface-sunken)) 0%,
-    color-mix(in srgb, var(--seed-leaf) 40%, var(--surface-sunken)) 100%
+    color-mix(in srgb, var(--leaf-400) 22%, var(--surface-sunken)) 0%,
+    color-mix(in srgb, var(--leaf-400) 40%, var(--surface-sunken)) 100%
   );
   row-gap: var(--gap-lg);
 }
@@ -928,8 +959,8 @@ onBeforeUnmount(() => {
   border-radius: 50% 50% 42% 42%;
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--seed-mango) 58%, var(--surface-strong)) 0%,
-    color-mix(in srgb, var(--seed-coral) 34%, var(--surface-strong)) 100%
+    color-mix(in srgb, var(--mango-400) 58%, var(--surface-strong)) 0%,
+    color-mix(in srgb, var(--coral-400) 34%, var(--surface-strong)) 100%
   );
   border-color: color-mix(in srgb, var(--surface-strong) 60%, transparent);
 }

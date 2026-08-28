@@ -6,17 +6,19 @@
  * 学习计时也放在这里：只在页面可见时走秒，切到后台就暂停，
  * 免得家长在报表里看到孩子「学了 3 小时」其实是忘了关标签页。
  */
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 
 import NavBar from '@/components/NavBar.vue'
 import EyeCareToggle from '@/components/EyeCareToggle.vue'
 import ProgressRing from '@/components/ProgressRing.vue'
-import CelebrationLayer from '@/components/CelebrationLayer.vue'
-import MascotCompanion from '@/components/MascotCompanion.vue'
 
 import { useProgressStore } from '@/stores/progress.js'
 import { cancelSpeech, sfx } from '@/utils/audio.js'
+import { cancelOfflineTts } from '@/utils/offlineTts.js'
+
+const CelebrationLayer = defineAsyncComponent(() => import('@/components/CelebrationLayer.vue'))
+const MascotCompanion = defineAsyncComponent(() => import('@/components/MascotCompanion.vue'))
 
 const progress = useProgressStore()
 const route = useRoute()
@@ -24,6 +26,11 @@ const route = useRoute()
 const isHome = computed(() => route.name === 'home')
 
 let ticker = null
+
+function cancelAllSpeech() {
+  cancelOfflineTts()
+  cancelSpeech()
+}
 
 function startTicker() {
   if (ticker) return
@@ -34,7 +41,7 @@ function startTicker() {
 
 function onVisibilityChange() {
   // 切到后台时把没读完的语音掐掉，否则回来还在念
-  if (document.visibilityState !== 'visible') cancelSpeech()
+  if (document.visibilityState !== 'visible') cancelAllSpeech()
 }
 
 onMounted(() => {
@@ -46,7 +53,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   if (ticker) clearInterval(ticker)
   document.removeEventListener('visibilitychange', onVisibilityChange)
-  cancelSpeech()
+  cancelAllSpeech()
 })
 
 /* ----------------------------------------------------------- 护眼休息提醒 */
@@ -135,11 +142,15 @@ const gateOk = computed(
           <component :is="Component" />
         </Transition>
       </RouterView>
+      <footer class="shell__footer">
+        <span>快乐识字 v1.0.0 · 学习记录保存在本机</span>
+        <RouterLink to="/privacy">隐私政策</RouterLink>
+      </footer>
     </main>
 
     <NavBar />
 
-    <CelebrationLayer />
+    <CelebrationLayer v-if="progress.pendingCelebration" />
 
     <!-- 护眼休息提醒 -->
     <Transition name="fade-slide">
@@ -369,6 +380,31 @@ const gateOk = computed(
   flex: 1;
   display: flex;
   flex-direction: column;
+}
+
+.shell__footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--gap-sm);
+  width: min(1080px, calc(100% - 2 * var(--gap-md)));
+  margin: auto auto 96px;
+  color: var(--text-soft);
+  font-size: var(--fs-sm);
+  text-align: center;
+}
+
+.shell__footer a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap-min);
+  padding-inline: var(--gap-md);
+  border-radius: var(--radius-pill);
+  color: var(--accent);
+  font-weight: var(--fw-bold);
+  text-decoration: underline;
+  text-underline-offset: var(--gap-2xs);
 }
 
 /* ----------------------------------------------------------------- 浮层 */

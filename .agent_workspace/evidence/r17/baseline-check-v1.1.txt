@@ -1,0 +1,20 @@
+# Round 17 v1.1 baseline (clean VM, acceptance-spec)
+# command: npm run check:round17
+# exit: 1
+
+
+> hongen-edu-apps@1.0.0 check:round17
+> node scripts/check-round17.mjs
+
+
+Round 17 check (ROUND17-v1.1): 0/8
+
+✗ H1 缺少 round17-hongen-gap-audit.md 或内容过薄
+✗ H2 富 Play 不足：rich=640(需≥900)，narration去重=640(需≥720)，可执行标记=false
+✗ H3 学演示不足（标记=true，三态=true，可跳过=true，计数=21）
+✗ H4 精品剖析不足（可执行标记=false，母题=0(需≥20)，中文讲解句=0(需≥60)，分步=false，可跳过=true）
+✗ H5 缺学伴关键接线（需可执行 ROUND17_H5 + 接线点 + 学伴词证）
+✗ H6 走查证据不足（doc=0，引用=0，落盘=0(需≥4)，场景=0(需4)）
+✗ H7 缺 r17 台账：需 evidence/r17/android-sim-report.md（可引用重跑的 report.json）或 device-blocked.md（BLOCKED+复现命令）；仅继承 r13 旧报告不算
+✗ H8 check:round16 7/8（需 8/8；干净环境先 npm run android:sim 重建双 APK）
+

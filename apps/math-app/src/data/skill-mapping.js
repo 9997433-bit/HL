@@ -11,11 +11,13 @@
  */
 
 /**
- * 数量星云：装货与点数题按数量分档，数序题单独算「数序与相邻数」。
- * @param {{ type: 'drag'|'count'|'seq', target: number }} q
+ * 数量星云：装货与点数题按数量分档，数序题单独算「数序与相邻数」，
+ * 比大小题按参与比较的最大数分 10 / 20 两档（target 是 > < = 符号，不是数量）。
+ * @param {{ type: 'drag'|'count'|'seq'|'compare', target: number|string, max?: number }} q
  */
-export function countingSkill({ type, target }) {
+export function countingSkill({ type, target, max }) {
   if (type === 'seq') return 'number-order'
+  if (type === 'compare') return (max ?? 10) <= 10 ? 'compare-to-10' : 'compare-to-20'
   if (target <= 5) return 'count-to-5'
   return target <= 10 ? 'count-to-10' : 'count-to-20'
 }

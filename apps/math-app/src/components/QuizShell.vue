@@ -8,10 +8,12 @@
  *
  * 题目协议（数组的每一项）：
  * {
- *   id, skill,                  // skill 用于上报掌握度
+ *   id, skill,                  // skill 用于上报掌握度，id 用于错题本去重
  *   answer: Number,             // 唯一正确答案
  *   options: Number[],          // 选择模式下的候选项
  *   unit: String,               // 单位，显示在选项与答案框里
+ *   title | text | prompt,      // 错题本里这道题显示成什么，缺省用「第 n 题」兜底
+ *   difficulty: *,              // 属于哪个难度档（配合 difficultySteps 做自适应）
  *   hint | hints: String[],     // 分级提示，用一级扣一颗星
  *   stars: Number | (ctx) => Number,  // 答对基础星数，默认 1；函数形式可按连击/秒答加成
  *   xp: Number,                 // 答对经验，默认 10
@@ -21,12 +23,15 @@
  */
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import gsap from 'gsap'
+import LearnDemoLauncher from '@/components/LearnDemoLauncher.vue'
 import MascotBot from '@/components/MascotBot.vue'
 import SessionBar from '@/components/SessionBar.vue'
 import RoundSummary from '@/components/RoundSummary.vue'
-import { useProgressStore } from '@/stores/progress.js'
+import { useProgressStore, wrongBookKey } from '@/stores/progress.js'
 import { useFeedback } from '@/composables/useFeedback'
+import { ROUND17_H5, useQuizCoach } from '@/composables/useQuizCoach.js'
 import { errorTagInfo } from '@/data/errorTags.js'
+import { createAdaptiveEngine } from '@/core/engine/adaptive.js'
 import { sample } from '@/utils/random'
 import { sound } from '@/utils/sound'
 
@@ -51,16 +56,40 @@ const props = defineProps({
   prompts: { type: Array, default: () => ['算一算，答案是多少？'] },
   /** 键盘模式下是否渲染内置答案框（题面里已有填空位时关掉）。 */
   showAnswerSlot: { type: Boolean, default: true },
+  /** 自适应调度：按掌握度 EMA 决定本轮剩下的题先出哪一道。 */
+  adaptive: { type: Boolean, default: true },
+  /** 难度档序列（由易到难）；给了才会按连对/连错发出升降档建议。 */
+  difficultySteps: { type: Array, default: () => [] },
+  /** 当前难度档，配合 difficultySteps 使用。 */
+  difficulty: { type: [String, Number], default: null },
 })
 
-const emit = defineEmits(['update:inputMode', 'graded', 'finished', 'replay', 'home', 'advance'])
+const emit = defineEmits([
+  'update:inputMode',
+  'graded',
+  'finished',
+  'replay',
+  'home',
+  'advance',
+  'adapt',
+])
 
 const progress = useProgressStore()
-const { correct: fxCorrect, wrong: fxWrong, burst, flyStar, pop, enter } = useFeedback()
+const {
+  correct: fxCorrect,
+  wrong: fxWrong,
+  celebrate: fxCelebrate,
+  burst,
+  flyStar,
+  pop,
+  enter
+} = useFeedback()
 
 const total = computed(() => props.questions.length)
 
 const index = ref(0)
+/** order[i] = 第 i 个出场的题在 props.questions 里的下标，自适应调度只改这个映射。 */
+const order = ref([])
 const marks = ref([])
 const correctCount = ref(0)
 const starsEarned = ref(0)
@@ -75,10 +104,30 @@ const message = ref(props.prompts[0] ?? '')
 const lastResult = ref(null)
 const questionStart = ref(Date.now())
 
+/* ------------------------------------------------------- ROUND17_H5 陪跑 */
+
+/**
+ * 本轮连着答错了几道。判词自己不带情绪，小算的「算错了」那组台词全靠它开门；
+ * 答对一道就清零——连错三道之后答对的那一道，值得让它重新高兴起来。
+ */
+const recentWrong = ref(0)
+const {
+  mood: coachMood,
+  stage: coachStage,
+  opener: coachOpener,
+  next: coachNext
+} = useQuizCoach({ recentWrong })
+
+/** 孩子点了小算：换一句鼓励语、读出来，并写进台词行。 */
+function cheerUp() {
+  const text = coachNext()
+  if (text) message.value = text
+}
+
 const stageRef = ref(null)
 const promptRef = ref(null)
 
-const current = computed(() => props.questions[index.value] ?? null)
+const current = computed(() => props.questions[order.value[index.value] ?? index.value] ?? null)
 const hints = computed(() => {
   const q = current.value
   if (!q) return []
@@ -106,6 +155,60 @@ const shownTags = computed(() =>
     ...errorTagInfo(id),
   })),
 )
+
+/* --------------------------------------------------- ROUND16_H4 学演示 */
+
+/**
+ * 题头的「看演示」（见 components/LearnDemoLauncher.vue）：当前这道题的技能点
+ * 有配套演示就出现，点开就地弹出「实物 → 图形 → 算式」。这里只需要盯住开合——
+ * 弹层盖着的时候，键盘敲的是演示，不该顺手把这道题交了。
+ */
+const demoLauncher = ref(null)
+const demoOpen = ref(false)
+const demoSkill = computed(() => current.value?.skill ?? '')
+
+/* ----------------------------------------------------- 自适应 / 错题本 */
+
+const keyOf = (q) => wrongBookKey(props.moduleId, q?.id ?? `${q?.skill ?? 'q'}-${q?.answer}`)
+
+/** 错题本列表里显示的题面；各玩法字段名不统一，这里统一兜底，绝不写出 undefined。 */
+function titleOf(q, position) {
+  for (const candidate of [q?.title, q?.text, q?.prompt, q?.equation]) {
+    if (typeof candidate === 'string' && candidate.trim()) return candidate.trim()
+  }
+  return `${props.moduleName} · 第 ${position + 1} 题`
+}
+
+/** 这个玩法当前还欠着几道错题，答题时一直挂在进度条下面提醒。 */
+const wrongOwed = computed(() => progress.wrongOfModule(props.moduleId).length)
+
+let engine = createAdaptiveEngine({})
+
+function makeEngine() {
+  engine = createAdaptiveEngine({
+    mastery: progress.state.mastery,
+    wrongBook: progress.state.wrongBook,
+    steps: props.difficultySteps,
+    difficulty: props.difficulty,
+    wrongKeyOf: keyOf,
+  })
+}
+
+/**
+ * 把「下一道」换成引擎挑中的那道：只在剩下的题里做一次交换，
+ * 每道题仍然恰好出一次，进度条与本轮题数都不受影响。
+ */
+function planNext() {
+  const at = index.value + 1
+  if (!props.adaptive || at >= order.value.length) return
+  const tail = order.value.slice(at)
+  const picked = engine.pickNextQuestion(tail.map((i) => props.questions[i]))
+  if (!picked || picked.index === 0) return
+  const swapped = [...order.value]
+  const target = at + picked.index
+  ;[swapped[at], swapped[target]] = [swapped[target], swapped[at]]
+  order.value = swapped
+}
 
 /* ---------------------------------------------------------------- 判题 */
 
@@ -137,24 +240,65 @@ function grade(value, anchor) {
       xp: q.xp ?? 10,
       tag: q.tag,
     })
-    fxCorrect(anchor)
+    // 这道题原本欠在错题本里：答对就把它放出去，比多给一颗星更有成就感
+    const redeemed = progress.clearWrong(keyOf(q))
+    recentWrong.value = 0
+    // recordAnswer 已把本题计入 combo，音效因此能随连续答对逐级升高。
+    fxCorrect(anchor, { streak: progress.combo })
     burst(anchor, { count: 16 + Math.min(10, progress.combo * 2) })
     flyStar(anchor)
     mood.value = 'cheer'
-    message.value = fast
-      ? `又快又准！+${stars} ⭐`
-      : progress.combo >= 3
-        ? `${progress.combo} 连击，火力全开 🔥 +${stars} ⭐`
-        : sample(['答对啦！', '算得很好 👏', '完全正确 ✅'])
-    lastResult.value = { correct: true, value, answer: q.answer, stars, elapsed, errorTags: [] }
+    message.value = redeemed
+      ? `错题拿下！这道题从错题本里飞走啦 📕✨ +${stars} ⭐`
+      : fast
+        ? `又快又准！+${stars} ⭐`
+        : progress.combo >= 3
+          ? `${progress.combo} 连击，火力全开 🔥 +${stars} ⭐`
+          : sample(['答对啦！', '算得很好 👏', '完全正确 ✅'])
+    lastResult.value = {
+      correct: true,
+      value,
+      answer: q.answer,
+      stars,
+      elapsed,
+      errorTags: [],
+      redeemed,
+    }
   } else {
     const errorTags = tagsFor(q, value)
+    recentWrong.value += 1
     progress.recordAnswer(props.moduleId, false, { skill: q.skill, errorTags })
+    progress.recordWrong({
+      id: keyOf(q),
+      module: props.moduleId,
+      skill: q.skill,
+      errorTag: errorTags[0],
+      errorTags,
+      title: titleOf(q, index.value),
+      answer: q.answer,
+      options: Array.isArray(q.options) ? q.options : [],
+      unit: q.unit ?? '',
+      hint: hints.value[0] ?? '',
+      lastWrong: value,
+    })
     fxWrong(anchor)
     mood.value = 'sad'
-    message.value = `正确答案是 ${q.answer}${q.unit ?? ''}，记住这一题哦。`
-    lastResult.value = { correct: false, value, answer: q.answer, stars: 0, elapsed, errorTags }
+    message.value = `正确答案是 ${q.answer}${q.unit ?? ''}，已记进错题本 📕`
+    lastResult.value = {
+      correct: false,
+      value,
+      answer: q.answer,
+      stars: 0,
+      elapsed,
+      errorTags,
+      redeemed: false,
+    }
   }
+
+  // 掌握度 EMA 与连对/连错都交给引擎，升降档只发建议，换不换档由父组件决定
+  const adapt = engine.record(q.skill, right)
+  if (adapt.changed) emit('adapt', adapt)
+  planNext()
 
   // 用完提示就把剩下的提示全部摊开，讲评时孩子能看到完整思路
   hintLevel.value = hints.value.length
@@ -197,14 +341,18 @@ function next() {
   locked.value = false
   lastResult.value = null
   mood.value = 'idle'
+  // 换题就收演示：上一题的知识点讲完了，不该盖在下一题上
+  demoLauncher.value?.hide()
   if (index.value + 1 >= total.value) {
     finish()
     return
   }
   index.value += 1
-  message.value = sample(props.prompts)
+  // 刚答错、正连着对、错题欠多了……这些时候由小算开口，比第 n 遍「算一算」管用
+  message.value = coachOpener() || sample(props.prompts)
   questionStart.value = Date.now()
-  emit('advance', index.value)
+  // 自适应换过顺序，父组件要的是「现在这道题在题库里的下标」
+  emit('advance', order.value[index.value] ?? index.value)
   animateIn()
 }
 
@@ -218,11 +366,15 @@ function finish() {
   })
   starsEarned.value += bonus
   showSummary.value = true
+  // 全对才放大庆祝：音效 + 加倍粒子 + 一串震动，都走共用反馈的降级规则
+  if (perfect) fxCelebrate(stageRef.value)
   emit('finished', { correct: correctCount.value, total: total.value, stars: starsEarned.value })
 }
 
 function restart() {
   index.value = 0
+  order.value = props.questions.map((_, i) => i)
+  makeEngine()
   marks.value = []
   correctCount.value = 0
   starsEarned.value = 0
@@ -234,9 +386,12 @@ function restart() {
   hintLevel.value = 0
   lastResult.value = null
   mood.value = 'idle'
+  recentWrong.value = 0
+  demoLauncher.value?.hide()
   message.value = props.prompts[0] ?? ''
   questionStart.value = Date.now()
   progress.resetCombo()
+  emit('advance', order.value[0] ?? 0)
   animateIn()
 }
 
@@ -269,6 +424,11 @@ function toggleMode() {
 /* -------------------------------------------------------------- 键盘 */
 
 function onKeydown(e) {
+  // 演示弹层盖在题面上时，数字键属于演示而不是作答，别让它替孩子交卷
+  if (demoOpen.value) {
+    if (e.key === 'Escape') demoLauncher.value?.hide()
+    return
+  }
   if (showSummary.value || locked.value) return
   if (props.inputMode === 'keypad') {
     if (/^[0-9]$/.test(e.key)) tapKey(e.key)
@@ -297,11 +457,16 @@ onMounted(() => {
 })
 onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
-defineExpose({ restart, index, current, locked, typed })
+/** 让父组件把一句话写进吉祥物的台词行（下一次判题会覆盖它）。 */
+function announce(text) {
+  if (typeof text === 'string' && text.trim()) message.value = text
+}
+
+defineExpose({ restart, announce, index, current, locked, typed })
 </script>
 
 <template>
-  <div class="quiz-shell stack">
+  <div class="quiz-shell stack" :data-coach="ROUND17_H5" :data-coach-stage="coachStage.id">
     <section v-if="$slots.controls || allowModeToggle" class="card quiz-controls">
       <slot name="controls" />
       <div class="spacer" />
@@ -331,16 +496,32 @@ defineExpose({ restart, index, current, locked, typed })
       <div class="bar-foot">
         <span class="chip">⭐ 本轮 {{ starsEarned }}</span>
         <span v-if="fastAnswers" class="chip">⚡ 秒答 {{ fastAnswers }}</span>
+        <span v-if="wrongOwed" class="chip owed" :title="'答对同一道题就能把它移出错题本'">
+          📕 错题本 {{ wrongOwed }}
+        </span>
         <slot name="bar-extra" v-bind="slotCtx" />
       </div>
     </section>
 
     <section v-if="current" ref="stageRef" class="card quiz-stage">
       <header class="stage-head">
-        <MascotBot :mood="mood" :size="72" />
-        <p class="muted say">{{ message }}</p>
+        <!--
+          默认这只就是能点的陪跑伙伴：点一下换一句阶段台词，写进下面的台词行。
+          玩法页想换一只（比如自己接管点触）就用 mascot 插槽，插槽里能拿到
+          当前阶段，接着用 announce() 把自己的话写进台词行。
+        -->
+        <slot name="mascot" :mood="mood" :message="message" :stage="coachStage">
+          <MascotBot
+            :mood="coachMood === 'cheer' ? 'cheer' : mood"
+            :size="72"
+            interactive
+            @tap="cheerUp"
+          />
+        </slot>
+        <p class="muted say" role="status">{{ message }}</p>
         <div class="spacer" />
         <slot name="head-extra" v-bind="slotCtx" />
+        <LearnDemoLauncher ref="demoLauncher" :skill="demoSkill" @update:open="demoOpen = $event" />
         <button
           v-if="hints.length"
           class="btn btn--ghost btn--sm"
@@ -444,7 +625,7 @@ defineExpose({ restart, index, current, locked, typed })
   display: block;
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, var(--cyan), var(--violet), var(--gold));
+  background: linear-gradient(90deg, var(--brand), var(--accent), var(--star));
   transition: width 0.35s ease;
 }
 
@@ -453,6 +634,11 @@ defineExpose({ restart, index, current, locked, typed })
   gap: 8px;
   flex-wrap: wrap;
   align-items: center;
+}
+
+.owed {
+  background: rgba(255, 122, 198, 0.18);
+  border-color: rgba(255, 122, 198, 0.5);
 }
 
 .quiz-stage {
@@ -476,10 +662,10 @@ defineExpose({ restart, index, current, locked, typed })
 
 .quiz-hint {
   padding: 10px 14px;
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-sm);
   background: rgba(255, 206, 77, 0.12);
   border: 1px solid rgba(255, 206, 77, 0.4);
-  color: var(--gold);
+  color: var(--star);
   font-size: 14px;
 }
 
@@ -489,7 +675,7 @@ defineExpose({ restart, index, current, locked, typed })
   gap: 8px;
   flex-wrap: wrap;
   padding: 10px 14px;
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-sm);
   background: rgba(255, 107, 125, 0.12);
   border: 1px solid rgba(255, 107, 125, 0.42);
 }
@@ -497,7 +683,7 @@ defineExpose({ restart, index, current, locked, typed })
 .why-head {
   font-size: 13px;
   font-weight: 900;
-  color: var(--red);
+  color: var(--danger);
 }
 
 .why-chip {
@@ -507,13 +693,13 @@ defineExpose({ restart, index, current, locked, typed })
   font-weight: 800;
   background: rgba(255, 107, 125, 0.22);
   border: 1px solid rgba(255, 107, 125, 0.5);
-  color: var(--ink);
+  color: var(--text-strong);
 }
 
 .why-tip {
   flex-basis: 100%;
   font-size: 13px;
-  color: var(--ink-soft);
+  color: var(--text);
 }
 
 .options {
@@ -526,7 +712,7 @@ defineExpose({ restart, index, current, locked, typed })
   padding: 22px 10px;
   font-size: 30px;
   font-weight: 900;
-  border-radius: var(--radius-m);
+  border-radius: var(--radius-md);
   background: linear-gradient(160deg, rgba(255, 206, 77, 0.16), rgba(255, 159, 69, 0.14));
   border: 2px solid rgba(255, 206, 77, 0.42);
   transition: transform 0.14s ease, box-shadow 0.14s ease;
@@ -534,7 +720,7 @@ defineExpose({ restart, index, current, locked, typed })
 
 .opt small {
   font-size: 14px;
-  color: var(--ink-soft);
+  color: var(--text);
   margin-left: 2px;
 }
 
@@ -545,12 +731,12 @@ defineExpose({ restart, index, current, locked, typed })
 
 .opt.right {
   background: rgba(85, 230, 165, 0.28);
-  border-color: var(--green);
+  border-color: var(--success);
 }
 
 .opt.bad {
   background: rgba(255, 107, 125, 0.26);
-  border-color: var(--red);
+  border-color: var(--danger);
 }
 
 .keypad-wrap {
@@ -566,8 +752,8 @@ defineExpose({ restart, index, current, locked, typed })
   text-align: center;
   font-size: 34px;
   font-weight: 900;
-  color: var(--cyan);
-  border-radius: var(--radius-s);
+  color: var(--brand);
+  border-radius: var(--radius-sm);
   border: 3px dashed rgba(94, 231, 255, 0.55);
 }
 
@@ -578,7 +764,7 @@ defineExpose({ restart, index, current, locked, typed })
 
 .answer-slot small {
   font-size: 16px;
-  color: var(--ink-soft);
+  color: var(--text);
 }
 
 .keypad {
@@ -591,7 +777,7 @@ defineExpose({ restart, index, current, locked, typed })
   height: 60px;
   font-size: 26px;
   font-weight: 900;
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.16);
   transition: transform 0.12s ease, background 0.12s ease;
@@ -603,13 +789,13 @@ defineExpose({ restart, index, current, locked, typed })
 }
 
 .key.del {
-  color: var(--orange);
+  color: var(--neon-orange);
 }
 
 .key.wide {
   font-size: 18px;
-  background: linear-gradient(135deg, var(--cyan), var(--violet));
-  color: #08122b;
+  background: linear-gradient(135deg, var(--brand), var(--accent));
+  color: var(--text-invert);
   border-color: transparent;
 }
 

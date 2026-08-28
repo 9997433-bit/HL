@@ -34,6 +34,8 @@ const APPS = [
       ['算术恒星', '/#/arithmetic'],
       ['形状卫星', '/#/geometry'],
       ['规律环带', '/#/logic'],
+      ['配对记忆', '/#/memory-pairs'],
+      ['逻辑迷宫', '/#/maze'],
       ['数独空间站', '/#/sudoku'],
       ['生活行星', '/#/word-problems'],
       ['成就墙', '/#/progress'],
@@ -133,7 +135,12 @@ async function listen(server) {
 }
 
 async function closeServer(server) {
-  await new Promise((resolveClose) => server.close(resolveClose))
+  await new Promise((resolveClose, rejectClose) => {
+    server.close((error) => (error ? rejectClose(error) : resolveClose()))
+    // Chrome may keep idle HTTP/1.1 sockets alive after the final route scan.
+    // Stop accepting requests first, then close those sockets so the gate exits.
+    server.closeAllConnections?.()
+  })
 }
 
 async function scanPage(browser, app, base, route) {

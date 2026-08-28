@@ -518,7 +518,7 @@ watch(() => props.id, enter)
 
 .choice.is-right .choice__index {
   background: var(--success);
-  color: #fff;
+  color: var(--text-invert);
 }
 
 .choice.is-wrong {

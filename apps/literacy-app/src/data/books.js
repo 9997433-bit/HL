@@ -4,109 +4,93 @@
  * 硬性约束：正文只允许使用 characters.js 里已收录的汉字 + 标点。
  * `verifyBookCoverage()` 会在 dev 模式下逐字校验，越界的字会在控制台报警，
  * 这样以后加新绘本时不会不小心用到孩子还没学过的字。
+ *
+ * 分级的意思是句子长度和情节复杂度，不是「新字数量」：
+ * 第 1 级一句一行、第 2 级出现对话、第 3 级有完整的一天、
+ * 第 4 级开始有起承转合、第 5 级是多角色的故事、第 6 级接近小小章节书。
+ *
+ * 书目分两摞：
+ *   books/core.js        最早手写的 30 本，注音逐句校过，是语感基准；
+ *   books/extended.js    批量扩充的那一百多本，由 scripts/gen-books.mjs
+ *                        从 scripts/data/book-seed-*.mjs 生成，注音也是算出来的。
+ * 两摞的字段完全一致，读者侧感知不到区别。
+ *
+ * 首页和进度 store 只需要「一共几本」，别从这里 import——正文会跟着进主包，
+ * 那两处用 book-index.js。
+ *
+ * 页面插图有两档（ROUND11_H4）：老的一档是一页一个大 emoji，新的一档是
+ * 下面这套场景 DSL——一页摆几件东西，各有位置、大小和一点轻微的动。
+ * 两档并存，没写 `scene` 的页照旧显示 `emoji`，扩充绘本不必一次性全改。
+ *
+ * ROUND12_H3 把场景从 3 本样板铺到读得最多的 17 本，ROUND13_H3 推到 33 本，
+ * ROUND14_H3 再推到 60 本；剩下 72 本仍走单 emoji，那条退化路径是硬要求，不是过渡态——
+ * 绘本会一直往下加，新书进来时先有兜底。
+ * 扩充绘本（books/l*.js）是生成的，它们的场景写在
+ * scripts/data/book-scene-seed.mjs，手写的 30 本直接写在 books/core.js。
  */
 
 import { CHARACTER_MAP } from './characters.js'
+import { CORE_BOOKS } from './books/core.js'
+import { EXTENDED_BOOKS } from './books/extended.js'
 
 const PUNCTUATION = new Set([
   '，', '。', '！', '？', '：', '、', '；', '「', '」', '《', '》', '…', '—', ' ', '\n'
 ])
 
-export const BOOKS = [
-  {
-    id: 'b1',
-    title: '我看大自然',
-    pinyin: 'wǒ kàn dà zì rán',
-    level: 1,
-    levelName: '第 1 级 · 十个字就能读',
-    cover: '🌄',
-    palette: ['#ffe6b3', '#c8ebff'],
-    summary: '天上有什么？山下有什么？跟着小主人公看一看。',
-    newChars: ['天', '日', '月', '山', '水', '田', '土', '木', '花'],
-    pages: [
-      { emoji: '🌅', text: '天上有日，天上有月。', p: 'tiān shàng yǒu rì, tiān shàng yǒu yuè.' },
-      { emoji: '⛰️', text: '山下有水，水上有花。', p: 'shān xià yǒu shuǐ, shuǐ shàng yǒu huā.' },
-      { emoji: '🌾', text: '田中有土，土上有木。', p: 'tián zhōng yǒu tǔ, tǔ shàng yǒu mù.' },
-      { emoji: '🙋', text: '我在山下，我看天上的月。', p: 'wǒ zài shān xià, wǒ kàn tiān shàng de yuè.' },
-      { emoji: '🌸', text: '大山，小花，我也会看！', p: 'dà shān, xiǎo huā, wǒ yě huì kàn!' }
-    ]
-  },
-  {
-    id: 'b2',
-    title: '小牛和小羊',
-    pinyin: 'xiǎo niú hé xiǎo yáng',
-    level: 2,
-    levelName: '第 2 级 · 有对话的小故事',
-    cover: '🐄',
-    palette: ['#d9f6f3', '#ffe0e6'],
-    summary: '小牛想上山，小羊说「我也会」。它们在山上看到了什么？',
-    newChars: ['牛', '羊', '说', '会', '也', '去', '来'],
-    pages: [
-      { emoji: '🐄', text: '山上有小牛，山下有小羊。', p: 'shān shàng yǒu xiǎo niú, shān xià yǒu xiǎo yáng.' },
-      { emoji: '🗣️', text: '小牛说：我会上山。', p: 'xiǎo niú shuō: wǒ huì shàng shān.' },
-      { emoji: '🐑', text: '小羊说：我也会，我也来！', p: 'xiǎo yáng shuō: wǒ yě huì, wǒ yě lái!' },
-      { emoji: '🌼', text: '小牛小羊上山去，山上有花，花下有水。', p: 'xiǎo niú xiǎo yáng shàng shān qù, shān shàng yǒu huā, huā xià yǒu shuǐ.' },
-      { emoji: '👀', text: '小牛看小羊，小羊看小牛。', p: 'xiǎo niú kàn xiǎo yáng, xiǎo yáng kàn xiǎo niú.' },
-      { emoji: '🎉', text: '天上有日。小牛小羊说：好，好！', p: 'tiān shàng yǒu rì. xiǎo niú xiǎo yáng shuō: hǎo, hǎo!' }
-    ]
-  },
-  {
-    id: 'b3',
-    title: '我的小手和小口',
-    pinyin: 'wǒ de xiǎo shǒu hé xiǎo kǒu',
-    level: 2,
-    levelName: '第 2 级 · 认识自己',
-    cover: '✋',
-    palette: ['#e8e0ff', '#fff1cf'],
-    summary: '手会做什么？口会做什么？我是一个小小的我。',
-    newChars: ['手', '口', '目', '耳', '心', '是', '的', '不'],
-    pages: [
-      { emoji: '✋', text: '我有手，我有口。', p: 'wǒ yǒu shǒu, wǒ yǒu kǒu.' },
-      { emoji: '🫰', text: '手是我的，口也是我的。', p: 'shǒu shì wǒ de, kǒu yě shì wǒ de.' },
-      { emoji: '👂', text: '我的耳，我的目，我的心。', p: 'wǒ de ěr, wǒ de mù, wǒ de xīn.' },
-      { emoji: '👀', text: '我会看，我也会说。', p: 'wǒ huì kàn, wǒ yě huì shuō.' },
-      { emoji: '🧒', text: '我不是大人，我是小小的我！', p: 'wǒ bù shì dà rén, wǒ shì xiǎo xiǎo de wǒ!' }
-    ]
-  },
-  {
-    id: 'b4',
-    title: '我家的一天',
-    pinyin: 'wǒ jiā de yī tiān',
-    level: 3,
-    levelName: '第 3 级 · 一家人的日子',
-    cover: '🏡',
-    palette: ['#ffe0c2', '#e6f5c9'],
-    summary: '从早饭到晚上开灯，跟着我看看家里的一天。',
-    newChars: ['坐', '桌', '吃', '饭', '哥', '姐', '杯', '茶', '房', '灯'],
-    pages: [
-      { emoji: '🍚', text: '早上，我坐在桌前吃饭。', p: 'zǎo shang, wǒ zuò zài zhuō qián chī fàn.' },
-      { emoji: '👨‍👩‍👧', text: '父母也来了，我们一家人都在。', p: 'fù mǔ yě lái le, wǒ men yī jiā rén dōu zài.' },
-      { emoji: '🥬', text: '桌上有米饭、菜和一个蛋。', p: 'zhuō shàng yǒu mǐ fàn, cài hé yī gè dàn.' },
-      { emoji: '🍎', text: '哥哥要一杯茶，姐姐想吃苹果。', p: 'gē ge yào yī bēi chá, jiě jie xiǎng chī píng guǒ.' },
-      { emoji: '📖', text: '吃了饭，我们去房里读书。', p: 'chī le fàn, wǒ men qù fáng lǐ dú shū.' },
-      { emoji: '💡', text: '晚上，灯是黄的，我们都笑了。', p: 'wǎn shang, dēng shì huáng de, wǒ men dōu xiào le.' }
-    ]
-  },
-  {
-    id: 'b5',
-    title: '小鸡问什么',
-    pinyin: 'xiǎo jī wèn shén me',
-    level: 3,
-    levelName: '第 3 级 · 爱问的小动物',
-    cover: '🐔',
-    palette: ['#fff1cf', '#d9f6f3'],
-    summary: '小鸡什么都想问。问一问，就多知道一点。',
-    newChars: ['鸡', '鸭', '猪', '问', '这', '那', '什', '么', '都', '能'],
-    pages: [
-      { emoji: '🐔', text: '小鸡问：这是什么？', p: 'xiǎo jī wèn: zhè shì shén me?' },
-      { emoji: '🐄', text: '老牛说：这是一个大瓜。', p: 'lǎo niú shuō: zhè shì yī gè dà guā.' },
-      { emoji: '🦆', text: '小鸭问：那是什么？', p: 'xiǎo yā wèn: nà shì shén me?' },
-      { emoji: '🥚', text: '小猪说：那是一个白色的蛋。', p: 'xiǎo zhū shuō: nà shì yī gè bái sè de dàn.' },
-      { emoji: '😄', text: '小鸡和小鸭都笑了：我们什么都想问！', p: 'xiǎo jī hé xiǎo yā dōu xiào le: wǒ men shén me dōu xiǎng wèn!' },
-      { emoji: '🌟', text: '老牛说：多问一问，我们都能学好。', p: 'lǎo niú shuō: duō wèn yī wèn, wǒ men dōu néng xué hǎo.' }
-    ]
-  }
-]
+/* --------------------------------------------------------- 页级场景 DSL
+ *
+ * 一页一个 emoji 说不清「谁在哪儿、发生了什么」。场景把一页摆成几件东西：
+ *
+ *   {
+ *     emoji: '🌅',                     没有场景的旧路径仍然用它
+ *     text: '天上有日，天上有月。',
+ *     p: 'tiān shàng yǒu rì, tiān shàng yǒu yuè.',
+ *     sceneBg: 'dawn',                 背景预设，缺省用绘本自己的 palette
+ *     sceneAlt: '天上有日，也有月',      读屏念的一句话，同样受用字约束
+ *     scene: [
+ *       { e: '☀️', x: 72, y: 24, s: 1.3, m: 'float' },
+ *       { e: '⛰️', x: 34, y: 80, s: 1.8 }
+ *     ]
+ *   }
+ *
+ * 字段名短是为了体积：一页场景压出来一百来字节，二十页也就 2 KB 上下，
+ * 而且 books.js 只在绘本路由里按需加载，首屏预算不受影响。
+ *   e   一个图形（不许放汉字——要给孩子读的字都在正文里）
+ *   x/y 舞台内的百分比坐标，0–100；y 越大越靠近读者，用来排前后
+ *   s   相对大小，0.4–3，缺省 1
+ *   m   轻微动效：float 上下浮 / sway 左右摆 / drift 缓慢横移 / still 不动
+ */
+
+/** 背景预设：id → [上方色, 下方色]。放在数据层，校验和组件共用同一份。 */
+export const SCENE_BACKDROPS = new Map([
+  ['dawn', ['#ffe7bd', '#ffd0c4']],
+  ['sky', ['#cfe8ff', '#eaf7ff']],
+  ['water', ['#bfe6f5', '#dff5e6']],
+  ['field', ['#e6f5c9', '#fff3d0']],
+  ['storm', ['#c3ccdd', '#a7b6cc']],
+  ['dusk', ['#ffd6c2', '#d7c6f0']],
+  ['night', ['#54618a', '#8a95b8']],
+  ['snow', ['#e8f1fa', '#ffffff']],
+  ['room', ['#ffeede', '#f6e3ff']]
+])
+
+export const SCENE_MOTIONS = new Set(['float', 'sway', 'drift', 'still'])
+
+/** 一页最多摆几件东西。再多就挤成一团，孩子找不到主角。 */
+export const SCENE_ITEM_LIMIT = 6
+
+/** 这一页升级成场景了没有。 */
+export function hasScene(page) {
+  return Array.isArray(page?.scene) && page.scene.length > 0
+}
+
+/** 整本书里升级成场景的那些页。 */
+export function scenePages(book) {
+  return (book?.pages ?? []).filter(hasScene)
+}
+
+/** 书架按分级排，同级内保持「先手写、后扩充」的原始顺序。 */
+export const BOOKS = [...CORE_BOOKS, ...EXTENDED_BOOKS].sort((a, b) => a.level - b.level)
 
 export const BOOK_MAP = new Map(BOOKS.map((b) => [b.id, b]))
 
@@ -133,6 +117,145 @@ export function verifyBookCoverage() {
   const problems = []
   for (const book of BOOKS) {
     const missing = charsInBook(book).filter((ch) => !CHARACTER_MAP.has(ch))
+    if (missing.length) problems.push({ book: book.title, missing })
+  }
+  return problems
+}
+
+/** 已经用上场景的绘本 id，按书架顺序。 */
+export const SCENE_BOOK_IDS = BOOKS.filter((b) => scenePages(b).length).map((b) => b.id)
+
+export const TOTAL_SCENE_PAGES = BOOKS.reduce((n, b) => n + scenePages(b).length, 0)
+
+/**
+ * ROUND12_H3 铺开台账。
+ *
+ * 数字是手写的，不是从上面那两行算出来的——算出来的数永远等于自己，
+ * 挡不住任何事。写死一份，让 `check:data` 拿它跟实际数据对：
+ * 谁把一本书的 `scene` 删了、谁生成器跑歪了少写一页，都会在这里炸出来，
+ * 而不是等到有人翻到那一页才发现插图退回了单 emoji。
+ *
+ * 铺的是「读得最多的那一摞」：L1 前 15 本（含 R11 的样板 b1）整本升级，
+ * 加上 R11 已升的 b10（L2）和 b14（L3），三个分级各有实例。
+ */
+export const ROUND12_H3 = Object.freeze({
+  /** 硬门槛，见 .agent_workspace/ROUND12-ACCEPTANCE.md。 */
+  target: 60,
+  books: 17,
+  pages: 105
+})
+
+/**
+ * ROUND13_H3 终局台账。
+ *
+ * R12 那份留着不动：它记的是「铺开那一轮铺到了哪儿」，改掉就没人知道
+ * 105 页是从哪来的了。当期台账是这一份，`check:data` 对的是它，
+ * 同时拿 R12 的数当地板——场景只能往上加，退回去就是有人把书吃了。
+ *
+ * 33 本的选法接着 R12 的思路走「整级铺满」：第 1 级 25 本全部升级，
+ * 第 2 级从 bx21 起接上七本。同一分级里一半有场景一半没有，孩子翻到后半摞
+ * 会以为书坏了；先把最低那一级铺满，「这一级都是这样」才成立。
+ */
+export const ROUND13_H3 = Object.freeze({
+  /** 硬门槛，见 .agent_workspace/ROUND13-BRIEF.md H3。 */
+  target: 200,
+  books: 33,
+  pages: 209
+})
+
+/**
+ * ROUND14_H3 台账。
+ *
+ * 接着 R13 的「整级铺满」往下走：第 2 级的 24 本——core.js 里的
+ * b2、b3、b10、b11、b12 和扩充的 bx21–bx40——到这一轮全部有场景，
+ * 第 3 级从 bx41 起接上九本。第 1、2 两级至此没有半本是单 emoji 的，
+ * 孩子从头翻到 bx40 看到的是同一种书。
+ *
+ * R12 / R13 那两份留着当地板，当期对的是这一份。
+ */
+export const ROUND14_H3 = Object.freeze({
+  /** 硬门槛，见 .agent_workspace/ROUND14-BRIEF.md H3。 */
+  target: 400,
+  books: 60,
+  pages: 404
+})
+
+/** 场景旁白里出现的所有汉字（去重）。 */
+export function charsInScenes(book) {
+  const set = new Set()
+  for (const page of scenePages(book)) {
+    for (const ch of page.sceneAlt ?? '') {
+      if (!PUNCTUATION.has(ch)) set.add(ch)
+    }
+  }
+  return [...set]
+}
+
+const inRange = (v, lo, hi) => typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi
+/** 图形位上放汉字就成了「画里写字」：孩子会去读它，而它不受用字约束。 */
+const hasHan = (s) => /\p{Script=Han}/u.test(s)
+
+/**
+ * 开发期自检：场景摆得出来吗。
+ *
+ * 坐标越界不会报错，只会让那件东西飘到画框外——静态数据错得越安静越难发现，
+ * 所以这些约束得在内容自检里挡住，而不是等谁在真机上看见半只小鸟。
+ */
+export function verifyScenes() {
+  const problems = []
+  for (const book of BOOKS) {
+    const bad = []
+    for (const [index, page] of (book.pages ?? []).entries()) {
+      if (page.scene === undefined) continue
+      const at = `p${index + 1}`
+      if (!Array.isArray(page.scene) || !page.scene.length) {
+        bad.push(`${at} 场景不是元素数组`)
+        continue
+      }
+      // 单元素场景不如直接用 emoji：DSL 的意义就是「一页不止一件东西」。
+      if (page.scene.length < 2) bad.push(`${at} 只摆了 1 件元素`)
+      if (page.scene.length > SCENE_ITEM_LIMIT) {
+        bad.push(`${at} 元素 ${page.scene.length} 件超过上限 ${SCENE_ITEM_LIMIT}`)
+      }
+      if (page.sceneBg && !SCENE_BACKDROPS.has(page.sceneBg)) {
+        bad.push(`${at} 背景预设 ${page.sceneBg} 不存在`)
+      }
+      if (!page.sceneAlt) bad.push(`${at} 缺少读屏旁白`)
+      else if (!hasHan(page.sceneAlt)) bad.push(`${at} 旁白不是中文`)
+      // 兜底插图不能因为升级场景就丢：书架和不支持场景的旧入口还在用它。
+      if (!page.emoji) bad.push(`${at} 丢了兜底 emoji`)
+      for (const [i, item] of page.scene.entries()) {
+        const where = `${at}#${i + 1}`
+        if (!item || typeof item !== 'object') {
+          bad.push(`${where} 不是元素对象`)
+          continue
+        }
+        if (!item.e) bad.push(`${where} 没有图形`)
+        else if (hasHan(item.e)) bad.push(`${where} 图形位放了汉字「${item.e}」`)
+        if (!inRange(item.x, 0, 100) || !inRange(item.y, 0, 100)) {
+          bad.push(`${where} 坐标 (${item.x}, ${item.y}) 不在画框内`)
+        }
+        if (item.s !== undefined && !inRange(item.s, 0.4, 3)) {
+          bad.push(`${where} 大小 ${item.s} 越界`)
+        }
+        if (item.m !== undefined && !SCENE_MOTIONS.has(item.m)) {
+          bad.push(`${where} 动效 ${item.m} 不认识`)
+        }
+      }
+    }
+    if (bad.length) problems.push({ book: book.title, bad })
+  }
+  return problems
+}
+
+/**
+ * 开发期自检：场景旁白也归「用字零越界」管。
+ * 旁白只念给读屏听，但它同样是绘本内容，越界就说明这本书悄悄超纲了。
+ */
+export function verifySceneCoverage() {
+  const problems = []
+  for (const book of BOOKS) {
+    const missing = charsInScenes(book).filter((ch) => !CHARACTER_MAP.has(ch))
     if (missing.length) problems.push({ book: book.title, missing })
   }
   return problems

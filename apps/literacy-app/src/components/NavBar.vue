@@ -2,24 +2,28 @@
 /**
  * 底部主导航。
  *
- * 儿童端只放 5 个入口，图标大、命中区大（>= 64px），文字始终可见——
+ * 儿童端只放最常走的几个入口，图标大、命中区大（>= 44px），文字始终可见——
  * 这个年龄段还读不熟字，图标+文字双通道比纯图标可靠得多。
  * 家长中心不放在这里，避免孩子误入，入口在顶栏并有一道简单验证。
  */
 import { useRoute } from 'vue-router'
 import { sfx } from '@/utils/audio.js'
+import OpenMojiIcon from '@shared/components/OpenMojiIcon.vue'
 
 const route = useRoute()
 
 const ITEMS = [
-  { to: '/', name: 'home', icon: '🏡', label: '乐园' },
-  { to: '/learn', name: 'learn', icon: '✏️', label: '学字' },
-  { to: '/listen', name: 'listen', icon: '👂', label: '听音' },
-  { to: '/books', name: 'books', icon: '📚', label: '绘本' },
-  { to: '/idioms', name: 'idioms', icon: '🏮', label: '成语' }
+  { to: '/', name: 'home', icon: 'house', label: '乐园' },
+  { to: '/learn', name: 'learn', icon: 'pencil', label: '学字' },
+  { to: '/listen', name: 'listen', icon: 'ear', label: '听音' },
+  { to: '/ocr', name: 'camera-ocr', icon: 'camera', label: '拍照' },
+  { to: '/books', name: 'books', icon: 'books', label: '绘本' },
+  { to: '/idioms', name: 'idioms', icon: 'lantern', label: '成语' },
+  { to: '/poems', name: 'poems', icon: 'scroll', label: '古诗', also: ['poem', 'follow-read'] }
 ]
 
-const isActive = (item) => route.name === item.name
+/** 详情页和跟读页也要让「古诗」这一格保持点亮，孩子才知道自己还在国学区里。 */
+const isActive = (item) => route.name === item.name || item.also?.includes(route.name)
 </script>
 
 <template>
@@ -33,7 +37,7 @@ const isActive = (item) => route.name === item.name
       :aria-current="isActive(item) ? 'page' : undefined"
       @click="sfx.tap()"
     >
-      <span class="navbar__icon">{{ item.icon }}</span>
+      <OpenMojiIcon class="navbar__icon" :name="item.icon" :size="26" />
       <span class="navbar__label">{{ item.label }}</span>
     </RouterLink>
   </nav>

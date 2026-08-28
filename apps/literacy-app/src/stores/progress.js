@@ -10,9 +10,14 @@
 
 import { computed, reactive, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
-import { CHARACTER_MAP, CHARACTERS, TOTAL_CHARACTERS, UNITS } from '@/data/characters.js'
-import { BOOKS } from '@/data/books.js'
-import { IDIOMS } from '@/data/idioms.js'
+import {
+  CHARACTER_MAP,
+  CHARACTERS,
+  TOTAL_CHARACTERS,
+  UNITS
+} from '@/data/characters.js'
+import { BADGES, TOTAL_BADGES } from '@/data/badges.js'
+import { BOOK_IDS } from '@/data/book-index.js'
 import { RADICALS } from '@/data/radicals.js'
 import { setSoundEnabled, setSpeechEnabled } from '@/utils/audio.js'
 import { RATING, createCard, dueCards, retention, schedule } from '@/utils/srs.js'
@@ -24,9 +29,9 @@ export const MASTERY_THRESHOLD = 3
 /** 掌握度四级，界面文案与颜色都从这里取。 */
 export const MASTERY = [
   { level: 0, label: '没学过', short: '新', color: 'var(--stroke-hint)' },
-  { level: 1, label: '认识了', short: '认', color: 'var(--seed-sky)' },
-  { level: 2, label: '会写了', short: '写', color: 'var(--seed-mint)' },
-  { level: 3, label: '真掌握', short: '棒', color: 'var(--seed-mango)' }
+  { level: 1, label: '认识了', short: '认', color: 'var(--sky-400)' },
+  { level: 2, label: '会写了', short: '写', color: 'var(--mint-400)' },
+  { level: 3, label: '真掌握', short: '棒', color: 'var(--mango-400)' }
 ]
 
 /** 升到下一级需要的经验，随等级线性增长。 */
@@ -39,6 +44,8 @@ function emptyChar() {
     traced: 0,
     quizRight: 0,
     quizWrong: 0,
+    /** 完整走完「认—写—听—考—奖」五步的次数。 */
+    flows: 0,
     level: 0,
     firstAt: null,
     lastAt: null
@@ -68,6 +75,15 @@ function defaultState() {
       restReminderMin: 20,
       /** 每天目标学字数，家长面板可调。 */
       dailyGoal: 5,
+      /**
+       * 学习计划（家长面板设置）：
+       *  - dailyNewLimit 每天最多学几个新字，0 表示不设上限；
+       *  - planUnits     只学这几个单元，空数组表示按课程顺序学全部。
+       * 计划只影响「今天学什么」的推荐，不会锁住孩子已经学过的字，
+       * 也不会拦住到期的复习——复习是记忆曲线说了算的。
+       */
+      dailyNewLimit: 8,
+      planUnits: [],
       /** 听音识字的场景皮肤：card / fish / mole。 */
       listenSkin: 'fish'
     },
@@ -79,7 +95,23 @@ function defaultState() {
     chars: {},
     books: {},
     idioms: {},
+    /** 古诗：{ 'jingyesi': { read, reads, follows, bestScore, lastAt } } */
+    poems: {},
+    /** 儿歌：{ 'sg1': { sung, times, lastAt } } */
+    songs: {},
     radicals: {},
+
+    /** 已解锁的徽章：{ 'first-step': { unlockedAt } }，定义见 data/badges.js。 */
+    badges: {},
+
+    /**
+     * 单元地图上「解锁过场已经演过」的单元 id。
+     * null 表示这份存档还没记过：读档时按「当前已解锁的都算看过」补一遍，
+     * 老存档才不会一进字表就被十几段过场连着轰。
+     */
+    seenUnits: null,
+    /** 单字五步闭环的完成总次数，「五步全通」徽章看它。 */
+    flowsCompleted: 0,
 
     /** FSRS 记忆卡：{ '人': { charId, due, stability, difficulty, reps, lapses, ... } } */
     srs: {},
@@ -130,7 +162,14 @@ function migrate(saved) {
     chars,
     books: { ...(saved.books || {}) },
     idioms: { ...(saved.idioms || {}) },
+    poems: { ...(saved.poems || {}) },
+    songs: { ...(saved.songs || {}) },
     radicals: { ...(saved.radicals || {}) },
+    badges: { ...(saved.badges || {}) },
+    seenUnits: Array.isArray(saved.seenUnits)
+      ? saved.seenUnits.filter((id) => typeof id === 'string')
+      : null,
+    flowsCompleted: saved.flowsCompleted ?? 0,
     srs: saved.srs ? { ...saved.srs } : seedCards(chars),
     listen: { ...base.listen, ...(saved.listen || {}) },
     daily: { ...(saved.daily || {}) }
@@ -152,6 +191,11 @@ export const useProgressStore = defineStore('progress', () => {
 
   /** 待播放的庆祝事件，由 App.vue 的彩带层消费。 */
   const pendingCelebration = ref(null)
+  /**
+   * 本次打开页面刚解锁的徽章，最新的排在最前面。
+   * 单字页的「领奖励」一步和首页成就架都读它；不持久化，刷新即清空。
+   */
+  const recentBadges = ref([])
   /** 本次打开页面已连续学习的秒数，用于护眼提醒；不持久化。 */
   const sessionSeconds = ref(0)
   const restDue = ref(false)
@@ -216,8 +260,52 @@ export const useProgressStore = defineStore('progress', () => {
     return out
   })
 
-  const booksFinished = computed(() => BOOKS.filter((b) => state.books[b.id]?.finishedAt).length)
-  const idiomsRead = computed(() => IDIOMS.filter((i) => state.idioms[i.id]?.read).length)
+  /* ------------------------------------------------------------ 地图叙事 */
+
+  /**
+   * 存档里没有记录时，把「此刻已解锁」的单元一次性记成看过。
+   * 读档、导入、清档后都要走一遍，否则解锁过场会对着老进度重放一轮。
+   */
+  function ensureSeenUnits() {
+    if (Array.isArray(state.seenUnits)) return
+    state.seenUnits = UNITS.filter((u) => unlockedUnits.value[u.id]).map((u) => u.id)
+  }
+
+  /** 已经解锁、但过场还没演过的第一个单元；没有就是 null。 */
+  const pendingUnitUnlock = computed(() => {
+    const seen = new Set(state.seenUnits ?? [])
+    return UNITS.find((u) => unlockedUnits.value[u.id] && !seen.has(u.id)) ?? null
+  })
+
+  /** 过场演完（或被跳过）后调用，同一个单元不会再演第二次。 */
+  function markUnitSeen(unitId) {
+    if (!unitId) return
+    if (!Array.isArray(state.seenUnits)) state.seenUnits = []
+    if (!state.seenUnits.includes(unitId)) state.seenUnits.push(unitId)
+  }
+
+  /**
+   * 数「读完几本」只要 id，不要正文。绘本一百多本以后，从 books.js import
+   * 会把每一页的句子和拼音都拽进首屏，所以这里走轻量索引。
+   */
+  const booksFinished = computed(() => BOOK_IDS.filter((id) => state.books[id]?.finishedAt).length)
+  /**
+   * 「学过几条成语」直接数存档，不去比对 IDIOMS。
+   *
+   * 进度 store 挂在应用外壳上，是首屏必然要下载的东西；从它 import 成语语料，
+   * 六十条成语连故事带情景题就会一起被打进入口块。这里只需要一个数字，
+   * 数存档里的记录就够了——语料改名换 id 的代价是可能多算一条旧记录，
+   * 比让每个孩子先下载几十 KB 用不上的故事划算得多。
+   */
+  const idiomsRead = computed(() => Object.values(state.idioms).filter((i) => i?.read).length)
+  /** 古诗同理：只数存档，不把 24 首诗连注解一起拉进首屏。 */
+  const poemsRead = computed(() => Object.values(state.poems ?? {}).filter((p) => p?.read).length)
+  /** 跟读过的诗有几首——徽章看它，比「跟读总次数」更能说明练了多少。 */
+  const poemsFollowed = computed(
+    () => Object.values(state.poems ?? {}).filter((p) => (p?.follows ?? 0) > 0).length
+  )
+  /** 儿歌同理：只数存档，七首歌的曲谱不该为了一个数字进首屏。 */
+  const songsSung = computed(() => Object.values(state.songs ?? {}).filter((s) => s?.sung).length)
   const radicalsSeen = computed(() => RADICALS.filter((r) => state.radicals[r.id]?.seen).length)
 
   const quizTotals = computed(() => {
@@ -295,10 +383,119 @@ export const useProgressStore = defineStore('progress', () => {
     return list.reduce((n, c) => n + c.retention, 0) / list.length
   })
 
-  /** 下一个还没学的字，首页「继续学习」按钮用。 */
-  const nextChar = computed(
-    () => CHARACTERS.find((c) => (state.chars[c.char]?.level ?? 0) === 0) ?? CHARACTERS[0]
+  /* ------------------------------------------------------------ 学习计划 */
+
+  /** 计划覆盖的单元；家长没选就是全部单元。 */
+  const planUnitIds = computed(() => {
+    const picked = (state.settings.planUnits ?? []).filter((id) => UNITS.some((u) => u.id === id))
+    return picked.length ? picked : UNITS.map((u) => u.id)
+  })
+
+  const isWholeCourse = computed(() => planUnitIds.value.length === UNITS.length)
+
+  const planChars = computed(() => CHARACTERS.filter((c) => planUnitIds.value.includes(c.unit)))
+
+  const planProgress = computed(() => {
+    const total = planChars.value.length
+    const learned = planChars.value.filter((c) => (state.chars[c.char]?.level ?? 0) >= 1).length
+    return { total, learned, percent: total ? Math.round((learned / total) * 100) : 0 }
+  })
+
+  /** 0 表示家长没设上限。 */
+  const dailyNewLimit = computed(() => state.settings.dailyNewLimit ?? 0)
+
+  const newCharsToday = computed(() => today.value.chars?.length ?? 0)
+
+  /** 今天还能学几个新字；没设上限时是 null，界面据此显示「不限」。 */
+  const newCharsLeft = computed(() =>
+    dailyNewLimit.value > 0 ? Math.max(0, dailyNewLimit.value - newCharsToday.value) : null
   )
+
+  const dailyLimitReached = computed(() => newCharsLeft.value === 0)
+
+  /**
+   * 下一个还没学的字，首页「继续学习」按钮用。
+   * 先在计划单元里找，计划里的字都学完了再回到整份字表，
+   * 免得家长把计划缩到一个单元之后按钮直接变成死的。
+   */
+  const nextChar = computed(() => {
+    const unlearned = (c) => (state.chars[c.char]?.level ?? 0) === 0
+    return planChars.value.find(unlearned) ?? CHARACTERS.find(unlearned) ?? CHARACTERS[0]
+  })
+
+  /* ---------------------------------------------------------------- 徽章 */
+
+  const tracedTotal = computed(() =>
+    Object.values(state.chars).reduce((n, s) => n + (s.traced ?? 0), 0)
+  )
+
+  /** 徽章只认这一张指标表；data/badges.js 里的 metric 就是它的键。 */
+  const badgeStats = computed(() => ({
+    learned: learnedCount.value,
+    mastered: masteredChars.value.length,
+    traced: tracedTotal.value,
+    flows: state.flowsCompleted ?? 0,
+    listenStreak: state.listen.bestStreak,
+    streak: streakDays.value,
+    books: booksFinished.value,
+    idioms: idiomsRead.value,
+    poems: poemsFollowed.value,
+    radicals: radicalsSeen.value
+  }))
+
+  /** 全部徽章 × 当前进度，成就墙直接渲染这一份。 */
+  const badges = computed(() =>
+    BADGES.map((b) => {
+      const raw = badgeStats.value[b.metric] ?? 0
+      const record = state.badges[b.id] ?? null
+      return {
+        ...b,
+        raw,
+        value: Math.min(raw, b.goal),
+        unlocked: Boolean(record),
+        unlockedAt: record?.unlockedAt ?? null,
+        percent: b.goal ? Math.min(100, Math.round((raw / b.goal) * 100)) : 0
+      }
+    })
+  )
+
+  const unlockedBadges = computed(() => badges.value.filter((b) => b.unlocked))
+  const badgeCount = computed(() => unlockedBadges.value.length)
+  const totalBadges = TOTAL_BADGES
+
+  /** 差得最少的三枚未解锁徽章，用来告诉孩子「再做一点点就到手了」。 */
+  const nextBadges = computed(() =>
+    badges.value
+      .filter((b) => !b.unlocked)
+      .sort((a, b) => b.percent - a.percent || a.goal - b.goal)
+      .slice(0, 3)
+  )
+
+  /**
+   * 对一遍指标表，把够格的徽章记进存档。
+   *
+   * `silent` 用于读档时的补发：老存档里没有 badges 字段，第一次进来要把
+   * 早就该拿到的徽章补上，但不该为此发星星、更不该弹一堆庆祝。
+   */
+  function refreshBadges({ silent = false } = {}) {
+    const stats = badgeStats.value
+    const fresh = []
+    for (const b of BADGES) {
+      if (state.badges[b.id]) continue
+      if ((stats[b.metric] ?? 0) < b.goal) continue
+      state.badges[b.id] = { unlockedAt: Date.now() }
+      fresh.push(b)
+    }
+    if (!fresh.length || silent) return fresh
+    recentBadges.value = [...fresh, ...recentBadges.value].slice(0, 8)
+    addStars(fresh.length * 2)
+    addXp(fresh.length * 15)
+    return fresh
+  }
+
+  function clearRecentBadges() {
+    recentBadges.value = []
+  }
 
   /* ---------------------------------------------------------------- 内部 */
 
@@ -406,6 +603,19 @@ export const useProgressStore = defineStore('progress', () => {
     addXp(8)
   }
 
+  /**
+   * 单字页的五步闭环走完了一整轮（认一认 → 写一写 → 听一听 → 考一考 → 领奖励）。
+   * 返回这一轮顺带解锁的徽章，好让「领奖励」那一步当场把它们摆出来。
+   */
+  function completeCharFlow(char) {
+    const s = ensureChar(char)
+    s.flows = (s.flows ?? 0) + 1
+    state.flowsCompleted = (state.flowsCompleted ?? 0) + 1
+    addStars(2)
+    addXp(20)
+    return { flows: s.flows, badges: refreshBadges() }
+  }
+
   /** 记录一次测验作答（听音识字、成语小测都走这里）。 */
   function recordQuiz(char, correct) {
     const s = ensureChar(char)
@@ -466,6 +676,65 @@ export const useProgressStore = defineStore('progress', () => {
     }
   }
 
+  function ensurePoem(poemId) {
+    if (!state.poems) state.poems = {}
+    if (!state.poems[poemId]) {
+      state.poems[poemId] = { read: false, reads: 0, follows: 0, bestScore: null }
+    }
+    return state.poems[poemId]
+  }
+
+  /** 打开了一首诗的详情页。 */
+  function markPoemRead(poemId) {
+    const p = ensurePoem(poemId)
+    if (!p.read) {
+      p.read = true
+      addStars(2)
+      addXp(10)
+    }
+    p.reads = (p.reads ?? 0) + 1
+    p.lastAt = Date.now()
+  }
+
+  /**
+   * 记一次跟读。
+   *
+   * 自评档没有分数（score 为 null），那一次照样算「练过一遍」，
+   * 只是不参与「最好成绩」——没有麦克风的孩子不该因此在成就上吃亏。
+   */
+  function recordFollowRead(poemId, { score = null, mode = '' } = {}) {
+    const p = ensurePoem(poemId)
+    p.read = true
+    p.follows = (p.follows ?? 0) + 1
+    p.lastMode = mode
+    p.lastAt = Date.now()
+    if (Number.isFinite(score)) {
+      p.bestScore = Math.max(p.bestScore ?? 0, Math.round(score))
+      if (score >= 70) addStars(1)
+    }
+    addXp(6)
+    return { follows: p.follows, bestScore: p.bestScore, badges: refreshBadges() }
+  }
+
+  /**
+   * 唱完了一首儿歌。
+   *
+   * 「唱完」只由界面在整首播完时调用一次，中途停下不算——不然孩子点两下播放
+   * 就能刷满进度，那个数字对家长就没意义了。
+   */
+  function markSongSung(songId) {
+    if (!state.songs) state.songs = {}
+    const s = state.songs[songId] ?? (state.songs[songId] = { sung: false, times: 0 })
+    if (!s.sung) {
+      s.sung = true
+      addStars(2)
+      addXp(10)
+    }
+    s.times = (s.times ?? 0) + 1
+    s.lastAt = Date.now()
+    return s
+  }
+
   function markRadicalSeen(radicalId) {
     const r = state.radicals[radicalId] ?? (state.radicals[radicalId] = { seen: 0 })
     r.seen += 1
@@ -494,6 +763,22 @@ export const useProgressStore = defineStore('progress', () => {
   function acknowledgeRest() {
     restDue.value = false
     sessionSeconds.value = 0
+  }
+
+  /**
+   * 今日冒险三件事全做完的奖励。
+   * 「每天只发一次」由 dailyQuest store 把关（claimCelebration），这里只管发。
+   */
+  function grantDailyQuestBonus() {
+    addStars(3)
+    addXp(15)
+    celebrate({
+      kind: 'daily-quest',
+      emoji: '🏅',
+      title: '今日冒险全部完成！',
+      subtitle: '明天还有三件新的小事等着你',
+      stars: 3
+    })
   }
 
   function celebrate(payload) {
@@ -527,7 +812,7 @@ export const useProgressStore = defineStore('progress', () => {
   }
 
   function cycleTheme() {
-    const order = ['sunny', 'care', 'night']
+    const order = ['sunny', 'care', 'night', 'aurora']
     const next = order[(order.indexOf(state.settings.theme) + 1) % order.length]
     updateSettings({ theme: next })
   }
@@ -558,6 +843,8 @@ export const useProgressStore = defineStore('progress', () => {
       const payload = parsed?.data ?? parsed
       Object.assign(state, migrate(payload))
       applyAppearance()
+      ensureSeenUnits()
+      refreshBadges({ silent: true })
       persist()
       return true
     } catch {
@@ -568,6 +855,7 @@ export const useProgressStore = defineStore('progress', () => {
   function resetAll() {
     Object.assign(state, defaultState())
     applyAppearance()
+    ensureSeenUnits()
     persist()
   }
 
@@ -693,11 +981,16 @@ export const useProgressStore = defineStore('progress', () => {
   }
 
   applyAppearance()
+  ensureSeenUnits()
+  // 读档时先把老存档欠下的徽章补齐（不发星星、不弹庆祝），之后指标一变就重新对表。
+  refreshBadges({ silent: true })
+  watch(badgeStats, () => refreshBadges())
   watch(() => JSON.stringify(state), persist, { flush: 'post' })
 
   return {
     state,
     pendingCelebration,
+    recentBadges,
     sessionSeconds,
     restDue,
 
@@ -706,6 +999,9 @@ export const useProgressStore = defineStore('progress', () => {
     levelProgress,
     unitProgress,
     booksFinished,
+    poemsRead,
+    poemsFollowed,
+    songsSung,
     radicalsSeen,
     accuracy,
     streakDays,
@@ -715,12 +1011,35 @@ export const useProgressStore = defineStore('progress', () => {
     averageRetention,
     nextChar,
 
+    planUnitIds,
+    isWholeCourse,
+    planChars,
+    planProgress,
+    dailyNewLimit,
+    newCharsToday,
+    newCharsLeft,
+    dailyLimitReached,
+
+    badges,
+    badgeStats,
+    unlockedBadges,
+    badgeCount,
+    totalBadges,
+    nextBadges,
+    refreshBadges,
+    clearRecentBadges,
+    completeCharFlow,
+
     markHeard,
     markTraced,
+    markPoemRead,
+    recordFollowRead,
+    markSongSung,
     tickSecond,
     acknowledgeRest,
     celebrate,
     clearCelebration,
+    grantDailyQuestBonus,
 
     applyAppearance,
     updateSettings,
@@ -736,6 +1055,8 @@ export const useProgressStore = defineStore('progress', () => {
     totalChars,
     masteredCount,
     unlockedUnits,
+    pendingUnitUnlock,
+    markUnitSeen,
     isLearned,
     isMastered,
     chars,

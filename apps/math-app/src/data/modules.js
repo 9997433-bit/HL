@@ -5,8 +5,14 @@
  * route: 路由路径，与 curriculum.js 中的架构模块 id 对齐
  * node : 学习地图上的坐标（百分比）
  * starsToUnlock: 解锁该星球所需的累计星星数
+ *
+ * 每颗星球同时是学习地图上的一个章节，章节文案（chapterName / story /
+ * lockedStory / unlockHint / goal / unlockLine）住在 `unit-stories.js` 里，
+ * 在下面合并进 MODULES，所以文案与接线各改各的、地图侧仍然只读这一份数组。
  */
-export const MODULES = [
+import { planetNarrative } from './unit-stories.js'
+
+const PLANETS = [
   {
     id: 'counting',
     curriculumId: 'number-sense',
@@ -99,9 +105,26 @@ export const MODULES = [
   },
 ]
 
+export const MODULES = PLANETS.map((m, i) => ({ ...m, ...planetNarrative(m.id, m, i) }))
+
 export const MODULE_MAP = Object.fromEntries(MODULES.map((m) => [m.id, m]))
+
+/**
+ * 不占学习地图星球位、但会写进度与历史记录的玩法。
+ * 少了这份登记，成就墙的历史列表里就会冒出裸 id。
+ */
+export const SIDE_MODULES = {
+  daily: { id: 'daily', name: '今日冒险', icon: '🗓️', route: '/daily' },
+  compare: { id: 'compare', name: '比大小擂台', icon: '⚖️', route: '/compare' },
+  sprint: { id: 'sprint', name: '速算冲刺', icon: '⚡', route: '/sprint' },
+  'memory-pairs': { id: 'memory-pairs', name: '配对记忆', icon: '🃏', route: '/memory-pairs' },
+  maze: { id: 'maze', name: '逻辑迷宫', icon: '🌀', route: '/maze' },
+}
+
+/** 玩法 id → 展示信息，星球与非星球玩法都能查到。 */
+export const moduleInfo = (id) => MODULE_MAP[id] ?? SIDE_MODULES[id] ?? null
 
 /** 玩法模块 id → curriculum.js 中的架构模块 id */
 export const CURRICULUM_ID = Object.fromEntries(MODULES.map((m) => [m.id, m.curriculumId]))
 
-export const moduleName = (id) => MODULE_MAP[id]?.name ?? id
+export const moduleName = (id) => moduleInfo(id)?.name ?? id
