@@ -1,7 +1,22 @@
 /**
- * Round 17 · 覆盖加深硬门槛（v1.0）。
+ * Round 17 · 覆盖加深硬门槛（v1.1）。
  * 标准：.agent_workspace/ROUND17-ACCEPTANCE.md
- * `--json` 机读汇总。启动时预期多数红；H8 依赖 round16 应绿。
+ * `--json` 机读汇总。启动时（功能未合入）预期 0/8；
+ * H8 依赖 round16 → round15 → round13 链条，干净环境需先
+ * `npm run android:sim` 重建双 APK，否则 H8 连锁红。
+ *
+ * v1.0 → v1.1 堵住的误绿：
+ *  - H4 不再把 `ROUND17_H4` 出现次数 / `explain:`·`steps:[` 撞词直接计入条数
+ *    （v1.0 里写 20 遍标记字符串即绿）；只认剥注释后带可执行标记文件内的
+ *    去重母题 id，且要求手写中文分步内容（去重中文句 ≥60）——空壳
+ *    `explain()` 返回空数组凑 id 不算（红线 §禁止空壳凑数）；
+ *  - H6 删除「doc 引用 ≥4 条路径即可过」的 OR 分支（v1.0 列 4 条假路径
+ *    即绿，直接违反红线 §禁止伪造走查截图路径）；截图/录屏必须真实落盘
+ *    ≥4 个且每个 ≥200 字节，且 认步/学演示/剖析/周报 四类场景词齐；
+ *  - H7 不再继承 r13 report 自动绿（v1.0 启动即绿，架空本轮台账任务）；
+ *    必须有 r17 台账：android-sim-report.md 或 device-blocked.md（含复现命令）；
+ *  - H2/H5 标记判定统一走「剥注释后扫描目录」，不再硬编码三个文件路径；
+ *    H5 场景词里去掉裸 `stage`（单个钩子名不再同时满足两条正则）。
  */
 
 import fs from 'node:fs'
@@ -31,7 +46,7 @@ const read = (rel) => {
     return ''
   }
 }
-const exists = (rel) => fs.existsSync(path.join(root, rel))
+/** 剥掉 HTML / 块 / 行注释——标记只有写在可执行代码里才算（红线 §禁止注释骗标）。 */
 const strip = (src) =>
   src
     .replace(/<!--[\s\S]*?-->/g, '')
@@ -45,11 +60,12 @@ const walk = (dirRel, acc = []) => {
     const rel = path.join(dirRel, name)
     const st = fs.statSync(path.join(root, rel))
     if (st.isDirectory()) walk(rel, acc)
-    else if (/\.(js|mjs|vue|ts|tsx)$/.test(name)) acc.push(rel.replace(/\\/g, '/'))
+    else if (/\.(js|mjs|vue|ts|tsx|json)$/.test(name)) acc.push(rel.replace(/\\/g, '/'))
   }
   return acc
 }
 
+/** 在若干目录里找「剥注释后仍含 marker」的文件，返回 { files, blob }。 */
 const scanExecMarker = (marker, dirs) => {
   const files = []
   let blob = ''
@@ -65,7 +81,10 @@ const scanExecMarker = (marker, dirs) => {
   return { files, blob }
 }
 
-/* H1 */
+const LIT_SRC = 'apps/literacy-app/src'
+const MATH_SRC = 'apps/math-app/src'
+
+/* H1 Round17 差距续表 */
 {
   const audit = read('.agent_workspace/round17-hongen-gap-audit.md')
   const ok =
@@ -76,7 +95,7 @@ const scanExecMarker = (marker, dirs) => {
   check('H1', ok, 'H1 Round17 差距续表就位', 'H1 缺少 round17-hongen-gap-audit.md 或内容过薄')
 }
 
-/* H2 富 Play ≥900 */
+/* H2 富 Play ≥900（运行时口径 + narration 去重 ≥720；标记须可执行） */
 {
   let rich = 0
   let distinct = 0
@@ -92,25 +111,26 @@ const scanExecMarker = (marker, dirs) => {
       distinct = narrs.size
     }
   } catch {
-    /* ignore */
+    /* ignore：导入失败按 0 计 */
   }
-  const marked =
-    /ROUND17_H2/.test(strip(read('apps/literacy-app/src/data/char-play.js'))) ||
-    /ROUND17_H2/.test(strip(read('apps/literacy-app/src/data/char-play-rich.js'))) ||
-    /ROUND17_H2/.test(strip(read('apps/literacy-app/scripts/gen-char-play-rich.mjs')))
+  const h2 = scanExecMarker('ROUND17_H2', [
+    'apps/literacy-app/src/data',
+    'apps/literacy-app/scripts'
+  ])
+  const marked = h2.files.length > 0
   const ok = marked && rich >= 900 && distinct >= 720
   check(
     'H2',
     ok,
-    `H2 富 Play ${rich} ≥ 900，narration 去重 ${distinct} ≥ 720`,
-    `H2 富 Play 不足：rich=${rich}(需≥900)，narration去重=${distinct}(需≥720)，标记=${marked}`
+    `H2 富 Play ${rich} ≥ 900，narration 去重 ${distinct} ≥ 720（可执行标记 ×${h2.files.length}）`,
+    `H2 富 Play 不足：rich=${rich}(需≥900)，narration去重=${distinct}(需≥720)，可执行标记=${marked}`
   )
 }
 
-/* H3 学演示 ≥27 */
+/* H3 学演示 ≥27（可执行 ROUND16_H4/ROUND17_H3 标记文件内 skillId 去重；三态+可跳过） */
 {
-  const h3 = scanExecMarker('ROUND17_H3', ['apps/math-app/src'])
-  const h4legacy = scanExecMarker('ROUND16_H4', ['apps/math-app/src'])
+  const h3 = scanExecMarker('ROUND17_H3', [MATH_SRC])
+  const h4legacy = scanExecMarker('ROUND16_H4', [MATH_SRC])
   const blob = h3.blob + h4legacy.blob
   const marked = h3.files.length + h4legacy.files.length > 0
   const threeStage =
@@ -130,96 +150,106 @@ const scanExecMarker = (marker, dirs) => {
   )
 }
 
-/* H4 精品剖析 ≥20 */
+/* H4 精品剖析 ≥20（只认可执行 ROUND17_H4 文件内去重母题 id；
+   手写分步链须有真实中文讲解——去重中文句 ≥60（约 ≥3 句/题）；
+   标记出现次数、explain:/steps:[ 撞词一律不计入条数） */
 {
-  const blob =
-    strip(read('apps/math-app/src/utils/wpAnalysis.js')) +
-    strip(read('apps/math-app/src/data/word-problem-explains.js')) +
-    strip(read('apps/math-app/src/modules/word-problems/explains.js'))
-  const marked = /ROUND17_H4/.test(blob)
-  const hand =
-    (blob.match(/\bexplain\s*[:=]/g) || []).length +
-    (blob.match(/ROUND17_H4/g) || []).length +
-    (blob.match(/steps\s*:\s*\[/g) || []).length
-  // count explicit hand-written entries
-  let entries = 0
-  const m = blob.matchAll(/(?:id|masterId|problemId)\s*:\s*['"][^'"]+['"]/g)
-  for (const _ of m) entries += 1
-  const count = Math.max(entries, hand >= 20 ? hand : entries)
+  const h4 = scanExecMarker('ROUND17_H4', [MATH_SRC])
+  const blob = h4.blob
+  const marked = h4.files.length > 0
+  let ids = new Set(
+    [...blob.matchAll(/\b(?:masterId|problemId)\s*:\s*['"]([^'"]+)['"]/g)].map((m) => m[1])
+  )
+  if (ids.size < 20)
+    ids = new Set([...blob.matchAll(/\bid\s*:\s*['"]([^'"]+)['"]/g)].map((m) => m[1]))
+  const count = ids.size
+  // 按引号切分再数中文，避免引号配对错位漏数（如 masterId 短串吞掉后续开引号）
+  const zh = new Set()
+  for (const frag of blob.split(/['"“”]/)) {
+    const t = frag.trim()
+    if (t.length >= 10 && (t.match(/[\u3400-\u9fff]/g) || []).length >= 8) zh.add(t)
+  }
+  const stepwise = /分步|步骤|steps/i.test(blob)
+  const skippable =
+    /跳过|skip/i.test(blob) ||
+    /跳过|skip/i.test(scanExecMarker('ROUND16_H5', [MATH_SRC]).blob)
   check(
     'H4',
-    marked && count >= 20,
-    `H4 精品剖析 ${count} ≥ 20`,
-    `H4 精品剖析不足（标记=${marked}，计数=${count}）`
+    marked && count >= 20 && zh.size >= 60 && stepwise && skippable,
+    `H4 精品剖析 ${count} ≥ 20（去重中文讲解句 ${zh.size} ≥ 60，分步+可跳过）`,
+    `H4 精品剖析不足（可执行标记=${marked}，母题=${count}(需≥20)，中文讲解句=${zh.size}(需≥60)，分步=${stepwise}，可跳过=${skippable}）`
   )
 }
 
-/* H5 学伴关键接线 */
+/* H5 学伴关键接线（标记须可执行；须命中接线点 + 学伴词证） */
 {
-  const h5 = scanExecMarker('ROUND17_H5', [
-    'apps/literacy-app/src',
-    'apps/math-app/src'
-  ])
+  const h5 = scanExecMarker('ROUND17_H5', [LIT_SRC, MATH_SRC])
   const blob = h5.blob
   const wired =
     /CharDetail|useMascotCoach|QuizShell|recentWrong|pickMascotStage/.test(blob) &&
-    /mascot|学伴|台词|stage/i.test(blob)
+    /mascot|学伴|台词/i.test(blob)
   check(
     'H5',
     h5.files.length > 0 && wired,
-    `H5 学伴关键路径已接线（×${h5.files.length}）`,
-    'H5 缺学伴关键接线（ROUND17_H5）'
+    `H5 学伴关键路径已接线（可执行标记 ×${h5.files.length}）`,
+    'H5 缺学伴关键接线（需可执行 ROUND17_H5 + 接线点 + 学伴词证）'
   )
 }
 
-/* H6 走查证据包 */
+/* H6 走查证据包（截图/录屏必须真实落盘 ≥4 个且每个 ≥200B；
+   认步/学演示/剖析/周报 四类场景词齐；只列路径不落盘不算） */
 {
   const doc = read('.agent_workspace/evidence/r17/walkthrough.md')
-  const shots = [
-    ...doc.matchAll(/evidence\/r17\/[^\s)]+\.(png|jpg|webp|mp4)/gi)
-  ].map((m) => m[0])
-  const existing = shots.filter((rel) => exists(`.agent_workspace/${rel.replace(/^evidence\//, 'evidence/')}`) || exists(`.agent_workspace/${rel}`))
-  // also accept paths like evidence/r17/foo.png relative to .agent_workspace
-  const okFiles = shots.filter((p) => {
-    const rel = p.startsWith('evidence/') ? `.agent_workspace/${p}` : p
-    return exists(rel.replace(/^\.agent_workspace\//, '')) || exists(rel) || exists(path.join('.agent_workspace', p))
-  })
-  const n = Math.max(okFiles.length, existing.length, (doc.match(/!\[/g) || []).length)
-  const pathsOk =
-    doc.length > 400 &&
-    /认|intro|演示|剖析|周报/.test(doc) &&
-    (n >= 4 || shots.length >= 4)
-  // softer: if doc lists 4 paths and files exist
-  let fileHits = 0
-  for (const p of shots) {
-    if (exists(`.agent_workspace/${p}`) || exists(p)) fileHits += 1
-  }
+  const refs = [
+    ...new Set(
+      [...doc.matchAll(/evidence\/r17\/[^\s)'"`]+\.(?:png|jpe?g|webp|gif|mp4|webm)/gi)].map(
+        (m) => m[0]
+      )
+    )
+  ]
+  const fileHits = refs.filter((p) => {
+    try {
+      return fs.statSync(path.join(root, '.agent_workspace', p)).size >= 200
+    } catch {
+      return false
+    }
+  }).length
+  const scenes = ['认步|认一认|intro', '学演示|演示|learn-?demo', '剖析|explain|analysis', '周报|weekly'].filter(
+    (kw) => new RegExp(kw, 'i').test(doc)
+  ).length
   check(
     'H6',
-    pathsOk && (fileHits >= 4 || shots.length >= 4),
-    `H6 走查证据包就位（引用 ${shots.length}，落盘 ${fileHits}）`,
-    `H6 走查证据不足（doc=${doc.length}，引用=${shots.length}，落盘=${fileHits}）`
+    doc.length > 400 && scenes >= 4 && fileHits >= 4,
+    `H6 走查证据包就位（引用 ${refs.length}，落盘 ${fileHits} ≥ 4，场景 ${scenes}/4）`,
+    `H6 走查证据不足（doc=${doc.length}，引用=${refs.length}，落盘=${fileHits}(需≥4)，场景=${scenes}(需4)）`
   )
 }
 
-/* H7 真机或模拟 / BLOCKED 台账 */
+/* H7 真机或模拟闭环 / 诚实 BLOCKED 台账（必须是 r17 自己的台账；
+   只继承 r13 旧 report 不算） */
 {
-  const report =
+  const sim =
     read('.agent_workspace/evidence/r17/android-sim-report.md') +
-    read('.agent_workspace/evidence/r17/device-blocked.md') +
-    read('.agent_workspace/evidence/r13/android-sim/report.json')
-  const ok =
-    (/android:sim|APK|模拟/.test(report) && report.length > 200) ||
-    (/BLOCKED/.test(report) && /复现|命令|npm run android/.test(report))
+    read('.agent_workspace/evidence/r17/android-sim/report.json')
+  const blocked = read('.agent_workspace/evidence/r17/device-blocked.md')
+  const simOk =
+    sim.length > 200 &&
+    /android:sim|APK|模拟/i.test(sim) &&
+    /sha256|report\.json|exit|simulated/i.test(sim)
+  const blockedOk =
+    blocked.length > 200 &&
+    /BLOCKED/.test(blocked) &&
+    /复现/.test(blocked) &&
+    /npm run android|android:sim|gradle/i.test(blocked)
   check(
     'H7',
-    ok,
-    'H7 真机/模拟闭环或诚实 BLOCKED 台账就位',
-    'H7 缺 android:sim 报告或 BLOCKED 台账'
+    simOk || blockedOk,
+    'H7 r17 真机/模拟闭环或诚实 BLOCKED 台账就位',
+    'H7 缺 r17 台账：需 evidence/r17/android-sim-report.md（可引用重跑的 report.json）或 device-blocked.md（BLOCKED+复现命令）；仅继承 r13 旧报告不算'
   )
 }
 
-/* H8 */
+/* H8 往轮不退化：check:round16 8/8 */
 {
   const r16 = spawnSync(process.execPath, ['scripts/check-round16.mjs', '--json'], {
     cwd: root,
@@ -244,15 +274,15 @@ const scanExecMarker = (marker, dirs) => {
     'H8',
     passed >= 8 && total >= 8,
     `H8 check:round16 ${passed}/${total}`,
-    `H8 check:round16 ${passed}/${total}（需要 8/8）`
+    `H8 check:round16 ${passed}/${total}（需 8/8；干净环境先 npm run android:sim 重建双 APK）`
   )
 }
 
 const passed = results.filter((r) => r.status === 'pass').length
-const summary = { round: 17, probe: 'ROUND17-v1.0', passed, total: EXPECTED, results }
+const summary = { round: 17, probe: 'ROUND17-v1.1', passed, total: EXPECTED, results }
 if (asJson) console.log(JSON.stringify(summary, null, 2))
 else {
-  console.log(`\nRound 17 check (ROUND17-v1.0): ${passed}/${EXPECTED}\n`)
+  console.log(`\nRound 17 check (ROUND17-v1.1): ${passed}/${EXPECTED}\n`)
   for (const line of [...notes, ...fails]) console.log(line)
   console.log('')
 }
