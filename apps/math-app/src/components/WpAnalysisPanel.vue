@@ -6,7 +6,8 @@
  *   图示理解 → 分步提示 → 变式入口
  *
  * 三条约束：
- *   1. 默认收起，随时能跳过——剖析是给卡住的孩子的台阶，不是所有人的必经流程。
+ *   1. 剖析是给卡住的孩子的台阶，不是所有人的必经流程——由玩法页按需挂载，
+ *      面板自己只管「挂上来就是摊开的」，跳过按钮把收起的决定交回玩法页。
  *   2. 判题前最后一步的得数一律盖住。剖析不扣星，露答案就等于绕开提示的星星代价。
  *   3. 变式只换数字不换结构，看完还能顺手要一轮同类题接着练。
  */
@@ -22,11 +23,10 @@ const props = defineProps({
   makeVariant: { type: Function, default: null },
 })
 
-const emit = defineEmits(['open', 'skip', 'step', 'variant', 'practice'])
+const emit = defineEmits(['skip', 'step', 'variant', 'practice'])
 
-const open = ref(false)
 /** 已经摊开几步；一次只多给一步，孩子才有「自己往下想」的余地。 */
-const shown = ref(0)
+const shown = ref(1)
 const variant = ref(null)
 
 const analysis = computed(() => buildAnalysis(props.question))
@@ -40,16 +40,8 @@ function resultOf(step) {
   return step.asked && !props.reveal ? step.masked : step.display
 }
 
-function openPanel() {
-  sound.click()
-  open.value = true
-  if (!shown.value) shown.value = 1
-  emit('open', props.question?.id ?? '')
-}
-
 function skip() {
   sound.click()
-  open.value = false
   emit('skip', props.question?.id ?? '')
 }
 
@@ -79,11 +71,11 @@ function practiceSame() {
   emit('practice', props.question?.skill ?? '')
 }
 
-// 换题就把分步和变式收回起点，但面板开着的状态留给孩子自己决定
+// 换题就把分步和变式收回起点：新题的第二步不该跟着上一道一起摊开
 watch(
   () => props.question?.text,
   () => {
-    shown.value = open.value ? 1 : 0
+    shown.value = 1
     variant.value = null
   },
 )
@@ -92,126 +84,104 @@ watch(
 watch(
   () => props.reveal,
   (on) => {
-    if (on && open.value) shown.value = steps.value.length
+    if (on) shown.value = steps.value.length
   },
 )
 </script>
 
 <template>
-  <section class="wp-analysis" :data-analysis="ROUND16_H5">
-    <button
-      v-if="!open"
-      class="btn btn--ghost btn--sm analysis-open"
-      :aria-expanded="false"
-      @click="openPanel"
-    >
-      🔍 剖析这道题（想不出来再点，可跳过）
-    </button>
+  <section
+    id="wp-analysis-body"
+    class="panel"
+    role="region"
+    aria-label="应用题剖析"
+    :data-analysis="ROUND16_H5"
+  >
+    <header class="panel-head">
+      <span class="chip chip-on">🔍 剖析</span>
+      <p class="dim">看懂「为什么这样列式」，再回去作答。</p>
+      <div class="spacer" />
+      <button class="btn btn--ghost btn--sm" @click="skip">跳过 ✕</button>
+    </header>
 
-    <div v-else id="wp-analysis-body" class="panel" role="region" aria-label="应用题剖析">
-      <header class="panel-head">
-        <span class="chip chip-on">🔍 剖析</span>
-        <p class="dim">看懂「为什么这样列式」，再回去作答。</p>
-        <div class="spacer" />
-        <button
-          class="btn btn--ghost btn--sm"
-          aria-controls="wp-analysis-body"
-          :aria-expanded="true"
-          @click="skip"
-        >
-          跳过 ✕
-        </button>
-      </header>
-
-      <!-- 一 · 图示理解：先把数量画成长短，再说要求的是哪一段 -->
-      <section class="block">
-        <h3 class="block-title">① 图示理解</h3>
-        <div v-if="analysis.knowns.length" class="knowns">
-          <span class="chip">已知</span>
-          <span v-for="k in analysis.knowns" :key="k.label" class="chip num">{{ k.label }}</span>
-        </div>
-        <p v-if="analysis.ask" class="ask">❓ {{ analysis.ask }}</p>
-        <div class="bars" role="img" :aria-label="`图示：${analysis.diagram.caption}`">
-          <div v-for="(bar, i) in analysis.diagram.bars" :key="i" class="bar-row">
-            <span class="bar-label">{{ analysis.diagram.icon || '▮' }} {{ bar.value }}</span>
-            <span class="bar-track">
-              <span class="bar-fill" :style="{ width: `${bar.percent}%` }">
-                <span
-                  v-if="bar.strikePercent"
-                  class="bar-gone"
-                  :style="{ width: `${bar.strikePercent}%` }"
-                />
-              </span>
+    <!-- 一 · 图示理解：先把数量画成长短，再说要求的是哪一段 -->
+    <section class="block">
+      <h3 class="block-title">① 图示理解</h3>
+      <div v-if="analysis.knowns.length" class="knowns">
+        <span class="chip">已知</span>
+        <span v-for="k in analysis.knowns" :key="k.label" class="chip num">{{ k.label }}</span>
+      </div>
+      <p v-if="analysis.ask" class="ask">❓ {{ analysis.ask }}</p>
+      <div class="bars" role="img" :aria-label="`图示：${analysis.diagram.caption}`">
+        <div v-for="(bar, i) in analysis.diagram.bars" :key="i" class="bar-row">
+          <span class="bar-label">{{ analysis.diagram.icon || '▮' }} {{ bar.value }}</span>
+          <span class="bar-track">
+            <span class="bar-fill" :style="{ width: `${bar.percent}%` }">
+              <span
+                v-if="bar.strikePercent"
+                class="bar-gone"
+                :style="{ width: `${bar.strikePercent}%` }"
+              />
             </span>
-          </div>
-          <div class="bar-row">
-            <span class="bar-label ask-label">? 要求的</span>
-            <span class="bar-track"><span class="bar-fill unknown" /></span>
-          </div>
+          </span>
         </div>
-        <p class="dim caption">{{ analysis.diagram.caption }}</p>
-      </section>
+        <div class="bar-row">
+          <span class="bar-label ask-label">? 要求的</span>
+          <span class="bar-track"><span class="bar-fill unknown" /></span>
+        </div>
+      </div>
+      <p class="dim caption">{{ analysis.diagram.caption }}</p>
+    </section>
 
-      <!-- 二 · 分步提示：一次只放一步，最后一步的得数判题前盖住 -->
-      <section class="block">
-        <h3 class="block-title">② 分步提示</h3>
-        <p v-if="analysis.why" class="why">💬 {{ analysis.why }}</p>
-        <ol v-if="steps.length" class="steps">
-          <li v-for="(step, i) in visibleSteps" :key="i" class="step">
-            <span class="step-expr">{{ step.expr }} = {{ resultOf(step) }}</span>
-            <span class="step-why">{{ step.why }}</span>
+    <!-- 二 · 分步提示：一次只放一步，最后一步的得数判题前盖住 -->
+    <section class="block">
+      <h3 class="block-title">② 分步提示</h3>
+      <p v-if="analysis.why" class="why">💬 {{ analysis.why }}</p>
+      <ol v-if="steps.length" class="steps">
+        <li v-for="(step, i) in visibleSteps" :key="i" class="step">
+          <span class="step-expr">{{ step.expr }} = {{ resultOf(step) }}</span>
+          <span class="step-why">{{ step.why }}</span>
+        </li>
+      </ol>
+      <p v-else class="fallback">整道题的算式：{{ analysis.equation }}</p>
+      <div v-if="restCount" class="step-actions">
+        <button class="btn btn--ghost btn--sm" @click="nextStep">
+          再看一步（还剩 {{ restCount }} 步）
+        </button>
+        <button class="btn btn--ghost btn--sm" @click="showAllSteps">全部摊开</button>
+      </div>
+      <p v-else-if="steps.length && !reveal" class="dim caption">
+        最后一步的得数先盖着 —— 算出来再回去选答案。
+      </p>
+    </section>
+
+    <!-- 三 · 变式入口：同结构换数字，看完可以直接要一轮同类题 -->
+    <section v-if="makeVariant" class="block">
+      <h3 class="block-title">③ 变式</h3>
+      <div class="variant-actions">
+        <button class="btn btn--ghost btn--sm" @click="drawVariant">
+          {{ variant ? '再换一道变式' : '看一道同结构的变式' }}
+        </button>
+        <button class="btn btn--ghost btn--sm" @click="practiceSame">换一轮同类题练</button>
+      </div>
+      <div v-if="variant && variantAnalysis" class="variant">
+        <p class="variant-text">{{ variant.text }}</p>
+        <!-- 变式是讲给卡住的孩子看的范例，所以它的每一步都摊开，不盖得数 -->
+        <ol v-if="variantAnalysis.steps.length" class="steps">
+          <li v-for="(step, i) in variantAnalysis.steps" :key="i" class="step">
+            <span class="step-expr">{{ step.expr }} = {{ step.display }}</span>
           </li>
         </ol>
-        <p v-else class="fallback">整道题的算式：{{ analysis.equation }}</p>
-        <div v-if="restCount" class="step-actions">
-          <button class="btn btn--ghost btn--sm" @click="nextStep">
-            再看一步（还剩 {{ restCount }} 步）
-          </button>
-          <button class="btn btn--ghost btn--sm" @click="showAllSteps">全部摊开</button>
-        </div>
-        <p v-else-if="steps.length && !reveal" class="dim caption">
-          最后一步的得数先盖着 —— 算出来再回去选答案。
+        <p class="variant-eq">
+          {{ variantAnalysis.equation.replace('?', String(variant.answer)) }}
         </p>
-      </section>
-
-      <!-- 三 · 变式入口：同结构换数字，看完可以直接要一轮同类题 -->
-      <section v-if="makeVariant" class="block">
-        <h3 class="block-title">③ 变式</h3>
-        <div class="variant-actions">
-          <button class="btn btn--ghost btn--sm" @click="drawVariant">
-            {{ variant ? '再换一道变式' : '看一道同结构的变式' }}
-          </button>
-          <button class="btn btn--ghost btn--sm" @click="practiceSame">换一轮同类题练</button>
-        </div>
-        <div v-if="variant && variantAnalysis" class="variant">
-          <p class="variant-text">{{ variant.text }}</p>
-          <!-- 变式是讲给卡住的孩子看的范例，所以它的每一步都摊开，不盖得数 -->
-          <ol v-if="variantAnalysis.steps.length" class="steps">
-            <li v-for="(step, i) in variantAnalysis.steps" :key="i" class="step">
-              <span class="step-expr">{{ step.expr }} = {{ step.display }}</span>
-            </li>
-          </ol>
-          <p class="variant-eq">
-            {{ variantAnalysis.equation.replace('?', String(variant.answer)) }}
-          </p>
-          <p class="dim caption">结构和上面这道一模一样，只换了数字和说法。</p>
-        </div>
-      </section>
-    </div>
+        <p class="dim caption">结构和上面这道一模一样，只换了数字和说法。</p>
+      </div>
+    </section>
   </section>
 </template>
 
 <style scoped>
-.wp-analysis {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.analysis-open {
-  align-self: flex-start;
-}
-
 .panel {
   display: flex;
   flex-direction: column;
