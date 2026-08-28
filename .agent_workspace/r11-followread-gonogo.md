@@ -24,7 +24,7 @@ Model slug: claude-opus-4-6-20260421
 ```bash
 npm --prefix apps/literacy-app run test:asr:evalset          # 24/24 + 7 场演练 + Go/No-Go 表
 npm --prefix apps/literacy-app run test:asr:evalset -- --json # 机读报表
-npm --prefix apps/literacy-app run test:speech                # 19/19（含新增的麦克风优先级断言）
+npm --prefix apps/literacy-app run test:speech                # 18/18（四档降级用例里加了麦克风优先级一条）
 npm run check:round11 && npm run check:round10                # H1 绿；R10 8/8 不退化
 ```
 
@@ -144,7 +144,8 @@ D7 是这套跑道最要紧的一场：它证明「模型来了以后这条路�
 
 - Node v22.14.0；Chromium headless（smoke）；桌面 Linux，无真机。
 - `test-asr-eval-set.mjs`：24/24 项通过，7 场演练，总耗时 < 1 s。
-- `test-speech-eval.mjs`：19/19（新增麦克风优先级断言 1 条）。
-- `smoke.mjs`：`ROUND11_H1` 通过 —— 冻结清单 0/10、五层门槛齐全、结论 `no-go`、
-  `available=false`、`dist/asr` 模型字节 0、档位 `recording`。
+- `test-speech-eval.mjs`：18/18（四档降级那条用例里加了麦克风优先级断言）。
+- `smoke.mjs`：164 条路由 + 37 项交互，0 项有问题；`ROUND11_H1` 通过 ——
+  冻结清单 0/10、五层门槛齐全、结论 `no-go`、`available=false`、
+  `dist/asr` 模型字节 0、档位 `recording`。
 - `check:round10`：8/8 不退化；`check:round11`：H1 ✓。
