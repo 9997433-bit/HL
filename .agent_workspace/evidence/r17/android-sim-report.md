@@ -1,26 +1,36 @@
-# Round 17 · Android 模拟闭环台账
+# Round 17 Android simulation report
 
-> 本轮复用编排 VM 上已落盘的双 APK 与 R13 android-sim 证据；未在本轮重跑 `npm run android:sim`（门禁岗曾在无 `ANDROID_HOME` 的 VM 写坏 report，已恢复有效对账）。
+- Command: `npm run android:sim`
+- Commit under test: `36b4288`
+- Timestamp: `2026-08-28T15:45:36.157Z`
+- Exit code: `0`
+- Harness: `android-sim-harness-v2`
+- Android SDK: `/home/ubuntu/android-sdk`
 
-## 复现命令
+The full Android simulation chain passed. This is VM WebView simulation plus Capacitor APK
+construction; it does **not** replace Android physical-device QA sign-off.
 
-```bash
-npm run android:sim
-# 或核对既有证据：
-npm run check:round13
-npm run check:round15
-npm run check:round16
-```
+## Step results
 
-## 证据指针
+| Step | Result |
+| --- | --- |
+| `build:all` | PASS |
+| `sync:android` | PASS |
+| `check:android` | PASS |
+| Literacy `assembleDebug` | PASS |
+| Math `assembleDebug` | PASS |
+| Literacy WebView smoke | PASS — 164 routes, 45 interactions, 0 problems |
+| Math WebView smoke | PASS — 20 routes, 38 interactions, 0 problems |
+| OCR device harness section A | PASS |
 
-- 报告：`.agent_workspace/evidence/r13/android-sim/report.json`（含双 APK sha256 与 androidHome）
-- APK：
-  - `apps/literacy-app/android/app/build/outputs/apk/debug/app-debug.apk`
-  - `apps/math-app/android/app/build/outputs/apk/debug/app-debug.apk`
-- 日志：同目录 `smoke-literacy.log` / `smoke-math.log` / `gradle-*.log`
+## APK evidence
 
-## 结果摘要
+- Literacy APK: `apps/literacy-app/android/app/build/outputs/apk/debug/app-debug.apk`
+  - Bytes: `37534737`
+  - SHA-256: `0ccc001f6e910f7b7f4b75960607f2cb6aabaaefea567345b1df67d39f4b58d3`
+- Math APK: `apps/math-app/android/app/build/outputs/apk/debug/app-debug.apk`
+  - Bytes: `4283557`
+  - SHA-256: `e21ab280c97ddb2d79781e5f569b23a22d54e5e569de844d845538db1c977bce`
 
-- `check:round13` H6 在本编排环境可绿（双 APK 落盘 + 对账）
-- `check:round15` / `check:round16` 因此保持 8/8（见 `evidence/r17/check-after-partial-integrate.txt`）
+Both smoke suites observed the requested Android 13 Pixel 7 WebView user agent. The machine-readable
+run output and per-step logs were generated under `.agent_workspace/evidence/r13/android-sim/`.
