@@ -34,11 +34,11 @@ const sha256File = (abs) => {
 }
 
 const parseSmokeSummary = (out) => {
-  const routeMatch = out.match(/(\d+)\s*条路由/)
+  const totalRoute = out.match(/共\s*(\d+)\s*条路由/)
   const interactMatch = out.match(/(\d+)\s*项交互/)
   const problemMatch = out.match(/(\d+)\s*项有问题/)
   return {
-    smokeRoutes: routeMatch ? Number(routeMatch[1]) : 0,
+    smokeRoutes: totalRoute ? Number(totalRoute[1]) : 0,
     smokeInteractions: interactMatch ? Number(interactMatch[1]) : 0,
     smokeProblems: problemMatch ? Number(problemMatch[1]) : 0,
   }

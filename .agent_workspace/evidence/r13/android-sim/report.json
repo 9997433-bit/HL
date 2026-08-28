@@ -1,0 +1,60 @@
+{
+  "simulated": true,
+  "marker": "android-sim-harness-v1",
+  "note": "VM WebView 模拟 + Capacitor APK 构建；不等价 Android QA 真机签核",
+  "timestamp": "2026-08-28T02:18:54.542Z",
+  "commit": "9c9d126",
+  "webViewUserAgent": "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36 Version/4.0",
+  "steps": [
+    {
+      "step": "build:all",
+      "pass": true,
+      "exit": 0
+    },
+    {
+      "step": "sync:android",
+      "pass": true,
+      "exit": 0
+    },
+    {
+      "step": "check:android",
+      "pass": true,
+      "exit": 0
+    },
+    {
+      "step": "gradle:literacy",
+      "pass": true,
+      "exit": 0
+    },
+    {
+      "step": "gradle:math",
+      "pass": true,
+      "exit": 0
+    },
+    {
+      "step": "ocr-device-a",
+      "pass": true,
+      "exit": 0
+    }
+  ],
+  "literacy": {
+    "smokePass": true,
+    "smokeRoutes": 164,
+    "smokeInteractions": 41,
+    "smokeProblems": 0,
+    "apkSha256": "0b0b4587326681da3fc1b80515a433afe17983e57d5a60388a510eb233c35af9",
+    "apkBytes": 36081850
+  },
+  "math": {
+    "smokePass": true,
+    "smokeRoutes": 20,
+    "smokeInteractions": 36,
+    "smokeProblems": 0,
+    "apkSha256": "1e3a341cac52241b1ad1825959084f6067b163e94b337b8199032f8d4c8c9da3",
+    "apkBytes": 4292454
+  },
+  "ocr": {
+    "pass": true
+  },
+  "androidHome": "/home/ubuntu/android-sdk"
+}
