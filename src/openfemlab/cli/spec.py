@@ -36,10 +36,24 @@ from collections.abc import Mapping, Sequence
 from os import PathLike
 from typing import Any
 
-from ..core.elements import BeamElement2D, SpringElement, TrussElement
+from ..core.elements import (
+    BeamElement2D,
+    Hex8Element,
+    Quad4Element,
+    SpringElement,
+    Tet4Element,
+    TrussElement,
+)
 from ..core.model import DOF, Material, Model, Section
 from ..exceptions import OpenFEMLabError
-from ..mesh.simple import bar_mesh, beam_mesh, spring_mass_chain, truss_from_arrays
+from ..mesh.simple import (
+    bar_mesh,
+    beam_mesh,
+    hex_block_mesh,
+    spring_mass_chain,
+    tet_block_mesh,
+    truss_from_arrays,
+)
 
 __all__ = ["SpecError", "MESH_TYPES", "load_spec", "build_model", "lookup", "scaled"]
 
@@ -48,7 +62,7 @@ class SpecError(OpenFEMLabError):
     """A CLI model specification is malformed or references unknown entries."""
 
 
-MESH_TYPES = ("bar", "beam", "chain", "truss", "custom")
+MESH_TYPES = ("bar", "beam", "chain", "truss", "tet_block", "hex_block", "custom")
 
 
 def load_spec(source: str | PathLike[str]) -> dict[str, Any]:
@@ -210,6 +224,39 @@ def _build_truss(mesh: Mapping[str, Any], spec: Mapping[str, Any]) -> Model:
     )
 
 
+def _build_tet_block(mesh: Mapping[str, Any], spec: Mapping[str, Any]) -> Model:
+    return tet_block_mesh(
+        length=_number(mesh, "length"),
+        width=_number(mesh, "width"),
+        height=_number(mesh, "height"),
+        num_x=_count(mesh, "num_x", default=1),
+        num_y=_count(mesh, "num_y", default=1),
+        num_z=_count(mesh, "num_z", default=1),
+        material=_material(mesh.get("material"), spec),
+        support=str(mesh.get("support", "cantilever")),
+        origin=_point(mesh.get("origin", (0.0, 0.0, 0.0)), "origin"),
+        lumped_mass=bool(mesh.get("lumped_mass", False)),
+        name=_name(spec, "tet block"),
+    )
+
+
+def _build_hex_block(mesh: Mapping[str, Any], spec: Mapping[str, Any]) -> Model:
+    return hex_block_mesh(
+        length=_number(mesh, "length"),
+        width=_number(mesh, "width"),
+        height=_number(mesh, "height"),
+        num_x=_count(mesh, "num_x", default=1),
+        num_y=_count(mesh, "num_y", default=1),
+        num_z=_count(mesh, "num_z", default=1),
+        material=_material(mesh.get("material"), spec),
+        support=str(mesh.get("support", "cantilever")),
+        origin=_point(mesh.get("origin", (0.0, 0.0, 0.0)), "origin"),
+        lumped_mass=bool(mesh.get("lumped_mass", False)),
+        integration_order=_count(mesh, "integration_order", default=2),
+        name=_name(spec, "hex block"),
+    )
+
+
 def _build_custom(mesh: Mapping[str, Any], spec: Mapping[str, Any]) -> Model:
     model = Model(dofs=_dofs(mesh.get("dofs", ("UX", "UY", "UZ"))), name=_name(spec, "model"))
     for entry in _sequence(mesh.get("nodes"), "nodes"):
@@ -225,6 +272,8 @@ _BUILDERS = {
     "beam": _build_beam,
     "chain": _build_chain,
     "truss": _build_truss,
+    "tet_block": _build_tet_block,
+    "hex_block": _build_hex_block,
     "custom": _build_custom,
 }
 
@@ -256,7 +305,36 @@ def _element(entry: Mapping[str, Any], spec: Mapping[str, Any]):
             lumped_mass=bool(entry.get("lumped_mass", False)),
             eid=eid,
         )
-    raise SpecError(f"unknown element type {kind!r}; expected spring, truss or beam")
+    if kind in {"quad4", "quad"}:
+        thickness = float(entry.get("thickness", 1.0))
+        return Quad4Element(
+            nodes,
+            _material(entry.get("material"), spec),
+            thickness=thickness,
+            plane=str(entry.get("plane", "stress")),
+            lumped_mass=bool(entry.get("lumped_mass", False)),
+            integration_order=int(entry.get("integration_order", 2)),
+            eid=eid,
+        )
+    if kind in {"tet4", "tet"}:
+        return Tet4Element(
+            nodes,
+            _material(entry.get("material"), spec),
+            lumped_mass=bool(entry.get("lumped_mass", False)),
+            eid=eid,
+        )
+    if kind in {"hex8", "hex", "chexa"}:
+        return Hex8Element(
+            nodes,
+            _material(entry.get("material"), spec),
+            lumped_mass=bool(entry.get("lumped_mass", False)),
+            integration_order=int(entry.get("integration_order", 2)),
+            eid=eid,
+        )
+    raise SpecError(
+        "unknown element type "
+        f"{kind!r}; expected spring, truss, beam, quad4, tet4 or hex8"
+    )
 
 
 # -------------------------------------------------- boundary conditions/mass

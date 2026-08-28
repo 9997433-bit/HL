@@ -55,6 +55,24 @@ def add_parser(subparsers: argparse._SubParsersAction) -> argparse.ArgumentParse
         help="Sigmund density filter radius in model length units (default: disabled)",
     )
     parser.add_argument(
+        "--heaviside-beta",
+        type=float,
+        default=None,
+        metavar="B",
+        help="Heaviside projection sharpness (requires --filter-radius; default: disabled)",
+    )
+    parser.add_argument(
+        "--heaviside-eta",
+        type=float,
+        default=0.5,
+        help="Heaviside projection threshold eta in (0, 1) (default: 0.5)",
+    )
+    parser.add_argument(
+        "--no-heaviside-continuation",
+        action="store_true",
+        help="use a fixed Heaviside beta instead of ramping across iterations",
+    )
+    parser.add_argument(
         "--format",
         choices=("table", "json", "yaml"),
         default="table",
@@ -81,6 +99,9 @@ def run(args: argparse.Namespace, reporter: Reporter) -> int:
         max_iter=args.max_iter,
         move=args.move,
         filter_radius=args.filter_radius,
+        heaviside_beta=args.heaviside_beta,
+        heaviside_eta=args.heaviside_eta,
+        heaviside_continuation=not args.no_heaviside_continuation,
     )
     report = build_report(model, result, source=str(args.model))
     if args.format == "table":
@@ -113,6 +134,14 @@ def build_report(model, result, *, source: str) -> dict[str, Any]:
             {"element": index, "density": float(value)}
             for index, value in enumerate(result.densities)
         ],
+        "projected_densities": (
+            [
+                {"element": index, "density": float(value)}
+                for index, value in enumerate(result.projected_densities)
+            ]
+            if result.projected_densities is not None
+            else None
+        ),
         "compliance_history": [float(value) for value in result.compliance_history],
         "volume_history": [float(value) for value in result.volume_history],
         "meta": dict(result.meta),
@@ -135,5 +164,5 @@ def render(report: dict[str, Any], reporter: Reporter) -> None:
     if rows:
         reporter.table(
             (Column("element", justify="right"), Column("rho", justify="right")),
-            [(row["element"], format_number(row["density"])) for row in rows],
+            [(str(row["element"]), format_number(row["density"])) for row in rows],
         )

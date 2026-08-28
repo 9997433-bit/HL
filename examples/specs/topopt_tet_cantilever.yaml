@@ -1,0 +1,23 @@
+# Round 16: 3D SIMP topology on a TET4 cantilever block.
+# Node ids follow tet_block_mesh: id = (k * (num_y + 1) + j) * (num_x + 1) + i.
+# For this 1 x 1 x 1 cell the loaded tip corner is node 7 at (length, width, height).
+name: tet cantilever topopt
+materials:
+  steel:
+    E: 2.1e11
+    density: 0.0
+    nu: 0.3
+mesh:
+  type: tet_block
+  length: 1.0
+  width: 0.5
+  height: 0.5
+  num_x: 1
+  num_y: 1
+  num_z: 1
+  support: cantilever
+  material: steel
+loads:
+  - node: 7
+    dof: UY
+    magnitude: -500.0

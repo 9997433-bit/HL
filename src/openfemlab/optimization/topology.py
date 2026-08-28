@@ -15,10 +15,13 @@ __all__ = [
     "apply_density_filter",
     "assemble_simp_stiffness",
     "build_density_filter",
+    "effective_heaviside_beta",
     "element_centroids",
     "element_strain_energy",
     "element_volumes",
     "filter_sensitivities",
+    "heaviside_projection",
+    "heaviside_projection_derivative",
     "oc_update",
     "run_simp_topology",
     "simp_penalized_modulus",
@@ -130,6 +133,95 @@ def filter_sensitivities(
     dc = np.asarray(sensitivities, dtype=float).reshape(-1)
     mapped = filter_matrix.T @ (dc / row_sums)
     return np.asarray(mapped, dtype=float).reshape(-1)
+
+
+def heaviside_projection(
+    densities: np.ndarray,
+    *,
+    beta: float,
+    eta: float = 0.5,
+) -> np.ndarray:
+    """Sigmund Heaviside projection for sharper 0/1 material layouts."""
+    rho = np.clip(np.asarray(densities, dtype=float).reshape(-1), 0.0, 1.0)
+    beta = float(beta)
+    eta = float(eta)
+    if beta <= 0.0:
+        raise OptimizationError("Heaviside beta must be positive")
+    numerator = np.tanh(beta * eta) + np.tanh(beta * (rho - eta))
+    denominator = np.tanh(beta * eta) + np.tanh(beta * (1.0 - eta))
+    return np.asarray(numerator / denominator, dtype=float)
+
+
+def heaviside_projection_derivative(
+    densities: np.ndarray,
+    *,
+    beta: float,
+    eta: float = 0.5,
+) -> np.ndarray:
+    """Element-wise ``d rho_bar / d rho_tilde`` for the Heaviside projection."""
+    rho = np.clip(np.asarray(densities, dtype=float).reshape(-1), 0.0, 1.0)
+    beta = float(beta)
+    eta = float(eta)
+    if beta <= 0.0:
+        raise OptimizationError("Heaviside beta must be positive")
+    denominator = np.tanh(beta * eta) + np.tanh(beta * (1.0 - eta))
+    return np.asarray(
+        beta * (1.0 - np.tanh(beta * (rho - eta)) ** 2) / denominator,
+        dtype=float,
+    )
+
+
+def effective_heaviside_beta(
+    iteration: int,
+    max_iter: int,
+    *,
+    beta_max: float,
+    beta_min: float = 1.0,
+    continuation: bool = True,
+) -> float:
+    """Continuation schedule ramping Heaviside sharpness across iterations."""
+    beta_max = float(beta_max)
+    beta_min = float(beta_min)
+    if beta_max <= 0.0 or beta_min <= 0.0:
+        raise OptimizationError("Heaviside beta values must be positive")
+    if not continuation or max_iter <= 1:
+        return beta_max
+    progress = float(iteration) / float(max_iter - 1)
+    return float(beta_min * (beta_max / beta_min) ** progress)
+
+
+def _design_densities(
+    rho: np.ndarray,
+    *,
+    filter_matrix: sp.csr_matrix | None,
+    row_sums: np.ndarray | None,
+    heaviside_beta: float | None,
+    heaviside_eta: float,
+    iteration: int,
+    max_iter: int,
+    heaviside_continuation: bool,
+    heaviside_beta_min: float,
+) -> tuple[np.ndarray, np.ndarray | None]:
+    """Map physical densities to filtered/projected design variables."""
+    rho_filtered = (
+        apply_density_filter(rho, filter_matrix, row_sums)
+        if filter_matrix is not None and row_sums is not None
+        else rho
+    )
+    if heaviside_beta is None:
+        return rho_filtered, None
+    beta = effective_heaviside_beta(
+        iteration,
+        max_iter,
+        beta_max=heaviside_beta,
+        beta_min=heaviside_beta_min,
+        continuation=heaviside_continuation,
+    )
+    rho_design = heaviside_projection(rho_filtered, beta=beta, eta=heaviside_eta)
+    projection_deriv = heaviside_projection_derivative(
+        rho_filtered, beta=beta, eta=heaviside_eta
+    )
+    return rho_design, projection_deriv
 
 
 def assemble_simp_stiffness(
@@ -259,6 +351,7 @@ class TopologyResult:
     compliance_history: list[float] = field(default_factory=list)
     volume_history: list[float] = field(default_factory=list)
     displacements: np.ndarray | None = None
+    projected_densities: np.ndarray | None = None
     iterations: int = 0
     meta: dict[str, object] = field(default_factory=dict)
 
@@ -277,12 +370,20 @@ def run_simp_topology(
     move: float = 0.2,
     tol: float = 1e-3,
     filter_radius: float | None = None,
+    heaviside_beta: float | None = None,
+    heaviside_eta: float = 0.5,
+    heaviside_continuation: bool = True,
+    heaviside_beta_min: float = 1.0,
 ) -> TopologyResult:
     """Minimize compliance with a SIMP penalization and OC updates."""
     if not 0.0 < vol_frac <= 1.0:
         raise OptimizationError("vol_frac must lie in (0, 1]")
     if model.load_vector().sum() == 0.0:
         raise OptimizationError("topology optimization requires non-zero nodal loads")
+    if heaviside_beta is not None and filter_radius is None:
+        raise OptimizationError(
+            "Heaviside projection requires a density filter; set filter_radius"
+        )
     volumes = element_volumes(model)
     filter_matrix: sp.csr_matrix | None = None
     row_sums: np.ndarray | None = None
@@ -292,11 +393,47 @@ def run_simp_topology(
     history_c: list[float] = []
     history_v: list[float] = []
     last_u: np.ndarray | None = None
+
+    def _finish(iteration: int) -> TopologyResult:
+        rho_design, _ = _design_densities(
+            rho,
+            filter_matrix=filter_matrix,
+            row_sums=row_sums,
+            heaviside_beta=heaviside_beta,
+            heaviside_eta=heaviside_eta,
+            iteration=iteration,
+            max_iter=max_iter,
+            heaviside_continuation=heaviside_continuation,
+            heaviside_beta_min=heaviside_beta_min,
+        )
+        return TopologyResult(
+            densities=rho,
+            compliance_history=history_c,
+            volume_history=history_v,
+            displacements=last_u,
+            projected_densities=rho_design,
+            iterations=iteration + 1,
+            meta={
+                "penalization": penalization,
+                "vol_frac": vol_frac,
+                "filter_radius": filter_radius,
+                "heaviside_beta": heaviside_beta,
+                "heaviside_eta": heaviside_eta,
+                "heaviside_continuation": heaviside_continuation,
+            },
+        )
+
     for iteration in range(max_iter):
-        rho_design = (
-            apply_density_filter(rho, filter_matrix, row_sums)
-            if filter_matrix is not None and row_sums is not None
-            else rho
+        rho_design, projection_deriv = _design_densities(
+            rho,
+            filter_matrix=filter_matrix,
+            row_sums=row_sums,
+            heaviside_beta=heaviside_beta,
+            heaviside_eta=heaviside_eta,
+            iteration=iteration,
+            max_iter=max_iter,
+            heaviside_continuation=heaviside_continuation,
+            heaviside_beta_min=heaviside_beta_min,
         )
         k = assemble_simp_stiffness(
             model, rho_design, penalization=penalization, e_min=e_min
@@ -319,6 +456,8 @@ def run_simp_topology(
         dc_design = -float(penalization) * np.power(
             np.maximum(rho_design, 1e-3), penalization - 1.0
         ) * np.maximum(energies, 0.0)
+        if projection_deriv is not None:
+            dc_design = dc_design * projection_deriv
         dc = (
             filter_sensitivities(dc_design, filter_matrix, row_sums)
             if filter_matrix is not None and row_sums is not None
@@ -337,27 +476,6 @@ def run_simp_topology(
         change = float(np.max(np.abs(rho_new - rho)))
         rho = rho_new
         if iteration > 5 and change < tol:
-            return TopologyResult(
-                densities=rho,
-                compliance_history=history_c,
-                volume_history=history_v,
-                displacements=last_u,
-                iterations=iteration + 1,
-                meta={
-                    "penalization": penalization,
-                    "vol_frac": vol_frac,
-                    "filter_radius": filter_radius,
-                },
-            )
-    return TopologyResult(
-        densities=rho,
-        compliance_history=history_c,
-        volume_history=history_v,
-        displacements=last_u,
-        iterations=max_iter,
-        meta={
-            "penalization": penalization,
-            "vol_frac": vol_frac,
-            "filter_radius": filter_radius,
-        },
-    )
+            return _finish(iteration)
+    result = _finish(max_iter - 1)
+    return result

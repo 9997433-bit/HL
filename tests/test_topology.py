@@ -3,16 +3,21 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from openfemlab.core.elements import Hex8Element, Quad4Element, Tet4Element
 from openfemlab.core.model import DOF, Material, Model
+from openfemlab.exceptions import OptimizationError
 from openfemlab.mesh.simple import hex_block_mesh, tet_block_mesh
 from openfemlab.optimization.topology import (
     apply_density_filter,
     build_density_filter,
+    effective_heaviside_beta,
     element_centroids,
     element_volumes,
     filter_sensitivities,
+    heaviside_projection,
+    heaviside_projection_derivative,
     run_simp_topology,
 )
 
@@ -183,3 +188,47 @@ def test_element_centroids_dimension():
     model_3d = _mini_tet_block()
     centroids_3d = element_centroids(model_3d)
     assert centroids_3d.shape == (model_3d.num_elements, 3)
+
+
+def test_heaviside_projection_sharpens_extremes():
+    rho = np.array([0.0, 0.5, 1.0], dtype=float)
+    soft = heaviside_projection(rho, beta=1.0, eta=0.5)
+    sharp = heaviside_projection(rho, beta=64.0, eta=0.5)
+    assert sharp[0] < soft[0] + 0.05
+    assert sharp[2] > soft[2] - 0.05
+    assert sharp[1] == pytest.approx(0.5, abs=0.05)
+
+
+def test_heaviside_projection_derivative_is_positive():
+    rho = np.linspace(0.0, 1.0, 5)
+    deriv = heaviside_projection_derivative(rho, beta=16.0, eta=0.5)
+    assert np.all(deriv > 0.0)
+
+
+def test_effective_heaviside_beta_continuation():
+    assert effective_heaviside_beta(0, 10, beta_max=32.0) == pytest.approx(1.0)
+    assert effective_heaviside_beta(9, 10, beta_max=32.0) == pytest.approx(32.0, rel=1e-6)
+    assert effective_heaviside_beta(5, 10, beta_max=32.0, continuation=False) == 32.0
+
+
+def test_heaviside_requires_density_filter():
+    model = _mini_plate()
+    with pytest.raises(OptimizationError, match="filter"):
+        run_simp_topology(model, vol_frac=0.5, max_iter=5, heaviside_beta=8.0)
+
+
+def test_simp_topology_with_heaviside_projection():
+    model = _mini_plate()
+    result = run_simp_topology(
+        model,
+        vol_frac=0.5,
+        max_iter=20,
+        move=0.2,
+        tol=1e-2,
+        filter_radius=0.75,
+        heaviside_beta=16.0,
+    )
+    assert result.projected_densities is not None
+    assert result.meta["heaviside_beta"] == 16.0
+    assert result.densities.shape == result.projected_densities.shape
+    assert len(result.compliance_history) >= 2

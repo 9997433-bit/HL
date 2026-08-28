@@ -1,3 +1,34 @@
+# OpenFEMLab vs FEMtools — SOTA Gap Analysis (Round 16 refresh)
+
+**Auditor:** Cloud Agent · **Date:** 2026-08-28 UTC  
+**Snapshot:** branch `cursor/round16-heaviside-topology-spec-7aa3`, release **`0.2.6`**  
+**Registry:** **104/104** acceptance criteria `verified`
+
+## Round 16 executive summary
+
+Round 16 adds Heaviside projection for sharper SIMP layouts and ships
+declarative 3D topology CLI specs:
+
+| Priority | Theme | Outcome |
+|----------|-------|---------|
+| P0 | Heaviside projection | `heaviside_projection`, continuation beta, OC chain rule |
+| P0 | 3D CLI specs | `tet_block` / `hex_block` mesh types + example YAML |
+| P1 | Workflow | `examples/13_topopt_3d_workflow.py`, `topopt --heaviside-beta` |
+
+### Remaining intentional gaps
+
+| Gap | Status |
+|-----|--------|
+| DAQ hardware / ARTeMIS runtime | **Deferred** — file workflow only |
+| Desktop-grade GUI product | **Deferred** — CLI + Web by design |
+| Robust topology (multi-load / stress constraints) | **Deferred** — compliance SIMP shipped |
+| ODB without any Abaqus install | **Partial** — requires sidecar NPZ or local Abaqus for first extract |
+
+**Verdict:** Topology optimization now supports filter → Heaviside projection and
+declarative 3D cantilever specs for `openfemlab topopt`.
+
+---
+
 # OpenFEMLab vs FEMtools — SOTA Gap Analysis (Round 15 refresh)
 
 **Auditor:** Cloud Agent · **Date:** 2026-08-28 UTC  
@@ -21,7 +52,7 @@ standard Sigmund density filter for mesh-independent designs:
 |-----|--------|
 | DAQ hardware / ARTeMIS runtime | **Deferred** — file workflow only |
 | Desktop-grade GUI product | **Deferred** — CLI + Web by design |
-| Heaviside projection / robust topology | **Deferred** — linear density filter shipped |
+| Heaviside projection / robust topology | **Closed** — Sigmund projection + continuation (Round 16) |
 | ODB without any Abaqus install | **Partial** — requires sidecar NPZ or local Abaqus for first extract |
 
 **Verdict:** OpenFEMLab topology optimization now spans 2D shells/plates and

@@ -21,6 +21,8 @@ from openfemlab.solver.modal import ModalSolver
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 EXAMPLE_02 = REPOSITORY_ROOT / "examples" / "02_model_updating_workflow.py"
+TOPOPT_TET_SPEC = REPOSITORY_ROOT / "examples" / "specs" / "topopt_tet_cantilever.yaml"
+TOPOPT_PLATE_SPEC = REPOSITORY_ROOT / "examples" / "specs" / "topopt_plate_quad.yaml"
 
 # Steel strip, 1 m long: the analytic first cantilever frequency is 8.3552 Hz.
 CANTILEVER: dict[str, Any] = {
@@ -122,6 +124,61 @@ def test_malformed_specs_raise_spec_error(spec, message):
 def test_lookup_reports_the_offending_path():
     with pytest.raises(SpecError, match="mesh.thickness"):
         lookup(CANTILEVER, "mesh.thickness")
+
+
+def test_tet_block_spec_builds_solid_cantilever():
+    model = build_model(read_data(TOPOPT_TET_SPEC))
+    assert model.num_elements == 6
+    assert model.num_dofs == model.num_nodes * 3
+    assert model.load_vector().sum() != 0.0
+
+
+def test_quad_plate_spec_builds_for_topopt():
+    model = build_model(read_data(TOPOPT_PLATE_SPEC))
+    assert model.num_elements == 2
+    assert model.load_vector().sum() != 0.0
+
+
+def test_topopt_runs_on_tet_block_spec(capsys):
+    assert (
+        main(
+            [
+                "--no-color",
+                "topopt",
+                str(TOPOPT_TET_SPEC),
+                "--vol-frac",
+                "0.5",
+                "--max-iter",
+                "10",
+                "--filter-radius",
+                "0.35",
+                "--heaviside-beta",
+                "8",
+            ]
+        )
+        == 0
+    )
+    out = capsys.readouterr().out
+    assert "SIMP topology" in out
+    assert "tet cantilever topopt" in out
+
+
+def test_topopt_runs_on_quad_plate_spec(capsys):
+    assert (
+        main(
+            [
+                "--no-color",
+                "topopt",
+                str(TOPOPT_PLATE_SPEC),
+                "--vol-frac",
+                "0.5",
+                "--max-iter",
+                "10",
+            ]
+        )
+        == 0
+    )
+    assert "quad plate topopt" in capsys.readouterr().out
 
 
 # ----------------------------------------------------------------- the modal
