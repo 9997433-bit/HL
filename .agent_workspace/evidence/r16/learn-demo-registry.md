@@ -133,7 +133,7 @@
 |---|---|
 | `npm run check:content -w math-app` | ✅ 21 个技能点、三段齐全、三句旁白、技能点唯一且在图谱里、模块与图谱一致、`learn-demo-index` 与注册表逐项对齐 |
 | `node scripts/verify-learn-demo.mjs`（定点） | ✅ 11/11：演示中心 21 个技能点、跳过到算式、换条重播、`?skill=` 深链、reduced-motion 静态三态、五处玩法页入口弹出收起、图谱只给有演示的技能挂链接 |
-| `node scripts/smoke.mjs`（math 全量） | ✅ 同样三条断言进了权威门禁（演示中心 / reduced-motion / 算术恒星入口 + 数字键不误判） |
+| `node scripts/smoke.mjs`（math 全量） | ✅ 20 条路由 + 38 项交互全绿；三条断言进了权威门禁（演示中心 / reduced-motion / 算术恒星入口 + 数字键不误判），摘录见 `learn-demo-smoke.md` |
 | `npm run check:route-budget -w math-app` | ✅ 18/18 组通过，`/visual-demos` 5.7 / 24 KiB gzip；演示壳与注册表按需加载，练习路由只静态引技能清单 |
 | `npm run check:round16` | ✅ H4 21 ≥ 12（计数取注册表 `skillId` 条数与本文清单的最大值） |
 
