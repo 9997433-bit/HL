@@ -1,5 +1,5 @@
 /**
- * 富互动 play 脚本库 —— 「玩」这一步的手写剧本，覆盖前 55 个单元共 940 个字。
+ * 富互动 play 脚本库 —— 「玩」这一步的手写剧本，覆盖前 70 个单元共 1240 个字。
  *
  * 每条都是照着字义写的：雨接雨滴、火添柴、口张嘴发声、推往前推、拉往回拉。
  * 这一层的 templateFallback 一律为假；剩下的字由 char-play.js 按部首 / 主题
@@ -6676,6 +6676,2121 @@ export const CHAR_PLAY_RICH = [
     props: { hero: '🔢', items: [{ item: '🍎', bucket: '红' }, { item: '🌹', bucket: '红' }, { item: '🫐', bucket: '蓝' }, { item: '🧊', bucket: '蓝' }], buckets: [{ label: '红', emoji: '🟥' }, { label: '蓝', emoji: '🟦' }], goal: 4 },
     templateFallback: false
   },
+  // u56
+  {
+    char: '科', unit: 'u56', theme: 'school',
+    template: 'sort-buckets', interaction: 'drag',
+    narration: '科学课上分一分：动物和植物。',
+    props: { hero: '🔬', items: [{ item: '🐰', bucket: '动物' }, { item: '🐟', bucket: '动物' }, { item: '🌵', bucket: '植物' }, { item: '🍀', bucket: '植物' }], buckets: [{ label: '动物', emoji: '🐾' }, { label: '植物', emoji: '🌿' }], goal: 4 },
+    templateFallback: false
+  },
+  {
+    char: '技', unit: 'u56', theme: 'action',
+    template: 'drag-parts', interaction: 'drag',
+    narration: '学一门手艺，先把家什凑齐。',
+    props: { hero: '🛠️', parts: ['🔨', '🔧', '🪛'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '器', unit: 'u56', theme: 'object',
+    template: 'scene-poke', interaction: 'tap',
+    narration: '这些器具都会帮忙，点点看。',
+    props: { hero: '⚙️', items: ['🍶', '🥄', '🔧'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '磁', unit: 'u56', theme: 'object',
+    template: 'rain-catch', interaction: 'drag',
+    narration: '磁铁一凑近，铁家伙全贴上来。',
+    props: { hero: '🧲', items: ['🔩', '📎', '🔑'], tool: '🧲', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '源', unit: 'u56', theme: 'nature',
+    template: 'trace-path', interaction: 'drag',
+    narration: '顺着小溪往上找，找到水源头。',
+    props: { hero: '💧', dir: 'up', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '宇', unit: 'u56', theme: 'place',
+    template: 'grow-tap', interaction: 'tap',
+    narration: '从小屋顶看到大星空，那是宇。',
+    props: { hero: '🌌', stages: ['🏠', '🌌', '✨'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '宙', unit: 'u56', theme: 'time',
+    template: 'morph-story', interaction: 'sequence',
+    narration: '从很久很久以前，一直数到现在。',
+    props: { hero: '🪐', stages: ['🕰️', '🪐', '宙'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '卫', unit: 'u56', theme: 'action',
+    template: 'emoji-hunt', interaction: 'tap',
+    narration: '谁在天上守着地球？找出卫星。',
+    props: { hero: '🛰️', target: '🛰️', decoys: ['🌙', '⭐', '☁️'], goal: 1 },
+    templateFallback: false
+  },
+  {
+    char: '箭', unit: 'u56', theme: 'action',
+    template: 'swipe-motion', interaction: 'swipe',
+    narration: '数三下，火箭嗖地射上天。',
+    props: { hero: '🚀', dir: 'up', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '另', unit: 'u56', theme: 'number',
+    template: 'sort-buckets', interaction: 'drag',
+    narration: '这一堆搁这边，另一堆搁那边。',
+    props: { hero: '➕', items: [{ item: '🍎', bucket: '这边' }, { item: '🍐', bucket: '这边' }, { item: '🥕', bucket: '那边' }, { item: '🥔', bucket: '那边' }], buckets: [{ label: '这边', emoji: '📦' }, { label: '那边', emoji: '🧺' }], goal: 4 },
+    templateFallback: false
+  },
+  {
+    char: '某', unit: 'u56', theme: 'word',
+    template: 'tap-reveal', interaction: 'tap',
+    narration: '某个盒子里有惊喜，挨个揭。',
+    props: { hero: '❔', items: ['🎁', '🧸', '🍬'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '逆', unit: 'u56', theme: 'action',
+    template: 'swipe-motion', interaction: 'swipe',
+    narration: '大家往前，它偏要逆着走。',
+    props: { hero: '↩️', dir: 'left', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '破', unit: 'u56', theme: 'action',
+    template: 'pop-bubbles', interaction: 'tap',
+    narration: '一戳一个，泡泡全破掉。',
+    props: { hero: '💥', items: ['🫧', '🫧', '🫧'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '挖', unit: 'u56', theme: 'action',
+    template: 'tap-reveal', interaction: 'tap',
+    narration: '拿小铲子挖一挖，挖出宝贝。',
+    props: { hero: '⛏️', items: ['🥔', '🦴', '💎'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '埋', unit: 'u56', theme: 'action',
+    template: 'drag-parts', interaction: 'drag',
+    narration: '把种子埋进土里，盖上泥。',
+    props: { hero: '🌱', parts: ['🌰', '🟫'], goal: 2 },
+    templateFallback: false
+  },
+  {
+    char: '堆', unit: 'u56', theme: 'action',
+    template: 'count-tap', interaction: 'tap',
+    narration: '一块一块往上堆，堆成小山。',
+    props: { hero: '🗻', items: ['🧱', '🧱', '🧱', '🧱'], goal: 4 },
+    templateFallback: false
+  },
+  {
+    char: '决', unit: 'u56', theme: 'action',
+    template: 'emoji-hunt', interaction: 'tap',
+    narration: '拿定主意，决定就选这一个。',
+    props: { hero: '✔️', target: '✔️', decoys: ['❌', '❔', '➖'], goal: 1 },
+    templateFallback: false
+  },
+  {
+    char: '选', unit: 'u56', theme: 'action',
+    template: 'tap-reveal', interaction: 'tap',
+    narration: '挑一挑，选中喜欢的那几样。',
+    props: { hero: '☑️', items: ['🍦', '🎈', '🧸'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '择', unit: 'u56', theme: 'action',
+    template: 'sort-buckets', interaction: 'drag',
+    narration: '择菜啦：好的留下，坏的丢掉。',
+    props: { hero: '🔀', items: [{ item: '🥬', bucket: '好的' }, { item: '🥦', bucket: '好的' }, { item: '🍂', bucket: '坏的' }, { item: '🐛', bucket: '坏的' }], buckets: [{ label: '好的', emoji: '✅' }, { label: '坏的', emoji: '🗑️' }], goal: 4 },
+    templateFallback: false
+  },
+  {
+    char: '参', unit: 'u56', theme: 'family',
+    template: 'count-tap', interaction: 'tap',
+    narration: '举手参加，一个一个报上名。',
+    props: { hero: '🙋', items: ['🙋', '🙋', '🙋'], goal: 3 },
+    templateFallback: false
+  },
+  // u57
+  {
+    char: '欢', unit: 'u57', theme: 'feeling',
+    template: 'pop-bubbles', interaction: 'tap',
+    narration: '欢呼一声，彩带全炸开。',
+    props: { hero: '😄', items: ['🎊', '🎊', '🎊'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '乐', unit: 'u57', theme: 'feeling',
+    template: 'sound-tap', interaction: 'tap',
+    narration: '按一下就响，快乐的音符。',
+    props: { hero: '🎉', sound: '啦啦', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '悲', unit: 'u57', theme: 'feeling',
+    template: 'morph-story', interaction: 'sequence',
+    narration: '笑脸慢慢垮下来，好悲伤。',
+    props: { hero: '😢', stages: ['🙂', '😔', '😢'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '愁', unit: 'u57', theme: 'feeling',
+    template: 'grow-tap', interaction: 'tap',
+    narration: '心事越堆越多，眉头皱起来。',
+    props: { hero: '😟', stages: ['🙂', '😟', '😩'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '恼', unit: 'u57', theme: 'feeling',
+    template: 'emoji-hunt', interaction: 'tap',
+    narration: '谁在生闷气？把苦恼的脸挑出来。',
+    props: { hero: '😤', target: '😤', decoys: ['😀', '😴', '🥰'], goal: 1 },
+    templateFallback: false
+  },
+  {
+    char: '怒', unit: 'u57', theme: 'feeling',
+    template: 'swipe-motion', interaction: 'swipe',
+    narration: '气得一拍桌子，怒气往上冲。',
+    props: { hero: '😠', dir: 'up', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '惊', unit: 'u57', theme: 'feeling',
+    template: 'tap-reveal', interaction: 'tap',
+    narration: '盒盖一开，吓一大惊。',
+    props: { hero: '😲', items: ['🐍', '🎈', '🕷️'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '恐', unit: 'u57', theme: 'feeling',
+    template: 'sort-buckets', interaction: 'drag',
+    narration: '不怕的搁一边，恐怖的搁一边。',
+    props: { hero: '😨', items: [{ item: '🐣', bucket: '不怕' }, { item: '🌼', bucket: '不怕' }, { item: '👻', bucket: '害怕' }, { item: '🕷️', bucket: '害怕' }], buckets: [{ label: '不怕', emoji: '🙂' }, { label: '害怕', emoji: '😨' }], goal: 4 },
+    templateFallback: false
+  },
+  {
+    char: '羞', unit: 'u57', theme: 'feeling',
+    template: 'color-fill', interaction: 'tap',
+    narration: '一害羞，脸蛋就红扑扑的。',
+    props: { hero: '😊', color: '红', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '傲', unit: 'u57', theme: 'feeling',
+    template: 'swipe-motion', interaction: 'swipe',
+    narration: '把头一抬，骄傲地挺起来。',
+    props: { hero: '😌', dir: 'up', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '柔', unit: 'u57', theme: 'body',
+    template: 'trace-path', interaction: 'drag',
+    narration: '软软的小熊，轻轻推着走。',
+    props: { hero: '🧸', dir: 'right', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '睛', unit: 'u57', theme: 'body',
+    template: 'scene-poke', interaction: 'tap',
+    narration: '睁着眼睛，看看周围有什么。',
+    props: { hero: '👁️', items: ['🌈', '🐦', '🌻'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '睁', unit: 'u57', theme: 'body',
+    template: 'grow-tap', interaction: 'tap',
+    narration: '眼皮慢慢抬，眼睛睁开了。',
+    props: { hero: '👀', stages: ['😴', '😑', '👀'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '眉', unit: 'u57', theme: 'body',
+    template: 'drag-parts', interaction: 'drag',
+    narration: '把两道眉毛贴到眼睛上边。',
+    props: { hero: '😐', parts: ['〰️', '〰️'], goal: 2 },
+    templateFallback: false
+  },
+  {
+    char: '唇', unit: 'u57', theme: 'body',
+    template: 'color-fill', interaction: 'tap',
+    narration: '给小嘴唇涂上淡淡的粉。',
+    props: { hero: '👄', color: '粉', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '喉', unit: 'u57', theme: 'body',
+    template: 'sound-tap', interaction: 'tap',
+    narration: '摸摸喉咙，跟着哼一声。',
+    props: { hero: '🗣️', sound: '嗯', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '腰', unit: 'u57', theme: 'body',
+    template: 'swipe-motion', interaction: 'swipe',
+    narration: '弯下腰去，捡起地上的球。',
+    props: { hero: '🧍', dir: 'down', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '掌', unit: 'u57', theme: 'body',
+    template: 'count-tap', interaction: 'tap',
+    narration: '拍拍手掌，一起拍五下。',
+    props: { hero: '🖐️', items: ['👏', '👏', '👏', '👏', '👏'], goal: 5 },
+    templateFallback: false
+  },
+  {
+    char: '揉', unit: 'u57', theme: 'action',
+    template: 'count-tap', interaction: 'tap',
+    narration: '两只手揉一揉，揉三下面团。',
+    props: { hero: '🤲', items: ['🥟', '🥟', '🥟'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '抖', unit: 'u57', theme: 'action',
+    template: 'swipe-motion', interaction: 'swipe',
+    narration: '冷得直发抖，被子抖一抖。',
+    props: { hero: '🥶', dir: 'left', goal: 3 },
+    templateFallback: false
+  },
+  // u58
+  {
+    char: '勤', unit: 'u58', theme: 'action',
+    template: 'count-tap', interaction: 'tap',
+    narration: '小蜜蜂最勤劳，采满四朵花。',
+    props: { hero: '🐝', items: ['🌻', '🌻', '🌻', '🌻'], goal: 4 },
+    templateFallback: false
+  },
+  {
+    char: '俭', unit: 'u58', theme: 'number',
+    template: 'pop-bubbles', interaction: 'tap',
+    narration: '省着点花，只用掉两个硬币。',
+    props: { hero: '🪙', items: ['🪙', '🪙'], goal: 2 },
+    templateFallback: false
+  },
+  {
+    char: '谦', unit: 'u58', theme: 'action',
+    template: 'swipe-motion', interaction: 'swipe',
+    narration: '谦让一下，请你先过去。',
+    props: { hero: '🙇', dir: 'right', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '虚', unit: 'u58', theme: 'object',
+    template: 'tap-reveal', interaction: 'tap',
+    narration: '罐子是空的吗？揭开瞧瞧。',
+    props: { hero: '🫙', items: ['💨', '💨', '💨'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '善', unit: 'u58', theme: 'feeling',
+    template: 'sort-buckets', interaction: 'drag',
+    narration: '善良的事一边，不好的事一边。',
+    props: { hero: '😇', items: [{ item: '🤝', bucket: '善良' }, { item: '🎁', bucket: '善良' }, { item: '💢', bucket: '不好' }, { item: '🗑️', bucket: '不好' }], buckets: [{ label: '善良', emoji: '😇' }, { label: '不好', emoji: '😖' }], goal: 4 },
+    templateFallback: false
+  },
+  {
+    char: '故', unit: 'u58', theme: 'school',
+    template: 'morph-story', interaction: 'sequence',
+    narration: '翻开故事书，故事开场了。',
+    props: { hero: '📖', stages: ['📕', '📖', '🧚'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '奇', unit: 'u58', theme: 'feeling',
+    template: 'emoji-hunt', interaction: 'tap',
+    narration: '哪一样最稀奇？找出会发光的。',
+    props: { hero: '✨', target: '✨', decoys: ['🪨', '🍂', '🧱'], goal: 1 },
+    templateFallback: false
+  },
+  {
+    char: '神', unit: 'u58', theme: 'feeling',
+    template: 'grow-tap', interaction: 'tap',
+    narration: '一阵烟冒出来，神仙现身了。',
+    props: { hero: '🧞', stages: ['🫖', '💨', '🧞'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '仙', unit: 'u58', theme: 'place',
+    template: 'trace-path', interaction: 'drag',
+    narration: '小仙子踩着云往上飘。',
+    props: { hero: '🧝', dir: 'up', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '妖', unit: 'u58', theme: 'feeling',
+    template: 'emoji-hunt', interaction: 'tap',
+    narration: '哪个是妖怪的脸？把它挑出来。',
+    props: { hero: '👺', target: '👺', decoys: ['🙂', '🐰', '🌼'], goal: 1 },
+    templateFallback: false
+  },
+  {
+    char: '怪', unit: 'u58', theme: 'feeling',
+    template: 'morph-story', interaction: 'sequence',
+    narration: '影子晃啊晃，晃成个小怪物。',
+    props: { hero: '👻', stages: ['🌫️', '👤', '👻'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '精', unit: 'u58', theme: 'animal',
+    template: 'scene-poke', interaction: 'tap',
+    narration: '花丛里住着小精灵，点点找。',
+    props: { hero: '🧚', items: ['🌸', '🍄', '🦋'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '灵', unit: 'u58', theme: 'action',
+    template: 'pair-match', interaction: 'drag',
+    narration: '机灵的小家伙，把图配成对。',
+    props: { hero: '🧚', pairs: [{ a: '🧚', b: '✨' }, { a: '🐿️', b: '🌰' }, { a: '🦊', b: '🍇' }], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '侠', unit: 'u58', theme: 'action',
+    template: 'swipe-motion', interaction: 'swipe',
+    narration: '小侠客一挥手，冲上前去。',
+    props: { hero: '🦸', dir: 'right', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '紧', unit: 'u58', theme: 'action',
+    template: 'drag-parts', interaction: 'drag',
+    narration: '把绳子拉紧，打一个结。',
+    props: { hero: '🪢', parts: ['🧵', '🪢'], goal: 2 },
+    templateFallback: false
+  },
+  {
+    char: '搬', unit: 'u58', theme: 'action',
+    template: 'count-tap', interaction: 'tap',
+    narration: '一箱一箱往车上搬，搬三箱。',
+    props: { hero: '📦', items: ['📦', '📦', '📦'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '迷', unit: 'u58', theme: 'action',
+    template: 'trace-path', interaction: 'drag',
+    narration: '走迷宫可别迷路，跟着走。',
+    props: { hero: '🌀', dir: 'right', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '扔', unit: 'u58', theme: 'action',
+    template: 'pop-bubbles', interaction: 'tap',
+    narration: '一样一样扔进垃圾桶。',
+    props: { hero: '🗑️', items: ['🍌', '📄', '🥤'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '敲', unit: 'u58', theme: 'action',
+    template: 'sound-tap', interaction: 'tap',
+    narration: '咚咚咚，敲敲这扇门。',
+    props: { hero: '🚪', sound: '咚咚', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '甩', unit: 'u58', theme: 'action',
+    template: 'swipe-motion', interaction: 'swipe',
+    narration: '手往外一甩，水珠飞出去。',
+    props: { hero: '🌀', dir: 'right', goal: 3 },
+    templateFallback: false
+  },
+  // u59
+  {
+    char: '乙', unit: 'u59', theme: 'shape',
+    template: 'morph-story', interaction: 'sequence',
+    narration: '一笔弯弯拐个钩，就是乙。',
+    props: { hero: '🔢', stages: ['〰️', '🪝', '乙'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '丁', unit: 'u59', theme: 'object',
+    template: 'drag-parts', interaction: 'drag',
+    narration: '小钉子立起来，钉住木板。',
+    props: { hero: '📌', parts: ['📌', '🪵'], goal: 2 },
+    templateFallback: false
+  },
+  {
+    char: '卜', unit: 'u59', theme: 'word',
+    template: 'tap-reveal', interaction: 'tap',
+    narration: '翻开小卦看一看，会是什么。',
+    props: { hero: '🔮', items: ['☀️', '🌧️', '🌈'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '入', unit: 'u59', theme: 'action',
+    template: 'trace-path', interaction: 'drag',
+    narration: '带着小人往门里走进去。',
+    props: { hero: '🚪', dir: 'right', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '儿', unit: 'u59', theme: 'family',
+    template: 'grow-tap', interaction: 'tap',
+    narration: '小娃娃一年年长，长成男孩。',
+    props: { hero: '👦', stages: ['👶', '🧒', '👦'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '于', unit: 'u59', theme: 'place',
+    template: 'emoji-hunt', interaction: 'tap',
+    narration: '东西在于哪儿？找到那个点。',
+    props: { hero: '📍', target: '📍', decoys: ['🌳', '🚗', '🏠'], goal: 1 },
+    templateFallback: false
+  },
+  {
+    char: '亏', unit: 'u59', theme: 'feeling',
+    template: 'morph-story', interaction: 'sequence',
+    narration: '吃了亏，嘴巴一下子瘪下去。',
+    props: { hero: '😖', stages: ['🙂', '😕', '😖'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '士', unit: 'u59', theme: 'body',
+    template: 'swipe-motion', interaction: 'swipe',
+    narration: '小战士挺起胸，昂首站好。',
+    props: { hero: '🎖️', dir: 'up', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '丈', unit: 'u59', theme: 'number',
+    template: 'count-tap', interaction: 'tap',
+    narration: '一丈一丈量墙，量满三丈。',
+    props: { hero: '📏', items: ['📏', '📏', '📏'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '巾', unit: 'u59', theme: 'object',
+    template: 'drag-parts', interaction: 'drag',
+    narration: '把小手巾叠好挂起来。',
+    props: { hero: '🧣', parts: ['🧻', '🪝'], goal: 2 },
+    templateFallback: false
+  },
+  {
+    char: '川', unit: 'u59', theme: 'nature',
+    template: 'trace-path', interaction: 'drag',
+    narration: '三条水线往前淌，那是大川。',
+    props: { hero: '🏞️', dir: 'right', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '亿', unit: 'u59', theme: 'number',
+    template: 'count-tap', interaction: 'tap',
+    narration: '数字大得数不完，先点五下。',
+    props: { hero: '🔢', items: ['🔢', '🔢', '🔢', '🔢', '🔢'], goal: 5 },
+    templateFallback: false
+  },
+  {
+    char: '夕', unit: 'u59', theme: 'time',
+    template: 'morph-story', interaction: 'sequence',
+    narration: '太阳落山，夕阳染红了天边。',
+    props: { hero: '🌇', stages: ['🌞', '🌇', '🌆'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '勺', unit: 'u59', theme: 'food',
+    template: 'count-tap', interaction: 'tap',
+    narration: '拿小勺舀汤，舀满三勺。',
+    props: { hero: '🥄', items: ['🥄', '🥄', '🥄'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '凡', unit: 'u59', theme: 'feeling',
+    template: 'emoji-hunt', interaction: 'tap',
+    narration: '哪个最平凡？挑出普通的那张脸。',
+    props: { hero: '🙂', target: '🙂', decoys: ['👑', '🦄', '🌟'], goal: 1 },
+    templateFallback: false
+  },
+  {
+    char: '丸', unit: 'u59', theme: 'shape',
+    template: 'pop-bubbles', interaction: 'tap',
+    narration: '小圆丸滚过来，一个个收好。',
+    props: { hero: '⚪', items: ['⚪', '⚪', '⚪'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '广', unit: 'u59', theme: 'place',
+    template: 'scene-poke', interaction: 'tap',
+    narration: '广场好宽好大，点点有什么。',
+    props: { hero: '🏞️', items: ['⛲', '🕊️', '🎠'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '丫', unit: 'u59', theme: 'nature',
+    template: 'drag-parts', interaction: 'drag',
+    narration: '树枝分出两个丫，拼一拼。',
+    props: { hero: '🌿', parts: ['🌿', '🌿'], goal: 2 },
+    templateFallback: false
+  },
+  {
+    char: '义', unit: 'u59', theme: 'action',
+    template: 'pair-match', interaction: 'drag',
+    narration: '讲义气的小伙伴，配成一对。',
+    props: { hero: '🤝', pairs: [{ a: '🐶', b: '🦴' }, { a: '🐱', b: '🐟' }, { a: '🐰', b: '🥕' }], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '之', unit: 'u59', theme: 'word',
+    template: 'trace-path', interaction: 'drag',
+    narration: '沿着弯弯的之字路上山。',
+    props: { hero: '📜', dir: 'up', goal: 3 },
+    templateFallback: false
+  },
+  // u60
+  {
+    char: '己', unit: 'u60', theme: 'family',
+    template: 'tap-reveal', interaction: 'tap',
+    narration: '镜子里的自己，点开瞧瞧。',
+    props: { hero: '🙋', items: ['🪞'], goal: 1 },
+    templateFallback: false
+  },
+  {
+    char: '弓', unit: 'u60', theme: 'action',
+    template: 'swipe-motion', interaction: 'swipe',
+    narration: '把弓弦往后一拉，绷紧了。',
+    props: { hero: '🏹', dir: 'left', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '刃', unit: 'u60', theme: 'object',
+    template: 'emoji-hunt', interaction: 'tap',
+    narration: '哪一样有刀刃？小心找出来。',
+    props: { hero: '🔪', target: '🔪', decoys: ['🥄', '🧸', '🎈'], goal: 1 },
+    templateFallback: false
+  },
+  {
+    char: '丰', unit: 'u60', theme: 'nature',
+    template: 'grow-tap', interaction: 'tap',
+    narration: '稻子越长越丰，沉甸甸的。',
+    props: { hero: '🌾', stages: ['🌱', '🌿', '🌾'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '王', unit: 'u60', theme: 'family',
+    template: 'color-fill', interaction: 'tap',
+    narration: '给国王的皇冠涂上金色。',
+    props: { hero: '👑', color: '金', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '夫', unit: 'u60', theme: 'family',
+    template: 'pair-match', interaction: 'drag',
+    narration: '一家人配一配：谁跟谁一对。',
+    props: { hero: '👨', pairs: [{ a: '👨', b: '👩' }, { a: '👴', b: '👵' }, { a: '👦', b: '👧' }], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '无', unit: 'u60', theme: 'number',
+    template: 'pop-bubbles', interaction: 'tap',
+    narration: '全都拿走，最后一个也不剩。',
+    props: { hero: '🈳', items: ['🍎', '🍎'], goal: 2 },
+    templateFallback: false
+  },
+  {
+    char: '专', unit: 'u60', theme: 'action',
+    template: 'count-tap', interaction: 'tap',
+    narration: '专心一点，只盯着靶心点三下。',
+    props: { hero: '🎯', items: ['🎯', '🎯', '🎯'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '扎', unit: 'u60', theme: 'action',
+    template: 'drag-parts', interaction: 'drag',
+    narration: '把小旗扎进土里，站得稳稳。',
+    props: { hero: '📌', parts: ['🚩', '🟫'], goal: 2 },
+    templateFallback: false
+  },
+  {
+    char: '艺', unit: 'u60', theme: 'school',
+    template: 'scene-poke', interaction: 'tap',
+    narration: '画画唱歌都是本领，点点看。',
+    props: { hero: '🎨', items: ['🖌️', '🎵', '🩰'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '区', unit: 'u60', theme: 'place',
+    template: 'sort-buckets', interaction: 'drag',
+    narration: '分成两个小区：住人和停车。',
+    props: { hero: '🗺️', items: [{ item: '🛏️', bucket: '住人' }, { item: '🍽️', bucket: '住人' }, { item: '🚗', bucket: '停车' }, { item: '🚲', bucket: '停车' }], buckets: [{ label: '住人', emoji: '🏠' }, { label: '停车', emoji: '🅿️' }], goal: 4 },
+    templateFallback: false
+  },
+  {
+    char: '历', unit: 'u60', theme: 'time',
+    template: 'count-tap', interaction: 'tap',
+    narration: '日历一天撕一页，撕掉四页。',
+    props: { hero: '📅', items: ['📅', '📅', '📅', '📅'], goal: 4 },
+    templateFallback: false
+  },
+  {
+    char: '尤', unit: 'u60', theme: 'feeling',
+    template: 'emoji-hunt', interaction: 'tap',
+    narration: '哪一颗尤其亮？找最亮的星。',
+    props: { hero: '⭐', target: '🌟', decoys: ['⭐', '✨', '💫'], goal: 1 },
+    templateFallback: false
+  },
+  {
+    char: '匹', unit: 'u60', theme: 'animal',
+    template: 'count-tap', interaction: 'tap',
+    narration: '一匹一匹数马，数满三匹。',
+    props: { hero: '🐎', items: ['🐎', '🐎', '🐎'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '巨', unit: 'u60', theme: 'number',
+    template: 'grow-tap', interaction: 'tap',
+    narration: '小象一口一口长成巨兽。',
+    props: { hero: '🦣', stages: ['🐘', '🦣', '🏔️'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '互', unit: 'u60', theme: 'action',
+    template: 'pair-match', interaction: 'drag',
+    narration: '你帮我我帮你，互相配一对。',
+    props: { hero: '🤝', pairs: [{ a: '🤝', b: '🤝' }, { a: '🧤', b: '🧤' }, { a: '🧦', b: '🧦' }], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '止', unit: 'u60', theme: 'action',
+    template: 'emoji-hunt', interaction: 'tap',
+    narration: '该停下了，找出停止的牌子。',
+    props: { hero: '🛑', target: '🛑', decoys: ['🟢', '🟡', '➡️'], goal: 1 },
+    templateFallback: false
+  },
+  {
+    char: '贝', unit: 'u60', theme: 'nature',
+    template: 'scene-poke', interaction: 'tap',
+    narration: '沙滩上有小贝壳，挨个点。',
+    props: { hero: '🐚', items: ['🐚', '🌊', '⭐'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '冈', unit: 'u60', theme: 'nature',
+    template: 'trace-path', interaction: 'drag',
+    narration: '翻过小山冈，一路往上爬。',
+    props: { hero: '🏔️', dir: 'up', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '见', unit: 'u60', theme: 'body',
+    template: 'tap-reveal', interaction: 'tap',
+    narration: '眼睛一睁，看见好多东西。',
+    props: { hero: '👀', items: ['🌳', '🐦', '🚗'], goal: 3 },
+    templateFallback: false
+  },
+  // u61
+  {
+    char: '仁', unit: 'u61', theme: 'feeling',
+    template: 'pair-match', interaction: 'drag',
+    narration: '待人有爱心，把心配成对。',
+    props: { hero: '❤️', pairs: [{ a: '❤️', b: '❤️' }, { a: '💛', b: '💛' }, { a: '💙', b: '💙' }], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '仅', unit: 'u61', theme: 'number',
+    template: 'count-tap', interaction: 'tap',
+    narration: '仅仅一个就够了，只点一下。',
+    props: { hero: '1️⃣', items: ['🍬'], goal: 1 },
+    templateFallback: false
+  },
+  {
+    char: '反', unit: 'u61', theme: 'action',
+    template: 'swipe-motion', interaction: 'swipe',
+    narration: '翻过来，看看反面是什么。',
+    props: { hero: '🔄', dir: 'left', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '介', unit: 'u61', theme: 'family',
+    template: 'tap-reveal', interaction: 'tap',
+    narration: '我来介绍新朋友，一个个揭。',
+    props: { hero: '🙋', items: ['🐶', '🐱', '🐰'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '乏', unit: 'u61', theme: 'feeling',
+    template: 'morph-story', interaction: 'sequence',
+    narration: '玩累了，人一下子没了力气。',
+    props: { hero: '😪', stages: ['🏃', '🚶', '😪'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '氏', unit: 'u61', theme: 'family',
+    template: 'drag-parts', interaction: 'drag',
+    narration: '一家人姓一个姓，凑成一家。',
+    props: { hero: '👪', parts: ['👨', '👩', '👧'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '勿', unit: 'u61', theme: 'action',
+    template: 'emoji-hunt', interaction: 'tap',
+    narration: '这里勿动，找出禁止的牌子。',
+    props: { hero: '🚫', target: '🚫', decoys: ['✅', '➡️', '🔵'], goal: 1 },
+    templateFallback: false
+  },
+  {
+    char: '欠', unit: 'u61', theme: 'body',
+    template: 'grow-tap', interaction: 'tap',
+    narration: '困了打个哈欠，嘴越张越大。',
+    props: { hero: '🥱', stages: ['🙂', '😯', '🥱'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '丹', unit: 'u61', theme: 'color',
+    template: 'color-fill', interaction: 'tap',
+    narration: '丹就是红，把花瓣涂红透。',
+    props: { hero: '🌺', color: '丹红', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '匀', unit: 'u61', theme: 'action',
+    template: 'sort-buckets', interaction: 'drag',
+    narration: '分得匀匀的：你两个我两个。',
+    props: { hero: '⚖️', items: [{ item: '🍬', bucket: '你的' }, { item: '🍭', bucket: '你的' }, { item: '🍫', bucket: '我的' }, { item: '🍪', bucket: '我的' }], buckets: [{ label: '你的', emoji: '🙋' }, { label: '我的', emoji: '🙆' }], goal: 4 },
+    templateFallback: false
+  },
+  {
+    char: '乌', unit: 'u61', theme: 'animal',
+    template: 'color-fill', interaction: 'tap',
+    narration: '乌鸦黑黑的，涂成墨黑色。',
+    props: { hero: '🐦‍⬛', color: '黑', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '勾', unit: 'u61', theme: 'action',
+    template: 'trace-path', interaction: 'drag',
+    narration: '笔尖往下一勾，画个小钩。',
+    props: { hero: '✔️', dir: 'down', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '凤', unit: 'u61', theme: 'animal',
+    template: 'grow-tap', interaction: 'tap',
+    narration: '凤凰抖抖尾巴，越来越美。',
+    props: { hero: '🦚', stages: ['🐣', '🦜', '🦚'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '计', unit: 'u61', theme: 'number',
+    template: 'count-tap', interaction: 'tap',
+    narration: '拨着算珠计一计，拨四下。',
+    props: { hero: '🧮', items: ['🧮', '🧮', '🧮', '🧮'], goal: 4 },
+    templateFallback: false
+  },
+  {
+    char: '订', unit: 'u61', theme: 'school',
+    template: 'drag-parts', interaction: 'drag',
+    narration: '把纸订在一起，别上曲别针。',
+    props: { hero: '📝', parts: ['📄', '📎'], goal: 2 },
+    templateFallback: false
+  },
+  {
+    char: '户', unit: 'u61', theme: 'place',
+    template: 'tap-reveal', interaction: 'tap',
+    narration: '一户一户问一声，看看谁在。',
+    props: { hero: '🚪', items: ['👵', '🐕', '👶'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '引', unit: 'u61', theme: 'action',
+    template: 'rain-catch', interaction: 'drag',
+    narration: '磁石引着铁片，一片片吸住。',
+    props: { hero: '🧲', items: ['📎', '🔩', '🔗'], tool: '🧲', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '丑', unit: 'u61', theme: 'feeling',
+    template: 'emoji-hunt', interaction: 'tap',
+    narration: '哪个小丑的鼻子最红？找出来。',
+    props: { hero: '🤡', target: '🤡', decoys: ['😀', '😺', '🐷'], goal: 1 },
+    templateFallback: false
+  },
+  {
+    char: '巴', unit: 'u61', theme: 'body',
+    template: 'sound-tap', interaction: 'tap',
+    narration: '张开嘴巴，跟我念一声巴。',
+    props: { hero: '👄', sound: '巴', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '孔', unit: 'u61', theme: 'shape',
+    template: 'pop-bubbles', interaction: 'tap',
+    narration: '一个个小孔，挨着戳穿它。',
+    props: { hero: '🕳️', items: ['⚫', '⚫', '⚫'], goal: 3 },
+    templateFallback: false
+  },
+  // u62
+  {
+    char: '办', unit: 'u62', theme: 'action',
+    template: 'sort-buckets', interaction: 'drag',
+    narration: '事情分开办：先做的和后做的。',
+    props: { hero: '🗂️', items: [{ item: '🪥', bucket: '先做' }, { item: '🍚', bucket: '先做' }, { item: '📺', bucket: '后做' }, { item: '🛏️', bucket: '后做' }], buckets: [{ label: '先做', emoji: '1️⃣' }, { label: '后做', emoji: '2️⃣' }], goal: 4 },
+    templateFallback: false
+  },
+  {
+    char: '允', unit: 'u62', theme: 'action',
+    template: 'emoji-hunt', interaction: 'tap',
+    narration: '可以吗？找出允许通过的绿灯。',
+    props: { hero: '✅', target: '✅', decoys: ['🚫', '❌', '⛔'], goal: 1 },
+    templateFallback: false
+  },
+  {
+    char: '邓', unit: 'u62', theme: 'family',
+    template: 'tap-reveal', interaction: 'tap',
+    narration: '门牌上写着邓，去找邓家人。',
+    props: { hero: '👤', items: ['🚪', '📛', '👋'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '劝', unit: 'u62', theme: 'action',
+    template: 'swipe-motion', interaction: 'swipe',
+    narration: '好好劝一劝，请他别生气。',
+    props: { hero: '🗣️', dir: 'right', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '未', unit: 'u62', theme: 'time',
+    template: 'morph-story', interaction: 'sequence',
+    narration: '时候还未到，果子没熟呢。',
+    props: { hero: '⏳', stages: ['🌸', '🍏', '🍎'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '末', unit: 'u62', theme: 'time',
+    template: 'swipe-motion', interaction: 'swipe',
+    narration: '翻到最后一页，到了末尾。',
+    props: { hero: '🔚', dir: 'right', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '示', unit: 'u62', theme: 'action',
+    template: 'tap-reveal', interaction: 'tap',
+    narration: '老师示范一遍，跟着揭开看。',
+    props: { hero: '👉', items: ['✋', '👏', '🤙'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '巧', unit: 'u62', theme: 'action',
+    template: 'drag-parts', interaction: 'drag',
+    narration: '手真巧，几块拼图巧巧拼好。',
+    props: { hero: '🎯', parts: ['🧩', '🧩', '🧩'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '正', unit: 'u62', theme: 'shape',
+    template: 'count-tap', interaction: 'tap',
+    narration: '一笔一笔写个正字，写五笔。',
+    props: { hero: '📐', items: ['➖', '➖', '➖', '➖', '➖'], goal: 5 },
+    templateFallback: false
+  },
+  {
+    char: '扑', unit: 'u62', theme: 'animal',
+    template: 'swipe-motion', interaction: 'swipe',
+    narration: '小狗一下子扑了过来。',
+    props: { hero: '🐕', dir: 'right', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '予', unit: 'u62', theme: 'action',
+    template: 'pair-match', interaction: 'drag',
+    narration: '把礼物给予朋友，配一配。',
+    props: { hero: '🎁', pairs: [{ a: '🎁', b: '🧒' }, { a: '🍰', b: '👧' }, { a: '🎈', b: '👦' }], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '扒', unit: 'u62', theme: 'action',
+    template: 'swipe-motion', interaction: 'swipe',
+    narration: '双手往两边扒开草丛。',
+    props: { hero: '🙌', dir: 'left', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '功', unit: 'u62', theme: 'action',
+    template: 'grow-tap', interaction: 'tap',
+    narration: '一点一点练，最后练成功。',
+    props: { hero: '🏆', stages: ['😣', '💪', '🏆'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '甘', unit: 'u62', theme: 'food',
+    template: 'pop-bubbles', interaction: 'tap',
+    narration: '甘甜的蜜，一口一口尝。',
+    props: { hero: '🍯', items: ['🍯', '🍯', '🍯'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '艾', unit: 'u62', theme: 'nature',
+    template: 'scene-poke', interaction: 'tap',
+    narration: '艾草香香的，点点这些草药。',
+    props: { hero: '🌿', items: ['🌿', '🍃', '🌾'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '术', unit: 'u62', theme: 'action',
+    template: 'tap-reveal', interaction: 'tap',
+    narration: '变个小魔术，帽子里有什么。',
+    props: { hero: '🎩', items: ['🐇', '🌷', '🃏'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '可', unit: 'u62', theme: 'feeling',
+    template: 'emoji-hunt', interaction: 'tap',
+    narration: '可以的话点点头，找出点头的。',
+    props: { hero: '👍', target: '👍', decoys: ['👎', '✋', '🤷'], goal: 1 },
+    templateFallback: false
+  },
+  {
+    char: '丙', unit: 'u62', theme: 'number',
+    template: 'count-tap', interaction: 'tap',
+    narration: '甲乙丙，一路数到第三个。',
+    props: { hero: '3️⃣', items: ['🥇', '🥈', '🥉'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '厉', unit: 'u62', theme: 'feeling',
+    template: 'sound-tap', interaction: 'tap',
+    narration: '厉害的一声吼，好大的声。',
+    props: { hero: '💪', sound: '吼', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '灭', unit: 'u62', theme: 'action',
+    template: 'pop-bubbles', interaction: 'tap',
+    narration: '一朵一朵小火苗，全浇灭。',
+    props: { hero: '🧯', items: ['🔥', '🔥', '🔥'], goal: 3 },
+    templateFallback: false
+  },
+  // u63
+  {
+    char: '东', unit: 'u63', theme: 'place',
+    template: 'trace-path', interaction: 'drag',
+    narration: '太阳从东边出来，往东走。',
+    props: { hero: '🧭', dir: 'right', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '占', unit: 'u63', theme: 'place',
+    template: 'drag-parts', interaction: 'drag',
+    narration: '把小旗插上，这块地占住了。',
+    props: { hero: '📍', parts: ['🚩', '⛰️'], goal: 2 },
+    templateFallback: false
+  },
+  {
+    char: '卢', unit: 'u63', theme: 'word',
+    template: 'tap-reveal', interaction: 'tap',
+    narration: '门口挂着卢家的灯笼。',
+    props: { hero: '👤', items: ['🏮', '🏮', '🚪'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '业', unit: 'u63', theme: 'school',
+    template: 'sort-buckets', interaction: 'drag',
+    narration: '各行各业：种地的和看病的。',
+    props: { hero: '💼', items: [{ item: '🚜', bucket: '种地' }, { item: '🌽', bucket: '种地' }, { item: '💊', bucket: '看病' }, { item: '🩹', bucket: '看病' }], buckets: [{ label: '种地', emoji: '🌾' }, { label: '看病', emoji: '🩺' }], goal: 4 },
+    templateFallback: false
+  },
+  {
+    char: '帅', unit: 'u63', theme: 'feeling',
+    template: 'color-fill', interaction: 'tap',
+    narration: '给小队长的帽子涂个帅气色。',
+    props: { hero: '😎', color: '蓝', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '旦', unit: 'u63', theme: 'time',
+    template: 'morph-story', interaction: 'sequence',
+    narration: '天刚亮，太阳从地平线冒头。',
+    props: { hero: '🌅', stages: ['🌃', '🌅', '🌞'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '且', unit: 'u63', theme: 'number',
+    template: 'count-tap', interaction: 'tap',
+    narration: '添了一个，而且再添一个。',
+    props: { hero: '➕', items: ['🍊', '🍊'], goal: 2 },
+    templateFallback: false
+  },
+  {
+    char: '甲', unit: 'u63', theme: 'body',
+    template: 'drag-parts', interaction: 'drag',
+    narration: '给小乌龟穿上硬硬的甲壳。',
+    props: { hero: '1️⃣', parts: ['🐢', '🛡️'], goal: 2 },
+    templateFallback: false
+  },
+  {
+    char: '申', unit: 'u63', theme: 'action',
+    template: 'swipe-motion', interaction: 'swipe',
+    narration: '举手申请，把手往上伸。',
+    props: { hero: '📝', dir: 'up', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '叮', unit: 'u63', theme: 'animal',
+    template: 'sound-tap', interaction: 'tap',
+    narration: '小蚊子叮一下，叮的一声。',
+    props: { hero: '🦟', sound: '叮', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '叭', unit: 'u63', theme: 'object',
+    template: 'sound-tap', interaction: 'tap',
+    narration: '喇叭一按，嘀嘀叭叭响。',
+    props: { hero: '📣', sound: '叭', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '兄', unit: 'u63', theme: 'family',
+    template: 'pair-match', interaction: 'drag',
+    narration: '哥哥和弟弟，兄弟配成对。',
+    props: { hero: '👦', pairs: [{ a: '👦', b: '👶' }, { a: '👧', b: '👶' }, { a: '👨', b: '👦' }], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '叽', unit: 'u63', theme: 'animal',
+    template: 'sound-tap', interaction: 'tap',
+    narration: '小鸡叽叽叫，跟着学一声。',
+    props: { hero: '🐤', sound: '叽叽', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '叼', unit: 'u63', theme: 'animal',
+    template: 'drag-parts', interaction: 'drag',
+    narration: '小狗把骨头叼在嘴里。',
+    props: { hero: '🐕', parts: ['🦴', '🐕'], goal: 2 },
+    templateFallback: false
+  },
+  {
+    char: '叫', unit: 'u63', theme: 'action',
+    template: 'sound-tap', interaction: 'tap',
+    narration: '大声叫一句，喊出名字来。',
+    props: { hero: '📢', sound: '喂', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '叹', unit: 'u63', theme: 'feeling',
+    template: 'morph-story', interaction: 'sequence',
+    narration: '唉，长长地叹出一口气。',
+    props: { hero: '😮‍💨', stages: ['🙂', '😔', '😮‍💨'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '失', unit: 'u63', theme: 'action',
+    template: 'emoji-hunt', interaction: 'tap',
+    narration: '东西丢失了，找找在哪儿。',
+    props: { hero: '❌', target: '🔑', decoys: ['🧦', '🧢', '📖'], goal: 1 },
+    templateFallback: false
+  },
+  {
+    char: '禾', unit: 'u63', theme: 'nature',
+    template: 'grow-tap', interaction: 'tap',
+    narration: '一棵小禾苗，抽穗结出谷子。',
+    props: { hero: '🌾', stages: ['🌱', '🌿', '🌾'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '丘', unit: 'u63', theme: 'nature',
+    template: 'drag-parts', interaction: 'drag',
+    narration: '土一堆堆起来，成了小土丘。',
+    props: { hero: '⛰️', parts: ['🟫', '🟫', '⛰️'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '付', unit: 'u63', theme: 'number',
+    template: 'count-tap', interaction: 'tap',
+    narration: '该付钱啦，数出三个硬币。',
+    props: { hero: '💰', items: ['🪙', '🪙', '🪙'], goal: 3 },
+    templateFallback: false
+  },
+  // u64
+  {
+    char: '仗', unit: 'u64', theme: 'action',
+    template: 'emoji-hunt', interaction: 'tap',
+    narration: '打仗要拿什么？找出那把剑。',
+    props: { hero: '⚔️', target: '⚔️', decoys: ['🎈', '🍭', '🧸'], goal: 1 },
+    templateFallback: false
+  },
+  {
+    char: '仪', unit: 'u64', theme: 'object',
+    template: 'drag-parts', interaction: 'drag',
+    narration: '把礼物系上蝴蝶结，才有礼。',
+    props: { hero: '🎀', parts: ['🎁', '🎀'], goal: 2 },
+    templateFallback: false
+  },
+  {
+    char: '仔', unit: 'u64', theme: 'action',
+    template: 'tap-reveal', interaction: 'tap',
+    narration: '仔仔细细找，藏着的都揭开。',
+    props: { hero: '🔍', items: ['🐞', '🍀', '🔑'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '斥', unit: 'u64', theme: 'feeling',
+    template: 'swipe-motion', interaction: 'swipe',
+    narration: '被训斥了一句，往后缩一缩。',
+    props: { hero: '😠', dir: 'left', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '乎', unit: 'u64', theme: 'word',
+    template: 'emoji-hunt', interaction: 'tap',
+    narration: '你最在乎哪一个？挑出来。',
+    props: { hero: '❓', target: '❓', decoys: ['❗', '💬', '💭'], goal: 1 },
+    templateFallback: false
+  },
+  {
+    char: '丛', unit: 'u64', theme: 'nature',
+    template: 'drag-parts', interaction: 'drag',
+    narration: '几棵小草凑一起，成了草丛。',
+    props: { hero: '🌿', parts: ['🌿', '🌿', '🌿'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '令', unit: 'u64', theme: 'action',
+    template: 'sound-tap', interaction: 'tap',
+    narration: '发个口令，喊一声出发。',
+    props: { hero: '📜', sound: '出发', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '尔', unit: 'u64', theme: 'school',
+    template: 'tap-reveal', interaction: 'tap',
+    narration: '翻开小书，念念上面的字。',
+    props: { hero: '📗', items: ['📗', '📖', '📕'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '匆', unit: 'u64', theme: 'action',
+    template: 'trace-path', interaction: 'drag',
+    narration: '匆匆忙忙，快步往前赶路。',
+    props: { hero: '🏃', dir: 'right', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '犯', unit: 'u64', theme: 'action',
+    template: 'sort-buckets', interaction: 'drag',
+    narration: '该做的和犯规的，分清楚。',
+    props: { hero: '⚠️', items: [{ item: '🚶', bucket: '该做' }, { item: '🧼', bucket: '该做' }, { item: '🏃', bucket: '犯规' }, { item: '🔥', bucket: '犯规' }], buckets: [{ label: '该做', emoji: '✅' }, { label: '犯规', emoji: '⚠️' }], goal: 4 },
+    templateFallback: false
+  },
+  {
+    char: '处', unit: 'u64', theme: 'place',
+    template: 'scene-poke', interaction: 'tap',
+    narration: '到处看一看，这处那处都有。',
+    props: { hero: '📍', items: ['🏠', '🏫', '🏪'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '务', unit: 'u64', theme: 'action',
+    template: 'count-tap', interaction: 'tap',
+    narration: '把任务一件件做完，做三件。',
+    props: { hero: '✅', items: ['✅', '✅', '✅'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '饥', unit: 'u64', theme: 'food',
+    template: 'pop-bubbles', interaction: 'tap',
+    narration: '肚子饥了，把饭一口口吃光。',
+    props: { hero: '🍽️', items: ['🍚', '🍗', '🥕'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '立', unit: 'u64', theme: 'body',
+    template: 'swipe-motion', interaction: 'swipe',
+    narration: '站立好，身子往上挺一挺。',
+    props: { hero: '🧍', dir: 'up', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '冯', unit: 'u64', theme: 'word',
+    template: 'tap-reveal', interaction: 'tap',
+    narration: '信封上写着冯，是给冯家的。',
+    props: { hero: '👤', items: ['✉️', '📮', '🏠'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '闪', unit: 'u64', theme: 'weather',
+    template: 'sound-tap', interaction: 'tap',
+    narration: '闪电一闪，咔嚓一声响。',
+    props: { hero: '⚡', sound: '咔嚓', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '汁', unit: 'u64', theme: 'food',
+    template: 'rain-catch', interaction: 'drag',
+    narration: '果汁一滴滴落，拿杯子接住。',
+    props: { hero: '🧃', items: ['🧃', '🍹', '🥤'], tool: '🥛', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '汇', unit: 'u64', theme: 'nature',
+    template: 'drag-parts', interaction: 'drag',
+    narration: '小溪汇到一处，成了大河。',
+    props: { hero: '🌊', parts: ['💧', '💧', '🌊'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '宁', unit: 'u64', theme: 'feeling',
+    template: 'grow-tap', interaction: 'tap',
+    narration: '吵闹慢慢停，屋里安宁下来。',
+    props: { hero: '😌', stages: ['🔊', '🔉', '🔈'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '穴', unit: 'u64', theme: 'place',
+    template: 'tap-reveal', interaction: 'tap',
+    narration: '洞穴里黑黑的，照照有谁。',
+    props: { hero: '🕳️', items: ['🦇', '🐻', '💎'], goal: 3 },
+    templateFallback: false
+  },
+  // u65
+  {
+    char: '它', unit: 'u65', theme: 'animal',
+    template: 'emoji-hunt', interaction: 'tap',
+    narration: '它是谁？找出慢吞吞的乌龟。',
+    props: { hero: '🐢', target: '🐢', decoys: ['🐇', '🐿️', '🦊'], goal: 1 },
+    templateFallback: false
+  },
+  {
+    char: '讨', unit: 'u65', theme: 'action',
+    template: 'swipe-motion', interaction: 'swipe',
+    narration: '去讨个主意，走过去问问。',
+    props: { hero: '🗣️', dir: 'right', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '必', unit: 'u65', theme: 'action',
+    template: 'count-tap', interaction: 'tap',
+    narration: '这几样必须做完，点满三下。',
+    props: { hero: '❗', items: ['❗', '❗', '❗'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '永', unit: 'u65', theme: 'nature',
+    template: 'trace-path', interaction: 'drag',
+    narration: '水流啊流，永远流不完。',
+    props: { hero: '♾️', dir: 'down', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '司', unit: 'u65', theme: 'place',
+    template: 'scene-poke', interaction: 'tap',
+    narration: '上公司的班车，看看车上有啥。',
+    props: { hero: '🚌', items: ['💼', '📋', '☕'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '叩', unit: 'u65', theme: 'action',
+    template: 'sound-tap', interaction: 'tap',
+    narration: '叩叩门环，问一句有人吗。',
+    props: { hero: '🚪', sound: '叩叩', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '辽', unit: 'u65', theme: 'place',
+    template: 'grow-tap', interaction: 'tap',
+    narration: '地方越看越辽阔，一望无边。',
+    props: { hero: '🌏', stages: ['🏡', '🏞️', '🌏'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '召', unit: 'u65', theme: 'action',
+    template: 'count-tap', interaction: 'tap',
+    narration: '喊一嗓子召集大家，来三个。',
+    props: { hero: '📣', items: ['🧒', '👧', '👦'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '圣', unit: 'u65', theme: 'feeling',
+    template: 'color-fill', interaction: 'tap',
+    narration: '给这颗圣诞星涂上金光。',
+    props: { hero: '🌟', color: '金黄', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '纠', unit: 'u65', theme: 'action',
+    template: 'drag-parts', interaction: 'drag',
+    narration: '绳子缠住了，纠出来解开。',
+    props: { hero: '🔧', parts: ['🧵', '🪢'], goal: 2 },
+    templateFallback: false
+  },
+  {
+    char: '邦', unit: 'u65', theme: 'place',
+    template: 'sort-buckets', interaction: 'drag',
+    narration: '哪些在城里，哪些在乡下。',
+    props: { hero: '🌐', items: [{ item: '🚇', bucket: '城里' }, { item: '🏢', bucket: '城里' }, { item: '🐓', bucket: '乡下' }, { item: '🌾', bucket: '乡下' }], buckets: [{ label: '城里', emoji: '🏙️' }, { label: '乡下', emoji: '🏡' }], goal: 4 },
+    templateFallback: false
+  },
+  {
+    char: '动', unit: 'u65', theme: 'action',
+    template: 'swipe-motion', interaction: 'swipe',
+    narration: '别站着啦，动起来往前跑。',
+    props: { hero: '🏃', dir: 'right', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '扛', unit: 'u65', theme: 'action',
+    template: 'swipe-motion', interaction: 'swipe',
+    narration: '使劲把大袋子扛上肩。',
+    props: { hero: '💪', dir: 'up', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '寺', unit: 'u65', theme: 'place',
+    template: 'scene-poke', interaction: 'tap',
+    narration: '小寺庙里安安静静，点点看。',
+    props: { hero: '🛕', items: ['🔔', '🕯️', '🧘'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '吉', unit: 'u65', theme: 'feeling',
+    template: 'tap-reveal', interaction: 'tap',
+    narration: '红包里装着吉利话，拆开看。',
+    props: { hero: '🧧', items: ['🧧', '🍊', '🪙'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '托', unit: 'u65', theme: 'action',
+    template: 'count-tap', interaction: 'tap',
+    narration: '用手托住盘子，托稳三下。',
+    props: { hero: '🤲', items: ['🍽️', '🍽️', '🍽️'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '弘', unit: 'u65', theme: 'action',
+    template: 'sound-tap', interaction: 'tap',
+    narration: '声音放得弘大，传得远远的。',
+    props: { hero: '📣', sound: '喔', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '圾', unit: 'u65', theme: 'action',
+    template: 'pop-bubbles', interaction: 'tap',
+    narration: '把垃圾一样样清干净。',
+    props: { hero: '🗑️', items: ['🍌', '🥤', '📄'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '执', unit: 'u65', theme: 'action',
+    template: 'drag-parts', interaction: 'drag',
+    narration: '手里执着小旗，握紧不放。',
+    props: { hero: '✋', parts: ['🚩', '✋'], goal: 2 },
+    templateFallback: false
+  },
+  {
+    char: '扩', unit: 'u65', theme: 'action',
+    template: 'grow-tap', interaction: 'tap',
+    narration: '圈圈慢慢扩大，越来越宽。',
+    props: { hero: '↔️', stages: ['⚪', '🔵', '🌀'], goal: 3 },
+    templateFallback: false
+  },
+  // u66
+  {
+    char: '场', unit: 'u66', theme: 'place',
+    template: 'scene-poke', interaction: 'tap',
+    narration: '操场上真热闹，点点在玩啥。',
+    props: { hero: '🏟️', items: ['⚽', '🏀', '🏸'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '扬', unit: 'u66', theme: 'action',
+    template: 'swipe-motion', interaction: 'swipe',
+    narration: '把小旗高高扬起来。',
+    props: { hero: '🚩', dir: 'up', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '芋', unit: 'u66', theme: 'food',
+    template: 'tap-reveal', interaction: 'tap',
+    narration: '泥里埋着芋头，挖开瞧瞧。',
+    props: { hero: '🍠', items: ['🍠', '🥔', '🌰'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '芒', unit: 'u66', theme: 'nature',
+    template: 'emoji-hunt', interaction: 'tap',
+    narration: '哪根麦芒最尖？把它找出来。',
+    props: { hero: '🌾', target: '🌾', decoys: ['🍃', '🌸', '🍄'], goal: 1 },
+    templateFallback: false
+  },
+  {
+    char: '亚', unit: 'u66', theme: 'number',
+    template: 'pair-match', interaction: 'drag',
+    narration: '第一第二排好队，配一配。',
+    props: { hero: '🥈', pairs: [{ a: '🥇', b: '1️⃣' }, { a: '🥈', b: '2️⃣' }, { a: '🥉', b: '3️⃣' }], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '芝', unit: 'u66', theme: 'nature',
+    template: 'grow-tap', interaction: 'tap',
+    narration: '小芝麻发了芽，冒出嫩苗。',
+    props: { hero: '🌱', stages: ['🌰', '🌱', '🌿'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '朽', unit: 'u66', theme: 'action',
+    template: 'morph-story', interaction: 'sequence',
+    narration: '木头搁久了，慢慢就朽了。',
+    props: { hero: '🪵', stages: ['🪵', '🍂', '🍄'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '朴', unit: 'u66', theme: 'object',
+    template: 'sort-buckets', interaction: 'drag',
+    narration: '朴素的一边，花哨的一边。',
+    props: { hero: '🧺', items: [{ item: '🥣', bucket: '朴素' }, { item: '🧦', bucket: '朴素' }, { item: '👑', bucket: '花哨' }, { item: '💎', bucket: '花哨' }], buckets: [{ label: '朴素', emoji: '🧺' }, { label: '花哨', emoji: '✨' }], goal: 4 },
+    templateFallback: false
+  },
+  {
+    char: '权', unit: 'u66', theme: 'action',
+    template: 'pair-match', interaction: 'drag',
+    narration: '天平两边配平，才算公道。',
+    props: { hero: '⚖️', pairs: [{ a: '⚖️', b: '⚖️' }, { a: '🍎', b: '🍎' }, { a: '🪨', b: '🪨' }], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '协', unit: 'u66', theme: 'action',
+    template: 'drag-parts', interaction: 'drag',
+    narration: '大家协力，一起把车推动。',
+    props: { hero: '🤝', parts: ['🧒', '🧒', '🚗'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '西', unit: 'u66', theme: 'place',
+    template: 'trace-path', interaction: 'drag',
+    narration: '太阳往西边落，跟着走。',
+    props: { hero: '🧭', dir: 'left', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '压', unit: 'u66', theme: 'action',
+    template: 'swipe-motion', interaction: 'swipe',
+    narration: '用手往下压一压，压扁它。',
+    props: { hero: '⬇️', dir: 'down', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '厌', unit: 'u66', theme: 'feeling',
+    template: 'emoji-hunt', interaction: 'tap',
+    narration: '哪张脸在讨厌？找出皱眉的。',
+    props: { hero: '😒', target: '😒', decoys: ['😄', '😍', '😃'], goal: 1 },
+    templateFallback: false
+  },
+  {
+    char: '匠', unit: 'u66', theme: 'action',
+    template: 'drag-parts', interaction: 'drag',
+    narration: '木匠抡起锤子，钉好板子。',
+    props: { hero: '🔨', parts: ['🔨', '🪵', '🔩'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '夸', unit: 'u66', theme: 'feeling',
+    template: 'count-tap', interaction: 'tap',
+    narration: '夸一夸，一起鼓三下掌。',
+    props: { hero: '👏', items: ['👏', '👏', '👏'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '夺', unit: 'u66', theme: 'action',
+    template: 'rain-catch', interaction: 'drag',
+    narration: '奖杯掉下来，抢先夺一个。',
+    props: { hero: '🏆', items: ['🏆', '🏅', '🎖️'], tool: '🧤', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '达', unit: 'u66', theme: 'action',
+    template: 'trace-path', interaction: 'drag',
+    narration: '一路走呀走，终于到达。',
+    props: { hero: '🎯', dir: 'right', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '列', unit: 'u66', theme: 'number',
+    template: 'count-tap', interaction: 'tap',
+    narration: '排成一列，一个一个数四个。',
+    props: { hero: '📋', items: ['🧒', '🧒', '🧒', '🧒'], goal: 4 },
+    templateFallback: false
+  },
+  {
+    char: '夹', unit: 'u66', theme: 'action',
+    template: 'drag-parts', interaction: 'drag',
+    narration: '用筷子把丸子夹起来。',
+    props: { hero: '🥢', parts: ['🥢', '🍡'], goal: 2 },
+    templateFallback: false
+  },
+  {
+    char: '毕', unit: 'u66', theme: 'school',
+    template: 'morph-story', interaction: 'sequence',
+    narration: '学完啦，戴上毕业的帽子。',
+    props: { hero: '🎓', stages: ['📚', '🎓', '🎉'], goal: 3 },
+    templateFallback: false
+  },
+  // u67
+  {
+    char: '此', unit: 'u67', theme: 'place',
+    template: 'emoji-hunt', interaction: 'tap',
+    narration: '就在此处，找出那枚图钉。',
+    props: { hero: '📍', target: '📌', decoys: ['📎', '🔖', '📏'], goal: 1 },
+    templateFallback: false
+  },
+  {
+    char: '尖', unit: 'u67', theme: 'shape',
+    template: 'morph-story', interaction: 'sequence',
+    narration: '上头细下头粗，就成了尖。',
+    props: { hero: '📐', stages: ['🔻', '📐', '🔺'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '劣', unit: 'u67', theme: 'action',
+    template: 'sort-buckets', interaction: 'drag',
+    narration: '好的挑出来，劣的放一边。',
+    props: { hero: '👎', items: [{ item: '🍎', bucket: '好' }, { item: '🍐', bucket: '好' }, { item: '🍂', bucket: '劣' }, { item: '🥀', bucket: '劣' }], buckets: [{ label: '好', emoji: '👍' }, { label: '劣', emoji: '👎' }], goal: 4 },
+    templateFallback: false
+  },
+  {
+    char: '吐', unit: 'u67', theme: 'action',
+    template: 'pop-bubbles', interaction: 'tap',
+    narration: '小鱼吐泡泡，一个个冒上来。',
+    props: { hero: '💬', items: ['🫧', '🫧', '🫧'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '吓', unit: 'u67', theme: 'feeling',
+    template: 'sound-tap', interaction: 'tap',
+    narration: '哇的一声，吓了一大跳。',
+    props: { hero: '😱', sound: '哇', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '吕', unit: 'u67', theme: 'word',
+    template: 'drag-parts', interaction: 'drag',
+    narration: '两个口叠起来，就是吕。',
+    props: { hero: '👤', parts: ['口', '口'], goal: 2 },
+    templateFallback: false
+  },
+  {
+    char: '吊', unit: 'u67', theme: 'action',
+    template: 'swipe-motion', interaction: 'swipe',
+    narration: '钩子把箱子往上吊。',
+    props: { hero: '🪝', dir: 'up', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '吸', unit: 'u67', theme: 'body',
+    template: 'sound-tap', interaction: 'tap',
+    narration: '深深吸一口气，呼一下。',
+    props: { hero: '💨', sound: '呼', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '吗', unit: 'u67', theme: 'word',
+    template: 'emoji-hunt', interaction: 'tap',
+    narration: '问一句好吗，找出那个问号。',
+    props: { hero: '❓', target: '❓', decoys: ['❗', '➖', '💤'], goal: 1 },
+    templateFallback: false
+  },
+  {
+    char: '屹', unit: 'u67', theme: 'nature',
+    template: 'swipe-motion', interaction: 'swipe',
+    narration: '大山屹立着，稳稳当当。',
+    props: { hero: '⛰️', dir: 'up', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '则', unit: 'u67', theme: 'school',
+    template: 'count-tap', interaction: 'tap',
+    narration: '按规则来，一条一条数四条。',
+    props: { hero: '📏', items: ['📏', '📏', '📏', '📏'], goal: 4 },
+    templateFallback: false
+  },
+  {
+    char: '网', unit: 'u67', theme: 'action',
+    template: 'rain-catch', interaction: 'drag',
+    narration: '拿网兜住掉下来的小球。',
+    props: { hero: '🕸️', items: ['⚽', '🏀', '🎾'], tool: '🕸️', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '朱', unit: 'u67', theme: 'color',
+    template: 'color-fill', interaction: 'tap',
+    narration: '朱红朱红，把灯笼涂得通红。',
+    props: { hero: '🏮', color: '朱红', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '先', unit: 'u67', theme: 'time',
+    template: 'swipe-motion', interaction: 'swipe',
+    narration: '你先走，往前迈出一步。',
+    props: { hero: '1️⃣', dir: 'right', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '丢', unit: 'u67', theme: 'action',
+    template: 'emoji-hunt', interaction: 'tap',
+    narration: '钥匙丢哪儿了？帮忙找一找。',
+    props: { hero: '🫥', target: '🔑', decoys: ['🧦', '🍪', '🪀'], goal: 1 },
+    templateFallback: false
+  },
+  {
+    char: '迁', unit: 'u67', theme: 'action',
+    template: 'drag-parts', interaction: 'drag',
+    narration: '搬迁啦，把箱子搬上车。',
+    props: { hero: '📦', parts: ['📦', '🚚'], goal: 2 },
+    templateFallback: false
+  },
+  {
+    char: '乔', unit: 'u67', theme: 'nature',
+    template: 'grow-tap', interaction: 'tap',
+    narration: '小树长成高高的乔木。',
+    props: { hero: '🌳', stages: ['🌱', '🌳', '🌲'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '伟', unit: 'u67', theme: 'feeling',
+    template: 'grow-tap', interaction: 'tap',
+    narration: '个子越长越高，长成伟人。',
+    props: { hero: '🦸', stages: ['🧒', '🧑', '🦸'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '乒', unit: 'u67', theme: 'object',
+    template: 'sound-tap', interaction: 'tap',
+    narration: '球拍一挥，乒的一声。',
+    props: { hero: '🏓', sound: '乒', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '乓', unit: 'u67', theme: 'object',
+    template: 'sound-tap', interaction: 'tap',
+    narration: '球弹回来，乓的一响。',
+    props: { hero: '🏓', sound: '乓', goal: 3 },
+    templateFallback: false
+  },
+  // u68
+  {
+    char: '伍', unit: 'u68', theme: 'number',
+    template: 'count-tap', interaction: 'tap',
+    narration: '排队站成一伍，数五个人。',
+    props: { hero: '🚶', items: ['🚶', '🚶', '🚶', '🚶', '🚶'], goal: 5 },
+    templateFallback: false
+  },
+  {
+    char: '伏', unit: 'u68', theme: 'animal',
+    template: 'swipe-motion', interaction: 'swipe',
+    narration: '老虎趴下来，伏在草里。',
+    props: { hero: '🐅', dir: 'down', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '伐', unit: 'u68', theme: 'action',
+    template: 'count-tap', interaction: 'tap',
+    narration: '咚咚伐木，砍满三下。',
+    props: { hero: '🪓', items: ['🪓', '🪓', '🪓'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '仲', unit: 'u68', theme: 'time',
+    template: 'sort-buckets', interaction: 'drag',
+    narration: '夏天分几段，仲夏在中间。',
+    props: { hero: '☀️', items: [{ item: '🌸', bucket: '开头' }, { item: '🐝', bucket: '开头' }, { item: '🍉', bucket: '中间' }, { item: '🏖️', bucket: '中间' }], buckets: [{ label: '开头', emoji: '🌱' }, { label: '中间', emoji: '☀️' }], goal: 4 },
+    templateFallback: false
+  },
+  {
+    char: '件', unit: 'u68', theme: 'object',
+    template: 'count-tap', interaction: 'tap',
+    narration: '一件一件挂好衣服，挂三件。',
+    props: { hero: '🧥', items: ['🧥', '👕', '👖'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '任', unit: 'u68', theme: 'action',
+    template: 'swipe-motion', interaction: 'swipe',
+    narration: '这件事任给你，接过去。',
+    props: { hero: '🎯', dir: 'right', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '伪', unit: 'u68', theme: 'feeling',
+    template: 'emoji-hunt', interaction: 'tap',
+    narration: '哪个是假的？找出面具脸。',
+    props: { hero: '🎭', target: '🎭', decoys: ['😀', '😃', '🙂'], goal: 1 },
+    templateFallback: false
+  },
+  {
+    char: '份', unit: 'u68', theme: 'food',
+    template: 'sort-buckets', interaction: 'drag',
+    narration: '蛋糕分成两份，一人一份。',
+    props: { hero: '🍰', items: [{ item: '🍰', bucket: '你的一份' }, { item: '🍓', bucket: '你的一份' }, { item: '🧁', bucket: '我的一份' }, { item: '🍫', bucket: '我的一份' }], buckets: [{ label: '你的一份', emoji: '🧒' }, { label: '我的一份', emoji: '🧑' }], goal: 4 },
+    templateFallback: false
+  },
+  {
+    char: '仰', unit: 'u68', theme: 'body',
+    template: 'swipe-motion', interaction: 'swipe',
+    narration: '仰起头来，看看天上边。',
+    props: { hero: '🙆', dir: 'up', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '仿', unit: 'u68', theme: 'action',
+    template: 'pair-match', interaction: 'drag',
+    narration: '照葫芦画瓢，一样的配一起。',
+    props: { hero: '🪞', pairs: [{ a: '🍎', b: '🍎' }, { a: '🌵', b: '🌵' }, { a: '🐟', b: '🐟' }], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '自', unit: 'u68', theme: 'family',
+    template: 'tap-reveal', interaction: 'tap',
+    narration: '指指自己的鼻子，那就是我。',
+    props: { hero: '🙋', items: ['👃'], goal: 1 },
+    templateFallback: false
+  },
+  {
+    char: '似', unit: 'u68', theme: 'weather',
+    template: 'emoji-hunt', interaction: 'tap',
+    narration: '雾里瞧一瞧，哪个像小船？',
+    props: { hero: '🌫️', target: '⛵', decoys: ['🌫️', '☁️', '🌁'], goal: 1 },
+    templateFallback: false
+  },
+  {
+    char: '行', unit: 'u68', theme: 'action',
+    template: 'trace-path', interaction: 'drag',
+    narration: '一步一步往前行，走起来。',
+    props: { hero: '🚶', dir: 'right', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '合', unit: 'u68', theme: 'action',
+    template: 'drag-parts', interaction: 'drag',
+    narration: '两只手一合，掌心贴一起。',
+    props: { hero: '🤝', parts: ['🤚', '✋'], goal: 2 },
+    templateFallback: false
+  },
+  {
+    char: '兆', unit: 'u68', theme: 'number',
+    template: 'tap-reveal', interaction: 'tap',
+    narration: '好兆头藏在里头，揭开看。',
+    props: { hero: '🔮', items: ['🍀', '🌈', '⭐'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '企', unit: 'u68', theme: 'animal',
+    template: 'swipe-motion', interaction: 'swipe',
+    narration: '企鹅踮起脚，往上看一眼。',
+    props: { hero: '🐧', dir: 'up', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '创', unit: 'u68', theme: 'action',
+    template: 'grow-tap', interaction: 'tap',
+    narration: '从一个念头，创出新玩意。',
+    props: { hero: '💡', stages: ['💡', '✏️', '🧩'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '肌', unit: 'u68', theme: 'body',
+    template: 'grow-tap', interaction: 'tap',
+    narration: '使劲一鼓，肌肉鼓起来了。',
+    props: { hero: '💪', stages: ['🦴', '💪', '🏋️'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '肋', unit: 'u68', theme: 'body',
+    template: 'count-tap', interaction: 'tap',
+    narration: '摸摸小肋骨，一根一根数。',
+    props: { hero: '🦴', items: ['🦴', '🦴', '🦴', '🦴'], goal: 4 },
+    templateFallback: false
+  },
+  {
+    char: '朵', unit: 'u68', theme: 'nature',
+    template: 'count-tap', interaction: 'tap',
+    narration: '一朵一朵摘花，摘满三朵。',
+    props: { hero: '🌸', items: ['🌸', '🌺', '🌼'], goal: 3 },
+    templateFallback: false
+  },
+  // u69
+  {
+    char: '杂', unit: 'u69', theme: 'action',
+    template: 'sort-buckets', interaction: 'drag',
+    narration: '东西太杂，分成吃的和玩的。',
+    props: { hero: '🧺', items: [{ item: '🍞', bucket: '吃的' }, { item: '🍌', bucket: '吃的' }, { item: '🪀', bucket: '玩的' }, { item: '🎈', bucket: '玩的' }], buckets: [{ label: '吃的', emoji: '🍎' }, { label: '玩的', emoji: '🧸' }], goal: 4 },
+    templateFallback: false
+  },
+  {
+    char: '旬', unit: 'u69', theme: 'time',
+    template: 'count-tap', interaction: 'tap',
+    narration: '十天算一旬，翻过三个旬。',
+    props: { hero: '📅', items: ['🔟', '🔟', '🔟'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '旨', unit: 'u69', theme: 'action',
+    template: 'emoji-hunt', interaction: 'tap',
+    narration: '话里的主旨在哪？找出靶心。',
+    props: { hero: '🎯', target: '🎯', decoys: ['🟠', '🟡', '🟢'], goal: 1 },
+    templateFallback: false
+  },
+  {
+    char: '旭', unit: 'u69', theme: 'nature',
+    template: 'morph-story', interaction: 'sequence',
+    narration: '旭日一点点爬上山头。',
+    props: { hero: '🌅', stages: ['🌌', '🌄', '🌅'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '负', unit: 'u69', theme: 'action',
+    template: 'swipe-motion', interaction: 'swipe',
+    narration: '背上小书包，负在肩膀上。',
+    props: { hero: '🎒', dir: 'up', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '争', unit: 'u69', theme: 'action',
+    template: 'rain-catch', interaction: 'drag',
+    narration: '礼物掉下来，快去争一个。',
+    props: { hero: '🙋', items: ['🎁', '🎁', '🎁'], tool: '🧺', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '壮', unit: 'u69', theme: 'body',
+    template: 'grow-tap', interaction: 'tap',
+    narration: '吃得好睡得香，长得壮壮的。',
+    props: { hero: '💪', stages: ['🧒', '💪', '🏋️'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '冲', unit: 'u69', theme: 'action',
+    template: 'swipe-motion', interaction: 'swipe',
+    narration: '水一冲，泡沫都冲走了。',
+    props: { hero: '🚿', dir: 'down', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '妆', unit: 'u69', theme: 'action',
+    template: 'color-fill', interaction: 'tap',
+    narration: '化个小妆，脸上点点腮红。',
+    props: { hero: '💄', color: '腮红', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '庄', unit: 'u69', theme: 'place',
+    template: 'scene-poke', interaction: 'tap',
+    narration: '村庄里有什么？挨个点点。',
+    props: { hero: '🏡', items: ['🐓', '🌾', '🚜'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '亦', unit: 'u69', theme: 'action',
+    template: 'count-tap', interaction: 'tap',
+    narration: '我做一下，你也亦做三下。',
+    props: { hero: '🔁', items: ['🔁', '🔁', '🔁'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '刘', unit: 'u69', theme: 'word',
+    template: 'tap-reveal', interaction: 'tap',
+    narration: '门上贴着刘字，敲开瞧瞧。',
+    props: { hero: '👤', items: ['🚪', '🏮', '👋'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '交', unit: 'u69', theme: 'action',
+    template: 'pair-match', interaction: 'drag',
+    narration: '把东西交给对方，配成一对。',
+    props: { hero: '🤝', pairs: [{ a: '📕', b: '🧒' }, { a: '🍎', b: '👧' }, { a: '✏️', b: '👦' }], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '产', unit: 'u69', theme: 'place',
+    template: 'grow-tap', interaction: 'tap',
+    narration: '工厂里一件件产出新东西。',
+    props: { hero: '🏭', stages: ['🏭', '📦', '🚚'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '充', unit: 'u69', theme: 'action',
+    template: 'grow-tap', interaction: 'tap',
+    narration: '电充满了，格子一格格涨。',
+    props: { hero: '🔋', stages: ['🪫', '🔋', '⚡'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '闭', unit: 'u69', theme: 'action',
+    template: 'swipe-motion', interaction: 'swipe',
+    narration: '把门轻轻闭上，关好它。',
+    props: { hero: '🚪', dir: 'left', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '闯', unit: 'u69', theme: 'animal',
+    template: 'swipe-motion', interaction: 'swipe',
+    narration: '小马一下子闯进了院子。',
+    props: { hero: '🐎', dir: 'right', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '并', unit: 'u69', theme: 'number',
+    template: 'drag-parts', interaction: 'drag',
+    narration: '两个小的并到一起，成一个。',
+    props: { hero: '➕', parts: ['🔵', '🔵'], goal: 2 },
+    templateFallback: false
+  },
+  {
+    char: '污', unit: 'u69', theme: 'action',
+    template: 'sort-buckets', interaction: 'drag',
+    narration: '干净的和污脏的，分开放。',
+    props: { hero: '🧼', items: [{ item: '👕', bucket: '干净' }, { item: '🧦', bucket: '污脏' }, { item: '🧤', bucket: '干净' }, { item: '🩳', bucket: '污脏' }], buckets: [{ label: '干净', emoji: '🧼' }, { label: '污脏', emoji: '🧺' }], goal: 4 },
+    templateFallback: false
+  },
+  {
+    char: '兴', unit: 'u69', theme: 'feeling',
+    template: 'pop-bubbles', interaction: 'tap',
+    narration: '高兴得放礼花，一朵朵放。',
+    props: { hero: '🎉', items: ['🎆', '🎆', '🎆'], goal: 3 },
+    templateFallback: false
+  },
+  // u70
+  {
+    char: '宅', unit: 'u70', theme: 'place',
+    template: 'scene-poke', interaction: 'tap',
+    narration: '回到自家宅子，点点屋里头。',
+    props: { hero: '🏠', items: ['🛋️', '🛏️', '🪴'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '安', unit: 'u70', theme: 'feeling',
+    template: 'grow-tap', interaction: 'tap',
+    narration: '小鸽子落下来，心里安安的。',
+    props: { hero: '🕊️', stages: ['🌪️', '🕊️', '😌'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '许', unit: 'u70', theme: 'action',
+    template: 'tap-reveal', interaction: 'tap',
+    narration: '说声可以，许你打开这几样。',
+    props: { hero: '✅', items: ['🎁', '🍬', '📦'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '讽', unit: 'u70', theme: 'feeling',
+    template: 'emoji-hunt', interaction: 'tap',
+    narration: '哪张脸在做怪相？挑出面具。',
+    props: { hero: '🎭', target: '🎭', decoys: ['🙂', '😐', '😑'], goal: 1 },
+    templateFallback: false
+  },
+  {
+    char: '设', unit: 'u70', theme: 'action',
+    template: 'drag-parts', interaction: 'drag',
+    narration: '设计一座房子，把零件摆好。',
+    props: { hero: '🏗️', parts: ['🧱', '🚪', '🪟'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '访', unit: 'u70', theme: 'action',
+    template: 'trace-path', interaction: 'drag',
+    narration: '带着礼物去访问朋友家。',
+    props: { hero: '🎁', dir: 'right', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '诀', unit: 'u70', theme: 'action',
+    template: 'tap-reveal', interaction: 'tap',
+    narration: '口诀藏在盒子里，念出来。',
+    props: { hero: '🔑', items: ['1️⃣', '2️⃣', '3️⃣'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '寻', unit: 'u70', theme: 'action',
+    template: 'emoji-hunt', interaction: 'tap',
+    narration: '拿放大镜寻一寻，找出瓢虫。',
+    props: { hero: '🔎', target: '🐞', decoys: ['🍃', '🌿', '🪨'], goal: 1 },
+    templateFallback: false
+  },
+  {
+    char: '迅', unit: 'u70', theme: 'action',
+    template: 'swipe-motion', interaction: 'swipe',
+    narration: '嗖一下，迅速跑到那边去。',
+    props: { hero: '⚡', dir: 'right', goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '尽', unit: 'u70', theme: 'action',
+    template: 'pop-bubbles', interaction: 'tap',
+    narration: '一个个吃尽，盘子空空的。',
+    props: { hero: '🔚', items: ['🍡', '🍡', '🍡'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '异', unit: 'u70', theme: 'feeling',
+    template: 'emoji-hunt', interaction: 'tap',
+    narration: '哪一个和别的不一样？',
+    props: { hero: '❓', target: '🟣', decoys: ['🔵', '🟦', '🔷'], goal: 1 },
+    templateFallback: false
+  },
+  {
+    char: '阵', unit: 'u70', theme: 'weather',
+    template: 'count-tap', interaction: 'tap',
+    narration: '一阵一阵刮风，刮了三阵。',
+    props: { hero: '🌬️', items: ['🌬️', '🌬️', '🌬️'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '如', unit: 'u70', theme: 'action',
+    template: 'morph-story', interaction: 'sequence',
+    narration: '镜子里的样子，和我如出一辙。',
+    props: { hero: '🪞', stages: ['🧒', '🪞', '🧒'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '妇', unit: 'u70', theme: 'family',
+    template: 'tap-reveal', interaction: 'tap',
+    narration: '阿姨在忙什么？点开看一看。',
+    props: { hero: '👩', items: ['🧺', '🍲', '🧹'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '驮', unit: 'u70', theme: 'animal',
+    template: 'drag-parts', interaction: 'drag',
+    narration: '骆驼背上驮着货，装好它。',
+    props: { hero: '🐫', parts: ['📦', '🐫'], goal: 2 },
+    templateFallback: false
+  },
+  {
+    char: '纤', unit: 'u70', theme: 'object',
+    template: 'count-tap', interaction: 'tap',
+    narration: '细纤纤的线一根根，数三根。',
+    props: { hero: '🧵', items: ['🧵', '🧵', '🧵'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '驯', unit: 'u70', theme: 'animal',
+    template: 'count-tap', interaction: 'tap',
+    narration: '小马被驯服了，拍它三下。',
+    props: { hero: '🐎', items: ['🐎', '🐎', '🐎'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '约', unit: 'u70', theme: 'time',
+    template: 'pair-match', interaction: 'drag',
+    narration: '约好了时间，把日子配起来。',
+    props: { hero: '📅', pairs: [{ a: '📅', b: '🎂' }, { a: '⏰', b: '🏫' }, { a: '🌙', b: '🛏️' }], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '级', unit: 'u70', theme: 'action',
+    template: 'grow-tap', interaction: 'tap',
+    narration: '一级一级往上爬楼梯。',
+    props: { hero: '🪜', stages: ['🪜', '🧗', '🏔️'], goal: 3 },
+    templateFallback: false
+  },
+  {
+    char: '驰', unit: 'u70', theme: 'animal',
+    template: 'swipe-motion', interaction: 'swipe',
+    narration: '骏马撒开腿，飞驰起来。',
+    props: { hero: '🐴', dir: 'right', goal: 3 },
+    templateFallback: false
+  },
 ]
 
 /** 字 → 富脚本。 */
@@ -6686,7 +8801,7 @@ export function getRichPlay(char) {
   return RICH_PLAY_BY_CHAR.get(char) ?? null
 }
 
-/** 手写剧本条数（Round 15 H3 数的就是它，Round 16 抬到 500，Round 17 抬到 900）。 */
+/** 手写剧本条数（Round 15 H3 数的就是它，Round 16 抬到 500，Round 17 到 900，Round 18 抬到 1200）。 */
 export function countRichPlays() {
   return CHAR_PLAY_RICH.length
 }
@@ -6699,11 +8814,14 @@ export function countRichNarrations() {
 /** 门槛标记，探针剥掉注释后仍读得到。 */
 export const RICH_PLAY_PROBE = 'ROUND17_H2'
 
+/** 本轮门槛标记：条数 ≥1200、旁白去重 ≥960，Round 18 的探针读这一枚。 */
+export const RICH_PLAY_PROBE_ROUND18 = 'ROUND18_H2'
+
 /** 历轮标记都留着，往轮探针各读各的那一枚。 */
-export const RICH_PLAY_PROBE_HISTORY = ['ROUND15_H3', 'ROUND16_H3', 'ROUND17_H2']
+export const RICH_PLAY_PROBE_HISTORY = ['ROUND15_H3', 'ROUND16_H3', 'ROUND17_H2', 'ROUND18_H2']
 
 /** 本轮两条线，生成期已经卡过一遍，运行时再自报一次给探针核对。 */
-export const RICH_PLAY_THRESHOLDS = { plays: 900, narrations: 720 }
+export const RICH_PLAY_THRESHOLDS = { plays: 1200, narrations: 960 }
 
 /** 手写覆盖到的单元。 */
-export const RICH_PLAY_UNITS = ['u1', 'u2', 'u3', 'u4', 'u5', 'u6', 'u7', 'u8', 'u9', 'u10', 'u11', 'u12', 'u13', 'u14', 'u15', 'u16', 'u17', 'u18', 'u19', 'u20', 'u21', 'u22', 'u23', 'u24', 'u25', 'u26', 'u27', 'u28', 'u29', 'u30', 'u31', 'u32', 'u33', 'u34', 'u35', 'u36', 'u37', 'u38', 'u39', 'u40', 'u41', 'u42', 'u43', 'u44', 'u45', 'u46', 'u47', 'u48', 'u49', 'u50', 'u51', 'u52', 'u53', 'u54', 'u55']
+export const RICH_PLAY_UNITS = ['u1', 'u2', 'u3', 'u4', 'u5', 'u6', 'u7', 'u8', 'u9', 'u10', 'u11', 'u12', 'u13', 'u14', 'u15', 'u16', 'u17', 'u18', 'u19', 'u20', 'u21', 'u22', 'u23', 'u24', 'u25', 'u26', 'u27', 'u28', 'u29', 'u30', 'u31', 'u32', 'u33', 'u34', 'u35', 'u36', 'u37', 'u38', 'u39', 'u40', 'u41', 'u42', 'u43', 'u44', 'u45', 'u46', 'u47', 'u48', 'u49', 'u50', 'u51', 'u52', 'u53', 'u54', 'u55', 'u56', 'u57', 'u58', 'u59', 'u60', 'u61', 'u62', 'u63', 'u64', 'u65', 'u66', 'u67', 'u68', 'u69', 'u70']

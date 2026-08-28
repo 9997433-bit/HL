@@ -13,6 +13,7 @@ import {
   WORD_PROBLEMS,
   WORD_PROBLEM_TIERS,
   problemsOfTier,
+  tierOf,
 } from '@/data/wordProblems'
 import { numericOptions, shuffle } from '@/utils/random'
 import { sound } from '@/utils/sound'
@@ -61,9 +62,18 @@ const bank = computed(() => {
     : WORD_PROBLEMS.filter((problem) => problem.skill === focusedSkill.value)
 })
 
+/** 难度档 → 星星 / XP / 错因标签 / 角标文字。 */
+const TIER_REWARD = {
+  one: { stars: 2, xp: 14, tag: 'one-step', label: '一步' },
+  two: { stars: 3, xp: 20, tag: 'two-step', label: '两步' },
+  multi: { stars: 4, xp: 26, tag: 'multi-step', label: '进阶' },
+}
+
 function buildQuestion(template) {
   const made = template.make()
-  const base = template.steps >= 3 ? 4 : template.steps === 2 ? 3 : 2
+  // 给多少星按难度档给，不按字面步数：和差倍算式只有两步，想明白它的难度却是进阶级
+  const tier = tierOf(template)
+  const reward = TIER_REWARD[tier]
   return {
     ...made,
     id: template.id,
@@ -72,11 +82,12 @@ function buildQuestion(template) {
     emoji: template.emoji,
     scene: template.scene,
     steps: template.steps,
+    tier,
+    tierLabel: reward.label,
     hints: [made.hint, `先列式：${made.equation}`].filter(Boolean),
-    stars: base,
-    xp: template.steps >= 3 ? 26 : template.steps === 2 ? 20 : 14,
-    errorTags:
-      template.steps >= 3 ? ['multi-step'] : template.steps === 2 ? ['two-step'] : ['one-step'],
+    stars: reward.stars,
+    xp: reward.xp,
+    errorTags: [reward.tag],
     options: numericOptions(made.answer, {
       count: 4,
       spread: Math.max(3, Math.round(made.answer * 0.35) + 2),
@@ -187,8 +198,8 @@ function clearFocus() {
             <div>
               <span class="chip scene">{{ question.scene }}</span>
               <span v-if="question.tag !== question.scene" class="chip">{{ question.tag }}</span>
-              <span class="chip" :class="{ 'chip-on': question.steps >= 2 }">
-                {{ question.steps >= 3 ? '进阶' : question.steps === 2 ? '两步' : '一步' }}
+              <span class="chip" :class="{ 'chip-on': question.tier !== 'one' }">
+                {{ question.tierLabel }}
               </span>
             </div>
           </div>
