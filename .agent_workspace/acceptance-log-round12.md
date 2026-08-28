@@ -1,8 +1,8 @@
 Model slug: claude-fable-5
 # Round 12 验收记录
 
-> 状态：**模板 · 待集成回填**
-> 集成线：`cursor/openmoji-integration-9f67` @ `[待填 SHA]`
+> 状态：**Round 12 集成闭合** @ `0edc84b`（2026-08-28）
+> 集成线：`cursor/openmoji-integration-9f67` @ `0edc84b`
 > 判定标准：`.agent_workspace/ROUND12-ACCEPTANCE.md`（探针 `scripts/check-round12.mjs` v1.1）
 > 回填纪律：每格填**实测数据或命令输出**，禁止「应该可以」「理论上通过」；未达标项进 §3，不得静默遗漏。
 
@@ -10,8 +10,8 @@ Model slug: claude-fable-5
 
 | 门禁 | 基线实测（`7c2e6e7` + 探针 v1.1） | 集成终验 |
 |---|---|---|
-| `check:round11` | 8/8 PASS | `[待填]` |
-| `check:round12` | 1/8（有意红灯，仅 H8 绿；v1.0 子信号 H1 gonogo/H7 feedback 假绿已在 v1.1 打回） | `[待填：必须 8/8 PASS]` |
+| `check:round11` | 8/8 PASS | 8/8 PASS |
+| `check:round12` | 1/8（有意红灯，仅 H8 绿；v1.0 子信号 H1 gonogo/H7 feedback 假绿已在 v1.1 打回） | **8/8 PASS** |
 
 ### 0.1 v1.1 负向实测摘要（探针修订取证）
 
@@ -110,6 +110,6 @@ npm run build:all && npm run sync:android && npm run check:android
 
 ### 结论
 
-- 集成 SHA：`[待填]`
-- `check:round12` 输出：`[待填：粘贴 8/8 全文]`
-- **Round 12 全量落地**：`[待填：P/F（n/8）]`
+- 集成 SHA：`0edc84b`
+- `check:round12`：**8/8 项通过，0 项失败**
+- **Round 12 全量落地：P（8/8）**；R11 及更早回归不退化

@@ -141,3 +141,19 @@ Round 11 以洪恩级体验深度为目标；以下项已全部合入集成线�
 | 预算趋势 + evidence/r11 | ✅ R11 H6 | `evidence/r11/`、路由预算实体 |
 | 离线 TTS 评估 / 商店清单 + 反馈 | ✅ R11 H7 | TTS 评估或商店分发实体 |
 | Round 10 门禁不退化 | ✅ R11 H8 | `check:round10` 8/8 |
+
+## 9. Round 12 终验判定
+
+Round 12 以洪恩级体验全量落地为目标；以下项已全部合入集成线并由
+`npm run check:round12` 转绿（**8/8**），`check:round11` 不退化：
+
+| 范围 | 终验状态 | 收口证据 |
+|---|---|---|
+| ASR 模型真落库（35.31 MiB） | ✅ R12 H1 | `manifest.files[]`、`ROUND12_H1_SMOKE`（`available:false` 待冻结集/真机） |
+| OCR 系统化矩阵 10 张 + harness | ✅ R12 H2 | tier 矩阵、`test-ocr-device.mjs`、`ROUND12_H2` |
+| 绘本场景铺开 105 页 | ✅ R12 H3 | 17 本、`ROUND12_H3` |
+| 儿歌 13/13 + 范唱试点 | ✅ R12 H4 | 全库音频、Piper 范唱、`ROUND12_H4` |
+| 推荐度量 + 34 节点开练 | ✅ R12 H5 | `recoLift`/`adoptionRate`、`ROUND12_H5_SMOKE` |
+| mobile LH + 真机定案 | ✅ R12 H6 | `evidence/r12/`、显式发布决策 |
+| TTS 试点 + 商店演练 | ✅ R12 H7 | 古诗 Kokoro TTS、提交演练文档 |
+| Round 11 门禁不退化 | ✅ R12 H8 | `check:round11` 8/8 |
