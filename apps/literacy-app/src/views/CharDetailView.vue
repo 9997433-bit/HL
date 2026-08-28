@@ -48,6 +48,7 @@ import {
 import { hasEtymology } from '@/data/etymology-index.js'
 import { RADICAL_MAP, getRadical } from '@/data/radicals.js'
 import { useFeedback } from '@/composables/useFeedback.js'
+import { ROUND15_H6, isWritePhase, useWriteGuide } from '@/composables/useWriteGuide.js'
 import { useProgressStore } from '@/stores/progress.js'
 import { useSettingsStore } from '@/stores/settings.js'
 import { cancelSpeech } from '@/utils/audio.js'
@@ -112,7 +113,9 @@ const DELAY = {
   answered: 1400,
   revealed: 2000,
   traceStart: 1200,
-  origin: 900
+  origin: 900,
+  /** 进「写一写」到笔顺示范开播之间的停顿，留给面板切换的动效落地。 */
+  guideStart: 700
 }
 
 const phase = ref('play')
@@ -128,7 +131,21 @@ const strokeBoxRef = ref(null)
 
 let advanceTimer = null
 let idleTimer = null
-let traceTimer = null
+
+/**
+ * 写步引导（ROUND15_H6）：进「写一写」不再是把田字格一扔就完事——
+ * 先让老师整字写一遍笔顺，播完自动接描红；孩子等不及可以按「我会了，开始写」，
+ * 开了「减少动态」连示范这一拍都没有，进来就能写。编排细节在 useWriteGuide.js。
+ */
+const writeGuide = useWriteGuide({
+  box: strokeBoxRef,
+  reduceMotion: () => settings.reduceMotion,
+  announce: (text) => {
+    stepAnnounce.value = text
+  },
+  leadIn: DELAY.guideStart
+})
+const { stage: guideStage, demoing: guideDemoing } = writeGuide
 
 const current = computed(() => phaseMeta(phase.value))
 const flowReady = computed(() => GRADED.every((id) => done[id]))
@@ -235,10 +252,10 @@ function say(text, rate) {
 /* ------------------------------------------------------- 状态机：迁移 */
 
 function clearTimers() {
-  for (const t of [advanceTimer, idleTimer, traceTimer]) if (t) clearTimeout(t)
+  for (const t of [advanceTimer, idleTimer]) if (t) clearTimeout(t)
   advanceTimer = null
   idleTimer = null
-  traceTimer = null
+  writeGuide.reset()
 }
 
 function cancelAdvance() {
@@ -312,9 +329,9 @@ function enterPhase(id, { manual } = {}) {
   } else if (id === 'listen') {
     buildListen()
     window.setTimeout(() => playListen(), 400)
-  } else if (id === 'trace') {
-    // 顺着流程走进来的，田字格自己进入描红；手动跳进来的让孩子自己按
-    if (!manual) traceTimer = window.setTimeout(() => strokeBoxRef.value?.startQuiz(), DELAY.traceStart)
+  } else if (isWritePhase(id)) {
+    // 先看老师写一遍，看完自动接描红（ROUND15_H6）；不再干等后直接 startQuiz
+    writeGuide.enter({ manual })
   } else if (id === 'speak') {
     buildQuiz()
   }
@@ -562,10 +579,16 @@ function markKnown(event) {
   flash(justMastered ? '太厉害了，这个字已经掌握啦！🏆' : '记住啦！+1 ⭐')
 }
 
+/** 田字格里的「我来写」是孩子自己按的，引导跟着走到描红，别再补一次示范。 */
+function onQuizStart() {
+  writeGuide.noteQuizStarted()
+}
+
 function onQuizSkip() {
   flash('跳过描红也没关系，随时可以回来写 ✍️')
+  writeGuide.finish()
   // 跳过不算「写一写」做完了，但流程别停在这儿干等着
-  if (phase.value === 'trace') scheduleAdvance('speak', DELAY.skipped)
+  if (isWritePhase(phase.value)) scheduleAdvance('speak', DELAY.skipped)
 }
 
 function onQuizComplete({ mistakes }) {
@@ -580,9 +603,10 @@ function onQuizComplete({ mistakes }) {
   }
   done.intro = true
   done.trace = true
+  writeGuide.finish()
   // 在哪一步写完的都算数：孩子常常还在「认」「练」的时候就自己动手写了。
   // 但只有正经走到「写」这一步才接着往「说」推，免得把前面的步骤抽走。
-  if (phase.value === 'trace') scheduleAdvance('speak', DELAY.traced)
+  if (isWritePhase(phase.value)) scheduleAdvance('speak', DELAY.traced)
 }
 
 function onStrokeDemo({ strokeNum }) {
@@ -624,6 +648,8 @@ onBeforeUnmount(() => {
     v-if="item"
     class="page detail"
     :data-phase="phase"
+    :data-write-guide="ROUND15_H6"
+    :data-guide-stage="guideStage"
     :data-tts="offlineL1 ? 'offline-l1' : 'system'"
   >
     <!-- 五步进度条：既是导航，也是「现在在第几步」的说明 -->
@@ -692,6 +718,7 @@ onBeforeUnmount(() => {
         :size="252"
         @quiz-complete="onQuizComplete"
         @quiz-skip="onQuizSkip"
+        @quiz-start="onQuizStart"
         @stroke-demo="onStrokeDemo"
       />
     </section>
@@ -765,21 +792,35 @@ onBeforeUnmount(() => {
         </div>
       </template>
 
-      <!-- 写一写 -->
-      <template v-else-if="phase === 'trace'">
-        <div class="trace">
-          <p class="trace__tip">先点「看笔顺」记住顺序，再在田字格里写一遍。</p>
-          <div class="trace__acts">
-            <button class="btn btn--ghost" type="button" @click="strokeBoxRef?.play()">
-              ▶️ 再看一遍笔顺
-            </button>
-            <button class="btn btn--accent" type="button" @click="strokeBoxRef?.startQuiz()">
-              ✍️ 开始描红
-            </button>
-          </div>
-          <p class="muted trace__note">
-            写不动也没关系：按空格键或点「写下一笔」，我来帮忙；同一笔连错 3 次，我会自动示范。
-          </p>
+      <!-- 写一写：先看老师写一遍，再自己描红（ROUND15_H6） -->
+      <template v-else-if="isWritePhase(phase)">
+        <div class="trace" :data-guide="guideStage">
+          <template v-if="guideDemoing">
+            <p class="trace__tip">👀 先看老师写一遍「{{ item.char }}」，写完就轮到你。</p>
+            <div class="trace__acts">
+              <button class="btn btn--accent" type="button" @click="writeGuide.skipDemo()">
+                🙋 我会了，开始写
+              </button>
+            </div>
+            <p class="muted trace__note">看漏了不要紧，描红的时候还能点「再看一遍笔顺」。</p>
+          </template>
+          <template v-else>
+            <p class="trace__tip">✍️ 轮到你了：在田字格里按笔顺写一遍。</p>
+            <div class="trace__acts">
+              <button class="btn btn--ghost" type="button" @click="writeGuide.replayDemo()">
+                ▶️ 再看一遍笔顺
+              </button>
+              <button class="btn btn--accent" type="button" @click="strokeBoxRef?.startQuiz()">
+                {{ guideStage === 'trace' ? '🔁 重新描红' : '✍️ 开始描红' }}
+              </button>
+            </div>
+            <p v-if="settings.reduceMotion" class="muted trace__note">
+              已按「减少动态」跳过笔顺示范，想看的话点「再看一遍笔顺」。
+            </p>
+            <p class="muted trace__note">
+              写不动也没关系：按空格键或点「写下一笔」，我来帮忙；同一笔连错 3 次，我会自动示范。
+            </p>
+          </template>
         </div>
       </template>
 
