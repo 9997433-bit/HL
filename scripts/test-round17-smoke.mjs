@@ -168,8 +168,9 @@ test('H4 handcrafted explanations cover 20 templates and reach the analysis pane
   }
 
   const problems = await importFromRoot('apps/math-app/src/data/wordProblems.js')
-  const covered = problems.WORD_PROBLEMS.find((problem) => explains.explainOf(problem.id))
-  assert.ok(covered, 'no real word-problem id resolves to a handcrafted explanation')
+  const template = problems.WORD_PROBLEMS.find((problem) => explains.explainOf(problem.id))
+  assert.ok(template, 'no real word-problem id resolves to a handcrafted explanation')
+  const covered = { ...template.make(), id: template.id }
   const analysisModule = await importFromRoot('apps/math-app/src/utils/wpAnalysis.js')
   const analysis = analysisModule.buildAnalysis(covered)
   assert.equal(analysis.handwritten, true, `${covered.id} did not use its handcrafted chain`)
