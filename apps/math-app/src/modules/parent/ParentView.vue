@@ -185,6 +185,7 @@ const adoption = computed(() =>
 )
 
 const recoMetrics = computed(() => progress.recommendationMetrics)
+const recoTrend = computed(() => progress.recommendationTrend.slice(-8))
 const recoMetricStatus = computed(
   () =>
     ({
@@ -194,6 +195,10 @@ const recoMetricStatus = computed(
       negative: '低于预警线',
     })[recoMetrics.value.status] ?? '继续观察',
 )
+
+function signedLift(value) {
+  return `${value > 0 ? '+' : ''}${value}pp`
+}
 
 function lastPlayedText(at) {
   if (!at) return '还没玩过'
@@ -589,11 +594,42 @@ function setTheme(theme) {
           </div>
         </div>
         <p class="muted note" data-reco-metric-definition>
-          相对提升 = 被采纳技能的掌握度变化 − 同批未采纳技能的变化；至少
+          准实验 lift = 被采纳技能的掌握度变化 − 同批未采纳技能的变化；至少
           {{ recoMetrics.thresholds.minAdoptions }} 次采纳和
-          {{ recoMetrics.thresholds.minControls }} 个对照后才判读。该字段会随“导出进度”写入
-          recommendationEffect。
+          {{ recoMetrics.thresholds.minControls }} 个对照后才判读。它受孩子自选择与对照串线影响，
+          只表示关联，不能当作个人因果证明；该字段会随“导出进度”写入 recommendationEffect。
         </p>
+
+        <div
+          v-if="recoTrend.length"
+          class="reco-trend"
+          data-reco-trend
+          :data-trend-points="recoTrend.length"
+        >
+          <h4 class="sub-title">近 {{ recoTrend.length }} 个记录日的采纳 / lift 趋势</h4>
+          <ol class="reco-trend-list">
+            <li
+              v-for="point in recoTrend"
+              :key="point.date"
+              class="reco-trend-point"
+              data-reco-trend-point
+              :data-reco-trend-date="point.date"
+              :data-reco-trend-adoption-rate="point.adoptionRate"
+              :data-reco-trend-lift="point.recoLift"
+            >
+              <time :datetime="point.date">{{ point.date.slice(5) }}</time>
+              <strong>采纳 {{ point.adoptionRate }}%</strong>
+              <strong :class="{ negative: point.recoLift < 0 }">
+                lift {{ signedLift(point.recoLift) }}
+              </strong>
+              <span class="muted">{{ point.adoptions }} 采纳 / {{ point.controls }} 对照</span>
+            </li>
+          </ol>
+          <p class="muted note">
+            每个自然日冻结一条读数，同日练习覆盖当天点；趋势随导出写入
+            recommendationTrend，历史日期不会被今天的掌握度改写。
+          </p>
+        </div>
 
         <template v-if="adoption.total">
           <h4 class="sub-title">凭什么推荐这些</h4>
@@ -621,8 +657,8 @@ function setTheme(theme) {
             {{ adoption.untouched }}。
           </p>
           <p class="muted note">
-            这是痕迹，不是因果：App 不记录孩子是不是照着推荐去练的，也不该为了统计去记。
-            这里只能看出被推荐的技能点动没动过——可能是照着练的，也可能是他自己逛到那颗星球上去了。
+            这是周计划痕迹，不是推荐点击、更不是因果：这里只能看出计划里的技能点动没动过——
+            可能是照着练的，也可能是孩子自己逛到那颗星球上去了。
           </p>
           <ul class="adoption">
             <li
@@ -1207,6 +1243,42 @@ function setTheme(theme) {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 8px;
+}
+
+.reco-trend {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.reco-trend-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.reco-trend-point {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(96, 214, 255, 0.24);
+  background: rgba(96, 214, 255, 0.07);
+}
+
+.reco-trend-point time,
+.reco-trend-point span {
+  font-size: 12px;
+}
+
+.reco-trend-point strong {
+  font-size: 14px;
+  color: #55e6a5;
+}
+
+.reco-trend-point strong.negative {
+  color: #ff8f8f;
 }
 
 .reason-row,

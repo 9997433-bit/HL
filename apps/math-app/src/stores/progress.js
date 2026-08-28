@@ -26,6 +26,8 @@ const DAILY_KEEP_DAYS = 30
 const WRONG_BOOK_MAX = 60
 /** 推荐 cohort 只留最近 40 组，避免长期使用后存档无限增长。 */
 const RECOMMENDATION_COHORT_MAX = 40
+/** 每天最多一条推荐效果快照，保留八周供家长查看趋势与导出复算。 */
+const RECOMMENDATION_TREND_MAX = 56
 
 export const RECOMMENDATION_METRIC_THRESHOLDS = {
   minAdoptions: 5,
@@ -102,6 +104,8 @@ function defaultState() {
     history: [],
     /** 推荐集合 → 点击采纳时的掌握度基线；不浏览打点，只在孩子真的选择后落盘。 */
     recommendationCohorts: [],
+    /** 每日推荐效果快照；历史点冻结，今天的点在读取时用最新掌握度覆盖。 */
+    recommendationMetricHistory: [],
     /** 'YYYY-MM-DD' -> { seconds, answered, correct, stars }，家长页时长曲线的数据源 */
     daily: {},
   }
@@ -215,6 +219,8 @@ export function recommendationEffect(cohorts = [], mastery = {}) {
 
   return {
     definition: 'recoLift=adoptedMasteryLift-controlMasteryLift (percentage points)',
+    design: 'within-cohort controlled pre/post quasi-experiment',
+    causalClaim: 'association only; not randomized',
     cohorts: valid.length,
     offers,
     adoptions,
@@ -226,6 +232,84 @@ export function recommendationEffect(cohorts = [], mastery = {}) {
     status,
     thresholds: { ...RECOMMENDATION_METRIC_THRESHOLDS },
   }
+}
+
+const RECOMMENDATION_METRIC_STATUSES = new Set([
+  'insufficient',
+  'positive',
+  'watch',
+  'negative',
+])
+
+function recommendationMetricPoint(raw) {
+  if (!raw || typeof raw !== 'object' || !/^\d{4}-\d{2}-\d{2}$/.test(raw.date ?? '')) {
+    return null
+  }
+  const point = {
+    date: raw.date,
+    recordedAt: Number(raw.recordedAt),
+    cohorts: Number(raw.cohorts),
+    offers: Number(raw.offers),
+    adoptions: Number(raw.adoptions),
+    controls: Number(raw.controls),
+    adoptionRate: Number(raw.adoptionRate),
+    recoLift: Number(raw.recoLift),
+    status: RECOMMENDATION_METRIC_STATUSES.has(raw.status) ? raw.status : 'insufficient',
+  }
+  if (
+    !Number.isFinite(point.recordedAt) ||
+    ![
+      point.cohorts,
+      point.offers,
+      point.adoptions,
+      point.controls,
+      point.adoptionRate,
+      point.recoLift,
+    ].every(Number.isFinite)
+  ) {
+    return null
+  }
+  return point
+}
+
+function mergeRecommendationMetricHistory(raw) {
+  if (!Array.isArray(raw)) return []
+  const byDate = new Map()
+  for (const value of raw) {
+    const point = recommendationMetricPoint(value)
+    if (point) byDate.set(point.date, point)
+  }
+  return [...byDate.values()]
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(-RECOMMENDATION_TREND_MAX)
+}
+
+function metricPointFromEffect(effect, now = Date.now()) {
+  const recordedAt = Number.isFinite(Number(now)) ? Number(now) : Date.now()
+  return {
+    date: dateKey(new Date(recordedAt)),
+    recordedAt,
+    cohorts: effect.cohorts,
+    offers: effect.offers,
+    adoptions: effect.adoptions,
+    controls: effect.controls,
+    adoptionRate: effect.adoptionRate,
+    recoLift: effect.recoLift,
+    status: effect.status,
+  }
+}
+
+/**
+ * 推荐效果趋势：历史日冻结，今天按当前 mastery 重算后覆盖。
+ * 因此报表不会把旧日期反复改写，也不会等到第二天才看见今天的新练习效果。
+ */
+export function buildRecommendationTrend(history = [], effect = {}, now = Date.now()) {
+  const points = mergeRecommendationMetricHistory(history)
+  if (!(Number(effect?.cohorts) > 0)) return points
+  const current = metricPointFromEffect(effect, now)
+  return [...points.filter((point) => point.date !== current.date), current]
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(-RECOMMENDATION_TREND_MAX)
 }
 
 /**
@@ -307,6 +391,9 @@ function mergeState(saved) {
     settings: { ...base.settings, ...(saved.settings || {}) },
     history: Array.isArray(saved.history) ? saved.history.slice(0, 40) : [],
     recommendationCohorts: mergeRecommendationCohorts(saved.recommendationCohorts),
+    recommendationMetricHistory: mergeRecommendationMetricHistory(
+      saved.recommendationMetricHistory,
+    ),
     daily: mergeDaily(saved.daily),
   }
 }
@@ -351,6 +438,9 @@ export const useProgressStore = defineStore('progress', () => {
   const lockedAchievements = computed(() => ACHIEVEMENTS.filter((a) => !state.achievements[a.id]))
   const recommendationMetrics = computed(() =>
     recommendationEffect(state.recommendationCohorts, state.mastery),
+  )
+  const recommendationTrend = computed(() =>
+    buildRecommendationTrend(state.recommendationMetricHistory, recommendationMetrics.value),
   )
 
   const moduleStat = (moduleId) => state.modules[moduleId] ?? emptyModuleStat()
@@ -619,8 +709,20 @@ export const useProgressStore = defineStore('progress', () => {
     if (!cohort.adopted.some((row) => row.skill === skill)) {
       cohort.adopted.push({ skill, at: Date.now(), source: text(source, 'skill-graph') })
     }
+    snapshotRecommendationMetric()
     persist()
     return recommendationEffect(state.recommendationCohorts, state.mastery)
+  }
+
+  /** 冻结当天最新读数；同一天重复练习只覆盖当天点，不制造伪样本。 */
+  function snapshotRecommendationMetric(now = Date.now()) {
+    if (!recommendationMetrics.value.cohorts) return null
+    state.recommendationMetricHistory = buildRecommendationTrend(
+      state.recommendationMetricHistory,
+      recommendationMetrics.value,
+      now,
+    )
+    return state.recommendationMetricHistory.at(-1) ?? null
   }
 
   function bumpCounter(name, delta = 1) {
@@ -681,6 +783,7 @@ export const useProgressStore = defineStore('progress', () => {
 
     touchStreak()
     checkAchievements()
+    if (skillId) snapshotRecommendationMetric()
     return { combo: combo.value }
   }
 
@@ -735,7 +838,10 @@ export const useProgressStore = defineStore('progress', () => {
   function retryWrong(id, isCorrect) {
     const entry = state.wrongBook[id]
     if (!entry) return null
-    if (entry.skill) state.mastery[entry.skill] = updateMastery(state.mastery[entry.skill], isCorrect)
+    if (entry.skill) {
+      state.mastery[entry.skill] = updateMastery(state.mastery[entry.skill], isCorrect)
+      snapshotRecommendationMetric()
+    }
     entry.retries += 1
     entry.lastAt = Date.now()
 
@@ -802,6 +908,7 @@ export const useProgressStore = defineStore('progress', () => {
         version: BACKUP_VERSION,
         exportedAt: new Date().toISOString(),
         recommendationEffect: recommendationMetrics.value,
+        recommendationTrend: recommendationTrend.value,
         progress: JSON.parse(JSON.stringify(state)),
       },
       null,
@@ -869,6 +976,7 @@ export const useProgressStore = defineStore('progress', () => {
         modules: state.modules,
         errorTagCounts: state.errorTagCounts,
         recommendationEffect: recommendationMetrics.value,
+        recommendationTrend: recommendationTrend.value,
         wrongBook: wrongList.value.map(({ id, module, skill, errorTag, attempts, lastAt }) => ({
           id,
           module,
@@ -930,6 +1038,7 @@ export const useProgressStore = defineStore('progress', () => {
     recordUsage,
     // 推荐效果
     recommendationMetrics,
+    recommendationTrend,
     recordRecommendationAdoption,
     // 今日冒险
     dailyQuest,
