@@ -28,8 +28,16 @@ export const OCR_PACK = Object.freeze({
 /** 长边缩到这个像素数再识别：再大只是让 wasm 多算几秒，认字率并不会更高。 */
 const MAX_SIDE = 1280
 
-/** 太小的照片先放大，不然笔画会糊成一团。 */
-const MIN_SIDE = 640
+/**
+ * 灰阶跨度宽到这个数以上就不拉了（ROUND14_H2）。
+ *
+ * 拉伸的收益是 255/span 这个增益；跨度本来就有两百多的照片，增益只剩 1.2 倍，
+ * 拉了等于没拉，却要为它把三通道压成灰度——而颜色是引擎自己二值化时用得上的信息。
+ * 喷漆「小心地滑」那张的「心」就是这么丢的：灰度化之后字面和水泥墙一个亮度。
+ * 线放在 180（增益 1.4 倍），二十张基准图里被拉的是暖光、失焦、低光、
+ * 警示锥、小票、店招这几张真正挤在一小段灰度里的。
+ */
+const STRETCH_SPAN = 180
 
 const HANZI = /[\u4e00-\u9fff]/
 
@@ -146,17 +154,24 @@ function measure(gray, width, height, stretch) {
  * 先转灰度再把实际用到的灰阶拉满 0–255，比直接丢给 Tesseract 稳得多，
  * 而且这点计算量在主线程上跑一帧就完了，不值得再开一个 worker。
  *
+ * 只降不升（ROUND14_H2）。这里原先还会把短边不足 640 的照片放大回去，理由是
+ * 「太小的照片笔画会糊成一团」——听起来对，实测反过来：放大用的是双线性插值，
+ * 一个字节的新信息都没有，只把笔画边缘摊平；而引擎的 LSTM 行识别本来就要把每一行
+ * 归一化到固定高度，放大之后等于连着重采样两次。十张真实样张全是三百像素以内的裁图，
+ * 被 4 倍放大之后 App 侧只认得出 33/41，去掉这一步立刻回到 39/41
+ * （对账见 .agent_workspace/evidence/r14/ocr/app-webview-matrix.json）。
+ *
  * 量出来的曝光/锐度挂在返回的 canvas 上（`photoStats`）。挂在对象上而不是改返回值，
  * 是为了不动 preprocess() 这个签名——它已经有三处调用方和一整套单元测试。
  */
-export function preprocess(source, { maxSide = MAX_SIDE, minSide = MIN_SIDE } = {}) {
+export function preprocess(source, { maxSide = MAX_SIDE } = {}) {
   const width = source.naturalWidth || source.width
   const height = source.naturalHeight || source.height
   const longest = Math.max(width, height)
   const shortest = Math.min(width, height)
   if (!longest || !shortest) throw new Error('照片是空的')
 
-  const scale = Math.min(maxSide / longest, Math.max(1, minSide / shortest))
+  const scale = Math.min(1, maxSide / longest)
   const canvas = document.createElement('canvas')
   canvas.width = Math.max(1, Math.round(width * scale))
   canvas.height = Math.max(1, Math.round(height * scale))
@@ -178,15 +193,20 @@ export function preprocess(source, { maxSide = MAX_SIDE, minSide = MIN_SIDE } = 
   }
 
   const span = max - min
-  const stretch = (value) => (span > 8 ? ((value - min) * 255) / span : value)
-  for (let i = 0, g = 0; i < pixels.length; i += 4, g += 1) {
-    const value = stretch(gray[g])
-    pixels[i] = value
-    pixels[i + 1] = value
-    pixels[i + 2] = value
-    pixels[i + 3] = 255
+  // 近乎纯色的照片拉了只会把噪点放大成假笔画，跨度本来就宽的拉了等于没拉：
+  // 两头都不动，中间那一段才真的需要把灰阶摊开。
+  const stretchable = span > 8 && span < STRETCH_SPAN
+  const stretch = (value) => (stretchable ? ((value - min) * 255) / span : value)
+  if (stretchable) {
+    for (let i = 0, g = 0; i < pixels.length; i += 4, g += 1) {
+      const value = stretch(gray[g])
+      pixels[i] = value
+      pixels[i + 1] = value
+      pixels[i + 2] = value
+      pixels[i + 3] = 255
+    }
+    ctx.putImageData(image, 0, 0)
   }
-  ctx.putImageData(image, 0, 0)
   canvas.photoStats = measure(gray, canvas.width, canvas.height, stretch)
   return canvas
 }

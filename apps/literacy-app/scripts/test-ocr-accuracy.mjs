@@ -802,29 +802,35 @@ test('判暗判糊靠量出来的曝光与锐度，不是拿置信度反推', ()
 
 test('判暗判糊的三条线，压在二十张基准图之外', () => {
   // 这二十张全都认得出，谁也不该被降级卡挑出毛病。
-  // 数是 utils/ocr.js 的 preprocess() 在真浏览器里量的，表见
-  // .agent_workspace/r12-ocr-matrix.md §4；改预处理算法要回来重量一次。
+  // 数是 utils/ocr.js 的 preprocess() 在真浏览器里量的，由
+  // scripts/test-ocr-app-matrix.mjs 落进
+  // .agent_workspace/evidence/r14/ocr/app-webview-matrix.json 的 stats 段——
+  // 改预处理算法就回去重跑一次那个脚本，再把这张表照抄回来。
+  //
+  // ROUND14_H2 之后锐度整体抬高了一大截（真实样张从二三十跳到一百上下）：
+  // preprocess() 不再把小图放大，笔画边缘不用先被双线性插值摊一遍，
+  // 量到的就是照片本来的陡度。曝光和跨度基本没动——它们本来就与缩放无关。
   const MEASURED = {
-    '示例字卡': { luma: 234, span: 238, sharpness: 30 },
-    'angled-card': { luma: 208, span: 217, sharpness: 13 },
-    'blackboard': { luma: 48, span: 206, sharpness: 36 },
-    'blurry-note': { luma: 231, span: 140, sharpness: 13 },
-    'book-page': { luma: 239, span: 229, sharpness: 53 },
-    'busy-bg': { luma: 203, span: 222, sharpness: 30 },
-    'handwriting': { luma: 243, span: 191, sharpness: 20 },
-    'handwriting-daily': { luma: 244, span: 192, sharpness: 23 },
-    'low-light': { luma: 29, span: 110, sharpness: 32 },
+    '示例字卡': { luma: 235, span: 238, sharpness: 37 },
+    'angled-card': { luma: 208, span: 217, sharpness: 16 },
+    'blackboard': { luma: 48, span: 206, sharpness: 48 },
+    'blurry-note': { luma: 231, span: 140, sharpness: 20 },
+    'book-page': { luma: 239, span: 229, sharpness: 74 },
+    'busy-bg': { luma: 204, span: 222, sharpness: 40 },
+    'handwriting': { luma: 243, span: 191, sharpness: 21 },
+    'handwriting-daily': { luma: 244, span: 192, sharpness: 27 },
+    'low-light': { luma: 29, span: 110, sharpness: 44 },
     'warm-light': { luma: 190, span: 167, sharpness: 6 },
-    'real-blackboard-press': { luma: 31, span: 211, sharpness: 27 },
-    'real-floor-cone': { luma: 66, span: 107, sharpness: 26 },
-    'real-park-sign': { luma: 88, span: 244, sharpness: 35 },
-    'real-receipt-shadow': { luma: 82, span: 112, sharpness: 32 },
-    'real-road-slogan': { luma: 114, span: 158, sharpness: 37 },
-    'real-road-warning': { luma: 154, span: 205, sharpness: 21 },
-    'real-shop-oblique': { luma: 87, span: 151, sharpness: 20 },
-    'real-toilet-sign': { luma: 211, span: 235, sharpness: 17 },
-    'real-town-plaque': { luma: 102, span: 222, sharpness: 30 },
-    'real-wall-stencil': { luma: 144, span: 211, sharpness: 31 }
+    'real-blackboard-press': { luma: 31, span: 214, sharpness: 122 },
+    'real-floor-cone': { luma: 67, span: 107, sharpness: 141 },
+    'real-park-sign': { luma: 88, span: 252, sharpness: 149 },
+    'real-receipt-shadow': { luma: 82, span: 112, sharpness: 151 },
+    'real-road-slogan': { luma: 114, span: 164, sharpness: 126 },
+    'real-road-warning': { luma: 154, span: 208, sharpness: 72 },
+    'real-shop-oblique': { luma: 87, span: 151, sharpness: 115 },
+    'real-toilet-sign': { luma: 212, span: 237, sharpness: 94 },
+    'real-town-plaque': { luma: 103, span: 223, sharpness: 127 },
+    'real-wall-stencil': { luma: 145, span: 218, sharpness: 63 }
   }
   assert.equal(
     Object.keys(MEASURED).length,
@@ -933,17 +939,19 @@ const channels = (canvas) => {
   return { min, max }
 }
 
-test('大图缩到长边 1280，小图放大到短边 640，识别既不烧时间也不糊笔画', () => {
+test('大图缩到长边 1280，小图原样送进引擎，不再放大（ROUND14_H2）', () => {
   withCanvasShim(() => {
     const big = preprocess(grayImage(2400, 1600))
     assert.equal(big.width, 1280)
     assert.equal(big.height, 853)
 
+    // 放大是这一轮删掉的那一步：双线性插值造不出笔画，只把边缘摊平，
+    // 而引擎的行识别本来就要把每一行归一化，放大等于让它重采样两次。
+    // 十张真实样张（都在 300 px 以内）被放大之后 App 侧只剩 33/41。
     const small = preprocess(grayImage(320, 240))
-    assert.equal(small.height, 640)
-    assert.equal(small.width, 853)
+    assert.equal(small.width, 320)
+    assert.equal(small.height, 240)
 
-    // 已经落在 640–1280 之间的照片原样送进引擎，不做无谓重采样
     const fit = preprocess(grayImage(1000, 700))
     assert.equal(fit.width, 1000)
     assert.equal(fit.height, 700)
@@ -962,6 +970,28 @@ test('几乎纯色的照片不拉对比度，免得把噪点放大成假笔画',
   withCanvasShim(() => {
     const { min, max } = channels(preprocess(grayImage(800, 640, 126, 130)))
     assert.ok(max - min <= 8, `灰阶跨度 ${max - min} 被放大了`)
+  })
+})
+
+/** 一条横向彩色渐变：灰度跨度够宽，但 R、G、B 三条不一样，用来看颜色留没留住。 */
+const colorImage = (width, height) => ({
+  naturalWidth: width,
+  naturalHeight: height,
+  sample(t) {
+    return [Math.round(255 * t), Math.round(255 * t), 40]
+  }
+})
+
+test('跨度本来就宽的照片不再压成灰度，颜色留给引擎自己二值化（ROUND14_H2）', () => {
+  withCanvasShim(() => {
+    // 灰阶跨度 226：拉伸的增益只剩 1.1 倍，一个像素都改不动，
+    // 却要为它把三通道抹成一条。喷漆「小心地滑」的「心」就是这么丢的——
+    // 字面和水泥墙的亮度几乎一样，分得开它们的只有颜色。
+    const canvas = preprocess(colorImage(800, 640))
+    const { data } = canvas.getContext().getImageData(0, 0, canvas.width, canvas.height)
+    let colored = 0
+    for (let i = 0; i < data.length; i += 4) if (data[i] !== data[i + 2]) colored += 1
+    assert.ok(colored > 0, '整张图被压成了灰度，颜色通道没了')
   })
 })
 
