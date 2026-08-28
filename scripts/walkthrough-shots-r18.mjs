@@ -456,11 +456,17 @@ async function sceneStepsAudit(browser) {
   let match = 0
   const bad = []
   const oneStepOnly = []
+  const byDeclared = new Map()
   for (const item of WORD_PROBLEMS) {
     const q = typeof item.make === 'function' ? item.make() : item
     const got = buildAnalysis(q).steps.length
-    if (got === item.steps) match += 1
-    else bad.push({ id: item.id, declared: item.steps, got })
+    const tier = byDeclared.get(item.steps) ?? { total: 0, same: 0 }
+    tier.total += 1
+    if (got === item.steps) {
+      match += 1
+      tier.same += 1
+    } else bad.push({ id: item.id, declared: item.steps, got })
+    byDeclared.set(item.steps, tier)
     if (got <= 1) oneStepOnly.push(item.id)
   }
   const rate = (match / WORD_PROBLEMS.length) * 100
@@ -477,15 +483,26 @@ async function sceneStepsAudit(browser) {
       subtitle:
         `WORD_PROBLEMS 共 ${WORD_PROBLEMS.length} 题 · 口径 template.steps ↔ ` +
         `buildAnalysis(make()).steps.length · 采集时间 ${new Date().toISOString()}`,
-      rows: [
-        ['题号（不一致样本）', '题面标称步数', '剖析实际步数'],
-        ...bad.slice(0, 12).map((r) => [r.id, r.declared, r.got]),
-        ['一致率', `${match} / ${WORD_PROBLEMS.length}`, `${rate.toFixed(1)}%`],
-      ],
-      note:
-        `不一致共 ${bad.length} 题（上表只列前 ${Math.min(12, bad.length)} 条），` +
-        `剖析只有 1 步的共 ${oneStepOnly.length} 题。孩子会看到「标着三步题、剖析只讲两句」——` +
-        '这正是 R18 H4 要修的。',
+      // 全对的时候列不一致样本只会剩一行空表；那就改成按声明步数分档摊开
+      rows: bad.length
+        ? [
+            ['题号（不一致样本）', '题面标称步数', '剖析实际步数'],
+            ...bad.slice(0, 12).map((r) => [r.id, r.declared, r.got]),
+            ['一致率', `${match} / ${WORD_PROBLEMS.length}`, `${rate.toFixed(1)}%`],
+          ]
+        : [
+            ['声明步数分档', '母题数', '剖析拆出同样步数'],
+            ...[...byDeclared.entries()]
+              .sort((a, b) => a[0] - b[0])
+              .map(([steps, tier]) => [`${steps} 步题`, tier.total, tier.same]),
+            ['一致率', `${match} / ${WORD_PROBLEMS.length}`, `${rate.toFixed(1)}%`],
+          ],
+      note: bad.length
+        ? `不一致共 ${bad.length} 题（上表只列前 ${Math.min(12, bad.length)} 条），` +
+          `剖析只有 1 步的共 ${oneStepOnly.length} 题。孩子会看到「标着三步题、剖析只讲两句」——` +
+          '这正是 R18 H4 要修的。'
+        : `全库对得上：没有一道题出现「标着几步、剖析讲另一个步数」。剖析只有 1 步的共 ` +
+          `${oneStepOnly.length} 题，它们的题面也都声明 1 步，属实。`,
     },
   )
   return {
@@ -494,6 +511,7 @@ async function sceneStepsAudit(browser) {
     rate,
     mismatched: bad.length,
     oneStepOnly: oneStepOnly.length,
+    byDeclared: Object.fromEntries([...byDeclared.entries()].sort((a, b) => a[0] - b[0])),
     sample: bad.slice(0, 12),
   }
 }
