@@ -34,10 +34,16 @@ export default defineConfig({
         /**
          * 每个单元的课文单独成块（chars-u7.js 这样），文件名一眼能看出是哪一单元，
          * 也保证主包里只有字表索引，不会把上千个字的释义例句一次性背上。
+         *
+         * 玩步的手写剧本同理（play-rich-u7.js）：玩到这一单元才下载那一片。
+         * 起名字不只是好看——scripts/check-bundle.mjs 靠这两组名字在 dist 上验
+         * 「课文包 / 手写剧本没有被同步拉进首屏或单字详情」。
          */
         manualChunks(id) {
           const unit = id.match(/src[\\/]data[\\/]chars[\\/](u\d+)\.js$/)
-          return unit ? `chars-${unit[1]}` : null
+          if (unit) return `chars-${unit[1]}`
+          const play = id.match(/src[\\/]data[\\/]play-rich[\\/](u\d+)\.js$/)
+          return play ? `play-rich-${play[1]}` : null
         }
       }
     }
