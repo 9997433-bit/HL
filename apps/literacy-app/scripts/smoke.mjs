@@ -329,6 +329,17 @@ if (!vocalPilotAsset) {
   console.error('ROUND12_H4_SMOKE：13 首中没有可播放的离线范唱试点')
   process.exit(1)
 }
+/**
+ * 试点那首的范唱声源换过两次（R12/R13 的 Piper「啦」音 → R14 的真人「啊」音），
+ * 界面文案跟着 `humanStudio` 走。这里按数据取当前文案，验的仍是同一件事：
+ * 按钮点得到、点下去从随包文件起播、能停。
+ */
+const vocalPilotLabel = ROUND12_H4_VOCAL?.humanStudio
+  ? '真人「啊」音范唱'
+  : '离线「啦」音范唱'
+const vocalPilotButton = ROUND12_H4_VOCAL?.humanStudio
+  ? '听真人「啊」音范唱'
+  : '听「啦」音范唱'
 
 /**
  * Round 14 H5：不能只数源码目录里的文件。逐份核对构建产物的格式、体积、
@@ -2892,22 +2903,22 @@ if (ROUND8_H2_SMOKE && songAudioAssets.length >= ROUND10_H5_MIN_AUDIO) {
 
 if (ROUND8_H2_SMOKE && vocalPilotAsset) {
   await interact(
-    'ROUND12_H4：13/13 离线旋律 + 可播放的 Piper「啦」音范唱',
+    'ROUND12_H4：13/13 离线旋律 + 可播放的随包范唱',
     `/#${ROUND8_H2_SMOKE}/${vocalPilotAsset.id}`,
     async (page) => {
       await page.waitForSelector('.player[data-song-vocal="file"]', { timeout: 5000 })
-      const opened = await page.evaluate(() => ({
+      const opened = await page.evaluate((buttonText) => ({
         audio: document.querySelector('.player')?.dataset.songAudio ?? '',
         vocal: document.querySelector('.player')?.dataset.songVocal ?? '',
         button: [...document.querySelectorAll('.player__controls button')].some((node) =>
-          node.innerText.includes('啦')
+          node.innerText.includes(buttonText)
         )
-      }))
+      }), vocalPilotButton)
       if (opened.audio !== 'file' || opened.vocal !== 'file' || !opened.button) {
         throw new Error(`范唱接线不完整：${JSON.stringify(opened)}`)
       }
 
-      if (!(await clickText(page, '听「啦」音范唱'))) throw new Error('页面上点不到范唱按钮')
+      if (!(await clickText(page, vocalPilotButton))) throw new Error('页面上点不到范唱按钮')
       await page.waitForFunction(
         () => document.querySelector('.player')?.dataset.vocalSource === 'file',
         { timeout: 5000 }
@@ -2916,7 +2927,7 @@ if (ROUND8_H2_SMOKE && vocalPilotAsset) {
         source: document.querySelector('.player')?.dataset.vocalSource ?? '',
         status: document.querySelector('.player__status')?.innerText.trim() ?? ''
       }))
-      if (playing.source !== 'file' || !playing.status.includes('离线「啦」音范唱')) {
+      if (playing.source !== 'file' || !playing.status.includes(vocalPilotLabel)) {
         throw new Error(`范唱未进入播放态：${JSON.stringify(playing)}`)
       }
 
@@ -2927,7 +2938,7 @@ if (ROUND8_H2_SMOKE && vocalPilotAsset) {
       )
       return (
         `${songAudioAssets.length}/13 首、${distinctSongAudio.size} 份旋律；` +
-        `范唱 ${vocalPilotAsset.bytes} bytes，可播放且可停止`
+        `${vocalPilotLabel} ${vocalPilotAsset.bytes} bytes，可播放且可停止`
       )
     }
   )
