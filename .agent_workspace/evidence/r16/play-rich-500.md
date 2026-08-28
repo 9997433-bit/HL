@@ -44,7 +44,15 @@ $ npm run check:data
 
 $ npm run build && npm run check:bundle
 ✓ 首屏 JS 325 KB（预算 420 KB）；构建产物体检：4 项通过，0 项失败。
+
+$ node -e "import('./apps/literacy-app/src/data/char-play.js')…"
+countRichPlays = 640；templateFallback ≠ false 的 0 条；narration 去重 640；覆盖 40 个单元
 ```
+
+没跑的：`npm run smoke`（无头 Chrome 走全路由）。这台机器上同时有几路兄弟
+子代理在跑同一个 smoke，再起一份只会互相抢内存。本批是纯数据改动，
+运行时侧由 `test:play` 全库 1820 字兜住（0 空洞，六种 kind 的道具逐条校验），
+舞台组件一行没动，合入编排分支时随大盘 smoke 一起过即可。
 
 ## 新写的 368 条长什么样
 
