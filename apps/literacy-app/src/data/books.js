@@ -22,8 +22,8 @@
  * 下面这套场景 DSL——一页摆几件东西，各有位置、大小和一点轻微的动。
  * 两档并存，没写 `scene` 的页照旧显示 `emoji`，扩充绘本不必一次性全改。
  *
- * ROUND12_H3 把场景从 3 本样板铺到读得最多的 17 本，ROUND13_H3 再推到 33 本；
- * 剩下 99 本仍走单 emoji，那条退化路径是硬要求，不是过渡态——
+ * ROUND12_H3 把场景从 3 本样板铺到读得最多的 17 本，ROUND13_H3 推到 33 本，
+ * ROUND14_H3 再推到 60 本；剩下 72 本仍走单 emoji，那条退化路径是硬要求，不是过渡态——
  * 绘本会一直往下加，新书进来时先有兜底。
  * 扩充绘本（books/l*.js）是生成的，它们的场景写在
  * scripts/data/book-scene-seed.mjs，手写的 30 本直接写在 books/core.js。
@@ -161,6 +161,23 @@ export const ROUND13_H3 = Object.freeze({
   target: 200,
   books: 33,
   pages: 209
+})
+
+/**
+ * ROUND14_H3 台账。
+ *
+ * 接着 R13 的「整级铺满」往下走：第 2 级的 24 本——core.js 里的
+ * b2、b3、b10、b11、b12 和扩充的 bx21–bx40——到这一轮全部有场景，
+ * 第 3 级从 bx41 起接上九本。第 1、2 两级至此没有半本是单 emoji 的，
+ * 孩子从头翻到 bx40 看到的是同一种书。
+ *
+ * R12 / R13 那两份留着当地板，当期对的是这一份。
+ */
+export const ROUND14_H3 = Object.freeze({
+  /** 硬门槛，见 .agent_workspace/ROUND14-BRIEF.md H3。 */
+  target: 400,
+  books: 60,
+  pages: 404
 })
 
 /** 场景旁白里出现的所有汉字（去重）。 */
