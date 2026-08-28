@@ -77,3 +77,4 @@ Round 17 check (ROUND17-v1.1): 0/8
 | 8 | opus-fast | r17-walkthrough-bundle |
 | 9 | gpt-sol | r17-smoke-tests |
 | 10 | gpt-sol | r17-regression-gate |
+| 2026-08-28 | 走查截图实拍入库；**check:round17 v1.1 → 8/8** |
