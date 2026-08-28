@@ -1,0 +1,241 @@
+{
+  "schema": "literacy-asr-pilot-ingest/1",
+  "marker": "ROUND14_H1",
+  "pilot": true,
+  "childRecorded": false,
+  "countsTowardFreezeSet": false,
+  "disclaimer": "pilot 走查数据：音频是整数三角波加噪声合成的，不是任何儿童的录音；标注是照槽位设计意图声明的，不是听音转写；同意书是合成凭据，没有任何家庭参与。它只回答「落库这条路通不通」，不参与任何评测指标，也不计入冻结集的 300 条。",
+  "cap": 20,
+  "count": 12,
+  "generator": "apps/literacy-app/scripts/pilot-asr-ingest.mjs",
+  "reproducible": {
+    "waveform": "integer-triangle+xorshift",
+    "note": "同一槽位在任何机器上生成同一份字节；harness 重跑一遍即可逐字段核对这份报表"
+  },
+  "audio": {
+    "kind": "synthetic-tone",
+    "speech": false,
+    "sampleRate": 16000,
+    "bitDepth": 16,
+    "channels": 1,
+    "files": 12,
+    "bytes": 1664528,
+    "inRepo": false,
+    "rootKind": "out-of-repo temp dir"
+  },
+  "annotations": {
+    "source": "declared-from-slot",
+    "humanListened": false,
+    "note": "双标注与仲裁走的是真流程，写进去的文本却是槽位的设计意图——它证明闸在，不证明标注对"
+  },
+  "consent": {
+    "kind": "synthetic-voucher",
+    "realFamilies": 0,
+    "note": "合成凭据只为让 consent-missing 那条闸有东西可放行；真交付必须是家长签回的同意书"
+  },
+  "sandbox": {
+    "freezeSetId": "FS-PILOT-B1-DRYRUN",
+    "derivedFrom": "FS-2026-09-zh-poem",
+    "writesProductionEvalSet": false,
+    "stageAfter": "recording",
+    "batchStageAfter": "recording",
+    "recordedAfter": 12,
+    "recordedFloor": 300
+  },
+  "gate": {
+    "tool": "apps/literacy-app/scripts/ingest-asr-freeze-batch.mjs",
+    "accepted": 12,
+    "rejected": 0,
+    "arbitrated": 1,
+    "categoryChanged": 1,
+    "drift": [
+      {
+        "category": "miss",
+        "planned": 15,
+        "after": 16,
+        "delta": 1
+      },
+      {
+        "category": "normal",
+        "planned": 46,
+        "after": 45,
+        "delta": -1
+      }
+    ]
+  },
+  "verifyAudio": {
+    "checked": 12,
+    "problems": 0,
+    "tamperDetected": true,
+    "note": "r14-asr-recording-batch1.md §8 记的「--verify-audio 在 CI 上跑不了」这条债到此为止"
+  },
+  "negativeDemo": [
+    {
+      "label": "8 kHz 采样率的真文件",
+      "code": "sample-rate-too-low",
+      "rejected": 1,
+      "reason": "C001 采样率 8000 Hz 低于 16000 Hz"
+    },
+    {
+      "label": "12.5 秒的真文件",
+      "code": "duration-out-of-range",
+      "rejected": 1,
+      "reason": "C001 时长 12.5s 不在 3–10s 内"
+    },
+    {
+      "label": "音频指针指进仓库",
+      "code": "audio-in-repo",
+      "rejected": 1,
+      "reason": "C001 的音频路径「apps/literacy-app/public/asr/C001.wav」不是受控目录下的相对路径——绝对路径、../ 和仓库目录一律拒收，孩子的声音不进 git"
+    },
+    {
+      "label": "只有一位标注员",
+      "code": "single-annotation",
+      "rejected": 1,
+      "reason": "C001 只有一位标注员的结果——双标注不是走过场"
+    },
+    {
+      "label": "仲裁凭空写了第三版",
+      "code": "arbiter-not-a-choice",
+      "rejected": 1,
+      "reason": "C001 仲裁写了第三个版本——仲裁只能在两版里挑一版"
+    },
+    {
+      "label": "同意书没签回",
+      "code": "consent-missing",
+      "rejected": 3,
+      "reason": "S01 的家长同意书没在交付清单里签回（state=缺）"
+    }
+  ],
+  "clips": [
+    {
+      "clipId": "C001",
+      "speaker": "S01",
+      "category": "normal",
+      "categoryChanged": false,
+      "seconds": 4.2,
+      "sampleRate": 16000,
+      "audio": "B1/S01/C001.wav",
+      "sha256": "854578ed90365a9de99b115f6d5a387c3a0dbef589c54e7069ce37f2c48cba64"
+    },
+    {
+      "clipId": "C002",
+      "speaker": "S01",
+      "category": "miss",
+      "categoryChanged": true,
+      "seconds": 4.5,
+      "sampleRate": 16000,
+      "audio": "B1/S01/C002.wav",
+      "sha256": "eb5721ab302133b1d5cb38715fa0907d8687c4786c3e1fea18895fe4ea20e35d"
+    },
+    {
+      "clipId": "C003",
+      "speaker": "S01",
+      "category": "miss",
+      "categoryChanged": false,
+      "seconds": 4.8,
+      "sampleRate": 16000,
+      "audio": "B1/S01/C003.wav",
+      "sha256": "2391ee313bde5645b2f5a0e799cf25be5c74a5ff760578d8e2d659daf3eb89ee"
+    },
+    {
+      "clipId": "C004",
+      "speaker": "S02",
+      "category": "normal",
+      "categoryChanged": false,
+      "seconds": 4,
+      "sampleRate": 16000,
+      "audio": "B1/S02/C004.wav",
+      "sha256": "2d0269cc9810b0eddf7eeef3263a883bf6850ddd18aaf7b2b4f86ba370a14562"
+    },
+    {
+      "clipId": "C005",
+      "speaker": "S02",
+      "category": "tone",
+      "categoryChanged": false,
+      "seconds": 4.4,
+      "sampleRate": 16000,
+      "audio": "B1/S02/C005.wav",
+      "sha256": "b058fd88e1eae52d530fba3db1913ceb140e35a7bc47d79400f2439ce14d611a"
+    },
+    {
+      "clipId": "C006",
+      "speaker": "S02",
+      "category": "miss",
+      "categoryChanged": false,
+      "seconds": 4.6,
+      "sampleRate": 16000,
+      "audio": "B1/S02/C006.wav",
+      "sha256": "8262eee507026249a4ab0f162ba7f7c370c309a6c55c5e59d5a31f1095f6c3d5"
+    },
+    {
+      "clipId": "C007",
+      "speaker": "S03",
+      "category": "normal",
+      "categoryChanged": false,
+      "seconds": 3.8,
+      "sampleRate": 16000,
+      "audio": "B1/S03/C007.wav",
+      "sha256": "5a39d7e40f70b9cd866c561e8d7722cc78e4662c30cb096c7a4175c6a89744ff"
+    },
+    {
+      "clipId": "C008",
+      "speaker": "S03",
+      "category": "extra",
+      "categoryChanged": false,
+      "seconds": 4.1,
+      "sampleRate": 16000,
+      "audio": "B1/S03/C008.wav",
+      "sha256": "9473b30084e6aae4711e232201be48d5a5162f13af4abde2de2794d247eec8f4"
+    },
+    {
+      "clipId": "C009",
+      "speaker": "S03",
+      "category": "silence",
+      "categoryChanged": false,
+      "seconds": 4.3,
+      "sampleRate": 16000,
+      "audio": "B1/S03/C009.wav",
+      "sha256": "2e3f63d60121f7a0b5346fa4bfd5941072512113a5d75b5e1ac7f3f65e1e3c0f"
+    },
+    {
+      "clipId": "C011",
+      "speaker": "S04",
+      "category": "initial",
+      "categoryChanged": false,
+      "seconds": 4.6,
+      "sampleRate": 16000,
+      "audio": "B1/S04/C011.wav",
+      "sha256": "d8f89ac07d6b5cf8e265f5960143347607f1e79d0697e1b6d724ec12149ef008"
+    },
+    {
+      "clipId": "C012",
+      "speaker": "S04",
+      "category": "repeat",
+      "categoryChanged": false,
+      "seconds": 4.2,
+      "sampleRate": 16000,
+      "audio": "B1/S04/C012.wav",
+      "sha256": "c8c90acee88bad91c31c044a45aa2de9f67b46cf9cfdf89bfdd0eeb5e8631c81"
+    },
+    {
+      "clipId": "C015",
+      "speaker": "S05",
+      "category": "bystander",
+      "categoryChanged": false,
+      "seconds": 4.5,
+      "sampleRate": 16000,
+      "audio": "B1/S05/C015.wav",
+      "sha256": "929444f78e9cf9dc452084020340c590c7fb21fba5017202ef8fe83a0c4b5dc5"
+    }
+  ],
+  "production": {
+    "evalSet": "apps/literacy-app/scripts/data/asr-eval-set.json",
+    "recorded": 0,
+    "recordedFloor": 300,
+    "stage": "skeleton",
+    "available": false,
+    "untouched": true
+  },
+  "generatedAt": "2026-08-28T05:43:13.059Z"
+}

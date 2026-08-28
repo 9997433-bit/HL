@@ -1,0 +1,61 @@
+{
+  "schema": "literacy-asr-device-rtf/1",
+  "marker": "ROUND14_H1",
+  "example": true,
+  "exampleNote": "模板：字段都是编的，机器不存在，日志不存在，整包指纹也不是随包发出去的那一份。`example: true` 让校验器跳过整包对账与日志落盘两条，同时永远不给 measured-pass——把它当证据交上去，去掉这个字段之后会立刻红。照抄结构，别照抄数值。",
+  "status": "measured",
+  "onDevice": true,
+  "simulated": false,
+  "measuredAt": "2026-09-20T09:12:44.000Z",
+  "device": {
+    "model": "Redmi Note 12",
+    "tier": "mid",
+    "androidVersion": "13",
+    "chipset": "Snapdragon 685",
+    "ramGiB": 6,
+    "webView": "Android System WebView 126.0.6478.122",
+    "serialHash": "9f2c41a7b0e63d58cc7a1b904e2f8d35617ba0c94d8e2f7361a05bc4de92f18a"
+  },
+  "pack": {
+    "modelId": "sherpa-onnx-streaming-zipformer-zh-14M-int8",
+    "modelVersion": "2023-02-23+wasm1.12.15",
+    "sha256": "e3c99b7eee5a92d90455870682180a516056f5eb7f4bd9ce2799051245cd207e",
+    "bytes": 37022120
+  },
+  "session": {
+    "utterances": 24,
+    "audioSeconds": 118.4,
+    "sampleRate": 16000,
+    "env": "quiet",
+    "source": "冻结集 B1 已落库片段（真人儿童录音，非 pilot 合成音）"
+  },
+  "rtfP95": 0.31,
+  "rtf": {
+    "runs": 24,
+    "min": 0.19,
+    "p50": 0.24,
+    "p95": 0.31,
+    "max": 0.36
+  },
+  "gates": [
+    { "metric": "rtf", "op": "<=", "threshold": 0.5, "measured": 0.31, "verdict": "pass" },
+    { "metric": "p95LatencyMs", "op": "<=", "threshold": 2500, "measured": 1180, "verdict": "pass" },
+    { "metric": "peakMemoryMiB", "op": "<=", "threshold": 300, "measured": 214, "verdict": "pass" },
+    { "metric": "longTaskMs", "op": "<=", "threshold": 100, "measured": 82, "verdict": "pass" },
+    { "metric": "offlineRestartPass", "op": ">=", "threshold": 20, "measured": 20, "verdict": "pass" },
+    { "metric": "faultDrillsOnDevice", "op": ">=", "threshold": 5, "measured": 5, "verdict": "pass" }
+  ],
+  "evidence": {
+    "log": "evidence/r14/asr/device-rtf.logcat.txt",
+    "command": "adb -s <serial> shell am start …；随后 npm --prefix apps/literacy-app run bench:asr:rtf -- --on-device --serial <serial>",
+    "harness": "apps/literacy-app/scripts/bench-asr-rtf.mjs",
+    "adbVersion": "Android Debug Bridge version 1.0.41"
+  },
+  "attestation": {
+    "measuredBy": "（填测的人）",
+    "role": "Android QA",
+    "signedAt": "2026-09-20",
+    "contact": "（填联系方式或工号）"
+  },
+  "notes": "口径见 .agent_workspace/r14-followread-release.md §5。四条真机门槛全绿只解开 F7 这一条；available 仍由 Go/No-Go 整体判定，实录 300 条（F4）不到位一样是 NO-GO。"
+}

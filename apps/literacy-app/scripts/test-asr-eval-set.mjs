@@ -33,6 +33,19 @@
  * R14（ROUND14_H1）再加一段：录音批次 1 的槽位排布与落库闸自检（第 2c 段），
  * 外加一条「排位不是放行」的 post。口径见 .agent_workspace/r14-asr-recording-batch1.md。
  *
+ * R14-2（ROUND14_H1，第 2d 段）守的是**放行证据本身**。H1 那三条腿——
+ * 放行文档、真机 RTF 证据、实录条数——都是「写上去就算数」的东西，
+ * 探针读的又只是其中几个字段。所以这一段把三条腿各配一道比探针严的闸：
+ *
+ *   - **真机 RTF**：`check-asr-device-rtf.mjs` 那个收货台的自检整段跑一遍，
+ *     再撞一次最要紧的攻击——只填探针读的那五个字段。探针会绿，收货台必须红。
+ *   - **落库管线**：`pilot-asr-ingest.mjs` 用合成 wav 走一遍完整落库（≤20 条），
+ *     harness **重跑一遍再和落盘报表逐字段比对**。报表改不了，走查也进不了生产评测集。
+ *   - **放行文档**：`r14-followread-release.md` 的 Go/No-Go 表必须逐条对得上
+ *     harness 现算的门槛；实录不到 300 条时，文档里连探针认的那几个 GO 锚点词都不许出现。
+ *
+ * 口径见 .agent_workspace/r14-followread-release.md。
+ *
  * 用法：node scripts/test-asr-eval-set.mjs [--json]
  */
 
@@ -53,6 +66,8 @@ import {
   probeOfflinePack
 } from '../src/utils/offlineAsr.js'
 import { alignChars, evaluate, gradeOf, normalizeTranscript } from '../src/utils/speechEval.js'
+import * as deviceRtf from './check-asr-device-rtf.mjs'
+import * as pilot from './pilot-asr-ingest.mjs'
 
 const asJson = process.argv.includes('--json')
 const appUrl = new URL('../', import.meta.url)
@@ -68,6 +83,15 @@ const readRepo = async (rel) => {
     return await readFile(new URL(rel, repoUrl), 'utf8')
   } catch {
     return ''
+  }
+}
+
+/** 仓库里的 JSON 旁证；读不到就是 null，由断言说话。 */
+const readRepoJson = (rel) => {
+  try {
+    return JSON.parse(readFileSync(new URL(rel, repoUrl), 'utf8'))
+  } catch {
+    return null
   }
 }
 
@@ -170,9 +194,42 @@ const ROUND14_H1 = Object.freeze({
   deliveryExample: 'scripts/fixtures/asr/delivery-b1-example.json'
 })
 
+/**
+ * ROUND14_H1（R14-2）—— 放行证据的三条腿。
+ *
+ * H1 变绿要同时满足：`available:true`、实录 ≥300、GO 文档、真机 RTF p95 ≤0.5。
+ * 前三条都是文本/数字，探针只能读表面；这里给每一条配一道更严的闸，
+ * 并把「什么时候允许说 GO」写成一条互锁——文档不许比数据跑得快。
+ */
+const ROUND14_H1_RELEASE = Object.freeze({
+  releaseDoc: '.agent_workspace/r14-followread-release.md',
+  deviceRtfEvidence: '.agent_workspace/evidence/r14/asr/device-rtf.json',
+  deviceRtfSchema: '.agent_workspace/evidence/r14/asr/device-rtf.schema.json',
+  deviceRtfExample: '.agent_workspace/evidence/r14/asr/device-rtf.example.json',
+  evidenceReadme: '.agent_workspace/evidence/r14/asr/README.md',
+  pilotReport: '.agent_workspace/evidence/r14/asr/pilot-ingest.json',
+  contract: 'apps/literacy-app/scripts/check-asr-device-rtf.mjs',
+  pilotTool: 'apps/literacy-app/scripts/pilot-asr-ingest.mjs',
+  /** 走查条数的硬上限：它不是配置，是「别拿走查数据充录音进度」那条闸。 */
+  pilotCap: 20,
+  pilotFloor: 8,
+  /**
+   * `check-round14.mjs` H1 判「文档是不是 GO」时，拿这三个词当段落锚点
+   * （见该脚本 H1 段 releaseOk 那一行）。实录没到 300 条之前，
+   * 放行文档里一个都不许出现——否则那条腿会在数据还没到位时误绿。
+   */
+  goAnchors: /操作结论|verdict|当前决策/i
+})
+
 const freezeSpecDoc = await readRepo(ROUND13_H1.freezeSpec)
 const rtfBaselineDoc = await readRepo(ROUND13_H1.rtfBaselineDoc)
 const batchPlanDoc = await readRepo(ROUND14_H1.batchPlanDoc)
+const releaseDoc = await readRepo(ROUND14_H1_RELEASE.releaseDoc)
+const evidenceReadme = await readRepo(ROUND14_H1_RELEASE.evidenceReadme)
+const deviceRtfDoc = readRepoJson(ROUND14_H1_RELEASE.deviceRtfEvidence)
+const deviceRtfSchema = readRepoJson(ROUND14_H1_RELEASE.deviceRtfSchema)
+const deviceRtfExample = readRepoJson(ROUND14_H1_RELEASE.deviceRtfExample)
+const pilotReport = readRepoJson(ROUND14_H1_RELEASE.pilotReport)
 const ingest = await import('./ingest-asr-freeze-batch.mjs')
 const rtfBaseline = (() => {
   try {
@@ -804,6 +861,234 @@ test('ROUND14_H1 文档里那份交付清单模板，拿到闸前面跑一遍是
   )
 })
 
+/* ------------------------------- 2d. 放行证据（ROUND14_H1 · R14-2 新增守法） */
+
+/** 校验一份真机 RTF 证据；日志落盘那一条对着真仓库查。 */
+const checkDeviceRtf = (doc) =>
+  deviceRtf.validateDeviceRtf({
+    doc,
+    manifest,
+    fileExists: (rel) => {
+      try {
+        readFileSync(new URL(`.agent_workspace/${rel}`, repoUrl))
+        return true
+      } catch {
+        try {
+          readFileSync(new URL(rel, repoUrl))
+          return true
+        } catch {
+          return false
+        }
+      }
+    }
+  })
+
+test('ROUND14_H1 真机 RTF 收货台自检全绿，每条拒收码都有反例，阈值与清单同源', () => {
+  const result = deviceRtf.runSelfTest()
+  assert.ok(result.passed, `收货台自检有 ${result.failures.length} 条没过：${result.failures.join('；')}`)
+  const covered = new Set(deviceRtf.RTF_SELF_TEST_CASES.map(([code]) => code))
+  for (const code of Object.values(deviceRtf.RTF_REJECT_CODES)) {
+    assert.ok(covered.has(code), `拒收码 ${code} 没有对应的反例样例——那条闸删掉也没人知道`)
+  }
+  // 六条真机门槛的阈值只有一个来源：清单。收货台自带一份是为了能独立运行，
+  // 但它必须和清单一个字不差，否则「真机达标」这句话在两处会是两个意思。
+  const fromManifest = new Map(
+    manifest.goNoGo.layers.flatMap((l) => l.gates).map((g) => [g.metric, g])
+  )
+  for (const gate of deviceRtf.DEVICE_GATES) {
+    const spec = fromManifest.get(gate.metric)
+    assert.ok(spec, `清单里没有 ${gate.metric} 这条门槛，收货台却守着它`)
+    assert.equal(spec.op, gate.op, `${gate.metric} 的比较符两处不一致`)
+    assert.equal(spec.threshold, gate.threshold, `${gate.metric} 的阈值两处不一致`)
+    assert.equal(spec.measuredBy, 'device', `${gate.metric} 在清单里不是由 device 测的`)
+  }
+})
+
+test('ROUND14_H1 真机 RTF 证据三件套齐全：schema / 模板 / 落盘那一份，模板不许被当证据交上去', () => {
+  assert.ok(deviceRtfSchema, `缺 ${ROUND14_H1_RELEASE.deviceRtfSchema}`)
+  assert.equal(deviceRtfSchema.$id, deviceRtf.DEVICE_RTF_SCHEMA, 'schema 的 $id 和收货台认的对不上')
+  assert.ok(
+    Array.isArray(deviceRtfSchema.required) && deviceRtfSchema.required.includes('status'),
+    'schema 没把 status 列为必填——两种合法状态就分不开了'
+  )
+  assert.ok(deviceRtfExample, `缺 ${ROUND14_H1_RELEASE.deviceRtfExample}`)
+  assert.equal(deviceRtfExample.example, true, '模板没标 example:true——迟早有人直接把它当证据交上去')
+  assert.equal(checkDeviceRtf(deviceRtfExample).verdict, 'example', '模板本身不合规，照着填只会白填一趟')
+
+  // 去掉 example 这个字段，模板必须立刻红：它没有真机、没有日志、没人签字
+  const asEvidence = structuredClone(deviceRtfExample)
+  delete asEvidence.example
+  delete asEvidence.exampleNote
+  const posing = checkDeviceRtf(asEvidence)
+  assert.equal(posing.ok, false, '模板去掉 example 之后居然过了收货台')
+  assert.ok(
+    posing.errors.some((e) => e.code === deviceRtf.RTF_REJECT_CODES.EVIDENCE_LOG),
+    `模板冒充证据时该报「日志没落盘」，实得 ${posing.errors.map((e) => e.code).join('、')}`
+  )
+  assert.ok(evidenceReadme.length > 800, `缺 ${ROUND14_H1_RELEASE.evidenceReadme} 或太薄`)
+})
+
+test('ROUND14_H1 落盘的那份真机证据过得了收货台，且探针能放行的必定收货台也放行', () => {
+  assert.ok(deviceRtfDoc, `缺 ${ROUND14_H1_RELEASE.deviceRtfEvidence}`)
+  assert.equal(deviceRtfDoc.example, undefined, '落盘证据带着 example 字段——那是模板不是证据')
+  const result = checkDeviceRtf(deviceRtfDoc)
+  assert.equal(result.ok, true, `落盘证据不合规：${result.errors.map((e) => `${e.code} ${e.message}`).join('；')}`)
+  assert.ok(
+    ['awaiting-device', 'measured-pass'].includes(result.verdict),
+    `落盘证据结论是 ${result.verdict}——要么诚实写着没测，要么真测过且四条门槛都过`
+  )
+
+  // 不变式：能点亮 H1 那条腿的文件，收货台必须零错误。
+  assert.ok(
+    !result.probeWouldPass || result.verdict === 'measured-pass',
+    '这份文件足以让 H1 的 deviceRtf 腿变绿，收货台却没给 measured-pass——放行绕过了收货台'
+  )
+
+  // 最要紧的一次攻击：只填探针读的那五个字段
+  const forged = checkDeviceRtf({
+    onDevice: true,
+    simulated: false,
+    device: { model: 'Android 真机' },
+    rtfP95: 0.21
+  })
+  assert.equal(forged.probeWouldPass, true, '五字段伪证连探针都骗不过，这条攻击样例该改了')
+  assert.equal(forged.ok, false, '五字段伪证过了收货台——H1 那条腿等于没有闸')
+})
+
+test('ROUND14_H1 真机没跑就得写在明处：性能层四条继续未实测，主机基准只当参考', () => {
+  if (deviceRtfDoc?.status === 'measured') return
+  assert.equal(deviceRtfDoc.status, 'not-measured', `status 是 ${deviceRtfDoc.status}`)
+  assert.equal(deviceRtfDoc.onDevice, false, '没测却写了 onDevice:true')
+  assert.equal(deviceRtfDoc.rtfP95, null, `没测却填了 rtfP95=${deviceRtfDoc.rtfP95}`)
+  assert.ok(deviceRtfDoc.owner, '没写谁欠着这件事')
+  assert.equal(manifest.available, false, '真机没测，available 却是 true')
+  const f7 = manifest.freezeChecklist.find((i) => i.id === 'F7')
+  assert.notEqual(f7.status, 'done', 'F7 标成 done，可真机 RTF 证据还停在 not-measured')
+  // 主机基准可以躺在旁边当锚点，但不许被当成这一条的实测值
+  assert.notEqual(
+    deviceRtfDoc.rtfP95,
+    rtfBaseline?.decode?.rtf?.p95 ?? -1,
+    '真机证据里的 rtfP95 就是主机基准那个数——推算不是实测'
+  )
+})
+
+test('ROUND14_H1 落库管线走查：重跑一遍，和落盘报表逐字段对得上', () => {
+  assert.ok(pilotReport, `缺 ${ROUND14_H1_RELEASE.pilotReport}——跑 npm run pilot:asr:ingest -- --write`)
+  assert.equal(pilotReport.schema, pilot.PILOT.schema, 'pilot 报表的 schema 不对')
+  assert.equal(pilotReport.marker, 'ROUND14_H1', 'pilot 报表没挂 ROUND14_H1 标记')
+  assert.ok(
+    pilotReport.count >= ROUND14_H1_RELEASE.pilotFloor && pilotReport.count <= ROUND14_H1_RELEASE.pilotCap,
+    `走查 ${pilotReport.count} 条，约定的区间是 ${ROUND14_H1_RELEASE.pilotFloor}–${ROUND14_H1_RELEASE.pilotCap} 条`
+  )
+  assert.equal(pilot.PILOT.cap, ROUND14_H1_RELEASE.pilotCap, '走查上限被改了——它是闸不是配置')
+
+  const fresh = pilot.stableReport(pilot.runPilot({ count: pilotReport.count, keep: false }))
+  const committed = structuredClone(pilotReport)
+  delete committed.generatedAt
+  const drift = [...new Set([...Object.keys(fresh), ...Object.keys(committed)])].filter(
+    (key) => JSON.stringify(fresh[key]) !== JSON.stringify(committed[key])
+  )
+  assert.deepEqual(
+    drift,
+    [],
+    `重跑走查和落盘报表对不上，差在：${drift.join('、')}——报表是手改的，或者波形不再可复现`
+  )
+
+  assert.equal(pilotReport.gate.rejected, 0, '走查自己的交付被闸拦下了')
+  assert.equal(pilotReport.verifyAudio.problems, 0, '走查的音频指纹核对没通过')
+  assert.equal(
+    pilotReport.verifyAudio.tamperDetected,
+    true,
+    '改掉一个字节之后指纹核对居然没发现——--verify-audio 是摆设'
+  )
+  const codes = new Set(pilotReport.negativeDemo.map((c) => c.code))
+  for (const code of pilot.NEGATIVE_CODES) {
+    assert.ok(codes.has(code), `负向演示没覆盖 ${code}`)
+  }
+  assert.ok(pilotReport.gate.arbitrated >= 1, '走查没演到仲裁')
+  assert.ok(pilotReport.gate.categoryChanged >= 1, '走查没演到类别漂移')
+})
+
+test('ROUND14_H1 走查不是录音：合成音、无人听、一条都没混进生产评测集', () => {
+  assert.equal(pilotReport.pilot, true, 'pilot 报表没标自己是走查')
+  assert.equal(pilotReport.childRecorded, false, 'pilot 报表把合成音说成了儿童实录')
+  assert.equal(pilotReport.countsTowardFreezeSet, false, 'pilot 报表声称自己计入冻结集')
+  assert.equal(pilotReport.audio.speech, false, 'pilot 音频被标成了语音')
+  assert.equal(pilotReport.audio.kind, 'synthetic-tone', `pilot 音频类型写成了 ${pilotReport.audio.kind}`)
+  assert.equal(pilotReport.audio.inRepo, false, 'pilot 音频指针指进了仓库')
+  assert.equal(pilotReport.annotations.humanListened, false, 'pilot 标注声称是人听出来的')
+  assert.equal(pilotReport.consent.realFamilies, 0, 'pilot 声称有真实家庭参与')
+  assert.ok(/合成|非儿童|不是.*儿童/.test(pilotReport.disclaimer), 'pilot 报表没写明自己不是儿童实录')
+
+  assert.equal(pilotReport.sandbox.writesProductionEvalSet, false, 'pilot 声称写了生产评测集')
+  assert.notEqual(
+    pilotReport.sandbox.freezeSetId,
+    freeze.id,
+    '走查用的冻结集 id 和生产那份是同一个——分数迟早会被横比到一起'
+  )
+  assert.ok(
+    pilotReport.sandbox.recordedAfter <= ROUND14_H1_RELEASE.pilotCap,
+    `沙箱落库 ${pilotReport.sandbox.recordedAfter} 条，超过走查上限`
+  )
+
+  const byId = new Map(evalSet.clips.map((c) => [c.id, c]))
+  for (const clip of pilotReport.clips) {
+    const production = byId.get(clip.clipId)
+    assert.ok(production, `走查用了一个不存在的槽位 ${clip.clipId}`)
+    assert.equal(production.status, 'placeholder', `${clip.clipId} 在生产评测集里已经是 ${production.status}`)
+    assert.equal(production.audio, null, `${clip.clipId} 在生产评测集里挂上了音频指针`)
+    assert.equal(production.sha256, undefined, `${clip.clipId} 在生产评测集里留下了走查的指纹`)
+    assert.equal(
+      ingest.pointsIntoRepo(clip.audio),
+      false,
+      `${clip.clipId} 的走查音频指针「${clip.audio}」写法上指着仓库`
+    )
+  }
+  assert.equal(pilotReport.production.recorded, 0, '走查报表记下的生产实录不是 0')
+  assert.equal(recordedClips.length, 0, '生产评测集里出现了实录——这一轮不该有')
+})
+
+test('ROUND14_H1 放行文档结构齐：五层门槛逐条列到、十条冻结项逐条列到、两类证据都指得到', () => {
+  assert.ok(
+    releaseDoc.length > 2500,
+    `放行文档 ${ROUND14_H1_RELEASE.releaseDoc} 缺失或太薄（${releaseDoc.length} 字）`
+  )
+  assert.match(releaseDoc, /\bROUND14_H1\b/, '放行文档没挂 ROUND14_H1 标记')
+  for (const heading of [
+    '## 1.',
+    '## 2.',
+    '## 3.',
+    '## 4.',
+    '## 5.',
+    '## 6.',
+    '## 7.',
+    '## 8.'
+  ]) {
+    assert.ok(releaseDoc.includes(heading), `放行文档缺 ${heading} 那一节`)
+  }
+  // Go/No-Go 表要逐条列到——少一条就说明有一层门槛没人盯着
+  for (const layer of manifest.goNoGo.layers) {
+    assert.ok(releaseDoc.includes(layer.name), `放行文档的门槛表里没有${layer.name}`)
+    for (const gate of layer.gates) {
+      assert.ok(releaseDoc.includes(gate.metric), `放行文档的门槛表里没有 ${gate.metric} 这一条`)
+    }
+  }
+  for (const item of manifest.freezeChecklist) {
+    assert.ok(releaseDoc.includes(item.id), `放行文档的冻结清单里没有 ${item.id}`)
+  }
+  for (const ref of [
+    ROUND14_H1_RELEASE.deviceRtfEvidence.replace('.agent_workspace/', ''),
+    ROUND14_H1_RELEASE.pilotReport.replace('.agent_workspace/', ''),
+    ROUND14_H1_RELEASE.contract,
+    ROUND14_H1_RELEASE.pilotTool
+  ]) {
+    assert.ok(releaseDoc.includes(ref), `放行文档没指到 ${ref}`)
+  }
+  assert.match(releaseDoc, /pilot/i, '放行文档没提走查')
+  assert.match(releaseDoc, /合成|非儿童|不是.*儿童/, '放行文档没写明走查不是儿童实录')
+  assert.match(releaseDoc, /真机|onDevice/, '放行文档没写真机那一段')
+})
+
 /* ------------------------------------------------- 3. 指标管线（模拟转写） */
 
 /**
@@ -1388,6 +1673,64 @@ post('ROUND14_H1 排位与落库工具都不是放行凭据：实录仍是 0，a
   assert.equal(manifest.available, false, '基础设施到位就把 available 翻成了 true')
   const f4 = manifest.freezeChecklist.find((i) => i.id === 'F4')
   assert.equal(f4.status, 'todo', `F4 标成了 ${f4.status}，可实录还是 0/${freeze.recordedFloor}`)
+})
+
+/**
+ * ROUND14_H1（R14-2）—— **文档不许比数据跑得快。**
+ *
+ * `check-round14.mjs` 判「放行文档算不算 GO」时，拿三个词当段落锚点
+ * （`操作结论` / `verdict` / `当前决策`）。那段正则有个缝：只要文档里
+ * 随便哪儿出现过其中一个词，那条腿就会绿——哪怕整篇写的都是 NO-GO。
+ *
+ * 缝在探针里，补在这里：实录没到 300 条、`available` 还是 false 的时候，
+ * 放行文档里一个锚点词都不许出现，而且开头 400 字内必须写着 NO-GO。
+ * 于是 H1 的 release 腿在数据到位之前**红得确定**，不是靠谁自觉。
+ *
+ * 真到了可以放行的那天，把结论小节的标题改成锚点词、把 NO-GO 换成 GO，
+ * 这条断言的前置条件（实录 ≥300）也已经不成立了——两边同时松开，顺序不会反。
+ */
+post('ROUND14_H1 放行文档与数据互锁：实录没到 300 条，文档里不许出现 GO 锚点词', () => {
+  const releaseReady = manifest.available === true && recordedClips.length >= freeze.recordedFloor
+  if (releaseReady) {
+    assert.match(releaseDoc, ROUND14_H1_RELEASE.goAnchors, '数据到位了，放行文档却还没写结论小节')
+    return
+  }
+  const found = releaseDoc.match(ROUND14_H1_RELEASE.goAnchors)
+  assert.equal(
+    found,
+    null,
+    `实录 ${recordedClips.length}/${freeze.recordedFloor}、available=${manifest.available}，` +
+      `放行文档里却出现了 GO 锚点词「${found?.[0]}」——H1 的 release 腿会因此误绿`
+  )
+  assert.match(
+    releaseDoc.slice(0, 400),
+    /NO-GO/i,
+    '放行文档开头 400 字里没有 NO-GO——探针拿这一段判结论，写在末尾等于没写'
+  )
+})
+
+/**
+ * ROUND14_H1（R14-2）—— 走查与模板都不是放行凭据。
+ *
+ * 这一轮多了两样看上去很像「做完了」的东西：一份跑通了的落库走查（12 条实录！）
+ * 和一份填得满满当当的真机 RTF 模板。它们都不能让 `available` 动一下：
+ * 走查用的是合成音，模板测的是一台不存在的机器。
+ */
+post('ROUND14_H1 走查与模板都不是放行凭据：available 仍是 false，真机仍未实测', () => {
+  assert.equal(manifest.available, false, '合成音走查和真机模板把 available 翻成了 true')
+  assert.equal(freeze.recorded, 0, `冻结集实录写着 ${freeze.recorded}——走查数据不计入 300 条`)
+  assert.equal(pilotReport.production.available, false, '走查报表记下的 available 不是 false')
+  const rtfResult = checkDeviceRtf(deviceRtfDoc)
+  assert.notEqual(
+    rtfResult.verdict,
+    'measured-pass',
+    '真机 RTF 证据给出了 measured-pass，可这一轮一台真机都没跑'
+  )
+  assert.equal(
+    measured.rtf.value,
+    null,
+    'rtf 被填上了实测值——真机证据还停在 not-measured'
+  )
 })
 
 for (const { name, fn } of afterVerdict) {

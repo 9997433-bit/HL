@@ -27,6 +27,8 @@
     "test:asr:engine": "node scripts/test-asr-engine.mjs",
     "bench:asr:rtf": "node scripts/bench-asr-rtf.mjs",
     "ingest:asr:batch": "node scripts/ingest-asr-freeze-batch.mjs",
+    "pilot:asr:ingest": "node scripts/pilot-asr-ingest.mjs",
+    "check:asr:device-rtf": "node scripts/check-asr-device-rtf.mjs",
     "test:ocr": "node scripts/test-ocr.mjs",
     "test:ocr:accuracy": "node scripts/test-ocr-accuracy.mjs",
     "test:ocr:app": "node scripts/test-ocr-app-matrix.mjs",
