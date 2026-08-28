@@ -2,6 +2,8 @@
  * ROUND12_H2 —— 拍照识字的真机 / 模拟器 harness。
  * R13 起 scripts/android-sim.mjs 把 A 段作为 `ocr-device-a` step 调用（门禁 ROUND13_H2），
  * 失败样本回流纪律见 .agent_workspace/r13-ocr-regression-loop.md。
+ * R14 起 A 段多守两件事（ROUND14_H2）：App 侧那份 WebView 实测矩阵在不在、分够不够，
+ * 以及失败样本回流队列有没有逾期单——见下面的 A9 / A10。
  *
  * scripts/test-ocr-accuracy.mjs 守的是「引擎认得出多少字」，它在 Node 里跑，
  * 一秒出头就有分数。可拍照识字这条链上，最容易在真机上断、而在开发机上
@@ -52,6 +54,15 @@ const repoDir = path.resolve(appDir, '..', '..')
 const asJson = process.argv.includes('--json')
 const requireDevice = process.argv.includes('--require-device')
 
+/**
+ * 机读标记与它的来路。
+ *
+ * 门禁读的是**去掉注释之后**的源码，所以这条链得活在常量里：check-round13 找
+ * ROUND13_H2，check-round14 找 ROUND14_H2，删一枚就是让往轮的门禁当场退化。
+ */
+const MARKER = 'ROUND14_H2'
+const SUPERSEDES = ['ROUND13_H2', 'ROUND12_H2']
+
 /** 与 capacitor.config.json / AndroidManifest 对齐，改包名要一起改。 */
 const APP_ID = 'com.hongen.literacy'
 
@@ -67,6 +78,15 @@ const DEVICE_DIR = '/sdcard/Download/hongen-ocr'
  * .agent_workspace/r12-ocr-device-harness.md 里写清为什么值。
  */
 const PACK_BUDGET_MIB = 6.0
+
+/**
+ * App 侧（WebView）真实样张的召回下限，与 scripts/test-ocr-app-matrix.mjs 同一条线。
+ * 41 个字只准丢喷漆那张的「滑」——那是引擎自己的边界，Node 基准也认不出。
+ */
+const APP_RECALL_FLOOR = 40
+
+/** 回流队列按轮次记账：本轮之前该修完的单还挂着，就是逾期。 */
+const CURRENT_ROUND = 14
 
 /** adb push 的样张：低端机上推十张图不能变成一场等待。 */
 const SAMPLE_MAX_KIB = 512
@@ -329,6 +349,63 @@ const bytesOf = (rel, base = appDir) => {
   }
 }
 
+/* --- A9 App 侧那份 WebView 实测矩阵：预处理有没有偷偷把字吃掉（ROUND14_H2） --- */
+{
+  const rel = '.agent_workspace/evidence/r14/ocr/app-webview-matrix.json'
+  let matrix = null
+  try {
+    matrix = JSON.parse(read(rel, repoDir))
+  } catch {
+    matrix = null
+  }
+  if (!matrix) {
+    fail(`A9 缺 ${rel}——先跑 npm --prefix apps/literacy-app run test:ocr:app`)
+  } else {
+    const got = Number(matrix.passCount ?? 0)
+    const all = Number(matrix.total ?? 0)
+    // Node 基准（test-ocr-accuracy）跑的是原图，App 里那张图先过 preprocess()。
+    // 两个数一分家，R13 收线时才看见 App 侧只有 33/41——七个字丢在预处理里，
+    // 而原图基准一分都没掉。这条线就是不让它再分家。
+    check(
+      got >= APP_RECALL_FLOOR && all >= 41,
+      `A9 App 侧（WebView）真实样张召回 ${got}/${all} ≥ ${APP_RECALL_FLOOR}/41`,
+      '预处理又把字吃掉了：逐张对账看矩阵 JSON 的 samples 段'
+    )
+    // 这份是 VM 上的 headless Chrome。它证得了预处理，证不了设备——
+    // 两件事混成一句「真机验过了」，是这套 evidence 最容易出的假。
+    check(
+      matrix.simulated === true && matrix.onDevice !== true,
+      'A9 矩阵 JSON 自报 simulated:true，没有冒充真机',
+      '真机结论只认 B 段落在 evidence/r14/android/ 的那一份'
+    )
+  }
+}
+
+/* --- A10 失败样本回流队列：修好的要关单，没修的不许逾期（ROUND14_H2） --- */
+{
+  const rel = 'scripts/fixtures/ocr/regressions/queue.json'
+  let queue = null
+  try {
+    queue = JSON.parse(read(rel))
+  } catch {
+    queue = null
+  }
+  const items = Array.isArray(queue?.items) ? queue.items : []
+  check(items.length >= 1, `A10 回流队列在（${items.length} 条）`, `${rel} 读不出 items`)
+  // 关单要给根因。只把 status 改成 closed、不写清是什么把字吃掉的，
+  // 下一次同样的坑还会再踩一遍。
+  const sloppy = items.filter((i) => i.status === 'closed' && !i.rootCause)
+  check(sloppy.length === 0, 'A10 关掉的单都写了根因', `缺 rootCause：${sloppy.map((i) => i.id).join('、')}`)
+  const overdue = items.filter(
+    (i) => (i.status === 'new' || i.status === 'triaged') && Number(i.dueRound) <= CURRENT_ROUND
+  )
+  check(
+    overdue.length === 0,
+    `A10 没有逾期单（本轮 R${CURRENT_ROUND}）`,
+    `逾期：${overdue.map((i) => `${i.id}(R${i.dueRound})`).join('、')}`
+  )
+}
+
 /* ============================================================ B 段 · 真机执行 */
 
 const device = { serial: '', model: '', release: '', sdk: '', webview: '', size: '', density: '' }
@@ -468,7 +545,8 @@ if (!found.ok) {
     evidencePath,
     `${JSON.stringify(
       {
-        marker: 'ROUND12_H2',
+        marker: MARKER,
+        supersedes: SUPERSEDES,
         capturedAt: new Date().toISOString(),
         appId: APP_ID,
         device,
@@ -496,7 +574,8 @@ if (asJson) {
   console.log(
     JSON.stringify(
       {
-        marker: 'ROUND12_H2',
+        marker: MARKER,
+        supersedes: SUPERSEDES,
         device: found.ok ? device : null,
         passed: passes.length,
         failed: fails.length,
@@ -516,7 +595,8 @@ if (asJson) {
   for (const f of fails) console.log(`  ✗ ${f}`)
   if (evidencePath) console.log(`\n  证据：${path.relative(repoDir, evidencePath)}`)
   console.log(
-    `\n拍照识字真机 harness [ROUND12_H2/ROUND13_H2]：${passes.length} 项通过，${fails.length} 项失败，` +
+    `\n拍照识字真机 harness [${[MARKER, ...SUPERSEDES].join('/')}]：` +
+      `${passes.length} 项通过，${fails.length} 项失败，` +
       `${skips.length} 项 SKIP（${found.ok ? `设备 ${device.serial}` : found.why}）。`
   )
   if (skips.length) {
