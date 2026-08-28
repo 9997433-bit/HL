@@ -54,3 +54,4 @@ Round 16 check (ROUND16-v1.1): 0/8
 | 9 | gpt-sol | r16-smoke-tests |
 | 10 | gpt-sol | r16-regression-gate |
 | 2026-08-28 | 续合 mascot H7 收紧 + 行为回归、wp 剖析抛光；富 Play 640；**v1.1 仍 8/8** |
+| 2026-08-28 | mascot 证据回填 `evidence/r16/h6-h7-mascot-parent-week.md` |
