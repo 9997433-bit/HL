@@ -74,6 +74,7 @@ const ROUTES = [
 
 const ROUND9_H3_SMOKE = '/skill-graph'
 const ROUND10_H3_SMOKE = '/skill-graph'
+const ROUND11_H3_SMOKE = '/skill-graph'
 
 const IGNORE = [/Failed to load resource/i, /net::ERR_/i, /favicon/i, /AudioContext/i]
 
@@ -1912,6 +1913,201 @@ await interact('家长中心：导入 JSON 覆盖进度', '/#/parent', async (pa
   })
   await sleep(300)
   return `导入 99 题 / 42 星生效，错因 ${rendered.errors} 条，顶栏星星 ${shown}`
+})
+
+/**
+ * ROUND11_H3_SMOKE — 推荐 → 周计划：
+ *
+ * 图谱除了「今天练什么」，还得排得出「这一周怎么练」：七天逐天有功课、有理由，
+ * 照着练预计过线的技能必须从后面几天里退场，把位置让给被它挡着的新技能——
+ * 否则所谓周计划就只是把今天的推荐抄了七遍。欠着错题的先还账，落点走错题重练；
+ * 家长中心看的是同一份计划的另一面：推荐理由与采纳痕迹。
+ *
+ * 全程只读：逛完计划、进过家长中心，存档必须一个字节都没动。
+ */
+await interact('周计划：七天滚动 + 家长侧理由与采纳痕迹', `/#${ROUND11_H3_SMOKE}`, async (page) => {
+  const SEED_MASTERY = { 'count-to-5': 0.95, 'count-to-10': 0.9, 'add-within-10': 0.4 }
+  const OWED = 'add-within-10'
+  const SEED_BOOK = {
+    'arithmetic:7+3': {
+      id: 'arithmetic:7+3',
+      module: 'arithmetic',
+      skill: OWED,
+      answer: 10,
+      attempts: 2,
+      lastAt: 1,
+    },
+  }
+
+  const seed = (band) =>
+    page.evaluate(
+      (mastery, wrongBook, ageBand) => {
+        localStorage.setItem(
+          'mathquest/progress',
+          JSON.stringify({ stars: 5, mastery, wrongBook }),
+        )
+        localStorage.setItem('mathquest/settings', JSON.stringify({ ageBand }))
+      },
+      SEED_MASTERY,
+      SEED_BOOK,
+      band,
+    )
+  const store = () =>
+    page.evaluate(() => JSON.parse(localStorage.getItem('mathquest/progress') || '{}'))
+
+  const readPlan = () =>
+    page.evaluate(() => ({
+      readonly: !!document.querySelector('[data-week-readonly]'),
+      summary: document.querySelector('[data-week-summary]')?.innerText.replace(/\s+/g, ' ') ?? '',
+      days: [...document.querySelectorAll('[data-week-day]')].map((el) => ({
+        day: Number(el.dataset.weekDay),
+        date: el.dataset.weekDate,
+        rest: el.dataset.weekRest === '1',
+        label: el.querySelector('.day-head strong')?.innerText.trim() ?? '',
+        skills: [...el.querySelectorAll('[data-week-skill]')].map((row) => ({
+          id: row.dataset.weekSkill,
+          reason: row.dataset.weekReason,
+          projected: Number(row.querySelector('[data-week-projected]')?.dataset.weekProjected ?? 0),
+          text: row.innerText.replace(/\s+/g, ' ').trim(),
+          pass: !!row.querySelector('[data-week-pass]'),
+          entry: row.querySelector('[data-week-entry]')?.dataset.weekEntry ?? '',
+          href: row.querySelector('[data-week-entry]')?.getAttribute('href') ?? '',
+        })),
+      })),
+    }))
+
+  await seed('L2')
+  await page.reload({ waitUntil: 'networkidle2' })
+  await sleep(800)
+
+  const plan = await readPlan()
+  if (!plan.days.length) throw new Error('技能图谱没有排出周计划')
+  if (plan.days.length < 5) throw new Error(`周计划只排了 ${plan.days.length} 天`)
+  if (!plan.readonly) throw new Error('周计划没有标明它是只读的推演')
+  if (plan.days[0].label !== '今天') throw new Error(`第一天叫「${plan.days[0].label}」`)
+
+  // 一天一格，日期得真的往后走，不能七天都是同一天
+  plan.days.forEach((day, index) => {
+    if (day.day !== index + 1) throw new Error(`第 ${index + 1} 格标成了第 ${day.day} 天`)
+    if (index === 0) return
+    const gap = Date.parse(`${day.date}T00:00:00Z`) - Date.parse(`${plan.days[index - 1].date}T00:00:00Z`)
+    if (gap !== 864e5) throw new Error(`${plan.days[index - 1].date} 的下一天成了 ${day.date}`)
+  })
+
+  // 每一场功课都要有理由、有预计值；预计值必须标成预计，不能冒充成绩
+  for (const day of plan.days) {
+    if (!day.rest && !day.skills.length) throw new Error(`第 ${day.day} 天既不是休息日也没有功课`)
+    for (const skill of day.skills) {
+      if (!skill.reason) throw new Error(`第 ${day.day} 天「${skill.id}」没有推荐理由`)
+      if (!(skill.projected > 0)) throw new Error(`第 ${day.day} 天「${skill.id}」没有预计掌握度`)
+      if (!skill.text.includes('预计')) throw new Error(`第 ${day.day} 天「${skill.id}」没把推演值标成预计`)
+    }
+  }
+
+  /* ---- 一、滚动：过了线就退场，后面的日子让给别的技能 ---- */
+  const scheduled = plan.days.flatMap((day) => day.skills.map((skill) => skill.id))
+  const distinct = [...new Set(scheduled)]
+  if (distinct.length < 3) {
+    throw new Error(`一周只排了 ${distinct.length} 个技能，等于把今天的推荐抄了七遍`)
+  }
+  const lastDay = plan.days.at(-1).skills.map((s) => s.id).join(',')
+  if (lastDay === plan.days[0].skills.map((s) => s.id).join(',')) {
+    throw new Error('第一天和最后一天排的是同一批技能，计划没有滚动')
+  }
+  for (const day of plan.days) {
+    for (const skill of day.skills.filter((s) => s.pass)) {
+      const later = plan.days.filter(
+        (d) => d.day > day.day && d.skills.some((s) => s.id === skill.id),
+      )
+      if (later.length) {
+        throw new Error(`「${skill.id}」预计第 ${day.day} 天过线，第 ${later[0].day} 天还排着`)
+      }
+    }
+  }
+
+  /* ---- 二、欠着错题的先还账，且只有今天的功课能一键开练 ---- */
+  const first = plan.days[0].skills[0]
+  if (first.id !== OWED) throw new Error(`欠着错题的技能没排在第一场，实际 ${first.id}`)
+  if (first.entry !== 'wrongBook') throw new Error(`第一场的落点是 ${first.entry || '空'}`)
+  if (first.href !== `#/progress?wrong=${OWED}`) throw new Error(`错题重练入口是 ${first.href}`)
+  if (plan.days.slice(1).some((day) => day.skills.some((skill) => skill.entry))) {
+    throw new Error('后面几天的落点还没到那天就给了按钮')
+  }
+
+  /* ---- 三、换个年龄档就该换一份计划 ---- */
+  await seed('L4')
+  await page.reload({ waitUntil: 'networkidle2' })
+  await sleep(800)
+  const high = await readPlan()
+  const flatten = (view) => view.days.flatMap((day) => day.skills.map((s) => s.id)).join(',')
+  if (flatten(high) === flatten(plan)) throw new Error('L2 与 L4 排出的周计划一模一样')
+
+  /* ---- 四、家长中心：同一份计划的推荐理由与采纳痕迹 ---- */
+  await seed('L2')
+  // 换页只是改 hash，store 还留在内存里；必须重载一次才会读到刚写回去的档位
+  await page.goto(base + '/#/parent', { waitUntil: 'networkidle2' })
+  await page.reload({ waitUntil: 'networkidle2' })
+  await sleep(700)
+  const sum = await gateSum(page)
+  if (sum === null) throw new Error('家长中心没有口算门')
+  await page.type('#parent-gate', String(sum))
+  await page.click('.gate-form button[type="submit"]')
+  await sleep(600)
+
+  const parent = await page.evaluate(() => ({
+    panel: !!document.querySelector('[data-parent-reco]'),
+    summary: document.querySelector('[data-adoption-summary]')?.innerText.replace(/\s+/g, ' ') ?? '',
+    reasons: [...document.querySelectorAll('[data-reco-reason-row]')].map((el) => ({
+      id: el.dataset.recoReasonRow,
+      text: el.innerText.replace(/\s+/g, ' ').trim(),
+    })),
+    rows: [...document.querySelectorAll('[data-adoption-row]')].map((el) => ({
+      id: el.dataset.adoptionRow,
+      state: el.dataset.adoptionState,
+      text: el.innerText.replace(/\s+/g, ' ').trim(),
+    })),
+  }))
+  if (!parent.panel) throw new Error('家长中心没有推荐理由与采纳痕迹面板')
+  if (!parent.reasons.length) throw new Error('家长中心没有列出推荐理由')
+  for (const reason of parent.reasons) {
+    if (!/个技能/.test(reason.text)) throw new Error(`理由「${reason.id}」没说清覆盖几个技能`)
+  }
+  if (parent.rows.length !== distinct.length) {
+    throw new Error(`计划里 ${distinct.length} 个技能，采纳痕迹只列了 ${parent.rows.length} 行`)
+  }
+  for (const row of parent.rows) {
+    if (!distinct.includes(row.id)) throw new Error(`采纳痕迹里混进了计划外的「${row.id}」`)
+    if (!row.state) throw new Error(`「${row.id}」没有标出痕迹状态`)
+    if (!/第 .* 天安排/.test(row.text)) throw new Error(`「${row.id}」没说明排在第几天`)
+  }
+  const owedRow = parent.rows.find((row) => row.id === OWED)
+  if (owedRow?.state !== 'owed') throw new Error(`欠着错题的技能痕迹是 ${owedRow?.state}`)
+  const fresh = parent.rows.filter((row) => row.state === 'untouched')
+  if (!fresh.length) throw new Error('存档里没练过的技能没有被标成「还没开练」')
+  if (!/查得到记录/.test(parent.summary)) throw new Error(`采纳统计没有给出总览：${parent.summary}`)
+
+  /* ---- 五、看了一圈，存档一个字节都不该动 ---- */
+  const after = await store()
+  for (const [id, value] of Object.entries(SEED_MASTERY)) {
+    if (after.mastery?.[id] !== value) {
+      throw new Error(`周计划把「${id}」的掌握度改成了 ${after.mastery?.[id]}`)
+    }
+  }
+  if (Object.keys(after.mastery ?? {}).length !== Object.keys(SEED_MASTERY).length) {
+    throw new Error('周计划往掌握度里塞了新的技能点')
+  }
+  if (Object.keys(after.wrongBook ?? {}).length !== 1) throw new Error('周计划动了错题本')
+  if (after.stars !== 5) throw new Error(`周计划把星星改成了 ${after.stars}`)
+
+  await page.evaluate(() => {
+    localStorage.removeItem('mathquest/settings')
+    localStorage.removeItem('mathquest/progress')
+  })
+  return (
+    `七天 ${scheduled.length} 场 ${distinct.length} 个技能（首场 ${first.id} 走 ${first.entry}），` +
+    `过线即退场、换档换计划；家长侧 ${parent.reasons.length} 条理由、` +
+    `${parent.rows.length} 行痕迹（${fresh.length} 个还没开练）`
+  )
 })
 
 await browser.close()
