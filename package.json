@@ -29,6 +29,7 @@
     "check:round13": "node scripts/check-round13.mjs",
     "check:round14": "node scripts/check-round14.mjs",
     "check:round15": "node scripts/check-round15.mjs",
+    "check:round16": "node scripts/check-round16.mjs",
     "android:sim": "node scripts/android-sim.mjs",
     "android:device:qa": "node scripts/android-device-matrix.mjs",
     "check:android": "node scripts/check-android.mjs",
