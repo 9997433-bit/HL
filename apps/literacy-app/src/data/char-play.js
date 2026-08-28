@@ -1,386 +1,163 @@
 /**
- * 一字一玩法 —— 「玩」这一步的数据层（ROUND15_H2）。
+ * 一字一玩法 —— 「玩」这一步的解析层（ROUND15_H2）。
  *
- * 洪恩识字每个字进学习前先玩一个小情境，问题是那套东西是一字一美术、
- * 一字一脚本，覆盖不到的字就没有。我们的字表是 1820 个字，手写脚本永远追不上，
- * 所以这里分两层：
+ * 洪恩的「玩」是一字一美术脚本，覆盖不到的字就没有。我们要的是 1820 个字
+ * 同一密度，所以剧本从三处来，这里负责合成一份舞台真的能渲染的东西：
  *
- *   富脚本   char-play-rich.js（以及运行时 registerCharPlays 注册进来的批次）
- *            人工写的情境：这个字该玩什么、旁白怎么说、道具是哪几个。
- *   模板补齐 没有富脚本的字，用字表里现成的信息（单元 / 部首 / 卡片图标）
- *            按主题挑一个模板、配齐道具，标 templateFallback: true。
+ *   1. 富脚本   char-play-rich.js —— 人手写的剧本（雨接雨滴、火添柴），最优先
+ *   2. 自动补齐 char-play-generated.js + char-play-templates.js —— 生成器按
+ *               部首 / 主题 / 字源 / 组词给每个字配的一场，标 templateFallback
+ *   3. 兜底合成 下面的 emergencyPlay() —— 字表外的生字、上面两层都读不到时用，
+ *               只靠字表图标和主题池，也一定凑得出一关
  *
- * 于是 getCharPlay() 对任何字都给得出一个能玩完的场景——包括字表里没有的字
- * （孩子从搜索或绘本里点进来的生字）。**它永远不返回 null**，这是 CharPlayStage
- * 唯一依赖的契约。
+ * 三处的剧本是三套方言：富脚本写 `{hero, items, goal}`，生成器写
+ * `{options, rounds}` / `{whole, slots, pieces}`，模板 id 加起来二十多个。
+ * 舞台不该认识这么多方言，所以这里把它们**归一到六种渲染器**（kind）：
  *
- * 补齐是纯函数式的：同一个字每次算出来的道具、乱序、落点都一样（字的哈希做种子），
- * 孩子第二次进来看到的还是那一关，不会因为刷新换了张脸；单测也因此可断言。
+ *   pick      从几个选项里点中对的
+ *   catch     一堆东西里点够次数（会掉下来的也算，减少动态时就不掉）
+ *   assemble  把零件放回位置
+ *   watch     一帧一帧看完，点一下推进一帧
+ *   match     左边一个右边一个，配成一对
+ *   push      顺着一个方向推 / 拉 / 举
  *
- * 包体：本模块只吃已经在主包里的 char-index / unit-index / radicals，
- * 富脚本那份跟着 CharPlayStage 一起进「玩」的异步块，不进首屏。
+ * 认识的模板照表映射，不认识的按作者标的 interaction 归类，再不行就归到
+ * catch——**永远不返回 null，也永远不给舞台一份它读不懂的道具**。
+ * 归一后的道具形状见下面各 stageXxx() 的返回值，CharPlayStage 只认这一份。
+ *
+ * 归一是纯函数：同一个字每次算出来的选项、乱序、落点都一样（字的哈希做种子），
+ * 孩子重进看到的还是那一关，单测也因此可断言。
  */
 
 import { CHAR_INDEX } from './char-index.js'
 import { UNITS } from './unit-index.js'
 import { getRadical } from './radicals.js'
+import { PLAY_ROWS } from './char-play-generated.js'
+import {
+  buildPlay as buildTemplatePlay,
+  templateForChar,
+  themeForChar
+} from './char-play-templates.js'
 import * as richModule from './char-play-rich.js'
 
-/* ------------------------------------------------------------------ 模板 */
+/* ------------------------------------------------------------------ 渲染器 */
+
+/** 舞台实现的六种互动。模板再多，最后都落到这六种之一。 */
+export const PLAY_KINDS = ['pick', 'catch', 'assemble', 'watch', 'match', 'push']
 
 /**
- * 可玩的模板。新增模板要同时在 CharPlayStage.vue 里给出渲染分支，
- * 否则舞台会退回 tap-reveal（见 normalizeTemplate）。
+ * 模板 id → 渲染器。三套方言的模板都在这里登记：
+ * 上排是生成器（char-play-templates.js），中排是富脚本（char-play-rich.js），
+ * 下排是本模块兜底用的。没登记的模板按 interaction 归类，见 INTERACTION_KIND。
  */
-export const PLAY_TEMPLATES = [
-  {
-    id: 'tap-reveal',
-    label: '点一点',
-    icon: '👆',
-    hint: '盖子下面藏着东西，一个个点开'
-  },
-  {
-    id: 'morph-story',
-    label: '变一变',
-    icon: '✨',
-    hint: '图画一步一步变成这个字'
-  },
-  {
-    id: 'emoji-hunt',
-    label: '找一找',
-    icon: '🔍',
-    hint: '在一堆图里找出对的那个'
-  },
-  {
-    id: 'drag-parts',
-    label: '拼一拼',
-    icon: '🧩',
-    hint: '把偏旁送回字里'
-  },
-  {
-    id: 'rain-catch',
-    label: '接一接',
-    icon: '☔',
-    hint: '掉下来的东西，接住对的'
-  }
-]
+const TEMPLATE_KIND = {
+  'emoji-hunt': 'pick',
+  'scene-tap': 'pick',
+  'tap-reveal': 'pick',
+  'pair-match': 'pick',
+  'sound-echo': 'pick',
+  'sound-pop': 'pick',
+  'rain-catch': 'catch',
+  'count-tap': 'catch',
+  'pop-bubbles': 'catch',
+  'scene-poke': 'catch',
+  'color-fill': 'catch',
+  'sound-tap': 'catch',
+  'drag-parts': 'assemble',
+  'word-build': 'assemble',
+  'morph-story': 'watch',
+  'mirror-move': 'watch',
+  'grow-tap': 'watch',
+  'sort-buckets': 'match',
+  'swipe-motion': 'push',
+  'trace-path': 'push'
+}
 
-export const PLAY_TEMPLATE_IDS = PLAY_TEMPLATES.map((t) => t.id)
+/** 作者只标了 interaction（没登记模板）时按这张表归类。 */
+const INTERACTION_KIND = {
+  pick: 'pick',
+  catch: 'catch',
+  assemble: 'assemble',
+  watch: 'watch',
+  tap: 'catch',
+  drag: 'assemble',
+  swipe: 'push',
+  sequence: 'watch'
+}
 
-const TEMPLATE_MAP = new Map(PLAY_TEMPLATES.map((t) => [t.id, t]))
+/** 舞台角上那个小标签。念给孩子听的是 narration，这里只是玩法的名字。 */
+const TEMPLATE_LABEL = {
+  'emoji-hunt': '找一找',
+  'scene-tap': '点一点',
+  'tap-reveal': '揭一揭',
+  'pair-match': '连一连',
+  'sound-echo': '听音点',
+  'sound-pop': '点泡泡',
+  'rain-catch': '接一接',
+  'count-tap': '数一数',
+  'pop-bubbles': '戳一戳',
+  'scene-poke': '找场景',
+  'color-fill': '涂一涂',
+  'sound-tap': '响一响',
+  'drag-parts': '拼一拼',
+  'word-build': '补词语',
+  'morph-story': '变一变',
+  'mirror-move': '跟着做',
+  'grow-tap': '长一长',
+  'sort-buckets': '分一分',
+  'swipe-motion': '划一划',
+  'trace-path': '带一带'
+}
+
+export const PLAY_TEMPLATES = Object.fromEntries(
+  Object.entries(TEMPLATE_KIND).map(([id, kind]) => [
+    id,
+    { id, kind, label: TEMPLATE_LABEL[id] ?? '玩一玩' }
+  ])
+)
+
+export const PLAY_TEMPLATE_IDS = Object.keys(PLAY_TEMPLATES)
 
 export function getPlayTemplate(id) {
-  return TEMPLATE_MAP.get(id) ?? TEMPLATE_MAP.get('tap-reveal')
+  return PLAY_TEMPLATES[id] ?? { id: id || 'tap-reveal', kind: 'catch', label: '玩一玩' }
 }
-
-/* ------------------------------------------------------------------ 主题 */
 
 /**
- * 主题决定三件事：道具池（找不到同单元的字时用它兜底）、舞台配色、模板轮转。
- * 配色一律走设计令牌，别在这里写死颜色。
+ * 主题配色。两套主题表（生成器的 plant/hand/…、富脚本的 nature/number/…）
+ * 的 id 都收在这里，认不出来就用品牌色——配色错不了大事，空着才难看。
  */
-export const PLAY_THEMES = {
-  number: {
-    label: '数一数',
-    emoji: '🔢',
-    accent: 'var(--mango-500)',
-    pool: [
-      ['1️⃣', '一个'],
-      ['2️⃣', '两个'],
-      ['3️⃣', '三个'],
-      ['🧮', '算盘'],
-      ['🎲', '骰子'],
-      ['🔢', '数字']
-    ]
-  },
-  nature: {
-    label: '大自然',
-    emoji: '🌿',
-    accent: 'var(--leaf-500)',
-    pool: [
-      ['🌳', '大树'],
-      ['🌻', '花'],
-      ['🍃', '叶子'],
-      ['⛰️', '高山'],
-      ['🪨', '石头'],
-      ['🌱', '小苗']
-    ]
-  },
-  water: {
-    label: '水边',
-    emoji: '💧',
-    accent: 'var(--sky-500)',
-    pool: [
-      ['💧', '水滴'],
-      ['🌊', '浪花'],
-      ['🐟', '小鱼'],
-      ['⛵', '小船'],
-      ['🫧', '泡泡'],
-      ['🏖️', '沙滩']
-    ]
-  },
-  weather: {
-    label: '天上',
-    emoji: '🌤️',
-    accent: 'var(--sky-400)',
-    pool: [
-      ['☀️', '太阳'],
-      ['☁️', '云'],
-      ['🌧️', '下雨'],
-      ['❄️', '雪花'],
-      ['🌈', '彩虹'],
-      ['🌙', '月亮']
-    ]
-  },
-  animal: {
-    label: '小动物',
-    emoji: '🐾',
-    accent: 'var(--mint-500)',
-    pool: [
-      ['🐱', '小猫'],
-      ['🐶', '小狗'],
-      ['🐦', '小鸟'],
-      ['🐟', '小鱼'],
-      ['🐝', '蜜蜂'],
-      ['🐘', '大象']
-    ]
-  },
-  body: {
-    label: '我的身体',
-    emoji: '🧒',
-    accent: 'var(--coral-400)',
-    pool: [
-      ['👀', '眼睛'],
-      ['👂', '耳朵'],
-      ['👄', '嘴巴'],
-      ['🖐️', '手'],
-      ['🦶', '脚'],
-      ['🧒', '小朋友']
-    ]
-  },
-  feeling: {
-    label: '心情',
-    emoji: '😊',
-    accent: 'var(--grape-400)',
-    pool: [
-      ['😊', '开心'],
-      ['😢', '难过'],
-      ['😴', '困了'],
-      ['😮', '吃惊'],
-      ['❤️', '喜欢'],
-      ['🤗', '抱抱']
-    ]
-  },
-  family: {
-    label: '一家人',
-    emoji: '👨‍👩‍👧',
-    accent: 'var(--coral-500)',
-    pool: [
-      ['👩', '妈妈'],
-      ['👨', '爸爸'],
-      ['👵', '奶奶'],
-      ['👴', '爷爷'],
-      ['👶', '宝宝'],
-      ['🏡', '家']
-    ]
-  },
-  action: {
-    label: '动起来',
-    emoji: '🏃',
-    accent: 'var(--mango-400)',
-    pool: [
-      ['🏃', '跑'],
-      ['🤸', '翻跟头'],
-      ['👏', '拍手'],
-      ['🙌', '举起来'],
-      ['🚶', '走'],
-      ['🤾', '扔']
-    ]
-  },
-  speech: {
-    label: '说和写',
-    emoji: '💬',
-    accent: 'var(--grape-500)',
-    pool: [
-      ['💬', '说话'],
-      ['🗣️', '大声说'],
-      ['📣', '喇叭'],
-      ['📖', '读书'],
-      ['✏️', '写字'],
-      ['🎤', '唱歌']
-    ]
-  },
-  food: {
-    label: '好吃的',
-    emoji: '🍚',
-    accent: 'var(--coral-500)',
-    pool: [
-      ['🍚', '米饭'],
-      ['🍎', '苹果'],
-      ['🥕', '胡萝卜'],
-      ['🍜', '面条'],
-      ['🥛', '牛奶'],
-      ['🍲', '汤']
-    ]
-  },
-  clothes: {
-    label: '穿戴',
-    emoji: '👕',
-    accent: 'var(--mint-500)',
-    pool: [
-      ['👕', '上衣'],
-      ['👖', '裤子'],
-      ['🧦', '袜子'],
-      ['🧢', '帽子'],
-      ['👟', '鞋子'],
-      ['🧣', '围巾']
-    ]
-  },
-  home: {
-    label: '房子里外',
-    emoji: '🏠',
-    accent: 'var(--mango-500)',
-    pool: [
-      ['🏠', '房子'],
-      ['🚪', '门'],
-      ['🪟', '窗'],
-      ['🛏️', '床'],
-      ['🪑', '椅子'],
-      ['🔑', '钥匙']
-    ]
-  },
-  travel: {
-    label: '去远方',
-    emoji: '🚗',
-    accent: 'var(--sky-500)',
-    pool: [
-      ['🚗', '小汽车'],
-      ['🚂', '火车'],
-      ['🚢', '轮船'],
-      ['✈️', '飞机'],
-      ['🚲', '自行车'],
-      ['🛣️', '大路']
-    ]
-  },
-  tool: {
-    label: '好用的东西',
-    emoji: '🔨',
-    accent: 'var(--star-500)',
-    pool: [
-      ['🔨', '锤子'],
-      ['✂️', '剪刀'],
-      ['📏', '尺子'],
-      ['🔧', '扳手'],
-      ['🖌️', '画笔'],
-      ['🧰', '工具箱']
-    ]
-  },
-  school: {
-    label: '在学校',
-    emoji: '🎒',
-    accent: 'var(--grape-500)',
-    pool: [
-      ['📚', '书'],
-      ['✏️', '铅笔'],
-      ['🎒', '书包'],
-      ['🖍️', '蜡笔'],
-      ['🔔', '上课铃'],
-      ['🏫', '学校']
-    ]
-  },
-  life: {
-    label: '身边',
-    emoji: '✨',
-    accent: 'var(--brand)',
-    pool: [
-      ['✨', '亮晶晶'],
-      ['🎈', '气球'],
-      ['🎁', '礼物'],
-      ['🧩', '拼图'],
-      ['⭐', '星星'],
-      ['🎵', '音乐']
-    ]
-  }
+const THEME_ACCENT = {
+  number: 'var(--mango-500)',
+  plant: 'var(--leaf-500)',
+  nature: 'var(--leaf-500)',
+  earth: 'var(--leaf-700)',
+  water: 'var(--sky-500)',
+  weather: 'var(--sky-400)',
+  sky: 'var(--sky-400)',
+  animal: 'var(--mint-500)',
+  body: 'var(--coral-400)',
+  hand: 'var(--coral-400)',
+  mouth: 'var(--coral-500)',
+  person: 'var(--coral-500)',
+  family: 'var(--coral-500)',
+  feeling: 'var(--grape-400)',
+  heart: 'var(--grape-400)',
+  word: 'var(--grape-500)',
+  speech: 'var(--grape-500)',
+  school: 'var(--grape-500)',
+  time: 'var(--sky-700)',
+  place: 'var(--mango-500)',
+  travel: 'var(--sky-500)',
+  food: 'var(--coral-500)',
+  cloth: 'var(--mint-500)',
+  color: 'var(--star-500)',
+  shape: 'var(--star-500)',
+  object: 'var(--star-500)',
+  tool: 'var(--star-500)',
+  action: 'var(--mango-400)'
 }
 
-export const PLAY_THEME_IDS = Object.keys(PLAY_THEMES)
-
-const theme = (id) => PLAY_THEMES[id] ?? PLAY_THEMES.life
-
-/** 部首 → 主题。判不出来的部首交给单元名（UNIT_THEME_RULES）继续猜。 */
-const RADICAL_THEME = {
-  // 自然
-  mu: 'nature', cao: 'nature', he: 'nature', zhutou: 'nature', shan: 'nature',
-  tu: 'nature', shitou: 'nature', tian: 'nature', ri: 'nature', huo: 'nature',
-  sidian: 'nature', li: 'nature', sheng: 'nature', gua: 'nature', leibu: 'nature',
-  // 水
-  shui: 'water', liangdian: 'water', shuidi: 'water', chuanbu: 'water',
-  zhoubu: 'travel', feng: 'weather', yutou: 'weather', qibu: 'weather',
-  // 动物
-  quan: 'animal', chong: 'animal', niao: 'animal', ma: 'animal', yu: 'animal',
-  niu: 'animal', yang: 'animal', zhipang: 'animal', zhuibu: 'animal',
-  shizhu: 'animal', guibu: 'animal', lubu: 'animal', shubu: 'animal',
-  longbu: 'animal', jiaobu: 'animal', yubu: 'animal', feibu: 'animal',
-  maobu: 'animal', hutou: 'animal',
-  // 身体
-  kou: 'body', mubu: 'body', er: 'body', zu: 'body', shenbu: 'body',
-  yebu: 'body', guzi: 'body', xuebu: 'body', rou: 'body', bizi: 'body',
-  pibu: 'body', mianbu: 'body', shoubu: 'body', yue: 'body', zibu: 'body',
-  ya: 'body', bingtou: 'body', xingbu: 'body',
-  // 心情
-  xin: 'feeling', xindi: 'feeling', se: 'feeling',
-  // 人和家人
-  ren: 'family', renzitou: 'family', nv: 'family', zi: 'family', erbu: 'family',
-  muqin: 'family', fu: 'family', lao: 'family', shibu: 'family',
-  shuangren: 'action', rutou: 'action',
-  // 动作
-  shou: 'action', zouzhi: 'action', pu: 'action', lizi: 'action', zou: 'action',
-  you: 'action', cun: 'action', zhiwen: 'action', zhua: 'action',
-  zhuabu: 'action', shupang: 'action', bozitou: 'action', zhizibu: 'action',
-  // 说话
-  yan: 'speech', yuebu: 'speech', wenbu: 'speech', yinbu: 'speech',
-  qianbu: 'speech', sanpie: 'speech',
-  // 吃的
-  shipang: 'food', shidi: 'food', mi: 'food', doubu: 'food', gubu: 'food',
-  maibu: 'food', xiangzi: 'food', youzi: 'food', mindi: 'food',
-  // 穿的
-  yibu: 'clothes', yifu: 'clothes', jin: 'clothes', gebu: 'clothes',
-  jiaosi: 'clothes',
-  // 房子
-  mian: 'home', guang: 'home', men: 'home', xue: 'home', wei: 'home',
-  changtou: 'home', tongkuang: 'home', youer: 'home', gao: 'home',
-  hubu: 'home', mibao: 'home', tou: 'home',
-  // 车船
-  che: 'travel', fang: 'travel',
-  // 工具
-  jinzi: 'tool', gongzi: 'tool', ge: 'tool', jinpang: 'tool', doupang: 'tool',
-  pianbu: 'tool', daopang: 'tool', beibu: 'tool', sankuang: 'tool',
-  gongbu: 'tool', gupang: 'tool', jibu: 'tool', nongdi: 'tool',
-  // 数字与笔画
-  yi: 'number', erzi: 'number', shi: 'number', ba: 'number', pie: 'number',
-  shu: 'number', dian: 'number', yizhe: 'number', daoba: 'number',
-  xiao: 'number', da: 'number', ganbu: 'number', bibu: 'number'
-}
-
-/** 部首没判出来时，按单元名里的关键词兜一层。顺序即优先级。 */
-const UNIT_THEME_RULES = [
-  [/数字|数一数|量一量/, 'number'],
-  [/江河|湖海|溪|海湾|瀑布|湖畔|渔村|码头|岛屿/, 'water'],
-  [/天气|四季|时间|季节|雪|云|彩虹|星空|月亮|银河|雨/, 'weather'],
-  [/动物|鸟兽|虫鱼|牧场|动物园/, 'animal'],
-  [/身体|健康|看病/, 'body'],
-  [/心情|感觉|用心/, 'feeling'],
-  [/家人|名字|一家/, 'family'],
-  [/动作|运动|动起来/, 'action'],
-  [/说话|文章|讲故事|写信|消息|小词/, 'speech'],
-  [/好吃|厨房|灶台/, 'food'],
-  [/穿在身上/, 'clothes'],
-  [/房子|家里|城|镇|集市|商店|书院|城堡|驿站|关口|塔|宝库|花园|门/, 'home'],
-  [/出发|去玩|远方|车船|路|桥|梯|长桥/, 'travel'],
-  [/工具|科学|音乐|画画|唱歌|游戏|颜色/, 'tool'],
-  [/上学|学校|课堂|学习|识字|书/, 'school'],
-  [/自然|花草|树木|田野|庄稼|果|竹|麦|草原|树林|果园|山|沙|石|土地|大地|荒野/, 'nature']
-]
+const accentOf = (theme) => THEME_ACCENT[theme] ?? 'var(--brand)'
 
 /* -------------------------------------------------------------- 确定性随机 */
 
@@ -416,12 +193,37 @@ function shuffled(list, rand) {
   return out
 }
 
+const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n))
+
 /* ------------------------------------------------------------ 字表侧的信息 */
 
 const CHAR_MAP = new Map(CHAR_INDEX.map((c) => [c.char, c]))
 const UNIT_MAP = new Map(UNITS.map((u) => [u.id, u]))
 
-/** 同单元的字图标：找一找 / 接一接的干扰项优先从这里取，主题才对得上。 */
+/** 同单元的同学，生成器拿它出干扰项。按笔画接近排在前面。 */
+let unitSiblings = null
+function siblingsOf(entry) {
+  if (!entry) return []
+  if (!unitSiblings) {
+    unitSiblings = new Map()
+    for (const c of CHAR_INDEX) {
+      const bucket = unitSiblings.get(c.unit) ?? []
+      bucket.push(c)
+      unitSiblings.set(c.unit, bucket)
+    }
+  }
+  return (unitSiblings.get(entry.unit) ?? [])
+    .filter((c) => c.char !== entry.char)
+    .map((c) => ({
+      char: c.char,
+      emoji: c.emoji,
+      pinyin: c.pinyin,
+      strokes: c.strokes,
+      radicalGlyph: getRadical(c.radical)?.glyph ?? ''
+    }))
+}
+
+/** 同单元的字图标；兜底合成拿它当道具，主题才对得上。 */
 let unitIcons = null
 function iconsOfUnit(unitId) {
   if (!unitIcons) {
@@ -436,58 +238,46 @@ function iconsOfUnit(unitId) {
   return unitIcons.get(unitId) ?? []
 }
 
-/** 拼一拼的干扰偏旁：常见、好认、和答案不重样。 */
-const DECOY_RADICALS = [
-  ['氵', '三点水'],
-  ['木', '木字旁'],
-  ['亻', '单人旁'],
-  ['口', '口字旁'],
-  ['扌', '提手旁'],
-  ['艹', '草字头'],
-  ['讠', '言字旁'],
-  ['女', '女字旁'],
-  ['日', '日字旁'],
-  ['火', '火字旁'],
-  ['心', '心字底'],
-  ['山', '山字旁'],
-  ['虫', '虫字旁'],
-  ['土', '提土旁'],
-  ['钅', '金字旁'],
-  ['宀', '宝盖头']
-]
-
-function themeOf(entry) {
-  const byRadical = entry?.radical ? RADICAL_THEME[entry.radical] : null
-  if (byRadical) return byRadical
-  const unitName = UNIT_MAP.get(entry?.unit)?.name ?? ''
-  for (const [re, id] of UNIT_THEME_RULES) if (re.test(unitName)) return id
-  return 'life'
+/** 补词语要的干扰字：同单元的同学优先，不够就借几个最常见的。 */
+function decoyChars(ctx, n, rand) {
+  const seen = new Set([ctx.char])
+  const out = []
+  const push = (char) => {
+    if (out.length >= n || !char || seen.has(char)) return
+    seen.add(char)
+    out.push(char)
+  }
+  for (const mate of shuffled(siblingsOf(ctx.entry), rand)) push(mate.char)
+  for (const char of ['人', '大', '小', '口', '手', '日']) push(char)
+  return out
 }
 
-/**
- * 把一个字摊平成模板要用的所有素材。字表里没有的字（绘本生字、搜索进来的字）
- * 也能走通：单元、部首缺了就用主题池顶上，绝不因此少一关。
- */
+/** 任何字都凑得出来的一池小道具，同单元不够时补上。 */
+const SPARE_ICONS = [
+  ['⭐', '星星'],
+  ['🎈', '气球'],
+  ['🎁', '礼物'],
+  ['🧩', '拼图'],
+  ['🎵', '音乐'],
+  ['🌈', '彩虹'],
+  ['🍎', '苹果'],
+  ['🐱', '小猫']
+]
+
 function contextOf(char) {
   const entry = CHAR_MAP.get(char) ?? null
-  const themeId = themeOf(entry)
-  const pack = theme(themeId)
   const radical = entry?.radical ? getRadical(entry.radical) : null
   const unit = entry?.unit ? UNIT_MAP.get(entry.unit) : null
   return {
     char,
     entry,
-    unit,
-    unitName: unit?.name ?? '',
-    themeId,
-    themeLabel: pack.label,
-    themeEmoji: pack.emoji,
-    accent: pack.accent,
-    pool: pack.pool,
-    emoji: entry?.emoji || pack.emoji,
+    emoji: entry?.emoji || '✨',
+    pinyin: entry?.pinyin ?? '',
     strokes: entry?.strokes ?? 0,
     radicalGlyph: radical?.glyph ?? '',
     radicalName: radical?.name ?? '',
+    unit: entry?.unit ?? '',
+    unitName: unit?.name ?? '',
     icons: entry?.unit ? iconsOfUnit(entry.unit) : []
   }
 }
@@ -502,226 +292,123 @@ function companions(ctx, n, rand) {
     out.push({ emoji, label })
   }
   for (const item of shuffled(ctx.icons, rand)) push(item)
-  for (const item of shuffled(ctx.pool, rand)) push(item)
-  // 同单元和主题池都不够了（生僻字 + 小主题）：拿别的主题池填满，玩法不能缺道具
-  for (const id of PLAY_THEME_IDS) for (const item of PLAY_THEMES[id].pool) push(item)
+  for (const item of SPARE_ICONS) push(item)
   return out
 }
 
-/* -------------------------------------------------------------- 模板轮转 */
+/* ------------------------------------------------------- 第 2 层：自动补齐 */
 
 /**
- * 每个主题一条轮转序列，按字的哈希取一项：同主题的字不会连着是同一个玩法，
- * 而「接一接」这类和天气 / 水最搭的模板在对应主题里出现得更多。
+ * 生成物是一行行紧凑的文本（`字|主题|模板|线索|额外料`），
+ * 展开成道具的规则在 char-play-templates.js 里。第一次用到时才解析，
+ * 解析出来的是「这个字玩什么」，不是整份道具，1820 行也就几毫秒。
  */
-const THEME_ROTATION = {
-  number: ['tap-reveal', 'emoji-hunt', 'morph-story', 'drag-parts'],
-  nature: ['morph-story', 'emoji-hunt', 'tap-reveal', 'drag-parts', 'rain-catch'],
-  water: ['rain-catch', 'emoji-hunt', 'morph-story', 'tap-reveal', 'drag-parts'],
-  weather: ['rain-catch', 'morph-story', 'emoji-hunt', 'tap-reveal', 'drag-parts'],
-  animal: ['emoji-hunt', 'tap-reveal', 'morph-story', 'drag-parts', 'rain-catch'],
-  body: ['tap-reveal', 'morph-story', 'emoji-hunt', 'drag-parts'],
-  feeling: ['tap-reveal', 'emoji-hunt', 'morph-story', 'drag-parts'],
-  family: ['tap-reveal', 'morph-story', 'emoji-hunt', 'drag-parts'],
-  action: ['emoji-hunt', 'rain-catch', 'tap-reveal', 'drag-parts', 'morph-story'],
-  speech: ['morph-story', 'tap-reveal', 'drag-parts', 'emoji-hunt'],
-  food: ['rain-catch', 'tap-reveal', 'emoji-hunt', 'drag-parts', 'morph-story'],
-  clothes: ['tap-reveal', 'emoji-hunt', 'drag-parts', 'morph-story'],
-  home: ['tap-reveal', 'drag-parts', 'emoji-hunt', 'morph-story'],
-  travel: ['rain-catch', 'emoji-hunt', 'tap-reveal', 'drag-parts', 'morph-story'],
-  tool: ['drag-parts', 'tap-reveal', 'emoji-hunt', 'morph-story'],
-  school: ['tap-reveal', 'drag-parts', 'morph-story', 'emoji-hunt'],
-  life: ['tap-reveal', 'emoji-hunt', 'morph-story', 'drag-parts', 'rain-catch']
-}
-
-function chooseTemplate(ctx) {
-  const rotation = THEME_ROTATION[ctx.themeId] ?? THEME_ROTATION.life
-  let id = rotation[hashOf(ctx.char, 7) % rotation.length]
-  // 拼一拼要有偏旁可拼；部首就是字本身（木、山、口…）拼起来是废题，换成变一变
-  if (id === 'drag-parts' && (!ctx.radicalGlyph || ctx.radicalGlyph === ctx.char)) {
-    id = 'morph-story'
+let generatedRows = null
+function rowOf(char) {
+  if (!generatedRows) {
+    generatedRows = new Map()
+    for (const line of String(PLAY_ROWS ?? '').split('\n')) {
+      const text = line.trim()
+      if (!text || text.startsWith('#')) continue
+      const [c, theme, template, hint, extraText] = text.split('|')
+      if (!c) continue
+      const extra = {}
+      for (const pair of (extraText ?? '').split(';')) {
+        const [k, v] = pair.split('=')
+        if (!k || v === undefined) continue
+        extra[k.trim()] = k.trim() === 'parts' ? v.split(',').filter(Boolean) : v.trim()
+      }
+      generatedRows.set(c, { char: c, theme, template, hint: hint ?? '', extra })
+    }
   }
-  return id
+  return generatedRows.get(char) ?? null
 }
 
-/* ------------------------------------------------------------ 各模板的道具 */
+function infoOf(ctx) {
+  return {
+    emoji: ctx.emoji,
+    pinyin: ctx.pinyin,
+    strokes: ctx.strokes,
+    radicalGlyph: ctx.radicalGlyph,
+    radicalName: ctx.radicalName,
+    unit: ctx.unit,
+    unitName: ctx.unitName,
+    siblings: siblingsOf(ctx.entry)
+  }
+}
 
-function propsTapReveal(ctx, rand) {
+/** 字表里没有的字也走生成器：主题、模板照同一套规则挑，只是没有课文线索。 */
+function generatedPlay(ctx) {
+  const row = rowOf(ctx.char)
+  if (row) return buildTemplatePlay(row, infoOf(ctx), { source: 'generated', templateFallback: true })
+
+  // 字表外的字（绘本 / 搜索 / 拍照认出来的生字）没有拼音也没有同学，
+  // 挑模板时避开要念音、要组词那几种，直接用「找一找」——它只要一个图标就成关
+  const theme = themeForChar({ radical: ctx.entry?.radical, unitName: ctx.unitName })
+  const template = ctx.entry
+    ? templateForChar({ char: ctx.char, theme, extra: {} })
+    : 'emoji-hunt'
+  return buildTemplatePlay(
+    { char: ctx.char, theme, template, hint: '', extra: {} },
+    infoOf(ctx),
+    { source: 'runtime', templateFallback: true }
+  )
+}
+
+/* --------------------------------------------------------- 第 3 层：兜底 */
+
+/**
+ * 上面两层都不灵（生成物被清空、模板表报错）时的最后一手：
+ * 拿字表图标和同单元的小伙伴摆一桌卡片，点完就算玩过。
+ * 它不好玩，但它一定玩得成——这一层存在的意义就是「绝不空场」。
+ */
+function emergencyPlay(ctx) {
+  const rand = rngOf(hashOf(ctx.char, 17))
   const mates = companions(ctx, 3, rand)
-  const items = shuffled(
+  const drops = shuffled(
     [
-      { id: 'p0', emoji: ctx.emoji, label: `「${ctx.char}」的样子`, isChar: true },
-      ...mates.map((m, i) => ({ id: `p${i + 1}`, emoji: m.emoji, label: m.label, isChar: false }))
+      { key: 'c0', emoji: ctx.emoji, label: `「${ctx.char}」的图`, hit: true },
+      ...mates.map((m, i) => ({ key: `c${i + 1}`, emoji: m.emoji, label: m.label, hit: true }))
     ],
     rand
   )
-  return {
-    narration: `盖子下面藏着和「${ctx.char}」有关的东西，一个一个点开看看。`,
-    props: {
-      items,
-      reveal: ctx.char,
-      prompt: `点开 ${items.length} 个盖子`
-    }
-  }
-}
-
-function propsMorphStory(ctx) {
-  // 三帧：先看图 → 图和字叠在一起 → 只剩字。舞台把中间那帧做成交叉淡出
-  const frames = [
-    { id: 'f0', emoji: ctx.emoji, caption: `${ctx.themeLabel}里的一张图` },
-    { id: 'f1', emoji: ctx.emoji, glyph: ctx.char, caption: '图慢慢变成字' },
-    { id: 'f2', glyph: ctx.char, caption: `变好啦——「${ctx.char}」` }
-  ]
-  return {
-    narration: `看好啦：${ctx.emoji} 一步一步变成「${ctx.char}」。`,
-    props: {
-      frames,
-      target: ctx.char,
-      button: '变！'
-    }
-  }
-}
-
-function huntGrid(ctx, rand, { size = 12, need = 3 } = {}) {
-  const mates = companions(ctx, 4, rand)
-  const cells = []
-  for (let i = 0; i < size; i += 1) {
-    const hit = i < need
-    const mate = mates[i % mates.length]
-    cells.push({
-      id: `g${i}`,
-      emoji: hit ? ctx.emoji : mate.emoji,
-      label: hit ? `「${ctx.char}」的图` : mate.label,
-      hit
-    })
-  }
-  return shuffled(cells, rand)
-}
-
-function propsEmojiHunt(ctx, rand) {
-  const need = 3
-  return {
-    narration: `在这一堆图里找出 ${need} 个 ${ctx.emoji}，找齐就认识「${ctx.char}」啦。`,
-    props: {
-      target: ctx.emoji,
-      targetLabel: `「${ctx.char}」的图`,
-      need,
-      cells: huntGrid(ctx, rand, { size: 12, need })
-    }
-  }
-}
-
-function propsDragParts(ctx, rand) {
-  const decoys = shuffled(
-    DECOY_RADICALS.filter(([g]) => g !== ctx.radicalGlyph),
-    rand
-  ).slice(0, 2)
-  const options = shuffled(
-    [
-      { id: 'o0', glyph: ctx.radicalGlyph, name: ctx.radicalName, correct: true },
-      ...decoys.map(([glyph, name], i) => ({ id: `o${i + 1}`, glyph, name, correct: false }))
-    ],
-    rand
-  )
-  return {
-    narration: `「${ctx.char}」少了一个零件。把对的偏旁送回格子里。`,
-    props: {
-      whole: ctx.char,
-      options,
-      answer: ctx.radicalGlyph,
-      answerName: ctx.radicalName,
-      hint: `想一想：「${ctx.char}」是不是和「${ctx.radicalName}」有关？`
-    }
-  }
-}
-
-function propsRainCatch(ctx, rand) {
-  const mates = companions(ctx, 3, rand)
-  const total = 9
-  const need = 3
-  const drops = []
-  for (let i = 0; i < total; i += 1) {
-    // 前 4 个是要接的，多给一个余量：漏掉一个也还能过关
-    const hit = i < need + 1
-    const mate = mates[i % mates.length]
-    drops.push({
-      id: `d${i}`,
-      emoji: hit ? ctx.emoji : mate.emoji,
-      label: hit ? `「${ctx.char}」的图` : mate.label,
-      hit,
-      // 落点、出场时间都跟着字的种子走，同一个字每次下的雨一模一样
-      x: Math.round(12 + rand() * 76),
-      delay: Math.round(i * 420 + rand() * 260),
-      duration: Math.round(2600 + rand() * 1400)
-    })
-  }
-  return {
-    narration: `${ctx.emoji} 从天上落下来啦，接住 ${need} 个，「${ctx.char}」就跟你走。`,
-    props: {
-      target: ctx.emoji,
-      targetLabel: `「${ctx.char}」的图`,
-      need,
-      drops: shuffled(drops, rand),
-      // 减少动态时舞台不下雨，改用同一批道具铺成静止网格，照样能玩完
-      staticCells: huntGrid(ctx, rand, { size: 9, need })
-    }
-  }
-}
-
-const BUILDERS = {
-  'tap-reveal': propsTapReveal,
-  'morph-story': propsMorphStory,
-  'emoji-hunt': propsEmojiHunt,
-  'drag-parts': propsDragParts,
-  'rain-catch': propsRainCatch
-}
-
-/** 舞台不认识的模板一律退回点一点，宁可玩法平淡也不能空场。 */
-function normalizeTemplate(id, ctx) {
-  if (!id || !BUILDERS[id]) return chooseTemplate(ctx)
-  if (id === 'drag-parts' && (!ctx.radicalGlyph || ctx.radicalGlyph === ctx.char)) {
-    return 'tap-reveal'
-  }
-  return id
-}
-
-function buildPlay(ctx, templateId) {
-  const rand = rngOf(hashOf(ctx.char, 31) ^ hashOf(templateId, 5))
-  const built = BUILDERS[templateId](ctx, rand)
   return {
     char: ctx.char,
-    theme: ctx.themeId,
-    themeLabel: ctx.themeLabel,
-    themeEmoji: ctx.themeEmoji,
-    accent: ctx.accent,
-    template: templateId,
-    templateLabel: getPlayTemplate(templateId).label,
+    theme: 'word',
+    template: 'scene-poke',
+    interaction: 'tap',
     emoji: ctx.emoji,
-    narration: built.narration,
-    props: built.props,
-    templateFallback: true
+    narration: `和「${ctx.char}」有关的东西都在这儿，一个一个点点看。`,
+    prompt: `点满 ${drops.length} 个`,
+    props: { drops, rounds: drops.length },
+    templateFallback: true,
+    source: 'emergency'
   }
 }
 
 /* ------------------------------------------------------------ 富脚本注册表 */
 
-/** char → 人工脚本（原始条目，取用时才和模板道具合并）。 */
+/** char → 人手写的剧本。 */
 const RICH = new Map()
 
-function isPlayEntry(value) {
-  return Boolean(value) && typeof value === 'object' && typeof value.char === 'string' && value.char
+function looksLikePlay(value) {
+  return (
+    Boolean(value) &&
+    typeof value === 'object' &&
+    (typeof value.template === 'string' || typeof value.narration === 'string')
+  )
 }
 
 /**
  * 注册一批富脚本。数组、`{ 汉字: 条目 }` 映射都收，
- * 条目缺什么字段（模板、旁白、道具）取用时由模板补齐，不必写全。
+ * 条目缺什么字段（模板、旁白、道具）取用时由归一层补，不必写全。
  *
  * @returns {number} 这一批真正登记进去的条数
  */
 export function registerCharPlays(source) {
   let added = 0
   const take = (entry, key) => {
-    if (!entry || typeof entry !== 'object') return
+    if (!looksLikePlay(entry)) return
     const char = typeof entry.char === 'string' && entry.char ? entry.char : key
     if (typeof char !== 'string' || !char) return
     RICH.set(char, { ...entry, char })
@@ -735,23 +422,14 @@ export function registerCharPlays(source) {
   return added
 }
 
-/** 看着像一条 play 脚本：有模板或有旁白，才收。 */
-function looksLikePlay(value) {
-  return (
-    Boolean(value) &&
-    typeof value === 'object' &&
-    (typeof value.template === 'string' || typeof value.narration === 'string')
-  )
-}
-
 /**
  * char-play-rich.js 里叫什么名字都行：只要导出的是「条目数组」或
  * 「汉字 → 条目」的映射就会被收进来。富脚本那一岗换了导出名也不至于整块失联。
  */
 for (const value of Object.values(richModule ?? {})) {
   if (Array.isArray(value)) {
-    registerCharPlays(value.filter((v) => isPlayEntry(v) && looksLikePlay(v)))
-  } else if (value && typeof value === 'object') {
+    registerCharPlays(value.filter(looksLikePlay))
+  } else if (value && typeof value === 'object' && !(value instanceof Map)) {
     const map = {}
     for (const [key, entry] of Object.entries(value)) {
       if (looksLikePlay(entry)) map[key] = entry
@@ -764,7 +442,7 @@ export function hasRichPlay(char) {
   return RICH.has(char)
 }
 
-/** H3 探针用：人工脚本（非模板补齐）到底有多少条。 */
+/** H3 探针口径：人手写的剧本有多少条（自动补齐的不算）。 */
 export function countRichPlays() {
   return RICH.size
 }
@@ -773,15 +451,459 @@ export function listRichPlays() {
   return [...RICH.values()]
 }
 
+/* ------------------------------------------------------------------ 归一 */
+
+/** 一个字符串是不是图标（没有汉字 / 拉丁字母，就当它是 emoji）。 */
+const isGlyphText = (text) => typeof text === 'string' && /[\u3400-\u9fff\uf900-\ufaffA-Za-z]/.test(text)
+
+/** 作者可能把图标写在 emoji / label / char 任一处，这里统一拆成「图标 + 字」。 */
+function faceOf(raw, fallbackEmoji = '') {
+  if (typeof raw === 'string') {
+    return isGlyphText(raw) ? { glyph: raw, emoji: '' } : { glyph: '', emoji: raw }
+  }
+  const glyph = raw?.glyph ?? raw?.char ?? (isGlyphText(raw?.label) ? raw.label : '')
+  const emoji = raw?.emoji ?? (!isGlyphText(raw?.label) ? raw?.label : '') ?? ''
+  if (!glyph && !emoji) return { glyph: '', emoji: fallbackEmoji }
+  return { glyph: glyph || '', emoji: emoji || '' }
+}
+
+const labelOf = (raw, face, fallback) =>
+  (typeof raw === 'object' && raw?.name) || face.glyph || face.emoji || fallback || ''
+
+/* --- pick：从几个选项里点中对的 --- */
+
+function stagePick(play, ctx, rand) {
+  const p = play.props ?? {}
+  let options = []
+
+  if (Array.isArray(p.options) && p.options.length) {
+    options = p.options.map((o, i) => {
+      const face = faceOf(o, ctx.emoji)
+      return {
+        id: String(o.key ?? o.id ?? `o${i}`),
+        emoji: face.emoji,
+        glyph: face.glyph,
+        label: labelOf(o, face, `第 ${i + 1} 个`),
+        correct: o.correct === true,
+        reveal: o.reveal ?? ''
+      }
+    })
+  } else if (Array.isArray(p.pairs) && p.pairs.length) {
+    // 生成器的 pair-match 其实是「给这个字找它的图」，还是一道选择题
+    options = p.pairs.map((o, i) => {
+      const face = faceOf({ emoji: o.emoji, char: o.char }, ctx.emoji)
+      return {
+        id: String(o.key ?? `p${i}`),
+        emoji: face.emoji,
+        glyph: '',
+        label: `「${o.char ?? ctx.char}」的图`,
+        correct: o.correct === true || o.char === ctx.char,
+        reveal: o.char ?? ''
+      }
+    })
+  } else if (Array.isArray(p.cells) && p.cells.length) {
+    options = p.cells.map((c, i) => {
+      const face = faceOf(c, ctx.emoji)
+      return {
+        id: String(c.id ?? `c${i}`),
+        emoji: face.emoji,
+        glyph: face.glyph,
+        label: c.label ?? '',
+        correct: c.hit === true,
+        reveal: ''
+      }
+    })
+  } else {
+    // 富脚本的 emoji-hunt 只给 target + decoys
+    const target = p.target ?? p.hero ?? ctx.emoji
+    const decoys = (Array.isArray(p.decoys) ? p.decoys : []).filter(Boolean)
+    const filler = decoys.length ? decoys : companions(ctx, 3, rand).map((m) => m.emoji)
+    options = shuffled(
+      [
+        { id: 't0', ...faceOf(target, ctx.emoji), label: `「${ctx.char}」的图`, correct: true, reveal: ctx.char },
+        ...filler.map((d, i) => ({ id: `d${i}`, ...faceOf(d), label: '别的东西', correct: false, reveal: '' }))
+      ],
+      rand
+    )
+  }
+
+  // 空脸的选项（作者少写了图标、拼音表凑不出干扰项）点了也看不出点没点，剔掉
+  options = options.filter((o) => o.emoji || o.glyph)
+  if (!options.some((o) => o.correct)) {
+    options.unshift({
+      id: 't0',
+      emoji: ctx.emoji,
+      glyph: '',
+      label: `「${ctx.char}」的图`,
+      correct: true,
+      reveal: ctx.char
+    })
+  }
+  // 一道只有一个选项的选择题不叫玩：拿同单元的小伙伴凑够三个
+  if (options.length < 3) {
+    for (const mate of companions(ctx, 3 - options.length, rand)) {
+      options.push({ id: `f${options.length}`, emoji: mate.emoji, glyph: '', label: mate.label, correct: false, reveal: '' })
+    }
+    options = shuffled(options, rand)
+  }
+
+  const corrects = options.filter((o) => o.correct).length
+
+  return {
+    kind: 'pick',
+    props: {
+      options,
+      need: clamp(Number(p.rounds ?? p.goal ?? 1) || 1, 1, Math.max(1, corrects)),
+      /** 盖着的卡片：点开才知道是不是它（生成器的 tap-reveal 用）。 */
+      cover: p.cover ?? '',
+      scene: p.scene ?? '',
+      sceneLabel: p.sceneLabel ?? '',
+      /** 听音玩法：舞台会给一个「再听一遍」的喇叭。 */
+      say: p.say ?? '',
+      pinyin: p.pinyin ?? ''
+    }
+  }
+}
+
+/* --- catch：一堆东西里点够次数（会掉下来的也算） --- */
+
+const MOVING_TEMPLATES = new Set(['rain-catch', 'pop-bubbles'])
+
+function stageCatch(play, ctx, rand) {
+  const p = play.props ?? {}
+  const source = Array.isArray(p.drops) && p.drops.length
+    ? p.drops
+    : Array.isArray(p.items) && p.items.length
+      ? p.items
+      : Array.isArray(p.cells) && p.cells.length
+        ? p.cells
+        : null
+
+  let items = (source ?? []).map((raw, i) => {
+    const face = faceOf(raw, ctx.emoji)
+    const hit = typeof raw === 'object' ? raw.hit !== false : true
+    return {
+      id: String(raw?.key ?? raw?.id ?? `d${i}`),
+      emoji: face.emoji,
+      glyph: face.glyph,
+      label: labelOf(raw, face, `第 ${i + 1} 个`),
+      hit
+    }
+  })
+
+  if (!items.length) {
+    // 只给了一个主角和次数（点小嘴巴三下、把苹果涂三下）：摆 count 个一样的，
+    // 全是对的。这类玩法本来就没有「点错」这回事，掺干扰项只会让孩子犹豫。
+    const hero = p.hero ?? ctx.emoji
+    const count = clamp(Number(p.count ?? p.goal ?? p.rounds ?? 3) || 3, 1, 8)
+    items = Array.from({ length: count }, (_, i) => ({
+      id: `h${i}`,
+      ...faceOf(hero, ctx.emoji),
+      label: `第 ${i + 1} 个`,
+      hit: true
+    }))
+  }
+
+  const hits = items.filter((i) => i.hit).length
+  const need = clamp(Number(p.rounds ?? p.count ?? p.goal ?? hits) || hits, 1, Math.max(1, hits))
+  const moving = MOVING_TEMPLATES.has(play.template)
+
+  return {
+    kind: 'catch',
+    props: {
+      items: items.map((item, i) => ({
+        ...item,
+        // 会掉的那些要落点和时长；不掉的用不上，留着也不碍事
+        x: clamp(12 + Math.round(rand() * 76), 8, 88),
+        delay: Math.round(i * 380 + rand() * 240),
+        duration: Math.round(2600 + rand() * 1400)
+      })),
+      need,
+      moving,
+      /** 盖着的卡片：先点开才看得见（揭一揭）。 */
+      cover: p.cover ?? (play.template === 'tap-reveal' ? p.hero || '❓' : ''),
+      /** 接东西的家伙（富脚本的 rain-catch 会给一个盆 / 纸巾）。 */
+      tool: p.tool ?? '',
+      target: p.target ?? ctx.char,
+      sound: p.sound ?? ''
+    }
+  }
+}
+
+/* --- assemble：把零件放回位置 --- */
+
+function stageAssemble(play, ctx, rand) {
+  const p = play.props ?? {}
+
+  // 补词语：一个词缺一个字，别的字是干扰
+  if (p.word) {
+    const chars = Array.isArray(p.chars) && p.chars.length ? [...p.chars] : [...String(p.word)]
+    const blank = clamp(Number(p.slot ?? chars.indexOf(ctx.char)) || 0, 0, chars.length - 1)
+    // 富脚本把候选字写在 parts，生成器写在 pieces；都没写就只剩这个字本身
+    const pieceSource = Array.isArray(p.pieces) && p.pieces.length
+      ? p.pieces
+      : Array.isArray(p.parts) && p.parts.length
+        ? p.parts
+        : [ctx.char]
+    const pieces = pieceSource.map((raw, i) => {
+      const face = faceOf(raw, '')
+      return {
+        id: String(raw?.key ?? raw?.id ?? `w${i}`),
+        glyph: face.glyph || face.emoji || String(raw),
+        label: '',
+        correct: typeof raw === 'object' ? raw.correct === true : String(raw) === ctx.char
+      }
+    })
+    if (!pieces.some((piece) => piece.correct)) pieces[0].correct = true
+    // 只有一张牌的「选择题」等于白送：借同单元的字凑够三张
+    for (const decoy of decoyChars(ctx, 3 - pieces.length, rand)) {
+      pieces.push({ id: `wd${pieces.length}`, glyph: decoy, label: '', correct: false })
+    }
+    return {
+      kind: 'assemble',
+      props: {
+        mode: 'word',
+        whole: p.word,
+        chars,
+        blank,
+        slots: [{ id: 's0', glyph: chars[blank] ?? ctx.char }],
+        pieces: shuffled(pieces, rand),
+        hint: play.prompt ?? `补齐「${p.word}」`
+      }
+    }
+  }
+
+  // 拼零件：几个部件按顺序送回田字格
+  const slotSource = Array.isArray(p.slots) && p.slots.length
+    ? p.slots
+    : Array.isArray(p.parts) && p.parts.length
+      ? p.parts
+      : null
+
+  if (slotSource) {
+    const slots = slotSource.map((raw, i) => {
+      const face = faceOf(raw, ctx.emoji)
+      return { id: `s${i}`, glyph: face.glyph || face.emoji }
+    })
+    const pieceSource = Array.isArray(p.pieces) && p.pieces.length ? p.pieces : slotSource
+    const pieces = pieceSource.map((raw, i) => {
+      const face = faceOf(raw, ctx.emoji)
+      const glyph = face.glyph || face.emoji
+      return {
+        id: String(raw?.key ?? raw?.id ?? `p${i}`),
+        glyph,
+        label: typeof raw === 'object' ? (raw.name ?? '') : '',
+        correct: typeof raw === 'object' && 'correct' in raw ? raw.correct === true : slots.some((s) => s.glyph === glyph)
+      }
+    })
+    if (!pieces.some((piece) => piece.correct)) pieces[0].correct = true
+    return {
+      kind: 'assemble',
+      props: {
+        mode: 'parts',
+        whole: p.whole ?? ctx.char,
+        slots,
+        pieces: shuffled(pieces, rand),
+        hint: play.prompt ?? `把零件拼成「${ctx.char}」`
+      }
+    }
+  }
+
+  // 什么零件都没给：退成「挑出这个字的偏旁」，任何字都有部首可挑
+  const answer = ctx.radicalGlyph || ctx.char
+  const decoys = shuffled(
+    [
+      ['氵', '三点水'],
+      ['木', '木字旁'],
+      ['亻', '单人旁'],
+      ['口', '口字旁'],
+      ['扌', '提手旁'],
+      ['艹', '草字头'],
+      ['讠', '言字旁'],
+      ['女', '女字旁']
+    ].filter(([g]) => g !== answer),
+    rand
+  ).slice(0, 2)
+  return {
+    kind: 'assemble',
+    props: {
+      mode: 'parts',
+      whole: ctx.char,
+      slots: [{ id: 's0', glyph: answer }],
+      pieces: shuffled(
+        [
+          { id: 'p0', glyph: answer, label: ctx.radicalName, correct: true },
+          ...decoys.map(([glyph, name], i) => ({ id: `p${i + 1}`, glyph, label: name, correct: false }))
+        ],
+        rand
+      ),
+      hint: `想一想：「${ctx.char}」是不是和「${ctx.radicalName || answer}」有关？`
+    }
+  }
+}
+
+/* --- watch：一帧一帧看完 --- */
+
+function stageWatch(play, ctx) {
+  const p = play.props ?? {}
+  const source = Array.isArray(p.frames) && p.frames.length
+    ? p.frames
+    : Array.isArray(p.stages) && p.stages.length
+      ? p.stages
+      : null
+
+  let frames = (source ?? []).map((raw, i) => {
+    const face = faceOf(raw, ctx.emoji)
+    return {
+      id: String(raw?.key ?? raw?.id ?? `f${i}`),
+      emoji: face.emoji,
+      glyph: face.glyph,
+      caption: (typeof raw === 'object' && raw.caption) || ''
+    }
+  })
+
+  if (!frames.length) {
+    frames = [
+      { id: 'f0', emoji: ctx.emoji, glyph: '', caption: '先看这张图' },
+      { id: 'f1', emoji: ctx.emoji, glyph: ctx.char, caption: '图慢慢变成字' }
+    ]
+  }
+  // 最后一帧必须是字：孩子看完得知道「刚才那张图就是这个字」
+  const last = frames[frames.length - 1]
+  if (last.glyph !== ctx.char) {
+    frames = [...frames, { id: 'fz', emoji: '', glyph: ctx.char, caption: `就是「${ctx.char}」` }]
+  }
+  frames = frames.map((f, i) => ({
+    ...f,
+    caption: f.caption || (i === frames.length - 1 ? `就是「${ctx.char}」` : '再看一步')
+  }))
+
+  return { kind: 'watch', props: { frames, button: p.button ?? '变！' } }
+}
+
+/* --- match：左边一个右边一个，配成一对 --- */
+
+function stageMatch(play, ctx, rand) {
+  const p = play.props ?? {}
+  const left = []
+  const right = []
+
+  if (Array.isArray(p.pairs) && p.pairs.length) {
+    p.pairs.forEach((pair, i) => {
+      const a = faceOf(pair.a ?? pair.left, ctx.emoji)
+      const b = faceOf(pair.b ?? pair.right, ctx.emoji)
+      left.push({ id: `a${i}`, ...a, label: '', key: `k${i}` })
+      right.push({ id: `b${i}`, ...b, label: '', key: `k${i}` })
+    })
+  } else if (Array.isArray(p.items) && p.items.length && Array.isArray(p.buckets)) {
+    p.items.forEach((item, i) => {
+      const face = faceOf(item.item ?? item, ctx.emoji)
+      left.push({ id: `i${i}`, ...face, label: '', key: String(item.bucket ?? '') })
+    })
+    p.buckets.forEach((bucket, i) => {
+      const face = faceOf(bucket.emoji ?? bucket, ctx.emoji)
+      right.push({ id: `b${i}`, ...face, label: bucket.label ?? '', key: String(bucket.label ?? '') })
+    })
+  }
+
+  if (!left.length || !right.length) return stageCatch(play, ctx, rand)
+
+  return {
+    kind: 'match',
+    props: {
+      left: shuffled(left, rand),
+      right: shuffled(right, rand),
+      need: clamp(Number(p.goal ?? left.length) || left.length, 1, left.length)
+    }
+  }
+}
+
+/* --- push：顺着一个方向推 / 拉 / 举 --- */
+
+const DIR_LABEL = { up: '往上', down: '往下', left: '往左', right: '往右' }
+
+function stagePush(play, ctx) {
+  const p = play.props ?? {}
+  const dir = DIR_LABEL[p.dir] ? p.dir : 'right'
+  return {
+    kind: 'push',
+    props: {
+      hero: p.hero ?? ctx.emoji,
+      dir,
+      dirLabel: DIR_LABEL[dir],
+      need: clamp(Number(p.goal ?? p.rounds ?? 3) || 3, 1, 6)
+    }
+  }
+}
+
+const STAGERS = {
+  pick: stagePick,
+  catch: stageCatch,
+  assemble: stageAssemble,
+  watch: stageWatch,
+  match: stageMatch,
+  push: stagePush
+}
+
+/**
+ * 归到哪个渲染器：先看道具长什么样，再看模板 id，最后看 interaction。
+ *
+ * 道具优先是因为同一个模板名在两套方言里指的不是一回事：生成器的 pair-match
+ * 是「给这个字挑出它的图」（一道选择题），富脚本的 pair-match 是「左边连右边」。
+ * 只认 id 就会把连线题渲染成选择题——三张牌全是对的，孩子随手一点就过。
+ */
+function kindOf(play) {
+  const p = play?.props ?? {}
+  const firstPair = Array.isArray(p.pairs) ? p.pairs[0] : null
+  if (firstPair && (firstPair.a !== undefined || firstPair.left !== undefined)) return 'match'
+  if (Array.isArray(p.buckets) && p.buckets.length) return 'match'
+  // tap-reveal 同名不同玩法：生成器给 options，是「揭开找出对的那张」（选择题）；
+  // 富脚本只给 items，是「盖着的全揭开」——按选择题渲染会变成三张牌全对。
+  if (play?.template === 'tap-reveal' && !Array.isArray(p.options)) return 'catch'
+  return TEMPLATE_KIND[play?.template] ?? INTERACTION_KIND[play?.interaction] ?? 'catch'
+}
+
+/** 把任何一套方言的剧本翻译成舞台读得懂的那一份。 */
+function toStage(play, ctx) {
+  const kind = kindOf(play)
+  const rand = rngOf(hashOf(ctx.char, 31) ^ hashOf(String(play.template ?? kind), 5))
+  let staged
+  try {
+    staged = STAGERS[kind](play, ctx, rand)
+  } catch {
+    // 道具再怪也不能让舞台空着：退到最稳的那一关
+    staged = stageCatch(emergencyPlay(ctx), ctx, rand)
+  }
+  const theme = play.theme ?? 'word'
+  const template = play.template && PLAY_TEMPLATES[play.template] ? play.template : 'scene-poke'
+  return {
+    char: ctx.char,
+    theme,
+    themeLabel: play.themeLabel ?? '',
+    themeEmoji: play.themeEmoji ?? ctx.emoji,
+    accent: accentOf(theme),
+    template,
+    templateLabel: play.templateName ?? getPlayTemplate(template).label,
+    kind: staged.kind,
+    emoji: play.emoji ?? ctx.emoji,
+    narration: play.narration || `一起来玩「${ctx.char}」。`,
+    prompt: play.prompt ?? '',
+    props: staged.props,
+    templateFallback: play.templateFallback === true,
+    source: play.source ?? 'rich'
+  }
+}
+
 /* ---------------------------------------------------------------- 对外入口 */
 
 /**
  * 取一个字的「玩」场景。**永远不返回 null**：
- * 有富脚本用富脚本（缺的字段由模板补齐），没有就整关模板生成。
+ * 富脚本 → 自动补齐 → 兜底合成，层层往下，最后一层只要有个字就凑得出来。
  *
  * @param {string} char 单个汉字；空值 / 多字时取第一个字符，实在没有就退到「字」
- * @returns {{char: string, theme: string, template: string, narration: string,
- *            props: object, templateFallback: boolean}}
+ * @returns {{char: string, theme: string, template: string, kind: string,
+ *            narration: string, props: object, templateFallback: boolean,
+ *            source: 'rich'|'generated'|'runtime'|'emergency'}}
  */
 export function getCharPlay(char) {
   const text = typeof char === 'string' ? char.trim() : ''
@@ -789,34 +911,26 @@ export function getCharPlay(char) {
   const ctx = contextOf(one)
 
   const rich = RICH.get(one)
-  const templateId = normalizeTemplate(rich?.template, ctx)
-  const base = buildPlay(ctx, templateId)
-  if (!rich) return base
+  if (rich) {
+    return toStage(
+      { ...rich, char: one, templateFallback: rich.templateFallback === true, source: 'rich' },
+      ctx
+    )
+  }
 
-  // 富脚本只写了旁白 / 只改了几件道具也算数：其余照模板补齐，舞台拿到的永远是整份
-  return {
-    ...base,
-    ...rich,
-    char: one,
-    template: templateId,
-    templateLabel: getPlayTemplate(templateId).label,
-    theme: rich.theme ?? base.theme,
-    themeLabel: PLAY_THEMES[rich.theme]?.label ?? base.themeLabel,
-    themeEmoji: PLAY_THEMES[rich.theme]?.emoji ?? base.themeEmoji,
-    accent: PLAY_THEMES[rich.theme]?.accent ?? base.accent,
-    emoji: rich.emoji ?? base.emoji,
-    narration: rich.narration || base.narration,
-    props: { ...base.props, ...(rich.props ?? {}) },
-    templateFallback: false
+  try {
+    return toStage(generatedPlay(ctx), ctx)
+  } catch {
+    return toStage(emergencyPlay(ctx), ctx)
   }
 }
 
-/** 批量体检：返回没能拿到 template 的字。正常情况下永远是空数组。 */
+/** 批量体检：返回玩不成的字（缺渲染器或缺道具）。正常永远是空数组。 */
 export function findPlayHoles(chars = CHAR_INDEX.map((c) => c.char)) {
   const holes = []
   for (const char of chars) {
     const play = getCharPlay(char)
-    if (!play?.template || !BUILDERS[play.template] || !play.props) holes.push(char)
+    if (!play?.template || !PLAY_KINDS.includes(play.kind) || !play.props) holes.push(char)
   }
   return holes
 }
@@ -828,7 +942,8 @@ export default {
   countRichPlays,
   listRichPlays,
   findPlayHoles,
+  getPlayTemplate,
   PLAY_TEMPLATES,
   PLAY_TEMPLATE_IDS,
-  PLAY_THEMES
+  PLAY_KINDS
 }
