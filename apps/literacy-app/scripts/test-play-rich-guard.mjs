@@ -129,7 +129,12 @@ const rebuild = (index, parts) => {
 
 {
   const runtime = await import('../src/data/char-play.js')
+  // 剧本按单元懒加载（ROUND18_H3）：不先装全，运行时口径数到的是 0 条
+  await runtime.loadAllRichPlays()
   const coverage = runtime.richPlayCoverage()
+  if (coverage.plays !== coverage.manifest?.plays) {
+    fail(`manifest 自报 ${coverage.manifest?.plays} 条，装全后实测 ${coverage.plays} 条，对不上`)
+  }
   if (coverage.probe !== 'ROUND17_H2') fail(`运行时标记是 ${coverage.probe}，不是 ROUND17_H2`)
   if (coverage.plays < MIN_PLAYS) fail(`运行时富脚本 ${coverage.plays} 条，不到 ${MIN_PLAYS}`)
   if (coverage.narrations < MIN_NARRATIONS) {

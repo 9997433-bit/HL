@@ -657,7 +657,8 @@ const CRAFTED = [
     make() {
       const [who] = pair()
       const avg = randInt(3, 9)
-      const d = randInt(0, 2)
+      // d 至少 1，否则会出「三天分别读了 3、3、3 页」这种不用算的送分题
+      const d = randInt(1, 2)
       return {
         text: `${who}三天分别读了 ${avg - d}、${avg}、${avg + d} 页书。平均每天读多少页？`,
         equation: `(${avg - d} + ${avg} + ${avg + d}) ÷ 3 = ?`,
