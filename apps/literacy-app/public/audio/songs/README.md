@@ -9,12 +9,25 @@ root to reproduce them. The renderer uses additive synthesis and FFmpeg's Vorbis
 encoder; FFmpeg is only a development-time generation tool and is not shipped in
 the application.
 
-The three `*-vocal-*.ogg` files are synthetic “la” vocal guides. Round 12
-introduced `sg5-literacy-vocal-pilot.ogg`; Round 13 added the `sg1` and `sg3`
-guides. They were rendered offline with Piper 1.7.0 and the
+The `sg1`, `sg3`, and `sg5` `*-vocal-*.ogg` files are synthetic “la” vocal
+guides. Round 12 introduced `sg5-literacy-vocal-pilot.ogg`; Round 13 added the
+`sg1` and `sg3` guides. They were rendered offline with Piper 1.7.0 and the
 `sv_SE-nst-medium` voice, then pitch-shifted to each project-authored melody.
 The voice model was trained from scratch by KBLab from the National Library of
 Sweden's CC0 NST dataset. Neither the model nor Piper ships in the app; only
 the generated Ogg files do. Exact inputs, hashes, commands, and scope limits
 are recorded in `.agent_workspace/r12-songs-vocal-pilot.md` and
 `.agent_workspace/r13-vocal-batch.md`.
+
+The nine `*-vocal-human.ogg` files for `sg4` and `sg6`–`sg13` are vowel guides
+adapted from a studio recording by an anonymous professional singer in
+VocalSet 1.2. The pinned source is the straight-vowel C-major arpeggio exposed
+as `Bill13579/vocalset-mirror`, `default/train` row 55 (source SHA-256
+`451381cd80d9006251a3af694251abb9c756bafa5051130635142abbc210f3de`).
+VocalSet is © Julia Wilkins, Prem Seetharaman, Alison Wahl, and Bryan Pardo,
+licensed CC BY 4.0 at <https://doi.org/10.5281/zenodo.1442513>. This project
+trimmed four steady notes, tuned them, time-stretched them to the authored
+rhythm, assembled each guide, and normalized loudness. These are real-human
+vowel performances, not Chinese-lyric recordings. Reproduction commands,
+output hashes, and modification details are in
+`.agent_workspace/r14-songs-vocal-full.md`.

@@ -117,6 +117,24 @@ Apache-2.0 要求随附许可证与 NOTICE：许可证全文见「附录 B」指
   （后者按 `.agent_workspace/r11-asr-eval-set.md` 另行录制，音频存仓库外）。
 - 许可证：随上游模型仓库的 Apache-2.0；sha256 记在 `manifest.source.engineFixture`。
 
+### VocalSet 真人元音范唱声源 — CC BY 4.0
+
+- 上游：[VocalSet 1.2](https://doi.org/10.5281/zenodo.1442513)，© Julia Wilkins,
+  Prem Seetharaman, Alison Wahl, and Bryan Pardo (2018)，许可证
+  [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)。
+- 使用的棚录样本：匿名专业歌手演唱的 straight-vowel C 大调琶音；可在
+  `Bill13579/vocalset-mirror` 的 `default/train` row 55 取得。输入 WAV 的 SHA-256 为
+  `451381cd80d9006251a3af694251abb9c756bafa5051130635142abbc210f3de`。
+- 分发位置：`apps/literacy-app/public/audio/songs/sg4-*-vocal-human.ogg` 与
+  `sg6`–`sg13` 的八份 `*-vocal-human.ogg`，共九份，均随识字 App 的 dist 与 zip 分发。
+- **修改说明**：本项目从原始琶音裁出 C4/E4/G4/C5 四段稳定元音，按原创儿歌谱面
+  微调音高、伸缩时值、拼接句间停顿、归一响度，并转码为 22.05kHz 单声道 Ogg/Vorbis。
+  成品是以真人棚录声源制作的无歌词元音范唱，不是原歌手演唱中文歌词。逐文件哈希与
+  可复现命令见 `.agent_workspace/r14-songs-vocal-full.md`。
+- **署名**：VocalSet: A Singing Voice Dataset, Julia Wilkins, Prem Seetharaman,
+  Alison Wahl, and Bryan Pardo, 2018, CC BY 4.0,
+  <https://doi.org/10.5281/zenodo.1442513>. Changes described above.
+
 ## 三、仓库内第三方素材（当前未打入 App 产物）
 
 ### OpenMoji 图标 — CC BY-SA 4.0
@@ -181,8 +199,8 @@ Apache-2.0 要求随附许可证与 NOTICE：许可证全文见「附录 B」指
 - `shared/data/common-hanzi.json`、`math-problems.json`、`idioms.json`：本项目整理的
   教学数据，声明为 CC0-1.0。
 - 两 App 的课程数据（`src/data/*.js`）、音效（Web Audio 现场合成）、朗读
-  （浏览器 Web Speech API）均不含第三方素材，运行时零第三方域名请求
-  （唯一例外见「二、运行时回退」）。
+  （浏览器 Web Speech API）均不含第三方素材；识字 App 的九份真人元音范唱是上文
+  已署名的 VocalSet 衍生音频。运行时零第三方域名请求（唯一例外见「二、运行时回退」）。
 
 ## 五、开发 / 构建 / 测试依赖（不随产物分发）
 
@@ -207,6 +225,7 @@ Apache-2.0 要求随附许可证与 NOTICE：许可证全文见「附录 B」指
 | OFL 1.1 | 字体随附许可证；不得单独出售 | 未内置字体；许可证文本已预置 |
 | GSAP Standard | 不得用于竞争性动画工具等 | 仅作应用内动画库使用 |
 | Apache-2.0（随产物分发） | 保留版权与 NOTICE；标明修改 | Tesseract.js / wasm 内核 / chi_sim 语言包均为未修改副本，声明见第一、二节；离线跟读评测包中 `sherpa-onnx-wasm-main-asr.js` 有一处修改，已在第二节逐字说明并由断言钉住 |
+| CC BY 4.0（VocalSet） | 署名、许可证链接、标明修改 | 本文件第二节保留作者/DOI/许可并列明裁剪、调音、伸缩、拼接与转码 |
 
 ---
 
@@ -248,10 +267,11 @@ SOFTWARE.
 | GSAP Standard License | <https://gsap.com/standard-license>（随版本变化，升级时核对） |
 | Apache-2.0（Tesseract.js / wasm 内核 / chi_sim 语言包） | `node_modules/tesseract.js/LICENSE.md`、`node_modules/tesseract.js-core/LICENSE`，或 <https://www.apache.org/licenses/LICENSE-2.0> |
 | Apache-2.0（sherpa-onnx 运行时 / zh-14M int8 模型 / 引擎回归音频） | <https://github.com/k2-fsa/sherpa-onnx/blob/master/LICENSE>、上游模型卡，或 <https://www.apache.org/licenses/LICENSE-2.0> |
+| CC BY 4.0（VocalSet 真人声源） | <https://creativecommons.org/licenses/by/4.0/legalcode> |
 | Apache-2.0（仅开发依赖） | <https://www.apache.org/licenses/LICENSE-2.0> |
 | MPL-2.0（仅开发依赖） | <https://www.mozilla.org/MPL/2.0/> |
 
 ---
 
-*最近核对：2026-08-26（Round 3）。核对方式：`package-lock.json` 安装版本 +
+*最近核对：2026-08-28（Round 14）。核对方式：`package-lock.json` 安装版本 +
 各包 LICENSE 文件 + 上游仓库许可证页。本文件是工程合规清单，不构成法律意见。*

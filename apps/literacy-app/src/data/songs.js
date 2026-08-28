@@ -26,7 +26,8 @@
  *   tip         唱之前给孩子的一句提示
  *   bpm         速度，60–110 之间；越小的孩子唱得越慢
  *   audio       项目自制旋律地址（13/13 均随包离线提供）
- *   vocal       可选的离线「啦」音范唱地址；没有范唱的歌曲省略
+ *   vocal       可选的离线元音范唱地址；没有范唱的歌曲省略
+ *   humanStudio true 表示范唱来自有明确授权的真人棚录声源（可做逐音剪辑/移调）
  *   lines       逐句：text 歌词、pinyin 逐字拼音（空格分隔，字数必须对上）、
  *               notes 逐字音名（个数也必须和汉字数对上，逐字高亮靠它）
  *
@@ -48,6 +49,9 @@ export const ROUND12_H4 = 'thirteen-offline-melodies-with-vocal-pilot'
 
 /** Round 13 H4：三首歌接入随包的 Piper「啦」音范唱。 */
 export const ROUND13_H4 = 'three-offline-vocal-guides'
+
+/** Round 14 H4：九首歌接入基于专业真人棚录声源制作的元音范唱。 */
+export const ROUND14_H4 = 'nine-human-studio-vocal-guides'
 
 const PUNCTUATION = new Set([
   '，', '。', '！', '？', '：', '、', '；', '「', '」', '《', '》', '…', '—', ' ', '\n'
@@ -179,6 +183,8 @@ export const SONGS = [
     tip: '唱到「动一动」，可以站起来跟着摆一摆。',
     bpm: 104,
     audio: 'audio/songs/sg4-tree-bird-melody.ogg',
+    vocal: 'audio/songs/sg4-tree-bird-vocal-human.ogg',
+    humanStudio: true,
     lines: [
       {
         text: '大树高，小鸟小，',
@@ -248,6 +254,8 @@ export const SONGS = [
     tip: '唱完就找家里人试一遍，说出口才算学会。',
     bpm: 90,
     audio: 'audio/songs/sg6-hello-thanks-melody.ogg',
+    vocal: 'audio/songs/sg6-hello-thanks-vocal-human.ogg',
+    humanStudio: true,
     lines: [
       {
         text: '见面说你好，',
@@ -282,6 +290,8 @@ export const SONGS = [
     tip: '唱到哪个季节，就想想那时候窗外是什么样子。',
     bpm: 84,
     audio: 'audio/songs/sg7-four-seasons-melody.ogg',
+    vocal: 'audio/songs/sg7-four-seasons-vocal-human.ogg',
+    humanStudio: true,
     lines: [
       {
         text: '春天花儿开，',
@@ -316,6 +326,8 @@ export const SONGS = [
     tip: '唱到谁，就指一指他坐的地方。',
     bpm: 94,
     audio: 'audio/songs/sg8-family-melody.ogg',
+    vocal: 'audio/songs/sg8-family-vocal-human.ogg',
+    humanStudio: true,
     lines: [
       {
         text: '爸爸妈妈和我，',
@@ -350,6 +362,8 @@ export const SONGS = [
     tip: '唱最后一句时，把自己的手放进大人手心里比一比。',
     bpm: 82,
     audio: 'audio/songs/sg9-mothers-hands-melody.ogg',
+    vocal: 'audio/songs/sg9-mothers-hands-vocal-human.ogg',
+    humanStudio: true,
     lines: [
       {
         text: '妈妈的手真暖和，',
@@ -384,6 +398,8 @@ export const SONGS = [
     tip: '唱到哪一样，就动一动身上的那一样。',
     bpm: 98,
     audio: 'audio/songs/sg10-hands-feet-melody.ogg',
+    vocal: 'audio/songs/sg10-hands-feet-vocal-human.ogg',
+    humanStudio: true,
     lines: [
       {
         text: '小手会拿笔，',
@@ -418,6 +434,8 @@ export const SONGS = [
     tip: '数一个收一根手指，收完十根正好唱完两句。',
     bpm: 86,
     audio: 'audio/songs/sg11-countdown-melody.ogg',
+    vocal: 'audio/songs/sg11-countdown-vocal-human.ogg',
+    humanStudio: true,
     lines: [
       {
         text: '十九八七六，',
@@ -452,6 +470,8 @@ export const SONGS = [
     tip: '唱一句，用手指在桌上叠一叠：一个木、两个木、三个木。',
     bpm: 90,
     audio: 'audio/songs/sg12-wood-character-melody.ogg',
+    vocal: 'audio/songs/sg12-wood-character-vocal-human.ogg',
+    humanStudio: true,
     lines: [
       {
         text: '一个木，是小树，',
@@ -486,6 +506,8 @@ export const SONGS = [
     tip: '前两句你唱，后两句请家里人唱，唱成一问一答。',
     bpm: 88,
     audio: 'audio/songs/sg13-sorry-melody.ogg',
+    vocal: 'audio/songs/sg13-sorry-vocal-human.ogg',
+    humanStudio: true,
     lines: [
       {
         text: '不小心，做错了，',

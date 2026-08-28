@@ -9,8 +9,8 @@
  * ROUND10_H5 给前三首、ROUND11_H5 给前八首、ROUND12_H4 给全部十三首接入
  * 项目自制 Ogg 旋律：优先播放静态文件，加载或解码失败就自动退回
  * `playMelody()` 的 WebAudio 合成音。ROUND12_H4 给《认字歌》接了一条 Piper
- * 离线渲染的「啦」音范唱试点，ROUND13_H4 再扩到三首；它们是独立试听，
- * 不冒充中文真人演唱。
+ * 离线渲染的「啦」音范唱试点，ROUND13_H4 再扩到三首。ROUND14_H4 新增基于
+ * 专业真人棚录元音制作的「啊」音范唱；两类都是独立试听，不冒充中文歌词演唱。
  *
  * ROUND9_H1 —— 儿歌 v2 的歌词-旋律同步动画。v1 只有「唱到的那个字亮一下」，
  * 试下来有三个说不清的地方，v2 各补一件事：
@@ -308,13 +308,14 @@ function stop({ quiet = false } = {}) {
   if (!quiet) status.value = '停下来了，想唱了再点一次。'
 }
 
-/** ROUND12_H4 / ROUND13_H4：播放当前歌曲随包的 Piper「啦」音范唱。 */
+/** ROUND12_H4–ROUND14_H4：播放当前歌曲随包的离线元音范唱。 */
 function playVocalGuide() {
   const song = open.value
   if (!song?.vocal) return
+  const vocalLabel = song.humanStudio ? '真人「啊」音范唱' : '离线「啦」音范唱'
   stop({ quiet: true })
   if (!settings.soundOn || typeof Audio === 'undefined') {
-    status.value = '声音已关闭；打开声音后可以听离线「啦」音范唱。'
+    status.value = `声音已关闭；打开声音后可以听${vocalLabel}。`
     return
   }
 
@@ -329,7 +330,7 @@ function playVocalGuide() {
 
   vocalAudio = audio
   mode.value = 'vocal'
-  status.value = `正在听《${song.title}》的离线「啦」音范唱，听完再跟旋律唱一遍。`
+  status.value = `正在听《${song.title}》的${vocalLabel}，听完再跟旋律唱一遍。`
   const finish = (failed = false) => {
     if (vocalAudio !== audio) return
     disposeVocalAudio()
@@ -487,7 +488,7 @@ onBeforeUnmount(() => stop({ quiet: true }))
         </h2>
         <p class="muted">
           {{ SONGS.length }} 首为这套字表新写的儿歌，歌词里的字都是学过的。
-          十三首都有自制离线旋律，《认字歌》还有一条「啦」音范唱试点；
+          十三首都有自制离线旋律，其中九首有专业真人声源制作的「啊」音范唱；
           唱到哪个字哪个字亮，音越高字抬得越高。
         </p>
         <button
@@ -557,7 +558,9 @@ onBeforeUnmount(() => stop({ quiet: true }))
           <p class="player__source">
             {{
               s.vocal
-                ? '🎤 本地 Ogg 旋律 · 含 Piper「啦」音范唱试点'
+                ? s.humanStudio
+                  ? '🎤 本地 Ogg 旋律 · 含真人声源「啊」音范唱'
+                  : '🎤 本地 Ogg 旋律 · 含 Piper「啦」音范唱试点'
                 : '🎧 本地 Ogg 旋律 · 播放失败会自动切换合成音'
             }}
           </p>
@@ -649,7 +652,14 @@ onBeforeUnmount(() => stop({ quiet: true }))
               :disabled="mode === 'vocal'"
               @click="playVocalGuide()"
             >
-              🎤 {{ mode === 'vocal' ? '范唱中…' : '听「啦」音范唱' }}
+              🎤
+              {{
+                mode === 'vocal'
+                  ? '范唱中…'
+                  : s.humanStudio
+                    ? '听真人「啊」音范唱'
+                    : '听「啦」音范唱'
+              }}
             </button>
             <button type="button" class="btn" :disabled="!mode" @click="stop()">⏹️ 停一停</button>
           </div>
