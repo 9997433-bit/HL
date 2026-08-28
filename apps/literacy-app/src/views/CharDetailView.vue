@@ -12,6 +12,8 @@
  *     真正做完的步骤，四步都做完了「领奖励」才会给这一轮记账、发徽章。
  *  3. 田字格、组词、例句、底部操作在所有阶段都在原地，状态机只换中间那块面板；
  *     这样孩子随时想写一笔、想听个词都不用先退出当前步骤。
+ *  4. 「写一写」自己还有两拍：先看老师整字写一遍笔顺，再轮到孩子描红。
+ *     这两拍归 composables/useWriteGuide.js 管，示范随时能跳过。
  */
 import {
   computed,
@@ -707,7 +709,7 @@ onBeforeUnmount(() => {
                 ▶️ 再看一遍笔顺
               </button>
               <button class="btn btn--accent" type="button" @click="strokeBoxRef?.startQuiz()">
-                {{ guideStage === 'trace' ? '🔁 重新描红' : '✍️ 开始描红' }}
+                {{ guideStage === 'idle' ? '✍️ 开始描红' : '🔁 重新描红' }}
               </button>
             </div>
             <p v-if="settings.reduceMotion" class="muted trace__note">
