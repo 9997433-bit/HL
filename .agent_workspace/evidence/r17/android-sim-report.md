@@ -1,8 +1,8 @@
 # Round 17 Android simulation report
 
 - Command: `npm run android:sim`
-- Commit under test: `36b4288`
-- Timestamp: `2026-08-28T15:45:36.157Z`
+- Commit under test: `61d1657`
+- Timestamp: `2026-08-28T16:02:06.508Z`
 - Exit code: `0`
 - Harness: `android-sim-harness-v2`
 - Android SDK: `/home/ubuntu/android-sdk`
