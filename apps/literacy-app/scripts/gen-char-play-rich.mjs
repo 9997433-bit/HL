@@ -41,15 +41,18 @@ const checkOnly = process.argv.includes('--check')
 /** 这一版 seed 的门槛标记，落在生成物里给探针读（Round 17 数的是 ≥900 条）。 */
 const PROBE_MARK = 'ROUND17_H2'
 
+/** 本轮的门槛标记：条数抬到 ≥1200、旁白去重抬到 ≥960，seed 续到 u70。 */
+const PROBE_MARK_R18 = 'ROUND18_H2'
+
 /** 历轮标记，往轮探针剥掉注释后仍读得到自己那一枚。 */
-const PROBE_HISTORY = ['ROUND15_H3', 'ROUND16_H3', PROBE_MARK]
+const PROBE_HISTORY = ['ROUND15_H3', 'ROUND16_H3', PROBE_MARK, PROBE_MARK_R18]
 
 /** 手写脚本覆盖到第几个单元。往后扩就改这里，校验会跟着放宽。 */
-const RICH_UNIT_LIMIT = 55
+const RICH_UNIT_LIMIT = 70
 
 /** 探针数的两条线：条数和「旁白不重样」的句数。生成期就得自己先量一遍。 */
-const MIN_RICH_PLAYS = 900
-const MIN_DISTINCT_NARRATION = 720
+const MIN_RICH_PLAYS = 1200
+const MIN_DISTINCT_NARRATION = 960
 
 /** 主题只是给舞台挑配色和音效用的粗分类，别再细分了，多了没人维护得动。 */
 const THEMES = [
@@ -518,7 +521,7 @@ export function getRichPlay(char) {
   return RICH_PLAY_BY_CHAR.get(char) ?? null
 }
 
-/** 手写剧本条数（Round 15 H3 数的就是它，Round 16 抬到 500，Round 17 抬到 ${MIN_RICH_PLAYS}）。 */
+/** 手写剧本条数（Round 15 H3 数的就是它，Round 16 抬到 500，Round 17 到 900，Round 18 抬到 ${MIN_RICH_PLAYS}）。 */
 export function countRichPlays() {
   return CHAR_PLAY_RICH.length
 }
@@ -530,6 +533,9 @@ export function countRichNarrations() {
 
 /** 门槛标记，探针剥掉注释后仍读得到。 */
 export const RICH_PLAY_PROBE = '${PROBE_MARK}'
+
+/** 本轮门槛标记：条数 ≥${MIN_RICH_PLAYS}、旁白去重 ≥${MIN_DISTINCT_NARRATION}，Round 18 的探针读这一枚。 */
+export const RICH_PLAY_PROBE_ROUND18 = '${PROBE_MARK_R18}'
 
 /** 历轮标记都留着，往轮探针各读各的那一枚。 */
 export const RICH_PLAY_PROBE_HISTORY = [${PROBE_HISTORY.map(q).join(', ')}]

@@ -14,6 +14,7 @@
     "check:bundle": "node scripts/check-bundle.mjs",
     "check:route-budget": "node scripts/check-route-budget.mjs",
     "check:content": "node --import ./scripts/register-alias.mjs scripts/check-content.mjs",
+    "verify:wp-steps": "node scripts/verify-wp-steps.mjs",
     "report:wp-steps": "node --import ./scripts/register-alias.mjs scripts/wp-steps-report.mjs"
   },
   "dependencies": {
