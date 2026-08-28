@@ -35,7 +35,7 @@
 | Round 6 | ✅ **已闭合** | 1800字/130绘本/古诗20/跟读/185母题（check:round6 全绿） |
 | Round 7–12 | ✅ **已闭合** | 各轮 check:round{N} 全绿；简报/验收见 ROUND{N}-BRIEF / acceptance-log-round{N} |
 | Round 13 | ✅ **工程闭合** | `check:round13` **7/8**（H7 BLOCKED）；体验 ◐6 见 round13-hongen-audit |
-| Round 14 | 🔄 **编排启动** | 洪恩体验对齐；`check:round14` 基线 1/8；见 ROUND14-BRIEF |
+| Round 14 | 🔄 **14-3 无真机收口** | 洪恩体验对齐；基线 1/8 → 集成实测 **3/8**（H3/H5/H8）；见 ROUND14-BRIEF / acceptance-log-round14 |
 
 ## 并发规则（已更新）
 **每轮固定 10 个子代理并发，缺了立马补。**
@@ -106,14 +106,33 @@ H6/H2 的 sim 腿对账本机构建产物（APK sha256、证据日志），新�
 
 > 简报：`.agent_workspace/ROUND14-BRIEF.md`
 > 验收：`.agent_workspace/ROUND14-ACCEPTANCE.md` + `scripts/check-round14.mjs`
-> 基线：`check:round14` **1/8**（仅 H8 绿）
+> 基线：`check:round14` **1/8**（仅 H8 绿）→ 14-2 合入后集成实测 **3/8**
 
 | 轮次 | 状态 | 目标 |
 |---|---|---|
 | Round 14-1 | ✅ **已合入** | 6/6 路 @ `3834a41`；H2 app=40/41 |
 | Round 14-2 | ✅ **已合入** | 6/6 路；`check:round14` **3/8**（H3/H5/H8）；结论见 ROUND14-2-CONCLUSION-BRIEF |
-| Round 14-3 | ⏳ 待派发 | W1–W6 + H7 + 真机 + 范唱收尾 13/13 |
-| Round 14-2 | ⏳ | ASR 300 条 + device RTF + 范唱 13/13 |
-| Round 14-3 | ⏳ | W1–W6 + H7 内测 + 体验 ◐ 清零 |
+| Round 14-3 | 🔄 **无真机收口进行中** | 目标 4/8（H4 翻绿）；H1/H2/H6/H7 诚实 BLOCKED；简报 ROUND14-3-BRIEF |
+
+### Round 14-3 六路（无真机收口）
+
+| # | 模型 | 分支 | 任务 | 状态 |
+|---|---|---|---|---|
+| 13 | fable | `r14-final-audit-9f67` | 体验终审：6◐ 收窄表 + 三类供给 BLOCKED 台账 | ⏳ |
+| 14 | opus-fast | `r14-literacy-vocal-full-9f67` | 范唱补到 13/13 + 许可 + `ROUND14_H4` | ⏳ H4 待合入 |
+| 15 | gpt-sol | `r14-store-internal-test-9f67` | H7 BLOCKED 收口文档（签字接受路径，禁伪造 SUBMITTED） | ⏳ |
+| 16 | gpt-sol | `r14-android-lowend-9f67` | 低档机回归清单 + SKIP 台账（无设备 exit 2） | ⏳ |
+| 17 | fable | `r14-walkthrough-signoff-9f67` | W1–W6 分栏：W3/W5 可勾；W1/W2/W4/W6 供给依赖 | ⏳ |
+| 18 | opus-fast | `r14-integration-close-a581` | acceptance-log-round14 回填 + PROGRESS + GLOBAL 摘要 | ✅ **本路已交付** |
+
+**#18 集成实测**（`cursor/openmoji-integration-9f67` @ `18d6e4c`，2026-08-28，Node v22.14.0）：
+
+- `check:round14` **3/8**（H3 404 scene / H5 24 资产 / H8），exit 1；`--json` `passed=3 failed=5 results=8`
+- `check:round13` **7/8**（仅 H7 红）· `check:round12` **8/8** — 无退化
+- H4 卡 `humanVocal=9/13`（缺 sg1/sg2/sg3/sg5），**#14 合入后 → 4/8**，即无真机诚实上限
+- H1/H2/H6/H7 为三类外部供给阻断（(a) 实体 Android 设备 / (b) 真人音频 / (c) Play 账号），
+  已按 owner + 解阻路径 + 签字接受口径记入 `acceptance-log-round14.md` §3.2，不刷绿
 
 体验 flip 目标：L-M9/L-M10/L-M11/L-M15/M-M16 → ✅；L-M5 大幅收窄（400+ scene）。
+**无真机收口下的实际口径**：✅25 / ◐6 / ❌0 原地，但 L-M5（209→404 scene）、L-M11（3→9/13 真人）、
+L-M10（0→40/41 逐例）、X1（1→24 资产）四项实体收窄——按审计双杆原则记「收窄」不记 flip。
