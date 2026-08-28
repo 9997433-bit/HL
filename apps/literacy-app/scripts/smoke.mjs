@@ -159,6 +159,36 @@ const ROUND13_H1_MIN_SKELETON = 50
 const ROUND13_H1_BLOCKING_FREEZE = ['F4', 'F7']
 
 /**
+ * ROUND14_H1_SMOKE：批次进度随包发出，但**孩子的那一面一个字都不许发**。
+ *
+ * R13 那条守的是「进度别虚报」。这一轮清单里多了一层——录音批次
+ * （`evalSet.freezeSet.batches`）。批次进度是要给家长看的（「已录 0/300」），
+ * 可批次背后那一堆东西一样都不能跟着出门：受控目录的路径、同意书编号、
+ * 音频文件名、孩子的编号。它们留在仓库外和 `asr-eval-set.json` 里就够了，
+ * 发到用户机器上只会变成一份永远删不掉的副本。
+ *
+ * 所以这条验三件事：
+ *
+ *   - **进度自洽**：三批槽位加起来正好是冻结地板；每批 recorded ≤ allocated ≤ slots；
+ *     各批 recorded 之和等于 freezeSet.recorded；骨架条数等于各批 allocated 之和。
+ *   - **发出去的和 Node 侧算的是同一个结论**：实录没到 300 条，stage 不许 frozen，
+ *     available 不许 true。这条和 R13 那条重合，故意留着——它是这一层的地板。
+ *   - **随包清单里没有任何一条能追回到具体某个孩子的线索**：
+ *     受控目录、同意书、音频扩展名、说话人编号，一个都不许出现。
+ */
+const ROUND14_H1_SMOKE = ROUND8_H5_SMOKE
+const ROUND14_H1_BATCHES = ['B1', 'B2', 'B3']
+/** 这些线索一旦随包发出去，就再也收不回来了。 */
+const ROUND14_H1_LEAKS = [
+  [/out-of-repo:/i, '受控目录路径'],
+  [/consent\s*\//i, '同意书编号'],
+  [/\.(wav|flac|m4a)\b/i, '音频文件名'],
+  [/"consentRef"/, '同意书字段'],
+  [/"deliveryRoot"/, '交付目录字段'],
+  [/\bS\d{2}\b/, '孩子的编号']
+]
+
+/**
  * ROUND11_H4_SMOKE：绘本页级场景。
  * 书是从数据里挑的，不写死 id——样板换本书，测试跟着走。
  * 验四件事：摆出了多件元素、都落在画框里、翻页换整幅、减少动态时一动不动；
@@ -2392,6 +2422,98 @@ if (ROUND13_H1_SMOKE) {
         `实录 ${freeze.recorded}/${freeze.recordedFloor} 条；` +
         `${pendingBlockers.length} 条冻结项挡着放行，available=${manifest.available}，` +
         `五层门槛 0 个实测值随包发出；界面停在 ${shown.tier}`
+      )
+    }
+  )
+}
+
+if (ROUND14_H1_SMOKE) {
+  await interact(
+    'ROUND14_H1：录音批次进度随包发出，孩子那一面一个字都不发',
+    `/#${ROUND14_H1_SMOKE}`,
+    async (page) => {
+      const raw = await page.evaluate(async () => {
+        const response = await fetch(new URL('asr/manifest.json', document.baseURI).href, {
+          cache: 'no-cache'
+        })
+        return response.ok ? response.text() : null
+      })
+      if (!raw) throw new Error('页面取不到 asr/manifest.json')
+      const manifest = JSON.parse(raw)
+
+      const freeze = manifest.evalSet?.freezeSet
+      const batches = freeze?.batches
+      if (!Array.isArray(batches) || !batches.length) {
+        throw new Error('随包清单里没有录音批次进度（evalSet.freezeSet.batches）')
+      }
+      const ids = batches.map((b) => b.id)
+      if (ids.join(',') !== ROUND14_H1_BATCHES.join(',')) {
+        throw new Error(`批次号段是 ${ids.join('/')}，约定的是 ${ROUND14_H1_BATCHES.join('/')}`)
+      }
+
+      let slots = 0
+      let allocated = 0
+      let recorded = 0
+      for (const batch of batches) {
+        for (const field of ['slots', 'allocated', 'recorded']) {
+          if (!Number.isInteger(batch[field]) || batch[field] < 0) {
+            throw new Error(`${batch.id} 的 ${field} 不合法：${batch[field]}`)
+          }
+        }
+        if (batch.recorded > batch.allocated) {
+          throw new Error(`${batch.id} 已录 ${batch.recorded} 条，可只排了 ${batch.allocated} 个槽位`)
+        }
+        if (batch.allocated > batch.slots) {
+          throw new Error(`${batch.id} 排了 ${batch.allocated} 个槽位，超过号段的 ${batch.slots} 条`)
+        }
+        slots += batch.slots
+        allocated += batch.allocated
+        recorded += batch.recorded
+      }
+      if (slots !== freeze.recordedFloor) {
+        throw new Error(`三批加起来 ${slots} 条，冻结地板是 ${freeze.recordedFloor} 条`)
+      }
+      if (recorded !== freeze.recorded) {
+        throw new Error(`各批已录之和 ${recorded} 条，冻结集却说 ${freeze.recorded} 条`)
+      }
+      if (allocated !== freeze.skeleton) {
+        throw new Error(`各批槽位之和 ${allocated} 条，骨架却说 ${freeze.skeleton} 条`)
+      }
+      if (recorded < freeze.recordedFloor) {
+        if (batches.some((b) => b.stage === 'ingested' && b.recorded < b.allocated)) {
+          throw new Error('有批次自称收完了，可它自己的槽位还没填满')
+        }
+        if (manifest.available !== false) {
+          throw new Error(`实录 ${recorded}/${freeze.recordedFloor} 条，available 却是 ${manifest.available}`)
+        }
+      }
+      if (!manifest.evalSet.batchPlan) {
+        throw new Error('清单没挂批次口径文档，界面上的批次进度就没有出处')
+      }
+
+      // 孩子那一面：评测集这一段里不许留下任何能追回到具体某个孩子的线索
+      // （只扫 evalSet：source.engineFixture 指的是上游成人示例音频，与冻结集无关）
+      const shipped = JSON.stringify(manifest.evalSet)
+      for (const [pattern, what] of ROUND14_H1_LEAKS) {
+        const hit = shipped.match(pattern)
+        if (hit) throw new Error(`随包清单的 evalSet 段发出了${what}：「${hit[0]}」`)
+      }
+      if (Array.isArray(freeze.speakers) || Array.isArray(freeze.clips)) {
+        throw new Error('随包清单里带上了说话人名册或逐条片段——那是仓库外的东西')
+      }
+      if (!Number.isInteger(freeze.speakers)) {
+        throw new Error(`说话人这一栏发的不是计数：${JSON.stringify(freeze.speakers)}`)
+      }
+
+      // 家长那一侧照旧：没放行就还停在录音档
+      await page.waitForSelector('.fr[data-tier]', { timeout: 8000 })
+      const tier = await page.evaluate(() => document.querySelector('.fr')?.dataset.tier ?? '')
+      if (tier === 'offline-asr') throw new Error('一条都没录，界面却升到了离线档')
+
+      return (
+        `批次 ${batches.map((b) => `${b.id} ${b.recorded}/${b.allocated}（${b.stage}）`).join(' · ')}；` +
+        `槽位合计 ${slots}=${freeze.recordedFloor}，实录 ${recorded}/${freeze.recordedFloor}，` +
+        `available=${manifest.available}；${ROUND14_H1_LEAKS.length} 类隐私线索 0 次泄漏；界面停在 ${tier}`
       )
     }
   )
