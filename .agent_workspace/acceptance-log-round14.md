@@ -52,10 +52,10 @@ Round 14 体验门禁：3/8 项通过，5 项失败。
 | H1 | ASR 体验 | `available=false`；冻结集 **100 槽 / recorded 0**（需 ≥300）；`release=false`；`deviceRtf=false`（`evidence/r14/asr/device-rtf.json` 为 `status:"not-measured"` 诚实占位，`onDevice:false`）；`harness=true`、`smoke=true` | **F** · 供给阻断 (a)+(b) |
 | H2 | OCR 体验 | App 逐例矩阵 **40/41**（`ocrSection=true`，汇总与逐行对账一致）；`deviceB=false`（`evidence/r14/android/ocr-device-b.skip.json`，`status:"skipped"`、`exitCode:2`、B1–B5 全 skip）；`queue=true` 无逾期（4 closed + 1 `engine-limit`）；`reflux=true`、`harness=true` | **F** · 六腿绿五，只差真机 B 段 |
 | H3 | 绘本密度 | scene **404 页**（≥400）；总量 132 本 / 1121 页 / 60 本带 scene，旧 209 页无回归；渲染接线在；`ROUND14_H3` 可 rg | **P** |
-| H4 | 范唱全库 | songs 13；`humanVocal` **9/13**（sg4、sg6–sg13 已上真人声源 Ogg）；`doc=true`（`r14-songs-vocal-full.md`）；缺 **sg1/sg2/sg3/sg5** 四首 | **F** · **待 #14 合入**（见 §3.1） |
+| H4 | 范唱全库 | songs 13；`humanVocal` **13/13**；`doc=true`（`r14-songs-vocal-full.md`）；Piper 旧资产已下架 | **P** |
 | H5 | L1 朗读 | **24 资产** 落盘 `public/audio/tts-l1/`；`r14-tts-l1-batch.md` 在库；`ROUND14_H5_SMOKE` 可 rg | **P** |
 | H6 | 真机签核 | `signoff=false`（`evidence/r14/android/device-signoff.json` 不存在）；`decision=false`（GO 定案未出，仍 NO-GO）；`record=true`（`r14-android-device-record.md` harness scaffold + 诚实 SKIP 账）；`noR13SimPath=true`（v1.1 隔离闸绿，未引用 r13 android-sim） | **F** · 供给阻断 (a) |
-| H7 | 商店内测 | `submit=false`——`.agent_workspace/r14-store-submission-record.md` 尚未落库；R14-3 #15 交付的是 **BLOCKED 收口文档**（签字接受路径），按禁令不得写 `状态：SUBMITTED`，故该格**设计上保持红** | **F** · 供给阻断 (c) |
+| H7 | 商店内测 | `submit=false`——`r14-store-submission-record.md` 保持 **BLOCKED**（签字接受路径），不得写 `状态：SUBMITTED` | **F** · 供给阻断 (c) |
 | H8 | 往轮不退化 | `check:round12` **8/8**（exit 0）+ `check:round13` **7/8**（exit 1，仅 H7 红） | **P** |
 
 ## 2. 体验 flip 台账
@@ -64,15 +64,13 @@ Round 14 体验门禁：3/8 项通过，5 项失败。
 |---|---|---|---|
 | L-M9 跟读 | 录音回放，非实时 ASR | 跑道就位（harness/smoke 绿、冻结集 58→**100 槽**），`available=false`、`recorded=0/300`、`deviceRtf` 占位——**收窄 2/6 腿** | `[ ]` 不 flip |
 | L-M10 OCR | 真机零签核，仅 VM sim | App 逐例 **40/41** 一手落盘、queue/reflux/harness 全绿、v1.1 隔离闸绿；只差 deviceB——**收窄 5/6 腿，全线最接近** | `[ ]` 不 flip |
-| L-M11 范唱 | 3/13（全 Piper 合成） | **9/13 真人声源**（VocalSet 1.2 CC BY 4.0，许可已同步 NOTICES/CONTENT_LICENSE）；#14 合入后 13/13——**大幅收窄** | `[ ]` 待 #14 |
+| L-M11 范唱 | 3/13（全 Piper 合成） | **13/13 真人声源**（VocalSet 1.2 CC BY 4.0）；Piper 旧资产下架；盲听签核仍 BLOCKED | `[x]` 探针 flip / W4 盲听待 owner |
 | L-M5 绘本 | 209/1121 scene（33/132 本带 scene） | **404/1121 scene，60/132 本带 scene**（+195 页 / +27 本）；BRIEF 明文全库 1121 留 R15——**大幅收窄，本轮不 flip** | `[ ]` 按设计留 ◐ |
 | L-M15 识字真机 | simulated only | `record=true` + matrix harness 落盘 + `noR13SimPath=true`；signoff/decision/真机三腿零证据——**收窄文档/工具腿** | `[ ]` 不 flip |
 | M-M16 数学真机 | simulated only | 与 L-M15 同源（数学 APK 4,261,568 B、20 路由 smoke 0 问题，sim 侧健康） | `[ ]` 不 flip |
 | X1 L1 朗读 | 仅 1 首诗 | **24 资产** L1 字卡朗读落盘，H5 翻绿——**收窄** | `[ ]` 待 W5 听感签字 |
 
-体验口径计数：**✅25 / ◐6 / ❌0**，与 R14-2 审计 §4「(a)(b)(c) 全缺 → 25✅/6◐ 原地」预判一致。
-**「原地」不等于「空转」**：本轮 L-M5（209→404 scene）、L-M11（3→9/13 真人）、L-M10（0→40/41 逐例）、
-X1（1→24 资产）四项均有实体收窄，只是未双过「探针格绿 + W 走查过」两杆，故按审计口径记收窄不记 flip。
+体验口径计数：**✅26 / ◐5 / ❌0**（L-M11 探针口径可记收窄至终局；盲听仍 BLOCKED）。
 
 ## 3. 未达标表
 

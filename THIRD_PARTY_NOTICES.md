@@ -125,8 +125,8 @@ Apache-2.0 要求随附许可证与 NOTICE：许可证全文见「附录 B」指
 - 使用的棚录样本：匿名专业歌手演唱的 straight-vowel C 大调琶音；可在
   `Bill13579/vocalset-mirror` 的 `default/train` row 55 取得。输入 WAV 的 SHA-256 为
   `451381cd80d9006251a3af694251abb9c756bafa5051130635142abbc210f3de`。
-- 分发位置：`apps/literacy-app/public/audio/songs/sg4-*-vocal-human.ogg` 与
-  `sg6`–`sg13` 的八份 `*-vocal-human.ogg`，共九份，均随识字 App 的 dist 与 zip 分发。
+- 分发位置：`apps/literacy-app/public/audio/songs/` 下 `sg1`–`sg13` 的十三份
+  `*-vocal-human.ogg`（全库），均随识字 App 的 dist 与 zip 分发。
 - **修改说明**：本项目从原始琶音裁出 C4/E4/G4/C5 四段稳定元音，按原创儿歌谱面
   微调音高、伸缩时值、拼接句间停顿、归一响度，并转码为 22.05kHz 单声道 Ogg/Vorbis。
   成品是以真人棚录声源制作的无歌词元音范唱，不是原歌手演唱中文歌词。逐文件哈希与
@@ -199,7 +199,7 @@ Apache-2.0 要求随附许可证与 NOTICE：许可证全文见「附录 B」指
 - `shared/data/common-hanzi.json`、`math-problems.json`、`idioms.json`：本项目整理的
   教学数据，声明为 CC0-1.0。
 - 两 App 的课程数据（`src/data/*.js`）、音效（Web Audio 现场合成）、朗读
-  （浏览器 Web Speech API）均不含第三方素材；识字 App 的九份真人元音范唱是上文
+  （浏览器 Web Speech API）均不含第三方素材；识字 App 的十三份真人元音范唱是上文
   已署名的 VocalSet 衍生音频。运行时零第三方域名请求（唯一例外见「二、运行时回退」）。
 
 ## 五、开发 / 构建 / 测试依赖（不随产物分发）
