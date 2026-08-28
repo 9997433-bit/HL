@@ -24,7 +24,27 @@
 | 门禁 | 实测 | 证据 |
 |---|---|---|
 | `npm run check:round17` | **8/8**（openmoji @ 08f13a0） | 编排启动前复测 |
-| `npm run check:round18` | 探针合入后启动实测见下方回填区 | r18-acceptance-spec 分支本地跑 |
+| `npm run check:round18` | **1/8**（编排 @ 19cb7cc，探针合入后首跑；H1 绿=gap-audit 已合） | r18-acceptance-spec 干净 worktree 实测 |
+
+启动首跑探针原话（干净 worktree，功能未合入，预期多数红）：
+
+```text
+Round 18 check (ROUND18-v1.0): 1/8
+
+✓ H1 Round18 差距续表就位（双基线 + 本轮归属）
+✗ H2 富 Play 不足：rich=940(需≥1200)，narration去重=940(需≥960)，可执行标记=false
+✗ H3 拆包未达标（标记=false，loader=false，整包静态import=2处[apps/literacy-app/src/data/char-intro.js, apps/literacy-app/src/data/char-play.js]，分片=0(需≥5)，分片体量=0KB(需≥100KB)）
+✗ H4 步数未对齐：158/214 = 73.8%(需≥90%)，题库=214(需≥200)，可执行标记=false
+✗ H5 精品剖析不足（可执行标记=false，母题=50(需≥80，空壳不计)，中文讲解句=0(需≥200)）
+✗ H6 走查证据不足（doc=0，引用=0，落盘=0(需≥4)，场景=0(需4)）
+✗ H7 缺 r18 台账：需 evidence/r18/android-sim-report.md（可引用重跑的 report.json）或 device-blocked.md（BLOCKED+复现命令）；仅继承 r13/r17 旧报告不算
+✗ H8 check:round17 7/8（需 8/8；干净环境先 npm run android:sim 重建双 APK）
+```
+
+各红项实测值即真实基线（rich=940、步数一致率 73.8%、手写母题 50），
+与 BRIEF 差距表逐项对得上——探针口径无虚高。H8 红为链条性：干净
+worktree 缺 gitignored 的 android-sim 产物与 OCR/hanzi 生成资产，
+重建归 r18-regression-gate。
 
 | 探针 | 状态 | Owner |
 |---|---|---|
@@ -57,3 +77,4 @@
 | 日期 | 变更 |
 |---|---|
 | 2026-08-28 | v1.0 编排启动，十路发射 |
+| 2026-08-28 | r18-acceptance-spec：ACCEPTANCE v1.0 + check-round18.mjs（ROUND18-v1.0）合入，启动实测 1/8 |
