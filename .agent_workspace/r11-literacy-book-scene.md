@@ -108,3 +108,21 @@ Model slug: claude-opus-4-6-20260315
 5. 模拟 `prefers-reduced-motion: reduce` 重载后，所有元素
    `animationName === 'none'` 且件数不减；再挑一本没升级的书，
    断言它仍是单 emoji（`data-scene="emoji"`，`.scene__solo` 恰好 1 个）。
+
+## 实测（本分支 `e697144`）
+
+```
+check:round11  ✓ H4 绘本多元素场景 20 页（scene ≥2 元素）+ 渲染接线 + ROUND11_H4
+               ✓ H8 Round 10 门禁 8/8 无退化
+               5/8（红的 H1/H2/H3 属其他分支，未合入）
+check:round10  8/8 项通过，0 项失败（退出码 0）
+check:data     75 项通过，0 项失败
+check:bundle   4 项通过；首屏 JS 322 KB / 预算 420 KB
+smoke          164 条路由 + 37 项交互，0 项有问题（退出码 0）
+  └ ROUND11_H4：《我看大自然》5 页场景；首页 4 件（dawn）→ 次页 4 件（water）；
+    读屏「天上有日，也有月」；减少动态 4 件静止；《一二三，数一数》仍是单 emoji
+  └ 存量「绘本：逐句朗读高亮 + 点字发音」仍在 b1 上通过——场景换掉的只有插图层
+axe-states     96 个状态（4 套主题）critical=0，serious=0（退出码 0）
+识字单测       test:srs / test:speech / test:ocr / test:ocr:accuracy 全绿
+               （OCR 13 张图总召回 66/67，与基线一致）
+```
