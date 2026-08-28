@@ -47,6 +47,7 @@
     "test:feedback": "node scripts/test-feedback.mjs",
     "test:literacy": "bash scripts/test-literacy.sh",
     "test:math": "bash scripts/test-math.sh",
+    "test:round16:smoke": "node --test scripts/test-round16-smoke.mjs",
     "test:offline": "bash scripts/offline-smoke.sh",
     "test:round3": "npm test && npm run test:offline && npm run test:acceptance",
     "test:c6:chrome": "node scripts/browser-matrix-chrome.mjs"
