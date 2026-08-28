@@ -117,3 +117,54 @@ verification_build_sha: ""
 - 每轮结束由产品、工程、内容/普通话审校和隐私负责人共同签名：`[姓名/日期/结论]`。
 
 首次执行前必须把所有方括号责任位填实，并确认公开支持地址可用。本文件定义流程，不构成已经招募、已经取得同意或已经通过试用的证据。
+
+## 9. 运行级处理 SLA 与 issue 模板（Round 12）
+
+`ROUND12_H7` 把本回路从试用记录扩展到发布候选和商店内测的运行工单。SLA 从维护者首次收到反馈、崩溃告警或商店报告时开始，以 UTC 记录；合并重复 issue 不重置时钟。值班人先去标识再入库，公开商店评论中不追问儿童姓名、账号、照片或原始录音。
+
+| 等级 | 确认/分诊 SLA | 止损与决策 SLA | 更新节奏 | 关闭条件 |
+|---|---|---|---|---|
+| P0 | 15 分钟内确认，立即通知发布、隐私/安全负责人 | 1 小时内停测、停扩量、撤候选或关闭问题能力；恢复必须由双人批准 | 未止损前每 2 小时一次 | 风险已隔离，修复构建在原设备验证，隐私/安全负责人签字 |
+| P1 | 4 小时内复现或明确所缺证据并指定 owner | 24 小时内给出修复、回退或保持停发的书面决定 | 每个工作日一次 | 修复与降级路径均回归；发布门中 P1 未关闭数为 0 |
+| P2 | 2 个工作日内分诊、去重和评估影响家庭数 | 进入当前候选或下一版本，必须写清决定与临时绕行 | 状态变化时更新 | 验收标准通过，或产品/工程共同记录 `wont-fix` 理由 |
+| P3 | 每周看板会分诊 | 放入有上限的候选池，不承诺版本 | 周结聚合 | 已验证，或基于证据关闭且保留可重开条件 |
+
+任何隐私、安全或不可逆数据问题即使只有一例也不得降级。TTS 关键字错读至少 P1；若离线资产播放失败但系统 TTS/字幕可继续完成任务，可按影响范围定 P2。SLA 逾期时工单自动标记 `sla-breached`，升级给发布负责人；P0/P1 不得仅因“无法复现”关闭，应转 `needs-evidence` 并保持对应发布限制，直到风险被排除。
+
+### 运行 issue 模板
+
+```yaml
+title: "[P0|P1|P2|P3][literacy|math][module] 可行动的一句话现象"
+marker: "ROUND12_H7"
+source: "hosted-test|family-test|store-review|pre-launch-report|support"
+detected_at_utc: "YYYY-MM-DDTHH:mm:ssZ"
+candidate_version: "1.0.0"
+candidate_sha: ""
+artifact_sha256: ""
+channel: "local|play-internal|testflight|production"
+severity: "P0|P1|P2|P3"
+sla_ack_due_utc: ""
+sla_decision_due_utc: ""
+owner: ""
+participant_code: "" # 只写随机码；商店评论可留空
+device_class: "android-low|android-mid|ios|desktop"
+os_and_app_version: ""
+network_state: "offline|online|transition"
+module_and_content_id: ""
+expected: ""
+actual: ""
+repro_steps:
+  - ""
+repro_rate: "0/0"
+privacy_or_safety_impact: "none|suspected|confirmed"
+evidence_path: "" # 只能链接去标识证据
+fallback_result: "worked|failed|not-available|not-tested"
+containment: ""
+release_action: "none|hold|stop-rollout|withdraw|rollback"
+decision: "new|accepted|duplicate|needs-evidence|wont-fix|fixed|verified"
+verification_device: ""
+verification_build_sha: ""
+next_update_at_utc: ""
+```
+
+创建 issue 后按 `New → Triaged → Accepted → In progress → Ready to verify → Verified → Closed` 流转。只有复现步骤、预期/实际、严重度、owner、候选 SHA 和 SLA 截止时间齐全才可离开 `Triaged`；只有另一名验证者在原设备或同等级设备填写 verification 字段，才可进入 `Verified`。发布负责人每天检查 P0/P1、SLA 逾期和 `release_action`，商店提交前把结果抄入提交演练清单。

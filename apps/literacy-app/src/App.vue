@@ -15,6 +15,7 @@ import ProgressRing from '@/components/ProgressRing.vue'
 
 import { useProgressStore } from '@/stores/progress.js'
 import { cancelSpeech, sfx } from '@/utils/audio.js'
+import { cancelOfflineTts } from '@/utils/offlineTts.js'
 
 const CelebrationLayer = defineAsyncComponent(() => import('@/components/CelebrationLayer.vue'))
 const MascotCompanion = defineAsyncComponent(() => import('@/components/MascotCompanion.vue'))
@@ -26,6 +27,11 @@ const isHome = computed(() => route.name === 'home')
 
 let ticker = null
 
+function cancelAllSpeech() {
+  cancelOfflineTts()
+  cancelSpeech()
+}
+
 function startTicker() {
   if (ticker) return
   ticker = window.setInterval(() => {
@@ -35,7 +41,7 @@ function startTicker() {
 
 function onVisibilityChange() {
   // 切到后台时把没读完的语音掐掉，否则回来还在念
-  if (document.visibilityState !== 'visible') cancelSpeech()
+  if (document.visibilityState !== 'visible') cancelAllSpeech()
 }
 
 onMounted(() => {
@@ -47,7 +53,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   if (ticker) clearInterval(ticker)
   document.removeEventListener('visibilitychange', onVisibilityChange)
-  cancelSpeech()
+  cancelAllSpeech()
 })
 
 /* ----------------------------------------------------------- 护眼休息提醒 */

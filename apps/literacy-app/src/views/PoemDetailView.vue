@@ -5,7 +5,7 @@
  * 三件事拆成三个 Tab，而不是一路往下滚：孩子一次只做一件，
  * 家长也能直接把他带到「跟读」那一格。跟读面板自己会按设备能力降级。
  */
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import FollowReadPanel from '@/components/FollowReadPanel.vue'
 import MascotCompanion from '@/components/MascotCompanion.vue'
@@ -13,7 +13,12 @@ import { useMascotCoach } from '@/composables/useMascotCoach.js'
 import { POEMS, getPoem, poemNewChars, syllablesOfLine } from '@/data/poems.js'
 import { useProgressStore } from '@/stores/progress.js'
 import { useSettingsStore } from '@/stores/settings.js'
-import { speak } from '@/utils/audio.js'
+import { cancelSpeech, speak } from '@/utils/audio.js'
+import {
+  cancelOfflineTts,
+  getOfflineTtsPilot,
+  playOfflineTtsLine
+} from '@/utils/offlineTts.js'
 import { sfx } from '@/utils/sfx.js'
 
 const props = defineProps({
@@ -33,6 +38,7 @@ const tab = ref(props.startTab)
 const readingIndex = ref(-1)
 const peek = ref(null)
 const say = ref('')
+let readRun = 0
 
 const TABS = [
   { id: 'read', name: '读一读', emoji: '📖' },
@@ -54,6 +60,14 @@ const rows = computed(() =>
 )
 
 const record = computed(() => progress.state.poems?.[props.id] ?? null)
+const offlinePilot = computed(() => getOfflineTtsPilot(poem.value?.id))
+
+function stopReadAloud() {
+  readRun += 1
+  cancelOfflineTts()
+  cancelSpeech()
+  readingIndex.value = -1
+}
 
 /** 找不到这首诗（改了 id、手打错了）就回长廊，别把孩子丢在空白页。 */
 watch(
@@ -75,20 +89,36 @@ onMounted(() => {
   if (poem.value) progress.markPoemRead(poem.value.id)
 })
 
+onBeforeUnmount(stopReadAloud)
+
 function pickTab(id) {
   sfx.tap()
+  if (id !== 'read') stopReadAloud()
   tab.value = id
 }
 
-/** 逐句朗读：读到哪一句就高亮哪一句。 */
+/** 逐句朗读：试点诗优先走随包资产，失败后仍回退现有系统 TTS。 */
 async function readAloud() {
   sfx.tap()
+  if (!settings.speechOn) {
+    say.value = '朗读已关闭，请先在家长中心打开朗读'
+    return
+  }
+
+  stopReadAloud()
+  const run = readRun
   const lines = poem.value?.lines ?? []
   for (let i = 0; i < lines.length; i += 1) {
     readingIndex.value = i
     say.value = `读第 ${i + 1} 句`
     // eslint-disable-next-line no-await-in-loop
-    const ok = await speak(lines[i].text, { rate: Math.min(0.78, settings.speechRate) })
+    let ok = await playOfflineTtsLine(poem.value.id, i, { rate: settings.speechRate })
+    if (run !== readRun) return
+    if (!ok) {
+      // eslint-disable-next-line no-await-in-loop
+      ok = await speak(lines[i].text, { rate: Math.min(0.78, settings.speechRate) })
+    }
+    if (run !== readRun) return
     if (!ok) break
   }
   readingIndex.value = -1
@@ -98,6 +128,7 @@ async function readAloud() {
 function tapGlyph(cell) {
   if (cell.punct) return
   sfx.tap()
+  stopReadAloud()
   const gloss = glossMap.value.get(cell.char)
   peek.value = { char: cell.char, pinyin: cell.pinyin, meaning: gloss?.m ?? '' }
   speak(cell.char, { rate: 0.7 })
@@ -147,11 +178,22 @@ function onScored(payload) {
     <!-- 读一读 -->
     <section v-if="tab === 'read'" class="card stack">
       <div class="acts">
-        <button type="button" class="btn btn--primary" @click="readAloud">🔊 读给我听</button>
+        <button
+          type="button"
+          class="btn btn--primary"
+          :disabled="!settings.speechOn"
+          @click="readAloud"
+        >
+          🔊 读给我听
+        </button>
         <RouterLink class="btn" :to="`/follow-read/${poem.id}`" @click="sfx.tap()">
           🎤 我要跟读
         </RouterLink>
       </div>
+
+      <p v-if="offlinePilot" class="tipbox">
+        离线范读试点：这首诗优先播放随应用安装的范读，不联网；播放失败会自动回到设备朗读。
+      </p>
 
       <div class="verse">
         <p
