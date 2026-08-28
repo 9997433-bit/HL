@@ -1445,10 +1445,12 @@ await interact('技能图谱：依赖成图、状态跟着存档走、只读不�
   await sleep(300)
   const detail = await page.evaluate(() => {
     const panel = document.querySelector('[data-skill-detail]')
+    const href = (sel) => panel?.querySelector(sel)?.getAttribute('href') ?? ''
     return {
       text: panel?.innerText.replace(/\s+/g, ' ') ?? '',
       deps: [...document.querySelectorAll('[data-skill-dep]')].map((el) => el.dataset.skillDep),
-      link: panel?.querySelector('a')?.getAttribute('href') ?? '',
+      link: href('[data-skill-planet-link]'),
+      demo: href('[data-learn-demo-link]'),
     }
   })
   if (!detail.text.includes('20以内点数')) throw new Error('详情卡没有显示选中的技能名')
@@ -1457,6 +1459,10 @@ await interact('技能图谱：依赖成图、状态跟着存档走、只读不�
   }
   if (!detail.link.includes('/number-sense')) {
     throw new Error(`「去练」应指向数量星云，实际 ${detail.link || '没有链接'}`)
+  }
+  // ROUND16_H4：有学演示的技能点，开练之前先给一条「看一眼这在讲什么」的路
+  if (!detail.demo.includes('skill=count-to-20')) {
+    throw new Error(`「先看演示」应带上 count-to-20，实际 ${detail.demo || '没有链接'}`)
   }
 
   // 年龄档只影响「本档该会」的标注，节点状态一个都不许变

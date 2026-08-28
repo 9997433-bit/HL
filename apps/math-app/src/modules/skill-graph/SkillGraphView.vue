@@ -325,7 +325,11 @@ function adoptWeekSkill(skill) {
         >
           🎞️ 先看演示
         </RouterLink>
-        <RouterLink class="btn btn--ghost btn--sm" :to="detail.route">
+        <RouterLink
+          class="btn btn--ghost btn--sm"
+          :to="detail.route"
+          :data-skill-planet-link="detail.id"
+        >
           去 {{ detail.moduleName }} 练 →
         </RouterLink>
         <RouterLink
