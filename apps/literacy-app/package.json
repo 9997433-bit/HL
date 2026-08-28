@@ -26,6 +26,7 @@
     "test:asr:evalset": "node scripts/test-asr-eval-set.mjs",
     "test:asr:engine": "node scripts/test-asr-engine.mjs",
     "bench:asr:rtf": "node scripts/bench-asr-rtf.mjs",
+    "ingest:asr:batch": "node scripts/ingest-asr-freeze-batch.mjs",
     "test:ocr": "node scripts/test-ocr.mjs",
     "test:ocr:accuracy": "node scripts/test-ocr-accuracy.mjs",
     "check:data": "node scripts/check-data.mjs",
