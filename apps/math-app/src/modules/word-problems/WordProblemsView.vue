@@ -5,7 +5,7 @@
  * 答题流程（选项/键盘/判题/提示扣星/进度条/总结）复用 QuizShell。
  */
 import { computed, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import AgeBandBadge from '@/components/AgeBandBadge.vue'
 import QuizShell from '@/components/QuizShell.vue'
 import { useAgeBand } from '@/composables/useAgeBand'
@@ -21,6 +21,7 @@ const ROUND_SIZE = 8
 const MODULE_ID = 'word'
 
 const router = useRouter()
+const route = useRoute()
 
 /** 家长中心选的年龄档决定进来时停在一步题、两步题还是进阶题。 */
 const band = useAgeBand((next) => {
@@ -32,7 +33,18 @@ const band = useAgeBand((next) => {
 const tier = ref(band.value.defaults.word)
 const inputMode = ref('choice')
 
-const bank = computed(() => problemsOfTier(tier.value))
+const focusedSkill = computed(() => {
+  const id = String(route.query.skill ?? '')
+  return WORD_PROBLEMS.some((problem) => problem.skill === id) ? id : ''
+})
+const bank = computed(() => {
+  const tierPool = problemsOfTier(tier.value)
+  if (!focusedSkill.value) return tierPool
+  const focused = tierPool.filter((problem) => problem.skill === focusedSkill.value)
+  return focused.length
+    ? focused
+    : WORD_PROBLEMS.filter((problem) => problem.skill === focusedSkill.value)
+})
 
 function buildQuestion(template) {
   const made = template.make()

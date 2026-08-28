@@ -184,6 +184,17 @@ const adoption = computed(() =>
   }),
 )
 
+const recoMetrics = computed(() => progress.recommendationMetrics)
+const recoMetricStatus = computed(
+  () =>
+    ({
+      insufficient: '样本积累中',
+      positive: '达到正向阈值',
+      watch: '继续观察',
+      negative: '低于预警线',
+    })[recoMetrics.value.status] ?? '继续观察',
+)
+
 function lastPlayedText(at) {
   if (!at) return '还没玩过'
   const days = Math.floor((Date.now() - at) / 864e5)
@@ -553,6 +564,35 @@ function setTheme(theme) {
           技能图谱按孩子当前的掌握度排出这一周的练习计划：{{ weekPlan.stats.days }} 天
           {{ weekPlan.stats.sessions }} 场，涉及 {{ weekPlan.stats.skills }} 个技能点。
           下面先说「凭什么推荐它们」，再说这些技能点在存档里留下了什么痕迹。
+        </p>
+
+        <div
+          class="reco-metric-grid"
+          data-reco-metrics
+          :data-adoption-rate="recoMetrics.adoptionRate"
+          :data-reco-lift="recoMetrics.recoLift"
+          :data-reco-status="recoMetrics.status"
+        >
+          <div class="cell">
+            <strong>{{ recoMetrics.adoptionRate }}%</strong>
+            <span class="muted">推荐采纳率</span>
+          </div>
+          <div class="cell">
+            <strong>{{ recoMetrics.recoLift > 0 ? '+' : '' }}{{ recoMetrics.recoLift }}pp</strong>
+            <span class="muted">推荐相对提升</span>
+          </div>
+          <div class="cell">
+            <strong>{{ recoMetricStatus }}</strong>
+            <span class="muted">
+              {{ recoMetrics.adoptions }} 次采纳 / {{ recoMetrics.controls }} 个对照
+            </span>
+          </div>
+        </div>
+        <p class="muted note" data-reco-metric-definition>
+          相对提升 = 被采纳技能的掌握度变化 − 同批未采纳技能的变化；至少
+          {{ recoMetrics.thresholds.minAdoptions }} 次采纳和
+          {{ recoMetrics.thresholds.minControls }} 个对照后才判读。该字段会随“导出进度”写入
+          recommendationEffect。
         </p>
 
         <template v-if="adoption.total">
@@ -1161,6 +1201,12 @@ function setTheme(theme) {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.reco-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
 }
 
 .reason-row,

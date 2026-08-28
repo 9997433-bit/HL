@@ -1,9 +1,11 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import StarField from '@/components/StarField.vue'
 import TopBar from '@/components/TopBar.vue'
 import AchievementToast from '@/components/AchievementToast.vue'
 import BreakReminder from '@/components/BreakReminder.vue'
+import { SKILL_MAP } from '@/data/curriculum.js'
 import { useSettingsStore } from '@/stores/settings.js'
 import { useProgressStore } from '@/stores/progress.js'
 import { sound } from '@/utils/sound'
@@ -14,7 +16,15 @@ const USAGE_TICK_MS = 15_000
 
 const settings = useSettingsStore()
 const progress = useProgressStore()
+const route = useRoute()
 const rootClass = computed(() => ({ 'eye-care': settings.eyeCare }))
+const practiceFocus = computed(() => {
+  const id = String(route.query.skill ?? route.query.focus ?? route.query.wrong ?? '')
+  return SKILL_MAP[id] ?? null
+})
+const practiceAnchor = computed(() =>
+  route.path === '/visual-demos' ? 'visual-practice' : 'practice-stage',
+)
 
 // 共享 design-tokens 以 <html data-theme> 选主题，立即恢复家长上次选择。
 watch(
@@ -56,6 +66,19 @@ onBeforeUnmount(() => clearInterval(usageTimer))
     <TopBar />
     <AchievementToast />
     <BreakReminder />
+    <aside
+      v-if="practiceFocus"
+      :id="practiceAnchor"
+      class="practice-focus"
+      :data-practice-skill="practiceFocus.id"
+      role="status"
+    >
+      <span aria-hidden="true">🎯</span>
+      <span>
+        已按推荐定位到专项：<strong>{{ practiceFocus.name }}</strong>
+      </span>
+      <RouterLink to="/skill-graph">返回技能图谱</RouterLink>
+    </aside>
     <router-view v-slot="{ Component }">
       <transition name="page" mode="out-in">
         <component :is="Component" />
@@ -69,6 +92,30 @@ onBeforeUnmount(() => clearInterval(usageTimer))
 </template>
 
 <style scoped>
+.practice-focus {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+  width: min(1080px, calc(100% - 2 * var(--gap-md)));
+  margin: 0 auto var(--gap-sm);
+  padding: var(--gap-sm) var(--gap-md);
+  border: 1px solid color-mix(in srgb, var(--brand) 45%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--brand) 12%, var(--surface));
+  font-size: var(--fs-sm);
+}
+
+.practice-focus > span:nth-child(2) {
+  flex: 1;
+}
+
+.practice-focus a {
+  color: var(--brand);
+  font-weight: var(--fw-bold);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .release-footer {
   display: flex;
   align-items: center;

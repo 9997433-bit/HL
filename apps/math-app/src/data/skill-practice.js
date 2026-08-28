@@ -14,10 +14,12 @@
  * 推荐本身的排序、理由、路线一个字都不改——换个落点不该换掉建议。
  */
 import { canDailyFocus } from '@/data/daily.js'
-import { SKILL_MAP } from '@/data/curriculum.js'
+import { SKILLS, SKILL_MAP } from '@/data/curriculum.js'
 
 /** R10 探针：推荐 → 开练入口的冻结信号（check-round10 H3）。 */
 export const ROUND10_H3 = 'practice-entry'
+/** R12 探针：34 个图谱节点都有专项或页内定位。 */
+export const ROUND12_H5 = 'allSkills-practice-entry'
 
 /** 落点种类，顺序即优先级。 */
 export const PRACTICE_KINDS = [
@@ -27,6 +29,61 @@ export const PRACTICE_KINDS = [
 ]
 
 export const PRACTICE_KIND_MAP = Object.fromEntries(PRACTICE_KINDS.map((k) => [k.id, k]))
+
+/**
+ * 日冒险暂时出不了的 24 个技能，落到已有玩法里最具体的位置。
+ *
+ * skill 参数让目标页显示「正在练哪一点」，能切档的页面还会据此预选范围；
+ * hash 则把页面滚到真正可操作的区域，而不是停在星球介绍上。
+ */
+const focusTo = (path, skill, hash = '#practice-stage', query = {}) => ({
+  path,
+  query: { ...query, skill },
+  hash,
+})
+
+export const PLANET_SKILL_TARGETS = {
+  'number-trace': focusTo('/number-sense', 'number-trace'),
+  'compose-ten': focusTo('/compose-ten', 'compose-ten'),
+  'add-within-100': focusTo('/arithmetic', 'add-within-100'),
+  'sub-within-100': focusTo('/arithmetic', 'sub-within-100'),
+  'mul-table': focusTo('/visual-demos', 'mul-table', '#visual-practice', {
+    demo: 'multiplication',
+  }),
+  'div-basic': focusTo('/visual-demos', 'div-basic', '#visual-practice', {
+    demo: 'division',
+  }),
+  'shape-2d': focusTo('/geometry', 'shape-2d'),
+  'tangram-basic': focusTo('/tangram', 'tangram-basic'),
+  symmetry: focusTo('/tangram', 'symmetry'),
+  'shape-3d': focusTo('/geometry', 'shape-3d'),
+  'pattern-abab': focusTo('/logic', 'pattern-abab'),
+  'pattern-number': focusTo('/logic', 'pattern-number'),
+  classify: focusTo('/memory-pairs', 'classify'),
+  'maze-condition': focusTo('/maze', 'maze-condition'),
+  deduction: focusTo('/logic', 'deduction'),
+  'sudoku-4': focusTo('/sudoku', 'sudoku-4'),
+  'sudoku-6': focusTo('/sudoku', 'sudoku-6'),
+  'sudoku-9': focusTo('/sudoku', 'sudoku-9'),
+  'wp-combine': focusTo('/word-problems', 'wp-combine'),
+  'wp-remain': focusTo('/word-problems', 'wp-remain'),
+  'wp-diff': focusTo('/word-problems', 'wp-diff'),
+  'wp-times': focusTo('/word-problems', 'wp-times'),
+  'wp-share': focusTo('/word-problems', 'wp-share'),
+  'wp-two-step': focusTo('/word-problems', 'wp-two-step'),
+}
+
+/** 给验收与家长侧复核用的覆盖快照，不能靠手写「34」冒充覆盖。 */
+export function practiceCoverage() {
+  const daily = SKILLS.filter((skill) => canDailyFocus(skill.id)).map((skill) => skill.id)
+  const planet = SKILLS.filter((skill) => PLANET_SKILL_TARGETS[skill.id]).map((skill) => skill.id)
+  const missing = SKILLS.filter(
+    (skill) => !canDailyFocus(skill.id) && !PLANET_SKILL_TARGETS[skill.id],
+  ).map((skill) => skill.id)
+  return { total: SKILLS.length, daily, planet, covered: daily.length + planet.length, missing }
+}
+
+export const ALL_SKILLS_PRACTICE_COVERED = practiceCoverage().missing.length === 0
 
 /** 错题本里每个技能还欠着几道题；没有技能点的条目不参与统计。 */
 export function wrongCountsBySkill(wrongBook = {}) {
@@ -82,12 +139,13 @@ export function practiceEntry(item, { wrongBook, wrongCounts } = {}) {
     }
   }
 
+  const target = PLANET_SKILL_TARGETS[skill] ?? focusTo(planet.route, skill)
   return {
     ...base,
     kind: 'planet',
-    to: { path: planet.route },
-    label: `去${planet.name}练`,
-    hint: `「${name}」的题在${planet.name}里，按原来的玩法练`,
+    to: target,
+    label: `打开「${name}」`,
+    hint: `已定位到${planet.name}里能练「${name}」的专项或操作区`,
   }
 }
 
