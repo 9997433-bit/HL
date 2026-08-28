@@ -1594,9 +1594,11 @@ const waitPhase = (page, want, timeout = 12000) =>
 const round15PlayRoot = [
   '[data-char-play]',
   '[data-play-template]',
+  '[data-template]',
   '.char-play-stage',
   '.play-stage',
-  '.char-play'
+  '.char-play',
+  '.play'
 ].join(',')
 
 const inspectRound15Play = async (page) => {
