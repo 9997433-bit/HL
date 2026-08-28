@@ -3,10 +3,11 @@
  *
  * 清单里写着 sha256、体积、角色，那些只证明「文件是我们放进去的那一份」。
  * 这个脚本证明另一件事：**把它们按 Worker 那套装法装起来，引擎真的会说中文**。
- * 装法和 src/workers/sherpaAsrWorker.js 的 boot() 一模一样——
- * 非模块胶水用 new Function 递 Module、空包 getPreloadedPackage、
- * 模型运行时写进 MEMFS、createOnlineRecognizer 从 asr-api 那份 JS 里取。
- * 两边哪天走岔了，这里会先红。
+ * 装法在 scripts/lib/asr-runtime.mjs，与 src/workers/sherpaAsrWorker.js 的 boot()
+ * 逐条对齐（非模块胶水用 new Function 递 Module、空包 getPreloadedPackage、
+ * 模型运行时写进 MEMFS、createOnlineRecognizer 从 asr-api 那份 JS 里取）；
+ * ROUND13_H1 起 bench-asr-rtf.mjs 也用同一份，装法只剩一处，不会各自走岔。
+ * Worker 那边哪天改了装法，这里会先红。
  *
  * 音频是上游模型仓库自带的示例（成人普通话，Apache-2.0，见 manifest.source.engineFixture）。
  * **它不是儿童冻结集**：这里量的是「引擎跑不跑得动、解码对不对、桌面 RTF 多少」，
