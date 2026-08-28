@@ -19,6 +19,22 @@
 | 日期 | 变更 |
 |---|---|
 | 2026-08-28 | v1.0 编排启动，十路发射 |
+| 2026-08-28 | 探针基线 **1/8**（仅 H8）；十路 Task 已并发 |
+
+## Agent IDs
+
+| # | Agent |
+|---|---|
+| 1 arch | bc-5e15e546… |
+| 2 audit | bc-4a3e616a… |
+| 3 acceptance | bc-db9ef2fd… |
+| 4 intro | bc-b4e3a5d0… |
+| 5 rich500 | bc-1e52359b… |
+| 6 learn-demo | bc-15b0d954… |
+| 7 wp-analysis | bc-f5f5db8a… |
+| 8 mascot-week | bc-31ab67ea… |
+| 9 smoke | bc-05ff7a16… |
+| 10 gate | bc-ac066cca… |
 
 ## 十路子代理
 
