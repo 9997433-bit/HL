@@ -565,15 +565,13 @@ function propsTapReveal(ctx, rand) {
   }
 }
 
-function propsMorphStory(ctx, rand) {
+function propsMorphStory(ctx) {
   // 三帧：先看图 → 图和字叠在一起 → 只剩字。舞台把中间那帧做成交叉淡出
   const frames = [
     { id: 'f0', emoji: ctx.emoji, caption: `${ctx.themeLabel}里的一张图` },
     { id: 'f1', emoji: ctx.emoji, glyph: ctx.char, caption: '图慢慢变成字' },
     { id: 'f2', glyph: ctx.char, caption: `变好啦——「${ctx.char}」` }
   ]
-  // rand 在这条分支上没用到，但保留形参签名，模板改写时不用改调用处
-  void rand
   return {
     narration: `看好啦：${ctx.emoji} 一步一步变成「${ctx.char}」。`,
     props: {
