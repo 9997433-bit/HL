@@ -212,7 +212,7 @@ def run(args: argparse.Namespace, reporter: Reporter) -> int:
             dest = _prompt(msg["html_out"], reporter) or f"{Path(source).stem}.html"
             return _delegate(["report", source, "-o", dest], reporter, msg)
         if choice == "6":
-            return _delegate(["serve", "--open"], reporter, msg)
+            return _delegate(["desktop", "--browser"], reporter, msg)
         if choice == "7":
             directory = _prompt(msg["project_dir"], reporter) or "."
             return _delegate(["project", "init", directory], reporter, msg)
