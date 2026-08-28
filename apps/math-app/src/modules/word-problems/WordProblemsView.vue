@@ -20,8 +20,12 @@ import { sound } from '@/utils/sound'
 
 const ROUND_SIZE = 8
 const MODULE_ID = 'word'
-/** 剖析壳（图示理解 / 分步提示 / 变式入口）的探针标记。 */
-const ANALYSIS_PROBE = 'ROUND16_H5'
+
+/**
+ * 变式用的抽题函数按母题 id 备好一份，别在渲染里现做：
+ * 现做每渲染一次就是一个新函数，剖析面板会跟着白重绘。
+ */
+const VARIANT_MAKERS = new Map(WORD_PROBLEMS.map((tpl) => [tpl.id, () => tpl.make()]))
 
 const router = useRouter()
 const route = useRoute()
@@ -100,12 +104,6 @@ function setTier(id) {
   if (tier.value === id) return
   sound.click()
   tier.value = id
-}
-
-/** 母题的 make()：剖析面板拿它抽同结构、换数字的变式。 */
-function variantMaker(question) {
-  const template = WORD_PROBLEMS.find((item) => item.id === question?.id)
-  return template ? () => template.make() : null
 }
 
 /** 剖析看完想接着练同一类：换成这个技能的题，重抽一轮。 */
@@ -197,14 +195,13 @@ function clearFocus() {
         </article>
       </template>
 
-      <!-- 剖析壳：作答前/中随时能点开，看不看都不影响答题流程 -->
+      <!-- 剖析壳（ROUND16_H5）：作答前/中随时能点开，看不看都不影响答题流程 -->
       <template #beneath="{ question, locked }">
         <WpAnalysisPanel
           v-if="question"
-          :data-analysis-probe="ANALYSIS_PROBE"
           :question="question"
           :reveal="locked"
-          :make-variant="variantMaker(question)"
+          :make-variant="VARIANT_MAKERS.get(question.id) ?? null"
           @practice="practiceSkill"
         />
       </template>
