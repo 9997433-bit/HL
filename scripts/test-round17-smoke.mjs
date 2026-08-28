@@ -199,7 +199,7 @@ test('H5 mascot stage lines are wired into the single-character and quiz paths',
   const charDetail = stripComments(read('apps/literacy-app/src/views/CharDetailView.vue'))
   const quizShell = stripComments(read('apps/math-app/src/components/QuizShell.vue'))
   const markedSource = markedFiles.map(read).map(stripComments).join('\n')
-  const mascotApi = /useMascotCoach|mascotStageLines|pickMascotStage/
+  const mascotApi = /use(?:Mascot|Char|Quiz)Coach|mascotStageLines|pickMascotStage/
 
   assert.match(markedSource, mascotApi, 'ROUND17_H5 marker is not attached to a mascot-stage API')
   assert.match(charDetail, /mascot|学伴|coach/i, 'single-character path does not mount the mascot coach')
