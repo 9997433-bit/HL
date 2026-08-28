@@ -471,15 +471,16 @@ export function selfTestFixture() {
       maxClipsPerSpeaker: 2,
       batchPlan: {
         batches: [
-          { id: 'B1', slots: 6, allocated: 6, stage: 'planned', recorded: 0 },
-          { id: 'B2', slots: 6, allocated: 0, stage: 'unplanned', recorded: 0 }
+          { id: 'B1', slots: 7, allocated: 7, stage: 'recording', recorded: 1 },
+          { id: 'B2', slots: 7, allocated: 0, stage: 'unplanned', recorded: 0 }
         ]
       }
     },
     speakers: [
       { id: 'S01', split: 'dev', consent: 'pending' },
       { id: 'S02', split: 'dev', consent: 'pending' },
-      { id: 'S03', split: 'dev', consent: 'withdrawn' }
+      { id: 'S03', split: 'dev', consent: 'withdrawn' },
+      { id: 'S04', split: 'dev', consent: 'signed' }
     ],
     clips: [
       { id: 'T01', speaker: 'S01', category: 'normal', spoken: '床前明月光', mock: '床前明月光', status: 'placeholder', audio: null, batch: 'B1' },
@@ -488,6 +489,7 @@ export function selfTestFixture() {
       { id: 'T04', speaker: 'S02', category: 'normal', spoken: '床前明月光', mock: '床前明月光', status: 'placeholder', audio: null, batch: 'B1' },
       { id: 'T05', speaker: 'S03', category: 'normal', spoken: '床前明月光', mock: '床前明月光', status: 'placeholder', audio: null, batch: 'B1' },
       { id: 'T06', speaker: 'S02', category: 'normal', spoken: '床前明月光', mock: '床前明月光', status: 'placeholder', audio: null, batch: 'B1' },
+      { id: 'T07', speaker: 'S04', category: 'normal', spoken: '床前明月光', status: 'recorded', audio: 'B1/S04/T07.wav', batch: 'B1' },
       { id: 'T99', speaker: 'S02', category: 'normal', spoken: '床前明月光', mock: '床前明月光', status: 'placeholder', audio: null, batch: 'B2' }
     ]
   }
@@ -509,7 +511,8 @@ export function selfTestFixture() {
     consent: [
       { speaker: 'S01', state: 'signed', formRef: 'consent/S01-2026-09-01.pdf' },
       { speaker: 'S02', state: 'signed', formRef: 'consent/S02-2026-09-01.pdf' },
-      { speaker: 'S03', state: 'signed', formRef: 'consent/S03-2026-09-01.pdf' }
+      { speaker: 'S03', state: 'signed', formRef: 'consent/S03-2026-09-01.pdf' },
+      { speaker: 'S04', state: 'signed', formRef: 'consent/S04-2026-09-01.pdf' }
     ],
     clips: [good]
   }
@@ -524,6 +527,7 @@ export const SELF_TEST_CASES = [
   [REJECT_CODES.DUPLICATE, (d, good) => { d.clips = [good, { ...good }] }],
   [REJECT_CODES.UNKNOWN_SLOT, (d, good) => { d.clips = [{ ...good, clipId: 'T77' }] }],
   [REJECT_CODES.WRONG_BATCH, (d, good) => { d.clips = [{ ...good, clipId: 'T99', speaker: 'S02' }] }],
+  [REJECT_CODES.ALREADY_RECORDED, (d, good) => { d.clips = [{ ...good, clipId: 'T07', speaker: 'S04' }] }],
   [REJECT_CODES.SPEAKER_MISMATCH, (d, good) => { d.clips = [{ ...good, speaker: 'S02' }] }],
   [REJECT_CODES.CONSENT_MISSING, (d) => { d.consent = [] }],
   [REJECT_CODES.CONSENT_MISSING, (d, good) => {
@@ -597,7 +601,7 @@ export function runSelfTest() {
   if (applied.speakers.find((s) => s.id === 'S01').consent !== 'signed') {
     failures.push('落库后没把同意状态落成 signed')
   }
-  if (applied.freezeSet.recorded !== 1) failures.push('落库后 recorded 没现算')
+  if (applied.freezeSet.recorded !== 2) failures.push('落库后 recorded 没现算')
   if (applied.freezeSet.stage !== 'recording') failures.push(`落库后 stage 是 ${applied.freezeSet.stage}`)
   if (applied.available !== undefined) failures.push('落库居然碰了 available')
   if (JSON.stringify(applied).includes('"frozen"')) failures.push('落库把 stage 写成了 frozen')

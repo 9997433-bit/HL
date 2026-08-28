@@ -58,7 +58,7 @@
       "type": "text/plain"
     }
   ],
-  "note": "ROUND13_H1：卡住放行的还是 F4（儿童冻结集）与 F7（真机性能），这一轮把两条都从「等着」推到「可开工」——冻结集骨架按 300 条配额等比缩样到 56 条 / 18 个孩子（实录仍是 0），RTF 有了主机侧基准与一条真机可复算的推算路径（onDevice=false）。available 仍是 false：骨架不是录音，推算不是实测。模型自 ROUND12_H1 起逐文件自托管在 public/asr/models/（整包 35.31 MiB / 预算 60 MiB），sha256 由 scripts/test-asr-engine.mjs 每次现核。文件在包里≠这一档可用，这两件事故意分开；跟读继续走录音档。",
+  "note": "ROUND14_H1：卡住放行的还是 F4（儿童冻结集）与 F7（真机性能）。这一轮把 F4 从「可开工」推到「可派工」——300 条拆三批，批次 1 的 100 个槽位全部排定（30 个孩子 / 24 首诗），并装上落库闸 scripts/ingest-asr-freeze-batch.mjs：同意书没签回、音频指向仓库、单标注冒充双标注、仲裁另写第三版，一律拒收。实录仍是 0/300，available 仍是 false：排位不是录音，收货台不是货。F7 一动没动，RTF 仍只有主机侧基准（onDevice=false）。模型自 ROUND12_H1 起逐文件自托管在 public/asr/models/（整包 35.31 MiB / 预算 60 MiB），sha256 由 scripts/test-asr-engine.mjs 每次现核。文件在包里≠这一档可用，这两件事故意分开；跟读继续走录音档。",
   "candidate": {
     "family": "sherpa-onnx 中文流式 Zipformer（zh-14M 档，int8 量化）",
     "upstream": "https://k2-fsa.github.io/sherpa/onnx/wasm/index.html",
@@ -85,19 +85,25 @@
     "ship": ".agent_workspace/r12-followread-ship.md",
     "freezeSpec": ".agent_workspace/r13-asr-freeze-set.md",
     "rtfBaseline": ".agent_workspace/r13-asr-android-rtf-baseline.md",
+    "batchPlan": ".agent_workspace/r14-asr-recording-batch1.md",
     "minClips": 50,
     "targetClips": 300,
     "stage": "placeholder",
     "freezeSet": {
       "id": "FS-2026-09-zh-poem",
       "stage": "skeleton",
-      "skeleton": 56,
+      "skeleton": 100,
       "skeletonFloor": 50,
       "recorded": 0,
       "recordedFloor": 300,
       "consentSigned": 0,
-      "speakers": 18,
-      "note": "ROUND13_H1：骨架按 300 条配额等比缩样到 56 条 / 18 个孩子，一个字节音频都没录（recorded=0）。这些数由 scripts/test-asr-eval-set.mjs 对着 asr-eval-set.json 现算核对，改这里不改数据当场红。"
+      "speakers": 30,
+      "batches": [
+        { "id": "B1", "slots": 100, "allocated": 100, "recorded": 0, "stage": "planned" },
+        { "id": "B2", "slots": 100, "allocated": 0, "recorded": 0, "stage": "unplanned" },
+        { "id": "B3", "slots": 100, "allocated": 0, "recorded": 0, "stage": "unplanned" }
+      ],
+      "note": "ROUND14_H1：300 条拆三批，批次 1 的 100 个槽位已全部排定（30 个孩子），实录仍是 0——排位不是录音。这里只发计数：受控目录路径、同意书编号、音频指针一个都不随包发出。这些数由 scripts/test-asr-eval-set.mjs 对着 asr-eval-set.json 现算核对，改这里不改数据当场红。"
     }
   },
   "freezeChecklist": [
@@ -129,7 +135,7 @@
       "id": "F4",
       "layer": "eval-set",
       "must": "录制并双标注儿童冻结集 ≥300 条 3–10 秒片段，dev/threshold/final 三份说话人隔离",
-      "evidence": "ROUND13_H1：骨架已按 300 条配额等比缩样到 56 条 / 18 个孩子（.agent_workspace/r13-asr-freeze-set.md），每个孩子的同意状态、单人条数上限、语料覆盖都在 harness 里守着；仍是 todo —— 实录 0/300，clips[] 一条 status=recorded 都没有",
+      "evidence": "ROUND14_H1：批次 1 的 100 个槽位已排定（30 个孩子 / 24 首诗 / 按 300 条配额三分之一站位，.agent_workspace/r14-asr-recording-batch1.md），落库闸 scripts/ingest-asr-freeze-batch.mjs 的 14 条拒收码逐条自检；仍是 todo —— 实录 0/300，clips[] 一条 status=recorded 都没有。排位与收货台不是录音",
       "status": "todo",
       "blocks": "available=true"
     },
@@ -184,7 +190,7 @@
   ],
   "goNoGo": {
     "verdict": "no-go",
-    "reason": "R13：冻结集有了 56 条骨架、有了同意与配额结构，RTF 有了主机基准与真机复算口径——但骨架里一条录音都没有（F4 实录 0/300），主机基准 onDevice=false（F7 未实测），文本层与诊断层因此仍然算不出数（F5/F6），离线重启也没在真机上跑过（F9）。available 保持 false：这一轮把开工的路铺平了，没有把任何一条门槛跨过去。",
+    "reason": "R14-1：批次 1 的 100 个槽位排定、落库闸装上（14 条拒收码），录音这件事从「可开工」变成「可派工」——但一条录音都还没有（F4 实录 0/300），主机基准 onDevice=false（F7 未实测），文本层与诊断层因此仍然算不出数（F5/F6），离线重启也没在真机上跑过（F9）。available 保持 false：派工单和收货台都不是货。",
     "source": ".agent_workspace/r9-followread-asr-evaluation.md §5",
     "note": "这里只冻结阈值和「谁来测」。实测值不写进清单（会过期），由 scripts/test-asr-eval-set.mjs 每次现算，记录在 .agent_workspace/r11-followread-gonogo.md。",
     "layers": [

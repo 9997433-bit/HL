@@ -30,6 +30,9 @@
  * 那道闸（判定之后的 post 段）。口径见 .agent_workspace/r13-asr-freeze-set.md
  * 与 .agent_workspace/r13-asr-android-rtf-baseline.md。
  *
+ * R14（ROUND14_H1）再加一段：录音批次 1 的槽位排布与落库闸自检（第 2c 段），
+ * 外加一条「排位不是放行」的 post。口径见 .agent_workspace/r14-asr-recording-batch1.md。
+ *
  * 用法：node scripts/test-asr-eval-set.mjs [--json]
  */
 
@@ -135,8 +138,40 @@ const ROUND13_H1 = Object.freeze({
   freezeStages: ['skeleton', 'recording', 'frozen']
 })
 
+/**
+ * ROUND14_H1 —— 从「可开工」到「可派工」。
+ *
+ * R13 交的是一张排好格子的表（骨架 + 同意/配额/上限的结构）。表排好了，
+ * 录音这件事仍旧卡在一个很实际的地方：**没人知道第一批录哪 100 条、
+ * 录回来凭什么让它进 clips[]**。这一轮补的就是这两件：
+ *
+ *   1. **批次 1 的 100 个槽位**。300 条拆三批，第一批的槽位全部排进 clips[]，
+ *      每条挂 `batch: "B1"`，按 300 条配额的三分之一站位。录的人拿到的是
+ *      「C037 找 S13，安静房间用手机，读《风》第一句，照着读完整句」这种指令，
+ *      而不是「去录 100 条」。B2/B3 只留号段不排位——现在排出来只会变成一张过期的表。
+ *   2. **落库闸**（`ingest-asr-freeze-batch.mjs`）。录音回来是一份交付清单，
+ *      逐条过闸：同意书签了没、音频是不是仓库外的指针、双标注有没有走完、
+ *      仲裁是不是在两版里挑的、定稿转写和类别对不对得上、单人有没有超配。
+ *      这里把那个脚本的自检整段跑一遍——闸自己也得有人守。
+ *
+ * 这一轮**不会**有任何一条 recorded：VM 里录不出孩子的声音，写进去的就是假数据。
+ * 所以最后那条 post 反过来守：基础设施到位不等于放行，`available` 仍旧是 false。
+ */
+const ROUND14_H1 = Object.freeze({
+  batchPlanDoc: '.agent_workspace/r14-asr-recording-batch1.md',
+  ingest: 'apps/literacy-app/scripts/ingest-asr-freeze-batch.mjs',
+  batchId: 'B1',
+  batchSlots: 100,
+  /** 批次 1 的说话人下限：300 条要 ≥40 人，第一批先把 18 人推到这个数。 */
+  minBatchSpeakers: 30,
+  /** 三批号段加起来必须正好是冻结地板，多一条少一条都说明有格子没人认领。 */
+  batchIds: ['B1', 'B2', 'B3']
+})
+
 const freezeSpecDoc = await readRepo(ROUND13_H1.freezeSpec)
 const rtfBaselineDoc = await readRepo(ROUND13_H1.rtfBaselineDoc)
+const batchPlanDoc = await readRepo(ROUND14_H1.batchPlanDoc)
+const ingest = await import('./ingest-asr-freeze-batch.mjs')
 const rtfBaseline = (() => {
   try {
     return JSON.parse(readFileSync(new URL(ROUND13_H1.rtfBaselineEvidence, repoUrl), 'utf8'))
@@ -591,6 +626,156 @@ test('ROUND13_H1 Android RTF 有基准记录，且白纸黑字写明「不是真
     rtfBaseline.projection?.deviceVerdict !== 'pass',
     '主机基准替真机下了 pass 结论——推算不是实测'
   )
+})
+
+/* --------------------------------- 2c. 录音批次 1（ROUND14_H1 新增守法） */
+
+const batchPlan = freeze.batchPlan ?? {}
+const batches = Array.isArray(batchPlan.batches) ? batchPlan.batches : []
+const batchOne = batches.find((b) => b.id === ROUND14_H1.batchId)
+const batchOneSlots = evalSet.clips.filter((c) => c.batch === ROUND14_H1.batchId)
+
+test('ROUND14_H1 三批号段加起来正好 300 条，每条槽位都认领了一个批次', () => {
+  assert.equal(batchPlan.marker, 'ROUND14_H1', '批次计划没挂 ROUND14_H1 标记')
+  assert.deepEqual(
+    batches.map((b) => b.id),
+    ROUND14_H1.batchIds,
+    `批次号段是 ${batches.map((b) => b.id).join('/')}，约定的是 ${ROUND14_H1.batchIds.join('/')}`
+  )
+  const slots = batches.reduce((n, b) => n + b.slots, 0)
+  assert.equal(
+    slots,
+    freeze.recordedFloor,
+    `三批加起来 ${slots} 条，冻结地板是 ${freeze.recordedFloor} 条——有格子没人认领`
+  )
+  for (const clip of evalSet.clips) {
+    assert.ok(
+      ROUND14_H1.batchIds.includes(clip.batch),
+      `${clip.id} 没挂批次（batch=${clip.batch}）——派工时不知道它归谁录`
+    )
+  }
+  // 号段不许交叠：C001–C100 是 B1 的，谁也不能把 B2 的条目塞进第一批
+  for (const batch of batches) {
+    const [from, to] = batch.range
+    const inRange = evalSet.clips.filter((c) => c.id >= from && c.id <= to)
+    assert.equal(
+      inRange.filter((c) => c.batch !== batch.id).length,
+      0,
+      `${batch.id} 的号段 ${from}–${to} 里混进了别的批次`
+    )
+  }
+})
+
+test('ROUND14_H1 批次 1 的 100 个槽位全排进了 clips[]，allocated 不许手写', () => {
+  assert.ok(batchOne, `批次计划里没有 ${ROUND14_H1.batchId}`)
+  assert.equal(batchOne.slots, ROUND14_H1.batchSlots, `批次 1 声明 ${batchOne.slots} 个槽位`)
+  assert.equal(
+    batchOne.allocated,
+    batchOneSlots.length,
+    `批次 1 写 allocated=${batchOne.allocated}，clips[] 里实际 ${batchOneSlots.length} 条——排位进度不许手写`
+  )
+  assert.equal(
+    batchOne.allocated,
+    batchOne.slots,
+    `批次 1 只排了 ${batchOne.allocated}/${batchOne.slots} 个槽位，剩下的没法派工`
+  )
+  assert.equal(
+    batchOne.recorded,
+    batchOneSlots.filter((c) => c.status === 'recorded').length,
+    '批次 1 的 recorded 与 clips[] 对不上——进度不许手写'
+  )
+  for (const batch of batches.filter((b) => b.id !== ROUND14_H1.batchId)) {
+    assert.equal(
+      batch.allocated,
+      evalSet.clips.filter((c) => c.batch === batch.id).length,
+      `${batch.id} 的 allocated 与 clips[] 对不上`
+    )
+  }
+  const speakers = new Set(batchOneSlots.map((c) => c.speaker))
+  assert.ok(
+    speakers.size >= ROUND14_H1.minBatchSpeakers,
+    `批次 1 只排了 ${speakers.size} 个孩子（下限 ${ROUND14_H1.minBatchSpeakers}）——18 人的口音分布撑不起子组比较`
+  )
+  assert.equal(
+    batchOne.speakers,
+    speakers.size,
+    `批次 1 写 ${batchOne.speakers} 人，槽位里实际 ${speakers.size} 人`
+  )
+})
+
+test('ROUND14_H1 批次 1 按 300 条配额的三分之一站位：每一类都排够，录的时候只往格子里填', () => {
+  const counts = new Map()
+  for (const clip of batchOneSlots) counts.set(clip.category, (counts.get(clip.category) ?? 0) + 1)
+  for (const [category, quota] of Object.entries(freeze.categoryQuota ?? {})) {
+    const share = (quota / freeze.recordedFloor) * batchOne.slots
+    // 允许围着等比值往下浮 40%（tone/initial 是故意往上浮的，见 r13-asr-freeze-set.md §2.1 记的债）
+    const floor = Math.max(1, Math.floor(share * 0.6))
+    const got = counts.get(category) ?? 0
+    assert.ok(
+      got >= floor,
+      `批次 1 的「${evalSet.categories[category]}」只排了 ${got} 条，等比 ${share.toFixed(1)} 条、下限 ${floor} 条`
+    )
+  }
+  const bySplit = new Map(SPLITS.map((s) => [s, 0]))
+  for (const clip of batchOneSlots) {
+    const split = speakerMap.get(clip.speaker).split
+    bySplit.set(split, bySplit.get(split) + 1)
+  }
+  for (const split of SPLITS) {
+    const got = bySplit.get(split) / batchOneSlots.length
+    const want = freeze.splitQuota[split]
+    assert.ok(
+      Math.abs(got - want) <= freeze.splitTolerance,
+      `批次 1 的 ${split} 占 ${(got * 100).toFixed(1)}%，配额 ${(want * 100).toFixed(0)}%`
+    )
+  }
+  const poems = new Set(batchOneSlots.map((c) => c.poem))
+  assert.ok(
+    poems.size >= freeze.minPoems,
+    `批次 1 只用了 ${poems.size} 首诗（下限 ${freeze.minPoems}）`
+  )
+})
+
+test('ROUND14_H1 落库闸自检全绿：每一条拒收闸都还拦得住它该拦的那种偷懒', () => {
+  assert.equal(batchPlan.ingest, ROUND14_H1.ingest, '批次计划没挂落库工具的路径')
+  assert.equal(batchPlan.plan, ROUND14_H1.batchPlanDoc, '批次计划没挂批次 1 的口径文档')
+  const result = ingest.runSelfTest()
+  assert.ok(result.passed, `落库闸自检有 ${result.failures.length} 条没过：${result.failures.join('；')}`)
+  assert.ok(
+    result.cases >= ingest.SELF_TEST_CASES.length,
+    '自检样例比拒收闸还少——有闸没人守着它自己'
+  )
+  // 每一个拒收码都必须至少有一条反例，否则那条闸删掉也没人知道
+  const covered = new Set(ingest.SELF_TEST_CASES.map(([code]) => code))
+  for (const code of Object.values(ingest.REJECT_CODES)) {
+    assert.ok(covered.has(code), `拒收码 ${code} 没有对应的反例样例`)
+  }
+})
+
+test('ROUND14_H1 落库闸对着真数据也讲得通：批次 1 的缺口现算得出来', () => {
+  const gaps = ingest.planGaps(evalSet, ROUND14_H1.batchId)
+  assert.ok(gaps, '落库闸算不出批次 1 的缺口')
+  assert.equal(gaps.slots, batchOne.slots, `缺口视图看到 ${gaps.slots} 个槽位`)
+  assert.equal(
+    gaps.recorded + gaps.pending,
+    gaps.slots,
+    '已录 + 待录对不上槽位总数——缺口视图自己算错了'
+  )
+  assert.equal(
+    gaps.consentPending.length,
+    [...new Set(batchOneSlots.map((c) => c.speaker))].filter(
+      (id) => speakerMap.get(id).consent !== 'signed'
+    ).length,
+    '同意书未签回的人数与名册对不上'
+  )
+  assert.ok(
+    batchPlanDoc.length > 1200,
+    `批次 1 口径文档 ${ROUND14_H1.batchPlanDoc} 缺失或太薄——没有它，录的人不知道每一格要填什么`
+  )
+  assert.match(batchPlanDoc, /\bROUND14_H1\b/, '批次 1 文档没挂 ROUND14_H1 标记')
+  assert.match(batchPlanDoc, /同意|consent/i, '批次 1 文档没写同意书怎么走')
+  assert.match(batchPlanDoc, /双标注|仲裁/, '批次 1 文档没写双标注与仲裁')
+  assert.match(batchPlanDoc, /仓库外|out-of-repo/i, '批次 1 文档没写音频存哪儿')
 })
 
 /* ------------------------------------------------- 3. 指标管线（模拟转写） */
@@ -1161,6 +1346,24 @@ post('ROUND13_H1 主机基准只当参考：真机那几条门槛仍旧未实测
   }
 })
 
+/**
+ * ROUND14_H1：把格子排好、把闸装上，都不等于可以放行。
+ *
+ * 这条守的是这一轮最容易被误读的地方——批次 1 有 100 个槽位、有落库工具、
+ * 有交付清单模板，看上去「录音这件事做完了」。实际上一条录音都没有：
+ * VM 里录不出孩子的声音。所以 F4 必须还是 todo，实录必须还是 0，
+ * stage 必须还没离开 skeleton，available 必须还是 false。
+ */
+post('ROUND14_H1 排位与落库工具都不是放行凭据：实录仍是 0，available 仍是 false', () => {
+  assert.equal(recordedClips.length, 0, `clips[] 里出现了 ${recordedClips.length} 条实录——这一轮不该有`)
+  assert.equal(batchOne.recorded, 0, '批次 1 声称录了东西，可 clips[] 里一条都没有')
+  assert.equal(batchOne.stage, 'planned', `批次 1 的 stage 是 ${batchOne.stage}，没落库就不该往前走`)
+  assert.equal(freeze.stage, 'skeleton', `冻结集 stage 是 ${freeze.stage}，实录 0 条就不该离开 skeleton`)
+  assert.equal(manifest.available, false, '基础设施到位就把 available 翻成了 true')
+  const f4 = manifest.freezeChecklist.find((i) => i.id === 'F4')
+  assert.equal(f4.status, 'todo', `F4 标成了 ${f4.status}，可实录还是 0/${freeze.recordedFloor}`)
+})
+
 for (const { name, fn } of afterVerdict) {
   tests.push({ name })
   try {
@@ -1186,8 +1389,8 @@ if (asJson) {
   console.log(
     JSON.stringify(
       {
-        marker: 'ROUND13_H1',
-        lineage: ['ROUND11_H1', 'ROUND12_H1', 'ROUND13_H1'],
+        marker: 'ROUND14_H1',
+        lineage: ['ROUND11_H1', 'ROUND12_H1', 'ROUND13_H1', 'ROUND14_H1'],
         manifest: {
           available: manifest.available,
           modelId: manifest.modelId,
@@ -1209,7 +1412,14 @@ if (asJson) {
           recorded: recordedClips.length,
           recordedFloor: freeze.recordedFloor,
           poems: new Set(evalSet.clips.map((c) => c.poem)).size,
-          consentSigned: evalSet.speakers.filter((s) => s.consent === 'signed').length
+          consentSigned: evalSet.speakers.filter((s) => s.consent === 'signed').length,
+          batches: batches.map((b) => ({
+            id: b.id,
+            slots: b.slots,
+            allocated: evalSet.clips.filter((c) => c.batch === b.id).length,
+            recorded: evalSet.clips.filter((c) => c.batch === b.id && c.status === 'recorded').length,
+            stage: b.stage
+          }))
         },
         rtfBaseline: rtfBaseline && {
           onDevice: rtfBaseline.onDevice,
@@ -1245,6 +1455,17 @@ if (asJson) {
       `实录 ${recordedClips.length}/${freeze.recordedFloor} 条 · ` +
       `${new Set(evalSet.clips.map((c) => c.poem)).size} 首诗 · ` +
       `同意已签 ${evalSet.speakers.filter((s) => s.consent === 'signed').length}/${evalSet.speakers.length} 人`
+  )
+  console.log(
+    `  批次计划（ROUND14_H1）：` +
+      batches
+        .map(
+          (b) =>
+            `${b.id} ${evalSet.clips.filter((c) => c.batch === b.id && c.status === 'recorded').length}` +
+            `/${evalSet.clips.filter((c) => c.batch === b.id).length} 已录（槽位 ${b.slots}，${b.stage}）`
+        )
+        .join(' · ') +
+      ` —— 落库走 ${ROUND14_H1.ingest}`
   )
   console.log(
     `  管线自检（模拟转写，不是模型指标）：安静 ${pct(simulated.quietCharRecall)} · ` +
@@ -1285,7 +1506,7 @@ if (asJson) {
     )
   }
   console.log(
-    `\n跟读评测跑道（ROUND13_H1）：${tests.length - failed} / ${tests.length} 项通过，` +
+    `\n跟读评测跑道（ROUND14_H1）：${tests.length - failed} / ${tests.length} 项通过，` +
       `${drillRows.length} 场故障演练。`
   )
 }
