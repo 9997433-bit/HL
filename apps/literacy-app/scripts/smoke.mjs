@@ -24,6 +24,7 @@ import { ROUND12_H4, SONGS } from '../src/data/songs.js'
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const DIST = join(ROOT, 'dist')
 const CHROME = '/usr/local/bin/google-chrome'
+const ANDROID_SIM_UA = process.env.ANDROID_SIM_UA?.trim() ?? ''
 
 const routerSource = await readFile(join(ROOT, 'src/router/index.js'), 'utf8')
 const sourceRoutePaths = [
@@ -369,10 +370,16 @@ const browser = await puppeteer.launch({
 
 const problems = []
 const rows = []
+let observedUserAgent = ''
+
+const configureMobilePage = async (page) => {
+  if (ANDROID_SIM_UA) await page.setUserAgent(ANDROID_SIM_UA)
+  await page.setViewport({ width: 420, height: 860, isMobile: true, hasTouch: true })
+}
 
 for (const [name, path] of ROUTES) {
   const page = await browser.newPage()
-  await page.setViewport({ width: 420, height: 860, isMobile: true, hasTouch: true })
+  await configureMobilePage(page)
   const found = []
 
   page.on('console', (m) => {
@@ -402,10 +409,15 @@ for (const [name, path] of ROUTES) {
         // 明显的渲染事故：模板里漏出 NaN / undefined
         broken: /NaN|undefined|\[object Object\]/.test(txt),
         hash: location.hash,
-        title: document.title
+        title: document.title,
+        userAgent: navigator.userAgent
       }
     })
 
+    if (!observedUserAgent) observedUserAgent = info.userAgent
+    if (ANDROID_SIM_UA && info.userAgent !== ANDROID_SIM_UA) {
+      found.push(`[user-agent] 期望 ${ANDROID_SIM_UA}，实际 ${info.userAgent}`)
+    }
     // 详情页被重定向回列表，通常意味着 id 对不上（内容改名后最常见的回归）
     const want = path.slice(path.indexOf('#') + 1)
     if (info.hash && info.hash.slice(1) !== want && !path.includes('nope') && !path.includes('game/listen')) {
@@ -429,7 +441,7 @@ for (const [name, path] of ROUTES) {
 const inter = []
 async function interact(label, path, fn) {
   const page = await browser.newPage()
-  await page.setViewport({ width: 420, height: 860, isMobile: true, hasTouch: true })
+  await configureMobilePage(page)
   const errs = []
   page.on('console', (m) => {
     if (m.type() === 'error' && !IGNORE.some((re) => re.test(m.text()))) errs.push(m.text())
@@ -2749,5 +2761,8 @@ if (problems.length) {
 }
 
 const failed = problems.length + inter.filter((i) => !i.ok).length
+if (ANDROID_SIM_UA && observedUserAgent === ANDROID_SIM_UA) {
+  console.log(`[ROUND13_H6] WebView UA smoke PASS: ${observedUserAgent}`)
+}
 console.log(`\n共 ${ROUTES.length} 条路由 + ${inter.length} 项交互，${failed} 项有问题。`)
 process.exit(failed ? 1 : 0)

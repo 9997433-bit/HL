@@ -18,6 +18,7 @@ import { SKILLS } from '../src/data/curriculum.js'
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const DIST = join(ROOT, 'dist')
 const CHROME = process.env.CHROME_PATH ?? '/usr/local/bin/google-chrome'
+const ANDROID_SIM_UA = process.env.ANDROID_SIM_UA?.trim() ?? ''
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -88,9 +89,11 @@ const browser = await puppeteer.launch({
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const problems = []
 const rows = []
+let observedUserAgent = ''
 
 async function newPage(collect) {
   const page = await browser.newPage()
+  if (ANDROID_SIM_UA) await page.setUserAgent(ANDROID_SIM_UA)
   await page.setViewport({ width: 420, height: 900, isMobile: true, hasTouch: true })
   page.on('console', (m) => {
     if (!['error', 'warning'].includes(m.type())) return
@@ -123,9 +126,14 @@ for (const [name, path] of ROUTES) {
         chars: txt.replace(/\s+/g, '').length,
         broken: /NaN|undefined|\[object Object\]/.test(txt),
         title: document.title,
+        userAgent: navigator.userAgent,
       }
     })
 
+    if (!observedUserAgent) observedUserAgent = info.userAgent
+    if (ANDROID_SIM_UA && info.userAgent !== ANDROID_SIM_UA) {
+      found.push(`[user-agent] 期望 ${ANDROID_SIM_UA}，实际 ${info.userAgent}`)
+    }
     if (!info.mounted) found.push('[render] #app 为空，组件没挂载')
     if (info.broken) found.push('[render] 页面里出现 NaN / undefined / [object Object]')
     if (info.chars < 20) found.push(`[render] 页面内容过少（${info.chars} 字）`)
@@ -2262,5 +2270,8 @@ if (problems.length) {
 }
 
 const failed = problems.length + inter.filter((i) => !i.ok).length
+if (ANDROID_SIM_UA && observedUserAgent === ANDROID_SIM_UA) {
+  console.log(`[ROUND13_H6] WebView UA smoke PASS: ${observedUserAgent}`)
+}
 console.log(`\n共 ${ROUTES.length} 条路由 + ${inter.length} 项交互，${failed} 项有问题。`)
 process.exit(failed ? 1 : 0)
