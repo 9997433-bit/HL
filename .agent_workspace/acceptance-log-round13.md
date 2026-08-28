@@ -2,7 +2,7 @@ Model slug: claude-fable-5
 # Round 13 验收记录
 
 > 状态：**模板 · 待集成回填**
-> 集成线：`cursor/openmoji-integration-9f67` @ `e4d3998`（H6 证据刷新待下一 commit）
+> 集成线：`cursor/openmoji-integration-9f67` @ `927ced0`（H1 骨架补条待下一 commit）
 > 判定标准：`.agent_workspace/ROUND13-ACCEPTANCE.md`（探针 `scripts/check-round13.mjs` v1.1）
 > 回填纪律：每格填**实测数据或命令输出**，禁止「应该可以」「理论上通过」；未达标项进 §3，不得静默遗漏。
 

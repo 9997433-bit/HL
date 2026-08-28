@@ -131,6 +131,8 @@
     { "id": "C053", "speaker": "S18", "env": "quiet", "device": "phone", "poem": "jiangxue", "line": 1, "seconds": 4.5, "category": "silence", "spoken": "", "mock": "", "status": "placeholder", "audio": null },
     { "id": "C054", "speaker": "S18", "env": "far", "device": "tablet", "poem": "jiangxue", "line": 3, "seconds": 4.8, "category": "tone", "spoken": "独钓寒江雪", "mock": "独钓寒江血", "status": "placeholder", "audio": null },
     { "id": "C055", "speaker": "S10", "env": "tv", "device": "phone", "poem": "chishang", "line": 0, "seconds": 5.4, "category": "extra", "spoken": "小娃撑小艇好难呀", "mock": "小娃撑小艇好难呀", "status": "placeholder", "audio": null },
-    { "id": "C056", "speaker": "S12", "env": "quiet", "device": "phone", "poem": "minnong2", "line": 3, "seconds": 5.2, "category": "repeat", "spoken": "粒粒粒粒皆辛苦", "mock": "粒粒粒粒皆辛苦", "status": "placeholder", "audio": null }
+    { "id": "C056", "speaker": "S12", "env": "quiet", "device": "phone", "poem": "minnong2", "line": 3, "seconds": 5.2, "category": "repeat", "spoken": "粒粒粒粒皆辛苦", "mock": "粒粒粒粒皆辛苦", "status": "placeholder", "audio": null },
+    { "id": "C057", "speaker": "S01", "env": "quiet", "device": "phone", "poem": "chishang", "line": 1, "seconds": 4.6, "category": "normal", "spoken": "偷采白莲回", "mock": "偷采白莲回", "status": "placeholder", "audio": null },
+    { "id": "C058", "speaker": "S02", "env": "tv", "device": "tablet", "poem": "minnong2", "line": 0, "seconds": 4.8, "category": "normal", "spoken": "锄禾日当午", "mock": "锄禾日当午", "status": "placeholder", "audio": null }
   ]
 }
