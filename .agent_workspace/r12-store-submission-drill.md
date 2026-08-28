@@ -6,7 +6,7 @@ Model slug: gpt-5.6-sol-xhigh-fast
 > 版本：`1.0.0`，Android `versionCode 1`  
 > applicationId：`com.hongen.literacy`  
 > 输入集成线 SHA：`7c2e6e7`  
-> H7 候选提交 SHA：`待首次提交后回填`  
+> 已验证 H7 候选 SHA：`d301ddb6229a21ba37dd507b1e31f092bceeba2d`
 > 门禁：`ROUND12_H7`
 
 本次只做“材料、构建、内测轨道、回退”桌面演练，不使用生产签名、不登录 Google Play Console 或 App Store Connect，也不代表已经送审。演练目的是让正式发布负责人拿到一张可以逐项执行和签名的清单，并提前暴露 TTS 合规、版本号、包体与反馈响应的阻断项。
@@ -26,6 +26,7 @@ Model slug: gpt-5.6-sol-xhigh-fast
 - [x] TTS 页面明确标记“离线范读试点”，播放失败会回退，关闭朗读后不强制播放。
 - [x] 核心课程离线可用；TTS 试点没有运行时网络请求，不上传儿童文本或声音。
 - [x] 反馈流程禁止姓名、生日、原始麦克风录音等儿童数据，并有 P0/P1 运行级 SLA。
+- [x] 候选 SHA 上 `check:round12` 的 H7 为 pass；快乐识字完整测试通过，164 条路由与 38 项交互无问题。
 - [ ] 普通话教师两人确认四句 20 个关键字无错音，并在试点记录签名。
 - [ ] 完整执行 `npm test`、`npm run test:offline`、`npm run check:round12`；H1–H8 合流后必须 8/8。
 - [ ] 在低端 Android 真机完成冷启动、飞行模式、来电/切后台、耳机插拔和连续播放回归。
@@ -64,5 +65,11 @@ Model slug: gpt-5.6-sol-xhigh-fast
 5. 回退后在原故障设备复测，再验证离线、系统无中文 voice、朗读关闭、切后台四条路径，issue 才能转 `Verified`。
 
 ## 6. 演练结论
+
+在 `d301ddb6229a21ba37dd507b1e31f092bceeba2d` 上完成了以下桌面验证：
+
+- `check:round12` 机读结果：H7 `pass`；
+- 4 个 Ogg 文件的魔数、字节数与 SHA256 和 manifest 一致，离线播放/未知内容回退 API 通过；
+- `npm run test --workspace literacy-app` 通过，包含单元、数据、生产构建、bundle 与浏览器 smoke。
 
 流程清单与回退路径 **PASS**；真实商店提交 **NO-GO**。当前明确阻断为：普通话双人审校未签字、生产签名/账号未使用、最终 AAB/IPA 及哈希未生成、Android 真机和 TestFlight 未执行、全分支 Round 12 8/8 尚待合流。上述未勾项必须由正式发布负责人在候选 SHA 上补齐，不能把本演练文档当作已审核或已上架证据。
