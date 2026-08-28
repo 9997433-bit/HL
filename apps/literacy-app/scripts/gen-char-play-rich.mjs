@@ -6,7 +6,8 @@
  * scripts/data/char-play-seed.txt 里（前 RICH_UNIT_LIMIT 个单元，一字一条）。
  * 这个脚本负责：
  *
- *   1. 解析 seed 的五段式行（字 | 主题 | 模板 | 旁白 | 道具），旁白撞句就判错；
+ *   1. 解析 seed 的五段式行（字 | 主题 | 模板 | 旁白 | 道具），旁白撞句就判错——
+ *      一字不差要判，只差个标点 / 空格的「近似撞句」同样判，见 narrationKey()；
  *   2. 按 TEMPLATE_CATALOG 校验每条脚本的道具齐不齐——舞台跑起来才不会开天窗；
  *   3. 把没写的 goal 补成模板的自然完成条件（拼几块就是几下），
  *      把没写的 hero 补成字表里的卡片 emoji，保证每条都有主角可画；
@@ -28,15 +29,27 @@ import { CHAR_INDEX } from '../src/data/char-index.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const appDir = path.resolve(here, '..')
-const seedFile = path.join(appDir, 'scripts', 'data', 'char-play-seed.txt')
+const argOf = (name) => {
+  const hit = process.argv.find((a) => a.startsWith(`--${name}=`))
+  return hit ? hit.slice(name.length + 3) : ''
+}
+// --seed= 只给负例测试用（拿一份改坏的 seed 验证撞句真的拦得住），正常跑不传。
+const seedFile = argOf('seed') || path.join(appDir, 'scripts', 'data', 'char-play-seed.txt')
 const outFile = path.join(appDir, 'src', 'data', 'char-play-rich.js')
 const checkOnly = process.argv.includes('--check')
 
-/** 这一版 seed 的门槛标记，落在生成物里给探针读（Round 16 数的是 ≥500 条）。 */
-const PROBE_MARK = 'ROUND16_H3'
+/** 这一版 seed 的门槛标记，落在生成物里给探针读（Round 17 数的是 ≥900 条）。 */
+const PROBE_MARK = 'ROUND17_H2'
+
+/** 历轮标记，往轮探针剥掉注释后仍读得到自己那一枚。 */
+const PROBE_HISTORY = ['ROUND15_H3', 'ROUND16_H3', PROBE_MARK]
 
 /** 手写脚本覆盖到第几个单元。往后扩就改这里，校验会跟着放宽。 */
-const RICH_UNIT_LIMIT = 40
+const RICH_UNIT_LIMIT = 55
+
+/** 探针数的两条线：条数和「旁白不重样」的句数。生成期就得自己先量一遍。 */
+const MIN_RICH_PLAYS = 900
+const MIN_DISTINCT_NARRATION = 720
 
 /** 主题只是给舞台挑配色和音效用的粗分类，别再细分了，多了没人维护得动。 */
 const THEMES = [
@@ -171,6 +184,17 @@ const DIRS = new Set(['up', 'down', 'left', 'right'])
 /** 旁白是念给 4–6 岁孩子听的，一口气念得完才行。 */
 const MAX_NARRATION = 26
 
+/**
+ * 撞句判定用的归一形：去掉标点、空格和语气词尾巴。
+ *
+ * 只比字符串相等挡不住「把句号换成感叹号」这种改法——念出来还是同一句，
+ * 孩子听到的是两关一模一样的旁白。这里把这类差别抹平再比。
+ */
+const narrationKey = (s) =>
+  String(s)
+    .replace(/[\s，。！？、；：,.!?;:~—…·「」『』“”‘’"']/g, '')
+    .replace(/(呀|吧|啦|呢|哦|哟)$/, '')
+
 /* ------------------------------------------------------------------ 解析 seed */
 
 const byChar = new Map(CHAR_INDEX.map((c) => [c.char, c]))
@@ -231,8 +255,10 @@ function parseSeed() {
   const rows = []
   const seen = new Set()
   // 旁白一句话对应一个字的意思，撞句就说明有一条是照抄邻居的——直接判错，
-  // 不然「500 条」里混进 200 句一模一样的，探针数得到，孩子听得出来。
+  // 不然「900 条」里混进 200 句一模一样的，探针数得到，孩子听得出来。
+  // 两道闸都在生成期：一字不差的用 narrationOwner，改了标点的用 narrationKeyOwner。
   const narrationOwner = new Map()
+  const narrationKeyOwner = new Map()
   const lines = fs.readFileSync(seedFile, 'utf8').split('\n')
 
   lines.forEach((raw, i) => {
@@ -283,7 +309,16 @@ function parseSeed() {
       errors.push(`第 ${lineNo} 行：「${char}」的旁白和「${twin}」一字不差，换一句`)
       return
     }
+    const key = narrationKey(narration)
+    const nearTwin = narrationKeyOwner.get(key)
+    if (nearTwin) {
+      errors.push(
+        `第 ${lineNo} 行：「${char}」的旁白和「${nearTwin}」只差标点语气，念出来是同一句，换一句`
+      )
+      return
+    }
     narrationOwner.set(narration, char)
+    narrationKeyOwner.set(key, char)
 
     const props = parseProps(rawProps, lineNo)
     if (!props.hero) props.hero = indexed.emoji
@@ -419,6 +454,22 @@ if (errors.length) {
 const units = [...new Set(rows.map((r) => r.unit))]
 const templates = [...new Set(rows.map((r) => r.template))]
 const distinctNarration = new Set(rows.map((r) => r.narration)).size
+const distinctNarrationKeys = new Set(rows.map((r) => narrationKey(r.narration))).size
+
+// 归一后还比条数少，说明上面两道闸漏了一句——宁可不生成，也别把撞句写进库里。
+if (distinctNarrationKeys !== rows.length) {
+  console.error(
+    `[play-rich] 旁白去重 ${distinctNarrationKeys} 条 ≠ 脚本 ${rows.length} 条，有撞句漏网。`
+  )
+  process.exit(1)
+}
+if (rows.length < MIN_RICH_PLAYS || distinctNarration < MIN_DISTINCT_NARRATION) {
+  console.error(
+    `[play-rich] 没到 ${PROBE_MARK} 的线：脚本 ${rows.length}（需 ≥${MIN_RICH_PLAYS}）、` +
+      `旁白 ${distinctNarration} 句（需 ≥${MIN_DISTINCT_NARRATION}）。`
+  )
+  process.exit(1)
+}
 
 if (checkOnly) {
   console.log(
@@ -467,7 +518,7 @@ export function getRichPlay(char) {
   return RICH_PLAY_BY_CHAR.get(char) ?? null
 }
 
-/** 手写剧本条数（Round 15 H3 数的就是它，Round 16 H3 把线抬到 500）。 */
+/** 手写剧本条数（Round 15 H3 数的就是它，Round 16 抬到 500，Round 17 抬到 ${MIN_RICH_PLAYS}）。 */
 export function countRichPlays() {
   return CHAR_PLAY_RICH.length
 }
@@ -479,6 +530,12 @@ export function countRichNarrations() {
 
 /** 门槛标记，探针剥掉注释后仍读得到。 */
 export const RICH_PLAY_PROBE = '${PROBE_MARK}'
+
+/** 历轮标记都留着，往轮探针各读各的那一枚。 */
+export const RICH_PLAY_PROBE_HISTORY = [${PROBE_HISTORY.map(q).join(', ')}]
+
+/** 本轮两条线，生成期已经卡过一遍，运行时再自报一次给探针核对。 */
+export const RICH_PLAY_THRESHOLDS = { plays: ${MIN_RICH_PLAYS}, narrations: ${MIN_DISTINCT_NARRATION} }
 
 /** 手写覆盖到的单元。 */
 export const RICH_PLAY_UNITS = [${units.map(q).join(', ')}]

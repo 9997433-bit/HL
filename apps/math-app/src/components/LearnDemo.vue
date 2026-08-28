@@ -454,6 +454,17 @@ onBeforeUnmount(() => {
   opacity: 0.3;
 }
 
+/* 展开图：这里的一个点代表立体图形的一个面，所以画成方块而不是圆点 */
+.dot-groups.frame-net .dot,
+.dot-groups.frame-net .dot-group:nth-child(2n) .dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  border: 2px solid rgba(94, 231, 255, 0.7);
+  background: rgba(94, 231, 255, 0.16);
+  box-shadow: none;
+}
+
 /* 对称：两组之间画出那条对称轴 */
 .dot-groups.frame-mirror {
   gap: 0;

@@ -276,13 +276,23 @@ await interact(
       skills: [...document.querySelectorAll('[data-demo-select-skill]')].map(
         (el) => el.dataset.demoSelectSkill,
       ),
-      stage: document.querySelector('[data-demo-id]')?.dataset.demoStage ?? '',
       motion: document.querySelector('[data-demo-id]')?.dataset.demoMotion ?? '',
     }))
-    if (before.count < 12) throw new Error(`学演示只有 ${before.count} 个技能点，少于 12`)
+    if (before.count < 27) throw new Error(`学演示只有 ${before.count} 个技能点，少于 27`)
     if (new Set(before.skills).size !== before.count) throw new Error('有技能点挂了不止一条演示')
     if (before.motion !== 'play') throw new Error(`默认应是播放态，实际 ${before.motion}`)
-    if (before.stage !== 'object') throw new Error(`演示首段应是实物，实际 ${before.stage}`)
+
+    /*
+     * 「从实物段起播」要在页面内点完就读：三段每 1.5 秒自动往前走，隔着一次
+     * 驱动端往返再去读，机器一忙就会读到已经推进过的 visual，红的是负载不是代码。
+     * 换一张卡片会让演示重挂、回到第一段，等价于刚进场，窗口只剩一次渲染。
+     */
+    const started = await page.evaluate(async () => {
+      document.querySelectorAll('[data-demo-select]')[1].click()
+      await new Promise((resolve) => setTimeout(resolve, 30))
+      return document.querySelector('[data-demo-id]')?.dataset.demoStage ?? ''
+    })
+    if (started !== 'object') throw new Error(`换一条演示应从实物段起播，实际 ${started}`)
     await page.click('[data-demo-skip]')
     await sleep(250)
     const after = await page.evaluate(() => ({
@@ -291,7 +301,7 @@ await interact(
     }))
     if (after.stage !== 'equation') throw new Error(`跳过后没有到算式段：${after.stage}`)
     if (!/=|½|^\d+$/.test(after.text)) throw new Error(`算式段没有算式：${after.text}`)
-    return `${before.count} 个技能点，${before.stage} → ${after.stage}`
+    return `${before.count} 个技能点，${started} → ${after.stage}`
   },
 )
 

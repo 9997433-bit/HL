@@ -1,5 +1,5 @@
 /**
- * ROUND16_H4 学演示的定点验收。
+ * ROUND16_H4 / ROUND17_H3 学演示的定点验收。
  *
  * scripts/smoke.mjs 会把 19 条路由 + 全部玩法都跑一遍，几分钟起步；改学演示时
  * 想要的只是那三条断言。这个脚本只开一个浏览器、只走演示相关的路径，
@@ -94,6 +94,27 @@ const readDemo = (page, scope = '') =>
     }
   }, scope)
 
+/**
+ * 换到某条演示，然后立刻读它停在哪一段。
+ *
+ * 三段是每 1.5 秒自动往前走的，所以「点完再隔一次驱动端往返去读」这种写法，
+ * 机器一忙就会读到已经推进过的 visual —— 红的是负载不是代码。点击和读都放进
+ * 页面里跑，中间只留一次渲染的工夫。
+ */
+const pickDemo = (page, selector) =>
+  page.evaluate(async (sel) => {
+    const tab = document.querySelector(sel)
+    if (!tab) throw new Error(`演示中心上没有 ${sel}`)
+    tab.click()
+    await new Promise((resolve) => setTimeout(resolve, 30))
+    const root = document.querySelector('[data-demo-id]')
+    return {
+      id: root?.dataset.demoId ?? '',
+      skill: root?.dataset.demoSkill ?? '',
+      stage: root?.dataset.demoStage ?? '',
+    }
+  }, selector)
+
 await check(`演示中心：${LEARN_DEMO_SKILLS.length} 个技能点 + 跳过到算式`, '/#/visual-demos', async (page) => {
   await page.waitForSelector('[data-demo-id]')
   const tabs = await page.evaluate(() =>
@@ -101,30 +122,49 @@ await check(`演示中心：${LEARN_DEMO_SKILLS.length} 个技能点 + 跳过到
       (el) => el.dataset.demoSelectSkill,
     ),
   )
-  if (tabs.length < 12) throw new Error(`只有 ${tabs.length} 个技能点，少于 12`)
+  if (tabs.length < 27) throw new Error(`只有 ${tabs.length} 个技能点，少于 27`)
   if (new Set(tabs).size !== tabs.length) throw new Error('有技能点挂了不止一条演示')
   const missing = LEARN_DEMO_SKILLS.filter((skill) => !tabs.includes(skill))
   if (missing.length) throw new Error(`清单里的技能点没上屏：${missing.join('、')}`)
 
   const before = await readDemo(page)
   if (before.motion !== 'play') throw new Error(`默认应是播放态，实际 ${before.motion}`)
-  if (before.stage !== 'object') throw new Error(`首段应是实物，实际 ${before.stage}`)
+  const started = await pickDemo(page, '[data-demo-select="counting"]')
+  if (started.stage !== 'object') throw new Error(`首段应是实物，实际 ${started.stage}`)
   await page.click('[data-demo-skip]')
   await sleep(250)
   const after = await readDemo(page)
   if (after.stage !== 'equation') throw new Error(`跳过后没到算式段：${after.stage}`)
   if (!/=|½|^\d+$/.test(after.equation)) throw new Error(`算式段没有算式：${after.equation}`)
-  return `${tabs.length} 个技能点，object → ${after.stage}（${after.equation}）`
+  return `${tabs.length} 个技能点，${started.stage} → ${after.stage}（${after.equation}）`
 })
 
 await check('演示中心：换一条演示重新从实物段播', '/#/visual-demos', async (page) => {
   await page.waitForSelector('[data-demo-select="division"]')
-  await page.click('[data-demo-select="division"]')
-  await sleep(250)
-  const picked = await readDemo(page)
+  const picked = await pickDemo(page, '[data-demo-select="division"]')
   if (picked.id !== 'division') throw new Error(`选中的不是 division：${picked.id}`)
   if (picked.stage !== 'object') throw new Error(`换条演示应从实物段重播，实际 ${picked.stage}`)
   return `division / ${picked.skill} 从 ${picked.stage} 段重播`
+})
+
+// Round 17 补的这 6 条挂在原先没有演示的技能点上，逐条点开确认不是只进了清单
+await check('演示中心：ROUND17_H3 新增的 6 条逐条点得开', '/#/visual-demos', async (page) => {
+  await page.waitForSelector('[data-demo-id]')
+  const added = ['shape-3d', 'classify', 'wp-diff', 'wp-times', 'wp-share', 'wp-two-step']
+  const seen = []
+  for (const skill of added) {
+    const demo = await pickDemo(page, `[data-demo-select-skill="${skill}"]`)
+    if (demo.skill !== skill) throw new Error(`点 ${skill} 打开的却是 ${demo.skill}`)
+    if (demo.stage !== 'object') throw new Error(`${skill} 没有从实物段重播：${demo.stage}`)
+    await page.click('[data-demo-skip]')
+    await sleep(200)
+    const done = await readDemo(page)
+    if (done.stage !== 'equation' || !done.equation) {
+      throw new Error(`${skill} 跳过后没落到算式段：${done.stage} / ${done.equation}`)
+    }
+    seen.push(`${skill} ${done.equation}`)
+  }
+  return seen.join('；')
 })
 
 await check('演示中心：?skill= 深链直接定位', '/#/visual-demos?skill=symmetry', async (page) => {
@@ -156,6 +196,7 @@ for (const [name, path] of [
   ['数量星云', '/#/number-sense'],
   ['形状卫星', '/#/geometry'],
   ['规律环带', '/#/logic'],
+  ['配对记忆', '/#/memory-pairs'],
   ['10 的分与合', '/#/compose-ten'],
 ]) {
   await check(`${name}：练习入口就地弹出演示`, path, async (page) => {
@@ -210,5 +251,7 @@ server.close()
 
 const failed = results.filter((r) => !r.ok)
 for (const r of results) console.log(` ${r.ok ? '✓' : '✗'} ${r.label} —— ${r.note}`)
-console.log(`\nROUND16_H4 学演示定点验收：${results.length - failed.length}/${results.length} 通过。`)
+console.log(
+  `\nROUND16_H4 / ROUND17_H3 学演示定点验收：${results.length - failed.length}/${results.length} 通过。`,
+)
 process.exit(failed.length ? 1 : 0)

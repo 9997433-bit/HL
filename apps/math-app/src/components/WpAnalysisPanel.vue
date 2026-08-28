@@ -12,7 +12,7 @@
  *   3. 变式只换数字不换结构，看完还能顺手要一轮同类题接着练。
  */
 import { computed, ref, watch } from 'vue'
-import { buildAnalysis, ROUND16_H5 } from '@/utils/wpAnalysis'
+import { buildAnalysis, ROUND16_H5, ROUND17_H4 } from '@/utils/wpAnalysis'
 import { sound } from '@/utils/sound'
 
 const props = defineProps({
@@ -87,9 +87,17 @@ watch(
 </script>
 
 <template>
-  <section class="panel" role="region" aria-label="应用题剖析" :data-analysis="ROUND16_H5">
+  <section
+    class="panel"
+    role="region"
+    aria-label="应用题剖析"
+    :data-analysis="ROUND16_H5"
+    :data-explain="analysis.handwritten ? ROUND17_H4 : ''"
+  >
     <header class="panel-head">
       <span class="chip chip-on">🔍 剖析</span>
+      <!-- 手写剖析链讲的是「这道题为什么先算它」，值得让孩子知道这段是老师写的 -->
+      <span v-if="analysis.handwritten" class="chip chip-hand">✍️ 老师讲法</span>
       <p class="dim">看懂「为什么这样列式」，再回去作答。</p>
       <div class="spacer" />
       <button class="btn btn--ghost btn--sm" @click="skip">跳过 ✕</button>
@@ -220,6 +228,13 @@ watch(
   background: rgba(255, 206, 77, 0.16);
   border-color: rgba(255, 206, 77, 0.45);
   font-weight: 900;
+}
+
+.chip-hand {
+  background: rgba(85, 230, 165, 0.14);
+  border-color: rgba(85, 230, 165, 0.42);
+  color: var(--success);
+  font-weight: 800;
 }
 
 .ask {
