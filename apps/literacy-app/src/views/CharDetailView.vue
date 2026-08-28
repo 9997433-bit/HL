@@ -39,6 +39,12 @@ import { RADICAL_MAP, getRadical } from '@/data/radicals.js'
 import { useFeedback } from '@/composables/useFeedback.js'
 import { useProgressStore } from '@/stores/progress.js'
 import { useSettingsStore } from '@/stores/settings.js'
+import { cancelSpeech } from '@/utils/audio.js'
+import {
+  cancelOfflineTts,
+  hasOfflineTtsL1Card,
+  playOfflineTtsL1
+} from '@/utils/offlineTts.js'
 import { speak } from '@/utils/speech.js'
 import { similarDistractors } from '@/utils/distractors.js'
 import { shuffle } from '@/utils/random.js'
@@ -155,12 +161,42 @@ const next = computed(() =>
 
 const record = computed(() => progress.chars[decoded.value] || null)
 const mastered = computed(() => progress.isMastered(decoded.value))
+const offlineL1 = computed(() => hasOfflineTtsL1Card(decoded.value))
+
+let speechRun = 0
+
+function stopReading() {
+  speechRun += 1
+  cancelOfflineTts()
+  cancelSpeech()
+}
+
+async function readText(text, rate, kind = null) {
+  if (!settings.speechOn || !text) return false
+  const run = ++speechRun
+  cancelOfflineTts()
+  cancelSpeech()
+
+  const played =
+    kind && item.value
+      ? await playOfflineTtsL1(item.value.char, kind, { rate: rate ?? settings.speechRate })
+      : false
+  if (run !== speechRun) return false
+  if (played) return true
+  return speak(text, { rate: rate ?? settings.speechRate })
+}
 
 function say(text, rate) {
   sfx.tap()
   // 听读音也是一种学习行为，记下来才能算「认识了」
   if (item.value && text === item.value.char) progress.markHeard(text)
-  speak(text, { rate: rate ?? settings.speechRate })
+  const kind =
+    text === item.value?.char
+      ? 'character'
+      : text === item.value?.sentence?.text
+        ? 'sentence'
+        : null
+  return readText(text, rate, kind)
 }
 
 /* ------------------------------------------------------- 状态机：迁移 */
@@ -279,7 +315,7 @@ function buildListen() {
 
 function playListen() {
   if (!item.value) return
-  speak(item.value.char, { rate: settings.speechRate })
+  readText(item.value.char, settings.speechRate, 'character')
 }
 
 function onListenPick(option, event) {
@@ -515,6 +551,7 @@ onMounted(() => {
 })
 
 watch(decoded, () => {
+  stopReading()
   if (!item.value) router.replace('/learn')
   else {
     toast.value = ''
@@ -523,11 +560,19 @@ watch(decoded, () => {
   }
 })
 
-onBeforeUnmount(clearTimers)
+onBeforeUnmount(() => {
+  clearTimers()
+  stopReading()
+})
 </script>
 
 <template>
-  <div v-if="item" class="page detail" :data-phase="phase">
+  <div
+    v-if="item"
+    class="page detail"
+    :data-phase="phase"
+    :data-tts="offlineL1 ? 'offline-l1' : 'system'"
+  >
     <!-- 五步进度条：既是导航，也是「现在在第几步」的说明 -->
     <nav ref="railRef" class="rail card" aria-label="单字学习五步">
       <ol class="rail__list">
@@ -564,6 +609,7 @@ onBeforeUnmount(clearTimers)
             <span class="sr-only">朗读 {{ item.char }}</span>
           </button>
           <span class="pill">{{ item.strokes }} 画</span>
+          <span v-if="offlineL1" class="pill pill--accent">🎧 离线老师范读</span>
           <span v-if="mastered" class="pill pill--accent">🏆 已掌握</span>
           <span v-else-if="record" class="pill pill--accent">🌱 学过 {{ record.views }} 次</span>
         </div>
