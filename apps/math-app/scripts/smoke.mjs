@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url'
 import puppeteer from 'puppeteer-core'
 // 技能图谱的断言对着课程表算期望值，别在这儿抄一份会过期的数字
 import { SKILLS } from '../src/data/curriculum.js'
+import { LEARN_DEMO_SKILLS } from '../src/data/learn-demo-index.js'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const DIST = join(ROOT, 'dist')
@@ -60,7 +61,7 @@ const ROUTES = [
   ['竖式工坊', '/#/column-arithmetic'],
   ['形状卫星', '/#/geometry'],
   ['七巧板实验室', '/#/tangram'],
-  ['数形演示中心', '/#/visual-demos'],
+  ['学演示中心', '/#/visual-demos'],
   ['规律环带', '/#/logic'],
   ['配对记忆', '/#/memory-pairs'],
   ['逻辑迷宫', '/#/maze'],
@@ -265,23 +266,62 @@ async function playChoiceModule(page, rounds) {
   return { answered, before, after }
 }
 
-await interact('数形演示：8 类 + 跳过到算式', '/#/visual-demos', async (page) => {
-  await page.waitForSelector('[data-demo-id]')
-  const before = await page.evaluate(() => ({
-    count: document.querySelectorAll('[data-demo-select]').length,
-    stage: document.querySelector('[data-demo-id]')?.dataset.demoStage ?? '',
-  }))
-  if (before.count < 7) throw new Error(`数形演示只有 ${before.count} 类`)
-  if (before.stage !== 'object') throw new Error(`演示首段应是实物，实际 ${before.stage}`)
-  await page.click('[data-demo-skip]')
+await interact(
+  `ROUND16_H4 学演示：${LEARN_DEMO_SKILLS.length} 个技能点 + 跳过到算式`,
+  '/#/visual-demos',
+  async (page) => {
+    await page.waitForSelector('[data-demo-id]')
+    const before = await page.evaluate(() => ({
+      count: document.querySelectorAll('[data-demo-select]').length,
+      skills: [...document.querySelectorAll('[data-demo-select-skill]')].map(
+        (el) => el.dataset.demoSelectSkill,
+      ),
+      stage: document.querySelector('[data-demo-id]')?.dataset.demoStage ?? '',
+      motion: document.querySelector('[data-demo-id]')?.dataset.demoMotion ?? '',
+    }))
+    if (before.count < 12) throw new Error(`学演示只有 ${before.count} 个技能点，少于 12`)
+    if (new Set(before.skills).size !== before.count) throw new Error('有技能点挂了不止一条演示')
+    if (before.motion !== 'play') throw new Error(`默认应是播放态，实际 ${before.motion}`)
+    if (before.stage !== 'object') throw new Error(`演示首段应是实物，实际 ${before.stage}`)
+    await page.click('[data-demo-skip]')
+    await sleep(250)
+    const after = await page.evaluate(() => ({
+      stage: document.querySelector('[data-demo-id]')?.dataset.demoStage ?? '',
+      text: document.querySelector('.equation-panel .equation')?.innerText.trim() ?? '',
+    }))
+    if (after.stage !== 'equation') throw new Error(`跳过后没有到算式段：${after.stage}`)
+    if (!/=|½|^\d+$/.test(after.text)) throw new Error(`算式段没有算式：${after.text}`)
+    return `${before.count} 个技能点，${before.stage} → ${after.stage}`
+  },
+)
+
+await interact('ROUND16_H4 学演示：算术恒星练习入口就地弹出', '/#/arithmetic', async (page) => {
+  await page.waitForSelector('[data-learn-demo-open]')
+  const skill = await page.evaluate(
+    () => document.querySelector('[data-learn-demo-open]').dataset.learnDemoSkill,
+  )
+  if (!LEARN_DEMO_SKILLS.includes(skill)) throw new Error(`入口挂在没有演示的技能点上：${skill}`)
+
+  await page.click('[data-learn-demo-open]')
+  await page.waitForSelector('[data-learn-demo-layer] [data-demo-id]', { timeout: 8000 })
+  const opened = await page.evaluate(() => {
+    const root = document.querySelector('[data-learn-demo-layer] [data-demo-id]')
+    return {
+      skill: root.dataset.demoSkill,
+      name: root.querySelector('[data-demo-skill-name]')?.innerText.trim() ?? '',
+      // 弹层盖着的时候，题面选项不该还能被键盘/点击顺手选掉
+      quizStillThere: !!document.querySelector('.quiz-stage'),
+    }
+  })
+  if (opened.skill !== skill) throw new Error(`弹出的演示技能点对不上：${opened.skill} ≠ ${skill}`)
+  if (!opened.name) throw new Error('演示没标出正在讲哪个技能点')
+  if (!opened.quizStillThere) throw new Error('看个演示把整轮练习顶掉了')
+
+  await page.click('[data-demo-dismiss]')
   await sleep(250)
-  const after = await page.evaluate(() => ({
-    stage: document.querySelector('[data-demo-id]')?.dataset.demoStage ?? '',
-    text: document.querySelector('.equation-panel .equation')?.innerText.trim() ?? '',
-  }))
-  if (after.stage !== 'equation') throw new Error(`跳过后没有到算式段：${after.stage}`)
-  if (!/=|½|^\d+$/.test(after.text)) throw new Error(`算式段没有算式：${after.text}`)
-  return `${before.count} 类，${before.stage} → ${after.stage}`
+  const closed = await page.evaluate(() => !document.querySelector('[data-learn-demo-layer]'))
+  if (!closed) throw new Error('演示收不起来')
+  return `技能点 ${skill}（${opened.name}）就地弹出并收起，练习进度不变`
 })
 
 await interact('七巧板：Canvas + 7 块选择与旋转', '/#/tangram', async (page) => {
@@ -487,6 +527,50 @@ await interact('逻辑迷宫：reduced-motion 下飞船一步到位', '/#/maze',
   if (reduced.immediate !== reduced.settled) throw new Error('reduced-motion 下飞船仍在跑补间')
   return '正常档飞船滑行，reduced-motion 档直接落格'
 })
+
+await interact(
+  'ROUND16_H4 学演示：reduced-motion 下静态三态仍可读',
+  '/#/visual-demos',
+  async (page) => {
+    /** 三个面板的实际不透明度 + 屏幕上能读到的旁白句子。 */
+    const readState = () =>
+      page.evaluate(() => {
+        const root = document.querySelector('[data-demo-id]')
+        const panels = [...root.querySelectorAll('.demo-panel')].map((el) =>
+          Number(getComputedStyle(el).opacity),
+        )
+        const lines = [...root.querySelectorAll('[data-demo-narration] li, [data-demo-narration] p')]
+          .map((el) => el.innerText.trim())
+          .filter(Boolean)
+        return {
+          motion: root.dataset.demoMotion,
+          stage: root.dataset.demoStage,
+          panels,
+          lines,
+          equation: root.querySelector('.equation-panel .equation')?.innerText.trim() ?? '',
+          replay: !!root.querySelector('[data-demo-replay]'),
+        }
+      })
+
+    await page.waitForSelector('[data-demo-id]')
+    const played = await readState()
+    if (played.motion !== 'play') throw new Error(`默认应是播放态，实际 ${played.motion}`)
+
+    await useReducedMotion(page)
+    await page.waitForSelector('[data-demo-motion="static"]')
+    const still = await readState()
+    if (still.stage !== 'equation') throw new Error(`静态态应直接停在算式段，实际 ${still.stage}`)
+    if (still.panels.length !== 3) throw new Error(`静态态少了面板：${still.panels.length}/3`)
+    // 「可读」= 三个面板都不是灰着的占位，而是各自把内容摆出来了
+    if (still.panels.some((opacity) => opacity < 0.99)) {
+      throw new Error(`静态态仍有面板压暗着：${still.panels.join('/')}`)
+    }
+    if (still.lines.length !== 3) throw new Error(`静态态只列出 ${still.lines.length} 句旁白`)
+    if (!still.equation) throw new Error('静态态读不到算式')
+    if (still.replay) throw new Error('静态态不该再给「重播」——它本来就没在播')
+    return `播放态逐段亮起，reduced-motion 档三段同屏 + ${still.lines.length} 句旁白全列`
+  },
+)
 
 await interact('分与合：移动弹珠并写入 compose-ten', '/#/compose-ten', async (page) => {
   await page.waitForSelector('[data-compose-check]')

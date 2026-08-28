@@ -1,21 +1,52 @@
 <script setup>
+/**
+ * ROUND16_H4 学演示中心 —— 把注册表里的每个技能点摆成一张卡。
+ *
+ * 页面自己不放数据也不排顺序：条目、分组和三段内容全来自 data/learn-demos.js，
+ * 播放/跳过/静态三态全在 components/LearnDemo.vue。这里只做三件事——
+ * 按学科模块分组、解析深链（?demo= / ?skill=）、把选中的那条交给演示壳。
+ */
 import { computed, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import VisualMathDemo from '@/components/VisualMathDemo.vue'
-import { VISUAL_DEMOS } from '@/data/visualDemos.js'
+import LearnDemo from '@/components/LearnDemo.vue'
+import { LEARN_DEMOS } from '@/data/learn-demos.js'
+import { SKILL_MAP } from '@/data/curriculum.js'
+import { MODULES } from '@/data/modules.js'
 import { sound } from '@/utils/sound.js'
 
 const route = useRoute()
 const requested = String(route.query.demo ?? '')
 const focused = String(route.query.skill ?? '')
+
+// 深链优先级：指名道姓的 demo > 从技能图谱带过来的 skill > 表里第一条
 const initial =
-  VISUAL_DEMOS.find((demo) => demo.id === requested) ??
-  VISUAL_DEMOS.find((demo) => demo.skill === focused) ??
-  VISUAL_DEMOS[0]
+  LEARN_DEMOS.find((demo) => demo.id === requested) ??
+  LEARN_DEMOS.find((demo) => demo.skill === focused) ??
+  LEARN_DEMOS[0]
+
 const selectedId = ref(initial.id)
 const selected = computed(
-  () => VISUAL_DEMOS.find((demo) => demo.id === selectedId.value) ?? VISUAL_DEMOS[0],
+  () => LEARN_DEMOS.find((demo) => demo.id === selectedId.value) ?? LEARN_DEMOS[0],
 )
+const selectedSkillName = computed(() => SKILL_MAP[selected.value.skill]?.name ?? '')
+
+/** 学科模块 → 星球元数据；演示按星球分组，孩子才知道这一组该去哪儿练。 */
+const PLANET_OF = Object.fromEntries(MODULES.map((m) => [m.curriculumId, m]))
+
+const groups = computed(() => {
+  const buckets = new Map()
+  for (const demo of LEARN_DEMOS) {
+    if (!buckets.has(demo.module)) buckets.set(demo.module, [])
+    buckets.get(demo.module).push(demo)
+  }
+  return [...buckets].map(([moduleId, demos]) => ({
+    id: moduleId,
+    name: PLANET_OF[moduleId]?.name ?? moduleId,
+    icon: PLANET_OF[moduleId]?.icon ?? '✨',
+    route: PLANET_OF[moduleId]?.route ?? '/',
+    demos,
+  }))
+})
 
 function choose(id) {
   sound.click()
@@ -28,31 +59,45 @@ function choose(id) {
     <section class="intro card">
       <div>
         <p class="kicker">看得见的数学</p>
-        <h2 class="page-title">数形演示中心</h2>
+        <h2 class="page-title">学演示中心</h2>
         <p class="muted">
-          从熟悉的实物出发，先画成图形模型，再写成算式。每个演示都能跳过、重播或手动逐步播放。
+          每个技能点都有一段「实物 → 图形 → 算式」：先看熟悉的东西，再换成点和框，最后才写算式。
+          能跳过、能重播，也能一步一步自己点。
         </p>
       </div>
-      <span class="count-badge" data-visual-demo-count>{{ VISUAL_DEMOS.length }} 类演示</span>
+      <span class="count-badge" data-visual-demo-count data-learn-demo-count>
+        {{ LEARN_DEMOS.length }} 个技能点
+      </span>
     </section>
 
-    <nav class="demo-picker card" aria-label="选择数形演示">
-      <button
-        v-for="demo in VISUAL_DEMOS"
-        :key="demo.id"
-        class="demo-tab"
-        :class="{ on: selectedId === demo.id }"
-        :aria-pressed="selectedId === demo.id"
-        :data-demo-select="demo.id"
-        @click="choose(demo.id)"
-      >
-        <span>{{ demo.object.emoji }}</span>
-        <strong>{{ demo.title }}</strong>
-        <small>{{ demo.equation }}</small>
-      </button>
+    <nav class="demo-picker card" aria-label="选择学演示">
+      <section v-for="group in groups" :key="group.id" class="picker-group">
+        <h3 class="group-head">
+          <span aria-hidden="true">{{ group.icon }}</span>
+          {{ group.name }}
+          <small class="dim">{{ group.demos.length }} 个</small>
+          <RouterLink class="group-link" :to="group.route">去练 →</RouterLink>
+        </h3>
+        <div class="group-grid">
+          <button
+            v-for="demo in group.demos"
+            :key="demo.id"
+            class="demo-tab"
+            :class="{ on: selectedId === demo.id }"
+            :aria-pressed="selectedId === demo.id"
+            :data-demo-select="demo.id"
+            :data-demo-select-skill="demo.skill"
+            @click="choose(demo.id)"
+          >
+            <span>{{ demo.object.emoji }}</span>
+            <strong>{{ demo.title }}</strong>
+            <small>{{ demo.equation }}</small>
+          </button>
+        </div>
+      </section>
     </nav>
 
-    <VisualMathDemo :key="selected.id" :demo="selected" />
+    <LearnDemo :key="selected.id" :demo="selected" :skill-name="selectedSkillName" />
   </main>
 </template>
 
@@ -86,13 +131,37 @@ function choose(id) {
   background: rgba(255, 206, 77, 0.12);
   border: 1px solid rgba(255, 206, 77, 0.34);
   font-weight: 900;
+  text-align: center;
 }
 
 .demo-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px;
+}
+
+.group-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 15px;
+}
+
+.group-link {
+  margin-left: auto;
+  color: var(--brand);
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.group-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
   gap: 8px;
-  padding: 12px;
 }
 
 .demo-tab {
