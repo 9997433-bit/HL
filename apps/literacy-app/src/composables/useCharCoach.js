@@ -9,8 +9,8 @@
  *   coach.enterStep('listen')          // 走到「练一练」，先说这一步要干什么
  *   coach.judge('wrong')               // 判完一题，让阶段台词接话
  *
- * 两拍的分工：进新一步时页面自己的话在前（孩子要先知道现在干什么），
- * 判完一题时阶段台词在前（连对该夸、答错该安慰，这些阶段那一层已经判过了）。
+ * 两拍的分工：进新一步说这一步自己的话（孩子要先知道现在干什么），判完一题
+ * 让阶段台词先说（连对该夸、答错该安慰，这些阶段那一层已经判过了）。
  * 临时顶上来的那句叫 `cue`，孩子点一下墨墨就把它丢掉，回到轮换台词。
  */
 import { computed, ref } from 'vue'
@@ -96,8 +96,14 @@ export function useCharCoach(moment = {}) {
   const line = computed(() => cue.value || coach.line.value)
   const mood = computed(() => beatMood.value || coach.mood.value)
 
-  const pick = (list) => {
-    const usable = list.filter((text) => typeof text === 'string' && text.trim())
+  /**
+   * 从该说的那一组里轮一句出来。同一组里轮着说，孩子不会觉得墨墨在复读；
+   * 那一组是空的（比如某一拍没写台词）才拿备用的那组顶上。
+   */
+  const rotate = (lead, backup) => {
+    const usable = (lead.length ? lead : backup).filter(
+      (text) => typeof text === 'string' && text.trim()
+    )
     if (!usable.length) return ''
     turn += 1
     return usable[turn % usable.length]
@@ -109,19 +115,20 @@ export function useCharCoach(moment = {}) {
     return mascotStageLines(pickMascotStage(ctx).id, ctx)
   }
 
-  /** 走到新一步：先说这一步要干什么，没写台词的步骤退回阶段台词。 */
+  /** 走到新一步：说这一步要干什么，没写台词的步骤退回阶段台词。 */
   function enterStep(id) {
     beatMood.value = ''
-    cue.value = pick([...(STEP_LINES[id] ?? []), ...stageLines()])
+    cue.value = rotate(STEP_LINES[id] ?? [], stageLines())
   }
 
   /** 判完一题：连对、答错、刚掌握这些都在阶段那一层判过了，让它先说。 */
   function judge(beat) {
     const own = BEAT_LINES[beat] ?? []
     const staged = stageLines()
-    const urgent = URGENT_STAGES.has(pickMascotStage(coach.context.value).id)
     beatMood.value = BEAT_MOODS[beat] ?? ''
-    cue.value = pick(urgent ? [...staged, ...own] : [...own, ...staged])
+    cue.value = URGENT_STAGES.has(pickMascotStage(coach.context.value).id)
+      ? rotate(staged, own)
+      : rotate(own, staged)
   }
 
   /** 点一下墨墨：丢掉临时那句，回到轮换台词并读出来。 */
