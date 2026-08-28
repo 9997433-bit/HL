@@ -6,10 +6,10 @@
  * 每首歌四句，展开后一屏就放得下，多跳一次页面反而打断了「挑一首就唱」。
  * `:id` 只是为了能把某一首直接分享/收藏成链接。
  *
- * ROUND10_H5 给前三首、ROUND11_H5 给前八首歌接入项目自制 Ogg 旋律：优先播放
- * 静态文件，加载或解码失败就自动退回 `playMelody()` 的 WebAudio 合成音。
- * 范读仍走系统朗读，所以这里保留「唱一唱」和「跟我读」两个入口。静态旋律与
- * 合成旋律共用同一张逐字时间表，切换音源不会让歌词高亮错拍。
+ * ROUND10_H5 给前三首、ROUND11_H5 给前八首、ROUND12_H4 给全部十三首接入
+ * 项目自制 Ogg 旋律：优先播放静态文件，加载或解码失败就自动退回
+ * `playMelody()` 的 WebAudio 合成音。ROUND12_H4 还给《认字歌》接了一条 Piper
+ * 离线渲染的「啦」音范唱试点；它是独立试听，不冒充中文真人演唱。
  *
  * ROUND9_H1 —— 儿歌 v2 的歌词-旋律同步动画。v1 只有「唱到的那个字亮一下」，
  * 试下来有三个说不清的地方，v2 各补一件事：
@@ -51,7 +51,7 @@ const openId = ref(props.id && getSong(props.id) ? props.id : '')
 /** 正在唱到第几句、第几个字；-1 表示没在唱。 */
 const activeLine = ref(-1)
 const activeChar = ref(-1)
-const mode = ref('') // '' | 'sing' | 'read'
+const mode = ref('') // '' | 'sing' | 'read' | 'vocal'
 const status = ref('')
 /** 预备拍还剩几下；0 表示已经开唱（或根本没在唱）。 */
 const countIn = ref(0)
@@ -68,6 +68,7 @@ let timers = []
 let raf = 0
 let startedAt = 0
 let recordedAudio = null
+let vocalAudio = null
 let synthFallbackStarted = false
 
 function clearTimers() {
@@ -204,6 +205,21 @@ function disposeRecordedAudio() {
   }
 }
 
+function disposeVocalAudio() {
+  const audio = vocalAudio
+  vocalAudio = null
+  if (!audio) return
+  audio.onended = null
+  audio.onerror = null
+  try {
+    audio.pause?.()
+    audio.removeAttribute?.('src')
+    audio.load?.()
+  } catch {
+    // 已经播完的媒体对象在旧 WebView 里可能不允许重置；解除回调即可。
+  }
+}
+
 /** 从当前时刻接上合成旋律；通常在文件 play() 一开始被拒时触发。 */
 function startSynthFallback(song, timeline) {
   if (synthFallbackStarted || mode.value !== 'sing') return
@@ -277,6 +293,7 @@ function stop({ quiet = false } = {}) {
   clearTimers()
   cancelSpeech()
   disposeRecordedAudio()
+  disposeVocalAudio()
   // 整首歌的音符是一次排进时间轴的，清定时器只停得住高亮，停不住声音。
   stopAllTones()
   synthFallbackStarted = false
@@ -288,6 +305,45 @@ function stop({ quiet = false } = {}) {
   played.value = 0
   totalMs.value = 0
   if (!quiet) status.value = '停下来了，想唱了再点一次。'
+}
+
+/** ROUND12_H4：播放一条随包的 Piper「啦」音范唱，不依赖系统中文嗓音。 */
+function playVocalGuide() {
+  const song = open.value
+  if (!song?.vocal) return
+  stop({ quiet: true })
+  if (!settings.soundOn || typeof Audio === 'undefined') {
+    status.value = '声音已关闭；打开声音后可以听离线「啦」音范唱。'
+    return
+  }
+
+  let audio
+  try {
+    audio = new Audio(new URL(song.vocal, document.baseURI).href)
+    audio.preload = 'auto'
+  } catch {
+    status.value = '这台设备暂时不能播放范唱，还可以跟本地旋律唱。'
+    return
+  }
+
+  vocalAudio = audio
+  mode.value = 'vocal'
+  status.value = `正在听《${song.title}》的离线「啦」音范唱，听完再跟旋律唱一遍。`
+  const finish = (failed = false) => {
+    if (vocalAudio !== audio) return
+    disposeVocalAudio()
+    mode.value = ''
+    status.value = failed
+      ? '范唱没有成功播放，还可以点「唱一唱」跟本地旋律练。'
+      : `《${song.title}》范唱听完了，现在轮到你啦。`
+  }
+  audio.onended = () => finish(false)
+  audio.onerror = () => finish(true)
+  try {
+    audio.play()?.catch?.(() => finish(true))
+  } catch {
+    finish(true)
+  }
 }
 
 function pick(id) {
@@ -430,8 +486,8 @@ onBeforeUnmount(() => stop({ quiet: true }))
         </h2>
         <p class="muted">
           {{ SONGS.length }} 首为这套字表新写的儿歌，歌词里的字都是学过的。
-          前三首带自制离线旋律，其余歌曲现场合成；唱到哪个字哪个字亮，
-          音越高字抬得越高。
+          十三首都有自制离线旋律，《认字歌》还有一条「啦」音范唱试点；
+          唱到哪个字哪个字亮，音越高字抬得越高。
         </p>
         <button
           v-if="suggestion"
@@ -492,14 +548,16 @@ onBeforeUnmount(() => stop({ quiet: true }))
           :class="{ 'player--quiet': reduced, 'player--live': mode === 'sing' }"
           data-song-sync="v2"
           :data-song-audio="s.audio ? 'file' : 'synth'"
+          :data-song-vocal="s.vocal ? 'file' : 'none'"
           :data-playback-source="mode === 'sing' ? playbackSource : ''"
+          :data-vocal-source="mode === 'vocal' ? 'file' : ''"
         >
           <p class="player__tip">💡 {{ s.tip }}</p>
           <p class="player__source">
             {{
-              s.audio
-                ? '🎧 本地 Ogg 旋律 · 播放失败会自动切换合成音'
-                : '🎹 WebAudio 合成旋律'
+              s.vocal
+                ? '🎤 本地 Ogg 旋律 · 含 Piper「啦」音范唱试点'
+                : '🎧 本地 Ogg 旋律 · 播放失败会自动切换合成音'
             }}
           </p>
 
@@ -582,6 +640,15 @@ onBeforeUnmount(() => stop({ quiet: true }))
             </button>
             <button type="button" class="btn" :disabled="mode === 'read'" @click="readAloud()">
               🗣️ {{ mode === 'read' ? '正在读…' : '跟我读' }}
+            </button>
+            <button
+              v-if="s.vocal"
+              type="button"
+              class="btn"
+              :disabled="mode === 'vocal'"
+              @click="playVocalGuide()"
+            >
+              🎤 {{ mode === 'vocal' ? '范唱中…' : '听「啦」音范唱' }}
             </button>
             <button type="button" class="btn" :disabled="!mode" @click="stop()">⏹️ 停一停</button>
           </div>

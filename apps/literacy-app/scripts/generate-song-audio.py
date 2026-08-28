@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Render the first eight original song melodies as compact Ogg assets."""
+"""Render all thirteen original song melodies as compact Ogg assets."""
 
 from __future__ import annotations
 
+import argparse
 import math
 import shutil
 import struct
@@ -94,6 +95,51 @@ SONGS = {
             ["E4", "G4", "E4", "D4", "D4", "C4"],
         ],
     ),
+    "sg9-mothers-hands-melody": (
+        82,
+        [
+            ["C4", "D4", "E4", "G4", "A4", "G4", "E4"],
+            ["D4", "E4", "D4", "C4", "C4"],
+            ["E4", "G4", "A4", "C5", "A4", "G4", "E4"],
+            ["G4", "E4", "D4", "E4", "D4", "C4", "C4"],
+        ],
+    ),
+    "sg10-hands-feet-melody": (
+        98,
+        [
+            ["C4", "D4", "E4", "G4", "A4"],
+            ["A4", "G4", "E4", "D4", "C4"],
+            ["E4", "G4", "A4", "C5", "C5"],
+            ["A4", "G4", "E4", "D4", "C4"],
+        ],
+    ),
+    "sg11-countdown-melody": (
+        86,
+        [
+            ["C5", "A4", "G4", "E4", "D4"],
+            ["A4", "G4", "E4", "D4", "C4"],
+            ["C4", "D4", "E4", "G4", "A4"],
+            ["G4", "E4", "D4", "E4", "C4"],
+        ],
+    ),
+    "sg12-wood-character-melody": (
+        90,
+        [
+            ["C4", "D4", "E4", "G4", "A4", "G4"],
+            ["E4", "G4", "A4", "C5", "A4", "G4"],
+            ["G4", "A4", "C5", "A4", "G4", "E4"],
+            ["E4", "G4", "E4", "D4", "E4", "D4", "C4"],
+        ],
+    ),
+    "sg13-sorry-melody": (
+        88,
+        [
+            ["G4", "A4", "G4", "E4", "D4", "C4"],
+            ["C4", "D4", "E4", "G4", "A4", "G4", "E4"],
+            ["E4", "G4", "A4", "C5", "A4", "G4", "E4"],
+            ["G4", "E4", "D4", "C4", "C4"],
+        ],
+    ),
 }
 
 
@@ -131,6 +177,15 @@ def render_song(bpm: int, lines: list[list[str]]) -> bytes:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--song",
+        action="append",
+        choices=sorted(SONGS),
+        help="render only this asset name (repeatable); default: render all",
+    )
+    args = parser.parse_args()
+
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
         raise SystemExit("ffmpeg is required to encode the Ogg assets")
@@ -139,7 +194,9 @@ def main() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     with tempfile.TemporaryDirectory() as temp:
-        for name, (bpm, lines) in SONGS.items():
+        names = args.song or SONGS
+        for name in names:
+            bpm, lines = SONGS[name]
             wav_path = Path(temp) / f"{name}.wav"
             with wave.open(str(wav_path), "wb") as audio:
                 audio.setnchannels(1)

@@ -74,6 +74,19 @@ Apache-2.0 要求随附许可证与 NOTICE：许可证全文见「附录 B」指
 - **义务**：随附 Apache-2.0 许可证（见「附录 B」）并保留版权声明；本文件即为声明载体。
   未对模型做任何修改，无需附加修改说明。
 
+### Piper NST 人声生成资产 — CC0
+
+- 分发位置：`apps/literacy-app/public/audio/songs/sg5-literacy-vocal-pilot.ogg`。
+- 用途：Round 12《认字歌》离线「啦」音范唱试点。成品由 Piper 1.7.0 在开发机生成，
+  再按本项目原创谱面移调；不是中文歌词真人录音。
+- Voice：`sv_SE-nst-medium`，上游
+  [rhasspy/piper-voices](https://huggingface.co/rhasspy/piper-voices/tree/main/sv/sv_SE/nst/medium)。
+  模型卡明示 NST 数据集为 **CC0**，由 KBLab / National Library of Sweden 从零训练。
+  固定 revision、输入哈希、成品哈希和复现命令见
+  `.agent_workspace/r12-songs-vocal-pilot.md`。
+- 分发边界：App 只携带 22.05kHz 单声道 Ogg 成品，不携带 Piper（GPL-3.0-or-later）
+  运行时、ONNX 权重或配置。CC0 不要求署名，本节仍保留完整来源以便审计。
+
 ## 三、仓库内第三方素材（当前未打入 App 产物）
 
 ### OpenMoji 图标 — CC BY-SA 4.0
@@ -131,6 +144,8 @@ Apache-2.0 要求随附许可证与 NOTICE：许可证全文见「附录 B」指
 
 - `shared/assets/audio/*.wav`：正弦波合成占位音效；`shared/assets/lottie/celebration.json`：
   自制 Lottie 动画。均为本项目生成，不含外部录音或图形。
+- `apps/literacy-app/public/audio/songs/*-melody.ogg`：由本项目原创谱面离线合成；
+  `sg5-literacy-vocal-pilot.ogg` 是第二节单列的 CC0 voice 生成试点，不归入原创录音。
 - `shared/data/common-hanzi.json`、`math-problems.json`、`idioms.json`：本项目整理的
   教学数据，声明为 CC0-1.0。
 - 两 App 的课程数据（`src/data/*.js`）、音效（Web Audio 现场合成）、朗读
@@ -148,6 +163,7 @@ Apache-2.0 要求随附许可证与 NOTICE：许可证全文见「附录 B」指
 | [hanzi-writer-data](https://github.com/chanind/hanzi-writer-data) | 2.0.x | APL | 笔顺数据源（裁剪产物随包分发，见第二节） |
 | [puppeteer-core](https://github.com/puppeteer/puppeteer) | 25.x | Apache-2.0 | smoke / 离线 / 验收测试 |
 | [axe-core](https://github.com/dequelabs/axe-core) | 4.13.x | MPL-2.0 | 无障碍扫描 |
+| [Piper](https://github.com/OHF-Voice/piper1-gpl) | 1.7.0 | GPL-3.0-or-later | 仅离线生成一条范唱 Ogg；运行时和模型不分发 |
 
 ## 六、许可证义务速查
 
@@ -160,6 +176,7 @@ Apache-2.0 要求随附许可证与 NOTICE：许可证全文见「附录 B」指
 | OFL 1.1 | 字体随附许可证；不得单独出售 | 未内置字体；许可证文本已预置 |
 | GSAP Standard | 不得用于竞争性动画工具等 | 仅作应用内动画库使用 |
 | Apache-2.0（随产物分发） | 保留版权与 NOTICE；标明修改 | Tesseract.js / wasm 内核 / chi_sim 语言包均为未修改副本，声明见第一、二节 |
+| CC0 1.0（NST voice） | 无署名义务 | 仍在第二节保留 voice、模型卡、哈希与生成边界 |
 
 ---
 
@@ -205,5 +222,5 @@ SOFTWARE.
 
 ---
 
-*最近核对：2026-08-26（Round 3）。核对方式：`package-lock.json` 安装版本 +
+*最近核对：2026-08-28（Round 12 H4）。核对方式：`package-lock.json` 安装版本 +
 各包 LICENSE 文件 + 上游仓库许可证页。本文件是工程合规清单，不构成法律意见。*
