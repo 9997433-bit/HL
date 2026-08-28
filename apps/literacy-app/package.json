@@ -36,6 +36,7 @@
     "test:ocr:device:a": "node scripts/test-ocr-device.mjs --section=a",
     "test:ocr:device:real": "node scripts/test-ocr-device.mjs --require-device",
     "test:ocr:device:selftest": "node scripts/test-ocr-device.mjs --section=a --self-test-ui",
+    "test:char-play": "node scripts/test-char-play.mjs",
     "check:data": "node scripts/check-data.mjs",
     "check:bundle": "node scripts/check-bundle.mjs",
     "smoke": "node scripts/smoke.mjs",

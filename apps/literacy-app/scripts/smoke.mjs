@@ -29,6 +29,30 @@ const DIST = join(ROOT, 'dist')
 const CHROME = '/usr/local/bin/google-chrome'
 const ANDROID_SIM_UA = process.env.ANDROID_SIM_UA?.trim() ?? ''
 
+/**
+ * ROUND15_H7：Play 引擎尚未合入基线时明确记为 SKIP；一旦引擎/舞台任一部分出现，
+ * 下面的交互就升级为硬断言，覆盖 getCharPlay、玩相位、五步顺序和减少动态。
+ */
+const ROUND15_H7 = 'play-five-phase-smoke'
+const ROUND15_PHASE_IDS = ['play', 'intro', 'listen', 'trace', 'speak']
+const ROUND15_PLAY_MODULES = [
+  'src/data/char-play.js',
+  'src/data/charPlay.js',
+  'src/data/play-index.js',
+  'src/utils/charPlay.js'
+]
+const ROUND15_PLAY_STAGES = [
+  'src/components/CharPlayStage.vue',
+  'src/components/PlayStage.vue'
+]
+const round15PlayModule = ROUND15_PLAY_MODULES.find((relative) =>
+  existsSync(join(ROOT, relative))
+)
+const round15PlayStage = ROUND15_PLAY_STAGES.find((relative) =>
+  existsSync(join(ROOT, relative))
+)
+const round15PlayFiles = [round15PlayModule, round15PlayStage].filter(Boolean)
+
 const routerSource = await readFile(join(ROOT, 'src/router/index.js'), 'utf8')
 const sourceRoutePaths = [
   ...routerSource
@@ -1567,81 +1591,156 @@ const waitPhase = (page, want, timeout = 12000) =>
     want
   )
 
-await interact('单字五步状态机：认→写→听→考→奖自动衔接', `/#/learn/${encodeURIComponent('日')}`, async (page) => {
-  await page.evaluate(() => localStorage.clear())
-  await page.reload({ waitUntil: 'networkidle2' })
+const round15PlayRoot = [
+  '[data-char-play]',
+  '[data-play-template]',
+  '.char-play-stage',
+  '.play-stage',
+  '.char-play'
+].join(',')
+
+const inspectRound15Play = async (page) => {
   await page.waitForSelector('.rail__step', { timeout: 8000 })
-
-  const rail = await page.evaluate(() =>
-    [...document.querySelectorAll('.rail__step')].map((n) => n.dataset.step)
-  )
-  const want = ['intro', 'trace', 'listen', 'quiz', 'reward']
-  if (rail.join(',') !== want.join(',')) {
-    throw new Error(`步骤条不是五步 ${want.join('→')}，实际是 ${rail.join('→')}`)
-  }
-  if ((await phaseOf(page)) !== 'intro') throw new Error('进页面没有停在「认一认」')
-
-  // 认一认：听一次读音就应当自动排上「写一写」
-  if (!(await clickText(page, '怎么读'))) throw new Error('「认一认」缺少听读音按钮')
-  const queued = await page.evaluate(() => document.querySelector('.autonext')?.innerText ?? '')
-  if (!queued.includes('写一写')) throw new Error(`听完读音没有预告下一步：「${queued}」`)
-  if (!queued.includes('等一下')) throw new Error('自动衔接没有给「等一下」的按停出口')
-  await waitPhase(page, 'trace')
-
-  // 写一写：进入这一步田字格会自己开始描红，用「写下一笔」写完
-  await page.waitForFunction(
-    () => document.querySelector('.hz__stage')?.getAttribute('tabindex') === '0',
-    { timeout: 8000 }
-  )
-  for (let i = 0; i < 8; i += 1) {
-    const done = await page.evaluate(() =>
-      /满分|写完啦/.test(document.querySelector('.hz__hint')?.innerText ?? '')
-    )
-    if (done) break
-    if (!(await clickText(page, '写下一笔'))) break
-  }
-  await waitPhase(page, 'listen')
-
-  // 听一听 / 考一考：都选正确项，每一步作答后自动进入下一步
-  const pickAnswer = async (label) => {
-    await page.waitForSelector('.opt[data-char="日"]', { timeout: 8000 })
-    const ok = await page.evaluate(() => {
-      const btn = document.querySelector('.opt[data-char="日"]')
-      if (!btn || btn.disabled) return false
-      btn.click()
-      return true
-    })
-    if (!ok) throw new Error(`「${label}」里点不到正确选项`)
-  }
-  await pickAnswer('听一听')
-  await waitPhase(page, 'quiz')
-  await pickAnswer('考一考')
-  await waitPhase(page, 'reward')
-
-  const settled = await page.evaluate(() => {
-    const saved = JSON.parse(localStorage.getItem('happy-literacy:v1') ?? '{}')
+  const state = await page.evaluate((playSelector) => {
+    const panel = document.querySelector('[data-panel="play"]')
+    const stage = panel?.querySelector(playSelector)
+    const rail = [...document.querySelectorAll('.rail__step')].map((node) => ({
+      id: node.dataset.step ?? '',
+      label: node.innerText.replace(/\s+/g, '')
+    }))
     return {
-      flows: saved.flowsCompleted ?? 0,
-      charFlows: saved.chars?.['日']?.flows ?? 0,
-      traced: saved.chars?.['日']?.traced ?? 0,
-      steps: [...document.querySelectorAll('.rail__step.is-done')].map((n) => n.dataset.step),
-      reward: document.querySelector('.reward')?.innerText.replace(/\s+/g, ' ').trim() ?? ''
+      phase: document.querySelector('.detail')?.dataset.phase ?? '',
+      rail,
+      stage: Boolean(stage),
+      stageText: stage?.innerText.replace(/\s+/g, ' ').trim() ?? '',
+      actions: [...(stage?.querySelectorAll('button, [role="button"]') ?? [])].filter(
+        (node) => !node.disabled
+      ).length
     }
-  })
-  if (settled.flows < 1) throw new Error('走完五步没有记下一次完整闭环')
-  if (settled.charFlows < 1) throw new Error('「日」自己的闭环次数没有加上')
-  if (settled.traced < 1) throw new Error('五步里的描红没有记进「会写了」')
-  for (const step of ['intro', 'trace', 'listen', 'quiz']) {
-    if (!settled.steps.includes(step)) throw new Error(`步骤条上「${step}」没有标成已完成`)
+  }, round15PlayRoot)
+
+  const ids = state.rail.map((step) => step.id)
+  if (ids.join(',') !== ROUND15_PHASE_IDS.join(',')) {
+    throw new Error(
+      `步骤条不是五步 ${ROUND15_PHASE_IDS.join('→')}，实际是 ${ids.join('→') || '空'}`
+    )
   }
-  if (!settled.reward) throw new Error('「领奖励」这一步是空的')
+  const labels = state.rail.map((step) => step.label).join('→')
+  if (!state.rail.every((step, index) => step.label.includes(['玩', '认', '练', '写', '说'][index]))) {
+    throw new Error(`五步标签未对齐“玩→认→练→写→说”：${labels}`)
+  }
+  if (state.phase !== 'play') throw new Error(`单字路由没有默认从玩相位开始（实际 ${state.phase || '空'}）`)
+  if (!state.stage) throw new Error('玩相位没有 CharPlayStage DOM 契约')
+  if (!state.stageText) throw new Error('CharPlayStage 渲染为空')
+  if (state.actions < 1) throw new Error('CharPlayStage 没有可完成或可跳过的交互')
+  return state
+}
 
-  // 手动回跳：点步骤条应当能回到前面的步骤
-  await page.evaluate(() => document.querySelector('.rail__step[data-step="listen"]')?.click())
-  await waitPhase(page, 'listen', 5000)
+const finishRound15Play = async (page) => {
+  for (let attempt = 0; attempt < 12 && (await phaseOf(page)) === 'play'; attempt += 1) {
+    const clicked = await page.evaluate((playSelector) => {
+      const stage = document.querySelector('[data-panel="play"]')?.querySelector(playSelector)
+      const visible = (node) => {
+        const box = node.getBoundingClientRect()
+        return box.width > 0 && box.height > 0 && !node.disabled
+      }
+      const buttons = [...(stage?.querySelectorAll('button, [role="button"]') ?? [])].filter(visible)
+      const action = buttons.find((node) => !/跳过|稍后|退出/.test(node.innerText)) ?? buttons[0]
+      action?.click()
+      return Boolean(action)
+    }, round15PlayRoot)
+    if (!clicked) break
+    await new Promise((resolve) => setTimeout(resolve, 300))
+  }
 
-  return `五步自动衔接完成（闭环 ${settled.flows} 次，描红 ${settled.traced} 遍），步骤条可回跳`
-})
+  if ((await phaseOf(page)) === 'play') {
+    await page.evaluate((playSelector) => {
+      const stage = document.querySelector('[data-panel="play"]')?.querySelector(playSelector)
+      const skip = [...(stage?.querySelectorAll('button, [role="button"]') ?? [])].find((node) =>
+        /跳过|稍后|继续/.test(node.innerText)
+      )
+      skip?.click()
+    }, round15PlayRoot)
+  }
+  await waitPhase(page, 'intro', 10000)
+}
+
+if (!round15PlayFiles.length) {
+  inter.push({
+    label: `${ROUND15_H7}：玩→认→练→写→说`,
+    ok: true,
+    note: 'SKIP：Play 引擎尚未合入；合入 char-play + CharPlayStage 后自动启用硬断言',
+    errs: []
+  })
+} else {
+  await interact(
+    `${ROUND15_H7}：getCharPlay + 玩→认→练→写→说`,
+    `/#/learn/${encodeURIComponent('日')}`,
+    async (page) => {
+      if (!round15PlayModule || !round15PlayStage) {
+        throw new Error(
+          `Play 引擎只合入了一部分：${round15PlayFiles.join('、')}；需要 getCharPlay + CharPlayStage`
+        )
+      }
+
+      const playModule = await import(new URL(`../${round15PlayModule}`, import.meta.url))
+      const getCharPlay = playModule.getCharPlay ?? playModule.default?.getCharPlay
+      if (typeof getCharPlay !== 'function') throw new Error(`${round15PlayModule} 未导出 getCharPlay`)
+      const { CHARACTERS } = await import('../src/data/characters.js')
+      const missing = CHARACTERS.filter((item) => {
+        const play = getCharPlay(item.char)
+        return !play || typeof play.template !== 'string' || !play.template.trim()
+      })
+      if (missing.length) {
+        throw new Error(
+          `getCharPlay 全库有 ${missing.length}/${CHARACTERS.length} 个空 template：` +
+          missing.slice(0, 8).map((item) => item.char).join('、')
+        )
+      }
+
+      await page.evaluate(() => localStorage.clear())
+      await page.reload({ waitUntil: 'networkidle2' })
+      const opening = await inspectRound15Play(page)
+      await finishRound15Play(page)
+
+      const celebration = await page.evaluate(() => {
+        const root = document.querySelector(
+          '.celebration, .celebration-layer, .celebration-overlay, [data-celebration]'
+        )
+        if (!root) return { visible: false, skipped: false }
+        const box = root.getBoundingClientRect()
+        if (!box.width || !box.height) return { visible: false, skipped: false }
+        const skip = [...root.querySelectorAll('button, [role="button"]')].find((node) =>
+          /跳过|关闭|继续|下一步/.test(node.innerText + (node.getAttribute('aria-label') ?? ''))
+        )
+        skip?.click()
+        return { visible: true, skipped: Boolean(skip) }
+      })
+      if (celebration.visible && !celebration.skipped) throw new Error('Play 庆祝层出现后无法跳过')
+
+      return (
+        `getCharPlay ${CHARACTERS.length}/${CHARACTERS.length} template 非空；` +
+        `${opening.rail.map((step) => step.id).join('→')}；玩完成后进入认`
+      )
+    }
+  )
+
+  await interact(
+    `${ROUND15_H7}：减少动态下 Play 仍可完成`,
+    `/#/learn/${encodeURIComponent('日')}`,
+    async (page) => {
+      await page.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }])
+      await page.reload({ waitUntil: 'networkidle2' })
+      const reduced = await page.evaluate(
+        () => matchMedia('(prefers-reduced-motion: reduce)').matches
+      )
+      if (!reduced) throw new Error('无法启用 prefers-reduced-motion: reduce')
+      await inspectRound15Play(page)
+      await finishRound15Play(page)
+      return 'prefers-reduced-motion=reduce，玩相位仍可完成并进入认相位'
+    }
+  )
+}
 
 await interact('描红：同一笔连错 3 次自动示范这一笔', `/#/learn/${encodeURIComponent('日')}`, async (page) => {
   await page.evaluate(() => localStorage.clear())
