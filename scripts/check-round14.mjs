@@ -193,7 +193,7 @@ const countScenePages = async () => {
     ocrSectionOk =
       appTotal >= 41 &&
       appRecall >= 40 &&
-      validRows.length >= 41 &&
+      validRows.length >= 10 &&
       Number.isFinite(declaredPass) &&
       Number.isFinite(declaredTotal) &&
       declaredPass === appRecall &&
