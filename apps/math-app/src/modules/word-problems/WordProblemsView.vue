@@ -21,8 +21,9 @@ const ROUND_SIZE = 8
 const MODULE_ID = 'word'
 
 /**
- * 剖析壳（ROUND16_H5）点开才下载：图示 + 分步 + 变式连它的算式解析器
- * 有小 5 KiB gzip，多数题孩子读一遍就会做，没必要让每个人进星球时都背着它。
+ * 剖析壳（ROUND16_H5）点开才下载：图示 + 分步 + 变式连算式解析器，
+ * 加上 ROUND17_H4 那 50 条手写剖析文案，一共小 10 KiB gzip。
+ * 多数题孩子读一遍就会做，没必要让每个人进星球时都背着它。
  */
 const WpAnalysisPanel = defineAsyncComponent(() => import('@/components/WpAnalysisPanel.vue'))
 
