@@ -157,3 +157,30 @@ Round 12 以洪恩级体验全量落地为目标；以下项已全部合入集�
 | mobile LH + 真机定案 | ✅ R12 H6 | `evidence/r12/`、显式发布决策 |
 | TTS 试点 + 商店演练 | ✅ R12 H7 | 古诗 Kokoro TTS、提交演练文档 |
 | Round 11 门禁不退化 | ✅ R12 H8 | `check:round11` 8/8 |
+
+## 10. Round 13–14 阶段判定（截至 Round 14-3 无真机收口）
+
+Round 13 以 `check:round13` **7/8** 工程闭合（唯一红格 H7 为 Play 账号阻断，按签字接受口径收口）。
+Round 14 以「洪恩体验对齐」为目标，探针 `check:round14` v1.1 固定输出 H1–H8。集成线
+`cursor/openmoji-integration-9f67` @ `18d6e4c` 一手实测 **3/8**；R14-3 #14 的范唱收尾合入后
+预期 **4/8**——这是三类外部供给全缺时的**诚实上限**，不是欠交。逐格如下（回填明细见
+`.agent_workspace/acceptance-log-round14.md`）：
+
+| 范围 | 阶段状态 | 收口证据 / 阻断 |
+|---|---|---|
+| ASR 跟读体验放行 | ❌ R14 H1 | 冻结集 100 槽 / `recorded=0/300`、`available:false`、`device-rtf.json` 为 `not-measured` 诚实占位；阻断 (a) 实体设备 + (b) 儿童实录 |
+| OCR 真机体验 | ❌ R14 H2 | App 逐例矩阵 **40/41** 一手落盘、队列无逾期、回流/harness 齐；六腿绿五，只差 `ocr-device-b.json`（当前 `skip`，exit 2）；阻断 (a) |
+| 绘本场景密度 | ✅ R14 H3 | scene **404/1121 页**、60/132 本带 scene（R13 为 209/33）；`ROUND14_H3` |
+| 儿歌真人范唱 | ◐ R14 H4 | `humanStudio` **9/13**（VocalSet 1.2 CC BY 4.0，许可已同步 NOTICES/CONTENT_LICENSE）；缺 sg1/sg2/sg3/sg5，#14 补齐后翻绿 |
+| L1 字卡朗读 | ✅ R14 H5 | `public/audio/tts-l1/` **24 资产** + `r14-tts-l1-batch.md` + `ROUND14_H5_SMOKE` |
+| Android 真机签核 | ❌ R14 H6 | harness 与诚实 SKIP 台账就位、v1.1 r13-sim 隔离闸绿；`device-signoff.json` 无、定案仍 NO-GO；阻断 (a) |
+| 商店内测实提 | ❌ R14 H7 | 无 Play 账号与命名法务复核；按禁令不得无回执写 `状态：SUBMITTED`，设计上保持红；阻断 (c) |
+| 往轮不退化 | ✅ R14 H8 | `check:round12` 8/8 + `check:round13` 7/8（前置：按 ROUND14-2-CONCLUSION-BRIEF §0.2 五步重建双 APK） |
+
+体验口径：**✅25 / ◐6 / ❌0**（L-M5 / L-M9 / L-M10 / L-M11 / L-M15 / M-M16），相对 Round 13 计数
+原地，但 L-M5、L-M11、L-M10、X1 四项有实体收窄。按审计双杆原则（探针格绿 + W 走查过）任一杆缺失
+只记「收窄」不记 flip，故本轮不改写 §2/§3 对标全表的 ✅ 判定。
+
+**移交 R15 的前置条件**：三类外部供给缺口须由用户侧闭合——(a) 实体 Android 设备（H1-deviceRtf /
+H2-deviceB / H6-signoff）、(b) 真人音频资产（H1 的 300 条儿童实录）、(c) Play 开发者账号 + 「洪恩」
+命名法务复核（H7）。三类不闭合，这四格在 R15 同样物理不可达。
