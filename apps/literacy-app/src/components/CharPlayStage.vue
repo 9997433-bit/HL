@@ -662,6 +662,8 @@ defineExpose({ finish, replay, skip: onSkip })
 .play__drop {
   position: absolute;
   top: 0;
+  /* left 是落点的中线，往左收半个身位才不会贴着右边缘掉下来 */
+  margin-left: calc(var(--tap-min, 44px) / -2);
   display: grid;
   place-items: center;
   min-width: var(--tap-min, 44px);

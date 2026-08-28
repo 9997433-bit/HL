@@ -652,7 +652,7 @@ function propsRainCatch(ctx, rand) {
       label: hit ? `「${ctx.char}」的图` : mate.label,
       hit,
       // 落点、出场时间都跟着字的种子走，同一个字每次下的雨一模一样
-      x: Math.round(8 + rand() * 80),
+      x: Math.round(12 + rand() * 76),
       delay: Math.round(i * 420 + rand() * 260),
       duration: Math.round(2600 + rand() * 1400)
     })
