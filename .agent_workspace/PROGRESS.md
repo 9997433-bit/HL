@@ -34,7 +34,8 @@
 | Round 5B | ✅ **已闭合** | Play Layer：每日冒险/吉祥物/useFeedback/街机大厅（check:round5b 全绿） |
 | Round 6 | ✅ **已闭合** | 1800字/130绘本/古诗20/跟读/185母题（check:round6 全绿） |
 | Round 7–12 | ✅ **已闭合** | 各轮 check:round{N} 全绿；简报/验收见 ROUND{N}-BRIEF / acceptance-log-round{N} |
-| Round 13 | 🔄 **集成收尾** | 真机通道与体验终局；状态见下方「R13 集成状态（2026-08-28）」 |
+| Round 13 | ✅ **工程闭合** | `check:round13` **7/8**（H7 BLOCKED）；体验 ◐6 见 round13-hongen-audit |
+| Round 14 | 🔄 **编排启动** | 洪恩体验对齐；`check:round14` 基线 1/8；见 ROUND14-BRIEF |
 
 ## 并发规则（已更新）
 **每轮固定 10 个子代理并发，缺了立马补。**
@@ -98,3 +99,19 @@ H6/H2 的 sim 腿对账本机构建产物（APK sha256、证据日志），新�
 | 4 | opus-fast | OCR 回流机制首批演练：用 fixtures 现有样张走一遍采集→标注→复现→闭环账本 | r13-ocr-regression-loop.md §1.4 账本非零 |
 | 5 | gpt-sol | 真机 QA 执行包：test-ocr-device B 段 + ANDROID-DEVICE-CHECKLIST 合并为单页可执行清单 | QA 拿设备即跑 |
 | 6 | gpt-sol | 性能回归：双 App 首屏 gzip 预算复测 + Lighthouse CI 趋势回填 acceptance-log §2.3 | 预算表全填、无超支 |
+
+---
+
+## R14 Loop 状态（2026-08-28 · 洪恩体验对齐）
+
+> 简报：`.agent_workspace/ROUND14-BRIEF.md`
+> 验收：`.agent_workspace/ROUND14-ACCEPTANCE.md` + `scripts/check-round14.mjs`
+> 基线：`check:round14` **1/8**（仅 H8 绿）
+
+| 轮次 | 状态 | 目标 |
+|---|---|---|
+| Round 14-1 | ⏳ 待派发 | 真机矩阵 + OCR 预处理 + ASR 录音启动 |
+| Round 14-2 | ⏳ | ASR 300 条 + device RTF + 范唱 13/13 |
+| Round 14-3 | ⏳ | W1–W6 + H7 内测 + 体验 ◐ 清零 |
+
+体验 flip 目标：L-M9/L-M10/L-M11/L-M15/M-M16 → ✅；L-M5 大幅收窄（400+ scene）。
