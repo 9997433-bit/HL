@@ -35,6 +35,10 @@ from ..exceptions import OptimizationError
 from ..updating.parameters import ParameterSet, UpdatableParameter
 from ..updating.sensitivity import ModalData, as_modal_data, track_modes
 from ..updating.updater import ModelUpdater
+from .geometry import (
+    assemble_shape_stiffness_derivatives,
+    elements_support_geometric_derivatives,
+)
 from .gradients import (
     finite_difference_gradient,
     mass_gradients,
@@ -47,6 +51,7 @@ from .variables import DesignSpace
 
 __all__ = [
     "ModalDesignEvaluator",
+    "MorphingGeometryModel",
     "compile_sizing_problem",
     "minimize_sizing",
     "problem_from_updater",
@@ -57,6 +62,93 @@ ModelCallable = Callable[[Mapping[str, float]], object]
 #: Design-point cache size of the evaluator (covers one central-difference
 #: jacobian sweep of a few dozen variables plus the current iterate).
 _CACHE_LIMIT = 64
+
+
+class MorphingGeometryModel:
+    """Parametric FE model whose design variables remesh nodal coordinates.
+
+    Implements :class:`~openfemlab.optimization.gradients.MatrixDerivativeProvider`
+    for truss/bar meshes that expose ``stiffness_coord_derivatives``.  Mass
+    derivatives are taken as zero (consistent with density-less morph checks);
+    frequency changes then come from geometric stiffness alone — exact for
+    length-independent mass idealizations and a close approximation when
+    remeshing is dominated by stiffness change.
+    """
+
+    def __init__(self, model, space: DesignSpace, *, num_modes: int = 6) -> None:
+        if not elements_support_geometric_derivatives(model):
+            raise OptimizationError(
+                "MorphingGeometryModel requires every element to expose "
+                "stiffness_coord_derivatives (truss/bar today)"
+            )
+        if space.n_shape == 0:
+            raise OptimizationError("MorphingGeometryModel needs at least one shape variable")
+        self.model = model
+        self.space = space
+        self.num_modes = int(num_modes)
+        self._x0 = np.asarray(model.coordinates, dtype=float).copy()
+        self.parameter_names = list(space.names)
+
+    def _apply(self, values: Mapping[str, float] | Sequence[float] | np.ndarray) -> None:
+        if isinstance(values, Mapping):
+            x = self.space.x0().copy()
+            for index, name in enumerate(self.space.names):
+                if name in values:
+                    x[index] = float(values[name])
+        else:
+            x = np.asarray(values, dtype=float).ravel()
+            if x.size != self.space.n_variables:
+                x = self.space.x0().copy()
+        self.model.set_node_coordinates(self.space.apply_to_coordinates(self._x0, x))
+
+    def __call__(self, values: Mapping[str, float]) -> object:
+        from ..solver.modal import ModalSolver
+
+        self._apply(values)
+        return ModalSolver(self.model).solve(num_modes=self.num_modes)
+
+    def assemble(self, values: Mapping[str, float] | Sequence[float] | np.ndarray):
+        from ..core.assembly import assemble_system
+
+        self._apply(values)
+        system = assemble_system(self.model)
+        return system.reduced()
+
+    def derivatives(self, names: Sequence[str] | None = None):
+        names = list(self.parameter_names if names is None else names)
+        bases = []
+        for name in names:
+            for variable in self.space.shape:
+                if variable.name == name:
+                    bases.append(variable.basis)
+                    break
+            else:
+                bases.append(None)
+        active = [basis for basis in bases if basis is not None]
+        derived = (
+            assemble_shape_stiffness_derivatives(self.model, active) if active else []
+        )
+        derived_iter = iter(derived)
+        free = self.model.free_dofs
+        dK: list = []
+        dM: list = []
+        for basis in bases:
+            if basis is None:
+                dK.append(None)
+                dM.append(None)
+                continue
+            full = next(derived_iter)
+            dK.append(full[free, :][:, free].tocsr())
+            dM.append(None)
+        return dK, dM
+
+    def eigen(self, values: Mapping[str, float] | Sequence[float] | np.ndarray):
+        from ..solver.modal import ModalSolver
+
+        self._apply(values)
+        result = ModalSolver(self.model).solve(num_modes=self.num_modes)
+        free = self.model.free_dofs
+        return result.eigenvalues, result.mode_shapes[free, :]
 
 
 class ModalDesignEvaluator:
@@ -121,9 +213,9 @@ class ModalDesignEvaluator:
         known = getattr(model, "parameter_names", None)
         if known is None:
             return False
-        # Shape amplitudes remesh geometry; Fox-Kapoor on a ScalingModel cannot
-        # cover them, so fall back to tracked FD whenever shape vars are present.
-        if self.space.n_shape:
+        # Shape amplitudes remesh geometry.  Analytic Fox-Kapoor is available
+        # when the callable is a MorphingGeometryModel (truss geometric dK/da).
+        if self.space.n_shape and not isinstance(model, MorphingGeometryModel):
             return False
         return all(name in known for name in self.space.names)
 

@@ -1,3 +1,40 @@
+# OpenFEMLab vs FEMtools — SOTA Gap Analysis (Round 12 refresh)
+
+**Auditor:** Cloud Agent · **Date:** 2026-08-28 UTC  
+**Snapshot:** branch `cursor/round12-parity-closure-7aa3`, release **`0.2.2`**  
+**Registry:** **104/104** acceptance criteria `verified`
+
+## Round 12 executive summary
+
+Round 12 closes the last **code-finishable** industrial gaps that do not
+require DAQ hardware, ARTeMIS, or a commercial solver licence:
+
+| Priority | Theme | Outcome |
+|----------|-------|---------|
+| P0 | TRI3 membrane | `Tri3Element` + `CTRIA3` BDF R/W + `neutral_to_model` |
+| P0 | BDF SPC1 / CONM2 | Parsed into meta and applied as `fix` / point mass |
+| P1 | Geometric `dK/da` | Analytic truss derivatives + `MorphingGeometryModel` |
+| P1 | External drivers | `dry_run` argv contracts for Nastran/Ansys/Abaqus |
+
+### Remaining intentional / deferred gaps
+
+| Gap | Status |
+|-----|--------|
+| DAQ hardware / ARTeMIS | **Intentional** — out of scope |
+| Desktop-grade GUI product | **Deferred** — CLI + Web viewer by design |
+| Topology optimization / RSM surrogates | **Deferred** |
+| Analytic `dK/da` for shells/solids | **Deferred** — truss done; remesh+FD elsewhere |
+| Native Ansys/Abaqus result readers | **Deferred** — subprocess drivers + meshio geometry |
+| FORCE / static load path | **Deferred** — modal platform first |
+| Full commercial Nastran card set | **Partial** — industrial subset grows each release |
+
+**Verdict:** For the FEMtools-style *scripted* workflow (import → modal →
+correlate → update → validate → size/shape), OpenFEMLab is at practical
+parity.  Remaining gaps are product-form and licence-local integrations, not
+missing core analysis capabilities.
+
+---
+
 # OpenFEMLab vs FEMtools — SOTA Gap Analysis (Round 11 refresh)
 
 **Auditor:** Cloud Agent · **Date:** 2026-08-27 UTC  

@@ -1,4 +1,4 @@
-"""External Abaqus driver stub (Framework seam, MS-9.7)."""
+"""External Abaqus driver (Framework seam, MS-9.7)."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from .._common import FormatError
 
 __all__ = [
     "AbaqusRunResult",
+    "abaqus_command",
     "resolve_abaqus_executable",
     "run_abaqus",
 ]
@@ -27,6 +28,7 @@ class AbaqusRunResult:
     work_dir: str
     stdout: str
     stderr: str
+    command: tuple[str, ...] = ()
 
 
 def resolve_abaqus_executable(explicit: str | None = None) -> str | None:
@@ -40,6 +42,18 @@ def resolve_abaqus_executable(explicit: str | None = None) -> str | None:
     return shutil.which("abaqus") or shutil.which("abq2024")
 
 
+def abaqus_command(
+    input_path: str | PathLike[str],
+    *,
+    executable: str,
+    job: str | None = None,
+) -> tuple[str, ...]:
+    """Argv used for a batch Abaqus run."""
+    deck = Path(input_path)
+    job_name = job or deck.stem
+    return (executable, f"job={job_name}", f"input={deck.name}")
+
+
 def run_abaqus(
     input_path: str | PathLike[str],
     *,
@@ -47,8 +61,13 @@ def run_abaqus(
     executable: str | None = None,
     job: str | None = None,
     timeout_s: float | None = None,
+    dry_run: bool = False,
 ) -> AbaqusRunResult:
-    """Run Abaqus on an input deck when an executable is available."""
+    """Run Abaqus on an input deck when an executable is available.
+
+    Pass ``dry_run=True`` to validate paths and return the planned command
+    without invoking the solver (licence-free CI path).
+    """
     deck = Path(input_path).resolve()
     if not deck.is_file():
         raise FormatError(f"Abaqus input file not found: {deck}")
@@ -60,9 +79,18 @@ def run_abaqus(
         )
     directory = Path(work_dir).resolve() if work_dir is not None else deck.parent
     directory.mkdir(parents=True, exist_ok=True)
-    job_name = job or deck.stem
+    command = abaqus_command(deck, executable=exe, job=job)
+    if dry_run:
+        return AbaqusRunResult(
+            exit_code=0,
+            input_path=str(deck),
+            work_dir=str(directory),
+            stdout="",
+            stderr="",
+            command=command,
+        )
     completed = subprocess.run(
-        [exe, f"job={job_name}", f"input={deck.name}"],
+        list(command),
         cwd=str(directory),
         capture_output=True,
         text=True,
@@ -75,4 +103,5 @@ def run_abaqus(
         work_dir=str(directory),
         stdout=completed.stdout,
         stderr=completed.stderr,
+        command=command,
     )

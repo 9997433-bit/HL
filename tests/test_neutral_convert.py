@@ -427,25 +427,36 @@ class TestGeometryOnlyMeshes:
 
 
 class TestUnsupportedBlocks:
-    def triangle(self) -> NeutralModel:
+    def mass_only(self) -> NeutralModel:
         return neutral(
-            ElementType.TRI3, UNIT_SQUARE[:3], [[1, 2, 3]], values={"t": 0.01, "A": 1e-4}
+            ElementType.MASS1, UNIT_SQUARE[:1], [[1]], values={"m": 1.0}
         )
 
     def test_a_block_without_a_formulation_is_rejected(self) -> None:
         with pytest.raises(FormatError, match="no formulation yet"):
-            to_model(self.triangle())
+            to_model(self.mass_only())
 
     def test_skip_unsupported_drops_the_block_with_a_warning(self) -> None:
-        source = self.triangle()
+        source = self.mass_only()
         source.elements[ElementType.ROD2] = np.array([[1, 2]], dtype=np.int64)
         source.element_property_ids[ElementType.ROD2] = np.array([7], dtype=np.int64)
+        # MASS1 needs a second node for the rod; pad coordinates.
+        source.nodes = np.vstack([source.nodes, [[1.0, 0.0, 0.0]]])
+        source.node_ids = np.array([1, 2], dtype=np.int64)
 
-        with pytest.warns(UserWarning, match="tri3 \\(1\\)"):
-            model = to_model(source, skip_unsupported=True)
+        with pytest.warns(UserWarning, match="mass1 \\(1\\)"):
+            model = to_model(source, skip_unsupported=True, section=BAR_SECTION)
 
-        assert model.num_nodes == 3
+        assert model.num_nodes == 2
         assert [type(element) for element in model.elements] == [TrussElement]
+
+    def test_tri3_membrane_converts(self) -> None:
+        source = neutral(
+            ElementType.TRI3, UNIT_SQUARE[:3], [[1, 2, 3]], values={"t": 0.01}
+        )
+        model = to_model(source)
+        assert model.num_elements == 1
+        assert type(model.elements[0]).__name__ == "Tri3Element"
 
 
 class TestMalformedInput:

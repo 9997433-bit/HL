@@ -67,6 +67,7 @@ from .responses import (
 )
 from .sizing import (
     ModalDesignEvaluator,
+    MorphingGeometryModel,
     compile_sizing_problem,
     minimize_sizing,
     problem_from_updater,
@@ -81,6 +82,7 @@ __all__ = [
     "GradientCheck",
     "MatrixDerivativeProvider",
     "ModalDesignEvaluator",
+    "MorphingGeometryModel",
     "NaturalFrequency",
     "Objective",
     "OptimizationIterate",

@@ -13,6 +13,7 @@ from .._common import FormatError
 
 __all__ = [
     "NastranRunResult",
+    "nastran_command",
     "resolve_nastran_executable",
     "run_nastran",
 ]
@@ -27,6 +28,7 @@ class NastranRunResult:
     work_dir: str
     stdout: str
     stderr: str
+    command: tuple[str, ...] = ()
 
 
 def resolve_nastran_executable(explicit: str | None = None) -> str | None:
@@ -40,18 +42,28 @@ def resolve_nastran_executable(explicit: str | None = None) -> str | None:
     return shutil.which("nastran") or shutil.which("nast")
 
 
+def nastran_command(
+    bdf_path: str | PathLike[str],
+    *,
+    executable: str,
+) -> tuple[str, ...]:
+    """Argv used for a batch Nastran run (deck basename relative to ``cwd``)."""
+    return (executable, Path(bdf_path).name)
+
+
 def run_nastran(
     bdf_path: str | PathLike[str],
     *,
     work_dir: str | PathLike[str] | None = None,
     executable: str | None = None,
     timeout_s: float | None = None,
+    dry_run: bool = False,
 ) -> NastranRunResult:
     """Run Nastran on a BDF file when an executable is available.
 
     Raises :class:`~openfemlab.io.FormatError` when no solver binary is found.
-    The caller is responsible for licence and batch configuration of the
-    external solver.
+    Pass ``dry_run=True`` to validate paths and return the planned command
+    without invoking the solver (licence-free CI path).
     """
     bdf = Path(bdf_path).resolve()
     if not bdf.is_file():
@@ -64,8 +76,18 @@ def run_nastran(
         )
     directory = Path(work_dir).resolve() if work_dir is not None else bdf.parent
     directory.mkdir(parents=True, exist_ok=True)
+    command = nastran_command(bdf, executable=exe)
+    if dry_run:
+        return NastranRunResult(
+            exit_code=0,
+            bdf_path=str(bdf),
+            work_dir=str(directory),
+            stdout="",
+            stderr="",
+            command=command,
+        )
     completed = subprocess.run(
-        [exe, str(bdf.name)],
+        list(command),
         cwd=str(directory),
         capture_output=True,
         text=True,
@@ -78,4 +100,5 @@ def run_nastran(
         work_dir=str(directory),
         stdout=completed.stdout,
         stderr=completed.stderr,
+        command=command,
     )

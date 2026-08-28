@@ -1,4 +1,4 @@
-"""External Ansys MAPDL driver stub (Framework seam, MS-9.7)."""
+"""External Ansys MAPDL driver (Framework seam, MS-9.7)."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from .._common import FormatError
 
 __all__ = [
     "AnsysRunResult",
+    "ansys_command",
     "resolve_ansys_executable",
     "run_ansys",
 ]
@@ -27,6 +28,7 @@ class AnsysRunResult:
     work_dir: str
     stdout: str
     stderr: str
+    command: tuple[str, ...] = ()
 
 
 def resolve_ansys_executable(explicit: str | None = None) -> str | None:
@@ -40,14 +42,29 @@ def resolve_ansys_executable(explicit: str | None = None) -> str | None:
     return shutil.which("ansys") or shutil.which("mapdl")
 
 
+def ansys_command(
+    input_path: str | PathLike[str],
+    *,
+    executable: str,
+) -> tuple[str, ...]:
+    """Argv used for a batch Ansys run (deck basename relative to ``cwd``)."""
+    deck = Path(input_path)
+    return (executable, "-b", "-i", deck.name)
+
+
 def run_ansys(
     input_path: str | PathLike[str],
     *,
     work_dir: str | PathLike[str] | None = None,
     executable: str | None = None,
     timeout_s: float | None = None,
+    dry_run: bool = False,
 ) -> AnsysRunResult:
-    """Run Ansys on an input deck when an executable is available."""
+    """Run Ansys on an input deck when an executable is available.
+
+    Pass ``dry_run=True`` to validate paths and return the planned command
+    without invoking the solver (licence-free CI path).
+    """
     deck = Path(input_path).resolve()
     if not deck.is_file():
         raise FormatError(f"Ansys input file not found: {deck}")
@@ -59,8 +76,18 @@ def run_ansys(
         )
     directory = Path(work_dir).resolve() if work_dir is not None else deck.parent
     directory.mkdir(parents=True, exist_ok=True)
+    command = ansys_command(deck, executable=exe)
+    if dry_run:
+        return AnsysRunResult(
+            exit_code=0,
+            input_path=str(deck),
+            work_dir=str(directory),
+            stdout="",
+            stderr="",
+            command=command,
+        )
     completed = subprocess.run(
-        [exe, "-b", "-i", str(deck.name)],
+        list(command),
         cwd=str(directory),
         capture_output=True,
         text=True,
@@ -73,4 +100,5 @@ def run_ansys(
         work_dir=str(directory),
         stdout=completed.stdout,
         stderr=completed.stderr,
+        command=command,
     )

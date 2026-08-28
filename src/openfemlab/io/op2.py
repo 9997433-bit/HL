@@ -230,6 +230,7 @@ OP2_MODE_TABLES: tuple[str, ...] = ("LAMA", "BOUGV1", "OUGV1", "OUG1")
 GEOM2_ELEMENT_RECORDS: dict[tuple[int, int, int], ElementType] = {
     (3001, 30, 48): ElementType.ROD2,     # CROD
     (2408, 24, 180): ElementType.BEAM2,   # CBAR
+    (3000, 51, 17): ElementType.TRI3,     # CTRIA3
     (2958, 51, 177): ElementType.QUAD4,   # CQUAD4
     (5508, 55, 217): ElementType.TET4,    # CTETRA
     (7308, 73, 253): ElementType.HEX8,    # CHEXA
@@ -253,6 +254,7 @@ _BLOCK_ORDER: tuple[ElementType, ...] = tuple(dict.fromkeys(GEOM2_ELEMENT_RECORD
 GEOM2_ELEMENT_LAYOUTS: dict[tuple[int, int, int], tuple[int | tuple[int, ...], tuple[int, ...]]] = {
     (3001, 30, 48): (4, (2, 3)),  # CROD: EID, PID, G1, G2
     (2408, 24, 180): (16, (2, 3)),  # CBAR
+    (3000, 51, 17): ((12, 13), (2, 3, 4)),  # CTRIA3: NX/MSC word counts
     (2958, 51, 177): ((14, 15), (2, 3, 4, 5)),  # CQUAD4: NX 14 words, MSC 15
     (5508, 55, 217): (12, (2, 3, 4, 5)),  # CTETRA
     (7308, 73, 253): (22, (2, 3, 4, 5, 6, 7, 8, 9)),  # CHEXA

@@ -4,7 +4,7 @@ OpenFEMLab is an open-source, solver-independent Python toolkit for structural
 dynamics. It connects finite-element modal analysis, FE/test correlation, and
 sensitivity-based model updating in a reproducible CAE workflow.
 
-The project ships **`0.2.1`** on the stable `0.2.x` line.  Core workflow
+The project ships **`0.2.2`** on the stable `0.2.x` line.  Core workflow
 schemas and CLI gate behaviour are stable within the `0.2.x` line; see
 [`docs/STABILITY.md`](docs/STABILITY.md) and [`docs/MIGRATION.md`](docs/MIGRATION.md).
 

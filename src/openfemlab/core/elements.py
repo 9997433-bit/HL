@@ -1,4 +1,4 @@
-"""Element library: springs, bars/trusses, beams, QUAD4, shell facet, TET4, HEX8.
+"""Element library: springs, bars/trusses, beams, TRI3, QUAD4, shell facet, TET4, HEX8.
 
 Every element exposes the same contract used by :mod:`openfemlab.core.assembly`:
 
@@ -26,6 +26,7 @@ __all__ = [
     "BeamElement2D",
     "BeamElement3D",
     "Quad4Element",
+    "Tri3Element",
     "ShellQuad4Element",
     "Tet4Element",
     "Hex8Element",
@@ -232,6 +233,37 @@ class TrussElement(Element):
         k[ndim:, :ndim] = -block
         k[ndim:, ndim:] = block
         return k
+
+    def stiffness_coord_derivatives(self, coords: np.ndarray) -> np.ndarray:
+        """Analytic ``dK/d(x_node, axis)`` with shape ``(2*ndim, 2*ndim, 2, ndim)``.
+
+        Used by geometric shape-optimization gradients: chain with a morph
+        velocity field ``V`` via ``dK/da = Σ_{node,axis} (dK/dx) V[node, axis]``.
+        """
+        length, direction = _axial_geometry(coords, self._axes, self)
+        delta = direction * length
+        ndim = direction.size
+        rigidity = self.axial_rigidity
+        # P = EA * outer(delta, delta) / L^3
+        outer = np.outer(delta, delta)
+        inv_l3 = 1.0 / (length**3)
+        inv_l5 = 1.0 / (length**5)
+        derivatives = np.zeros((2 * ndim, 2 * ndim, 2, ndim), dtype=float)
+        eye = np.eye(ndim)
+        for axis in range(ndim):
+            dP = rigidity * (
+                (np.outer(eye[axis], delta) + np.outer(delta, eye[axis])) * inv_l3
+                - 3.0 * delta[axis] * outer * inv_l5
+            )
+            # dK/dΔ = [[dP, -dP], [-dP, dP]]; Δ = x1 - x0 so d/dx0 = -d/dΔ
+            block = np.empty((2 * ndim, 2 * ndim), dtype=float)
+            block[:ndim, :ndim] = dP
+            block[:ndim, ndim:] = -dP
+            block[ndim:, :ndim] = -dP
+            block[ndim:, ndim:] = dP
+            derivatives[:, :, 0, axis] = -block
+            derivatives[:, :, 1, axis] = block
+        return derivatives
 
     def mass_matrix(self, coords: np.ndarray) -> np.ndarray:
         length, direction = _axial_geometry(coords, self._axes, self)
@@ -652,6 +684,130 @@ def plane_constitutive_matrix(material: Material, plane: str = "stress") -> np.n
         ],
         dtype=float,
     )
+
+
+class Tri3Element(Element):
+    """3-node constant-strain triangle (CST) in the XY plane (DOFs ``UX``, ``UY``).
+
+    Nodes are given counter-clockwise.  With area coordinates the strain-
+    displacement operator ``B`` is constant, so
+
+    ``K = t A B^T D B``  and  ``M = rho t A / 12 * (ones + I)``
+
+    (consistent mass) are exact for the linear displacement field.  The element
+    passes the constant-strain patch test and has exactly three planar
+    rigid-body zero-energy modes.
+    """
+
+    expected_nodes = 3
+
+    def __init__(
+        self,
+        node_ids: Sequence[Hashable],
+        material: Material,
+        *,
+        thickness: float = 1.0,
+        plane: str = "stress",
+        lumped_mass: bool = False,
+        eid: Hashable | None = None,
+    ) -> None:
+        super().__init__(node_ids, eid=eid)
+        if thickness <= 0.0:
+            raise ElementError(f"Tri3Element thickness must be positive, got {thickness}")
+        if plane not in PLANE_STATES:
+            raise ElementError(
+                f"unknown plane state {plane!r}; expected one of {list(PLANE_STATES)}"
+            )
+        self.material = material
+        self.thickness = float(thickness)
+        self.plane = plane
+        self.lumped_mass = bool(lumped_mass)
+
+    def required_dofs(self, available: tuple[DOF, ...]) -> tuple[DOF, ...]:
+        return (DOF.UX, DOF.UY)
+
+    def _planar_coords(self, coords: np.ndarray) -> np.ndarray:
+        points = np.asarray(coords, dtype=float).reshape(3, -1)
+        if points.shape[1] > 2:
+            spread = float(np.ptp(points[:, 2]))
+            scale = float(np.max(np.abs(points[:, :2]))) or 1.0
+            if spread > 1e-9 * scale:
+                raise ElementError(
+                    f"Tri3Element {self.node_ids} is a planar XY element but its nodes "
+                    f"span {spread:g} in Z"
+                )
+        return points[:, :2]
+
+    def area(self, coords: np.ndarray) -> float:
+        xy = self._planar_coords(coords)
+        twice = float(
+            xy[0, 0] * (xy[1, 1] - xy[2, 1])
+            + xy[1, 0] * (xy[2, 1] - xy[0, 1])
+            + xy[2, 0] * (xy[0, 1] - xy[1, 1])
+        )
+        if twice <= 0.0:
+            raise ElementError(
+                f"Tri3Element {self.node_ids} has non-positive area ({0.5 * twice:g}); "
+                "the element is degenerate, inverted or not ordered counter-clockwise"
+            )
+        return 0.5 * twice
+
+    def strain_displacement_matrix(self, coords: np.ndarray) -> tuple[np.ndarray, float]:
+        """Constant ``(B, area)`` with ``B`` of shape ``(3, 6)`` in node-major order."""
+        xy = self._planar_coords(coords)
+        area = self.area(coords)
+        x1, y1 = xy[0]
+        x2, y2 = xy[1]
+        x3, y3 = xy[2]
+        beta = np.array([y2 - y3, y3 - y1, y1 - y2], dtype=float)
+        gamma = np.array([x3 - x2, x1 - x3, x2 - x1], dtype=float)
+        scale = 1.0 / (2.0 * area)
+        b = np.zeros((3, 6), dtype=float)
+        for node in range(3):
+            b[0, 2 * node] = scale * beta[node]
+            b[1, 2 * node + 1] = scale * gamma[node]
+            b[2, 2 * node] = scale * gamma[node]
+            b[2, 2 * node + 1] = scale * beta[node]
+        return b, area
+
+    @property
+    def constitutive_matrix(self) -> np.ndarray:
+        return plane_constitutive_matrix(self.material, self.plane)
+
+    def stiffness_matrix(self, coords: np.ndarray) -> np.ndarray:
+        b, area = self.strain_displacement_matrix(coords)
+        return (self.thickness * area) * (b.T @ self.constitutive_matrix @ b)
+
+    def consistent_mass_matrix(self, coords: np.ndarray) -> np.ndarray:
+        density = float(self.material.density)
+        if density == 0.0:
+            return np.zeros((6, 6), dtype=float)
+        factor = density * self.thickness * self.area(coords) / 12.0
+        block = np.full((3, 3), factor, dtype=float)
+        np.fill_diagonal(block, 2.0 * factor)
+        mass = np.zeros((6, 6), dtype=float)
+        mass[0::2, 0::2] = block
+        mass[1::2, 1::2] = block
+        return mass
+
+    def mass_matrix(self, coords: np.ndarray) -> np.ndarray:
+        consistent = self.consistent_mass_matrix(coords)
+        if not self.lumped_mass:
+            return consistent
+        return np.diag(consistent.sum(axis=1))
+
+    def total_mass(self, coords: np.ndarray) -> float:
+        return float(self.material.density) * self.thickness * self.area(coords)
+
+    def strain(self, coords: np.ndarray, displacements: np.ndarray) -> np.ndarray:
+        values = np.asarray(displacements, dtype=float).reshape(-1)
+        if values.size != 6:
+            raise ElementError(f"expected 6 nodal displacements, got {values.size}")
+        b, _ = self.strain_displacement_matrix(coords)
+        return b @ values
+
+    def stress(self, coords: np.ndarray, displacements: np.ndarray) -> np.ndarray:
+        return self.constitutive_matrix @ self.strain(coords, displacements)
 
 
 class Quad4Element(Element):

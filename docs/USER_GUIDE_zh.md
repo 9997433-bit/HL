@@ -6,7 +6,7 @@ FE/试验相关性分析（correlation）与基于灵敏度的模型修正（mod
 相关 → 修正 → 验证），但采用 MIT 许可证、纯 Python 实现，并为 CI 自动化设计了
 机器可读的报告与退出码。
 
-> 项目 **`0.2.1`** 为稳定版 `0.2.x`。`0.2.x` 内核心工作流 schema 与 CLI
+> 项目 **`0.2.2`** 为稳定版 `0.2.x`。`0.2.x` 内核心工作流 schema 与 CLI
 > 闸门行为视为稳定；详见 [`STABILITY.md`](STABILITY.md) 与 [`MIGRATION.md`](MIGRATION.md)。
 
 ## 1. OpenFEMLab 与 FEMtools 对照
@@ -551,8 +551,8 @@ python examples/06_bdf_op2_industrial_loop.py
    Nastran；未找到可执行文件时 `run_nastran` 抛出类型化的 `FormatError`（AC-IO-015）。
    见 `openfemlab.io.drivers.nastran` 与 `examples/07_external_nastran_loop.py`。
 
-BDF 子集在 Round 9–11 扩展：**`PROD`/`PBAR`** 截面导入、`RBE2`/`RBE3` 刚性/加权
-约束装配进求解器（``neutral_to_model`` 或 `tie_rbe2` / `tie_rbe3`）。
+BDF 子集在 Round 9–12 扩展：**`PROD`/`PBAR`**、`CTRIA3`（TRI3 膜单元）、
+`SPC1`/`CONM2`、`RBE2`/`RBE3` 约束装配进求解器。
 
 ### 11.2 向导菜单（pipeline / SDM）
 
