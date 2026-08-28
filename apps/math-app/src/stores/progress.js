@@ -24,6 +24,15 @@ const DAILY_KEEP_DAYS = 30
 
 /** 错题本只留最近错的 60 道：再多孩子也刷不完，反而看着发怵。 */
 const WRONG_BOOK_MAX = 60
+/** 推荐 cohort 只留最近 40 组，避免长期使用后存档无限增长。 */
+const RECOMMENDATION_COHORT_MAX = 40
+
+export const RECOMMENDATION_METRIC_THRESHOLDS = {
+  minAdoptions: 5,
+  minControls: 5,
+  adoptionRate: 25,
+  recoLift: 5,
+}
 
 /**
  * 错题本的键：模块 + 题目 id。
@@ -91,6 +100,8 @@ function defaultState() {
     seenPlanets: null,
     settings: { sound: true, animations: true },
     history: [],
+    /** 推荐集合 → 点击采纳时的掌握度基线；不浏览打点，只在孩子真的选择后落盘。 */
+    recommendationCohorts: [],
     /** 'YYYY-MM-DD' -> { seconds, answered, correct, stars }，家长页时长曲线的数据源 */
     daily: {},
   }
@@ -118,6 +129,104 @@ function trimWrongBook(book) {
 }
 
 const text = (value, fallback = '') => (typeof value === 'string' ? value : fallback)
+
+function mergeRecommendationCohorts(raw) {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .slice(-RECOMMENDATION_COHORT_MAX)
+    .map((cohort) => {
+      if (!cohort || typeof cohort !== 'object') return null
+      const offered = []
+      const seen = new Set()
+      for (const row of Array.isArray(cohort.offered) ? cohort.offered : []) {
+        const skill = text(row?.skill)
+        const baseline = Number(row?.baseline)
+        if (!isKnownSkill(skill) || seen.has(skill) || !Number.isFinite(baseline)) continue
+        seen.add(skill)
+        offered.push({ skill, baseline: Math.min(1, Math.max(0, baseline)) })
+      }
+      if (!offered.length) return null
+      const adopted = []
+      const adoptedSeen = new Set()
+      for (const row of Array.isArray(cohort.adopted) ? cohort.adopted : []) {
+        const skill = text(row?.skill)
+        if (!seen.has(skill) || adoptedSeen.has(skill)) continue
+        adoptedSeen.add(skill)
+        adopted.push({
+          skill,
+          at: Number.isFinite(Number(row.at)) ? Number(row.at) : 0,
+          source: text(row.source, 'skill-graph'),
+        })
+      }
+      return {
+        id: text(cohort.id),
+        at: Number.isFinite(Number(cohort.at)) ? Number(cohort.at) : 0,
+        offered,
+        adopted,
+      }
+    })
+    .filter((cohort) => cohort?.id && cohort.adopted.length)
+}
+
+const mean = (values) =>
+  values.length ? values.reduce((total, value) => total + value, 0) / values.length : 0
+const oneDecimal = (value) => Math.round(value * 10) / 10
+
+/**
+ * 推荐效果度量（百分点）：
+ * - adoptionRate = 被点击技能数 / 同批展示技能数；
+ * - recoLift = 被采纳技能的掌握度变化均值 - 同 cohort 未采纳技能变化均值。
+ *
+ * 这里只比较同一推荐集合内、同一时点截下的基线，不把普通星球游玩误记成推荐点击。
+ */
+export function recommendationEffect(cohorts = [], mastery = {}) {
+  const valid = mergeRecommendationCohorts(cohorts)
+  const adoptedDeltas = []
+  const controlDeltas = []
+  let offers = 0
+  let adoptions = 0
+
+  for (const cohort of valid) {
+    const adopted = new Set(cohort.adopted.map((row) => row.skill))
+    offers += cohort.offered.length
+    adoptions += adopted.size
+    for (const row of cohort.offered) {
+      const current = Number(mastery[row.skill])
+      const delta = (Number.isFinite(current) ? current : row.baseline) - row.baseline
+      ;(adopted.has(row.skill) ? adoptedDeltas : controlDeltas).push(delta)
+    }
+  }
+
+  const adoptionRate = offers ? oneDecimal((adoptions / offers) * 100) : 0
+  const adoptedMasteryLift = oneDecimal(mean(adoptedDeltas) * 100)
+  const controlMasteryLift = oneDecimal(mean(controlDeltas) * 100)
+  const recoLift = oneDecimal(adoptedMasteryLift - controlMasteryLift)
+  const enough =
+    adoptions >= RECOMMENDATION_METRIC_THRESHOLDS.minAdoptions &&
+    controlDeltas.length >= RECOMMENDATION_METRIC_THRESHOLDS.minControls
+  const status = !enough
+    ? 'insufficient'
+    : adoptionRate >= RECOMMENDATION_METRIC_THRESHOLDS.adoptionRate &&
+        recoLift >= RECOMMENDATION_METRIC_THRESHOLDS.recoLift
+      ? 'positive'
+      : recoLift <= -RECOMMENDATION_METRIC_THRESHOLDS.recoLift
+        ? 'negative'
+        : 'watch'
+
+  return {
+    definition: 'recoLift=adoptedMasteryLift-controlMasteryLift (percentage points)',
+    cohorts: valid.length,
+    offers,
+    adoptions,
+    controls: controlDeltas.length,
+    adoptionRate,
+    adoptedMasteryLift,
+    controlMasteryLift,
+    recoLift,
+    status,
+    thresholds: { ...RECOMMENDATION_METRIC_THRESHOLDS },
+  }
+}
 
 /**
  * 洗一份外部错题本：没有正确答案的条目直接丢掉——重做流程验不了答案，
@@ -197,6 +306,7 @@ function mergeState(saved) {
       : null,
     settings: { ...base.settings, ...(saved.settings || {}) },
     history: Array.isArray(saved.history) ? saved.history.slice(0, 40) : [],
+    recommendationCohorts: mergeRecommendationCohorts(saved.recommendationCohorts),
     daily: mergeDaily(saved.daily),
   }
 }
@@ -239,6 +349,9 @@ export const useProgressStore = defineStore('progress', () => {
     })),
   )
   const lockedAchievements = computed(() => ACHIEVEMENTS.filter((a) => !state.achievements[a.id]))
+  const recommendationMetrics = computed(() =>
+    recommendationEffect(state.recommendationCohorts, state.mastery),
+  )
 
   const moduleStat = (moduleId) => state.modules[moduleId] ?? emptyModuleStat()
 
@@ -475,6 +588,41 @@ export const useProgressStore = defineStore('progress', () => {
     dayBucket().seconds += Math.round(delta)
   }
 
+  /**
+   * 孩子从推荐集合里点下一个开练入口时，冻结整批技能的掌握度作为同 cohort 对照。
+   * 同一个 cohort 的重复点击只补一条 adoption，不重复扩大 offer 分母。
+   */
+  function recordRecommendationAdoption({
+    cohortId,
+    skill,
+    offeredSkills = [],
+    source = 'skill-graph',
+  } = {}) {
+    if (!isKnownSkill(skill)) return null
+    const id = text(cohortId)
+    if (!id) return null
+    const offeredIds = [...new Set([...offeredSkills, skill].filter(isKnownSkill))]
+    let cohort = state.recommendationCohorts.find((row) => row.id === id)
+    if (!cohort) {
+      cohort = {
+        id,
+        at: Date.now(),
+        offered: offeredIds.map((offeredSkill) => ({
+          skill: offeredSkill,
+          baseline: state.mastery[offeredSkill] ?? 0,
+        })),
+        adopted: [],
+      }
+      state.recommendationCohorts.push(cohort)
+      state.recommendationCohorts = state.recommendationCohorts.slice(-RECOMMENDATION_COHORT_MAX)
+    }
+    if (!cohort.adopted.some((row) => row.skill === skill)) {
+      cohort.adopted.push({ skill, at: Date.now(), source: text(source, 'skill-graph') })
+    }
+    persist()
+    return recommendationEffect(state.recommendationCohorts, state.mastery)
+  }
+
   function bumpCounter(name, delta = 1) {
     state.counters[name] = (state.counters[name] ?? 0) + delta
     checkAchievements()
@@ -653,6 +801,7 @@ export const useProgressStore = defineStore('progress', () => {
         app: BACKUP_APP,
         version: BACKUP_VERSION,
         exportedAt: new Date().toISOString(),
+        recommendationEffect: recommendationMetrics.value,
         progress: JSON.parse(JSON.stringify(state)),
       },
       null,
@@ -719,6 +868,7 @@ export const useProgressStore = defineStore('progress', () => {
         mastery: state.mastery,
         modules: state.modules,
         errorTagCounts: state.errorTagCounts,
+        recommendationEffect: recommendationMetrics.value,
         wrongBook: wrongList.value.map(({ id, module, skill, errorTag, attempts, lastAt }) => ({
           id,
           module,
@@ -778,6 +928,9 @@ export const useProgressStore = defineStore('progress', () => {
     totalMinutes,
     last7Days,
     recordUsage,
+    // 推荐效果
+    recommendationMetrics,
+    recordRecommendationAdoption,
     // 今日冒险
     dailyQuest,
     dailyQuestDone,

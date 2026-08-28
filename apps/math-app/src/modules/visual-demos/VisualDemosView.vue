@@ -1,10 +1,18 @@
 <script setup>
 import { computed, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import VisualMathDemo from '@/components/VisualMathDemo.vue'
 import { VISUAL_DEMOS } from '@/data/visualDemos.js'
 import { sound } from '@/utils/sound.js'
 
-const selectedId = ref(VISUAL_DEMOS[0].id)
+const route = useRoute()
+const requested = String(route.query.demo ?? '')
+const focused = String(route.query.skill ?? '')
+const initial =
+  VISUAL_DEMOS.find((demo) => demo.id === requested) ??
+  VISUAL_DEMOS.find((demo) => demo.skill === focused) ??
+  VISUAL_DEMOS[0]
+const selectedId = ref(initial.id)
 const selected = computed(
   () => VISUAL_DEMOS.find((demo) => demo.id === selectedId.value) ?? VISUAL_DEMOS[0],
 )

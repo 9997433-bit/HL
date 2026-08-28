@@ -75,6 +75,7 @@ const ROUTES = [
 const ROUND9_H3_SMOKE = '/skill-graph'
 const ROUND10_H3_SMOKE = '/skill-graph'
 const ROUND11_H3_SMOKE = '/skill-graph'
+const ROUND12_H5_SMOKE = '/skill-graph'
 
 const IGNORE = [/Failed to load resource/i, /net::ERR_/i, /favicon/i, /AudioContext/i]
 
@@ -2107,6 +2108,132 @@ await interact('周计划：七天滚动 + 家长侧理由与采纳痕迹', `/#$
     `七天 ${scheduled.length} 场 ${distinct.length} 个技能（首场 ${first.id} 走 ${first.entry}），` +
     `过线即退场、换档换计划；家长侧 ${parent.reasons.length} 条理由、` +
     `${parent.rows.length} 行痕迹（${fresh.length} 个还没开练）`
+  )
+})
+
+/**
+ * ROUND12_H5_SMOKE — 全图谱开练 + 推荐效果度量：
+ * 逐个打开 34 个节点，详情里的专项入口必须携带技能定位；再真实点击一次推荐，
+ * 验证 cohort 基线落盘、家长页能读出 adoptionRate/recoLift，且导出 JSON 带同名效果字段。
+ */
+await interact('推荐全覆盖：34/34 可开练 + 采纳/lift 进入家长导出', `/#${ROUND12_H5_SMOKE}`, async (page) => {
+  await page.evaluate(() => {
+    localStorage.removeItem('mathquest/progress')
+    localStorage.setItem('mathquest/settings', JSON.stringify({ ageBand: 'L5' }))
+  })
+  await page.reload({ waitUntil: 'networkidle2' })
+  await sleep(700)
+
+  const entries = []
+  for (const skill of SKILLS) {
+    await page.evaluate((id) => document.querySelector(`[data-skill-node="${id}"]`)?.click(), skill.id)
+    await sleep(30)
+    const entry = await page.evaluate((id) => {
+      const link = document.querySelector(`[data-skill-practice-entry="${id}"]`)
+      return {
+        id,
+        kind: link?.dataset.skillPracticeKind ?? '',
+        href: link?.getAttribute('href') ?? '',
+      }
+    }, skill.id)
+    if (!entry.href) throw new Error(`「${skill.id}」详情没有专项开练入口`)
+    const queryKey = entry.kind === 'daily' ? 'focus' : 'skill'
+    if (!entry.href.includes(`${queryKey}=${encodeURIComponent(skill.id)}`)) {
+      throw new Error(`「${skill.id}」没有携带 ${queryKey} 定位：${entry.href}`)
+    }
+    entries.push(entry)
+  }
+  const daily = entries.filter((entry) => entry.kind === 'daily')
+  const planet = entries.filter((entry) => entry.kind === 'planet')
+  if (entries.length !== SKILLS.length || SKILLS.length !== 34) {
+    throw new Error(`开练覆盖 ${entries.length}/${SKILLS.length}，课程表应为 34 个节点`)
+  }
+  if (daily.length !== 10 || planet.length !== 24) {
+    throw new Error(`落点分布应为 daily 10 / planet 定位 24，实际 ${daily.length}/${planet.length}`)
+  }
+
+  // 真点一次推荐：点击前不写曝光，点击时把同批候选的掌握度冻结成 cohort 基线。
+  const offered = await page.evaluate(() =>
+    [...document.querySelectorAll('[data-reco-item]')].map((row) => row.dataset.recoItem),
+  )
+  if (offered.length < 2) throw new Error(`推荐集合只有 ${offered.length} 项，无法建立同批对照`)
+  const adopted = offered[0]
+  await page.evaluate((id) => document.querySelector(`[data-reco-entry-skill="${id}"]`)?.click(), adopted)
+  await sleep(600)
+  const cohort = await page.evaluate(() => {
+    const state = JSON.parse(localStorage.getItem('mathquest/progress') || '{}')
+    return state.recommendationCohorts?.[0] ?? null
+  })
+  if (!cohort) throw new Error('点击推荐后没有保存 cohort 基线')
+  if (cohort.offered.length !== offered.length || cohort.adopted?.[0]?.skill !== adopted) {
+    throw new Error(`推荐 cohort 不完整：${JSON.stringify(cohort)}`)
+  }
+
+  // 模拟后续练习留下的掌握度变化；页面重载后必须从同一份本地 cohort 计算效果。
+  await page.evaluate((picked) => {
+    const state = JSON.parse(localStorage.getItem('mathquest/progress') || '{}')
+    const offeredRows = state.recommendationCohorts[0].offered
+    state.mastery = { ...(state.mastery ?? {}), [picked]: 0.45 }
+    const control = offeredRows.find((row) => row.skill !== picked)?.skill
+    if (control) state.mastery[control] = 0.1
+    localStorage.setItem('mathquest/progress', JSON.stringify(state))
+  }, adopted)
+
+  await page.goto(base + '/#/parent', { waitUntil: 'networkidle2' })
+  await sleep(500)
+  const sum = await gateSum(page)
+  if (sum === null) throw new Error('家长中心没有口算门')
+  await page.type('#parent-gate', String(sum))
+  await page.click('.gate-form button[type="submit"]')
+  await sleep(500)
+
+  const metrics = await page.evaluate(() => {
+    const el = document.querySelector('[data-reco-metrics]')
+    return {
+      adoptionRate: Number(el?.dataset.adoptionRate),
+      recoLift: Number(el?.dataset.recoLift),
+      status: el?.dataset.recoStatus ?? '',
+      definition: document.querySelector('[data-reco-metric-definition]')?.innerText ?? '',
+    }
+  })
+  if (!(metrics.adoptionRate > 0) || !(metrics.recoLift > 0)) {
+    throw new Error(`家长页度量无效：${JSON.stringify(metrics)}`)
+  }
+  if (!metrics.definition.includes('recommendationEffect')) {
+    throw new Error('家长页没有说明效果度量会进入导出')
+  }
+
+  // 截获“导出进度”生成的 Blob，验证不是只在页面上画了两个数字。
+  await page.evaluate(() => {
+    window.__round12Export = ''
+    const create = URL.createObjectURL.bind(URL)
+    URL.createObjectURL = (blob) => {
+      blob.text().then((value) => {
+        window.__round12Export = value
+      })
+      return create(blob)
+    }
+  })
+  await page.evaluate(() => {
+    const button = [...document.querySelectorAll('button')].find((el) => el.innerText.includes('导出进度'))
+    button?.click()
+  })
+  await page.waitForFunction(() => window.__round12Export.length > 0, { timeout: 5000 })
+  const exported = await page.evaluate(() => JSON.parse(window.__round12Export))
+  if (exported.recommendationEffect?.recoLift !== metrics.recoLift) {
+    throw new Error(`导出 recoLift=${exported.recommendationEffect?.recoLift}，页面=${metrics.recoLift}`)
+  }
+  if (!Array.isArray(exported.progress?.recommendationCohorts)) {
+    throw new Error('整档导出没有保留 recommendationCohorts')
+  }
+
+  await page.evaluate(() => {
+    localStorage.removeItem('mathquest/settings')
+    localStorage.removeItem('mathquest/progress')
+  })
+  return (
+    `${entries.length}/${SKILLS.length} 节点可开练（daily ${daily.length} + 定位 ${planet.length}）；` +
+    `点击 ${adopted} 后采纳率 ${metrics.adoptionRate}%、recoLift +${metrics.recoLift}pp，家长导出可见`
   )
 })
 

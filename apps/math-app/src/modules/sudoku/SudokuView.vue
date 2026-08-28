@@ -5,7 +5,7 @@
  * 每挖一格用解计数器验证唯一解，所以任何档位的题目都保证有且只有一个答案。
  */
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import gsap from 'gsap'
 import AgeBandBadge from '@/components/AgeBandBadge.vue'
 import MascotBot from '@/components/MascotBot.vue'
@@ -58,6 +58,7 @@ const DIFFICULTIES = [
 ]
 
 const router = useRouter()
+const route = useRoute()
 const progress = useProgressStore()
 const { correct: fxCorrect, wrong: fxWrong, burst, flyStar, pop } = useFeedback()
 
@@ -73,7 +74,8 @@ const band = useAgeBand((next) => {
   difficulty.value = preset.difficulty
 })
 
-const sizeKey = ref(band.value.defaults.sudoku.size)
+const focusSize = Number(String(route.query.skill ?? '').match(/^sudoku-(4|6|9)$/)?.[1])
+const sizeKey = ref(focusSize || band.value.defaults.sudoku.size)
 const difficulty = ref(band.value.defaults.sudoku.difficulty)
 const showNotes = ref(false)
 

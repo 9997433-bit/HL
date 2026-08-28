@@ -8,7 +8,7 @@
  * 算术恒星名下，专题练的和星球练的是同一份掌握度。
  */
 import { computed, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import AgeBandBadge from '@/components/AgeBandBadge.vue'
 import QuizShell from '@/components/QuizShell.vue'
 import { useProgressStore } from '@/stores/progress.js'
@@ -18,6 +18,10 @@ import { arithmeticSkill } from '@/data/skill-mapping.js'
 import { sound } from '@/utils/sound'
 
 const MODULE_ID = 'arithmetic'
+const FOCUS_PRESETS = {
+  'add-within-100': { level: 100, op: 'add' },
+  'sub-within-100': { level: 100, op: 'sub' },
+}
 
 const props = defineProps({
   mode: { type: String, default: 'quest' },
@@ -31,6 +35,7 @@ const roundName = computed(() =>
 )
 
 const router = useRouter()
+const route = useRoute()
 const progress = useProgressStore()
 
 /** 家长中心选的年龄档决定进来时停在哪个档位、先练哪种运算，孩子仍然可以自己切。 */
@@ -55,8 +60,9 @@ const OPS = [
 
 const LEVEL_STEPS = LEVELS.map((l) => l.id)
 
-const level = ref(band.value.defaults.arithmetic.level)
-const op = ref(band.value.defaults.arithmetic.op)
+const focusPreset = FOCUS_PRESETS[String(route.query.skill ?? '')]
+const level = ref(focusPreset?.level ?? band.value.defaults.arithmetic.level)
+const op = ref(focusPreset?.op ?? band.value.defaults.arithmetic.op)
 const inputMode = ref('choice')
 /** 自动难度：连对就升档、连错就降档，但只在下一轮生效，不打断正在做的这一轮。 */
 const autoLevel = ref(true)

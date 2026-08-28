@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import gsap from 'gsap'
 import AgeBandBadge from '@/components/AgeBandBadge.vue'
 import MascotBot from '@/components/MascotBot.vue'
@@ -19,6 +19,7 @@ const ROUND_SIZE = 10
 const MODULE_ID = 'logic'
 
 const router = useRouter()
+const route = useRoute()
 const progress = useProgressStore()
 const band = useAgeBand(() => startRound())
 const { correct: fxCorrect, wrong: fxWrong, burst, flyStar, enter } = useFeedback()
@@ -218,13 +219,23 @@ const MAKERS = {
   shape: shapeCycle,
 }
 
+const FOCUS_MAKERS = {
+  'pattern-abab': ['emoji', 'shape', 'rotate'],
+  'pattern-number': ['arith', 'decrease', 'double', 'group'],
+  deduction: ['gap', 'zigzag', 'shape'],
+}
+const focusedSkill = computed(() => {
+  const id = String(route.query.skill ?? '')
+  return Object.hasOwn(FOCUS_MAKERS, id) ? id : ''
+})
+
 /**
  * 一轮的题型来自年龄档：小的只出图案循环和数量递增，
  * 大的才见得到翻倍、差值递增、交替加减这些要归纳两层的规律。
  * 档位里重复写同一个 id 就是给它加权。
  */
 function drawRound() {
-  const ids = band.value.defaults.logic
+  const ids = FOCUS_MAKERS[focusedSkill.value] ?? band.value.defaults.logic
   const out = []
   while (out.length < ROUND_SIZE) out.push(...shuffle(ids))
   return out.slice(0, ROUND_SIZE).map((id) => MAKERS[id]())
@@ -251,7 +262,7 @@ function grade(value, anchor) {
   const right = value === q.answer
   marks.value[index.value] = right ? 'ok' : 'no'
   chosen.value = value
-  const skill = logicSkill(q.type)
+  const skill = focusedSkill.value === 'deduction' ? 'deduction' : logicSkill(q.type)
 
   if (right) {
     const stars = showHint.value ? 1 : 2

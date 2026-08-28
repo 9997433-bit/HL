@@ -1,5 +1,6 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { useProgressStore } from '@/stores/progress.js'
 import { sound } from '@/utils/sound.js'
 
@@ -66,6 +67,10 @@ const selectedId = ref('')
 const dragging = ref(null)
 const completed = ref(false)
 const progress = useProgressStore()
+const route = useRoute()
+const practiceSkill = computed(() =>
+  String(route.query.skill ?? '') === 'symmetry' ? 'symmetry' : 'tangram-basic',
+)
 let context = null
 
 const solvedCount = computed(() => pieces.value.filter((piece) => piece.locked).length)
@@ -295,7 +300,7 @@ function hintSnap() {
 function checkComplete() {
   if (completed.value || pieces.value.some((piece) => !piece.locked)) return
   completed.value = true
-  progress.recordAnswer('geometry', true, { skill: 'tangram-basic', stars: 3, xp: 24 })
+  progress.recordAnswer('geometry', true, { skill: practiceSkill.value, stars: 3, xp: 24 })
   progress.finishSession('geometry', { correct: 1, total: 1 })
 }
 

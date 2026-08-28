@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import gsap from 'gsap'
 import AgeBandBadge from '@/components/AgeBandBadge.vue'
 import MascotBot from '@/components/MascotBot.vue'
@@ -27,6 +27,7 @@ const PALETTE = [
 ]
 
 const router = useRouter()
+const route = useRoute()
 const progress = useProgressStore()
 const { correct: fxCorrect, wrong: fxWrong, burst, flyStar, enter } = useFeedback()
 
@@ -38,7 +39,11 @@ const band = useAgeBand((next) => {
   else scope.value = nextScope
 })
 
-const scope = ref(band.value.defaults.geometry.scope) // 2d | 3d | all
+const focusScope = {
+  'shape-2d': '2d',
+  'shape-3d': '3d',
+}[String(route.query.skill ?? '')]
+const scope = ref(focusScope ?? band.value.defaults.geometry.scope) // 2d | 3d | all
 const pool = computed(() =>
   scope.value === '2d' ? SHAPES_2D : scope.value === '3d' ? SHAPES_3D : SHAPES,
 )

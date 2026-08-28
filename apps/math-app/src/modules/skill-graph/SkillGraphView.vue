@@ -32,6 +32,8 @@ const selectedId = ref(null)
 const moduleFilter = ref('all')
 /** 只看本档：把超前的技能压暗，但仍留在图上——家长要能看见后面还有什么。 */
 const bandOnly = ref(false)
+/** 一次停留是一组推荐 cohort；只在孩子点击开练时写入，不做浏览曝光打点。 */
+const recoCohortId = `graph-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 
 const band = computed(() => bandOf(settings.ageBand))
 
@@ -96,6 +98,9 @@ const reco = computed(() => graph.value.reco)
 
 /** 错题欠账按技能点归拢一次，推荐位的落点和详情卡都读它。 */
 const wrongCounts = computed(() => wrongCountsBySkill(progress.state.wrongBook))
+const detailEntry = computed(() =>
+  detail.value ? practiceEntry(detail.value, { wrongCounts: wrongCounts.value }) : null,
+)
 
 const recoItems = computed(() =>
   reco.value.items.map((item) => ({
@@ -132,6 +137,25 @@ function pickModule(id) {
 function toggleBandOnly() {
   sound.click()
   bandOnly.value = !bandOnly.value
+}
+
+function adoptRecommendation(item) {
+  progress.recordRecommendationAdoption({
+    cohortId: recoCohortId,
+    skill: item.id,
+    offeredSkills: recoItems.value.map((row) => row.id),
+    source: 'next-step',
+  })
+}
+
+function adoptWeekSkill(skill) {
+  const today = weekPlan.value.days.find((day) => day.today)
+  progress.recordRecommendationAdoption({
+    cohortId: `${recoCohortId}-week`,
+    skill: skill.id,
+    offeredSkills: today?.skills.map((row) => row.id) ?? [skill.id],
+    source: 'week-plan',
+  })
 }
 </script>
 
@@ -286,8 +310,17 @@ function toggleBandOnly() {
           </p>
         </div>
         <span class="spacer" />
-        <RouterLink class="btn btn--primary btn--sm" :to="detail.route">
+        <RouterLink class="btn btn--ghost btn--sm" :to="detail.route">
           去 {{ detail.moduleName }} 练 →
+        </RouterLink>
+        <RouterLink
+          v-if="detailEntry"
+          class="btn btn--primary btn--sm"
+          :to="detailEntry.to"
+          :data-skill-practice-entry="detail.id"
+          :data-skill-practice-kind="detailEntry.kind"
+        >
+          练此专项 →
         </RouterLink>
       </div>
       <dl class="detail-grid">
@@ -371,6 +404,7 @@ function toggleBandOnly() {
               :to="item.entry.to"
               :data-reco-entry="item.entry.kind"
               :data-reco-entry-skill="item.id"
+              @click="adoptRecommendation(item)"
             >
               {{ item.entry.label }} →
             </RouterLink>
@@ -484,6 +518,7 @@ function toggleBandOnly() {
               :to="skill.entry.to"
               :data-week-entry="skill.entry.kind"
               :data-week-entry-skill="skill.id"
+              @click="adoptWeekSkill(skill)"
             >
               {{ skill.entry.label }} →
             </RouterLink>
