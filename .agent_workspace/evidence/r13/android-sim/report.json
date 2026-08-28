@@ -1,10 +1,16 @@
 {
   "simulated": true,
-  "marker": "android-sim-harness-v1",
+  "marker": "android-sim-harness-v2",
   "note": "VM WebView 模拟 + Capacitor APK 构建；不等价 Android QA 真机签核",
-  "timestamp": "2026-08-28T02:18:54.542Z",
-  "commit": "9c9d126",
-  "webViewUserAgent": "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36 Version/4.0",
+  "timestamp": "2026-08-28T02:39:11.096Z",
+  "commit": "7c63c72",
+  "webViewUserAgent": "Mozilla/5.0 (Linux; Android 13; Pixel 7 Build/TQ3A.230805.001; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/120.0.6099.230 Mobile Safari/537.36",
+  "webView": {
+    "requestedUserAgent": "Mozilla/5.0 (Linux; Android 13; Pixel 7 Build/TQ3A.230805.001; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/120.0.6099.230 Mobile Safari/537.36",
+    "literacyObservedUserAgent": "Mozilla/5.0 (Linux; Android 13; Pixel 7 Build/TQ3A.230805.001; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/120.0.6099.230 Mobile Safari/537.36",
+    "mathObservedUserAgent": "Mozilla/5.0 (Linux; Android 13; Pixel 7 Build/TQ3A.230805.001; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/120.0.6099.230 Mobile Safari/537.36",
+    "pass": true
+  },
   "steps": [
     {
       "step": "build:all",
@@ -24,12 +30,32 @@
     {
       "step": "gradle:literacy",
       "pass": true,
-      "exit": 0
+      "exit": 0,
+      "durationMs": 26989,
+      "log": ".agent_workspace/evidence/r13/android-sim/gradle-literacy.log"
     },
     {
       "step": "gradle:math",
       "pass": true,
-      "exit": 0
+      "exit": 0,
+      "durationMs": 10387,
+      "log": ".agent_workspace/evidence/r13/android-sim/gradle-math.log"
+    },
+    {
+      "step": "smoke:literacy:webview-ua",
+      "pass": true,
+      "exit": 0,
+      "routes": 164,
+      "problems": 0,
+      "log": ".agent_workspace/evidence/r13/android-sim/smoke-literacy.log"
+    },
+    {
+      "step": "smoke:math:webview-ua",
+      "pass": true,
+      "exit": 0,
+      "routes": 20,
+      "problems": 0,
+      "log": ".agent_workspace/evidence/r13/android-sim/smoke-math.log"
     },
     {
       "step": "ocr-device-a",
@@ -42,19 +68,48 @@
     "smokeRoutes": 164,
     "smokeInteractions": 41,
     "smokeProblems": 0,
-    "apkSha256": "0b0b4587326681da3fc1b80515a433afe17983e57d5a60388a510eb233c35af9",
-    "apkBytes": 36081850
+    "webViewUaPass": true,
+    "smokeLog": {
+      "path": ".agent_workspace/evidence/r13/android-sim/smoke-literacy.log",
+      "sha256": "e2b0377407baf96de298d831d9655bf4df04fbe091638cb10e524ec6023d4c00",
+      "bytes": 19702
+    },
+    "apkSha256": "bd70dd84d280900597d260d2c5e4df973b6bda539d11f2997fa081d82d42a28c",
+    "apkBytes": 36040538,
+    "apkPath": "apps/literacy-app/android/app/build/outputs/apk/debug/app-debug.apk",
+    "gradleLog": {
+      "path": ".agent_workspace/evidence/r13/android-sim/gradle-literacy.log",
+      "sha256": "0a9bc965d3cdaca6f073675b08c305d172bc7e7eb42035dd96a3866998f3a52a",
+      "bytes": 6225
+    }
   },
   "math": {
     "smokePass": true,
     "smokeRoutes": 20,
     "smokeInteractions": 36,
     "smokeProblems": 0,
-    "apkSha256": "1e3a341cac52241b1ad1825959084f6067b163e94b337b8199032f8d4c8c9da3",
-    "apkBytes": 4292454
+    "webViewUaPass": true,
+    "smokeLog": {
+      "path": ".agent_workspace/evidence/r13/android-sim/smoke-math.log",
+      "sha256": "588c74e5e9a0c61407e7bfceec19f162b13087c50b73e802efb792e8863a8a48",
+      "bytes": 6360
+    },
+    "apkSha256": "bc5473c8627b550e45623201921d0af87d99e7939e14dd6e36966697304b6d22",
+    "apkBytes": 4260315,
+    "apkPath": "apps/math-app/android/app/build/outputs/apk/debug/app-debug.apk",
+    "gradleLog": {
+      "path": ".agent_workspace/evidence/r13/android-sim/gradle-math.log",
+      "sha256": "f2eef4ae412e5dbd5d50ff50fe862dd85eceabf6828b7bcbc40f95fa14e7274b",
+      "bytes": 6221
+    }
   },
   "ocr": {
-    "pass": true
+    "pass": true,
+    "log": {
+      "path": ".agent_workspace/evidence/r13/android-sim/ocr-device-a.log",
+      "sha256": "c3e7ce2b3d2a3dd05c80477e1d611c03dd27579e5f2f46deef5f330b0e14ec38",
+      "bytes": 3618
+    }
   },
   "androidHome": "/home/ubuntu/android-sdk"
 }
