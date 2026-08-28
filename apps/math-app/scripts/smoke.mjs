@@ -76,6 +76,7 @@ const ROUND9_H3_SMOKE = '/skill-graph'
 const ROUND10_H3_SMOKE = '/skill-graph'
 const ROUND11_H3_SMOKE = '/skill-graph'
 const ROUND12_H5_SMOKE = '/skill-graph'
+const ROUND13_H5_SMOKE = '/parent'
 
 const IGNORE = [/Failed to load resource/i, /net::ERR_/i, /favicon/i, /AudioContext/i]
 
@@ -2176,10 +2177,24 @@ await interact('推荐全覆盖：34/34 可开练 + 采纳/lift 进入家长导�
     state.mastery = { ...(state.mastery ?? {}), [picked]: 0.45 }
     const control = offeredRows.find((row) => row.skill !== picked)?.skill
     if (control) state.mastery[control] = 0.1
+    const priorAt = Date.now() - 864e5
+    state.recommendationMetricHistory = [
+      {
+        date: new Date(priorAt).toISOString().slice(0, 10),
+        recordedAt: priorAt,
+        cohorts: 1,
+        offers: offeredRows.length,
+        adoptions: 1,
+        controls: offeredRows.length - 1,
+        adoptionRate: Math.round((1000 / offeredRows.length)) / 10,
+        recoLift: 4,
+        status: 'insufficient',
+      },
+    ]
     localStorage.setItem('mathquest/progress', JSON.stringify(state))
   }, adopted)
 
-  await page.goto(base + '/#/parent', { waitUntil: 'networkidle2' })
+  await page.goto(base + `/#${ROUND13_H5_SMOKE}`, { waitUntil: 'networkidle2' })
   await page.reload({ waitUntil: 'networkidle2' })
   await sleep(500)
   const sum = await gateSum(page)
@@ -2195,6 +2210,11 @@ await interact('推荐全覆盖：34/34 可开练 + 采纳/lift 进入家长导�
       recoLift: Number(el?.dataset.recoLift),
       status: el?.dataset.recoStatus ?? '',
       definition: document.querySelector('[data-reco-metric-definition]')?.innerText ?? '',
+      trend: [...document.querySelectorAll('[data-reco-trend-point]')].map((point) => ({
+        date: point.dataset.recoTrendDate,
+        adoptionRate: Number(point.dataset.recoTrendAdoptionRate),
+        recoLift: Number(point.dataset.recoTrendLift),
+      })),
     }
   })
   if (!(metrics.adoptionRate > 0) || !(metrics.recoLift > 0)) {
@@ -2202,6 +2222,9 @@ await interact('推荐全覆盖：34/34 可开练 + 采纳/lift 进入家长导�
   }
   if (!metrics.definition.includes('recommendationEffect')) {
     throw new Error('家长页没有说明效果度量会进入导出')
+  }
+  if (metrics.trend.length !== 2 || metrics.trend.at(-1)?.recoLift !== metrics.recoLift) {
+    throw new Error(`ROUND13 准实验趋势没有保留历史并刷新今日点：${JSON.stringify(metrics.trend)}`)
   }
 
   // 截获“导出进度”生成的 Blob，验证不是只在页面上画了两个数字。
@@ -2227,6 +2250,13 @@ await interact('推荐全覆盖：34/34 可开练 + 采纳/lift 进入家长导�
   if (!Array.isArray(exported.progress?.recommendationCohorts)) {
     throw new Error('整档导出没有保留 recommendationCohorts')
   }
+  if (
+    !Array.isArray(exported.recommendationTrend) ||
+    exported.recommendationTrend.length !== metrics.trend.length ||
+    exported.recommendationTrend.at(-1)?.recoLift !== metrics.recoLift
+  ) {
+    throw new Error(`导出 recommendationTrend 与家长页不一致：${JSON.stringify(exported)}`)
+  }
 
   await page.evaluate(() => {
     localStorage.removeItem('mathquest/settings')
@@ -2234,7 +2264,8 @@ await interact('推荐全覆盖：34/34 可开练 + 采纳/lift 进入家长导�
   })
   return (
     `${entries.length}/${SKILLS.length} 节点可开练（daily ${daily.length} + 定位 ${planet.length}）；` +
-    `点击 ${adopted} 后采纳率 ${metrics.adoptionRate}%、recoLift +${metrics.recoLift}pp，家长导出可见`
+    `点击 ${adopted} 后采纳率 ${metrics.adoptionRate}%、recoLift +${metrics.recoLift}pp，` +
+    `家长页/导出保留 ${metrics.trend.length} 日准实验趋势`
   )
 })
 
