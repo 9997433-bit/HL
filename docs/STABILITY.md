@@ -1,10 +1,9 @@
 # OpenFEMLab Stability Policy
 
-**Version:** `0.3.0` · **Status:** Stable release · **Date:** 2026-08-28
+**Version:** `0.3.1` · **Status:** Stable release · **Date:** 2026-08-28
 
-OpenFEMLab `0.3.x` is the integration line: R14–R17 land together as topology
-(SIMP + filter + Heaviside), multi-load cases, VTU export, external-result
-geometry mapping, and CI golden correlation gates.
+OpenFEMLab `0.3.1` adds full Craig-Bampton fixed-interface modes and a first
+stress-aware SIMP topology path with p-norm von Mises aggregation.
 
 ## What `0.2.x` guarantees
 
@@ -43,6 +42,7 @@ File reproducible cases with:
 - **`0.2.1`** — Round 11: `RBE3` assembly, `PBAR`, shape-morph evaluation, wizard FRF/bench
 - **`0.2.2`** — Round 12: TRI3/CTRIA3, SPC1/CONM2, truss geometric `dK/da`, driver dry-run
 - **`0.2.3`** — Round 13: static solver + FORCE, UFF→MPE CLI, RSM, shell `dK/da`, FRD/locator
+- **`0.3.1`** — Round 18: Craig-Bampton CMS modes, stress-constrained topopt
 - **`0.3.0`** — Round 17: multi-load topopt, VTU export, geometry map, CMS skeleton, CI golden
 - **`0.2.6`** — Round 16: Heaviside projection, `tet_block`/`hex_block` topopt specs
 - **`0.2.5`** — Round 15: 3D SIMP topology (TET4/HEX8), Sigmund density filter

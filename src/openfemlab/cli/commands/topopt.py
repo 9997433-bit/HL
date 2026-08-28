@@ -96,6 +96,19 @@ def add_parser(subparsers: argparse._SubParsersAction) -> argparse.ArgumentParse
         action="store_true",
         help="when exporting VTU, use projected densities instead of physical rho",
     )
+    parser.add_argument(
+        "--stress-limit",
+        type=float,
+        default=None,
+        metavar="S",
+        help="optional von Mises stress limit for p-norm constraint (Pa)",
+    )
+    parser.add_argument(
+        "--stress-p",
+        type=float,
+        default=8.0,
+        help="p-norm exponent for stress aggregation (default: 8)",
+    )
     parser.set_defaults(func=run)
     return parser
 
@@ -120,6 +133,8 @@ def run(args: argparse.Namespace, reporter: Reporter) -> int:
         heaviside_continuation=not args.no_heaviside_continuation,
         load_vectors=load_vectors,
         load_weights=load_weights,
+        stress_limit=args.stress_limit,
+        stress_p=args.stress_p,
     )
     report = build_report(model, result, source=str(args.model))
     if args.format == "table":
@@ -173,6 +188,7 @@ def build_report(model, result, *, source: str) -> dict[str, Any]:
         ),
         "compliance_history": [float(value) for value in result.compliance_history],
         "volume_history": [float(value) for value in result.volume_history],
+        "stress_history": [float(value) for value in result.stress_history],
         "meta": dict(result.meta),
     }
 

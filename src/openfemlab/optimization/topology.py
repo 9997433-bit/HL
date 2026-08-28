@@ -9,6 +9,11 @@ import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
 from ..exceptions import OptimizationError
+from .stress import (
+    element_von_mises_stresses,
+    stress_constraint_sensitivity,
+    stress_p_norm,
+)
 
 __all__ = [
     "TopologyResult",
@@ -352,6 +357,7 @@ class TopologyResult:
     volume_history: list[float] = field(default_factory=list)
     displacements: np.ndarray | None = None
     projected_densities: np.ndarray | None = None
+    stress_history: list[float] = field(default_factory=list)
     iterations: int = 0
     meta: dict[str, object] = field(default_factory=dict)
 
@@ -409,6 +415,8 @@ def run_simp_topology(
     heaviside_beta_min: float = 1.0,
     load_vectors: list[np.ndarray] | None = None,
     load_weights: list[float] | None = None,
+    stress_limit: float | None = None,
+    stress_p: float = 8.0,
 ) -> TopologyResult:
     """Minimize compliance with a SIMP penalization and OC updates."""
     if not 0.0 < vol_frac <= 1.0:
@@ -426,6 +434,7 @@ def run_simp_topology(
     rho = np.full(model.num_elements, float(vol_frac), dtype=float)
     history_c: list[float] = []
     history_v: list[float] = []
+    history_s: list[float] = []
     last_u: np.ndarray | None = None
 
     def _finish(iteration: int) -> TopologyResult:
@@ -446,6 +455,7 @@ def run_simp_topology(
             volume_history=history_v,
             displacements=last_u,
             projected_densities=rho_design,
+            stress_history=history_s,
             iterations=iteration + 1,
             meta={
                 "penalization": penalization,
@@ -455,6 +465,8 @@ def run_simp_topology(
                 "heaviside_eta": heaviside_eta,
                 "heaviside_continuation": heaviside_continuation,
                 "num_load_cases": len(loads),
+                "stress_limit": stress_limit,
+                "stress_p": stress_p,
             },
         )
 
@@ -477,6 +489,7 @@ def run_simp_topology(
         k_ff = k[free, :][:, free].tocsr()
         compliance = 0.0
         dc = np.zeros(model.num_elements, dtype=float)
+        max_stresses = np.zeros(model.num_elements, dtype=float)
         for weight, load in zip(weights, loads, strict=True):
             f_f = load[free]
             u_f = spla.spsolve(k_ff, f_f)
@@ -498,9 +511,30 @@ def run_simp_topology(
                 else dc_design
             )
             dc += float(weight) * dc_case
+            if stress_limit is not None:
+                vm = element_von_mises_stresses(model, u)
+                max_stresses = np.maximum(max_stresses, vm)
         volume = float((rho * volumes).sum() / (volumes.sum() or 1.0))
         history_c.append(compliance)
         history_v.append(volume)
+        if stress_limit is not None:
+            measure = stress_p_norm(
+                max_stresses, volumes, limit=stress_limit, exponent=stress_p
+            )
+            history_s.append(measure)
+            if measure > 0.0:
+                dc_stress = stress_constraint_sensitivity(
+                    max_stresses,
+                    volumes,
+                    rho_design,
+                    limit=stress_limit,
+                    exponent=stress_p,
+                    penalization=penalization,
+                )
+                if filter_matrix is not None and row_sums is not None:
+                    dc_stress = filter_sensitivities(dc_stress, filter_matrix, row_sums)
+                scale = 1.0 + min(50.0, 5.0 * measure)
+                dc += scale * dc_stress
         rho_new = oc_update(
             rho,
             np.zeros(model.num_elements, dtype=float),

@@ -1,3 +1,30 @@
+# OpenFEMLab vs FEMtools — SOTA Gap Analysis (Round 18 refresh)
+
+**Auditor:** Cloud Agent · **Date:** 2026-08-28 UTC  
+**Snapshot:** branch `cursor/round18-cms-stress-7aa3`, release **`0.3.1`**  
+**Registry:** **104/104** acceptance criteria `verified`
+
+## Round 18 executive summary
+
+Round 18 completes the two main R17 deferrals: full Craig-Bampton CMS and a
+first stress-aware SIMP path.
+
+| Priority | Theme | Outcome |
+|----------|-------|---------|
+| P0 | Craig-Bampton CMS | Fixed-interface modes, `reduced_craig_bampton_matrices`, `reduce cms` CLI |
+| P0 | Stress topology | p-norm von Mises constraint, `--stress-limit` on `topopt` |
+| P1 | API | `optimization/stress.py`, extended `TopologyResult.stress_history` |
+
+### Remaining intentional gaps
+
+| Gap | Status |
+|-----|--------|
+| DAQ / desktop GUI | **Deferred** |
+| MMA optimizer for topology | **Deferred** — OC + stress penalty shipped |
+| Full CB superelement export | **Partial** — reduced K/M reported, no superelement file yet |
+
+---
+
 # OpenFEMLab vs FEMtools — SOTA Gap Analysis (Round 17 refresh)
 
 **Auditor:** Cloud Agent · **Date:** 2026-08-28 UTC  
@@ -22,8 +49,8 @@ Round 17 closes the four post-R16 themes in one release: topology productization
 |-----|--------|
 | DAQ hardware / ARTeMIS runtime | **Deferred** |
 | Desktop-grade GUI product | **Deferred** — CLI + Web by design |
-| Full CB fixed-interface modes | **Partial** — Guyan skeleton shipped |
-| Stress-constrained topology | **Deferred** — multi-load compliance shipped |
+| Full CB fixed-interface modes | **Closed** — Round 18 CMS basis |
+| Stress-constrained topology | **Partial** — p-norm von Mises penalty (Round 18) |
 
 **Verdict:** OpenFEMLab `0.3.0` is the integration release for R14–R17: scripted
 workflow parity with FEMtools plus open CI-native topology and result mapping.
