@@ -1,0 +1,16 @@
+
+> hongen-edu-apps@1.0.0 check:round17
+> node scripts/check-round17.mjs
+
+
+Round 17 check (ROUND17-v1.0): 6/8
+
+✓ H1 Round17 差距续表就位
+✓ H2 富 Play 940 ≥ 900，narration 去重 940 ≥ 720
+✓ H3 数学学演示 27 ≥ 27（三态+可跳过）
+✓ H4 精品剖析 54 ≥ 20
+✓ H7 真机/模拟闭环或诚实 BLOCKED 台账就位
+✓ H8 check:round16 8/8
+✗ H5 缺学伴关键接线（ROUND17_H5）
+✗ H6 走查证据不足（doc=0，引用=0，落盘=0）
+

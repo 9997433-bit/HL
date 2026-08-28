@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import gsap from 'gsap'
 import AgeBandBadge from '@/components/AgeBandBadge.vue'
+import LearnDemoLauncher from '@/components/LearnDemoLauncher.vue'
 import MascotBot from '@/components/MascotBot.vue'
 import SessionBar from '@/components/SessionBar.vue'
 import RoundSummary from '@/components/RoundSummary.vue'
@@ -147,6 +148,14 @@ const chosen = ref(null)
 
 const current = computed(() => questions.value[index.value] ?? null)
 
+/**
+ * 这道题算在哪个技能点上 —— 和判题时上报掌握度用的是同一条口径（见 award）。
+ * ROUND16_H4 的「看演示」按它决定弹哪条演示，没有演示的技能点就不渲染按钮。
+ */
+const currentSkill = computed(() =>
+  current.value ? (current.value.skill ?? countingSkill(current.value)) : '',
+)
+
 /* ---------------- 拖拽状态 ---------------- */
 
 const pool = ref([]) // [{ id, inShip }]
@@ -270,7 +279,7 @@ function encourage() {
 function award(isRight, anchor) {
   const q = current.value
   marks.value[index.value] = isRight ? 'ok' : 'no'
-  const skill = q.skill ?? countingSkill(q)
+  const skill = currentSkill.value
   if (isRight) {
     correctCount.value += 1
     const stars = q.stars ?? 1
@@ -411,6 +420,7 @@ onBeforeUnmount(() => {
           <h2 class="prompt">{{ current.prompt }}</h2>
           <p class="muted say">{{ message }}</p>
         </div>
+        <LearnDemoLauncher :skill="currentSkill" />
         <button class="btn btn--ghost btn--sm hint-btn" @click="showHint = !showHint">
           💡 {{ showHint ? '收起' : '提示' }}
         </button>

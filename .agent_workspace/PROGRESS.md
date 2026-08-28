@@ -35,10 +35,13 @@
 | Round 6 | ✅ **已闭合** | 1800字/130绘本/古诗20/跟读/185母题（check:round6 全绿） |
 | Round 7–12 | ✅ **已闭合** | 各轮 check:round{N} 全绿；简报/验收见 ROUND{N}-BRIEF / acceptance-log-round{N} |
 | Round 13 | ✅ **工程闭合** | `check:round13` **7/8**（H7 BLOCKED）；体验 ◐6 见 round13-hongen-audit |
-| Round 14 | 🔄 **14-3 无真机收口** | 洪恩体验对齐；基线 1/8 → 集成实测 **3/8**（H3/H5/H8）；见 ROUND14-BRIEF / acceptance-log-round14 |
+| Round 14 | 🔄 **14-3 无真机收口** | 洪恩体验对齐；基线 1/8 → 集成实测 **4/8**（H3/H4/H5/H8）；见 ROUND14-BRIEF / acceptance-log-round14 |
+| Round 15 | ✅ **8/8** | 一字一动画玩认练写说 + 全库 Play 自动补齐；见 ROUND15-BRIEF |
+| Round 16 | 🚀 **启动** | 体验密度反超：无字源认步动画、富 Play≥500、数学学演示、剖析壳、人格+周报；见 ROUND16-BRIEF |
 
 ## 并发规则（已更新）
-**每轮固定 10 个子代理并发，缺了立马补。**
+**每轮固定 10 个子代理并发，缺了立马补。**  
+**模型配比（自 R15 起永久）**：fable ×3（`claude-fable-5-thinking-high`）+ opus-fast ×5（`claude-opus-5-thinking-high-fast`）+ gpt-sol ×2（`gpt-5.6-sol-high`）。详见 `.agent_workspace/ORCHESTRATION-MODEL-SOP.md`。
 
 ## Round 1 子代理任务（10个）
 - fable×3: 架构规划、SOTA审计、UI/UX设计规范

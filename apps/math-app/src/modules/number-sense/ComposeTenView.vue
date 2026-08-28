@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue'
+import LearnDemoLauncher from '@/components/LearnDemoLauncher.vue'
 import { useProgressStore } from '@/stores/progress.js'
 import { sound } from '@/utils/sound.js'
 
@@ -110,6 +111,7 @@ reset()
       <div class="round-chip">
         <strong>第 {{ round }} 关</strong>
         <span>已得 {{ earned }} ⭐</span>
+        <LearnDemoLauncher skill="compose-ten" />
       </div>
     </section>
 

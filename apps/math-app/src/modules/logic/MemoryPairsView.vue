@@ -11,6 +11,7 @@
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import LearnDemoLauncher from '@/components/LearnDemoLauncher.vue'
 import MascotBot from '@/components/MascotBot.vue'
 import RoundSummary from '@/components/RoundSummary.vue'
 import SessionBar from '@/components/SessionBar.vue'
@@ -399,6 +400,7 @@ onBeforeUnmount(() => {
       <header class="stage-head">
         <MascotBot :mood="mood" :size="64" />
         <p class="say" aria-live="polite">{{ message }}</p>
+        <LearnDemoLauncher :skill="SKILL" />
         <button class="btn btn--ghost btn--sm" data-memory-peek :disabled="peeking" @click="peek">
           👀 偷看一眼（少 1⭐）
         </button>

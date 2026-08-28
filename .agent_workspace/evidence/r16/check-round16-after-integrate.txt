@@ -1,0 +1,15 @@
+
+> hongen-edu-apps@1.0.0 check:round16
+> node scripts/check-round16.mjs
+
+
+Round 16 check (ROUND16-v1.0): 8/8
+
+✓ H1 双 App 洪恩体验总表就位
+✓ H2 无字源认步默认动画已接线
+✓ H3 富 Play 540 ≥ 500
+✓ H4 数学学演示 21 ≥ 12
+✓ H5 应用题剖析壳就位
+✓ H6 学伴人格台词充足（标记=true）
+✓ H7 家长可解释周报就位
+✓ H8 check:round15 8/8

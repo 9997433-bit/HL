@@ -1,0 +1,52 @@
+
+> hongen-edu-apps@1.0.0 check:round16
+> node scripts/check-round16.mjs --json
+
+{
+  "round": 16,
+  "probe": "ROUND16-v1.1",
+  "passed": 8,
+  "total": 8,
+  "results": [
+    {
+      "id": "H1",
+      "status": "pass",
+      "msg": "H1 双 App 洪恩体验总表就位"
+    },
+    {
+      "id": "H2",
+      "status": "pass",
+      "msg": "H2 无字源认步默认动画已接线（可执行标记 ×3）"
+    },
+    {
+      "id": "H3",
+      "status": "pass",
+      "msg": "H3 富 Play 540 ≥ 500，narration 去重 540 ≥ 400（apps/literacy-app/src/data/char-play.js）"
+    },
+    {
+      "id": "H4",
+      "status": "pass",
+      "msg": "H4 数学学演示 21 ≥ 12（三态+可跳过，登记表参考 0）"
+    },
+    {
+      "id": "H5",
+      "status": "pass",
+      "msg": "H5 应用题剖析壳就位（可执行标记 ×2）"
+    },
+    {
+      "id": "H6",
+      "status": "pass",
+      "msg": "H6 学伴人格台词 95 ≥ 40（去重，阶段场景 4/4，标记 ×2）"
+    },
+    {
+      "id": "H7",
+      "status": "pass",
+      "msg": "H7 家长可解释周报就位（可执行标记 ×2）"
+    },
+    {
+      "id": "H8",
+      "status": "pass",
+      "msg": "H8 check:round15 8/8"
+    }
+  ]
+}

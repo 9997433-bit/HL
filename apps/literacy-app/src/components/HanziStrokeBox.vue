@@ -13,6 +13,11 @@
  *   2. 跳过通道「跳过描红」——按 Esc 或点按钮直接离开描红，不留下半途状态。
  * 每一步的进度都写进 hz__hint 这个 live region，读屏能听到还剩几笔。
  *
+ * 示范有两种，别搞混：`play()` 是整字慢放一遍（写步引导进场时先来这一遍），
+ * `demonstrateStroke()` 是某一笔连着写错之后单独补的那一笔。前者返回的 Promise
+ * 要等动画播完才 resolve，被打断时 resolve `{ canceled: true }`——上层靠这个
+ * 区别决定要不要自动接上描红，所以 `play()` 不能改回即发即忘。
+ *
  * 同一笔连错 `demoAfterMistakes`（默认 3）次，就不再让孩子继续撞墙：
  * 自动把那一笔慢放示范一遍，再从这一笔接着写。hanzi-writer 的 animateStroke()
  * 会顺手取消当前测验，所以示范完要用 quizStartStrokeNum 从原地把测验接回来；
@@ -54,8 +59,12 @@ const mistakes = ref(0)
 const demoCount = ref(0)
 /** 正在示范的笔序（0 开始）；-1 表示没有在示范。 */
 const demoStroke = ref(-1)
+/** 整字笔顺正在播；和 demoStroke 的「某一笔连错了」示范是两回事。 */
+const playing = ref(false)
 
 let writer = null
+/** 每次整字示范换一个号，被打断的那一遍收尾时认号作废。 */
+let playRun = 0
 let disposed = false
 /** 每一笔各错了几次，key 是笔序；这一笔写对之后清零。 */
 let strokeMistakes = new Map()
@@ -67,6 +76,8 @@ function cssColor(name, fallback) {
 }
 
 function destroyWriter() {
+  playRun += 1
+  playing.value = false
   if (!writer) return
   try {
     writer.cancelQuiz()
@@ -131,18 +142,35 @@ async function build() {
   }
 }
 
-function play() {
-  if (!writer) return
-  feedback.tap()
+/**
+ * 整字慢放一遍笔顺。
+ *
+ * 返回的 Promise 要等动画真的播完才 resolve，中途被打断（孩子按了「我来写」、
+ * 换了字、换了主题）resolve 的是 `{ canceled: true }`。写步引导靠这个区别决定
+ * 要不要自动接上描红，所以这里不能改成即发即忘。
+ * `quiet` 是给自动播的示范用的：没人按按钮，就别响那一声点击音。
+ */
+async function play({ quiet = false } = {}) {
+  if (!writer) return { canceled: true }
+  if (!quiet) feedback.tap()
   mode.value = 'watch'
   quizResult.value = null
+  const run = ++playRun
+  playing.value = true
   try {
     writer.cancelQuiz()
   } catch {
     /* 非测验态 */
   }
-  writer.showCharacter()
-  writer.animateCharacter()
+  let res = { canceled: true }
+  try {
+    writer.showCharacter()
+    res = (await writer.animateCharacter()) ?? { canceled: true }
+  } catch {
+    /* 数据被回收或组件已卸载 */
+  }
+  if (run === playRun) playing.value = false
+  return res
 }
 
 function loop() {
@@ -153,6 +181,7 @@ function loop() {
 }
 
 function resetQuizTally() {
+  playing.value = false
   assisted.value = 0
   mistakes.value = 0
   demoCount.value = 0
@@ -203,6 +232,8 @@ function runQuiz(from = 0) {
 function startQuiz() {
   if (!writer) return
   feedback.tap()
+  // quiz() 会取消正在跑的示范动画：换个号，让那一遍的收尾别再动 playing
+  playRun += 1
   mode.value = 'quiz'
   quizResult.value = null
   resetQuizTally()
@@ -322,15 +353,27 @@ const stageLabel = computed(() =>
     : undefined
 )
 
-defineExpose({ play, startQuiz, writeNextStroke, skipQuiz, mode, demoCount, mistakes })
+defineExpose({
+  play,
+  startQuiz,
+  writeNextStroke,
+  skipQuiz,
+  mode,
+  // 写步引导要按笔画数估示范时长，也要等笔顺数据到了再开播
+  status,
+  strokeCount,
+  playing,
+  demoCount,
+  mistakes
+})
 </script>
 
 <template>
-  <div class="hz" :data-demos="demoCount" :data-mistakes="mistakes">
+  <div class="hz" :data-demos="demoCount" :data-mistakes="mistakes" :data-playing="playing">
     <div
       ref="stage"
       class="hz__stage tianzige"
-      :class="{ 'is-quiz': mode === 'quiz', 'is-demo': demoStroke >= 0 }"
+      :class="{ 'is-quiz': mode === 'quiz', 'is-demo': demoStroke >= 0 || playing }"
       :style="boxStyle"
       :tabindex="mode === 'quiz' ? 0 : undefined"
       :role="mode === 'quiz' ? 'group' : undefined"
@@ -361,7 +404,7 @@ defineExpose({ play, startQuiz, writeNextStroke, skipQuiz, mode, demoCount, mist
     </p>
 
     <div class="hz__actions">
-      <button class="btn btn--primary" type="button" :disabled="status !== 'ready'" @click="play">
+      <button class="btn btn--primary" type="button" :disabled="status !== 'ready'" @click="play()">
         ▶️ 看笔顺
       </button>
       <button class="btn btn--ghost" type="button" :disabled="status !== 'ready'" @click="loop">
@@ -421,7 +464,7 @@ defineExpose({ play, startQuiz, writeNextStroke, skipQuiz, mode, demoCount, mist
   outline-offset: 3px;
 }
 
-/* 自动示范这一笔时给格子镶一圈高亮，说明现在是「看」而不是「写」 */
+/* 示范时给格子镶一圈高亮，说明现在是「看」而不是「写」 */
 .hz__stage.is-demo {
   outline: 3px dashed var(--star);
   outline-offset: 3px;

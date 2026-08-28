@@ -1,0 +1,15 @@
+
+> hongen-edu-apps@1.0.0 check:round15
+> node scripts/check-round15.mjs
+
+
+Round 15 check: 8/8
+
+✓ H1 CharDetailView 五步含玩→认→练→写→说
+✓ H2 getCharPlay 全库 1820/1820 有 template
+✓ H3 富 play 脚本 272 ≥ 200
+✓ H4 认步默认挂载/播放字源舞台
+✓ H5 gen-char-play 自动补齐管道就位
+✓ H6 写步含引导示范再描红
+✓ H7 literacy smoke 覆盖 play/五步
+✓ H8 check:round13 7/8；H1–H6/H8 保持绿（仅 H7 可因 Play 账号阻断）
