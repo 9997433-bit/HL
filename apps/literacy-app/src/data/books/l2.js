@@ -15,13 +15,83 @@ export const LEVEL_2_BOOKS = [
     summary: '小猫找不到妈妈，鸟在天上看，鱼在水里找，老牛说：她在山下。',
     newChars: ['猫', '找', '到', '妈', '哭', '地', '方', '鸟'],
     pages: [
-      { emoji: '🐱', text: '小猫找不到妈妈。', p: 'xiǎo māo zhǎo bù dào mā ma.' },
-      { emoji: '😿', text: '小猫哭了：妈妈在什么地方？', p: 'xiǎo māo kū le: mā ma zài shén me dì fāng?' },
-      { emoji: '🐦', text: '小鸟说：我在天上看一看。', p: 'xiǎo niǎo shuō: wǒ zài tiān shàng kàn yī kàn.' },
-      { emoji: '🐟', text: '小鱼说：我在水里找一找。', p: 'xiǎo yú shuō: wǒ zài shuǐ lǐ zhǎo yī zhǎo.' },
-      { emoji: '🐄', text: '老牛说：我看到你妈妈在山下。', p: 'lǎo niú shuō: wǒ kàn dào nǐ mā ma zài shān xià.' },
-      { emoji: '🐈', text: '小猫走到山下，妈妈就在树下。', p: 'xiǎo māo zǒu dào shān xià, mā ma jiù zài shù xià.' },
-      { emoji: '😻', text: '小猫说：谢谢大家！', p: 'xiǎo māo shuō: xiè xiè dà jiā!' }
+      {
+        emoji: '🐱', text: '小猫找不到妈妈。', p: 'xiǎo māo zhǎo bù dào mā ma.',
+        sceneBg: 'field',
+        sceneAlt: '小猫找不到妈妈',
+        scene: [
+          { e: '🌳', x: 78, y: 56, s: 1.5 },
+          { e: '🐱', x: 44, y: 74, s: 1.6, m: 'float' },
+          { e: '🌿', x: 20, y: 86, s: 1.1, m: 'sway' }
+        ]
+      },
+      {
+        emoji: '😿', text: '小猫哭了：妈妈在什么地方？', p: 'xiǎo māo kū le: mā ma zài shén me dì fāng?',
+        sceneBg: 'field',
+        sceneAlt: '小猫哭了',
+        scene: [
+          { e: '🌳', x: 22, y: 58, s: 1.4 },
+          { e: '😿', x: 52, y: 70, s: 1.8, m: 'float' },
+          { e: '🪨', x: 80, y: 82, s: 1.1 },
+          { e: '🌿', x: 30, y: 88, s: 1, m: 'sway' }
+        ]
+      },
+      {
+        emoji: '🐦', text: '小鸟说：我在天上看一看。', p: 'xiǎo niǎo shuō: wǒ zài tiān shàng kàn yī kàn.',
+        sceneBg: 'sky',
+        sceneAlt: '小鸟在天上看',
+        scene: [
+          { e: '☁️', x: 26, y: 22, s: 1.1, m: 'drift' },
+          { e: '🐦', x: 58, y: 34, s: 1.4, m: 'float' },
+          { e: '🌳', x: 82, y: 66, s: 1.3 },
+          { e: '🐱', x: 34, y: 82, s: 1.2 }
+        ]
+      },
+      {
+        emoji: '🐟', text: '小鱼说：我在水里找一找。', p: 'xiǎo yú shuō: wǒ zài shuǐ lǐ zhǎo yī zhǎo.',
+        sceneBg: 'water',
+        sceneAlt: '小鱼在水里找',
+        scene: [
+          { e: '🐟', x: 56, y: 62, s: 1.5, m: 'sway' },
+          { e: '🫧', x: 72, y: 46, s: 0.7, m: 'float' },
+          { e: '🌊', x: 24, y: 84, s: 1.3, m: 'drift' },
+          { e: '🐱', x: 30, y: 66, s: 1.2 }
+        ]
+      },
+      {
+        emoji: '🐄', text: '老牛说：我看到你妈妈在山下。', p: 'lǎo niú shuō: wǒ kàn dào nǐ mā ma zài shān xià.',
+        sceneBg: 'field',
+        sceneAlt: '老牛说妈妈在山下',
+        scene: [
+          { e: '⛰️', x: 22, y: 44, s: 1.6 },
+          { e: '🐄', x: 62, y: 70, s: 1.7 },
+          { e: '🐱', x: 30, y: 80, s: 1.2 },
+          { e: '🌾', x: 84, y: 86, s: 1.1, m: 'sway' }
+        ]
+      },
+      {
+        emoji: '🐈', text: '小猫走到山下，妈妈就在树下。', p: 'xiǎo māo zǒu dào shān xià, mā ma jiù zài shù xià.',
+        sceneBg: 'field',
+        sceneAlt: '小猫走到山下，妈妈在树下',
+        scene: [
+          { e: '⛰️', x: 20, y: 40, s: 1.5 },
+          { e: '🌳', x: 68, y: 56, s: 1.7 },
+          { e: '🐈', x: 70, y: 78, s: 1.4 },
+          { e: '🐱', x: 40, y: 84, s: 1.2, m: 'drift' }
+        ]
+      },
+      {
+        emoji: '😻', text: '小猫说：谢谢大家！', p: 'xiǎo māo shuō: xiè xiè dà jiā!',
+        sceneBg: 'field',
+        sceneAlt: '小猫说谢谢大家',
+        scene: [
+          { e: '❤️', x: 50, y: 30, s: 1, m: 'float' },
+          { e: '🐦', x: 24, y: 44, s: 0.9, m: 'float' },
+          { e: '🐟', x: 78, y: 60, s: 0.9, m: 'sway' },
+          { e: '🐄', x: 22, y: 76, s: 1.2 },
+          { e: '🐱', x: 54, y: 82, s: 1.4, m: 'float' }
+        ]
+      }
     ]
   },
   {
@@ -35,13 +105,83 @@ export const LEVEL_2_BOOKS = [
     summary: '风一来，新帽飞到树上。小猴说：别急，我会爬树。',
     newChars: ['新', '帽', '风', '飞', '走', '追', '到', '树'],
     pages: [
-      { emoji: '🧢', text: '我有一个新帽。', p: 'wǒ yǒu yī gè xīn mào.' },
-      { emoji: '💨', text: '风来了，帽飞走了。', p: 'fēng lái le, mào fēi zǒu le.' },
-      { emoji: '🏃', text: '我追帽，帽飞到树上。', p: 'wǒ zhuī mào, mào fēi dào shù shàng.' },
-      { emoji: '🐒', text: '小猴说：别急，我会爬树。', p: 'xiǎo hóu shuō: bié jí, wǒ huì pá shù.' },
-      { emoji: '🌳', text: '小猴上树，把帽拿下来。', p: 'xiǎo hóu shàng shù, bǎ mào ná xià lái.' },
-      { emoji: '🙏', text: '我说：谢谢你！', p: 'wǒ shuō: xiè xiè nǐ!' },
-      { emoji: '😄', text: '小猴说：不用谢，我们是朋友。', p: 'xiǎo hóu shuō: bù yòng xiè, wǒ men shì péng you.' }
+      {
+        emoji: '🧢', text: '我有一个新帽。', p: 'wǒ yǒu yī gè xīn mào.',
+        sceneBg: 'field',
+        sceneAlt: '我有一个新帽',
+        scene: [
+          { e: '🧢', x: 52, y: 48, s: 1.6, m: 'float' },
+          { e: '🧒', x: 44, y: 76, s: 1.6 },
+          { e: '🌳', x: 80, y: 66, s: 1.3 }
+        ]
+      },
+      {
+        emoji: '💨', text: '风来了，帽飞走了。', p: 'fēng lái le, mào fēi zǒu le.',
+        sceneBg: 'sky',
+        sceneAlt: '风来了，帽飞走了',
+        scene: [
+          { e: '💨', x: 26, y: 34, s: 1.3, m: 'drift' },
+          { e: '🧢', x: 62, y: 40, s: 1.3, m: 'drift' },
+          { e: '🌳', x: 82, y: 70, s: 1.3, m: 'sway' },
+          { e: '🧒', x: 34, y: 84, s: 1.4 }
+        ]
+      },
+      {
+        emoji: '🏃', text: '我追帽，帽飞到树上。', p: 'wǒ zhuī mào, mào fēi dào shù shàng.',
+        sceneBg: 'field',
+        sceneAlt: '我追帽，帽飞到树上',
+        scene: [
+          { e: '🧢', x: 66, y: 44, s: 1.1, m: 'float' },
+          { e: '🌳', x: 70, y: 64, s: 1.9 },
+          { e: '🏃', x: 30, y: 80, s: 1.6, m: 'drift' },
+          { e: '🌿', x: 16, y: 88, s: 1, m: 'sway' }
+        ]
+      },
+      {
+        emoji: '🐒', text: '小猴说：别急，我会爬树。', p: 'xiǎo hóu shuō: bié jí, wǒ huì pá shù.',
+        sceneBg: 'field',
+        sceneAlt: '小猴说他会爬树',
+        scene: [
+          { e: '🧢', x: 74, y: 40, s: 1, m: 'float' },
+          { e: '🌳', x: 74, y: 62, s: 1.7 },
+          { e: '🐒', x: 46, y: 70, s: 1.5, m: 'float' },
+          { e: '🧒', x: 22, y: 82, s: 1.3 }
+        ]
+      },
+      {
+        emoji: '🌳', text: '小猴上树，把帽拿下来。', p: 'xiǎo hóu shàng shù, bǎ mào ná xià lái.',
+        sceneBg: 'field',
+        sceneAlt: '小猴上树，把帽拿下来',
+        scene: [
+          { e: '🐒', x: 62, y: 46, s: 1.4, m: 'float' },
+          { e: '🧢', x: 74, y: 56, s: 1, m: 'float' },
+          { e: '🌳', x: 66, y: 68, s: 1.8 },
+          { e: '🧒', x: 26, y: 82, s: 1.4 }
+        ]
+      },
+      {
+        emoji: '🙏', text: '我说：谢谢你！', p: 'wǒ shuō: xiè xiè nǐ!',
+        sceneBg: 'field',
+        sceneAlt: '我说谢谢你',
+        scene: [
+          { e: '🙏', x: 40, y: 62, s: 1.5, m: 'float' },
+          { e: '🐒', x: 72, y: 74, s: 1.3 },
+          { e: '🧒', x: 30, y: 82, s: 1.4 },
+          { e: '🌳', x: 84, y: 56, s: 1.2 }
+        ]
+      },
+      {
+        emoji: '😄', text: '小猴说：不用谢，我们是朋友。', p: 'xiǎo hóu shuō: bù yòng xiè, wǒ men shì péng you.',
+        sceneBg: 'field',
+        sceneAlt: '小猴说我们是朋友',
+        scene: [
+          { e: '❤️', x: 50, y: 34, s: 1, m: 'float' },
+          { e: '🧢', x: 32, y: 52, s: 0.9, m: 'float' },
+          { e: '🐒', x: 66, y: 76, s: 1.4, m: 'float' },
+          { e: '🧒', x: 36, y: 80, s: 1.4 },
+          { e: '🌳', x: 86, y: 62, s: 1.2 }
+        ]
+      }
     ]
   },
   {
@@ -55,13 +195,82 @@ export const LEVEL_2_BOOKS = [
     summary: '桥上的小狗看到水里也有一只狗，一开口，骨头就没了。',
     newChars: ['狗', '根', '骨', '头', '拿', '走', '过', '座'],
     pages: [
-      { emoji: '🐶', text: '小狗有一根骨头。', p: 'xiǎo gǒu yǒu yī gēn gǔ tóu.' },
-      { emoji: '🌉', text: '小狗拿骨头走过一座桥。', p: 'xiǎo gǒu ná gǔ tóu zǒu guò yī zuò qiáo.' },
-      { emoji: '💧', text: '水里也有一只狗，那只狗也有骨头。', p: 'shuǐ lǐ yě yǒu yī zhī gǒu, nà zhī gǒu yě yǒu gǔ tóu.' },
-      { emoji: '😠', text: '小狗一开口，骨头没了。', p: 'xiǎo gǒu yī kāi kǒu, gǔ tóu méi le.' },
-      { emoji: '😢', text: '小狗看水里，那只狗也没了。', p: 'xiǎo gǒu kàn shuǐ lǐ, nà zhī gǒu yě méi le.' },
-      { emoji: '🐕', text: '妈妈说：水里的就是你，不是别的狗。', p: 'mā ma shuō: shuǐ lǐ de jiù shì nǐ, bù shì bié de gǒu.' },
-      { emoji: '💡', text: '小狗明白了：我有的，不能扔。', p: 'xiǎo gǒu míng bai le: wǒ yǒu de, bù néng rēng.' }
+      {
+        emoji: '🐶', text: '小狗有一根骨头。', p: 'xiǎo gǒu yǒu yī gēn gǔ tóu.',
+        sceneBg: 'field',
+        sceneAlt: '小狗有一根骨头',
+        scene: [
+          { e: '🐶', x: 46, y: 70, s: 1.7 },
+          { e: '🦴', x: 70, y: 82, s: 1.2, m: 'float' },
+          { e: '🌿', x: 20, y: 86, s: 1.1, m: 'sway' }
+        ]
+      },
+      {
+        emoji: '🌉', text: '小狗拿骨头走过一座桥。', p: 'xiǎo gǒu ná gǔ tóu zǒu guò yī zuò qiáo.',
+        sceneBg: 'water',
+        sceneAlt: '小狗拿骨头走过桥',
+        scene: [
+          { e: '🌉', x: 52, y: 54, s: 1.8 },
+          { e: '🐶', x: 44, y: 70, s: 1.3, m: 'drift' },
+          { e: '🦴', x: 58, y: 74, s: 0.8 },
+          { e: '🌊', x: 26, y: 88, s: 1.2, m: 'drift' }
+        ]
+      },
+      {
+        emoji: '💧', text: '水里也有一只狗，那只狗也有骨头。', p: 'shuǐ lǐ yě yǒu yī zhī gǒu, nà zhī gǒu yě yǒu gǔ tóu.',
+        sceneBg: 'water',
+        sceneAlt: '水里也有一只狗',
+        scene: [
+          { e: '🐶', x: 46, y: 52, s: 1.4 },
+          { e: '🦴', x: 60, y: 58, s: 0.8 },
+          { e: '🐕', x: 46, y: 78, s: 1.3, m: 'sway' },
+          { e: '🌊', x: 78, y: 88, s: 1.2, m: 'drift' }
+        ]
+      },
+      {
+        emoji: '😠', text: '小狗一开口，骨头没了。', p: 'xiǎo gǒu yī kāi kǒu, gǔ tóu méi le.',
+        sceneBg: 'water',
+        sceneAlt: '小狗一开口，骨头没了',
+        scene: [
+          { e: '🐶', x: 42, y: 54, s: 1.5 },
+          { e: '🦴', x: 62, y: 72, s: 0.9, m: 'float' },
+          { e: '🫧', x: 76, y: 60, s: 0.7, m: 'float' },
+          { e: '🌊', x: 30, y: 88, s: 1.2, m: 'drift' }
+        ]
+      },
+      {
+        emoji: '😢', text: '小狗看水里，那只狗也没了。', p: 'xiǎo gǒu kàn shuǐ lǐ, nà zhī gǒu yě méi le.',
+        sceneBg: 'water',
+        sceneAlt: '小狗看水里，那只狗也没了',
+        scene: [
+          { e: '😢', x: 44, y: 50, s: 1.5, m: 'float' },
+          { e: '🌊', x: 52, y: 76, s: 1.4, m: 'sway' },
+          { e: '🫧', x: 74, y: 68, s: 0.7, m: 'float' },
+          { e: '🌉', x: 22, y: 40, s: 1.1 }
+        ]
+      },
+      {
+        emoji: '🐕', text: '妈妈说：水里的就是你，不是别的狗。', p: 'mā ma shuō: shuǐ lǐ de jiù shì nǐ, bù shì bié de gǒu.',
+        sceneBg: 'water',
+        sceneAlt: '妈妈说水里的就是你',
+        scene: [
+          { e: '🌉', x: 24, y: 38, s: 1.1 },
+          { e: '🐕', x: 66, y: 60, s: 1.6 },
+          { e: '🐶', x: 40, y: 68, s: 1.3 },
+          { e: '🌊', x: 54, y: 88, s: 1.3, m: 'drift' }
+        ]
+      },
+      {
+        emoji: '💡', text: '小狗明白了：我有的，不能扔。', p: 'xiǎo gǒu míng bai le: wǒ yǒu de, bù néng rēng.',
+        sceneBg: 'field',
+        sceneAlt: '小狗明白了',
+        scene: [
+          { e: '💡', x: 66, y: 44, s: 1.2, m: 'float' },
+          { e: '🐶', x: 44, y: 70, s: 1.6 },
+          { e: '🦴', x: 72, y: 82, s: 1.1 },
+          { e: '🌿', x: 20, y: 88, s: 1, m: 'sway' }
+        ]
+      }
     ]
   },
   {
@@ -75,13 +284,82 @@ export const LEVEL_2_BOOKS = [
     summary: '小鸭站在岸上不敢下水，妈妈说：下来，水不深。',
     newChars: ['鸭', '头', '怕', '站', '岸', '走', '妈', '深'],
     pages: [
-      { emoji: '🦆', text: '小鸭头一天下水。', p: 'xiǎo yā tóu yī tiān xià shuǐ.' },
-      { emoji: '😰', text: '小鸭很怕，站在岸上不走。', p: 'xiǎo yā hěn pà, zhàn zài àn shàng bù zǒu.' },
-      { emoji: '🐤', text: '鸭妈妈说：下来，水不深。', p: 'yā mā ma shuō: xià lái, shuǐ bù shēn.' },
-      { emoji: '💧', text: '小鸭一脚下水，水到腿上。', p: 'xiǎo yā yī jiǎo xià shuǐ, shuǐ dào tuǐ shàng.' },
-      { emoji: '🌊', text: '小鸭会了！他在水里前后走。', p: 'xiǎo yā huì le! tā zài shuǐ lǐ qián hòu zǒu.' },
-      { emoji: '🐟', text: '水里有鱼，鱼从他脚下过。', p: 'shuǐ lǐ yǒu yú, yú cóng tā jiǎo xià guò.' },
-      { emoji: '😄', text: '小鸭说：水里真好玩！', p: 'xiǎo yā shuō: shuǐ lǐ zhēn hǎo wán!' }
+      {
+        emoji: '🦆', text: '小鸭头一天下水。', p: 'xiǎo yā tóu yī tiān xià shuǐ.',
+        sceneBg: 'water',
+        sceneAlt: '小鸭头一天下水',
+        scene: [
+          { e: '🦆', x: 50, y: 62, s: 1.7, m: 'sway' },
+          { e: '🌊', x: 26, y: 84, s: 1.3, m: 'drift' },
+          { e: '🌿', x: 80, y: 76, s: 1.1, m: 'sway' }
+        ]
+      },
+      {
+        emoji: '😰', text: '小鸭很怕，站在岸上不走。', p: 'xiǎo yā hěn pà, zhàn zài àn shàng bù zǒu.',
+        sceneBg: 'water',
+        sceneAlt: '小鸭站在岸上不走',
+        scene: [
+          { e: '🌾', x: 24, y: 66, s: 1.2, m: 'sway' },
+          { e: '🦆', x: 34, y: 76, s: 1.4 },
+          { e: '🪨', x: 20, y: 88, s: 1.1 },
+          { e: '🌊', x: 70, y: 86, s: 1.3, m: 'drift' }
+        ]
+      },
+      {
+        emoji: '🐤', text: '鸭妈妈说：下来，水不深。', p: 'yā mā ma shuō: xià lái, shuǐ bù shēn.',
+        sceneBg: 'water',
+        sceneAlt: '鸭妈妈说水不深',
+        scene: [
+          { e: '🦆', x: 30, y: 68, s: 1.2 },
+          { e: '🐤', x: 62, y: 72, s: 1.4, m: 'sway' },
+          { e: '🌊', x: 78, y: 88, s: 1.2, m: 'drift' },
+          { e: '🌿', x: 16, y: 84, s: 1, m: 'sway' }
+        ]
+      },
+      {
+        emoji: '💧', text: '小鸭一脚下水，水到腿上。', p: 'xiǎo yā yī jiǎo xià shuǐ, shuǐ dào tuǐ shàng.',
+        sceneBg: 'water',
+        sceneAlt: '小鸭一脚下水',
+        scene: [
+          { e: '🐤', x: 46, y: 62, s: 1.5, m: 'float' },
+          { e: '🫧', x: 64, y: 72, s: 0.7, m: 'float' },
+          { e: '🌊', x: 46, y: 84, s: 1.4, m: 'sway' },
+          { e: '🌿', x: 82, y: 78, s: 1, m: 'sway' }
+        ]
+      },
+      {
+        emoji: '🌊', text: '小鸭会了！他在水里前后走。', p: 'xiǎo yā huì le! tā zài shuǐ lǐ qián hòu zǒu.',
+        sceneBg: 'water',
+        sceneAlt: '小鸭在水里前后走',
+        scene: [
+          { e: '🐤', x: 38, y: 66, s: 1.4, m: 'drift' },
+          { e: '🌊', x: 22, y: 82, s: 1.2, m: 'drift' },
+          { e: '🌊', x: 70, y: 88, s: 1.3, m: 'drift' },
+          { e: '🫧', x: 78, y: 62, s: 0.7, m: 'float' }
+        ]
+      },
+      {
+        emoji: '🐟', text: '水里有鱼，鱼从他脚下过。', p: 'shuǐ lǐ yǒu yú, yú cóng tā jiǎo xià guò.',
+        sceneBg: 'water',
+        sceneAlt: '水里有鱼从他脚下过',
+        scene: [
+          { e: '🐤', x: 44, y: 58, s: 1.3, m: 'sway' },
+          { e: '🐟', x: 62, y: 76, s: 1, m: 'sway' },
+          { e: '🐟', x: 26, y: 82, s: 0.9, m: 'sway' },
+          { e: '🫧', x: 80, y: 66, s: 0.7, m: 'float' }
+        ]
+      },
+      {
+        emoji: '😄', text: '小鸭说：水里真好玩！', p: 'xiǎo yā shuō: shuǐ lǐ zhēn hǎo wán!',
+        sceneBg: 'water',
+        sceneAlt: '小鸭说水里真好玩',
+        scene: [
+          { e: '☀️', x: 80, y: 20, s: 1.1, m: 'float' },
+          { e: '🐤', x: 44, y: 64, s: 1.5, m: 'float' },
+          { e: '🦆', x: 70, y: 74, s: 1.2, m: 'sway' },
+          { e: '🌊', x: 30, y: 88, s: 1.3, m: 'drift' }
+        ]
+      }
     ]
   },
   {
@@ -95,13 +373,83 @@ export const LEVEL_2_BOOKS = [
     summary: '一个人拿不走的大瓜，哥哥姐姐一来就拿回家了。',
     newChars: ['田', '瓜', '拿', '走', '哥', '同', '姐', '妈'],
     pages: [
-      { emoji: '🍉', text: '田里有一个大瓜。', p: 'tián lǐ yǒu yī gè dà guā.' },
-      { emoji: '🙋', text: '我一个人拿不走。', p: 'wǒ yī gè rén ná bù zǒu.' },
-      { emoji: '👦', text: '哥哥来了，我们一同拿。', p: 'gē ge lái le, wǒ men yī tóng ná.' },
-      { emoji: '👧', text: '姐姐也来了，三个人拿走了大瓜。', p: 'jiě jie yě lái le, sān gè rén ná zǒu le dà guā.' },
-      { emoji: '🔪', text: '妈妈把瓜切开，瓜里是红的。', p: 'mā ma bǎ guā qiē kāi, guā lǐ shì hóng de.' },
-      { emoji: '😋', text: '一人一片，又甜又凉。', p: 'yī rén yī piàn, yòu tián yòu liáng.' },
-      { emoji: '👏', text: '爸爸说：大家一同做，就不重了。', p: 'bà ba shuō: dà jiā yī tóng zuò, jiù bù zhòng le.' }
+      {
+        emoji: '🍉', text: '田里有一个大瓜。', p: 'tián lǐ yǒu yī gè dà guā.',
+        sceneBg: 'field',
+        sceneAlt: '田里有一个大瓜',
+        scene: [
+          { e: '☀️', x: 82, y: 20, s: 1, m: 'float' },
+          { e: '🍉', x: 50, y: 70, s: 2 },
+          { e: '🌾', x: 22, y: 82, s: 1.2, m: 'sway' },
+          { e: '🌿', x: 78, y: 88, s: 1, m: 'sway' }
+        ]
+      },
+      {
+        emoji: '🙋', text: '我一个人拿不走。', p: 'wǒ yī gè rén ná bù zǒu.',
+        sceneBg: 'field',
+        sceneAlt: '我一个人拿不走',
+        scene: [
+          { e: '🍉', x: 58, y: 72, s: 1.9 },
+          { e: '🧒', x: 28, y: 78, s: 1.5 },
+          { e: '🌾', x: 84, y: 86, s: 1.1, m: 'sway' }
+        ]
+      },
+      {
+        emoji: '👦', text: '哥哥来了，我们一同拿。', p: 'gē ge lái le, wǒ men yī tóng ná.',
+        sceneBg: 'field',
+        sceneAlt: '哥哥来了，我们一同拿',
+        scene: [
+          { e: '🍉', x: 52, y: 70, s: 1.8 },
+          { e: '👦', x: 76, y: 76, s: 1.5 },
+          { e: '🧒', x: 26, y: 80, s: 1.4 },
+          { e: '🌾', x: 90, y: 88, s: 1, m: 'sway' }
+        ]
+      },
+      {
+        emoji: '👧', text: '姐姐也来了，三个人拿走了大瓜。', p: 'jiě jie yě lái le, sān gè rén ná zǒu le dà guā.',
+        sceneBg: 'field',
+        sceneAlt: '姐姐也来了，三个人拿大瓜',
+        scene: [
+          { e: '🍉', x: 50, y: 66, s: 1.6 },
+          { e: '👧', x: 78, y: 74, s: 1.4 },
+          { e: '👦', x: 64, y: 82, s: 1.3 },
+          { e: '🧒', x: 24, y: 82, s: 1.3 }
+        ]
+      },
+      {
+        emoji: '🔪', text: '妈妈把瓜切开，瓜里是红的。', p: 'mā ma bǎ guā qiē kāi, guā lǐ shì hóng de.',
+        sceneBg: 'room',
+        sceneAlt: '妈妈把瓜切开，瓜里是红的',
+        scene: [
+          { e: '🔪', x: 72, y: 52, s: 1.2, m: 'sway' },
+          { e: '🍉', x: 46, y: 64, s: 1.7 },
+          { e: '👩', x: 78, y: 78, s: 1.4 },
+          { e: '🍽️', x: 26, y: 84, s: 1.2 }
+        ]
+      },
+      {
+        emoji: '😋', text: '一人一片，又甜又凉。', p: 'yī rén yī piàn, yòu tián yòu liáng.',
+        sceneBg: 'room',
+        sceneAlt: '一人一片，又甜又凉',
+        scene: [
+          { e: '🍉', x: 34, y: 60, s: 1.2, m: 'float' },
+          { e: '🍉', x: 64, y: 66, s: 1.1, m: 'float' },
+          { e: '😋', x: 48, y: 82, s: 1.6, m: 'float' },
+          { e: '🍽️', x: 82, y: 88, s: 1.1 }
+        ]
+      },
+      {
+        emoji: '👏', text: '爸爸说：大家一同做，就不重了。', p: 'bà ba shuō: dà jiā yī tóng zuò, jiù bù zhòng le.',
+        sceneBg: 'room',
+        sceneAlt: '大家一同做就不重了',
+        scene: [
+          { e: '👏', x: 50, y: 34, s: 1.1, m: 'float' },
+          { e: '👨', x: 24, y: 70, s: 1.4 },
+          { e: '👩', x: 76, y: 72, s: 1.4 },
+          { e: '🧒', x: 40, y: 84, s: 1.3 },
+          { e: '🍉', x: 62, y: 88, s: 1 }
+        ]
+      }
     ]
   },
   {
@@ -115,13 +463,85 @@ export const LEVEL_2_BOOKS = [
     summary: '买菜、买豆、数十个蛋，回家路上妈妈说：你会帮忙了。',
     newChars: ['今', '妈', '市', '买', '菜', '豆', '蛋', '数'],
     pages: [
-      { emoji: '🧺', text: '今天，我和妈妈去市里买菜。', p: 'jīn tiān, wǒ hé mā ma qù shì lǐ mǎi cài.' },
-      { emoji: '🥬', text: '我们买了菜，也买了豆。', p: 'wǒ men mǎi le cài, yě mǎi le dòu.' },
-      { emoji: '🥚', text: '妈妈说：还要十个蛋。', p: 'mā ma shuō: hái yào shí gè dàn.' },
-      { emoji: '🧒', text: '我数一数：一，二，三……十个。', p: 'wǒ shǔ yī shǔ: yī, èr, sān…… shí gè.' },
-      { emoji: '💰', text: '妈妈把钱给店里的人。', p: 'mā ma bǎ qián gěi diàn lǐ de rén.' },
-      { emoji: '🛍️', text: '我拿一个小袋，妈妈拿大袋。', p: 'wǒ ná yī gè xiǎo dài, mā ma ná dà dài.' },
-      { emoji: '😄', text: '回家的路上，妈妈说：你会帮忙了！', p: 'huí jiā de lù shàng, mā ma shuō: nǐ huì bāng máng le!' }
+      {
+        emoji: '🧺', text: '今天，我和妈妈去市里买菜。', p: 'jīn tiān, wǒ hé mā ma qù shì lǐ mǎi cài.',
+        sceneBg: 'sky',
+        sceneAlt: '我和妈妈去市里买菜',
+        scene: [
+          { e: '☁️', x: 24, y: 22, s: 1.1, m: 'drift' },
+          { e: '🏠', x: 78, y: 58, s: 1.4 },
+          { e: '👩', x: 54, y: 76, s: 1.5 },
+          { e: '🧒', x: 30, y: 82, s: 1.3 },
+          { e: '🧺', x: 70, y: 88, s: 1 }
+        ]
+      },
+      {
+        emoji: '🥬', text: '我们买了菜，也买了豆。', p: 'wǒ men mǎi le cài, yě mǎi le dòu.',
+        sceneBg: 'room',
+        sceneAlt: '我们买了菜，也买了豆',
+        scene: [
+          { e: '🥬', x: 42, y: 62, s: 1.6, m: 'float' },
+          { e: '🫘', x: 68, y: 74, s: 0.9 },
+          { e: '🧺', x: 44, y: 86, s: 1.4 },
+          { e: '🧒', x: 78, y: 84, s: 1.2 }
+        ]
+      },
+      {
+        emoji: '🥚', text: '妈妈说：还要十个蛋。', p: 'mā ma shuō: hái yào shí gè dàn.',
+        sceneBg: 'room',
+        sceneAlt: '妈妈说还要十个蛋',
+        scene: [
+          { e: '🥚', x: 44, y: 58, s: 1.1, m: 'float' },
+          { e: '🥚', x: 58, y: 66, s: 1 },
+          { e: '👩', x: 76, y: 76, s: 1.4 },
+          { e: '🧺', x: 30, y: 84, s: 1.3 }
+        ]
+      },
+      {
+        emoji: '🧒', text: '我数一数：一，二，三……十个。', p: 'wǒ shǔ yī shǔ: yī, èr, sān…… shí gè.',
+        sceneBg: 'room',
+        sceneAlt: '我数一数，一共十个',
+        scene: [
+          { e: '🔢', x: 74, y: 44, s: 1.1, m: 'float' },
+          { e: '🥚', x: 40, y: 62, s: 1 },
+          { e: '🧒', x: 52, y: 80, s: 1.5 },
+          { e: '🧺', x: 24, y: 86, s: 1.2 }
+        ]
+      },
+      {
+        emoji: '💰', text: '妈妈把钱给店里的人。', p: 'mā ma bǎ qián gěi diàn lǐ de rén.',
+        sceneBg: 'room',
+        sceneAlt: '妈妈把钱给店里的人',
+        scene: [
+          { e: '💰', x: 50, y: 54, s: 1.3, m: 'float' },
+          { e: '👩', x: 30, y: 74, s: 1.4 },
+          { e: '🧑', x: 74, y: 74, s: 1.4 },
+          { e: '🧺', x: 50, y: 88, s: 1.1 }
+        ]
+      },
+      {
+        emoji: '🛍️', text: '我拿一个小袋，妈妈拿大袋。', p: 'wǒ ná yī gè xiǎo dài, mā ma ná dà dài.',
+        sceneBg: 'room',
+        sceneAlt: '我拿小袋，妈妈拿大袋',
+        scene: [
+          { e: '🛍️', x: 68, y: 62, s: 1.5, m: 'sway' },
+          { e: '👩', x: 76, y: 78, s: 1.4 },
+          { e: '🛍️', x: 30, y: 70, s: 1, m: 'sway' },
+          { e: '🧒', x: 26, y: 84, s: 1.3 }
+        ]
+      },
+      {
+        emoji: '😄', text: '回家的路上，妈妈说：你会帮忙了！', p: 'huí jiā de lù shàng, mā ma shuō: nǐ huì bāng máng le!',
+        sceneBg: 'sky',
+        sceneAlt: '回家的路上，妈妈说我会帮忙了',
+        scene: [
+          { e: '☁️', x: 78, y: 24, s: 1.1, m: 'drift' },
+          { e: '🏠', x: 24, y: 60, s: 1.5 },
+          { e: '👩', x: 60, y: 76, s: 1.5 },
+          { e: '🧒', x: 42, y: 84, s: 1.3 },
+          { e: '🛍️', x: 80, y: 84, s: 1 }
+        ]
+      }
     ]
   },
   {
