@@ -15,14 +15,94 @@ export const LEVEL_3_BOOKS = [
     summary: '铃声一来就上课，铃声一来就下课，一天六节课，一节也不想少。',
     newChars: ['课', '铃', '声', '开', '始', '老', '师', '教'],
     pages: [
-      { emoji: '🔔', text: '上课的铃声来了，课开始了。', p: 'shàng kè de líng shēng lái le, kè kāi shǐ le.' },
-      { emoji: '📖', text: '老师教我们读书。', p: 'lǎo shī jiāo wǒ men dú shū.' },
-      { emoji: '✍️', text: '我们在本上写字。', p: 'wǒ men zài běn shàng xiě zì.' },
-      { emoji: '🙋', text: '小红问了一个题，老师答了她。', p: 'xiǎo hóng wèn le yī gè tí, lǎo shī dá le tā.' },
-      { emoji: '🏃', text: '下课了，我们去外边玩。', p: 'xià kè le, wǒ men qù wài bian wán.' },
-      { emoji: '⚽', text: '小明打球，小青跳绳。', p: 'xiǎo míng dǎ qiú, xiǎo qīng tiào shéng.' },
-      { emoji: '📚', text: '铃声又来了，我们回教室。', p: 'líng shēng yòu lái le, wǒ men huí jiào shì.' },
-      { emoji: '😄', text: '一天有六节课，我一节也不想少。', p: 'yī tiān yǒu liù jié kè, wǒ yī jié yě bù xiǎng shǎo.' }
+      {
+        emoji: '🔔', text: '上课的铃声来了，课开始了。', p: 'shàng kè de líng shēng lái le, kè kāi shǐ le.',
+        sceneBg: 'room',
+        sceneAlt: '上课的铃声来了，课开始了',
+        scene: [
+          { e: '🔔', x: 52, y: 40, s: 1.5, m: 'sway' },
+          { e: '📋', x: 24, y: 52, s: 1.3 },
+          { e: '🪟', x: 82, y: 44, s: 1.1 },
+          { e: '🪑', x: 56, y: 84, s: 1.3 }
+        ]
+      },
+      {
+        emoji: '📖', text: '老师教我们读书。', p: 'lǎo shī jiāo wǒ men dú shū.',
+        sceneBg: 'room',
+        sceneAlt: '老师教我们读书',
+        scene: [
+          { e: '📋', x: 22, y: 46, s: 1.2 },
+          { e: '🧑‍🏫', x: 34, y: 70, s: 1.6 },
+          { e: '📖', x: 66, y: 66, s: 1.3 },
+          { e: '🧒', x: 74, y: 82, s: 1.3 }
+        ]
+      },
+      {
+        emoji: '✍️', text: '我们在本上写字。', p: 'wǒ men zài běn shàng xiě zì.',
+        sceneBg: 'room',
+        sceneAlt: '我们在本上写字',
+        scene: [
+          { e: '✍️', x: 54, y: 56, s: 1.4, m: 'float' },
+          { e: '📓', x: 52, y: 72, s: 1.3 },
+          { e: '🧒', x: 26, y: 80, s: 1.4 },
+          { e: '🪑', x: 80, y: 88, s: 1.1 }
+        ]
+      },
+      {
+        emoji: '🙋', text: '小红问了一个题，老师答了她。', p: 'xiǎo hóng wèn le yī gè tí, lǎo shī dá le tā.',
+        sceneBg: 'room',
+        sceneAlt: '小红问了一个题，老师答了她',
+        scene: [
+          { e: '📋', x: 20, y: 46, s: 1.2 },
+          { e: '🙋', x: 62, y: 70, s: 1.5, m: 'float' },
+          { e: '🧑‍🏫', x: 34, y: 76, s: 1.5 },
+          { e: '🪑', x: 84, y: 88, s: 1.1 }
+        ]
+      },
+      {
+        emoji: '🏃', text: '下课了，我们去外边玩。', p: 'xià kè le, wǒ men qù wài bian wán.',
+        sceneBg: 'field',
+        sceneAlt: '下课了，我们去外边玩',
+        scene: [
+          { e: '🏫', x: 76, y: 56, s: 1.6 },
+          { e: '🏃', x: 44, y: 78, s: 1.6, m: 'drift' },
+          { e: '🧒', x: 22, y: 82, s: 1.3 },
+          { e: '🌳', x: 90, y: 76, s: 1.2 }
+        ]
+      },
+      {
+        emoji: '⚽', text: '小明打球，小青跳绳。', p: 'xiǎo míng dǎ qiú, xiǎo qīng tiào shéng.',
+        sceneBg: 'field',
+        sceneAlt: '小明打球，小青跳绳',
+        scene: [
+          { e: '🌳', x: 84, y: 58, s: 1.3 },
+          { e: '⚽', x: 62, y: 72, s: 1.2, m: 'drift' },
+          { e: '🤸', x: 38, y: 74, s: 1.5, m: 'float' },
+          { e: '🧒', x: 20, y: 84, s: 1.2 }
+        ]
+      },
+      {
+        emoji: '📚', text: '铃声又来了，我们回教室。', p: 'líng shēng yòu lái le, wǒ men huí jiào shì.',
+        sceneBg: 'field',
+        sceneAlt: '铃声又来了，我们回教室',
+        scene: [
+          { e: '🔔', x: 30, y: 40, s: 1.2, m: 'sway' },
+          { e: '🏫', x: 68, y: 60, s: 1.7 },
+          { e: '🎒', x: 34, y: 74, s: 1.1 },
+          { e: '🧒', x: 40, y: 86, s: 1.3 }
+        ]
+      },
+      {
+        emoji: '😄', text: '一天有六节课，我一节也不想少。', p: 'yī tiān yǒu liù jié kè, wǒ yī jié yě bù xiǎng shǎo.',
+        sceneBg: 'room',
+        sceneAlt: '一天有六节课，我一节也不想少',
+        scene: [
+          { e: '😄', x: 66, y: 44, s: 1.2, m: 'float' },
+          { e: '📚', x: 40, y: 62, s: 1.4 },
+          { e: '🧒', x: 34, y: 80, s: 1.4 },
+          { e: '🪑', x: 80, y: 88, s: 1.1 }
+        ]
+      }
     ]
   },
   {
@@ -36,14 +116,94 @@ export const LEVEL_3_BOOKS = [
     summary: '二十张桌、一个板、一个图书角，还有我们自种的花。',
     newChars: ['教', '室', '张', '桌', '椅', '边', '板', '老'],
     pages: [
-      { emoji: '🏫', text: '这是我们的教室。', p: 'zhè shì wǒ men de jiào shì.' },
-      { emoji: '🪑', text: '教室里有二十张桌，二十把椅。', p: 'jiào shì lǐ yǒu èr shí zhāng zhuō, èr shí bǎ yǐ.' },
-      { emoji: '📋', text: '前边有一个板，老师在板上写字。', p: 'qián bian yǒu yī gè bǎn, lǎo shī zài bǎn shàng xiě zì.' },
-      { emoji: '📚', text: '后边有图书角，角里有好多书。', p: 'hòu bian yǒu tú shū jiǎo, jiǎo lǐ yǒu hǎo duō shū.' },
-      { emoji: '🪟', text: '窗边有花，花是我们种的。', p: 'chuāng biān yǒu huā, huā shì wǒ men zhòng de.' },
-      { emoji: '🧹', text: '每天放学，我们扫地。', p: 'měi tiān fàng xué, wǒ men sǎo dì.' },
-      { emoji: '✨', text: '教室干干净净，我们都爱这间屋。', p: 'jiào shì gān gān jìng jìng, wǒ men dōu ài zhè jiān wū.' },
-      { emoji: '🎒', text: '这里也是我们的家。', p: 'zhè lǐ yě shì wǒ men de jiā.' }
+      {
+        emoji: '🏫', text: '这是我们的教室。', p: 'zhè shì wǒ men de jiào shì.',
+        sceneBg: 'room',
+        sceneAlt: '这是我们的教室',
+        scene: [
+          { e: '🏫', x: 52, y: 46, s: 1.8 },
+          { e: '🪟', x: 84, y: 42, s: 1.1 },
+          { e: '📋', x: 20, y: 50, s: 1.2 },
+          { e: '🪑', x: 54, y: 86, s: 1.2 }
+        ]
+      },
+      {
+        emoji: '🪑', text: '教室里有二十张桌，二十把椅。', p: 'jiào shì lǐ yǒu èr shí zhāng zhuō, èr shí bǎ yǐ.',
+        sceneBg: 'room',
+        sceneAlt: '教室里有二十张桌，二十把椅',
+        scene: [
+          { e: '🪟', x: 82, y: 38, s: 1.1 },
+          { e: '🪑', x: 32, y: 66, s: 1.3 },
+          { e: '🪑', x: 56, y: 78, s: 1.4 },
+          { e: '🪑', x: 78, y: 88, s: 1.2 }
+        ]
+      },
+      {
+        emoji: '📋', text: '前边有一个板，老师在板上写字。', p: 'qián bian yǒu yī gè bǎn, lǎo shī zài bǎn shàng xiě zì.',
+        sceneBg: 'room',
+        sceneAlt: '前边有一个板，老师在板上写字',
+        scene: [
+          { e: '📋', x: 44, y: 46, s: 1.9 },
+          { e: '✍️', x: 68, y: 58, s: 1, m: 'float' },
+          { e: '🧑‍🏫', x: 74, y: 76, s: 1.5 },
+          { e: '🪑', x: 24, y: 86, s: 1.2 }
+        ]
+      },
+      {
+        emoji: '📚', text: '后边有图书角，角里有好多书。', p: 'hòu bian yǒu tú shū jiǎo, jiǎo lǐ yǒu hǎo duō shū.',
+        sceneBg: 'room',
+        sceneAlt: '后边有图书角，角里有好多书',
+        scene: [
+          { e: '📚', x: 60, y: 56, s: 1.7 },
+          { e: '📖', x: 80, y: 70, s: 1.1, m: 'float' },
+          { e: '🪑', x: 30, y: 80, s: 1.3 },
+          { e: '🪟', x: 20, y: 42, s: 1.1 }
+        ]
+      },
+      {
+        emoji: '🪟', text: '窗边有花，花是我们种的。', p: 'chuāng biān yǒu huā, huā shì wǒ men zhòng de.',
+        sceneBg: 'room',
+        sceneAlt: '窗边有花，花是我们种的',
+        scene: [
+          { e: '🪟', x: 56, y: 46, s: 1.8 },
+          { e: '🌸', x: 78, y: 62, s: 1.1, m: 'sway' },
+          { e: '🌱', x: 30, y: 70, s: 1, m: 'sway' },
+          { e: '🪑', x: 50, y: 88, s: 1.2 }
+        ]
+      },
+      {
+        emoji: '🧹', text: '每天放学，我们扫地。', p: 'měi tiān fàng xué, wǒ men sǎo dì.',
+        sceneBg: 'room',
+        sceneAlt: '每天放学，我们扫地',
+        scene: [
+          { e: '🪟', x: 82, y: 40, s: 1.1 },
+          { e: '🧹', x: 58, y: 66, s: 1.5, m: 'sway' },
+          { e: '🧒', x: 32, y: 80, s: 1.4 },
+          { e: '🪑', x: 78, y: 88, s: 1.1 }
+        ]
+      },
+      {
+        emoji: '✨', text: '教室干干净净，我们都爱这间屋。', p: 'jiào shì gān gān jìng jìng, wǒ men dōu ài zhè jiān wū.',
+        sceneBg: 'room',
+        sceneAlt: '教室干干净净，我们都爱这间屋',
+        scene: [
+          { e: '✨', x: 52, y: 36, s: 1.1, m: 'float' },
+          { e: '📋', x: 22, y: 50, s: 1.2 },
+          { e: '🪟', x: 82, y: 46, s: 1.1 },
+          { e: '🪑', x: 52, y: 84, s: 1.4 }
+        ]
+      },
+      {
+        emoji: '🎒', text: '这里也是我们的家。', p: 'zhè lǐ yě shì wǒ men de jiā.',
+        sceneBg: 'room',
+        sceneAlt: '这里也是我们的家',
+        scene: [
+          { e: '❤️', x: 50, y: 34, s: 1.1, m: 'float' },
+          { e: '🎒', x: 74, y: 70, s: 1.2 },
+          { e: '🧒', x: 40, y: 78, s: 1.5 },
+          { e: '🪑', x: 20, y: 88, s: 1.1 }
+        ]
+      }
     ]
   },
   {
@@ -57,14 +217,94 @@ export const LEVEL_3_BOOKS = [
     summary: '爷爷头很热，去医院拿了药。三天后他说：谢谢我的小医生。',
     newChars: ['爷', '病', '吃', '饭', '妈', '摸', '头', '热'],
     pages: [
-      { emoji: '👴', text: '爷爷病了，他不想吃饭。', p: 'yé ye bìng le, tā bù xiǎng chī fàn.' },
-      { emoji: '🌡️', text: '妈妈摸他的头，头很热。', p: 'mā ma mō tā de tóu, tóu hěn rè.' },
-      { emoji: '🚗', text: '爸爸开车，我们去医院。', p: 'bà ba kāi chē, wǒ men qù yī yuàn.' },
-      { emoji: '👨‍⚕️', text: '医生给爷爷检查。', p: 'yī shēng gěi yé ye jiǎn chá.' },
-      { emoji: '💊', text: '医生说：吃三天药，多喝水。', p: 'yī shēng shuō: chī sān tiān yào, duō hē shuǐ.' },
-      { emoji: '🏠', text: '回家后，我给爷爷拿药，也拿水。', p: 'huí jiā hòu, wǒ gěi yé ye ná yào, yě ná shuǐ.' },
-      { emoji: '🍲', text: '妈妈做了一碗粥。', p: 'mā ma zuò le yī wǎn zhōu.' },
-      { emoji: '😄', text: '三天后，爷爷好了。他说：谢谢我的小医生。', p: 'sān tiān hòu, yé ye hǎo le. tā shuō: xiè xiè wǒ de xiǎo yī shēng.' }
+      {
+        emoji: '👴', text: '爷爷病了，他不想吃饭。', p: 'yé ye bìng le, tā bù xiǎng chī fàn.',
+        sceneBg: 'room',
+        sceneAlt: '爷爷病了，他不想吃饭',
+        scene: [
+          { e: '🪟', x: 22, y: 38, s: 1.1 },
+          { e: '🍚', x: 76, y: 62, s: 1.1 },
+          { e: '👴', x: 50, y: 66, s: 1.6 },
+          { e: '🛏️', x: 48, y: 82, s: 1.7 }
+        ]
+      },
+      {
+        emoji: '🌡️', text: '妈妈摸他的头，头很热。', p: 'mā ma mō tā de tóu, tóu hěn rè.',
+        sceneBg: 'room',
+        sceneAlt: '妈妈摸他的头，头很热',
+        scene: [
+          { e: '🌡️', x: 68, y: 46, s: 1.2, m: 'sway' },
+          { e: '👩', x: 72, y: 70, s: 1.4 },
+          { e: '👴', x: 42, y: 66, s: 1.4 },
+          { e: '🛏️', x: 42, y: 84, s: 1.6 }
+        ]
+      },
+      {
+        emoji: '🚗', text: '爸爸开车，我们去医院。', p: 'bà ba kāi chē, wǒ men qù yī yuàn.',
+        sceneBg: 'sky',
+        sceneAlt: '爸爸开车，我们去医院',
+        scene: [
+          { e: '☁️', x: 24, y: 24, s: 1.1, m: 'drift' },
+          { e: '🏥', x: 78, y: 58, s: 1.6 },
+          { e: '🚗', x: 44, y: 78, s: 1.6, m: 'drift' },
+          { e: '🛣️', x: 50, y: 92, s: 1.3 }
+        ]
+      },
+      {
+        emoji: '👨‍⚕️', text: '医生给爷爷检查。', p: 'yī shēng gěi yé ye jiǎn chá.',
+        sceneBg: 'room',
+        sceneAlt: '医生给爷爷检查',
+        scene: [
+          { e: '🩺', x: 52, y: 50, s: 1.2, m: 'float' },
+          { e: '👨‍⚕️', x: 70, y: 74, s: 1.5 },
+          { e: '👴', x: 34, y: 78, s: 1.5 },
+          { e: '🪑', x: 84, y: 88, s: 1.1 }
+        ]
+      },
+      {
+        emoji: '💊', text: '医生说：吃三天药，多喝水。', p: 'yī shēng shuō: chī sān tiān yào, duō hē shuǐ.',
+        sceneBg: 'room',
+        sceneAlt: '医生说吃三天药，多喝水',
+        scene: [
+          { e: '💊', x: 44, y: 54, s: 1.1, m: 'float' },
+          { e: '🥛', x: 62, y: 62, s: 1.1 },
+          { e: '👨‍⚕️', x: 74, y: 78, s: 1.4 },
+          { e: '🪑', x: 24, y: 86, s: 1.1 }
+        ]
+      },
+      {
+        emoji: '🏠', text: '回家后，我给爷爷拿药，也拿水。', p: 'huí jiā hòu, wǒ gěi yé ye ná yào, yě ná shuǐ.',
+        sceneBg: 'room',
+        sceneAlt: '回家后，我给爷爷拿药，也拿水',
+        scene: [
+          { e: '💊', x: 42, y: 56, s: 1, m: 'float' },
+          { e: '🥛', x: 58, y: 64, s: 1.1 },
+          { e: '🧒', x: 30, y: 80, s: 1.4 },
+          { e: '👴', x: 74, y: 78, s: 1.4 }
+        ]
+      },
+      {
+        emoji: '🍲', text: '妈妈做了一碗粥。', p: 'mā ma zuò le yī wǎn zhōu.',
+        sceneBg: 'room',
+        sceneAlt: '妈妈做了一碗粥',
+        scene: [
+          { e: '♨️', x: 48, y: 40, s: 0.9, m: 'float' },
+          { e: '🍲', x: 46, y: 62, s: 1.6 },
+          { e: '👩', x: 76, y: 76, s: 1.4 },
+          { e: '🥢', x: 24, y: 78, s: 1 }
+        ]
+      },
+      {
+        emoji: '😄', text: '三天后，爷爷好了。他说：谢谢我的小医生。', p: 'sān tiān hòu, yé ye hǎo le. tā shuō: xiè xiè wǒ de xiǎo yī shēng.',
+        sceneBg: 'room',
+        sceneAlt: '三天后，爷爷好了',
+        scene: [
+          { e: '❤️', x: 50, y: 32, s: 1, m: 'float' },
+          { e: '😄', x: 66, y: 52, s: 1.2, m: 'float' },
+          { e: '👴', x: 62, y: 76, s: 1.6 },
+          { e: '🧒', x: 32, y: 82, s: 1.3 }
+        ]
+      }
     ]
   },
   {
@@ -78,14 +318,94 @@ export const LEVEL_3_BOOKS = [
     summary: '书从地上排到顶，我挑了一本画书和一本讲星的书。',
     newChars: ['周', '爸', '街', '店', '书', '从', '地', '排'],
     pages: [
-      { emoji: '🏙️', text: '周日，爸爸和我上街。', p: 'zhōu rì, bà ba hé wǒ shàng jiē.' },
-      { emoji: '🏬', text: '街上有好多店。', p: 'jiē shàng yǒu hǎo duō diàn.' },
-      { emoji: '📚', text: '我们去了书店。', p: 'wǒ men qù le shū diàn.' },
-      { emoji: '📖', text: '书店里的书从地上排到顶。', p: 'shū diàn lǐ de shū cóng dì shàng pái dào dǐng.' },
-      { emoji: '🧒', text: '我要一本画书，也要一本讲星的书。', p: 'wǒ yào yī běn huà shū, yě yào yī běn jiǎng xīng de shū.' },
-      { emoji: '💰', text: '二本书共二十元。', p: 'èr běn shū gòng èr shí yuán.' },
-      { emoji: '🛍️', text: '我把书放到我的袋里。', p: 'wǒ bǎ shū fàng dào wǒ de dài lǐ.' },
-      { emoji: '🚶', text: '回家的路上，我一页一页看。', p: 'huí jiā de lù shàng, wǒ yī yè yī yè kàn.' }
+      {
+        emoji: '🏙️', text: '周日，爸爸和我上街。', p: 'zhōu rì, bà ba hé wǒ shàng jiē.',
+        sceneBg: 'sky',
+        sceneAlt: '周日，爸爸和我上街',
+        scene: [
+          { e: '☁️', x: 24, y: 22, s: 1.1, m: 'drift' },
+          { e: '🏙️', x: 74, y: 54, s: 1.6 },
+          { e: '👨', x: 54, y: 78, s: 1.5 },
+          { e: '🧒', x: 32, y: 84, s: 1.3 }
+        ]
+      },
+      {
+        emoji: '🏬', text: '街上有好多店。', p: 'jiē shàng yǒu hǎo duō diàn.',
+        sceneBg: 'sky',
+        sceneAlt: '街上有好多店',
+        scene: [
+          { e: '🏬', x: 28, y: 58, s: 1.6 },
+          { e: '🏬', x: 72, y: 62, s: 1.5 },
+          { e: '👨', x: 46, y: 80, s: 1.4 },
+          { e: '🧒', x: 62, y: 86, s: 1.2 }
+        ]
+      },
+      {
+        emoji: '📚', text: '我们去了书店。', p: 'wǒ men qù le shū diàn.',
+        sceneBg: 'room',
+        sceneAlt: '我们去了书店',
+        scene: [
+          { e: '📚', x: 66, y: 56, s: 1.6 },
+          { e: '🚪', x: 24, y: 58, s: 1.5 },
+          { e: '👨', x: 54, y: 78, s: 1.4 },
+          { e: '🧒', x: 38, y: 84, s: 1.2 }
+        ]
+      },
+      {
+        emoji: '📖', text: '书店里的书从地上排到顶。', p: 'shū diàn lǐ de shū cóng dì shàng pái dào dǐng.',
+        sceneBg: 'room',
+        sceneAlt: '书店里的书从地上排到顶',
+        scene: [
+          { e: '📚', x: 30, y: 40, s: 1.3 },
+          { e: '📚', x: 62, y: 56, s: 1.5 },
+          { e: '📚', x: 34, y: 72, s: 1.4 },
+          { e: '🧒', x: 76, y: 84, s: 1.3 }
+        ]
+      },
+      {
+        emoji: '🧒', text: '我要一本画书，也要一本讲星的书。', p: 'wǒ yào yī běn huà shū, yě yào yī běn jiǎng xīng de shū.',
+        sceneBg: 'room',
+        sceneAlt: '我要一本画书，也要一本讲星的书',
+        scene: [
+          { e: '⭐', x: 70, y: 42, s: 1, m: 'float' },
+          { e: '📖', x: 50, y: 60, s: 1.4, m: 'float' },
+          { e: '📚', x: 22, y: 68, s: 1.2 },
+          { e: '🧒', x: 58, y: 84, s: 1.4 }
+        ]
+      },
+      {
+        emoji: '💰', text: '二本书共二十元。', p: 'èr běn shū gòng èr shí yuán.',
+        sceneBg: 'room',
+        sceneAlt: '二本书共二十元',
+        scene: [
+          { e: '💰', x: 52, y: 50, s: 1.2, m: 'float' },
+          { e: '📖', x: 30, y: 68, s: 1.1 },
+          { e: '📖', x: 44, y: 76, s: 1 },
+          { e: '🧑', x: 76, y: 78, s: 1.4 }
+        ]
+      },
+      {
+        emoji: '🛍️', text: '我把书放到我的袋里。', p: 'wǒ bǎ shū fàng dào wǒ de dài lǐ.',
+        sceneBg: 'room',
+        sceneAlt: '我把书放到我的袋里',
+        scene: [
+          { e: '📖', x: 60, y: 56, s: 1.1, m: 'float' },
+          { e: '🛍️', x: 62, y: 74, s: 1.5, m: 'sway' },
+          { e: '🧒', x: 30, y: 80, s: 1.4 },
+          { e: '📚', x: 84, y: 86, s: 1 }
+        ]
+      },
+      {
+        emoji: '🚶', text: '回家的路上，我一页一页看。', p: 'huí jiā de lù shàng, wǒ yī yè yī yè kàn.',
+        sceneBg: 'sky',
+        sceneAlt: '回家的路上，我一页一页看',
+        scene: [
+          { e: '☁️', x: 78, y: 24, s: 1.1, m: 'drift' },
+          { e: '🌳', x: 22, y: 62, s: 1.4 },
+          { e: '📖', x: 60, y: 66, s: 1.2 },
+          { e: '🧒', x: 52, y: 84, s: 1.4 }
+        ]
+      }
     ]
   },
   {
@@ -99,14 +419,96 @@ export const LEVEL_3_BOOKS = [
     summary: '扫屋、挂红纸、做好吃的，亲人都回家，一同说新年好。',
     newChars: ['冬', '年', '到', '家', '同', '扫', '屋', '洗'],
     pages: [
-      { emoji: '🎊', text: '冬天最后一个月，年到了。', p: 'dōng tiān zuì hòu yī gè yuè, nián dào le.' },
-      { emoji: '🧹', text: '家里人一同扫屋，也洗衣。', p: 'jiā lǐ rén yī tóng sǎo wū, yě xǐ yī.' },
-      { emoji: '🏮', text: '门上挂了红纸。', p: 'mén shàng guà le hóng zhǐ.' },
-      { emoji: '🥟', text: '妈妈和婆婆做了好多吃的。', p: 'mā ma hé pó po zuò le hǎo duō chī de.' },
-      { emoji: '👨‍👩‍👧‍👦', text: '亲人都回家了，桌上坐满了人。', p: 'qīn rén dōu huí jiā le, zhuō shàng zuò mǎn le rén.' },
-      { emoji: '🧧', text: '爷爷给我们每人一个红包。', p: 'yé ye gěi wǒ men měi rén yī gè hóng bāo.' },
-      { emoji: '🎆', text: '夜里，天上有光，也有声。', p: 'yè lǐ, tiān shàng yǒu guāng, yě yǒu shēng.' },
-      { emoji: '😄', text: '大家一同说：新年好！', p: 'dà jiā yī tóng shuō: xīn nián hǎo!' }
+      {
+        emoji: '🎊', text: '冬天最后一个月，年到了。', p: 'dōng tiān zuì hòu yī gè yuè, nián dào le.',
+        sceneBg: 'snow',
+        sceneAlt: '冬天最后一个月，年到了',
+        scene: [
+          { e: '❄️', x: 28, y: 26, s: 0.9, m: 'float' },
+          { e: '🎊', x: 66, y: 38, s: 1.2, m: 'float' },
+          { e: '🌲', x: 20, y: 70, s: 1.5 },
+          { e: '🏠', x: 60, y: 78, s: 1.6 }
+        ]
+      },
+      {
+        emoji: '🧹', text: '家里人一同扫屋，也洗衣。', p: 'jiā lǐ rén yī tóng sǎo wū, yě xǐ yī.',
+        sceneBg: 'room',
+        sceneAlt: '家里人一同扫屋，也洗衣',
+        scene: [
+          { e: '🧹', x: 34, y: 62, s: 1.4, m: 'sway' },
+          { e: '🧼', x: 70, y: 60, s: 1.1, m: 'float' },
+          { e: '👩', x: 74, y: 78, s: 1.4 },
+          { e: '🧒', x: 28, y: 82, s: 1.3 }
+        ]
+      },
+      {
+        emoji: '🏮', text: '门上挂了红纸。', p: 'mén shàng guà le hóng zhǐ.',
+        sceneBg: 'room',
+        sceneAlt: '门上挂了红纸',
+        scene: [
+          { e: '🏮', x: 30, y: 40, s: 1.3, m: 'sway' },
+          { e: '🏮', x: 72, y: 40, s: 1.3, m: 'sway' },
+          { e: '🚪', x: 50, y: 64, s: 1.9 },
+          { e: '🧒', x: 80, y: 84, s: 1.2 }
+        ]
+      },
+      {
+        emoji: '🥟', text: '妈妈和婆婆做了好多吃的。', p: 'mā ma hé pó po zuò le hǎo duō chī de.',
+        sceneBg: 'room',
+        sceneAlt: '妈妈和婆婆做了好多吃的',
+        scene: [
+          { e: '🥟', x: 44, y: 58, s: 1.4, m: 'float' },
+          { e: '🍲', x: 66, y: 68, s: 1.3 },
+          { e: '👩', x: 28, y: 76, s: 1.4 },
+          { e: '👵', x: 80, y: 80, s: 1.4 }
+        ]
+      },
+      {
+        emoji: '👨‍👩‍👧‍👦', text: '亲人都回家了，桌上坐满了人。', p: 'qīn rén dōu huí jiā le, zhuō shàng zuò mǎn le rén.',
+        sceneBg: 'room',
+        sceneAlt: '亲人都回家了，桌上坐满了人',
+        scene: [
+          { e: '🍽️', x: 50, y: 56, s: 1.4 },
+          { e: '👴', x: 24, y: 70, s: 1.3 },
+          { e: '👨', x: 44, y: 76, s: 1.3 },
+          { e: '👩', x: 66, y: 82, s: 1.3 },
+          { e: '🧒', x: 84, y: 88, s: 1.1 }
+        ]
+      },
+      {
+        emoji: '🧧', text: '爷爷给我们每人一个红包。', p: 'yé ye gěi wǒ men měi rén yī gè hóng bāo.',
+        sceneBg: 'room',
+        sceneAlt: '爷爷给我们每人一个红包',
+        scene: [
+          { e: '🧧', x: 52, y: 52, s: 1.3, m: 'float' },
+          { e: '👴', x: 74, y: 76, s: 1.5 },
+          { e: '🧒', x: 32, y: 80, s: 1.3 },
+          { e: '👶', x: 52, y: 88, s: 1.1 }
+        ]
+      },
+      {
+        emoji: '🎆', text: '夜里，天上有光，也有声。', p: 'yè lǐ, tiān shàng yǒu guāng, yě yǒu shēng.',
+        sceneBg: 'night',
+        sceneAlt: '夜里，天上有光，也有声',
+        scene: [
+          { e: '🎆', x: 52, y: 28, s: 1.7, m: 'float' },
+          { e: '⭐', x: 24, y: 24, s: 0.8, m: 'float' },
+          { e: '🌙', x: 80, y: 32, s: 1.1, m: 'float' },
+          { e: '🏠', x: 50, y: 84, s: 1.4 }
+        ]
+      },
+      {
+        emoji: '😄', text: '大家一同说：新年好！', p: 'dà jiā yī tóng shuō: xīn nián hǎo!',
+        sceneBg: 'night',
+        sceneAlt: '大家一同说新年好',
+        scene: [
+          { e: '🎊', x: 50, y: 30, s: 1.2, m: 'float' },
+          { e: '🏮', x: 80, y: 44, s: 1.1, m: 'sway' },
+          { e: '👨', x: 28, y: 74, s: 1.3 },
+          { e: '👩', x: 50, y: 80, s: 1.3 },
+          { e: '🧒', x: 70, y: 86, s: 1.2 }
+        ]
+      }
     ]
   },
   {
@@ -120,14 +522,94 @@ export const LEVEL_3_BOOKS = [
     summary: '春天种豆，夏天开白花，秋天收一篮，做成一锅豆汤。',
     newChars: ['家', '屋', '园', '春', '爷', '种', '豆', '苗'],
     pages: [
-      { emoji: '🏡', text: '我家屋后有一个小园。', p: 'wǒ jiā wū hòu yǒu yī gè xiǎo yuán.' },
-      { emoji: '🌱', text: '春天，我和爷爷在园里种豆。', p: 'chūn tiān, wǒ hé yé ye zài yuán lǐ zhòng dòu.' },
-      { emoji: '💧', text: '我天天给豆苗浇水。', p: 'wǒ tiān tiān gěi dòu miáo jiāo shuǐ.' },
-      { emoji: '🌿', text: '豆苗长高了，一天比一天绿。', p: 'dòu miáo zhǎng gāo le, yī tiān bǐ yī tiān lǜ.' },
-      { emoji: '🌸', text: '夏天，园里开了小白花。', p: 'xià tiān, yuán lǐ kāi le xiǎo bái huā.' },
-      { emoji: '🫘', text: '秋天，豆熟了，我们收了一篮。', p: 'qiū tiān, dòu shú le, wǒ men shōu le yī lán.' },
-      { emoji: '🍲', text: '妈妈把豆做成汤。', p: 'mā ma bǎ dòu zuò chéng tāng.' },
-      { emoji: '😋', text: '我说：这是我种的豆，最好吃！', p: 'wǒ shuō: zhè shì wǒ zhòng de dòu, zuì hǎo chī!' }
+      {
+        emoji: '🏡', text: '我家屋后有一个小园。', p: 'wǒ jiā wū hòu yǒu yī gè xiǎo yuán.',
+        sceneBg: 'field',
+        sceneAlt: '我家屋后有一个小园',
+        scene: [
+          { e: '🏡', x: 30, y: 58, s: 1.7 },
+          { e: '🌳', x: 82, y: 62, s: 1.4 },
+          { e: '🌿', x: 58, y: 80, s: 1.2, m: 'sway' },
+          { e: '🌱', x: 78, y: 88, s: 1, m: 'sway' }
+        ]
+      },
+      {
+        emoji: '🌱', text: '春天，我和爷爷在园里种豆。', p: 'chūn tiān, wǒ hé yé ye zài yuán lǐ zhòng dòu.',
+        sceneBg: 'field',
+        sceneAlt: '春天，我和爷爷在园里种豆',
+        scene: [
+          { e: '☀️', x: 82, y: 20, s: 1, m: 'float' },
+          { e: '👴', x: 66, y: 72, s: 1.5 },
+          { e: '🧒', x: 34, y: 78, s: 1.3 },
+          { e: '🌱', x: 52, y: 90, s: 1, m: 'sway' }
+        ]
+      },
+      {
+        emoji: '💧', text: '我天天给豆苗浇水。', p: 'wǒ tiān tiān gěi dòu miáo jiāo shuǐ.',
+        sceneBg: 'field',
+        sceneAlt: '我天天给豆苗浇水',
+        scene: [
+          { e: '💧', x: 60, y: 56, s: 1, m: 'float' },
+          { e: '🌱', x: 62, y: 76, s: 1.1, m: 'sway' },
+          { e: '🧒', x: 30, y: 78, s: 1.5 },
+          { e: '🌿', x: 84, y: 88, s: 1, m: 'sway' }
+        ]
+      },
+      {
+        emoji: '🌿', text: '豆苗长高了，一天比一天绿。', p: 'dòu miáo zhǎng gāo le, yī tiān bǐ yī tiān lǜ.',
+        sceneBg: 'field',
+        sceneAlt: '豆苗长高了，一天比一天绿',
+        scene: [
+          { e: '☀️', x: 80, y: 22, s: 1.2, m: 'float' },
+          { e: '🌿', x: 44, y: 68, s: 1.5, m: 'sway' },
+          { e: '🌱', x: 66, y: 82, s: 1.1, m: 'sway' },
+          { e: '🌱', x: 24, y: 86, s: 1, m: 'sway' }
+        ]
+      },
+      {
+        emoji: '🌸', text: '夏天，园里开了小白花。', p: 'xià tiān, yuán lǐ kāi le xiǎo bái huā.',
+        sceneBg: 'field',
+        sceneAlt: '夏天，园里开了小白花',
+        scene: [
+          { e: '☀️', x: 78, y: 22, s: 1.4, m: 'float' },
+          { e: '🌼', x: 46, y: 70, s: 1.2, m: 'sway' },
+          { e: '🌿', x: 68, y: 80, s: 1.2, m: 'sway' },
+          { e: '🌱', x: 24, y: 88, s: 1, m: 'sway' }
+        ]
+      },
+      {
+        emoji: '🫘', text: '秋天，豆熟了，我们收了一篮。', p: 'qiū tiān, dòu shú le, wǒ men shōu le yī lán.',
+        sceneBg: 'field',
+        sceneAlt: '秋天，豆熟了，我们收了一篮',
+        scene: [
+          { e: '🫘', x: 44, y: 62, s: 0.9 },
+          { e: '🧺', x: 52, y: 76, s: 1.5 },
+          { e: '🧒', x: 26, y: 80, s: 1.4 },
+          { e: '🌿', x: 82, y: 88, s: 1, m: 'sway' }
+        ]
+      },
+      {
+        emoji: '🍲', text: '妈妈把豆做成汤。', p: 'mā ma bǎ dòu zuò chéng tāng.',
+        sceneBg: 'room',
+        sceneAlt: '妈妈把豆做成汤',
+        scene: [
+          { e: '♨️', x: 48, y: 40, s: 0.9, m: 'float' },
+          { e: '🍲', x: 46, y: 62, s: 1.6 },
+          { e: '👩', x: 76, y: 76, s: 1.4 },
+          { e: '🫘', x: 24, y: 80, s: 0.9 }
+        ]
+      },
+      {
+        emoji: '😋', text: '我说：这是我种的豆，最好吃！', p: 'wǒ shuō: zhè shì wǒ zhòng de dòu, zuì hǎo chī!',
+        sceneBg: 'room',
+        sceneAlt: '这是我种的豆，最好吃',
+        scene: [
+          { e: '🥣', x: 42, y: 62, s: 1.5 },
+          { e: '🍲', x: 70, y: 70, s: 1.2 },
+          { e: '😋', x: 46, y: 84, s: 1.6, m: 'float' },
+          { e: '🫘', x: 84, y: 86, s: 0.9 }
+        ]
+      }
     ]
   },
   {
@@ -141,14 +623,94 @@ export const LEVEL_3_BOOKS = [
     summary: '早上有雾，中午有船，晚上只有月。小河一天也不停。',
     newChars: ['早', '河', '雾', '鱼', '鸭', '群', '农', '边'],
     pages: [
-      { emoji: '🌅', text: '早上，河上有雾。', p: 'zǎo shang, hé shàng yǒu wù.' },
-      { emoji: '🐟', text: '水里的鱼来来去去。', p: 'shuǐ lǐ de yú lái lái qù qù.' },
-      { emoji: '🦆', text: '鸭下水了，一群一群。', p: 'yā xià shuǐ le, yī qún yī qún.' },
-      { emoji: '👩‍🌾', text: '农人在河边浇田。', p: 'nóng rén zài hé biān jiāo tián.' },
-      { emoji: '⛵', text: '中午，一只小船从河上过。', p: 'zhōng wǔ, yī zhī xiǎo chuán cóng hé shàng guò.' },
-      { emoji: '🧒', text: '我们在河边玩水，水很凉。', p: 'wǒ men zài hé biān wán shuǐ, shuǐ hěn liáng.' },
-      { emoji: '🌇', text: '天晚了，日的光在水上。', p: 'tiān wǎn le, rì de guāng zài shuǐ shàng.' },
-      { emoji: '🌙', text: '夜里，河上很静，只有月。', p: 'yè lǐ, hé shàng hěn jìng, zhǐ yǒu yuè.' }
+      {
+        emoji: '🌅', text: '早上，河上有雾。', p: 'zǎo shang, hé shàng yǒu wù.',
+        sceneBg: 'dawn',
+        sceneAlt: '早上，河上有雾',
+        scene: [
+          { e: '🌫️', x: 52, y: 44, s: 1.6, m: 'drift' },
+          { e: '⛰️', x: 22, y: 50, s: 1.5 },
+          { e: '🌊', x: 54, y: 84, s: 1.3, m: 'drift' },
+          { e: '🌿', x: 84, y: 78, s: 1, m: 'sway' }
+        ]
+      },
+      {
+        emoji: '🐟', text: '水里的鱼来来去去。', p: 'shuǐ lǐ de yú lái lái qù qù.',
+        sceneBg: 'water',
+        sceneAlt: '水里的鱼来来去去',
+        scene: [
+          { e: '🐟', x: 40, y: 62, s: 1.4, m: 'sway' },
+          { e: '🐠', x: 68, y: 74, s: 1.1, m: 'sway' },
+          { e: '🫧', x: 54, y: 46, s: 0.7, m: 'float' },
+          { e: '🌊', x: 22, y: 86, s: 1.3, m: 'drift' }
+        ]
+      },
+      {
+        emoji: '🦆', text: '鸭下水了，一群一群。', p: 'yā xià shuǐ le, yī qún yī qún.',
+        sceneBg: 'water',
+        sceneAlt: '鸭下水了，一群一群',
+        scene: [
+          { e: '🦆', x: 34, y: 62, s: 1.3, m: 'sway' },
+          { e: '🦆', x: 56, y: 72, s: 1.1, m: 'sway' },
+          { e: '🦆', x: 76, y: 80, s: 1, m: 'sway' },
+          { e: '🌊', x: 24, y: 88, s: 1.3, m: 'drift' }
+        ]
+      },
+      {
+        emoji: '👩‍🌾', text: '农人在河边浇田。', p: 'nóng rén zài hé biān jiāo tián.',
+        sceneBg: 'field',
+        sceneAlt: '农人在河边浇田',
+        scene: [
+          { e: '👩‍🌾', x: 46, y: 70, s: 1.6 },
+          { e: '💧', x: 68, y: 66, s: 0.9, m: 'float' },
+          { e: '🌾', x: 22, y: 80, s: 1.2, m: 'sway' },
+          { e: '🌊', x: 78, y: 90, s: 1.2, m: 'drift' }
+        ]
+      },
+      {
+        emoji: '⛵', text: '中午，一只小船从河上过。', p: 'zhōng wǔ, yī zhī xiǎo chuán cóng hé shàng guò.',
+        sceneBg: 'water',
+        sceneAlt: '中午，一只小船从河上过',
+        scene: [
+          { e: '☀️', x: 80, y: 20, s: 1.3, m: 'float' },
+          { e: '⛵', x: 50, y: 66, s: 1.6, m: 'drift' },
+          { e: '⛰️', x: 20, y: 46, s: 1.4 },
+          { e: '🌊', x: 60, y: 88, s: 1.3, m: 'drift' }
+        ]
+      },
+      {
+        emoji: '🧒', text: '我们在河边玩水，水很凉。', p: 'wǒ men zài hé biān wán shuǐ, shuǐ hěn liáng.',
+        sceneBg: 'water',
+        sceneAlt: '我们在河边玩水，水很凉',
+        scene: [
+          { e: '🧒', x: 36, y: 66, s: 1.5 },
+          { e: '💧', x: 60, y: 70, s: 0.9, m: 'float' },
+          { e: '🌊', x: 62, y: 86, s: 1.3, m: 'drift' },
+          { e: '🌿', x: 84, y: 72, s: 1, m: 'sway' }
+        ]
+      },
+      {
+        emoji: '🌇', text: '天晚了，日的光在水上。', p: 'tiān wǎn le, rì de guāng zài shuǐ shàng.',
+        sceneBg: 'dusk',
+        sceneAlt: '天晚了，日的光在水上',
+        scene: [
+          { e: '☀️', x: 66, y: 44, s: 1.4, m: 'float' },
+          { e: '⛰️', x: 24, y: 52, s: 1.5 },
+          { e: '🌊', x: 56, y: 84, s: 1.4, m: 'drift' },
+          { e: '🌿', x: 86, y: 78, s: 1, m: 'sway' }
+        ]
+      },
+      {
+        emoji: '🌙', text: '夜里，河上很静，只有月。', p: 'yè lǐ, hé shàng hěn jìng, zhǐ yǒu yuè.',
+        sceneBg: 'night',
+        sceneAlt: '夜里，河上很静，只有月',
+        scene: [
+          { e: '🌙', x: 70, y: 26, s: 1.5, m: 'float' },
+          { e: '⭐', x: 30, y: 30, s: 0.8, m: 'float' },
+          { e: '⛰️', x: 20, y: 52, s: 1.4 },
+          { e: '🌊', x: 56, y: 86, s: 1.3, m: 'drift' }
+        ]
+      }
     ]
   },
   {
@@ -162,14 +724,94 @@ export const LEVEL_3_BOOKS = [
     summary: '路长人慢，半山有泉，山顶风大，山下的城小小的。',
     newChars: ['早', '山', '路', '长', '走', '慢', '松', '竹'],
     pages: [
-      { emoji: '🌄', text: '早上，我们上山。', p: 'zǎo shang, wǒ men shàng shān.' },
-      { emoji: '🥾', text: '路很长，我们走很慢。', p: 'lù hěn cháng, wǒ men zǒu hěn màn.' },
-      { emoji: '🌲', text: '山上有松，也有竹。', p: 'shān shàng yǒu sōng, yě yǒu zhú.' },
-      { emoji: '🐦', text: '树上有鸟，鸟的声音很好听。', p: 'shù shàng yǒu niǎo, niǎo de shēng yīn hěn hǎo tīng.' },
-      { emoji: '💧', text: '半山有一个泉，泉水很凉。', p: 'bàn shān yǒu yī gè quán, quán shuǐ hěn liáng.' },
-      { emoji: '⛰️', text: '到了山顶，风很大。', p: 'dào le shān dǐng, fēng hěn dà.' },
-      { emoji: '🌆', text: '我们看到山下的城，房子小小的。', p: 'wǒ men kàn dào shān xià de chéng, fáng zǐ xiǎo xiǎo de.' },
-      { emoji: '🎒', text: '下山的路上，我一点也不累。', p: 'xià shān de lù shàng, wǒ yī diǎn yě bù lèi.' }
+      {
+        emoji: '🌄', text: '早上，我们上山。', p: 'zǎo shang, wǒ men shàng shān.',
+        sceneBg: 'dawn',
+        sceneAlt: '早上，我们上山',
+        scene: [
+          { e: '☀️', x: 68, y: 28, s: 1.5, m: 'float' },
+          { e: '⛰️', x: 26, y: 52, s: 1.7 },
+          { e: '🧒', x: 56, y: 80, s: 1.4 },
+          { e: '🥾', x: 78, y: 88, s: 1 }
+        ]
+      },
+      {
+        emoji: '🥾', text: '路很长，我们走很慢。', p: 'lù hěn cháng, wǒ men zǒu hěn màn.',
+        sceneBg: 'field',
+        sceneAlt: '路很长，我们走很慢',
+        scene: [
+          { e: '⛰️', x: 22, y: 44, s: 1.6 },
+          { e: '🚶', x: 52, y: 74, s: 1.6 },
+          { e: '🧒', x: 72, y: 84, s: 1.2 },
+          { e: '🌿', x: 20, y: 90, s: 1, m: 'sway' }
+        ]
+      },
+      {
+        emoji: '🌲', text: '山上有松，也有竹。', p: 'shān shàng yǒu sōng, yě yǒu zhú.',
+        sceneBg: 'field',
+        sceneAlt: '山上有松，也有竹',
+        scene: [
+          { e: '⛰️', x: 20, y: 42, s: 1.5 },
+          { e: '🌲', x: 46, y: 62, s: 1.7 },
+          { e: '🎋', x: 74, y: 72, s: 1.4, m: 'sway' },
+          { e: '🌿', x: 30, y: 88, s: 1, m: 'sway' }
+        ]
+      },
+      {
+        emoji: '🐦', text: '树上有鸟，鸟的声音很好听。', p: 'shù shàng yǒu niǎo, niǎo de shēng yīn hěn hǎo tīng.',
+        sceneBg: 'field',
+        sceneAlt: '树上有鸟，鸟的声音很好听',
+        scene: [
+          { e: '🎵', x: 74, y: 36, s: 0.9, m: 'float' },
+          { e: '🐦', x: 58, y: 46, s: 1.2, m: 'float' },
+          { e: '🌲', x: 40, y: 66, s: 1.8 },
+          { e: '🌿', x: 20, y: 88, s: 1, m: 'sway' }
+        ]
+      },
+      {
+        emoji: '💧', text: '半山有一个泉，泉水很凉。', p: 'bàn shān yǒu yī gè quán, quán shuǐ hěn liáng.',
+        sceneBg: 'field',
+        sceneAlt: '半山有一个泉，泉水很凉',
+        scene: [
+          { e: '🪨', x: 30, y: 58, s: 1.4 },
+          { e: '💧', x: 52, y: 66, s: 1.1, m: 'float' },
+          { e: '🌊', x: 60, y: 84, s: 1.2, m: 'drift' },
+          { e: '🌿', x: 82, y: 78, s: 1, m: 'sway' }
+        ]
+      },
+      {
+        emoji: '⛰️', text: '到了山顶，风很大。', p: 'dào le shān dǐng, fēng hěn dà.',
+        sceneBg: 'sky',
+        sceneAlt: '到了山顶，风很大',
+        scene: [
+          { e: '☁️', x: 24, y: 24, s: 1.1, m: 'drift' },
+          { e: '💨', x: 70, y: 38, s: 1.3, m: 'drift' },
+          { e: '⛰️', x: 46, y: 70, s: 1.9 },
+          { e: '🧒', x: 52, y: 60, s: 1.2 }
+        ]
+      },
+      {
+        emoji: '🌆', text: '我们看到山下的城，房子小小的。', p: 'wǒ men kàn dào shān xià de chéng, fáng zǐ xiǎo xiǎo de.',
+        sceneBg: 'sky',
+        sceneAlt: '我们看到山下的城，房子小小的',
+        scene: [
+          { e: '☁️', x: 76, y: 24, s: 1.1, m: 'drift' },
+          { e: '🌆', x: 56, y: 62, s: 1.3 },
+          { e: '⛰️', x: 22, y: 50, s: 1.5 },
+          { e: '🧒', x: 34, y: 84, s: 1.3 }
+        ]
+      },
+      {
+        emoji: '🎒', text: '下山的路上，我一点也不累。', p: 'xià shān de lù shàng, wǒ yī diǎn yě bù lèi.',
+        sceneBg: 'field',
+        sceneAlt: '下山的路上，我一点也不累',
+        scene: [
+          { e: '⛰️', x: 76, y: 44, s: 1.5 },
+          { e: '🎒', x: 62, y: 72, s: 1.1 },
+          { e: '🧒', x: 40, y: 80, s: 1.5 },
+          { e: '🌿', x: 18, y: 90, s: 1, m: 'sway' }
+        ]
+      }
     ]
   },
   {
@@ -183,14 +825,94 @@ export const LEVEL_3_BOOKS = [
     summary: '洗菜、切菜、开火、放盐、等十分，一人一碗又香又暖。',
     newChars: ['今', '妈', '碗', '汤', '洗', '菜', '豆', '切'],
     pages: [
-      { emoji: '🍲', text: '今天，我要和妈妈做一碗汤。', p: 'jīn tiān, wǒ yào hé mā ma zuò yī wǎn tāng.' },
-      { emoji: '🥬', text: '我们洗菜，也洗豆。', p: 'wǒ men xǐ cài, yě xǐ dòu.' },
-      { emoji: '🔪', text: '妈妈切菜，我摆碗。', p: 'mā ma qiē cài, wǒ bǎi wǎn.' },
-      { emoji: '🔥', text: '火开了，水热了。', p: 'huǒ kāi le, shuǐ rè le.' },
-      { emoji: '🧂', text: '妈妈放了一点盐。', p: 'mā ma fàng le yī diǎn yán.' },
-      { emoji: '⏲️', text: '我们等了十分。', p: 'wǒ men děng le shí fēn.' },
-      { emoji: '👃', text: '屋里都是香味。', p: 'wū lǐ dōu shì xiāng wèi.' },
-      { emoji: '😋', text: '一人一碗，汤又香又暖。', p: 'yī rén yī wǎn, tāng yòu xiāng yòu nuǎn.' }
+      {
+        emoji: '🍲', text: '今天，我要和妈妈做一碗汤。', p: 'jīn tiān, wǒ yào hé mā ma zuò yī wǎn tāng.',
+        sceneBg: 'room',
+        sceneAlt: '今天，我要和妈妈做一碗汤',
+        scene: [
+          { e: '🍲', x: 48, y: 60, s: 1.6 },
+          { e: '👩', x: 74, y: 76, s: 1.4 },
+          { e: '🧒', x: 28, y: 80, s: 1.3 },
+          { e: '🥣', x: 50, y: 90, s: 1.1 }
+        ]
+      },
+      {
+        emoji: '🥬', text: '我们洗菜，也洗豆。', p: 'wǒ men xǐ cài, yě xǐ dòu.',
+        sceneBg: 'room',
+        sceneAlt: '我们洗菜，也洗豆',
+        scene: [
+          { e: '🥬', x: 42, y: 58, s: 1.4, m: 'float' },
+          { e: '💧', x: 64, y: 62, s: 0.9, m: 'float' },
+          { e: '🫘', x: 70, y: 76, s: 0.9 },
+          { e: '🧒', x: 28, y: 82, s: 1.4 }
+        ]
+      },
+      {
+        emoji: '🔪', text: '妈妈切菜，我摆碗。', p: 'mā ma qiē cài, wǒ bǎi wǎn.',
+        sceneBg: 'room',
+        sceneAlt: '妈妈切菜，我摆碗',
+        scene: [
+          { e: '🔪', x: 68, y: 52, s: 1.2, m: 'sway' },
+          { e: '👩', x: 74, y: 74, s: 1.4 },
+          { e: '🥣', x: 40, y: 68, s: 1.4 },
+          { e: '🧒', x: 26, y: 84, s: 1.3 }
+        ]
+      },
+      {
+        emoji: '🔥', text: '火开了，水热了。', p: 'huǒ kāi le, shuǐ rè le.',
+        sceneBg: 'room',
+        sceneAlt: '火开了，水热了',
+        scene: [
+          { e: '♨️', x: 50, y: 38, s: 1, m: 'float' },
+          { e: '🍲', x: 48, y: 62, s: 1.7 },
+          { e: '🔥', x: 48, y: 82, s: 1.3, m: 'float' },
+          { e: '🥢', x: 80, y: 78, s: 1 }
+        ]
+      },
+      {
+        emoji: '🧂', text: '妈妈放了一点盐。', p: 'mā ma fàng le yī diǎn yán.',
+        sceneBg: 'room',
+        sceneAlt: '妈妈放了一点盐',
+        scene: [
+          { e: '🧂', x: 56, y: 52, s: 1.2, m: 'float' },
+          { e: '🍲', x: 46, y: 68, s: 1.5 },
+          { e: '👩', x: 76, y: 78, s: 1.4 },
+          { e: '🥣', x: 24, y: 86, s: 1.1 }
+        ]
+      },
+      {
+        emoji: '⏲️', text: '我们等了十分。', p: 'wǒ men děng le shí fēn.',
+        sceneBg: 'room',
+        sceneAlt: '我们等了十分',
+        scene: [
+          { e: '⏲️', x: 68, y: 46, s: 1.3, m: 'float' },
+          { e: '🍲', x: 44, y: 66, s: 1.4 },
+          { e: '🧒', x: 30, y: 80, s: 1.4 },
+          { e: '🪑', x: 82, y: 88, s: 1.1 }
+        ]
+      },
+      {
+        emoji: '👃', text: '屋里都是香味。', p: 'wū lǐ dōu shì xiāng wèi.',
+        sceneBg: 'room',
+        sceneAlt: '屋里都是香味',
+        scene: [
+          { e: '♨️', x: 44, y: 38, s: 1.1, m: 'float' },
+          { e: '👃', x: 66, y: 56, s: 1.3, m: 'float' },
+          { e: '🍲', x: 42, y: 68, s: 1.4 },
+          { e: '🧒', x: 76, y: 82, s: 1.3 }
+        ]
+      },
+      {
+        emoji: '😋', text: '一人一碗，汤又香又暖。', p: 'yī rén yī wǎn, tāng yòu xiāng yòu nuǎn.',
+        sceneBg: 'room',
+        sceneAlt: '一人一碗，汤又香又暖',
+        scene: [
+          { e: '🥣', x: 34, y: 60, s: 1.3 },
+          { e: '🥣', x: 62, y: 66, s: 1.2 },
+          { e: '🍲', x: 82, y: 78, s: 1.1 },
+          { e: '😋', x: 44, y: 84, s: 1.6, m: 'float' }
+        ]
+      }
     ]
   },
   {
