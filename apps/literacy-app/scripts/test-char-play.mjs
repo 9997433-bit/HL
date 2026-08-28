@@ -21,7 +21,8 @@ import {
   PLAY_TEMPLATE_IDS,
   countRichPlays,
   findPlayHoles,
-  getCharPlay
+  getCharPlay,
+  loadAllRichPlays
 } from '../src/data/char-play.js'
 
 const sampleArg = process.argv.find((a) => a.startsWith('--sample='))
@@ -129,6 +130,28 @@ function check(play, who) {
   if (flaw) fail(`${who} ${play.template}/${play.kind}：${flaw}`)
 }
 
+/* ------------------------------------- 0. 分片一片都没到货时也得玩得成 */
+
+/**
+ * 手写剧本从 Round 18 起按单元懒加载。第一屏、断网、分片 404，都会落到
+ * 「一条手写剧本都没注册」这个状态——那才是最容易被忽略的常态。
+ * 所以先在冷启动状态下抽查一遍：此时每个字都该走自动补齐层，而且照样玩得完。
+ */
+{
+  if (countRichPlays() !== 0) fail('刚 import 就有富脚本在册：分片没懒加载，拆包白拆了')
+  for (const char of targets.filter((_, i) => i % 30 === 0)) {
+    const play = getCharPlay(char)
+    check(play, `冷启动「${char}」`)
+    if (play?.source === 'rich') fail(`冷启动「${char}」拿到了 rich —— 分片其实是同步进来的`)
+  }
+}
+
+/**
+ * 下面数的是全库，所以把分片全装上。UI 不许这么干（等于把拆包白拆），
+ * 探针和单测可以：它们本来就要一次遍历 1820 个字。
+ */
+const richRegistered = await loadAllRichPlays()
+
 /* ---------------------------------------------------- 1. 全库零空洞 */
 
 const holes = findPlayHoles(targets)
@@ -176,7 +199,8 @@ for (const odd of ['龘', '𠀋', 'A', '7', '汉字', ' ', '', null, undefined])
 /* ---------------------------------------------------- 5. 富脚本确实压过模板 */
 
 const rich = countRichPlays()
-if (rich < 1) fail('一条富脚本都没有：char-play-rich.js 没被收进注册表')
+if (rich < 1) fail('一条富脚本都没有：play-rich/ 的分片没被收进注册表')
+if (rich !== richRegistered) fail(`loadAllRichPlays 报 ${richRegistered} 条，注册表里却是 ${rich} 条`)
 if (getCharPlay('日').templateFallback !== false) fail('「日」有富脚本却仍标成模板补齐')
 if (!sourceCount.get('rich')) fail('全库一条富脚本都没被用上')
 

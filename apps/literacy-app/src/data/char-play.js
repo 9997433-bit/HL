@@ -53,7 +53,7 @@ export const PLAY_KINDS = ['pick', 'catch', 'assemble', 'watch', 'match', 'push'
 
 /**
  * 模板 id → 渲染器。三套方言的模板都在这里登记：
- * 上排是生成器（char-play-templates.js），中排是富脚本（char-play-rich.js），
+ * 上排是生成器（char-play-templates.js），中排是富脚本（play-rich/uN.js），
  * 下排是本模块兜底用的。没登记的模板按 interaction 归类，见 INTERACTION_KIND。
  */
 const TEMPLATE_KIND = {

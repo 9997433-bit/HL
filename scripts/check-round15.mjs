@@ -96,6 +96,8 @@ const runtime = {
     if (!exists(rel)) continue
     try {
       const mod = await import(path.join(root, rel))
+      // ROUND18_H3 拆包后剧本按单元懒加载，启动时注册表是空的（架构契约 §2.7 主案）
+      if (typeof mod.loadAllRichPlays === 'function') await mod.loadAllRichPlays()
       const fn = mod.getCharPlay || mod.default?.getCharPlay
       if (typeof fn === 'function') {
         runtime.getCharPlay = fn
