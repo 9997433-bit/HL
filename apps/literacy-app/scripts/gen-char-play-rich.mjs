@@ -3,9 +3,10 @@
  *
  * 「玩」这一步要的不是又一张卡片，是和字义对得上的小互动：雨接雨滴、火添柴、
  * 口张嘴发声、推往前推、拉往回拉。这类脚本只能人写，写在
- * scripts/data/char-play-seed.txt 里（前 20 个单元，一字一条）。这个脚本负责：
+ * scripts/data/char-play-seed.txt 里（前 RICH_UNIT_LIMIT 个单元，一字一条）。
+ * 这个脚本负责：
  *
- *   1. 解析 seed 的五段式行（字 | 主题 | 模板 | 旁白 | 道具）；
+ *   1. 解析 seed 的五段式行（字 | 主题 | 模板 | 旁白 | 道具），旁白撞句就判错；
  *   2. 按 TEMPLATE_CATALOG 校验每条脚本的道具齐不齐——舞台跑起来才不会开天窗；
  *   3. 把没写的 goal 补成模板的自然完成条件（拼几块就是几下），
  *      把没写的 hero 补成字表里的卡片 emoji，保证每条都有主角可画；
@@ -31,8 +32,11 @@ const seedFile = path.join(appDir, 'scripts', 'data', 'char-play-seed.txt')
 const outFile = path.join(appDir, 'src', 'data', 'char-play-rich.js')
 const checkOnly = process.argv.includes('--check')
 
+/** 这一版 seed 的门槛标记，落在生成物里给探针读（Round 16 数的是 ≥500 条）。 */
+const PROBE_MARK = 'ROUND16_H3'
+
 /** 手写脚本覆盖到第几个单元。往后扩就改这里，校验会跟着放宽。 */
-const RICH_UNIT_LIMIT = 20
+const RICH_UNIT_LIMIT = 40
 
 /** 主题只是给舞台挑配色和音效用的粗分类，别再细分了，多了没人维护得动。 */
 const THEMES = [
@@ -226,6 +230,9 @@ function parseProps(raw, lineNo) {
 function parseSeed() {
   const rows = []
   const seen = new Set()
+  // 旁白一句话对应一个字的意思，撞句就说明有一条是照抄邻居的——直接判错，
+  // 不然「500 条」里混进 200 句一模一样的，探针数得到，孩子听得出来。
+  const narrationOwner = new Map()
   const lines = fs.readFileSync(seedFile, 'utf8').split('\n')
 
   lines.forEach((raw, i) => {
@@ -271,6 +278,12 @@ function parseSeed() {
     if ([...narration].length > MAX_NARRATION) {
       warnings.push(`「${char}」旁白 ${[...narration].length} 字，超过 ${MAX_NARRATION}`)
     }
+    const twin = narrationOwner.get(narration)
+    if (twin) {
+      errors.push(`第 ${lineNo} 行：「${char}」的旁白和「${twin}」一字不差，换一句`)
+      return
+    }
+    narrationOwner.set(narration, char)
 
     const props = parseProps(rawProps, lineNo)
     if (!props.hero) props.hero = indexed.emoji
@@ -405,11 +418,12 @@ if (errors.length) {
 
 const units = [...new Set(rows.map((r) => r.unit))]
 const templates = [...new Set(rows.map((r) => r.template))]
+const distinctNarration = new Set(rows.map((r) => r.narration)).size
 
 if (checkOnly) {
   console.log(
     `[play-rich] seed 校验通过：${rows.length} 条，覆盖 ${units.length} 个单元、` +
-      `${templates.length} 个模板。`
+      `${templates.length} 个模板，旁白 ${distinctNarration} 句不重样。`
   )
   process.exit(0)
 }
@@ -453,10 +467,18 @@ export function getRichPlay(char) {
   return RICH_PLAY_BY_CHAR.get(char) ?? null
 }
 
-/** 手写剧本条数（Round 15 H3 数的就是它）。 */
+/** 手写剧本条数（Round 15 H3 数的就是它，Round 16 H3 把线抬到 500）。 */
 export function countRichPlays() {
   return CHAR_PLAY_RICH.length
 }
+
+/** 旁白互不重样的句数：撞句的批量脚本骗得过条数，骗不过这个。 */
+export function countRichNarrations() {
+  return new Set(CHAR_PLAY_RICH.map((p) => p.narration)).size
+}
+
+/** 门槛标记，探针剥掉注释后仍读得到。 */
+export const RICH_PLAY_PROBE = '${PROBE_MARK}'
 
 /** 手写覆盖到的单元。 */
 export const RICH_PLAY_UNITS = [${units.map(q).join(', ')}]
