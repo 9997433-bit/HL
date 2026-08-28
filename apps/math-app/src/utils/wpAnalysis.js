@@ -12,16 +12,16 @@
  * equation 里可能出现的记号只有 0-9、+ − × ÷、括号、逗号分句和「……」余数，
  * 遇到解析不了的写法一律返回空步骤，由界面退回显示原始算式，不猜。
  *
- * 公式推导管「每道题都有剖析」，手写剖析（ROUND17_H4，见 data/word-problem-explains.js）
- * 管「这道题讲得像老师」：查得到手写就整条顶掉公式那句放之四海皆准的话，
- * 查不到就照旧走公式，两边都不缺步。
+ * 公式推导管「每道题都有剖析」，手写剖析（ROUND17_H4 / ROUND18_H5，
+ * 见 data/word-problem-explains.js）管「这道题讲得像老师」：查得到手写就整条顶掉
+ * 公式那句放之四海皆准的话，查不到就照旧走公式，两边都不缺步。
  */
-import { explainOf, ROUND17_H4 } from '@/data/word-problem-explains.js'
+import { explainOf, ROUND17_H4, ROUND18_H5 } from '@/data/word-problem-explains.js'
 
 /** 剖析壳的三件套：图示理解 → 分步提示 → 变式入口。 */
 export const ROUND16_H5 = 'diagram-steps-variant'
 
-export { ROUND17_H4 }
+export { ROUND17_H4, ROUND18_H5 }
 
 /** 运算符统一成题面里用的那套符号，顺带带上「为什么用它」的一句话。 */
 const OPS = {
