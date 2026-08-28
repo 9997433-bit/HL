@@ -110,6 +110,31 @@ const mapUnits = computed(() =>
 
 const currentUnitId = computed(() => currentPage.value?.unit.id ?? null)
 
+/**
+ * 在某一站**停下来**了，就把那一站的玩步剧本预热上（ROUND18_H3 按单元分片）。
+ * 孩子挑字的这几秒足够把一片拉回来，点进详情时第一步就能演手写那一版。
+ *
+ * 两处克制，都是为了别把刚拆掉的包又整包拉回来：
+ *   停下来才拉 —— 一路翻过 99 站不算「要玩这一站」，不防着就等于全量下载；
+ *   引擎也动态取 —— 字表页自己用不到玩步引擎，不该为预取先背上它。
+ */
+const PLAY_PRELOAD_DWELL = 600
+let playPreloadTimer = 0
+
+watch(
+  currentUnitId,
+  (unitId) => {
+    window.clearTimeout(playPreloadTimer)
+    if (!unitId) return
+    playPreloadTimer = window.setTimeout(() => {
+      import('@/data/char-play.js').then((play) => play.preloadPlayUnits([unitId]))
+    }, PLAY_PRELOAD_DWELL)
+  },
+  { immediate: true }
+)
+
+onUnmounted(() => window.clearTimeout(playPreloadTimer))
+
 const currentStop = computed(
   () => mapUnits.value.find((s) => s.unit.id === currentUnitId.value) ?? mapUnits.value[0]
 )

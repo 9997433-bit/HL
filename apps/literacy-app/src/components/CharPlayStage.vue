@@ -25,7 +25,7 @@
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import gsap from 'gsap'
 import OpenMojiIcon from '@shared/components/OpenMojiIcon.vue'
-import { getCharPlay } from '@/data/char-play.js'
+import { getCharPlay, getCharPlayAsync } from '@/data/char-play.js'
 import { useFeedback } from '@/composables/useFeedback.js'
 import { useSettingsStore } from '@/stores/settings.js'
 import { speak } from '@/utils/speech.js'
@@ -55,7 +55,17 @@ const rainRef = ref(null)
 const frameRef = ref(null)
 const heroRef = ref(null)
 
-const scene = computed(() => props.play ?? getCharPlay(props.char))
+/**
+ * 手写剧本按单元分片，用到才下载（ROUND18_H3）。取剧本因此走异步口
+ * getCharPlayAsync()，它会先把这个字的单元备好。
+ *
+ * 片在路上的那几十毫秒里舞台不空着：先用 getCharPlay() 同步那一份开演——
+ * 那是自动补齐层出的关，一样玩得完，只是不是作者手写的那一版。片到了就换上。
+ * 「玩」是五步的第一步，等一次网络就是一次白屏，所以宁可先演再换。
+ */
+const authored = ref(null)
+
+const scene = computed(() => props.play ?? authored.value ?? getCharPlay(props.char))
 const bag = computed(() => scene.value?.props ?? {})
 const kind = computed(() => scene.value?.kind ?? 'catch')
 
@@ -360,7 +370,26 @@ const progressText = computed(() => {
   return `已完成 ${taken.size} / ${need.value}`
 })
 
-watch(() => [props.char, kind.value, reduced.value], reset, { immediate: true })
+/**
+ * 换字就去取这个字的手写剧本。两道防护：
+ *   竞态 —— 回来时字已经翻走了就丢弃结果，别把上一个字的关摆到这一个字上；
+ *   打断 —— 孩子已经动过手 / 已经玩完就这一次不换了，等下一个字再说。
+ */
+watch(
+  () => props.char,
+  (char) => {
+    authored.value = null
+    if (props.play) return
+    getCharPlayAsync(char).then((play) => {
+      if (props.char !== char || state.value === 'done' || interactions.value > 0) return
+      authored.value = play
+    })
+  },
+  { immediate: true }
+)
+
+// 关卡换了（换字、手写剧本到货、减少动态开关）就从头摆一遍
+watch(() => [props.char, scene.value, reduced.value], reset, { immediate: true })
 
 watch(
   () => props.autoStart,

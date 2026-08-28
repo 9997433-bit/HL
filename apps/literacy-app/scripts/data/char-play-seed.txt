@@ -1,10 +1,10 @@
-# ROUND17_H2（承 ROUND15_H3 / ROUND16_H3）· 富互动 play 脚本 seed —— 「玩」这一步的手写剧本，一字一个。
+# ROUND18_H2（承 ROUND15_H3 / ROUND16_H3 / ROUND17_H2）· 富互动 play 脚本 seed —— 「玩」这一步的手写剧本，一字一个。
 #
 # 洪恩识字的卖点是「根据字源、字义设计每一个汉字动画」。这份 seed 就是咱们的
-# 对应物：前 55 个单元（940 字）每个字一条手写脚本，玩法和字义直接挂钩——
+# 对应物：前 70 个单元（1240 字）每个字一条手写脚本，玩法和字义直接挂钩——
 # 雨是接雨滴、火是添柴、口是张嘴发声、推是往前推、拉是往回拉。
 # Round 15 写到 u20（272 条），Round 16 续到 u40（640 条），Round 17 续到 u55（940 条），
-# 把「随手点开一个字都是手写关」的密度铺过全库前半。
+# Round 18 续到 u70（1240 条），把「随手点开一个字都是手写关」的密度铺过全库前 2/3。
 #
 # 旁白撞句在生成期就拦：一字不差判错，只改标点语气的近似撞句同样判错
 # （gen-char-play-rich.mjs 的 narrationKey）。凑条数糊弄不过去。
@@ -37,6 +37,8 @@
 #     color   涂色玩法的颜色
 #     word    组词玩法要拼出来的词
 #     goal    要完成几次有效交互（默认 3），reduce-motion / 跳过时不影响通关
+#
+# 门槛（ROUND18_H2）：条数 ≥1200，旁白去重 ≥960，两条线都在生成期卡。
 #
 # 生成物：src/data/char-play-rich.js（node scripts/gen-char-play-rich.mjs）
 # 校验：node scripts/gen-char-play-rich.mjs --check
@@ -1094,3 +1096,333 @@
 略|number|pop-bubbles|太多了，略去两个不数。|hero=📉;items=🔵,🔵;goal=2
 甚|feeling|grow-tap|一次比一次甚，声音越来越大。|stages=🔈,🔉,🔊;goal=3
 各|number|sort-buckets|各归各位：红的一边，蓝的一边。|buckets=红:🟥,蓝:🟦;items=🍎:红,🌹:红,🫐:蓝,🧊:蓝
+
+# ---- u56 科学和宇宙 ----
+科|school|sort-buckets|科学课上分一分：动物和植物。|buckets=动物:🐾,植物:🌿;items=🐰:动物,🐟:动物,🌵:植物,🍀:植物
+技|action|drag-parts|学一门手艺，先把家什凑齐。|hero=🛠️;parts=🔨,🔧,🪛
+器|object|scene-poke|这些器具都会帮忙，点点看。|hero=⚙️;items=🍶,🥄,🔧;goal=3
+磁|object|rain-catch|磁铁一凑近，铁家伙全贴上来。|items=🔩,📎,🔑;tool=🧲
+源|nature|trace-path|顺着小溪往上找，找到水源头。|hero=💧;dir=up;goal=3
+宇|place|grow-tap|从小屋顶看到大星空，那是宇。|stages=🏠,🌌,✨;goal=3
+宙|time|morph-story|从很久很久以前，一直数到现在。|stages=🕰️,🪐,宙;goal=3
+卫|action|emoji-hunt|谁在天上守着地球？找出卫星。|target=🛰️;decoys=🌙,⭐,☁️;goal=1
+箭|action|swipe-motion|数三下，火箭嗖地射上天。|hero=🚀;dir=up;goal=3
+另|number|sort-buckets|这一堆搁这边，另一堆搁那边。|buckets=这边:📦,那边:🧺;items=🍎:这边,🍐:这边,🥕:那边,🥔:那边
+某|word|tap-reveal|某个盒子里有惊喜，挨个揭。|hero=❔;items=🎁,🧸,🍬;goal=3
+逆|action|swipe-motion|大家往前，它偏要逆着走。|hero=↩️;dir=left;goal=3
+破|action|pop-bubbles|一戳一个，泡泡全破掉。|hero=💥;items=🫧,🫧,🫧;goal=3
+挖|action|tap-reveal|拿小铲子挖一挖，挖出宝贝。|hero=⛏️;items=🥔,🦴,💎;goal=3
+埋|action|drag-parts|把种子埋进土里，盖上泥。|hero=🌱;parts=🌰,🟫
+堆|action|count-tap|一块一块往上堆，堆成小山。|hero=🗻;items=🧱,🧱,🧱,🧱;goal=4
+决|action|emoji-hunt|拿定主意，决定就选这一个。|target=✔️;decoys=❌,❔,➖;goal=1
+选|action|tap-reveal|挑一挑，选中喜欢的那几样。|hero=☑️;items=🍦,🎈,🧸;goal=3
+择|action|sort-buckets|择菜啦：好的留下，坏的丢掉。|buckets=好的:✅,坏的:🗑️;items=🥬:好的,🥦:好的,🍂:坏的,🐛:坏的
+参|family|count-tap|举手参加，一个一个报上名。|hero=🙋;items=🙋,🙋,🙋;goal=3
+
+# ---- u57 心情和身体 ----
+欢|feeling|pop-bubbles|欢呼一声，彩带全炸开。|hero=😄;items=🎊,🎊,🎊;goal=3
+乐|feeling|sound-tap|按一下就响，快乐的音符。|hero=🎉;sound=啦啦;goal=3
+悲|feeling|morph-story|笑脸慢慢垮下来，好悲伤。|stages=🙂,😔,😢;goal=3
+愁|feeling|grow-tap|心事越堆越多，眉头皱起来。|stages=🙂,😟,😩;goal=3
+恼|feeling|emoji-hunt|谁在生闷气？把苦恼的脸挑出来。|target=😤;decoys=😀,😴,🥰;goal=1
+怒|feeling|swipe-motion|气得一拍桌子，怒气往上冲。|hero=😠;dir=up;goal=3
+惊|feeling|tap-reveal|盒盖一开，吓一大惊。|hero=😲;items=🐍,🎈,🕷️;goal=3
+恐|feeling|sort-buckets|不怕的搁一边，恐怖的搁一边。|buckets=不怕:🙂,害怕:😨;items=🐣:不怕,🌼:不怕,👻:害怕,🕷️:害怕
+羞|feeling|color-fill|一害羞，脸蛋就红扑扑的。|hero=😊;color=红;goal=3
+傲|feeling|swipe-motion|把头一抬，骄傲地挺起来。|hero=😌;dir=up;goal=3
+柔|body|trace-path|软软的小熊，轻轻推着走。|hero=🧸;dir=right;goal=3
+睛|body|scene-poke|睁着眼睛，看看周围有什么。|hero=👁️;items=🌈,🐦,🌻;goal=3
+睁|body|grow-tap|眼皮慢慢抬，眼睛睁开了。|stages=😴,😑,👀;goal=3
+眉|body|drag-parts|把两道眉毛贴到眼睛上边。|hero=😐;parts=〰️,〰️
+唇|body|color-fill|给小嘴唇涂上淡淡的粉。|hero=👄;color=粉;goal=3
+喉|body|sound-tap|摸摸喉咙，跟着哼一声。|hero=🗣️;sound=嗯;goal=3
+腰|body|swipe-motion|弯下腰去，捡起地上的球。|hero=🧍;dir=down;goal=3
+掌|body|count-tap|拍拍手掌，一起拍五下。|hero=🖐️;items=👏,👏,👏,👏,👏;goal=5
+揉|action|count-tap|两只手揉一揉，揉三下面团。|hero=🤲;items=🥟,🥟,🥟;goal=3
+抖|action|swipe-motion|冷得直发抖，被子抖一抖。|hero=🥶;dir=left;goal=3
+
+# ---- u58 讲故事 ----
+勤|action|count-tap|小蜜蜂最勤劳，采满四朵花。|hero=🐝;items=🌻,🌻,🌻,🌻;goal=4
+俭|number|pop-bubbles|省着点花，只用掉两个硬币。|hero=🪙;items=🪙,🪙;goal=2
+谦|action|swipe-motion|谦让一下，请你先过去。|hero=🙇;dir=right;goal=3
+虚|object|tap-reveal|罐子是空的吗？揭开瞧瞧。|hero=🫙;items=💨,💨,💨;goal=3
+善|feeling|sort-buckets|善良的事一边，不好的事一边。|buckets=善良:😇,不好:😖;items=🤝:善良,🎁:善良,💢:不好,🗑️:不好
+故|school|morph-story|翻开故事书，故事开场了。|stages=📕,📖,🧚;goal=3
+奇|feeling|emoji-hunt|哪一样最稀奇？找出会发光的。|target=✨;decoys=🪨,🍂,🧱;goal=1
+神|feeling|grow-tap|一阵烟冒出来，神仙现身了。|stages=🫖,💨,🧞;goal=3
+仙|place|trace-path|小仙子踩着云往上飘。|hero=🧝;dir=up;goal=3
+妖|feeling|emoji-hunt|哪个是妖怪的脸？把它挑出来。|target=👺;decoys=🙂,🐰,🌼;goal=1
+怪|feeling|morph-story|影子晃啊晃，晃成个小怪物。|stages=🌫️,👤,👻;goal=3
+精|animal|scene-poke|花丛里住着小精灵，点点找。|hero=🧚;items=🌸,🍄,🦋;goal=3
+灵|action|pair-match|机灵的小家伙，把图配成对。|pairs=🧚:✨,🐿️:🌰,🦊:🍇
+侠|action|swipe-motion|小侠客一挥手，冲上前去。|hero=🦸;dir=right;goal=3
+紧|action|drag-parts|把绳子拉紧，打一个结。|hero=🪢;parts=🧵,🪢
+搬|action|count-tap|一箱一箱往车上搬，搬三箱。|hero=📦;items=📦,📦,📦;goal=3
+迷|action|trace-path|走迷宫可别迷路，跟着走。|hero=🌀;dir=right;goal=3
+扔|action|pop-bubbles|一样一样扔进垃圾桶。|hero=🗑️;items=🍌,📄,🥤;goal=3
+敲|action|sound-tap|咚咚咚，敲敲这扇门。|hero=🚪;sound=咚咚;goal=3
+甩|action|swipe-motion|手往外一甩，水珠飞出去。|hero=🌀;dir=right;goal=3
+
+# ---- u59 识字小路 ----
+乙|shape|morph-story|一笔弯弯拐个钩，就是乙。|stages=〰️,🪝,乙;goal=3
+丁|object|drag-parts|小钉子立起来，钉住木板。|hero=📌;parts=📌,🪵
+卜|word|tap-reveal|翻开小卦看一看，会是什么。|hero=🔮;items=☀️,🌧️,🌈;goal=3
+入|action|trace-path|带着小人往门里走进去。|hero=🚪;dir=right;goal=3
+儿|family|grow-tap|小娃娃一年年长，长成男孩。|stages=👶,🧒,👦;goal=3
+于|place|emoji-hunt|东西在于哪儿？找到那个点。|target=📍;decoys=🌳,🚗,🏠;goal=1
+亏|feeling|morph-story|吃了亏，嘴巴一下子瘪下去。|stages=🙂,😕,😖;goal=3
+士|body|swipe-motion|小战士挺起胸，昂首站好。|hero=🎖️;dir=up;goal=3
+丈|number|count-tap|一丈一丈量墙，量满三丈。|hero=📏;items=📏,📏,📏;goal=3
+巾|object|drag-parts|把小手巾叠好挂起来。|hero=🧣;parts=🧻,🪝
+川|nature|trace-path|三条水线往前淌，那是大川。|hero=🏞️;dir=right;goal=3
+亿|number|count-tap|数字大得数不完，先点五下。|hero=🔢;items=🔢,🔢,🔢,🔢,🔢;goal=5
+夕|time|morph-story|太阳落山，夕阳染红了天边。|stages=🌞,🌇,🌆;goal=3
+勺|food|count-tap|拿小勺舀汤，舀满三勺。|hero=🥄;items=🥄,🥄,🥄;goal=3
+凡|feeling|emoji-hunt|哪个最平凡？挑出普通的那张脸。|target=🙂;decoys=👑,🦄,🌟;goal=1
+丸|shape|pop-bubbles|小圆丸滚过来，一个个收好。|hero=⚪;items=⚪,⚪,⚪;goal=3
+广|place|scene-poke|广场好宽好大，点点有什么。|hero=🏞️;items=⛲,🕊️,🎠;goal=3
+丫|nature|drag-parts|树枝分出两个丫，拼一拼。|hero=🌿;parts=🌿,🌿
+义|action|pair-match|讲义气的小伙伴，配成一对。|pairs=🐶:🦴,🐱:🐟,🐰:🥕
+之|word|trace-path|沿着弯弯的之字路上山。|hero=📜;dir=up;goal=3
+
+# ---- u60 识字小桥 ----
+己|family|tap-reveal|镜子里的自己，点开瞧瞧。|hero=🙋;items=🪞;goal=1
+弓|action|swipe-motion|把弓弦往后一拉，绷紧了。|hero=🏹;dir=left;goal=3
+刃|object|emoji-hunt|哪一样有刀刃？小心找出来。|target=🔪;decoys=🥄,🧸,🎈;goal=1
+丰|nature|grow-tap|稻子越长越丰，沉甸甸的。|stages=🌱,🌿,🌾;goal=3
+王|family|color-fill|给国王的皇冠涂上金色。|hero=👑;color=金;goal=3
+夫|family|pair-match|一家人配一配：谁跟谁一对。|pairs=👨:👩,👴:👵,👦:👧
+无|number|pop-bubbles|全都拿走，最后一个也不剩。|hero=🈳;items=🍎,🍎;goal=2
+专|action|count-tap|专心一点，只盯着靶心点三下。|hero=🎯;items=🎯,🎯,🎯;goal=3
+扎|action|drag-parts|把小旗扎进土里，站得稳稳。|hero=📌;parts=🚩,🟫
+艺|school|scene-poke|画画唱歌都是本领，点点看。|hero=🎨;items=🖌️,🎵,🩰;goal=3
+区|place|sort-buckets|分成两个小区：住人和停车。|buckets=住人:🏠,停车:🅿️;items=🛏️:住人,🍽️:住人,🚗:停车,🚲:停车
+历|time|count-tap|日历一天撕一页，撕掉四页。|hero=📅;items=📅,📅,📅,📅;goal=4
+尤|feeling|emoji-hunt|哪一颗尤其亮？找最亮的星。|target=🌟;decoys=⭐,✨,💫;goal=1
+匹|animal|count-tap|一匹一匹数马，数满三匹。|hero=🐎;items=🐎,🐎,🐎;goal=3
+巨|number|grow-tap|小象一口一口长成巨兽。|stages=🐘,🦣,🏔️;goal=3
+互|action|pair-match|你帮我我帮你，互相配一对。|pairs=🤝:🤝,🧤:🧤,🧦:🧦
+止|action|emoji-hunt|该停下了，找出停止的牌子。|target=🛑;decoys=🟢,🟡,➡️;goal=1
+贝|nature|scene-poke|沙滩上有小贝壳，挨个点。|hero=🐚;items=🐚,🌊,⭐;goal=3
+冈|nature|trace-path|翻过小山冈，一路往上爬。|hero=🏔️;dir=up;goal=3
+见|body|tap-reveal|眼睛一睁，看见好多东西。|hero=👀;items=🌳,🐦,🚗;goal=3
+
+# ---- u61 识字小坡 ----
+仁|feeling|pair-match|待人有爱心，把心配成对。|pairs=❤️:❤️,💛:💛,💙:💙
+仅|number|count-tap|仅仅一个就够了，只点一下。|hero=1️⃣;items=🍬;goal=1
+反|action|swipe-motion|翻过来，看看反面是什么。|hero=🔄;dir=left;goal=3
+介|family|tap-reveal|我来介绍新朋友，一个个揭。|hero=🙋;items=🐶,🐱,🐰;goal=3
+乏|feeling|morph-story|玩累了，人一下子没了力气。|stages=🏃,🚶,😪;goal=3
+氏|family|drag-parts|一家人姓一个姓，凑成一家。|hero=👪;parts=👨,👩,👧
+勿|action|emoji-hunt|这里勿动，找出禁止的牌子。|target=🚫;decoys=✅,➡️,🔵;goal=1
+欠|body|grow-tap|困了打个哈欠，嘴越张越大。|stages=🙂,😯,🥱;goal=3
+丹|color|color-fill|丹就是红，把花瓣涂红透。|hero=🌺;color=丹红;goal=3
+匀|action|sort-buckets|分得匀匀的：你两个我两个。|buckets=你的:🙋,我的:🙆;items=🍬:你的,🍭:你的,🍫:我的,🍪:我的
+乌|animal|color-fill|乌鸦黑黑的，涂成墨黑色。|hero=🐦‍⬛;color=黑;goal=3
+勾|action|trace-path|笔尖往下一勾，画个小钩。|hero=✔️;dir=down;goal=3
+凤|animal|grow-tap|凤凰抖抖尾巴，越来越美。|stages=🐣,🦜,🦚;goal=3
+计|number|count-tap|拨着算珠计一计，拨四下。|hero=🧮;items=🧮,🧮,🧮,🧮;goal=4
+订|school|drag-parts|把纸订在一起，别上曲别针。|hero=📝;parts=📄,📎
+户|place|tap-reveal|一户一户问一声，看看谁在。|hero=🚪;items=👵,🐕,👶;goal=3
+引|action|rain-catch|磁石引着铁片，一片片吸住。|items=📎,🔩,🔗;tool=🧲
+丑|feeling|emoji-hunt|哪个小丑的鼻子最红？找出来。|target=🤡;decoys=😀,😺,🐷;goal=1
+巴|body|sound-tap|张开嘴巴，跟我念一声巴。|hero=👄;sound=巴;goal=3
+孔|shape|pop-bubbles|一个个小孔，挨着戳穿它。|hero=🕳️;items=⚫,⚫,⚫;goal=3
+
+# ---- u62 识字树林 ----
+办|action|sort-buckets|事情分开办：先做的和后做的。|buckets=先做:1️⃣,后做:2️⃣;items=🪥:先做,🍚:先做,📺:后做,🛏️:后做
+允|action|emoji-hunt|可以吗？找出允许通过的绿灯。|target=✅;decoys=🚫,❌,⛔;goal=1
+邓|family|tap-reveal|门牌上写着邓，去找邓家人。|hero=👤;items=🚪,📛,👋;goal=3
+劝|action|swipe-motion|好好劝一劝，请他别生气。|hero=🗣️;dir=right;goal=3
+未|time|morph-story|时候还未到，果子没熟呢。|stages=🌸,🍏,🍎;goal=3
+末|time|swipe-motion|翻到最后一页，到了末尾。|hero=🔚;dir=right;goal=3
+示|action|tap-reveal|老师示范一遍，跟着揭开看。|hero=👉;items=✋,👏,🤙;goal=3
+巧|action|drag-parts|手真巧，几块拼图巧巧拼好。|hero=🎯;parts=🧩,🧩,🧩
+正|shape|count-tap|一笔一笔写个正字，写五笔。|hero=📐;items=➖,➖,➖,➖,➖;goal=5
+扑|animal|swipe-motion|小狗一下子扑了过来。|hero=🐕;dir=right;goal=3
+予|action|pair-match|把礼物给予朋友，配一配。|pairs=🎁:🧒,🍰:👧,🎈:👦
+扒|action|swipe-motion|双手往两边扒开草丛。|hero=🙌;dir=left;goal=3
+功|action|grow-tap|一点一点练，最后练成功。|stages=😣,💪,🏆;goal=3
+甘|food|pop-bubbles|甘甜的蜜，一口一口尝。|hero=🍯;items=🍯,🍯,🍯;goal=3
+艾|nature|scene-poke|艾草香香的，点点这些草药。|hero=🌿;items=🌿,🍃,🌾;goal=3
+术|action|tap-reveal|变个小魔术，帽子里有什么。|hero=🎩;items=🐇,🌷,🃏;goal=3
+可|feeling|emoji-hunt|可以的话点点头，找出点头的。|target=👍;decoys=👎,✋,🤷;goal=1
+丙|number|count-tap|甲乙丙，一路数到第三个。|hero=3️⃣;items=🥇,🥈,🥉;goal=3
+厉|feeling|sound-tap|厉害的一声吼，好大的声。|hero=💪;sound=吼;goal=3
+灭|action|pop-bubbles|一朵一朵小火苗，全浇灭。|hero=🧯;items=🔥,🔥,🔥;goal=3
+
+# ---- u63 识字山谷 ----
+东|place|trace-path|太阳从东边出来，往东走。|hero=🧭;dir=right;goal=3
+占|place|drag-parts|把小旗插上，这块地占住了。|hero=📍;parts=🚩,⛰️
+卢|word|tap-reveal|门口挂着卢家的灯笼。|hero=👤;items=🏮,🏮,🚪;goal=3
+业|school|sort-buckets|各行各业：种地的和看病的。|buckets=种地:🌾,看病:🩺;items=🚜:种地,🌽:种地,💊:看病,🩹:看病
+帅|feeling|color-fill|给小队长的帽子涂个帅气色。|hero=😎;color=蓝;goal=3
+旦|time|morph-story|天刚亮，太阳从地平线冒头。|stages=🌃,🌅,🌞;goal=3
+且|number|count-tap|添了一个，而且再添一个。|hero=➕;items=🍊,🍊;goal=2
+甲|body|drag-parts|给小乌龟穿上硬硬的甲壳。|hero=1️⃣;parts=🐢,🛡️
+申|action|swipe-motion|举手申请，把手往上伸。|hero=📝;dir=up;goal=3
+叮|animal|sound-tap|小蚊子叮一下，叮的一声。|hero=🦟;sound=叮;goal=3
+叭|object|sound-tap|喇叭一按，嘀嘀叭叭响。|hero=📣;sound=叭;goal=3
+兄|family|pair-match|哥哥和弟弟，兄弟配成对。|pairs=👦:👶,👧:👶,👨:👦
+叽|animal|sound-tap|小鸡叽叽叫，跟着学一声。|hero=🐤;sound=叽叽;goal=3
+叼|animal|drag-parts|小狗把骨头叼在嘴里。|hero=🐕;parts=🦴,🐕
+叫|action|sound-tap|大声叫一句，喊出名字来。|hero=📢;sound=喂;goal=3
+叹|feeling|morph-story|唉，长长地叹出一口气。|stages=🙂,😔,😮‍💨;goal=3
+失|action|emoji-hunt|东西丢失了，找找在哪儿。|target=🔑;decoys=🧦,🧢,📖;goal=1
+禾|nature|grow-tap|一棵小禾苗，抽穗结出谷子。|stages=🌱,🌿,🌾;goal=3
+丘|nature|drag-parts|土一堆堆起来，成了小土丘。|hero=⛰️;parts=🟫,🟫,⛰️
+付|number|count-tap|该付钱啦，数出三个硬币。|hero=💰;items=🪙,🪙,🪙;goal=3
+
+# ---- u64 识字溪边 ----
+仗|action|emoji-hunt|打仗要拿什么？找出那把剑。|target=⚔️;decoys=🎈,🍭,🧸;goal=1
+仪|object|drag-parts|把礼物系上蝴蝶结，才有礼。|hero=🎀;parts=🎁,🎀
+仔|action|tap-reveal|仔仔细细找，藏着的都揭开。|hero=🔍;items=🐞,🍀,🔑;goal=3
+斥|feeling|swipe-motion|被训斥了一句，往后缩一缩。|hero=😠;dir=left;goal=3
+乎|word|emoji-hunt|你最在乎哪一个？挑出来。|target=❓;decoys=❗,💬,💭;goal=1
+丛|nature|drag-parts|几棵小草凑一起，成了草丛。|hero=🌿;parts=🌿,🌿,🌿
+令|action|sound-tap|发个口令，喊一声出发。|hero=📜;sound=出发;goal=3
+尔|school|tap-reveal|翻开小书，念念上面的字。|hero=📗;items=📗,📖,📕;goal=3
+匆|action|trace-path|匆匆忙忙，快步往前赶路。|hero=🏃;dir=right;goal=3
+犯|action|sort-buckets|该做的和犯规的，分清楚。|buckets=该做:✅,犯规:⚠️;items=🚶:该做,🧼:该做,🏃:犯规,🔥:犯规
+处|place|scene-poke|到处看一看，这处那处都有。|hero=📍;items=🏠,🏫,🏪;goal=3
+务|action|count-tap|把任务一件件做完，做三件。|hero=✅;items=✅,✅,✅;goal=3
+饥|food|pop-bubbles|肚子饥了，把饭一口口吃光。|hero=🍽️;items=🍚,🍗,🥕;goal=3
+立|body|swipe-motion|站立好，身子往上挺一挺。|hero=🧍;dir=up;goal=3
+冯|word|tap-reveal|信封上写着冯，是给冯家的。|hero=👤;items=✉️,📮,🏠;goal=3
+闪|weather|sound-tap|闪电一闪，咔嚓一声响。|hero=⚡;sound=咔嚓;goal=3
+汁|food|rain-catch|果汁一滴滴落，拿杯子接住。|items=🧃,🍹,🥤;tool=🥛
+汇|nature|drag-parts|小溪汇到一处，成了大河。|hero=🌊;parts=💧,💧,🌊
+宁|feeling|grow-tap|吵闹慢慢停，屋里安宁下来。|stages=🔊,🔉,🔈;goal=3
+穴|place|tap-reveal|洞穴里黑黑的，照照有谁。|hero=🕳️;items=🦇,🐻,💎;goal=3
+
+# ---- u65 识字草原 ----
+它|animal|emoji-hunt|它是谁？找出慢吞吞的乌龟。|target=🐢;decoys=🐇,🐿️,🦊;goal=1
+讨|action|swipe-motion|去讨个主意，走过去问问。|hero=🗣️;dir=right;goal=3
+必|action|count-tap|这几样必须做完，点满三下。|hero=❗;items=❗,❗,❗;goal=3
+永|nature|trace-path|水流啊流，永远流不完。|hero=♾️;dir=down;goal=3
+司|place|scene-poke|上公司的班车，看看车上有啥。|hero=🚌;items=💼,📋,☕;goal=3
+叩|action|sound-tap|叩叩门环，问一句有人吗。|hero=🚪;sound=叩叩;goal=3
+辽|place|grow-tap|地方越看越辽阔，一望无边。|stages=🏡,🏞️,🌏;goal=3
+召|action|count-tap|喊一嗓子召集大家，来三个。|hero=📣;items=🧒,👧,👦;goal=3
+圣|feeling|color-fill|给这颗圣诞星涂上金光。|hero=🌟;color=金黄;goal=3
+纠|action|drag-parts|绳子缠住了，纠出来解开。|hero=🔧;parts=🧵,🪢
+邦|place|sort-buckets|哪些在城里，哪些在乡下。|buckets=城里:🏙️,乡下:🏡;items=🚇:城里,🏢:城里,🐓:乡下,🌾:乡下
+动|action|swipe-motion|别站着啦，动起来往前跑。|hero=🏃;dir=right;goal=3
+扛|action|swipe-motion|使劲把大袋子扛上肩。|hero=💪;dir=up;goal=3
+寺|place|scene-poke|小寺庙里安安静静，点点看。|hero=🛕;items=🔔,🕯️,🧘;goal=3
+吉|feeling|tap-reveal|红包里装着吉利话，拆开看。|hero=🧧;items=🧧,🍊,🪙;goal=3
+托|action|count-tap|用手托住盘子，托稳三下。|hero=🤲;items=🍽️,🍽️,🍽️;goal=3
+弘|action|sound-tap|声音放得弘大，传得远远的。|hero=📣;sound=喔;goal=3
+圾|action|pop-bubbles|把垃圾一样样清干净。|hero=🗑️;items=🍌,🥤,📄;goal=3
+执|action|drag-parts|手里执着小旗，握紧不放。|hero=✋;parts=🚩,✋
+扩|action|grow-tap|圈圈慢慢扩大，越来越宽。|stages=⚪,🔵,🌀;goal=3
+
+# ---- u66 识字沙丘 ----
+场|place|scene-poke|操场上真热闹，点点在玩啥。|hero=🏟️;items=⚽,🏀,🏸;goal=3
+扬|action|swipe-motion|把小旗高高扬起来。|hero=🚩;dir=up;goal=3
+芋|food|tap-reveal|泥里埋着芋头，挖开瞧瞧。|hero=🍠;items=🍠,🥔,🌰;goal=3
+芒|nature|emoji-hunt|哪根麦芒最尖？把它找出来。|target=🌾;decoys=🍃,🌸,🍄;goal=1
+亚|number|pair-match|第一第二排好队，配一配。|pairs=🥇:1️⃣,🥈:2️⃣,🥉:3️⃣
+芝|nature|grow-tap|小芝麻发了芽，冒出嫩苗。|stages=🌰,🌱,🌿;goal=3
+朽|action|morph-story|木头搁久了，慢慢就朽了。|stages=🪵,🍂,🍄;goal=3
+朴|object|sort-buckets|朴素的一边，花哨的一边。|buckets=朴素:🧺,花哨:✨;items=🥣:朴素,🧦:朴素,👑:花哨,💎:花哨
+权|action|pair-match|天平两边配平，才算公道。|pairs=⚖️:⚖️,🍎:🍎,🪨:🪨
+协|action|drag-parts|大家协力，一起把车推动。|hero=🤝;parts=🧒,🧒,🚗
+西|place|trace-path|太阳往西边落，跟着走。|hero=🧭;dir=left;goal=3
+压|action|swipe-motion|用手往下压一压，压扁它。|hero=⬇️;dir=down;goal=3
+厌|feeling|emoji-hunt|哪张脸在讨厌？找出皱眉的。|target=😒;decoys=😄,😍,😃;goal=1
+匠|action|drag-parts|木匠抡起锤子，钉好板子。|hero=🔨;parts=🔨,🪵,🔩
+夸|feeling|count-tap|夸一夸，一起鼓三下掌。|hero=👏;items=👏,👏,👏;goal=3
+夺|action|rain-catch|奖杯掉下来，抢先夺一个。|items=🏆,🏅,🎖️;tool=🧤
+达|action|trace-path|一路走呀走，终于到达。|hero=🎯;dir=right;goal=3
+列|number|count-tap|排成一列，一个一个数四个。|hero=📋;items=🧒,🧒,🧒,🧒;goal=4
+夹|action|drag-parts|用筷子把丸子夹起来。|hero=🥢;parts=🥢,🍡
+毕|school|morph-story|学完啦，戴上毕业的帽子。|stages=📚,🎓,🎉;goal=3
+
+# ---- u67 识字海湾 ----
+此|place|emoji-hunt|就在此处，找出那枚图钉。|target=📌;decoys=📎,🔖,📏;goal=1
+尖|shape|morph-story|上头细下头粗，就成了尖。|stages=🔻,📐,🔺;goal=3
+劣|action|sort-buckets|好的挑出来，劣的放一边。|buckets=好:👍,劣:👎;items=🍎:好,🍐:好,🍂:劣,🥀:劣
+吐|action|pop-bubbles|小鱼吐泡泡，一个个冒上来。|hero=💬;items=🫧,🫧,🫧;goal=3
+吓|feeling|sound-tap|哇的一声，吓了一大跳。|hero=😱;sound=哇;goal=3
+吕|word|drag-parts|两个口叠起来，就是吕。|hero=👤;parts=口,口
+吊|action|swipe-motion|钩子把箱子往上吊。|hero=🪝;dir=up;goal=3
+吸|body|sound-tap|深深吸一口气，呼一下。|hero=💨;sound=呼;goal=3
+吗|word|emoji-hunt|问一句好吗，找出那个问号。|target=❓;decoys=❗,➖,💤;goal=1
+屹|nature|swipe-motion|大山屹立着，稳稳当当。|hero=⛰️;dir=up;goal=3
+则|school|count-tap|按规则来，一条一条数四条。|hero=📏;items=📏,📏,📏,📏;goal=4
+网|action|rain-catch|拿网兜住掉下来的小球。|items=⚽,🏀,🎾;tool=🕸️
+朱|color|color-fill|朱红朱红，把灯笼涂得通红。|hero=🏮;color=朱红;goal=3
+先|time|swipe-motion|你先走，往前迈出一步。|hero=1️⃣;dir=right;goal=3
+丢|action|emoji-hunt|钥匙丢哪儿了？帮忙找一找。|target=🔑;decoys=🧦,🍪,🪀;goal=1
+迁|action|drag-parts|搬迁啦，把箱子搬上车。|hero=📦;parts=📦,🚚
+乔|nature|grow-tap|小树长成高高的乔木。|stages=🌱,🌳,🌲;goal=3
+伟|feeling|grow-tap|个子越长越高，长成伟人。|stages=🧒,🧑,🦸;goal=3
+乒|object|sound-tap|球拍一挥，乒的一声。|hero=🏓;sound=乒;goal=3
+乓|object|sound-tap|球弹回来，乓的一响。|hero=🏓;sound=乓;goal=3
+
+# ---- u68 识字礁石 ----
+伍|number|count-tap|排队站成一伍，数五个人。|hero=🚶;items=🚶,🚶,🚶,🚶,🚶;goal=5
+伏|animal|swipe-motion|老虎趴下来，伏在草里。|hero=🐅;dir=down;goal=3
+伐|action|count-tap|咚咚伐木，砍满三下。|hero=🪓;items=🪓,🪓,🪓;goal=3
+仲|time|sort-buckets|夏天分几段，仲夏在中间。|buckets=开头:🌱,中间:☀️;items=🌸:开头,🐝:开头,🍉:中间,🏖️:中间
+件|object|count-tap|一件一件挂好衣服，挂三件。|hero=🧥;items=🧥,👕,👖;goal=3
+任|action|swipe-motion|这件事任给你，接过去。|hero=🎯;dir=right;goal=3
+伪|feeling|emoji-hunt|哪个是假的？找出面具脸。|target=🎭;decoys=😀,😃,🙂;goal=1
+份|food|sort-buckets|蛋糕分成两份，一人一份。|buckets=你的一份:🧒,我的一份:🧑;items=🍰:你的一份,🍓:你的一份,🧁:我的一份,🍫:我的一份
+仰|body|swipe-motion|仰起头来，看看天上边。|hero=🙆;dir=up;goal=3
+仿|action|pair-match|照葫芦画瓢，一样的配一起。|pairs=🍎:🍎,🌵:🌵,🐟:🐟
+自|family|tap-reveal|指指自己的鼻子，那就是我。|hero=🙋;items=👃;goal=1
+似|weather|emoji-hunt|雾里瞧一瞧，哪个像小船？|target=⛵;decoys=🌫️,☁️,🌁;goal=1
+行|action|trace-path|一步一步往前行，走起来。|hero=🚶;dir=right;goal=3
+合|action|drag-parts|两只手一合，掌心贴一起。|hero=🤝;parts=🤚,✋
+兆|number|tap-reveal|好兆头藏在里头，揭开看。|hero=🔮;items=🍀,🌈,⭐;goal=3
+企|animal|swipe-motion|企鹅踮起脚，往上看一眼。|hero=🐧;dir=up;goal=3
+创|action|grow-tap|从一个念头，创出新玩意。|stages=💡,✏️,🧩;goal=3
+肌|body|grow-tap|使劲一鼓，肌肉鼓起来了。|stages=🦴,💪,🏋️;goal=3
+肋|body|count-tap|摸摸小肋骨，一根一根数。|hero=🦴;items=🦴,🦴,🦴,🦴;goal=4
+朵|nature|count-tap|一朵一朵摘花，摘满三朵。|hero=🌸;items=🌸,🌺,🌼;goal=3
+
+# ---- u69 识字码头 ----
+杂|action|sort-buckets|东西太杂，分成吃的和玩的。|buckets=吃的:🍎,玩的:🧸;items=🍞:吃的,🍌:吃的,🪀:玩的,🎈:玩的
+旬|time|count-tap|十天算一旬，翻过三个旬。|hero=📅;items=🔟,🔟,🔟;goal=3
+旨|action|emoji-hunt|话里的主旨在哪？找出靶心。|target=🎯;decoys=🟠,🟡,🟢;goal=1
+旭|nature|morph-story|旭日一点点爬上山头。|stages=🌌,🌄,🌅;goal=3
+负|action|swipe-motion|背上小书包，负在肩膀上。|hero=🎒;dir=up;goal=3
+争|action|rain-catch|礼物掉下来，快去争一个。|items=🎁,🎁,🎁;tool=🧺
+壮|body|grow-tap|吃得好睡得香，长得壮壮的。|stages=🧒,💪,🏋️;goal=3
+冲|action|swipe-motion|水一冲，泡沫都冲走了。|hero=🚿;dir=down;goal=3
+妆|action|color-fill|化个小妆，脸上点点腮红。|hero=💄;color=腮红;goal=3
+庄|place|scene-poke|村庄里有什么？挨个点点。|hero=🏡;items=🐓,🌾,🚜;goal=3
+亦|action|count-tap|我做一下，你也亦做三下。|hero=🔁;items=🔁,🔁,🔁;goal=3
+刘|word|tap-reveal|门上贴着刘字，敲开瞧瞧。|hero=👤;items=🚪,🏮,👋;goal=3
+交|action|pair-match|把东西交给对方，配成一对。|pairs=📕:🧒,🍎:👧,✏️:👦
+产|place|grow-tap|工厂里一件件产出新东西。|stages=🏭,📦,🚚;goal=3
+充|action|grow-tap|电充满了，格子一格格涨。|stages=🪫,🔋,⚡;goal=3
+闭|action|swipe-motion|把门轻轻闭上，关好它。|hero=🚪;dir=left;goal=3
+闯|animal|swipe-motion|小马一下子闯进了院子。|hero=🐎;dir=right;goal=3
+并|number|drag-parts|两个小的并到一起，成一个。|hero=➕;parts=🔵,🔵
+污|action|sort-buckets|干净的和污脏的，分开放。|buckets=干净:🧼,污脏:🧺;items=👕:干净,🧦:污脏,🧤:干净,🩳:污脏
+兴|feeling|pop-bubbles|高兴得放礼花，一朵朵放。|hero=🎉;items=🎆,🎆,🎆;goal=3
+
+# ---- u70 识字岛屿 ----
+宅|place|scene-poke|回到自家宅子，点点屋里头。|hero=🏠;items=🛋️,🛏️,🪴;goal=3
+安|feeling|grow-tap|小鸽子落下来，心里安安的。|stages=🌪️,🕊️,😌;goal=3
+许|action|tap-reveal|说声可以，许你打开这几样。|hero=✅;items=🎁,🍬,📦;goal=3
+讽|feeling|emoji-hunt|哪张脸在做怪相？挑出面具。|target=🎭;decoys=🙂,😐,😑;goal=1
+设|action|drag-parts|设计一座房子，把零件摆好。|hero=🏗️;parts=🧱,🚪,🪟
+访|action|trace-path|带着礼物去访问朋友家。|hero=🎁;dir=right;goal=3
+诀|action|tap-reveal|口诀藏在盒子里，念出来。|hero=🔑;items=1️⃣,2️⃣,3️⃣;goal=3
+寻|action|emoji-hunt|拿放大镜寻一寻，找出瓢虫。|target=🐞;decoys=🍃,🌿,🪨;goal=1
+迅|action|swipe-motion|嗖一下，迅速跑到那边去。|hero=⚡;dir=right;goal=3
+尽|action|pop-bubbles|一个个吃尽，盘子空空的。|hero=🔚;items=🍡,🍡,🍡;goal=3
+异|feeling|emoji-hunt|哪一个和别的不一样？|target=🟣;decoys=🔵,🟦,🔷;goal=1
+阵|weather|count-tap|一阵一阵刮风，刮了三阵。|hero=🌬️;items=🌬️,🌬️,🌬️;goal=3
+如|action|morph-story|镜子里的样子，和我如出一辙。|stages=🧒,🪞,🧒;goal=3
+妇|family|tap-reveal|阿姨在忙什么？点开看一看。|hero=👩;items=🧺,🍲,🧹;goal=3
+驮|animal|drag-parts|骆驼背上驮着货，装好它。|hero=🐫;parts=📦,🐫
+纤|object|count-tap|细纤纤的线一根根，数三根。|hero=🧵;items=🧵,🧵,🧵;goal=3
+驯|animal|count-tap|小马被驯服了，拍它三下。|hero=🐎;items=🐎,🐎,🐎;goal=3
+约|time|pair-match|约好了时间，把日子配起来。|pairs=📅:🎂,⏰:🏫,🌙:🛏️
+级|action|grow-tap|一级一级往上爬楼梯。|stages=🪜,🧗,🏔️;goal=3
+驰|animal|swipe-motion|骏马撒开腿，飞驰起来。|hero=🐴;dir=right;goal=3

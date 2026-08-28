@@ -11,8 +11,13 @@
  *      一个新语义或一张新皮肤就能整排地扩出母题，题面又不会读起来像同一道。
  *      所以扩容是「加一行语义 / 加一张皮肤」，而不是一道一道往下抄。
  *
- * steps 表示解题步数，也是难度分档：1 = 一步题，2 = 两步题，>=3 = 进阶题
- * （和差倍、鸡兔同笼、相遇这类需要先转换再计算的题型）。
+ * steps 与 tier 是两件事，从 Round 18 起分开写（ROUND18_H4）：
+ *   steps 是**字面上要算几步**，必须和 buildAnalysis() 从 equation 拆出的步数逐题对得上。
+ *         对不上就说明剖析面板讲的步数和母题自己声称的不一样，孩子先信哪个都是错的。
+ *   tier  是**难度档**，只有 'one' / 'two' / 'multi' 三挡，界面按它分难度、给星星、发 XP。
+ *         不写就按 steps 推（1→one，2→two，>=3→multi）；和差倍、相遇这类
+ *         「算式只有两步、但要先想明白怎么转换」的题型写明 tier: 'multi' 顶上去，
+ *         反过来平均数算式上是三步、想法上仍是「先合起来再平分」两步，写 tier: 'two'。
  * 参数域都做过约束，保证答案是正整数，不会出现负数或小数。
  *
  * 随机数一律走 @/utils/random 的种子化 mulberry32 流：reseed(seed) 之后
@@ -469,6 +474,7 @@ const CRAFTED = [
     id: 'minibus',
     skill: 'wp-times',
     tag: '进一法',
+    // 商 / 余数 / 再加一辆，剖析拆出来正好三步
     steps: 3,
     emoji: '🚐',
     scene: '春游',
@@ -512,7 +518,9 @@ const CRAFTED = [
     id: 'meet',
     skill: 'wp-times',
     tag: '相遇',
-    steps: 3,
+    // 算式只有「求速度和」「求时间」两步，难得在想到要先合速度，所以难度仍挂进阶
+    steps: 2,
+    tier: 'multi',
     emoji: '🛣️',
     scene: '林荫道',
     make() {
@@ -575,7 +583,9 @@ const CRAFTED = [
     id: 'sum-diff',
     skill: 'wp-diff',
     tag: '和差',
-    steps: 3,
+    // 「补齐再对半分」是两次计算，难在那一次假设，所以难度仍挂进阶
+    steps: 2,
+    tier: 'multi',
     emoji: '🃏',
     scene: '卡片收藏',
     make() {
@@ -596,7 +606,9 @@ const CRAFTED = [
     id: 'sum-times',
     skill: 'wp-times',
     tag: '和倍',
-    steps: 3,
+    // 「凑份数、求一份」是两次计算，难在把倍数看成份数，所以难度仍挂进阶
+    steps: 2,
+    tier: 'multi',
     emoji: '🐠',
     scene: '水族箱',
     make() {
@@ -637,13 +649,16 @@ const CRAFTED = [
     id: 'average',
     skill: 'wp-times',
     tag: '平均数',
-    steps: 2,
+    // 三天要两次加法再一次除法，算式上是三步；想法上仍是「先合起来再平分」两步
+    steps: 3,
+    tier: 'two',
     emoji: '📖',
     scene: '读书角',
     make() {
       const [who] = pair()
       const avg = randInt(3, 9)
-      const d = randInt(0, 2)
+      // d 至少 1，否则会出「三天分别读了 3、3、3 页」这种不用算的送分题
+      const d = randInt(1, 2)
       return {
         text: `${who}三天分别读了 ${avg - d}、${avg}、${avg + d} 页书。平均每天读多少页？`,
         equation: `(${avg - d} + ${avg} + ${avg + d}) ÷ 3 = ?`,
@@ -1096,7 +1111,8 @@ export const SEMANTIC_TEMPLATES = [
     id: 'sum-times',
     skill: 'wp-times',
     tag: '和倍',
-    steps: 3,
+    steps: 2,
+    tier: 'multi',
     make(s) {
       const [a, b] = pair()
       const small = randInt(2, 9)
@@ -1114,7 +1130,8 @@ export const SEMANTIC_TEMPLATES = [
     id: 'sum-gap',
     skill: 'wp-diff',
     tag: '和差',
-    steps: 3,
+    steps: 2,
+    tier: 'multi',
     make(s) {
       const [a, b] = pair()
       const small = randInt(2, 12)
@@ -1191,7 +1208,8 @@ export const SEMANTIC_TEMPLATES = [
     id: 'mean',
     skill: 'wp-times',
     tag: '平均数',
-    steps: 2,
+    steps: 3,
+    tier: 'two',
     make(s) {
       const [a] = pair()
       // 三天取成「avg−d, avg, avg+d」，d 至少 1，免得三天一样多变成送分题
@@ -1215,6 +1233,8 @@ const SKINNED = SEMANTIC_TEMPLATES.flatMap((semantic) =>
     skill: semantic.skill,
     tag: semantic.tag,
     steps: semantic.steps,
+    // 皮肤只换名词，难度档跟着语义走
+    tier: semantic.tier,
     emoji: skin.emoji,
     scene: skin.scene,
     make: () => semantic.make(skin),
@@ -1226,12 +1246,24 @@ export const WORD_PROBLEMS = [...CRAFTED, ...SKINNED]
 /** 母题总数。Round 6 内容门禁（scripts/check-round6.mjs H6）直接读这个值。 */
 export const WORD_PROBLEM_COUNT = WORD_PROBLEMS.length
 
-/** 按解题步数分档：一步 / 两步 / 进阶（>=3 步）。 */
+/**
+ * 一道母题落在哪个难度档：写明了就听它的，没写就按字面步数推。
+ * 界面上的「一步 / 两步 / 进阶」标签、星星数、XP、错因标签全走这里，
+ * 所以校正 steps 不会顺手把某一档的题量抽空。
+ */
+export function tierOf(problem) {
+  const declared = problem?.tier
+  if (declared === 'one' || declared === 'two' || declared === 'multi') return declared
+  const steps = problem?.steps ?? 1
+  return steps >= 3 ? 'multi' : steps === 2 ? 'two' : 'one'
+}
+
+/** 难度档：一步 / 两步 / 进阶。 */
 export const WORD_PROBLEM_TIERS = [
   { id: 'all', label: '🌍 全部', match: () => true },
-  { id: 'one', label: '1️⃣ 一步题', match: (p) => p.steps === 1 },
-  { id: 'two', label: '2️⃣ 两步题', match: (p) => p.steps === 2 },
-  { id: 'multi', label: '🧠 进阶题', match: (p) => p.steps >= 3 },
+  { id: 'one', label: '1️⃣ 一步题', match: (p) => tierOf(p) === 'one' },
+  { id: 'two', label: '2️⃣ 两步题', match: (p) => tierOf(p) === 'two' },
+  { id: 'multi', label: '🧠 进阶题', match: (p) => tierOf(p) === 'multi' },
 ]
 
 export function problemsOfTier(tierId) {

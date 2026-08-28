@@ -10,9 +10,12 @@
  *      面板自己只管「挂上来就是摊开的」，跳过按钮把收起的决定交回玩法页。
  *   2. 判题前最后一步的得数一律盖住。剖析不扣星，露答案就等于绕开提示的星星代价。
  *   3. 变式只换数字不换结构，看完还能顺手要一轮同类题接着练。
+ *
+ * 面板上的两个标记不是一回事：`data-explain` 说的是「这一道题这次讲的是手写的」，
+ * 随题变；`data-explain-chain` 说的是「接进来的是哪一版讲解链」，跟着构建走。
  */
 import { computed, ref, watch } from 'vue'
-import { buildAnalysis, ROUND16_H5, ROUND17_H4 } from '@/utils/wpAnalysis'
+import { buildAnalysis, ROUND16_H5, ROUND17_H4, ROUND18_H5 } from '@/utils/wpAnalysis'
 import { sound } from '@/utils/sound'
 
 const props = defineProps({
@@ -93,6 +96,7 @@ watch(
     aria-label="应用题剖析"
     :data-analysis="ROUND16_H5"
     :data-explain="analysis.handwritten ? ROUND17_H4 : ''"
+    :data-explain-chain="ROUND18_H5"
   >
     <header class="panel-head">
       <span class="chip chip-on">🔍 剖析</span>

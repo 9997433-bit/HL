@@ -13,7 +13,9 @@
     "test": "npm run check:content && npm run build && npm run check:bundle && npm run check:route-budget && node scripts/smoke.mjs",
     "check:bundle": "node scripts/check-bundle.mjs",
     "check:route-budget": "node scripts/check-route-budget.mjs",
-    "check:content": "node --import ./scripts/register-alias.mjs scripts/check-content.mjs"
+    "check:content": "node --import ./scripts/register-alias.mjs scripts/check-content.mjs",
+    "verify:wp-steps": "node scripts/verify-wp-steps.mjs",
+    "report:wp-steps": "node --import ./scripts/register-alias.mjs scripts/wp-steps-report.mjs"
   },
   "dependencies": {
     "gsap": "^3.12.5",

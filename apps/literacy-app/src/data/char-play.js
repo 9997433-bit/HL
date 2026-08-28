@@ -4,7 +4,8 @@
  * 洪恩的「玩」是一字一美术脚本，覆盖不到的字就没有。我们要的是 1820 个字
  * 同一密度，所以剧本从三处来，这里负责合成一份舞台真的能渲染的东西：
  *
- *   1. 富脚本   char-play-rich.js —— 人手写的剧本（雨接雨滴、火添柴），最优先
+ *   1. 富脚本   play-rich/uN.js —— 人手写的剧本（雨接雨滴、火添柴），最优先；
+ *               按单元分片，玩到哪个单元才下载哪一片（ROUND18_H3，见「富脚本注册表」）
  *   2. 自动补齐 char-play-generated.js + char-play-templates.js —— 生成器按
  *               部首 / 主题 / 字源 / 组词给每个字配的一场，标 templateFallback
  *   3. 兜底合成 下面的 emergencyPlay() —— 字表外的生字、上面两层都读不到时用，
@@ -38,7 +39,12 @@ import {
   templateForChar,
   themeForChar
 } from './char-play-templates.js'
-import * as richModule from './char-play-rich.js'
+import {
+  RICH_PLAY_MANIFEST,
+  RICH_PLAY_PROBE as RICH_MANIFEST_PROBE,
+  RICH_PLAY_UNIT_LOADERS,
+  RICH_PLAY_UNITS
+} from './play-rich/index.js'
 
 /* ------------------------------------------------------------------ 渲染器 */
 
@@ -47,7 +53,7 @@ export const PLAY_KINDS = ['pick', 'catch', 'assemble', 'watch', 'match', 'push'
 
 /**
  * 模板 id → 渲染器。三套方言的模板都在这里登记：
- * 上排是生成器（char-play-templates.js），中排是富脚本（char-play-rich.js），
+ * 上排是生成器（char-play-templates.js），中排是富脚本（play-rich/uN.js），
  * 下排是本模块兜底用的。没登记的模板按 interaction 归类，见 INTERACTION_KIND。
  */
 const TEMPLATE_KIND = {
@@ -194,6 +200,12 @@ function shuffled(list, rand) {
 }
 
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n))
+
+/** 入口收到什么都得给出一个字：空值 / 多字都归到一个字符，实在没有就退到「字」。 */
+function firstCharOf(char) {
+  const text = typeof char === 'string' ? char.trim() : ''
+  return text ? [...text][0] : '字'
+}
 
 /* ------------------------------------------------------------ 字表侧的信息 */
 
@@ -388,8 +400,33 @@ function emergencyPlay(ctx) {
 
 /* ------------------------------------------------------------ 富脚本注册表 */
 
-/** char → 人手写的剧本。 */
+/**
+ * 手写剧本按**单元**分片懒加载（ROUND18_H3，契约见 round18-architecture.md §2）。
+ *
+ * 拆之前这里是 `import * as richModule from './char-play-rich.js'`：262 KB 一整包，
+ * 顺着 CharPlayStage → CharDetailView 的同步链整个进单字详情的关键路径。可孩子
+ * 一次只玩一个字，一分钟里最多用到同单元的十几条，其余 900 多条是白下的。
+ *
+ * 现在同步进来的只有 play-rich/index.js 那份 manifest（几条、分几片、怎么取），
+ * 剧本正文在 play-rich/uN.js 里，`ensurePlayUnit()` 用到才 import()。
+ *
+ * 纪律没变，变的只是「什么时候有数据」：
+ *   - `getCharPlay()` 仍然同步、仍然永不返回 null。它只查**已注册**的剧本，
+ *     片没到就落到自动补齐那一层（source: 'generated'）——那一层本来就覆盖全库。
+ *   - 想拿到手写那一版，用 `getCharPlayAsync()`：它先备好这个字的单元再取。
+ *     UI 一律走这个口，或者在进详情时先 `ensurePlayUnit()` 预取。
+ *   - 归一是纯函数，种子只跟 char + template 走，所以同一个字算出来的关卡
+ *     和「片什么时候到」无关，不会因为加载顺序抖出两套。
+ */
+
+/** 这一层的拆包标记：分片加载器就在下面的 ensurePlayUnit() 里。 */
+export const PLAY_SPLIT_PROBE = 'ROUND18_H3'
+
+/** char → 人手写的剧本（只有已注册的，即分片已到货或调用方手工登记过的）。 */
 const RICH = new Map()
+
+/** 单元 id → 正在路上 / 已完成的加载。缓存 Promise，重复调不会重复拉。 */
+const unitJobs = new Map()
 
 function looksLikePlay(value) {
   return (
@@ -423,26 +460,87 @@ export function registerCharPlays(source) {
 }
 
 /**
- * char-play-rich.js 里叫什么名字都行：只要导出的是「条目数组」或
- * 「汉字 → 条目」的映射就会被收进来。富脚本那一岗换了导出名也不至于整块失联。
+ * 分片里叫什么名字都行：只要导出的是「条目数组」或「汉字 → 条目」的映射就会被
+ * 收进来。生成器换了导出名也不至于整片失联。
  */
-for (const value of Object.values(richModule ?? {})) {
-  if (Array.isArray(value)) {
-    registerCharPlays(value.filter(looksLikePlay))
-  } else if (value && typeof value === 'object' && !(value instanceof Map)) {
-    const map = {}
-    for (const [key, entry] of Object.entries(value)) {
-      if (looksLikePlay(entry)) map[key] = entry
+function absorbUnitModule(module) {
+  for (const value of Object.values(module ?? {})) {
+    if (Array.isArray(value)) {
+      registerCharPlays(value.filter(looksLikePlay))
+    } else if (value && typeof value === 'object' && !(value instanceof Map)) {
+      const map = {}
+      for (const [key, entry] of Object.entries(value)) {
+        if (looksLikePlay(entry)) map[key] = entry
+      }
+      registerCharPlays(map)
     }
-    registerCharPlays(map)
   }
+}
+
+/**
+ * 备好一个单元的手写剧本。幂等：同一单元只拉一次，之后拿的是同一个 Promise。
+ *
+ * 不认识的单元、拉不下来的分片都**静默 resolve**——网断了、CDN 掉了一个文件，
+ * 孩子照样该有一关可玩，那一关由自动补齐层出（覆盖全库，不依赖分片）。
+ * 拆包只该让画面晚一点变好看，不该让它变成错误路径。
+ *
+ * @param {string} unitId 单元 id，例如 'u7'
+ * @returns {Promise<void>}
+ */
+export function ensurePlayUnit(unitId) {
+  if (!unitId) return Promise.resolve()
+  const cached = unitJobs.get(unitId)
+  if (cached) return cached
+  const load = RICH_PLAY_UNIT_LOADERS[unitId]
+  if (!load) {
+    const done = Promise.resolve()
+    unitJobs.set(unitId, done)
+    return done
+  }
+  const job = load()
+    .then(absorbUnitModule)
+    .catch(() => {})
+  unitJobs.set(unitId, job)
+  return job
+}
+
+/** 一次备好几个单元。单元列表页点进去时预取用。 */
+export function preloadPlayUnits(unitIds = []) {
+  return Promise.all([...unitIds].map(ensurePlayUnit)).then(() => undefined)
+}
+
+/**
+ * 全部分片装上，返回注册条数。
+ *
+ * 给探针 / 单测 / 内容审计用——它们要一次遍历全库逐条校验。
+ * **UI 别调**：一次把 940 条全拉下来，等于把拆包白拆了。
+ */
+export async function loadAllRichPlays() {
+  await preloadPlayUnits(RICH_PLAY_UNITS)
+  return RICH.size
+}
+
+/** 这个字在字表里属于哪一单元；字表外的生字没有单元。 */
+function unitOfChar(char) {
+  return CHAR_MAP.get(char)?.unit ?? ''
+}
+
+/** 查已注册的手写剧本，片还没到就返回 null（同步，绝不触发加载）。 */
+export function peekRichPlay(char) {
+  return RICH.get(firstCharOf(char)) ?? null
 }
 
 export function hasRichPlay(char) {
   return RICH.has(char)
 }
 
-/** H3 探针口径：人手写的剧本有多少条（自动补齐的不算）。 */
+/**
+ * H3 探针口径：人手写的剧本有多少条（自动补齐的不算）。
+ *
+ * 数的是**已注册**的条数，不是 manifest 自报的总数——加载多少报多少，
+ * 这样这个数永远是「运行时真的拿得出来的剧本」，骗不了人。要全量先
+ * `await loadAllRichPlays()`，之后它就该和 `RICH_PLAY_MANIFEST.plays` 对上。
+ */
 export function countRichPlays() {
   return RICH.size
 }
@@ -452,7 +550,7 @@ export function listRichPlays() {
 }
 
 /** 本轮富脚本这一层的门槛标记（Round 17 数的是 ≥900 条、旁白去重 ≥720）。 */
-export const RICH_PLAY_PROBE = 'ROUND17_H2'
+export const RICH_PLAY_PROBE = RICH_MANIFEST_PROBE
 
 /**
  * 富脚本覆盖到什么程度 —— 条数和「旁白不重样」的句数分开报。
@@ -470,7 +568,16 @@ export function richPlayCoverage() {
     const line = typeof row?.narration === 'string' ? row.narration.trim() : ''
     if (line) narrations.add(line)
   }
-  return { probe: RICH_PLAY_PROBE, plays: rows.length, narrations: narrations.size }
+  return {
+    probe: RICH_PLAY_PROBE,
+    plays: rows.length,
+    narrations: narrations.size,
+    /**
+     * 生成期实测的总数。plays 少于 manifest.plays 只说明还有分片没加载；
+     * 全量加载之后两个数还对不上，才是管线出了问题。
+     */
+    manifest: RICH_PLAY_MANIFEST
+  }
 }
 
 /* ------------------------------------------------------------------ 归一 */
@@ -919,8 +1026,12 @@ function toStage(play, ctx) {
 /* ---------------------------------------------------------------- 对外入口 */
 
 /**
- * 取一个字的「玩」场景。**永远不返回 null**：
+ * 取一个字的「玩」场景。**永远不返回 null，也永远不异步**：
  * 富脚本 → 自动补齐 → 兜底合成，层层往下，最后一层只要有个字就凑得出来。
+ *
+ * 富脚本这一层只查**已注册**的（这个字所在单元的分片到货了没有）。没到货就落到
+ * 自动补齐——那一层覆盖全库，孩子看到的仍是一关玩得完的、和字义对得上的小互动，
+ * 只是不是作者手写的那一版。要手写那一版请用 getCharPlayAsync()。
  *
  * @param {string} char 单个汉字；空值 / 多字时取第一个字符，实在没有就退到「字」
  * @returns {{char: string, theme: string, template: string, kind: string,
@@ -928,8 +1039,7 @@ function toStage(play, ctx) {
  *            source: 'rich'|'generated'|'runtime'|'emergency'}}
  */
 export function getCharPlay(char) {
-  const text = typeof char === 'string' ? char.trim() : ''
-  const one = text ? [...text][0] : '字'
+  const one = firstCharOf(char)
   const ctx = contextOf(one)
 
   const rich = RICH.get(one)
@@ -947,6 +1057,22 @@ export function getCharPlay(char) {
   }
 }
 
+/**
+ * 取一个字的「玩」场景，先把它所在单元的手写剧本备好。
+ *
+ * 和 getCharPlay() 返回同一种形状，区别只在于「手写那一版已经在手边了」。
+ * 舞台一律走这个口（CharPlayStage.vue）。字表外的生字没有单元可加载，
+ * 这里直接返回自动补齐那一版——不空转，也不报错。
+ *
+ * @param {string} char
+ * @returns {Promise<ReturnType<typeof getCharPlay>>}
+ */
+export async function getCharPlayAsync(char) {
+  const one = firstCharOf(char)
+  await ensurePlayUnit(unitOfChar(one))
+  return getCharPlay(one)
+}
+
 /** 批量体检：返回玩不成的字（缺渲染器或缺道具）。正常永远是空数组。 */
 export function findPlayHoles(chars = CHAR_INDEX.map((c) => c.char)) {
   const holes = []
@@ -959,6 +1085,11 @@ export function findPlayHoles(chars = CHAR_INDEX.map((c) => c.char)) {
 
 export default {
   getCharPlay,
+  getCharPlayAsync,
+  ensurePlayUnit,
+  preloadPlayUnits,
+  loadAllRichPlays,
+  peekRichPlay,
   registerCharPlays,
   hasRichPlay,
   countRichPlays,

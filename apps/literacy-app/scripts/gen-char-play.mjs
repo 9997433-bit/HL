@@ -13,7 +13,7 @@
  *   src/data/chars/uN.js          字义与组词（拿来写线索句、出「补词语」）
  *   src/data/etymology.js         字源小图与部件（「图变字」「拼零件」的料）
  *   富脚本（可选，有哪份读哪份）：
- *     src/data/char-play-rich.js        导出 RICH_PLAYS / CHAR_PLAY_RICH / default
+ *     src/data/play-rich/uN.js          一单元一片，导出 UNIT_RICH_PLAYS / default
  *     scripts/data/char-play-rich.json  数组或 { 字: 条目 }
  *     scripts/data/char-play-seed.txt   汉字|主题|模板|旁白[|题面]
  *
@@ -96,11 +96,24 @@ const COUNTABLE = { 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七:
 /* ------------------------------------------------------------- 输入：富脚本 */
 
 const RICH_SOURCES = [
-  { rel: 'src/data/char-play-rich.js', kind: 'module' },
+  // 一单元一片（ROUND18_H3 之后的落点）：整个目录当一份源读
+  { rel: 'src/data/play-rich', kind: 'shards' },
   { rel: 'src/data/char-play-catalog.js', kind: 'module' },
   { rel: 'scripts/data/char-play-rich.json', kind: 'json' },
   { rel: 'scripts/data/char-play-seed.txt', kind: 'text' }
 ]
+
+/** 分片目录里除 index.js（manifest，没有条目）之外的每一片。 */
+async function loadShardDir(dir) {
+  const list = []
+  for (const name of fs.readdirSync(dir).sort()) {
+    if (!name.endsWith('.js') || name === 'index.js') continue
+    const mod = await import(pathToFileURL(path.join(dir, name)).href)
+    const raw = mod.UNIT_RICH_PLAYS ?? mod.default
+    if (Array.isArray(raw)) list.push(...raw)
+  }
+  return list
+}
 
 async function loadRich() {
   const out = new Map()
@@ -108,7 +121,9 @@ async function loadRich() {
     const file = path.join(appDir, source.rel)
     if (!fs.existsSync(file)) continue
     let list = []
-    if (source.kind === 'module') {
+    if (source.kind === 'shards') {
+      list = await loadShardDir(file)
+    } else if (source.kind === 'module') {
       const mod = await import(pathToFileURL(file).href)
       const raw = mod.RICH_PLAYS ?? mod.CHAR_PLAY_RICH ?? mod.richPlays ?? mod.default
       list = Array.isArray(raw) ? raw : Object.values(raw ?? {})
