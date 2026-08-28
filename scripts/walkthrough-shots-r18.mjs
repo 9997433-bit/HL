@@ -425,13 +425,18 @@ async function sceneWpAnalysis(browser, base) {
   const unfolded = await clickText(page, '全部摊开')
   await clickText(page, '看一道同结构的变式')
   await wait(800)
-  const shown = await page.$$eval('[data-analysis] .steps .step', (els) => els.length)
+  // 变式那一段自己也挂一份 .steps，只数第一份才是本题的推理链
+  const shown = await page.$eval(
+    '[data-analysis] .steps',
+    (ol) => ol.querySelectorAll('.step').length,
+  )
   await shootElement(
     page,
     '[data-analysis]',
     'r18-05-wp-analysis.png',
-    `应用题剖析面板：图示理解 + 分步提示（当前摊开 ${shown} 步，` +
-      `${unfolded ? '点过「全部摊开」' : '本题一步到底'}）+ 变式，右上角「跳过 ✕」全程可退`,
+    `应用题剖析面板：图示理解 + 分步提示（本题摊开 ${shown} 步，` +
+      `${unfolded ? '点过「全部摊开」' : '没有「全部摊开」按钮，步骤已全在'}）+ 变式，` +
+      '右上角「跳过 ✕」全程可退',
   )
 
   // 剖析看完照样能答题——顺手把这一轮答掉，给后面的周报攒真实作答记录
