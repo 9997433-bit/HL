@@ -18,3 +18,17 @@
 - 截图由编排机无头 Chrome（puppeteer-core）实拍，单张均 >200B。
 - 家长中心需算术门闩；脚本自动作答后进入周报卡。
 - UI 走查代理曾因未使用 hash 路由记为阻塞；本包以可复核截图为准。
+
+## 补充实拍（走查机 · hash 路由）
+
+| 场景 | 文件 |
+|---|---|
+| 认步·部首 | `evidence/r17/walkthrough/r17-literacy-intro-fallback-radical.png` |
+| 认步·组词 | `evidence/r17/walkthrough/r17-literacy-intro-fallback-word.png` |
+| 学演示·弹层 | `evidence/r17/walkthrough/r17-math-learn-demo-overlay.png` |
+| 学演示·算式 | `evidence/r17/walkthrough/r17-math-learn-demo-equation.png` |
+| 学演示·降动效 | `evidence/r17/walkthrough/r17-math-learn-demo-reduced-motion.png` |
+| 剖析 | `evidence/r17/walkthrough/r17-math-wp-analysis.png` |
+| 周报·识字 | `evidence/r17/walkthrough/r17-literacy-parent-weekly.png` |
+| 周报·数学 | `evidence/r17/walkthrough/r17-math-parent-weekly.png` |
+
