@@ -49,6 +49,7 @@ import {
   loadCharacter,
   loadUnitDetails
 } from '@/data/characters.js'
+import { ensurePlayUnit } from '@/data/char-play.js'
 import { hasEtymology } from '@/data/etymology-index.js'
 import { ROUND16_H2 } from '@/data/intro-fallback.js'
 import { RADICAL_MAP, getRadical } from '@/data/radicals.js'
@@ -184,6 +185,9 @@ watch(
     loadCharacter(char).then((full) => {
       if (decoded.value === char) loaded.value = full
     })
+    // 玩步的手写剧本也按单元分片（ROUND18_H3）。和课文包一起起跑，
+    // 孩子读完标题时这一片通常已经到了，第一步就能演作者写的那一版。
+    ensurePlayUnit(getCharacter(char)?.unit ?? '')
   },
   { immediate: true }
 )

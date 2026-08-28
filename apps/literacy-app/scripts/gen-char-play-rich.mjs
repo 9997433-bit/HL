@@ -1,5 +1,6 @@
 /**
- * ROUND15_H3 · 富互动 play 脚本生成器 —— 把手写 seed 编译成运行时能直接吃的数据。
+ * ROUND15_H3 / ROUND18_H3 · 富互动 play 脚本生成器 ——
+ * 把手写 seed 编译成「一单元一片 + 一份轻量 manifest」。
  *
  * 「玩」这一步要的不是又一张卡片，是和字义对得上的小互动：雨接雨滴、火添柴、
  * 口张嘴发声、推往前推、拉往回拉。这类脚本只能人写，写在
@@ -11,13 +12,27 @@
  *   2. 按 TEMPLATE_CATALOG 校验每条脚本的道具齐不齐——舞台跑起来才不会开天窗；
  *   3. 把没写的 goal 补成模板的自然完成条件（拼几块就是几下），
  *      把没写的 hero 补成字表里的卡片 emoji，保证每条都有主角可画；
- *   4. 落成 src/data/char-play-rich.js，每条都带 templateFallback: false。
+ *   4. 落成 src/data/play-rich/ 下的分片与 manifest，每条都带 templateFallback: false。
+ *
+ * ## 为什么落成一个目录而不是一个文件（ROUND18_H3）
+ *
+ * 940 条脚本堆成一个 262 KB 的模块，被 char-play.js 顶层 import 之后整包都在
+ * 单字详情的关键路径上：孩子点开「雨」，先下载另外 939 个字的剧本。可孩子一次
+ * 只玩一个字，同一分钟里最多用到同单元的十几条。所以照 data/chars/uN.js 那批
+ * 课文分片的先例，按**单元**切开：
+ *
+ *   src/data/play-rich/uN.js    一单元一片，UNIT_RICH_PLAYS 是这一单元的完整条目
+ *   src/data/play-rich/index.js manifest + 每单元一个 () => import() 的加载器表；
+ *                               **唯一允许被同步 import 的文件**，体积 O(单元数)
+ *
+ * manifest 里一句旁白、一件道具都不放，不然「轻量索引」会随 seed 一起长回整包。
+ * 契约全文见 .agent_workspace/round18-architecture.md §2。
  *
  * 没手写到的字不归这里管：gen-char-play.mjs 会按部首 / 主题模板自动补齐，
  * 那批条目带 templateFallback: true。两份合起来才是全库 1820 字的 Play 覆盖。
  *
  * 用法：
- *   node scripts/gen-char-play-rich.mjs          生成 src/data/char-play-rich.js
+ *   node scripts/gen-char-play-rich.mjs          生成 src/data/play-rich/
  *   node scripts/gen-char-play-rich.mjs --check  只校验不落盘（CI / 提交前用）
  */
 
@@ -35,7 +50,11 @@ const argOf = (name) => {
 }
 // --seed= 只给负例测试用（拿一份改坏的 seed 验证撞句真的拦得住），正常跑不传。
 const seedFile = argOf('seed') || path.join(appDir, 'scripts', 'data', 'char-play-seed.txt')
-const outFile = path.join(appDir, 'src', 'data', 'char-play-rich.js')
+const dataDir = path.join(appDir, 'src', 'data')
+/** 分片目录：一单元一片 + index.js manifest（契约 §2.2）。 */
+const outDir = path.join(dataDir, 'play-rich')
+/** 拆包前的单体脚本库，生成时顺手清掉——留着就是一扇再被同步 import 的门。 */
+const legacyFile = path.join(dataDir, 'char-play-rich.js')
 const checkOnly = process.argv.includes('--check')
 
 /** 这一版 seed 的门槛标记，落在生成物里给探针读（Round 17 数的是 ≥900 条）。 */
@@ -43,6 +62,9 @@ const PROBE_MARK = 'ROUND17_H2'
 
 /** 本轮的门槛标记：条数抬到 ≥1200、旁白去重抬到 ≥960，seed 续到 u70。 */
 const PROBE_MARK_R18 = 'ROUND18_H2'
+
+/** 拆包这一层的标记：分片 + manifest 这套形状是 Round 18 H3 的交付物。 */
+const SPLIT_MARK = 'ROUND18_H3'
 
 /** 历轮标记，往轮探针剥掉注释后仍读得到自己那一枚。 */
 const PROBE_HISTORY = ['ROUND15_H3', 'ROUND16_H3', PROBE_MARK, PROBE_MARK_R18]
@@ -415,12 +437,7 @@ function renderProps(props) {
 
 function renderRows(rows) {
   const out = []
-  let unit = null
   for (const r of rows) {
-    if (r.unit !== unit) {
-      unit = r.unit
-      out.push(`  // ${unit}`)
-    }
     out.push(
       '  {',
       `    char: ${q(r.char)}, unit: ${q(r.unit)}, theme: ${q(r.theme)},`,
@@ -432,6 +449,94 @@ function renderRows(rows) {
     )
   }
   return out.join('\n')
+}
+
+/** 一个单元一片。条目形状和拆包前一模一样，只是按单元装箱。 */
+function renderUnitShard(unit, rows) {
+  return `/**
+ * 富互动 play 分片 ${unit} —— 这一单元的 ${rows.length} 条手写剧本（${SPLIT_MARK}）。
+ *
+ * 玩到这一单元的字时由 char-play.js 的 ensurePlayUnit() 动态 import 进来，
+ * 不在任何同步 import 链上：别的模块要用请走 char-play.js 的异步口，
+ * 直接静态 import 本文件等于把拆包白拆了（check:bundle 与 check:round18 都会拦）。
+ *
+ * 本文件由 scripts/gen-char-play-rich.mjs 从 scripts/data/char-play-seed.txt 生成，
+ * 请勿手改；要改剧本改 seed，然后跑 npm run gen:play:rich。
+ */
+
+/** 这一片是哪个单元。 */
+export const UNIT = ${q(unit)}
+
+export const UNIT_RICH_PLAYS = [
+${renderRows(rows)}
+]
+
+export default UNIT_RICH_PLAYS
+`
+}
+
+/**
+ * manifest —— 唯一允许被同步 import 的生成物，所以只放「有几条、在哪片」，
+ * 一句旁白、一件道具都不放：它一旦按条数长大，拆包就白拆了（契约 §2.2）。
+ */
+function renderManifest(units, perUnit, plays, narrations) {
+  const loaders = units.map((u) => `  ${u}: () => import('./${u}.js')`).join(',\n')
+  const counts = units.map((u) => `${u}: ${perUnit[u]}`).join(', ')
+  return `/**
+ * 富互动 play 分片名录（${SPLIT_MARK}）—— 手写剧本按单元切片之后的目录页。
+ *
+ * 这里**只有数字和加载器**：几条、分几片、每片几条、怎么把某一片取回来。
+ * 旁白和道具都在各自的 ./uN.js 里，用到哪个单元才下载哪一片，
+ * 所以本文件的体积随单元数长（O(单元)），不随脚本条数长（O(条)）。
+ *
+ * 加载器写成一条条字面量 import()，Vite / Rollup 才能据此每单元切一个 chunk；
+ * 写成拼字符串的动态 import 会退化成「整目录一块」，等于没拆。
+ *
+ * 本文件由 scripts/gen-char-play-rich.mjs 生成，请勿手改。
+ */
+
+/** 分片加载器：单元 id → 取回那一片。char-play.js 的 ensurePlayUnit() 用它。 */
+export const RICH_PLAY_UNIT_LOADERS = {
+${loaders}
+}
+
+/** 手写覆盖到的单元，按 seed 顺序。 */
+export const RICH_PLAY_UNITS = [${units.map(q).join(', ')}]
+
+/**
+ * 生成期实测的数字，给运行时和探针对账用：manifest 说 ${plays} 条，
+ * 那么 loadAllRichPlays() 之后 countRichPlays() 也必须是 ${plays} 条，对不上就是管线出了问题。
+ */
+export const RICH_PLAY_MANIFEST = {
+  plays: ${plays},
+  narrations: ${narrations},
+  units: RICH_PLAY_UNITS,
+  perUnit: { ${counts} }
+}
+
+/** 模板名录：舞台照着 interaction 决定「怎么算玩完了」。 */
+export const PLAY_TEMPLATES = {
+${renderCatalog()}
+}
+
+/** 主题分类，舞台拿它挑配色和音效。 */
+export const PLAY_THEMES = [${THEMES.map(q).join(', ')}]
+
+/** 门槛标记，探针剥掉注释后仍读得到。 */
+export const RICH_PLAY_PROBE = '${PROBE_MARK}'
+
+/** 本轮门槛标记：条数 ≥${MIN_RICH_PLAYS}、旁白去重 ≥${MIN_DISTINCT_NARRATION}。 */
+export const RICH_PLAY_PROBE_ROUND18 = '${PROBE_MARK_R18}'
+
+/** 拆包这一层的标记：分片 + manifest 的形状是 Round 18 H3 的交付物。 */
+export const RICH_SPLIT_PROBE = '${SPLIT_MARK}'
+
+/** 历轮标记都留着，往轮探针各读各的那一枚。 */
+export const RICH_PLAY_PROBE_HISTORY = [${PROBE_HISTORY.map(q).join(', ')}]
+
+/** 本轮两条线，生成期已经卡过一遍，运行时再自报一次给探针核对。 */
+export const RICH_PLAY_THRESHOLDS = { plays: ${MIN_RICH_PLAYS}, narrations: ${MIN_DISTINCT_NARRATION} }
+`
 }
 
 function renderCatalog() {
@@ -482,78 +587,40 @@ if (checkOnly) {
   process.exit(0)
 }
 
-const body = `/**
- * 富互动 play 脚本库 —— 「玩」这一步的手写剧本，覆盖前 ${units.length} 个单元共 ${rows.length} 个字。
- *
- * 每条都是照着字义写的：雨接雨滴、火添柴、口张嘴发声、推往前推、拉往回拉。
- * 这一层的 templateFallback 一律为假；剩下的字由 char-play.js 按部首 / 主题
- * 模板自动补齐（那批 templateFallback 为真）。两层加起来才是全库 Play 覆盖。
- *
- * 舞台怎么用：
- *   template     具体演法，取值见下面的 PLAY_TEMPLATES
- *   interaction  交互类型（tap / drag / swipe / sequence）。某个模板的专属动效
- *                还没实现时按它退回通用演法，孩子照样玩得完——绝不能退成空白卡。
- *   narration    念给孩子听的一句，也是无障碍朗读的文案
- *   props.goal   要完成几次有效交互才算通关；reduce-motion 和「跳过这一步」
- *                不改变通关条件，只是不播动效
- *
- * 本文件由 scripts/gen-char-play-rich.mjs 从 scripts/data/char-play-seed.txt 生成，
- * 请勿手改；要改剧本改 seed，然后跑 npm run gen:play:rich。
- */
+fs.mkdirSync(outDir, { recursive: true })
 
-/** 模板名录：舞台照着 interaction 决定「怎么算玩完了」。 */
-export const PLAY_TEMPLATES = {
-${renderCatalog()}
+// 分片目录整个由生成器管：seed 缩了单元，对应的旧分片必须跟着消失，
+// 不然 manifest 里查不到、目录里却还躺着一份，下一个人读起来会以为它还在用。
+const wanted = new Set([...units.map((u) => `${u}.js`), 'index.js'])
+for (const stale of fs.readdirSync(outDir)) {
+  if (stale.endsWith('.js') && !wanted.has(stale)) fs.rmSync(path.join(outDir, stale))
 }
 
-/** 主题分类，舞台拿它挑配色和音效。 */
-export const PLAY_THEMES = [${THEMES.map(q).join(', ')}]
-
-export const CHAR_PLAY_RICH = [
-${renderRows(rows)}
-]
-
-/** 字 → 富脚本。 */
-export const RICH_PLAY_BY_CHAR = new Map(CHAR_PLAY_RICH.map((p) => [p.char, p]))
-
-/** 这个字有没有手写剧本；没有就交给 char-play.js 的模板补齐。 */
-export function getRichPlay(char) {
-  return RICH_PLAY_BY_CHAR.get(char) ?? null
+const perUnit = {}
+let shardBytes = 0
+for (const unit of units) {
+  const unitRows = rows.filter((r) => r.unit === unit)
+  perUnit[unit] = unitRows.length
+  const body = renderUnitShard(unit, unitRows)
+  shardBytes += Buffer.byteLength(body)
+  fs.writeFileSync(path.join(outDir, `${unit}.js`), body)
 }
 
-/** 手写剧本条数（Round 15 H3 数的就是它，Round 16 抬到 500，Round 17 到 900，Round 18 抬到 ${MIN_RICH_PLAYS}）。 */
-export function countRichPlays() {
-  return CHAR_PLAY_RICH.length
-}
+const manifest = renderManifest(units, perUnit, rows.length, distinctNarration)
+fs.writeFileSync(path.join(outDir, 'index.js'), manifest)
 
-/** 旁白互不重样的句数：撞句的批量脚本骗得过条数，骗不过这个。 */
-export function countRichNarrations() {
-  return new Set(CHAR_PLAY_RICH.map((p) => p.narration)).size
-}
-
-/** 门槛标记，探针剥掉注释后仍读得到。 */
-export const RICH_PLAY_PROBE = '${PROBE_MARK}'
-
-/** 本轮门槛标记：条数 ≥${MIN_RICH_PLAYS}、旁白去重 ≥${MIN_DISTINCT_NARRATION}，Round 18 的探针读这一枚。 */
-export const RICH_PLAY_PROBE_ROUND18 = '${PROBE_MARK_R18}'
-
-/** 历轮标记都留着，往轮探针各读各的那一枚。 */
-export const RICH_PLAY_PROBE_HISTORY = [${PROBE_HISTORY.map(q).join(', ')}]
-
-/** 本轮两条线，生成期已经卡过一遍，运行时再自报一次给探针核对。 */
-export const RICH_PLAY_THRESHOLDS = { plays: ${MIN_RICH_PLAYS}, narrations: ${MIN_DISTINCT_NARRATION} }
-
-/** 手写覆盖到的单元。 */
-export const RICH_PLAY_UNITS = [${units.map(q).join(', ')}]
-`
-
-fs.writeFileSync(outFile, body)
+// 拆包前的单体脚本库退休：留一层薄壳也不行，那等于给人再同步 import 回去的门。
+if (fs.existsSync(legacyFile)) fs.rmSync(legacyFile)
 
 const perTemplate = templates
   .map((t) => `${t} ${rows.filter((r) => r.template === t).length}`)
   .join('、')
-const kb = (Buffer.byteLength(body) / 1024).toFixed(0)
+const kb = (n) => (n / 1024).toFixed(0)
 console.log(
-  `[play-rich] ${rows.length} 条富脚本，覆盖 ${units.length} 个单元（${units[0]}–${units[units.length - 1]}），约 ${kb} KB。`
+  `[play-rich] ${rows.length} 条富脚本，覆盖 ${units.length} 个单元（${units[0]}–${units[units.length - 1]}）。`
+)
+console.log(
+  `[play-rich] 分片 ${units.length} 片共 ${kb(shardBytes)} KB，平均每片 ${kb(shardBytes / units.length)} KB；` +
+    `manifest ${kb(Buffer.byteLength(manifest))} KB（同步路径上只有它）。`
 )
 console.log(`[play-rich] 模板分布：${perTemplate}`)

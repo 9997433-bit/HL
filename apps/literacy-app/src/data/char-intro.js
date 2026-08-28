@@ -20,7 +20,7 @@
 import { CHAR_INDEX } from './char-index.js'
 import { getRadical } from './radicals.js'
 import { hashSeed } from './char-play-templates.js'
-import { getRichPlay } from './char-play-rich.js'
+import { peekRichPlay } from './char-play.js'
 
 const INDEX_MAP = new Map(CHAR_INDEX.map((c) => [c.char, c]))
 
@@ -48,9 +48,16 @@ function radicalBlock(char, entry) {
   }
 }
 
-/** 玩步富剧本里 drag-parts 的零件序列；没有或太少（拼不起来）返回 null。 */
+/**
+ * 玩步富剧本里 drag-parts 的零件序列；没有或太少（拼不起来）返回 null。
+ *
+ * 富剧本从 Round 18 起按单元懒加载，这里只查已到货的那些（peek 不触发加载，
+ * 认步的模式挑选得同步得出）。片没到就当这个字没有零件，讲解自动落到
+ * radical / word——三种模式都讲得成，认步永不空场。想稳拿零件合体的调用方
+ * 自己先 await ensurePlayUnit(单元)。
+ */
 function partsOf(char) {
-  const rich = getRichPlay(char)
+  const rich = peekRichPlay(char)
   if (!rich || rich.template !== 'drag-parts') return null
   const parts = Array.isArray(rich.props?.parts) ? rich.props.parts.filter(Boolean) : []
   return parts.length >= 2 ? parts.slice(0, 4) : null

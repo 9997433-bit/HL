@@ -112,6 +112,9 @@ const MATH_SRC = 'apps/math-app/src'
   let distinct = 0
   try {
     const mod = await import(path.join(root, 'apps/literacy-app/src/data/char-play.js'))
+    // H3 落地后剧本按单元懒加载，两个计数口径都是「已注册条数」，
+    // 不先装全就只能数到 0——架构契约 §2.7 主案的那一行加载适配，阈值不动。
+    if (typeof mod.loadAllRichPlays === 'function') await mod.loadAllRichPlays()
     if (typeof mod.countRichPlays === 'function') rich = Number(await mod.countRichPlays()) || 0
     if (typeof mod.listRichPlays === 'function') {
       const rows = await mod.listRichPlays()
