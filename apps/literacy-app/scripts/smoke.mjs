@@ -2193,6 +2193,12 @@ if (ROUND14_H5_SMOKE) {
     'ROUND14_H5：L1 字卡单字与例句优先请求随包离线范读',
     `/#/learn/${encodeURIComponent('一')}`,
     async (page) => {
+      // Round 15 默认先进入「玩」；这条往轮范读断言应显式切到「认」再找读音按钮。
+      await page.evaluate(() => {
+        if (document.querySelector('.detail')?.dataset.phase === 'play') {
+          document.querySelector('.rail__step[data-step="intro"]')?.click()
+        }
+      })
       await page.waitForSelector('.detail[data-tts="offline-l1"] .intro__say', { timeout: 8000 })
 
       const waitForTts = (suffix) =>
