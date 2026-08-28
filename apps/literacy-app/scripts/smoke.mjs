@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url'
 import puppeteer from 'puppeteer-core'
 
 import { BOOKS, scenePages } from '../src/data/books.js'
-import { SONGS } from '../src/data/songs.js'
+import { ROUND12_H4, SONGS } from '../src/data/songs.js'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const DIST = join(ROOT, 'dist')
@@ -62,6 +62,15 @@ const ROUND10_H5_SMOKE = SONGS.filter(
   (song) => song?.audio && /\.(?:mp3|ogg)$/i.test(String(song.audio))
 )
 const ROUND10_H5_MIN_AUDIO = 3
+const ROUND12_H4_MIN_AUDIO = 13
+const ROUND12_H4_MIN_BYTES = 10_240
+const ROUND12_H4_VOCAL = SONGS.find(
+  (song) => song?.vocal && /\.(?:mp3|ogg)$/i.test(String(song.vocal))
+)
+if (ROUND12_H4 !== 'thirteen-offline-melodies-with-vocal-pilot') {
+  console.error(`ROUND12_H4_SMOKE：能力标记不对（${ROUND12_H4 || '缺失'}）`)
+  process.exit(1)
+}
 
 /**
  * ROUND10_H1_SMOKE：跟读 v3 —— 离线 ASR（sherpa-onnx WASM Worker）接线。
@@ -134,9 +143,9 @@ for (const song of ROUND10_H5_SMOKE) {
     (extension === '.mp3' &&
       (bytes.subarray(0, 3).toString('ascii') === 'ID3' ||
         (bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0)))
-  if (bytes.length < 1024 || !signature) {
+  if (bytes.length < ROUND12_H4_MIN_BYTES || !signature) {
     console.error(
-      `ROUND10_H5_SMOKE：${song.id} 不是有效 ${extension} 音频（${bytes.length} bytes）`
+      `ROUND12_H4_SMOKE：${song.id} 不是有效且 ≥10KB 的 ${extension} 音频（${bytes.length} bytes）`
     )
     process.exit(1)
   }
@@ -146,6 +155,43 @@ if (songAudioAssets.length < ROUND10_H5_MIN_AUDIO) {
   console.error(
     `ROUND10_H5_SMOKE：真实 Ogg/MP3 只有 ${songAudioAssets.length}/${ROUND10_H5_MIN_AUDIO} 首`
   )
+  process.exit(1)
+}
+const distinctSongAudio = new Set(songAudioAssets.map((asset) => asset.relative))
+if (
+  songAudioAssets.length < ROUND12_H4_MIN_AUDIO ||
+  distinctSongAudio.size < ROUND12_H4_MIN_AUDIO
+) {
+  console.error(
+    `ROUND12_H4_SMOKE：离线旋律只有 ${songAudioAssets.length} 首 / ` +
+      `${distinctSongAudio.size} 份去重资产，要求 13/13`
+  )
+  process.exit(1)
+}
+
+let vocalPilotAsset = null
+if (ROUND12_H4_VOCAL) {
+  const relative = String(ROUND12_H4_VOCAL.vocal).replace(/^\.?\//, '')
+  const extension = extname(relative).toLowerCase()
+  try {
+    if (relative.includes('..')) throw new Error('路径不能包含 ..')
+    const bytes = await readFile(join(DIST, relative))
+    const signature =
+      (extension === '.ogg' && bytes.subarray(0, 4).toString('ascii') === 'OggS') ||
+      (extension === '.mp3' &&
+        (bytes.subarray(0, 3).toString('ascii') === 'ID3' ||
+          (bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0)))
+    if (bytes.length < ROUND12_H4_MIN_BYTES || !signature) {
+      throw new Error(`${bytes.length} bytes / ${extension || '无扩展名'}`)
+    }
+    vocalPilotAsset = { id: ROUND12_H4_VOCAL.id, relative, bytes: bytes.length }
+  } catch (error) {
+    console.error(`ROUND12_H4_SMOKE：范唱资产无效（${relative}）：${error.message}`)
+    process.exit(1)
+  }
+}
+if (!vocalPilotAsset) {
+  console.error('ROUND12_H4_SMOKE：13 首中没有可播放的离线范唱试点')
   process.exit(1)
 }
 
@@ -2265,6 +2311,49 @@ if (ROUND8_H2_SMOKE && songAudioAssets.length >= ROUND10_H5_MIN_AUDIO) {
 
       const totalBytes = songAudioAssets.reduce((sum, asset) => sum + asset.bytes, 0)
       return `${songAudioAssets.length} 首 / ${totalBytes} bytes；优先=${preferred.source}，降级=${fallback.source}`
+    }
+  )
+}
+
+if (ROUND8_H2_SMOKE && vocalPilotAsset) {
+  await interact(
+    'ROUND12_H4：13/13 离线旋律 + 可播放的 Piper「啦」音范唱',
+    `/#${ROUND8_H2_SMOKE}/${vocalPilotAsset.id}`,
+    async (page) => {
+      await page.waitForSelector('.player[data-song-vocal="file"]', { timeout: 5000 })
+      const opened = await page.evaluate(() => ({
+        audio: document.querySelector('.player')?.dataset.songAudio ?? '',
+        vocal: document.querySelector('.player')?.dataset.songVocal ?? '',
+        button: [...document.querySelectorAll('.player__controls button')].some((node) =>
+          node.innerText.includes('啦')
+        )
+      }))
+      if (opened.audio !== 'file' || opened.vocal !== 'file' || !opened.button) {
+        throw new Error(`范唱接线不完整：${JSON.stringify(opened)}`)
+      }
+
+      if (!(await clickText(page, '听「啦」音范唱'))) throw new Error('页面上点不到范唱按钮')
+      await page.waitForFunction(
+        () => document.querySelector('.player')?.dataset.vocalSource === 'file',
+        { timeout: 5000 }
+      )
+      const playing = await page.evaluate(() => ({
+        source: document.querySelector('.player')?.dataset.vocalSource ?? '',
+        status: document.querySelector('.player__status')?.innerText.trim() ?? ''
+      }))
+      if (playing.source !== 'file' || !playing.status.includes('离线「啦」音范唱')) {
+        throw new Error(`范唱未进入播放态：${JSON.stringify(playing)}`)
+      }
+
+      if (!(await clickText(page, '停一停'))) throw new Error('范唱播放时无法停止')
+      await page.waitForFunction(
+        () => (document.querySelector('.player')?.dataset.vocalSource ?? '') === '',
+        { timeout: 3000 }
+      )
+      return (
+        `${songAudioAssets.length}/13 首、${distinctSongAudio.size} 份旋律；` +
+        `范唱 ${vocalPilotAsset.bytes} bytes，可播放且可停止`
+      )
     }
   )
 }

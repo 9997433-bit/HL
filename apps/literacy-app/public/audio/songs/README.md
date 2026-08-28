@@ -1,6 +1,6 @@
 # Song audio provenance
 
-The eight `.ogg` files in this directory are original project assets, rendered
+The thirteen `*-melody.ogg` files in this directory are original project assets, rendered
 from the project-authored note sequences in `src/data/songs.js`. They contain no
 third-party recordings or samples.
 
@@ -8,3 +8,11 @@ Run `python3 apps/literacy-app/scripts/generate-song-audio.py` from the reposito
 root to reproduce them. The renderer uses additive synthesis and FFmpeg's Vorbis
 encoder; FFmpeg is only a development-time generation tool and is not shipped in
 the application.
+
+`sg5-literacy-vocal-pilot.ogg` is the Round 12 synthetic “la” vocal-guide pilot.
+It was rendered offline with Piper 1.7.0 and the `sv_SE-nst-medium` voice, then
+pitch-shifted to the project-authored `sg5` melody. The voice model was trained
+from scratch by KBLab from the National Library of Sweden's CC0 NST dataset.
+Neither the model nor Piper ships in the app; only the generated Ogg does.
+Exact inputs, hashes, command, and scope limits are recorded in
+`.agent_workspace/r12-songs-vocal-pilot.md`.

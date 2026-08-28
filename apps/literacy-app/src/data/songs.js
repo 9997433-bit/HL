@@ -11,9 +11,9 @@
  * 屏幕上不该出现一个他没见过的字。`verifySongCoverage()` 逐字校验，
  * `npm run check:data` 会跑它。
  *
- * 前八首配有项目自制的 Ogg 旋律文件，由下面同一份 `notes` 谱面离线渲染；
- * 其余歌曲继续由 `utils/audio.js` 的 `playMelody()` 实时合成。即使静态文件加载
- * 失败，播放器也会自动退回合成旋律，所以断网、旧 WebView 都不会变成无声按钮。
+ * 十三首都配有项目自制的 Ogg 旋律文件，由下面同一份 `notes` 谱面离线渲染。
+ * 即使静态文件加载失败，播放器也会自动退回 `utils/audio.js` 的 `playMelody()`
+ * 实时合成，所以断网、旧 WebView 都不会变成无声按钮。
  *
  * 字段：
  *   id          路由与进度记录用的稳定 id
@@ -25,7 +25,8 @@
  *   summary     一句话说这首歌在唱什么
  *   tip         唱之前给孩子的一句提示
  *   bpm         速度，60–110 之间；越小的孩子唱得越慢
- *   audio       项目自制旋律地址；null 表示直接使用合成旋律
+ *   audio       项目自制旋律地址（13/13 均随包离线提供）
+ *   vocal       可选的离线「啦」音范唱地址；没有试点的歌曲省略
  *   lines       逐句：text 歌词、pinyin 逐字拼音（空格分隔，字数必须对上）、
  *               notes 逐字音名（个数也必须和汉字数对上，逐字高亮靠它）
  *
@@ -41,6 +42,9 @@ export const ROUND10_H5 = 'file-first-with-synth-fallback'
 
 /** Round 11 H5：真实旋律覆盖过半曲库，仍保留 WebAudio 合成降级。 */
 export const ROUND11_H5 = 'eight-file-first-with-synth-fallback'
+
+/** Round 12 H4：全曲库离线旋律 + 可播放的 Piper「啦」音范唱试点。 */
+export const ROUND12_H4 = 'thirteen-offline-melodies-with-vocal-pilot'
 
 const PUNCTUATION = new Set([
   '，', '。', '！', '？', '：', '、', '；', '「', '」', '《', '》', '…', '—', ' ', '\n'
@@ -204,6 +208,7 @@ export const SONGS = [
     tip: '一个字一个音，唱一遍，再在空中写一遍。',
     bpm: 88,
     audio: 'audio/songs/sg5-literacy-melody.ogg',
+    vocal: 'audio/songs/sg5-literacy-vocal-pilot.ogg',
     lines: [
       {
         text: '日月水火土，',
@@ -339,7 +344,7 @@ export const SONGS = [
     summary: '一双大手和一双小手，合起来像两朵花。',
     tip: '唱最后一句时，把自己的手放进大人手心里比一比。',
     bpm: 82,
-    audio: null,
+    audio: 'audio/songs/sg9-mothers-hands-melody.ogg',
     lines: [
       {
         text: '妈妈的手真暖和，',
@@ -373,7 +378,7 @@ export const SONGS = [
     summary: '手、脚、眼睛、耳朵，每样各会做一件事。',
     tip: '唱到哪一样，就动一动身上的那一样。',
     bpm: 98,
-    audio: null,
+    audio: 'audio/songs/sg10-hands-feet-melody.ogg',
     lines: [
       {
         text: '小手会拿笔，',
@@ -407,7 +412,7 @@ export const SONGS = [
     summary: '从十倒着数回一，一个都不许漏掉。',
     tip: '数一个收一根手指，收完十根正好唱完两句。',
     bpm: 86,
-    audio: null,
+    audio: 'audio/songs/sg11-countdown-melody.ogg',
     lines: [
       {
         text: '十九八七六，',
@@ -441,7 +446,7 @@ export const SONGS = [
     summary: '一个木、两个木、三个木，越叠越多就成了森。',
     tip: '唱一句，用手指在桌上叠一叠：一个木、两个木、三个木。',
     bpm: 90,
-    audio: null,
+    audio: 'audio/songs/sg12-wood-character-melody.ogg',
     lines: [
       {
         text: '一个木，是小树，',
@@ -475,7 +480,7 @@ export const SONGS = [
     summary: '做错了要说一句，被说了也要回一句，两句配成一对。',
     tip: '前两句你唱，后两句请家里人唱，唱成一问一答。',
     bpm: 88,
-    audio: null,
+    audio: 'audio/songs/sg13-sorry-melody.ogg',
     lines: [
       {
         text: '不小心，做错了，',
