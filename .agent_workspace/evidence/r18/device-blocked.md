@@ -27,7 +27,7 @@ This is not an Android simulation PASS and does not replace physical-device QA. 
 report was deliberately not promoted as passing evidence, and no stale report hash was substituted for
 the APK hashes above.
 
-## Reproduction
+## 复现
 
 ```bash
 ANDROID_HOME=/home/ubuntu/android-sdk npm run android:sim
