@@ -10,6 +10,8 @@
     "gen:corpus": "node scripts/gen-char-corpus.mjs",
     "gen:similar": "node scripts/gen-similar-chars.mjs",
     "gen:etymology": "node scripts/gen-etymology.mjs",
+    "gen:char-play": "node scripts/gen-char-play.mjs",
+    "verify:char-play": "node scripts/gen-char-play.mjs --check",
     "gen:books": "node scripts/gen-books.mjs",
     "gen:ocr": "node scripts/gen-ocr-assets.mjs",
     "gen:ocr:benchmark": "node scripts/gen-ocr-benchmark.mjs",
