@@ -206,6 +206,8 @@ test('四档降级：离线优先，引擎失败只降到录音档，绝不改�
   assert.equal(chooseTier({ ...base, offlineReady: false }), 'recognition')
   assert.equal(chooseTier({ ...base, allowRecognition: false }), 'recording')
   assert.equal(chooseTier({ ...base, offlineReady: true, offlineFault: true }), 'recording')
+  // 没有麦克风就没有音频：离线包装好了也一样只能自评（ROUND11_H1 演练 D4）
+  assert.equal(chooseTier({ ...base, offlineReady: true, micDenied: true }), 'listen-only')
   assert.equal(
     chooseTier({ ...base, offlineReady: true, offlineFault: true, micDenied: true }),
     'listen-only'

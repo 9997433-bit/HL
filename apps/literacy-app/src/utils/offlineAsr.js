@@ -108,6 +108,9 @@ export function packCacheName(manifest) {
  *
  * offlineFault 是本轮会话里「本地引擎已经证明起不来」。这时候必须落到录音档：
  * 悄悄改用可能联网的浏览器识别，等于替家长做了隐私决定。
+ *
+ * 没有麦克风（设备缺失或家长拒绝）先于一切：识别档再高也要有音频才成立，
+ * 离线包已经装好也不例外——否则孩子会拿到一个「什么都没听见」的 0 分。
  */
 export function chooseTier({
   offlineReady = false,
@@ -118,6 +121,7 @@ export function chooseTier({
   micDenied = false
 } = {}) {
   const fallback = canRecord && !micDenied ? 'recording' : 'listen-only'
+  if (fallback === 'listen-only') return fallback
   if (offlineFault) return fallback
   if (offlineReady) return 'offline-asr'
   if (canRecognize && allowRecognition) return 'recognition'

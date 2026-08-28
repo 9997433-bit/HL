@@ -6,8 +6,8 @@
  */
 
 import { createServer } from 'node:http'
-import { readFile } from 'node:fs/promises'
-import { existsSync } from 'node:fs'
+import { readdir, readFile } from 'node:fs/promises'
+import { existsSync, statSync } from 'node:fs'
 import { extname, join, normalize } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import puppeteer from 'puppeteer-core'
@@ -72,6 +72,21 @@ const ROUND10_H1_SMOKE = ROUND8_H5_SMOKE
 const ROUND10_H1_TIERS = ['offline-asr', 'recognition', 'recording', 'listen-only']
 const ROUND10_H1_MODES = ['recognition', 'recording', 'listen-only']
 
+/**
+ * ROUND11_H1_SMOKE：跟读产品化 —— 冻结清单与五层门槛随包发出去。
+ *
+ * R10 那条验的是「四档降级不塌」；这一条验的是「凭什么把 available 置成 true」
+ * 那套东西真的到了用户机器上：页面读得到冻结清单和五层门槛表，
+ * 结论没转绿之前 available 必须是 false，dist 里一个模型字节都不许有。
+ * 清单结构和 Go/No-Go 判定由 scripts/test-asr-eval-set.mjs 在 Node 里守，
+ * 这里守的是「构建产物里的那一份」——两边对不上就是打包漏了。
+ */
+const ROUND11_H1_SMOKE = ROUND8_H5_SMOKE
+const ROUND11_H1_MIN_FREEZE = 8
+const ROUND11_H1_LAYERS = ['文本层', '诊断层', '性能层', '资源层', '可靠性层']
+/** 随包发的只有这两个文件：清单和采音 worklet。模型是家长点了才下的。 */
+const ROUND11_H1_SHIPPED = ['manifest.json', 'pcm-capture.worklet.js']
+
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -121,6 +136,35 @@ if (songAudioAssets.length < ROUND10_H5_MIN_AUDIO) {
   console.error(
     `ROUND10_H5_SMOKE：真实 Ogg/MP3 只有 ${songAudioAssets.length}/${ROUND10_H5_MIN_AUDIO} 首`
   )
+  process.exit(1)
+}
+
+/**
+ * Round 11 H1：模型不进包这件事，只能在 dist 上验。
+ *
+ * 清单里可以写「不进首屏 precache」，vite.config.js 里也可以写 exclude，
+ * 但真正决定用户第一次打开要下多少字节的，是 dist/asr 里躺着什么、
+ * sw.js 的预缓存清单里列了什么。这两条一起看，才拦得住「顺手把模型 commit 进来」。
+ */
+const asrDistDir = join(DIST, 'asr')
+const asrShipped = existsSync(asrDistDir) ? await readdir(asrDistDir, { recursive: true }) : []
+let asrModelBytes = 0
+for (const entry of asrShipped) {
+  const full = join(asrDistDir, entry)
+  if (!statSync(full).isFile()) continue
+  if (ROUND11_H1_SHIPPED.includes(entry)) continue
+  asrModelBytes += statSync(full).size
+}
+if (asrModelBytes > 0) {
+  console.error(
+    `ROUND11_H1_SMOKE：dist/asr 里多出 ${asrModelBytes} 字节的模型文件` +
+      `（只该有 ${ROUND11_H1_SHIPPED.join('、')}）`
+  )
+  process.exit(1)
+}
+const swSource = await readFile(join(DIST, 'sw.js'), 'utf8')
+if (/asr\/models\//.test(swSource)) {
+  console.error('ROUND11_H1_SMOKE：离线评测包被写进了 sw.js 的预缓存清单，首屏会被拖垮')
   process.exit(1)
 }
 
@@ -1882,6 +1926,72 @@ if (ROUND10_H1_SMOKE) {
       if (foreign.length) throw new Error(`离线评测包走了第三方地址：${foreign.slice(0, 2).join('、')}`)
 
       return `四档=${opening.tier}（mode=${opening.mode}，来源=${opening.source}）；装包失败后降到 ${after.tier}，0 个跨源请求`
+    }
+  )
+}
+
+if (ROUND11_H1_SMOKE) {
+  await interact(
+    'ROUND11_H1：跟读产品化 —— 冻结清单 + 五层门槛随包发出，结论没绿就不许 available',
+    `/#${ROUND11_H1_SMOKE}`,
+    async (page) => {
+      // 从页面自己去取：清单必须和路由同源、能被 fetch 到，不然家长界面上的
+      // 「离线评测包」状态就是编的
+      const pack = await page.evaluate(async () => {
+        const response = await fetch(new URL('asr/manifest.json', document.baseURI).href, {
+          cache: 'no-cache'
+        })
+        return { ok: response.ok, status: response.status, body: await response.text() }
+      })
+      if (!pack.ok) throw new Error(`页面读不到离线评测包清单（HTTP ${pack.status}）`)
+
+      const manifest = JSON.parse(pack.body)
+      const freeze = manifest.freezeChecklist ?? []
+      if (freeze.length < ROUND11_H1_MIN_FREEZE) {
+        throw new Error(`冻结清单只剩 ${freeze.length} 条（下限 ${ROUND11_H1_MIN_FREEZE}）`)
+      }
+      for (const item of freeze) {
+        for (const field of ['id', 'layer', 'must', 'evidence', 'status', 'blocks']) {
+          if (!item?.[field]) throw new Error(`冻结项 ${item?.id ?? '?'} 缺 ${field}`)
+        }
+      }
+      const layers = (manifest.goNoGo?.layers ?? []).map((layer) => layer.name)
+      const missingLayer = ROUND11_H1_LAYERS.filter((name) => !layers.includes(name))
+      if (missingLayer.length) throw new Error(`五层门槛少了：${missingLayer.join('、')}`)
+      if (manifest.goNoGo.layers.some((layer) => !layer.gates?.length)) {
+        throw new Error('有一层门槛一条阈值都没写')
+      }
+
+      // 只要还有冻结项没做完，这一档就不许对外宣称可用
+      const pending = freeze.filter((item) => item.status !== 'done')
+      if (pending.length && manifest.available !== false) {
+        throw new Error(`还有 ${pending.length} 条冻结项没做完，available 却是 ${manifest.available}`)
+      }
+      if (pending.length && manifest.goNoGo.verdict !== 'no-go') {
+        throw new Error(`冻结项没做完，结论却是 ${manifest.goNoGo.verdict}`)
+      }
+      if (manifest.available !== true && manifest.files.length) {
+        throw new Error('这一档还不可用，清单里却已经列了模型文件')
+      }
+
+      // 界面这边要和清单一致：没冻结就不该出现离线档，也不该显示「已就绪」
+      const ui = await page.evaluate(() => ({
+        tier: document.querySelector('.fr')?.dataset.tier ?? '',
+        status: document.querySelector('.fr__pack')?.dataset.status ?? ''
+      }))
+      if (manifest.available !== true && ui.tier === 'offline-asr') {
+        throw new Error('清单说这一档还不可用，界面却停在离线档')
+      }
+      if (manifest.available !== true && ui.status === 'ready') {
+        throw new Error('清单说这一档还不可用，界面却说离线评测包已就绪')
+      }
+
+      const done = freeze.filter((item) => item.status === 'done').length
+      return (
+        `冻结清单 ${done}/${freeze.length} 条完成，五层门槛齐全，` +
+        `结论=${manifest.goNoGo.verdict}，available=${manifest.available}；` +
+        `dist/asr 模型字节 ${asrModelBytes}，档位=${ui.tier || '未标注'}`
+      )
     }
   )
 }

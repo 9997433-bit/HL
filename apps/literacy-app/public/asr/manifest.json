@@ -6,8 +6,9 @@
   "modelId": "sherpa-onnx-streaming-zipformer-zh",
   "modelVersion": "unfrozen",
   "license": "",
+  "sha256": "",
   "files": [],
-  "note": "R10 spike：接线已完成，模型未随版本分发。available=false 时 utils/offlineAsr.js 直接判这一档不可用，跟读留在录音档。",
+  "note": "R10 spike 接线已完成，R11 补冻结清单与评测路径；模型仍未随版本分发。available=false 时 utils/offlineAsr.js 直接判这一档不可用，跟读留在录音档。",
   "candidate": {
     "family": "sherpa-onnx 中文流式 Zipformer（zh-14M 档）",
     "upstream": "https://k2-fsa.github.io/sherpa/onnx/wasm/index.html",
@@ -15,11 +16,150 @@
     "runtimeLicense": "Apache-2.0（框架）",
     "modelLicense": "逐模型另查，未核对前不得写进 THIRD_PARTY_NOTICES.md"
   },
+  "evalSet": {
+    "spec": "apps/literacy-app/scripts/data/asr-eval-set.json",
+    "harness": "apps/literacy-app/scripts/test-asr-eval-set.mjs",
+    "design": ".agent_workspace/r11-asr-eval-set.md",
+    "goNoGo": ".agent_workspace/r11-followread-gonogo.md",
+    "minClips": 30,
+    "targetClips": 300,
+    "stage": "placeholder"
+  },
   "freezeChecklist": [
-    "冻结模型下载 URL、SHA-256、tokens 与量化档，并自托管到 public/asr/models/",
-    "把每个文件写进 files[]：path / role（wasm-glue|wasm-binary|model|tokens）/ bytes / sha256",
-    "整包压缩下载 ≤ 60 MiB，且不得进入首屏 precache",
-    "补 THIRD_PARTY_NOTICES.md 与 SBOM，模型换版视为评分规则变更",
-    "跑完儿童冻结集与低端 Android 真机基准，达标后才把 available 置为 true"
-  ]
+    {
+      "id": "F1",
+      "layer": "license",
+      "must": "冻结模型下载 URL、SHA-256、tokens 与量化档，逐文件自托管到 public/asr/models/",
+      "evidence": "manifest.files[] 逐项 path/role/bytes/sha256 齐全，且 sha256 与自托管文件实测一致",
+      "status": "todo",
+      "blocks": "available=true"
+    },
+    {
+      "id": "F2",
+      "layer": "license",
+      "must": "核对模型许可证并写进 THIRD_PARTY_NOTICES.md 与 SBOM；许可证不明的模型一律不合",
+      "evidence": "manifest.license 非空 + THIRD_PARTY_NOTICES.md 有对应条目",
+      "status": "todo",
+      "blocks": "available=true"
+    },
+    {
+      "id": "F3",
+      "layer": "resource",
+      "must": "整包压缩下载 ≤ 60 MiB，且不进入首屏 precache（走版本化 Cache Storage）",
+      "evidence": "parseManifest() 的 maxPackBytes 断言 + dist 内不含模型字节（smoke ROUND11_H1）",
+      "status": "doing",
+      "blocks": "available=true"
+    },
+    {
+      "id": "F4",
+      "layer": "eval-set",
+      "must": "录制并双标注儿童冻结集 ≥300 条 3–10 秒片段，dev/threshold/final 三份说话人隔离",
+      "evidence": "scripts/data/asr-eval-set.json 的 clips[] 落到 status=recorded 且 labels 仲裁完成",
+      "status": "todo",
+      "blocks": "available=true"
+    },
+    {
+      "id": "F5",
+      "layer": "text",
+      "must": "安静集字符召回 ≥90%、噪声集 ≥80%、漏字检出召回 ≥85%、静音误判 ≤1%",
+      "evidence": "node scripts/test-asr-eval-set.mjs --json 的 goNoGo 文本层（真模型跑冻结集）",
+      "status": "todo",
+      "blocks": "available=true"
+    },
+    {
+      "id": "F6",
+      "layer": "diagnosis",
+      "must": "tone/near 对人工标签精确率 ≥90%，任一年龄/性别/设备子组与总体差距 ≤10 个百分点",
+      "evidence": "同一 harness 的诊断层；未达标则只发布命中/漏读，不逐字展示声调",
+      "status": "todo",
+      "blocks": "逐字声调展示（不阻塞 available=true）"
+    },
+    {
+      "id": "F7",
+      "layer": "performance",
+      "must": "中档 Android 真机句末到结果 P95 ≤2.5 秒、RTF ≤0.5、峰值新增内存 ≤300 MiB、主线程无 >100 ms 长任务",
+      "evidence": ".agent_workspace/evidence/ 下的真机基准记录（机型 + 系统版本 + 采样次数）",
+      "status": "todo",
+      "blocks": "available=true"
+    },
+    {
+      "id": "F8",
+      "layer": "reliability",
+      "must": "飞行模式、模型 404、wasm 初始化失败、麦克风拒绝、低内存杀 Worker 五类故障都在 2 秒内降到 recording/listen-only，且不触网兜底",
+      "evidence": "harness 的五场故障演练（接线层）+ smoke ROUND10_H1/ROUND11_H1（浏览器）；真机复演另计",
+      "status": "doing",
+      "blocks": "available=true"
+    },
+    {
+      "id": "F9",
+      "layer": "resource",
+      "must": "首次下载可暂停/重试，完整离线重启 20/20 成功，损坏缓存自动清除后降档",
+      "evidence": "installOfflinePack() 的整包作废路径（harness 演练 D6）+ 真机离线重启记录",
+      "status": "todo",
+      "blocks": "available=true"
+    },
+    {
+      "id": "F10",
+      "layer": "governance",
+      "must": "换模型即换版本：modelVersion 前进、缓存名随之变化，并重跑冻结集；旧分数不与新模型横比",
+      "evidence": "packCacheName() 单测 + 家长中心展示 modelVersion",
+      "status": "doing",
+      "blocks": "available=true"
+    }
+  ],
+  "goNoGo": {
+    "verdict": "no-go",
+    "reason": "模型未冻结、冻结集未录制；F1/F2/F4/F5/F7/F9 未完成，available 保持 false。",
+    "source": ".agent_workspace/r9-followread-asr-evaluation.md §5",
+    "note": "这里只冻结阈值和「谁来测」。实测值不写进清单（会过期），由 scripts/test-asr-eval-set.mjs 每次现算，记录在 .agent_workspace/r11-followread-gonogo.md。",
+    "layers": [
+      {
+        "id": "L1",
+        "name": "文本层",
+        "gates": [
+          { "metric": "quietCharRecall", "op": ">=", "threshold": 0.9, "measuredBy": "eval-set" },
+          { "metric": "noisyCharRecall", "op": ">=", "threshold": 0.8, "measuredBy": "eval-set" },
+          { "metric": "missDetectionRecall", "op": ">=", "threshold": 0.85, "measuredBy": "eval-set" },
+          { "metric": "silenceFalseAccept", "op": "<=", "threshold": 0.01, "measuredBy": "eval-set" }
+        ]
+      },
+      {
+        "id": "L2",
+        "name": "诊断层",
+        "gates": [
+          { "metric": "toneNearPrecision", "op": ">=", "threshold": 0.9, "measuredBy": "eval-set" },
+          { "metric": "subgroupGap", "op": "<=", "threshold": 0.1, "measuredBy": "eval-set" }
+        ]
+      },
+      {
+        "id": "L3",
+        "name": "性能层",
+        "gates": [
+          { "metric": "p95LatencyMs", "op": "<=", "threshold": 2500, "measuredBy": "device" },
+          { "metric": "rtf", "op": "<=", "threshold": 0.5, "measuredBy": "device" },
+          { "metric": "peakMemoryMiB", "op": "<=", "threshold": 300, "measuredBy": "device" },
+          { "metric": "longTaskMs", "op": "<=", "threshold": 100, "measuredBy": "device" }
+        ]
+      },
+      {
+        "id": "L4",
+        "name": "资源层",
+        "gates": [
+          { "metric": "packBytesMiB", "op": "<=", "threshold": 60, "measuredBy": "harness" },
+          { "metric": "precacheModelBytes", "op": "<=", "threshold": 0, "measuredBy": "smoke" },
+          { "metric": "offlineRestartPass", "op": ">=", "threshold": 20, "measuredBy": "device" }
+        ]
+      },
+      {
+        "id": "L5",
+        "name": "可靠性层",
+        "gates": [
+          { "metric": "faultDrillsProtocol", "op": ">=", "threshold": 5, "measuredBy": "harness" },
+          { "metric": "degradeMs", "op": "<=", "threshold": 2000, "measuredBy": "harness" },
+          { "metric": "faultDrillsOnDevice", "op": ">=", "threshold": 5, "measuredBy": "device" },
+          { "metric": "crossOriginRequests", "op": "<=", "threshold": 0, "measuredBy": "harness" }
+        ]
+      }
+    ]
+  }
 }
