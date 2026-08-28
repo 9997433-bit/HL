@@ -12,7 +12,7 @@ import { extname, join, normalize } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import puppeteer from 'puppeteer-core'
 
-import { BOOKS } from '../src/data/books.js'
+import { BOOKS, scenePages } from '../src/data/books.js'
 import { SONGS } from '../src/data/songs.js'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
@@ -86,6 +86,16 @@ const ROUND11_H1_MIN_FREEZE = 8
 const ROUND11_H1_LAYERS = ['文本层', '诊断层', '性能层', '资源层', '可靠性层']
 /** 随包发的只有这两个文件：清单和采音 worklet。模型是家长点了才下的。 */
 const ROUND11_H1_SHIPPED = ['manifest.json', 'pcm-capture.worklet.js']
+
+/**
+ * ROUND11_H4_SMOKE：绘本页级场景。
+ * 书是从数据里挑的，不写死 id——样板换本书，测试跟着走。
+ * 验四件事：摆出了多件元素、都落在画框里、翻页换整幅、减少动态时一动不动；
+ * 外加一本没升级的书仍旧退回单 emoji（一百多本扩充绘本靠这条兜底）。
+ */
+const ROUND11_H4_SMOKE = BOOKS.find((book) => scenePages(book).length >= 3) ?? null
+const ROUND11_H4_PLAIN = BOOKS.find((book) => scenePages(book).length === 0) ?? null
+const ROUND11_H4_MIN_ITEMS = 3
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -2255,6 +2265,110 @@ if (ROUND8_H2_SMOKE && songAudioAssets.length >= ROUND10_H5_MIN_AUDIO) {
 
       const totalBytes = songAudioAssets.reduce((sum, asset) => sum + asset.bytes, 0)
       return `${songAudioAssets.length} 首 / ${totalBytes} bytes；优先=${preferred.source}，降级=${fallback.source}`
+    }
+  )
+}
+
+if (ROUND11_H4_SMOKE) {
+  await interact(
+    'ROUND11_H4：绘本页级场景 —— 多元素落在画框内，翻页换整幅，减少动态时不动',
+    `/#/books/${ROUND11_H4_SMOKE.id}`,
+    async (page) => {
+      await page.waitForSelector('.scene[data-scene="dsl"]', { timeout: 8000 })
+
+      /** 一幅场景的可见形状：摆了几件、有没有飘出画框、读屏念什么。 */
+      const snapshot = () =>
+        page.evaluate(() => {
+          const stage = document.querySelector('.scene')
+          const box = stage.getBoundingClientRect()
+          const items = [...stage.querySelectorAll('.scene__item')].map((node) => {
+            const rect = node.getBoundingClientRect()
+            return {
+              e: node.innerText.trim(),
+              cx: (rect.left + rect.width / 2 - box.left) / box.width,
+              cy: (rect.top + rect.height / 2 - box.top) / box.height,
+              size: Math.round(rect.width),
+              anim: getComputedStyle(node).animationName
+            }
+          })
+          return {
+            kind: stage.dataset.scene,
+            bg: stage.dataset.sceneBg,
+            declared: Number(stage.dataset.sceneItems ?? 0),
+            role: stage.getAttribute('role') ?? '',
+            label: stage.getAttribute('aria-label') ?? '',
+            solo: stage.querySelectorAll('.scene__solo').length,
+            items
+          }
+        })
+
+      const first = await snapshot()
+      if (first.items.length < ROUND11_H4_MIN_ITEMS) {
+        throw new Error(
+          `首页场景只摆出 ${first.items.length} 件元素，样板要求 ≥ ${ROUND11_H4_MIN_ITEMS}`
+        )
+      }
+      if (first.items.length !== first.declared) {
+        throw new Error(`场景声明 ${first.declared} 件元素，实际渲染 ${first.items.length} 件`)
+      }
+      // 坐标是百分比，写错了不会报错，只会让半只小鸟挂在画框外边。
+      const strayed = first.items.filter((i) => i.cx < 0 || i.cx > 1 || i.cy < 0 || i.cy > 1)
+      if (strayed.length) {
+        throw new Error(`${strayed.length} 件元素落在画框外：${strayed.map((i) => i.e).join('')}`)
+      }
+      // 一样大就是没吃到 s，多元素也就退化成一排贴纸。
+      if (new Set(first.items.map((i) => i.size)).size < 2) {
+        throw new Error('场景元素大小完全一致，--s 没接上')
+      }
+      if (first.role !== 'img' || first.label.length < 4) {
+        throw new Error(`场景没给读屏留话（role=${first.role}，aria-label=「${first.label}」）`)
+      }
+      if (first.solo) throw new Error('场景页还留着单 emoji 兜底层')
+
+      if (!(await clickText(page, '下一页'))) throw new Error('绘本页缺少「下一页」控件')
+      await new Promise((r) => setTimeout(r, 700))
+      const second = await snapshot()
+      const unchanged =
+        second.items.map((i) => i.e).join('') === first.items.map((i) => i.e).join('') &&
+        second.label === first.label
+      if (unchanged) throw new Error('翻到下一页，场景没跟着换')
+
+      // 「减少动态」下场景照样摆满，只是不动——动效不该是理解画面的唯一通道。
+      await page.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }])
+      await page.reload({ waitUntil: 'networkidle2', timeout: 20000 })
+      await page.waitForSelector('.scene[data-scene="dsl"]', { timeout: 8000 })
+      const quiet = await snapshot()
+      const moving = quiet.items.filter((i) => i.anim && i.anim !== 'none')
+      if (moving.length) {
+        throw new Error(`减少动态时仍有 ${moving.length} 件元素在动（${moving[0].anim}）`)
+      }
+      if (quiet.items.length < ROUND11_H4_MIN_ITEMS) {
+        throw new Error(`减少动态时场景掉到 ${quiet.items.length} 件元素`)
+      }
+      await page.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'no-preference' }])
+
+      // 没升级的书必须原样退回单 emoji，不能被场景改造顺手打碎。
+      let plain = null
+      if (ROUND11_H4_PLAIN) {
+        await page.goto(`${base}/#/books/${ROUND11_H4_PLAIN.id}`, {
+          waitUntil: 'networkidle2',
+          timeout: 20000
+        })
+        await page.waitForSelector('.scene[data-scene="emoji"]', { timeout: 8000 })
+        plain = await snapshot()
+        if (plain.solo !== 1 || plain.items.length) {
+          throw new Error(
+            `《${ROUND11_H4_PLAIN.title}》的兜底插图不对：solo=${plain.solo}，items=${plain.items.length}`
+          )
+        }
+      }
+
+      return (
+        `《${ROUND11_H4_SMOKE.title}》${scenePages(ROUND11_H4_SMOKE).length} 页场景；` +
+        `首页 ${first.items.length} 件（${first.bg}）→ 次页 ${second.items.length} 件（${second.bg}）；` +
+        `读屏「${first.label}」；减少动态 ${quiet.items.length} 件静止` +
+        (plain ? `；《${ROUND11_H4_PLAIN.title}》仍是单 emoji` : '')
+      )
     }
   )
 }
