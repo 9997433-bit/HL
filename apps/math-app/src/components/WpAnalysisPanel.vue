@@ -23,7 +23,7 @@ const props = defineProps({
   makeVariant: { type: Function, default: null },
 })
 
-const emit = defineEmits(['skip', 'step', 'variant', 'practice'])
+const emit = defineEmits(['skip', 'practice'])
 
 /** 已经摊开几步；一次只多给一步，孩子才有「自己往下想」的余地。 */
 const shown = ref(1)
@@ -49,21 +49,18 @@ function nextStep() {
   if (!restCount.value) return
   sound.click()
   shown.value += 1
-  emit('step', shown.value)
 }
 
 function showAllSteps() {
   if (!restCount.value) return
   sound.click()
   shown.value = steps.value.length
-  emit('step', shown.value)
 }
 
 function drawVariant() {
   if (!props.makeVariant) return
   sound.click()
   variant.value = props.makeVariant() ?? null
-  emit('variant', variant.value)
 }
 
 function practiceSame() {
@@ -90,13 +87,7 @@ watch(
 </script>
 
 <template>
-  <section
-    id="wp-analysis-body"
-    class="panel"
-    role="region"
-    aria-label="应用题剖析"
-    :data-analysis="ROUND16_H5"
-  >
+  <section class="panel" role="region" aria-label="应用题剖析" :data-analysis="ROUND16_H5">
     <header class="panel-head">
       <span class="chip chip-on">🔍 剖析</span>
       <p class="dim">看懂「为什么这样列式」，再回去作答。</p>
