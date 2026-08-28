@@ -48,6 +48,13 @@ def add_parser(subparsers: argparse._SubParsersAction) -> argparse.ArgumentParse
         help="OC move limit (default: 0.2)",
     )
     parser.add_argument(
+        "--filter-radius",
+        type=float,
+        default=None,
+        metavar="R",
+        help="Sigmund density filter radius in model length units (default: disabled)",
+    )
+    parser.add_argument(
         "--format",
         choices=("table", "json", "yaml"),
         default="table",
@@ -73,6 +80,7 @@ def run(args: argparse.Namespace, reporter: Reporter) -> int:
         penalization=args.penalty,
         max_iter=args.max_iter,
         move=args.move,
+        filter_radius=args.filter_radius,
     )
     report = build_report(model, result, source=str(args.model))
     if args.format == "table":

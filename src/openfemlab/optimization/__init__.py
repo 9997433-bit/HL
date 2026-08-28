@@ -73,7 +73,14 @@ from .sizing import (
     minimize_sizing,
     problem_from_updater,
 )
-from .topology import TopologyResult, run_simp_topology
+from .topology import (
+    TopologyResult,
+    apply_density_filter,
+    build_density_filter,
+    element_centroids,
+    element_volumes,
+    run_simp_topology,
+)
 from .variables import DesignSpace, ShapeVariable
 
 __all__ = [
@@ -98,9 +105,13 @@ __all__ = [
     "TopologyResult",
     "TotalMass",
     "VectorConstraint",
+    "apply_density_filter",
     "available_backends",
+    "build_density_filter",
     "check_gradient",
     "compile_sizing_problem",
+    "element_centroids",
+    "element_volumes",
     "factorial_design_vectors",
     "finite_difference_gradient",
     "fit_quadratic_rsm",

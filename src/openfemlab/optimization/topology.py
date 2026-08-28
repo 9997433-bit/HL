@@ -12,9 +12,13 @@ from ..exceptions import OptimizationError
 
 __all__ = [
     "TopologyResult",
+    "apply_density_filter",
     "assemble_simp_stiffness",
+    "build_density_filter",
+    "element_centroids",
     "element_strain_energy",
     "element_volumes",
+    "filter_sensitivities",
     "oc_update",
     "run_simp_topology",
     "simp_penalized_modulus",
@@ -43,9 +47,89 @@ def element_volumes(model) -> np.ndarray:
         elif hasattr(element, "length"):
             area = float(getattr(getattr(element, "section", None), "area", 1.0))
             volumes[index] = float(element.length(coords) * area)
+        elif hasattr(element, "volume"):
+            volumes[index] = float(element.volume(coords))
         else:
             volumes[index] = 1.0
     return volumes
+
+
+def element_centroids(model) -> np.ndarray:
+    """Element centroids as ``(num_elements, spatial_dim)`` coordinates."""
+    if model.num_elements == 0:
+        return np.zeros((0, 3), dtype=float)
+    spatial_dim = max(len(node.coords) for node in model.nodes) if model.nodes else 3
+    centroids = np.zeros((model.num_elements, spatial_dim), dtype=float)
+    for index, element in enumerate(model.elements):
+        coords = np.asarray(model.node_coords(element.node_ids), dtype=float)
+        centroids[index] = coords.mean(axis=0)
+    return centroids
+
+
+def build_density_filter(
+    model,
+    radius: float,
+    *,
+    volumes: np.ndarray | None = None,
+) -> tuple[sp.csr_matrix, np.ndarray]:
+    """Build the Sigmund density filter ``W`` and row sums ``S``.
+
+    ``W_ij = max(0, r_min - ||c_i - c_j||) * V_j`` with element centroids ``c``
+    and physical volumes ``V``.  Filtered densities follow
+    ``rho_tilde = (W @ rho) / S``.
+    """
+    radius = float(radius)
+    if radius <= 0.0:
+        raise OptimizationError("filter radius must be positive")
+    if model.num_elements == 0:
+        raise OptimizationError("model has no elements for density filtering")
+    vols = np.asarray(volumes if volumes is not None else element_volumes(model), dtype=float)
+    if vols.size != model.num_elements:
+        raise OptimizationError(
+            f"expected {model.num_elements} element volumes, got {vols.size}"
+        )
+    centroids = element_centroids(model)
+    rows: list[int] = []
+    cols: list[int] = []
+    data: list[float] = []
+    for index_i, center_i in enumerate(centroids):
+        for index_j, center_j in enumerate(centroids):
+            distance = float(np.linalg.norm(center_i - center_j))
+            weight = max(0.0, radius - distance)
+            if weight <= 0.0:
+                continue
+            rows.append(index_i)
+            cols.append(index_j)
+            data.append(weight * float(vols[index_j]))
+    matrix = sp.coo_matrix(
+        (data, (rows, cols)), shape=(model.num_elements, model.num_elements)
+    ).tocsr()
+    row_sums = np.asarray(matrix.sum(axis=1)).reshape(-1)
+    if np.any(row_sums <= 0.0):
+        raise OptimizationError("density filter produced a zero row sum; increase filter radius")
+    return matrix, row_sums
+
+
+def apply_density_filter(
+    densities: np.ndarray,
+    filter_matrix: sp.csr_matrix,
+    row_sums: np.ndarray,
+) -> np.ndarray:
+    """Apply the Sigmund density filter to physical element densities."""
+    rho = np.asarray(densities, dtype=float).reshape(-1)
+    filtered = filter_matrix @ rho
+    return np.asarray(filtered / row_sums, dtype=float).reshape(-1)
+
+
+def filter_sensitivities(
+    sensitivities: np.ndarray,
+    filter_matrix: sp.csr_matrix,
+    row_sums: np.ndarray,
+) -> np.ndarray:
+    """Chain-rule map of filtered sensitivities back to physical densities."""
+    dc = np.asarray(sensitivities, dtype=float).reshape(-1)
+    mapped = filter_matrix.T @ (dc / row_sums)
+    return np.asarray(mapped, dtype=float).reshape(-1)
 
 
 def assemble_simp_stiffness(
@@ -128,12 +212,22 @@ def oc_update(
     move: float = 0.2,
     penalization: float = 3.0,
     e_min: float = 1e-9,
+    sensitivity: np.ndarray | None = None,
+    design_densities: np.ndarray | None = None,
 ) -> np.ndarray:
     """Classic optimality-criteria density update with move limit."""
     rho = np.asarray(densities, dtype=float).reshape(-1)
-    dc = -float(penalization) * np.power(
-        np.maximum(rho, 1e-3), penalization - 1.0
-    ) * np.maximum(strain_energy, 0.0)
+    if sensitivity is not None:
+        dc = np.asarray(sensitivity, dtype=float).reshape(-1)
+    else:
+        design = (
+            np.asarray(design_densities, dtype=float).reshape(-1)
+            if design_densities is not None
+            else rho
+        )
+        dc = -float(penalization) * np.power(
+            np.maximum(design, 1e-3), penalization - 1.0
+        ) * np.maximum(strain_energy, 0.0)
     dv = np.asarray(volumes, dtype=float).reshape(-1)
     total = float(dv.sum()) or 1.0
     target = float(vol_frac) * total
@@ -182,6 +276,7 @@ def run_simp_topology(
     max_iter: int = 50,
     move: float = 0.2,
     tol: float = 1e-3,
+    filter_radius: float | None = None,
 ) -> TopologyResult:
     """Minimize compliance with a SIMP penalization and OC updates."""
     if not 0.0 < vol_frac <= 1.0:
@@ -189,13 +284,22 @@ def run_simp_topology(
     if model.load_vector().sum() == 0.0:
         raise OptimizationError("topology optimization requires non-zero nodal loads")
     volumes = element_volumes(model)
+    filter_matrix: sp.csr_matrix | None = None
+    row_sums: np.ndarray | None = None
+    if filter_radius is not None:
+        filter_matrix, row_sums = build_density_filter(model, filter_radius, volumes=volumes)
     rho = np.full(model.num_elements, float(vol_frac), dtype=float)
     history_c: list[float] = []
     history_v: list[float] = []
     last_u: np.ndarray | None = None
     for iteration in range(max_iter):
+        rho_design = (
+            apply_density_filter(rho, filter_matrix, row_sums)
+            if filter_matrix is not None and row_sums is not None
+            else rho
+        )
         k = assemble_simp_stiffness(
-            model, rho, penalization=penalization, e_min=e_min
+            model, rho_design, penalization=penalization, e_min=e_min
         )
         load = model.load_vector()
         free = model.free_dofs
@@ -206,12 +310,20 @@ def run_simp_topology(
         u[free] = np.asarray(u_f, dtype=float).reshape(-1)
         last_u = u
         energies = element_strain_energy(
-            model, u, rho, penalization=penalization, e_min=e_min
+            model, u, rho_design, penalization=penalization, e_min=e_min
         )
         compliance = float(f_f @ u_f)
         volume = float((rho * volumes).sum() / (volumes.sum() or 1.0))
         history_c.append(compliance)
         history_v.append(volume)
+        dc_design = -float(penalization) * np.power(
+            np.maximum(rho_design, 1e-3), penalization - 1.0
+        ) * np.maximum(energies, 0.0)
+        dc = (
+            filter_sensitivities(dc_design, filter_matrix, row_sums)
+            if filter_matrix is not None and row_sums is not None
+            else dc_design
+        )
         rho_new = oc_update(
             rho,
             energies,
@@ -220,6 +332,7 @@ def run_simp_topology(
             move=move,
             penalization=penalization,
             e_min=e_min,
+            sensitivity=dc,
         )
         change = float(np.max(np.abs(rho_new - rho)))
         rho = rho_new
@@ -230,7 +343,11 @@ def run_simp_topology(
                 volume_history=history_v,
                 displacements=last_u,
                 iterations=iteration + 1,
-                meta={"penalization": penalization, "vol_frac": vol_frac},
+                meta={
+                    "penalization": penalization,
+                    "vol_frac": vol_frac,
+                    "filter_radius": filter_radius,
+                },
             )
     return TopologyResult(
         densities=rho,
@@ -238,5 +355,9 @@ def run_simp_topology(
         volume_history=history_v,
         displacements=last_u,
         iterations=max_iter,
-        meta={"penalization": penalization, "vol_frac": vol_frac},
+        meta={
+            "penalization": penalization,
+            "vol_frac": vol_frac,
+            "filter_radius": filter_radius,
+        },
     )

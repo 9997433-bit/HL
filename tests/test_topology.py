@@ -2,9 +2,19 @@
 
 from __future__ import annotations
 
-from openfemlab.core.elements import Quad4Element
+import numpy as np
+
+from openfemlab.core.elements import Hex8Element, Quad4Element, Tet4Element
 from openfemlab.core.model import DOF, Material, Model
-from openfemlab.optimization.topology import run_simp_topology
+from openfemlab.mesh.simple import hex_block_mesh, tet_block_mesh
+from openfemlab.optimization.topology import (
+    apply_density_filter,
+    build_density_filter,
+    element_centroids,
+    element_volumes,
+    filter_sensitivities,
+    run_simp_topology,
+)
 
 
 def _mini_plate():
@@ -29,6 +39,42 @@ def _mini_plate():
     return model
 
 
+def _mini_tet_block():
+    steel = Material(E=2.1e11, density=0.0, nu=0.3)
+    model = tet_block_mesh(
+        1.0,
+        0.5,
+        0.5,
+        1,
+        1,
+        1,
+        steel,
+        support="cantilever",
+        name="mini tet block",
+    )
+    tip = max(model.nodes, key=lambda node: node.coords[0])
+    model.add_nodal_load(tip.id, -500.0, dof=DOF.UY)
+    return model
+
+
+def _mini_hex_block():
+    steel = Material(E=2.1e11, density=0.0, nu=0.3)
+    model = hex_block_mesh(
+        1.0,
+        0.5,
+        0.5,
+        1,
+        1,
+        1,
+        steel,
+        support="cantilever",
+        name="mini hex block",
+    )
+    tip = max(model.nodes, key=lambda node: node.coords[0])
+    model.add_nodal_load(tip.id, -500.0, dof=DOF.UY)
+    return model
+
+
 def test_simp_topology_reduces_compliance():
     model = _mini_plate()
     result = run_simp_topology(model, vol_frac=0.5, max_iter=20, move=0.2, tol=1e-2)
@@ -36,3 +82,104 @@ def test_simp_topology_reduces_compliance():
     assert 0.0 < result.mean_density <= 1.0
     assert len(result.compliance_history) >= 2
     assert result.compliance_history[-1] <= result.compliance_history[0]
+
+
+def test_element_volumes_tet4():
+    steel = Material(E=2.1e11, density=0.0, nu=0.3)
+    model = Model(dofs=(DOF.UX, DOF.UY, DOF.UZ))
+    model.add_nodes(
+        [
+            (1, 0.0, 0.0, 0.0),
+            (2, 1.0, 0.0, 0.0),
+            (3, 0.0, 1.0, 0.0),
+            (4, 0.0, 0.0, 1.0),
+        ]
+    )
+    model.add_element(Tet4Element((1, 2, 3, 4), steel))
+    volumes = element_volumes(model)
+    assert volumes.shape == (1,)
+    np.testing.assert_allclose(volumes[0], 1.0 / 6.0, rtol=1e-12)
+
+
+def test_element_volumes_hex8():
+    steel = Material(E=2.1e11, density=0.0, nu=0.3)
+    model = Model(dofs=(DOF.UX, DOF.UY, DOF.UZ))
+    model.add_nodes(
+        [
+            (1, 0.0, 0.0, 0.0),
+            (2, 1.0, 0.0, 0.0),
+            (3, 1.0, 1.0, 0.0),
+            (4, 0.0, 1.0, 0.0),
+            (5, 0.0, 0.0, 1.0),
+            (6, 1.0, 0.0, 1.0),
+            (7, 1.0, 1.0, 1.0),
+            (8, 0.0, 1.0, 1.0),
+        ]
+    )
+    model.add_element(Hex8Element(tuple(range(1, 9)), steel))
+    volumes = element_volumes(model)
+    assert volumes.shape == (1,)
+    np.testing.assert_allclose(volumes[0], 1.0, rtol=1e-12)
+
+
+def test_simp_topology_3d_tet4():
+    model = _mini_tet_block()
+    result = run_simp_topology(model, vol_frac=0.5, max_iter=15, move=0.2, tol=1e-2)
+    assert result.densities.size == model.num_elements
+    assert result.densities.size == 6
+    assert len(result.compliance_history) >= 2
+    assert result.compliance_history[-1] <= result.compliance_history[0]
+
+
+def test_simp_topology_3d_hex8():
+    model = _mini_hex_block()
+    result = run_simp_topology(model, vol_frac=0.5, max_iter=15, move=0.2, tol=1e-2)
+    assert result.densities.size == 1
+    assert len(result.compliance_history) >= 1
+    assert 0.0 < result.mean_density <= 1.0
+
+
+def test_density_filter_smooths_checkerboard():
+    model = _mini_plate()
+    volumes = element_volumes(model)
+    filter_matrix, row_sums = build_density_filter(model, radius=0.75, volumes=volumes)
+    checkerboard = np.array([1.0, 0.001], dtype=float)
+    filtered = apply_density_filter(checkerboard, filter_matrix, row_sums)
+    assert filtered.min() > checkerboard.min()
+    assert filtered.max() < checkerboard.max()
+    assert np.std(filtered) < np.std(checkerboard)
+
+
+def test_density_filter_sensitivity_chain_rule():
+    model = _mini_plate()
+    filter_matrix, row_sums = build_density_filter(model, radius=0.75)
+    dc_design = np.array([-2.0, -8.0], dtype=float)
+    dc_physical = filter_sensitivities(dc_design, filter_matrix, row_sums)
+    assert dc_physical.shape == (2,)
+    assert np.all(np.isfinite(dc_physical))
+
+
+def test_simp_topology_with_density_filter():
+    model = _mini_plate()
+    result = run_simp_topology(
+        model,
+        vol_frac=0.5,
+        max_iter=20,
+        move=0.2,
+        tol=1e-2,
+        filter_radius=0.75,
+    )
+    assert result.meta["filter_radius"] == 0.75
+    assert result.densities.shape == (2,)
+    assert len(result.compliance_history) >= 2
+    assert result.compliance_history[-1] <= result.compliance_history[0]
+
+
+def test_element_centroids_dimension():
+    model = _mini_plate()
+    centroids = element_centroids(model)
+    assert centroids.shape == (2, 3)
+    np.testing.assert_allclose(centroids[:, 2], 0.0)
+    model_3d = _mini_tet_block()
+    centroids_3d = element_centroids(model_3d)
+    assert centroids_3d.shape == (model_3d.num_elements, 3)

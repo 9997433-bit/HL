@@ -1,3 +1,34 @@
+# OpenFEMLab vs FEMtools — SOTA Gap Analysis (Round 15 refresh)
+
+**Auditor:** Cloud Agent · **Date:** 2026-08-28 UTC  
+**Snapshot:** branch `cursor/round15-topology-filter-7aa3`, release **`0.2.5`**  
+**Registry:** **104/104** acceptance criteria `verified`
+
+## Round 15 executive summary
+
+Round 15 extends the Round 14 SIMP topology path to 3D solids and adds the
+standard Sigmund density filter for mesh-independent designs:
+
+| Priority | Theme | Outcome |
+|----------|-------|---------|
+| P0 | 3D SIMP topology | `element_volumes()` for TET4/HEX8; 3D `topopt` runs |
+| P0 | Density filter | `build_density_filter`, `apply_density_filter`, `--filter-radius` |
+| P1 | Sensitivity chain rule | Filtered OC updates via `filter_sensitivities` |
+
+### Remaining intentional gaps
+
+| Gap | Status |
+|-----|--------|
+| DAQ hardware / ARTeMIS runtime | **Deferred** — file workflow only |
+| Desktop-grade GUI product | **Deferred** — CLI + Web by design |
+| Heaviside projection / robust topology | **Deferred** — linear density filter shipped |
+| ODB without any Abaqus install | **Partial** — requires sidecar NPZ or local Abaqus for first extract |
+
+**Verdict:** OpenFEMLab topology optimization now spans 2D shells/plates and
+3D TET4/HEX8 solids with optional density filtering.
+
+---
+
 # OpenFEMLab vs FEMtools — SOTA Gap Analysis (Round 14 refresh)
 
 **Auditor:** Cloud Agent · **Date:** 2026-08-28 UTC  
