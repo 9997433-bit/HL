@@ -289,9 +289,9 @@ for (const tierId of ['one', 'two', 'multi']) {
   )
 }
 
-/* ROUND16_H4 学演示注册表：每条挂一个技能点，完整走完「实物 → 图形 → 算式」三段。 */
+/* ROUND16_H4 / ROUND17_H3 学演示注册表：每条挂一个技能点，完整走完「实物 → 图形 → 算式」三段。 */
 {
-  const MIN_LEARN_DEMOS = 12
+  const MIN_LEARN_DEMOS = 27
   const demoIds = new Set()
   const demoSkills = new Set()
   if (LEARN_DEMOS.length < MIN_LEARN_DEMOS) {

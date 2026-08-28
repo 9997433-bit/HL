@@ -1,4 +1,4 @@
-# ROUND16_H4 学演示注册表
+# ROUND16_H4 / ROUND17_H3 学演示注册表
 
 数学 App 的「学演示」回答的是开练之前的那个问题：**这个知识点到底在讲什么**。
 每条演示都走同一个三段契约，缺一段就不算数：
@@ -13,16 +13,18 @@
 
 | 件 | 路径 |
 |---|---|
-| 数据（标记 `ROUND16_H4`） | `apps/math-app/src/data/learn-demos.js` |
+| 数据（标记 `ROUND16_H4` + `ROUND17_H3`） | `apps/math-app/src/data/learn-demos.js` |
 | 技能清单（练习入口静态引用的轻量索引） | `apps/math-app/src/data/learn-demo-index.js` |
 | 播放壳 | `apps/math-app/src/components/LearnDemo.vue` |
 | 玩法页入口（按钮 + 弹层） | `apps/math-app/src/components/LearnDemoLauncher.vue` |
 | 演示中心 `/#/visual-demos` | `apps/math-app/src/modules/visual-demos/VisualDemosView.vue` |
 | 定点验收 | `apps/math-app/scripts/verify-learn-demo.mjs` |
 
-## 覆盖清单（21 个技能点 ≥ 12）
+## 覆盖清单（27 个技能点 ≥ 27）
 
 一个技能点最多挂一条演示，`check:content` 会对重复报错。
+第 22–27 行是 Round 17 补的（`ROUND17_H3`），挑的都是「一个数量关系能抽象成一行算式」
+的技能点，判定标准见下面「为什么还剩 7 个没有」。
 
 | # | 技能点 | 名称 | 档 | 模块 | 演示 id | 实物 | 图形 | 算式 |
 |---|---|---|---|---|---|---|---|---|
@@ -47,6 +49,16 @@
 | 19 | `pattern-number` | 数列规律 | L3 | logic | `pattern-number` | 三堆金币：2、4、6 枚 | 每堆比前一堆多 2 个点 | `6 + 2 = 8` |
 | 20 | `wp-combine` | 合并问题 | L2 | word-problems | `wp-combine` | 鱼缸 4 条又放进 3 条 | 两部分并成一个整体 | `4 + 3 = 7` |
 | 21 | `wp-remain` | 剩余问题 | L2 | word-problems | `wp-remain` | 8 个气球飞走 3 个 | 划掉飞走的那部分 | `8 − 3 = 5` |
+| 22 | `shape-3d` | 立体图形与展开图 | L4 | geometry | `net-of-cube` | 一颗骰子（正方体） | 摊平成 6 块正方形 | `1 + 4 + 1 = 6` |
+| 23 | `classify` | 分类大师 | L2 | logic | `classify-count` | 一筐混着水果和小车 | 按类分成两堆 | `5 + 3 = 8` |
+| 24 | `wp-diff` | 比较差问题 | L3 | word-problems | `wp-diff` | 姐姐 8 个、弟弟 5 个蛋糕 | 两排对齐，多出一段 | `8 − 5 = 3` |
+| 25 | `wp-times` | 倍数与几个几 | L4 | word-problems | `wp-times` | 小兔 3 根，大兔 4 倍 | 4 份一样多，每份 3 个 | `3 × 4 = 12` |
+| 26 | `wp-share` | 平均分与包含除 | L4 | word-problems | `wp-share` | 12 个饺子每盘装 4 个 | 每 4 个圈一盘，圈出 3 盘 | `12 ÷ 4 = 3` |
+| 27 | `wp-two-step` | 两步混合问题 | L4 | word-problems | `wp-two-step` | 车上 7 人下 3 人上 4 人 | 先划掉再添上 | `7 − 3 + 4 = 8` |
+
+`div-basic` 讲的是平均分（分给 3 个盘子，每盘几个），`wp-share` 讲的是包含除
+（每盘定死 4 个，能装几盘）。两条演示挂在两个技能点上，图形段一个先画盘子再填、
+一个先圈满一盘再圈下一盘，说的不是同一件事。
 
 机读清单（技能 id，与 `learn-demo-index.js` 逐项对齐）：
 
@@ -67,10 +79,16 @@
 - `div-basic`
 - `shape-2d`
 - `symmetry`
+- `shape-3d`
 - `pattern-abab`
 - `pattern-number`
+- `classify`
 - `wp-combine`
 - `wp-remain`
+- `wp-diff`
+- `wp-times`
+- `wp-share`
+- `wp-two-step`
 
 ## 按学科模块
 
@@ -78,16 +96,28 @@
 |---|---|---|
 | number-sense 数量星云 | 7 / 8 | `number-trace` |
 | arithmetic 算术恒星 | 8 / 8 | — |
-| geometry 形状卫星 | 2 / 4 | `tangram-basic`、`shape-3d` |
-| logic 规律环带 | 2 / 5 | `classify`、`maze-condition`、`deduction` |
-| word-problems 生活行星 | 2 / 6 | `wp-diff`、`wp-times`、`wp-share`、`wp-two-step` |
+| geometry 形状卫星 | 3 / 4 | `tangram-basic` |
+| logic 规律环带 | 3 / 5 | `maze-condition`、`deduction` |
+| word-problems 生活行星 | 6 / 6 | — |
 | sudoku 数独空间站 | 0 / 3 | `sudoku-4`、`sudoku-6`、`sudoku-9` |
-| **合计** | **21 / 34** | 13 |
+| **合计** | **27 / 34** | 7 |
 
-没覆盖的这 13 个是有意留的，不是漏掉：数独、迷宫、七巧板这类技能的核心不是
-「一个数量关系怎么抽象成算式」，硬套三段只会得到一条编出来的算式。它们本来就
-靠玩法本身的操作反馈来教，演示入口按 `learn-demo-index.js` 判断有没有，
-没有就不摆按钮，不给死链接。
+## 为什么还剩 7 个没有
+
+判定只有一条：**这个技能点能不能给出一个「数量关系 → 一行算式」的抽象过程**。
+能的都补上了（Round 17 补的 6 个就是按这条筛出来的）；剩下 7 个不能，
+就不硬凑一条编出来的算式塞进去：
+
+| 技能点 | 为什么不套三段 |
+|---|---|
+| `number-trace` 数字描红 | 练的是笔顺和手上的控制力，没有可抽象的数量关系；写成 `0…9` 只是把字表抄一遍 |
+| `tangram-basic` 七巧板 | 核心是「这块转过来能不能填进去」的空间试错，不是算出一个数 |
+| `maze-condition` 条件迷宫 | 核心是按条件择路，正确与否由走通与否说了算，配不出算式段 |
+| `deduction` 真假侦探 | 推的是命题真假，不是数量；三段里的「算式」段无从写起 |
+| `sudoku-4/6/9` | 数字只是 4/6/9 个互不相同的符号，跟大小、加减完全无关 |
+
+这 7 个本来就靠玩法自身的操作反馈来教。演示入口一律按 `learn-demo-index.js`
+判断有没有，没有就不渲染按钮，不给死链接（见 `LearnDemoLauncher.vue` 的 `v-if`）。
 
 ## 入口
 
@@ -98,18 +128,23 @@
 | 技能图谱详情卡 | 「🎞️ 先看演示」，只在该技能有演示时出现 | `[data-learn-demo-link]` |
 | 星球练习页题头 | 「🎞️ 看演示」就地弹层，收起后继续练 | `[data-learn-demo-open]`、`[data-learn-demo-layer]` |
 
-题头入口挂在这几处，覆盖了全部 21 个有演示的技能点：
+题头入口挂在这几处，覆盖了全部 27 个有演示的技能点：
 
 | 页面 | 当前技能点从哪来 |
 |---|---|
 | 算术恒星 `/arithmetic`、速算冲刺、今日冒险、生活行星 | `QuizShell` 的当前题 `skill` |
 | 数量星云 `/number-sense`、比大小擂台 | `countingSkill(current)` |
-| 形状卫星 `/geometry` | `geometrySkill(current.target)` |
+| 形状卫星 `/geometry` | `geometrySkill(current.target)`，`dim==='3d'` 那档就是新加的 `shape-3d` |
 | 规律环带 `/logic` | `logicSkill(current.type)` |
+| 配对记忆 `/memory-pairs` | 整页只练 `classify`（Round 17 新挂） |
 | 10 的分与合 `/compose-ten` | 整页只练 `compose-ten` |
 
+生活行星走 `QuizShell`，母题的 `skill` 直接就是技能点，所以 Round 17 补的四条
+应用题演示（`wp-diff`/`wp-times`/`wp-share`/`wp-two-step`）不用改玩法页，
+抽到哪类母题题头就出哪条演示。
+
 技能点取的都是判题时上报掌握度的同一条口径，弹的演示和这道题算在同一个技能上。
-七巧板、数独、配对记忆、逻辑迷宫的技能点还没有演示，按 `learn-demo-index.js`
+七巧板、数独、逻辑迷宫的技能点还没有演示，按 `learn-demo-index.js`
 判断后不渲染按钮，不摆死入口。
 
 弹层不打断本轮：题序、连击、计时都不重置，弹层盖着时数字键不再落到选项上

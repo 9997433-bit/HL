@@ -9,7 +9,7 @@
 import { computed, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import LearnDemo from '@/components/LearnDemo.vue'
-import { LEARN_DEMOS } from '@/data/learn-demos.js'
+import { LEARN_DEMOS, ROUND17_H3 } from '@/data/learn-demos.js'
 import { SKILL_MAP } from '@/data/curriculum.js'
 import { MODULES } from '@/data/modules.js'
 import { sound } from '@/utils/sound.js'
@@ -65,7 +65,12 @@ function choose(id) {
           能跳过、能重播，也能一步一步自己点。
         </p>
       </div>
-      <span class="count-badge" data-visual-demo-count data-learn-demo-count>
+      <span
+        class="count-badge"
+        data-visual-demo-count
+        data-learn-demo-count
+        :data-round17="ROUND17_H3"
+      >
         {{ LEARN_DEMOS.length }} 个技能点
       </span>
     </section>
