@@ -1,0 +1,12 @@
+
+Round 17 check (ROUND17-v1.0): 2/8
+
+✓ H7 真机/模拟闭环或诚实 BLOCKED 台账就位
+✓ H8 check:round16 8/8
+✗ H1 缺少 round17-hongen-gap-audit.md 或内容过薄
+✗ H2 富 Play 不足：rich=640(需≥900)，narration去重=640(需≥720)，标记=false
+✗ H3 学演示不足（标记=true，三态=true，可跳过=true，计数=21）
+✗ H4 精品剖析不足（标记=false，计数=0）
+✗ H5 缺学伴关键接线（ROUND17_H5）
+✗ H6 走查证据不足（doc=0，引用=0，落盘=0）
+
