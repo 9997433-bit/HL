@@ -129,6 +129,26 @@ const ROUND12_H1_ROLES = [
 ]
 
 /**
+ * ROUND13_H1_SMOKE：冻结集进度随包发出去，但不许虚报。
+ *
+ * R12 守的是「模型落了库，界面不许自己升档」。这一轮清单里多了两样东西——
+ * 冻结集进度（`evalSet.freezeSet`）和 RTF 基准的指针——它们会一路发到用户机器上，
+ * 所以要在**构建产物**里再验一遍它们没被写歪：
+ *
+ *   - 进度自洽：实录没到 300 条，stage 就不许是 frozen，available 就不许是 true。
+ *     Node 那边 test-asr-eval-set.mjs 对着 asr-eval-set.json 现算核对，
+ *     这里守的是「发出去的那一份和它是同一个结论」。
+ *   - 三处地板同一个数：清单 evalSet.minClips、freezeSet.skeletonFloor、骨架实际条数。
+ *   - 卡住放行的两条冻结项（F4 冻结集、F7 真机性能）必须还挂着 available=true，
+ *     且状态不是 done——它们一旦被悄悄标 done，前面那些断言就全成了摆设。
+ *   - 五层门槛表里不许出现实测值。阈值可以随包发（它是承诺），实测值不行（它会过期）：
+ *     用户手上那份清单说「RTF 实测 0.27」的那天，就是这套判定开始骗人的那天。
+ */
+const ROUND13_H1_SMOKE = ROUND8_H5_SMOKE
+const ROUND13_H1_MIN_SKELETON = 50
+const ROUND13_H1_BLOCKING_FREEZE = ['F4', 'F7']
+
+/**
  * ROUND11_H4_SMOKE：绘本页级场景。
  * 书是从数据里挑的，不写死 id——样板换本书，测试跟着走。
  * 验四件事：摆出了多件元素、都落在画框里、翻页换整幅、减少动态时一动不动；
@@ -2231,6 +2251,107 @@ if (ROUND12_H1_SMOKE) {
         `整包 ${(total / 1048576).toFixed(2)} MiB / ${manifest.files.length} 个文件（${roles.length} 个角色）` +
         `，首屏 0 次模型请求；抽验 ${probes.map((p) => p.path.split('/').pop()).join('、')} 同源可取且字节对得上；` +
         `available=${manifest.available}，档位 ${before.tier}→${after.tier}，0 个跨源请求`
+      )
+    }
+  )
+}
+
+if (ROUND13_H1_SMOKE) {
+  await interact(
+    'ROUND13_H1：冻结集进度随包发出，但实录 0 条就不许自称冻结、更不许放行',
+    `/#${ROUND13_H1_SMOKE}`,
+    async (page) => {
+      const manifest = await page.evaluate(async () => {
+        const response = await fetch(new URL('asr/manifest.json', document.baseURI).href, {
+          cache: 'no-cache'
+        })
+        if (!response.ok) return null
+        return response.json()
+      })
+      if (!manifest) throw new Error('页面取不到 asr/manifest.json')
+
+      const freeze = manifest.evalSet?.freezeSet
+      if (!freeze) throw new Error('随包发出的清单里没有冻结集进度（evalSet.freezeSet）')
+      if (freeze.skeletonFloor < ROUND13_H1_MIN_SKELETON) {
+        throw new Error(`骨架地板被调到 ${freeze.skeletonFloor} 条（下限 ${ROUND13_H1_MIN_SKELETON}）`)
+      }
+      if (manifest.evalSet.minClips !== freeze.skeletonFloor) {
+        throw new Error(
+          `两个地板对不上：evalSet.minClips=${manifest.evalSet.minClips}，` +
+            `freezeSet.skeletonFloor=${freeze.skeletonFloor}`
+        )
+      }
+      if (!(freeze.skeleton >= freeze.skeletonFloor)) {
+        throw new Error(`骨架只声明了 ${freeze.skeleton} 条，低于自己写的地板 ${freeze.skeletonFloor}`)
+      }
+      if (!Number.isInteger(freeze.recorded) || freeze.recorded < 0) {
+        throw new Error(`实录条数不合法：${freeze.recorded}`)
+      }
+      if (freeze.recorded < freeze.recordedFloor) {
+        if (freeze.stage === 'frozen') {
+          throw new Error(
+            `实录只有 ${freeze.recorded}/${freeze.recordedFloor} 条，stage 却已经写成 frozen`
+          )
+        }
+        if (manifest.available !== false) {
+          throw new Error(
+            `实录只有 ${freeze.recorded}/${freeze.recordedFloor} 条，available 却是 ${manifest.available}`
+          )
+        }
+      }
+
+      const checklist = manifest.freezeChecklist ?? []
+      for (const id of ROUND13_H1_BLOCKING_FREEZE) {
+        const item = checklist.find((entry) => entry.id === id)
+        if (!item) throw new Error(`冻结清单里找不到 ${id}`)
+        if (!/available=true/.test(String(item.blocks))) {
+          throw new Error(`${id} 不再挡着 available=true —— 放行的锁被人拆了一把`)
+        }
+        if (item.status === 'done' && manifest.available !== true) {
+          throw new Error(`${id} 标成了 done，可 available 还是 false，两边说的不是一回事`)
+        }
+      }
+      const pendingBlockers = checklist.filter(
+        (item) => item.status !== 'done' && /available=true/.test(String(item.blocks))
+      )
+      if (pendingBlockers.length && manifest.available !== false) {
+        throw new Error(
+          `还有 ${pendingBlockers.length} 条冻结项没做完，available 却是 ${manifest.available}`
+        )
+      }
+
+      // 阈值是承诺，可以随包发；实测值会过期，一旦发出去就开始骗人
+      for (const layer of manifest.goNoGo?.layers ?? []) {
+        for (const gate of layer.gates ?? []) {
+          if ('measured' in gate) {
+            throw new Error(`${layer.name}的 ${gate.metric} 把实测值写进了随包清单`)
+          }
+        }
+      }
+      if (!manifest.evalSet.freezeSpec || !manifest.evalSet.rtfBaseline) {
+        throw new Error('清单没挂冻结集口径与 RTF 基准文档，界面上的进度就没有出处')
+      }
+
+      // 家长那一侧照旧：没放行就还停在录音档，入口还是「下载」
+      await page.waitForSelector('.fr[data-tier]', { timeout: 8000 })
+      await page.waitForFunction(
+        () => !['unknown', 'checking'].includes(document.querySelector('.fr__pack')?.dataset.status),
+        { timeout: 8000 }
+      )
+      const shown = await page.evaluate(() => ({
+        tier: document.querySelector('.fr')?.dataset.tier ?? '',
+        status: document.querySelector('.fr__pack')?.dataset.status ?? '',
+        note: document.querySelector('.fr__pack-note')?.innerText.replace(/\s+/g, ' ').trim() ?? ''
+      }))
+      if (shown.tier === 'offline-asr') throw new Error('冻结集一条没录，界面却升到了离线档')
+      if (shown.status === 'ready') throw new Error('没人装包，界面却说离线评测包已就绪')
+      if (!shown.note.includes('未安装')) throw new Error(`家长看到的状态说不清：「${shown.note}」`)
+
+      return (
+        `冻结集 ${freeze.id}（${freeze.stage}）骨架 ${freeze.skeleton}/${freeze.skeletonFloor} 条、` +
+        `实录 ${freeze.recorded}/${freeze.recordedFloor} 条；` +
+        `${pendingBlockers.length} 条冻结项挡着放行，available=${manifest.available}，` +
+        `五层门槛 0 个实测值随包发出；界面停在 ${shown.tier}`
       )
     }
   )
