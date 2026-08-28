@@ -706,10 +706,20 @@ defineExpose({ finish, replay, skip: onSkip })
 
 /* ------------------------------------------------------------ catch / match */
 
+/*
+ * 道具少到一两件时（「揭一揭」只盖着一张牌），四等分网格会把那一张顶到左上角，
+ * 看着像没加载完。改成居中换行，一张也好、九张也好都摆在中间。
+ */
 .play__grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: var(--gap-xs);
+}
+
+.play__grid .play__cell {
+  flex: 0 0 auto;
+  width: 72px;
 }
 
 .play__cell {
@@ -856,7 +866,9 @@ defineExpose({ finish, replay, skip: onSkip })
 
 .play__part-glyph {
   font-family: var(--font-hanzi);
-  font-size: var(--fs-lg);
+  /* 零件多半是部件或 emoji，比正文再大一号才够小手看清、够大点得中 */
+  font-size: var(--fs-xl);
+  line-height: 1.2;
   color: var(--text-strong);
 }
 
@@ -980,8 +992,8 @@ defineExpose({ finish, replay, skip: onSkip })
 }
 
 @media (max-width: 420px) {
-  .play__grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  .play__grid .play__cell {
+    width: 64px;
   }
 
   .play__card {
