@@ -18,6 +18,11 @@
  * 「没认出来」把锅甩回给孩子——RETRY_TIPS 那三条对应现场真正改得动的三件事：
  * 光线、取景、换一张。低置信度也单独说一声，免得孩子把「认错了」当成「就是这个字」。
  *
+ * ROUND12_H2 把这一半再拆细：同样是「认不出」，太暗、拍糊和取景里根本没有成行的字，
+ * 该做的事完全不同，一组通用话术等于每条都只说对三分之一。preprocess() 顺手量出的
+ * 曝光与锐度（result.photo）够分辨这三种，于是 reason 一分岔，话术、标题和
+ * data-trouble 跟着一起分岔。
+ *
  * 引擎近 6 MB，只有真的给了图才 import()，进这一页本身不下载任何 wasm。
  */
 import { computed, onMounted, ref, shallowRef, watch } from 'vue'
@@ -55,6 +60,8 @@ const STEPS = [
  * 先调光线（暗和反光是最常见的原因），再调取景，最后承认换一张更快。
  * 第三条特意把边界说破——手写体和艺术字它现在真的认不出来，
  * 让孩子在同一张照片上反复重拍才是真的耽误时间。
+ *
+ * 这三条是兜底：说不清这次到底是暗还是糊的时候，它们永远给得出。
  */
 const RETRY_TIPS = [
   { icon: '💡', text: '换个亮一点的地方，别让手影或者灯的反光压在字上' },
@@ -62,8 +69,55 @@ const RETRY_TIPS = [
   { icon: '↩️', text: '还认不出就换一张：手写体、艺术字和褪色的招牌，它现在确实认不了' }
 ]
 
+/**
+ * 按失败原因分岔的话术（ROUND12_H2）。
+ *
+ * 兜底那三条对着「所有失败」讲，代价是每一条都只说了三分之一有用的话：
+ * 照片黑得看不见笔画时让人「凑近一点」是废话，糊成一团时让人「找个亮地方」也一样。
+ * utils/ocr.js 的 preprocess() 顺手量了曝光和锐度（result.photo），
+ * 有这两个数就能说得具体些——每一组仍然保留「换一张 + 认不了哪一类字」那条出口，
+ * 免得孩子对着同一张手写照片一遍遍重拍。
+ */
+const REASON_TIPS = {
+  dim: [
+    { icon: '🌙', text: '这张太暗了，笔画糊进背景里。开个灯，或者走到窗边再拍一张' },
+    { icon: '🙌', text: '低头拍的时候手和身体常常正好挡住光，换个方向站' },
+    { icon: '↩️', text: '实在补不了光就换一张：太暗的照片它认不出来，不是你的错' }
+  ],
+  blurry: [
+    { icon: '💫', text: '字的边缘糊掉了。双手端住手机，先等画面停稳一秒再按' },
+    { icon: '👆', text: '离得太近反而对不上焦——退开一点，点一下屏幕上的字再拍' },
+    { icon: '↩️', text: '还是糊就换一张：拍糊的照片和褪色的招牌，它现在确实认不了' }
+  ],
+  blank: [
+    { icon: '🔎', text: '画面里没找到成行的字。让那几个字占满大半个画面，别把整面墙都拍进来' },
+    { icon: '📐', text: '把手机摆正，跟字面平行，字歪着或者斜着它就连不成一行' },
+    { icon: '↩️', text: '换一张也行：手写体、艺术字和褪色的招牌，它现在确实认不了' }
+  ]
+}
+
 /** 认得出但把握不大：分数低于这条线就先提醒一句，别让孩子把认错的字当真。 */
 const SHAKY_CONFIDENCE = 60
+
+/**
+ * 判「暗」和「糊」的三条线，都是拿 scripts/fixtures/ocr 那二十张基准图量出来的
+ * （实测表见 .agent_workspace/r12-ocr-matrix.md §4）。定线的原则只有一条：
+ * **宁可退回兜底话术，也不要对着一张其实没问题的照片说「你拍糊了」。**
+ * 所以每条线都压在二十张里最极端那张之外——这二十张全都认得出，
+ * 谁也不该被这套分支挑出毛病。
+ *
+ * DIM_LUMA / DIM_SPAN：光看平均亮度会冤枉黑板。低光字卡的均值只有 29、
+ * 黑板粉笔落款 31，可它们的灰阶跨度都在 110 以上——画面是暗的，笔画不是，
+ * 而且两张都认得出四个字。所以「暗」要两条同时踩中：整体压暗（<60）
+ * 且灰度全挤在一小段里（<100）。二十张里没有一张同时满足。
+ *
+ * BLUR_SHARPNESS：二十张的锐度（拉伸后横向梯度的 99 分位）落在 6–53，
+ * 最软的是暖光字卡的 6，其次是斜拍字卡和拍糊的便签，都是 13。线放在 6，
+ * 取严格小于——比基准集里最软的那张还软，才敢说这是糊了。
+ */
+const DIM_LUMA = 60
+const DIM_SPAN = 100
+const BLUR_SHARPNESS = 6
 
 /** 引擎跑完了，一个字都没落进结果里——最需要那三条话术的就是这一格。 */
 const blank = computed(
@@ -78,17 +132,39 @@ const shaky = computed(
     (result.value?.confidence ?? 100) < SHAKY_CONFIDENCE
 )
 
-/** 三种失败摆同一组话术：认了一场空、认得不准、引擎自己出错。 */
+/** 三种失败摆同一张降级卡：认了一场空、认得不准、引擎自己出错。 */
 const troubled = computed(() => blank.value || shaky.value || phase.value === 'error')
 
+/**
+ * 这次到底是哪一种失败。
+ *
+ * 顺序有讲究：引擎自己崩了先说崩了；曝光排在锐度前面，因为照片一暗，
+ * 边缘本来就软，两条线会同时踩中，而这时候该做的是补光而不是端稳。
+ */
+const reason = computed(() => {
+  if (phase.value === 'error') return 'error'
+  if (!troubled.value) return ''
+  const stats = result.value?.photo
+  if (stats && stats.luma < DIM_LUMA && stats.span < DIM_SPAN) return 'dim'
+  if (stats && stats.sharpness < BLUR_SHARPNESS) return 'blurry'
+  return blank.value ? 'blank' : 'shaky'
+})
+
+/** 说得清原因就给对得上现场的那一组，说不清就回到兜底三条。 */
+const tips = computed(() => REASON_TIPS[reason.value] ?? RETRY_TIPS)
+
 const troubleTitle = computed(() => {
-  if (phase.value === 'error') return '这次没认成'
+  if (reason.value === 'error') return '这次没认成'
+  if (reason.value === 'dim') return '这张照片太暗了'
+  if (reason.value === 'blurry') return '这张照片糊了'
   if (blank.value) return '这张照片里一个字都没认出来'
   return '认出来了，但把握不大'
 })
 
 const troubleDesc = computed(() => {
-  if (phase.value === 'error') return hint.value
+  if (reason.value === 'error') return hint.value
+  if (reason.value === 'dim') return '光太少，笔画和背景混在一起了。先把光补上：'
+  if (reason.value === 'blurry') return '笔画的边缘糊成一片，它分不出这是哪个字。先让画面稳下来：'
   if (blank.value) return '不是你拍得不好——光线、角度和字体它都挑。试试下面三条：'
   return `把握只有 ${result.value?.confidence ?? 0} 分，下面这几个字可能认错了。想更准一点：`
 })
@@ -236,14 +312,16 @@ function say(char) {
     </section>
 
     <!--
-      认不出的那一半。三种失败共用一张卡：认了一场空、认得不准、引擎出错。
+      认不出的那一半。所有失败共用一张卡，但卡里的话按原因分岔：
+      太暗、糊了、一个字都没有、认得不准、引擎出错。data-trouble 直接写 reason，
+      smoke 与读屏都靠它定位到具体是哪一种。
       话术之外还要给出口，所以卡底下坐着「再拍一张」和「试一张示例」——
       示例那条是给「是不是这台设备坏了」留的自证路径。
     -->
     <section
       v-if="troubled"
       class="card card--sunken ocr__trouble"
-      :data-trouble="phase === 'error' ? 'error' : blank ? 'blank' : 'shaky'"
+      :data-trouble="reason"
       role="status"
     >
       <h3 class="ocr__trouble-title">
@@ -251,7 +329,7 @@ function say(char) {
       </h3>
       <p class="ocr__trouble-desc">{{ troubleDesc }}</p>
       <ul class="ocr__tips">
-        <li v-for="tip in RETRY_TIPS" :key="tip.text" class="ocr__tip">
+        <li v-for="tip in tips" :key="tip.text" class="ocr__tip">
           <span class="ocr__tip-icon" aria-hidden="true">{{ tip.icon }}</span>
           <span>{{ tip.text }}</span>
         </li>
