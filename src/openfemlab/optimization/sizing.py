@@ -76,15 +76,39 @@ class ModalDesignEvaluator:
       *and* every design variable is one of its parameters, the state carries
       Fox-Kapoor ``df/dp`` (reference mode order) plus the total mass and its
       exact gradient.
+    - **Shape morphing** — when ``geometry`` is a :class:`~openfemlab.core.model.Model`
+      and the design space carries shape amplitudes, nodal coordinates are
+      updated with ``X = X0 + Σ a_j V_j`` before each solve so finite-difference
+      gradients see the remeshed mesh.
     """
 
-    def __init__(self, model: ModelCallable, space: DesignSpace) -> None:
+    def __init__(
+        self,
+        model: ModelCallable,
+        space: DesignSpace,
+        *,
+        geometry=None,
+    ) -> None:
         self.model = model
         self.space = space
         self.n_modal_solves = 0
         self._cache: dict[bytes, DesignState] = {}
         self._reference: ModalData | None = None
         self._analytic = self._supports_analytic()
+        self._geometry = geometry
+        self._x0 = (
+            None
+            if geometry is None
+            else np.asarray(geometry.coordinates, dtype=float).copy()
+        )
+        if self._geometry is not None and self.space.n_shape:
+            n_nodes = int(self._x0.shape[0])
+            for variable in self.space.shape:
+                if variable.n_nodes != n_nodes:
+                    raise OptimizationError(
+                        f"shape variable {variable.name!r} has {variable.n_nodes} nodes "
+                        f"but geometry has {n_nodes}"
+                    )
 
     def _supports_analytic(self) -> bool:
         model = self.model
@@ -96,6 +120,10 @@ class ModalDesignEvaluator:
             return False
         known = getattr(model, "parameter_names", None)
         if known is None:
+            return False
+        # Shape amplitudes remesh geometry; Fox-Kapoor on a ScalingModel cannot
+        # cover them, so fall back to tracked FD whenever shape vars are present.
+        if self.space.n_shape:
             return False
         return all(name in known for name in self.space.names)
 
@@ -113,6 +141,10 @@ class ModalDesignEvaluator:
             return cached
 
         parameters = self.space.to_physical(x)
+        if self._geometry is not None and self.space.n_shape:
+            self._geometry.set_node_coordinates(
+                self.space.apply_to_coordinates(self._x0, x)
+            )
         state = DesignState(x=x, parameters=parameters)
         if self._analytic:
             self._evaluate_analytic(state)
@@ -198,6 +230,8 @@ def compile_sizing_problem(
     params: ParameterSet | Sequence[UpdatableParameter] | DesignSpace,
     objective: Objective | Response,
     constraints: Sequence[Constraint] = (),
+    *,
+    geometry=None,
     **options: object,
 ) -> tuple[OptimizationProblem, ModalDesignEvaluator]:
     """Lower a structural sizing statement to a vector problem.
@@ -205,11 +239,15 @@ def compile_sizing_problem(
     Returns the problem together with its evaluator so callers can inspect
     gradient availability, modal-solve counts, and the cached states — and so
     AC-OPT-001 checks can run against the compiled callbacks directly.
+
+    Pass ``geometry`` (a :class:`~openfemlab.core.model.Model`) when the design
+    space includes shape amplitudes so each evaluation remeshes coordinates
+    before the modal solve.
     """
     space = params if isinstance(params, DesignSpace) else DesignSpace(sizing=params)
     if isinstance(objective, Response):
         objective = Objective(objective)
-    evaluator = ModalDesignEvaluator(model, space)
+    evaluator = ModalDesignEvaluator(model, space, geometry=geometry)
 
     fun, jac = _lower_scalar(
         evaluator, objective.value, objective.gradient, f"objective {objective.name!r}"
@@ -248,6 +286,7 @@ def minimize_sizing(
     tol: float = 1.0e-8,
     max_iter: int = 100,
     seed: int = 0,
+    geometry=None,
 ) -> OptimizationResult:
     """Gradient-based sizing optimization (spec MS-5.3 public API).
 
@@ -255,7 +294,9 @@ def minimize_sizing(
     standardized inequality ``constraints``, reusing the modal solver (M1),
     the Fox-Kapoor sensitivity kernel (M3) and MAC mode tracking (M2).
     """
-    problem, evaluator = compile_sizing_problem(model, params, objective, constraints)
+    problem, evaluator = compile_sizing_problem(
+        model, params, objective, constraints, geometry=geometry
+    )
     result = problem.solve(backend, tol=tol, max_iter=max_iter, seed=seed)
     result.n_modal_solves = evaluator.n_modal_solves
     return result

@@ -1,3 +1,52 @@
+# OpenFEMLab vs FEMtools — SOTA Gap Analysis (Round 11 refresh)
+
+**Auditor:** Cloud Agent · **Date:** 2026-08-27 UTC  
+**Snapshot:** branch `cursor/round11-gap-closure-7aa3`, release **`0.2.0` + Round 11**  
+**Registry:** **104/104** acceptance criteria `verified`  
+**Companion documents:** `ARCHITECTURE.md`, `MODULE_SPEC.md`, `ACCEPTANCE_CRITERIA.md`,
+`STABILITY.md`, `MIGRATION.md`.
+
+---
+
+## Round 11 executive summary
+
+OpenFEMLab's FEMtools-style **core workflow is at parity** for scripted/CI use
+(model → modal → correlate → update → validate).  Round 11 closes the largest
+remaining industrial MPC gap (`RBE3`), wires shape morphing into design
+evaluation, imports `PBAR`, and hardens the external Nastran OP2 readback path.
+
+| Priority | Theme | Round 11 outcome |
+|----------|-------|------------------|
+| P0 | RBE3 in solver | `tie_rbe3` + `apply_rbe3_from_neutral` + `MpcReduction` |
+| P1 | Shape morph eval | `ModalDesignEvaluator(geometry=...)` remeshes before solve |
+| P1 | BDF `PBAR` | Imported into `NeutralProperty` (`A`/`I1`/`I2`/`J`) |
+| P1 | External OP2 loop | Example 07 locates `.op2` and calls `read_op2_modes` when present |
+| P2 | Wizard UX | FRF correlation + bench menu entries |
+
+### Remaining intentional / deferred gaps
+
+| Gap | Status |
+|-----|--------|
+| DAQ hardware / ARTeMIS | Intentional — out of scope |
+| Ansys/Abaqus native result drivers | Partial — subprocess drivers; meshio geometry |
+| Analytic geometric `dK/da` | Deferred — FD via remesh works |
+| Topology optimization / RSM | Deferred |
+| TRI3 formulation / CTRIA3 | Deferred |
+| Full Nastran licence corpus CI | Opt-in via `OPENFEMLAB_OP2_CORPUS` |
+
+### Gap register — current status (selected)
+
+| ID | Was | Now |
+|----|-----|-----|
+| GAP-01 | Dual model contracts | **Closed** |
+| GAP-03 | No UFF/BDF | **Closed** — UFF-55/58, BDF subset + OP2 |
+| GAP-06 | No MPE | **Closed** — LSCF + SSI-COV |
+| — | RBE in solver | **Closed** — RBE2 (R10) + RBE3 (R11) |
+| — | Shape morph evaluation | **Partial** — remesh + FD; no analytic `dK/da` |
+| — | External Nastran OP2 loop | **Partial** — driver + readback when OP2 exists; licence-local |
+
+---
+
 # OpenFEMLab vs FEMtools — SOTA Gap Analysis (Round 9 refresh)
 
 **Auditor:** Cloud Agent · **Date:** 2026-08-27 UTC  

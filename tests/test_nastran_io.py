@@ -104,6 +104,25 @@ ENDDATA
     assert model.properties[4].material_id == 9
 
 
+def test_pbar_cards_import_section_values() -> None:
+    model = read_bdf(
+        StringIO(
+            """BEGIN BULK
+GRID,1,,0.,0.,0.
+GRID,2,,1.,0.,0.
+MAT1,1,2.1+11,,0.3,7850.
+PBAR,4,1,1.E-4,8.33E-10,8.33E-10,1.66E-9
+CBAR,10,4,1,2
+ENDDATA
+"""
+        )
+    )
+    assert model.properties[4].values["A"] == pytest.approx(1e-4)
+    assert model.properties[4].values["I1"] == pytest.approx(8.33e-10)
+    assert model.properties[4].values["J"] == pytest.approx(1.66e-9)
+    assert model.properties[4].material_id == 1
+
+
 def test_rbe2_cards_are_preserved_for_round_trip(tmp_path: Path) -> None:
     from openfemlab.io.nastran import write_bdf
 

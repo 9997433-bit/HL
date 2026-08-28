@@ -34,10 +34,11 @@ New commands are additive; existing scripts keep working:
 ## BDF reader extensions
 
 - **`PROD`** rod sections import into `NeutralProperty.values["A"]`.
-- **`RBE2`** cards are assembled into solver rigid links when converting with
-  :func:`~openfemlab.io.neutral_convert.neutral_to_model` (or register them with
-  :meth:`~openfemlab.core.model.Model.tie_rbe2`).
-- **`RBE3`** cards still round-trip via `NeutralModel.meta["bdf_preserve"]` only.
+- **`PBAR`** beam sections import `A` / `I1` / `I2` / `J`.
+- **`RBE2`** / **`RBE3`** cards are assembled into solver kinematic ties when
+  converting with :func:`~openfemlab.io.neutral_convert.neutral_to_model`
+  (or register them with :meth:`~openfemlab.core.model.Model.tie_rbe2` /
+  :meth:`~openfemlab.core.model.Model.tie_rbe3`).
 
 If you previously ignored `PROD` as an unsupported card, update any custom
 parsers that counted it as “skipped bulk data”.

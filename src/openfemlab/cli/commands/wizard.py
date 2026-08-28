@@ -24,7 +24,9 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "opt7": "Initialize a CAE project workspace",
         "opt8": "Run the six-stage correction pipeline",
         "opt9": "SDM stiffness spring scan",
-        "opt10": "Show command cheat sheet",
+        "opt10": "Correlate FRF (measured vs synthesized)",
+        "opt11": "Run a performance benchmark",
+        "opt12": "Show command cheat sheet",
         "opt0": "Exit",
         "goodbye": "Goodbye.",
         "choice": "Choice",
@@ -39,6 +41,9 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "project_dir": "Project directory [.]",
         "pipeline_config": "Pipeline configuration path",
         "sdm_model": "Model spec for SDM scan",
+        "frf_measured": "Measured FRF path (UFF/UNV)",
+        "frf_model": "Damped model spec path",
+        "bench_case": "Benchmark case [modal]",
         "running": "Running: openfemlab {}",
         "unknown": "Unknown choice: {choice!r}",
         "cheat_heading": "CLI cheat sheet",
@@ -55,7 +60,9 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "opt7": "初始化 CAE 项目工作区",
         "opt8": "六阶段修正流水线（pipeline）",
         "opt9": "SDM 刚度弹簧扫描",
-        "opt10": "命令速查表",
+        "opt10": "FRF 相关（实测 vs 合成）",
+        "opt11": "性能基准（bench）",
+        "opt12": "命令速查表",
         "opt0": "退出",
         "goodbye": "再见。",
         "choice": "选项",
@@ -70,6 +77,9 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "project_dir": "项目目录 [.]",
         "pipeline_config": "流水线配置路径",
         "sdm_model": "SDM 扫描模型规格",
+        "frf_measured": "实测 FRF 路径（UFF/UNV）",
+        "frf_model": "阻尼模型规格路径",
+        "bench_case": "基准用例 [modal]",
         "running": "正在运行: openfemlab {}",
         "unknown": "未知选项: {choice!r}",
         "cheat_heading": "命令速查",
@@ -82,12 +92,13 @@ _CHEAT_SHEET = [
     "openfemlab modal model.yaml -n 8",
     "openfemlab correlate model.yaml measured.yaml",
     "openfemlab correlate model.yaml measured.yaml -o report.json --format json",
+    "openfemlab correlate-frf measured.unv model.yaml",
     "openfemlab report report.json -o report.html --open",
     "openfemlab serve --root . --file reports/corr.json --open",
     "openfemlab update updating.yaml -o model.updated.yaml",
     "openfemlab pipeline run pipeline.yaml --strict",
     "openfemlab sdm scan model.yaml",
-    "openfemlab correlate-frf measured.unv model.yaml",
+    "openfemlab bench modal",
     "openfemlab info",
     "pip install 'openfemlab[cli,plot,io]'",
 ]
@@ -137,6 +148,8 @@ def run(args: argparse.Namespace, reporter: Reporter) -> int:
         reporter.line(f"  8  {msg['opt8']}")
         reporter.line(f"  9  {msg['opt9']}")
         reporter.line(f" 10  {msg['opt10']}")
+        reporter.line(f" 11  {msg['opt11']}")
+        reporter.line(f" 12  {msg['opt12']}")
         reporter.line(f"  0  {msg['opt0']}")
         choice = _prompt(msg["choice"], reporter)
 
@@ -196,6 +209,15 @@ def run(args: argparse.Namespace, reporter: Reporter) -> int:
                 continue
             return _delegate(["sdm", "scan", model], reporter, msg)
         if choice == "10":
+            measured = _prompt(msg["frf_measured"], reporter)
+            model = _prompt(msg["frf_model"], reporter)
+            if not measured or not model:
+                continue
+            return _delegate(["correlate-frf", measured, model], reporter, msg)
+        if choice == "11":
+            case = _prompt(msg["bench_case"], reporter) or "modal"
+            return _delegate(["bench", case], reporter, msg)
+        if choice == "12":
             _cheat_sheet(reporter, msg)
             continue
         reporter.warning(msg["unknown"].format(choice=choice))

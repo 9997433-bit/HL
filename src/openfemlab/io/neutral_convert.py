@@ -57,7 +57,7 @@ from openfemlab.core.elements import (
     TrussElement,
 )
 from openfemlab.core.model import DOF, TRANSLATIONAL_DOFS, Material, Model, Section
-from openfemlab.core.mpc import parse_nastran_components
+from openfemlab.core.mpc import RBE3Group, RBE3Tie, parse_nastran_components
 from openfemlab.core.neutral import ElementType, NeutralMaterial, NeutralModel, NeutralProperty
 from openfemlab.exceptions import OpenFEMLabError
 
@@ -74,6 +74,7 @@ __all__ = [
     "material_from_neutral",
     "neutral_to_model",
     "apply_rbe2_from_neutral",
+    "apply_rbe3_from_neutral",
     "section_from_values",
     "to_model",
 ]
@@ -287,6 +288,7 @@ def to_model(
         joined = ", ".join(f"{key} ({count})" for key, count in sorted(skipped.items()))
         warnings.warn(f"skipped element types with no formulation: {joined}", stacklevel=2)
     apply_rbe2_from_neutral(model, neutral)
+    apply_rbe3_from_neutral(model, neutral)
     return model
 
 
@@ -563,6 +565,84 @@ def apply_rbe2_from_neutral(model: Model, neutral: NeutralModel) -> None:
             components=active,
             eid=int(eid),
         )
+
+
+def apply_rbe3_from_neutral(model: Model, neutral: NeutralModel) -> None:
+    """Register ``RBE3`` cards preserved in ``meta['bdf_preserve']`` on ``model``."""
+
+    for fields in _meta(neutral).get("bdf_preserve", ()):
+        if not fields or str(fields[0]).upper() != "RBE3":
+            continue
+        try:
+            eid, dependent, refc, groups = _parse_rbe3_preserve_fields(fields)
+        except (OpenFEMLabError, ValueError, IndexError) as exc:
+            raise FormatError(f"RBE3 card {fields!r} is invalid: {exc}") from exc
+        active_dep = tuple(dof for dof in refc if model.has_dof(dof))
+        if not active_dep:
+            raise FormatError(
+                f"RBE3 {eid} REFC does not overlap the model DOF signature "
+                f"{[d.name for d in model.dofs]}"
+            )
+        active_groups: list[RBE3Group] = []
+        for weight, components, independents in groups:
+            active_c = tuple(dof for dof in components if model.has_dof(dof))
+            if not active_c or not independents:
+                continue
+            active_groups.append(
+                RBE3Group(weight=weight, components=active_c, independents=tuple(independents))
+            )
+        if not active_groups:
+            raise FormatError(f"RBE3 {eid} has no usable independent groups")
+        model._rbe3_ties.append(  # noqa: SLF001 — converter registers structured ties
+            RBE3Tie(
+                dependent=dependent,
+                dependent_components=active_dep,
+                groups=tuple(active_groups),
+                eid=eid,
+            )
+        )
+
+
+def _parse_rbe3_preserve_fields(
+    fields: Sequence[Any],
+) -> tuple[int, int, tuple[DOF, ...], list[tuple[float, tuple[DOF, ...], list[int]]]]:
+    """Parse a preserved free-field ``RBE3`` card into structured pieces.
+
+    Supports the common single-group form::
+
+        RBE3,eid[,blank],refgrid,refc,wt,c,g1,g2,...
+
+    and multi-group cards when each subsequent weight is written with a decimal
+    (``1.0``) so it can be distinguished from a grid id.
+    """
+
+    tokens = [str(item).strip() for item in fields[1:]]
+    if not tokens:
+        raise ValueError("missing fields")
+    eid = int(tokens.pop(0))
+    if tokens and tokens[0] == "":
+        tokens.pop(0)
+    if len(tokens) < 4:
+        raise ValueError("expected REFGRID, REFC, WT, C, G...")
+    dependent = int(tokens.pop(0))
+    refc = parse_nastran_components(tokens.pop(0))
+    groups: list[tuple[float, tuple[DOF, ...], list[int]]] = []
+    while tokens:
+        weight = float(tokens.pop(0))
+        if not tokens:
+            raise ValueError("weight without component code")
+        components = parse_nastran_components(tokens.pop(0))
+        independents: list[int] = []
+        while tokens:
+            peek = tokens[0]
+            if "." in peek or "e" in peek.lower():
+                break
+            independents.append(int(peek))
+            tokens.pop(0)
+        if not independents:
+            raise ValueError("independent group has no grid ids")
+        groups.append((weight, components, independents))
+    return eid, dependent, refc, groups
 
 
 def _lookup(values: dict[str, float], aliases: Sequence[str]) -> float | None:

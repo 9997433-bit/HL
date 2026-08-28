@@ -3,9 +3,9 @@
 The supported subset is one connectivity card per element block the solver
 formulates, plus the grid, material and property cards those need: ``GRID``,
 ``CROD``, ``CBAR``, ``CQUAD4``, ``CTETRA``, ``CHEXA``, ``MAT1``, ``PROD``,
-``PSHELL`` and ``PSOLID``.  ``RBE2`` cards are assembled into the solver as
-rigid links; ``RBE3`` cards are preserved in ``NeutralModel.meta`` for
-round-trip export only.  Cards may be written in free
+``PSHELL``, ``PSOLID`` and ``PBAR``.  ``RBE2`` and ``RBE3`` cards are assembled
+into the solver as kinematic ties when converting to a
+:class:`~openfemlab.core.model.Model`.  Cards may be written in free
 field or in small fixed field
 and may run onto continuation lines; unsupported cards are skipped, together
 with their continuations.  ``GRID`` coordinates must use the basic coordinate
@@ -55,7 +55,7 @@ _ELEMENT_CARDS: dict[str, tuple[ElementType, int]] = {
 #: can be checked this way.
 _HAS_FIXED_GRID_COUNT = frozenset({"CTETRA", "CHEXA"})
 
-_PROPERTY_CARDS = frozenset({"PSHELL", "PSOLID", "PROD"})
+_PROPERTY_CARDS = frozenset({"PSHELL", "PSOLID", "PROD", "PBAR"})
 _BULK_PRESERVE_CARDS = frozenset({"RBE2", "RBE3"})
 _SUPPORTED_CARDS = (
     frozenset({"GRID", "MAT1"}) | set(_ELEMENT_CARDS) | _PROPERTY_CARDS | _BULK_PRESERVE_CARDS
@@ -78,13 +78,10 @@ def read_bdf(source: str | PathLike[str] | TextIO) -> NeutralModel:
     ``PSHELL`` and ``PSOLID`` land in ``properties``, the shell carrying its
     ``t`` thickness so :func:`~openfemlab.io.neutral_convert.to_model` binds a
     ``CQUAD4`` at the thickness the file states.  ``PROD`` rod sections are also
-    imported into ``properties`` with an ``A`` entry.  ``RBE2`` rigid links are
-    assembled when converting to a solver model; ``RBE3`` cards are preserved in
-    ``meta["bdf_preserve"]`` for lossless round-trip even though they are not
-    expanded into constraints yet.
-    though they are not yet expanded into solver constraints.  Other property cards
-    such as ``PBAR`` remain outside this reader's subset, so a ``CBAR`` mesh needs
-    ``section=`` when it is converted.
+    imported into ``properties`` with an ``A`` entry.  ``PBAR`` beam sections
+    import ``A``/``I1``/``I2``/``J``.  ``RBE2`` and ``RBE3`` rigid links are
+    preserved in ``meta["bdf_preserve"]`` and assembled when converting to a
+    solver model.
     """
 
     text, source_name = _read_text(source)
@@ -135,8 +132,10 @@ def read_bdf(source: str | PathLike[str] | TextIO) -> NeutralModel:
                     property_ = _parse_pshell(fields)
                 elif card == "PSOLID":
                     property_ = _parse_psolid(fields)
-                else:
+                elif card == "PROD":
                     property_ = _parse_prod(fields)
+                else:
+                    property_ = _parse_pbar(fields)
                 if property_.id in properties:
                     raise FormatError(f"duplicate property id {property_.id}")
                 properties[property_.id] = property_
@@ -387,6 +386,36 @@ def _parse_prod(fields: list[str]) -> NeutralProperty:
     )
 
 
+def _parse_pbar(fields: list[str]) -> NeutralProperty:
+    property_id = _positive_integer(_required(fields, 1, "PID"), "PBAR PID")
+    material_id = _positive_integer(_required(fields, 2, "MID"), "PBAR MID")
+    area = _float(_required(fields, 3, "A"), "PBAR A")
+    if area <= 0.0:
+        raise FormatError("PBAR A must be positive")
+    values: dict[str, float] = {"A": area}
+    inertia_1 = _optional_float(fields, 4, "PBAR I1")
+    inertia_2 = _optional_float(fields, 5, "PBAR I2")
+    torsion = _optional_float(fields, 6, "PBAR J")
+    if inertia_1 is not None:
+        if inertia_1 < 0.0:
+            raise FormatError("PBAR I1 must be non-negative")
+        values["I1"] = inertia_1
+    if inertia_2 is not None:
+        if inertia_2 < 0.0:
+            raise FormatError("PBAR I2 must be non-negative")
+        values["I2"] = inertia_2
+    if torsion is not None:
+        if torsion < 0.0:
+            raise FormatError("PBAR J must be non-negative")
+        values["J"] = torsion
+    return NeutralProperty(
+        id=property_id,
+        material_id=material_id,
+        values=values,
+        name="PBAR",
+    )
+
+
 def _parse_mat1(fields: list[str]) -> NeutralMaterial:
     material_id = _positive_integer(_required(fields, 1, "MID"), "MAT1 MID")
     youngs_modulus = _optional_float(fields, 2, "MAT1 E")
@@ -501,6 +530,20 @@ def write_bdf(
                 continue
             lines.append(
                 f"PROD,{property_id},{property_.material_id},{area:g}"
+            )
+            continue
+        if property_.name == "PBAR" or (
+            "A" in property_.values and "t" not in property_.values and property_.name != "PSOLID"
+        ):
+            area = property_.values.get("A")
+            if area is None:
+                continue
+            i1 = property_.values.get("I1", property_.values.get("Iz", 0.0))
+            i2 = property_.values.get("I2", property_.values.get("Iy", 0.0))
+            torsion = property_.values.get("J", 0.0)
+            lines.append(
+                f"PBAR,{property_id},{property_.material_id},{area:g},"
+                f"{float(i1):g},{float(i2):g},{float(torsion):g}"
             )
             continue
         thickness = property_.values.get("t")

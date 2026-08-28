@@ -190,6 +190,7 @@ class Model:
     _constrained: set[int] = field(default_factory=set, init=False, repr=False)
     _point_masses: dict[int, float] = field(default_factory=dict, init=False, repr=False)
     _rbe2_ties: list = field(default_factory=list, init=False, repr=False)
+    _rbe3_ties: list = field(default_factory=list, init=False, repr=False)
 
     def __post_init__(self) -> None:
         self.dofs = _parse_dofs(self.dofs)
@@ -368,6 +369,11 @@ class Model:
         """Registered :class:`~openfemlab.core.mpc.RBE2Tie` instances."""
         return tuple(self._rbe2_ties)
 
+    @property
+    def rbe3_ties(self) -> tuple:
+        """Registered :class:`~openfemlab.core.mpc.RBE3Tie` instances."""
+        return tuple(self._rbe3_ties)
+
     def tie_rbe2(
         self,
         master: Hashable,
@@ -389,6 +395,62 @@ class Model:
         tie = RBE2Tie(master=master, slaves=slave_tuple, components=tied, eid=eid)
         self._rbe2_ties.append(tie)
         return tie
+
+    def tie_rbe3(
+        self,
+        dependent: Hashable,
+        independents: Iterable[Hashable],
+        *,
+        components: Iterable[DOF | str | int] | None = None,
+        weight: float = 1.0,
+        independent_components: Iterable[DOF | str | int] | None = None,
+        eid: Hashable | None = None,
+    ):
+        """Register a Nastran-style RBE3 weighted interpolation on ``dependent``.
+
+        The single-group form expresses each dependent component as the average
+        of the same component on ``independents`` (weight ``weight``).
+        """
+        from .mpc import RBE3Group, RBE3Tie
+
+        independent_tuple = tuple(independents)
+        if not independent_tuple:
+            raise ModelError("RBE3 requires at least one independent node")
+        if weight <= 0.0:
+            raise ModelError("RBE3 weight must be positive")
+        dependent_dofs = self.dofs if components is None else _parse_dofs(components)
+        independent_dofs = (
+            dependent_dofs
+            if independent_components is None
+            else _parse_dofs(independent_components)
+        )
+        tie = RBE3Tie(
+            dependent=dependent,
+            dependent_components=dependent_dofs,
+            groups=(
+                RBE3Group(
+                    weight=float(weight),
+                    components=independent_dofs,
+                    independents=independent_tuple,
+                ),
+            ),
+            eid=eid,
+        )
+        self._rbe3_ties.append(tie)
+        return tie
+
+    def set_node_coordinates(self, coordinates) -> None:
+        """Replace nodal coordinates in DOF numbering order (shape morphing)."""
+        coords = np.asarray(coordinates, dtype=float)
+        nodes = self.nodes
+        if coords.ndim != 2 or coords.shape[0] != len(nodes) or coords.shape[1] > 3:
+            raise ModelError(
+                f"coordinates must have shape ({len(nodes)}, <=3), got {coords.shape}"
+            )
+        for node, row in zip(nodes, coords, strict=True):
+            padded = np.zeros(3, dtype=float)
+            padded[: row.size] = row
+            object.__setattr__(node, "coords", padded)
 
     # ----------------------------------------------------- concentrated mass
 
@@ -451,7 +513,12 @@ class Model:
         return assemble_system(self)
 
     def summary(self) -> str:
-        mpc = f", {len(self._rbe2_ties)} RBE2" if self._rbe2_ties else ""
+        parts: list[str] = []
+        if self._rbe2_ties:
+            parts.append(f"{len(self._rbe2_ties)} RBE2")
+        if self._rbe3_ties:
+            parts.append(f"{len(self._rbe3_ties)} RBE3")
+        mpc = f", {', '.join(parts)}" if parts else ""
         return (
             f"Model {self.name!r}: {self.num_nodes} nodes, {self.num_elements} elements, "
             f"{self.num_dofs} DOFs ({len(self._constrained)} constrained{mpc}), "

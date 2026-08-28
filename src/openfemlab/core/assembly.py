@@ -12,7 +12,7 @@ import numpy as np
 import scipy.sparse as sp
 
 from ..exceptions import ModelError
-from .mpc import MpcReduction, build_rbe2_reduction, mpc_free_dofs
+from .mpc import MpcReduction, build_mpc_reduction, mpc_free_dofs
 
 __all__ = ["AssembledSystem", "assemble_system", "assemble_stiffness", "assemble_mass"]
 
@@ -116,7 +116,9 @@ def _assemble_elements(
     if stiffness:
         from ..accel.assembly_rust import assemble_truss_stiffness_rust, use_rust_assembly
 
-        if use_rust_assembly() and not getattr(model, "rbe2_ties", ()):
+        if use_rust_assembly() and not (
+            getattr(model, "rbe2_ties", ()) or getattr(model, "rbe3_ties", ())
+        ):
             rust_stiffness = assemble_truss_stiffness_rust(model)
             if rust_stiffness is not None:
                 if not mass:
@@ -215,7 +217,9 @@ def assemble_system(model, *, include_point_masses: bool = True) -> AssembledSys
     K.eliminate_zeros()
     M.eliminate_zeros()
 
-    mpc = build_rbe2_reduction(model, model.rbe2_ties)
+    mpc = build_mpc_reduction(
+        model, rbe2_ties=model.rbe2_ties, rbe3_ties=model.rbe3_ties
+    )
     if mpc is not None:
         K = mpc.reduce(K)
         M = mpc.reduce(M)

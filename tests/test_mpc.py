@@ -110,3 +110,42 @@ def test_rbe2_rejects_constrained_slave():
     model.tie_rbe2(1, [2], components=(DOF.UX,))
     with pytest.raises(Exception, match="already constrained"):
         model.assemble()
+
+
+def test_rbe3_dependent_is_weighted_average():
+    model = Model(dofs=(DOF.UX,))
+    model.add_nodes([(1, 0.0), (2, 1.0), (3, 0.5)])
+    model.add_element(TrussElement((1, 2), STEEL, ROD))
+    model.fix(1)
+    model.tie_rbe3(3, [1, 2], components=(DOF.UX,), weight=1.0)
+
+    system = model.assemble()
+    trial = np.ones(system.num_free_dofs)
+    full = system.expand(trial)
+    assert full[model.dof_index(1, DOF.UX)] == pytest.approx(0.0)
+    assert full[model.dof_index(2, DOF.UX)] == pytest.approx(1.0)
+    assert full[model.dof_index(3, DOF.UX)] == pytest.approx(0.5)
+
+
+def test_bdf_rbe3_is_applied_in_neutral_to_model():
+    source = StringIO(
+        """BEGIN BULK
+GRID,1,,0.,0.,0.
+GRID,2,,1.,0.,0.
+GRID,3,,0.5,0.,0.
+MAT1,1,2.1+11,,0.3,7850.
+PROD,1,1,1.E-4
+CROD,10,1,1,2
+RBE3,200,3,1,1.0,1,1,2
+ENDDATA
+"""
+    )
+    neutral = read_bdf(source)
+    model = neutral_to_model(neutral, material=STEEL, section=ROD, dofs=(DOF.UX,))
+    model.fix(1)
+    assert len(model.rbe3_ties) == 1
+    assert model.rbe3_ties[0].dependent == 3
+    shape = ModalSolver(model).solve(num_modes=1).mode_shapes[:, 0]
+    assert shape[model.dof_index(3, DOF.UX)] == pytest.approx(
+        0.5 * (shape[model.dof_index(1, DOF.UX)] + shape[model.dof_index(2, DOF.UX)])
+    )
