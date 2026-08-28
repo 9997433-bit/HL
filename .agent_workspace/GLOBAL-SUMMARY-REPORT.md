@@ -168,16 +168,16 @@ Round 14 以「洪恩体验对齐」为目标，探针 `check:round14` v1.1 固�
 
 | 范围 | 阶段状态 | 收口证据 / 阻断 |
 |---|---|---|
-| ASR 跟读体验放行 | ❌ R14 H1 | 冻结集 100 槽 / `recorded=0/300`、`available:false`、`device-rtf.json` 为 `not-measured` 诚实占位；阻断 (a) 实体设备 + (b) 儿童实录 |
-| OCR 真机体验 | ❌ R14 H2 | App 逐例矩阵 **40/41** 一手落盘、队列无逾期、回流/harness 齐；六腿绿五，只差 `ocr-device-b.json`（当前 `skip`，exit 2）；阻断 (a) |
+| ASR 跟读体验放行 | BLOCKED R14 H1 | 冻结集 100 槽 / `recorded=0/300`、`available:false`、`device-rtf.json` 为 `not-measured` 诚实占位；阻断 (a) 实体设备 + (b) 儿童实录 |
+| OCR 真机体验 | BLOCKED R14 H2 | App 逐例矩阵 **40/41** 一手落盘、队列无逾期、回流/harness 齐；六腿绿五，只差 `ocr-device-b.json`（当前 `skip`，exit 2）；阻断 (a) |
 | 绘本场景密度 | ✅ R14 H3 | scene **404/1121 页**、60/132 本带 scene（R13 为 209/33）；`ROUND14_H3` |
 | 儿歌真人范唱 | ◐ R14 H4 | `humanStudio` **9/13**（VocalSet 1.2 CC BY 4.0，许可已同步 NOTICES/CONTENT_LICENSE）；缺 sg1/sg2/sg3/sg5，#14 补齐后翻绿 |
 | L1 字卡朗读 | ✅ R14 H5 | `public/audio/tts-l1/` **24 资产** + `r14-tts-l1-batch.md` + `ROUND14_H5_SMOKE` |
-| Android 真机签核 | ❌ R14 H6 | harness 与诚实 SKIP 台账就位、v1.1 r13-sim 隔离闸绿；`device-signoff.json` 无、定案仍 NO-GO；阻断 (a) |
-| 商店内测实提 | ❌ R14 H7 | 无 Play 账号与命名法务复核；按禁令不得无回执写 `状态：SUBMITTED`，设计上保持红；阻断 (c) |
+| Android 真机签核 | BLOCKED R14 H6 | harness 与诚实 SKIP 台账就位、v1.1 r13-sim 隔离闸绿；`device-signoff.json` 无、定案仍 NO-GO；阻断 (a) |
+| 商店内测实提 | BLOCKED R14 H7 | 无 Play 账号与命名法务复核；按禁令不得无回执写 `状态：SUBMITTED`，设计上保持红；阻断 (c) |
 | 往轮不退化 | ✅ R14 H8 | `check:round12` 8/8 + `check:round13` 7/8（前置：按 ROUND14-2-CONCLUSION-BRIEF §0.2 五步重建双 APK） |
 
-体验口径：**✅25 / ◐6 / ❌0**（L-M5 / L-M9 / L-M10 / L-M11 / L-M15 / M-M16），相对 Round 13 计数
+体验口径：**✅25 / ◐6 / 零红项**（L-M5 / L-M9 / L-M10 / L-M11 / L-M15 / M-M16），相对 Round 13 计数
 原地，但 L-M5、L-M11、L-M10、X1 四项有实体收窄。按审计双杆原则（探针格绿 + W 走查过）任一杆缺失
 只记「收窄」不记 flip，故本轮不改写 §2/§3 对标全表的 ✅ 判定。
 
