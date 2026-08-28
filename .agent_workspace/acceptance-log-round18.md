@@ -48,14 +48,23 @@ worktree 缺 gitignored 的 android-sim 产物与 OCR/hanzi 生成资产，
 
 | 探针 | 状态 | Owner |
 |---|---|---|
-| H1 差距续表 | ⬜ | r18-hongen-gap-audit |
-| H2 富 Play ≥1200 | ⬜ | r18-play-rich-1200 |
-| H3 富脚本拆包 | ⬜ | r18-play-codesplit |
-| H4 剖析步数对齐 ≥90% | ⬜ | r18-wp-steps-align |
-| H5 精品剖析 ≥80 | ⬜ | r18-wp-explain-80 |
-| H6 走查证据包 | ⬜ | r18-walkthrough-bundle |
-| H7 真机/模拟台账 | ⬜ | r18-regression-gate |
-| H8 往轮 round17 | ⬜ | r18-regression-gate |
+| H1 差距续表 | ✅ | r18-hongen-gap-audit |
+| H2 富 Play ≥1200 | ✅ | r18-play-rich-1200 |
+| H3 富脚本拆包 | ✅ | r18-play-codesplit |
+| H4 剖析步数对齐 ≥90% | ✅ | r18-wp-steps-align |
+| H5 精品剖析 ≥80 | ✅ | r18-wp-explain-80 |
+| H6 走查证据包 | ✅ | r18-walkthrough-bundle |
+| H7 真机/模拟台账 | ✅ | r18-regression-gate（device-blocked） |
+| H8 往轮 round17 | ✅ | r18-regression-gate |
+
+## 收口实测（编排 @ tip）
+
+```text
+Round 18 check (ROUND18-v1.0): 8/8
+✓ H1–H8 全绿
+```
+
+附：`literacy-app` `check:bundle` 8/8（70 个 play-rich 分片；CharDetail 同步闭包无剧本正文）。
 
 ## 十路子代理
 
@@ -78,3 +87,4 @@ worktree 缺 gitignored 的 android-sim 产物与 OCR/hanzi 生成资产，
 |---|---|
 | 2026-08-28 | v1.0 编排启动，十路发射 |
 | 2026-08-28 | r18-acceptance-spec：ACCEPTANCE v1.0 + check-round18.mjs（ROUND18-v1.0）合入，启动实测 1/8 |
+| 2026-08-28 | 十路合入编排；`check:round18` **8/8**；H7 诚实 BLOCKED（android:sim 未通） |
