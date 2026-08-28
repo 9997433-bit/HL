@@ -81,14 +81,19 @@ Harness 会从文本自动遮盖当前 adb serial，但这不能替代人工隐�
 
 ## 本分支验证记录
 
-实现提交后执行以下检查并回填，不以文档预判代替命令结果：
+实现提交 `b617c3a` 后在同一 worktree 实测，不以文档预判代替命令结果：
 
 | 命令 | 预期 | 实测 |
 |---|---|---|
-| `node --check scripts/android-device-matrix.mjs` | 脚本语法有效 | `PENDING` |
-| `npm run android:device:qa -- --help` | 用法与退出码可见，exit 0 | `PENDING` |
-| `npm run android:device:qa` | 无真机环境 exit 2 `SKIP`，不生成 signoff | `PENDING` |
-| `npm run check:round14 -- --json` | H6 仍 FAIL，不把脚手架当签核 | `PENDING` |
+| `node --check scripts/android-device-matrix.mjs` | 脚本语法有效 | **PASS**，exit 0 |
+| `git diff --check HEAD^ HEAD` | 补丁无空白错误 | **PASS**，exit 0 |
+| `npm run android:device:qa -- --help` | 用法与退出码可见，exit 0 | **PASS**，exit 0 |
+| `npm run android:device:qa` | 无真机环境 exit 2 `SKIP`，不生成 signoff | **SKIP**，adb 无设备条目，observed exit **2**；明确输出 “No QA pass or device-signoff.json was produced.” |
+| `npm run android:device:qa -- finalize` | 无两档真机证据时拒绝签核 | **预期 FAIL**，exit 1；未生成 signoff |
+| `npm run check:round14 -- --json` | H6 仍 FAIL，不把脚手架当签核 | **预期 FAIL**；H6 为 `signoff=false, decision=false, record=true` |
+
+本表中的脚本语法/帮助 PASS 只描述脚手架自检，不是 Android QA PASS。当前设备执行结果
+仍为 `SKIP`，最终签核仍为 `NO-GO`。
 
 ## 解锁条件
 
