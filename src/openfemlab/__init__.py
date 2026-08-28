@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-__version__ = "0.3.2"
+__version__ = "0.3.3"
 
 #: Public name -> defining submodule, resolved on first attribute access.
 _EXPORTS: dict[str, str] = {

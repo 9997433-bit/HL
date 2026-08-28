@@ -205,7 +205,7 @@ def test_serve_dashboard_desktop_path(monkeypatch, tmp_path: Path) -> None:
     port = 18770
     serve_dashboard(host="127.0.0.1", port=port, root=tmp_path, desktop=True)
 
-    assert opened == [f"http://127.0.0.1:{port}/"]
+    assert opened == [f"http://127.0.0.1:{port}/desktop"]
 
 
 def test_open_desktop_window_raises_without_pywebview(monkeypatch) -> None:

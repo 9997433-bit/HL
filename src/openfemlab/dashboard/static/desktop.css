@@ -1,0 +1,194 @@
+/* OpenFEMLab desktop shell */
+:root {
+  --bg: #0f1419;
+  --panel: #161b22;
+  --panel-alt: #1c2128;
+  --border: #30363d;
+  --text: #e6edf3;
+  --muted: #8b949e;
+  --accent: #2f81f7;
+  --accent-soft: #1f6feb33;
+  --pass: #3fb950;
+  --fail: #f85149;
+  --sidebar-width: 280px;
+  --console-height: 180px;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  overflow: hidden;
+}
+.app {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) 1fr;
+  grid-template-rows: 48px 1fr var(--console-height);
+  height: 100vh;
+}
+.topbar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0 1rem;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+.topbar h1 {
+  font-size: 0.95rem;
+  margin: 0;
+  font-weight: 600;
+}
+.topbar .project-name {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.topbar .spacer { flex: 1; }
+.topbar button {
+  border: 1px solid var(--border);
+  background: var(--panel-alt);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0.35rem 0.75rem;
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+.topbar button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+.sidebar {
+  grid-row: 2 / 4;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+.sidebar section {
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+.sidebar h2 {
+  margin: 0 0 0.5rem;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.workflow-grid {
+  display: grid;
+  gap: 0.35rem;
+}
+.workflow-grid button {
+  text-align: left;
+  border: 1px solid var(--border);
+  background: var(--panel-alt);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0.45rem 0.6rem;
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+.workflow-grid button:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.workflow-grid button.running {
+  opacity: 0.6;
+  pointer-events: none;
+}
+.tree {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 0.82rem;
+}
+.tree li { margin: 0.1rem 0; }
+.tree button {
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  padding: 0.25rem 0.35rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.tree button:hover,
+.tree button.active {
+  background: var(--accent-soft);
+  color: #fff;
+}
+.tree .dir::before { content: "📁 "; }
+.tree .file::before { content: "📄 "; }
+.viewer {
+  grid-row: 2;
+  background: #f6f8fa;
+  overflow: hidden;
+}
+.viewer iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: #fff;
+}
+.console {
+  grid-column: 2;
+  background: #010409;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+}
+.console header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+.console pre {
+  flex: 1;
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  overflow: auto;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: #c9d1d9;
+  white-space: pre-wrap;
+}
+.status-pill {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+.status-pill.running { background: #388bfd33; color: #79c0ff; }
+.status-pill.success { background: #23863633; color: var(--pass); }
+.status-pill.failed { background: #da363333; color: var(--fail); }
+.field-row {
+  display: grid;
+  gap: 0.25rem;
+  margin-bottom: 0.45rem;
+}
+.field-row label {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+.field-row input {
+  width: 100%;
+  border: 1px solid var(--border);
+  background: var(--panel-alt);
+  color: var(--text);
+  border-radius: 4px;
+  padding: 0.3rem 0.45rem;
+  font-size: 0.8rem;
+}

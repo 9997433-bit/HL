@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
 from openfemlab.core.elements import Quad4Element
 from openfemlab.core.model import DOF, Material, Model

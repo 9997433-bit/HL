@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpenFEMLab Desktop</title>
+  <link rel="stylesheet" href="/desktop.css">
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <h1>OpenFEMLab Desktop</h1>
+      <span class="project-name" id="project-name">加载中…</span>
+      <span class="spacer"></span>
+      <button type="button" id="refresh-tree">刷新</button>
+      <button type="button" class="primary" id="run-pipeline">一键闭环</button>
+    </header>
+
+    <aside class="sidebar">
+      <section>
+        <h2>工作流</h2>
+        <div class="field-row">
+          <label for="model-path">模型</label>
+          <input id="model-path" value="models/cantilever.yaml">
+        </div>
+        <div class="field-row">
+          <label for="measurement-path">测量</label>
+          <input id="measurement-path" value="measurements/test.yaml">
+        </div>
+        <div class="workflow-grid">
+          <button type="button" data-workflow="quickstart">Quickstart 演示</button>
+          <button type="button" data-workflow="modal">模态分析</button>
+          <button type="button" data-workflow="correlate">模态相关</button>
+          <button type="button" data-workflow="update">模型更新</button>
+          <button type="button" data-workflow="static">静力分析</button>
+          <button type="button" data-workflow="topopt">拓扑优化</button>
+          <button type="button" data-workflow="pipeline">修正流水线</button>
+        </div>
+      </section>
+      <section style="flex:1; overflow:auto;">
+        <h2>项目文件</h2>
+        <ul class="tree" id="project-tree"></ul>
+      </section>
+    </aside>
+
+    <main class="viewer">
+      <iframe id="viewer-frame" title="OpenFEMLab viewer" src="/index.html"></iframe>
+    </main>
+
+    <section class="console">
+      <header>
+        <span>作业控制台</span>
+        <span id="job-status"></span>
+      </header>
+      <pre id="job-log">选择工作流或项目文件开始。</pre>
+    </section>
+  </div>
+  <script src="/desktop.js"></script>
+</body>
+</html>

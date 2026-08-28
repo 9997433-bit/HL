@@ -86,10 +86,44 @@ def _run_init(args: argparse.Namespace, reporter: Reporter) -> int:
             encoding="utf-8",
         )
 
+    sample_measurement = root / "measurements" / "test.yaml"
+    if not sample_measurement.exists():
+        _write_sample_measurement(sample_model, sample_measurement, reporter)
+
     reporter.success(f"Initialized workspace → {root}")
     reporter.line("  models/ · measurements/ · reports/ · project.yaml")
-    reporter.hint(f"cd {root} && openfemlab wizard --lang zh")
+    reporter.hint(f"cd {root} && openfemlab desktop --root .")
     return 0
+
+
+def _write_sample_measurement(model_path: Path, destination: Path, reporter: Reporter) -> None:
+    """Synthesize a slightly softer reference measurement for the sample cantilever."""
+    from openfemlab import ModalSolver
+    from openfemlab.cli.analysis import dof_map_of
+    from openfemlab.cli.spec import build_model, load_spec
+    from openfemlab.core.results import TestData
+    from openfemlab.io import write_test_data
+
+    spec = load_spec(model_path)
+    materials = spec.get("materials") or {}
+    steel = materials.get("steel") or {}
+    if isinstance(steel, dict) and "E" in steel:
+        steel = dict(steel)
+        steel["E"] = float(steel["E"]) * 0.92
+        materials = dict(materials)
+        materials["steel"] = steel
+        spec = dict(spec)
+        spec["materials"] = materials
+    model = build_model(spec)
+    result = ModalSolver(model).solve(num_modes=6)
+    test = TestData(
+        frequencies=result.frequencies,
+        shapes=result.shapes,
+        dof_map=dof_map_of(model),
+        meta={"source": "sample-measurement"},
+    )
+    write_test_data(test, destination)
+    reporter.note(f"sample measurement → {destination.name}")
 
 
 _SAMPLE_MODEL = """\

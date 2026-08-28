@@ -1,9 +1,9 @@
 # OpenFEMLab Stability Policy
 
-**Version:** `0.3.2` · **Status:** Stable release · **Date:** 2026-08-28
+**Version:** `0.3.3` · **Status:** Stable release · **Date:** 2026-08-28
 
-OpenFEMLab `0.3.2` adds MMA-based SIMP topology updates and Craig-Bampton
-superelement NPZ export for downstream assembly workflows.
+OpenFEMLab `0.3.3` adds a desktop CAE shell with project navigation, workflow
+execution, and a native window via `openfemlab desktop` (`pip install openfemlab[gui]`).
 
 ## What `0.2.x` guarantees
 

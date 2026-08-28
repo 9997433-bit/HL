@@ -1,3 +1,30 @@
+# OpenFEMLab vs FEMtools — SOTA Gap Analysis (Round 20 refresh)
+
+**Auditor:** Cloud Agent · **Date:** 2026-08-28 UTC  
+**Snapshot:** branch `cursor/round20-desktop-gui-7aa3`, release **`0.3.3`**  
+**Registry:** **104/104** acceptance criteria `verified`
+
+## Round 20 executive summary
+
+Round 20 delivers a commercial-style desktop shell on top of the existing dashboard:
+project navigation, one-click workflows, a job console, and native-window hosting.
+
+| Priority | Theme | Outcome |
+|----------|-------|---------|
+| P0 | Desktop GUI | `openfemlab desktop`, `/desktop` app shell, pywebview window |
+| P0 | Workflow runner | `POST /api/run`, job polling, modal/correlate/pipeline presets |
+| P1 | Project UX | `/api/list`, `/api/project`, sample measurement on `project init` |
+
+### Remaining intentional gaps
+
+| Gap | Status |
+|-----|--------|
+| DAQ hardware runtime | **Deferred** |
+| Full FE pre-processor / mesh editor | **Deferred** — file/spec workflow by design |
+| Installer (.msi/.deb/AppImage) | **Deferred** — `pip install openfemlab[gui]` for now |
+
+---
+
 # OpenFEMLab vs FEMtools — SOTA Gap Analysis (Round 19 refresh)
 
 **Auditor:** Cloud Agent · **Date:** 2026-08-28 UTC  
