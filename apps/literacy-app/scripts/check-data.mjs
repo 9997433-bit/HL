@@ -15,7 +15,17 @@ import {
   UNITS,
   loadAllCharacters
 } from '../src/data/characters.js'
-import { BOOKS, charsInBook, verifyBookCoverage } from '../src/data/books.js'
+import {
+  BOOKS,
+  SCENE_BOOK_IDS,
+  SCENE_ITEM_LIMIT,
+  TOTAL_SCENE_PAGES,
+  charsInBook,
+  scenePages,
+  verifyBookCoverage,
+  verifySceneCoverage,
+  verifyScenes
+} from '../src/data/books.js'
 import { BOOK_IDS, TOTAL_BOOKS } from '../src/data/book-index.js'
 import { IDIOMS } from '../src/data/idioms.js'
 import { TOTAL_IDIOMS } from '../src/data/idiom-index.js'
@@ -189,6 +199,43 @@ const strayNewChars = BOOKS.flatMap((b) =>
 check(
   strayNewChars.length === 0,
   `绘本的重点字都在字表里${strayNewChars.length ? `（${strayNewChars.join('、')}）` : ''}`
+)
+
+/* ----------------------------------------------------- 绘本页级场景（H4）
+ *
+ * 场景是静态数据画出来的，错了不报错，只是画歪：坐标飘出画框、图形位混进汉字、
+ * 旁白悄悄用了没学过的字，都得在这里挡住。
+ */
+check(
+  SCENE_BOOK_IDS.length >= 1 && TOTAL_SCENE_PAGES >= 5,
+  `页级场景样板 ${SCENE_BOOK_IDS.length} 本 / ${TOTAL_SCENE_PAGES} 页（要求 ≥ 1 本且 ≥ 5 页）`
+)
+
+const sceneProblems = verifyScenes()
+check(
+  sceneProblems.length === 0,
+  sceneProblems.length
+    ? `场景 DSL 画不出来：${sceneProblems.map((p) => `《${p.book}》${p.bad.join('，')}`).join('；')}`
+    : `场景元素的坐标、大小、动效和背景预设都合法（一页最多 ${SCENE_ITEM_LIMIT} 件）`
+)
+
+const sceneCoverage = verifySceneCoverage()
+check(
+  sceneCoverage.length === 0,
+  sceneCoverage.length
+    ? `场景旁白用字越界：${sceneCoverage.map((p) => `《${p.book}》→ ${p.missing.join('')}`).join('；')}`
+    : '场景旁白也只用了字表内的汉字'
+)
+
+// 场景页是「一页不止一件东西」，同时兜底 emoji 还在，书架和旧入口不受影响。
+const sceneShape = [
+  ...new Set(
+    BOOKS.filter((b) => scenePages(b).some((p) => p.scene.length < 2 || !p.emoji)).map((b) => b.id)
+  )
+]
+check(
+  sceneShape.length === 0,
+  `每个场景页都至少两件元素且留着兜底 emoji${sceneShape.length ? `（${sceneShape.join('、')}）` : ''}`
 )
 
 /* ----------------------------------------------------------------- 成语 */
@@ -558,8 +605,9 @@ console.log(`\n内容自检：${notes.length} 项通过，${fails.length} 项失
 /* 附带一份统计，方便写验收报告 */
 console.log(
   `\n统计：${TOTAL_CHARACTERS} 字 / ${UNITS.length} 单元 / ${RADICALS.length} 偏旁 / ` +
-    `${BOOKS.length} 本绘本（共 ${BOOKS.reduce((n, b) => n + b.pages.length, 0)} 页，` +
-    `${new Set(BOOKS.flatMap(charsInBook)).size} 个不重复用字） / ${IDIOMS.length} 个成语 / ` +
+    `${BOOKS.length} 本绘本（共 ${BOOKS.reduce((n, b) => n + b.pages.length, 0)} 页，其中 ` +
+    `${TOTAL_SCENE_PAGES} 页多元素场景，${new Set(BOOKS.flatMap(charsInBook)).size} 个不重复用字） / ` +
+    `${IDIOMS.length} 个成语 / ` +
     `${ETYMOLOGY.length} 个字有字源演变 / ${SONGS.length} 首儿歌（共 ` +
     `${SONGS.reduce((n, s) => n + s.lines.length, 0)} 句，` +
     `${new Set(SONGS.flatMap(charsInSong)).size} 个不重复用字） / ` +

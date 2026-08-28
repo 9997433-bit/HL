@@ -17,6 +17,10 @@
  *
  * 首页和进度 store 只需要「一共几本」，别从这里 import——正文会跟着进主包，
  * 那两处用 book-index.js。
+ *
+ * 页面插图有两档（ROUND11_H4）：老的一档是一页一个大 emoji，新的一档是
+ * 下面这套场景 DSL——一页摆几件东西，各有位置、大小和一点轻微的动。
+ * 两档并存，没写 `scene` 的页照旧显示 `emoji`，扩充绘本不必一次性全改。
  */
 
 import { CHARACTER_MAP } from './characters.js'
@@ -26,6 +30,58 @@ import { EXTENDED_BOOKS } from './books/extended.js'
 const PUNCTUATION = new Set([
   '，', '。', '！', '？', '：', '、', '；', '「', '」', '《', '》', '…', '—', ' ', '\n'
 ])
+
+/* --------------------------------------------------------- 页级场景 DSL
+ *
+ * 一页一个 emoji 说不清「谁在哪儿、发生了什么」。场景把一页摆成几件东西：
+ *
+ *   {
+ *     emoji: '🌅',                     没有场景的旧路径仍然用它
+ *     text: '天上有日，天上有月。',
+ *     p: 'tiān shàng yǒu rì, tiān shàng yǒu yuè.',
+ *     sceneBg: 'dawn',                 背景预设，缺省用绘本自己的 palette
+ *     sceneAlt: '天上有日，也有月',      读屏念的一句话，同样受用字约束
+ *     scene: [
+ *       { e: '☀️', x: 72, y: 24, s: 1.3, m: 'float' },
+ *       { e: '⛰️', x: 34, y: 80, s: 1.8 }
+ *     ]
+ *   }
+ *
+ * 字段名短是为了体积：一页场景压出来一百来字节，二十页也就 2 KB 上下，
+ * 而且 books.js 只在绘本路由里按需加载，首屏预算不受影响。
+ *   e   一个图形（不许放汉字——要给孩子读的字都在正文里）
+ *   x/y 舞台内的百分比坐标，0–100；y 越大越靠近读者，用来排前后
+ *   s   相对大小，0.4–3，缺省 1
+ *   m   轻微动效：float 上下浮 / sway 左右摆 / drift 缓慢横移 / still 不动
+ */
+
+/** 背景预设：id → [上方色, 下方色]。放在数据层，校验和组件共用同一份。 */
+export const SCENE_BACKDROPS = new Map([
+  ['dawn', ['#ffe7bd', '#ffd0c4']],
+  ['sky', ['#cfe8ff', '#eaf7ff']],
+  ['water', ['#bfe6f5', '#dff5e6']],
+  ['field', ['#e6f5c9', '#fff3d0']],
+  ['storm', ['#c3ccdd', '#a7b6cc']],
+  ['dusk', ['#ffd6c2', '#d7c6f0']],
+  ['night', ['#54618a', '#8a95b8']],
+  ['snow', ['#e8f1fa', '#ffffff']],
+  ['room', ['#ffeede', '#f6e3ff']]
+])
+
+export const SCENE_MOTIONS = new Set(['float', 'sway', 'drift', 'still'])
+
+/** 一页最多摆几件东西。再多就挤成一团，孩子找不到主角。 */
+export const SCENE_ITEM_LIMIT = 6
+
+/** 这一页升级成场景了没有。 */
+export function hasScene(page) {
+  return Array.isArray(page?.scene) && page.scene.length > 0
+}
+
+/** 整本书里升级成场景的那些页。 */
+export function scenePages(book) {
+  return (book?.pages ?? []).filter(hasScene)
+}
 
 /** 书架按分级排，同级内保持「先手写、后扩充」的原始顺序。 */
 export const BOOKS = [...CORE_BOOKS, ...EXTENDED_BOOKS].sort((a, b) => a.level - b.level)
@@ -55,6 +111,92 @@ export function verifyBookCoverage() {
   const problems = []
   for (const book of BOOKS) {
     const missing = charsInBook(book).filter((ch) => !CHARACTER_MAP.has(ch))
+    if (missing.length) problems.push({ book: book.title, missing })
+  }
+  return problems
+}
+
+/** 已经用上场景的绘本 id，按书架顺序。 */
+export const SCENE_BOOK_IDS = BOOKS.filter((b) => scenePages(b).length).map((b) => b.id)
+
+export const TOTAL_SCENE_PAGES = BOOKS.reduce((n, b) => n + scenePages(b).length, 0)
+
+/** 场景旁白里出现的所有汉字（去重）。 */
+export function charsInScenes(book) {
+  const set = new Set()
+  for (const page of scenePages(book)) {
+    for (const ch of page.sceneAlt ?? '') {
+      if (!PUNCTUATION.has(ch)) set.add(ch)
+    }
+  }
+  return [...set]
+}
+
+const inRange = (v, lo, hi) => typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi
+/** 图形位上放汉字就成了「画里写字」：孩子会去读它，而它不受用字约束。 */
+const hasHan = (s) => /\p{Script=Han}/u.test(s)
+
+/**
+ * 开发期自检：场景摆得出来吗。
+ *
+ * 坐标越界不会报错，只会让那件东西飘到画框外——静态数据错得越安静越难发现，
+ * 所以这些约束得在内容自检里挡住，而不是等谁在真机上看见半只小鸟。
+ */
+export function verifyScenes() {
+  const problems = []
+  for (const book of BOOKS) {
+    const bad = []
+    for (const [index, page] of (book.pages ?? []).entries()) {
+      if (page.scene === undefined) continue
+      const at = `p${index + 1}`
+      if (!Array.isArray(page.scene) || !page.scene.length) {
+        bad.push(`${at} 场景不是元素数组`)
+        continue
+      }
+      // 单元素场景不如直接用 emoji：DSL 的意义就是「一页不止一件东西」。
+      if (page.scene.length < 2) bad.push(`${at} 只摆了 1 件元素`)
+      if (page.scene.length > SCENE_ITEM_LIMIT) {
+        bad.push(`${at} 元素 ${page.scene.length} 件超过上限 ${SCENE_ITEM_LIMIT}`)
+      }
+      if (page.sceneBg && !SCENE_BACKDROPS.has(page.sceneBg)) {
+        bad.push(`${at} 背景预设 ${page.sceneBg} 不存在`)
+      }
+      if (!page.sceneAlt) bad.push(`${at} 缺少读屏旁白`)
+      else if (!hasHan(page.sceneAlt)) bad.push(`${at} 旁白不是中文`)
+      // 兜底插图不能因为升级场景就丢：书架和不支持场景的旧入口还在用它。
+      if (!page.emoji) bad.push(`${at} 丢了兜底 emoji`)
+      for (const [i, item] of page.scene.entries()) {
+        const where = `${at}#${i + 1}`
+        if (!item || typeof item !== 'object') {
+          bad.push(`${where} 不是元素对象`)
+          continue
+        }
+        if (!item.e) bad.push(`${where} 没有图形`)
+        else if (hasHan(item.e)) bad.push(`${where} 图形位放了汉字「${item.e}」`)
+        if (!inRange(item.x, 0, 100) || !inRange(item.y, 0, 100)) {
+          bad.push(`${where} 坐标 (${item.x}, ${item.y}) 不在画框内`)
+        }
+        if (item.s !== undefined && !inRange(item.s, 0.4, 3)) {
+          bad.push(`${where} 大小 ${item.s} 越界`)
+        }
+        if (item.m !== undefined && !SCENE_MOTIONS.has(item.m)) {
+          bad.push(`${where} 动效 ${item.m} 不认识`)
+        }
+      }
+    }
+    if (bad.length) problems.push({ book: book.title, bad })
+  }
+  return problems
+}
+
+/**
+ * 开发期自检：场景旁白也归「用字零越界」管。
+ * 旁白只念给读屏听，但它同样是绘本内容，越界就说明这本书悄悄超纲了。
+ */
+export function verifySceneCoverage() {
+  const problems = []
+  for (const book of BOOKS) {
+    const missing = charsInScenes(book).filter((ch) => !CHARACTER_MAP.has(ch))
     if (missing.length) problems.push({ book: book.title, missing })
   }
   return problems
