@@ -5,6 +5,10 @@
  * 洪恩那类课把应用题讲成一段视频；我们做成孩子自己能点开、点到哪一步算哪一步的面板：
  *   图示理解 → 分步提示 → 变式入口
  *
+ * Round 19 起加「讲解播放」（ROUND19_H4）：程序化时间轴自动按步推进，
+ * 可播/可暂停/有进度，可选 TTS 读 why；不塞真实 MP4。
+ * reduced-motion（系统偏好或家长关动效）下降级为手动点步，不自动播。
+ *
  * 三条约束：
  *   1. 剖析是给卡住的孩子的台阶，不是所有人的必经流程——由玩法页按需挂载，
  *      面板自己只管「挂上来就是摊开的」，跳过按钮把收起的决定交回玩法页。
@@ -14,8 +18,15 @@
  * 面板上的两个标记不是一回事：`data-explain` 说的是「这一道题这次讲的是手写的」，
  * 随题变；`data-explain-chain` 说的是「接进来的是哪一版讲解链」，跟着构建走。
  */
-import { computed, ref, watch } from 'vue'
-import { buildAnalysis, ROUND16_H5, ROUND17_H4, ROUND18_H5 } from '@/utils/wpAnalysis'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { buildAnalysis, ROUND16_H5, ROUND17_H4, ROUND19_H4, ROUND19_H5 } from '@/utils/wpAnalysis'
+import {
+  buildExplainTimeline,
+  progressOf,
+  shownStepsForCue,
+} from '@/utils/wpExplainPlayer.js'
+import { reducedMotion } from '@/utils/motion.js'
+import { cancelSpeech, speak } from '@/utils/speech.js'
 import { sound } from '@/utils/sound'
 
 const props = defineProps({
@@ -24,6 +35,8 @@ const props = defineProps({
   reveal: { type: Boolean, default: false },
   /** 返回同结构新实例（母题的 make()）；不给就不显示变式入口。 */
   makeVariant: { type: Function, default: null },
+  /** 讲解播放时是否尝试 TTS 读 why；失败静默。 */
+  tts: { type: Boolean, default: true },
 })
 
 const emit = defineEmits(['skip', 'practice'])
@@ -32,10 +45,33 @@ const emit = defineEmits(['skip', 'practice'])
 const shown = ref(1)
 const variant = ref(null)
 
+/** idle | playing | paused | ended | manual（manual = reduced-motion 手动点步） */
+const playerState = ref('idle')
+const cueIndex = ref(0)
+const cueElapsed = ref(0)
+const progressTick = ref(0)
+const ttsOn = ref(props.tts)
+/** reduced-motion：不自动播，只保留手动点步。 */
+const manualOnly = ref(false)
+
+let advanceTimer = null
+let progressTimer = null
+let mediaQuery = null
+
 const analysis = computed(() => buildAnalysis(props.question))
 const steps = computed(() => analysis.value.steps)
+const timeline = computed(() => buildExplainTimeline(analysis.value))
 const visibleSteps = computed(() => steps.value.slice(0, shown.value))
 const restCount = computed(() => Math.max(0, steps.value.length - shown.value))
+const currentCue = computed(() => timeline.value[cueIndex.value] ?? null)
+const progress = computed(() => {
+  // progressTick 只用来在播放中触发重算
+  void progressTick.value
+  return progressOf(timeline.value, cueIndex.value, cueElapsed.value)
+})
+const progressPct = computed(() => Math.round(progress.value * 100))
+const cueLabel = computed(() => currentCue.value?.label ?? '讲解')
+const motionMode = computed(() => (manualOnly.value ? 'manual' : 'auto'))
 
 const variantAnalysis = computed(() => (variant.value ? buildAnalysis(variant.value) : null))
 
@@ -43,20 +79,159 @@ function resultOf(step) {
   return step.asked && !props.reveal ? step.masked : step.display
 }
 
+function clearTimers() {
+  if (advanceTimer) {
+    clearTimeout(advanceTimer)
+    advanceTimer = null
+  }
+  if (progressTimer) {
+    clearInterval(progressTimer)
+    progressTimer = null
+  }
+}
+
+function stopNarration() {
+  try {
+    cancelSpeech()
+  } catch {
+    /* 静默：个别环境 cancel 会抛 */
+  }
+}
+
+function narrate(text) {
+  if (!ttsOn.value || !text) return
+  try {
+    speak(text)
+  } catch {
+    /* TTS 失败静默，时间轴照走 */
+  }
+}
+
+function applyCue(index) {
+  const cue = timeline.value[index]
+  if (!cue) return
+  cueIndex.value = index
+  cueElapsed.value = 0
+  shown.value = shownStepsForCue(cue)
+  narrate(cue.speakText)
+}
+
+function scheduleAdvance() {
+  clearTimers()
+  if (playerState.value !== 'playing') return
+  const cue = timeline.value[cueIndex.value]
+  if (!cue) {
+    playerState.value = 'ended'
+    return
+  }
+  const baseElapsed = cueElapsed.value
+  const startedAt = performance.now()
+  progressTimer = setInterval(() => {
+    cueElapsed.value = baseElapsed + (performance.now() - startedAt)
+    progressTick.value += 1
+  }, 80)
+  const remain = Math.max(0, cue.durationMs - baseElapsed)
+  advanceTimer = setTimeout(() => {
+    cueElapsed.value = cue.durationMs
+    const next = cueIndex.value + 1
+    if (next >= timeline.value.length) {
+      clearTimers()
+      playerState.value = 'ended'
+      stopNarration()
+      // 播完摊齐（判题前仍盖答案）
+      shown.value = steps.value.length
+      return
+    }
+    applyCue(next)
+    scheduleAdvance()
+  }, remain)
+}
+
+function playExplain() {
+  if (manualOnly.value) return
+  sound.click()
+  if (playerState.value === 'paused') {
+    playerState.value = 'playing'
+    narrate(currentCue.value?.speakText ?? '')
+    scheduleAdvance()
+    return
+  }
+  // 从头或重播
+  playerState.value = 'playing'
+  applyCue(0)
+  scheduleAdvance()
+}
+
+function pauseExplain() {
+  if (playerState.value !== 'playing') return
+  sound.click()
+  playerState.value = 'paused'
+  clearTimers()
+  stopNarration()
+}
+
+function togglePlay() {
+  if (manualOnly.value) return
+  if (playerState.value === 'playing') pauseExplain()
+  else playExplain()
+}
+
+function resetPlayer() {
+  clearTimers()
+  stopNarration()
+  cueIndex.value = 0
+  cueElapsed.value = 0
+  progressTick.value = 0
+  if (manualOnly.value) {
+    playerState.value = 'manual'
+    shown.value = Math.min(1, steps.value.length)
+  } else {
+    playerState.value = 'idle'
+    shown.value = Math.min(1, steps.value.length)
+  }
+}
+
+function applyMotionPreference() {
+  const reduce = reducedMotion()
+  manualOnly.value = reduce
+  if (reduce) {
+    clearTimers()
+    stopNarration()
+    playerState.value = 'manual'
+    // 手动档：保持「先看一步」的既有体验，不自动推进
+    if (shown.value < 1 && steps.value.length) shown.value = 1
+  } else if (playerState.value === 'manual') {
+    playerState.value = 'idle'
+  }
+}
+
 function skip() {
   sound.click()
+  clearTimers()
+  stopNarration()
   emit('skip', props.question?.id ?? '')
 }
 
 function nextStep() {
   if (!restCount.value) return
   sound.click()
+  // 手动点步时若在播，先停掉自动轴，避免和手动打架
+  if (playerState.value === 'playing') pauseExplain()
   shown.value += 1
+  if (manualOnly.value || playerState.value === 'manual') {
+    const idx = shown.value - 1
+    const cue = timeline.value.find((c) => c.stepIndex === idx)
+    if (cue) {
+      cueIndex.value = timeline.value.indexOf(cue)
+      cueElapsed.value = 0
+    }
+  }
 }
 
 function showAllSteps() {
   if (!restCount.value) return
   sound.click()
+  if (playerState.value === 'playing') pauseExplain()
   shown.value = steps.value.length
 }
 
@@ -71,12 +246,16 @@ function practiceSame() {
   emit('practice', props.question?.skill ?? '')
 }
 
+function onMediaChange() {
+  applyMotionPreference()
+}
+
 // 换题就把分步和变式收回起点：新题的第二步不该跟着上一道一起摊开
 watch(
   () => props.question?.text,
   () => {
-    shown.value = 1
     variant.value = null
+    resetPlayer()
   },
 )
 
@@ -84,9 +263,32 @@ watch(
 watch(
   () => props.reveal,
   (on) => {
-    if (on) shown.value = steps.value.length
+    if (on) {
+      if (playerState.value === 'playing') pauseExplain()
+      shown.value = steps.value.length
+    }
   },
 )
+
+watch(
+  () => props.tts,
+  (on) => {
+    ttsOn.value = on
+    if (!on) stopNarration()
+  },
+)
+
+onMounted(() => {
+  applyMotionPreference()
+  mediaQuery = window.matchMedia?.('(prefers-reduced-motion: reduce)')
+  mediaQuery?.addEventListener?.('change', onMediaChange)
+})
+
+onBeforeUnmount(() => {
+  clearTimers()
+  stopNarration()
+  mediaQuery?.removeEventListener?.('change', onMediaChange)
+})
 </script>
 
 <template>
@@ -96,7 +298,12 @@ watch(
     aria-label="应用题剖析"
     :data-analysis="ROUND16_H5"
     :data-explain="analysis.handwritten ? ROUND17_H4 : ''"
-    :data-explain-chain="ROUND18_H5"
+    :data-explain-chain="ROUND19_H5"
+    :data-lesson-player="ROUND19_H4"
+    :data-wp-player="ROUND19_H4"
+    :data-wp-player-state="playerState"
+    :data-wp-player-motion="motionMode"
+    :data-wp-player-progress="progressPct"
   >
     <header class="panel-head">
       <span class="chip chip-on">🔍 剖析</span>
@@ -107,8 +314,61 @@ watch(
       <button class="btn btn--ghost btn--sm" @click="skip">跳过 ✕</button>
     </header>
 
+    <!-- 讲解播放：程序化时间轴（图示 → 分步 why），不是真实 MP4 -->
+    <section
+      class="player"
+      aria-label="讲解播放"
+      :data-wp-player-cues="timeline.length"
+    >
+      <div class="player-row">
+        <button
+          v-if="!manualOnly"
+          class="btn btn--ghost btn--sm"
+          data-wp-play-toggle
+          :aria-pressed="playerState === 'playing'"
+          @click="togglePlay"
+        >
+          <template v-if="playerState === 'playing'">⏸ 暂停</template>
+          <template v-else-if="playerState === 'paused'">▶ 继续</template>
+          <template v-else-if="playerState === 'ended'">↻ 重播讲解</template>
+          <template v-else>▶ 播放讲解</template>
+        </button>
+        <span v-else class="chip chip-manual" data-wp-manual>
+          减弱动效 · 请手动点步
+        </span>
+        <label v-if="!manualOnly" class="tts-toggle">
+          <input v-model="ttsOn" type="checkbox" data-wp-tts />
+          朗读 why
+        </label>
+        <span class="player-cue dim" data-wp-cue-label>{{ cueLabel }}</span>
+      </div>
+      <div
+        class="progress"
+        role="progressbar"
+        :aria-valuenow="progressPct"
+        aria-valuemin="0"
+        aria-valuemax="100"
+        :aria-label="`讲解进度 ${progressPct}%`"
+        data-wp-progress
+      >
+        <span class="progress-fill" :style="{ width: `${progressPct}%` }" />
+      </div>
+      <p class="dim caption player-hint">
+        <template v-if="manualOnly">
+          系统要减少动效，讲解改为手动「再看一步」，不自动播放。
+        </template>
+        <template v-else>
+          讲解播放按图示 → 分步自动推进（约 {{ Math.round(timeline.reduce((s, c) => s + c.durationMs, 0) / 1000) }} 秒），可随时暂停。
+        </template>
+      </p>
+    </section>
+
     <!-- 一 · 图示理解：先把数量画成长短，再说要求的是哪一段 -->
-    <section class="block">
+    <section
+      class="block"
+      :class="{ 'block-active': currentCue?.kind === 'diagram' && playerState === 'playing' }"
+      data-wp-stage="diagram"
+    >
       <h3 class="block-title">① 图示理解</h3>
       <div v-if="analysis.knowns.length" class="knowns">
         <span class="chip">已知</span>
@@ -137,23 +397,36 @@ watch(
     </section>
 
     <!-- 二 · 分步提示：一次只放一步，最后一步的得数判题前盖住 -->
-    <section class="block">
+    <section
+      class="block"
+      :class="{ 'block-active': currentCue?.kind === 'step' && playerState === 'playing' }"
+      data-wp-stage="steps"
+    >
       <h3 class="block-title">② 分步提示</h3>
       <p v-if="analysis.why" class="why">💬 {{ analysis.why }}</p>
-      <ol v-if="steps.length" class="steps">
-        <li v-for="(step, i) in visibleSteps" :key="i" class="step">
+      <ol v-if="steps.length && shown > 0" class="steps">
+        <li
+          v-for="(step, i) in visibleSteps"
+          :key="i"
+          class="step"
+          :class="{ 'step-current': currentCue?.stepIndex === i && playerState === 'playing' }"
+        >
           <span class="step-expr">{{ step.expr }} = {{ resultOf(step) }}</span>
           <span class="step-why">{{ step.why }}</span>
         </li>
       </ol>
-      <p v-else class="fallback">整道题的算式：{{ analysis.equation }}</p>
+      <p v-else-if="!steps.length" class="fallback">整道题的算式：{{ analysis.equation }}</p>
+      <p v-else-if="playerState === 'playing' || playerState === 'paused'" class="dim caption">
+        正在讲图示，下一步会摊开算式……
+      </p>
+      <p v-else class="dim caption">点「播放讲解」按步自动推进，或直接「再看一步」。</p>
       <div v-if="restCount" class="step-actions">
-        <button class="btn btn--ghost btn--sm" @click="nextStep">
+        <button class="btn btn--ghost btn--sm" data-wp-next-step @click="nextStep">
           再看一步（还剩 {{ restCount }} 步）
         </button>
         <button class="btn btn--ghost btn--sm" @click="showAllSteps">全部摊开</button>
       </div>
-      <p v-else-if="steps.length && !reveal" class="dim caption">
+      <p v-else-if="steps.length && !reveal && shown > 0" class="dim caption">
         最后一步的得数先盖着 —— 算出来再回去选答案。
       </p>
     </section>
@@ -208,10 +481,77 @@ watch(
   flex: 1;
 }
 
+.player {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: rgba(94, 231, 255, 0.08);
+  border: 1px solid rgba(94, 231, 255, 0.28);
+}
+
+.player-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.player-cue {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.tts-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+}
+
+.chip-manual {
+  background: rgba(255, 206, 77, 0.14);
+  border-color: rgba(255, 206, 77, 0.4);
+  color: var(--star);
+  font-weight: 800;
+}
+
+.progress {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--brand), var(--accent));
+  transition: width 0.08s linear;
+}
+
+.player-hint {
+  margin: 0;
+}
+
 .block {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  border-radius: var(--radius-sm);
+  transition: box-shadow 0.25s ease, background 0.25s ease;
+}
+
+.block-active {
+  background: rgba(94, 231, 255, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(94, 231, 255, 0.35);
+  padding: 8px 10px;
 }
 
 .block-title {
@@ -329,6 +669,14 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 2px;
+  border-radius: var(--radius-sm);
+  transition: background 0.2s ease;
+}
+
+.step-current {
+  background: rgba(255, 206, 77, 0.1);
+  padding: 4px 8px;
+  margin-left: -8px;
 }
 
 .step-expr {
@@ -379,5 +727,14 @@ watch(
   font-size: 18px;
   font-weight: 900;
   color: var(--success);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress-fill,
+  .bar-fill,
+  .block,
+  .step {
+    transition: none;
+  }
 }
 </style>

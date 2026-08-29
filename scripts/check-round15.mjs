@@ -213,14 +213,16 @@ const validPlay = (p) =>
       }
     }
     const rich = richNarr.size
-    const suspicious = fallbackCount === 0 && rich > 400
+    // Round 19 起全库手写：fallback=0 是正常态，不再当成「管道未打标」
+    const fullCoverage = rich >= runtime.resolved.length && runtime.resolved.length >= 1800
+    const suspicious = fallbackCount === 0 && rich > 400 && !fullCoverage
     if (suspicious) {
       measures.push({ rich: 0, distinct: 0, src: `runtime(可疑：0 条 templateFallback:true 却富 ${rich}，视为管道未打标)` })
     } else {
       measures.push({
         rich,
         distinct: new Set(richNarr.values()).size,
-        src: `runtime(${runtime.playModulePath}，fallback=${fallbackCount})`
+        src: `runtime(${runtime.playModulePath}，fallback=${fallbackCount}${fullCoverage ? '，全库手写' : ''})`
       })
     }
   }

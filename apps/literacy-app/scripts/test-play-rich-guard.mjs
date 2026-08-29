@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * ROUND18_H2（承 ROUND17_H2）· 富 Play 生成管道的负例自测。
+ * ROUND19_H2（承 ROUND18_H2 / ROUND17_H2）· 富 Play 生成管道的负例自测。
  *
- * 探针数的是「1240 条、旁白 1240 句不重样」。这两个数只要有一条路能绕过去，
+ * 探针数的是「1820 条、旁白 1820 句不重样」。这两个数只要有一条路能绕过去，
  * 门槛就是假的：把同一句旁白复制 300 遍，条数照样够；把句号换成感叹号，
  * 一字不差的去重也照样放行——念给孩子听还是同一句。
  *
@@ -11,9 +11,10 @@
  *
  *   1. 一字不差的撞句     → 判错，且指名道姓说和谁撞了
  *   2. 只差标点语气的撞句 → 同样判错（narrationKey 归一后相等）
- *   3. 条数不到 1200      → 判错，不生成半成品
+ *   3. 条数不到 1820      → 判错，不生成半成品
  *   4. 真 seed            → 通过，并且报出的条数 / 去重句数达线
- *   5. 本轮标记           → 生成器和生成物里都读得到 ROUND18_H2（剥注释仍在）
+ *   5. 本轮标记           → 生成器和生成物里都读得到 ROUND19_H2（剥注释仍在）
+ *                           往轮 ROUND18_H2 也还在
  *
  * 用法：node scripts/test-play-rich-guard.mjs
  */
@@ -28,10 +29,13 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const appDir = path.resolve(here, '..')
 const genScript = path.join(here, 'gen-char-play-rich.mjs')
 const seedFile = path.join(appDir, 'scripts', 'data', 'char-play-seed.txt')
+const manifestFile = path.join(appDir, 'src', 'data', 'play-rich', 'index.js')
 
-const MIN_PLAYS = 1200
-const MIN_NARRATIONS = 960
+const MIN_PLAYS = 1820
+const MIN_NARRATIONS = 1600
 /** 本轮标记，生成器和生成物都得带着它，剥掉注释也还在。 */
+const ROUND19_MARK = 'ROUND19_H2'
+/** 往轮标记，不能被这一轮擦掉。 */
 const ROUND18_MARK = 'ROUND18_H2'
 
 const failures = []
@@ -96,7 +100,7 @@ const rebuild = (index, parts) => {
   }
 }
 
-/* ------------------------------------------------- 3. 条数不到 1200 */
+/* ------------------------------------------------- 3. 条数不到 1820 */
 
 {
   const keep = new Set(rowIndexes.slice(0, MIN_PLAYS - 1))
@@ -155,9 +159,11 @@ const rebuild = (index, parts) => {
   const stripComments = (text) =>
     text.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/.*$/gm, '$1')
   const genSource = stripComments(fs.readFileSync(genScript, 'utf8'))
-  if (!genSource.includes(ROUND18_MARK)) fail(`生成器里找不到可执行的 ${ROUND18_MARK}`)
-  const built = stripComments(fs.readFileSync(path.join(appDir, 'src', 'data', 'char-play-rich.js'), 'utf8'))
-  if (!built.includes(ROUND18_MARK)) fail(`生成物里找不到可执行的 ${ROUND18_MARK}`)
+  if (!genSource.includes(ROUND19_MARK)) fail(`生成器里找不到可执行的 ${ROUND19_MARK}`)
+  if (!genSource.includes(ROUND18_MARK)) fail(`生成器里找不到往轮标记 ${ROUND18_MARK}`)
+  const built = stripComments(fs.readFileSync(manifestFile, 'utf8'))
+  if (!built.includes(ROUND19_MARK)) fail(`生成物里找不到可执行的 ${ROUND19_MARK}`)
+  if (!built.includes(ROUND18_MARK)) fail(`生成物里找不到往轮标记 ${ROUND18_MARK}`)
 }
 
 fs.rmSync(tmpDir, { recursive: true, force: true })

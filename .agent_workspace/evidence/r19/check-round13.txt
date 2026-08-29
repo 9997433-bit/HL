@@ -1,0 +1,20 @@
+# command: npm run check:round13
+# commit: 0ec04b7
+# startedAt: 2026-08-29T01:07:45Z
+
+
+> hongen-edu-apps@1.0.0 check:round13
+> node scripts/check-round13.mjs
+
+  ✓ H1 ASR 放行：files[] 落盘 37022120B + 放行/冻结集腿 + harness + ROUND13_H1_SMOKE
+  ✓ H2 OCR Android 模拟 + 失败回流设计 + harness ROUND13_H2
+  ✓ H3 绘本终局 404 页 scene（≥200）+ 渲染接线 + ROUND13_H3
+  ✓ H4 范唱批次 13 首（≥3）+ 13/13 音频 + ROUND13_H4
+  ✓ H5 lift 准实验口径 + ROUND13_H5_SMOKE
+  ✓ H6 Android 模拟：双 APK 落盘 + 证据日志 + 签核文档 + ROUND13_H6 harness
+  ✓ H8 Round 12 门禁 8/8 无退化
+
+  ✗ H7 商店实提未闭环：submit=false —— r13-store-submit
+
+Round 13 终局门禁：7/8 项通过，1 项失败。
+说明：R13 功能分支未全部合并时 FAIL 属预期红灯；集成后必须 8/8。

@@ -82,21 +82,50 @@ export const RICH_PLAY_UNIT_LOADERS = {
   u67: () => import('./u67.js'),
   u68: () => import('./u68.js'),
   u69: () => import('./u69.js'),
-  u70: () => import('./u70.js')
+  u70: () => import('./u70.js'),
+  u71: () => import('./u71.js'),
+  u72: () => import('./u72.js'),
+  u73: () => import('./u73.js'),
+  u74: () => import('./u74.js'),
+  u75: () => import('./u75.js'),
+  u76: () => import('./u76.js'),
+  u77: () => import('./u77.js'),
+  u78: () => import('./u78.js'),
+  u79: () => import('./u79.js'),
+  u80: () => import('./u80.js'),
+  u81: () => import('./u81.js'),
+  u82: () => import('./u82.js'),
+  u83: () => import('./u83.js'),
+  u84: () => import('./u84.js'),
+  u85: () => import('./u85.js'),
+  u86: () => import('./u86.js'),
+  u87: () => import('./u87.js'),
+  u88: () => import('./u88.js'),
+  u89: () => import('./u89.js'),
+  u90: () => import('./u90.js'),
+  u91: () => import('./u91.js'),
+  u92: () => import('./u92.js'),
+  u93: () => import('./u93.js'),
+  u94: () => import('./u94.js'),
+  u95: () => import('./u95.js'),
+  u96: () => import('./u96.js'),
+  u97: () => import('./u97.js'),
+  u98: () => import('./u98.js'),
+  u99: () => import('./u99.js')
 }
 
 /** 手写覆盖到的单元，按 seed 顺序。 */
-export const RICH_PLAY_UNITS = ['u1', 'u2', 'u3', 'u4', 'u5', 'u6', 'u7', 'u8', 'u9', 'u10', 'u11', 'u12', 'u13', 'u14', 'u15', 'u16', 'u17', 'u18', 'u19', 'u20', 'u21', 'u22', 'u23', 'u24', 'u25', 'u26', 'u27', 'u28', 'u29', 'u30', 'u31', 'u32', 'u33', 'u34', 'u35', 'u36', 'u37', 'u38', 'u39', 'u40', 'u41', 'u42', 'u43', 'u44', 'u45', 'u46', 'u47', 'u48', 'u49', 'u50', 'u51', 'u52', 'u53', 'u54', 'u55', 'u56', 'u57', 'u58', 'u59', 'u60', 'u61', 'u62', 'u63', 'u64', 'u65', 'u66', 'u67', 'u68', 'u69', 'u70']
+export const RICH_PLAY_UNITS = ['u1', 'u2', 'u3', 'u4', 'u5', 'u6', 'u7', 'u8', 'u9', 'u10', 'u11', 'u12', 'u13', 'u14', 'u15', 'u16', 'u17', 'u18', 'u19', 'u20', 'u21', 'u22', 'u23', 'u24', 'u25', 'u26', 'u27', 'u28', 'u29', 'u30', 'u31', 'u32', 'u33', 'u34', 'u35', 'u36', 'u37', 'u38', 'u39', 'u40', 'u41', 'u42', 'u43', 'u44', 'u45', 'u46', 'u47', 'u48', 'u49', 'u50', 'u51', 'u52', 'u53', 'u54', 'u55', 'u56', 'u57', 'u58', 'u59', 'u60', 'u61', 'u62', 'u63', 'u64', 'u65', 'u66', 'u67', 'u68', 'u69', 'u70', 'u71', 'u72', 'u73', 'u74', 'u75', 'u76', 'u77', 'u78', 'u79', 'u80', 'u81', 'u82', 'u83', 'u84', 'u85', 'u86', 'u87', 'u88', 'u89', 'u90', 'u91', 'u92', 'u93', 'u94', 'u95', 'u96', 'u97', 'u98', 'u99']
 
 /**
- * 生成期实测的数字，给运行时和探针对账用：manifest 说 1240 条，
- * 那么 loadAllRichPlays() 之后 countRichPlays() 也必须是 1240 条，对不上就是管线出了问题。
+ * 生成期实测的数字，给运行时和探针对账用：manifest 说 1820 条，
+ * 那么 loadAllRichPlays() 之后 countRichPlays() 也必须是 1820 条，对不上就是管线出了问题。
  */
 export const RICH_PLAY_MANIFEST = {
-  plays: 1240,
-  narrations: 1240,
+  plays: 1820,
+  narrations: 1820,
   units: RICH_PLAY_UNITS,
-  perUnit: { u1: 12, u2: 13, u3: 13, u4: 13, u5: 12, u6: 12, u7: 14, u8: 13, u9: 12, u10: 11, u11: 13, u12: 12, u13: 13, u14: 13, u15: 12, u16: 12, u17: 18, u18: 18, u19: 18, u20: 18, u21: 18, u22: 18, u23: 18, u24: 18, u25: 18, u26: 18, u27: 18, u28: 18, u29: 18, u30: 18, u31: 18, u32: 18, u33: 12, u34: 20, u35: 20, u36: 20, u37: 20, u38: 20, u39: 20, u40: 20, u41: 20, u42: 20, u43: 20, u44: 20, u45: 20, u46: 20, u47: 20, u48: 20, u49: 20, u50: 20, u51: 20, u52: 20, u53: 20, u54: 20, u55: 20, u56: 20, u57: 20, u58: 20, u59: 20, u60: 20, u61: 20, u62: 20, u63: 20, u64: 20, u65: 20, u66: 20, u67: 20, u68: 20, u69: 20, u70: 20 }
+  perUnit: { u1: 12, u2: 13, u3: 13, u4: 13, u5: 12, u6: 12, u7: 14, u8: 13, u9: 12, u10: 11, u11: 13, u12: 12, u13: 13, u14: 13, u15: 12, u16: 12, u17: 18, u18: 18, u19: 18, u20: 18, u21: 18, u22: 18, u23: 18, u24: 18, u25: 18, u26: 18, u27: 18, u28: 18, u29: 18, u30: 18, u31: 18, u32: 18, u33: 12, u34: 20, u35: 20, u36: 20, u37: 20, u38: 20, u39: 20, u40: 20, u41: 20, u42: 20, u43: 20, u44: 20, u45: 20, u46: 20, u47: 20, u48: 20, u49: 20, u50: 20, u51: 20, u52: 20, u53: 20, u54: 20, u55: 20, u56: 20, u57: 20, u58: 20, u59: 20, u60: 20, u61: 20, u62: 20, u63: 20, u64: 20, u65: 20, u66: 20, u67: 20, u68: 20, u69: 20, u70: 20, u71: 20, u72: 20, u73: 20, u74: 20, u75: 20, u76: 20, u77: 20, u78: 20, u79: 20, u80: 20, u81: 20, u82: 20, u83: 20, u84: 20, u85: 20, u86: 20, u87: 20, u88: 20, u89: 20, u90: 20, u91: 20, u92: 20, u93: 20, u94: 20, u95: 20, u96: 20, u97: 20, u98: 20, u99: 20 }
 }
 
 /** 模板名录：舞台照着 interaction 决定「怎么算玩完了」。 */
@@ -125,14 +154,17 @@ export const PLAY_THEMES = ['number', 'nature', 'weather', 'animal', 'body', 'fa
 /** 门槛标记，探针剥掉注释后仍读得到。 */
 export const RICH_PLAY_PROBE = 'ROUND17_H2'
 
-/** 本轮门槛标记：条数 ≥1200、旁白去重 ≥960。 */
+/** Round 18 门槛标记（往轮探针仍读这一枚）。 */
 export const RICH_PLAY_PROBE_ROUND18 = 'ROUND18_H2'
+
+/** 本轮门槛标记：条数 ≥1820、旁白去重 ≥1600。 */
+export const RICH_PLAY_PROBE_ROUND19 = 'ROUND19_H2'
 
 /** 拆包这一层的标记：分片 + manifest 的形状是 Round 18 H3 的交付物。 */
 export const RICH_SPLIT_PROBE = 'ROUND18_H3'
 
 /** 历轮标记都留着，往轮探针各读各的那一枚。 */
-export const RICH_PLAY_PROBE_HISTORY = ['ROUND15_H3', 'ROUND16_H3', 'ROUND17_H2', 'ROUND18_H2']
+export const RICH_PLAY_PROBE_HISTORY = ['ROUND15_H3', 'ROUND16_H3', 'ROUND17_H2', 'ROUND18_H2', 'ROUND19_H2']
 
 /** 本轮两条线，生成期已经卡过一遍，运行时再自报一次给探针核对。 */
-export const RICH_PLAY_THRESHOLDS = { plays: 1200, narrations: 960 }
+export const RICH_PLAY_THRESHOLDS = { plays: 1820, narrations: 1600 }

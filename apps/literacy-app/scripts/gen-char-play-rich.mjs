@@ -4,7 +4,7 @@
  *
  * 「玩」这一步要的不是又一张卡片，是和字义对得上的小互动：雨接雨滴、火添柴、
  * 口张嘴发声、推往前推、拉往回拉。这类脚本只能人写，写在
- * scripts/data/char-play-seed.txt 里（前 RICH_UNIT_LIMIT 个单元，一字一条）。
+ * scripts/data/char-play-seed.txt 里（前 RICH_UNIT_LIMIT=99 个单元，一字一条）。
  * 这个脚本负责：
  *
  *   1. 解析 seed 的五段式行（字 | 主题 | 模板 | 旁白 | 道具），旁白撞句就判错——
@@ -60,21 +60,30 @@ const checkOnly = process.argv.includes('--check')
 /** 这一版 seed 的门槛标记，落在生成物里给探针读（Round 17 数的是 ≥900 条）。 */
 const PROBE_MARK = 'ROUND17_H2'
 
-/** 本轮的门槛标记：条数抬到 ≥1200、旁白去重抬到 ≥960，seed 续到 u70。 */
+/** Round 18 门槛标记：条数 ≥1200、旁白去重 ≥960，seed 续到 u70。 */
 const PROBE_MARK_R18 = 'ROUND18_H2'
+
+/** 本轮门槛标记：条数抬到 ≥1820、旁白去重抬到 ≥1600，seed 续满 u99。 */
+const PROBE_MARK_R19 = 'ROUND19_H2'
 
 /** 拆包这一层的标记：分片 + manifest 这套形状是 Round 18 H3 的交付物。 */
 const SPLIT_MARK = 'ROUND18_H3'
 
 /** 历轮标记，往轮探针剥掉注释后仍读得到自己那一枚。 */
-const PROBE_HISTORY = ['ROUND15_H3', 'ROUND16_H3', PROBE_MARK, PROBE_MARK_R18]
+const PROBE_HISTORY = [
+  'ROUND15_H3',
+  'ROUND16_H3',
+  PROBE_MARK,
+  PROBE_MARK_R18,
+  PROBE_MARK_R19
+]
 
 /** 手写脚本覆盖到第几个单元。往后扩就改这里，校验会跟着放宽。 */
-const RICH_UNIT_LIMIT = 70
+const RICH_UNIT_LIMIT = 99
 
 /** 探针数的两条线：条数和「旁白不重样」的句数。生成期就得自己先量一遍。 */
-const MIN_RICH_PLAYS = 1200
-const MIN_DISTINCT_NARRATION = 960
+const MIN_RICH_PLAYS = 1820
+const MIN_DISTINCT_NARRATION = 1600
 
 /** 主题只是给舞台挑配色和音效用的粗分类，别再细分了，多了没人维护得动。 */
 const THEMES = [
@@ -525,8 +534,11 @@ export const PLAY_THEMES = [${THEMES.map(q).join(', ')}]
 /** 门槛标记，探针剥掉注释后仍读得到。 */
 export const RICH_PLAY_PROBE = '${PROBE_MARK}'
 
-/** 本轮门槛标记：条数 ≥${MIN_RICH_PLAYS}、旁白去重 ≥${MIN_DISTINCT_NARRATION}。 */
+/** Round 18 门槛标记（往轮探针仍读这一枚）。 */
 export const RICH_PLAY_PROBE_ROUND18 = '${PROBE_MARK_R18}'
+
+/** 本轮门槛标记：条数 ≥${MIN_RICH_PLAYS}、旁白去重 ≥${MIN_DISTINCT_NARRATION}。 */
+export const RICH_PLAY_PROBE_ROUND19 = '${PROBE_MARK_R19}'
 
 /** 拆包这一层的标记：分片 + manifest 的形状是 Round 18 H3 的交付物。 */
 export const RICH_SPLIT_PROBE = '${SPLIT_MARK}'
