@@ -15,7 +15,7 @@
  * 随题变；`data-explain-chain` 说的是「接进来的是哪一版讲解链」，跟着构建走。
  */
 import { computed, ref, watch } from 'vue'
-import { buildAnalysis, ROUND16_H5, ROUND17_H4, ROUND18_H5 } from '@/utils/wpAnalysis'
+import { buildAnalysis, ROUND16_H5, ROUND17_H4, ROUND19_H5 } from '@/utils/wpAnalysis'
 import { sound } from '@/utils/sound'
 
 const props = defineProps({
@@ -96,7 +96,7 @@ watch(
     aria-label="应用题剖析"
     :data-analysis="ROUND16_H5"
     :data-explain="analysis.handwritten ? ROUND17_H4 : ''"
-    :data-explain-chain="ROUND18_H5"
+    :data-explain-chain="ROUND19_H5"
   >
     <header class="panel-head">
       <span class="chip chip-on">🔍 剖析</span>
