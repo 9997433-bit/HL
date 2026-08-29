@@ -65,7 +65,7 @@ node 导入 wpExplainPlayer + wpAnalysis
   ROUND19_H4 / 播放|暂停 / 进度 / reducedMotion / speak / buildExplainTimeline ✓
   无 .mp4 / video/mp4 ✓
 
-npm run check:round19  → H4 绿（其余门槛由并行岗交付）
+npm run check:round19  → ✓ H4（本岗）；其余门槛由并行岗交付
 ```
 
 ## 与 H5 的边界
