@@ -1,6 +1,6 @@
 <script setup>
 /**
- * 「玩」这一步的舞台（ROUND15_H2）。
+ * 「玩」这一步的舞台（ROUND15_H2 + ROUND19_H3 精美度）。
  *
  * 洪恩每个字先玩一分钟情境小游戏再开始学。我们照做，但玩法不是一字一美术：
  * 剧本从三处来（人手写的富脚本、生成器补齐的全库条目、字表兜底合成），
@@ -18,7 +18,7 @@
  *  2. 永远能走完：右下角「跳过这一步」始终在，跳过也照样 emit complete，
  *     父级的五步流程不会被一个小游戏卡住（WCAG §2.2.1 的思路）。
  *  3. 减少动态时不建任何时间线：会掉的东西改成静止网格，推一推改成直接就位，
- *     题目和通关条件一个字都不变。
+ *     题目和通关条件一个字都不变。ROUND19_H3 的多拍节 / 命中涟漪同样降级。
  *
  * 对外只有两件事：`complete`（玩完了，payload 带 skipped）与 `skip`。
  */
@@ -27,9 +27,26 @@ import gsap from 'gsap'
 import OpenMojiIcon from '@shared/components/OpenMojiIcon.vue'
 import { getCharPlay, getCharPlayAsync } from '@/data/char-play.js'
 import { useFeedback } from '@/composables/useFeedback.js'
+import {
+  PLAY_POLISH,
+  ROUND19_H3,
+  usePlayPolish
+} from '@/composables/usePlayPolish.js'
 import { useSettingsStore } from '@/stores/settings.js'
 import { speak } from '@/utils/speech.js'
 import { sfx } from '@/utils/sfx.js'
+
+/** 可执行探针：ROUND19_H3 精美度（多拍节 / 命中反馈 / 主题氛围）。 */
+const PLAY_STAGE_PROBE = ROUND19_H3
+/** 三类升级钩子——test-play-polish / check:round19 扫这些名字。 */
+const POLISH_BEATS = `${ROUND19_H3}-multi-beat-timeline`
+const POLISH_HIT = `${ROUND19_H3}-prop-hit-feedback`
+const POLISH_AMBIENCE = `${ROUND19_H3}-theme-atmosphere`
+void PLAY_POLISH
+void PLAY_STAGE_PROBE
+void POLISH_BEATS
+void POLISH_HIT
+void POLISH_AMBIENCE
 
 const props = defineProps({
   char: { type: String, required: true },
@@ -76,12 +93,37 @@ const reduced = computed(
       window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches === true)
 )
 
+const {
+  beatIndex,
+  playMultiBeatTimeline,
+  playPropHitFeedback,
+  killPolishMotion
+} = usePlayPolish({ reduced, stageRef })
+
 /** playing | done */
 const state = ref('playing')
 const announce = ref('')
 /** 孩子真的动了几下手；父级可以拿它分辨「玩过了」和「跳过了」。 */
 const interactions = ref(0)
 let finished = false
+
+/** 主题氛围微粒：主题 emoji × 几颗，位置由字哈希固定，不每次刷新乱跳。 */
+const atmosphereMotes = computed(() => {
+  const emoji = scene.value?.themeEmoji || scene.value?.emoji || '✨'
+  const seed = [...(props.char || '字')].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0, 7)
+  return [0, 1, 2, 3].map((i) => {
+    const n = (seed + i * 97) >>> 0
+    return {
+      emoji,
+      style: {
+        left: `${12 + (n % 76)}%`,
+        top: `${10 + ((n >> 3) % 68)}%`,
+        animationDelay: `${(i * 0.7) % 2.4}s`,
+        fontSize: `${18 + (n % 14)}px`
+      }
+    }
+  })
+})
 
 /* --------------------------------------------------------------- 各式状态 */
 
@@ -107,6 +149,7 @@ function killMotion() {
 
 function reset() {
   killMotion()
+  killPolishMotion()
   taken.clear()
   opened.clear()
   filled.clear()
@@ -118,9 +161,12 @@ function reset() {
   finished = false
   state.value = 'playing'
   announce.value = scene.value?.narration ?? ''
-  if (props.autoStart && kind.value === 'catch' && bag.value.moving && !reduced.value) {
-    nextTick(startFalling)
-  }
+  nextTick(() => {
+    playMultiBeatTimeline()
+    if (props.autoStart && kind.value === 'catch' && bag.value.moving && !reduced.value) {
+      startFalling()
+    }
+  })
 }
 
 /* ------------------------------------------------------------------ 完成 */
@@ -129,6 +175,7 @@ function finish({ skipped = false } = {}) {
   if (finished) return
   finished = true
   killMotion()
+  killPolishMotion()
   state.value = 'done'
   if (skipped) {
     announce.value = '这一关先跳过，我们去认一认这个字。'
@@ -164,6 +211,7 @@ function touched() {
 
 function wrong(target, text) {
   feedback.wrong(target)
+  playPropHitFeedback(target, { ok: false })
   announce.value = text
 }
 
@@ -185,6 +233,7 @@ function onPick(option, event) {
   missed.value = ''
   taken.add(option.id)
   feedback.correct(event?.currentTarget, { cueArg: taken.size })
+  playPropHitFeedback(event?.currentTarget, { ok: true })
   const left = need.value - taken.size
   announce.value = left > 0 ? `对啦！还差 ${left} 个。` : '找到啦！'
   if (taken.size >= need.value) finish()
@@ -229,6 +278,7 @@ function onCatch(item, event) {
   missed.value = ''
   taken.add(item.id)
   feedback.correct(event?.currentTarget, { cueArg: taken.size })
+  playPropHitFeedback(event?.currentTarget, { ok: true })
   const el = event?.currentTarget
   const tween = motionTweens.find((t) => t.targets()[0] === el)
   tween?.kill()
@@ -261,6 +311,7 @@ function onPiece(piece, event) {
   missed.value = ''
   filled.set(slot.id, piece.id)
   feedback.correct(event?.currentTarget, { cueArg: filled.size })
+  playPropHitFeedback(event?.currentTarget, { ok: true })
   if (!reduced.value) {
     const box = stageRef.value?.querySelector(`[data-slot="${slot.id}"]`)
     if (box) gsap.fromTo(box, { scale: 0.4, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.45, ease: 'back.out(2)' })
@@ -331,6 +382,7 @@ function onRight(item, event) {
   taken.add(chosen.id)
   picked.value = ''
   feedback.correct(event?.currentTarget, { cueArg: taken.size })
+  playPropHitFeedback(event?.currentTarget, { ok: true })
   const left = need.value - taken.size
   announce.value = left > 0 ? `配上啦！还差 ${left} 对。` : '全配上啦！'
   if (taken.size >= need.value) finish()
@@ -345,6 +397,7 @@ function onPush(event) {
   touched()
   pushes.value += 1
   feedback.tap(event?.currentTarget)
+  playPropHitFeedback(event?.currentTarget, { ok: true })
   const [dx, dy] = AXIS[bag.value.dir] ?? AXIS.right
   const step = 26
   if (heroRef.value && !reduced.value) {
@@ -398,16 +451,32 @@ watch(
   }
 )
 
-onBeforeUnmount(killMotion)
+onBeforeUnmount(() => {
+  killMotion()
+  killPolishMotion()
+})
 
-defineExpose({ finish, replay, skip: onSkip })
+defineExpose({
+  finish,
+  replay,
+  skip: onSkip,
+  ROUND19_H3: PLAY_STAGE_PROBE,
+  PLAY_POLISH,
+  POLISH_BEATS,
+  POLISH_HIT,
+  POLISH_AMBIENCE
+})
 </script>
 
 <template>
   <section
     ref="stageRef"
     class="play char-play-stage"
-    :class="{ 'play--static': reduced, 'play--done': state === 'done' }"
+    :class="{
+      'play--static': reduced,
+      'play--done': state === 'done',
+      'play--polish': true
+    }"
     :style="{ '--play-accent': scene.accent }"
     data-char-play
     :data-char="char"
@@ -415,9 +484,36 @@ defineExpose({ finish, replay, skip: onSkip })
     :data-template="scene.template"
     :data-kind="kind"
     :data-state="state"
+    :data-theme="scene.theme"
     :data-fallback="scene.templateFallback ? 'true' : 'false'"
+    :data-round19-h3="PLAY_STAGE_PROBE"
+    :data-polish="PLAY_STAGE_PROBE"
+    :data-polish-beats="POLISH_BEATS"
+    :data-polish-hit="POLISH_HIT"
+    :data-polish-ambience="POLISH_AMBIENCE"
+    :data-polish-beat="beatIndex"
+    data-polish-atmosphere-on="true"
+    data-polish-hit-feedback="true"
+    data-polish-multi-beat="true"
     :aria-label="`「${char}」的玩一玩：${scene.templateLabel}`"
   >
+    <!-- ROUND19_H3 · 主题氛围层（reduced 时静态，不飘） -->
+    <div
+      class="play__atmosphere"
+      data-polish-atmosphere
+      data-theme-atmosphere
+      aria-hidden="true"
+    >
+      <span class="play__atmosphere-glow" />
+      <span class="play__atmosphere-glow play__atmosphere-glow--2" />
+      <span
+        v-for="(mote, i) in atmosphereMotes"
+        :key="`mote-${i}`"
+        class="play__atmosphere-mote"
+        :style="mote.style"
+      >{{ mote.emoji }}</span>
+    </div>
+
     <header class="play__head">
       <p class="play__badge">
         <span aria-hidden="true">{{ scene.themeEmoji }}</span>
@@ -426,199 +522,210 @@ defineExpose({ finish, replay, skip: onSkip })
       </p>
       <p class="play__narration">{{ scene.narration }}</p>
       <p v-if="scene.prompt" class="play__caption">{{ scene.prompt }}</p>
+      <ol
+        v-if="!reduced && state === 'playing' && beatIndex > 0 && beatIndex < 3"
+        class="play__beats"
+        aria-hidden="true"
+      >
+        <li :class="{ on: beatIndex >= 1 }" />
+        <li :class="{ on: beatIndex >= 2 }" />
+        <li :class="{ on: beatIndex >= 3 }" />
+      </ol>
     </header>
 
-    <!-- pick：从几个里点中对的 -->
-    <div v-if="kind === 'pick'" class="play__pick">
-      <p v-if="bag.sceneLabel" class="play__scene">
-        <span aria-hidden="true">{{ bag.scene }}</span> {{ bag.sceneLabel }}
-      </p>
-      <button v-if="bag.say" type="button" class="btn btn--ghost btn--sm" @click="sayIt">
-        🔊 再听一遍{{ bag.pinyin ? `（${bag.pinyin}）` : '' }}
-      </button>
-      <ul class="play__cards">
-        <li v-for="option in options" :key="option.id">
-          <button
-            type="button"
-            class="play__card"
-            :class="{
-              'is-open': !bag.cover || opened.has(option.id),
-              'is-right': taken.has(option.id),
-              'is-wrong': missed === option.id
-            }"
-            :disabled="taken.has(option.id)"
-            :aria-label="bag.cover && !opened.has(option.id) ? '盖着的卡片' : option.label"
-            @click="onPick(option, $event)"
-          >
-            <span v-if="bag.cover && !opened.has(option.id)" class="play__cover" aria-hidden="true">
-              {{ bag.cover }}
-            </span>
-            <template v-else>
-              <OpenMojiIcon v-if="option.emoji" class="play__icon" :emoji="option.emoji" :size="46" />
-              <span v-if="option.glyph" class="play__glyph play__glyph--sm">{{ option.glyph }}</span>
-              <span v-if="taken.has(option.id) && option.reveal" class="play__label">{{ option.reveal }}</span>
-            </template>
-          </button>
-        </li>
-      </ul>
-    </div>
+    <div class="play__body" data-polish-body>
+      <!-- pick：从几个里点中对的 -->
+      <div v-if="kind === 'pick'" class="play__pick">
+        <p v-if="bag.sceneLabel" class="play__scene">
+          <span aria-hidden="true">{{ bag.scene }}</span> {{ bag.sceneLabel }}
+        </p>
+        <button v-if="bag.say" type="button" class="btn btn--ghost btn--sm" @click="sayIt">
+          🔊 再听一遍{{ bag.pinyin ? `（${bag.pinyin}）` : '' }}
+        </button>
+        <ul class="play__cards">
+          <li v-for="option in options" :key="option.id">
+            <button
+              type="button"
+              class="play__card"
+              :class="{
+                'is-open': !bag.cover || opened.has(option.id),
+                'is-right': taken.has(option.id),
+                'is-wrong': missed === option.id
+              }"
+              :disabled="taken.has(option.id)"
+              :aria-label="bag.cover && !opened.has(option.id) ? '盖着的卡片' : option.label"
+              @click="onPick(option, $event)"
+            >
+              <span v-if="bag.cover && !opened.has(option.id)" class="play__cover" aria-hidden="true">
+                {{ bag.cover }}
+              </span>
+              <template v-else>
+                <OpenMojiIcon v-if="option.emoji" class="play__icon" :emoji="option.emoji" :size="46" />
+                <span v-if="option.glyph" class="play__glyph play__glyph--sm">{{ option.glyph }}</span>
+                <span v-if="taken.has(option.id) && option.reveal" class="play__label">{{ option.reveal }}</span>
+              </template>
+            </button>
+          </li>
+        </ul>
+      </div>
 
-    <!-- catch：会掉的、要数的，点够次数就过 -->
-    <div
-      v-else-if="kind === 'catch' && bag.moving && !reduced"
-      ref="rainRef"
-      class="play__rain"
-    >
-      <button
-        v-for="item in items"
-        :key="item.id"
-        type="button"
-        class="play__drop"
-        :class="{ 'is-caught': taken.has(item.id) }"
-        :style="{ left: `${item.x}%` }"
-        :data-delay="item.delay"
-        :data-duration="item.duration"
-        :disabled="taken.has(item.id)"
-        :aria-label="item.label"
-        @click="onCatch(item, $event)"
+      <!-- catch：会掉的、要数的，点够次数就过 -->
+      <div
+        v-else-if="kind === 'catch' && bag.moving && !reduced"
+        ref="rainRef"
+        class="play__rain"
       >
-        <OpenMojiIcon v-if="item.emoji" class="play__icon" :emoji="item.emoji" :size="40" />
-        <span v-else class="play__glyph play__glyph--sm">{{ item.glyph }}</span>
-      </button>
-      <p class="play__ground">
-        <span v-if="bag.tool" aria-hidden="true">{{ bag.tool }}</span>
-        接住「{{ bag.target }}」
-      </p>
-    </div>
-
-    <div v-else-if="kind === 'catch'" class="play__grid">
-      <button
-        v-for="item in items"
-        :key="item.id"
-        type="button"
-        class="play__cell"
-        :class="{ 'is-found': taken.has(item.id), 'is-wrong': missed === item.id }"
-        :disabled="taken.has(item.id)"
-        :aria-label="bag.cover && !opened.has(item.id) ? '盖着的卡片' : item.label"
-        @click="onCatch(item, $event)"
-      >
-        <span v-if="bag.cover && !opened.has(item.id)" class="play__cover" aria-hidden="true">
-          {{ bag.cover }}
-        </span>
-        <template v-else>
-          <OpenMojiIcon v-if="item.emoji" class="play__icon" :emoji="item.emoji" :size="38" />
+        <button
+          v-for="item in items"
+          :key="item.id"
+          type="button"
+          class="play__drop"
+          :class="{ 'is-caught': taken.has(item.id) }"
+          :style="{ left: `${item.x}%` }"
+          :data-delay="item.delay"
+          :data-duration="item.duration"
+          :disabled="taken.has(item.id)"
+          :aria-label="item.label"
+          @click="onCatch(item, $event)"
+        >
+          <OpenMojiIcon v-if="item.emoji" class="play__icon" :emoji="item.emoji" :size="40" />
           <span v-else class="play__glyph play__glyph--sm">{{ item.glyph }}</span>
-        </template>
-      </button>
-    </div>
+        </button>
+        <p class="play__ground">
+          <span v-if="bag.tool" aria-hidden="true">{{ bag.tool }}</span>
+          接住「{{ bag.target }}」
+        </p>
+      </div>
 
-    <!-- assemble：零件送回位置 -->
-    <div v-else-if="kind === 'assemble'" class="play__assemble">
-      <div v-if="bag.mode === 'word'" class="play__word">
-        <span
-          v-for="(ch, i) in bag.chars"
-          :key="`w${i}`"
-          class="play__glyph"
-          :class="{ 'play__slot': i === bag.blank }"
-          :data-slot="i === bag.blank ? slots[0]?.id : undefined"
+      <div v-else-if="kind === 'catch'" class="play__grid">
+        <button
+          v-for="item in items"
+          :key="item.id"
+          type="button"
+          class="play__cell"
+          :class="{ 'is-found': taken.has(item.id), 'is-wrong': missed === item.id }"
+          :disabled="taken.has(item.id)"
+          :aria-label="bag.cover && !opened.has(item.id) ? '盖着的卡片' : item.label"
+          @click="onCatch(item, $event)"
         >
-          {{ i === bag.blank ? (filled.size ? ch : '？') : ch }}
-        </span>
-      </div>
-      <div v-else class="play__whole">
-        <span
-          v-for="slot in slots"
-          :key="slot.id"
-          class="play__slot"
-          :class="{ 'is-filled': filled.has(slot.id) }"
-          :data-slot="slot.id"
-        >
-          {{ filled.has(slot.id) ? slot.glyph : '？' }}
-        </span>
-        <span class="play__arrow" aria-hidden="true">→</span>
-        <span class="play__glyph">{{ bag.whole }}</span>
-      </div>
-      <p class="play__caption">{{ bag.hint }}</p>
-      <ul class="play__parts">
-        <li v-for="piece in pieces" :key="piece.id">
-          <button
-            type="button"
-            class="play__part"
-            :class="{ 'is-wrong': missed === piece.id, 'is-right': pieceUsed(piece) }"
-            :disabled="pieceUsed(piece) || state === 'done'"
-            :aria-label="`${piece.glyph}${piece.label ? ' ' + piece.label : ''}`"
-            @click="onPiece(piece, $event)"
-          >
-            <span class="play__part-glyph">{{ piece.glyph }}</span>
-            <span v-if="piece.label" class="play__label">{{ piece.label }}</span>
-          </button>
-        </li>
-      </ul>
-    </div>
-
-    <!-- watch：一帧一帧看完 -->
-    <div v-else-if="kind === 'watch'" class="play__morph">
-      <div ref="frameRef" class="play__morph-slot">
-        <OpenMojiIcon
-          v-if="currentFrame?.emoji"
-          class="play__icon play__icon--big"
-          :emoji="currentFrame.emoji"
-          :size="96"
-          :label="currentFrame.caption"
-        />
-        <span v-if="currentFrame?.glyph" class="play__glyph">{{ currentFrame.glyph }}</span>
-      </div>
-      <p class="play__caption">{{ currentFrame?.caption }}</p>
-      <button type="button" class="btn btn--primary" @click="stepFrame($event)">
-        {{ frame >= frames.length - 1 ? '玩好啦' : (bag.button ?? '变！') }}
-      </button>
-    </div>
-
-    <!-- match：左边一个右边一个 -->
-    <div v-else-if="kind === 'match'" class="play__match">
-      <ul class="play__column">
-        <li v-for="item in leftItems" :key="item.id">
-          <button
-            type="button"
-            class="play__cell"
-            :class="{ 'is-found': taken.has(item.id), 'is-picked': picked === item.id }"
-            :disabled="taken.has(item.id)"
-            :aria-pressed="picked === item.id"
-            :aria-label="item.label || '左边的一个'"
-            @click="onLeft(item, $event)"
-          >
+          <span v-if="bag.cover && !opened.has(item.id)" class="play__cover" aria-hidden="true">
+            {{ bag.cover }}
+          </span>
+          <template v-else>
             <OpenMojiIcon v-if="item.emoji" class="play__icon" :emoji="item.emoji" :size="38" />
             <span v-else class="play__glyph play__glyph--sm">{{ item.glyph }}</span>
-          </button>
-        </li>
-      </ul>
-      <ul class="play__column">
-        <li v-for="item in rightItems" :key="item.id">
-          <button
-            type="button"
-            class="play__cell"
-            :class="{ 'is-wrong': missed === item.id }"
-            :aria-label="item.label || '右边的一个'"
-            @click="onRight(item, $event)"
-          >
-            <OpenMojiIcon v-if="item.emoji" class="play__icon" :emoji="item.emoji" :size="38" />
-            <span v-else class="play__glyph play__glyph--sm">{{ item.glyph }}</span>
-            <span v-if="item.label" class="play__label">{{ item.label }}</span>
-          </button>
-        </li>
-      </ul>
-    </div>
-
-    <!-- push：顺着一个方向推 -->
-    <div v-else class="play__push">
-      <div class="play__track">
-        <span ref="heroRef" class="play__hero">
-          <OpenMojiIcon class="play__icon play__icon--big" :emoji="bag.hero" :size="72" />
-        </span>
+          </template>
+        </button>
       </div>
-      <button type="button" class="btn btn--primary" @click="onPush($event)">
-        {{ bag.dirLabel }}推一下
-      </button>
+
+      <!-- assemble：零件送回位置 -->
+      <div v-else-if="kind === 'assemble'" class="play__assemble">
+        <div v-if="bag.mode === 'word'" class="play__word">
+          <span
+            v-for="(ch, i) in bag.chars"
+            :key="`w${i}`"
+            class="play__glyph"
+            :class="{ 'play__slot': i === bag.blank }"
+            :data-slot="i === bag.blank ? slots[0]?.id : undefined"
+          >
+            {{ i === bag.blank ? (filled.size ? ch : '？') : ch }}
+          </span>
+        </div>
+        <div v-else class="play__whole">
+          <span
+            v-for="slot in slots"
+            :key="slot.id"
+            class="play__slot"
+            :class="{ 'is-filled': filled.has(slot.id) }"
+            :data-slot="slot.id"
+          >
+            {{ filled.has(slot.id) ? slot.glyph : '？' }}
+          </span>
+          <span class="play__arrow" aria-hidden="true">→</span>
+          <span class="play__glyph">{{ bag.whole }}</span>
+        </div>
+        <p class="play__caption">{{ bag.hint }}</p>
+        <ul class="play__parts">
+          <li v-for="piece in pieces" :key="piece.id">
+            <button
+              type="button"
+              class="play__part"
+              :class="{ 'is-wrong': missed === piece.id, 'is-right': pieceUsed(piece) }"
+              :disabled="pieceUsed(piece) || state === 'done'"
+              :aria-label="`${piece.glyph}${piece.label ? ' ' + piece.label : ''}`"
+              @click="onPiece(piece, $event)"
+            >
+              <span class="play__part-glyph">{{ piece.glyph }}</span>
+              <span v-if="piece.label" class="play__label">{{ piece.label }}</span>
+            </button>
+          </li>
+        </ul>
+      </div>
+
+      <!-- watch：一帧一帧看完 -->
+      <div v-else-if="kind === 'watch'" class="play__morph">
+        <div ref="frameRef" class="play__morph-slot">
+          <OpenMojiIcon
+            v-if="currentFrame?.emoji"
+            class="play__icon play__icon--big"
+            :emoji="currentFrame.emoji"
+            :size="96"
+            :label="currentFrame.caption"
+          />
+          <span v-if="currentFrame?.glyph" class="play__glyph">{{ currentFrame.glyph }}</span>
+        </div>
+        <p class="play__caption">{{ currentFrame?.caption }}</p>
+        <button type="button" class="btn btn--primary" @click="stepFrame($event)">
+          {{ frame >= frames.length - 1 ? '玩好啦' : (bag.button ?? '变！') }}
+        </button>
+      </div>
+
+      <!-- match：左边一个右边一个 -->
+      <div v-else-if="kind === 'match'" class="play__match">
+        <ul class="play__column">
+          <li v-for="item in leftItems" :key="item.id">
+            <button
+              type="button"
+              class="play__cell"
+              :class="{ 'is-found': taken.has(item.id), 'is-picked': picked === item.id }"
+              :disabled="taken.has(item.id)"
+              :aria-pressed="picked === item.id"
+              :aria-label="item.label || '左边的一个'"
+              @click="onLeft(item, $event)"
+            >
+              <OpenMojiIcon v-if="item.emoji" class="play__icon" :emoji="item.emoji" :size="38" />
+              <span v-else class="play__glyph play__glyph--sm">{{ item.glyph }}</span>
+            </button>
+          </li>
+        </ul>
+        <ul class="play__column">
+          <li v-for="item in rightItems" :key="item.id">
+            <button
+              type="button"
+              class="play__cell"
+              :class="{ 'is-wrong': missed === item.id }"
+              :aria-label="item.label || '右边的一个'"
+              @click="onRight(item, $event)"
+            >
+              <OpenMojiIcon v-if="item.emoji" class="play__icon" :emoji="item.emoji" :size="38" />
+              <span v-else class="play__glyph play__glyph--sm">{{ item.glyph }}</span>
+              <span v-if="item.label" class="play__label">{{ item.label }}</span>
+            </button>
+          </li>
+        </ul>
+      </div>
+
+      <!-- push：顺着一个方向推 -->
+      <div v-else class="play__push">
+        <div class="play__track">
+          <span ref="heroRef" class="play__hero">
+            <OpenMojiIcon class="play__icon play__icon--big" :emoji="bag.hero" :size="72" />
+          </span>
+        </div>
+        <button type="button" class="btn btn--primary" @click="onPush($event)">
+          {{ bag.dirLabel }}推一下
+        </button>
+      </div>
     </div>
 
     <footer class="play__foot">
@@ -638,7 +745,10 @@ defineExpose({ finish, replay, skip: onSkip })
 </template>
 
 <style scoped>
+
 .play {
+  position: relative;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   gap: var(--gap-md);
@@ -648,6 +758,167 @@ defineExpose({ finish, replay, skip: onSkip })
   background: var(--surface);
   border: 2px solid var(--surface-border);
   border-top: 6px solid var(--play-accent, var(--brand));
+}
+
+.play__atmosphere {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+  opacity: 1;
+}
+
+.play__atmosphere-glow {
+  position: absolute;
+  width: 58%;
+  height: 48%;
+  left: -8%;
+  top: -12%;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 40% 40%,
+    color-mix(in srgb, var(--play-accent, var(--brand)) 28%, transparent),
+    transparent 70%
+  );
+  filter: blur(2px);
+}
+
+.play__atmosphere-glow--2 {
+  left: auto;
+  right: -14%;
+  top: auto;
+  bottom: -18%;
+  width: 52%;
+  height: 44%;
+  background: radial-gradient(
+    circle at 60% 50%,
+    color-mix(in srgb, var(--play-accent, var(--brand)) 18%, transparent),
+    transparent 72%
+  );
+}
+
+.play__atmosphere-mote {
+  position: absolute;
+  opacity: 0.22;
+  line-height: 1;
+  transform: translateY(0);
+  animation: play-mote-drift 4.8s ease-in-out infinite alternate;
+}
+
+.play__head,
+.play__body,
+.play__foot {
+  position: relative;
+  z-index: 1;
+}
+
+.play__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+}
+
+.play__beats {
+  display: flex;
+  gap: 6px;
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+}
+
+.play__beats li {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--play-accent, var(--brand)) 28%, var(--surface-border));
+}
+
+.play__beats li.on {
+  background: var(--play-accent, var(--brand));
+  transform: scale(1.15);
+}
+
+.play__hit-burst {
+  position: absolute;
+  z-index: 4;
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  pointer-events: none;
+}
+
+.play__hit-burst-ring {
+  position: absolute;
+  inset: -14px;
+  border-radius: 50%;
+  border: 2px solid var(--play-accent, var(--brand));
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--play-accent, var(--brand)) 22%, transparent);
+}
+
+.play__hit-burst--bad .play__hit-burst-ring {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--danger) 20%, transparent);
+}
+
+.play__hit-burst-spark {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--play-accent, var(--brand));
+}
+
+.play__hit-burst--bad .play__hit-burst-spark {
+  background: var(--danger);
+}
+
+.play--hit-ok {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 35%, transparent);
+}
+
+.play--hit-bad {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 30%, transparent);
+}
+
+.is-hit-ok-static {
+  outline: 2px solid var(--success);
+}
+
+.is-hit-bad-static {
+  outline: 2px solid var(--danger);
+}
+
+@keyframes play-mote-drift {
+  from {
+    transform: translateY(0) rotate(-4deg);
+    opacity: 0.16;
+  }
+  to {
+    transform: translateY(-10px) rotate(6deg);
+    opacity: 0.32;
+  }
+}
+
+.play--static .play__atmosphere-mote {
+  animation: none;
+  opacity: 0.18;
+}
+
+.play--static .play__beats {
+  display: none;
+}
+
+.play--static .play__hit-burst {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .play__atmosphere-mote {
+    animation: none;
+  }
 }
 
 .play__head {
