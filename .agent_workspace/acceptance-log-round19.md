@@ -48,14 +48,14 @@ worktree 缺 gitignored 的 android-sim 产物，重建归 r19-regression-gate�
 
 | 探针 | 状态 | Owner |
 |---|---|---|
-| H1 差距续表 | ⬜ | r19-hongen-gap-audit |
-| H2 全库富 Play ≥1820 | ⬜ | r19-play-rich-full |
-| H3 精美度升级 | ⬜ | r19-play-polish |
-| H4 剖析视频级播放器 | ⬜ | r19-wp-video-player |
-| H5 精品剖析 ≥150 | ⬜ | r19-wp-explain-150 |
-| H6 走查证据包 | ⬜ | r19-walkthrough-bundle |
-| H7 真机/模拟台账 | ⬜ | r19-regression-gate |
-| H8 往轮 round18 | ⬜ | r19-regression-gate |
+| H1 差距续表 | ✅ | r19-hongen-gap-audit |
+| H2 全库富 Play ≥1820 | ✅ | r19-play-rich-full |
+| H3 精美度升级 | ✅ | r19-play-polish |
+| H4 剖析视频级播放器 | ✅ | r19-wp-video-player |
+| H5 精品剖析 ≥150 | ✅ | r19-wp-explain-150 |
+| H6 走查证据包 | ✅ | r19-walkthrough-bundle |
+| H7 真机/模拟台账 | ✅ | r19-regression-gate |
+| H8 往轮 round18 | ✅ | r19-regression-gate |
 
 ## 十路子代理
 
@@ -78,3 +78,7 @@ worktree 缺 gitignored 的 android-sim 产物，重建归 r19-regression-gate�
 |---|---|
 | 2026-08-29 | v1.0 编排启动，十路发射（精美度 + 全库富 Play + 剖析视频级） |
 | 2026-08-29 | r19-acceptance-spec：ACCEPTANCE v1.0 + check-round19.mjs（ROUND19-v1.0）合入，启动实测 **0/8** |
+
+## 收口
+
+`npm run check:round19` → **8/8**（含全库富 Play 1820、精美度、讲解播放器、剖析150、H7 BLOCKED）。
