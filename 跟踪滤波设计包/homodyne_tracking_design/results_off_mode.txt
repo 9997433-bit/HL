@@ -1,0 +1,12 @@
+OFF 模式产品封装冒烟回归 (tracking_mode in {pll, off, fixed_lp})
+  fs=250MS/s; OFF = 跟踪旁路: 输出 angle(z)/FM 鉴频, 无 PLL 无残差窗; gate-off (gate_policy=always) 仍是 PLL 模式
+  [PASS] O1  cfg(tracking_mode='off') 路由到旁路: band=None, phi==angle(z), |y|=1, state=None  (band=None, mode=off)
+  [PASS] O2  OFF 旁路保真: FM 鉴频与 raw z 一致, 近无噪幅值误差 < 0.5 %  (ampErr -0.000%, v_off==v_raw: True)
+  [PASS] O3  gate-off != OFF: gate_policy='always' 仍在跟踪 (弱光 ASD 改善 > 10 dB), OFF 恒 0 dB (输出==输入)  (PLL(SLOW, gate=always) vs OFF: +37.9 dB @100kHz CNR=3dB (2 seeds); OFF==raw: True)
+  [PASS] O4  PLL 路径一致: tracking_filter == residual_mode 逐样本 (gate auto/always)  (y/phi/state 全部 array_equal)
+  [PASS] O5  参数守卫: 非法 tracking_mode / gate_policy=off 误用 / pll 缺 Nhat 均 ValueError  (3/3 raised)
+  [PASS] O6a  cfg(tracking_mode='fixed_lp') 路由到固定窗: band=None, y==fir_lp_same(z,B_WIN,FS,NT_WIN), phi==angle(y), state=None  (band=None, mode=fixed_lp, B_win=4MHz, NT_win=1025)
+  [PASS] O6b  fixed_lp != OFF: 弱光下鉴频输出不同, 固定窗 ASD 优于 OFF (去掉窗外噪声/点击, 但仍无 PLL 门限扩展)  (differs: True, fixed_lp vs OFF: +38.3 dB @100kHz CNR=3dB)
+
+ALL CHECKS PASSED  (7/7)
+[elapsed 0.7 s]

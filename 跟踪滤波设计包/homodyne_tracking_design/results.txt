@@ -1,0 +1,131 @@
+三档零差IQ跟踪滤波方案 -- 仿真验证 (V1-V4)
+reference core: pll_carrier_regen / residual-window, fs=250MS/s, lambda=1550nm, T=0.5ms/run
+
+======================================================================================
+V0  三档参数表  (lambda=1550nm, fs=250MS/s, zeta=1.2, B_win=4MHz common window, B_frontend=40MHz)
+======================================================================================
+  gear      f_max      fn   B_loop   ceil40  in-loop CNR@3dB   note
+  SLOW       200k    110k    0.49M   +16.1dB            19.1dB   结构/低频, 最高灵敏度
+  MEDIUM    1000k    530k    2.34M    +9.3dB            12.3dB   常用 ≤1 MHz
+  FAST      3000k   1600k    7.08M    +4.5dB             7.5dB   最高 3 MHz
+  公共测量窗 (三档相同): -6dB 截止 4 MHz, 平坦(<1%误差)区 DC..~3.6 MHz (window ENBW 7.8 MHz -> in-window CNR@3dB ~ 10.1 dB)
+
+======================================================================================
+V1  弱光 CNR=3dB, B_frontend=40MHz -- 100k/1M/3M 正弦速度burst, 三档 x 三频  (12 seeds, median [p10,p90])
+======================================================================================
+
+  f0 = 100 kHz  (burst 20 cyc, vamp 20 mm/s)
+    gear        fn | ampErr full  ampErr NCO |          SNRgain full dB |   SNRgain NCO dB |  lock%
+    SLOW      110k |      -0.00%      +9.70% |  +38.50 [ +36.41, +39.67] |          +37.56 |  92.7
+    MEDIUM    530k |      -0.00%      +3.03% |  +38.45 [ +36.37, +39.69] |          +37.17 |  98.0
+    FAST     1600k |      -0.00%      +0.38% |  +13.01 [  +9.85, +14.86] |          +12.98 |  99.0
+
+  f0 = 1000 kHz  (burst 50 cyc, vamp 20 mm/s)
+    gear        fn | ampErr full  ampErr NCO |          SNRgain full dB |   SNRgain NCO dB |  lock%
+    SLOW      110k |      +0.00%     -74.06% |  +18.86 [ +18.36, +19.82] |          +17.79 |  92.7
+    MEDIUM    530k |      +0.00%     -10.13% |  +18.84 [ +18.35, +19.80] |          +17.67 |  98.0
+    FAST     1600k |      +0.00%     +11.50% |  +12.04 [ +11.30, +13.49] |          +11.87 |  99.0
+
+  f0 = 3000 kHz  (burst 60 cyc, vamp 20 mm/s)
+    gear        fn | ampErr full  ampErr NCO |          SNRgain full dB |   SNRgain NCO dB |  lock%
+    SLOW      110k |      +0.06%     -91.19% |   +9.33 [  +9.15, +10.10] |           +8.53 |  92.7
+    MEDIUM    530k |      +0.06%     -59.11% |   +9.27 [  +9.03, +10.03] |           +8.33 |  98.0
+    FAST     1600k |      +0.02%      -8.39% |   +7.92 [  +6.93,  +8.50] |           +7.10 |  99.0
+
+  (ampErr = R1 near-noiseless transfer; full = NCO+residual-window output, NCO = carrier path alone)
+  物理解释: 点击(click)清除发生在复域残差窗内, 要求载波环比窗慢 (B_loop < B_win).
+  SLOW/MEDIUM (ζ=1.2 下 0.49M/2.34M) 满足, 故低频增益达到甚至超过窗的门限扩展;
+  FAST 档 B_loop=7.1M > 4M, NCO 把部分点击跟进输出, 低频增益只剩 ~+12dB (部分清除)
+  -- 所以低频目标必须用低档 (V4选档保证). ζ 的选择依据见 validate_zeta_sweep.py (审查项#7).
+
+  -- V1 criteria --
+  [PASS] C1  FAST档 @3MHz 幅值误差 < 3%  (0.02%)
+  [PASS] C2  FAST档 @3MHz SNR gain > 0 dB (CNR=3dB)  (+7.92 dB)
+  [PASS] C3  SLOW档 @100kHz SNR gain > 10 dB (CNR=3dB, Bf=40MHz)  (+38.50 dB)
+  [PASS] C4  三档 @3MHz 幅值误差均 < 5%  (worst 0.06%)
+
+======================================================================================
+V2  plain LP 对照 (同 B_loop=0.49M / 同 B_win=4M 固定复数低通) vs 跟踪档 -- PLL价值边界
+    100 kHz burst, 速度幅值扫描, CNR=3dB, B_frontend=40MHz (8 seeds)
+======================================================================================
+
+       vamp  fD_peak | path      ampErr clean ampErr noisy |          SNRgain@100k dB
+       20mm/s    0.03M | LP-Bloop         -0.3%        +1.7% |  +37.20 [ +35.80, +41.07]
+                     | LP-Bwin          -0.0%        +5.2% |  +37.23 [ +35.58, +40.82]
+                     | SLOW             -0.0%        -1.1% |  +37.21 [ +35.58, +40.84]
+                     | MEDIUM           -0.0%        +5.7% |  +37.13 [ +18.67, +40.85]
+                     | FAST             -0.0%      +155.6% |  +14.93 [  +7.78, +40.49]
+      300mm/s    0.39M | LP-Bloop         -1.0%        -1.1% |  +38.14 [ +36.47, +39.47]
+                     | LP-Bwin          -0.0%        -0.2% |  +38.61 [ +36.10, +39.47]
+                     | SLOW             -0.0%        -0.4% |  +38.59 [ +36.10, +39.43]
+                     | MEDIUM           -0.0%        -0.2% |  +38.46 [ +36.09, +39.22]
+                     | FAST             -0.0%        +1.5% |  +10.77 [  +8.92, +14.71]
+     1000mm/s    1.29M | LP-Bloop        -41.3%       -48.1% |  +33.03 [ +32.28, +34.03]
+                     | LP-Bwin          -0.0%        +0.0% |  +37.47 [ +36.79, +38.36]
+                     | SLOW             -0.0%        -0.3% |  +37.49 [ +36.80, +38.33]
+                     | MEDIUM           -0.0%        +0.0% |  +37.44 [ +36.82, +38.16]
+                     | FAST             -0.0%        +0.5% |  +14.43 [ +12.48, +21.25]
+     3000mm/s    3.87M | LP-Bloop        -73.8%       -87.2% |  +25.62 [ +23.42, +28.51]
+                     | LP-Bwin          -0.0%        -0.0% |  +37.08 [ +34.90, +39.89]
+                     | SLOW             -0.0%        -0.4% |  +37.05 [ +34.90, +39.90]
+                     | MEDIUM           -0.0%        -0.0% |  +35.58 [ +22.25, +38.83]
+                     | FAST             -0.0%        -0.2% |  +11.31 [  +8.57, +16.11]
+     6000mm/s    7.74M | LP-Bloop        -86.2%       -96.4% |  +19.62 [ +16.52, +22.76]
+                     | LP-Bwin         -22.5%       -59.4% |  +34.39 [ +31.54, +37.50]
+                     | SLOW            -35.4%       -59.1% |  +32.79 [ +29.97, +35.95]
+                     | MEDIUM           -0.0%       -30.6% |  +36.54 [ +16.89, +40.15]
+                     | FAST             -0.0%        -0.6% |  +13.22 [  +9.31, +18.22]
+
+    边界结论: 固定LP在 fD_peak 超出其通带后幅值崩溃; 跟踪档把边界推到环路失锁点
+    |1-H_L(f_v)|*phi_amp > pi (SLOW档先失效 -> 需升档, 见V4); 静止载波下固定LP与(正确选档的)跟踪档等价 -- 这就是PLL的价值边界.
+  [PASS] C6  静止载波: 固定LP(B_win) 与选定档(SLOW) SNR gain 差 < 3 dB (PLL无增值 -- 价值边界的诚实面)  (LP +37.23 dB vs SLOW +37.21 dB)
+  [PASS] C7  fD=7.7M > B_win: 固定LP严重超出5%预算(清洁<-15%) 而 FAST档 <5% (跟踪的价值面)  (LP-Bwin -22.5% (含噪 -59.4%) vs FAST -0.0% (含噪 -0.6%))
+
+======================================================================================
+V3  散斑掉落 (tau_c=50us, gear=SLOW, B_frontend=20MHz, 输出统一滤到 1MHz, 12 seeds) -- 诚实报告
+======================================================================================
+
+  mean CNR = 6 dB   (gate-on lock fraction 70.9%)
+    metric                                         OFF       gear gate-off        gear gate-on
+    velocity spikes >0.4 m/s           110 [  73,  192]      50 [   9,   86]      17 [   3,   22]
+    phase slips (2pi events)             0 [   0,    0]       0 [   0,    0]       0 [   0,    0]
+    disp rms err (nm, in 1 MHz)       3786 [2427,10171]    1252 [ 579, 2709]     889 [ 419, 2038]
+
+  mean CNR = 12 dB   (gate-on lock fraction 81.0%)
+    metric                                         OFF       gear gate-off        gear gate-on
+    velocity spikes >0.4 m/s            32 [  14,   64]       9 [   0,   15]       4 [   0,   10]
+    phase slips (2pi events)             0 [   0,    0]       0 [   0,    0]       0 [   0,    0]
+    disp rms err (nm, in 1 MHz)       2544 [ 959, 5064]     575 [  61, 1854]     395 [ 183, 1973]
+
+  诚实结论: CNR=6dB 时 gate-on 把速度尖峰中值 110 -> 17 个, 位移rms误差 3786 -> 889 nm (改善 4.3x).
+  本组实测: 尖峰抑制未付出位移精度代价 (位移误差持平或改善); 但掉落期间NCO飞轮只能外推, 位移连续性仍无法承诺.
+
+======================================================================================
+V4  档位切换: 按目标频率选档 + 跟踪误差守卫 (phi_err <= 1 rad)
+======================================================================================
+     f_target   v_peak | phi_err SLOW   MEDIUM     FAST |  selected  expect
+        100kHz     20mm/s |        0.10r    0.01r    0.00r |      SLOW    SLOW
+       1000kHz     20mm/s |        0.03r    0.02r    0.01r |      SLOW    SLOW
+       3000kHz     20mm/s |        0.01r    0.01r    0.01r |      SLOW    SLOW
+        100kHz   1000mm/s |        4.87r    0.43r    0.05r |    MEDIUM  MEDIUM
+        100kHz   6000mm/s |       29.23r    2.59r    0.30r |      FAST    FAST
+       3000kHz    100mm/s |        0.04r    0.04r    0.03r |      SLOW    SLOW
+  [PASS] C5  选档逻辑: 全部场景返回期望档位  (6 cases, guard-pass narrowest gear)
+
+  为什么低频选低档: 载波路径(NCO) @100kHz 的弱光SNR增益 SLOW +37.6 dB vs FAST +13.0 dB (V1实测)
+  为什么大动态升档: vamp=6 m/s @100kHz 时幅值误差 SLOW -35.4% vs FAST -0.0% (V2实测)
+  测量带宽在换档时不变 (公共4MHz残差窗), 换档只改变载波环动态 -- 见V1: 三档3MHz幅值误差均合格.
+
+======================================================================================
+ASSERTION SUMMARY
+======================================================================================
+  [PASS] C1  FAST档 @3MHz 幅值误差 < 3%  (0.02%)
+  [PASS] C2  FAST档 @3MHz SNR gain > 0 dB (CNR=3dB)  (+7.92 dB)
+  [PASS] C3  SLOW档 @100kHz SNR gain > 10 dB (CNR=3dB, Bf=40MHz)  (+38.50 dB)
+  [PASS] C4  三档 @3MHz 幅值误差均 < 5%  (worst 0.06%)
+  [PASS] C6  静止载波: 固定LP(B_win) 与选定档(SLOW) SNR gain 差 < 3 dB (PLL无增值 -- 价值边界的诚实面)  (LP +37.23 dB vs SLOW +37.21 dB)
+  [PASS] C7  fD=7.7M > B_win: 固定LP严重超出5%预算(清洁<-15%) 而 FAST档 <5% (跟踪的价值面)  (LP-Bwin -22.5% (含噪 -59.4%) vs FAST -0.0% (含噪 -0.6%))
+  [PASS] C5  选档逻辑: 全部场景返回期望档位  (6 cases, guard-pass narrowest gear)
+
+ALL CHECKS PASSED
+[elapsed 34.6 s]
