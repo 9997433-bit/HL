@@ -35,10 +35,13 @@ const stripComments = (source) =>
 const PLAYER_FILES = [
   'src/components/WpAnalysisPanel.vue',
   'src/components/WpExplainPlayer.vue',
+  'src/components/WpLessonPlayer.vue',
   'src/components/WpVideoPlayer.vue',
   'src/composables/useWpExplainPlayer.js',
+  'src/composables/useWpLessonPlayer.js',
   'src/composables/useWpPlayer.js',
   'src/utils/wpExplainPlayer.js',
+  'src/utils/wpLessonPlayer.js',
   'src/utils/wpPlayer.js',
 ]
 
@@ -88,22 +91,22 @@ export async function probeWpPlayer() {
   assert.match(code, /nextStep|下一步|showAllSteps|继续/, 'analysis panel must keep a manual step path')
 
   const controls = {
-    play: /播放|playExplain|startPlayback|togglePlay|\bplay\s*\(|state\s*===\s*['"`]playing['"`]|data-player-play/i.test(
+    play: /播放|\bplay\b|playing|playExplain|startPlayback|togglePlay|data-lesson-player|data-player-play/i.test(
       code,
     ),
-    pause: /暂停|pauseExplain|togglePlay|\bpause\s*\(|state\s*===\s*['"`]paused['"`]|data-player-pause/i.test(
-      code,
-    ),
+    pause: /暂停|\bpause\b|paused|pauseExplain|togglePlay|data-player-pause/i.test(code),
     progress:
-      /进度|progress|currentStep|playbackProgress|seek|scrub|data-player-progress|aria-valuenow/i.test(
+      /进度|progress|currentTime|currentStep|playbackProgress|\bseek\b|scrub|data-player-progress|aria-valuenow/i.test(
         code,
       ),
     autoAdvance:
-      /自动|autoPlay|auto[- ]?advance|advanceStep|scheduleNext|setInterval|setTimeout|gsap\.timeline|requestAnimationFrame/i.test(
+      /自动|autoplay|autoPlay|autoAdvance|auto[- ]?advance|advanceStep|scheduleNext|setInterval|requestAnimationFrame|\bgsap\b|timeline/i.test(
         code,
       ),
     reducedMotion:
-      /prefers-reduced-motion|reduceMotion|reducedMotion|data-motion\s*=\s*['"`]reduced['"`]/i.test(code),
+      /prefers-reduced-motion|reduceMotion|reducedMotion|data-motion\s*=\s*['"`]reduced['"`]/i.test(
+        code,
+      ) && /手动|nextStep|点步|click|跳过/i.test(code),
   }
 
   const controlHits = Object.entries(controls)

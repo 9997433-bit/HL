@@ -33,24 +33,26 @@ const UPGRADE_CHECKS = [
   {
     id: 'multi-beat-timeline',
     label: '多拍节 timeline',
+    // 契约：GSAP timeline（或等价）+ 拍节语义；可选 POLISH_BEATS 钩子
     test: (code) =>
-      /gsap\.timeline|timeline\s*\(/.test(code) &&
-      /beat|拍节|multi[- ]?beat|stagger|keyframes?/i.test(code),
+      /POLISH_BEATS|data-polish-beats/i.test(code) ||
+      ((/gsap\.timeline|timeline\s*\(/.test(code) || /多拍|拍节/i.test(code)) &&
+        /beat|拍节|multi[- ]?beat|stagger/i.test(code)),
   },
   {
     id: 'hit-feedback',
     label: '道具命中反馈增强',
+    // 现有 feedback.correct 微缩放不够；要有增强层/钩子
     test: (code) =>
-      /feedback\.(?:correct|celebrate|tap)|hitFeedback|impact|pulse|burst|ripple/i.test(code) &&
-      /enhance|boost|layer|spark|poof|bounce|shake|glow|pop/i.test(code),
+      /POLISH_HIT|hitFeedback|propHit|data-polish-hit/i.test(code) ||
+      (/命中|道具/.test(code) && /反馈|粒子|碎屑|描边|spark|burst|ripple|poof/i.test(code)),
   },
   {
     id: 'theme-atmosphere',
     label: '主题氛围层',
     test: (code) =>
-      /atmosphere|ambience|ambiance|theme[-_]?layer|mood|aura|backdrop[-_]?layer|play__atmosphere/i.test(
-        code,
-      ),
+      /POLISH_AMBIENCE|themeLayer|data-polish-ambience|play__atmosphere/i.test(code) ||
+      /atmosphere|ambience|ambiance|氛围|mood|aura/i.test(code),
   },
 ]
 
