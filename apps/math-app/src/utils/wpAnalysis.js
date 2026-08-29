@@ -17,6 +17,7 @@
  * 公式那句放之四海皆准的话，查不到就照旧走公式，两边都不缺步。
  */
 import { explainOf, ROUND17_H4, ROUND18_H5 } from '@/data/word-problem-explains.js'
+import { ROUND19_H4 } from '@/utils/wpExplainPlayer.js'
 
 /** 剖析壳的三件套：图示理解 → 分步提示 → 变式入口。 */
 export const ROUND16_H5 = 'diagram-steps-variant'
@@ -28,7 +29,7 @@ export const ROUND16_H5 = 'diagram-steps-variant'
  */
 export const ROUND18_H4 = 'wp-steps-alignment'
 
-export { ROUND17_H4, ROUND18_H5 }
+export { ROUND17_H4, ROUND18_H5, ROUND19_H4 }
 
 /** 运算符统一成题面里用的那套符号，顺带带上「为什么用它」的一句话。 */
 const OPS = {
