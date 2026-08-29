@@ -1,0 +1,19 @@
+# command: npm run check:round18
+# commit: 0ec04b7
+# startedAt: 2026-08-29T01:07:45Z
+
+
+> hongen-edu-apps@1.0.0 check:round18
+> node scripts/check-round18.mjs
+
+
+Round 18 check (ROUND18-v1.0): 8/8
+
+✓ H1 Round18 差距续表就位（双基线 + 本轮归属）
+✓ H2 富 Play 1820 ≥ 1200，narration 去重 1820 ≥ 960（可执行标记 ×3）
+✓ H3 富脚本已按单元拆包（分片 100 ≥ 5，合计 557KB ≥ 100KB，无整包静态 import）
+✓ H4 步数对齐 214/214 = 100.0% ≥ 90%（题库 ≥200，可执行标记 ×2）
+✓ H5 精品剖析 150 ≥ 80（去重中文讲解句 410 ≥ 200，可执行标记 ×2）
+✓ H6 走查证据包就位（引用 8，落盘 8 ≥ 4，场景 4/4）
+✓ H7 r18 真机/模拟闭环或诚实 BLOCKED 台账就位
+✓ H8 check:round17 8/8

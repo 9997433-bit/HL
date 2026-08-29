@@ -1,0 +1,19 @@
+# command: npm run check:round19
+# commit: 0ec04b7
+# startedAt: 2026-08-29T01:07:45Z
+
+
+> hongen-edu-apps@1.0.0 check:round19
+> node scripts/check-round19.mjs
+
+
+Round 19 check (ROUND19-v1.0): 8/8
+
+✓ H1 Round19 差距续表就位（双基线 + 本轮归属）
+✓ H2 富 Play 1820 ≥ 1820，narration 去重 1820 ≥ 1600（可执行标记 ×3，loader=true）
+✓ H3 精美度升级就位（升级词证 3/3，reduced-motion 降级，可执行标记 ×2）
+✓ H4 剖析播放器词证齐（播/暂停/进度 + 自动推进 + reduced-motion 手动降级，可执行标记 ×3）
+✓ H5 精品剖析 150 ≥ 150（去重中文讲解句 418 ≥ 400，可执行标记 ×3）
+✓ H6 走查证据包就位（引用 6，落盘 6 ≥ 4，场景 4/4）
+✓ H7 r19 真机/模拟闭环或诚实 BLOCKED 台账就位
+✓ H8 check:round18 8/8
