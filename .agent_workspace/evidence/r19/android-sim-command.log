@@ -1,0 +1,52 @@
+> hongen-edu-apps@1.0.0 android:sim
+> node scripts/android-sim.mjs
+
+[android-sim-harness-v2] Android 模拟全链路开始…
+{
+  "simulated": true,
+  "marker": "android-sim-harness-v2",
+  "note": "VM WebView 模拟 + Capacitor APK 构建；不等价 Android QA 真机签核",
+  "timestamp": "2026-08-29T01:04:09.526Z",
+  "commit": "2624e06",
+  "webViewUserAgent": "Mozilla/5.0 (Linux; Android 13; Pixel 7 Build/TQ3A.230805.001; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/120.0.6099.230 Mobile Safari/537.36",
+  "webView": {
+    "requestedUserAgent": "Mozilla/5.0 (Linux; Android 13; Pixel 7 Build/TQ3A.230805.001; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/120.0.6099.230 Mobile Safari/537.36",
+    "literacyObservedUserAgent": "Mozilla/5.0 (Linux; Android 13; Pixel 7 Build/TQ3A.230805.001; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/120.0.6099.230 Mobile Safari/537.36",
+    "mathObservedUserAgent": "Mozilla/5.0 (Linux; Android 13; Pixel 7 Build/TQ3A.230805.001; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/120.0.6099.230 Mobile Safari/537.36",
+    "pass": true
+  },
+  "steps": [
+    { "step": "build:all", "pass": true, "exit": 0 },
+    { "step": "sync:android", "pass": true, "exit": 0 },
+    { "step": "check:android", "pass": true, "exit": 0 },
+    { "step": "gradle:literacy", "pass": true, "exit": 0, "durationMs": 13601 },
+    { "step": "gradle:math", "pass": true, "exit": 0, "durationMs": 6942 },
+    { "step": "smoke:literacy:webview-ua", "pass": false, "exit": 1, "routes": 164, "problems": 1 },
+    { "step": "smoke:math:webview-ua", "pass": true, "exit": 0, "routes": 20, "problems": 0 },
+    { "step": "ocr-device-a", "pass": true, "exit": 0 }
+  ],
+  "literacy": {
+    "smokePass": false,
+    "smokeRoutes": 164,
+    "smokeInteractions": 45,
+    "smokeProblems": 1,
+    "webViewUaPass": true,
+    "apkSha256": "6269d6f72d13c9ecb81c64656e7d7615efc63ca8e39c430590eb9f6db7967499",
+    "apkBytes": 37615274,
+    "apkPath": "apps/literacy-app/android/app/build/outputs/apk/debug/app-debug.apk"
+  },
+  "math": {
+    "smokePass": true,
+    "smokeRoutes": 20,
+    "smokeInteractions": 38,
+    "smokeProblems": 0,
+    "webViewUaPass": true,
+    "apkSha256": "5f29c871f40802811199d2cf52e5501f45472bdfdeee60db0ba1f3745a7c87d5",
+    "apkBytes": 4297730,
+    "apkPath": "apps/math-app/android/app/build/outputs/apk/debug/app-debug.apk"
+  },
+  "ocr": { "pass": true },
+  "androidHome": "/home/ubuntu/android-sdk"
+}
+
+EXIT:1

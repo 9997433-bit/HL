@@ -1,0 +1,19 @@
+# command: npm run check:round15
+# commit: 0ec04b7
+# startedAt: 2026-08-29T01:07:45Z
+
+
+> hongen-edu-apps@1.0.0 check:round15
+> node scripts/check-round15.mjs
+
+
+Round 15 check (ROUND15-v1.1): 8/8
+
+✓ H1 五步 play→intro→listen→trace→说，默认从玩起且 play 舞台已挂载
+✓ H2 getCharPlay 全库 1820/1820 template+narration 有效（apps/literacy-app/src/data/char-play.js）
+✓ H3 富 play 脚本 1820 ≥ 200，narration 去重 1820 ≥ 160（runtime(apps/literacy-app/src/data/char-play.js，fallback=0，全库手写)）
+✓ H4 认步默认挂载/播放字源舞台（intro 门控或 ROUND15_H4+自动展开）
+✓ H5 自动补齐管道就位（apps/literacy-app/scripts/gen-char-play.mjs，fallback 条目已打标）
+✓ H6 写步含引导示范再描红
+✓ H7 literacy smoke 覆盖 play 全库 + reduced-motion，且有断言
+✓ H8 check:round13 7/8；H1–H6/H8 保持绿（仅 H7 可因 Play 账号阻断）

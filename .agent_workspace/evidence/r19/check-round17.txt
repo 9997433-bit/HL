@@ -1,0 +1,19 @@
+# command: npm run check:round17
+# commit: 0ec04b7
+# startedAt: 2026-08-29T01:07:45Z
+
+
+> hongen-edu-apps@1.0.0 check:round17
+> node scripts/check-round17.mjs
+
+
+Round 17 check (ROUND17-v1.1): 8/8
+
+✓ H1 Round17 差距续表就位
+✓ H2 富 Play 1820 ≥ 900，narration 去重 1820 ≥ 720（可执行标记 ×3）
+✓ H3 数学学演示 27 ≥ 27（三态+可跳过）
+✓ H4 精品剖析 150 ≥ 20（去重中文讲解句 418 ≥ 60，分步+可跳过）
+✓ H5 学伴关键路径已接线（可执行标记 ×4）
+✓ H6 走查证据包就位（引用 8，落盘 8 ≥ 4，场景 4/4）
+✓ H7 r17 真机/模拟闭环或诚实 BLOCKED 台账就位
+✓ H8 check:round16 8/8
