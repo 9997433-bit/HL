@@ -360,7 +360,7 @@ async function scenePolishStage(browser, base) {
   return { char, ...meta, h3Ready: false }
 }
 
-/** ③ 剖析播放器：现有剖析面板（R19 H4 视频级播放器未合入时拍静态面板）。 */
+/** ③ 剖析播放器：讲解时间轴（ROUND19_H4）；未合入时退回静态面板并标注未齐。 */
 async function sceneAnalysisPlayer(browser, base) {
   console.log('\n③ 剖析播放器')
   const page = await browser.newPage()
@@ -371,45 +371,68 @@ async function sceneAnalysisPlayer(browser, base) {
   await page.waitForSelector('[data-analysis]', { timeout: 15_000 })
   await wait(600)
 
-  const unfolded = await clickText(page, '全部摊开')
-  await clickText(page, '看一道同结构的变式')
-  await wait(800)
+  // H4：点「播放讲解」让时间轴走起来再拍
+  const started = await page.evaluate(() => {
+    const btn = document.querySelector('[data-wp-play-toggle]')
+    if (!btn) return false
+    btn.click()
+    return true
+  })
+  if (started) await wait(1800)
+  else {
+    await clickText(page, '全部摊开')
+    await clickText(page, '看一道同结构的变式')
+    await wait(800)
+  }
 
-  const shown = await page.$eval(
-    '[data-analysis] .steps',
-    (ol) => ol.querySelectorAll('.step').length,
-  )
+  const shown = await page
+    .$eval('[data-analysis] .steps', (ol) => ol.querySelectorAll('.step').length)
+    .catch(() => 0)
+
   const playerBits = await page.evaluate(() => {
     const root = document.querySelector('[data-analysis]')
-    if (!root) return { hasVideo: false, hasTimeline: false, hasPlayBtn: false }
-    const text = root.innerText
+    if (!root) return { hasPlayer: false, hasPlayBtn: false, state: '', cues: 0, progress: '' }
+    const playBtn = root.querySelector('[data-wp-play-toggle]')
     return {
-      hasVideo: Boolean(root.querySelector('video')),
-      hasTimeline: /时间轴|播放进度|timeline/i.test(text + root.className),
-      hasPlayBtn: [...root.querySelectorAll('button')].some((b) =>
-        /播放|暂停|▶|❚❚/.test(b.innerText),
+      hasPlayer: Boolean(
+        root.getAttribute('data-lesson-player') ||
+          root.getAttribute('data-wp-player') ||
+          root.querySelector('.player'),
       ),
+      hasPlayBtn: Boolean(playBtn),
+      state: root.getAttribute('data-wp-player-state') || '',
+      cues: Number(root.querySelector('[data-wp-player-cues]')?.getAttribute('data-wp-player-cues') || 0),
+      progress: root.getAttribute('data-wp-player-progress') || '',
+      playLabel: playBtn?.innerText?.trim() || '',
       skippable: Boolean(
         [...root.querySelectorAll('button')].find((b) => /跳过|✕|关闭/.test(b.innerText)),
       ),
     }
   })
 
-  const videoReady = playerBits.hasVideo || playerBits.hasTimeline
+  const videoReady = playerBits.hasPlayer && playerBits.hasPlayBtn
   await shootElement(
     page,
     '[data-analysis]',
     'r19-04-analysis-player.png',
-    `剖析播放器：图示 + 分步（摊开 ${shown} 步` +
-      `${unfolded ? '，点过全部摊开' : ''}）+ 变式。` +
-      (videoReady
-        ? '已检出视频/时间轴控件。'
-        : '未检出 <video>/时间轴——R19 H4 视频级播放器尚未合入，拍的是静态剖析面板（未齐）。'),
+    videoReady
+      ? `剖析播放器（ROUND19_H4）：讲解时间轴已起（state=${playerBits.state}、` +
+          `cues=${playerBits.cues}、progress=${playerBits.progress || '—'}、` +
+          `按钮「${playerBits.playLabel}」），分步可见 ${shown} 步。`
+      : `剖析播放器：图示 + 分步（摊开 ${shown} 步）+ 变式。` +
+          '未检出 data-lesson-player / 播放键——R19 H4 视频级播放器尚未合入（未齐）。',
   )
+
+  // 若在播放中，先暂停再答题，避免时间轴抢焦点
+  if (playerBits.state === 'playing') {
+    await page.click('[data-wp-play-toggle]').catch(() => {})
+    await wait(300)
+  }
+  await clickText(page, '跳过')
+  await wait(400)
 
   const done = await answerRound(page, 8, { deliberateWrong: true })
   console.log(`  ↳ 剖析后继续作答 ${done} 题，落进本机存档供周报`)
-  // 不关 page——周报要共用上下文；由调用方关闭
   return {
     page,
     shownSteps: shown,

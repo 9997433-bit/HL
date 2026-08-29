@@ -1,43 +1,43 @@
 {
   "round": 19,
-  "generatedAt": "2026-08-29T00:55:49.397Z",
+  "generatedAt": "2026-08-29T00:58:48.876Z",
   "chrome": "/usr/local/bin/google-chrome",
   "node": "v22.14.0",
   "preview": {
     "literacy": "http://127.0.0.1:4173",
-    "math": "http://127.0.0.1:4174"
+    "math": "http://127.0.0.1:4194"
   },
   "tree": "cursor/r19-walkthrough-bundle-9f67 ← origin/cursor/r19-orchestration-9f67",
   "shots": [
     {
       "name": "r19-01-rich-spot.png",
       "caption": "全库富玩抽查：手写关「驰」（template=swipe-motion、fallback=false），旁白「骏马撒开腿，飞驰起来。」——库内富脚本 1240/1820，距 H2 全库还差 580（未齐）",
-      "bytes": 126809
+      "bytes": 126905
     },
     {
       "name": "r19-02-rich-coverage.png",
       "caption": "全库富玩覆盖率实测：1240/1820（R19 H2 阈值 ≥1820） · 未齐，差 580",
-      "bytes": 124460
+      "bytes": 124210
     },
     {
       "name": "r19-03-polish-stage.png",
       "caption": "精美舞台基线：「驰」玩关舞台（template=swipe-motion、state=playing、已往右 1 / 3）。R19 H3 精美度升级尚未合入——拍的是编排启动时的舞台外观（未齐）。",
-      "bytes": 126643
+      "bytes": 125640
     },
     {
       "name": "r19-04-analysis-player.png",
-      "caption": "剖析播放器：图示 + 分步（摊开 1 步）+ 变式。未检出 <video>/时间轴——R19 H4 视频级播放器尚未合入，拍的是静态剖析面板（未齐）。",
-      "bytes": 718589
+      "caption": "剖析播放器（ROUND19_H4）：讲解时间轴已起（state=playing、cues=2、progress=30、按钮「⏸ 暂停」），分步可见 0 步。",
+      "bytes": 819855
     },
     {
       "name": "r19-05-math-parent-weekly.png",
       "caption": "数学家长周报：弱项 thin —— 这周只练了 1 天、一共 0 分钟：口算和推理都靠手感，每天 10 分钟比周末补一次管用。",
-      "bytes": 591775
+      "bytes": 590397
     },
     {
       "name": "r19-06-literacy-mascot.png",
-      "caption": "识字学伴气泡「有 1 个老朋友在等你，先去打个招呼吧。 点我，换一句悄悄话」",
-      "bytes": 37385
+      "caption": "识字学伴气泡「学累了就歇一会儿，我在这里等你。 点我，换一句悄悄话」",
+      "bytes": 37423
     }
   ],
   "meta": {
@@ -61,22 +61,25 @@
       "h3Ready": false
     },
     "analysis-player": {
-      "shownSteps": 1,
+      "shownSteps": 0,
       "answered": 8,
       "playerBits": {
-        "hasVideo": false,
-        "hasTimeline": false,
-        "hasPlayBtn": false,
+        "hasPlayer": true,
+        "hasPlayBtn": true,
+        "state": "playing",
+        "cues": 2,
+        "progress": "30",
+        "playLabel": "⏸ 暂停",
         "skippable": true
       },
-      "h4Ready": false
+      "h4Ready": true
     },
     "parent-weekly": {
       "weakness": "thin",
       "headline": "这周只练了 1 天、一共 0 分钟：口算和推理都靠手感，每天 10 分钟比周末补一次管用。"
     },
     "mascot": {
-      "say": "有 1 个老朋友在等你，先去打个招呼吧。 点我，换一句悄悄话"
+      "say": "学累了就歇一会儿，我在这里等你。 点我，换一句悄悄话"
     }
   },
   "failures": []
