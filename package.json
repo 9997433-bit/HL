@@ -53,6 +53,7 @@
     "test:math": "bash scripts/test-math.sh",
     "test:round16:smoke": "node --test scripts/test-round16-smoke.mjs",
     "test:round18:smoke": "npm run test:play:split --workspace=apps/literacy-app && npm run verify:wp-steps --workspace=apps/math-app",
+    "test:round19:smoke": "npm run test:play:full --workspace=apps/literacy-app && npm run test:play:polish --workspace=apps/literacy-app && npm run verify:wp-player --workspace=apps/math-app && node --test scripts/test-round19-smoke.mjs",
     "walkthrough:shots": "node scripts/walkthrough-shots.mjs",
     "walkthrough:shots:r18": "node scripts/walkthrough-shots-r18.mjs",
     "test:offline": "bash scripts/offline-smoke.sh",
